@@ -1,3 +1,5 @@
+var config = require('../config');
+
 /*---------------------
    :: Hooks
    -> controller
@@ -145,8 +147,8 @@ var HooksController = {
 
      var secret = req.param('secret');
      console.log('Secret',secret);
-     if (secret != sails.config.hook_secret) {
-       sails.log.error('Invalid Secret:', sails.config.hook_secret);
+     if (secret != config.hook_secret) {
+       sails.log.error('Invalid Hook Secret: ', secret);
        return res.status(401).send('Invalid POST');
      }
 
