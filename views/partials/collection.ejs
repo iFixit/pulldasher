@@ -1,0 +1,8 @@
+<% if (collection.pulls.length > 0) { %>
+   <div class="row-fluid">
+      <span class="collection-description"><%= collection.description %></span>
+      <% for (var pull in collections.pulls) { %>
+         <%- partial('partials/pull', {locals: {pull: pull}}) %>
+      <% } %>
+   </div>
+<% } %>
