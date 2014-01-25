@@ -2,12 +2,13 @@ var config = require('./config'),
     httpServer,
     express = require('express'),
     partials = require('express-partials'),
-    passport = require('./lib/authentication'),
+    authManager = require('./lib/authentication'),
+    passport = authManager.passport,
     socketAuthenticator = require('./lib/socket-auth'),
     pullManager = require('./lib/pull-manager')(),
-    main = require('./controllers/main.js'),
-    pullController = require('./controllers/pull.js')(pullManager),
-    authController = require('./controllers/auth.js');
+    gitManager = require('./lib/git-manager'),
+    mainController = require('./controllers/main'),
+    pullController = require('./controllers/pull')(pullManager);
 
 var app = express();
 
@@ -33,12 +34,16 @@ app.use(express.logger());
 /**
  * Routes
  */
-authController(app);
-app.get('/',         main.index);
+authManager.setupRoutes(app);
+app.get('/',         mainController.index);
 app.get('/pull',     pullController.index);
 app.get('/pull/add', pullController.add);
 
-
+gitManager.getAllPulls().then(function(pulls) {
+   pulls.forEach(function(pullData) {
+      pullManager.addPull(pullData);
+   });
+});
 //====================================================
 // Socket.IO
 

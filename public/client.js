@@ -12,9 +12,11 @@ _.extend(Pull.prototype, {
       _.extend(this, data);
 
       var html = this.render();
+      console.log(html);
       if (!this.element) {
          this.element = $(html);
-         $('#pulls').append(this.element);
+         // For testing purposes, append to just one column
+         $('#qaPulls').append(this.element);
       } else {
          this.element.html(html);
       }
@@ -29,9 +31,9 @@ var pullManager = (function(socket) {
    var pullIndex = {};
    var pulls = [];
 
-   socket.on('fullData', function(data) {
+   socket.on('allPulls', function(pulls) {
       removeAll();
-      updatePulls(data);
+      updatePulls(pulls);
    });
 
    socket.on('pullChange', function(pull) {
@@ -88,7 +90,6 @@ var pullManager = (function(socket) {
 
    function updateState(newState) {
       $('#connectionState').text(newState);
-      console.log(newState);
    }
 })(socket);
 
@@ -97,21 +98,16 @@ var pullManager = (function(socket) {
       var token = App.socketToken;
       socket.emit('authenticate', token);
    });
-})(socket)
+})(socket);
 
 
 var Templates = (function(){
    var templates = {
       pull: '\
-      <tr class="pull">\
-         <td class="pullNumber"><%- pull.id %></td>\
-         <td class="link">\
-            <a href="<%- pull.href %>"><%= pull.name %></a>\
-         </td>\
-         <td><a class="status" href="<%= pull.buildLog %>">\
-            <%= pull.buildStatus %>\
-         </a></td>\
-      </tr>'
+      <a href="<%- pull.html_url %>" class="list-group-item">\
+         <h4 class="list-group-item-heading">#<%= pull.number %> - <%= pull.title %></h4>\
+         <p class="list-group-item-text"><%= pull.body %></p>\
+      </a>'
    };
 
    var compiledTemplates = {};
