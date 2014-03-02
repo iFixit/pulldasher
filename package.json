@@ -1,5 +1,5 @@
 {
-  "name": "pulldash",
+  "name": "pulldasher",
   "private": true,
   "version": "0.0.1",
   "description": "Simple pull request dashboard",
@@ -8,17 +8,17 @@
     "express-partials": "0.1.1",
     "socket.io" : "0.9.x",
     "underscore": "1.5.x",
-    "backbone": "1.x",
-    "ejs": "0.8.x",
     "passport": "0.1.17",
-    "passport-github": "0.1.5"
+    "passport-github": "0.1.5",
+    "promise": "3.2.x",
+    "github": "0.1.8"
   },
   "scripts": {
     "start": "node app.js",
     "debug": "node debug app.js"
   },
   "main": "app.js",
-  "repository": "git@github.com:chpatton013/pulldash.git",
-  "author": "",
+  "repository": "git@github.com:ifixit/pulldasher.git",
+  "author": "iFixit",
   "license": "MIT"
 }
