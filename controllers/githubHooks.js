@@ -1,9 +1,4 @@
-var config = require('../config');
-
-/*---------------------
-   :: Hooks
-   -> controller
----------------------*/
+var config = require('../config')
 
 function newCommit(number, sha, sender, recent) {
 
