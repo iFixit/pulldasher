@@ -1,8 +1,12 @@
 var util = require('util');
+var events = require('events');
+var _ = require('underscore');
 
-module.exports = function Pull(data) {
+function Pull(data) {
    this.data = data || {};
 }
+module.exports = Pull;
+util.inherits(Pull, events.EventEmitter);
 
 Pull.prototype.setData = function (data) {
    this.data = data;
@@ -15,4 +19,3 @@ Pull.prototype.toObject = function () {
    return obj;
 }
 
-util.inherits(Pull, EventEmitter);
