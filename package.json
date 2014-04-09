@@ -11,7 +11,8 @@
     "passport": "0.1.17",
     "passport-github": "0.1.5",
     "promise": "3.2.x",
-    "github": "0.1.8"
+    "github": "0.1.8",
+    "ejs": "1.0.x"
   },
   "scripts": {
     "start": "node app.js",
