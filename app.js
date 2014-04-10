@@ -7,6 +7,7 @@ var config = require('./config'),
     socketAuthenticator = require('./lib/socket-auth'),
     pullManager = require('./lib/pull-manager')(),
     gitManager = require('./lib/git-manager'),
+    Pull = require('./models/pull'),
     mainController = require('./controllers/main'),
     pullController = require('./controllers/pull')(pullManager);
 
@@ -41,7 +42,8 @@ app.get('/pull/add', pullController.add);
 
 gitManager.getAllPulls().then(function(pulls) {
    pulls.forEach(function(pullData) {
-      pullManager.addPull(pullData);
+      console.log('Adding pull ', pullData.number);
+      pullManager.addPull(new Pull(pullData));
    });
 });
 //====================================================
