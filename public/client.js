@@ -106,7 +106,6 @@ var Templates = (function(){
       pull: '\
       <a href="<%- pull.html_url %>" class="list-group-item">\
          <h4 class="list-group-item-heading">#<%- pull.number %> - <%- pull.title %></h4>\
-         <p class="list-group-item-text"><%- pull.body %></p>\
       </a>'
    };
 
