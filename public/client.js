@@ -104,7 +104,7 @@ var pullManager = (function(socket) {
 var Templates = (function(){
    var templates = {
       pull: '\
-      <a href="<%- pull.html_url %>" class="list-group-item">\
+      <a target="_blank" href="<%- pull.html_url %>" class="list-group-item">\
          <h4 class="list-group-item-heading">#<%- pull.number %> - <%- pull.title %></h4>\
       </a>'
    };
