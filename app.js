@@ -41,9 +41,9 @@ app.get('/pull',     pullController.index);
 app.get('/pull/add', pullController.add);
 
 gitManager.getAllPulls().then(function(pulls) {
-   pulls.forEach(function(pullData) {
-      console.log('Adding pull ', pullData.number);
-      pullManager.addPull(new Pull(pullData));
+   pulls.forEach(function(pull) {
+      console.log('Adding pull ', pull.data.number);
+      pullManager.addPull(pull);
    });
 });
 //====================================================
