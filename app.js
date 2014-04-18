@@ -45,14 +45,14 @@ app.get('/pull/add', pullController.add);
  * On first run, get all the open pulls, add them to the view,
  * and update the DB to reflect any changes since last run.
  */
-gitManager.getAllPulls().then(function(pulls) {
-   pulls.forEach(function(pullData) {
-      // This line can be removed once `getAllPulls` returns Pull objects.
-      var pull = new Pull(pullData);
-
-      dbManager.updatePull(pull);
-      pullManager.addPull(pull);
+gitManager.getAllPulls().then(function(arrayOfPullPromises) {
+   arrayOfPullPromises.forEach(function(pullPromise) {
+      pullPromise.then(function(pull) {
+         dbManager.updatePull(pull);
+         pullManager.addPull(pull);
+      });
    });
+
    // Update pulls which were open last time Pulldasher ran but are closed now.
    // @TODO dbManager.closeStalePulls();
 });
