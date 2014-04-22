@@ -16,5 +16,11 @@ module.exports = {
      owner: 'repo owner',
      name:  'repo name'
    },
+   mysql: {
+      host: 'mysql remote host URL',
+      db: 'database name',
+      user: 'username',
+      pass: 'password'
+   },
    debug: true
 };
