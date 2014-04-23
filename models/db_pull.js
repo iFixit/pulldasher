@@ -21,7 +21,6 @@ function DBPull(pullData) {
       user: pullData.user.login
    };
 }
-module.exports = DBPull;
 
 DBPull.prototype.save = function() {
    var q_update = 'REPLACE INTO pulls SET ?';
@@ -36,3 +35,5 @@ DBPull.prototype.toObject = function() {
    var obj = _.extend({}, data);
    return obj;
 };
+
+module.exports = DBPull;
