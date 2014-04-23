@@ -1,4 +1,5 @@
-var _ = require('underscore');
+var _ = require('underscore'),
+    db = require('../lib/db');
 
 // Builds an object representation of a row in the DB `pulls` table
 // from the data returned by GitHub's API.
@@ -22,9 +23,16 @@ function DBPull(pullData) {
 }
 module.exports = DBPull;
 
+DBPull.prototype.save = function() {
+   var q_update = 'REPLACE INTO pulls SET ?';
+
+   db.query(q_update, this.data, function(err, rows) {
+      if (err) { console.log(err); }
+   });
+};
+
 DBPull.prototype.toObject = function() {
    var data = this.data;
    var obj = _.extend({}, data);
    return obj;
-}
-
+};
