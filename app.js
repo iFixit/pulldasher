@@ -9,7 +9,8 @@ var config = require('./config'),
     gitManager = require('./lib/git-manager'),
     Pull = require('./models/pull'),
     mainController = require('./controllers/main'),
-    pullController = require('./controllers/pull')(pullManager);
+    pullController = require('./controllers/pull')(pullManager),
+    hooksController = require('./controllers/githubHooks');
 
 var app = express();
 
@@ -39,6 +40,7 @@ authManager.setupRoutes(app);
 app.get('/',         mainController.index);
 app.get('/pull',     pullController.index);
 app.get('/pull/add', pullController.add);
+app.post('/hooks/main', hooksController.main);
 
 gitManager.getAllPulls().then(function(pulls) {
    pulls.forEach(function(pullData) {

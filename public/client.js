@@ -12,7 +12,6 @@ _.extend(Pull.prototype, {
       _.extend(this, data);
 
       var html = this.render();
-      console.log(html);
       if (!this.element) {
          this.element = $(html);
          // For testing purposes, append to just one column
