@@ -40,9 +40,9 @@ app.get('/',         mainController.index);
 app.get('/pull',     pullController.index);
 app.get('/pull/add', pullController.add);
 
-gitManager.getAllPulls().then(function(arrayOfPromisesToPulls) {
-   arrayOfPromisesToPulls.forEach(function(promiseToPull) {
-      promiseToPull.then(function(pull) {
+gitManager.getAllPulls().then(function(arrayOfPullPromises) {
+   arrayOfPullPromises.forEach(function(pullPromise) {
+      pullPromise.then(function(pull) {
          console.log('Adding pull ', pull.data.number);
          pullManager.addPull(pull);
       });
