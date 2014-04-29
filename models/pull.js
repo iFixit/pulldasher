@@ -2,8 +2,10 @@ var util = require('util');
 var events = require('events');
 var _ = require('underscore');
 
-function Pull(data) {
+function Pull(data, comments, headCommit) {
    this.data = data || {};
+   this.comments = comments;
+   this.headCommit = headCommit;
 }
 module.exports = Pull;
 util.inherits(Pull, events.EventEmitter);
