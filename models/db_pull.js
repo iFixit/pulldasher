@@ -18,7 +18,7 @@ function DBPull(pullData) {
       repo_owner: pullData.head.repo.owner.login,
       repo_name: pullData.head.repo.name,
       base_branch: pullData.base.ref,
-      user: pullData.user.login
+      owner: pullData.user.login
    };
 }
 
