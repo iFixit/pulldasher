@@ -12,7 +12,6 @@ _.extend(Pull.prototype, {
       _.extend(this, data);
 
       var html = this.render();
-      console.log(html);
       if (!this.element) {
          this.element = $(html);
          // For testing purposes, append to just one column
@@ -104,7 +103,7 @@ var pullManager = (function(socket) {
 var Templates = (function(){
    var templates = {
       pull: '\
-      <a href="<%- pull.html_url %>" class="list-group-item">\
+      <a target="_blank" href="<%- pull.html_url %>" class="list-group-item">\
          <h4 class="list-group-item-heading">#<%- pull.number %> - <%- pull.title %></h4>\
       </a>'
    };

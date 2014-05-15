@@ -10,7 +10,8 @@ var config = require('./config'),
     gitManager = require('./lib/git-manager'),
     Pull = require('./models/pull'),
     mainController = require('./controllers/main'),
-    pullController = require('./controllers/pull')(pullManager);
+    pullController = require('./controllers/pull')(pullManager),
+    hooksController = require('./controllers/githubHooks');
 
 var app = express();
 
@@ -40,19 +41,20 @@ authManager.setupRoutes(app);
 app.get('/',         mainController.index);
 app.get('/pull',     pullController.index);
 app.get('/pull/add', pullController.add);
+app.post('/hooks/main', hooksController.main);
 
 /**
  * On first run, get all the open pulls, add them to the view,
  * and update the DB to reflect any changes since last run.
  */
-gitManager.getAllPulls().then(function(pulls) {
-   pulls.forEach(function(pullData) {
-      // This line can be removed once `getAllPulls` returns Pull objects.
-      var pull = new Pull(pullData);
-
-      dbManager.updatePull(pull);
-      pullManager.addPull(pull);
+gitManager.getAllPulls().then(function(arrayOfPullPromises) {
+   arrayOfPullPromises.forEach(function(pullPromise) {
+      pullPromise.then(function(pull) {
+         console.log('Adding pull ', pull.data.number);
+         pullManager.addPull(pull);
+      });
    });
+
    // Update pulls which were open last time Pulldasher ran but are closed now.
    // @TODO dbManager.closeStalePulls();
 });

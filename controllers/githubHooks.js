@@ -1,4 +1,4 @@
-var config = require('../config')
+var config = require('../config');
 
 function newCommit(number, sha, sender, recent) {
 
@@ -13,7 +13,7 @@ function newCommit(number, sha, sender, recent) {
            crStatus: "bad"
          }, function(err, pull) {
        if (err) {
-         return sails.log.warn(err);
+         return console.log(err);
        } else {
          Pull.publishUpdate([ pull.id ], pull);
        }
@@ -80,14 +80,14 @@ function newComment(number, comment) {
 
 function stateChange(number, sha, state, ref) {
    Pull.findByNumber(number, function(err,pull) {
-       if (err) return sails.log.warn(err);
+       if (err) return console.log(err);
        else {
          Pull.update({'number': number },{
            'state': state,
            'build_url': 'http://www.***REMOVED***/ifixit/' + ref + '--' + sha + '.log'
            }, function(err,pull) {
-             sails.log.warn(pull);
-             if (err) return sails.log.warn(err);
+             console.log(pull);
+             if (err) return console.log(err);
              else Pull.publishUpdate([pull.id], pull);
          });
        }
@@ -114,21 +114,21 @@ function newPull(number, pull) {
                   build_url: 'not.a.url',
                   creator: pull.user
                 }).done(function(err,pull) {
-                  if(err) return sails.log.warn(err);
+                  if(err) return console.log(err);
                   else Pull.publishCreate(pull);
                   });
 }
 
 function closePull(number) {
-   sails.log.warn('killing',number);
+   console.log('killing', number);
 
    Pull.find({'number':number}, function(err,pull) {
-       if (err) return sails.log.warn(err);
+       if (err) return console.log(err);
        else {
          Pull.destroy({ 'id': pull.id }, function(err) {
-           if (err) return sails.log.warn(err);
+           if (err) return console.log(err);
            else {
-             sails.log.info('Deleted',number);
+             console.log('Deleted', number);
              Pull.publishDestroy(pull);
              }
          });
@@ -140,49 +140,51 @@ var HooksController = {
 
    main: function(req, res) {
 
-     var secret = req.param('secret');
-     console.log('Secret',secret);
-     if (secret != config.hook_secret) {
-       sails.log.error('Invalid Hook Secret: ', secret);
-       return res.status(401).send('Invalid POST');
-     }
+      var secret = req.param('secret');
+      if (secret != config.github.hook_secret) {
+         console.log('Invalid Hook Secret: ', secret);
+         return res.status(401).send('Invalid POST');
+      }
 
-     // Begin the webhook decoding
-     var body = req.body;
-     switch(body.action) {
-       // Pull opened
-       case "opened":
-         newPull(body.number, body.pull_request);
-         break;
-       // Pull reopened
-       case "reopened":
-         newPull(body.number, body.pull_request);
-         break;
-       // Pull closed
-       case "closed":
-         closePull(body.number);
-         break;
-       // Pull merged
-       case "merged":
-         closePull(body.number);
-         break;
-       // New commit to pull
-       case "synchronize":
-         newCommit(body.number, body.pull_request.head.sha, body.sender, body.pull_request.updated_at);
-         break;
-       // Comment created
-       case "created":
-         newComment(body.issue.number, body.comment);
-         break;
-       // For when state changes
-       case undefined:
-         if (body.pull_request) stateChange(body.pull_request.number, body.sha, body.state, body.pull_request.head.ref);
-         else sails.log.warn(body);
-         break;
-       default:
-         sails.log.warn('Got unknown webhook action:',body.action);
-         break;
-     }
+      // Begin the webhook decoding
+      var body = JSON.parse(req.body.payload);
+      var event = req.get('X-GitHub-Event');
+
+      if (event === 'status') {
+         // Update commit_statuses DB table with new: body.sha, body.state.
+      }
+
+      if (event === 'pull_request') {
+         switch(body.action) {
+            case "opened":
+            // Insert into pulls DB table new body.number, body.pull_request
+               break;
+            case "reopened":
+            // Update pulls DB table with body.number, body.pull_request
+               break;
+            case "closed":
+            // Update pulls DB table...
+               break;
+            case "merged":
+            // Update pulls DB table...
+               break;
+            // New commit to Pull Request.
+            case "synchronize":
+            // Update pulls DB table...
+               break;
+         }
+      }
+
+      if (event === 'issue_comment') {
+         // Comment created.
+
+         // Update comments DB table with body.issue.number, body.comment
+         // if issue is pull_request.
+      }
+
+      // Emit notification to pullManager to update the view via the DB.
+
+      return res.status(200).send('Success!');
    }
 
 };
