@@ -160,24 +160,16 @@ var HooksController = {
       if (event === 'pull_request') {
          switch(body.action) {
             case "opened":
-               dbManager.updatePull(new Pull(body.pull_request));
-               break;
             case "reopened":
-               dbManager.updatePull(new Pull(body.pull_request));
-               break;
             case "closed":
-               dbManager.updatePull(new Pull(body.pull_request));
-               break;
             case "merged":
-               dbManager.updatePull(new Pull(body.pull_request));
-               break;
-            // New commit to Pull Request.
             case "synchronize":
-               dbManager.updatePull(new Pull(body.pull_request));
                // @TODO: Deactivate current CR, QA signoffs. Do NOT deactivate
                //  dev_block, deploy_block comments.
-               break;
          }
+
+         // Update DB with new pull request content.
+         dbManager.updatePull(new Pull(body.pull_request));
       }
 
       if (event === 'issue_comment') {
