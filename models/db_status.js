@@ -21,9 +21,7 @@ DBStatus.prototype.save = function() {
 };
 
 DBStatus.prototype.toObject = function() {
-   var data = this.data;
-   var obj = _.extend({}, data);
-   return obj;
+   return _.extend({}, this.data);
 };
 
 module.exports = DBStatus;

@@ -17,9 +17,7 @@ Status.prototype.setData = function (data) {
 }
 
 Status.prototype.toObject = function () {
-   var data = this.data;
-   var obj = _.extend({}, data);
-   return obj;
+   return _.extend({}, this.data);
 }
 
 util.inherits(Status, events.EventEmitter);
