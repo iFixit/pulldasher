@@ -155,9 +155,7 @@ var HooksController = {
 
       if (event === 'status') {
          dbManager.updateCommitStatus(new Status(body));
-      }
-
-      if (event === 'pull_request') {
+      } else if (event === 'pull_request') {
          switch(body.action) {
             case "opened":
             case "reopened":
@@ -170,9 +168,7 @@ var HooksController = {
 
          // Update DB with new pull request content.
          dbManager.updatePull(new Pull(body.pull_request));
-      }
-
-      if (event === 'issue_comment') {
+      } else if (event === 'issue_comment') {
          // Comment created.
 
          // Update comments DB table with body.issue.number, body.comment
