@@ -1,10 +1,11 @@
 var util = require('util');
 var events = require('events');
 var _ = require('underscore');
+var Signature = require('./signature')
 
 function Pull(data, comments, headCommit) {
    this.data = data || {};
-   this.comments = comments;
+   this.signatures = Signature.createFromGithubComments(comments, data.number);
    this.headCommit = headCommit;
 }
 module.exports = Pull;
