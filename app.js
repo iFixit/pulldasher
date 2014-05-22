@@ -47,9 +47,9 @@ app.post('/hooks/main', hooksController.main);
  * On first run, get all the open pulls, add them to the view,
  * and update the DB to reflect any changes since last run.
  */
-gitManager.getAllPulls().then(function(arrayOfPullPromises) {
+gitManager.getAllPulls().done(function(arrayOfPullPromises) {
    arrayOfPullPromises.forEach(function(pullPromise) {
-      pullPromise.then(function(pull) {
+      pullPromise.done(function(pull) {
          dbManager.updatePull(pull);
          pullManager.addPull(pull);
       });
