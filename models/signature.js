@@ -39,6 +39,7 @@ Signature.createFromGithubComments
 }
 
 var tags = ['QA', 'CR', 'dev_block', 'deploy_block', 'un_dev_block', 'un_deploy_block'];
+Signature.tags = tags;
 var tagRegExps = {};
 function hasTag(body, tagName)
 {
