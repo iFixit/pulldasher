@@ -134,3 +134,49 @@ Pull.prototype.getActiveSignatures = function getActiveSignatures(tagName)
 
    return signatures;
 };
+
+/**
+ * Return an object:
+ * {
+ *    'qa_req'        : The *needed* number of QA signatures occuring after the last commit
+ *                       in order for this pull to be ready for deploy.
+ *    'cr_req'        : The *needed* number of CR signatures occuring after the last commit
+ *                       in order for this pull to be ready for deploy.
+ *    'QA'            : An array of signatures occuring after latest commit with QA tags
+ *    'CR'            : An array of signatures occuring after latest commit with CR tags
+ *    'dev_block'     : The last 'dev_block' signature occuring after the
+ *                       last 'un_dev_block' signature. If there is no
+ *                       un_dev_block' signature, this field holds the
+ *                       last 'dev_block' signature. If there are none,
+ *                       this field is null.
+ *    'deploy_block'  : Same as above .. substituting deploy for dev.
+ *    'ready'         : A boolean indicating whether the pull is ready to be deployed.
+ *                      A pull that is ready to be deployed meets the following condition:
+ *                         deploy_block === null && dev_block === null &&
+ *                         CR.length >= cr_req && QA.length >= qa_req
+ * }
+ */
+Pull.prototype.getStatus = function getStatus()
+{
+   var status = {
+      // TODO get these from the pull's comment or default if the pull doesn't specify
+      'qa_req' : 1,
+      'cr_req' : 2,
+      'QA' : this.getActiveSignatures('QA'),
+      'CR' : this.getActiveSignatures('CR'),
+   };
+
+   status['dev_block'] = this.getActiveSignatures('dev_block');
+   status['dev_block'] = status['dev_block'].length ? status['dev_block'][0] : null;
+
+   status['deploy_block'] = this.getActiveSignatures('deploy_block');
+   status['deploy_block'] = status['deploy_block'].length ? status['deploy_block'][0] : null;
+
+   status['ready'] =
+            status['dev_block'] === null &&
+            status['deploy_block'] === null &&
+            status['QA'].length >= status['qa_req'] &&
+            status['CR'].length >= status['cr_req'];
+
+   return status;
+};
