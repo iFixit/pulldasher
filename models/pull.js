@@ -23,6 +23,21 @@ Pull.prototype.toObject = function () {
 }
 
 /**
+ * Get all signatures of a given tag. This function returns *all* the signatures
+ * (whether or not they are active). To get all active signatures of a given tag,
+ * use getActiveSignatures().
+ */
+Pull.prototype.getSignatures = function getSignatures(tagName)
+{
+   return this.signatures.filter(
+      function(signature)
+      {
+         return signature.data.type == tagName;
+      }
+   );
+};
+
+/**
  * Get all the *active* signatures of a given tag. The definition of
  * active depends on the tag.
  *
@@ -36,17 +51,8 @@ Pull.prototype.toObject = function () {
  */
 Pull.prototype.getActiveSignatures = function getActiveSignatures(tagName)
 {
-   function buildFilterReturningSignaturesMatchingTag(tagName)
-   {
-      return function filter(signature)
-      {
-         return signature.data.type == tagName;
-      };
-   }
 
-   var signatures = this.signatures.filter(
-      buildFilterReturningSignaturesMatchingTag(tagName)
-   );
+   var signatures = this.getSignatures(tagName);
 
    function buildFilterReturningSignaturesAfterDate(date)
    {
@@ -98,34 +104,22 @@ Pull.prototype.getActiveSignatures = function getActiveSignatures(tagName)
          break;
       case 'un_dev_block':
          signatures = getLastSignatureFromBAfterA(
-            this.signatures.filter(
-               buildFilterReturningSignaturesMatchingTag('dev_block')
-            ),
-            signatures
+            this.getSignatures('dev_block'), signatures
          );
          break;
       case 'dev_block':
          signatures = getLastSignatureFromBAfterA(
-            this.signatures.filter(
-               buildFilterReturningSignaturesMatchingTag('un_dev_block')
-            ),
-            signatures
+            this.getSignatures('un_dev_block'), signatures
          );
          break;
       case 'un_deploy_block':
          signatures = getLastSignatureFromBAfterA(
-            this.signatures.filter(
-               buildFilterReturningSignaturesMatchingTag('deploy_block')
-            ),
-            signatures
+            this.getSignatures('deploy_block'), signatures
          );
          break;
       case 'deploy_block':
          signatures = getLastSignatureFromBAfterA(
-            this.signatures.filter(
-               buildFilterReturningSignaturesMatchingTag('un_deploy_block')
-            ),
-            signatures
+            this.getSignatures('un_deploy_block'), signatures
          );
          break;
       default:
