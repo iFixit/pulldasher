@@ -1,7 +1,7 @@
 var util = require('util');
 var events = require('events');
 var _ = require('underscore');
-var Signature = require('./signature')
+var Signature = require('./signature');
 
 function Pull(data, comments, headCommit) {
    this.data = data || {};
@@ -27,14 +27,10 @@ Pull.prototype.toObject = function () {
  * (whether or not they are active). To get all active signatures of a given tag,
  * use getActiveSignatures().
  */
-Pull.prototype.getSignatures = function getSignatures(tagName)
-{
-   return this.signatures.filter(
-      function(signature)
-      {
-         return signature.data.type == tagName;
-      }
-   );
+Pull.prototype.getSignatures = function getSignatures(tagName) {
+   return this.signatures.filter(function(signature) {
+      return signature.data.type == tagName;
+   });
 };
 
 /**
@@ -49,15 +45,12 @@ Pull.prototype.getSignatures = function getSignatures(tagName)
  * The same as above applies for un_dev/deploy_block, however these block-cancelation
  * signatures must appear after the block signature (visa-versa of above).
  */
-Pull.prototype.getActiveSignatures = function getActiveSignatures(tagName)
-{
+Pull.prototype.getActiveSignatures = function getActiveSignatures(tagName) {
 
    var signatures = this.getSignatures(tagName);
 
-   function buildFilterReturningSignaturesAfterDate(date)
-   {
-      return function filter(signature)
-      {
+   function buildFilterReturningSignaturesAfterDate(date) {
+      return function filter(signature) {
          return new Date(signature.data.created_at) > date;
       };
    }
@@ -72,55 +65,45 @@ Pull.prototype.getActiveSignatures = function getActiveSignatures(tagName)
    //   dev_block signature.
    //   
    //   Warning!! mutates passed arrays
-   function getLastSignatureFromBAfterA(signaturesA, signaturesB)
-   {
+   function getLastSignatureFromBAfterA(signaturesA, signaturesB) {
       var lastDate = signaturesA.length ?
-         new Date(signaturesA[signaturesA.length - 1].data.created_at) :
-         null;
+       new Date(signaturesA[signaturesA.length - 1].data.created_at) :
+       null;
 
-      if (lastDate)
-      {
+      if (lastDate) {
          signaturesB = signaturesB.filter(
-            buildFilterReturningSignaturesAfterDate(lastDate)
-         );
+          buildFilterReturningSignaturesAfterDate(lastDate));
       }
 
-      if (signaturesB.length)
-      {
+      if (signaturesB.length) {
          signaturesB = signaturesB.slice(-1);
       }
 
       return signaturesB;
    }
 
-   switch (tagName)
-   {
+   switch (tagName) {
       case 'QA':
       case 'CR':
          var headCommitDate = new Date(this.headCommit.commit.committer.date);
          signatures = signatures.filter(
-            buildFilterReturningSignaturesAfterDate(headCommitDate)
-         );
+          buildFilterReturningSignaturesAfterDate(headCommitDate));
          break;
       case 'un_dev_block':
          signatures = getLastSignatureFromBAfterA(
-            this.getSignatures('dev_block'), signatures
-         );
+          this.getSignatures('dev_block'), signatures);
          break;
       case 'dev_block':
          signatures = getLastSignatureFromBAfterA(
-            this.getSignatures('un_dev_block'), signatures
-         );
+          this.getSignatures('un_dev_block'), signatures);
          break;
       case 'un_deploy_block':
          signatures = getLastSignatureFromBAfterA(
-            this.getSignatures('deploy_block'), signatures
-         );
+          this.getSignatures('deploy_block'), signatures);
          break;
       case 'deploy_block':
          signatures = getLastSignatureFromBAfterA(
-            this.getSignatures('un_deploy_block'), signatures
-         );
+          this.getSignatures('un_deploy_block'), signatures);
          break;
       default:
          throw new Error('Unknown tag name: ' + tagName);
@@ -150,10 +133,10 @@ Pull.prototype.getActiveSignatures = function getActiveSignatures(tagName)
  *                         CR.length >= cr_req && QA.length >= qa_req
  * }
  */
-Pull.prototype.getStatus = function getStatus()
-{
+Pull.prototype.getStatus = function getStatus() {
    var status = {
-      // TODO get these from the pull's comment or default if the pull doesn't specify
+      // TODO get these from the pull's comment or default
+      // if the pull doesn't specify
       'qa_req' : 1,
       'cr_req' : 2,
       'QA' : this.getActiveSignatures('QA'),
@@ -161,10 +144,12 @@ Pull.prototype.getStatus = function getStatus()
    };
 
    status['dev_block'] = this.getActiveSignatures('dev_block');
-   status['dev_block'] = status['dev_block'].length ? status['dev_block'][0] : null;
+   status['dev_block'] = status['dev_block'].length ?
+    status['dev_block'][0] : null;
 
    status['deploy_block'] = this.getActiveSignatures('deploy_block');
-   status['deploy_block'] = status['deploy_block'].length ? status['deploy_block'][0] : null;
+   status['deploy_block'] = status['deploy_block'].length ?
+    status['deploy_block'][0] : null;
 
    status['ready'] =
             status['dev_block'] === null &&
