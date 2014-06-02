@@ -1,4 +1,7 @@
-var config = require('../config');
+var config = require('../config'),
+    Pull = require('../models/pull'),
+    Status = require('../models/status'),
+    dbManager = require('../lib/db-manager');
 
 function newCommit(number, sha, sender, recent) {
 
@@ -151,31 +154,21 @@ var HooksController = {
       var event = req.get('X-GitHub-Event');
 
       if (event === 'status') {
-         // Update commit_statuses DB table with new: body.sha, body.state.
-      }
-
-      if (event === 'pull_request') {
+         dbManager.updateCommitStatus(new Status(body));
+      } else if (event === 'pull_request') {
          switch(body.action) {
             case "opened":
-            // Insert into pulls DB table new body.number, body.pull_request
-               break;
             case "reopened":
-            // Update pulls DB table with body.number, body.pull_request
-               break;
             case "closed":
-            // Update pulls DB table...
-               break;
             case "merged":
-            // Update pulls DB table...
-               break;
-            // New commit to Pull Request.
             case "synchronize":
-            // Update pulls DB table...
-               break;
+               // @TODO: Deactivate current CR, QA signoffs. Do NOT deactivate
+               //  dev_block, deploy_block comments.
          }
-      }
 
-      if (event === 'issue_comment') {
+         // Update DB with new pull request content.
+         dbManager.updatePull(new Pull(body.pull_request));
+      } else if (event === 'issue_comment') {
          // Comment created.
 
          // Update comments DB table with body.issue.number, body.comment
