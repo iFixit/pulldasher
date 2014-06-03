@@ -2,6 +2,7 @@ var util = require('util');
 var events = require('events');
 var _ = require('underscore');
 var Signature = require('./signature');
+var config = require('../config');
 
 function Pull(data, comments, headCommit) {
    this.data = data || {};
@@ -137,19 +138,19 @@ Pull.prototype.getStatus = function getStatus() {
    var status = {
       // TODO get these from the pull's comment or default
       // if the pull doesn't specify
-      'qa_req' : 1,
-      'cr_req' : 2,
+      'qa_req' : config.default_qa_req,
+      'cr_req' : config.default_cr_req,
       'QA' : this.getActiveSignatures('QA'),
       'CR' : this.getActiveSignatures('CR'),
    };
 
-   status['dev_block'] = this.getActiveSignatures('dev_block');
-   status['dev_block'] = status['dev_block'].length ?
-    status['dev_block'][0] : null;
+   var activeSignatures = this.getActiveSignatures('dev_block');
+   status['dev_block'] = activeSignatures.length ?
+    activeSignatures[0] : null;
 
-   status['deploy_block'] = this.getActiveSignatures('deploy_block');
-   status['deploy_block'] = status['deploy_block'].length ?
-    status['deploy_block'][0] : null;
+   activeSignatures = this.getActiveSignatures('deploy_block');
+   status['deploy_block'] = activeSignatures.length ?
+    activeSignatures[0] : null;
 
    status['ready'] =
             status['dev_block'] === null &&
