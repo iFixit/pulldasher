@@ -8,6 +8,7 @@ function Pull(data, comments, headCommit) {
    this.data = data || {};
    this.signatures = Signature.createFromGithubComments(comments, data.number);
    this.headCommit = headCommit;
+   this.updateActiveSignatures();
 }
 module.exports = Pull;
 util.inherits(Pull, events.EventEmitter);
@@ -30,7 +31,7 @@ Pull.prototype.toObject = function () {
  */
 Pull.prototype.getSignatures = function getSignatures(tagName) {
    return this.signatures.filter(function(signature) {
-      return signature.data.type == tagName;
+      return signature.data.type === tagName;
    });
 };
 
@@ -159,4 +160,25 @@ Pull.prototype.getStatus = function getStatus() {
             status['CR'].length >= status['cr_req'];
 
    return status;
+};
+
+/**
+ * We can't know which signatures are active until we have all the signatures for a pull.
+ * Call this method after all the signatures of this pull are synced with github.
+ * This method updates the active field of all signatures.
+ */
+Pull.prototype.updateActiveSignatures = function updateActiveSignatures()
+{
+   var activeSignatures = config.tags.reduce(function getActive(activeSignatures, tagName)
+   {
+      return activeSignatures.concat(this.getActiveSignatures(tagName));
+   }.bind(this), []);
+
+   this.signatures.forEach(function updateActive(signature)
+   {
+      if (activeSignatures.indexOf(signature) != -1)
+         signature.data.active = true;
+      else
+         signature.data.active = false;
+   });
 };

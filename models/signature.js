@@ -27,6 +27,8 @@ Signature.createFromGithubComments
                 user_id: comment.user.id,
                 type: tag,
                 created_at: comment.created_at,
+                // This field is unknown until all the signatures have been created and parsed.
+                // See Pull.prototype.updateActiveSignatures()
                 active: null,
                 comment_id: comment.id
              }));
