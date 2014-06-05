@@ -123,10 +123,9 @@ Pull.prototype.getStatus = function getStatus() {
       'cr_req' : config.default_cr_req,
       'QA' : this.getActiveSignatures('QA'),
       'CR' : this.getActiveSignatures('CR'),
+      'dev_block'    : this.getActiveSignatures('dev_block'),
+      'deploy_block' : this.getActiveSignatures('deploy_block')
    };
-
-   status['dev_block']    = this.getActiveSignatures('dev_block');
-   status['deploy_block'] = this.getActiveSignatures('deploy_block');
 
    status['ready'] =
             status['dev_block'].length === 0 &&
