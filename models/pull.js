@@ -115,16 +115,9 @@ Pull.prototype.getActiveSignatures = function getActiveSignatures(tagName) {
  *                       in order for this pull to be ready for deploy.
  *    'QA'            : An array of signatures occuring after latest commit with QA tags
  *    'CR'            : An array of signatures occuring after latest commit with CR tags
- *    'dev_block'     : The last 'dev_block' signature occuring after the
- *                       last 'un_dev_block' signature. If there is no
- *                       un_dev_block' signature, this field holds the
- *                       last 'dev_block' signature. If there are none,
- *                       this field is null.
- *    'deploy_block'  : Same as above .. substituting deploy for dev.
+ *    'dev_block'     : The last 'dev_block' signature if pull is dev blocked, or an empty array
+ *    'deploy_block'  : The last 'deploy_block' signature if pull is deploy blocked, or an empty array
  *    'ready'         : A boolean indicating whether the pull is ready to be deployed.
- *                      A pull that is ready to be deployed meets the following condition:
- *                         deploy_block === null && dev_block === null &&
- *                         CR.length >= cr_req && QA.length >= qa_req
  * }
  */
 Pull.prototype.getStatus = function getStatus() {
