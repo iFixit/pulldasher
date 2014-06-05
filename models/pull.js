@@ -51,64 +51,59 @@ Pull.prototype.getActiveSignatures = function getActiveSignatures(tagName) {
 
    var signatures = this.getSignatures(tagName);
 
-   function buildFilterReturningSignaturesAfterDate(date) {
-      return function filter(signature) {
-         return new Date(signature.data.created_at) > date;
-      };
-   }
+   /**
+    * Iterates through all of a pull's signatures, checking for a blocking
+    * tag (e.g. 'dev_block') and returns either the last occurring, blocking
+    * Signature object or (if there is no blocking signature, or if it is
+    * followed by an unblocking signature) returns null.
+    *
+    * @param signatures - All of a pull's signatures
+    * @param name - Name of blocking tag (e.g. 'dev_block')
+    * @return Signature|null
+    */
+   function getBlockingSignature(signatures, name) {
+      var block = name;
+      var unblock = 'un_' + name;
+      var sigType;
+      // Sort signatures by date, newest first.
+      signatures.sort(function(a, b) {
+         if (a.data.created_at > b.data.created_at) {
+            return -1;
+         } else if (a.data.created_at < b.data.created_at) {
+            return 1;
+         }
+         return 0;
+      });
 
-   // returns an array with zero or one elements
-   // This function is just so that we don't have to repeat this logic several times below.
-   // Its use is best explained in an example.
-   // ex:
-   //   getLastSignatureFromBAfterA(un_dev_blockSignatures, dev_blockSignatures)
-   //   returns the last dev_block signature from dev_blockSignatures only if it occurs after
-   //   the last un_dev_block signature. If un_dev_blockSignatures is empty, simply returns the last
-   //   dev_block signature.
-   //   
-   //   Warning!! mutates passed arrays
-   function getLastSignatureFromBAfterA(signaturesA, signaturesB) {
-      var lastDate = signaturesA.length ?
-       new Date(signaturesA[signaturesA.length - 1].data.created_at) :
-       null;
+      // Check each pull signature to see if it's a blocking or unblocking tag.
+      for (var i = 0; i < signatures.length; i++) {
+         sigType = signatures[i].data.type;
 
-      if (lastDate) {
-         signaturesB = signaturesB.filter(
-          buildFilterReturningSignaturesAfterDate(lastDate));
+         if (sigType == block) { // This pull is blocked.
+            return signatures[i];
+         } else if (sigType == unblock) { // This pull is unblocked.
+            return null;
+         }
       }
 
-      if (signaturesB.length) {
-         signaturesB = signaturesB.slice(-1);
-      }
-
-      return signaturesB;
+      return null;
    }
 
    switch (tagName) {
       case 'QA':
       case 'CR':
          var headCommitDate = new Date(this.headCommit.commit.committer.date);
-         signatures = signatures.filter(
-          buildFilterReturningSignaturesAfterDate(headCommitDate));
-         break;
-      case 'un_dev_block':
-         signatures = getLastSignatureFromBAfterA(
-          this.getSignatures('dev_block'), signatures);
+         signatures = signatures.filter(function afterHeadCommit(signature) {
+            return new Date(signature.data.created_at) > headCommitDate;
+         });
          break;
       case 'dev_block':
-         signatures = getLastSignatureFromBAfterA(
-          this.getSignatures('un_dev_block'), signatures);
-         break;
-      case 'un_deploy_block':
-         signatures = getLastSignatureFromBAfterA(
-          this.getSignatures('deploy_block'), signatures);
-         break;
       case 'deploy_block':
-         signatures = getLastSignatureFromBAfterA(
-          this.getSignatures('un_deploy_block'), signatures);
+         blockingSig = getBlockingSignature(this.signatures, tagName);
+         signatures = blockingSig != null ? [blockingSig] : [];
          break;
       default:
-         throw new Error('Unknown tag name: ' + tagName);
+         signatures = [];
    }
 
    return signatures;
