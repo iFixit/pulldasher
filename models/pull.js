@@ -137,17 +137,12 @@ Pull.prototype.getStatus = function getStatus() {
       'CR' : this.getActiveSignatures('CR'),
    };
 
-   var activeSignatures = this.getActiveSignatures('dev_block');
-   status['dev_block'] = activeSignatures.length ?
-    activeSignatures[0] : null;
-
-   activeSignatures = this.getActiveSignatures('deploy_block');
-   status['deploy_block'] = activeSignatures.length ?
-    activeSignatures[0] : null;
+   status['dev_block']    = this.getActiveSignatures('dev_block');
+   status['deploy_block'] = this.getActiveSignatures('deploy_block');
 
    status['ready'] =
-            status['dev_block'] === null &&
-            status['deploy_block'] === null &&
+            status['dev_block'].length === 0 &&
+            status['deploy_block'].length === 0 &&
             status['QA'].length >= status['qa_req'] &&
             status['CR'].length >= status['cr_req'];
 
