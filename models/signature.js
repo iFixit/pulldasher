@@ -52,9 +52,9 @@ var tagRegExps = {};
 
 function hasTag(body, tagName) {
    if (typeof tagRegExps[tagName] === 'undefined') {
-      // eg (^|\s)dev_block :.+?:(\s|$)
+      // e.g. "dev_block :+1:" or " CR :asdf:."
       tagRegExps[tagName]
-         = new RegExp("(^|\\s)" + tagName + " :.+?:(\\s|$)");
+         = new RegExp("\\b" + tagName + " :[^:]+:");
    }
    return tagRegExps[tagName].test(body);
 }
