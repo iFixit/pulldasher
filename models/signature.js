@@ -3,10 +3,19 @@ module.exports = Signature;
 var config = require('../config');
 
 /**
- * A block or signoff on in a comment.
+ * A block or signoff in a comment.
  */
-function Signature(dbData) {
-   this.data = dbData;
+function Signature(data)
+{
+   this.data = {
+      number: data.number,
+      user: data.user,
+      user_id: data.user_id,
+      type: data.type,
+      created_at: data.created_at,
+      active: data.active,
+      comment_id: data.comment_id
+   };
 }
 
 /**
