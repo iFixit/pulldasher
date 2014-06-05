@@ -43,9 +43,6 @@ Pull.prototype.getSignatures = function getSignatures(tagName) {
  *
  * For dev/deploy_block, active means the last dev/deploy_block signature
  * (max of one, usually 0) that occurs after the last un_dev/deploy_block (if any).
- *
- * The same as above applies for un_dev/deploy_block, however these block-cancelation
- * signatures must appear after the block signature (visa-versa of above).
  */
 Pull.prototype.getActiveSignatures = function getActiveSignatures(tagName) {
 
@@ -79,9 +76,9 @@ Pull.prototype.getActiveSignatures = function getActiveSignatures(tagName) {
       for (var i = 0; i < signatures.length; i++) {
          sigType = signatures[i].data.type;
 
-         if (sigType == block) { // This pull is blocked.
+         if (sigType === block) { // This pull is blocked.
             return signatures[i];
-         } else if (sigType == unblock) { // This pull is unblocked.
+         } else if (sigType === unblock) { // This pull is unblocked.
             return null;
          }
       }
