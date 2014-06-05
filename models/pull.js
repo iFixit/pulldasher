@@ -64,12 +64,7 @@ Pull.prototype.getActiveSignatures = function getActiveSignatures(tagName) {
       var sigType;
       // Sort signatures by date, newest first.
       signatures.sort(function(a, b) {
-         if (a.data.created_at > b.data.created_at) {
-            return -1;
-         } else if (a.data.created_at < b.data.created_at) {
-            return 1;
-         }
-         return 0;
+         return Date.parse(b.data.created_at) - Date.parse(a.data.created_at);
       });
 
       // Check each pull signature to see if it's a blocking or unblocking tag.
