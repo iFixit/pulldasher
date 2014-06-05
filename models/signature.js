@@ -8,13 +8,13 @@ var config = require('../config');
 function Signature(data)
 {
    this.data = {
-      number: data.number,
-      user: data.user,
-      user_id: data.user_id,
-      type: data.type,
-      created_at: data.created_at,
-      active: data.active,
-      comment_id: data.comment_id
+      number:           data.number,
+      user:             data.user,
+      user_id:          data.user_id,
+      type:             data.type,
+      created_at:       data.created_at,
+      active:           data.active,
+      comment_id:       data.comment_id
    };
 }
 
