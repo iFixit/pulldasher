@@ -6,9 +6,14 @@ var config = require('../config');
 
 function Pull(data, comments, headCommit) {
    this.data = data || {};
-   this.signatures = Signature.createFromGithubComments(comments, data.number);
-   this.headCommit = headCommit;
-   this.updateActiveSignatures();
+
+   // TODO: pass comments everywhere Pull objects are created.
+   // maybe TODO: get headCommit info in `getActiveSignatures`?
+   if (comments && headCommit) {
+      this.signatures = Signature.createFromGithubComments(comments, data.number);
+      this.headCommit = headCommit;
+      this.updateActiveSignatures();
+   }
 }
 module.exports = Pull;
 util.inherits(Pull, events.EventEmitter);
