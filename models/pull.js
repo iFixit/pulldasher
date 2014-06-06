@@ -5,7 +5,32 @@ var Signature = require('./signature');
 var config = require('../config');
 
 function Pull(data, comments, headCommit) {
-   this.data = data || {};
+   this.data = {
+      number: data.number,
+      state: data.state,
+      title: data.title,
+      body: data.body,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+      closed_at: data.closed_at,
+      merged_at: data.merged_at,
+      head: {
+         ref: data.head.ref,
+         sha: data.head.sha,
+         repo: {
+            owner: {
+               login: data.head.repo.owner.login
+            },
+            name: data.head.repo.name
+         }
+      },
+      base: {
+         ref: data.base.ref
+      },
+      user: {
+         login: data.user.login
+      }
+   };
 
    // TODO: pass comments everywhere Pull objects are created.
    // maybe TODO: get headCommit info in `getActiveSignatures`?
