@@ -36,7 +36,7 @@ var pullManager = (function(socket) {
    });
 
    socket.on('pullChange', function(pull) {
-      updatePulls([pull]);
+      updatePull(pull);
    });
 
    function removeAll() {
@@ -57,13 +57,13 @@ var pullManager = (function(socket) {
    }
 
    function getPull(pullData) {
-      return pullIndex[pullData.id] || createPull(pullData);
+      return pullIndex[pullData.number] || createPull(pullData);
    }
 
    function createPull(pullData) {
       var pull = new Pull(pullData);
       pulls.push(pull);
-      pullIndex[pull.id] = pull;
+      pullIndex[pull.number] = pull;
       return pull;
    }
 })(socket);
