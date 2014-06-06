@@ -156,3 +156,32 @@ Pull.prototype.updateActiveSignatures = function updateActiveSignatures()
          signature.data.active = false;
    });
 };
+
+Pull.getFromDB = function(data) {
+   return {
+      number: data.number,
+      state: data.state,
+      title: data.title,
+      body: data.body,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+      closed_at: data.closed_at,
+      merged_at: data.merged_at,
+      head: {
+         ref: data.head_branch,
+         sha: data.head_sha,
+         repo: {
+            owner: {
+               login: data.repo_owner
+            },
+            name: data.repo_name
+         }
+      },
+      base: {
+         ref: data.base_branch
+      },
+      user: {
+         login: data.owner
+      }
+   };
+}
