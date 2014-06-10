@@ -22,18 +22,17 @@ function DBPull(pullData) {
    };
 }
 
-DBPull.prototype.save = function() {
+DBPull.prototype.save = function(callback) {
+   var number = this.data.number;
    var q_update = 'REPLACE INTO pulls SET ?';
 
    db.query(q_update, this.data, function(err, rows) {
       if (err) { console.log(err); }
-   });
-};
 
-DBPull.prototype.toObject = function() {
-   var data = this.data;
-   var obj = _.extend({}, data);
-   return obj;
+      console.log('Pull', number, 'Updated');
+
+      callback(number);
+   });
 };
 
 module.exports = DBPull;
