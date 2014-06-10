@@ -51,7 +51,6 @@ gitManager.getAllPulls().done(function(arrayOfPullPromises) {
    arrayOfPullPromises.forEach(function(pullPromise) {
       pullPromise.done(function(pull) {
          dbManager.updatePull(pull);
-         pullManager.addPull(pull);
       });
    });
 
