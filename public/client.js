@@ -6,18 +6,27 @@ function Pull(data) {
 
 _.extend(Pull.prototype, {
    remove: function() {
-      this.element.remove();
+      if (this.element)
+      {
+         this.element.remove();
+         delete this.element;
+      }
    },
    update: function(data) {
       _.extend(this, data);
 
-      var html = this.render();
-      if (!this.element) {
-         this.element = $(html);
-         // For testing purposes, append to just one column
-         $('#qaPulls').append(this.element);
-      } else {
-         this.element.html(html);
+      if (this.state === 'open') {
+         var html = this.render();
+         if (!this.element) {
+            this.element = $(html);
+            // For testing purposes, append to just one column
+            $('#qaPulls').append(this.element);
+         } else {
+            this.element.html(html);
+         }
+      }
+      else { // this.state === 'closed'
+         this.remove();
       }
    },
    render: function(templateName, object) {
@@ -53,7 +62,7 @@ var pullManager = (function(socket) {
 
    function updatePull(pullData) {
       var pull = getPull(pullData);
-      pull.update();
+      pull.update(pullData);
    }
 
    function getPull(pullData) {
