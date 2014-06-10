@@ -1,5 +1,3 @@
-module.exports = Signature;
-
 var config = require('../config');
 
 /**
@@ -47,6 +45,24 @@ Signature.createFromGithubComments
       return comments;
    }, []);
 }
+
+/**
+ * Takes an object representing a DB row, and returns an object which mimics
+ * a GitHub API response which may be used to initialize an instance of this
+ * Signature object.
+ */
+Signature.getFromDB = function(data) {
+   return {
+      number:     data.number,
+      user:       data.user,
+      type:       data.type,
+      created_at: data.created_at,
+      active:     data.active,
+      comment_id: data.comment_id
+   };
+}
+
+module.exports = Signature;
 
 var tagRegExps = {};
 
