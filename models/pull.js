@@ -187,6 +187,11 @@ Pull.prototype.updateActiveSignatures = function updateActiveSignatures()
    });
 };
 
+/**
+ * Takes an object representing a DB row, and returns an object which mimics
+ * a GitHub API response which may be used to initialize an instance of this
+ * Pull object.
+ */
 Pull.getFromDB = function(data) {
    return {
       number: data.number,
