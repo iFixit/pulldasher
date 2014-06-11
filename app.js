@@ -53,9 +53,7 @@ gitManager.getAllPulls().done(function(arrayOfPullPromises) {
          // Delete all signatures related to this pull from the DB
          // before we rewrite them to avoid duplicates.
          dbManager.deleteSignatures(pull.data.number).done(function() {
-            pull.signatures.forEach(function(signature) {
-               dbManager.insertSignature(signature);
-            });
+            dbManager.insertSignatures(pull.signatures);
          });
 
          dbManager.updatePull(pull);
