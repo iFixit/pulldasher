@@ -4,7 +4,7 @@ var _ = require('underscore');
 var Signature = require('./signature');
 var config = require('../config');
 
-function Pull(data, comments, headCommit) {
+function Pull(data, signatures, headCommit) {
    this.data = {
       number: data.number,
       state: data.state,
@@ -32,20 +32,12 @@ function Pull(data, comments, headCommit) {
       }
    };
 
-   // TODO: pass comments everywhere Pull objects are created.
-   // maybe TODO: get headCommit info in `getActiveSignatures`?
-   if (comments && headCommit) {
-      this.signatures = Signature.createFromGithubComments(comments, data.number);
-      this.headCommit = headCommit;
+   this.signatures = signatures || [];
+   this.headCommit = headCommit || undefined;
+
+   if (this.signatures && this.headCommit) {
       this.updateActiveSignatures();
    }
-}
-module.exports = Pull;
-util.inherits(Pull, events.EventEmitter);
-
-Pull.prototype.setData = function (data) {
-   this.data = data;
-   this.emit('dataChanged');
 }
 
 Pull.prototype.toObject = function () {
@@ -222,3 +214,5 @@ Pull.getFromDB = function(data) {
       }
    };
 }
+
+module.exports = Pull;
