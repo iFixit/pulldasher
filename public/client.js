@@ -6,8 +6,7 @@ function Pull(data) {
 
 _.extend(Pull.prototype, {
    remove: function() {
-      if (this.element)
-      {
+      if (this.element) {
          this.element.remove();
          delete this.element;
       }
@@ -24,8 +23,7 @@ _.extend(Pull.prototype, {
          } else {
             this.element.html(html);
          }
-      }
-      else { // this.state === 'closed'
+      } else { // this.state === 'closed'
          this.remove();
       }
    },
