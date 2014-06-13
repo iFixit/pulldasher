@@ -38,7 +38,6 @@ var HooksController = {
          var sigs = Signature.parseComment(body.comment, body.issue.number);
 
          sigs.forEach(function(sig) {
-            sig.data.active = true;
             dbManager.insertSignature(sig);
          });
       }
