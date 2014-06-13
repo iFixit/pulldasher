@@ -1,5 +1,7 @@
 var _ = require('underscore'),
-    db = require('../lib/db');
+    db = require('../lib/db'),
+    Promise = require('promise');
+
 
 // Builds an object representation of a row in the DB `pulls` table
 // from the data returned by GitHub's API.
@@ -22,16 +24,15 @@ function DBPull(pullData) {
    };
 }
 
-DBPull.prototype.save = function(callback) {
-   var number = this.data.number;
+DBPull.prototype.save = function() {
+   var pullData = this.data;
    var q_update = 'REPLACE INTO pulls SET ?';
 
-   db.query(q_update, this.data, function(err, rows) {
-      if (err) { console.log(err); }
-
-      console.log('Pull', number, 'Updated');
-
-      callback(number);
+   return new Promise(function(resolve, reject) {
+      db.query(q_update, pullData, function(err, rows) {
+         if (err) { reject(err); }
+         resolve();
+      });
    });
 };
 
