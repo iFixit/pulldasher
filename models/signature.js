@@ -32,7 +32,7 @@ Signature.parseComment = function parseComment(comment, pullNumber) {
             created_at: comment.created_at,
             // `active` is unknown until all the signatures have been created
             // and parsed. See Pull.prototype.updateActiveSignatures()
-            active: null,
+            active: true,
             comment_id: comment.id
          }));
       }
@@ -55,6 +55,14 @@ Signature.getFromDB = function(data) {
       active:     data.active,
       comment_id: data.comment_id
    };
+}
+
+/**
+ * A compare function for Signatures that can be passed to a custom sorter.
+ * Sorts signatures in chronologically
+ */
+Signature.prototype.compare = function(a, b) {
+   return Date.parse(a.data.created_at) - Date.parse(b.data.created_at);
 }
 
 module.exports = Signature;
