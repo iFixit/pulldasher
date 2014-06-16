@@ -37,9 +37,7 @@ var HooksController = {
          // Parse any signature(s) out of the comment.
          var sigs = Signature.parseComment(body.comment, body.issue.number);
 
-         sigs.forEach(function(sig) {
-            dbManager.insertSignature(sig);
-         });
+         dbManager.insertSignatures(sig);
       }
 
       // Emit notification to pullManager to update the view via the DB.
