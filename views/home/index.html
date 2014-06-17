@@ -2,19 +2,105 @@
    var App = {
       socketToken: "<%= socketToken %>"
    };
+   var View = {
+      // where
+      selector: function(pull) {
+         return true;
+      },
+      // order by
+      sort: function(pull) {
+         return pull.dueDate
+      },
+      // group by
+      group: function(pull) {
+         return pull.panic
+      },
+      // Allows custom modifications of each pull's display
+      adjust: function(pull, node) {
+         if (pull.panic) {
+            $(node).addClass('bg-warning');
+         }
+      },
+      triggers: {
+         onUpdate: function(blob, container, pull) {
+            appearanceManager.updateCountBadges(container);
+         }
+      },
+      navbar: "#restoreButtons",
+      columns: [
+         {
+            title: "Special Pulls",
+            id: "uniqPulls",
+            selector: function(pull) {
+               return select % 4 === 3;
+            },
+            sort: function(pull) {
+               return pull.ready ? 0 : 1;
+            },
+            triggers: {
+               onUpdate: function(blob, container, pull) {
+                  appearanceManager.hideIfEmpty(container, blob);
+               },
+            },
+            shrinkToButton: true
+         },
+         {
+            title: "dev_blocked Pulls",
+            id: "blockPulls",
+            selector: function(pull) {
+               return select % 4 === 2;
+            }
+         },
+         {
+            title: "CR Pulls",
+            id: "crPulls",
+            selector: function(pull) {
+               return select % 4 < 2;
+            }
+         },
+         {
+            title: "QA Pulls",
+            id: "qaPulls",
+            selector: function(pull) {
+               return select % 4 === 0;
+            }
+         }
+      ]
+   }
 </script>
-<p>state: <span id="connectionState"></span>
-<div id="pulls" class="row">
-   <div class="col-sm-4">
-      <div id="qaPulls" class="list-group">
+<nav class="navbar navbar-default" role="navigation">
+   <div class="container-fluid">
+      <div clas="navbar-header">
+         <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+         </button>
+         <a class="navbar-brand" href="#">Pulldasher</a>
+      </div>
+
+      <div id="navbar" class="collapse navbar-collapse">
+         <div id="restore-buttons"></div>
+
+         <p class="navbar-text navbar-right">
+         State: <span id="connectionState"></span>
+         </p>
       </div>
    </div>
-   <div class="col-sm-4">
-      <div id="crPulls" class="list-group">
+</nav>
+
+<div id="pulls" class="container">
+   <div id="uniqSect" class="row hidden">
+      <div id="uniqPulls-container" class="col-sm-12">
       </div>
    </div>
-   <div class="col-sm-4">
-      <div id="uniquePulls" class="list-group">
+   <div class="row">
+      <div id="blockPulls-container" class="col-sm-4">
+      </div>
+      <div id="crPulls-container" class="col-sm-4">
+      </div>
+      <div id="qaPulls-container" class="col-sm-4">
       </div>
    </div>
 </div>
