@@ -61,9 +61,9 @@ Signature.getFromDB = function(data) {
  * A compare function for Signatures that can be passed to a custom sorter.
  * Sorts signatures in chronologically
  */
-Signature.prototype.compare = function(a, b) {
+Signature.compare = function(a, b) {
    return Date.parse(a.data.created_at) - Date.parse(b.data.created_at);
-}
+};
 
 module.exports = Signature;
 
