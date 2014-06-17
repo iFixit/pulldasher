@@ -8,8 +8,8 @@ define(['jquery', 'underscore', 'socket'], function($, _, socket) {
       connect_failed:   'disconnected',
       reconnect_failed: 'disconnected',
       error:            'disconnected',
-      authenticated:    'connected',
-   }
+      authenticated:    'connected'
+   };
    _.each(events, function(newState, event) {
       socket.on(event, function() {
          updateState(newState);
