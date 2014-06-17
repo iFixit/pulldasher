@@ -1,4 +1,5 @@
 define(['underscore', 'socket', 'Pull'], function(_, socket, Pull) {
+   var listeners = [];
 
    var pullIndex = {};
    var pulls = [];
@@ -6,11 +7,22 @@ define(['underscore', 'socket', 'Pull'], function(_, socket, Pull) {
    socket.on('allPulls', function(pulls) {
       removeAll();
       updatePulls(pulls);
+
+      update();
    });
 
    socket.on('pullChange', function(pull) {
       updatePull(pull);
+
+      update();
    });
+
+
+   function update() {
+      _.each(listeners, function(listener) {
+         listener(pulls);
+      });
+   }
 
    function removeAll() {
       pulls.forEach(function(pull) {
@@ -40,4 +52,13 @@ define(['underscore', 'socket', 'Pull'], function(_, socket, Pull) {
       return pull;
    }
 
+   return {
+      onUpdate: function(listener) {
+         listeners.push(listener);
+      },
+
+      getPulls: function() {
+         return pulls;
+      }
+   };
 });
