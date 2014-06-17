@@ -5,10 +5,13 @@ define(['jquery', 'underscore', 'Templates'], function($, _, Templates) {
    /**
     * Constructor
     *
-    * @param thePullFilter A PullFilter which will provide the pulls to display in this column.
     * @param theElementFilter An ElementFilter which will be used to transform
     * the displayed elements in this column.
-    * @param theSpec The specification for this column.
+    *
+    * @param theSpec The specification for this column. This is a JavaScript
+    * object which provides information about the name and id of this column
+    * and about the page template. It allows this function to be more
+    * general-purpose.
     */
    var constructor = function(elementFilter, spec) {
       var self = this;
@@ -42,10 +45,18 @@ define(['jquery', 'underscore', 'Templates'], function($, _, Templates) {
          return node;
       };
 
+      /**
+       * Renders the button that can be used to restore the column when it is
+       * collapsed. Is only called if the button needs to be rendered.
+       */
       var renderRestore = function() {
          return renderInto('restore', spec, $(spec.navbar));
       };
 
+      /**
+       * Renders this column's basic structure. That does not include the pulls
+       * in the column, only the pretty that surrounds them.
+       */
       var renderColumn = function() {
          return renderInto('column', spec, $('#' + spec.id + '-container'));
       };
