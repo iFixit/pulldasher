@@ -19,10 +19,10 @@ function DBSignature(sigData) {
 
 DBSignature.prototype.save = function() {
    var sigData = this.data;
-   var q_update = 'INSERT INTO pull_signatures SET ?';
+   var q_insert = 'INSERT INTO pull_signatures SET ?';
 
    return new Promise(function(resolve, reject) {
-      db.query(q_update, sigData, function(err, rows) {
+      db.query(q_insert, sigData, function(err, rows) {
          if (err) { reject(err); }
          resolve();
       });
