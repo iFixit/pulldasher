@@ -1,21 +1,19 @@
 define(['underscore'], function(_){
    var templates = {
       pull: '\
-      <a target="_blank" href="<%- pull.html_url %>" class="list-group-item">\
+      <a target="_blank" href="<%- pull.html_url() %>" class="list-group-item pull">\
          <h4 class="list-group-item-heading">#<%- pull.number %> - <%- pull.title %></h4>\
       </a>',
 
       restore: '\
       <button class="btn btn-primary navbar-btn" style="display: none" type="button">\
-         Restore <em>\
-            <%- this.title %>\
+            <%- restore.title %>\
             <span class="pull-count badge"></span>\
-         </em>\
       </button>',
 
       column: '\
-      <div class="panel panel-primary pull-list">\
-            <div class="panel-heading" data-toggle="collapse" data-target="<%- column.id %>">\
+      <div class="panel panel-default pull-list">\
+            <div class="panel-heading" data-toggle="collapse" data-target="#<%- column.id %>">\
                <h1 class="panel-title">\
                   <%- column.title %>\
                   <span class="pull-count badge pull-right"></span>\
