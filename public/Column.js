@@ -100,6 +100,17 @@ define(['jquery', 'underscore', 'Templates'], function($, _, Templates) {
       var setPulls = function(pullList) {
          clearColumn();
          _.each(pullList, addPullToEndOfColumn);
+
+         updateCountBadge();
+      };
+
+      var updateCountBadge = function() {
+         var count = container.find('.pull').length;
+         column.find('.pull-count').text(count);
+
+         if (columnRestore) {
+            columnRestore.find('.pull-count').text(count);
+         }
       };
 
       _.extend(this, {
@@ -130,7 +141,7 @@ define(['jquery', 'underscore', 'Templates'], function($, _, Templates) {
          // TODO: Link button and container correctly
       }
 
-      column = renderColumn();
+      column = $(renderColumn());
 
       // Store the location of the column container
       container = column.find('#' + spec.id);
