@@ -26,10 +26,6 @@ define(['jquery', 'underscore', 'Templates'], function($, _, Templates) {
       // The part of this column that actually holds pull elements.
       var container;
 
-      // A map from Pull objects to their associated DOM elements in this
-      // column. Used to avoid re-rendering pulls
-      var pullsToElems = {};
-
       // Private methods
       
       /**
@@ -69,19 +65,6 @@ define(['jquery', 'underscore', 'Templates'], function($, _, Templates) {
       };
 
       /**
-       * Creates a DOM node if one does not already exsist. Otherwise, returns
-       * the existing DOM node.
-       */
-      var getDOMNode = function(pull) {
-         var elem = pullsToElems[pull.number];
-         if (elem) {
-            return elem;
-         } else {
-            return createDOMNode(pull);
-         }
-      };
-
-      /**
        * Creates a DOM node from the pull and overwrites whatever was currently
        * stored as the DOM node for that pull with the newly-created node.
        * Allows user code to adjust the node through the adjust method hook
@@ -89,7 +72,6 @@ define(['jquery', 'underscore', 'Templates'], function($, _, Templates) {
       var createDOMNode = function(pull) {
          var html = self.renderPull(pull);
          var elem = $.parseHTML(html);
-         pullsToElems[pull.number] = elem;
 
          elementFilter.filter(pull, elem);
 
@@ -97,20 +79,10 @@ define(['jquery', 'underscore', 'Templates'], function($, _, Templates) {
       };
 
       /**
-       * Removes a pull from this column. Re-adding it will cause it to be
-       * recreated from scratch.
-       */
-      var removePull = function(pull) {
-         var elem = pullsToElems[pull.number];
-         elem.remove();
-         delete pullsToElems[pull.number];
-      };
-
-      /**
        * Gets a DOM node for a pull and adds it to this column.
        */
       var addPullToEndOfColumn = function(pull) {
-         var elem = getDOMNode(pull);
+         var elem = createDOMNode(pull);
          addElement(elem);
       };
 
@@ -135,20 +107,6 @@ define(['jquery', 'underscore', 'Templates'], function($, _, Templates) {
           * update is called to update the column with a new list of pulls.
           */
          update: setPulls,
-
-         /**
-          * Rebuilds the column using the data in pullList with the specified
-          * pull re-rendered.
-          *
-          * Used when changing the data in a pull, to prevent old data from
-          * showing up.
-          */
-         refreshPull: function(pull, pullList) {
-            // So that we don't have the old data in the node. A new DOM node will
-            // be automatically created when setPulls finds it missing.
-            removePull(pull);
-            setPulls(pullList);
-         },
 
          /**
           * Renders the HTML for a pull. spec.templateName and spec.data both
