@@ -1,5 +1,6 @@
-define(['jquery', 'underscore', 'pullManager', 'appearanceManager', 'module', 'PullFilter', 'ElementFilter', 'Column', 'ConnectionManager'],
- function($, _, pullManager, appearanceManager, module, PullFilter, ElementFilter, Column, ConnectionManager) {
+define(['jquery', 'underscore', 'pullManager', 'PullFilter', 'ElementFilter', 'Column', 'ConnectionManager', 'bootstrap'],
+// Note that not all of the required items above are represented in the function argument list. Some just need to be loaded, but that's all.
+ function($, _, pullManager, PullFilter, ElementFilter, Column) {
    var spec = View;
 
 
@@ -17,7 +18,5 @@ define(['jquery', 'underscore', 'pullManager', 'appearanceManager', 'module', 'P
 
    pullManager.onUpdate(globalPullFilter.update);
 
-   //$(appearanceManager.addCollapseSwaps);
-   
    globalPullFilter.update(pullManager.getPulls());
 });
