@@ -1,7 +1,7 @@
 /**
  * Represents a column of pulls
  */
-define(['jquery', 'underscore', 'Templates', 'appearanceUtils'], function($, _, Templates, appearanceUtils) {
+define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'], function($, _, Templates, appearanceUtils, bootstrap) {
    /**
     * Constructor
     *
@@ -117,6 +117,19 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils'], function($, _, 
          }
       };
 
+      var addCollapseSwap = function() {
+         column.on('hidden.bs.collapse', function() {
+            column.fadeOut();
+            columnRestore.fadeIn();
+         });
+
+         columnRestore.on('click', function() {
+            columnRestore.fadeOut();
+            column.fadeIn();
+            container.collapse('show');
+         });
+      };
+
       _.extend(this, {
          /**
           * update is called to update the column with a new list of pulls.
@@ -139,16 +152,16 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils'], function($, _, 
          }
       });
 
-      // Render the restore button (if needed)
-      if (spec.shrinkToButton) {
-         columnRestore = renderRestore();
-         // TODO: Link button and container correctly
-      }
-
       column = $(renderColumn());
 
       // Store the location of the column container
       container = column.find('#' + spec.id);
+
+      // Render the restore button (if needed)
+      if (spec.shrinkToButton) {
+         columnRestore = renderRestore();
+         addCollapseSwap();
+      }
 
       if (spec.triggers && spec.triggers.onCreate instanceof Function) {
          spec.triggers.onCreate(column, container, appearanceUtils);
