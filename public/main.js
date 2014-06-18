@@ -3,11 +3,13 @@ define(['jquery', 'underscore', 'pullManager', 'PullFilter', 'ElementFilter', 'C
  function($, _, pullManager, PullFilter, ElementFilter, Column) {
    var spec = View;
 
-
    var globalPullFilter = new PullFilter(spec);
    var globalElementFilter = new ElementFilter(spec);
 
    _.each(spec.columns, function(columnSpec) {
+      _.defaults(columnSpec, {
+         navbar: spec.navbar
+      });
       var pullFilter = new PullFilter(columnSpec);
       var elementFilter = new ElementFilter(columnSpec, globalElementFilter);
       var col = new Column(elementFilter, columnSpec);
