@@ -1,7 +1,7 @@
 /**
  * Represents a column of pulls
  */
-define(['jquery', 'underscore', 'Templates'], function($, _, Templates) {
+define(['jquery', 'underscore', 'Templates', 'appearanceUtils'], function($, _, Templates, appearanceUtils) {
    /**
     * Constructor
     *
@@ -102,6 +102,10 @@ define(['jquery', 'underscore', 'Templates'], function($, _, Templates) {
          _.each(pullList, addPullToEndOfColumn);
 
          updateCountBadge();
+
+         if (spec.triggers && spec.triggers.onUpdate instanceof Function) {
+            spec.triggers.onUpdate(column, container, appearanceUtils);
+         }
       };
 
       var updateCountBadge = function() {
@@ -146,6 +150,9 @@ define(['jquery', 'underscore', 'Templates'], function($, _, Templates) {
       // Store the location of the column container
       container = column.find('#' + spec.id);
 
+      if (spec.triggers && spec.triggers.onCreate instanceof Function) {
+         spec.triggers.onCreate(column, container, appearanceUtils);
+      }
    };
 
    return constructor;
