@@ -9,38 +9,39 @@
       },
       // order by
       sort: function(pull) {
-         return pull.dueDate
-      },
-      // group by
-      group: function(pull) {
-         return pull.panic
+         return pull.created_at;
       },
       // Allows custom modifications of each pull's display
       adjust: function(pull, node) {
-         if (pull.panic) {
+         // If the pull is over 30 days old...
+         if (Date.now() - (new Date(pull.created_at)) > 2590000000 ) {
+            // Mark it in red
             $(node).addClass('bg-warning');
          }
       },
-      triggers: {
-         onUpdate: function(blob, container, pull) {
-            appearanceManager.updateCountBadges(container);
-         }
-      },
-      navbar: "#restoreButtons",
+      navbar: "#restore-buttons",
       columns: [
          {
             title: "Special Pulls",
             id: "uniqPulls",
             selector: function(pull) {
-               return select % 4 === 3;
+               return pull.deploy_blocked() || pull.status.ready || pull.number === 3455;
             },
             sort: function(pull) {
-               return pull.ready ? 0 : 1;
+               return pull.deploy_blocked() ? 0 : 1;
+            },
+            adjust: function(pull, node) {
+               if (pull.deploy_blocked()) {
+                  $(node).addClass('bg-warning');
+               }
             },
             triggers: {
-               onUpdate: function(blob, container, pull) {
-                  appearanceManager.hideIfEmpty(container, blob);
+               onCreate: function(blob, container, utils) {
+                  blob.removeClass('panel-default').addClass('panel-primary');
                },
+               onUpdate: function(blob, container, utils) {
+                  utils.hideIfEmpty(container, blob, '.pull');
+               }
             },
             shrinkToButton: true
          },
@@ -48,21 +49,21 @@
             title: "dev_blocked Pulls",
             id: "blockPulls",
             selector: function(pull) {
-               return select % 4 === 2;
+               return pull.dev_blocked();
             }
          },
          {
             title: "CR Pulls",
             id: "crPulls",
             selector: function(pull) {
-               return select % 4 < 2;
+               return !pull.cr_done() && !pull.dev_blocked();
             }
          },
          {
             title: "QA Pulls",
             id: "qaPulls",
             selector: function(pull) {
-               return select % 4 === 0;
+               return !pull.qa_done() && !pull.dev_blocked();
             }
          }
       ]
@@ -70,7 +71,7 @@
 </script>
 <nav class="navbar navbar-default" role="navigation">
    <div class="container-fluid">
-      <div clas="navbar-header">
+      <div class="navbar-header">
          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
             <span class="sr-only">Toggle navigation</span>
             <span class="icon-bar"></span>
@@ -81,8 +82,7 @@
       </div>
 
       <div id="navbar" class="collapse navbar-collapse">
-         <div id="restore-buttons"></div>
-
+         <span id="restore-buttons"></span>
          <p class="navbar-text navbar-right">
          State: <span id="connectionState"></span>
          </p>
@@ -91,7 +91,7 @@
 </nav>
 
 <div id="pulls" class="container">
-   <div id="uniqSect" class="row hidden">
+   <div id="uniqSect" class="row">
       <div id="uniqPulls-container" class="col-sm-12">
       </div>
    </div>
