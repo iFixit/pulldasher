@@ -9,6 +9,7 @@ var config = require('./config'),
     dbManager = require('./lib/db-manager'),
     gitManager = require('./lib/git-manager'),
     Pull = require('./models/pull'),
+    Signature = require('./models/signature'),
     mainController = require('./controllers/main'),
     pullController = require('./controllers/pull')(pullManager),
     hooksController = require('./controllers/githubHooks');
@@ -53,6 +54,7 @@ gitManager.getAllPulls().done(function(arrayOfPullPromises) {
          // Delete all signatures related to this pull from the DB
          // before we rewrite them to avoid duplicates.
          dbManager.deleteSignatures(pull.data.number).done(function() {
+            pull.signatures.sort(Signature.compare);
             dbManager.insertSignatures(pull.signatures);
          });
 
