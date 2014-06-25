@@ -7,4 +7,18 @@ function Status(data) {
    };
 }
 
+/**
+ * Takes an object representing a DB row, and returns an object which mimics
+ * a GitHub API response which may be used to initialize an instance of this
+ * Status object.
+ */
+Status.getFromDB = function(data) {
+   return {
+      sha:           data.commit,
+      target_url:    data.log_url,
+      description:   data.description,
+      state:         data.state
+   };
+};
+
 module.exports = Status;
