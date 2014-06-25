@@ -4,7 +4,7 @@ define(['underscore'], function(_) {
    };
 
    _.extend(constructor.prototype, {
-      html_url: function() {
+      url: function() {
          return 'https://github.com/' + this.head.repo.owner.login + '/' + this.head.repo.name + '/pull/' + this.number;
       },
 
