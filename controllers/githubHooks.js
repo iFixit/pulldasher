@@ -40,8 +40,6 @@ var HooksController = {
          dbManager.insertSignatures(sigs);
       }
 
-      // Emit notification to pullManager to update the view via the DB.
-
       return res.status(200).send('Success!');
    }
 
