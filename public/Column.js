@@ -1,7 +1,8 @@
 /**
  * Represents a column of pulls
  */
-define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'], function($, _, Templates, appearanceUtils, bootstrap) {
+define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'],
+ function($, _, Templates, appearanceUtils, bootstrap) {
    /**
     * Constructor
     *
@@ -16,8 +17,10 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'], fu
    var constructor = function(elementFilter, spec) {
       var self = this;
 
-      // The DOM node that holds all the pretty for this column. Remove it, and
-      // it is as if this column never existed (sorta).
+      // The DOM node that holds all the elements for this column. Remove it, and
+      // it is as if this column never existed (although there's still the
+      // columnRestore button--to really remove the entire column, you have to
+      // remove that too.)
       var column;
 
       // The button to uncollapse this column.
@@ -32,7 +35,7 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'], fu
        * Renders a template with provided data and appends the resulting node
        * to the end of the JQuery object container.
        */
-      var renderInto = function(template, data, container) {
+      var renderInto = function renderInto(template, data, container) {
          var templateFunction = Templates.get(template);
          var html = templateFunction(data);
          var node = $(html);
@@ -45,22 +48,22 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'], fu
        * Renders the button that can be used to restore the column when it is
        * collapsed. Is only called if the button needs to be rendered.
        */
-      var renderRestore = function() {
+      var renderRestore = function renderRestore() {
          return renderInto('restore', spec, $(spec.navbar));
       };
 
       /**
        * Renders this column's basic structure. That does not include the pulls
-       * in the column, only the pretty that surrounds them.
+       * in the column, only the structure that surrounds them.
        */
-      var renderColumn = function() {
+      var renderColumn = function renderColumn() {
          return renderInto('column', spec, $('#' + spec.id + '-container'));
       };
 
       /**
        * Add element to this column.
        */
-      var addElement = function(element) {
+      var addElement = function addElement(element) {
          container.append(element);
       };
 
@@ -69,7 +72,7 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'], fu
        * stored as the DOM node for that pull with the newly-created node.
        * Allows user code to adjust the node through the adjust method hook
        */
-      var createDOMNode = function(pull) {
+      var createDOMNode = function createDOMNode(pull) {
          var html = self.renderPull(pull);
          var elem = $.parseHTML(html);
 
@@ -79,9 +82,9 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'], fu
       };
 
       /**
-       * Gets a DOM node for a pull and adds it to this column.
+       * Creates a DOM node for a pull and adds it to this column.
        */
-      var addPullToEndOfColumn = function(pull) {
+      var addPullToEndOfColumn = function addPullToEndOfColumn(pull) {
          var elem = createDOMNode(pull);
          addElement(elem);
       };
@@ -89,7 +92,7 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'], fu
       /**
        * Remove all the items in a column.
        */
-      var clearColumn = function() {
+      var clearColumn = function clearColumn() {
          container.empty();
       };
 
@@ -97,7 +100,7 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'], fu
        * Replaces the current contents of this column with the pulls in
        * pullList.
        */
-      var setPulls = function(pullList) {
+      var setPulls = function setPulls(pullList) {
          clearColumn();
          _.each(pullList, addPullToEndOfColumn);
 
@@ -108,7 +111,11 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'], fu
          }
       };
 
-      var updateCountBadge = function() {
+      /**
+       * Updates the badge on this column with the number of pulls in the
+       * column.
+       */
+      var updateCountBadge = function updateCountBadge() {
          var count = container.find('.pull').length;
          column.find('.pull-count').text(count);
 
@@ -117,13 +124,18 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'], fu
          }
       };
 
-      var addCollapseSwap = function() {
-         column.on('hidden.bs.collapse', function() {
+      /**
+       * Adds the event handlers to make this column disappear and its restore
+       * button appear when the header is clicked. Also adds the handler to
+       * make the restore button restore the column correctly.
+       */
+      var addCollapseSwap = function addCollapseSwap() {
+         column.on('hidden.bs.collapse', function hideColumn() {
             column.fadeOut();
             columnRestore.fadeIn();
          });
 
-         columnRestore.on('click', function() {
+         columnRestore.on('click', function restoreColumn() {
             columnRestore.fadeOut();
             column.fadeIn();
             container.collapse('show');
@@ -138,9 +150,9 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'], fu
 
          /**
           * Renders the HTML for a pull. spec.templateName and spec.data both
-          * affect this function
+          * affect this function.
           */
-         renderPull: function(pull) {
+         renderPull: function renderPull(pull) {
             var template = Templates.get(spec.templateName || 'pull');
 
             var data = _.clone(pull);
@@ -163,6 +175,7 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'], fu
          addCollapseSwap();
       }
 
+      // Run onCreate triggers for user modification of pulls
       if (spec.triggers && spec.triggers.onCreate instanceof Function) {
          spec.triggers.onCreate(column, container, appearanceUtils);
       }
