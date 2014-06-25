@@ -1,7 +1,7 @@
 define(['underscore'], function(_){
    var templates = {
       pull: '\
-      <a target="_blank" href="<%- pull.html_url() %>" class="list-group-item pull">\
+      <a target="_blank" href="<%- pull.url() %>" class="list-group-item pull">\
          <h4 class="list-group-item-heading">#<%- pull.number %> - <%- pull.title %></h4>\
       </a>',
 
