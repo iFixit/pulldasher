@@ -1,3 +1,18 @@
+/**
+ * PullFilter runs pulls through the various functions (optionally) provided by
+ * the user to choose which pulls to display and how to order and group them.
+ * It expects to be passed an array of pulls to filter, and it returns an array
+ * of pulls that are properly filtered, sorted, and grouped (although the
+ * groups are currently flattened.)
+ *
+ * The PullFilter is designed to support running chained with other event-based
+ * objects and other PullFilters. Because Pulls are created by events from the
+ * WebSockets, it was simple to have a PullFilter subscribe for the
+ * resulting list of pulls, and then it could filter it as desired. Further,
+ * there can be multiple subscribers to a given event, which enables more than
+ * one resulting list of pulls, due to the PullFilter not modifying the list it
+ * is passed, but only copying it.
+ */
 define(['underscore'], function(_) {
    var pullFilter = function (spec) {
       var listeners = [];
