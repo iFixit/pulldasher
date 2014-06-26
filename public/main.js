@@ -1,8 +1,8 @@
-define(['jquery', 'underscore', 'pullManager', 'PullFilter', 'ElementFilter', 'Column', 'ConnectionManager', 'bootstrap'],
-// Note that not all of the required items above are represented in the function argument list. Some just need to be loaded, but that's all.
- function($, _, pullManager, PullFilter, ElementFilter, Column) {
-   var spec = View;
-
+define(['jquery', 'underscore', 'pullManager', 'PullFilter', 'ElementFilter', 'Column', 'views/index',
+'ConnectionManager', 'bootstrap'],
+// Note that not all of the required items above are represented in the
+// function argument list. Some just need to be loaded, but that's all.
+ function($, _, pullManager, PullFilter, ElementFilter, Column, spec) {
    var globalPullFilter = new PullFilter(spec);
    var globalElementFilter = new ElementFilter(spec);
 
