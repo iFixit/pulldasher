@@ -74,7 +74,7 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'],
        */
       var createDOMNode = function createDOMNode(pull) {
          var html = self.renderPull(pull);
-         var elem = $.parseHTML(html);
+         var elem = $($.parseHTML(html));
 
          elementFilter.filter(pull, elem);
 
