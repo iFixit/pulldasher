@@ -22,7 +22,7 @@ define(['jquery'], function($) {
             title: "Special Pulls",
             id: "uniqPulls",
             selector: function(pull) {
-               return (pull.deploy_blocked() || pull.status.ready || pull.number === 3455) && !pull.dev_blocked();
+               return (pull.deploy_blocked() || pull.status.ready) && !pull.dev_blocked();
             },
             sort: function(pull) {
                return pull.deploy_blocked() ? 0 : 1;
