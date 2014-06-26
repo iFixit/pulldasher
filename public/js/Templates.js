@@ -5,8 +5,7 @@ define(['underscore'], function(_){
          <h4 class="list-group-item-heading">#<%- pull.number %> - <%- pull.title %></h4>\
       </a>',
 
-      restore: '\
-      <button class="btn btn-primary navbar-btn" style="display: none" type="button">\
+      restore: '<button class="btn btn-primary navbar-btn" style="display: none" type="button">\
             <%- restore.title %>\
             <span class="pull-count badge"></span>\
       </button>',
