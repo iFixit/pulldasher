@@ -1,5 +1,9 @@
 /**
- * Represents a column of pulls
+ * Represents a column of pull requests on the page.
+ *
+ * Column takes care of rendering a column template onto the page. Each Column
+ * receives an array of Pull objects via its update method and converts them to
+ * jQuery elements, which it inserts into its rendering.
  */
 define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'],
  function($, _, Templates, appearanceUtils, bootstrap) {
