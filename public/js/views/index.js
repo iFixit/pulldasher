@@ -2,7 +2,7 @@ define(['jquery'], function($) {
    return {
       // where
       selector: function(pull) {
-         return true;
+         return pull.state == 'open';
       },
       // order by
       sort: function(pull) {
