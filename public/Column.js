@@ -70,7 +70,9 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'],
       /**
        * Creates a DOM node from the pull and overwrites whatever was currently
        * stored as the DOM node for that pull with the newly-created node.
-       * Allows user code to adjust the node through the adjust method hook
+       * Allows user code to adjust the node through the adjust method hook by
+       * applying this column's ElementFilter to the resulting nodes
+       * @return a jQuery object containing the new DOM node
        */
       var createDOMNode = function createDOMNode(pull) {
          var html = self.renderPull(pull);
