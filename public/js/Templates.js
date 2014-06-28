@@ -1,24 +1,9 @@
-define(['underscore'], function(_){
+define(['underscore', 'text!pull.html', 'text!restore.html', 'text!column.html'],
+function(_, pull, restore, column){
    var templates = {
-      pull: '\
-      <a target="_blank" href="<%- pull.url() %>" class="list-group-item pull">\
-         <h4 class="list-group-item-heading">#<%- pull.number %> - <%- pull.title %></h4>\
-      </a>',
-
-      restore: '<button class="btn btn-primary navbar-btn" style="display: none" type="button">\
-            <%- restore.title %>\
-            <span class="pull-count badge"></span>\
-      </button>',
-
-      column: '<div class="panel panel-default pull-list">\
-            <div class="click-heading panel-heading" data-toggle="collapse" data-target="#<%- column.id %>">\
-               <h1 class="panel-title">\
-                  <%- column.title %>\
-                  <span class="pull-count badge pull-right"></span>\
-               </h1>\
-            </div>\
-         <div id="<%- column.id %>" class="list-group collapse in"></div>\
-      </div>'
+      pull: pull,
+      restore: restore,
+      column: column
    };
 
    var compiledTemplates = {};
