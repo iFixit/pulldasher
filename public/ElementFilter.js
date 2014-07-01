@@ -22,8 +22,9 @@ define(['underscore'], function(_) {
     * @param prefilter - An (optional) parent ElementFilter which will be run on
     * elements before this one is.
     */
-   var constructor = function(spec, prefilter) { return { filter:
-   function(pull, element) {
+   var constructor = function(spec, prefilter) {
+      return {
+         filter: function(pull, element) {
             // Later possibilities: a message object that can carry data from
             // the prefilter to the current filter, and an array of filters, to
             // make it cleaner to put multiple things on a pull. The message
