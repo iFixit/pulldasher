@@ -65,6 +65,7 @@ Pull.prototype.getSignatures = function getSignatures(tagName) {
  *    'deploy_block'  : An array containing the last 'deploy_block' signature if pull is deploy blocked,
  *                       or an empty array
  *    'ready'         : A boolean indicating whether the pull is ready to be deployed.
+ *    'commit_status' : A Status object or null.
  * }
  */
 Pull.prototype.getStatus = function getStatus() {
