@@ -1,3 +1,6 @@
+/**
+ * An object representing the build status of the head commit of a pull.
+ */
 function Status(data) {
    this.data = {
       sha: data.sha,
