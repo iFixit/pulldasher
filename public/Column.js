@@ -10,10 +10,10 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'],
    /**
     * Constructor
     *
-    * @param theElementFilter An ElementFilter which will be used to transform
+    * @param elementFilter - An ElementFilter which will be used to transform
     * the displayed elements in this column.
     *
-    * @param theSpec The specification for this column. This is a JavaScript
+    * @param spec - The specification for this column. This is a JavaScript
     * object which provides information about the name and id of this column
     * and about the page template. It allows this function to be more
     * general-purpose.
