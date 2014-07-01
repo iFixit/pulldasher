@@ -1,4 +1,4 @@
-define(['underscore', 'text!pull.html', 'text!restore.html', 'text!column.html'],
+define(['underscore', 'text!html/pull.html', 'text!html/restore.html', 'text!html/column.html'],
 function(_, pull, restore, column){
    var templates = {
       pull: pull,
