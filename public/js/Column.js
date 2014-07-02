@@ -1,15 +1,19 @@
 /**
- * Represents a column of pulls
+ * Represents a column of pull requests on the page.
+ *
+ * Column takes care of rendering a column template onto the page. Each Column
+ * receives an array of Pull objects via its update method and converts them to
+ * jQuery elements, which it inserts into its rendering.
  */
-define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'],
- function($, _, Templates, appearanceUtils, bootstrap) {
+define(['jquery', 'underscore', 'Templates', 'bootstrap'],
+ function($, _, Templates, bootstrap) {
    /**
     * Constructor
     *
-    * @param theElementFilter An ElementFilter which will be used to transform
+    * @param elementFilter - An ElementFilter which will be used to transform
     * the displayed elements in this column.
     *
-    * @param theSpec The specification for this column. This is a JavaScript
+    * @param spec - The specification for this column. This is a JavaScript
     * object which provides information about the name and id of this column
     * and about the page template. It allows this function to be more
     * general-purpose.
@@ -70,7 +74,9 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'],
       /**
        * Creates a DOM node from the pull and overwrites whatever was currently
        * stored as the DOM node for that pull with the newly-created node.
-       * Allows user code to adjust the node through the adjust method hook
+       * Allows user code to adjust the node through the adjust method hook by
+       * applying this column's ElementFilter to the resulting nodes
+       * @return a jQuery object containing the new DOM node
        */
       var createDOMNode = function createDOMNode(pull) {
          var html = self.renderPull(pull);
@@ -107,7 +113,7 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'],
          updateCountBadge();
 
          if (spec.triggers && spec.triggers.onUpdate instanceof Function) {
-            spec.triggers.onUpdate(column, container, appearanceUtils);
+            spec.triggers.onUpdate(column, container);
          }
       };
 
@@ -130,6 +136,9 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'],
        * make the restore button restore the column correctly.
        */
       var addCollapseSwap = function addCollapseSwap() {
+         // 'hidden.bs.collapse' is provided by Bootstrap. It's an event that
+         // occurs when a collapsible thing is collapsed. See
+         // http://getbootstrap.com/javascript/#collapse-usage
          column.on('hidden.bs.collapse', function hideColumn() {
             column.fadeOut();
             columnRestore.fadeIn();
@@ -177,7 +186,7 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'],
 
       // Run onCreate triggers for user modification of pulls
       if (spec.triggers && spec.triggers.onCreate instanceof Function) {
-         spec.triggers.onCreate(column, container, appearanceUtils);
+         spec.triggers.onCreate(column, container);
       }
    };
 
