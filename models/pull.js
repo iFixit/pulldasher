@@ -37,10 +37,8 @@ function Pull(data, signatures, headCommit) {
 }
 
 Pull.prototype.toObject = function () {
-   var data = this.data;
-   var obj = _.extend({}, data);
-   return obj;
-}
+   return _.extend({}, this.data);
+};
 
 /**
  * Get all signatures of a given tag.
