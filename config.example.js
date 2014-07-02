@@ -26,12 +26,12 @@ module.exports = {
    body_tags: [
       {
          name: 'cr_req',
-         regex: /cr_req ([0-9]+)/i,
+         regex: /\bcr_req ([0-9]+)\b/i,
          default: 2
       },
       {
          name: 'qa_req',
-         regex: /qa_req ([0-9]+)/i,
+         regex: /\bqa_req ([0-9]+)\b/i,
          default: 1
       }
    ],
