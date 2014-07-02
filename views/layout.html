@@ -1,13 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
    <head>
-      <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap.min.css">
-      <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.3/css/bootstrap-theme.min.css">
-      <script src="/socket.io/socket.io.js"></script>
-      <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
-      <script src="//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.5.1/underscore-min.js" ></script>
-      <script src="//netdna.bootstrapcdn.com/bootstrap/3.0.3/js/bootstrap.min.js"></script>
-      <script src="/public/client.js" ></script>
+      <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+      <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
+      <script>
+      var require = {
+         paths: {
+            "jquery":"//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min",
+            "bootstrap":"//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min",
+            "socketjs":"/socket.io/socket.io",
+            "underscore":"//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore-min"
+         },
+         shim: {
+            'bootstrap': ['jquery'],
+            'socketio': {
+               exports: 'io'
+            }
+         },
+         config: {
+         }
+      };
+      </script>
+      <script src="public/client.js"></script>
+      <script data-main="public/main" src="public/require.js"></script>
    </head>
    <body>
       <%- body %>
