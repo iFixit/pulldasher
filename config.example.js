@@ -32,7 +32,7 @@ module.exports = {
       {
          name: 'qa_req',
          regex: /qa_req ([0-9]+)/i,
-         default: 2
+         default: 1
       }
    ],
    tags: [
