@@ -34,6 +34,7 @@ function Pull(data, signatures, headCommit) {
 
    this.signatures = signatures || [];
    this.headCommit = headCommit || undefined;
+   this.bodyTags   = Pull.parseBody(this.data.body);
 }
 
 Pull.prototype.toObject = function () {
@@ -69,8 +70,8 @@ Pull.prototype.getStatus = function getStatus() {
    var status = {
       // TODO get these from the pull's comment or default
       // if the pull doesn't specify
-      'qa_req' : config.default_qa_req,
-      'cr_req' : config.default_cr_req,
+      'qa_req' : this.bodyTags['qa_req'],
+      'cr_req' : this.bodyTags['cr_req'],
       'QA' : this.getSignatures('QA'),
       'CR' : this.getSignatures('CR'),
       'dev_block'    : this.getSignatures('dev_block'),
