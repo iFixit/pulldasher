@@ -5,8 +5,8 @@
  * receives an array of Pull objects via its update method and converts them to
  * jQuery elements, which it inserts into its rendering.
  */
-define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'],
- function($, _, Templates, appearanceUtils, bootstrap) {
+define(['jquery', 'underscore', 'Templates', 'bootstrap'],
+ function($, _, Templates, bootstrap) {
    /**
     * Constructor
     *
@@ -113,7 +113,7 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'],
          updateCountBadge();
 
          if (spec.triggers && spec.triggers.onUpdate instanceof Function) {
-            spec.triggers.onUpdate(column, container, appearanceUtils);
+            spec.triggers.onUpdate(column, container);
          }
       };
 
@@ -186,7 +186,7 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'],
 
       // Run onCreate triggers for user modification of pulls
       if (spec.triggers && spec.triggers.onCreate instanceof Function) {
-         spec.triggers.onCreate(column, container, appearanceUtils);
+         spec.triggers.onCreate(column, container);
       }
    };
 
