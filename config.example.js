@@ -13,14 +13,25 @@ module.exports = {
       secret: "secret for signing session cookies"
    },
    repo: {
-     owner: 'repo owner',
-     name:  'repo name'
+     owner:       'repo owner',
+     name:        'repo name',
+     quantity:    100            // Number of pull requests to retrieve
    },
    mysql: {
       host: 'mysql remote host URL',
-      db: 'database name',
+      db:   'database name',
       user: 'username',
       pass: 'password'
    },
+   tags: [
+      'dev_block',
+      'un_dev_block',
+      'deploy_block',
+      'un_deploy_block',
+      'QA',
+      'CR'
+   ],
+   default_qa_req: 1,
+   default_cr_req: 2,
    debug: true
 };
