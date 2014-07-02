@@ -1,4 +1,5 @@
-/** ElementFilter runs pulls and their associated DOM nodes through a function
+/**
+ * ElementFilter runs pulls and their associated DOM nodes through a function
  * which can do whatever it wants to them. It is intended to make it easy to
  * modify or tweak the display of the pulls. ElementFilters can be chained, by
  * passing an ElementFilter which should be run before this one to the
@@ -18,8 +19,8 @@ define(['underscore'], function(_) {
    /**
     * Constructor
     *
-    * @param theSpec A JavaScript object describing this ElementFilter's job
-    * @param theParent An (optional) parent ElementFilter which will be run on
+    * @param spec - A JavaScript object describing this ElementFilter's job
+    * @param prefilter - An (optional) parent ElementFilter which will be run on
     * elements before this one is.
     */
    var constructor = function(spec, prefilter) {

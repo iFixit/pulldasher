@@ -10,9 +10,8 @@ define(['underscore'], function(_){
             <span class="pull-count badge"></span>\
       </button>',
 
-      column: '\
-      <div class="panel panel-default pull-list">\
-            <div class="panel-heading" data-toggle="collapse" data-target="#<%- column.id %>">\
+      column: '<div class="panel panel-default pull-list">\
+            <div class="click-heading panel-heading" data-toggle="collapse" data-target="#<%- column.id %>">\
                <h1 class="panel-title">\
                   <%- column.title %>\
                   <span class="pull-count badge pull-right"></span>\
