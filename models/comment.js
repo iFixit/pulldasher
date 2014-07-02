@@ -3,10 +3,10 @@ var config = require('../config');
 /**
  * A Pull Request comment.
  */
-function Comment(data, pullNumber, repo) {
+function Comment(data) {
    this.data = {
-      number:        pullNumber,
-      repo:          repo,
+      number:        data.number,
+      repo:          data.repo,
       user:          data.user.login,
       created_at:    data.created_at,
       comment_id:    data.id
@@ -22,9 +22,11 @@ Comment.getFromDB = function(data) {
    return {
       number:     data.number,
       repo:       data.repo_name,
-      user:       data.user,
+      user: {
+         login: data.user
+      },
       created_at: data.created_at,
-      comment_id: data.comment_id
+      id: data.comment_id
    };
 }
 
