@@ -1,4 +1,4 @@
-define(['jquery'], function($) {
+define(['jquery', 'appearanceUtils'], function($, utils) {
    return {
       // where
       selector: function(pull) {
@@ -33,10 +33,10 @@ define(['jquery'], function($) {
                }
             },
             triggers: {
-               onCreate: function(blob, container, utils) {
+               onCreate: function(blob, container) {
                   blob.removeClass('panel-default').addClass('panel-primary');
                },
-               onUpdate: function(blob, container, utils) {
+               onUpdate: function(blob, container) {
                   utils.hideIfEmpty(container, blob, '.pull');
                }
             },
