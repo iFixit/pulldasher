@@ -87,6 +87,25 @@ Pull.prototype.getStatus = function getStatus() {
 };
 
 /**
+ * Parse body of Pull Request for special tags (e.g. cr_req, qa_req).
+ */
+Pull.parseBody = function(body) {
+   var bodyTags = [];
+
+   config.body_tags.forEach(function(tag) {
+      var matches = body.match(tag.regex);
+
+      if (matches) {
+         bodyTags[tag.name] = matches[1];
+      } else {
+         bodyTags[tag.name] = tag.default;
+      }
+   });
+
+   return bodyTags;
+};
+
+/**
  * Takes an object representing a DB row, and returns an object which mimics
  * a GitHub API response which may be used to initialize an instance of this
  * Pull object.
