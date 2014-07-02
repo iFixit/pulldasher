@@ -136,6 +136,9 @@ define(['jquery', 'underscore', 'Templates', 'appearanceUtils', 'bootstrap'],
        * make the restore button restore the column correctly.
        */
       var addCollapseSwap = function addCollapseSwap() {
+         // 'hidden.bs.collapse' is provided by Bootstrap. It's an event that
+         // occurs when a collapsible thing is collapsed. See
+         // http://getbootstrap.com/javascript/#collapse-usage
          column.on('hidden.bs.collapse', function hideColumn() {
             column.fadeOut();
             columnRestore.fadeIn();
