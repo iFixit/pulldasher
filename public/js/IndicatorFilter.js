@@ -29,7 +29,7 @@ define(['underscore'], function(_) {
             if (existing[key]) {
                indicatorNode = existing[key];
             } else {
-               indicatorNode = template(element);
+               indicatorNode = template(element, key);
                existing[key] = indicatorNode;
             }
 

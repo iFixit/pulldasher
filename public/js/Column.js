@@ -86,12 +86,14 @@ define(['jquery', 'underscore', 'Templates', 'bootstrap'],
             elementFilter.filter(pull, elem);
          }
 
-         var indicators = elem.find('#indicators');
 
          if (indicatorFilter) {
-            indicatorFilter.filter(pull, elem, function() {
+            indicatorFilter.filter(pull, elem, function(elem, filterName) {
+               // Find the #indicators container
+               var indicators = elem.find('#indicators');
+
                // Render the 'indicator' template into the indicators element
-               return renderInto('indicator', null, indicators);
+               return renderInto('indicator', {name: filterName}, indicators);
             });
          }
 
