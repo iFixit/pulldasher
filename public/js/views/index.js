@@ -92,6 +92,24 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             id: "crPulls",
             selector: function(pull) {
                return !pull.cr_done() && !pull.dev_blocked();
+            },
+            indicators: {
+               cr_remaining: function(pull, node) {
+                  var required = pull.status.cr_req;
+                  var remaining = required - pull.status.CR.length;
+
+                  if (remaining === 1) {
+                     node.addClass('label label-danger');
+                  }
+               },
+               qa_remaining: function(pull, node) {
+                  var required = pull.status.qa_req;
+                  var remaining = required - pull.status.QA.length;
+
+                  if (remaining === 0) {
+                     node.addClass('label label-success');
+                  }
+               }
             }
          },
          {
@@ -99,7 +117,26 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             id: "qaPulls",
             selector: function(pull) {
                return !pull.qa_done() && !pull.dev_blocked();
+            },
+            indicators: {
+               qa_remaining: function(pull, node) {
+                  var required = pull.status.qa_req;
+                  var remaining = required - pull.status.QA.length;
+
+                  if (remaining === 1) {
+                     node.addClass('label label-danger');
+                  }
+               },
+               cr_remaining: function(pull, node) {
+                  var required = pull.status.cr_req;
+                  var remaining = required - pull.status.CR.length;
+
+                  if (remaining === 0) {
+                     node.addClass('label label-success');
+                  }
+               }
             }
+
          }
       ]
    };
