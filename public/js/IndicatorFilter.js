@@ -13,18 +13,32 @@ define(['underscore'], function(_) {
        * @param template - A function which will return a new DOM node (attached to the element it is provided) every time it is called.
        */
       this.filter = function(pull, element, template) {
+         var existing;
+
          // First, run any "predecessor" filters over it
          if (prefilter) {
-            prefilter.filter(pull, element, template);
+            existing = prefilter.filter(pull, element, template);
+         } else {
+            existing = {};
          }
 
          // Then run the filter (if there is one)
-         _.each(spec.indicators, function(indicator) {
-            var indicatorNode = template(element);
+         _.each(spec.indicators, function(indicator, key) {
+            var indicatorNode;
+
+            if (existing[key]) {
+               indicatorNode = existing[key];
+            } else {
+               indicatorNode = template(element);
+               existing[key] = indicatorNode;
+            }
+
             if (indicator instanceof Function) {
                indicator(pull, indicatorNode);
             }
          });
+
+         return existing;
       };
    };
 
