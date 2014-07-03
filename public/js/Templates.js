@@ -1,9 +1,9 @@
 define(['underscore', 'text!html/pull.html', 'text!html/restore.html', 'text!html/column.html'],
-function(_, pull, restore, column){
+function(_, pullTemplate, restoreTemplate, columnTemplate){
    var templates = {
-      pull: pull,
-      restore: restore,
-      column: column
+      pull: pullTemplate,
+      restore: restoreTemplate,
+      column: columnTemplate
    };
 
    var compiledTemplates = {};
