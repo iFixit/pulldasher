@@ -29,7 +29,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             },
             adjust: function(pull, node) {
                if (pull.deploy_blocked()) {
-                  $(node).addClass('list-group-item-danger');
+                  node.addClass('list-group-item-danger');
                }
             },
             triggers: {
