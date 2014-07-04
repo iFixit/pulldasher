@@ -35,10 +35,15 @@ function Pull(data, signatures, headCommit, bodyTags) {
    this.signatures = signatures || [];
    this.headCommit = headCommit || undefined;
 
+   // If github pull-data, parse the body for the cr and qa req... else
+   // use the values stored in the db.
    if (typeof data.cr_req === 'undefined') {
       var bodyTags = Pull.parseBody(this.data.body);
       this.data.cr_req = bodyTags['cr_req'];
       this.data.qa_req = bodyTags['qa_req'];
+   } else {
+      this.data.cr_req = data.cr_req;
+      this.data.qa_req = data.qa_req;
    }
 }
 
