@@ -35,7 +35,7 @@ function Pull(data, signatures, headCommit, bodyTags) {
    this.signatures = signatures || [];
    this.headCommit = headCommit || undefined;
 
-   if (!data.cr_req) {
+   if (typeof data.cr_req === 'undefined') {
       var bodyTags = Pull.parseBody(this.data.body);
       this.data.cr_req = bodyTags['cr_req'];
       this.data.qa_req = bodyTags['qa_req'];
