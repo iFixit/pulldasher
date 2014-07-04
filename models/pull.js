@@ -4,7 +4,7 @@ var _ = require('underscore');
 var Signature = require('./signature');
 var config = require('../config');
 
-function Pull(data, signatures, commitStatus) {
+function Pull(data, signatures, comments, commitStatus) {
    this.data = {
       number: data.number,
       state: data.state,
@@ -33,6 +33,7 @@ function Pull(data, signatures, commitStatus) {
    };
 
    this.signatures = signatures || [];
+   this.comments = comments || [];
    this.commitStatus = commitStatus;
 }
 
