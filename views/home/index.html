@@ -3,18 +3,38 @@
       socketToken: "<%= socketToken %>"
    };
 </script>
-<p>state: <span id="connectionState"></span>
-<div id="pulls" class="row">
-   <div class="col-sm-4">
-      <div id="qaPulls" class="list-group">
+<nav class="navbar navbar-default" role="navigation">
+   <div class="container-fluid">
+      <div class="navbar-header">
+         <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+         </button>
+         <a class="navbar-brand" href="#">Pulldasher</a>
+      </div>
+
+      <div id="navbar" class="collapse navbar-collapse">
+         <span id="restore-buttons"></span>
+         <p class="navbar-text navbar-right">
+         State: <span id="connectionState"></span>
+         </p>
       </div>
    </div>
-   <div class="col-sm-4">
-      <div id="crPulls" class="list-group">
+</nav>
+
+<div id="pulls" class="container">
+   <div id="uniqSect" class="row">
+      <div id="uniqPulls-container" class="col-sm-12">
       </div>
    </div>
-   <div class="col-sm-4">
-      <div id="uniquePulls" class="list-group">
+   <div class="row">
+      <div id="blockPulls-container" class="col-sm-4">
+      </div>
+      <div id="crPulls-container" class="col-sm-4">
+      </div>
+      <div id="qaPulls-container" class="col-sm-4">
       </div>
    </div>
 </div>

@@ -62,6 +62,10 @@ gitManager.getAllPulls().done(function(arrayOfPullPromises) {
             dbManager.updateComment(comment);
          });
 
+         if (pull.commitStatus) {
+            dbManager.updateCommitStatus(pull.commitStatus);
+         }
+
          dbManager.updatePull(pull);
       });
    });
