@@ -58,6 +58,10 @@ gitManager.getAllPulls().done(function(arrayOfPullPromises) {
             dbManager.insertSignatures(pull.signatures);
          });
 
+         pull.comments.forEach(function(comment) {
+            dbManager.updateComment(comment);
+         });
+
          if (pull.commitStatus) {
             dbManager.updateCommitStatus(pull.commitStatus);
          }
