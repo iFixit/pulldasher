@@ -39,9 +39,10 @@ var HooksController = {
          var sigs = Signature.parseComment(body.comment, body.issue.number);
          dbManager.insertSignatures(sigs);
 
-         var comment = new Comment(
-            body.comment, body.issue.number, body.repository.name
-         );
+         body.comment.number = body.issue.number;
+         body.comment.repo = body.repository.name;
+         var comment = new Comment(body.comment);
+
          dbManager.updateComment(comment);
       }
 
