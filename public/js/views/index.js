@@ -30,7 +30,23 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             node.text("CR " + have + "/" + required);
          },
          status: function status(pull, node) {
-            node.text(pull.status.commitStatus);
+            if (pull.status.commit_status) {
+            var commit_status = pull.status.commit_status.data;
+               switch(commit_status.state) {
+                  case 'pending':
+                  node.append('<span class="glyphicon glyphicon-repeat"></span>');
+                  break;
+                  case 'success':
+                  node.append('<span class="glyphicon glyphicon-ok"></span>');
+                  break;
+                  case 'error':
+                  node.append('<span class="glyphicon glyphicon-exclamation-sign"></span>');
+                  break;
+                  case 'failure':
+                  node.append('<span class="glyphicon glyphicon-remove"></span>');
+                  break;
+               }
+            }
          },
          user_icon: function user_icon(pull, node) {
             if (pull.is_mine()) {
