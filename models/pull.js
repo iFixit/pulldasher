@@ -4,7 +4,7 @@ var _ = require('underscore');
 var Signature = require('./signature');
 var config = require('../config');
 
-function Pull(data, signatures, headCommit) {
+function Pull(data, signatures, headCommit, bodyTags) {
    this.data = {
       number: data.number,
       state: data.state,
@@ -34,7 +34,10 @@ function Pull(data, signatures, headCommit) {
 
    this.signatures = signatures || [];
    this.headCommit = headCommit || undefined;
-   this.bodyTags   = Pull.parseBody(this.data.body);
+
+   var bodyTags = Pull.parseBody(this.data.body);
+   this.data.cr_req = bodyTags['cr_req'];
+   this.data.qa_req = bodyTags['qa_req'];
 }
 
 Pull.prototype.toObject = function () {
@@ -70,8 +73,8 @@ Pull.prototype.getStatus = function getStatus() {
    var status = {
       // TODO get these from the pull's comment or default
       // if the pull doesn't specify
-      'qa_req' : this.bodyTags['qa_req'],
-      'cr_req' : this.bodyTags['cr_req'],
+      'qa_req' : this.data.qa_req,
+      'cr_req' : this.data.cr_req,
       'QA' : this.getSignatures('QA'),
       'CR' : this.getSignatures('CR'),
       'dev_block'    : this.getSignatures('dev_block'),
