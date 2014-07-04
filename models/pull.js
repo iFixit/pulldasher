@@ -35,9 +35,11 @@ function Pull(data, signatures, headCommit, bodyTags) {
    this.signatures = signatures || [];
    this.headCommit = headCommit || undefined;
 
-   var bodyTags = Pull.parseBody(this.data.body);
-   this.data.cr_req = bodyTags['cr_req'];
-   this.data.qa_req = bodyTags['qa_req'];
+   if (!data.cr_req) {
+      var bodyTags = Pull.parseBody(this.data.body);
+      this.data.cr_req = bodyTags['cr_req'];
+      this.data.qa_req = bodyTags['qa_req'];
+   }
 }
 
 Pull.prototype.toObject = function () {
@@ -139,7 +141,9 @@ Pull.getFromDB = function(data) {
       },
       user: {
          login: data.owner
-      }
+      },
+      cr_req: data.cr_req,
+      qa_req: data.qa_req
    };
 }
 
