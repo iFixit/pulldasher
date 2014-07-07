@@ -4,7 +4,7 @@ var _ = require('underscore');
 var Signature = require('./signature');
 var config = require('../config');
 
-function Pull(data, signatures, headCommit, bodyTags) {
+function Pull(data, signatures, comments, commitStatus) {
    this.data = {
       number: data.number,
       state: data.state,
@@ -33,7 +33,8 @@ function Pull(data, signatures, headCommit, bodyTags) {
    };
 
    this.signatures = signatures || [];
-   this.headCommit = headCommit || undefined;
+   this.comments = comments || [];
+   this.commitStatus = commitStatus;
 
    // If github pull-data, parse the body for the cr and qa req... else
    // use the values stored in the db.
@@ -47,8 +48,10 @@ function Pull(data, signatures, headCommit, bodyTags) {
    }
 }
 
-Pull.prototype.toObject = function () {
-   return _.extend({}, this.data);
+Pull.prototype.toObject = function() {
+   var data = _.extend({}, this.data);
+   data.status = this.getStatus();
+   return data;
 };
 
 /**
@@ -74,6 +77,7 @@ Pull.prototype.getSignatures = function getSignatures(tagName) {
  *    'deploy_block'  : An array containing the last 'deploy_block' signature if pull is deploy blocked,
  *                       or an empty array
  *    'ready'         : A boolean indicating whether the pull is ready to be deployed.
+ *    'commit_status' : A Status object or null.
  * }
  */
 Pull.prototype.getStatus = function getStatus() {
@@ -85,7 +89,8 @@ Pull.prototype.getStatus = function getStatus() {
       'QA' : this.getSignatures('QA'),
       'CR' : this.getSignatures('CR'),
       'dev_block'    : this.getSignatures('dev_block'),
-      'deploy_block' : this.getSignatures('deploy_block')
+      'deploy_block' : this.getSignatures('deploy_block'),
+      'commit_status' : this.commitStatus
    };
 
    status['ready'] =
