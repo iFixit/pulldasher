@@ -136,6 +136,12 @@ dbManager.closeStalePulls();
 //====================================================
 // Socket.IO
 
+// Store the current high-resolution time. Docs say this is not related to the
+// time of day, so this may not be guaranteed to be different for each restart.
+// See http://nodejs.org/api/process.html#process_process_hrtime
+// The array index is to get the nanoseconds value for the time
+var versioncode = process.hrtime()[1];
+
 var io = require('socket.io').listen(httpServer);
 io.set('log level', 2);
 io.sockets.on('connection', function (socket) {
@@ -153,6 +159,8 @@ io.sockets.on('connection', function (socket) {
    socket.on('refresh', function(number) {
       refresh(number);
    });
+
+   socket.emit('versioncode', versioncode);
 
    var autoDisconnect = setTimeout(function() {
       socket.disconnect();
