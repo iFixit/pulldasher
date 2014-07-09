@@ -51,6 +51,12 @@ app.post('/hooks/main', hooksController.main);
 gitManager.getAllPulls().done(function(arrayOfPullPromises) {
    arrayOfPullPromises.forEach(function(pullPromise) {
       pullPromise.done(function(pull) {
+         dbManager.updatePull(pull).done(function() {
+            if (pull.commitStatus) {
+               dbManager.updateCommitStatus(pull.commitStatus);
+            }
+         });
+
          // Delete all signatures related to this pull from the DB
          // before we rewrite them to avoid duplicates.
          dbManager.deleteSignatures(pull.data.number).done(function() {
@@ -61,12 +67,6 @@ gitManager.getAllPulls().done(function(arrayOfPullPromises) {
          pull.comments.forEach(function(comment) {
             dbManager.updateComment(comment);
          });
-
-         if (pull.commitStatus) {
-            dbManager.updateCommitStatus(pull.commitStatus);
-         }
-
-         dbManager.updatePull(pull);
       });
    });
 

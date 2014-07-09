@@ -1,5 +1,6 @@
 var _ = require('underscore'),
-    db = require('../lib/db');
+    db = require('../lib/db'),
+    Promise = require('promise');
 
 // Builds an object representation of a row in the DB `commit_statuses`
 // table from the data returned by GitHub's API.
@@ -13,10 +14,14 @@ function DBStatus(statusData) {
 }
 
 DBStatus.prototype.save = function() {
+   var statusData = this.data;
    var q_update = 'REPLACE INTO commit_statuses SET ?';
 
-   db.query(q_update, this.data, function(err, rows) {
-      if (err) { console.log(err); }
+   return new Promise(function(resolve, reject) {
+      db.query(q_update, statusData, function(err, rows) {
+         if (err) { reject(err); }
+         resolve();
+      });
    });
 };
 
