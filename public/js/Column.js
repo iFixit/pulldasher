@@ -45,7 +45,7 @@ define(['jquery', 'underscore', 'Templates', 'bootstrap'],
          var node = $(html);
          container.append(node);
 
-         return $(node);
+         return node;
       };
 
       /**
