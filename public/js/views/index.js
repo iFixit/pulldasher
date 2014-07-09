@@ -21,13 +21,13 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       indicators: {
          qa_remaining: function qa_remaining(pull, node) {
             var required = pull.status.qa_req;
-            var remaining = required - pull.status.QA.length;
-            node.text("QA " + remaining + "/" + required);
+            var completed = pull.status.QA.length;
+            node.text("QA " + completed + "/" + required);
          },
          cr_remaining: function cr_remaining(pull, node) {
             var required = pull.status.cr_req;
-            var remaining = required - pull.status.CR.length;
-            node.text("CR " + remaining + "/" + required);
+            var completed = pull.status.CR.length;
+            node.text("CR " + completed + "/" + required);
          },
          status: function status(pull, node) {
             node.text(pull.status.commitStatus);
