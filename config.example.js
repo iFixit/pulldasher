@@ -23,6 +23,18 @@ module.exports = {
       user: 'username',
       pass: 'password'
    },
+   body_tags: [
+      {
+         name: 'cr_req',
+         regex: /\bcr_req ([0-9]+)\b/i,
+         default: 2
+      },
+      {
+         name: 'qa_req',
+         regex: /\bqa_req ([0-9]+)\b/i,
+         default: 1
+      }
+   ],
    tags: [
       'dev_block',
       'un_dev_block',
@@ -31,7 +43,5 @@ module.exports = {
       'QA',
       'CR'
    ],
-   default_qa_req: 1,
-   default_cr_req: 2,
    debug: true
 };

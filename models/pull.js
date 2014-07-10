@@ -4,7 +4,7 @@ var _ = require('underscore');
 var Signature = require('./signature');
 var config = require('../config');
 
-function Pull(data, signatures, commitStatus) {
+function Pull(data, signatures, comments, commitStatus) {
    this.data = {
       number: data.number,
       state: data.state,
@@ -33,14 +33,25 @@ function Pull(data, signatures, commitStatus) {
    };
 
    this.signatures = signatures || [];
+   this.comments = comments || [];
    this.commitStatus = commitStatus;
+
+   // If github pull-data, parse the body for the cr and qa req... else
+   // use the values stored in the db.
+   if (typeof data.cr_req === 'undefined') {
+      var bodyTags = Pull.parseBody(this.data.body);
+      this.data.cr_req = bodyTags['cr_req'];
+      this.data.qa_req = bodyTags['qa_req'];
+   } else {
+      this.data.cr_req = data.cr_req;
+      this.data.qa_req = data.qa_req;
+   }
 }
 
-Pull.prototype.toObject = function () {
-   var data = this.data;
-   var obj = _.extend({}, data);
-   obj.status = this.getStatus();
-   return obj;
+Pull.prototype.toObject = function() {
+   var data = _.extend({}, this.data);
+   data.status = this.getStatus();
+   return data;
 };
 
 /**
@@ -73,8 +84,8 @@ Pull.prototype.getStatus = function getStatus() {
    var status = {
       // TODO get these from the pull's comment or default
       // if the pull doesn't specify
-      'qa_req' : config.default_qa_req,
-      'cr_req' : config.default_cr_req,
+      'qa_req' : this.data.qa_req,
+      'cr_req' : this.data.cr_req,
       'QA' : this.getSignatures('QA'),
       'CR' : this.getSignatures('CR'),
       'dev_block'    : this.getSignatures('dev_block'),
@@ -89,6 +100,25 @@ Pull.prototype.getStatus = function getStatus() {
             status['CR'].length >= status['cr_req'];
 
    return status;
+};
+
+/**
+ * Parse body of Pull Request for special tags (e.g. cr_req, qa_req).
+ */
+Pull.parseBody = function(body) {
+   var bodyTags = [];
+
+   config.body_tags.forEach(function(tag) {
+      var matches = body.match(tag.regex);
+
+      if (matches) {
+         bodyTags[tag.name] = matches[1];
+      } else {
+         bodyTags[tag.name] = tag.default;
+      }
+   });
+
+   return bodyTags;
 };
 
 /**
@@ -121,7 +151,9 @@ Pull.getFromDB = function(data) {
       },
       user: {
          login: data.owner
-      }
+      },
+      cr_req: data.cr_req,
+      qa_req: data.qa_req
    };
 }
 
