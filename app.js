@@ -55,17 +55,17 @@ gitManager.getAllPulls().done(function(arrayOfPullPromises) {
             if (pull.commitStatus) {
                dbManager.updateCommitStatus(pull.commitStatus);
             }
-         });
 
-         // Delete all signatures related to this pull from the DB
-         // before we rewrite them to avoid duplicates.
-         dbManager.deleteSignatures(pull.data.number).done(function() {
-            pull.signatures.sort(Signature.compare);
-            dbManager.insertSignatures(pull.signatures);
-         });
+            // Delete all signatures related to this pull from the DB
+            // before we rewrite them to avoid duplicates.
+            dbManager.deleteSignatures(pull.data.number).done(function() {
+               pull.signatures.sort(Signature.compare);
+               dbManager.insertSignatures(pull.signatures);
+            });
 
-         pull.comments.forEach(function(comment) {
-            dbManager.updateComment(comment);
+            pull.comments.forEach(function(comment) {
+               dbManager.updateComment(comment);
+            });
          });
       });
    });
