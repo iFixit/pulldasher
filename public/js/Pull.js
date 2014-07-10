@@ -26,6 +26,10 @@ define(['underscore'], function(_) {
 
       cr_done: function() {
          return this.status.CR.length >= this.status.cr_req;
+      },
+
+      is_mine: function() {
+         return this.user.login === App.user;
       }
    });
 
