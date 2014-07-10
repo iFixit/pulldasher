@@ -13,24 +13,33 @@ define(['underscore'], function(_) {
        * @param template - A function which will return a new DOM node (attached to the element it is provided) every time it is called.
        */
       this.filter = function(pull, element, template) {
-         var existing;
+         // Stores indicator nodes which were created by a prefilter run.
+         var existingIndicatorNodes;
 
          // First, run any "predecessor" filters over it
          if (prefilter) {
-            existing = prefilter.filter(pull, element, template);
+            // Get the existing nodes this prefilter made
+            existingIndicatorNodes = prefilter.filter(pull, element, template);
          } else {
-            existing = {};
+            // There are no nodes (because there's no prefilter to make them.)
+            // Create a new object to store the ones we're going to make.
+            existingIndicatorNodes = {};
          }
 
          // Then run the filter (if there is one)
          _.each(spec.indicators, function(indicator, key) {
             var indicatorNode;
 
-            if (existing[key]) {
-               indicatorNode = existing[key];
+            // If the (potential) prefilter run has created a node for this
+            // indicator already, look it up
+            if (existingIndicatorNodes[key]) {
+               // Reuse the existing node for this indicator.
+               indicatorNode = existingIndicatorNodes[key];
             } else {
+               // There is no existing node for this indicator. Create a new
+               // one.
                indicatorNode = template(element);
-               existing[key] = indicatorNode;
+               existingIndicatorNodes[key] = indicatorNode;
             }
 
             if (indicator instanceof Function) {
@@ -38,7 +47,7 @@ define(['underscore'], function(_) {
             }
          });
 
-         return existing;
+         return existingIndicatorNodes;
       };
    };
 
