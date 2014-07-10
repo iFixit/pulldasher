@@ -35,7 +35,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                var title = status.data.description;
                var url   = status.data.target_url;
                var state = status.data.state;
-               node.append('<a target="_blanks" title="' + title + '" href="' + url + '">' + state + "</a>");
+               node.append('<a target="_blank" title="' + title + '" href="' + url + '">' + state + "</a>");
             } else {
                node.text('No CI');
             }
