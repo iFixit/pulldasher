@@ -21,13 +21,13 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       indicators: {
          qa_remaining: function qa_remaining(pull, node) {
             var required = pull.status.qa_req;
-            var have = pull.status.QA.length;
-            node.text("QA " + have + "/" + required);
+            var completed = pull.status.QA.length;
+            node.text("QA " + completed + "/" + required);
          },
          cr_remaining: function cr_remaining(pull, node) {
             var required = pull.status.cr_req;
-            var have = pull.status.CR.length;
-            node.text("CR " + have + "/" + required);
+            var completed = pull.status.CR.length;
+            node.text("CR " + completed + "/" + required);
          },
          status: function status(pull, node) {
             if (pull.status.commit_status) {
@@ -51,23 +51,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          user_icon: function user_icon(pull, node) {
             if (pull.is_mine()) {
                node.append('<span class="glyphicon glyphicon-user"></span>');
-            }
-         }
-      },
-      // Functions to run when events happen
-      triggers: {
-         // Functions to run on each column
-         column: {
-            onCreate: function() {
-            },
-            onUpdate: function() {
-            }
-         },
-         // Functions to run on each indicator
-         indicators: {
-            onCreate: function() {
-            },
-            onUpdate: function() {
             }
          }
       },
