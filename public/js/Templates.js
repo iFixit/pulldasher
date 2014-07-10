@@ -1,9 +1,10 @@
-define(['underscore', 'text!html/pull.html', 'text!html/restore.html', 'text!html/column.html'],
-function(_, pullTemplate, restoreTemplate, columnTemplate){
+define(['underscore', 'text!html/pull.html', 'text!html/restore.html', 'text!html/column.html', 'text!html/indicator.html'],
+function(_, pullTemplate, restoreTemplate, columnTemplate, indicatorTemplate){
    var templates = {
       pull: pullTemplate,
       restore: restoreTemplate,
-      column: columnTemplate
+      column: columnTemplate,
+      indicator: indicatorTemplate
    };
 
    var compiledTemplates = {};

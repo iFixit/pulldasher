@@ -18,7 +18,7 @@ define(['jquery', 'underscore', 'Templates', 'bootstrap'],
     * and about the page template. It allows this function to be more
     * general-purpose.
     */
-   var constructor = function(elementFilter, spec) {
+   var constructor = function(elementFilter, indicatorFilter, spec) {
       var self = this;
 
       // The DOM node that holds all the elements for this column. Remove it, and
@@ -82,7 +82,18 @@ define(['jquery', 'underscore', 'Templates', 'bootstrap'],
          var html = self.renderPull(pull);
          var elem = $($.parseHTML(html));
 
-         elementFilter.filter(pull, elem);
+         if (elementFilter) {
+            elementFilter.filter(pull, elem);
+         }
+
+         var indicators = elem.find('#indicators');
+
+         if (indicatorFilter) {
+            indicatorFilter.filter(pull, elem, function() {
+               // Render the 'indicator' template into the indicators element
+               return renderInto('indicator', null, indicators);
+            });
+         }
 
          return elem;
       };
@@ -173,7 +184,7 @@ define(['jquery', 'underscore', 'Templates', 'bootstrap'],
          }
       });
 
-      column = $(renderColumn());
+      column = renderColumn();
 
       // Store the location of the column container
       container = column.find('#' + spec.id);
