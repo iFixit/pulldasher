@@ -107,7 +107,10 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             title: "QA Pulls",
             id: "qaPulls",
             selector: function(pull) {
-               return !pull.qa_done() && !pull.dev_blocked();
+               var isHotfix = /^hotfix/.test(pull.head.ref);
+               var numCRs = pull.status.CR.length;
+
+               return !pull.qa_done() && !pull.dev_blocked() && (numCRs > 0 || isHotfix);
             },
             indicators: {
                qa_remaining: function(pull, node) {
