@@ -30,28 +30,19 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             node.text("CR " + completed + "/" + required);
          },
          status: function status(pull, node) {
-            node.text(pull.status.commitStatus);
+            var status = pull.status.commit_status;
+            if (status) {
+               var title = status.data.description;
+               var url   = status.data.target_url;
+               var state = status.data.state;
+               node.append('<a target="_blanks" title="' + title + '" href="' + url + '">' + state + "</a>");
+            } else {
+               node.text('No CI');
+            }
          },
          user_icon: function user_icon(pull, node) {
             if (pull.is_mine()) {
                node.append('<span class="glyphicon glyphicon-user"></span>');
-            }
-         }
-      },
-      // Functions to run when events happen
-      triggers: {
-         // Functions to run on each column
-         column: {
-            onCreate: function() {
-            },
-            onUpdate: function() {
-            }
-         },
-         // Functions to run on each indicator
-         indicators: {
-            onCreate: function() {
-            },
-            onUpdate: function() {
             }
          }
       },
