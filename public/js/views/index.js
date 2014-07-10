@@ -32,18 +32,24 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          status: function status(pull, node) {
             if (pull.status.commit_status) {
             var commit_status = pull.status.commit_status.data;
+               var title = commit_status.description;
+               var url   = commit_status.target_url;
+               var state = commit_status.state;
+
+               var link = $('<a target="_blank" title="' + title + '" href="' + url + '">' + state + "</a>")
+               node.append(link);
                switch(commit_status.state) {
                   case 'pending':
-                  node.append('<span class="glyphicon glyphicon-repeat"></span>');
+                  link.append('<span class="glyphicon glyphicon-repeat"></span>');
                   break;
                   case 'success':
-                  node.append('<span class="glyphicon glyphicon-ok"></span>');
+                  link.append('<span class="glyphicon glyphicon-ok"></span>');
                   break;
                   case 'error':
-                  node.append('<span class="glyphicon glyphicon-exclamation-sign"></span>');
+                  link.append('<span class="glyphicon glyphicon-exclamation-sign"></span>');
                   break;
                   case 'failure':
-                  node.append('<span class="glyphicon glyphicon-remove"></span>');
+                  link.append('<span class="glyphicon glyphicon-remove"></span>');
                   break;
                }
             }
