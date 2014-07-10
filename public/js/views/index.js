@@ -17,6 +17,35 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          }
       },
       navbar: "#restore-buttons",
+      // Functions to stick status information in indicators at the bottom of each pull
+      indicators: {
+         qa_remaining: function qa_remaining(pull, node) {
+            var required = pull.status.qa_req;
+            var completed = pull.status.QA.length;
+            node.text("QA " + completed + "/" + required);
+         },
+         cr_remaining: function cr_remaining(pull, node) {
+            var required = pull.status.cr_req;
+            var completed = pull.status.CR.length;
+            node.text("CR " + completed + "/" + required);
+         },
+         status: function status(pull, node) {
+            var status = pull.status.commit_status;
+            if (status) {
+               var title = status.data.description;
+               var url   = status.data.target_url;
+               var state = status.data.state;
+               node.append('<a target="_blank" title="' + title + '" href="' + url + '">' + state + "</a>");
+            } else {
+               node.text('No CI');
+            }
+         },
+         user_icon: function user_icon(pull, node) {
+            if (pull.is_mine()) {
+               node.append('<span class="glyphicon glyphicon-user"></span>');
+            }
+         }
+      },
       columns: [
          {
             title: "Special Pulls",
@@ -29,7 +58,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             },
             adjust: function(pull, node) {
                if (pull.deploy_blocked()) {
-                  $(node).addClass('list-group-item-danger');
+                  node.addClass('list-group-item-danger');
                }
             },
             triggers: {
@@ -54,6 +83,24 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             id: "crPulls",
             selector: function(pull) {
                return !pull.cr_done() && !pull.dev_blocked();
+            },
+            indicators: {
+               cr_remaining: function(pull, node) {
+                  var required = pull.status.cr_req;
+                  var remaining = required - pull.status.CR.length;
+
+                  if (remaining === 1) {
+                     node.addClass('label label-danger');
+                  }
+               },
+               qa_remaining: function(pull, node) {
+                  var required = pull.status.qa_req;
+                  var remaining = required - pull.status.QA.length;
+
+                  if (remaining === 0) {
+                     node.addClass('label label-success');
+                  }
+               }
             }
          },
          {
@@ -61,7 +108,26 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             id: "qaPulls",
             selector: function(pull) {
                return !pull.qa_done() && !pull.dev_blocked();
+            },
+            indicators: {
+               qa_remaining: function(pull, node) {
+                  var required = pull.status.qa_req;
+                  var remaining = required - pull.status.QA.length;
+
+                  if (remaining === 1) {
+                     node.addClass('label label-danger');
+                  }
+               },
+               cr_remaining: function(pull, node) {
+                  var required = pull.status.cr_req;
+                  var remaining = required - pull.status.CR.length;
+
+                  if (remaining === 0) {
+                     node.addClass('label label-success');
+                  }
+               }
             }
+
          }
       ]
    };
