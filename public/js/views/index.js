@@ -36,7 +36,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                var url   = commit_status.target_url;
                var state = commit_status.state;
 
-               var link = $('<a target="_blank" title="' + title + '" href="' + url + '">' + state + "</a>")
+               var link = $('<a target="_blank" title="' + title + '" href="' + url + '"></a>');
                node.append(link);
                switch(commit_status.state) {
                   case 'pending':
