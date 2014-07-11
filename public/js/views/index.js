@@ -36,8 +36,9 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                var url   = commit_status.target_url;
                var state = commit_status.state;
 
-               var link = $('<a target="_blank" title="' + title + '" href="' + url + '"></a>');
+               var link = $('<a target="_blank" data-toggle="tooltip" data-placement="top" title="' + title + '" href="' + url + '"></a>');
                node.append(link);
+               link.tooltip();
                switch(commit_status.state) {
                   case 'pending':
                   link.append('<span class="glyphicon glyphicon-repeat"></span>');
