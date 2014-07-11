@@ -105,7 +105,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   var remaining = required - pull.status.CR.length;
 
                   if (remaining === 1) {
-                     node.addClass('label label-danger');
+                     node.addClass('text-danger');
                   }
                },
                qa_remaining: function(pull, node) {
@@ -113,7 +113,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   var remaining = required - pull.status.QA.length;
 
                   if (remaining === 0) {
-                     node.addClass('label label-success');
+                     node.addClass('text-success');
                   }
                }
             }
@@ -130,7 +130,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   var remaining = required - pull.status.QA.length;
 
                   if (remaining === 1) {
-                     node.addClass('label label-danger');
+                     node.addClass('text-warning');
                   }
                },
                cr_remaining: function(pull, node) {
@@ -138,7 +138,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   var remaining = required - pull.status.CR.length;
 
                   if (remaining === 0) {
-                     node.addClass('label label-success');
+                     node.addClass('text-success');
                   }
                }
             }
