@@ -27,7 +27,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
             pull.status.QA.forEach(function(signature) {
                var avatar_url = 'https://avatars.githubusercontent.com/u/' + signature.data.user.id;
-               node.append('<img class="avatar" src="' + avatar_url + '">');
+               node.append($('<img class="avatar">').attr('src', avatar_url));
             });
          },
          cr_remaining: function cr_remaining(pull, node) {
@@ -38,7 +38,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
             pull.status.CR.forEach(function(signature) {
                var avatar_url = 'https://avatars.githubusercontent.com/u/' + signature.data.user.id;
-               node.append('<img class="avatar" src="' + avatar_url + '">');
+               node.append($('<img class="avatar">').attr('src', avatar_url));
             });
          },
          status: function status(pull, node) {
