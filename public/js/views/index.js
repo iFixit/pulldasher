@@ -41,16 +41,16 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                link.tooltip();
                switch(commit_status.state) {
                   case 'pending':
-                  link.append('<span class="glyphicon glyphicon-repeat"></span>');
+                  link.append('<span class="text-muted glyphicon glyphicon-repeat"></span>');
                   break;
                   case 'success':
-                  link.append('<span class="glyphicon glyphicon-ok"></span>');
+                  link.append('<span class="text-success glyphicon glyphicon-ok"></span>');
                   break;
                   case 'error':
-                  link.append('<span class="glyphicon glyphicon-exclamation-sign"></span>');
+                  link.append('<span class="text-danger glyphicon glyphicon-exclamation-sign"></span>');
                   break;
                   case 'failure':
-                  link.append('<span class="glyphicon glyphicon-remove"></span>');
+                  link.append('<span class="text-warning glyphicon glyphicon-remove"></span>');
                   break;
                }
             }
