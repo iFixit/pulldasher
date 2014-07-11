@@ -36,24 +36,11 @@ define(['jquery', 'underscore', 'Templates', 'bootstrap'],
       // Private methods
       
       /**
-       * Renders a template with provided data and appends the resulting node
-       * to the end of the JQuery object container.
-       */
-      var renderInto = function renderInto(template, data, container) {
-         var templateFunction = Templates.get(template);
-         var html = templateFunction(data);
-         var node = $(html);
-         container.append(node);
-
-         return node;
-      };
-
-      /**
        * Renders the button that can be used to restore the column when it is
        * collapsed. Is only called if the button needs to be rendered.
        */
       var renderRestore = function renderRestore() {
-         return renderInto('restore', spec, $(spec.navbar));
+         return Templates.renderIntoContainer('restore', spec, $(spec.navbar));
       };
 
       /**
@@ -61,7 +48,7 @@ define(['jquery', 'underscore', 'Templates', 'bootstrap'],
        * in the column, only the structure that surrounds them.
        */
       var renderColumn = function renderColumn() {
-         return renderInto('column', spec, $('#' + spec.id + '-container'));
+         return Templates.renderIntoContainer('column', spec, $('#' + spec.id + '-container'));
       };
 
       /**
@@ -93,7 +80,7 @@ define(['jquery', 'underscore', 'Templates', 'bootstrap'],
                var indicators = elem.find('#indicators');
 
                // Render the 'indicator' template into the indicators element
-               return renderInto('indicator', {name: filterName}, indicators);
+               return Templates.renderIntoContainer('indicator', {name: filterName}, indicators);
             });
          }
 

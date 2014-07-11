@@ -19,6 +19,20 @@ function(_, pullTemplate, restoreTemplate, columnTemplate, indicatorTemplate){
             );
          }
          return compiledTemplates[name];
+      },
+      /**
+       * Renders a template with provided data and appends the resulting node
+       * to the end of the JQuery object container.
+       *
+       * @return Returns a jQuery object representing the result of the render.
+       */
+      renderIntoContainer: function renderInto(template, data, container) {
+         var templateFunction = this.get(template);
+         var html = templateFunction(data);
+         var node = $(html);
+         container.append(node);
+
+         return node;
       }
    };
 });
