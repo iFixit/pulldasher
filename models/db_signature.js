@@ -10,8 +10,7 @@ function DBSignature(sigData) {
    this.data = {
       number:     sigData.number,
       user:       sigData.user,
-      // Add a row to DB?
-      // user_id:    sigData.user_id,
+      userid:     sigData.user.id,
       type:       sigData.type,
       created_at: sigData.created_at,
       active:     sigData.active,

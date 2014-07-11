@@ -7,7 +7,9 @@ function Signature(data) {
    this.data = {
       number:           data.number,
       user:             data.user,
-      user_id:          data.user_id,
+      user: {
+         id:          data.user.id
+      },
       type:             data.type,
       created_at:       data.created_at,
       active:           data.active,
@@ -27,7 +29,9 @@ Signature.parseComment = function parseComment(comment, pullNumber) {
             number: pullNumber,
             user: comment.user.login,
             // avatarUrl = "https://avatars.githubusercontent.com/u/" + user_id
-            user_id: comment.user.id,
+            user: {
+               id: comment.user.id
+            },
             type: tag,
             created_at: comment.created_at,
             // `active` is unknown until all the signatures have been created
@@ -50,6 +54,9 @@ Signature.getFromDB = function(data) {
    return {
       number:     data.number,
       user:       data.user,
+      user: {
+         id: data.userid
+      },
       type:       data.type,
       created_at: data.created_at,
       active:     data.active,
