@@ -100,10 +100,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                cr_remaining: function(pull, node) {
                   var required = pull.status.cr_req;
                   var remaining = required - pull.status.CR.length;
-
-                  if (remaining === 1) {
-                     node.addClass('label label-danger');
-                  }
                },
                qa_remaining: function(pull, node) {
                   var required = pull.status.qa_req;
@@ -128,10 +124,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                qa_remaining: function(pull, node) {
                   var required = pull.status.qa_req;
                   var remaining = required - pull.status.QA.length;
-
-                  if (remaining === 1) {
-                     node.addClass('label label-danger');
-                  }
                },
                cr_remaining: function(pull, node) {
                   var required = pull.status.cr_req;
