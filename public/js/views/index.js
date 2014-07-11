@@ -22,12 +22,24 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          qa_remaining: function qa_remaining(pull, node) {
             var required = pull.status.qa_req;
             var completed = pull.status.QA.length;
-            node.text("QA " + completed + "/" + required);
+
+            node.append('<p class="sig-count">QA ' + completed + '/' + required + '</p>');
+
+            pull.status.QA.forEach(function(signature) {
+               var avatar_url = 'https://avatars.githubusercontent.com/u/' + signature.data.user.id;
+               node.append('<img class="avatar" src="' + avatar_url + '">');
+            });
          },
          cr_remaining: function cr_remaining(pull, node) {
             var required = pull.status.cr_req;
             var completed = pull.status.CR.length;
-            node.text("CR " + completed + "/" + required);
+
+            node.append('<p class="sig-count">CR ' + completed + '/' + required + '</p>');
+
+            pull.status.CR.forEach(function(signature) {
+               var avatar_url = 'https://avatars.githubusercontent.com/u/' + signature.data.user.id;
+               node.append('<img class="avatar" src="' + avatar_url + '">');
+            });
          },
          status: function status(pull, node) {
             var status = pull.status.commit_status;
@@ -98,7 +110,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   var remaining = required - pull.status.QA.length;
 
                   if (remaining === 0) {
-                     node.addClass('label label-success');
+                     node.children('.sig-count').addClass('label label-success');
                   }
                }
             }
@@ -126,7 +138,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   var remaining = required - pull.status.CR.length;
 
                   if (remaining === 0) {
-                     node.addClass('label label-success');
+                     node.children('.sig-count').addClass('label label-success');
                   }
                }
             }
