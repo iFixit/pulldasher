@@ -1,5 +1,14 @@
 define(['jquery', 'appearanceUtils'], function($, utils) {
    return {
+      navbar: "#restore-buttons",
+      page_indicator_box: "#global-indicators",
+      page_indicators: {
+         pull_count: function(pulls, node) {
+            node.text(pulls.length + " pulls total");
+            node.wrapInner('<strong></strong>');
+         },
+      },
+      // Global filters
       // where
       selector: function(pull) {
          return pull.state == 'open';
@@ -16,7 +25,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             $(node).addClass('bg-warning');
          }
       },
-      navbar: "#restore-buttons",
       // Functions to stick status information in indicators at the bottom of each pull
       indicators: {
          qa_remaining: function qa_remaining(pull, node) {
