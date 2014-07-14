@@ -122,6 +122,15 @@ io.sockets.on('connection', function (socket) {
          socket.disconnect();
       }
    });
+
+   socket.on('refresh', function(number) {
+      if (number) {
+         refresh(number);
+      } else {
+         refreshAll();
+      }
+   });
+
    var autoDisconnect = setTimeout(function() {
       socket.disconnect();
    }, 10*1000);
