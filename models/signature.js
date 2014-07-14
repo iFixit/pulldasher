@@ -6,9 +6,9 @@ var config = require('../config');
 function Signature(data) {
    this.data = {
       number:           data.number,
-      user:             data.user,
       user: {
-         id:          data.user.id
+         id:            data.user.id,
+         login:         data.user.login
       },
       type:             data.type,
       created_at:       data.created_at,
@@ -27,10 +27,9 @@ Signature.parseComment = function parseComment(comment, pullNumber) {
       if (hasTag(comment.body, tag)) {
          signatures.push(new Signature({
             number: pullNumber,
-            user: comment.user.login,
-            // avatarUrl = "https://avatars.githubusercontent.com/u/" + user_id
             user: {
-               id: comment.user.id
+               id:    comment.user.id,
+               login: comment.user.login
             },
             type: tag,
             created_at: comment.created_at,
@@ -53,9 +52,9 @@ Signature.parseComment = function parseComment(comment, pullNumber) {
 Signature.getFromDB = function(data) {
    return {
       number:     data.number,
-      user:       data.user,
       user: {
-         id: data.userid
+         id:      data.userid,
+         login:   data.user
       },
       type:       data.type,
       created_at: data.created_at,
