@@ -9,7 +9,7 @@ var _ = require('underscore'),
 function DBSignature(sigData) {
    this.data = {
       number:     sigData.number,
-      user:       sigData.user,
+      user:       sigData.user.login,
       userid:     sigData.user.id,
       type:       sigData.type,
       created_at: sigData.created_at,
