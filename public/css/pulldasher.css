@@ -16,3 +16,7 @@ div.refresh {
    float: right;
    padding: 5px;
 }
+
+div.refresh:hover {
+   color: blue;
+}
