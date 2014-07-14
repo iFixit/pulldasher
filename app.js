@@ -44,35 +44,68 @@ app.get('/pull',     pullController.index);
 app.get('/pull/add', pullController.add);
 app.post('/hooks/main', hooksController.main);
 
+
 /**
- * On first run, get all the open pulls, add them to the view,
- * and update the DB to reflect any changes since last run.
+ * Accepts a promise that resolves to a pull, adds it to the view, updates the
+ * DB to reflect any changes.
  */
-gitManager.getAllPulls().done(function(arrayOfPullPromises) {
-   arrayOfPullPromises.forEach(function(pullPromise) {
-      pullPromise.done(function(pull) {
-         dbManager.updatePull(pull).done(function() {
-            if (pull.commitStatus) {
-               dbManager.updateCommitStatus(pull.commitStatus);
-            }
+function update(pullPromise) {
+   pullPromise.done(function(pull) {
+      dbManager.updatePull(pull).done(function() {
+         if (pull.commitStatus) {
+            dbManager.updateCommitStatus(pull.commitStatus);
+         }
 
-            // Delete all signatures related to this pull from the DB
-            // before we rewrite them to avoid duplicates.
-            dbManager.deleteSignatures(pull.data.number).done(function() {
-               pull.signatures.sort(Signature.compare);
-               dbManager.insertSignatures(pull.signatures);
-            });
+         // Delete all signatures related to this pull from the DB
+         // before we rewrite them to avoid duplicates.
+         dbManager.deleteSignatures(pull.data.number).done(function() {
+            pull.signatures.sort(Signature.compare);
+            dbManager.insertSignatures(pull.signatures);
+         });
 
-            pull.comments.forEach(function(comment) {
-               dbManager.updateComment(comment);
-            });
+         pull.comments.forEach(function(comment) {
+            dbManager.updateComment(comment);
          });
       });
    });
+}
 
-   // Update pulls which were open last time Pulldasher ran but are closed now.
-   // @TODO dbManager.closeStalePulls();
-});
+/**
+ * Refreshes the specified pull.
+ */
+function refresh(number) {
+   var githubPull = gitManager.getPull(number);
+
+   githubPull.done(function(gPull) {
+      var pullPromise = gitManager.parse(gPull);
+      update(pullPromise);
+   });
+}
+
+/**
+ * Refreshes all open pulls.
+ */
+function refreshAll() {
+   var githubPulls = gitManager.getAllPulls();
+
+   githubPulls.done(function(gPulls) {
+      gPulls.forEach(function(gPull) {
+         var pull = gitManager.parse(gPull);
+         update(pull);
+      });
+   });
+}
+
+
+// Called, to populate app, on startup.
+refreshAll();
+
+/*
+@TODO: Update pulls which were open last time Pulldasher ran but are closed now.
+dbManager.closeStalePulls();
+*/
+
+
 //====================================================
 // Socket.IO
 
