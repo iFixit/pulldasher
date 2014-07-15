@@ -1,5 +1,5 @@
 define(['jquery', 'underscore', 'pullManager', 'PullFilter', 'ElementFilter', 'Column', 'views/index', 'IndicatorFilter',
-'ConnectionManager', 'bootstrap'],
+'ConnectionManager', 'bootstrap', 'refresh'],
 // Note that not all of the required items above are represented in the
 // function argument list. Some just need to be loaded, but that's all.
  function($, _, pullManager, PullFilter, ElementFilter, Column, spec, IndicatorFilter) {
