@@ -38,7 +38,7 @@ define(['underscore'], function(_) {
             } else {
                // There is no existing node for this indicator. Create a new
                // one.
-               indicatorNode = template(element);
+               indicatorNode = template(element, key);
                existingIndicatorNodes[key] = indicatorNode;
             }
 
