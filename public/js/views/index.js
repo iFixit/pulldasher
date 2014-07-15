@@ -22,12 +22,24 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          qa_remaining: function qa_remaining(pull, node) {
             var required = pull.status.qa_req;
             var completed = pull.status.QA.length;
-            node.text("QA " + completed + "/" + required);
+
+            node.append('<p class="sig-count">QA ' + completed + '/' + required + '</p>');
+
+            pull.status.QA.forEach(function(signature) {
+               var avatar_url = 'https://avatars.githubusercontent.com/u/' + signature.data.user.id;
+               node.append($('<img class="avatar">').attr('src', avatar_url));
+            });
          },
          cr_remaining: function cr_remaining(pull, node) {
             var required = pull.status.cr_req;
             var completed = pull.status.CR.length;
-            node.text("CR " + completed + "/" + required);
+
+            node.append('<p class="sig-count">CR ' + completed + '/' + required + '</p>');
+
+            pull.status.CR.forEach(function(signature) {
+               var avatar_url = 'https://avatars.githubusercontent.com/u/' + signature.data.user.id;
+               node.append($('<img class="avatar">').attr('src', avatar_url));
+            });
          },
          status: function status(pull, node) {
             if (pull.status.commit_status) {
@@ -103,17 +115,13 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                cr_remaining: function(pull, node) {
                   var required = pull.status.cr_req;
                   var remaining = required - pull.status.CR.length;
-
-                  if (remaining === 1) {
-                     node.addClass('text-danger');
-                  }
                },
                qa_remaining: function(pull, node) {
                   var required = pull.status.qa_req;
                   var remaining = required - pull.status.QA.length;
 
                   if (remaining === 0) {
-                     node.addClass('text-success');
+                     node.children('.sig-count').addClass('text-success');
                   }
                }
             }
@@ -122,23 +130,22 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             title: "QA Pulls",
             id: "qaPulls",
             selector: function(pull) {
-               return !pull.qa_done() && !pull.dev_blocked();
+               var isHotfix = /^hotfix/.test(pull.head.ref);
+               var numCRs = pull.status.CR.length;
+
+               return !pull.qa_done() && !pull.dev_blocked() && (numCRs > 0 || isHotfix);
             },
             indicators: {
                qa_remaining: function(pull, node) {
                   var required = pull.status.qa_req;
                   var remaining = required - pull.status.QA.length;
-
-                  if (remaining === 1) {
-                     node.addClass('text-warning');
-                  }
                },
                cr_remaining: function(pull, node) {
                   var required = pull.status.cr_req;
                   var remaining = required - pull.status.CR.length;
 
                   if (remaining === 0) {
-                     node.addClass('text-success');
+                     node.children('.sig-count').addClass('text-success');
                   }
                }
             }
