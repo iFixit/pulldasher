@@ -1,0 +1,13 @@
+#!/bin/env node
+var fs = require('fs');
+var config = require(__dirname + '/../config.js');
+
+// Save the pid to a file if requested (for an init script)
+if (config.pidFile) {
+   fs.writeFileSync(config.pidFile, process.pid);
+   process.on('exit', function() {
+      fs.unlinkSync(config.pidFile);
+   });
+}
+
+require(__dirname + "/../app.js");

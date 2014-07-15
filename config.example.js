@@ -44,5 +44,6 @@ module.exports = {
       'QA',
       'CR'
    ],
+   pidFile: "/var/run/pulldasher.pid",
    debug: true
 };
