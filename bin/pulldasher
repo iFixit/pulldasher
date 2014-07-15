@@ -6,8 +6,18 @@ var config = require(__dirname + '/../config.js');
 if (config.pidFile) {
    fs.writeFileSync(config.pidFile, process.pid);
    process.on('exit', function() {
+      console.log("exiting");
       fs.unlinkSync(config.pidFile);
    });
+
+   // Without these, the onExit handler above is never called.
+   process.on('SIGINT',  exitBad);
+   process.on('SIGTERM', exitBad);
+   process.on('SIGHUP',  exitBad);
+
+   function exitBad() {
+      process.exit(1);
+   }
 }
 
 require(__dirname + "/../app.js");
