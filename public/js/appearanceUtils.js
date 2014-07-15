@@ -33,6 +33,15 @@ define(['jquery'], function ($) {
             uniq.fadeIn();
             $('#uniqPulls').collapse('show');
          });
+      },
+
+      getAvatarDOMNode: function(username, userid) {
+               var avatar_url = 'https://avatars.githubusercontent.com/u/' + userid;
+               var avatar = $('<img data-toggle="tooltip" data-placement="top" class="avatar">');
+               avatar.attr('src', avatar_url);
+               avatar.attr('title', username);
+               avatar.tooltip();
+               return avatar;
       }
    };
 });

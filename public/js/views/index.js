@@ -26,8 +26,8 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             node.append('<p class="sig-count">QA ' + completed + '/' + required + '</p>');
 
             pull.status.QA.forEach(function(signature) {
-               var avatar_url = 'https://avatars.githubusercontent.com/u/' + signature.data.user.id;
-               node.append($('<img class="avatar">').attr('src', avatar_url));
+               var user = signature.data.user;
+               node.append(utils.getAvatarDOMNode(user.login, user.id));
             });
          },
          cr_remaining: function cr_remaining(pull, node) {
@@ -37,8 +37,8 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             node.append('<p class="sig-count">CR ' + completed + '/' + required + '</p>');
 
             pull.status.CR.forEach(function(signature) {
-               var avatar_url = 'https://avatars.githubusercontent.com/u/' + signature.data.user.id;
-               node.append($('<img class="avatar">').attr('src', avatar_url));
+               var user = signature.data.user;
+               node.append(utils.getAvatarDOMNode(user.login, user.id));
             });
          },
          status: function status(pull, node) {
