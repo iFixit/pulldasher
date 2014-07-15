@@ -14,9 +14,7 @@ module.exports = {
    },
    repo: {
      owner:       'repo owner',
-     name:        'repo name',
-     numPulls:    100,        // Number of pull requests to retrieve
-     numComments: 100         // Number of comments to retrieve, per pull
+     name:        'repo name'
    },
    mysql: {
       host: 'mysql remote host URL',
