@@ -10,7 +10,7 @@ function DBComment(commentData) {
    this.data = {
       number:     commentData.number,
       repo_name:  commentData.repo,
-      user:       commentData.user,
+      user:       commentData.user.login,
       created_at: commentData.created_at,
       comment_id: commentData.comment_id
    };
