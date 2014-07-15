@@ -105,7 +105,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   var required = pull.status.qa_req;
                   var remaining = required - pull.status.QA.length;
 
-                  if (remaining === 0) {
+                  if (remaining <= 0) {
                      node.children('.sig-count').addClass('label label-success');
                   }
                }
@@ -129,7 +129,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   var required = pull.status.cr_req;
                   var remaining = required - pull.status.CR.length;
 
-                  if (remaining === 0) {
+                  if (remaining <= 0) {
                      node.children('.sig-count').addClass('label label-success');
                   }
                }
