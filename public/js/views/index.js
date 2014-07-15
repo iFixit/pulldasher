@@ -26,8 +26,8 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             node.append('<p class="sig-count">QA ' + completed + '/' + required + '</p>');
 
             pull.status.QA.forEach(function(signature) {
-               var avatar_url = 'https://avatars.githubusercontent.com/u/' + signature.data.user.id;
-               node.append($('<img class="avatar">').attr('src', avatar_url));
+               var user = signature.data.user;
+               node.append(utils.getAvatarDOMNode(user.login, user.id));
             });
          },
          cr_remaining: function cr_remaining(pull, node) {
@@ -37,19 +37,34 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             node.append('<p class="sig-count">CR ' + completed + '/' + required + '</p>');
 
             pull.status.CR.forEach(function(signature) {
-               var avatar_url = 'https://avatars.githubusercontent.com/u/' + signature.data.user.id;
-               node.append($('<img class="avatar">').attr('src', avatar_url));
+               var user = signature.data.user;
+               node.append(utils.getAvatarDOMNode(user.login, user.id));
             });
          },
          status: function status(pull, node) {
-            var status = pull.status.commit_status;
-            if (status) {
-               var title = status.data.description;
-               var url   = status.data.target_url;
-               var state = status.data.state;
-               node.append('<a target="_blank" title="' + title + '" href="' + url + '">' + state + "</a>");
-            } else {
-               node.text('No CI');
+            if (pull.status.commit_status) {
+            var commit_status = pull.status.commit_status.data;
+               var title = commit_status.description;
+               var url   = commit_status.target_url;
+               var state = commit_status.state;
+
+               var link = $('<a target="_blank" data-toggle="tooltip" data-placement="top" title="' + title + '" href="' + url + '"></a>');
+               node.append(link);
+               link.tooltip();
+               switch(commit_status.state) {
+                  case 'pending':
+                  link.append('<span class="text-muted glyphicon glyphicon-repeat"></span>');
+                  break;
+                  case 'success':
+                  link.append('<span class="text-success glyphicon glyphicon-ok"></span>');
+                  break;
+                  case 'error':
+                  link.append('<span class="text-danger glyphicon glyphicon-exclamation-sign"></span>');
+                  break;
+                  case 'failure':
+                  link.append('<span class="text-warning glyphicon glyphicon-remove"></span>');
+                  break;
+               }
             }
          },
          user_icon: function user_icon(pull, node) {
@@ -106,7 +121,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   var remaining = required - pull.status.QA.length;
 
                   if (remaining <= 0) {
-                     node.children('.sig-count').addClass('label label-success');
+                     node.children('.sig-count').addClass('text-success');
                   }
                }
             }
@@ -130,7 +145,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   var remaining = required - pull.status.CR.length;
 
                   if (remaining <= 0) {
-                     node.children('.sig-count').addClass('label label-success');
+                     node.children('.sig-count').addClass('text-success');
                   }
                }
             }
