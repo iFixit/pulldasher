@@ -20,3 +20,12 @@ div.refresh {
 div.refresh:hover {
    color: blue;
 }
+
+.sig-count {
+   margin: 0;
+}
+
+.avatar {
+   width: 22px;
+   margin: 2px 3px 0 0;
+}

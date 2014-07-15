@@ -7,7 +7,9 @@ function Comment(data) {
    this.data = {
       number:        data.number,
       repo:          data.repo,
-      user:          data.user.login,
+      user: {
+         login: data.user.login
+      },
       created_at:    data.created_at,
       comment_id:    data.id
    };
