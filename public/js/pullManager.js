@@ -14,9 +14,8 @@ define(['underscore', 'socket', 'Pull'], function(_, socket, Pull) {
    socket.on('pullChange', function(pull) {
       updatePull(pull);
 
-      update();
+     _.throttle(update, 500);
    });
-
 
    function update() {
       _.each(listeners, function(listener) {
