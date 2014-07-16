@@ -2,6 +2,7 @@ var config = require('./config'),
     httpServer,
     express = require('express'),
     partials = require('express-partials'),
+    Promise = require('promise'),
     authManager = require('./lib/authentication'),
     passport = authManager.passport,
     socketAuthenticator = require('./lib/socket-auth'),
@@ -50,21 +51,35 @@ app.post('/hooks/main', hooksController.main);
  * DB to reflect any changes.
  */
 function update(pullPromise) {
-   pullPromise.done(function(pull) {
-      dbManager.updatePull(pull).done(function() {
-         if (pull.commitStatus) {
-            dbManager.updateCommitStatus(pull.commitStatus);
-         }
+   return new Promise(function(resolve, reject) {
+      pullPromise.done(function(pull) {
+         dbManager.updatePull(pull).done(function() {
+            var updates = [];
 
-         // Delete all signatures related to this pull from the DB
-         // before we rewrite them to avoid duplicates.
-         dbManager.deleteSignatures(pull.data.number).done(function() {
-            pull.signatures.sort(Signature.compare);
-            dbManager.insertSignatures(pull.signatures);
-         });
+            if (pull.commitStatus) {
+               updates.push(
+                  dbManager.updateCommitStatus(pull.commitStatus)
+               );
+            }
 
-         pull.comments.forEach(function(comment) {
-            dbManager.updateComment(comment);
+            // Delete all signatures related to this pull from the DB
+            // before we rewrite them to avoid duplicates.
+            dbManager.deleteSignatures(pull.data.number).done(function() {
+               pull.signatures.sort(Signature.compare);
+               updates.push(
+                  dbManager.insertSignatures(pull.signatures)
+               );
+            });
+
+            pull.comments.forEach(function(comment) {
+               updates.push(
+                  dbManager.updateComment(comment)
+               );
+            });
+
+            Promise.all(updates).done(function() {
+               resolve();
+            });
          });
       });
    });
