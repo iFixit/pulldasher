@@ -52,36 +52,32 @@ app.post('/hooks/main', hooksController.main);
  * DB to reflect any changes.
  */
 function update(pullPromise) {
-   return new Promise(function(resolve, reject) {
-      pullPromise.done(function(pull) {
-         dbManager.updatePull(pull).done(function() {
-            var updates = [];
+   return pullPromise.then(function(pull) {
+      return dbManager.updatePull(pull).then(function() {
+         var updates = [];
 
-            if (pull.commitStatus) {
-               updates.push(
-                  dbManager.updateCommitStatus(pull.commitStatus)
-               );
-            }
+         if (pull.commitStatus) {
+            updates.push(
+               dbManager.updateCommitStatus(pull.commitStatus)
+            );
+         }
 
+         updates.push(
             // Delete all signatures related to this pull from the DB
             // before we rewrite them to avoid duplicates.
-            dbManager.deleteSignatures(pull.data.number).done(function() {
+            dbManager.deleteSignatures(pull.data.number).then(function() {
                pull.signatures.sort(Signature.compare);
-               updates.push(
-                  dbManager.insertSignatures(pull.signatures)
-               );
-            });
+               return dbManager.insertSignatures(pull.signatures);
+            })
+         );
 
-            pull.comments.forEach(function(comment) {
-               updates.push(
-                  dbManager.updateComment(comment)
-               );
-            });
-
-            Promise.all(updates).done(function() {
-               resolve();
-            });
+         pull.comments.forEach(function(comment) {
+            updates.push(
+               dbManager.updateComment(comment)
+            );
          });
+
+         return Promise.all(updates);
       });
    });
 }
