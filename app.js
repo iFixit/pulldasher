@@ -6,6 +6,7 @@ var config = require('./config'),
     authManager = require('./lib/authentication'),
     passport = authManager.passport,
     socketAuthenticator = require('./lib/socket-auth'),
+    queue = require('./lib/pull-queue.js'),
     pullManager = require('./lib/pull-manager'),
     dbManager = require('./lib/db-manager'),
     gitManager = require('./lib/git-manager'),
@@ -91,9 +92,13 @@ function update(pullPromise) {
 function refresh(number) {
    var githubPull = gitManager.getPull(number);
 
+   queue.pause();
+
    githubPull.done(function(gPull) {
       var pullPromise = gitManager.parse(gPull);
-      update(pullPromise);
+      update(pullPromise).done(function() {
+         queue.resume();
+      });
    });
 }
 
@@ -103,10 +108,21 @@ function refresh(number) {
 function refreshAll() {
    var githubPulls = gitManager.getAllPulls();
 
+   queue.pause();
+
    githubPulls.done(function(gPulls) {
-      gPulls.forEach(function(gPull) {
+      var pullsUpdated = gPulls.map(function(gPull) {
          var pull = gitManager.parse(gPull);
-         update(pull);
+
+         return new Promise(function(resolve, reject) {
+            update(pull).done(function() {
+               resolve();
+            });
+         });
+      });
+
+      Promise.all(pullsUpdated).done(function() {
+         queue.resume();
       });
    });
 }
