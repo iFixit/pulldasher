@@ -4,7 +4,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       page_indicator_box: "#global-indicators",
       page_indicators: {
          pull_count: function(pulls, node) {
-            node.text(pulls.length + " pulls total");
+            node.text(pulls.length + " open pulls");
             node.wrapInner('<strong></strong>');
          },
       },
