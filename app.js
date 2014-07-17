@@ -2,9 +2,11 @@ var config = require('./config'),
     httpServer,
     express = require('express'),
     partials = require('express-partials'),
+    Promise = require('promise'),
     authManager = require('./lib/authentication'),
     passport = authManager.passport,
     socketAuthenticator = require('./lib/socket-auth'),
+    queue = require('./lib/pull-queue.js'),
     pullManager = require('./lib/pull-manager'),
     dbManager = require('./lib/db-manager'),
     gitManager = require('./lib/git-manager'),
@@ -50,22 +52,32 @@ app.post('/hooks/main', hooksController.main);
  * DB to reflect any changes.
  */
 function update(pullPromise) {
-   pullPromise.done(function(pull) {
-      dbManager.updatePull(pull).done(function() {
+   return pullPromise.then(function(pull) {
+      return dbManager.updatePull(pull).then(function() {
+         var updates = [];
+
          if (pull.commitStatus) {
-            dbManager.updateCommitStatus(pull.commitStatus);
+            updates.push(
+               dbManager.updateCommitStatus(pull.commitStatus)
+            );
          }
 
-         // Delete all signatures related to this pull from the DB
-         // before we rewrite them to avoid duplicates.
-         dbManager.deleteSignatures(pull.data.number).done(function() {
-            pull.signatures.sort(Signature.compare);
-            dbManager.insertSignatures(pull.signatures);
-         });
+         updates.push(
+            // Delete all signatures related to this pull from the DB
+            // before we rewrite them to avoid duplicates.
+            dbManager.deleteSignatures(pull.data.number).then(function() {
+               pull.signatures.sort(Signature.compare);
+               return dbManager.insertSignatures(pull.signatures);
+            })
+         );
 
          pull.comments.forEach(function(comment) {
-            dbManager.updateComment(comment);
+            updates.push(
+               dbManager.updateComment(comment)
+            );
          });
+
+         return Promise.all(updates);
       });
    });
 }
@@ -76,9 +88,13 @@ function update(pullPromise) {
 function refresh(number) {
    var githubPull = gitManager.getPull(number);
 
+   queue.pause();
+
    githubPull.done(function(gPull) {
       var pullPromise = gitManager.parse(gPull);
-      update(pullPromise);
+      update(pullPromise).done(function() {
+         queue.resume();
+      });
    });
 }
 
@@ -88,10 +104,21 @@ function refresh(number) {
 function refreshAll() {
    var githubPulls = gitManager.getAllPulls();
 
+   queue.pause();
+
    githubPulls.done(function(gPulls) {
-      gPulls.forEach(function(gPull) {
+      var pullsUpdated = gPulls.map(function(gPull) {
          var pull = gitManager.parse(gPull);
-         update(pull);
+
+         return new Promise(function(resolve, reject) {
+            update(pull).done(function() {
+               resolve();
+            });
+         });
+      });
+
+      Promise.all(pullsUpdated).done(function() {
+         queue.resume();
       });
    });
 }
