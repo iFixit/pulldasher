@@ -2,6 +2,7 @@ var config = require('../config'),
     Pull = require('../models/pull'),
     Status = require('../models/status'),
     Signature = require('../models/signature'),
+    Comment = require('../models/comment'),
     dbManager = require('../lib/db-manager');
 
 var HooksController = {
@@ -36,11 +37,14 @@ var HooksController = {
       } else if (event === 'issue_comment') {
          // Parse any signature(s) out of the comment.
          var sigs = Signature.parseComment(body.comment, body.issue.number);
-
          dbManager.insertSignatures(sigs);
-      }
 
-      // Emit notification to pullManager to update the view via the DB.
+         body.comment.number = body.issue.number;
+         body.comment.repo = body.repository.name;
+         var comment = new Comment(body.comment);
+
+         dbManager.updateComment(comment);
+      }
 
       return res.status(200).send('Success!');
    }

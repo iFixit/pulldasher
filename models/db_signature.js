@@ -2,14 +2,15 @@ var _ = require('underscore'),
     db = require('../lib/db'),
     Promise = require('promise');
 
-// Builds an object representation of a row in the DB `pulls` table
-// from the data returned by GitHub's API.
+/**
+ * Builds an object representation of a row in the DB `pull_signatures` table
+ * from the Signature object.
+ */
 function DBSignature(sigData) {
    this.data = {
       number:     sigData.number,
-      user:       sigData.user,
-      // Add a row to DB?
-      // user_id:    sigData.user_id,
+      user:       sigData.user.login,
+      userid:     sigData.user.id,
       type:       sigData.type,
       created_at: sigData.created_at,
       active:     sigData.active,

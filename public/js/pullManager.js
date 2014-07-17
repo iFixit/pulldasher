@@ -4,6 +4,8 @@ define(['underscore', 'socket', 'Pull'], function(_, socket, Pull) {
    var pullIndex = {};
    var pulls = [];
 
+   var throttledUpdate = _.throttle(update, 500);
+
    socket.on('allPulls', function(pulls) {
       removeAll();
       updatePulls(pulls);
@@ -14,9 +16,8 @@ define(['underscore', 'socket', 'Pull'], function(_, socket, Pull) {
    socket.on('pullChange', function(pull) {
       updatePull(pull);
 
-      update();
+      throttledUpdate();
    });
-
 
    function update() {
       _.each(listeners, function(listener) {

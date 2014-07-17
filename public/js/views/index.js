@@ -17,6 +17,62 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          }
       },
       navbar: "#restore-buttons",
+      // Functions to stick status information in indicators at the bottom of each pull
+      indicators: {
+         qa_remaining: function qa_remaining(pull, node) {
+            var required = pull.status.qa_req;
+            var completed = pull.status.QA.length;
+
+            node.append('<p class="sig-count">QA ' + completed + '/' + required + '</p>');
+
+            pull.status.QA.forEach(function(signature) {
+               var user = signature.data.user;
+               node.append(utils.getAvatarDOMNode(user.login, user.id));
+            });
+         },
+         cr_remaining: function cr_remaining(pull, node) {
+            var required = pull.status.cr_req;
+            var completed = pull.status.CR.length;
+
+            node.append('<p class="sig-count">CR ' + completed + '/' + required + '</p>');
+
+            pull.status.CR.forEach(function(signature) {
+               var user = signature.data.user;
+               node.append(utils.getAvatarDOMNode(user.login, user.id));
+            });
+         },
+         status: function status(pull, node) {
+            if (pull.status.commit_status) {
+            var commit_status = pull.status.commit_status.data;
+               var title = commit_status.description;
+               var url   = commit_status.target_url;
+               var state = commit_status.state;
+
+               var link = $('<a target="_blank" data-toggle="tooltip" data-placement="top" title="' + title + '" href="' + url + '"></a>');
+               node.append(link);
+               link.tooltip();
+               switch(commit_status.state) {
+                  case 'pending':
+                  link.append('<span class="text-muted glyphicon glyphicon-repeat"></span>');
+                  break;
+                  case 'success':
+                  link.append('<span class="text-success glyphicon glyphicon-ok"></span>');
+                  break;
+                  case 'error':
+                  link.append('<span class="text-danger glyphicon glyphicon-exclamation-sign"></span>');
+                  break;
+                  case 'failure':
+                  link.append('<span class="text-warning glyphicon glyphicon-remove"></span>');
+                  break;
+               }
+            }
+         },
+         user_icon: function user_icon(pull, node) {
+            if (pull.is_mine()) {
+               node.append('<span class="glyphicon glyphicon-user"></span>');
+            }
+         }
+      },
       columns: [
          {
             title: "Special Pulls",
@@ -29,7 +85,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             },
             adjust: function(pull, node) {
                if (pull.deploy_blocked()) {
-                  $(node).addClass('list-group-item-danger');
+                  node.addClass('list-group-item-danger');
                }
             },
             triggers: {
@@ -54,14 +110,46 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             id: "crPulls",
             selector: function(pull) {
                return !pull.cr_done() && !pull.dev_blocked();
+            },
+            indicators: {
+               cr_remaining: function(pull, node) {
+                  var required = pull.status.cr_req;
+                  var remaining = required - pull.status.CR.length;
+               },
+               qa_remaining: function(pull, node) {
+                  var required = pull.status.qa_req;
+                  var remaining = required - pull.status.QA.length;
+
+                  if (remaining <= 0) {
+                     node.children('.sig-count').addClass('text-success');
+                  }
+               }
             }
          },
          {
             title: "QA Pulls",
             id: "qaPulls",
             selector: function(pull) {
-               return !pull.qa_done() && !pull.dev_blocked();
+               var isHotfix = /^hotfix/.test(pull.head.ref);
+               var numCRs = pull.status.CR.length;
+
+               return !pull.qa_done() && !pull.dev_blocked() && (numCRs > 0 || isHotfix);
+            },
+            indicators: {
+               qa_remaining: function(pull, node) {
+                  var required = pull.status.qa_req;
+                  var remaining = required - pull.status.QA.length;
+               },
+               cr_remaining: function(pull, node) {
+                  var required = pull.status.cr_req;
+                  var remaining = required - pull.status.CR.length;
+
+                  if (remaining <= 0) {
+                     node.children('.sig-count').addClass('text-success');
+                  }
+               }
             }
+
          }
       ]
    };
