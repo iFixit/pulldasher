@@ -5,6 +5,7 @@
 .info-tag {
    padding-right: 10px;
    font-weight: bold;
+   max-width: 150px;
 }
 
 .refresh {
