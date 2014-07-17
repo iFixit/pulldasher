@@ -7,22 +7,14 @@
    font-weight: bold;
 }
 
-.pull {
-   max-width: 358px;
-}
-
-div.refresh {
+.refresh {
    cursor: pointer;
    float: right;
    padding: 5px;
 }
 
-div.refresh:hover {
+.refresh:hover {
    color: blue;
-}
-
-.sig-count {
-   margin: 0;
 }
 
 .avatar {
