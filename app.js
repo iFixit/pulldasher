@@ -2,9 +2,11 @@ var config = require('./config'),
     httpServer,
     express = require('express'),
     partials = require('express-partials'),
+    Promise = require('promise'),
     authManager = require('./lib/authentication'),
     passport = authManager.passport,
     socketAuthenticator = require('./lib/socket-auth'),
+    queue = require('./lib/pull-queue.js'),
     pullManager = require('./lib/pull-manager'),
     dbManager = require('./lib/db-manager'),
     gitManager = require('./lib/git-manager'),
@@ -44,27 +46,93 @@ app.get('/pull',     pullController.index);
 app.get('/pull/add', pullController.add);
 app.post('/hooks/main', hooksController.main);
 
+
 /**
- * On first run, get all the open pulls, add them to the view,
- * and update the DB to reflect any changes since last run.
+ * Accepts a promise that resolves to a pull, adds it to the view, updates the
+ * DB to reflect any changes.
  */
-gitManager.getAllPulls().done(function(arrayOfPullPromises) {
-   arrayOfPullPromises.forEach(function(pullPromise) {
-      pullPromise.done(function(pull) {
-         // Delete all signatures related to this pull from the DB
-         // before we rewrite them to avoid duplicates.
-         dbManager.deleteSignatures(pull.data.number).done(function() {
-            pull.signatures.sort(Signature.compare);
-            dbManager.insertSignatures(pull.signatures);
+function update(pullPromise) {
+   return pullPromise.then(function(pull) {
+      return dbManager.updatePull(pull).then(function() {
+         var updates = [];
+
+         if (pull.commitStatus) {
+            updates.push(
+               dbManager.updateCommitStatus(pull.commitStatus)
+            );
+         }
+
+         updates.push(
+            // Delete all signatures related to this pull from the DB
+            // before we rewrite them to avoid duplicates.
+            dbManager.deleteSignatures(pull.data.number).then(function() {
+               pull.signatures.sort(Signature.compare);
+               return dbManager.insertSignatures(pull.signatures);
+            })
+         );
+
+         pull.comments.forEach(function(comment) {
+            updates.push(
+               dbManager.updateComment(comment)
+            );
          });
 
-         dbManager.updatePull(pull);
+         return Promise.all(updates);
       });
    });
+}
 
-   // Update pulls which were open last time Pulldasher ran but are closed now.
-   // @TODO dbManager.closeStalePulls();
-});
+/**
+ * Refreshes the specified pull.
+ */
+function refresh(number) {
+   var githubPull = gitManager.getPull(number);
+
+   queue.pause();
+
+   githubPull.done(function(gPull) {
+      var pullPromise = gitManager.parse(gPull);
+      update(pullPromise).done(function() {
+         queue.resume();
+      });
+   });
+}
+
+/**
+ * Refreshes all open pulls.
+ */
+function refreshAll() {
+   var githubPulls = gitManager.getAllPulls();
+
+   queue.pause();
+
+   githubPulls.done(function(gPulls) {
+      var pullsUpdated = gPulls.map(function(gPull) {
+         var pull = gitManager.parse(gPull);
+
+         return new Promise(function(resolve, reject) {
+            update(pull).done(function() {
+               resolve();
+            });
+         });
+      });
+
+      Promise.all(pullsUpdated).done(function() {
+         queue.resume();
+      });
+   });
+}
+
+
+// Called, to populate app, on startup.
+refreshAll();
+
+/*
+@TODO: Update pulls which were open last time Pulldasher ran but are closed now.
+dbManager.closeStalePulls();
+*/
+
+
 //====================================================
 // Socket.IO
 
@@ -81,6 +149,15 @@ io.sockets.on('connection', function (socket) {
          socket.disconnect();
       }
    });
+
+   socket.on('refresh', function(number) {
+      if (number) {
+         refresh(number);
+      } else {
+         refreshAll();
+      }
+   });
+
    var autoDisconnect = setTimeout(function() {
       socket.disconnect();
    }, 10*1000);

@@ -6,8 +6,10 @@ var config = require('../config');
 function Signature(data) {
    this.data = {
       number:           data.number,
-      user:             data.user,
-      user_id:          data.user_id,
+      user: {
+         id:            data.user.id,
+         login:         data.user.login
+      },
       type:             data.type,
       created_at:       data.created_at,
       active:           data.active,
@@ -25,9 +27,10 @@ Signature.parseComment = function parseComment(comment, pullNumber) {
       if (hasTag(comment.body, tag)) {
          signatures.push(new Signature({
             number: pullNumber,
-            user: comment.user.login,
-            // avatarUrl = "https://avatars.githubusercontent.com/u/" + user_id
-            user_id: comment.user.id,
+            user: {
+               id:    comment.user.id,
+               login: comment.user.login
+            },
             type: tag,
             created_at: comment.created_at,
             // `active` is unknown until all the signatures have been created
@@ -49,7 +52,10 @@ Signature.parseComment = function parseComment(comment, pullNumber) {
 Signature.getFromDB = function(data) {
    return {
       number:     data.number,
-      user:       data.user,
+      user: {
+         id:      data.userid,
+         login:   data.user
+      },
       type:       data.type,
       created_at: data.created_at,
       active:     data.active,
@@ -73,7 +79,7 @@ function hasTag(body, tagName) {
    if (typeof tagRegExps[tagName] === 'undefined') {
       // e.g. "dev_block :+1:" or " CR :asdf:."
       tagRegExps[tagName]
-         = new RegExp("\\b" + tagName + " :[^\n:]+:");
+         = new RegExp("\\b" + tagName + " :[^\n:]+:", 'i');
    }
    return tagRegExps[tagName].test(body);
 }

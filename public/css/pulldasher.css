@@ -1,3 +1,31 @@
 .click-heading {
    cursor: pointer;
 }
+
+.info-tag {
+   padding-right: 10px;
+   font-weight: bold;
+}
+
+.pull {
+   max-width: 358px;
+}
+
+div.refresh {
+   cursor: pointer;
+   float: right;
+   padding: 5px;
+}
+
+div.refresh:hover {
+   color: blue;
+}
+
+.sig-count {
+   margin: 0;
+}
+
+.avatar {
+   width: 22px;
+   margin: 2px 3px 0 0;
+}

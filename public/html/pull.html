@@ -1,5 +1,6 @@
 <a target="_blank" href="<%- pull.url() %>" class="list-group-item pull">
-   <h4 class="list-group-item-heading">
-      #<%- pull.number %> - <%- pull.title %>
-   </h4>
+   <div data-number="<%- pull.number %>" class="refresh glyphicon glyphicon-refresh"></div>
+   <p>#<%- pull.number %>: <%- pull.title %></p>
+   <div id="indicators" class="indicators row">
+   </div>
 </a>
