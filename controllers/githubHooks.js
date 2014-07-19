@@ -1,9 +1,10 @@
-var config = require('../config'),
-    Pull = require('../models/pull'),
-    Status = require('../models/status'),
-    Signature = require('../models/signature'),
-    Comment = require('../models/comment'),
-    dbManager = require('../lib/db-manager');
+var config     = require('../config'),
+    debug      = require('debug')('githubHooks'),
+    Pull       = require('../models/pull'),
+    Status     = require('../models/status'),
+    Signature  = require('../models/signature'),
+    Comment    = require('../models/comment'),
+    dbManager  = require('../lib/db-manager');
 
 var HooksController = {
 
@@ -18,6 +19,7 @@ var HooksController = {
       // Begin the webhook decoding
       var body = JSON.parse(req.body.payload);
       var event = req.get('X-GitHub-Event');
+      debug('Received GitHub webhook, Event: %s', event);
 
       if (event === 'status') {
          dbManager.updateCommitStatus(new Status(body));
