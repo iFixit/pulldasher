@@ -1,6 +1,7 @@
 define(['underscore'], function(_) {
    /**
-    * @param spec - The spec for this column's indicators
+    * @param indicators - The spec for this column's indicators. It is an
+    * object with a function for each indicator.
     * @param prefilter - An (optional) argument. If an IndicatorFilter is
     * passed, it will be called before this one.
     */
