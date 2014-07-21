@@ -1,9 +1,10 @@
+var debug = require('debug')('pullController');
 module.exports = function(pullManager) {
    var i=2;
    return {
       index: function (req, res) {
          //include logic for grabbing pulls
-         console.log(req.user); 
+         debug(req.user); 
          res.send(req.user);
          //res.render('/home/index');
       },
