@@ -137,7 +137,6 @@ dbManager.closeStalePulls();
 // Socket.IO
 
 var io = require('socket.io').listen(httpServer);
-io.set('log level', 2);
 io.sockets.on('connection', function (socket) {
    socket.on('authenticate', function(token) {
       var user = socketAuthenticator.retrieveUser(token);
