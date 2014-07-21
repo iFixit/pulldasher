@@ -12,7 +12,9 @@ var HooksController = {
 
       var secret = req.param('secret');
       if (secret != config.github.hook_secret) {
-         console.log('Invalid Hook Secret: ', secret);
+         var m = 'Invalid Hook Secret: ', secret
+         debug(m);
+         console.error(m);
          return res.status(401).send('Invalid POST');
       }
 
