@@ -103,6 +103,9 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             id: "blockPulls",
             selector: function(pull) {
                return pull.dev_blocked();
+            },
+            sort: function(pull) {
+               return pull.is_mine() ? 0 : 1;
             }
          },
          {
