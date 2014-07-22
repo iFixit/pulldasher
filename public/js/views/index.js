@@ -6,7 +6,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          pull_count: function(pulls, node) {
             node.text(pulls.length + " open pulls");
             node.wrapInner('<strong></strong>');
-         },
+         }
       },
       // Global filters
       // where
