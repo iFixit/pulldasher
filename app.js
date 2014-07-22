@@ -151,11 +151,7 @@ io.sockets.on('connection', function (socket) {
    });
 
    socket.on('refresh', function(number) {
-      if (number) {
-         refresh(number);
-      } else {
-         refreshAll();
-      }
+      refresh(number);
    });
 
    var autoDisconnect = setTimeout(function() {
