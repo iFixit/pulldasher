@@ -10,6 +10,8 @@
   "license": "Copyright iFixit. All rights reserved.",
   "private": true,
   "dependencies": {
-    "bootstrap": "3.3.2"
+    "bootstrap"      : "3.3.2",
+    "requirejs"      : "~2.1.14",
+    "requirejs-text" : "~2.0.12"
   }
 }
