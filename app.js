@@ -14,7 +14,9 @@ var config = require('./config'),
     Signature = require('./models/signature'),
     mainController = require('./controllers/main'),
     pullController = require('./controllers/pull')(pullManager),
-    hooksController = require('./controllers/githubHooks');
+    hooksController = require('./controllers/githubHooks'),
+    reqLogger = require('debug')('server:request');
+    resLogger = require('debug')('server:response');
 
 var app = express();
 
@@ -34,7 +36,12 @@ app.use(express.cookieParser());
 app.use(express.session({secret: config.session.secret}));
 app.use(passport.initialize());
 app.use(passport.session());
-app.use(express.logger());
+
+app.use(function(req, res, next) {
+   reqLogger(req.headers);
+   resLogger(res.headers);
+   next();
+});;
 
 
 /**
