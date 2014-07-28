@@ -6,7 +6,7 @@ define(['socketjs'], function(io) {
       if (serverVersion === undefined) {
          serverVersion = versioncode;
       } else if (serverVersion !== versioncode) {
-            window.location.reload();
+         window.location.reload();
       }
    });
 
