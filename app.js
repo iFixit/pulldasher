@@ -136,6 +136,10 @@ dbManager.closeStalePulls();
 //====================================================
 // Socket.IO
 
+// Store the number of milliseconds since the Unix epoch. Used to determine
+// when the server is restarted.
+var versioncode = Date.now();
+
 var io = require('socket.io').listen(httpServer);
 io.set('log level', 2);
 io.sockets.on('connection', function (socket) {
@@ -153,6 +157,8 @@ io.sockets.on('connection', function (socket) {
    socket.on('refresh', function(number) {
       refresh(number);
    });
+
+   socket.emit('versioncode', versioncode);
 
    var autoDisconnect = setTimeout(function() {
       socket.disconnect();
