@@ -1,4 +1,5 @@
 var config = require('../config'),
+    Promise = require('promise'),
     Pull = require('../models/pull'),
     Status = require('../models/status'),
     Signature = require('../models/signature'),
@@ -22,19 +23,29 @@ var HooksController = {
       if (event === 'status') {
          dbManager.updateCommitStatus(new Status(body));
       } else if (event === 'pull_request') {
+         // Promise that resolves when everything that needs to be done before
+         // we call `updatePull` has finished.
+         var preUpdate;
+
          switch(body.action) {
             case "opened":
             case "reopened":
             case "closed":
             case "merged":
+               // Nothing to do here before we update.
+               preUpdate = Promise.resolve();
                break;
             case "synchronize":
-               dbManager.invalidateSignatures(body.pull_request.number,
-                ['QA', 'CR']);
+               preUpdate = dbManager.invalidateSignatures(
+                  body.pull_request.number,
+                  ['QA', 'CR']
+               );
          }
 
          // Update DB with new pull request content.
-         dbManager.updatePull(new Pull(body.pull_request));
+         preUpdate.done(function() {
+            dbManager.updatePull(new Pull(body.pull_request));
+         });
       } else if (event === 'issue_comment') {
          // Parse any signature(s) out of the comment.
          var sigs = Signature.parseComment(body.comment, body.issue.number);
