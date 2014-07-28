@@ -136,11 +136,9 @@ dbManager.closeStalePulls();
 //====================================================
 // Socket.IO
 
-// Store the current high-resolution time. Docs say this is not related to the
-// time of day, so this may not be guaranteed to be different for each restart.
-// See http://nodejs.org/api/process.html#process_process_hrtime
-// The array index is to get the nanoseconds value for the time
-var versioncode = process.hrtime()[1];
+// Store the number of milliseconds since the Unix epoch. Used to determine
+// when the server is restarted.
+var versioncode = Date.now();
 
 var io = require('socket.io').listen(httpServer);
 io.set('log level', 2);
