@@ -1,11 +1,11 @@
 define(['socketjs'], function(io) {
    var socket = io.connect('/');
-   var serverVersion;
+   var versionCode;
 
-   socket.on('versioncode', function(versioncode) {
-      if (serverVersion === undefined) {
-         serverVersion = versioncode;
-      } else if (serverVersion !== versioncode) {
+   socket.on('versioncode', function(serverVersion) {
+      if (versionCode === undefined) {
+         versionCode = serverVersion
+      } else if (versionCode !== serverVersion) {
          window.location.reload();
       }
    });
