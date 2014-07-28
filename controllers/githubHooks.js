@@ -27,9 +27,10 @@ var HooksController = {
             case "reopened":
             case "closed":
             case "merged":
+               break;
             case "synchronize":
-               // @TODO: Deactivate current CR, QA signoffs. Do NOT deactivate
-               //  dev_block, deploy_block comments.
+               dbManager.invalidateSignatures(body.pull_request.number,
+                ['QA', 'CR']);
          }
 
          // Update DB with new pull request content.
