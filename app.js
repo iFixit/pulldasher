@@ -135,7 +135,6 @@ dbManager.closeStalePulls();
 
 //====================================================
 // Socket.IO
-
 var io = require('socket.io').listen(httpServer);
 io.set('log level', 2);
 io.sockets.on('connection', function (socket) {
@@ -146,6 +145,7 @@ io.sockets.on('connection', function (socket) {
          pullManager.addSocket(socket);
          clearTimeout(autoDisconnect);
       } else {
+         socket.emit('unauthenticated');
          socket.disconnect();
       }
    });
