@@ -44,5 +44,7 @@ module.exports = {
       'CR'
    ],
    pidFile: "/var/run/pulldasher.pid",
-   debug: true
+   debug: true,
+   unauthenticated_timeout: 10 * 1000,
+   token_timeout: 100 * 1000
 };
