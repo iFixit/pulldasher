@@ -156,7 +156,7 @@ io.sockets.on('connection', function (socket) {
 
    var autoDisconnect = setTimeout(function() {
       socket.disconnect();
-   }, 10*1000);
+   }, config.unauthenticated_timeout);
 });
 
 httpServer.listen(config.port);
