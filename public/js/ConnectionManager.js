@@ -12,7 +12,7 @@ define(['jquery', 'underscore', 'socket'], function($, _, socket) {
    };
    _.each(events, function(newState, event) {
       socket.on(event, function() {
-         console.log(new Date() + ": " + newState);
+         console.log(new Date() + ": " + event);
          updateState(newState);
       });
    });
