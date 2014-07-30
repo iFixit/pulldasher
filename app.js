@@ -154,12 +154,12 @@ io.sockets.on('connection', function (socket) {
       refresh(number);
    });
 
-   var unauthenticated_timeout = config.unauthenticated_timeout === undefined ?
+   var unauthenticated_timeout = config.unauthenticated_timeout !== undefined ?
       config.unauthenticated_timeout : 10 * 1000;
 
    var autoDisconnect = setTimeout(function() {
       socket.disconnect();
-   }, config.unauthenticated_timeout);
+   }, unauthenticated_timeout);
 });
 
 httpServer.listen(config.port);
