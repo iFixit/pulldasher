@@ -139,11 +139,13 @@ var io = require('socket.io').listen(httpServer);
 io.set('log level', 2);
 io.sockets.on('connection', function (socket) {
    socket.on('authenticate', function(token) {
+      // They did respond. No need to drop their connection for not responding.
+      clearTimeout(autoDisconnect);
+
       var user = socketAuthenticator.retrieveUser(token);
       if (user) {
          socket.emit('authenticated');
          pullManager.addSocket(socket);
-         clearTimeout(autoDisconnect);
       } else {
          socket.emit('unauthenticated');
          socket.disconnect();
