@@ -45,6 +45,8 @@ module.exports = {
    ],
    pidFile: "/var/run/pulldasher.pid",
    debug: true,
+   // The time in ms before an unauthenticated websocket connection times out.
    unauthenticated_timeout: 10 * 1000,
+   // The time in ms before an authentication token times out.
    token_timeout: 100 * 1000
 };
