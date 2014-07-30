@@ -135,17 +135,19 @@ dbManager.closeStalePulls();
 
 //====================================================
 // Socket.IO
-
 var io = require('socket.io').listen(httpServer);
 io.set('log level', 2);
 io.sockets.on('connection', function (socket) {
    socket.on('authenticate', function(token) {
+      // They did respond. No need to drop their connection for not responding.
+      clearTimeout(autoDisconnect);
+
       var user = socketAuthenticator.retrieveUser(token);
       if (user) {
          socket.emit('authenticated');
          pullManager.addSocket(socket);
-         clearTimeout(autoDisconnect);
       } else {
+         socket.emit('unauthenticated');
          socket.disconnect();
       }
    });
@@ -154,9 +156,12 @@ io.sockets.on('connection', function (socket) {
       refresh(number);
    });
 
+   var unauthenticated_timeout = config.unauthenticated_timeout !== undefined ?
+      config.unauthenticated_timeout : 10 * 1000;
+
    var autoDisconnect = setTimeout(function() {
       socket.disconnect();
-   }, 10*1000);
+   }, unauthenticated_timeout);
 });
 
 httpServer.listen(config.port);
