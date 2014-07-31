@@ -15,8 +15,8 @@ var config = require('./config'),
     mainController = require('./controllers/main'),
     pullController = require('./controllers/pull')(pullManager),
     hooksController = require('./controllers/githubHooks'),
-    reqLogger = require('debug')('server:request');
-    resLogger = require('debug')('server:response');
+    reqLogger = require('debug')('pulldasher:server:request');
+    resLogger = require('debug')('pulldasher:server:response');
 
 var app = express();
 

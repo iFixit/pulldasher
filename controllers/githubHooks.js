@@ -1,5 +1,5 @@
 var config     = require('../config'),
-    debug      = require('debug')('githubHooks'),
+    debug      = require('debug')('pulldasher:githubHooks'),
     Pull       = require('../models/pull'),
     Status     = require('../models/status'),
     Signature  = require('../models/signature'),
