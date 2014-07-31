@@ -24,7 +24,7 @@ var HooksController = {
       var event = req.get('X-GitHub-Event');
 
       if (event === 'status') {
-         dbManager.updateCommitStatus(new Status(body));
+         written = dbManager.updateCommitStatus(new Status(body));
       } else if (event === 'pull_request') {
          // Promise that resolves when everything that needs to be done before
          // we call `updatePull` has finished.
@@ -46,24 +46,32 @@ var HooksController = {
          }
 
          // Update DB with new pull request content.
-         preUpdate.done(function() {
-            dbManager.updatePull(new Pull(body.pull_request));
+         written = preUpdate.then(function() {
+            return dbManager.updatePull(new Pull(body.pull_request));
          });
       } else if (event === 'issue_comment') {
+         var promises = [];
+
          // Parse any signature(s) out of the comment.
          var sigs = Signature.parseComment(body.comment, body.issue.number);
-         dbManager.insertSignatures(sigs);
+         promises.push(dbManager.insertSignatures(sigs));
 
          body.comment.number = body.issue.number;
          body.comment.repo = body.repository.name;
          var comment = new Comment(body.comment);
 
-         dbManager.updateComment(comment);
+         promises.push(dbManager.updateComment(comment));
+
+         written = Promise.all(promises);
       }
 
-      written.done(function() {
+      written.then(function fulfilled() {
          res.status(200).send('Success!');
-      });
+      },
+      function rejected(err) {
+         console.log(err);
+         res.status(500).send('Failure!');
+      }).done();
    }
 
 };
