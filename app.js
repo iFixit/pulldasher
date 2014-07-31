@@ -13,7 +13,6 @@ var config = require('./config'),
     Pull = require('./models/pull'),
     Signature = require('./models/signature'),
     mainController = require('./controllers/main'),
-    pullController = require('./controllers/pull')(pullManager),
     hooksController = require('./controllers/githubHooks'),
     reqLogger = require('debug')('pulldasher:server:request');
     resLogger = require('debug')('pulldasher:server:response');
@@ -49,8 +48,6 @@ app.use(function(req, res, next) {
  */
 authManager.setupRoutes(app);
 app.get('/',         mainController.index);
-app.get('/pull',     pullController.index);
-app.get('/pull/add', pullController.add);
 app.post('/hooks/main', hooksController.main);
 
 
