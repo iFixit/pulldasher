@@ -9,6 +9,9 @@ var config = require('../config'),
 var HooksController = {
 
    main: function(req, res) {
+      // Variable for promise that will resolve when the hook is known to have
+      // succeeded or failed.
+      var written;
 
       var secret = req.param('secret');
       if (secret != config.github.hook_secret) {
@@ -58,7 +61,9 @@ var HooksController = {
          dbManager.updateComment(comment);
       }
 
-      return res.status(200).send('Success!');
+      written.done(function() {
+         res.status(200).send('Success!');
+      });
    }
 
 };
