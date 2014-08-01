@@ -70,7 +70,7 @@ var HooksController = {
       },
       function rejected(err) {
          console.log(err);
-         res.status(500).send('Failure!');
+         res.status(500).send(err.toString());
       }).done();
    }
 
