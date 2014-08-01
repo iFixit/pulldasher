@@ -25,15 +25,13 @@ var HooksController = {
       } else if (event === 'pull_request') {
          // Promise that resolves when everything that needs to be done before
          // we call `updatePull` has finished.
-         var preUpdate;
+         var preUpdate = Promise.resolve();
 
          switch(body.action) {
             case "opened":
             case "reopened":
             case "closed":
             case "merged":
-               // Nothing to do here before we update.
-               preUpdate = Promise.resolve();
                break;
             case "synchronize":
                preUpdate = dbManager.invalidateSignatures(
