@@ -83,18 +83,32 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       },
       columns: [
          {
-            title: "Special Pulls",
-            id: "uniqPulls",
+            title: "deploy_blocked Pulls",
+            id: "deployBlockPulls",
             selector: function(pull) {
-               return (pull.deploy_blocked() || pull.status.ready) && !pull.dev_blocked();
-            },
-            sort: function(pull) {
-               return pull.deploy_blocked() ? 0 : 1;
+               return pull.deploy_blocked() && !pull.dev_blocked();
             },
             adjust: function(pull, node) {
-               if (pull.deploy_blocked()) {
-                  node.addClass('list-group-item-danger');
+               node.addClass('list-group-item-danger');
+            },
+            triggers: {
+               onCreate: function(blob, container) {
+                  blob.removeClass('panel-default').addClass('panel-primary');
+               },
+               onUpdate: function(blob, container) {
+                  utils.hideIfEmpty(container, blob, '.pull');
                }
+            },
+            shrinkToButton: true
+         },
+         {
+            title: "Ready Pulls",
+            id: "readyPulls",
+            selector: function(pull) {
+               return pull.status.ready && !pull.dev_blocked();
+            },
+            adjust: function(pull, node) {
+               node.addClass('list-group-item-success');
             },
             triggers: {
                onCreate: function(blob, container) {
