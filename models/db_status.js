@@ -8,7 +8,8 @@ function DBStatus(statusData) {
       commit: statusData.sha,
       state: statusData.state,
       description: statusData.description,
-      log_url: statusData.target_url
+      log_url: statusData.target_url,
+      date_created: statusData.created_at
    };
 }
 
