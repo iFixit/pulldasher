@@ -1,6 +1,22 @@
-define(['jquery', 'underscore', 'text!html/pull.html', 'text!html/restore.html', 'text!html/column.html', 'text!html/indicator.html', 'text!html/global_indicator.html'],
-function($, _, pullTemplate, restoreTemplate, columnTemplate, indicatorTemplate, globalIndicatorTemplate){
+define([ 'jquery',
+         'underscore',
+         'text!html/ci_build.html',
+         'text!html/pull.html',
+         'text!html/restore.html',
+         'text!html/column.html',
+         'text!html/indicator.html',
+         'text!html/global_indicator.html'],
+function($,
+         _,
+         ciBuildTemplate,
+         pullTemplate,
+         restoreTemplate,
+         columnTemplate,
+         indicatorTemplate,
+         globalIndicatorTemplate){
+
    var templates = {
+      ci_build: ciBuildTemplate,
       pull: pullTemplate,
       restore: restoreTemplate,
       column: columnTemplate,

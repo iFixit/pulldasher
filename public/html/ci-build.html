@@ -1,0 +1,9 @@
+<a target="_blank" href="<%- pull.commit_status_url() %>"
+   class="list-group-item ci ci-<%- pull.ci_state() ">
+   <div data-number="<%- pull.number %>" class="refresh glyphicon glyphicon-refresh"></div>
+
+   <p>#<%- pull.number %>: <%- pull.title %></p>
+   <p><%- pull.ci_state() %> - <%- pull.status.commit_status.data.description %></p>
+   <div id="indicators" class="indicators row">
+   </div>
+</a>

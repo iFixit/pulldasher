@@ -65,19 +65,31 @@ define(['underscore'], function(_) {
          return _.findWhere(this.labels, {title: labelName});
       },
 
+      has_status: function() {
+         return !!this.status.commit_status;
+      },
+
       build_status: function() {
-         var status = this.status.commit_status;
-         return status && status.data.state;
+         return this.has_status() && this.status.commit_status.data;
+      },
+
+      build_state: function() {
+         return this.has_status() && this.build_status().state;
       },
 
       build_failed: function() {
-         var status = this.build_status();
-         return status == 'failure' || status == 'error';
+         var state = this.build_state();
+         return state == 'failure' || state == 'error';
       },
 
       build_succeeded: function() {
-         return this.build_status() === 'success';
-      }
+         return this.build_state() === 'success';
+      },
+
+      commit_status_url: function() {
+         return this.has_status() ?
+                this.build_status().target_url : '#';
+      },
    });
 
    return constructor;

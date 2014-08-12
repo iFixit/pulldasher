@@ -288,6 +288,19 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   }
                }
             }
+         },
+         {
+            title: "CI Builds",
+            id: "ciBuilds",
+            selector: function(pull) {
+               return pull.has_status();
+            },
+            sort: function(pull) {
+               return -pull.status.commit_status.created_at;
+            },
+            templateName: "ci_build",
+            indicators: {
+            }
          }
       ]
    };
