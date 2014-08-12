@@ -37,8 +37,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 app.use(function(req, res, next) {
-   reqLogger(req.headers);
-   resLogger(res.headers);
+   reqLogger("%s %s", req.method, req.url);
    next();
 });;
 
