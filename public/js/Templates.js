@@ -1,5 +1,5 @@
-define(['underscore', 'text!html/pull.html', 'text!html/restore.html', 'text!html/column.html', 'text!html/indicator.html', 'text!html/global_indicator.html'],
-function(_, pullTemplate, restoreTemplate, columnTemplate, indicatorTemplate, globalIndicatorTemplate){
+define(['jquery', 'underscore', 'text!html/pull.html', 'text!html/restore.html', 'text!html/column.html', 'text!html/indicator.html', 'text!html/global_indicator.html'],
+function($, _, pullTemplate, restoreTemplate, columnTemplate, indicatorTemplate, globalIndicatorTemplate){
    var templates = {
       pull: pullTemplate,
       restore: restoreTemplate,
