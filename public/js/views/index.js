@@ -136,6 +136,18 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             selector: function(pull) {
                return !pull.cr_done() && !pull.dev_blocked();
             },
+            sort: function(pull) {
+               if (pull.is_mine()) {
+                  return 3;
+               } else if (pull.qa_done() && pull.status.commit_status &&
+                pull.status.commit_status.data.state == 'success') {
+                  return 0;
+               } else if (pull.qa_done()) {
+                  return 1;
+               } else {
+                  return 2;
+               }
+            },
             indicators: {
                cr_remaining: function(pull, node) {
                   var required = pull.status.cr_req;
@@ -159,6 +171,18 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                var numCRs = pull.status.CR.length;
 
                return !pull.qa_done() && !pull.dev_blocked() && (numCRs > 0 || isHotfix);
+            },
+            sort: function(pull) {
+               if (pull.is_mine()) {
+                  return 3;
+               } else if (pull.cr_done() && pull.status.commit_status &&
+                pull.status.commit_status.data.state == 'success') {
+                  return 0;
+               } else if (pull.cr_done()) {
+                  return 1;
+               } else {
+                  return 2;
+               }
             },
             indicators: {
                qa_remaining: function(pull, node) {
