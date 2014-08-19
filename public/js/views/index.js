@@ -124,7 +124,10 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             title: "dev_blocked Pulls",
             id: "blockPulls",
             selector: function(pull) {
-               return pull.dev_blocked();
+               var testsPassing = pull.status.commit_status &&
+                pull.status.commit_status.data.state == 'success';
+
+               return pull.dev_blocked() || (pull.cr_done() && !testsPassing);
             },
             sort: function(pull) {
                return pull.is_mine() ? 0 : 1;
@@ -169,8 +172,11 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             selector: function(pull) {
                var isHotfix = /^hotfix/.test(pull.head.ref);
                var numCRs = pull.status.CR.length;
+               var testsPassing = pull.status.commit_status &&
+                pull.status.commit_status.data.state == 'success';
 
-               return !pull.qa_done() && !pull.dev_blocked() && (numCRs > 0 || isHotfix);
+               return !pull.qa_done() && !pull.dev_blocked() &&
+                (numCRs > 0 || isHotfix) && testsPassing;
             },
             sort: function(pull) {
                if (pull.is_mine()) {
