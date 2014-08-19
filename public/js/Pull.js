@@ -30,6 +30,15 @@ define(['underscore'], function(_) {
 
       is_mine: function() {
          return this.user.login === App.user;
+      },
+
+      build_status: function() {
+         var status = this.status.commit_status;
+
+         if (status) {
+            return status.data.state;
+         }
+         return null;
       }
    });
 

@@ -124,10 +124,8 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             title: "dev_blocked Pulls",
             id: "blockPulls",
             selector: function(pull) {
-               var testsPassing = pull.status.commit_status &&
-                pull.status.commit_status.data.state == 'success';
-
-               return pull.dev_blocked() || (pull.cr_done() && !testsPassing);
+               return pull.dev_blocked() ||
+                (pull.cr_done() && pull.build_status() != 'success');
             },
             sort: function(pull) {
                return pull.is_mine() ? 0 : 1;
@@ -142,8 +140,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             sort: function(pull) {
                if (pull.is_mine()) {
                   return 3;
-               } else if (pull.qa_done() && pull.status.commit_status &&
-                pull.status.commit_status.data.state == 'success') {
+               } else if (pull.qa_done() && pull.build_status() == 'success') {
                   return 0;
                } else if (pull.qa_done()) {
                   return 1;
@@ -172,17 +169,14 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             selector: function(pull) {
                var isHotfix = /^hotfix/.test(pull.head.ref);
                var numCRs = pull.status.CR.length;
-               var testsPassing = pull.status.commit_status &&
-                pull.status.commit_status.data.state == 'success';
 
                return !pull.qa_done() && !pull.dev_blocked() &&
-                (numCRs > 0 || isHotfix) && testsPassing;
+                (numCRs > 0 || isHotfix) && pull.build_status() == 'success';
             },
             sort: function(pull) {
                if (pull.is_mine()) {
                   return 3;
-               } else if (pull.cr_done() && pull.status.commit_status &&
-                pull.status.commit_status.data.state == 'success') {
+               } else if (pull.cr_done() && pull.build_status() == 'success') {
                   return 0;
                } else if (pull.cr_done()) {
                   return 1;
