@@ -105,7 +105,8 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             title: "Ready Pulls",
             id: "readyPulls",
             selector: function(pull) {
-               return pull.status.ready && !pull.dev_blocked();
+               return pull.status.ready && !pull.dev_blocked() &&
+                !pull.build_failed();
             },
             adjust: function(pull, node) {
                node.addClass('list-group-item-success');
@@ -125,7 +126,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             id: "blockPulls",
             selector: function(pull) {
                return pull.dev_blocked() ||
-                (pull.cr_done() && pull.build_status() != 'success');
+                (pull.cr_done() && pull.build_failed());
             },
             sort: function(pull) {
                return pull.is_mine() ? 0 : 1;
@@ -171,17 +172,19 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                var numCRs = pull.status.CR.length;
 
                return !pull.qa_done() && !pull.dev_blocked() &&
-                (numCRs > 0 || isHotfix) && pull.build_status() == 'success';
+                (numCRs > 0 || isHotfix) && !pull.build_failed();
             },
             sort: function(pull) {
                if (pull.is_mine()) {
-                  return 3;
+                  return 4;
                } else if (pull.cr_done() && pull.build_status() == 'success') {
                   return 0;
-               } else if (pull.cr_done()) {
+               } else if (pull.build_status() == 'success') {
                   return 1;
-               } else {
+               } else if (pull.cr_done()) {
                   return 2;
+               } else {
+                  return 3;
                }
             },
             indicators: {
