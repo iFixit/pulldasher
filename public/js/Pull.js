@@ -34,11 +34,7 @@ define(['underscore'], function(_) {
 
       build_status: function() {
          var status = this.status.commit_status;
-
-         if (status) {
-            return status.data.state;
-         }
-         return null;
+         return status && status.data.state;
       }
    });
 
