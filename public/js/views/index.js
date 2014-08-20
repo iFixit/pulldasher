@@ -31,7 +31,13 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             var required = pull.status.qa_req;
             var completed = pull.status.QA.length;
 
-            node.append('<p class="sig-count">QA ' + completed + '/' + required + '</p>');
+            var text = $('<p class="sig-count">QA ' + completed + '/' + required + '</p>');
+
+            node.append(text);
+
+            if (completed >= required) {
+               text.addClass('text-success');
+            }
 
             pull.status.QA.forEach(function(signature) {
                var user = signature.data.user;
@@ -42,7 +48,13 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             var required = pull.status.cr_req;
             var completed = pull.status.CR.length;
 
-            node.append('<p class="sig-count">CR ' + completed + '/' + required + '</p>');
+            var text = $('<p class="sig-count">CR ' + completed + '/' + required + '</p>');
+
+            node.append(text);
+
+            if (completed >= required) {
+               text.addClass('text-success');
+            }
 
             pull.status.CR.forEach(function(signature) {
                var user = signature.data.user;
