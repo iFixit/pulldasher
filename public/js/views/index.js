@@ -83,6 +83,37 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       },
       columns: [
          {
+            title: "CI Unsuccessful",
+            id: "ciUnsuccessful",
+            selector: function(pull) {
+               return pull.build_status() != 'success' && !pull.dev_blocked();
+            },
+            sort: function(pull) {
+               var score = 0;
+               if (pull.is_mine()) {
+                  score -= 15;
+               }
+
+               score -= pull.status.CR.length * 1;
+               score -= pull.status.QA.length * 2;
+
+               if (!pull.status.commit_status) {
+                  score += 15;
+               }
+
+               return score;
+            },
+            triggers: {
+               onCreate: function(blob, container) {
+                  blob.removeClass('panel-default').addClass('panel-primary');
+               },
+               onUpdate: function(blob, container) {
+                  utils.hideIfEmpty(container, blob, '.pull');
+               }
+            },
+            shrinkToButton: true
+         },
+         {
             title: "deploy_blocked Pulls",
             id: "deployBlockPulls",
             selector: function(pull) {
