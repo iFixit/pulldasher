@@ -195,14 +195,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                cr_remaining: function(pull, node) {
                   var required = pull.status.cr_req;
                   var remaining = required - pull.status.CR.length;
-               },
-               qa_remaining: function(pull, node) {
-                  var required = pull.status.qa_req;
-                  var remaining = required - pull.status.QA.length;
-
-                  if (remaining <= 0) {
-                     node.children('.sig-count').addClass('text-success');
-                  }
                }
             }
          },
@@ -231,14 +223,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                qa_remaining: function(pull, node) {
                   var required = pull.status.qa_req;
                   var remaining = required - pull.status.QA.length;
-               },
-               cr_remaining: function(pull, node) {
-                  var required = pull.status.cr_req;
-                  var remaining = required - pull.status.CR.length;
-
-                  if (remaining <= 0) {
-                     node.children('.sig-count').addClass('text-success');
-                  }
                }
             }
 
