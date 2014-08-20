@@ -27,23 +27,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       },
       // Functions to stick status information in indicators at the bottom of each pull
       indicators: {
-         qa_remaining: function qa_remaining(pull, node) {
-            var required = pull.status.qa_req;
-            var completed = pull.status.QA.length;
-
-            var text = $('<p class="sig-count">QA ' + completed + '/' + required + '</p>');
-
-            node.append(text);
-
-            if (completed >= required) {
-               text.addClass('text-success');
-            }
-
-            pull.status.QA.forEach(function(signature) {
-               var user = signature.data.user;
-               node.append(utils.getAvatarDOMNode(user.login, user.id));
-            });
-         },
          cr_remaining: function cr_remaining(pull, node) {
             var required = pull.status.cr_req;
             var completed = pull.status.CR.length;
@@ -57,6 +40,23 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             }
 
             pull.status.CR.forEach(function(signature) {
+               var user = signature.data.user;
+               node.append(utils.getAvatarDOMNode(user.login, user.id));
+            });
+         },
+         qa_remaining: function qa_remaining(pull, node) {
+            var required = pull.status.qa_req;
+            var completed = pull.status.QA.length;
+
+            var text = $('<p class="sig-count">QA ' + completed + '/' + required + '</p>');
+
+            node.append(text);
+
+            if (completed >= required) {
+               text.addClass('text-success');
+            }
+
+            pull.status.QA.forEach(function(signature) {
                var user = signature.data.user;
                node.append(utils.getAvatarDOMNode(user.login, user.id));
             });
