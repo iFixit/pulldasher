@@ -150,7 +150,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             id: "readyPulls",
             selector: function(pull) {
                return pull.status.ready && !pull.dev_blocked() &&
-                pull.build_status() == 'success';
+               !pull.deploy_blocked() && pull.build_status() == 'success';
             },
             adjust: function(pull, node) {
                node.addClass('list-group-item-success');
