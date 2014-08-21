@@ -1,3 +1,4 @@
 *.sw*
 config.js
 node_modules
+pulldasher.pid

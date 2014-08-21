@@ -13,7 +13,8 @@
     "promise": "5.0.x",
     "github": "0.2.0",
     "ejs": "1.0.x",
-    "mysql": "2.1.x"
+    "mysql": "2.1.x",
+    "debug": "1.0.4"
   },
   "scripts": {
     "start": "node app.js",
