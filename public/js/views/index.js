@@ -1,5 +1,14 @@
 define(['jquery', 'appearanceUtils'], function($, utils) {
    return {
+      navbar: "#restore-buttons",
+      page_indicator_box: "#global-indicators",
+      page_indicators: {
+         pull_count: function(pulls, node) {
+            node.text(pulls.length + " open pulls");
+            node.wrapInner('<strong></strong>');
+         }
+      },
+      // Global filters
       // where
       selector: function(pull) {
          return pull.state == 'open';
@@ -16,7 +25,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             $(node).addClass('bg-warning');
          }
       },
-      navbar: "#restore-buttons",
       // Functions to stick status information in indicators at the bottom of each pull
       indicators: {
          qa_remaining: function qa_remaining(pull, node) {
@@ -75,18 +83,32 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       },
       columns: [
          {
-            title: "Special Pulls",
-            id: "uniqPulls",
+            title: "deploy_blocked Pulls",
+            id: "deployBlockPulls",
             selector: function(pull) {
-               return (pull.deploy_blocked() || pull.status.ready) && !pull.dev_blocked();
-            },
-            sort: function(pull) {
-               return pull.deploy_blocked() ? 0 : 1;
+               return pull.deploy_blocked() && !pull.dev_blocked();
             },
             adjust: function(pull, node) {
-               if (pull.deploy_blocked()) {
-                  node.addClass('list-group-item-danger');
+               node.addClass('list-group-item-danger');
+            },
+            triggers: {
+               onCreate: function(blob, container) {
+                  blob.removeClass('panel-default').addClass('panel-primary');
+               },
+               onUpdate: function(blob, container) {
+                  utils.hideIfEmpty(container, blob, '.pull');
                }
+            },
+            shrinkToButton: true
+         },
+         {
+            title: "Ready Pulls",
+            id: "readyPulls",
+            selector: function(pull) {
+               return pull.status.ready && !pull.dev_blocked();
+            },
+            adjust: function(pull, node) {
+               node.addClass('list-group-item-success');
             },
             triggers: {
                onCreate: function(blob, container) {
@@ -103,6 +125,9 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             id: "blockPulls",
             selector: function(pull) {
                return pull.dev_blocked();
+            },
+            sort: function(pull) {
+               return pull.is_mine() ? 0 : 1;
             }
          },
          {
@@ -110,6 +135,18 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             id: "crPulls",
             selector: function(pull) {
                return !pull.cr_done() && !pull.dev_blocked();
+            },
+            sort: function(pull) {
+               if (pull.is_mine()) {
+                  return 3;
+               } else if (pull.qa_done() && pull.status.commit_status &&
+                pull.status.commit_status.data.state == 'success') {
+                  return 0;
+               } else if (pull.qa_done()) {
+                  return 1;
+               } else {
+                  return 2;
+               }
             },
             indicators: {
                cr_remaining: function(pull, node) {
@@ -134,6 +171,18 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                var numCRs = pull.status.CR.length;
 
                return !pull.qa_done() && !pull.dev_blocked() && (numCRs > 0 || isHotfix);
+            },
+            sort: function(pull) {
+               if (pull.is_mine()) {
+                  return 3;
+               } else if (pull.cr_done() && pull.status.commit_status &&
+                pull.status.commit_status.data.state == 'success') {
+                  return 0;
+               } else if (pull.cr_done()) {
+                  return 1;
+               } else {
+                  return 2;
+               }
             },
             indicators: {
                qa_remaining: function(pull, node) {

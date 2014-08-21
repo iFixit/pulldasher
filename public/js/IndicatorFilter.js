@@ -1,23 +1,27 @@
 define(['underscore'], function(_) {
    /**
-    * @param spec - The spec for this column's indicators
-    * @param prefilter - An (optional) parent IndicatorFilter which will be run
-    * on elements before this one is.
+    * @param indicators - The spec for this column's indicators. It is an
+    * object with a function for each indicator.
+    * @param prefilter - An (optional) argument. If an IndicatorFilter is
+    * passed, it will be called before this one.
     */
-   var constructor = function constructor(spec, prefilter) {
+   var constructor = function constructor(indicators, prefilter) {
       /**
        * Creates indicators on the given element based on the given pull
        *
        * @param pull - The pull this is related to
        * @param element - The DOM element representing pull
-       * @param template - A function which will return a new DOM node (attached to the element it is provided) every time it is called.
+       * @param template - A function which will return a new DOM node
+       * (attached to the element it is provided) every time it is called. It
+       * is passed two arguments: the element to render the new DOM node into,
+       * and the key of the current indicator.
        */
       this.filter = function(pull, element, template) {
          // Stores indicator nodes which were created by a prefilter run.
          var existingIndicatorNodes;
 
          // First, run any "predecessor" filters over it
-         if (prefilter) {
+         if (prefilter instanceof constructor) {
             // Get the existing nodes this prefilter made
             existingIndicatorNodes = prefilter.filter(pull, element, template);
          } else {
@@ -27,7 +31,7 @@ define(['underscore'], function(_) {
          }
 
          // Then run the filter (if there is one)
-         _.each(spec.indicators, function(indicator, key) {
+         _.each(indicators, function(indicator, key) {
             var indicatorNode;
 
             // If the (potential) prefilter run has created a node for this
