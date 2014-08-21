@@ -129,7 +129,8 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             title: "deploy_blocked Pulls",
             id: "deployBlockPulls",
             selector: function(pull) {
-               return pull.deploy_blocked() && !pull.dev_blocked();
+               return pull.deploy_blocked() && !pull.dev_blocked() &&
+                !pull.build_failed();
             },
             adjust: function(pull, node) {
                node.addClass('list-group-item-danger');
