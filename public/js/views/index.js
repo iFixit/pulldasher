@@ -11,7 +11,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       // Global filters
       // where
       selector: function(pull) {
-         return pull.state == 'open';
+         return pull.state === 'open';
       },
       // order by
       sort: function(pull) {
@@ -150,7 +150,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             id: "readyPulls",
             selector: function(pull) {
                return pull.status.ready && !pull.dev_blocked() &&
-               !pull.deploy_blocked() && pull.build_status() == 'success';
+               !pull.deploy_blocked() && pull.build_status() === 'success';
             },
             adjust: function(pull, node) {
                node.addClass('list-group-item-success');
@@ -185,7 +185,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             sort: function(pull) {
                if (pull.is_mine()) {
                   return 3;
-               } else if (pull.qa_done() && pull.build_status() == 'success') {
+               } else if (pull.qa_done() && pull.build_status() === 'success') {
                   return 0;
                } else if (pull.qa_done()) {
                   return 1;
@@ -213,9 +213,9 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             sort: function(pull) {
                if (pull.is_mine()) {
                   return 4;
-               } else if (pull.cr_done() && pull.build_status() == 'success') {
+               } else if (pull.cr_done() && pull.build_status() === 'success') {
                   return 0;
-               } else if (pull.build_status() == 'success') {
+               } else if (pull.build_status() === 'success') {
                   return 1;
                } else if (pull.cr_done()) {
                   return 2;
