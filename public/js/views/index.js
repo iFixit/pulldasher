@@ -11,7 +11,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       // Global filters
       // where
       selector: function(pull) {
-         return pull.state == 'open';
+         return pull.state === 'open' && !pull.hasLabel('Cryogenic Storage');
       },
       // order by
       sort: function(pull) {

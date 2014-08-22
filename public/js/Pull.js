@@ -30,6 +30,12 @@ define(['underscore'], function(_) {
 
       is_mine: function() {
          return this.user.login === App.user;
+      },
+
+      hasLabel: function(labelName) {
+         return !this.labels.every(function(label) {
+            return label.name !== labelName;
+         });
       }
    });
 
