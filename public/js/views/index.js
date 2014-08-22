@@ -19,10 +19,9 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       },
       // Allows custom modifications of each pull's display
       adjust: function(pull, node) {
-         // If the pull is over 30 days old...
-         if (Date.now() - (new Date(pull.created_at)) > 2590000000 ) {
+         if (pull.deploy_blocked()) {
             // Mark it in red
-            $(node).addClass('bg-warning');
+            node.addClass('list-group-item-danger');
          }
       },
       // Functions to stick status information in indicators at the bottom of each pull
@@ -98,7 +97,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             title: "CI Unsuccessful",
             id: "ciUnsuccessful",
             selector: function(pull) {
-               return pull.build_status() != 'success' && !pull.dev_blocked();
+               return pull.build_failed() && !pull.dev_blocked();
             },
             sort: function(pull) {
                var score = 0;
@@ -108,10 +107,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
                score -= pull.status.CR.length * 1;
                score -= pull.status.QA.length * 2;
-
-               if (!pull.status.commit_status) {
-                  score += 15;
-               }
 
                return score;
             },
@@ -129,11 +124,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             title: "deploy_blocked Pulls",
             id: "deployBlockPulls",
             selector: function(pull) {
-               return pull.deploy_blocked() && !pull.dev_blocked() &&
-                !pull.build_failed();
-            },
-            adjust: function(pull, node) {
-               node.addClass('list-group-item-danger');
+               return pull.ready() && pull.deploy_blocked();
             },
             triggers: {
                onCreate: function(blob, container) {
@@ -149,8 +140,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             title: "Ready Pulls",
             id: "readyPulls",
             selector: function(pull) {
-               return pull.status.ready && !pull.dev_blocked() &&
-               !pull.deploy_blocked() && pull.build_status() === 'success';
+               return pull.ready() && !pull.deploy_blocked();
             },
             adjust: function(pull, node) {
                node.addClass('list-group-item-success');
@@ -169,8 +159,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             title: "dev_blocked Pulls",
             id: "blockPulls",
             selector: function(pull) {
-               return pull.dev_blocked() ||
-                (pull.cr_done() && pull.build_failed());
+               return pull.dev_blocked();
             },
             sort: function(pull) {
                return pull.is_mine() ? 0 : 1;
@@ -204,11 +193,8 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             title: "QA Pulls",
             id: "qaPulls",
             selector: function(pull) {
-               var isHotfix = /^hotfix/.test(pull.head.ref);
-               var numCRs = pull.status.CR.length;
-
                return !pull.qa_done() && !pull.dev_blocked() &&
-                (numCRs > 0 || isHotfix) && !pull.build_failed();
+               !pull.build_failed();
             },
             sort: function(pull) {
                if (pull.is_mine()) {
@@ -229,7 +215,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   var remaining = required - pull.status.QA.length;
                }
             }
-
          }
       ]
    };
