@@ -21,7 +21,9 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       adjust: function(pull, node) {
          if (pull.deploy_blocked()) {
             // Mark it in red
-            node.addClass('list-group-item-danger');
+            // Done as a style attribute because that ensures it overrides all
+            // Bootstrap properties
+            node.attr('style', 'border: 5px solid red;');
          }
       },
       // Functions to stick status information in indicators at the bottom of each pull
