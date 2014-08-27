@@ -11,7 +11,7 @@ var HooksController = {
    main: function(req, res) {
       // Variable for promise that will resolve when the hook is known to have
       // succeeded or failed.
-      var written;
+      var dbUpdated;
 
       var secret = req.param('secret');
       if (secret != config.github.hook_secret) {
@@ -24,7 +24,7 @@ var HooksController = {
       var event = req.get('X-GitHub-Event');
 
       if (event === 'status') {
-         written = dbManager.updateCommitStatus(new Status(body));
+         dbUpdated = dbManager.updateCommitStatus(new Status(body));
       } else if (event === 'pull_request') {
          // Promise that resolves when everything that needs to be done before
          // we call `updatePull` has finished.
@@ -46,7 +46,7 @@ var HooksController = {
          }
 
          // Update DB with new pull request content.
-         written = preUpdate.then(function() {
+         dbUpdated = preUpdate.then(function() {
             return dbManager.updatePull(new Pull(body.pull_request));
          });
       } else if (event === 'issue_comment') {
@@ -62,10 +62,10 @@ var HooksController = {
 
          promises.push(dbManager.updateComment(comment));
 
-         written = Promise.all(promises);
+         dbUpdated = Promise.all(promises);
       }
 
-      written.then(function fulfilled() {
+      dbUpdated.then(function fulfilled() {
          res.status(200).send('Success!');
       },
       function rejected(err) {
