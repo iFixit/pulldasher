@@ -80,6 +80,12 @@ function update(pullPromise) {
             );
          });
 
+         updates.push(
+            dbManager.deleteLabels(pull.data.number).then(function() {
+               dbManager.insertLabels(pull.labels, pull.data.number);
+            })
+         );
+
          return Promise.all(updates);
       });
    });
