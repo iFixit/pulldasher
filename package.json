@@ -11,7 +11,7 @@
     "passport": "0.1.17",
     "passport-github": "0.1.5",
     "promise": "5.0.x",
-    "github": "git@github.com:iFixit/node-github.git",
+    "github": "iFixit/node-github",
     "ejs": "1.0.x",
     "mysql": "2.1.x",
     "debug": "1.0.4"
