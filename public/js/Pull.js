@@ -33,8 +33,8 @@ define(['underscore'], function(_) {
       },
 
       hasLabel: function(labelName) {
-         return !this.labels.every(function(label) {
-            return label.title !== labelName;
+         return _.some(this.labels, function(label) {
+            return label.title === labelName;
          });
       }
    });
