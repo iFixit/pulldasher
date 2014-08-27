@@ -34,7 +34,7 @@ define(['underscore'], function(_) {
 
       hasLabel: function(labelName) {
          return !this.labels.every(function(label) {
-            return label.name !== labelName;
+            return label.title !== labelName;
          });
       }
    });

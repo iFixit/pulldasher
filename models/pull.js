@@ -52,7 +52,7 @@ function Pull(data, signatures, comments, commitStatus, labels) {
 Pull.prototype.toObject = function() {
    var data = _.extend({}, this.data);
    data.status = this.getStatus();
-   data.labels = this.labels;
+   data.labels = this.labels.map(function(label) { return label.data });
    return data;
 };
 
