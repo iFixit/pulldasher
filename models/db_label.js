@@ -15,7 +15,6 @@ function DBLabel(label) {
 }
 
 DBLabel.prototype.save = function() {
-   console.log('saving label: ', this.data);
    var pullData = this.data;
    var q_update = 'REPLACE INTO pull_labels SET ?';
 
@@ -28,7 +27,6 @@ DBLabel.prototype.save = function() {
 };
 
 DBLabel.prototype.delete = function() {
-   console.log('deleteing label: ', this.data);
    var pullData = this.data;
    var q_update = 'DELETE FROM pull_labels WHERE ' +
     'number = ? AND title = ? AND repo_name = ?';
