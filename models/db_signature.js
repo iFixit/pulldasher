@@ -24,7 +24,7 @@ DBSignature.prototype.save = function() {
 
    return new Promise(function(resolve, reject) {
       db.query(q_insert, sigData, function(err, rows) {
-         if (err) { reject(err); }
+         if (err) { return reject(err); }
          resolve();
       });
    });
