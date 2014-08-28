@@ -4,7 +4,17 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       page_indicator_box: "#global-indicators",
       page_indicators: {
          pull_count: function(pulls, node) {
-            node.text(pulls.length + " open pulls");
+            unfrozen = pulls.filter(function(pull) {
+               return !pull.hasLabel('Cryogenic Storage');
+            });
+            node.text(unfrozen.length + " open pulls");
+            node.wrapInner('<strong></strong>');
+         },
+         frozen_count: function(pulls, node) {
+            var frozen = pulls.filter(function(pull) {
+               return pull.hasLabel('Cryogenic Storage')
+            });
+            node.text(frozen.length + " frozen pulls");
             node.wrapInner('<strong></strong>');
          }
       },
@@ -20,7 +30,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       // Allows custom modifications of each pull's display
       adjust: function(pull, node) {
          // If the pull is over 30 days old...
-         if (Date.now() - (new Date(pull.created_at)) > 2590000000 ) {
+         if (Date.now() - (new Date(pull.created_at)) > 2590000000) {
             // Mark it in red
             $(node).addClass('bg-warning');
          }
