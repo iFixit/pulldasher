@@ -20,7 +20,7 @@ DBLabel.prototype.save = function() {
 
    return new Promise(function(resolve, reject) {
       db.query(q_update, pullData, function(err, rows) {
-         if (err) { reject(err); }
+         if (err) { return reject(err); }
          resolve();
       });
    });
@@ -34,7 +34,7 @@ DBLabel.prototype.delete = function() {
    return new Promise(function(resolve, reject) {
       db.query(q_update, [pullData.number, pullData.title, pullData.repo_name],
        function(err, rows) {
-         if (err) { reject(err); }
+         if (err) { return reject(err); }
          resolve();
       });
    });
