@@ -97,7 +97,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             title: "CI Unsuccessful",
             id: "ciUnsuccessful",
             selector: function(pull) {
-               return pull.build_failed() && !pull.dev_blocked();
+               return !pull.dev_blocked() && (pull.build_failed() || pull.cr_done() && pull.qa_done() && !pull.build_succeeded());
             },
             sort: function(pull) {
                var score = 0;
