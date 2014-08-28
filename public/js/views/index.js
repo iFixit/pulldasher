@@ -174,7 +174,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             sort: function(pull) {
                if (pull.is_mine()) {
                   return 3;
-               } else if (pull.qa_done() && pull.build_status() === 'success') {
+               } else if (pull.qa_done() && pull.build_succeeded()) {
                   return 0;
                } else if (pull.qa_done()) {
                   return 1;
@@ -199,9 +199,9 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             sort: function(pull) {
                if (pull.is_mine()) {
                   return 4;
-               } else if (pull.cr_done() && pull.build_status() === 'success') {
+               } else if (pull.cr_done() && pull.build_succeeded()) {
                   return 0;
-               } else if (pull.build_status() === 'success') {
+               } else if (pull.build_succeeded()) {
                   return 1;
                } else if (pull.cr_done()) {
                   return 2;
