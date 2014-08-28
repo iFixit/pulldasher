@@ -46,7 +46,7 @@ define(['underscore'], function(_) {
       build_failed: function() {
          var status = this.build_status();
          return status == 'failure' || status == 'error';
-      },
+      }
    });
 
    return constructor;
