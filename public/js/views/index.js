@@ -108,6 +108,10 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                score -= pull.status.CR.length * 1;
                score -= pull.status.QA.length * 2;
 
+               if (pull.status === null) {
+                  score += 15;
+               }
+
                return score;
             },
             triggers: {
