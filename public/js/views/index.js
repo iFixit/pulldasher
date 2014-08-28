@@ -94,8 +94,8 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       },
       columns: [
          {
-            title: "CI Unsuccessful",
-            id: "ciUnsuccessful",
+            title: "CI Blocked",
+            id: "ciBlocked",
             selector: function(pull) {
                return !pull.dev_blocked() && (pull.build_failed() || pull.cr_done() && pull.qa_done() && !pull.build_succeeded());
             },
