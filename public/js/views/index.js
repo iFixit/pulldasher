@@ -181,12 +181,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                } else {
                   return 2;
                }
-            },
-            indicators: {
-               cr_remaining: function(pull, node) {
-                  var required = pull.status.cr_req;
-                  var remaining = required - pull.status.CR.length;
-               }
             }
          },
          {
@@ -207,12 +201,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   return 2;
                } else {
                   return 3;
-               }
-            },
-            indicators: {
-               qa_remaining: function(pull, node) {
-                  var required = pull.status.qa_req;
-                  var remaining = required - pull.status.QA.length;
                }
             }
          }
