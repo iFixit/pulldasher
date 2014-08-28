@@ -32,6 +32,12 @@ define(['underscore'], function(_) {
          return this.user.login === App.user;
       },
 
+      hasLabel: function(labelName) {
+         return _.some(this.labels, function(label) {
+            return label.title === labelName;
+         });
+      },
+
       build_status: function() {
          var status = this.status.commit_status;
          return status && status.data.state;

@@ -5,6 +5,7 @@ var config     = require('../config'),
     Status     = require('../models/status'),
     Signature  = require('../models/signature'),
     Comment    = require('../models/comment'),
+    Label      = require('../models/label'),
     dbManager  = require('../lib/db-manager');
 
 var HooksController = {
@@ -36,6 +37,14 @@ var HooksController = {
             case "reopened":
             case "closed":
             case "merged":
+               break;
+            case "labeled":
+               preUpdate = dbManager.insertLabel(
+                new Label(body.label, body.number));
+               break;
+            case "unlabeled":
+               preUpdate = dbManager.deleteLabel(
+                new Label(body.label, body.number));
                break;
             case "synchronize":
                preUpdate = dbManager.invalidateSignatures(

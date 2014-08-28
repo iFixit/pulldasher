@@ -22,7 +22,7 @@ DBComment.prototype.save = function() {
 
    return new Promise(function(resolve, reject) {
       db.query(q_update, commentData, function(err, rows) {
-         if (err) { reject(err); }
+         if (err) { return reject(err); }
          resolve();
       });
    });
