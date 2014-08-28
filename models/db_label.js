@@ -15,11 +15,11 @@ function DBLabel(label) {
 }
 
 DBLabel.prototype.save = function() {
-   var pullData = this.data;
+   var labelData = this.data;
    var q_update = 'REPLACE INTO pull_labels SET ?';
 
    return new Promise(function(resolve, reject) {
-      db.query(q_update, pullData, function(err, rows) {
+      db.query(q_update, labelData, function(err, rows) {
          if (err) { return reject(err); }
          resolve();
       });
@@ -27,12 +27,12 @@ DBLabel.prototype.save = function() {
 };
 
 DBLabel.prototype.delete = function() {
-   var pullData = this.data;
+   var labelData = this.data;
    var q_update = 'DELETE FROM pull_labels WHERE ' +
     'number = ? AND title = ? AND repo_name = ?';
 
    return new Promise(function(resolve, reject) {
-      db.query(q_update, [pullData.number, pullData.title, pullData.repo_name],
+      db.query(q_update, [labelData.number, labelData.title, labelData.repo_name],
        function(err, rows) {
          if (err) { return reject(err); }
          resolve();
