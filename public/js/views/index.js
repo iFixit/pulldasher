@@ -108,7 +108,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                score -= pull.status.CR.length * 1;
                score -= pull.status.QA.length * 2;
 
-               if (!(pull.build_succeeded() || pull.build_failed())) {
+               if (!pull.build_failed()) {
                   score += 15;
                }
 
