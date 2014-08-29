@@ -102,13 +102,13 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             sort: function(pull) {
                var score = 0;
                if (pull.is_mine()) {
-                  score -= 15;
+                  score -= 30;
                }
 
                score -= pull.status.CR.length * 1;
                score -= pull.status.QA.length * 2;
 
-               if (pull.status === null) {
+               if (!(pull.build_succeeded() || pull.build_failed())) {
                   score += 15;
                }
 
