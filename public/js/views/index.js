@@ -174,6 +174,11 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                return !pull.qa_done() && !pull.dev_blocked() &&
                 (numCRs > 0 || isHotfix) && !pull.build_failed();
             },
+            adjust: function(pull, node) {
+               if (pull.hasLabel('QAing')) {
+                  node.addClass('list-group-item-warning');
+               }
+            },
             sort: function(pull) {
                if (pull.is_mine()) {
                   return 4;
