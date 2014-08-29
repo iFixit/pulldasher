@@ -31,7 +31,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       adjust: function(pull, node) {
          if (pull.deploy_blocked()) {
             // Mark it in red
-            node.addClass('notice');
+            node.addClass('bg-warning');
          }
       },
       // Functions to stick status information in indicators at the bottom of each pull
@@ -104,10 +104,11 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       },
       columns: [
          {
-            title: "CI Blocked",
+            title: "ci_blocked Pulls",
             id: "ciBlocked",
             selector: function(pull) {
-               return !pull.dev_blocked() && (pull.build_failed() || (pull.cr_done() && pull.qa_done() && !pull.build_succeeded()));
+               var reviewed = pull.cr_done() && pull.qa_done();
+               return reviewed && !pull.dev_blocked() && !pull.build_succeeded;
             },
             sort: function(pull) {
                var score = 0;
@@ -138,7 +139,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             title: "deploy_blocked Pulls",
             id: "deployBlockPulls",
             selector: function(pull) {
-               return pull.ready() && pull.deploy_blocked();
+               return pull.deploy_blocked();
             },
             triggers: {
                onCreate: function(blob, container) {
