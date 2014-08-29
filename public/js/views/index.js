@@ -4,15 +4,15 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       page_indicator_box: "#global-indicators",
       page_indicators: {
          pull_count: function(pulls, node) {
-            unfrozen = pulls.filter(function(pull) {
-               return !pull.hasLabel('Cryogenic Storage');
+            pulls = pulls.filter(function(pull) {
+               return utils.shouldShowPull(pull);
             });
-            node.text(unfrozen.length + " open pulls");
+            node.text(pulls.length + " open pulls");
             node.wrapInner('<strong></strong>');
          },
          frozen_count: function(pulls, node) {
             var frozen = pulls.filter(function(pull) {
-               return pull.hasLabel('Cryogenic Storage')
+               return pull.hasLabel('Cryogenic Storage') && pull.state === 'open';
             });
             node.text(frozen.length + " frozen pulls");
             node.wrapInner('<strong></strong>');
@@ -21,7 +21,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       // Global filters
       // where
       selector: function(pull) {
-         return pull.state === 'open' && !pull.hasLabel('Cryogenic Storage');
+         return utils.shouldShowPull(pull);
       },
       // order by
       sort: function(pull) {
@@ -29,32 +29,43 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       },
       // Allows custom modifications of each pull's display
       adjust: function(pull, node) {
-         // If the pull is over 30 days old...
-         if (Date.now() - (new Date(pull.created_at)) > 2590000000) {
+         if (pull.deploy_blocked()) {
             // Mark it in red
-            $(node).addClass('bg-warning');
+            node.addClass('notice');
          }
       },
       // Functions to stick status information in indicators at the bottom of each pull
       indicators: {
-         qa_remaining: function qa_remaining(pull, node) {
-            var required = pull.status.qa_req;
-            var completed = pull.status.QA.length;
-
-            node.append('<p class="sig-count">QA ' + completed + '/' + required + '</p>');
-
-            pull.status.QA.forEach(function(signature) {
-               var user = signature.data.user;
-               node.append(utils.getAvatarDOMNode(user.login, user.id));
-            });
-         },
          cr_remaining: function cr_remaining(pull, node) {
             var required = pull.status.cr_req;
             var completed = pull.status.CR.length;
 
-            node.append('<p class="sig-count">CR ' + completed + '/' + required + '</p>');
+            var text = $('<p class="sig-count">CR ' + completed + '/' + required + '</p>');
+
+            node.append(text);
+
+            if (completed >= required) {
+               text.addClass('text-success');
+            }
 
             pull.status.CR.forEach(function(signature) {
+               var user = signature.data.user;
+               node.append(utils.getAvatarDOMNode(user.login, user.id));
+            });
+         },
+         qa_remaining: function qa_remaining(pull, node) {
+            var required = pull.status.qa_req;
+            var completed = pull.status.QA.length;
+
+            var text = $('<p class="sig-count">QA ' + completed + '/' + required + '</p>');
+
+            node.append(text);
+
+            if (completed >= required) {
+               text.addClass('text-success');
+            }
+
+            pull.status.QA.forEach(function(signature) {
                var user = signature.data.user;
                node.append(utils.getAvatarDOMNode(user.login, user.id));
             });
@@ -93,13 +104,41 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       },
       columns: [
          {
+            title: "CI Blocked",
+            id: "ciBlocked",
+            selector: function(pull) {
+               return !pull.dev_blocked() && (pull.build_failed() || (pull.cr_done() && pull.qa_done() && !pull.build_succeeded()));
+            },
+            sort: function(pull) {
+               var score = 0;
+               if (pull.is_mine()) {
+                  score -= 30;
+               }
+
+               score -= pull.status.CR.length * 1;
+               score -= pull.status.QA.length * 2;
+
+               if (!pull.build_failed()) {
+                  score += 15;
+               }
+
+               return score;
+            },
+            triggers: {
+               onCreate: function(blob, container) {
+                  blob.removeClass('panel-default').addClass('panel-primary');
+               },
+               onUpdate: function(blob, container) {
+                  utils.hideIfEmpty(container, blob, '.pull');
+               }
+            },
+            shrinkToButton: true
+         },
+         {
             title: "deploy_blocked Pulls",
             id: "deployBlockPulls",
             selector: function(pull) {
-               return pull.deploy_blocked() && !pull.dev_blocked();
-            },
-            adjust: function(pull, node) {
-               node.addClass('list-group-item-danger');
+               return pull.ready() && pull.deploy_blocked();
             },
             triggers: {
                onCreate: function(blob, container) {
@@ -115,8 +154,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             title: "Ready Pulls",
             id: "readyPulls",
             selector: function(pull) {
-               return pull.status.ready && !pull.dev_blocked() &&
-                !pull.build_failed();
+               return pull.ready() && !pull.deploy_blocked();
             },
             adjust: function(pull, node) {
                node.addClass('list-group-item-success');
@@ -135,8 +173,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             title: "dev_blocked Pulls",
             id: "blockPulls",
             selector: function(pull) {
-               return pull.dev_blocked() ||
-                (pull.cr_done() && pull.build_failed());
+               return pull.dev_blocked();
             },
             sort: function(pull) {
                return pull.is_mine() ? 0 : 1;
@@ -151,26 +188,12 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             sort: function(pull) {
                if (pull.is_mine()) {
                   return 3;
-               } else if (pull.qa_done() && pull.build_status() == 'success') {
+               } else if (pull.qa_done() && pull.build_succeeded()) {
                   return 0;
                } else if (pull.qa_done()) {
                   return 1;
                } else {
                   return 2;
-               }
-            },
-            indicators: {
-               cr_remaining: function(pull, node) {
-                  var required = pull.status.cr_req;
-                  var remaining = required - pull.status.CR.length;
-               },
-               qa_remaining: function(pull, node) {
-                  var required = pull.status.qa_req;
-                  var remaining = required - pull.status.QA.length;
-
-                  if (remaining <= 0) {
-                     node.children('.sig-count').addClass('text-success');
-                  }
                }
             }
          },
@@ -178,40 +201,27 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             title: "QA Pulls",
             id: "qaPulls",
             selector: function(pull) {
-               var isHotfix = /^hotfix/.test(pull.head.ref);
-               var numCRs = pull.status.CR.length;
-
                return !pull.qa_done() && !pull.dev_blocked() &&
-                (numCRs > 0 || isHotfix) && !pull.build_failed();
+               !pull.build_failed();
+            },
+            adjust: function(pull, node) {
+               if (pull.hasLabel('QAing')) {
+                  node.addClass('list-group-item-warning');
+               }
             },
             sort: function(pull) {
                if (pull.is_mine()) {
                   return 4;
-               } else if (pull.cr_done() && pull.build_status() == 'success') {
+               } else if (pull.cr_done() && pull.build_succeeded()) {
                   return 0;
-               } else if (pull.build_status() == 'success') {
+               } else if (pull.build_succeeded()) {
                   return 1;
                } else if (pull.cr_done()) {
                   return 2;
                } else {
                   return 3;
                }
-            },
-            indicators: {
-               qa_remaining: function(pull, node) {
-                  var required = pull.status.qa_req;
-                  var remaining = required - pull.status.QA.length;
-               },
-               cr_remaining: function(pull, node) {
-                  var required = pull.status.cr_req;
-                  var remaining = required - pull.status.CR.length;
-
-                  if (remaining <= 0) {
-                     node.children('.sig-count').addClass('text-success');
-                  }
-               }
             }
-
          }
       ]
    };

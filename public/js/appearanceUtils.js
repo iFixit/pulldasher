@@ -28,6 +28,10 @@ define(['jquery'], function ($) {
                avatar.attr('title', username);
                avatar.tooltip();
                return avatar;
+      },
+
+      shouldShowPull: function(pull) {
+         return pull.state === 'open' && !pull.hasLabel('Cryogenic Storage');
       }
    };
 });
