@@ -4,10 +4,10 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       page_indicator_box: "#global-indicators",
       page_indicators: {
          pull_count: function(pulls, node) {
-            unfrozen = pulls.filter(function(pull) {
-               return !pull.hasLabel('Cryogenic Storage') && pull.state === 'open';
+            pulls = pulls.filter(function(pull) {
+               return utils.shouldShowPull(pull);
             });
-            node.text(unfrozen.length + " open pulls");
+            node.text(pulls.length + " open pulls");
             node.wrapInner('<strong></strong>');
          },
          frozen_count: function(pulls, node) {
@@ -21,7 +21,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       // Global filters
       // where
       selector: function(pull) {
-         return pull.state === 'open' && !pull.hasLabel('Cryogenic Storage');
+         return utils.shouldShowPull(pull);
       },
       // order by
       sort: function(pull) {
