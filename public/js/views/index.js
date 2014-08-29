@@ -5,14 +5,14 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       page_indicators: {
          pull_count: function(pulls, node) {
             unfrozen = pulls.filter(function(pull) {
-               return !pull.hasLabel('Cryogenic Storage');
+               return !pull.hasLabel('Cryogenic Storage') && pull.state === 'open';
             });
             node.text(unfrozen.length + " open pulls");
             node.wrapInner('<strong></strong>');
          },
          frozen_count: function(pulls, node) {
             var frozen = pulls.filter(function(pull) {
-               return pull.hasLabel('Cryogenic Storage')
+               return pull.hasLabel('Cryogenic Storage') && pull.state === 'open';
             });
             node.text(frozen.length + " frozen pulls");
             node.wrapInner('<strong></strong>');
