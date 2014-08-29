@@ -31,7 +31,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       adjust: function(pull, node) {
          if (pull.deploy_blocked()) {
             // Mark it in red
-            node.addClass('notice');
+            node.addClass('bg-warning');
          }
       },
       // Functions to stick status information in indicators at the bottom of each pull
