@@ -214,11 +214,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                return !pull.qa_done() && !pull.dev_blocked() &&
                !pull.build_failed();
             },
-            adjust: function(pull, node) {
-               if (pull.hasLabel('QAing')) {
-                  node.addClass('list-group-item-warning');
-               }
-            },
             sort: function(pull) {
                if (pull.is_mine()) {
                   return 4;
@@ -230,6 +225,14 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   return 2;
                } else {
                   return 3;
+               }
+            },
+            indicators: {
+               qa_in_progress: function qa_in_progress(pull, node) {
+                  if (pull.hasLabel('QAing')) {
+                     var label = $('<span class="label label-warning">QAing</span>');
+                     node.append(label);
+                  }
                }
             }
          }
