@@ -50,7 +50,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
             pull.status.CR.forEach(function(signature) {
                var user = signature.data.user;
-               node.append(utils.getAvatarDOMNode(user.login, user.id));
+               node.append(utils.getAvatarDOMNode(pull, signature.data, "CR'd"));
             });
          },
          qa_remaining: function qa_remaining(pull, node) {
@@ -66,8 +66,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             }
 
             pull.status.QA.forEach(function(signature) {
-               var user = signature.data.user;
-               node.append(utils.getAvatarDOMNode(user.login, user.id));
+               node.append(utils.getAvatarDOMNode(pull, signature.data, "QA'd"));
             });
          },
          status: function status(pull, node) {
