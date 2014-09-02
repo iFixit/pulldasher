@@ -21,13 +21,37 @@ define(['jquery'], function ($) {
          }
       },
 
-      getAvatarDOMNode: function(username, userid) {
-               var avatar_url = 'https://avatars.githubusercontent.com/u/' + userid;
-               var avatar = $('<img data-toggle="tooltip" data-placement="top" class="avatar">');
-               avatar.attr('src', avatar_url);
-               avatar.attr('title', username);
-               avatar.tooltip();
-               return avatar;
+      getAvatarDOMNode: function(pull, commentData, action) {
+         var user = commentData.user;
+         var avatar_url = 'https://avatars.githubusercontent.com/u/' + user.id;
+         var avatar = $('<img class="avatar">');
+         avatar.attr('src', avatar_url);
+         var link = this.getCommentLink(pull, commentData);
+         this.addActionTooltip(link, action, commentData);
+         link.append(avatar);
+         link.tooltip();
+         return link;
+      },
+
+      getCommentLink: function(pull, commentData) {
+         var link =  $('<a target="_blank"></a>');
+         var url = pull.url() + '#issuecomment-' + commentData.comment_id;
+         link.attr('href', url);
+         return link;
+      },
+
+      /**
+       * Adds a tooltip containing information about a comment that caused an
+       * action (such as CR or dev_block) on a pull. Does NOT activate the
+       * tooltip; the user will need to call node.tooltip() to activate.
+       */
+      addActionTooltip: function(node, action, commentData) {
+         var date = new Date(commentData.created_at);
+         var info = action + " on " + date.toLocaleDateString() + " by " + commentData.user.login;
+         node.attr('data-toggle', "tooltip");
+         node.attr('data-placement', "top");
+         node.attr('title', info);
+         return node;
       },
 
       shouldShowPull: function(pull) {
