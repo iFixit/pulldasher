@@ -186,7 +186,16 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                return pull.dev_blocked();
             },
             sort: function(pull) {
-               return pull.is_mine() ? 0 : 1;
+               var current_block = pull.status.dev_block.slice(-1)[0].data;
+               var date = new Date(current_block.created_at);
+
+               var ret = -1/date.valueOf();
+
+               if(pull.is_mine()) {
+                  ret -= 1;
+               }
+
+               return ret;
             },
             indicators: {
                actor: function actor(pull, node) {
