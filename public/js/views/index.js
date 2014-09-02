@@ -27,13 +27,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       sort: function(pull) {
          return pull.created_at;
       },
-      // Allows custom modifications of each pull's display
-      adjust: function(pull, node) {
-         if (pull.deploy_blocked()) {
-            // Mark it in red
-            node.addClass('notice');
-         }
-      },
       // Functions to stick status information in indicators at the bottom of each pull
       indicators: {
          cr_remaining: function cr_remaining(pull, node) {
@@ -98,6 +91,24 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          user_icon: function user_icon(pull, node) {
             if (pull.is_mine()) {
                node.append('<span class="glyphicon glyphicon-user"></span>');
+            }
+         },
+         deploy_block: function deploy_block(pull, node) {
+            if (pull.deploy_blocked()) {
+               var current_block = pull.status.deploy_block.slice(-1)[0].data;
+               var date = new Date(current_block.created_at);
+
+               var link = utils.getCommentLink(pull, current_block);
+
+               var label = $('<span class="label label-danger"></span>');
+               var options = {month: 'short', day: 'numeric'};
+               label.text(date.toLocaleDateString(undefined, options));
+               //link.addClass('text-danger');
+               link.append(label);
+               utils.addActionTooltip(link, "deploy_block'd", current_block);
+               link.tooltip();
+
+               node.append(link);
             }
          }
       },
