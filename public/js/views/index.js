@@ -187,6 +187,25 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             },
             sort: function(pull) {
                return pull.is_mine() ? 0 : 1;
+            },
+            indicators: {
+               actor: function actor(pull, node) {
+                  console.log(pull);
+                  var current_block = pull.status.dev_block.slice(-1)[0].data;
+
+                  var date = new Date(current_block.created_at);
+
+                  var link = utils.getCommentLink(pull, current_block);
+
+                  var label = $('<span class="label label-default"></span>');
+                  var options = {month: 'short', day: 'numeric'};
+                  label.text(date.toLocaleDateString(undefined, options));
+                  link.append(label);
+                  utils.addActionTooltip(link, "dev_block'd", current_block);
+                  link.tooltip();
+
+                  node.append(link);
+               }
             }
          },
          {
