@@ -13,8 +13,9 @@ var config = require('./config'),
     Pull = require('./models/pull'),
     Signature = require('./models/signature'),
     mainController = require('./controllers/main'),
-    pullController = require('./controllers/pull')(pullManager),
-    hooksController = require('./controllers/githubHooks');
+    hooksController = require('./controllers/githubHooks'),
+    reqLogger = require('debug')('pulldasher:server:request');
+    resLogger = require('debug')('pulldasher:server:response');
 
 var app = express();
 
@@ -34,7 +35,11 @@ app.use(express.cookieParser());
 app.use(express.session({secret: config.session.secret}));
 app.use(passport.initialize());
 app.use(passport.session());
-app.use(express.logger());
+
+app.use(function(req, res, next) {
+   reqLogger("%s %s", req.method, req.url);
+   next();
+});;
 
 
 /**
@@ -42,8 +47,6 @@ app.use(express.logger());
  */
 authManager.setupRoutes(app);
 app.get('/',         mainController.index);
-app.get('/pull',     pullController.index);
-app.get('/pull/add', pullController.add);
 app.post('/hooks/main', hooksController.main);
 
 
@@ -76,6 +79,12 @@ function update(pullPromise) {
                dbManager.updateComment(comment)
             );
          });
+
+         updates.push(
+            dbManager.deleteLabels(pull.data.number).then(function() {
+               return dbManager.insertLabels(pull.labels, pull.data.number);
+            })
+         );
 
          return Promise.all(updates);
       });
@@ -136,7 +145,6 @@ dbManager.closeStalePulls();
 //====================================================
 // Socket.IO
 var io = require('socket.io').listen(httpServer);
-io.set('log level', 2);
 io.sockets.on('connection', function (socket) {
    socket.on('authenticate', function(token) {
       // They did respond. No need to drop their connection for not responding.

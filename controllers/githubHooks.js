@@ -1,10 +1,12 @@
-var config = require('../config'),
-    Promise = require('promise'),
-    Pull = require('../models/pull'),
-    Status = require('../models/status'),
-    Signature = require('../models/signature'),
-    Comment = require('../models/comment'),
-    dbManager = require('../lib/db-manager');
+var config     = require('../config'),
+    Promise    = require('promise'),
+    debug      = require('debug')('pulldasher:githubHooks'),
+    Pull       = require('../models/pull'),
+    Status     = require('../models/status'),
+    Signature  = require('../models/signature'),
+    Comment    = require('../models/comment'),
+    Label      = require('../models/label'),
+    dbManager  = require('../lib/db-manager');
 
 var HooksController = {
 
@@ -15,28 +17,37 @@ var HooksController = {
 
       var secret = req.param('secret');
       if (secret != config.github.hook_secret) {
-         console.log('Invalid Hook Secret: ', secret);
+         var m = 'Invalid Hook Secret: ' + secret;
+         debug(m);
+         console.error(m);
          return res.status(401).send('Invalid POST');
       }
 
       // Begin the webhook decoding
       var body = JSON.parse(req.body.payload);
       var event = req.get('X-GitHub-Event');
+      debug('Received GitHub webhook, Event: %s', event);
 
       if (event === 'status') {
          dbUpdated = dbManager.updateCommitStatus(new Status(body));
       } else if (event === 'pull_request') {
          // Promise that resolves when everything that needs to be done before
          // we call `updatePull` has finished.
-         var preUpdate;
+         var preUpdate = Promise.resolve();
 
          switch(body.action) {
             case "opened":
             case "reopened":
             case "closed":
             case "merged":
-               // Nothing to do here before we update.
-               preUpdate = Promise.resolve();
+               break;
+            case "labeled":
+               preUpdate = dbManager.insertLabel(
+                new Label(body.label, body.number));
+               break;
+            case "unlabeled":
+               preUpdate = dbManager.deleteLabel(
+                new Label(body.label, body.number));
                break;
             case "synchronize":
                preUpdate = dbManager.invalidateSignatures(

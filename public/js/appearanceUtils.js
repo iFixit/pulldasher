@@ -21,20 +21,6 @@ define(['jquery'], function ($) {
          }
       },
 
-      addCollapseSwaps: function() {
-         var uniq = $('#uniqSect');
-         var restore = $('#uniqRestore');
-         uniq.on('hidden.bs.collapse', function() {
-            uniq.fadeOut();
-            restore.fadeIn();
-         });
-         restore.on('click', function() {
-            restore.fadeOut();
-            uniq.fadeIn();
-            $('#uniqPulls').collapse('show');
-         });
-      },
-
       getAvatarDOMNode: function(username, userid) {
                var avatar_url = 'https://avatars.githubusercontent.com/u/' + userid;
                var avatar = $('<img data-toggle="tooltip" data-placement="top" class="avatar">');
@@ -42,6 +28,10 @@ define(['jquery'], function ($) {
                avatar.attr('title', username);
                avatar.tooltip();
                return avatar;
+      },
+
+      shouldShowPull: function(pull) {
+         return pull.state === 'open' && !pull.hasLabel('Cryogenic Storage');
       }
    };
 });
