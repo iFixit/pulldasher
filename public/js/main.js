@@ -10,7 +10,7 @@ define(['jquery', 'underscore', 'pullManager', 'PullFilter', 'ElementFilter', 'C
    var pageIndicatorHandler = new PageIndicatorHandler(spec.page_indicators, $(spec.page_indicator_box));
 
    // Handle page indicators
-   globalPullFilter.onUpdate(pageIndicatorHandler.handle);
+   pullManager.onUpdate(pageIndicatorHandler.handle);
 
    _.each(spec.columns, function(columnSpec) {
       _.defaults(columnSpec, {

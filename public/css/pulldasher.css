@@ -2,30 +2,34 @@
    cursor: pointer;
 }
 
+.width-limit {
+   max-width: 350px;
+}
+
 .info-tag {
    padding-right: 10px;
    font-weight: bold;
 }
 
-.pull {
-   max-width: 358px;
-}
-
-div.refresh {
+.refresh {
    cursor: pointer;
    float: right;
    padding: 5px;
 }
 
-div.refresh:hover {
+.refresh:hover {
    color: blue;
-}
-
-.sig-count {
-   margin: 0;
 }
 
 .avatar {
    width: 22px;
    margin: 2px 3px 0 0;
+}
+
+button.navbar-btn {
+   margin:8px;
+}
+
+.list-group .list-group-item.notice {
+   border: 2px solid red !important;
 }
