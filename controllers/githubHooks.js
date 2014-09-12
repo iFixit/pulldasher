@@ -11,6 +11,9 @@ var config     = require('../config'),
 var HooksController = {
 
    main: function(req, res) {
+      // Variable for promise that will resolve when the hook is known to have
+      // succeeded or failed.
+      var dbUpdated;
 
       var secret = req.param('secret');
       if (secret != config.github.hook_secret) {
@@ -26,7 +29,7 @@ var HooksController = {
       debug('Received GitHub webhook, Event: %s', event);
 
       if (event === 'status') {
-         dbManager.updateCommitStatus(new Status(body));
+         dbUpdated = dbManager.updateCommitStatus(new Status(body));
       } else if (event === 'pull_request') {
          // Promise that resolves when everything that needs to be done before
          // we call `updatePull` has finished.
@@ -54,22 +57,32 @@ var HooksController = {
          }
 
          // Update DB with new pull request content.
-         preUpdate.done(function() {
-            dbManager.updatePull(new Pull(body.pull_request));
+         dbUpdated = preUpdate.then(function() {
+            return dbManager.updatePull(new Pull(body.pull_request));
          });
       } else if (event === 'issue_comment') {
+         var promises = [];
+
          // Parse any signature(s) out of the comment.
          var sigs = Signature.parseComment(body.comment, body.issue.number);
-         dbManager.insertSignatures(sigs);
+         promises.push(dbManager.insertSignatures(sigs));
 
          body.comment.number = body.issue.number;
          body.comment.repo = body.repository.name;
          var comment = new Comment(body.comment);
 
-         dbManager.updateComment(comment);
+         promises.push(dbManager.updateComment(comment));
+
+         dbUpdated = Promise.all(promises);
       }
 
-      return res.status(200).send('Success!');
+      dbUpdated.then(function fulfilled() {
+         res.status(200).send('Success!');
+      },
+      function rejected(err) {
+         console.log(err);
+         res.status(500).send(err.toString());
+      }).done();
    }
 
 };

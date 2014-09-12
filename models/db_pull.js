@@ -1,7 +1,5 @@
 var _ = require('underscore'),
-    db = require('../lib/db'),
-    Promise = require('promise');
-
+    db = require('../lib/db');
 
 // Builds an object representation of a row in the DB `pulls` table
 // from the data returned by GitHub's API.
@@ -30,12 +28,7 @@ DBPull.prototype.save = function() {
    var pullData = this.data;
    var q_update = 'REPLACE INTO pulls SET ?';
 
-   return new Promise(function(resolve, reject) {
-      db.query(q_update, pullData, function(err, rows) {
-         if (err) { return reject(err); }
-         resolve();
-      });
-   });
+   return db.query(q_update, pullData);
 };
 
 module.exports = DBPull;
