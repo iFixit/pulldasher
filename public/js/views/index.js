@@ -102,8 +102,8 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
                var label = $('<span class="label label-danger"></span>');
                var options = {month: 'short', day: 'numeric'};
+
                label.text(date.toLocaleDateString(undefined, options));
-               //link.addClass('text-danger');
                link.append(label);
                utils.addActionTooltip(link, "deploy_block'd", current_block);
                link.tooltip();
@@ -186,20 +186,20 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                return pull.dev_blocked();
             },
             sort: function(pull) {
-               var current_block = pull.status.dev_block.slice(-1)[0].data;
-               var date = new Date(current_block.created_at);
+               var most_recent_block = pull.status.dev_block.slice(-1)[0].data;
+               var date = new Date(most_recent_block.created_at);
 
-               var ret = -1/date.valueOf();
+               // Pulls that have been dev_blocked longer are higher priority.
+               var score = -1/date.valueOf();
 
                if(pull.is_mine()) {
-                  ret -= 1;
+                  score -= 1;
                }
 
-               return ret;
+               return score;
             },
             indicators: {
                actor: function actor(pull, node) {
-                  console.log(pull);
                   var current_block = pull.status.dev_block.slice(-1)[0].data;
 
                   var date = new Date(current_block.created_at);
