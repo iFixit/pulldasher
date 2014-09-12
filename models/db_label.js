@@ -18,12 +18,7 @@ DBLabel.prototype.save = function() {
    var labelData = this.data;
    var q_update = 'REPLACE INTO pull_labels SET ?';
 
-   return new Promise(function(resolve, reject) {
-      db.query(q_update, labelData, function(err, rows) {
-         if (err) { return reject(err); }
-         resolve();
-      });
-   });
+   return db.query(q_update, labelData);
 };
 
 DBLabel.prototype.delete = function() {
@@ -31,13 +26,8 @@ DBLabel.prototype.delete = function() {
    var q_update = 'DELETE FROM pull_labels WHERE ' +
     'number = ? AND title = ? AND repo_name = ?';
 
-   return new Promise(function(resolve, reject) {
-      db.query(q_update, [labelData.number, labelData.title, labelData.repo_name],
-       function(err, rows) {
-         if (err) { return reject(err); }
-         resolve();
-      });
-   });
+   return db.query(q_update, [labelData.number, labelData.title,
+    labelData.repo_name]);
 };
 
 module.exports = DBLabel;

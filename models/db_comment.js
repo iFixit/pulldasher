@@ -1,6 +1,5 @@
 var _ = require('underscore'),
-    db = require('../lib/db'),
-    Promise = require('promise');
+    db = require('../lib/db');
 
 /**
  * Builds an object representation of a row in the DB `comments` table
@@ -20,12 +19,7 @@ DBComment.prototype.save = function() {
    var commentData = this.data;
    var q_update = 'REPLACE INTO comments SET ?';
 
-   return new Promise(function(resolve, reject) {
-      db.query(q_update, commentData, function(err, rows) {
-         if (err) { return reject(err); }
-         resolve();
-      });
-   });
+   return db.query(q_update, commentData);
 };
 
 module.exports = DBComment;
