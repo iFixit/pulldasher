@@ -1,6 +1,5 @@
 var _ = require('underscore'),
-    db = require('../lib/db'),
-    Promise = require('promise');
+    db = require('../lib/db');
 
 /**
  * Builds an object representation of a row in the DB `pull_signatures` table
@@ -22,12 +21,7 @@ DBSignature.prototype.save = function() {
    var sigData = this.data;
    var q_insert = 'INSERT INTO pull_signatures SET ?';
 
-   return new Promise(function(resolve, reject) {
-      db.query(q_insert, sigData, function(err, rows) {
-         if (err) { return reject(err); }
-         resolve();
-      });
-   });
+   return db.query(q_insert, sigData);
 };
 
 module.exports = DBSignature;
