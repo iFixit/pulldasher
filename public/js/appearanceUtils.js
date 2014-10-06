@@ -56,6 +56,15 @@ define(['jquery'], function ($) {
 
       shouldShowPull: function(pull) {
          return pull.state === 'open' && !pull.hasLabel('Cryogenic Storage');
+      },
+
+      /**
+       * Formats a date to be the first three characters of the month followed
+       * by the day of the month. (Ex. "Oct 6")
+       */
+      formatDate: function(date) {
+         var matches = date.toString().match(/([A-Z][a-z]{2})\w* 0?(\d+)/);
+         return matches[1] + " " + matches[2];
       }
    };
 });
