@@ -110,9 +110,12 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                var link = utils.getCommentLink(pull, current_block);
 
                var label = $('<span class="label label-danger"></span>');
-               var options = {month: 'short', day: 'numeric'};
 
-               label.text(date.toLocaleDateString(undefined, options));
+               // "Oct 6"
+               var matches = date.toString().match(/([A-Z][a-z]{2})\w* 0?(\d+)/)
+               var short_date = matches[1] + " " + matches[2];
+
+               label.text(short_date);
                link.append(label);
                utils.addActionTooltip(link, "deploy_block'd", current_block);
                link.tooltip();
@@ -216,8 +219,12 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   var link = utils.getCommentLink(pull, current_block);
 
                   var label = $('<span class="label label-default"></span>');
-                  var options = {month: 'short', day: 'numeric'};
-                  label.text(date.toLocaleDateString(undefined, options));
+
+                  // "Oct 6"
+                  var matches = date.toString().match(/([A-Z][a-z]{2})\w* 0?(\d+)/);
+                  var short_date = matches[1] + " " + matches[2];
+
+                  label.text(short_date);
                   link.append(label);
                   utils.addActionTooltip(link, "dev_block'd", current_block);
                   link.tooltip();
