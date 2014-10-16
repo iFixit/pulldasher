@@ -266,7 +266,11 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             indicators: {
                qa_in_progress: function qa_in_progress(pull, node) {
                   if (pull.hasLabel('QAing')) {
-                     var label = $('<span class="label label-warning">QAing</span>');
+                     var label = $('<span>QAing</span>');
+                     label.addClass('label label-warning');
+                     label.attr('title', pull.getLabel('QAing').user);
+                     label.tooltip();
+
                      node.append(label);
                   }
                }
