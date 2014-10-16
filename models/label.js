@@ -2,10 +2,12 @@ var config = require('../config');
 /**
  * Build a Label object.
  */
-function Label(data, pullNumber) {
+function Label(data, pullNumber, repoName, user) {
    this.data = {
       title: data.name,
       number: pullNumber,
+      repo_name: repoName,
+      user: user
    };
 }
 

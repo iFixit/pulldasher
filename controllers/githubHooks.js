@@ -43,11 +43,22 @@ var HooksController = {
                break;
             case "labeled":
                preUpdate = dbManager.insertLabel(
-                new Label(body.label, body.number));
+                  new Label(
+                     body.label,
+                     body.number,
+                     body.pull_request.head.repo.name,
+                     body.sender.login
+                  )
+               );
                break;
             case "unlabeled":
                preUpdate = dbManager.deleteLabel(
-                new Label(body.label, body.number));
+                  new Label(
+                     body.label,
+                     body.number,
+                     body.pull_request.head.repo.name
+                  )
+               );
                break;
             case "synchronize":
                preUpdate = dbManager.invalidateSignatures(
