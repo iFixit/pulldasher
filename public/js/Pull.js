@@ -48,6 +48,10 @@ define(['underscore'], function(_) {
          });
       },
 
+      getLabel: function(labelName) {
+         return _.findWhere(this.labels, {title: labelName});
+      },
+
       build_status: function() {
          var status = this.status.commit_status;
          return status && status.data.state;
