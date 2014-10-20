@@ -8,9 +8,10 @@ var _ = require('underscore'),
 // from the data returned by GitHub's API.
 function DBLabel(label) {
    this.data = {
-      number: label.data.number,
-      title: label.data.title,
-      repo_name: config.repo.name,
+      number: label.number,
+      title: label.title,
+      repo_name: label.repo_name,
+      user: label.user
    };
 }
 
