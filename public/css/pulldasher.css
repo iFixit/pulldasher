@@ -11,6 +11,10 @@
    font-weight: bold;
 }
 
+.info-tag > a:hover {
+   text-decoration: none;
+}
+
 .refresh {
    cursor: pointer;
    float: right;
