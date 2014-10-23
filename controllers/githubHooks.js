@@ -47,7 +47,8 @@ var HooksController = {
                      body.label,
                      body.number,
                      body.pull_request.head.repo.name,
-                     body.sender.login
+                     body.sender.login,
+                     body.pull_request.updated_at
                   )
                );
                break;

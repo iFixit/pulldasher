@@ -11,7 +11,8 @@ function DBLabel(label) {
       number: label.number,
       title: label.title,
       repo_name: label.repo_name,
-      user: label.user
+      user: label.user,
+      created_at: label.created_at
    };
 }
 
