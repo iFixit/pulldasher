@@ -41,13 +41,16 @@ define(['jquery'], function ($) {
       },
 
       /**
-       * Adds a tooltip containing information about a comment that caused an
+       * Adds a tooltip containing information about an
        * action (such as CR or dev_block) on a pull. Does NOT activate the
        * tooltip; the user will need to call node.tooltip() to activate.
        */
-      addActionTooltip: function(node, action, commentData) {
-         var date = new Date(commentData.created_at);
-         var info = action + " on " + date.toLocaleDateString() + " by " + commentData.user.login;
+      addActionTooltip: function(node, action, created_at, user) {
+         var date = new Date(created_at);
+         var info = action ? action + ' on ' : '';
+         info += date.toLocaleDateString();
+         info += user ? ' by ' + user : '';
+
          node.attr('data-toggle', "tooltip");
          node.attr('data-placement', "top");
          node.attr('title', info);
