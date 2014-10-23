@@ -113,7 +113,8 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
                label.text(utils.formatDate(date));
                link.append(label);
-               utils.addActionTooltip(link, "deploy_block'd", current_block);
+               utils.addActionTooltip(link, "deploy_block'd",
+                current_block.created_at, current_block.user.login);
                link.tooltip();
 
                node.append(link);
@@ -218,7 +219,8 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
                   label.text(utils.formatDate(date));
                   link.append(label);
-                  utils.addActionTooltip(link, "dev_block'd", current_block);
+                  utils.addActionTooltip(link, "dev_block'd",
+                   current_block.created_at, current_block.user.login);
                   link.tooltip();
 
                   node.append(link);
