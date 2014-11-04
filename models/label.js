@@ -1,4 +1,5 @@
-var config = require('../config');
+var utils  = require('../lib/utils');
+
 /**
  * Build a Label object.
  */
@@ -8,20 +9,23 @@ function Label(data, pullNumber, repoName, user, created_at) {
       number: pullNumber,
       repo_name: repoName,
       user: user,
-      created_at: created_at
+      created_at: new Date(created_at)
    };
 }
 
 
 /**
- * Takes an object representing a DB row, and returns an object which mimics
- * a GitHub API response which may be used to initialize an instance of this
+ * Takes an object representing a DB row, and returns an instance of this
  * Label object.
  */
 Label.getFromDB = function getFromDB(data) {
-   return {
-      name: data.title,
-   };
+   return new Label(
+      { name: data.title },
+      data.number,
+      data.repo_name,
+      data.user,
+      utils.fromUnixTime(data.date)
+   );
 };
 
 module.exports = Label;
