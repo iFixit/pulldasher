@@ -1,5 +1,4 @@
-var _ = require('underscore'),
-    config = require('../config'),
+var utils = require('../lib/utils'),
     db = require('../lib/db'),
     Promise = require('promise');
 
@@ -12,7 +11,7 @@ function DBLabel(label) {
       title: label.title,
       repo_name: label.repo_name,
       user: label.user,
-      created_at: label.created_at
+      date: utils.toUnixTime(label.created_at)
    };
 }
 
