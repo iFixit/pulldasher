@@ -1,4 +1,4 @@
-var _ = require('underscore'),
+var utils = require('../lib/utils'),
     db = require('../lib/db');
 
 // Builds an object representation of a row in the DB `pulls` table
@@ -9,10 +9,10 @@ function DBPull(pullData) {
       state: pullData.state,
       title: pullData.title,
       body: pullData.body,
-      created_at: pullData.created_at,
-      updated_at: pullData.updated_at,
-      closed_at: pullData.closed_at,
-      merged_at: pullData.merged_at,
+      date: utils.toUnixTime(pullData.created_at),
+      date_updated: utils.toUnixTime(pullData.updated_at),
+      date_closed: utils.toUnixTime(pullData.closed_at),
+      date_merged: utils.toUnixTime(pullData.merged_at),
       head_branch: pullData.head.ref,
       head_sha: pullData.head.sha,
       repo_owner: pullData.head.repo.owner.login,
