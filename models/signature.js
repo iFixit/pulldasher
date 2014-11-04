@@ -1,4 +1,5 @@
-var config = require('../config');
+var config = require('../config'),
+    utils = require('../lib/utils');
 
 /**
  * A block or signoff in a comment.
@@ -11,7 +12,7 @@ function Signature(data) {
          login:         data.user.login
       },
       type:             data.type,
-      created_at:       data.created_at,
+      created_at:       new Date(data.created_at),
       active:           data.active,
       comment_id:       data.comment_id
    };
@@ -45,22 +46,21 @@ Signature.parseComment = function parseComment(comment, pullNumber) {
 }
 
 /**
- * Takes an object representing a DB row, and returns an object which mimics
- * a GitHub API response which may be used to initialize an instance of this
+ * Takes an object representing a DB row, and returns an instance of this
  * Signature object.
  */
 Signature.getFromDB = function(data) {
-   return {
+   return new Signature({
       number:     data.number,
       user: {
          id:      data.userid,
          login:   data.user
       },
       type:       data.type,
-      created_at: data.created_at,
+      created_at: utils.fromUnixTime(data.date),
       active:     data.active,
       comment_id: data.comment_id
-   };
+   });
 }
 
 /**
