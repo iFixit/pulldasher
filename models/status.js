@@ -16,12 +16,12 @@ function Status(data) {
  * Status object.
  */
 Status.getFromDB = function(data) {
-   return {
+   return new Status({
       sha:           data.commit,
       target_url:    data.log_url,
       description:   data.description,
       state:         data.state
-   };
+   });
 };
 
 module.exports = Status;

@@ -1,8 +1,6 @@
-var util = require('util');
-var events = require('events');
-var _ = require('underscore');
-var Signature = require('./signature');
-var config = require('../config');
+var utils   = require('../lib/utils');
+var _       = require('underscore');
+var config  = require('../config');
 
 function Pull(data, signatures, comments, commitStatus, labels) {
    this.data = {
@@ -10,10 +8,10 @@ function Pull(data, signatures, comments, commitStatus, labels) {
       state: data.state,
       title: data.title,
       body: data.body,
-      created_at: data.created_at,
-      updated_at: data.updated_at,
-      closed_at: data.closed_at,
-      merged_at: data.merged_at,
+      created_at: new Date(data.created_at),
+      updated_at: new Date(data.updated_at),
+      closed_at: new Date(data.closed_at),
+      merged_at: new Date(data.merged_at),
       head: {
          ref: data.head.ref,
          sha: data.head.sha,
@@ -124,20 +122,19 @@ Pull.parseBody = function(body) {
 };
 
 /**
- * Takes an object representing a DB row, and returns an object which mimics
- * a GitHub API response which may be used to initialize an instance of this
+ * Takes an object representing a DB row, and returns an instance of this
  * Pull object.
  */
-Pull.getFromDB = function(data) {
-   return {
+Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
+   var pullData = {
       number: data.number,
       state: data.state,
       title: data.title,
       body: data.body,
-      created_at: data.created_at,
-      updated_at: data.updated_at,
-      closed_at: data.closed_at,
-      merged_at: data.merged_at,
+      created_at: utils.fromUnixTime(data.date),
+      updated_at: utils.fromUnixTime(data.date_updated),
+      closed_at: utils.fromUnixTime(data.date_closed),
+      merged_at: utils.fromUnixTime(data.date_merged),
       head: {
          ref: data.head_branch,
          sha: data.head_sha,
@@ -157,6 +154,8 @@ Pull.getFromDB = function(data) {
       cr_req: data.cr_req,
       qa_req: data.qa_req
    };
+
+   return new Pull(pullData, signatures, comments, commitStatus, labels);
 }
 
 module.exports = Pull;
