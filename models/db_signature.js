@@ -1,4 +1,4 @@
-var _ = require('underscore'),
+var utils = require('../lib/utils'),
     db = require('../lib/db');
 
 /**
@@ -11,7 +11,7 @@ function DBSignature(sigData) {
       user:       sigData.user.login,
       userid:     sigData.user.id,
       type:       sigData.type,
-      created_at: sigData.created_at,
+      date:       utils.toUnixTime(sigData.created_at),
       active:     sigData.active,
       comment_id: sigData.comment_id
    };
