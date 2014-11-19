@@ -48,6 +48,15 @@ define(['underscore'], function(_) {
          });
       },
 
+      getLabelTitlesLike: function(labelRegex) {
+         var titles = _.map(this.labels, function(label) {
+            var matches = label.title.match(labelRegex);
+            return matches ? matches[1] : null;
+         });
+
+         return _.filter(titles, function(title) { return title; });
+      },
+
       getLabel: function(labelName) {
          return _.findWhere(this.labels, {title: labelName});
       },
