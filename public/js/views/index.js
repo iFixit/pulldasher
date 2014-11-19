@@ -119,6 +119,15 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
                node.append(link);
             }
+         },
+         custom_label: function custom_label(pull, node) {
+            var titles = pull.getLabelTitlesLike(/pulldasher-(.*)/);
+
+            _.each(titles, function(title) {
+               var label = $('<span class="label label-primary"></span>');
+               label.text(title);
+               node.append(label);
+            });
          }
       },
       columns: [
