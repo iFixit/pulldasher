@@ -37,7 +37,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          return pull.created_at;
       },
       adjust: function(pull, node) {
-         titleElem = node.find('.title');
+         titleElem = node.find('.pull-title');
          utils.addTooltip(titleElem, pull.author());
       },
       // Functions to stick status information in indicators at the bottom of each pull
