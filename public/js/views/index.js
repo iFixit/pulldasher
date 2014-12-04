@@ -36,6 +36,10 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
       sort: function(pull) {
          return pull.created_at;
       },
+      adjust: function(pull, node) {
+         titleElem = node.find('.pull-title');
+         utils.addTooltip(titleElem, pull.author());
+      },
       // Functions to stick status information in indicators at the bottom of each pull
       indicators: {
          cr_remaining: function cr_remaining(pull, node) {
@@ -115,7 +119,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                link.append(label);
                utils.addActionTooltip(link, "deploy_block'd",
                 current_block.created_at, current_block.user.login);
-               link.tooltip();
 
                node.append(link);
             }
@@ -230,7 +233,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   link.append(label);
                   utils.addActionTooltip(link, "dev_block'd",
                    current_block.created_at, current_block.user.login);
-                  link.tooltip();
 
                   node.append(link);
                }
@@ -281,8 +283,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                      labelElem.addClass('label label-warning');
                      labelElem = utils.addActionTooltip(labelElem, '',
                       label.created_at, label.user);
-
-                     labelElem.tooltip();
 
                      node.append(labelElem);
                   }
