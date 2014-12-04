@@ -51,9 +51,15 @@ define(['jquery'], function ($) {
          info += date.toLocaleDateString();
          info += user ? ' by ' + user : '';
 
+         return this.addTooltip(node, info);
+      },
+
+      addTooltip: function(node, text) {
          node.attr('data-toggle', "tooltip");
          node.attr('data-placement', "top");
-         node.attr('title', info);
+         node.attr('title', text);
+
+         node.tooltip();
          return node;
       },
 
