@@ -38,8 +38,12 @@ define(['underscore'], function(_) {
          && this.cr_done() && this.build_succeeded();
       },
 
+      author: function() {
+         return this.user.login;
+      },
+
       is_mine: function() {
-         return this.user.login === App.user;
+         return this.author() === App.user;
       },
 
       hasLabel: function(labelName) {
