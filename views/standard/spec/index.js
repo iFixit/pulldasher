@@ -1,4 +1,4 @@
-define(['jquery', 'appearanceUtils', 'views/pageIndicators', 'views/indicators', 'views/columns'], function($, utils, pageIndicators, indicators, columns) {
+define(['jquery', 'appearanceUtils', 'spec/pageIndicators', 'spec/indicators', 'spec/columns'], function($, utils, pageIndicators, indicators, columns) {
    return {
       navbar: "#restore-buttons",
       page_indicator_box: "#global-indicators",
