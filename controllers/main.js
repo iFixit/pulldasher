@@ -3,7 +3,7 @@ var socketio = require('../package').dependencies['socket.io'];
 
 module.exports = {
    index: function(req, res) {
-      res.render('home/index', {
+      res.render('current/index', {
          socketToken: socketAuthenticator.getTokenForUser(req.user),
          socketVersion: socketio,
          user: req.user.username
