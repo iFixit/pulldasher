@@ -30,6 +30,7 @@ app.set('view engine', 'html');
  */
 app.use("/public", express.static(__dirname + '/public'));
 app.use("/spec", express.static(__dirname + '/views/current/spec'));
+app.use("/css", express.static(__dirname + '/views/current/css'));
 app.use("/html", express.static(__dirname + '/views/current/html'));
 app.use(partials());
 app.use(express.bodyParser());
