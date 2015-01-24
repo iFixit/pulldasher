@@ -145,11 +145,10 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          indicators: {
             qa_in_progress: function qa_in_progress(pull, node) {
                if (label = pull.getLabel('QAing')) {
-                  var labelElem = $('<span>' + label.title + '</span>');
-                  labelElem.addClass('label label-warning');
+                  var labelElem = $('<span>');
+                  labelElem.addClass('warning glyphicon glyphicon-eye-open');
                   labelElem = utils.addActionTooltip(labelElem, '',
                   label.created_at, label.user);
-
                   node.append(labelElem);
                }
             }
