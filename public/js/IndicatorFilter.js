@@ -40,9 +40,17 @@ define(['underscore'], function(_) {
                // Reuse the existing node for this indicator.
                indicatorNode = existingIndicatorNodes[key];
             } else {
-               // There is no existing node for this indicator. Create a new
-               // one.
-               indicatorNode = template(element, key);
+               // If there's a node with an id equal to the indicator key in
+               // the pull template, use it.
+               var matchingNodes = $('#' + key, element);
+               if (matchingNodes.length > 0) {
+                  // Use the first matching node
+                  indicatorNode = matchingNodes.first();
+               } else {
+                  // There is no existing node for this indicator. Create a new
+                  // one.
+                  indicatorNode = template(element, key);
+               }
                existingIndicatorNodes[key] = indicatorNode;
             }
 
