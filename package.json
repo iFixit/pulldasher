@@ -16,6 +16,11 @@
     "mysql": "2.1.x",
     "debug": "1.0.4"
   },
+  "devDependencies": {
+    "grunt": "0.4.5",
+    "grunt-contrib-jshint": "0.11.0",
+    "grunt-contrib-less": "1.0.0"
+  },
   "scripts": {
     "start": "node app.js",
     "debug": "node debug app.js"
