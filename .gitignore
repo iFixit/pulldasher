@@ -1,4 +1,6 @@
 *.sw*
 config.js
 node_modules
+bower_components
+/views/standard/css
 pulldasher.pid
