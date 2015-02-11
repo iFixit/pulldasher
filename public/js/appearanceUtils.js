@@ -27,9 +27,9 @@ define(['jquery'], function ($) {
          var avatar = $('<img class="avatar">');
          avatar.attr('src', avatar_url);
          var link = this.getCommentLink(pull, commentData);
-         this.addActionTooltip(link, action, commentData.created_at, user.login);
+         //this.addActionTooltip(link, action, commentData.created_at, user.login);
          link.append(avatar);
-         link.tooltip();
+         //link.tooltip();
          return link;
       },
 
