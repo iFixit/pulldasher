@@ -1,4 +1,4 @@
-define(['jquery', 'appearanceUtils'], function($, utils) {
+define(['jquery', 'spec/utils'], function($, utils) {
    return {
       pull_count: function(pulls, node) {
          pulls = pulls.filter(function(pull) {
