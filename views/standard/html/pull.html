@@ -1,18 +1,20 @@
 <a target="_blank" href="<%- pull.url() %>" class="list-group-item pull">
    <div class="width-limit">
       <div>
-         <p class="pull-title"><%- pull.number %>: <%- pull.title %>
+         <p class="pull-title"><span class="pull-number"><%- pull.number %>:</span> <%- pull.title %>
          </p>
       </div>
-      <div class="row">
-         <div class="cr_remaining col-xs-6 col-sm-4">CR
+      <div class="clearfix status-row">
+         <div class="cr_remaining status-col status">
+            <span class="status-type">CR</span>
          </div>
-         <div class="qa_remaining col-xs-6 col-sm-4">QA
+         <div class="qa_remaining status-col status">
+            <span class="status-type">QA</span>
          </div>
-         <div class="col-xs-1">
+         <div class="refresh-col">
             <span data-number="<%- pull.number %>" class="refresh glyphicon glyphicon-refresh"></span>
          </div>
-         <div class="col-xs-3 key-indicator">
+         <div class="indicator-col key-indicator">
             <span class="label label-default">thing</span>
          </div>
       </div>
