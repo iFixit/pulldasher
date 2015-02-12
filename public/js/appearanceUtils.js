@@ -63,10 +63,6 @@ define(['jquery'], function ($) {
          return node;
       },
 
-      shouldShowPull: function(pull) {
-         return pull.state === 'open' && !pull.hasLabel('Cryogenic Storage');
-      },
-
       /**
        * Formats a date to be the first three characters of the month followed
        * by the day of the month. (Ex. "Oct 6")
