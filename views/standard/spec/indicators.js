@@ -2,13 +2,13 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
    var signatureStatus = function(pull, node, type, required, signatures) {
          var signatureMark = function() {
             var check = $('<span>');
-            check.addClass('glyphicon glyphicon-ok-sign');
+            check.addClass('signature glyphicon glyphicon-ok-sign');
             return check;
          };
 
          var signaturePresentMark = function() {
             var check = signatureMark();
-            check.addClass('text-success');
+            check.addClass('signature-complete');
             return check
          };
 

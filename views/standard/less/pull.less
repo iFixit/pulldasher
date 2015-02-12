@@ -1,4 +1,69 @@
-.status {
-   margin: 0px 15px;
-   background-color: #FAFAFA;
+.status-row {
+   margin-top: 5px;
 }
+
+.col() {
+   float: left;
+   position: relative;
+}
+
+.cr_remaining {
+   margin-right: 6px;
+}
+
+.status-col {
+   .col;
+   min-width: 30%;
+}
+
+.refresh-col {
+   .col;
+   margin: 6px 20px;
+}
+
+.indicator-col {
+   .col;
+   margin: 3px 0px;
+}
+
+.status {
+   padding: 4px;
+   padding-left: 8px;
+   padding-right: 10px;
+   background-color: #FAFAFA;
+   border-radius: 2px;
+   border: 1px solid @gray-lighter;
+   font-size: 14px;
+   font-weight: 700;
+}
+
+.status-type {
+   padding-right: 11px;
+   position: relative;
+   top: -2px;
+}
+
+.pull-number {
+   font-weight: bold;
+}
+
+.signature {
+   font-size: @big-glyphicon;
+   padding: 0px 2px;
+   top: 2px;
+   color: #D5D5D5;
+}
+
+.signature-complete {
+   color: @brand-success;
+}
+
+.refresh {
+   cursor: pointer;
+   font-size: 16px;
+}
+
+.refresh:hover {
+   color: blue;
+}
+
