@@ -58,10 +58,17 @@ Pull.prototype.toObject = function() {
  * Get all signatures of a given tag.
  */
 Pull.prototype.getSignatures = function getSignatures(tagName) {
+   return this.getAllSignatures(tagName).filter(function(signature) {
+      return signature.data.active === 1;
+   });
+};
+
+Pull.prototype.getAllSignatures = function getSignatures(tagName) {
    return this.signatures.filter(function(signature) {
       return signature.data.type === tagName;
    });
 };
+
 
 /**
  * Return an object:
@@ -88,6 +95,8 @@ Pull.prototype.getStatus = function getStatus() {
       'cr_req' : this.data.cr_req,
       'QA' : this.getSignatures('QA'),
       'CR' : this.getSignatures('CR'),
+      'allQA' : this.getAllSignatures('QA'),
+      'allCR' : this.getAllSignatures('CR'),
       'dev_block'    : this.getSignatures('dev_block'),
       'deploy_block' : this.getSignatures('deploy_block'),
       'commit_status' : this.commitStatus
