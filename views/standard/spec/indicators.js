@@ -35,7 +35,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             var info = $('<td>');
             info.addClass('sig-info');
             var date = new Date(signature.data.created_at);
-            info.text(date.toLocaleDateString() + ' by ' + signature.data.user.login);
+            info.text(date.toLocaleDateString('en-us', {'month': 'short', 'day': 'numeric'}) + ' by ' + signature.data.user.login);
 
             sig.append(avatarCell);
             sig.append(info);
