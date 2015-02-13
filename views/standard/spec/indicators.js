@@ -68,22 +68,34 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             var tipper = $('<table>');
 
             var users = {};
-            var oldSignatures = false;
+
+            // Contains all signatures that are active
+            var currentSignatures = [];
+            // Contains all signatures that are inactive from users without signatures in currentSignatures
+            var oldSignatures = [];
+            // Contains the most recent signature from the current user
+            var userSignature = null;
+
             signatures.forEach(function(signature) {
-               if (signature.data.active) {
-                  tipper.append(signatureDescription(pull, signature));
-
-                  node.append(signaturePresentMark());
-                  users[signature.data.user.id] = true;
-
-                  tallies += 1;
-               } else {
-                  // If we don't have a signature for this user yet...
-                  if (!users[signature.data.user.id]) {
-                     // ...then we'll need to add invalidated signatures.
-                     oldSignatures = true;
-                  }
+               if (!userSignature && mySig(signature)) {
+                  userSignature = mySig;
                }
+               if (signature.data.active) {
+                  currentSignatures.push(signature);
+               } else {
+                  oldSignatures.push(signature);
+               }
+            });
+
+            var i = 0;
+            var signature;
+
+            currentSignatures.forEach(function(signature) {
+               tipper.append(signatureDescription(pull, signature));
+               users[signature.data.user.id] = true;
+
+               node.append(signaturePresentMark());
+               tallies += 1;
             });
 
             if (oldSignatures) {
@@ -94,26 +106,24 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                divider.append(cell);
                tipper.append(divider);
 
-               signatures.forEach(function(signature) {
+               if (tallies < required && userSignature && !userSignature.data.active) {
+                  node.append(mySignatureInvalidatedMark());
+                  tallies += 1;
+               }
+
+               oldSignatures.forEach(function(signature) {
                   if (!users[signature.data.user.id]) {
                      tipper.append(invalidSignatureDescription(pull, signature));
-
-                     if (tallies < required) {
-                        // Only add the checks if we still need more review
-                        if (mySig(signature)) {
-                           node.append(mySignatureInvalidatedMark());
-                        } else {
-                           node.append(signatureInvalidatedMark());
-                        }
-                     }
-
                      users[signature.data.user.id] = true;
 
-                     tallies += 1;
+                     // Only add checkmarks if we don't have enough already
+                     if (tallies < required && ! mySig(signature)) {
+                        node.append(signatureInvalidatedMark());
+                        tallies += 1;
+                     }
                   }
                });
             }
-
 
             for (; tallies < required; tallies++) {
                node.append(signatureMark());
