@@ -1,9 +1,7 @@
 define(['jquery', 'spec/utils'], function($, utils) {
    return {
       pull_count: function(pulls, node) {
-         pulls = pulls.filter(function(pull) {
-            return utils.shouldShowPull(pull);
-         });
+         pulls = pulls.filter(utils.shouldShowPull);
          node.text(pulls.length + " open pulls");
          node.wrapInner('<strong></strong>');
       },
