@@ -9,13 +9,29 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          var signaturePresentMark = function() {
             var check = signatureMark();
             check.addClass('signature-complete');
-            return check
+            return check;
          };
+
+         var signatureInvalidatedMark = function() {
+            var check = signatureMark();
+            check.addClass('signature-invalid');
+            return check;
+         };
+
+         var mySignatureInvalidatedMark = function() {
+            var check = signatureInvalidatedMark();
+            check.addClass('mysig');
+            return check;
+         };
+
+         var mySig = function(signature) {
+            return signature.data.user.login === App.user;
+         }
 
          var signatureDescription = function(pull, signature) {
             var sig = $('<tr>');
             var avatarCell = $('<td>');
-            avatarCell.append(utils.getAvatarDOMNode(pull, signature.data, type + "'d"));
+            avatarCell.append(utils.getAvatarDOMNode(pull, signature.data, null));
             var info = $('<td>');
             var date = new Date(signature.data.created_at);
             info.text(date.toLocaleDateString() + ' by ' + signature.data.user.login);
@@ -25,10 +41,24 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             return sig;
          };
 
-         var completed = signatures.length;
+         var invalidSignatureDescription = function(pull, signature) {
+            var sig = $('<tr>');
+            sig.addClass('signature-invlid-listing');
+            var avatarCell = $('<td>');
+            avatarCell.append(utils.getAvatarDOMNode(pull, signature.data, null));
+            var info = $('<td>');
+            var date = new Date(signature.data.created_at);
+            info.text(date.toLocaleDateString() + ' by ' + signature.data.user.login);
+
+            sig.append(avatarCell);
+            sig.append(info);
+            return sig;
+         };
+
+         var tallies = 0;
          var check;
 
-         if (required == 0) {
+         if (required === 0) {
             // Handle no-signature situation
             node.append(signaturePresentMark());
             node.tooltip({'title': 'No ' + type + ' required!'});
@@ -37,13 +67,55 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             // HTML for the tooltip
             var tipper = $('<table>');
 
+            var users = {};
+            var oldSignatures = false;
             signatures.forEach(function(signature) {
-               tipper.append(signatureDescription(pull, signature));
+               if (signature.data.active) {
+                  tipper.append(signatureDescription(pull, signature));
 
-               node.append(signaturePresentMark());
+                  node.append(signaturePresentMark());
+                  users[signature.data.user.id] = true;
+
+                  tallies += 1;
+               } else {
+                  // If we don't have a signature for this user yet...
+                  if (!users[signature.data.user.id]) {
+                     // ...then we'll need to add invalidated signatures.
+                     oldSignatures = true;
+                  }
+               }
             });
 
-            for (var i = 0; i < (required - completed); i++) {
+            if (oldSignatures) {
+               var divider = $('<tr>');
+               var cell = $('<td>');
+               cell.attr('colspan', 2);
+               cell.text('Prev. SO');
+               divider.append(cell);
+               tipper.append(divider);
+
+               signatures.forEach(function(signature) {
+                  if (!users[signature.data.user.id]) {
+                     tipper.append(invalidSignatureDescription(pull, signature));
+
+                     if (tallies < required) {
+                        // Only add the checks if we still need more review
+                        if (mySig(signature)) {
+                           node.append(mySignatureInvalidatedMark());
+                        } else {
+                           node.append(signatureInvalidatedMark());
+                        }
+                     }
+
+                     users[signature.data.user.id] = true;
+
+                     tallies += 1;
+                  }
+               });
+            }
+
+
+            for (; tallies < required; tallies++) {
                node.append(signatureMark());
             }
 
@@ -59,13 +131,13 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
    return {
       cr_remaining: function cr_remaining(pull, node) {
          var required = pull.status.cr_req;
-         var signatures = pull.status.CR;
+         var signatures = pull.status.allCR;
          signatureStatus(pull, node, 'CR', required, signatures);
       },
 
       qa_remaining: function qa_remaining(pull, node) {
          var required = pull.status.qa_req;
-         var signatures = pull.status.QA;
+         var signatures = pull.status.allQA;
          signatureStatus(pull, node, 'QA', required, signatures);
       },
       build_status: function status(pull, node) {
