@@ -31,7 +31,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          var signatureDescription = function(pull, signature) {
             var sig = $('<tr>');
             var avatarCell = $('<td>');
-            avatarCell.append(utils.getAvatarDOMNode(pull, signature.data, null));
+            avatarCell.append(utils.getAvatar(signature.data.user.id));
             var info = $('<td>');
             info.addClass('sig-info');
             var date = new Date(signature.data.created_at);
