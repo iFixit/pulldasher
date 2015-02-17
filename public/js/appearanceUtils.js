@@ -21,16 +21,11 @@ define(['jquery'], function ($) {
          }
       },
 
-      getAvatarDOMNode: function(pull, commentData, action) {
-         var user = commentData.user;
-         var avatar_url = 'https://avatars.githubusercontent.com/u/' + user.id;
+      getAvatar: function(userid) {
+         var avatar_url = 'https://avatars.githubusercontent.com/u/' + userid;
          var avatar = $('<img class="avatar">');
          avatar.attr('src', avatar_url);
-         var link = this.getCommentLink(pull, commentData);
-         //this.addActionTooltip(link, action, commentData.created_at, user.login);
-         link.append(avatar);
-         //link.tooltip();
-         return link;
+         return avatar;
       },
 
       getCommentLink: function(pull, commentData) {
