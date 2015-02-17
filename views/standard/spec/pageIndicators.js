@@ -1,4 +1,4 @@
-define(['jquery', 'spec/utils'], function($, utils) {
+define(['jquery', 'spec/utils', 'appearanceUtils'], function($, utils, aUtils) {
    return {
       pull_count: function(pulls, node) {
          pulls = pulls.filter(utils.shouldShowPull);
@@ -20,6 +20,55 @@ define(['jquery', 'spec/utils'], function($, utils) {
             node.wrapInner(link);
          }
          node.wrapInner('<strong></strong>');
+      },
+      leaderboard: function(pulls, node) {
+
+         var text = $('<div>');
+         text.addClass('leaderboard-title');
+         text.text('Leaderboard:');
+
+         node.append(text);
+
+         var counts = _.chain(pulls)
+         .filter(utils.shouldShowPull)
+         .map(function(pull) {
+            return pull.status.allCR;
+         })
+         .flatten()
+         // We now have a list of signatures. Now to convert them to usernames
+         .map(function(signature) {
+            return signature.data.user;
+         })
+         .groupBy("id")
+         .map(function(group, id) {
+            var instance = group[0];
+            return {
+               'id': id,
+               'count': group.length,
+               'username': instance.login,
+               'realname': instance.realname
+            };
+         })
+         .each(function(user) {
+            var info = $('<div>');
+            info.addClass('leaderboard-posting');
+
+            var count = $('<div>');
+            count.addClass('leaderboard-count');
+            count.text(user.count);
+
+            var username = $('<div>');
+            username.addClass('leaderboard-user');
+            username.text(user.realname + ':');
+
+            var icon = aUtils.getAvatar(user.id);
+
+            info.append(username);
+            info.append(count);
+            info.append(icon);
+
+            node.append(info);
+         });
       }
    };
 });
