@@ -31,6 +31,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          var signatureDescription = function(pull, signature) {
             var sig = $('<tr>');
             var avatarCell = $('<td>');
+            avatarCell.addClass('sig-avatar');
             avatarCell.append(utils.getAvatar(signature.data.user.id));
             var info = $('<td>');
             info.addClass('sig-info');
@@ -115,7 +116,12 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                var divider = $('<tr>');
                var cell = $('<td>');
                cell.attr('colspan', 2);
-               cell.text('PREV. SO');
+               var text = $('<p>');
+               text.text('Prev SO');
+               var border = $('<div>');
+               border.addClass("signature-separator");
+               border.append(text);
+               cell.append(border);
                cell.addClass('signature-divider');
                divider.append(cell);
                tipper.append(divider);
