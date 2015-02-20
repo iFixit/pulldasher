@@ -4,7 +4,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          title: "CI Blocked",
          id: "ciBlocked",
          selector: function(pull) {
-            return !pull.dev_blocked() && (pull.build_failed() || (pull.cr_done() && pull.qa_done() && !pull.build_succeeded()));
+            return !pull.dev_blocked() && !pull.build_succeeded();
          },
          sort: function(pull) {
             var score = 0;
@@ -127,7 +127,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          id: "qaPulls",
          selector: function(pull) {
             return !pull.qa_done() && !pull.dev_blocked() &&
-            !pull.build_failed();
+             pull.build_succeeded();
          },
          sort: function(pull) {
             // The higher score is, the lower the pull will be sorted.
