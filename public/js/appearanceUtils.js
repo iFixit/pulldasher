@@ -29,7 +29,6 @@ define(['jquery'], function ($) {
          var link = this.getCommentLink(pull, commentData);
          //this.addActionTooltip(link, action, commentData.created_at, user.login);
          link.append(avatar);
-         //link.tooltip();
          return link;
       },
 
