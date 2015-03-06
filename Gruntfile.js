@@ -58,12 +58,23 @@ module.exports = function(grunt) {
       },
       file: {src: 'views/current/less/main.less', dest: 'views/current/css/pulldasher.css'}
       // END derived lines
-    }
+    },
+
+    watch: {
+      less: {
+        options: {
+          spawn: false
+        },
+        files: ['views/**/*.less', 'less/*.less', 'public/**/*.less'],
+        tasks: 'less'
+      }
+    },
   });
 
   // These plugins provide necessary tasks.
   grunt.loadNpmTasks('grunt-contrib-less');
   grunt.loadNpmTasks('grunt-contrib-jshint');
+  grunt.loadNpmTasks('grunt-contrib-watch');
 
   // Default task.
   grunt.registerTask('default', ['less']);
