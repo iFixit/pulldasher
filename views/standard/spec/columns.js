@@ -53,12 +53,9 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          selector: function(pull) {
             return pull.ready() && !pull.deploy_blocked();
          },
-         adjust: function(pull, node) {
-            node.addClass('list-group-item-success');
-         },
          triggers: {
             onCreate: function(blob, container) {
-               blob.removeClass('panel-default').addClass('panel-primary');
+               blob.removeClass('panel-default').addClass('panel-success');
             },
             onUpdate: function(blob, container) {
                utils.hideIfEmpty(container, blob, '.pull');
