@@ -30,6 +30,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
          var signatureDescription = function(pull, signature) {
             var sig = $('<tr>');
+            sig.addClass('sig-row');
             var avatarCell = $('<td>');
             avatarCell.addClass('sig-avatar');
             avatarCell.append(utils.getAvatar(signature.data.user.id));
@@ -69,7 +70,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             node.append(signatureValidMark());
             node.tooltip({'title': 'No ' + type + ' required!'});
          } else {
-            // tipper is a div that won't be inserted; it's just used to get the
+            // container is a div that won't be inserted; it's just used to get the
             // HTML for the tooltip
             var tipper = $('<table>');
             var container = $('<div>');
