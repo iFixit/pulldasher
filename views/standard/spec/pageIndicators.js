@@ -1,5 +1,9 @@
 define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _, utils, aUtils) {
    var summarize = function(pulls, node, type, extract) {
+      // Clean out indicator node. This prevents re-renders from resulting in
+      // junk.
+      node.empty();
+
       var text = $('<div>');
       text.addClass('leaderboard-title');
       text.text(type + ' Leaderboard:');
