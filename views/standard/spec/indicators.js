@@ -12,6 +12,12 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             return check;
          };
 
+         var mySignatureValidMark = function() {
+            var check = signatureMark();
+            check.addClass('signature-valid-mine');
+            return check;
+         }
+
          var signatureInvalidatedMark = function() {
             var check = signatureMark();
             check.addClass('signature-invalid');
@@ -50,6 +56,12 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             return sig;
          };
 
+         var myValidSignatureDescription = function(pull, signature) {
+            var sig = signatureDescription(pull, signature);
+            sig.addClass('signature-valid-listing-mine');
+            return sig;
+         };
+
          var invalidSignatureDescription = function(pull, signature) {
             var sig = signatureDescription(pull, signature);
             sig.addClass('signature-invalid-listing');
@@ -61,6 +73,21 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             sig.addClass('signature-invalid-listing-mine');
             return sig;
          };
+
+         var signatureSeparator = function(message) {
+               var divider = $('<tr>');
+               var cell = $('<td>');
+               cell.attr('colspan', 2);
+               var text = $('<p>');
+               text.text(message);
+               var border = $('<div>');
+               border.addClass("signature-separator");
+               border.append(text);
+               cell.append(border);
+               cell.addClass('signature-divider');
+               divider.append(cell);
+               return divider;
+         }
 
          var tallies = 0;
          var check;
@@ -106,26 +133,24 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             var i = 0;
             var signature;
 
-            currentSignatures.forEach(function(signature) {
-               tipper.append(validSignatureDescription(pull, signature));
+            if (currentSignatures.length > 0) {
+               tipper.append(signatureSeparator('Signoff on'));
 
-               node.append(signatureValidMark());
-               tallies += 1;
-            });
+               currentSignatures.forEach(function(signature) {
+                  if (mySig(signature)) {
+                     tipper.append(myValidSignatureDescription(pull, signature));
+                     node.append(mySignatureValidMark());
+                  } else {
+                     tipper.append(validSignatureDescription(pull, signature));
+                     node.append(signatureValidMark());
+                  }
+
+                  tallies += 1;
+               });
+            }
 
             if (oldSignatures.length > 0) {
-               var divider = $('<tr>');
-               var cell = $('<td>');
-               cell.attr('colspan', 2);
-               var text = $('<p>');
-               text.text('Prev SO');
-               var border = $('<div>');
-               border.addClass("signature-separator");
-               border.append(text);
-               cell.append(border);
-               cell.addClass('signature-divider');
-               divider.append(cell);
-               tipper.append(divider);
+               tipper.append(signatureSeparator('Prev signoff on'));
 
                if (tallies < required && userSignature) {
                   node.append(mySignatureInvalidatedMark());
@@ -147,19 +172,25 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                });
             }
 
+            if (tallies === 0) {
+               // There are no signatures of any type yet
+               container.empty();
+               var message = $('<span>');
+               message.text('No signoffs yet!')
+               container.append(message);
+            }
+
             for (; tallies < required; tallies++) {
                node.append(signatureMark());
             }
 
-            if (sigCount > 0) {
-               // Set the tooltip to the combined contents of tipper
-               node.tooltip({
-                  "html": true,
-                  // Derived from
-                  // https://github.com/twbs/bootstrap/issues/2091#issuecomment-4051978
-                  "title": container.html()
-               });
-            }
+            // Set the tooltip to the combined contents of tipper
+            node.tooltip({
+               "html": true,
+               // Derived from
+               // https://github.com/twbs/bootstrap/issues/2091#issuecomment-4051978
+               "title": container.html()
+            });
          }
    };
    return {
