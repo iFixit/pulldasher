@@ -57,13 +57,13 @@ Pull.prototype.toObject = function() {
 /**
  * Get all signatures of a given tag.
  */
-Pull.prototype.getSignatures = function getSignatures(tagName) {
+Pull.prototype.getSignatures = function(tagName) {
    return this.getAllSignatures(tagName).filter(function(signature) {
       return signature.data.active === 1;
    });
 };
 
-Pull.prototype.getAllSignatures = function getSignatures(tagName) {
+Pull.prototype.getAllSignatures = function(tagName) {
    return this.signatures.filter(function(signature) {
       return signature.data.type === tagName;
    });
