@@ -40,16 +40,9 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _,
          count.addClass('leaderboard-count');
          count.text(user.count);
 
-         //var username = $('<div>');
-         //username.addClass('leaderboard-user');
-         //username.text(user.realname + ':');
-
-
-
          var icon = aUtils.getAvatar(user.id);
          icon.addClass('leaderboard-avatar');
 
-         //info.append(username);
          info.append(count);
          info.append(icon);
 
