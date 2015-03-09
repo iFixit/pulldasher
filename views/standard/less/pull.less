@@ -106,10 +106,15 @@
    cursor: pointer;
    font-size: 16px;
    top: 3px;
+   visibility: hidden;
 }
 
 .refresh:hover {
    color: blue;
+}
+
+.pull:hover .refresh {
+   visibility: visible;
 }
 
 .info-tag:empty {
