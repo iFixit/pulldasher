@@ -65,6 +65,13 @@ define(['jquery'], function ($) {
       formatDate: function(date) {
          var matches = date.toString().match(/([A-Z][a-z]{2})\w* 0?(\d+)/);
          return matches[1] + " " + matches[2];
+      },
+
+      /**
+       * Returns a boolean for if the given signature is by the currently logged-in user
+       */
+      mySig: function(signature) {
+         return signature.data.user.login === App.user;
       }
    };
 });

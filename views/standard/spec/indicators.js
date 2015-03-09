@@ -1,5 +1,5 @@
 define(['jquery', 'appearanceUtils'], function($, utils) {
-   var signatureStatus = function(pull, node, type, required, signatures) {
+   var signatureStatus = function(pull, node, type, required, table) {
          var signatureMark = function() {
             var check = $('<span>');
             check.addClass('signature glyphicon glyphicon-ok-sign');
@@ -29,10 +29,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             check.addClass('signature-invalid-mine');
             return check;
          };
-
-         var mySig = function(signature) {
-            return signature.data.user.login === App.user;
-         }
 
          var signatureDescription = function(pull, signature) {
             var sig = $('<tr>');
@@ -103,32 +99,9 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             var container = $('<div>');
             container.append(tipper);
 
-            var users = {};
-
-            // Contains all signatures that are active
-            var currentSignatures = [];
-            // Contains all signatures that are inactive from users without signatures in currentSignatures
-            var oldSignatures = [];
-            // Contains the most recent signature from the current user
-            var userSignature = null;
-
-            var sigCount = 0;
-
-            signatures.forEach(function(signature) {
-               if (signature.data.active) {
-                  currentSignatures.push(signature);
-                  users[signature.data.user.id] = true;
-                  sigCount += 1;
-               } else if (!users[signature.data.user.id]) {
-                  oldSignatures.push(signature);
-                  users[signature.data.user.id] = true;
-                  sigCount += 1;
-
-                  if (!userSignature && mySig(signature)) {
-                     userSignature = mySig;
-                  }
-               }
-            });
+            currentSignatures = table.currentSignatures;
+            oldSignatures = table.oldSignatures;
+            userSignature = table.userSignature;
 
             var i = 0;
             var signature;
@@ -137,7 +110,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                tipper.append(signatureSeparator('Signoff on'));
 
                currentSignatures.forEach(function(signature) {
-                  if (mySig(signature)) {
+                  if (utils.mySig(signature)) {
                      tipper.append(myValidSignatureDescription(pull, signature));
                      node.append(mySignatureValidMark());
                   } else {
@@ -158,7 +131,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                }
 
                oldSignatures.forEach(function(signature) {
-                  if (mySig(signature)) {
+                  if (utils.mySig(signature)) {
                      tipper.append(myInvalidSignatureDescription(pull, signature));
                   } else {
                      tipper.append(invalidSignatureDescription(pull, signature));
@@ -196,14 +169,12 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
    return {
       cr_remaining: function cr_remaining(pull, node) {
          var required = pull.status.cr_req;
-         var signatures = pull.status.allCR;
-         signatureStatus(pull, node, 'CR', required, signatures);
+         signatureStatus(pull, node, 'CR', required, pull.cr_signatures);
       },
 
       qa_remaining: function qa_remaining(pull, node) {
          var required = pull.status.qa_req;
-         var signatures = pull.status.allQA;
-         signatureStatus(pull, node, 'QA', required, signatures);
+         signatureStatus(pull, node, 'QA', required, pull.qa_signatures);
       },
       build_status: function status(pull, node) {
          if (pull.status.commit_status) {
