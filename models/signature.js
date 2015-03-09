@@ -62,11 +62,6 @@ Signature.getFromDB = function(data) {
       comment_id:  data.comment_id
    });
 
-   // This can't be added to the object above, because the Signature
-   // constructor will ignore it and it won't end up in the data shipped to the
-   // client-side
-   sig.data.user.realname = data.realname;
-
    return sig;
 }
 
