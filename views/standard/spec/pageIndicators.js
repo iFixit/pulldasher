@@ -28,8 +28,7 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _,
          return {
             'id': id,
             'count': group.length,
-            'username': instance.login,
-            'realname': instance.realname
+            'username': instance.login
          };
       })
       .sortBy(function(item) {
