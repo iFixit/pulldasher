@@ -76,8 +76,8 @@ define(['jquery', 'underscore', 'Templates', 'bootstrap'],
 
          if (indicatorFilter) {
             indicatorFilter.filter(pull, elem, function(elem, filterName) {
-               // Find the #indicators container
-               var indicators = elem.find('#indicators');
+               // Find the .indicators container
+               var indicators = elem.find('.indicators');
 
                // Render the 'indicator' template into the indicators element
                return Templates.renderIntoContainer('indicator', {name: filterName}, indicators);
