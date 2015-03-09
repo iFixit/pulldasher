@@ -1,4 +1,4 @@
-.PHONY: setup run
+.PHONY: setup run clean
 
 setup:
 	npm install
@@ -7,3 +7,8 @@ setup:
 
 run: setup
 	./bin/pulldasher
+
+clean:
+	rm -r ./bower_components
+	rm -r ./node_modules
+	rm -r ./views/standard/css/
