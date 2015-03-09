@@ -77,7 +77,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
             var corner = $('<div class="triangle"></div>');
 
-            var link = $('<a target="_blank" class="status" data-toggle="tooltip" data-placement="top" title="' + title + '" href="' + url + '"></a>');
+            var link = $('<a target="_blank" class="build_status_link" data-toggle="tooltip" data-placement="top" title="' + title + '" href="' + url + '"></a>');
             var icon = $('<span class="status-icon glyphicon"></span>');
 
             node.append(link);
