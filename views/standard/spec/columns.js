@@ -4,7 +4,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          title: "CI Blocked",
          id: "ciBlocked",
          selector: function(pull) {
-            return !pull.dev_blocked() && (pull.build_failed() || (pull.cr_done() && pull.qa_done() && !pull.build_succeeded()));
+            return !pull.dev_blocked() && !pull.build_succeeded();
          },
          sort: function(pull) {
             var score = 0;
@@ -52,9 +52,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          id: "readyPulls",
          selector: function(pull) {
             return pull.ready() && !pull.deploy_blocked();
-         },
-         adjust: function(pull, node) {
-            //node.addClass('list-group-item-success');
          },
          triggers: {
             onCreate: function(blob, container) {
@@ -127,26 +124,43 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          id: "qaPulls",
          selector: function(pull) {
             return !pull.qa_done() && !pull.dev_blocked() &&
-            !pull.build_failed();
+             pull.build_succeeded();
          },
          sort: function(pull) {
-            if (pull.is_mine()) {
-               return 4;
-            } else if (pull.cr_done() && pull.build_succeeded()) {
-               return 0;
-            } else if (pull.build_succeeded()) {
-               return 1;
-            } else if (pull.cr_done()) {
-               return 2;
-            } else {
-               return 3;
+            // The higher score is, the lower the pull will be sorted.
+            // So a lower score means an item shows higher in the list.
+            var score = 0;
+
+            var label = pull.getLabel('QAing')
+
+            if (label && label.user == App.user) {
+               score -= 1000;
             }
+
+            if (pull.is_mine()) {
+               score += 500;
+            }
+
+            if (pull.build_succeeded()) {
+               score -= 2;
+            }
+
+            if (pull.cr_done()) {
+               score -= 1;
+            }
+
+            return score;
          },
          indicators: {
             qa_in_progress: function qa_in_progress(pull, node) {
                if (label = pull.getLabel('QAing')) {
                   var labelElem = $('<span>' + label.title + '</span>');
-                  labelElem.addClass('label label-warning');
+                  if (label.user == App.user) {
+                     var labelclass = 'label-success';
+                  } else {
+                     var labelclass = 'label-warning';
+                  }
+                  labelElem.addClass('label ' + labelclass);
                   labelElem = utils.addActionTooltip(labelElem, '',
                   label.created_at, label.user);
 
