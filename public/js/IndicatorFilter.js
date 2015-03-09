@@ -40,9 +40,9 @@ define(['underscore'], function(_) {
                // Reuse the existing node for this indicator.
                indicatorNode = existingIndicatorNodes[key];
             } else {
-               // If there's a node with an id equal to the indicator key in
+               // If there's a node with a class equal to the indicator key in
                // the pull template, use it.
-               var matchingNodes = $('#' + key, element);
+               var matchingNodes = $('.' + key, element);
                if (matchingNodes.length > 0) {
                   // Use the first matching node
                   indicatorNode = matchingNodes.first();

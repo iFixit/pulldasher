@@ -12,7 +12,7 @@
             "bootstrap":"//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min",
             "socketjs":"//cdn.socket.io/socket.io-<%= socketVersion %>",
             "underscore":"//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore-min",
-            "text":"text-latest/text",
+            "text":"/lib/requirejs-text/text",
             "html":"/html",
             "spec":"/spec"
          },
@@ -25,7 +25,7 @@
       };
       </script>
       <script src="public/js/client.js"></script>
-      <script data-main="public/js/main" src="public/js/require.js"></script>
+      <script data-main="public/js/main" src="/lib/requirejs/require.js"></script>
    </head>
    <body>
       <%- body %>
