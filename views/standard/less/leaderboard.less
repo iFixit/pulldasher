@@ -1,0 +1,46 @@
+.leaderboard {
+   .clearfix;
+   font-weight: 700;
+   padding: 12px;
+}
+
+.leaderboard-title {
+   float: left;
+   margin: 0px 10px;
+   padding-top: 4px;
+}
+
+.leaderboard-posting {
+   float: left;
+   background: @brand-primary;
+   margin-right: 5px;
+   padding: 2px;
+}
+
+.leaderboard-postingelement() {
+   display: inline-block;
+}
+
+.leaderboard-count {
+   .leaderboard-postingelement;
+   color: #FFFFFF;
+   width: @avatar-width;
+   position: relative;
+   text-align: center;
+   top: 1px;
+   left: -2px;
+   font-weight: 400;
+}
+
+.leaderboard-user {
+   .leaderboard-postingelement;
+   color: #FFFFFF;
+}
+
+.leaderboard-leaders {
+   background-color: @brand-success;
+}
+
+.leaderboard-avatar {
+   .leaderboard-postingelement;
+}
