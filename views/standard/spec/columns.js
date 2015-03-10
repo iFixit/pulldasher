@@ -181,8 +181,12 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
             var label = pull.getLabel('QAing')
 
-            if (label && label.user == App.user) {
-               score -= 1000;
+            if (label) {
+               if (label.user === App.user) {
+                  score -= 1000;
+               } else {
+                  score += 1000;
+               }
             }
 
             if (pull.is_mine()) {
