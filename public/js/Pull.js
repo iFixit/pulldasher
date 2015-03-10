@@ -10,18 +10,22 @@ define(['underscore', 'appearanceUtils'], function(_, utils) {
          table.currentSignatures = [];
          // Contains all signatures that are inactive from users without signatures in currentSignatures
          table.oldSignatures = [];
-         // Contains the most recent invalid signature from the current user
+         // Contains the most recent signature from the current user
          table.userSignature = null;
 
          signatures.forEach(function(signature) {
             if (signature.data.active) {
                table.currentSignatures.push(signature);
                users[signature.data.user.id] = true;
+
+               if (utils.mySig(signature)) {
+                  table.userSignature = signature;
+               }
             } else if (!users[signature.data.user.id]) {
                table.oldSignatures.push(signature);
                users[signature.data.user.id] = true;
 
-               if (!table.userSignature && utils.mySig(signature)) {
+               if (utils.mySig(signature)) {
                   table.userSignature = signature;
                }
             }
