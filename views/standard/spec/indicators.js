@@ -212,23 +212,35 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             var url   = commit_status.target_url;
             var state = commit_status.state;
 
-            var link = $('<a target="_blank" data-toggle="tooltip" data-placement="top" title="' + title + '" href="' + url + '"></a>');
+            var corner = $('<div class="triangle"></div>');
+
+            var link = $('<a target="_blank" class="build_status_link" data-toggle="tooltip" data-placement="top" title="' + title + '" href="' + url + '"></a>');
+            var icon = $('<span class="status-icon glyphicon"></span>');
+
             node.append(link);
-            link.tooltip();
+            link.append(corner);
+            corner.append(icon);
+
             switch(commit_status.state) {
                case 'pending':
-               link.append('<span class="text-muted glyphicon glyphicon-repeat"></span>');
+               corner.addClass('pending-triangle');
+               icon.addClass('glyphicon-repeat');
                break;
                case 'success':
-               link.append('<span class="text-success glyphicon glyphicon-ok"></span>');
+               corner.addClass('success-triangle');
+               icon.addClass('glyphicon-ok');
                break;
                case 'error':
-               link.append('<span class="text-danger glyphicon glyphicon-exclamation-sign"></span>');
+               corner.addClass('error-triangle');
+               icon.addClass('glyphicon-exclamation-sign');
                break;
                case 'failure':
-               link.append('<span class="text-warning glyphicon glyphicon-remove"></span>');
+               corner.addClass('warning-triangle');
+               icon.addClass('glyphicon-remove');
                break;
             }
+
+            link.tooltip();
          }
       },
       user_icon: function user_icon(pull, node) {
