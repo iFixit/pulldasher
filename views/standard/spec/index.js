@@ -1,4 +1,4 @@
-define(['jquery', 'appearanceUtils', 'spec/pageIndicators', 'spec/indicators', 'spec/columns'], function($, utils, pageIndicators, indicators, columns) {
+define(['jquery', 'appearanceUtils', 'spec/utils', 'spec/pageIndicators', 'spec/indicators', 'spec/columns'], function($, utils, specUtils, pageIndicators, indicators, columns) {
    return {
       navbar: "#restore-buttons",
       page_indicator_box: "#global-indicators",
@@ -6,7 +6,7 @@ define(['jquery', 'appearanceUtils', 'spec/pageIndicators', 'spec/indicators', '
       // Global filters
       // where
       selector: function(pull) {
-         return utils.shouldShowPull(pull);
+         return specUtils.shouldShowPull(pull);
       },
       // order by
       sort: function(pull) {
