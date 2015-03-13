@@ -12,9 +12,9 @@ define(['underscore'], function(_) {
        * @param pull - The pull this is related to
        * @param element - The DOM element representing pull
        * @param template - A function which will return a new DOM node
-       * (attached to the element it is provided) every time it is called. It
-       * is passed two arguments: the element to render the new DOM node into,
-       * and the key of the current indicator.
+       *  every time it is called. It
+       * is passed two arguments: the value of the element argument and the key
+       * of the current indicator.
        */
       this.filter = function(pull, element, template) {
          // Stores indicator nodes which were created by a prefilter run.
