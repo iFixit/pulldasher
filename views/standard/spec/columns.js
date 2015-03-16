@@ -123,12 +123,12 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             if (!signatures.userSignature && (signatures.oldSignatures.length + signatures.currentSignatures.length) >= pull.status.cr_req) {
                // The number of people who've messed with the pull is at least
                // the number of people who need to sign off, and I'm not one of them.
-               score += 1000;
+               score += 500;
             }
 
             if (signatures.userSignature && signatures.userSignature.status.active) {
                // I've already CRd or QAd this pull
-               score += 500;
+               score += 1000;
             }
 
             if (pull.is_mine()) {
@@ -171,21 +171,21 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             if (!signatures.userSignature && (signatures.oldSignatures.length + signatures.currentSignatures.length) >= pull.status.qa_req) {
                // The number of people who've messed with the pull is at least
                // the number of people who need to sign off, and I'm not one of them.
-               score += 1000;
+               score += 500;
             }
 
             if (signatures.userSignature && signatures.userSignature.status.active) {
                // I've already CRd or QAd this pull
-               score += 500;
+               score += 1000;
             }
 
             var label = pull.getLabel('QAing')
 
             if (label) {
                if (label.user === App.user) {
-                  score -= 1000;
+                  score -= 750;
                } else {
-                  score += 1000;
+                  score += 500;
                }
             }
 
