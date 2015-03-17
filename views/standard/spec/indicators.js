@@ -1,5 +1,5 @@
 define(['jquery', 'appearanceUtils'], function($, utils) {
-   var signatureStatus = function(pull, node, type, required, table) {
+   var signatureStatus = function(pull, node, type, required, signatures) {
          var signatureMark = function() {
             var check = $('<span>');
             check.addClass('signature glyphicon glyphicon-ok-sign');
@@ -99,9 +99,9 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             var container = $('<div>');
             container.append(tipper);
 
-            currentSignatures = table.currentSignatures;
-            oldSignatures = table.oldSignatures;
-            userSignature = table.userSignature;
+            currentSignatures = signatures.current;
+            oldSignatures = signatures.old;
+            userSignature = signatures.user;
 
             var i = 0;
             var signature;
