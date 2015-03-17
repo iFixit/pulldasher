@@ -114,19 +114,19 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
             var signatures = pull.cr_signatures;
 
-            if (!pull.cr_done() && signatures.userSignature && !signatures.userSignature.status.active) {
+            if (!pull.cr_done() && signatures.user && !signatures.user.status.active) {
                // The user has an invalid signature, and the pull isn't ready.
                // They should re-CR it
                score -= 1000;
             }
 
-            if (!signatures.userSignature && (signatures.oldSignatures.length + signatures.currentSignatures.length) >= pull.status.cr_req) {
+            if (!signatures.user && (signatures.old.length + signatures.current.length) >= pull.status.cr_req) {
                // The number of people who've messed with the pull is at least
                // the number of people who need to sign off, and I'm not one of them.
                score += 500;
             }
 
-            if (signatures.userSignature && signatures.userSignature.status.active) {
+            if (signatures.user && signatures.user.status.active) {
                // I've already CRd or QAd this pull
                score += 1000;
             }
@@ -162,19 +162,19 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
             var signatures = pull.qa_signatures;
 
-            if (!pull.qa_done() && signatures.userSignature && !signatures.userSignature.status.active) {
+            if (!pull.qa_done() && signatures.user && !signatures.user.status.active) {
                // The user has an invalid signature, and the pull isn't ready.
                // They should re-QA it
                score -= 1000;
             }
 
-            if (!signatures.userSignature && (signatures.oldSignatures.length + signatures.currentSignatures.length) >= pull.status.qa_req) {
+            if (!signatures.user && (signatures.old.length + signatures.current.length) >= pull.status.qa_req) {
                // The number of people who've messed with the pull is at least
                // the number of people who need to sign off, and I'm not one of them.
                score += 500;
             }
 
-            if (signatures.userSignature && signatures.userSignature.status.active) {
+            if (signatures.user && signatures.user.status.active) {
                // I've already CRd or QAd this pull
                score += 1000;
             }
@@ -198,7 +198,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             }
 
             if (pull.cr_done() ||
-            (pull.cr_signatures.oldSignatures.length + pull.cr_signatures.currentSignatures.length) >= pull.status.cr_req) {
+            (pull.cr_signatures.old.length + pull.cr_signatures.current.length) >= pull.status.cr_req) {
                // If the pull is CR-complete or the pull has enough invalid and
                // current CRs to become complete, push it up.
                score -= 1;
