@@ -2,36 +2,36 @@ define(['underscore', 'appearanceUtils'], function(_, utils) {
    var constructor = function(data) {
       _.extend(this, data);
 
-      var computeSignatures = function(unsorted) {
-         var signatures = {};
+      var computeSignatures = function(signatures) {
+         var groups = {};
          var users = {};
 
          // Contains all signatures that are active
-         signatures.current = [];
+         groups.current = [];
          // Contains all signatures that are inactive from users without signatures in current
-         signatures.old = [];
+         groups.old = [];
          // Contains the most recent signature from the current user
-         signatures.user = null;
+         groups.user = null;
 
-         unsorted.forEach(function(signature) {
+         signatures.forEach(function(signature) {
             if (signature.data.active) {
-               signatures.current.push(signature);
+               groups.current.push(signature);
                users[signature.data.user.id] = true;
 
                if (utils.mySig(signature)) {
-                  signatures.user = signature;
+                  groups.user = signature;
                }
             } else if (!users[signature.data.user.id]) {
-               signatures.old.push(signature);
+               groups.old.push(signature);
                users[signature.data.user.id] = true;
 
                if (utils.mySig(signature)) {
-                  signatures.user = signature;
+                  groups.user = signature;
                }
             }
          });
 
-         return signatures;
+         return groups;
       }
 
       this.cr_signatures = computeSignatures(this.status.allCR);
