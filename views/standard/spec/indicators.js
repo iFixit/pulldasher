@@ -125,7 +125,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             if (oldSignatures.length > 0) {
                tipper.append(signatureSeparator('Prev signoff on'));
 
-               if (tallies < required && userSignature) {
+               if (tallies < required && userSignature && !userSignature.data.active) {
                   node.append(mySignatureInvalidatedMark());
                   tallies += 1;
                }
