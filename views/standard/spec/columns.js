@@ -114,7 +114,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
             var signatures = pull.cr_signatures;
 
-            if (!pull.cr_done() && signatures.user && !signatures.user.status.active) {
+            if (!pull.cr_done() && signatures.user && !signatures.user.data.active) {
                // The user has an invalid signature, and the pull isn't ready.
                // They should re-CR it
                score -= 1000;
@@ -126,7 +126,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                score += 500;
             }
 
-            if (signatures.user && signatures.user.status.active) {
+            if (signatures.user && signatures.user.data.active) {
                // I've already CRd or QAd this pull
                score += 1000;
             }
@@ -162,7 +162,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
             var signatures = pull.qa_signatures;
 
-            if (!pull.qa_done() && signatures.user && !signatures.user.status.active) {
+            if (!pull.qa_done() && signatures.user && !signatures.user.data.active) {
                // The user has an invalid signature, and the pull isn't ready.
                // They should re-QA it
                score -= 1000;
@@ -174,7 +174,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                score += 500;
             }
 
-            if (signatures.user && signatures.user.status.active) {
+            if (signatures.user && signatures.user.data.active) {
                // I've already CRd or QAd this pull
                score += 1000;
             }
