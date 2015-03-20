@@ -50,17 +50,19 @@ Signature.parseComment = function parseComment(comment, pullNumber) {
  * Signature object.
  */
 Signature.getFromDB = function(data) {
-   return new Signature({
-      number:     data.number,
+   var sig = new Signature({
+      number:      data.number,
       user: {
-         id:      data.userid,
-         login:   data.user
+         id:       data.userid,
+         login:    data.user
       },
-      type:       data.type,
-      created_at: utils.fromUnixTime(data.date),
-      active:     data.active,
-      comment_id: data.comment_id
+      type:        data.type,
+      created_at:  utils.fromUnixTime(data.date),
+      active:      data.active,
+      comment_id:  data.comment_id
    });
+
+   return sig;
 }
 
 /**

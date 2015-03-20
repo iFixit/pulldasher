@@ -108,16 +108,45 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             return !pull.cr_done() && !pull.dev_blocked();
          },
          sort: function(pull) {
-            if (pull.is_mine()) {
-               return 3;
-            } else if (pull.qa_done() && pull.build_succeeded()) {
-               return 0;
-            } else if (pull.qa_done()) {
-               return 1;
-            } else {
-               return 2;
+            // The higher score is, the lower the pull will be sorted.
+            // So a lower score means an item shows higher in the list.
+            var score = 0;
+
+            var signatures = pull.cr_signatures;
+
+            if (!pull.cr_done() && signatures.user && !signatures.user.data.active) {
+               // The user has an invalid signature, and the pull isn't ready.
+               // They should re-CR it
+               score -= 1000;
             }
-         }
+
+            if (!signatures.user && (signatures.old.length + signatures.current.length) >= pull.status.cr_req) {
+               // The number of people who've messed with the pull is at least
+               // the number of people who need to sign off, and I'm not one of them.
+               score += 500;
+            }
+
+            if (signatures.user && signatures.user.data.active) {
+               // I've already CRd or QAd this pull
+               score += 1000;
+            }
+
+            if (pull.is_mine()) {
+               score += 500;
+            }
+
+            if (pull.build_succeeded()) {
+               score -= 4;
+            }
+
+            if (pull.qa_done()) {
+               score -= 2;
+            }
+
+            score -= pull.status.CR.length;
+
+            return score;
+         },
       },
       {
          title: "QA Pulls",
@@ -131,10 +160,33 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             // So a lower score means an item shows higher in the list.
             var score = 0;
 
+            var signatures = pull.qa_signatures;
+
+            if (!pull.qa_done() && signatures.user && !signatures.user.data.active) {
+               // The user has an invalid signature, and the pull isn't ready.
+               // They should re-QA it
+               score -= 1000;
+            }
+
+            if (!signatures.user && (signatures.old.length + signatures.current.length) >= pull.status.qa_req) {
+               // The number of people who've messed with the pull is at least
+               // the number of people who need to sign off, and I'm not one of them.
+               score += 500;
+            }
+
+            if (signatures.user && signatures.user.data.active) {
+               // I've already CRd or QAd this pull
+               score += 1000;
+            }
+
             var label = pull.getLabel('QAing')
 
-            if (label && label.user == App.user) {
-               score -= 1000;
+            if (label) {
+               if (label.user === App.user) {
+                  score -= 750;
+               } else {
+                  score += 500;
+               }
             }
 
             if (pull.is_mine()) {
@@ -145,7 +197,10 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                score -= 2;
             }
 
-            if (pull.cr_done()) {
+            if (pull.cr_done() ||
+            (pull.cr_signatures.old.length + pull.cr_signatures.current.length) >= pull.status.cr_req) {
+               // If the pull is CR-complete or the pull has enough invalid and
+               // current CRs to become complete, push it up.
                score -= 1;
             }
 

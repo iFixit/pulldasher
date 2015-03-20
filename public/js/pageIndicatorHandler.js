@@ -9,9 +9,13 @@ define(['jquery', 'Templates', 'IndicatorFilter'], function($, Templates, Indica
       return {
          handle: function(pulls) {
             indicatorContainer.empty();
-            indicatorFilter.filter(pulls, indicatorContainer, function(elem, filterName) {
-               // Render the 'indicator' template into the indicators element
-               return Templates.renderIntoContainer('global_indicator', {name: filterName}, elem);
+            indicatorFilter.filter(pulls, $('body'), function(elem, filterName) {
+               // elem will be the body tag. We'll ignore in in here.
+               // Render the 'global_indicator' template into the indicators element
+               return Templates.renderIntoContainer('global_indicator', {name: filterName}, indicatorContainer);
+               // Notice that we render using the indicatorContainer as the
+               // holder. That's because that's where autocreated indicators
+               // are supposed to be rendered into
             });
          }
       };
