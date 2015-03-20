@@ -1,8 +1,10 @@
-define(['jquery', 'appearanceUtils', 'spec/utils', 'spec/pageIndicators', 'spec/indicators', 'spec/columns'], function($, utils, specUtils, pageIndicators, indicators, columns) {
+define(['jquery', 'appearanceUtils', 'spec/utils', 'spec/pageIndicators', 'spec/indicators', 'spec/columns', 'spec/debugIndicators'], function($, utils, specUtils, pageIndicators, indicators, columns, debugIndicators) {
    return {
       navbar: "#restore-buttons",
       page_indicator_box: "#global-indicators",
       page_indicators: pageIndicators,
+      debug_indicator_box: "#debug-indicators",
+      debug_indicators: debugIndicators,
       // Global filters
       // where
       selector: function(pull) {

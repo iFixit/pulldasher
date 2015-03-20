@@ -12,6 +12,12 @@ define(['jquery', 'underscore', 'pullManager', 'PullFilter', 'ElementFilter', 'C
    // Handle page indicators
    pullManager.onUpdate(pageIndicatorHandler.handle);
 
+   if (spec.debug_indicators) {
+      var debugIndicatorHandler = new PageIndicatorHandler(spec.debug_indicators, $(spec.debug_indicator_box));
+
+      pullManager.onUpdate(debugIndicatorHandler.handle);
+   }
+
    _.each(spec.columns, function(columnSpec) {
       _.defaults(columnSpec, {
          navbar: spec.navbar
