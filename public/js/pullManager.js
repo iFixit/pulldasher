@@ -60,6 +60,10 @@ define(['underscore', 'socket', 'Pull'], function(_, socket, Pull) {
 
       getPulls: function() {
          return pulls;
+      },
+
+      trigger: function() {
+         update();
       }
    };
 });

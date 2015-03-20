@@ -1,4 +1,4 @@
-define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _, utils, aUtils) {
+define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager'], function($, _, utils, aUtils, _manager) {
    var summarize = function(pulls, node, type, extract) {
       // Clean out indicator node. This prevents re-renders from resulting in
       // junk.
@@ -95,6 +95,13 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _,
          summarize(pulls, node, "QA", function(pull) {
             return pull.status.allQA;
          });
+      },
+      rerender: function(pulls, node) {
+         var button = $('<button>Rerender</button>');
+         button.on('click', function() {
+            _manager.trigger();
+         });
+         node.append(button);
       }
    };
 });
