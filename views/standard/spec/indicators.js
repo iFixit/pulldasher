@@ -176,6 +176,9 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          var required = pull.status.qa_req;
          signatureStatus(pull, node, 'QA', required, pull.qa_signatures);
       },
+      branch_name: function branch_name(pull, node) {
+         node.tooltip({"title": pull.head.ref});
+      },
       build_status: function status(pull, node) {
          if (pull.status.commit_status) {
             var commit_status = pull.status.commit_status.data;
