@@ -1,4 +1,4 @@
-define(['jquery', 'underscore', 'socket'], function($, _, socket) {
+define(['jquery', 'underscore', 'socket', 'debug'], function($, _, socket, debug) {
    var events = {
       connect:          'connecting',
       connecting:       'connecting',
@@ -12,7 +12,7 @@ define(['jquery', 'underscore', 'socket'], function($, _, socket) {
    };
    _.each(events, function(newState, event) {
       socket.on(event, function() {
-         console.log(new Date() + ": " + event);
+         debug.log(new Date() + ": " + event);
          updateState(newState);
       });
    });

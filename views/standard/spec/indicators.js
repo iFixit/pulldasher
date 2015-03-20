@@ -1,4 +1,5 @@
-define(['jquery', 'appearanceUtils'], function($, utils) {
+define(['jquery', 'appearanceUtils', 'debug'], function($, utils, debug) {
+   var log = debug('indicators');
    var signatureStatus = function(pull, node, type, required, signatures) {
          var signatureMark = function() {
             var check = $('<span>');
@@ -92,6 +93,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             // Handle no-signature situation
             node.append(signatureValidMark());
             node.tooltip({'title': 'No ' + type + ' required!'});
+            log("required === 0 on pull " + pull.number);
          } else {
             // container is a div that won't be inserted; it's just used to get the
             // HTML for the tooltip
@@ -106,6 +108,8 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             var i = 0;
             var signature;
 
+            log(tallies);
+            log(currentSignatures);
             if (currentSignatures.length > 0) {
                tipper.append(signatureSeparator('Signoff on'));
 
@@ -121,14 +125,18 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                   tallies += 1;
                });
             }
+            log(tallies);
 
+            log(oldSignatures);
             if (oldSignatures.length > 0) {
                tipper.append(signatureSeparator('Prev signoff on'));
 
+               log("Adding prev signoff section");
                if (tallies < required && userSignature && !userSignature.data.active) {
                   node.append(mySignatureInvalidatedMark());
                   tallies += 1;
                }
+               log(tallies);
 
                oldSignatures.forEach(function(signature) {
                   if (utils.mySig(signature)) {
@@ -143,6 +151,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                      }
                   }
                });
+               log(tallies);
             }
 
             if (tallies === 0) {
