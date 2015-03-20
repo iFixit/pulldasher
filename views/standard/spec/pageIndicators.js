@@ -102,6 +102,10 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager'],
             _manager.trigger();
          });
          node.append(button);
+      },
+      rendertime: function(pulls, node) {
+         node.text(new Date());
+         console.log("Last render: " + new Date());
       }
    };
 });
