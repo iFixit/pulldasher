@@ -93,7 +93,7 @@ define(['jquery', 'appearanceUtils', 'debug'], function($, utils, debug) {
             // Handle no-signature situation
             node.append(signatureValidMark());
             node.tooltip({'title': 'No ' + type + ' required!'});
-            log("required === 0 on pull " + pull.number);
+            log("required === 0");
          } else {
             // container is a div that won't be inserted; it's just used to get the
             // HTML for the tooltip
@@ -108,8 +108,8 @@ define(['jquery', 'appearanceUtils', 'debug'], function($, utils, debug) {
             var i = 0;
             var signature;
 
-            log(tallies);
-            log(currentSignatures);
+            log("Tallies so far (should be 0):", tallies);
+            log("Currently-valid signatures:", currentSignatures);
             if (currentSignatures.length > 0) {
                tipper.append(signatureSeparator('Signoff on'));
 
@@ -125,9 +125,9 @@ define(['jquery', 'appearanceUtils', 'debug'], function($, utils, debug) {
                   tallies += 1;
                });
             }
-            log(tallies);
+            log("Tallies so far:", tallies);
 
-            log(oldSignatures);
+            log("Previously-valid signatures:", oldSignatures);
             if (oldSignatures.length > 0) {
                tipper.append(signatureSeparator('Prev signoff on'));
 
@@ -136,7 +136,7 @@ define(['jquery', 'appearanceUtils', 'debug'], function($, utils, debug) {
                   node.append(mySignatureInvalidatedMark());
                   tallies += 1;
                }
-               log(tallies);
+               log("Tallies so far:", tallies);
 
                oldSignatures.forEach(function(signature) {
                   if (utils.mySig(signature)) {
@@ -151,7 +151,7 @@ define(['jquery', 'appearanceUtils', 'debug'], function($, utils, debug) {
                      }
                   }
                });
-               log(tallies);
+               log("Tallies so far:", tallies);
             }
 
             if (tallies === 0) {
@@ -177,11 +177,13 @@ define(['jquery', 'appearanceUtils', 'debug'], function($, utils, debug) {
    };
    return {
       cr_remaining: function cr_remaining(pull, node) {
+         log("Working on CR on pull #" + pull.number);
          var required = pull.status.cr_req;
          signatureStatus(pull, node, 'CR', required, pull.cr_signatures);
       },
 
       qa_remaining: function qa_remaining(pull, node) {
+         log("Working on QA on pull #" + pull.number);
          var required = pull.status.qa_req;
          signatureStatus(pull, node, 'QA', required, pull.qa_signatures);
       },
