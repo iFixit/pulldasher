@@ -2,7 +2,9 @@ define(['socketjs'], function(io) {
    var socket = io.connect('/');
 
    socket.on('unauthenticated', function() {
-      window.location.reload();
+      if (!App.airplane) {
+         window.location.reload();
+      }
    });
 
    socket.on('connect', function() {

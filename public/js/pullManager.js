@@ -7,16 +7,20 @@ define(['underscore', 'socket', 'Pull'], function(_, socket, Pull) {
    var throttledUpdate = _.throttle(update, 500);
 
    socket.on('allPulls', function(pulls) {
-      removeAll();
-      updatePulls(pulls);
+      if (!App.airplane) {
+         removeAll();
+         updatePulls(pulls);
 
-      update();
+         update();
+      }
    });
 
    socket.on('pullChange', function(pull) {
-      updatePull(pull);
+      if (!App.airplane) {
+         updatePull(pull);
 
-      throttledUpdate();
+         throttledUpdate();
+      }
    });
 
    function update() {
