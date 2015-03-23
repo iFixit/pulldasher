@@ -1,4 +1,4 @@
-define(['underscore', 'appearanceUtils'], function(_, utils) {
+define(['underscore', 'appearanceUtils', 'socket'], function(_, utils, socket) {
    var constructor = function(data) {
       _.extend(this, data);
 
@@ -112,6 +112,10 @@ define(['underscore', 'appearanceUtils'], function(_, utils) {
 
       build_succeeded: function() {
          return this.build_status() === 'success';
+      },
+
+      refresh: function() {
+         socket.emit('refresh', this.number);
       }
    });
 

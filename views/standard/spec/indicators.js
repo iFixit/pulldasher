@@ -244,6 +244,9 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             label.text(title);
             node.append(label);
          });
+      },
+      refresh: function(pull, node) {
+         node.on('click', pull.refresh.bind(pull));
       }
    };
 });
