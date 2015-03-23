@@ -1,12 +1,11 @@
-<a target="_blank" href="<%- pull.url() %>" class="list-group-item pull">
+<a target="_blank" href="<%- pull.url() %>" class="list-group-item pull" data-name="<%- pull.head.ref  %>">
    <div class="build_status"></div>
    <div class="width-limit">
-      <span class="branch_name glyphicon glyphicon-copy" data-name="<%- pull.head.ref  %>"></span>
-      <span>
+      <div>
          <span class="user_icon"></span>
          <p class="pull-title"><span class="pull-number"><%- pull.number %>:</span> <%- pull.title %>
          </p>
-      </span>
+      </div>
       <div class="clearfix status-row">
          <div class="cr_remaining status-col status">
             <span class="status-type">CR</span>

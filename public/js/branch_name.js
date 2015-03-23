@@ -1,7 +1,9 @@
 define(['jquery'], function($) {
-   $(document).on('click', '.branch_name', function() {
+   var clipboard = $('<textarea>').attr('id', 'branch_name_clipboard');
+   $('body').append(clipboard);
+
+   $(document).on('mouseenter', '.pull', function() {
       var branch_name = $(this).attr('data-name');
-      prompt("Copy this dialog:", branch_name);
-      return false;
+      clipboard.val(branch_name).focus().select();
    });
 });
