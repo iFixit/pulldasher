@@ -13,7 +13,7 @@ define(['jquery', 'appearanceUtils', 'spec/utils', 'spec/pageIndicators', 'spec/
          return pull.created_at;
       },
       adjust: function(pull, node) {
-         titleElem = node.find('.pull-title');
+         var titleElem = node.find('.pull-title');
          utils.addTooltip(titleElem, pull.author());
       },
       // Functions to stick status information in indicators at the bottom of each pull

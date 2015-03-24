@@ -1,4 +1,4 @@
-define(['jquery', 'appearanceUtils'], function($, utils) {
+define(['jquery', 'underscore', 'appearanceUtils'], function($, _, utils) {
    var signatureStatus = function(pull, node, type, required, signatures) {
          var signatureMark = function() {
             var check = $('<span>');
@@ -16,7 +16,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             var check = signatureMark();
             check.addClass('signature-valid-mine');
             return check;
-         }
+         };
 
          var signatureInvalidatedMark = function() {
             var check = signatureMark();
@@ -83,10 +83,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                cell.addClass('signature-divider');
                divider.append(cell);
                return divider;
-         }
-
-         var tallies = 0;
-         var check;
+         };
 
          if (required === 0) {
             // Handle no-signature situation
@@ -99,12 +96,11 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             var container = $('<div>');
             container.append(tipper);
 
-            currentSignatures = signatures.current;
-            oldSignatures = signatures.old;
-            userSignature = signatures.user;
+            var currentSignatures = signatures.current;
+            var oldSignatures = signatures.old;
+            var userSignature = signatures.user;
 
-            var i = 0;
-            var signature;
+            var tallies = 0;
 
             if (currentSignatures.length > 0) {
                tipper.append(signatureSeparator('Signoff on'));
@@ -149,7 +145,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                // There are no signatures of any type yet
                container.empty();
                var message = $('<span>');
-               message.text('No signoffs yet!')
+               message.text('No signoffs yet!');
                container.append(message);
             }
 
@@ -181,7 +177,6 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             var commit_status = pull.status.commit_status.data;
             var title = commit_status.description;
             var url   = commit_status.target_url;
-            var state = commit_status.state;
 
             var corner = $('<div class="triangle"></div>');
 
