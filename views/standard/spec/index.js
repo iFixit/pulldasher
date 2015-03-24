@@ -1,4 +1,5 @@
 define(['jquery', 'appearanceUtils', 'spec/utils', 'spec/pageIndicators', 'spec/indicators', 'spec/columns'], function($, utils, specUtils, pageIndicators, indicators, columns) {
+   var clipboard = $('#branch_name_clipboard');
    return {
       navbar: "#restore-buttons",
       page_indicator_box: "#global-indicators",
@@ -15,6 +16,10 @@ define(['jquery', 'appearanceUtils', 'spec/utils', 'spec/pageIndicators', 'spec/
       adjust: function(pull, node) {
          titleElem = node.find('.pull-title');
          utils.addTooltip(titleElem, pull.author());
+
+         node.on('mouseenter', function() {
+            clipboard.val(pull.head.ref).focus().select();
+         });
       },
       // Functions to stick status information in indicators at the bottom of each pull
       indicators: indicators,
