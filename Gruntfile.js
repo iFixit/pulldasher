@@ -24,7 +24,7 @@ module.exports = function(grunt) {
         curly: true,
         eqeqeq: true,
         immed: true,
-        latedef: true,
+        latedef: 'nofunc', // Allow function definitions after their use.
         newcap: true,
         noarg: true,
         sub: true,
@@ -33,15 +33,18 @@ module.exports = function(grunt) {
         boss: true,
         eqnull: true,
         browser: true,
+        unused: 'vars',
         globals: {
-          jQuery: true
+          define: false,
+          App: false,
+          console: false
         }
       },
       gruntfile: {
         src: 'Gruntfile.js'
       },
       lib_test: {
-        src: ['public/**/*.js', 'views/current/spec/**/*.js']
+        src: ['public/**/*.js', '!public/js/debug.js', 'views/current/spec/**/*.js']
       }
     },
     less: {
@@ -77,6 +80,6 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-watch');
 
   // Default task.
-  grunt.registerTask('default', ['less']);
+  grunt.registerTask('default', ['jshint:lib_test', 'less']);
 
 };

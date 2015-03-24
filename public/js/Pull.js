@@ -32,7 +32,7 @@ define(['underscore', 'appearanceUtils'], function(_, utils) {
          });
 
          return groups;
-      }
+      };
 
       this.cr_signatures = computeSignatures(this.status.allCR);
       this.qa_signatures = computeSignatures(this.status.allQA);
@@ -69,8 +69,8 @@ define(['underscore', 'appearanceUtils'], function(_, utils) {
        * on which both the "deploy_blocked" and "Ready" columns are based.
        */
       ready: function() {
-         return !this.dev_blocked() && this.qa_done()
-         && this.cr_done() && this.build_succeeded();
+         return !this.dev_blocked() && this.qa_done() &&
+          this.cr_done() && this.build_succeeded();
       },
 
       author: function() {
@@ -107,7 +107,7 @@ define(['underscore', 'appearanceUtils'], function(_, utils) {
 
       build_failed: function() {
          var status = this.build_status();
-         return status == 'failure' || status == 'error';
+         return status === 'failure' || status === 'error';
       },
 
       build_succeeded: function() {

@@ -179,7 +179,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                score += 1000;
             }
 
-            var label = pull.getLabel('QAing')
+            var label = pull.getLabel('QAing');
 
             if (label) {
                if (label.user === App.user) {
@@ -208,12 +208,14 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          },
          indicators: {
             qa_in_progress: function qa_in_progress(pull, node) {
+               var label;
                if (label = pull.getLabel('QAing')) {
                   var labelElem = $('<span>' + label.title + '</span>');
-                  if (label.user == App.user) {
-                     var labelclass = 'label-success';
+                  var labelclass;
+                  if (label.user === App.user) {
+                     labelclass = 'label-success';
                   } else {
-                     var labelclass = 'label-warning';
+                     labelclass = 'label-warning';
                   }
                   labelElem.addClass('label ' + labelclass);
                   labelElem = utils.addActionTooltip(labelElem, '',
