@@ -1,41 +1,6 @@
 define(['underscore', 'appearanceUtils'], function(_, utils) {
    var constructor = function(data) {
-      _.extend(this, data);
-
-      var computeSignatures = function(signatures) {
-         var groups = {};
-         var users = {};
-
-         // Contains all signatures that are active
-         groups.current = [];
-         // Contains all signatures that are inactive from users without signatures in current
-         groups.old = [];
-         // Contains the most recent signature from the current user
-         groups.user = null;
-
-         signatures.forEach(function(signature) {
-            if (signature.data.active) {
-               groups.current.push(signature);
-               users[signature.data.user.id] = true;
-
-               if (utils.mySig(signature)) {
-                  groups.user = signature;
-               }
-            } else if (!users[signature.data.user.id]) {
-               groups.old.push(signature);
-               users[signature.data.user.id] = true;
-
-               if (utils.mySig(signature)) {
-                  groups.user = signature;
-               }
-            }
-         });
-
-         return groups;
-      };
-
-      this.cr_signatures = computeSignatures(this.status.allCR);
-      this.qa_signatures = computeSignatures(this.status.allQA);
+      this.update(data);
    };
 
    _.extend(constructor.prototype, {
@@ -44,7 +9,42 @@ define(['underscore', 'appearanceUtils'], function(_, utils) {
       },
 
       update: function(data) {
+         var computeSignatures = function(signatures) {
+            var groups = {};
+            var users = {};
+
+            // Contains all signatures that are active
+            groups.current = [];
+            // Contains all signatures that are inactive from users without signatures in current
+            groups.old = [];
+            // Contains the most recent signature from the current user
+            groups.user = null;
+
+            signatures.forEach(function(signature) {
+               if (signature.data.active) {
+                  groups.current.push(signature);
+                  users[signature.data.user.id] = true;
+
+                  if (utils.mySig(signature)) {
+                     groups.user = signature;
+                  }
+               } else if (!users[signature.data.user.id]) {
+                  groups.old.push(signature);
+                  users[signature.data.user.id] = true;
+
+                  if (utils.mySig(signature)) {
+                     groups.user = signature;
+                  }
+               }
+            });
+
+            return groups;
+         };
+
          _.extend(this, data);
+
+         this.cr_signatures = computeSignatures(this.status.allCR);
+         this.qa_signatures = computeSignatures(this.status.allQA);
       },
 
       dev_blocked: function() {
