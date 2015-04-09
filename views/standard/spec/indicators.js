@@ -193,7 +193,6 @@ define(['jquery', 'underscore', 'appearanceUtils'], function($, _, utils) {
                icon.addClass('glyphicon-repeat');
                break;
                case 'success':
-               corner.addClass('success-triangle');
                icon.addClass('glyphicon-ok');
                break;
                case 'error':
