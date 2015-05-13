@@ -230,6 +230,23 @@ define(['jquery', 'underscore', 'appearanceUtils'], function($, _, utils) {
             node.append(link);
          }
       },
+      milestone_label: function milestone_label(pull, node){
+         var milestone = pull.milestone;
+
+         if (milestone.title) {
+            var label = $('<span class="label label-info"></span>');
+            var label_text = milestone.title;
+
+            // If there's a due date, show that instead of the milestone title.
+            if (milestone.due_on) {
+               var date = new Date(milestone.due_on);
+               label_text = (date.getMonth() + 1) + '/' + date.getDate();
+            }
+
+            label.text(label_text);
+            node.append(label);
+         }
+      },
       custom_label: function custom_label(pull, node) {
          var titles = pull.getLabelTitlesLike(/pulldasher-(.*)/);
 
