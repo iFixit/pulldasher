@@ -241,6 +241,7 @@ define(['jquery', 'underscore', 'appearanceUtils'], function($, _, utils) {
             if (milestone.due_on) {
                var date = new Date(milestone.due_on);
                label_text = (date.getMonth() + 1) + '/' + date.getDate();
+               utils.addTooltip(label, milestone.title);
             }
 
             label.text(label_text);
