@@ -233,6 +233,8 @@ define(['jquery', 'underscore', 'appearanceUtils'], function($, _, utils) {
       milestone_label: function milestone_label(pull, node){
          var milestone = pull.milestone;
 
+         if (!milestone) return;
+
          if (milestone.title) {
             var label = $('<span class="label label-info"></span>');
             var label_text = milestone.title;
