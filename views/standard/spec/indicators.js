@@ -181,7 +181,7 @@ define(['jquery', 'underscore', 'appearanceUtils'], function($, _, utils) {
             var corner = $('<div class="triangle"></div>');
 
             var link = $('<a target="_blank" class="build_status_link" data-toggle="tooltip" data-placement="top" title="' + title + '" href="' + url + '"></a>');
-            var icon = $('<span class="status-icon glyphicon"></span>');
+            var icon = $('<span>').addClass('status-icon glyphicon');
 
             node.append(link);
             link.append(corner);
@@ -217,10 +217,8 @@ define(['jquery', 'underscore', 'appearanceUtils'], function($, _, utils) {
          if (pull.deploy_blocked()) {
             var current_block = pull.status.deploy_block.slice(-1)[0].data;
             var date = new Date(current_block.created_at);
-
             var link = utils.getCommentLink(pull, current_block);
-
-            var label = $('<span class="label label-danger"></span>');
+            var label = $('<span>').addClass('label label-danger');
 
             label.text(utils.formatDate(date));
             link.append(label);
@@ -236,7 +234,7 @@ define(['jquery', 'underscore', 'appearanceUtils'], function($, _, utils) {
          if (!milestone) return;
 
          if (milestone.title) {
-            var label = $('<span class="label label-info"></span>');
+            var label = $('<span>').addClass('label label-info');
             var label_text = milestone.title;
 
             // If there's a due date, show that instead of the milestone title.
@@ -254,7 +252,7 @@ define(['jquery', 'underscore', 'appearanceUtils'], function($, _, utils) {
          var titles = pull.getLabelTitlesLike(/pulldasher-(.*)/);
 
          _.each(titles, function(title) {
-            var label = $('<span class="label label-primary"></span>');
+            var label = $('<span>').addClass('label label-primary');
             label.text(title);
             node.append(label);
          });
