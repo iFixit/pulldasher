@@ -13,6 +13,8 @@ function DBPull(pullData) {
       date_updated: utils.toUnixTime(pullData.updated_at),
       date_closed: utils.toUnixTime(pullData.closed_at),
       date_merged: utils.toUnixTime(pullData.merged_at),
+      milestone_title: pullData.milestone.title,
+      milestone_due_on: utils.toUnixTime(pullData.milestone.due_on),
       head_branch: pullData.head.ref,
       head_sha: pullData.head.sha,
       repo_owner: pullData.head.repo.owner.login,

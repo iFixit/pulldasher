@@ -12,6 +12,11 @@ function Pull(data, signatures, comments, commitStatus, labels) {
       updated_at: new Date(data.updated_at),
       closed_at: new Date(data.closed_at),
       merged_at: new Date(data.merged_at),
+      milestone: {
+         title: data.milestone && data.milestone.title,
+         due_on: data.milestone && data.milestone.due_on ?
+          new Date(data.milestone.due_on) : null,
+      },
       head: {
          ref: data.head.ref,
          sha: data.head.sha,
@@ -144,6 +149,10 @@ Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
       updated_at: utils.fromUnixTime(data.date_updated),
       closed_at: utils.fromUnixTime(data.date_closed),
       merged_at: utils.fromUnixTime(data.date_merged),
+      milestone: {
+         title: data.milestone_title,
+         due_on: utils.fromUnixTime(data.milestone_due_on)
+      },
       head: {
          ref: data.head_branch,
          sha: data.head_sha,
