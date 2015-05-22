@@ -90,7 +90,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
                var link = utils.getCommentLink(pull, current_block);
 
-               var label = $('<span class="label label-default"></span>');
+               var label = $('<span>').addClass('label label-default');
 
                label.text(utils.formatDate(date));
                link.append(label);
