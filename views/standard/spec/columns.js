@@ -45,6 +45,23 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                utils.hideIfEmpty(container, blob, '.pull');
             }
          },
+         indicators: {
+            deploy_block: function deploy_block(pull, node) {
+               if (pull.deploy_blocked()) {
+                  var current_block = pull.status.deploy_block.slice(-1)[0].data;
+                  var date = new Date(current_block.created_at);
+                  var link = utils.getCommentLink(pull, current_block);
+                  var label = $('<span>').addClass('label label-danger');
+
+                  label.text(utils.formatDate(date));
+                  link.append(label);
+                  utils.addActionTooltip(link, "deploy_block'd",
+                  current_block.created_at, current_block.user.login);
+
+                  node.append(link);
+               }
+            },
+         },
          shrinkToButton: true
       },
       {
