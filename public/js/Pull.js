@@ -1,5 +1,4 @@
-define(['underscore', 'appearanceUtils', 'debug'], function(_, utils, debug) {
-   var log = debug('Pull');
+define(['underscore', 'appearanceUtils'], function(_, utils) {
    var constructor = function(data) {
       this.update(data);
    };
