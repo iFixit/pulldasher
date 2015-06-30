@@ -12,7 +12,7 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 
       },
 
       rendertime: function(pulls, node) {
-         node.text((new Date()).toLocaleDateString('en-us', {'month': 'short', 'day': 'numeric', 'hour': 'numeric', 'minute': 'numeric', 'second': 'numeric'}));
+         node.text((new Date()).toLocaleDateString('en-us', {'hour': 'numeric', 'minute': 'numeric', 'second': 'numeric'}));
          node.attr('title', 'Date of last rerender');
          node.tooltip({'placement': 'auto top'});
          console.log("Last render: " + new Date());
