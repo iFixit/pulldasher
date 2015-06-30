@@ -12,7 +12,7 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _,
 
       var date = new Date();
       var difference = 7 * 24 * 60 * 60 * 1000; // Two weeks in ms
-      var counts = _.chain(pulls)
+      _.chain(pulls)
       .map(extract)
       .flatten()
       // We now have a list of signatures. Now to convert them to usernames

@@ -1,4 +1,4 @@
-define(['jquery', 'appearanceUtils', 'debug'], function($, utils, debug) {
+define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, utils, debug) {
    var log = debug('indicators');
    var signatureStatus = function(pull, node, type, required, signatures) {
          var signatureMark = function() {
@@ -17,7 +17,7 @@ define(['jquery', 'appearanceUtils', 'debug'], function($, utils, debug) {
             var check = signatureMark();
             check.addClass('signature-valid-mine');
             return check;
-         }
+         };
 
          var signatureInvalidatedMark = function() {
             var check = signatureMark();
@@ -84,10 +84,7 @@ define(['jquery', 'appearanceUtils', 'debug'], function($, utils, debug) {
                cell.addClass('signature-divider');
                divider.append(cell);
                return divider;
-         }
-
-         var tallies = 0;
-         var check;
+         };
 
          if (required === 0) {
             // Handle no-signature situation
@@ -101,12 +98,11 @@ define(['jquery', 'appearanceUtils', 'debug'], function($, utils, debug) {
             var container = $('<div>');
             container.append(tipper);
 
-            currentSignatures = signatures.current;
-            oldSignatures = signatures.old;
-            userSignature = signatures.user;
+            var currentSignatures = signatures.current;
+            var oldSignatures = signatures.old;
+            var userSignature = signatures.user;
 
-            var i = 0;
-            var signature;
+            var tallies = 0;
 
             log("Tallies so far (should be 0):", tallies);
             log("Currently-valid signatures:", currentSignatures);
@@ -158,7 +154,7 @@ define(['jquery', 'appearanceUtils', 'debug'], function($, utils, debug) {
                // There are no signatures of any type yet
                container.empty();
                var message = $('<span>');
-               message.text('No signoffs yet!')
+               message.text('No signoffs yet!');
                container.append(message);
             }
 
@@ -192,12 +188,11 @@ define(['jquery', 'appearanceUtils', 'debug'], function($, utils, debug) {
             var commit_status = pull.status.commit_status.data;
             var title = commit_status.description;
             var url   = commit_status.target_url;
-            var state = commit_status.state;
 
             var corner = $('<div class="triangle"></div>');
 
             var link = $('<a target="_blank" class="build_status_link" data-toggle="tooltip" data-placement="top" title="' + title + '" href="' + url + '"></a>');
-            var icon = $('<span class="status-icon glyphicon"></span>');
+            var icon = $('<span>').addClass('status-icon glyphicon');
 
             node.append(link);
             link.append(corner);
@@ -209,7 +204,6 @@ define(['jquery', 'appearanceUtils', 'debug'], function($, utils, debug) {
                icon.addClass('glyphicon-repeat');
                break;
                case 'success':
-               corner.addClass('success-triangle');
                icon.addClass('glyphicon-ok');
                break;
                case 'error':
@@ -230,28 +224,33 @@ define(['jquery', 'appearanceUtils', 'debug'], function($, utils, debug) {
             node.append('<span class="glyphicon glyphicon-user"></span>');
          }
       },
-      deploy_block: function deploy_block(pull, node) {
-         if (pull.deploy_blocked()) {
-            var current_block = pull.status.deploy_block.slice(-1)[0].data;
-            var date = new Date(current_block.created_at);
+      milestone_label: function milestone_label(pull, node){
+         var milestone = pull.milestone;
 
-            var link = utils.getCommentLink(pull, current_block);
+         if (!milestone) {
+            return;
+         }
 
-            var label = $('<span class="label label-danger"></span>');
+         if (milestone.title) {
+            var label = $('<span>').addClass('label label-info');
+            var label_text = milestone.title;
 
-            label.text(utils.formatDate(date));
-            link.append(label);
-            utils.addActionTooltip(link, "deploy_block'd",
-            current_block.created_at, current_block.user.login);
+            // If there's a due date, show that instead of the milestone title.
+            if (milestone.due_on) {
+               var date = new Date(milestone.due_on);
+               label_text = (date.getMonth() + 1) + '/' + date.getDate();
+               utils.addTooltip(label, milestone.title);
+            }
 
-            node.append(link);
+            label.text(label_text);
+            node.append(label);
          }
       },
       custom_label: function custom_label(pull, node) {
          var titles = pull.getLabelTitlesLike(/pulldasher-(.*)/);
 
          _.each(titles, function(title) {
-            var label = $('<span class="label label-primary"></span>');
+            var label = $('<span>').addClass('label label-primary');
             label.text(title);
             node.append(label);
          });
