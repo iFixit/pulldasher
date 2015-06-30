@@ -1,42 +1,7 @@
 define(['underscore', 'appearanceUtils', 'debug'], function(_, utils, debug) {
    var log = debug('Pull');
    var constructor = function(data) {
-      _.extend(this, data);
-
-      var computeSignatures = function(signatures) {
-         var groups = {};
-         var users = {};
-
-         // Contains all signatures that are active
-         groups.current = [];
-         // Contains all signatures that are inactive from users without signatures in current
-         groups.old = [];
-         // Contains the most recent signature from the current user
-         groups.user = null;
-
-         signatures.forEach(function(signature) {
-            if (signature.data.active) {
-               groups.current.push(signature);
-               users[signature.data.user.id] = true;
-
-               if (utils.mySig(signature)) {
-                  groups.user = signature;
-               }
-            } else if (!users[signature.data.user.id]) {
-               groups.old.push(signature);
-               users[signature.data.user.id] = true;
-
-               if (utils.mySig(signature)) {
-                  groups.user = signature;
-               }
-            }
-         });
-
-         return groups;
-      }
-
-      this.cr_signatures = computeSignatures(this.status.allCR);
-      this.qa_signatures = computeSignatures(this.status.allQA);
+      this.update(data);
    };
 
    _.extend(constructor.prototype, {
@@ -45,7 +10,42 @@ define(['underscore', 'appearanceUtils', 'debug'], function(_, utils, debug) {
       },
 
       update: function(data) {
+         var computeSignatures = function(signatures) {
+            var groups = {};
+            var users = {};
+
+            // Contains all signatures that are active
+            groups.current = [];
+            // Contains all signatures that are inactive from users without signatures in current
+            groups.old = [];
+            // Contains the most recent signature from the current user
+            groups.user = null;
+
+            signatures.forEach(function(signature) {
+               if (signature.data.active) {
+                  groups.current.push(signature);
+                  users[signature.data.user.id] = true;
+
+                  if (utils.mySig(signature)) {
+                     groups.user = signature;
+                  }
+               } else if (!users[signature.data.user.id]) {
+                  groups.old.push(signature);
+                  users[signature.data.user.id] = true;
+
+                  if (utils.mySig(signature)) {
+                     groups.user = signature;
+                  }
+               }
+            });
+
+            return groups;
+         };
+
          _.extend(this, data);
+
+         this.cr_signatures = computeSignatures(this.status.allCR);
+         this.qa_signatures = computeSignatures(this.status.allQA);
       },
 
       dev_blocked: function() {
@@ -70,8 +70,8 @@ define(['underscore', 'appearanceUtils', 'debug'], function(_, utils, debug) {
        * on which both the "deploy_blocked" and "Ready" columns are based.
        */
       ready: function() {
-         return !this.dev_blocked() && this.qa_done()
-         && this.cr_done() && this.build_succeeded();
+         return !this.dev_blocked() && this.qa_done() &&
+          this.cr_done() && this.build_succeeded();
       },
 
       author: function() {
@@ -108,7 +108,7 @@ define(['underscore', 'appearanceUtils', 'debug'], function(_, utils, debug) {
 
       build_failed: function() {
          var status = this.build_status();
-         return status == 'failure' || status == 'error';
+         return status === 'failure' || status === 'error';
       },
 
       build_succeeded: function() {

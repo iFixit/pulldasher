@@ -45,6 +45,23 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                utils.hideIfEmpty(container, blob, '.pull');
             }
          },
+         indicators: {
+            deploy_block: function deploy_block(pull, node) {
+               if (pull.deploy_blocked()) {
+                  var current_block = pull.status.deploy_block.slice(-1)[0].data;
+                  var date = new Date(current_block.created_at);
+                  var link = utils.getCommentLink(pull, current_block);
+                  var label = $('<span>').addClass('label label-danger');
+
+                  label.text(utils.formatDate(date));
+                  link.append(label);
+                  utils.addActionTooltip(link, "deploy_block'd",
+                  current_block.created_at, current_block.user.login);
+
+                  node.append(link);
+               }
+            },
+         },
          shrinkToButton: true
       },
       {
@@ -90,7 +107,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
                var link = utils.getCommentLink(pull, current_block);
 
-               var label = $('<span class="label label-default"></span>');
+               var label = $('<span>').addClass('label label-default');
 
                label.text(utils.formatDate(date));
                link.append(label);
@@ -179,7 +196,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                score += 1000;
             }
 
-            var label = pull.getLabel('QAing')
+            var label = pull.getLabel('QAing');
 
             if (label) {
                if (label.user === App.user) {
@@ -208,12 +225,14 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          },
          indicators: {
             qa_in_progress: function qa_in_progress(pull, node) {
+               var label;
                if (label = pull.getLabel('QAing')) {
                   var labelElem = $('<span>' + label.title + '</span>');
-                  if (label.user == App.user) {
-                     var labelclass = 'label-success';
+                  var labelclass;
+                  if (label.user === App.user) {
+                     labelclass = 'label-success';
                   } else {
-                     var labelclass = 'label-warning';
+                     labelclass = 'label-warning';
                   }
                   labelElem.addClass('label ' + labelclass);
                   labelElem = utils.addActionTooltip(labelElem, '',
