@@ -36,12 +36,30 @@ module.exports = {
       }
    ],
    tags: [
-      'dev_block',
-      'un_dev_block',
-      'deploy_block',
-      'un_deploy_block',
-      'QA',
-      'CR'
+      {
+         name: 'dev_block',
+         regex: /\bdev_block :[^\n:]+:/i
+      },
+      {
+         name: 'un_dev_block',
+         regex: /\bun_dev_block :[^\n:]+:/i
+      },
+      {
+         name: 'deploy_block',
+         regex: /\bdeploy_block :[^\n:]+:/i
+      },
+      {
+         name: 'un_deploy_block',
+         regex: /\bun_deploy_block :[^\n:]+:/i
+      },
+      {
+         name: 'QA',
+         regex: /\bQA :[^\n:]+:/i
+      },
+      {
+         name: 'CR',
+         regex: /\bCR :[^\n:]+:/i
+      }
    ],
    pidFile: "/var/run/pulldasher.pid",
    debug: true,
