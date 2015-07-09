@@ -32,7 +32,7 @@ Signature.parseComment = function parseComment(comment, pullNumber) {
                id:    comment.user.id,
                login: comment.user.login
             },
-            type: tag,
+            type: tag.name,
             created_at: comment.created_at,
             // `active` is unknown until all the signatures have been created
             // and parsed. See Pull.prototype.updateActiveSignatures()
@@ -75,13 +75,6 @@ Signature.compare = function(a, b) {
 
 module.exports = Signature;
 
-var tagRegExps = {};
-
-function hasTag(body, tagName) {
-   if (typeof tagRegExps[tagName] === 'undefined') {
-      // e.g. "dev_block :+1:" or " CR :asdf:."
-      tagRegExps[tagName]
-         = new RegExp("\\b" + tagName + " :[^\n:]+:", 'i');
-   }
-   return tagRegExps[tagName].test(body);
+function hasTag(body, tag) {
+   return tag.regex.test(body);
 }
