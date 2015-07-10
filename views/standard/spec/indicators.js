@@ -246,7 +246,10 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          });
       },
       refresh: function(pull, node) {
-         node.on('click', pull.refresh.bind(pull));
+         node.on('click', function(event) {
+            event.preventDefault();
+            pull.refresh();
+         });
       }
    };
 });
