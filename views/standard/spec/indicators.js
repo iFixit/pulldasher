@@ -1,4 +1,5 @@
-define(['jquery', 'underscore', 'appearanceUtils'], function($, _, utils) {
+define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, utils, debug) {
+   var log = debug('indicators');
    var signatureStatus = function(pull, node, type, required, signatures) {
          var signatureMark = function() {
             var check = $('<span>');
@@ -89,6 +90,7 @@ define(['jquery', 'underscore', 'appearanceUtils'], function($, _, utils) {
             // Handle no-signature situation
             node.append(signatureValidMark());
             node.tooltip({'title': 'No ' + type + ' required!'});
+            log("required === 0");
          } else {
             // container is a div that won't be inserted; it's just used to get the
             // HTML for the tooltip
@@ -102,6 +104,8 @@ define(['jquery', 'underscore', 'appearanceUtils'], function($, _, utils) {
 
             var tallies = 0;
 
+            log("Tallies so far (should be 0):", tallies);
+            log("Currently-valid signatures:", currentSignatures);
             if (currentSignatures.length > 0) {
                tipper.append(signatureSeparator('Signoff on'));
 
@@ -117,14 +121,18 @@ define(['jquery', 'underscore', 'appearanceUtils'], function($, _, utils) {
                   tallies += 1;
                });
             }
+            log("Tallies so far:", tallies);
 
+            log("Previously-valid signatures:", oldSignatures);
             if (oldSignatures.length > 0) {
                tipper.append(signatureSeparator('Prev signoff on'));
 
+               log("Adding prev signoff section");
                if (tallies < required && userSignature && !userSignature.data.active) {
                   node.append(mySignatureInvalidatedMark());
                   tallies += 1;
                }
+               log("Tallies so far:", tallies);
 
                oldSignatures.forEach(function(signature) {
                   if (utils.mySig(signature)) {
@@ -139,6 +147,7 @@ define(['jquery', 'underscore', 'appearanceUtils'], function($, _, utils) {
                      }
                   }
                });
+               log("Tallies so far:", tallies);
             }
 
             if (tallies === 0) {
@@ -164,11 +173,13 @@ define(['jquery', 'underscore', 'appearanceUtils'], function($, _, utils) {
    };
    return {
       cr_remaining: function cr_remaining(pull, node) {
+         log("Working on CR on pull #" + pull.number);
          var required = pull.status.cr_req;
          signatureStatus(pull, node, 'CR', required, pull.cr_signatures);
       },
 
       qa_remaining: function qa_remaining(pull, node) {
+         log("Working on QA on pull #" + pull.number);
          var required = pull.status.qa_req;
          signatureStatus(pull, node, 'QA', required, pull.qa_signatures);
       },
