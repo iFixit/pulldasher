@@ -243,6 +243,12 @@ define(['jquery', 'underscore', 'appearanceUtils'], function($, _, utils) {
             label.text(title);
             node.append(label);
          });
+      },
+      refresh: function(pull, node) {
+         node.on('click', function(event) {
+            event.preventDefault();
+            pull.refresh();
+         });
       }
    };
 });
