@@ -1,4 +1,4 @@
-#!/bin/env node
+#!/usr/bin/env node
 var fs = require('fs');
 var config = require(__dirname + '/../config.js');
 var debug = require('debug')('pulldasher:bin');

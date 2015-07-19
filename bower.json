@@ -7,7 +7,7 @@
   ],
   "description": "A dashboard for github pull-requests that keeps itself up-to-date",
   "main": "bin/pulldasher",
-  "license": "Copyright iFixit. All rights reserved.",
+  "license": "MIT",
   "private": true,
   "dependencies": {
     "bootstrap"      : "3.3.2",
