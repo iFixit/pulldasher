@@ -1,4 +1,8 @@
 define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 'socket'], function($, _, utils, aUtils, _manager, socket) {
+   // Don't show indicators if the debug setting is off.
+   if (!App.debug)
+      return;
+
    return {
       rerender: function(pulls, node) {
          var button = $('<span>');
