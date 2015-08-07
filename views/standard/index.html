@@ -4,6 +4,13 @@
       user: "<%= user %>",
       debug: <%= debug %>
    };
+
+   require(['pullManager'], function(_manager) {
+      App.debugStart = function debugStart() {
+         App.debug = true;
+         _manager.trigger();
+      }
+   });
 </script>
 <nav class="navbar navbar-default" role="navigation">
    <div class="container-fluid">
