@@ -1,4 +1,4 @@
-define(['jquery', 'appearanceUtils', 'spec/utils', 'spec/pageIndicators', 'spec/indicators', 'spec/columns', 'spec/debugIndicators'], function($, utils, specUtils, pageIndicators, indicators, columns, debugIndicators) {
+define(['jquery', 'underscore', 'appearanceUtils', 'spec/utils', 'spec/pageIndicators', 'spec/indicators', 'spec/columns', 'spec/debugIndicators'], function($, _, utils, specUtils, pageIndicators, indicators, columns, debugIndicators) {
    var clipboard = $('#branch_name_clipboard');
    return {
       navbar: "#restore-buttons",
@@ -8,9 +8,27 @@ define(['jquery', 'appearanceUtils', 'spec/utils', 'spec/pageIndicators', 'spec/
       debug_indicators: debugIndicators,
       // Global filters
       // where
-      selector: function(pull) {
-         return specUtils.shouldShowPull(pull);
-      },
+      selector: [
+         function(pull) {
+            return specUtils.shouldShowPull(pull);
+         },
+         function(pull) {
+            var authors = specUtils.filterAuthors();
+            if (!authors || authors.length === 0) {
+               return true;
+            }
+            return _.contains(authors, pull.author());
+         },
+         function(pull) {
+            var milestones = specUtils.filterMilestones();
+            if (!milestones || milestones.length === 0) {
+               return true;
+            }
+            if (pull.milestone) {
+               return _.contains(milestones, pull.milestone.title);
+            }
+         }
+      ],
       // order by
       sort: function(pull) {
          return pull.created_at;
