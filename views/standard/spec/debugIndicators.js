@@ -1,4 +1,5 @@
-define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 'socket'], function($, _, utils, aUtils, _manager, socket) {
+define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 'socket', 'debug'], function($, _, utils, aUtils, _manager, socket, debug) {
+   var log = debug('pulldasher:debug-indicators');
    return {
       rerender: function(pulls, node) {
          var button = $('<span>');
@@ -15,7 +16,7 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 
          node.text((new Date()).toLocaleDateString('en-us', {'hour': 'numeric', 'minute': 'numeric', 'second': 'numeric'}));
          node.attr('title', 'Date of last rerender');
          node.tooltip({'placement': 'auto top'});
-         console.log("Last render: " + new Date());
+         log("Last render: " + new Date());
       },
 
       offline: function(pulls, node) {

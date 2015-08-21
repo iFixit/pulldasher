@@ -1,7 +1,5 @@
 var utils = require('../lib/utils'),
-    db = require('../lib/db'),
-    Promise = require('promise');
-
+    db = require('../lib/db');
 
 // Builds an object representation of a row in the DB `pull_labels` table
 // from the data returned by GitHub's API.

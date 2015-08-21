@@ -10,16 +10,14 @@ var config = require('./config'),
     pullManager = require('./lib/pull-manager'),
     dbManager = require('./lib/db-manager'),
     gitManager = require('./lib/git-manager'),
-    Pull = require('./models/pull'),
     Signature = require('./models/signature'),
     mainController = require('./controllers/main'),
     hooksController = require('./controllers/githubHooks'),
     reqLogger = require('debug')('pulldasher:server:request');
-    resLogger = require('debug')('pulldasher:server:response');
 
 var app = express();
 
-httpServer = require('http').createServer(app)
+httpServer = require('http').createServer(app);
 
 app.engine('html', require('ejs').renderFile);
 app.set('view engine', 'html');
@@ -44,7 +42,7 @@ app.use(passport.session());
 app.use(function(req, res, next) {
    reqLogger("%s %s", req.method, req.url);
    next();
-});;
+});
 
 
 /**

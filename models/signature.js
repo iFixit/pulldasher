@@ -43,7 +43,7 @@ Signature.parseComment = function parseComment(comment, pullNumber) {
    });
 
    return signatures;
-}
+};
 
 /**
  * Takes an object representing a DB row, and returns an instance of this
@@ -63,7 +63,7 @@ Signature.getFromDB = function(data) {
    });
 
    return sig;
-}
+};
 
 /**
  * A compare function for Signatures that can be passed to a custom sorter.

@@ -1,21 +1,6 @@
 /*global module:false*/
 module.exports = function(grunt) {
 
-  // The following lines are derived from Bootstrap's Gruntfile:
-  /*!
-   * Bootstrap's Gruntfile
-   * http://getbootstrap.com
-   * Copyright 2013-2015 Twitter, Inc.
-   * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
-   */
-  var getLessVarsData = function () {
-    var filePath = path.join(__dirname, 'less/variables.less');
-    var fileContent = fs.readFileSync(filePath, { encoding: 'utf8' });
-    var parser = new BsLessdocParser(fileContent);
-    return { sections: parser.parseFile() };
-  };
-  // END derived lines
-
   // Project configuration.
   grunt.initConfig({
     // Task configuration.
@@ -23,28 +8,32 @@ module.exports = function(grunt) {
       options: {
         curly: true,
         eqeqeq: true,
-        immed: true,
         latedef: 'nofunc', // Allow function definitions after their use.
-        newcap: true,
         noarg: true,
-        sub: true,
         undef: true,
-        unused: true,
-        boss: true,
-        eqnull: true,
-        browser: true,
         unused: 'vars',
-        globals: {
-          define: false,
-          App: false,
-          console: false
-        }
+        // Deprecated relaxers
+        sub: true,
+        multistr: true
       },
       gruntfile: {
         src: 'Gruntfile.js'
       },
-      lib_test: {
-        src: ['public/**/*.js', '!public/js/debug.js', 'views/current/spec/**/*.js']
+      frontend: {
+        options: {
+          browser: true,
+          globals: {
+            define: false,
+            App: false
+          }
+        },
+        src: ['public/**/*.js', '!public/js/debug.js', 'views/**/*.js']
+      },
+      backend: {
+        options: {
+          node: true
+        },
+        src: ['**/*.js', '!public/**/*.js', '!views/**/*.js', '!bower_components/**', '!node_modules/**']
       }
     },
     less: {
