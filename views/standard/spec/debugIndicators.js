@@ -23,10 +23,6 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 
       }),
 
       rendertime: whenDebug(function(pulls, node) {
-         // Don't show indicators if the debug setting is off.
-         if (!App.debug) {
-            return;
-         }
          node.text((new Date()).toLocaleDateString('en-us', {'hour': 'numeric', 'minute': 'numeric', 'second': 'numeric'}));
          node.attr('title', 'Date of last rerender');
          node.tooltip({'placement': 'auto top'});
@@ -34,10 +30,6 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 
       }),
 
       offline: whenDebug(function(pulls, node) {
-         // Don't show indicators if the debug setting is off.
-         if (!App.debug) {
-            return;
-         }
          var button = $('<span>');
          button.addClass('glyphicon glyphicon-plane');
          button.on('click', function() {
