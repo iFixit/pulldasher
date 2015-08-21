@@ -20,15 +20,19 @@ define(['underscore'], function(_) {
       // Only run func on obj and maybeFunction if maybeFunction is a function.
       // If maybeFunction is a function, return the result of running func
       // If maybeFunction is not a function, return obj.
-      // Used to (potentially) run Bootstrap functions across an array of
-      // pulls, where the Bootstrap function needs a function as an argument,
+      // Used to (potentially) run Underscore functions across an array of
+      // pulls, where the Underscore function needs a function as an argument,
       // but I can't be sure if there will be any function to give it. Then
-      // what I do is I pass the Bootstrap function as func and my function as
+      // what I do is I pass the Underscore function as func and my function as
       // maybeFunction, and if my function exists, then it will run the
-      // Bootstrap function with it.
+      // Underscore function with it.
       var tryApply = function(obj, func, maybeFunction) {
          if (maybeFunction instanceof Function) {
             return func(obj, maybeFunction);
+         } else if (maybeFunction instanceof Array) {
+            return _.reduce(maybeFunction, function(obj, maybeFunction) {
+               return tryApply(obj, func, maybeFunction);
+            }, obj);
          }
          return obj;
       };
