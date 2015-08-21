@@ -1,6 +1,17 @@
 define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 'socket'], function($, _, utils, aUtils, _manager, socket) {
+   var whenDebug = function(f) {
+      // This function will run f if App.debug is true. f will be passed any
+      // arguments to this function
+      return function() {
+         // Don't show indicators if the debug setting is off.
+         if (!App.debug) {
+            return;
+         }
+         f.apply(this, arguments);
+      };
+   };
    return {
-      rerender: function(pulls, node) {
+      rerender: whenDebug(function(pulls, node) {
          var button = $('<span>');
          button.addClass('glyphicon glyphicon-blackboard');
          button.on('click', function() {
@@ -9,16 +20,16 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 
          button.attr('title', 'Rerender page');
          button.tooltip({'placement': 'auto top'});
          node.append(button);
-      },
+      }),
 
-      rendertime: function(pulls, node) {
+      rendertime: whenDebug(function(pulls, node) {
          node.text((new Date()).toLocaleDateString('en-us', {'hour': 'numeric', 'minute': 'numeric', 'second': 'numeric'}));
          node.attr('title', 'Date of last rerender');
          node.tooltip({'placement': 'auto top'});
          console.log("Last render: " + new Date());
-      },
+      }),
 
-      offline: function(pulls, node) {
+      offline: whenDebug(function(pulls, node) {
          var button = $('<span>');
          button.addClass('glyphicon glyphicon-plane');
          button.on('click', function() {
@@ -39,6 +50,6 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 
          button.attr('title', 'Airplane mode');
          button.tooltip({'placement': 'auto top'});
          node.append(button);
-      }
+      })
    };
 });
