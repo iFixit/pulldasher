@@ -10,7 +10,8 @@ define(['underscore'], function(_) {
          }
          var pair = filter.split('=');
          var key = pair[0];
-         var data = pair[1].split(',');
+         // Decode value as needed
+         var data = decodeURIComponent(pair[1]).split(',');
          filters[key] = data;
       });
       return filters;
