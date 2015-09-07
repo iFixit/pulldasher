@@ -61,6 +61,17 @@ module.exports = {
          regex: /\bCR :[^\n:]+:/i
       }
    ],
+   /**
+    * This is a list of objects describing labels on issues which should be
+    * converted to properties on the issue. Note that if more than one label
+    * matches the regex, only one will appear in the property.
+    */
+   labels: [
+      {
+         name: 'difficulty',
+         regex: /^[0-9]+$/
+      }
+   ],
    pidFile: "/var/run/pulldasher.pid",
    debug: true,
    // The time in ms before an unauthenticated websocket connection times out.

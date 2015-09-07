@@ -94,6 +94,10 @@ function update(pullPromise) {
    });
 }
 
+function updateIssue(issue) {
+   return dbManager.updateIssue(issue);
+}
+
 /**
  * Refreshes the specified pull.
  */
@@ -126,9 +130,24 @@ function refreshAll() {
    done(queue.resume.bind(queue));
 }
 
+function refreshAllIssues() {
+   gitManager.getAllIssues().
+   then(function(gIssues) {
+      var issuesUpdated = gIssues.map(function(githubIssue) {
+         var issue = gitManager.parseIssue(githubIssue);
+         return updateIssue(issue);
+      });
+      return Promise.all(issuesUpdated);
+   }).
+   done();
+}
+
 
 // Called, to populate app, on startup.
 refreshAll();
+
+// Pull issues into DB
+refreshAllIssues();
 
 /*
 @TODO: Update pulls which were open last time Pulldasher ran but are closed now.
