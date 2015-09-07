@@ -49,7 +49,7 @@ app.use(function(req, res, next) {
  * Routes
  */
 authManager.setupRoutes(app);
-app.get('/',         mainController.index);
+app.get('/',            mainController.index);
 app.post('/hooks/main', hooksController.main);
 
 
