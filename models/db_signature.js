@@ -5,7 +5,8 @@ var utils = require('../lib/utils'),
  * Builds an object representation of a row in the DB `pull_signatures` table
  * from the Signature object.
  */
-function DBSignature(sigData) {
+function DBSignature(signature) {
+   var sigData = signature.data;
    this.data = {
       number:     sigData.number,
       user:       sigData.user.login,

@@ -3,7 +3,8 @@ var utils = require('../lib/utils'),
 
 // Builds an object representation of a row in the DB `pulls` table
 // from the data returned by GitHub's API.
-function DBPull(pullData) {
+function DBPull(pull) {
+   var pullData = pull.data;
    this.data = {
       number: pullData.number,
       state: pullData.state,
