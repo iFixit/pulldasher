@@ -98,41 +98,32 @@ function update(pullPromise) {
  * Refreshes the specified pull.
  */
 function refresh(number) {
-   var githubPull = gitManager.getPull(number);
-
    queue.pause();
+   gitManager.getPull(number).
+   then(parseAndUpdate).
+   done(queue.resume.bind(queue));
+}
 
-   githubPull.done(function(gPull) {
-      var pullPromise = gitManager.parse(gPull);
-      update(pullPromise).done(function() {
-         queue.resume();
-      });
-   });
+/**
+ * Parse the pull and update the database with the new data
+ */
+function parseAndUpdate(gPull) {
+   // This returns a promise because it has to get more data
+   var pull = gitManager.parse(gPull);
+   return update(pull);
 }
 
 /**
  * Refreshes all open pulls.
  */
 function refreshAll() {
-   var githubPulls = gitManager.getAllPulls();
-
    queue.pause();
-
-   githubPulls.done(function(gPulls) {
-      var pullsUpdated = gPulls.map(function(gPull) {
-         var pull = gitManager.parse(gPull);
-
-         return new Promise(function(resolve, reject) {
-            update(pull).done(function() {
-               resolve();
-            });
-         });
-      });
-
-      Promise.all(pullsUpdated).done(function() {
-         queue.resume();
-      });
-   });
+   gitManager.getAllPulls().
+   then(function(gPulls) {
+      var pullsUpdated = gPulls.map(parseAndUpdate);
+      return Promise.all(pullsUpdated);
+   }).
+   done(queue.resume.bind(queue));
 }
 
 
