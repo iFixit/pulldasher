@@ -1,6 +1,7 @@
 var utils   = require('../lib/utils');
 var _       = require('underscore');
 var config  = require('../config');
+var log     = require('debug')('pulldasher:issue');
 
 /**
  * Create a new issue.
@@ -9,25 +10,24 @@ function Issue(data) {
    _.extend(this, data);
 }
 
-Issue.prototype.difficulty = function() {
-   if (!this.difficulty) {
-      this.parseLabels();
-   }
-   return this.difficulty;
-};
-
 /**
  * Create properties on this object for each label it has of the configured
  * labels.
  */
-Issue.prototype.parseLabels = function() {
-   config.labels.forEach(function(labelConfig) {
-      this.labels.forEach(function(label) {
-         if (labelConfig.regex.test(label.name)) {
-            this[labelConfig.name] = label.name;
-         }
+Issue.prototype.updateFromLabels = function(labels) {
+   var self = this;
+   if (labels) {
+      config.labels.forEach(function(labelConfig) {
+         labels.forEach(function(label) {
+            if (labelConfig.regex.test(label.name)) {
+               log("Attached %s to %s because of a label reading %s", labelConfig.name, self.number, label.name);
+               self[labelConfig.name] = label.name;
+            }
+         });
       });
-   });
+   } else {
+      log("No labels on %s", self.number);
+   }
 };
 
 /**
@@ -40,10 +40,13 @@ Issue.getFromGH = function(data) {
       title: data.title,
       milestone: data.milestone ? {
          title: data.milestone.title,
-         dueDate: utils.toUnixTime(data.milestone.due_on)
-      } : null
+         dueDate: new Date(data.milestone.due_on)
+      } : null,
+      assignee: data.assignee ? data.assignee.login : null
    };
-   return new Issue(data);
+   var issue = new Issue(issueData);
+   issue.updateFromLabels(data.labels);
+   return issue;
 };
 
 /**
@@ -55,9 +58,10 @@ Issue.getFromDB = function(data) {
       title: data.title,
       milestone: data.milestone_title ? {
          title: data.milestone_title,
-         dueDate: data.milestone_due_on
+         dueDate: utils.fromUnixTime(data.milestone_due_on)
       } : null,
-      difficulty: data.difficulty
+      difficulty: data.difficulty,
+      assignee: data.assignee
    };
    return new Issue(issueData);
 };
