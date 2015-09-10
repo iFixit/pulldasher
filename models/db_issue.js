@@ -28,6 +28,18 @@ function DBIssue(issue) {
    }
 }
 
+DBIssue.findByNumber = function(number) {
+   var q_select = 'SELECT * FROM `issues` WHERE `number` = ?';
+   return db.query(q_select, [number]).
+   then(function(rows) {
+      if (rows) {
+         return rows[0];
+      } else {
+         return null;
+      }
+   });
+};
+
 DBIssue.prototype.save = function() {
    var issueData = this.data;
    var q_update = 'REPLACE INTO issues SET ?';

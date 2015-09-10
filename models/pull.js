@@ -1,6 +1,11 @@
 var utils   = require('../lib/utils');
 var _       = require('underscore');
 var config  = require('../config');
+var queue = require('../lib/pull-queue');
+var Promise = require('promise');
+var debug = require('debug')('pulldasher:pull');
+var DBPull = require('./db_pull');
+var Issue = require('./issue');
 
 function Pull(data, signatures, comments, commitStatus, labels) {
    this.data = {
@@ -12,6 +17,7 @@ function Pull(data, signatures, comments, commitStatus, labels) {
       updated_at: new Date(data.updated_at),
       closed_at: new Date(data.closed_at),
       merged_at: new Date(data.merged_at),
+      difficulty: data.difficulty,
       milestone: {
          title: data.milestone && data.milestone.title,
          due_on: data.milestone && data.milestone.due_on ?
@@ -46,11 +52,52 @@ function Pull(data, signatures, comments, commitStatus, labels) {
       var bodyTags = Pull.parseBody(this.data.body);
       this.data.cr_req = bodyTags['cr_req'];
       this.data.qa_req = bodyTags['qa_req'];
+      this.data.closes = bodyTags['closes'];
+      this.data.connects = bodyTags['connects'];
    } else {
       this.data.cr_req = data.cr_req;
       this.data.qa_req = data.qa_req;
+      this.data.closes = data.closes;
+      this.data.connects = data.connects;
    }
 }
+
+Pull.prototype.update = function() {
+   var updatedPull = this;
+   debug('Calling `updatePull` for pull #%s', this.data.number);
+   var dbPull = new DBPull(this);
+   var number = dbPull.data.number;
+
+   return dbPull.save().
+   then(function() {
+      queue.markPullAsDirty(number);
+      debug('updatePull: Pull #%s updated', number);
+   });
+};
+
+Pull.prototype.syncToIssue = function() {
+   var self = this;
+   var connected = this.data.closes || this.data.connects;
+   if (!this.data.milestone.title && connected) {
+      return Issue.findByNumber(connected).
+      then(function(issue) {
+         debug("Updating pull from issue: %s", issue.number);
+         if (issue.milestone) {
+            var milestone = self.data.milestone;
+            milestone.title = issue.milestone.title;
+            milestone.dueDate = issue.milestone.dueDate;
+         }
+         self.data.difficulty = issue.difficulty;
+         return self.update();
+      }).
+      then(function() {
+         // This makes it easier to chain a call to this function
+         return self;
+      });
+   } else {
+      return new Promise.resolve(self);
+   }
+};
 
 Pull.prototype.toObject = function() {
    var data = _.extend({}, this.data);
@@ -153,6 +200,7 @@ Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
       updated_at: utils.fromUnixTime(data.date_updated),
       closed_at: utils.fromUnixTime(data.date_closed),
       merged_at: utils.fromUnixTime(data.date_merged),
+      difficulty: data.difficulty,
       milestone: {
          title: data.milestone_title,
          due_on: utils.fromUnixTime(data.milestone_due_on)
