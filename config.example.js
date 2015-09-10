@@ -65,6 +65,16 @@ module.exports = {
          name: 'qa_req',
          regex: /\bqa_req ([0-9]+)\b/i,
          default: 1
+      },
+      {
+         name: 'closes',
+         regex: /\b(?:close(?:s|d)?|fix(?:es|ed)?|resolve(?:s|d)?) #([0-9]+)\b/i,
+         default: null
+      },
+      {
+         name: 'connects',
+         regex: /\b(?:connect(?:s|ed)? to|connects) #([0-9]+)\b/i,
+         default: null
       }
    ],
    // Tags which indicate a comment is significant and should be parsed.
