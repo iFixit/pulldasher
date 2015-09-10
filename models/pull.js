@@ -222,7 +222,9 @@ Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
          login: data.owner
       },
       cr_req: data.cr_req,
-      qa_req: data.qa_req
+      qa_req: data.qa_req,
+      closes: data.closes,
+      connects: data.connects
    };
 
    return new Pull(pullData, signatures, comments, commitStatus, labels);
