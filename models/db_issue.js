@@ -7,7 +7,10 @@ function DBIssue(issue) {
    this.data = {
       number: issue.number,
       title: issue.title,
-      assignee: issue.assignee
+      assignee: issue.assignee,
+      status: issue.status,
+      dateCreated: utils.toUnixTime(issue.dateCreated),
+      dateClosed: utils.toUnixTime(issue.dateClosed)
    };
 
    if (isNaN(issue.difficulty)) {
