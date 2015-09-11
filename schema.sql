@@ -138,6 +138,7 @@ CREATE TABLE `pulls` (
   `closes` int(10) unsigned DEFAULT NULL,
   `connects` int(10) unsigned DEFAULT NULL,
   `difficulty` int(11) DEFAULT NULL,
+  `milestone_number` int(11) DEFAULT NULL,
   PRIMARY KEY (`number`),
   KEY `pulls_state` (`state`),
   KEY `pulls_repo` (`repo_owner`,`repo_name`),

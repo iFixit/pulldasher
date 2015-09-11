@@ -6,6 +6,7 @@ var Promise = require('promise');
 var debug = require('debug')('pulldasher:pull');
 var DBPull = require('./db_pull');
 var Issue = require('./issue');
+var gitManager = require('../lib/git-manager');
 
 function Pull(data, signatures, comments, commitStatus, labels) {
    this.data = {
@@ -22,6 +23,7 @@ function Pull(data, signatures, comments, commitStatus, labels) {
          title: data.milestone && data.milestone.title,
          due_on: data.milestone && data.milestone.due_on ?
           new Date(data.milestone.due_on) : null,
+         number: data.milestone && data.milestone.number
       },
       head: {
          ref: data.head.ref,
@@ -85,9 +87,13 @@ Pull.prototype.syncToIssue = function() {
             var milestone = self.data.milestone;
             milestone.title = issue.milestone.title;
             milestone.due_on = issue.milestone.due_on;
+            milestone.number = issue.milestone.number;
          }
          self.data.difficulty = issue.difficulty;
          return self.update();
+      }).
+      then(function() {
+         return gitManager.setIssueMilestone(self.number, self.milestone.number);
       }).
       then(function() {
          // This makes it easier to chain a call to this function
@@ -202,7 +208,8 @@ Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
       difficulty: data.difficulty,
       milestone: {
          title: data.milestone_title,
-         due_on: utils.fromUnixTime(data.milestone_due_on)
+         due_on: utils.fromUnixTime(data.milestone_due_on),
+         number: data.milestone_number
       },
       head: {
          ref: data.head_branch,
