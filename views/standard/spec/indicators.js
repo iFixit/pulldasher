@@ -245,6 +245,29 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
             node.append('<span class="glyphicon glyphicon-user"></span>');
          }
       },
+      difficulty_score: function(pull, node) {
+         var difficulty = pull.difficulty;
+         var label = $('<span>');
+         label.addClass('label');
+
+         var tooltip;
+         if (difficulty) {
+            if (difficulty > 8) {
+               label.addClass('label-danger');
+            } else {
+               label.addClass('label-default');
+            }
+            tooltip = "Assigned " + pull.difficulty + " difficulty"
+            label.text(pull.difficulty);
+         } else {
+            label.addClass('label-danger');
+            label.append('<span class="glyphicon glyphicon-question-sign"></span>');
+            tooltip =  "No difficulty assigned!";
+         }
+
+         utils.addTooltip(label, tooltip);
+         node.append(label);
+      },
       milestone_label: function milestone_label(pull, node){
          var milestone = pull.milestone;
 
