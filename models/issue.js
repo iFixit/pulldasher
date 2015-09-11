@@ -16,6 +16,11 @@ function Issue(data, labels) {
    }
 }
 
+Issue.findByNumber = function(number) {
+   return DBIssue.findByNumber(number)
+   .then(Issue.getFromDB);
+};
+
 /**
  * Create properties on this object for each label it has of the configured
  * labels.
@@ -75,6 +80,9 @@ Issue.getFromGH = function(data, labels) {
  * A factory method to create an issue from a DBIssue.
  */
 Issue.getFromDB = function(data, labels) {
+   if (!data) {
+      return null;
+   }
    var issueData = {
       number: data.number,
       title: data.title,
