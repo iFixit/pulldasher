@@ -90,6 +90,33 @@ CREATE TABLE `pull_labels` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Temporary table structure for view `pull_list`
+--
+
+DROP TABLE IF EXISTS `pull_list`;
+/*!50001 DROP VIEW IF EXISTS `pull_list`*/;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
+/*!50001 CREATE TABLE `pull_list` (
+  `number` tinyint NOT NULL,
+  `state` tinyint NOT NULL,
+  `title` tinyint NOT NULL,
+  `head_branch` tinyint NOT NULL,
+  `owner` tinyint NOT NULL,
+  `cr_req` tinyint NOT NULL,
+  `qa_req` tinyint NOT NULL,
+  `date` tinyint NOT NULL,
+  `date_updated` tinyint NOT NULL,
+  `date_closed` tinyint NOT NULL,
+  `date_merged` tinyint NOT NULL,
+  `milestone_title` tinyint NOT NULL,
+  `milestone_due_on` tinyint NOT NULL,
+  `closes/connects` tinyint NOT NULL,
+  `difficulty` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
+
+--
 -- Table structure for table `pull_signatures`
 --
 
@@ -145,6 +172,25 @@ CREATE TABLE `pulls` (
   KEY `pulls_user` (`owner`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Final view structure for view `pull_list`
+--
+
+/*!50001 DROP TABLE IF EXISTS `pull_list`*/;
+/*!50001 DROP VIEW IF EXISTS `pull_list`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8 */;
+/*!50001 SET character_set_results     = utf8 */;
+/*!50001 SET collation_connection      = utf8_general_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`root`@`ip-10-250-160-240.us-west-1.compute.internal` SQL SECURITY DEFINER */
+/*!50001 VIEW `pull_list` AS select `pulls`.`number` AS `number`,`pulls`.`state` AS `state`,`pulls`.`title` AS `title`,`pulls`.`head_branch` AS `head_branch`,`pulls`.`owner` AS `owner`,`pulls`.`cr_req` AS `cr_req`,`pulls`.`qa_req` AS `qa_req`,`pulls`.`date` AS `date`,`pulls`.`date_updated` AS `date_updated`,`pulls`.`date_closed` AS `date_closed`,`pulls`.`date_merged` AS `date_merged`,`pulls`.`milestone_title` AS `milestone_title`,`pulls`.`milestone_due_on` AS `milestone_due_on`,concat_ws('/',`pulls`.`closes`,`pulls`.`connects`) AS `closes/connects`,`pulls`.`difficulty` AS `difficulty` from `pulls` */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
