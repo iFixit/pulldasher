@@ -1,11 +1,34 @@
+/* `spec/columns.js`
+ *
+ * This file defines the columns which Pulldasher shows. It is required and
+ * slotted into the global config by `spec/main.js`.
+ */
+// The header here is standard RequireJS to pull in jquery and a helper library
+// which is available in `/public/js/appearanceUtils.js`
 define(['jquery', 'appearanceUtils'], function($, utils) {
+   // This array will contain one object for each column configured. Adding a
+   // column requires adding a new element to the array and adding a spot on
+   // index.html for the column to go in.
    return [
+      // This object describes a column in Pulldasher, specifically, the CI
+      // Blocked column
       {
-         title: "CI Blocked",
+         // This name will be displayed at the top of the column
+         title: "CI Blocked?",
+         // This id is used to match the column to the element it should be
+         // placed in. Pulldasher will render the column into an element with id
+         // `<id>-container`. So, for example, this column will render into the
+         // `ciBlocked-container` element in `index.js`.
          id: "ciBlocked",
+         // This describes how to choose the pulls to go in this column. It is a
+         // function which returns `true` if a pull should go in the column and
+         // `false` otherwise.
          selector: function(pull) {
             return !pull.dev_blocked() && !pull.build_succeeded();
          },
+         // This describes the sort order for the pull. It returns a numeric
+         // score for each pull. Pulls with a low score are sorted to the bottom
+         // of the column. Pulls with a high score are sorted to the top.
          sort: function(pull) {
             var score = 0;
             if (pull.is_mine()) {
@@ -21,15 +44,29 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
             return score;
          },
+         // Triggers provide hooks to run your own javascript on a column at
+         // various points in the column's lifecycle. Each function is passed
+         // two arguments: the column's main element and the column's container
+         // element. The function may do anything it likes.
          triggers: {
+            // This hook will be run on column creation. In this case, it sets
+            // the nice blue color on the column header.
             onCreate: function(blob, container) {
                blob.removeClass('panel-default').addClass('panel-primary');
             },
+            // This hook will be run whenever Pulldasher receives an update from
+            // the server. It should typically be used to update things about
+            // the column's appearance that are affected by its contents (or, in
+            // this case, lack thereof)
             onUpdate: function(blob, container) {
                utils.hideIfEmpty(container, blob, '.pull');
             }
          },
+         // This is a magical option (in a bad way) which makes the column
+         // collapsible. It would be better if no more such options were added.
          shrinkToButton: true
+         // Take a look at the next column for more on the parts we haven't seen
+         // yet!
       },
       {
          title: "deploy_blocked Pulls",
@@ -45,6 +82,14 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
                utils.hideIfEmpty(container, blob, '.pull');
             }
          },
+         // Now here's a new thing: indicators. As mentioned in the README,
+         // indicators provide icons and such on each pull. Each indicator is a
+         // function which will be called for each pull. It is passed the Pull
+         // object (see `/public/js/Pull.js`) and the HTML element into which it
+         // should render itself. That element can come from one of two places:
+         // either it is an element in the pull HTML template (see
+         // `html/pull.html`) or it is a new element placed in an element in the
+         // pull template with class `indicators`.
          indicators: {
             deploy_block: function deploy_block(pull, node) {
                if (pull.deploy_blocked()) {
