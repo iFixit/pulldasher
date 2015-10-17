@@ -41,3 +41,18 @@ Okay, now a guide on where to look to make a change:
   pretty much out of luck. You'd be better off reimplementing it with column
   triggers (not that that's hard), because it's a bit of a hack the way it is
   currently.
+
+## Debug Mode
+Due to the frontend archetecture of Pulldasher, it can be hard to debug because
+the server can send a new pull at any time. Debug mode provides switches to
+force the frontend to not respond to incoming data from the server, and allows
+you to manually rerender the front end.
+
+There are two ways to activate debug mode:
+
+1. Start Pulldasher with `debug` set to true in the config (see
+   `/config.example.js`)
+2. Activate debug mode from the developer console:
+   Type `debugStart()` in the console.
+
+Descriptions of the debug tools are available in `spec/debugIndicators.js`.

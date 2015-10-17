@@ -1,4 +1,20 @@
+// This file contains _page indicators_. What are page indicators? They're like
+// indicators (`spec/indicators.js`), but act in summary on all the pulls in the
+// page. They're rendered into the navbar by default, but just like normal
+// indicators can also render themselves into matching elements. In the case of
+// page indicators, the elements are searched against the entire body element.
+//
+// It is also worth noting that pageIndicators are run on the full list of
+// pulls, even before the global filters (see `spec/index.js`). This enables
+// them to do things like summarize the number of pulls which _aren't_ shown on
+// the page.
 define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _, utils, aUtils) {
+   // This function generates the data for the CR and QA leaderboards. There's a
+   // known bug, however. When a pull is closed, the frontend doesn't discard
+   // it. But on refresh, the frontend won't get it back. This function
+   // (corrrectly) takes into account closed pulls, but we really need to be
+   // getting some of them (maybe the last week's worth or so) from the backend
+   // on startup.
    var summarize = function(pulls, node, type, extract) {
       // Clean out indicator node. This prevents re-renders from resulting in
       // junk.

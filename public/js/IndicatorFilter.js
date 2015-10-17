@@ -1,3 +1,4 @@
+// IndicatorFilter handles rendering the indicators onto each pull
 define(['jquery', 'underscore'], function($, _) {
    /**
     * @param indicators - The spec for this column's indicators. It is an

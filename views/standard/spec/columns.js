@@ -22,7 +22,8 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          id: "ciBlocked",
          // This describes how to choose the pulls to go in this column. It is a
          // function which returns `true` if a pull should go in the column and
-         // `false` otherwise.
+         // `false` otherwise. This property may also be an array, in which case
+         // the selectors are chained.
          selector: function(pull) {
             return !pull.dev_blocked() && !pull.build_succeeded();
          },
@@ -83,13 +84,9 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             }
          },
          // Now here's a new thing: indicators. As mentioned in the README,
-         // indicators provide icons and such on each pull. Each indicator is a
-         // function which will be called for each pull. It is passed the Pull
-         // object (see `/public/js/Pull.js`) and the HTML element into which it
-         // should render itself. That element can come from one of two places:
-         // either it is an element in the pull HTML template (see
-         // `html/pull.html`) or it is a new element placed in an element in the
-         // pull template with class `indicators`.
+         // indicators provide icons and such on each pull. In this section, we
+         // can set the indicators for this column only. See
+         // `spec/indicators.js` for more on how indicators work.
          indicators: {
             deploy_block: function deploy_block(pull, node) {
                if (pull.deploy_blocked()) {
