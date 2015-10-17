@@ -33,6 +33,23 @@ will update the pull's display to indicate that one of the required CRs is
 completed.  Similarly, when I have QAed a pull, I add a comment containing `QA
 :emoji:`, and the number of QA signoffs will increase.
 
+## Magic Features
+There's a couple features which aren't exposed clearly through the UI:
+
+### Hover Copy
+If you hover over a pull and type `ctrl-c` (`command-c` on a Mac), the branch of
+the pull will be copied to your clipboard.
+
+### Filter parameters
+Two query string parameters are available to filter the displayed pulls:
+
+1. `assigned`: Providing a comma-separated list of usernames to the `assigned`
+   parameter will filter the pulls to only those assigned to those users.
+
+2. `milestone`: Providing a comma-separated list of milestones to the
+   `milestone` parameter will filter the pulls to only those on the specified
+   milestones.
+
 # Architecture
 When first started, the Pulldasher server fetches information about the current
 pulls in the repo from GitHub. It then monitors GitHub hooks for updated
