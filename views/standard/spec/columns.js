@@ -22,8 +22,8 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          id: "ciBlocked",
          // This describes how to choose the pulls to go in this column. It is a
          // function which returns `true` if a pull should go in the column and
-         // `false` otherwise. This property may also be an array, in which case
-         // the selectors are chained.
+         // `false` otherwise. This property may also be an array of functions,
+         // in which case the selectors are chained.
          selector: function(pull) {
             return !pull.dev_blocked() && !pull.build_succeeded();
          },

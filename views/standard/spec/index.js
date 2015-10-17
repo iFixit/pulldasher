@@ -11,7 +11,8 @@ define(['jquery', 'underscore', 'appearanceUtils', 'spec/utils', 'spec/pageIndic
       debug_indicators: debugIndicators,
       // Global filters: These are used to set which pulls should show on the
       // page at all. Notice that you're allowed to use multiple
-      // functions here, as in all the other selector filters.
+      // functions here, as in all the other selector filters. See
+      // `spec/columns.js` for more on filters.
       selector: [
          function(pull) {
             return specUtils.shouldShowPull(pull);
