@@ -93,15 +93,6 @@ Pull.prototype.syncToIssue = function() {
             self.data.difficulty = issue.difficulty;
             return self.update().
             then(function() {
-               // This test was false before, so if it's true now, the milestone was
-               // updated.
-               if (self.data.milestone.title) {
-                  debug(self.data.milestone);
-                  debug("Here's what we'll send: %s and %s", self.data.number, self.data.milestone.number);
-                  //return gitManager.setIssueMilestone(self.number, self.data.milestone.number);
-               }
-            }).
-            then(function() {
                // This makes it easier to chain a call to this function
                return self;
             });
