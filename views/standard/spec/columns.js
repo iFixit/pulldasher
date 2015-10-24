@@ -7,7 +7,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
          if (pull.milestone.title) {
             var due_date = pull.milestone.due_on &&
-            new Date(pull.milestone.due_on);
+             new Date(pull.milestone.due_on);
 
             // If milestone is past due date.
             if (due_date && due_date < new Date()) {
@@ -92,7 +92,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
                   node.append(link);
                }
-            },
+            }
          },
          shrinkToButton: true
       },
@@ -195,7 +195,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             score -= pull.status.CR.length;
 
             return score;
-         },
+         }
       },
       {
          title: "QA Pulls",
