@@ -182,7 +182,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
    // the indicator, then the indicator will be passed that element as the node
    // to render into.  Otherwise, a new element will be created. This makes it
    // really easy to add a basic tag on a bunch of pulls, should you wish to. An
-   // example may hel;p to make this all clearer: The `cr_remaining` indicator
+   // example may help to make this all clearer: The `cr_remaining` indicator
    // below renders into the `div` with class `cr_remaining` in the pull
    // template (which is how the check marks for CR are implemented). On the
    // other hand, there's no element with class `custom_label`, so the

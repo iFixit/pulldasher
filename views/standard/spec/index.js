@@ -49,7 +49,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'spec/utils', 'spec/pageIndic
          });
       },
       // Functions to stick status information in indicators at the bottom of
-      // each pull
+      // each pull.
       indicators: indicators,
       columns: columns
    };

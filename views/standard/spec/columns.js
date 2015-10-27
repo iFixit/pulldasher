@@ -4,17 +4,17 @@
  * slotted into the global config by `spec/main.js`.
  */
 // The header here is standard RequireJS to pull in jquery and a helper library
-// which is available in `/public/js/appearanceUtils.js`
+// which is available in `/public/js/appearanceUtils.js`.
 define(['jquery', 'appearanceUtils'], function($, utils) {
    // This array will contain one object for each column configured. Adding a
    // column requires adding a new element to the array and adding a spot on
    // index.html for the column to go in.
    return [
       // This object describes a column in Pulldasher, specifically, the CI
-      // Blocked column
+      // Blocked column.
       {
-         // This name will be displayed at the top of the column
-         title: "CI Blocked?",
+         // This name will be displayed at the top of the column.
+         title: "CI Blocked",
          // This id is used to match the column to the element it should be
          // placed in. Pulldasher will render the column into an element with id
          // `<id>-container`. So, for example, this column will render into the
@@ -58,7 +58,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             // This hook will be run whenever Pulldasher receives an update from
             // the server. It should typically be used to update things about
             // the column's appearance that are affected by its contents (or, in
-            // this case, lack thereof)
+            // this case, lack thereof).
             onUpdate: function(blob, container) {
                utils.hideIfEmpty(container, blob, '.pull');
             }
@@ -223,7 +223,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
             if (!pull.qa_done() && signatures.user && !signatures.user.data.active) {
                // The user has an invalid signature, and the pull isn't ready.
-               // They should re-QA it
+               // They should re-QA it.
                score -= 1000;
             }
 
@@ -234,7 +234,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             }
 
             if (signatures.user && signatures.user.data.active) {
-               // I've already CRd or QAd this pull
+               // I've already CRd or QAd this pull.
                score += 1000;
             }
 

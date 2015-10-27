@@ -37,8 +37,8 @@ completed.  Similarly, when I have QAed a pull, I add a comment containing `QA
 There's a couple features which aren't exposed clearly through the UI:
 
 ### Hover Copy
-If you hover over a pull and type `ctrl-c` (`command-c` on a Mac), the branch of
-the pull will be copied to your clipboard.
+If you hover over a pull and type `ctrl-c` (`command-c` on a Mac), the branch
+name of the pull will be copied to your clipboard.
 
 ### Filter parameters
 Two query string parameters are available to filter the displayed pulls:

@@ -18,17 +18,17 @@ module.exports = {
    // 2. An API key that has access to the repo you're going to track
    // 3. A GitHub webhook on the repo you want to monitor
    github: {
-      // Get this from the GitHub application setup page
+      // Get this from the GitHub application setup page.
       clientId:     "your github application client id",
       secret:       'your github appliction secret',
-      // Where GitHub will send the user's browser after authentication
+      // Where GitHub will send the user's browser after authentication.
       callbackURL:  'http://localhost:' + port + '/auth/github/callback',
-      // An API token for the backend to make API requests with
+      // An API token for the backend to make API requests with.
       token:        "oauth api token for server-side api calls",
       // This will need to be the same secret you use on the Webhooks page for
       // the repo Pulldasher is going to monitor.
       hook_secret:  "some random string to use (?secret=oxwm5gks) to 'secure' github hook handlers",
-      // Limit access to specific users or teams
+      // Limit access to specific users or teams.
       requireOrg:   "Limit access to users belonging to this github organization",
       requireTeam:  "[Optional] Limit access to users belonging to this team name within the above github organization"
    },
@@ -37,13 +37,13 @@ module.exports = {
    },
    repo: {
       // The GitHub username of the person or organization owning the repo you
-      // want to monitor
+      // want to monitor.
      owner:       'repo owner',
-     // The name of the GitHub repo you want to monitor
+     // The name of the GitHub repo you want to monitor.
      name:        'repo name'
    },
    // The usual MySQL stuff. Like every other MySQL webapp, basically.
-   // You will need to source the `metrics.sql` file in the database to create
+   // You will need to source the `schema.sql` file in the database to create
    // all the tables that Pulldasher expects.
    mysql: {
       host: 'mysql remote host URL',
@@ -68,7 +68,7 @@ module.exports = {
       }
    ],
    // Tags which indicate a comment is significant and should be parsed.
-   // The regex may be customized to change the tag used in GitHub
+   // The regex may be customized to change the tag used in GitHub.
    tags: [
       {
          name: 'dev_block',
