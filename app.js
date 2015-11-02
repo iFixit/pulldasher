@@ -119,8 +119,13 @@ function refresh(number) {
  * open *and* closed.
  */
 function refreshAll(all) {
-   var state = all ? 'all' : 'open';
-   var githubPulls = gitManager.getAllPulls(state);
+   var githubPulls;
+
+   if (all === true) {
+      githubPulls = gitManager.getOpenPulls();
+   } else {
+      githubPulls = gitManager.getAllPulls();
+   }
 
    queue.pause();
 
@@ -141,6 +146,7 @@ function refreshAll(all) {
    });
 }
 
+// Gets all pulls, open and closed, if argument is passed.
 var all = _.contains(args, 'rebuild-history');
 
 // Called, to populate app, on startup.
