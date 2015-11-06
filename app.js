@@ -122,9 +122,9 @@ function refreshAll(all) {
    var githubPulls;
 
    if (all === true) {
-      githubPulls = gitManager.getOpenPulls();
-   } else {
       githubPulls = gitManager.getAllPulls();
+   } else {
+      githubPulls = gitManager.getOpenPulls();
    }
 
    queue.pause();
