@@ -1,4 +1,4 @@
-define(['jquery', 'appearanceUtils'], function($, utils) {
+define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
 
    // Sorting functions that are run on each column.
    var globalSorts = {
