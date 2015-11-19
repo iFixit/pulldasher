@@ -1,4 +1,36 @@
 define(['jquery', 'appearanceUtils'], function($, utils) {
+
+   // Sorting functions that are run on each column.
+   var globalSorts = {
+      sortByMilestone: function(pull) {
+         var score = 0;
+
+         if (pull.milestone.title) {
+            var due_date = pull.milestone.due_on &&
+             new Date(pull.milestone.due_on);
+
+            // If milestone is past due date.
+            if (due_date && due_date < new Date()) {
+               score -= 1500;
+            } else {
+               score -= 750;
+            }
+         }
+
+         return score;
+      }
+   };
+
+   /**
+    * Runs all of the functions from globalSorts on the given pull and reduces
+    * each score into a total sorting score.
+    */
+   function sortGlobally(pull) {
+      return _.reduce(globalSorts, function(score, sort) {
+         return score + sort(pull);
+      }, 0);
+   }
+
    return [
       {
          title: "CI Blocked",
@@ -7,7 +39,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             return !pull.dev_blocked() && !pull.build_succeeded();
          },
          sort: function(pull) {
-            var score = 0;
+            var score = sortGlobally(pull);
             if (pull.is_mine()) {
                score -= 30;
             }
@@ -60,7 +92,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
 
                   node.append(link);
                }
-            },
+            }
          },
          shrinkToButton: true
       },
@@ -89,11 +121,12 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          sort: function(pull) {
             var most_recent_block = pull.status.dev_block.slice(-1)[0].data;
             var date = new Date(most_recent_block.created_at);
+            var score = sortGlobally(pull);
 
             // Pulls that have been dev_blocked longer are higher priority.
-            var score = -1/date.valueOf();
+            score += -1/date.valueOf();
 
-            if(pull.is_mine()) {
+            if (pull.is_mine()) {
                score -= 1;
             }
 
@@ -127,8 +160,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          sort: function(pull) {
             // The higher score is, the lower the pull will be sorted.
             // So a lower score means an item shows higher in the list.
-            var score = 0;
-
+            var score = sortGlobally(pull);
             var signatures = pull.cr_signatures;
 
             if (!pull.cr_done() && signatures.user && !signatures.user.data.active) {
@@ -163,7 +195,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
             score -= pull.status.CR.length;
 
             return score;
-         },
+         }
       },
       {
          title: "QA Pulls",
@@ -175,8 +207,7 @@ define(['jquery', 'appearanceUtils'], function($, utils) {
          sort: function(pull) {
             // The higher score is, the lower the pull will be sorted.
             // So a lower score means an item shows higher in the list.
-            var score = 0;
-
+            var score = sortGlobally(pull);
             var signatures = pull.qa_signatures;
 
             if (!pull.qa_done() && signatures.user && !signatures.user.data.active) {

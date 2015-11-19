@@ -232,14 +232,24 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
          }
 
          if (milestone.title) {
-            var label = $('<span>').addClass('label label-info');
+            var label = $('<span>').addClass('label');
             var label_text = milestone.title;
 
             // If there's a due date, show that instead of the milestone title.
             if (milestone.due_on) {
                var date = new Date(milestone.due_on);
-               label_text = (date.getMonth() + 1) + '/' + date.getDate();
-               utils.addTooltip(label, milestone.title);
+               var past_due = date.getTime() < Date.now();
+               var tooltip_text = milestone.title;
+
+               if (past_due) {
+                  label.addClass('label-past-due');
+                  tooltip_text = "Past Due: " + tooltip_text;
+               } else {
+                  label.addClass('label-milestone');
+               }
+
+               label_text = utils.formatDate(date);
+               utils.addTooltip(label, tooltip_text);
             }
 
             label.text(label_text);
