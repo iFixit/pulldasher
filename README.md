@@ -4,6 +4,8 @@ Pulldasher tracks your pull requests and displays them according to their
 current state. It sports a flexible template system, allowing you to customize
 it extensively without touching the core code.
 
+![pulldasher-image](https://cloud.githubusercontent.com/assets/2539016/11315808/78af398e-8fad-11e5-81d4-b59ae6109dec.png)
+
 Pulldasher is written primarily in JavaScript, using Node.js. See the
 [`package.json`](package.json/) and [`bower.json`](bower.json/) files for more on the front- and back-end
 dependencies, respectively.
