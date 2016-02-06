@@ -53,9 +53,14 @@ Two query string parameters are available to filter the displayed pulls:
 1. `assigned`: Providing a comma-separated list of usernames to the `assigned`
    parameter will filter the pulls to only those assigned to those users.
 
+   ```ex. https://pulldasher.example.com?assigned=copperwall,scotttherobot,davidrans```
+
 2. `milestone`: Providing a comma-separated list of milestones to the
    `milestone` parameter will filter the pulls to only those on the specified
    milestones.
+
+   ```ex. https://pulldasher.example.com?milestone=site-redesign,12/5,12/19```
+
 
 ## Architecture
 When first started, the Pulldasher server fetches information about the current
