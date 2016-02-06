@@ -1,3 +1,10 @@
+/* `spec/columns.js`
+ *
+ * This file defines the columns which Pulldasher shows. It is required and
+ * slotted into the global config by `spec/main.js`.
+ */
+// The header here is standard RequireJS to pull in jquery, a helper library
+// which is available in `/public/js/appearanceUtils.js`, and underscore.
 define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
 
    // Sorting functions that are run on each column.
@@ -31,13 +38,30 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
       }, 0);
    }
 
+   // This array will contain one object for each column configured. Adding a
+   // column requires adding a new element to the array and adding a spot on
+   // index.html for the column to go in.
    return [
+      // This object describes a column in Pulldasher, specifically, the CI
+      // Blocked column.
       {
+         // This name will be displayed at the top of the column.
          title: "CI Blocked",
+         // This id is used to match the column to the element it should be
+         // placed in. Pulldasher will render the column into an element with id
+         // `<id>-container`. So, for example, this column will render into the
+         // `ciBlocked-container` element in `index.js`.
          id: "ciBlocked",
+         // This describes how to choose the pulls to go in this column. It is a
+         // function which returns `true` if a pull should go in the column and
+         // `false` otherwise. This property may also be an array of functions,
+         // in which case the selectors are chained.
          selector: function(pull) {
             return !pull.dev_blocked() && !pull.build_succeeded();
          },
+         // This describes the sort order for the pull. It returns a numeric
+         // score for each pull. Pulls with a low score are sorted to the bottom
+         // of the column. Pulls with a high score are sorted to the top.
          sort: function(pull) {
             var score = sortGlobally(pull);
             if (pull.is_mine()) {
@@ -53,15 +77,29 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
 
             return score;
          },
+         // Triggers provide hooks to run your own javascript on a column at
+         // various points in the column's lifecycle. Each function is passed
+         // two arguments: the column's main element and the column's container
+         // element. The function may do anything it likes.
          triggers: {
+            // This hook will be run on column creation. In this case, it sets
+            // the nice blue color on the column header.
             onCreate: function(blob, container) {
                blob.removeClass('panel-default').addClass('panel-primary');
             },
+            // This hook will be run whenever Pulldasher receives an update from
+            // the server. It should typically be used to update things about
+            // the column's appearance that are affected by its contents (or, in
+            // this case, lack thereof).
             onUpdate: function(blob, container) {
                utils.hideIfEmpty(container, blob, '.pull');
             }
          },
+         // This is a magical option (in a bad way) which makes the column
+         // collapsible. It would be better if no more such options were added.
          shrinkToButton: true
+         // Take a look at the next column for more on the parts we haven't seen
+         // yet!
       },
       {
          title: "deploy_blocked Pulls",
@@ -77,6 +115,10 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
                utils.hideIfEmpty(container, blob, '.pull');
             }
          },
+         // Now here's a new thing: indicators. As mentioned in the README,
+         // indicators provide icons and such on each pull. In this section, we
+         // can set the indicators for this column only. See
+         // `spec/indicators.js` for more on how indicators work.
          indicators: {
             deploy_block: function deploy_block(pull, node) {
                if (pull.deploy_blocked()) {
@@ -212,7 +254,7 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
 
             if (!pull.qa_done() && signatures.user && !signatures.user.data.active) {
                // The user has an invalid signature, and the pull isn't ready.
-               // They should re-QA it
+               // They should re-QA it.
                score -= 1000;
             }
 
@@ -223,7 +265,7 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
             }
 
             if (signatures.user && signatures.user.data.active) {
-               // I've already CRd or QAd this pull
+               // I've already CRd or QAd this pull.
                score += 1000;
             }
 
