@@ -16,7 +16,7 @@ var HooksController = {
       var dbUpdated;
 
       var secret = req.param('secret');
-      if (secret != config.github.hook_secret) {
+      if (secret !== config.github.hook_secret) {
          var m = 'Invalid Hook Secret: ' + secret;
          debug(m);
          console.error(m);

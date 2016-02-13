@@ -29,6 +29,6 @@ Comment.getFromDB = function(data) {
       created_at: utils.fromUnixTime(data.date),
       id: data.comment_id
    });
-}
+};
 
 module.exports = Comment;

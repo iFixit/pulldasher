@@ -299,7 +299,7 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
          indicators: {
             qa_in_progress: function qa_in_progress(pull, node) {
                var label;
-               if (label = pull.getLabel('QAing')) {
+               if ((label = pull.getLabel('QAing'))) {
                   var labelElem = $('<span>' + label.title + '</span>');
                   var labelclass;
                   if (label.user === App.user) {

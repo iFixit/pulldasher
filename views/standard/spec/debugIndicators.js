@@ -4,7 +4,8 @@
 // `spec/pageIndicators.js`).
 //
 // See the views README (`/views/README.md`) for more on activating debug mode.
-define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 'socket'], function($, _, utils, aUtils, _manager, socket) {
+define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 'socket', 'debug'], function($, _, utils, aUtils, _manager, socket, debug) {
+   var log = debug('pulldasher:debug-indicators');
    var whenDebug = function(f) {
       // This function will run f if App.debug is true. f will be passed any
       // arguments to this function
@@ -40,7 +41,7 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 
          node.text((new Date()).toLocaleDateString('en-us', {'hour': 'numeric', 'minute': 'numeric', 'second': 'numeric'}));
          node.attr('title', 'Date of last rerender');
          node.tooltip({'placement': 'auto top'});
-         console.log("Last render: " + new Date());
+         log("Last render: " + new Date());
       }),
 
       // Allows the user to disable all the actions that happen when the server
