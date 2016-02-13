@@ -1,4 +1,5 @@
 var config = require('./config'),
+    _ = require('underscore'),
     httpServer,
     express = require('express'),
     partials = require('express-partials'),
@@ -15,6 +16,7 @@ var config = require('./config'),
     hooksController = require('./controllers/githubHooks'),
     reqLogger = require('debug')('pulldasher:server:request');
 
+var args = process.argv.slice(2);
 var app = express();
 
 httpServer = require('http').createServer(app);
@@ -111,10 +113,17 @@ function refresh(number) {
 }
 
 /**
- * Refreshes all open pulls.
+ * Refreshes all open pulls. If parameter `all` is true, refreshes all pulls,
+ * open *and* closed.
  */
-function refreshAll() {
-   var githubPulls = gitManager.getAllPulls();
+function refreshAll(all) {
+   var githubPulls;
+
+   if (all === true) {
+      githubPulls = gitManager.getAllPulls();
+   } else {
+      githubPulls = gitManager.getOpenPulls();
+   }
 
    queue.pause();
 
@@ -135,9 +144,11 @@ function refreshAll() {
    });
 }
 
+// Gets all pulls, open and closed, if argument is passed.
+var all = _.contains(args, 'rebuild-history');
 
 // Called, to populate app, on startup.
-refreshAll();
+refreshAll(all);
 
 /*
 @TODO: Update pulls which were open last time Pulldasher ran but are closed now.
