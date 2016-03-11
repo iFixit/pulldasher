@@ -48,7 +48,9 @@ module.exports = function(grunt) {
         strictMath: true,
         outputSourceFiles: true
       },
-      file: {src: 'views/current/less/main.less', dest: 'views/current/css/pulldasher.css'}
+      file: {src: 'views/current/less/main.less', dest: 'views/current/css/pulldasher.css'},
+      file: {src: 'views/current/less/theme-light.less', dest: 'views/current/css/theme-light.css'},
+      file: {src: 'views/current/less/theme-dark.less', dest: 'views/current/css/theme-dark.css'}
       // END derived lines
     },
 

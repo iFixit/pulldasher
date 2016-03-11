@@ -1,3 +1,4 @@
+
 <script>
    var App = {
       socketToken: "<%= socketToken %>",
@@ -5,13 +6,28 @@
       debug: <%= debug %>
    };
 
-   require(['pullManager'], function(_manager) {
+   require(['pullManager', 'jquery'], function(_manager, $) {
       App.debugStart = function debugStart() {
          App.debug = true;
          _manager.trigger();
       };
+
+      // Color switcher
+      $(document).ready(function() {
+         var cscookie = $.cookie("pulldasher-colorscheme");
+         if (cscookie) {
+            $('head').append('<link rel="stylesheet" type="text/css" href="css/' + cscookie + '.css">');
+         }
+
+         $("#colorscheme > span").on('click', function() {
+            var colorscheme = $(this).data('css');
+            $('head').append('<link rel="stylesheet" type="text/css" href="css/' + colorscheme + '.css">');
+            $.cookie("pulldasher-colorscheme", colorscheme);
+         });
+      });
    });
 </script>
+
 <nav class="navbar navbar-default" role="navigation">
    <div class="container-fluid">
       <div class="navbar-header">
@@ -27,6 +43,10 @@
       <div id="navbar" class="collapse navbar-collapse">
          <span id="restore-buttons"></span>
          <span id="global-indicators"></span>
+         <p id="colorscheme" class="navbar-right">
+            <span class="option" data-css="theme-light">light</span>
+            <span class="option" data-css="theme-dark">dark</span>
+         </p>
          <p class="navbar-text navbar-right">
          State: <span id="connectionState"></span>
          </p>
