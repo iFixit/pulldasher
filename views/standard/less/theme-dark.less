@@ -1,0 +1,136 @@
+@darkBackgroundColor: #20242c;
+@darkHighlight: lighten(@darkBackgroundColor, 5%);
+@darkHover: #171a20;
+@textColor: lighten(black, 50%);
+
+@greenText: #76c773;
+@greenBackground: rgba(117, 199, 114, 0.25);
+@greenDark: rgba(38, 41, 44, 0.32);
+
+@CIOrange: #f3b372;
+@orangeDark: #4b4138;
+
+body {
+   background-color: @darkBackgroundColor;
+}
+
+// Pulls
+
+#ciBlocked-container {
+   .pull-list {
+      border: 1px solid @orangeDark;
+   }
+
+   .click-heading {
+      background-color: @orangeDark;
+      border: 1px solid @orangeDark;
+   }
+
+   .panel-title {
+      color: @CIOrange;
+   }
+}
+
+.status {
+   background-color: @darkHighlight;
+   border: 1px solid @darkHighlight;
+}
+
+.status-icon {
+   display: none;
+}
+
+.signature {
+   color: @darkHighlight;//darken(@darkHighlight, 4%);
+}
+
+.circle-shape {
+   background-color: darken(@darkHighlight, 4%);
+
+   &.signature-valid {
+      // background-color: @greenDark;
+   }
+}
+
+.pull-list {
+   border: 1px solid @darkHighlight;
+}
+
+.click-heading.panel-heading {
+   background-color: @darkHighlight;
+   color: @textColor;
+   border: 1px solid @darkHighlight;
+}
+
+.signature-separator {
+   p {
+      background-color: #000;
+   }
+}
+
+.refresh:hover {
+   color: blue;
+}
+
+.signature-valid-listing-mine, .signature-valid-mine {
+   color: #663399;
+}
+
+.signature-valid-listing, .signature-valid {
+   span {
+      color: @greenText;
+   }
+}
+
+.signature-invalid-listing, .signature-invalid {
+   color: @brand-warning;
+}
+
+.signature-invalid-listing-mine, .signature-invalid-mine {
+   color: @brand-danger;
+}
+
+.triangle.warning-triangle {
+   border-top-color: @CIOrange;
+}
+
+.label-past-due {
+   background-color: #FBEBEA;
+   color: @brand-danger;
+}
+
+.label-milestone {
+   background-color: #EFF7FF;
+   color: #5BABF1;
+}
+
+.list-group-item.pull {
+   border: 1px solid #2f353c;
+   background-color: @darkBackgroundColor;
+   color: @textColor;
+
+   &:hover {
+      background-color: @darkHover;
+   }
+}
+
+// Leaderboard
+.leaderboard {
+   background-color: @darkHover;
+   color: @textColor;
+
+   &.well {
+      border: none;
+   }
+}
+.leaderboard-user {
+   color: #FFFFFF;
+}
+
+.leaderboard-leaders {
+   background-color: @brand-success;
+}
+
+.leaderboard-count {
+   color: #FFFFFF;
+}
