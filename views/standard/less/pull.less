@@ -40,6 +40,38 @@
    padding-right: 11px;
    position: relative;
    top: -2px;
+   float: left;
+}
+
+.triangle.warning-triangle {
+   .status-icon {
+      display: block;
+   }
+}
+
+.triangle.error-triangle {
+   .status-icon {
+      display: block;
+   }
+}
+
+.list-group-item.pull {
+   &:hover .status-icon {
+      display: block;
+
+   }
+}
+
+.circle-shape {
+   float: left;
+   margin: 0 1px;
+   height: 21px;
+   width: 21px;
+   border-radius: 50%;
+}
+
+.panel {
+   border-radius: 6px;
 }
 
 .pull-number {
@@ -48,8 +80,12 @@
 
 .signature {
    font-size: @big-glyphicon;
-   padding: 0px 2px;
-   top: 2px;
+   padding: 0px 4px;
+   top: 1px;
+}
+
+.signature-valid {
+   font-size: 15px;
 }
 
 .signature-separator {
