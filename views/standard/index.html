@@ -1,4 +1,3 @@
-
 <script>
    var App = {
       socketToken: "<%= socketToken %>",
@@ -14,15 +13,27 @@
 
       // Color switcher
       $(document).ready(function() {
-         var cscookie = $.cookie("pulldasher-colorscheme");
+         var cookies = document.cookie.split(';');
+         var cscookie = "";
+         cookies.forEach(function(currentValue) {
+            var elem = currentValue.split('=');
+            if (elem[0] == "pulldasher-colorscheme") {
+               cscookie = elem[1];
+            }
+         });
+
          if (cscookie) {
-            $('head').append('<link rel="stylesheet" type="text/css" href="css/' + cscookie + '.css">');
+            $('.stylesheet').attr('disabled', 'disabled');
+            $('head').remove('.stylesheet');
+            $('head').append('<link class="stylesheet" rel="stylesheet" type="text/css" href="css/' + cscookie + '.css">');
          }
 
          $("#colorscheme > span").on('click', function() {
             var colorscheme = $(this).data('css');
-            $('head').append('<link rel="stylesheet" type="text/css" href="css/' + colorscheme + '.css">');
-            $.cookie("pulldasher-colorscheme", colorscheme);
+            $('.stylesheet').attr('disabled', 'disabled');
+            $('head').remove('#stylesheet');
+            $('head').append('<link class="stylesheet" rel="stylesheet" type="text/css" href="css/' + colorscheme + '.css">');
+            document.cookie = ("pulldasher-colorscheme=" + colorscheme + ";");
          });
       });
    });
@@ -43,9 +54,9 @@
       <div id="navbar" class="collapse navbar-collapse">
          <span id="restore-buttons"></span>
          <span id="global-indicators"></span>
-         <p id="colorscheme" class="navbar-right">
-            <span class="option" data-css="theme-light">light</span>
-            <span class="option" data-css="theme-dark">dark</span>
+         <p id="colorscheme" class="navbar-text navbar-right">
+         <span class="option" data-css="theme-light">light</span>
+         <span class="option" data-css="theme-dark">dark</span>
          </p>
          <p class="navbar-text navbar-right">
          State: <span id="connectionState"></span>
