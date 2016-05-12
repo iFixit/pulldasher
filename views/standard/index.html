@@ -25,14 +25,14 @@
          if (cscookie) {
             $('.stylesheet').attr('disabled', 'disabled');
             $('head').remove('.stylesheet');
-            $('head').append('<link class="stylesheet" rel="stylesheet" type="text/css" href="css/' + cscookie + '.css">');
+            $('head').append('<link class="stylesheet" rel="stylesheet" type="text/css" href="css/themes/' + cscookie + '.css">');
          }
 
          $("#colorscheme > span").on('click', function() {
             var colorscheme = $(this).data('css');
             $('.stylesheet').attr('disabled', 'disabled');
             $('head').remove('#stylesheet');
-            $('head').append('<link class="stylesheet" rel="stylesheet" type="text/css" href="css/' + colorscheme + '.css">');
+            $('head').append('<link class="stylesheet" rel="stylesheet" type="text/css" href="css/themes/' + colorscheme + '.css">');
             document.cookie = ("pulldasher-colorscheme=" + colorscheme + ";");
          });
       });
