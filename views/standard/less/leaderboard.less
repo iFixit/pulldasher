@@ -18,7 +18,7 @@
 
 .leaderboard-posting {
    float: left;
-   background: @brand-primary;
+   background: @leaderboard-background;
    margin-right: 5px;
    padding: 2px;
 }
@@ -29,6 +29,7 @@
 
 .leaderboard-count {
    .leaderboard-postingelement;
+   color: @leaderboard-count;
    width: @avatar-width;
    position: relative;
    text-align: center;
@@ -39,6 +40,11 @@
 
 .leaderboard-user {
    .leaderboard-postingelement;
+   color: @leaderboard-user;
+}
+
+.leaderboard-leaders {
+   background-color: @leaderboard-leader-background;
 }
 
 .leaderboard-avatar {

@@ -30,8 +30,9 @@
    padding: 4px;
    padding-left: 8px;
    padding-right: 10px;
+   background-color: @status-background;
    border-radius: 2px;
-   border: 1px solid @gray-lighter;
+   border: 1px solid @status-border;
    font-size: 14px;
    font-weight: 700;
 }
@@ -40,38 +41,6 @@
    padding-right: 11px;
    position: relative;
    top: -2px;
-   float: left;
-}
-
-.triangle.warning-triangle {
-   .status-icon {
-      display: block;
-   }
-}
-
-.triangle.error-triangle {
-   .status-icon {
-      display: block;
-   }
-}
-
-.list-group-item.pull {
-   &:hover .status-icon {
-      display: block;
-
-   }
-}
-
-.circle-shape {
-   float: left;
-   margin: 0 1px;
-   height: 21px;
-   width: 21px;
-   border-radius: 50%;
-}
-
-.panel {
-   border-radius: 6px;
 }
 
 .pull-number {
@@ -79,25 +48,40 @@
 }
 
 .signature {
-   font-size: @big-glyphicon;
-   padding: 0px 4px;
-   top: 1px;
+   font-size: 18px;
+   padding: 0px 2px;
+   top: 2px;
+   color: @signature-default;
 }
 
-.signature-valid {
-   font-size: 15px;
+.signature-valid-listing, .signature-valid {
+   color: @signature-valid;
+}
+
+.signature-valid-listing-mine, .signature-valid-mine {
+   color: @signature-valid-mine;
+}
+
+.signature-invalid-listing, .signature-invalid {
+   color: @signature-invalid;
+}
+
+.signature-invalid-listing-mine, .signature-invalid-mine {
+   color: @signature-invalid-mine;
 }
 
 .signature-separator {
-   border-bottom: 1px dashed @gray-lighter;
+   border-bottom: 1px dashed @signature-separator-border;
    height: 1px;
    margin: 8px 0px;
    position: relative;
    opacity: .5;
+
    p {
       position: absolute;
       top: -5px;
       left: 0px;
+      background-color: @signature-separator-background;
       padding-right: 8px;
       text-transform: uppercase;
       font-size: 10px;
@@ -126,6 +110,10 @@
    visibility: hidden;
 }
 
+.refresh:hover {
+   color: @refresh-hover;
+}
+
 .pull:hover .refresh {
    visibility: visible;
 }
@@ -143,4 +131,12 @@
    margin-right: 10px;
 }
 
+.label-milestone {
+   color: @label-milestone;
+   background-color: @label-milestone-background;
+}
 
+.label-past-due {
+   color: @label-past-milestone;
+   background-color: @label-past-milestone-background;
+}

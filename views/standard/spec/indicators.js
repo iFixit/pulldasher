@@ -2,13 +2,9 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
    var log = debug('indicators');
    var signatureStatus = function(pull, node, type, required, signatures) {
          var signatureMark = function() {
-            var circle = $('<div>');
-            circle.addClass('circle-shape');
-
             var check = $('<span>');
-            check.addClass('signature glyphicon glyphicon-ok');
-            circle.append(check);
-            return circle;
+            check.addClass('signature glyphicon glyphicon-ok-sign');
+            return check;
          };
 
          var signatureValidMark = function() {
