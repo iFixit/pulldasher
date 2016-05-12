@@ -48,9 +48,16 @@ module.exports = function(grunt) {
         strictMath: true,
         outputSourceFiles: true
       },
-      file: {src: 'views/current/less/main.less', dest: 'views/current/css/pulldasher.css'},
-      file: {src: 'views/current/less/theme-light.less', dest: 'views/current/css/theme-light.css'},
-      file: {src: 'views/current/less/theme-dark.less', dest: 'views/current/css/theme-dark.css'}
+      files: {
+         src: [
+            'views/current/less/main.less',
+            'views/current/less/themes/*.less'
+         ],
+         expand: true,
+         rename: function(dest, src) {
+            return src.replace(/less/g, 'css');
+         }
+      }
       // END derived lines
     },
 
