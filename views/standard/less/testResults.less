@@ -1,5 +1,5 @@
 .pull:hover .build_status .glyphicon-ok {
-   color: @brand-success;
+   color: @build-status-checkmark;
    top: -35px;
    right: 10px;
 }
@@ -22,7 +22,7 @@
       position: absolute;
       top: -40px;
       right: 5px;
-      color: #FFF;
+      color: @status-icon;
    }
 
    .triangle {
@@ -36,18 +36,18 @@
    }
 
    .pending-triangle {
-      border-top-color: #DDDDDD;
+      border-top-color: @pending-triangle;
    }
 
    .warning-triangle {
-      border-top-color: #E7B049;
+      border-top-color: @warning-triangle;
    }
 
    .error-triangle {
-      border-top-color: #DB524B;
+      border-top-color: @error-triangle;
    }
 
    .success-triangle {
-      border-top-color: #6CB644;
+      border-top-color: @success-triangle;
    }
 }
