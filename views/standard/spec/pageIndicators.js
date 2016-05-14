@@ -22,9 +22,11 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _,
 
       var text = $('<div>');
       text.addClass('leaderboard-title');
-      text.text(type + ' Leaderboard:');
+      text.text(type + ' Leaders:');
 
       node.append(text);
+
+      var leaderboardWrapper = $('<div class="leaderboard-wrapper">');
 
       var date = new Date();
       var difference = 7 * 24 * 60 * 60 * 1000; // Two weeks in ms
@@ -77,8 +79,9 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _,
             info.addClass('leaderboard-trailing');
          }
 
-         node.append(info);
+         leaderboardWrapper.append(info);
       });
+      node.append(leaderboardWrapper);
    };
    return {
       pull_count: function(pulls, node) {

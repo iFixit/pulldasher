@@ -13,6 +13,12 @@
 
 .navbar {
    height: 50px;
+
+   z-index: 9999;
+
+   @media @mobile {
+      height: auto;
+   }
 }
 
 #global-indicators {
@@ -25,6 +31,10 @@
       float: left;
       padding-right: 25px;
       text-align: center;
+
+      @media @mobile {
+         padding-right: 5px;
+      }
 
       .number {
          color: #777;
@@ -54,7 +64,15 @@
    margin: 15px 0;
 
    @media @mobile {
-      margin: 15px 8px;
+      &.theme-selector {
+         clear: left;
+         float: left;
+         margin: 15px 8px;
+      }
+
+      &.global-indicator {
+         margin: 0 0 0 9px;
+      }
    }
    
    i {
