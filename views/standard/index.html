@@ -23,13 +23,14 @@
          });
 
          if (cscookie) {
+            $('#theme-selector').val(cscookie);
             $('.stylesheet').attr('disabled', 'disabled');
-            $('head').remove('.stylesheet');
+            $('head').remove('#stylesheet');
             $('head').append('<link class="stylesheet" rel="stylesheet" type="text/css" href="css/themes/' + cscookie + '.css">');
          }
 
-         $("#colorscheme > span").on('click', function() {
-            var colorscheme = $(this).data('css');
+         $('#theme-selector').on('change', function() {
+            var colorscheme = $(this).val().toLowerCase();
             $('.stylesheet').attr('disabled', 'disabled');
             $('head').remove('#stylesheet');
             $('head').append('<link class="stylesheet" rel="stylesheet" type="text/css" href="css/themes/' + colorscheme + '.css">');
@@ -40,6 +41,9 @@
 </script>
 
 <nav class="navbar navbar-default" role="navigation">
+   <p class="navbar-brand">
+      <span class="brand-highlight">Pull</span>dasher
+   </p>
    <div class="container-fluid">
       <div class="navbar-header">
          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
@@ -48,19 +52,16 @@
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
          </button>
-         <a class="navbar-brand" href="#">Pulldasher</a>
       </div>
 
       <div id="navbar" class="collapse navbar-collapse">
          <span id="restore-buttons"></span>
          <span id="global-indicators"></span>
-         <p id="colorscheme" class="navbar-text navbar-right">
-         <span class="option" data-css="light">light</span>
-         <span class="option" data-css="dark">dark</span>
-         </p>
-         <p class="navbar-text navbar-right">
-         State: <span id="connectionState"></span>
-         </p>
+         <div class="navbar-text navbar-right">
+            Mode:
+            <i class="fa fa-sun-o"></i>
+            <i class="fa fa-moon-o"></i>
+         </div>
          <span id="debug-indicators" class="navbar-right"></span>
       </div>
    </div>
