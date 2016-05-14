@@ -81,11 +81,19 @@ var HooksController = {
 
          body.comment.number = body.issue.number;
          body.comment.repo = body.repository.name;
+         body.comment.type = 'issue';
          var comment = new Comment(body.comment);
 
          promises.push(dbManager.updateComment(comment));
 
          dbUpdated = Promise.all(promises);
+      } else if (event === 'pull_request_review_comment') {
+         body.comment.number = body.pull_request.number;
+         body.comment.repo =   body.repository.name;
+         body.comment.type =   'review';
+         var comment = new Comment(body.comment);
+
+         dbUpdated = dbManager.updateComment(comment);
       }
 
       if (dbUpdated) {
