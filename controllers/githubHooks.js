@@ -88,13 +88,15 @@ var HooksController = {
          dbUpdated = Promise.all(promises);
       }
 
-      dbUpdated.then(function fulfilled() {
-         res.status(200).send('Success!');
-      },
-      function rejected(err) {
-         console.log(err);
-         res.status(500).send(err.toString());
-      }).done();
+      if (dbUpdated) {
+         dbUpdated.then(function fulfilled() {
+            res.status(200).send('Success!');
+         },
+         function rejected(err) {
+            console.log(err);
+            res.status(500).send(err.toString());
+         }).done();
+      }
    }
 
 };
