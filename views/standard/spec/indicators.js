@@ -232,8 +232,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
          }
 
          if (milestone.title) {
-            var label = $('<span>').addClass('label');
-            var label_text = milestone.title;
+            var flag = $('<i>').addClass('fa fa-flag');
 
             // If there's a due date, show that instead of the milestone title.
             if (milestone.due_on) {
@@ -242,27 +241,26 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                var tooltip_text = milestone.title;
 
                if (past_due) {
-                  label.addClass('label-past-due');
+                  flag.addClass('flag-past-due');
                   tooltip_text = "Past Due: " + tooltip_text;
                } else {
-                  label.addClass('label-milestone');
+                  flag.addClass('flag-milestone');
                }
 
-               label_text = utils.formatDate(date);
-               utils.addTooltip(label, tooltip_text);
+               flag_text = utils.formatDate(date);
+               utils.addTooltip(flag, tooltip_text);
             }
 
-            label.text(label_text);
-            node.append(label);
+            node.append(flag);
          }
       },
       custom_label: function custom_label(pull, node) {
          var titles = pull.getLabelTitlesLike(/pulldasher-(.*)/);
 
          _.each(titles, function(title) {
-            var label = $('<span>').addClass('label label-primary');
-            label.text(title);
-            node.append(label);
+            var tag = $('<i>').addClass('fa fa-tag');
+            utils.addTooltip(tag, title);
+            node.append(tag);
          });
       },
 

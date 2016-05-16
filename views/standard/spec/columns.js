@@ -102,7 +102,7 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
          // yet!
       },
       {
-         title: "deploy_blocked Pulls",
+         title: "Deploy Blocked Pulls",
          id: "deployBlockPulls",
          selector: function(pull) {
             return pull.ready() && pull.deploy_blocked();
@@ -125,11 +125,10 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
                   var current_block = pull.status.deploy_block.slice(-1)[0].data;
                   var date = new Date(current_block.created_at);
                   var link = utils.getCommentLink(pull, current_block);
-                  var label = $('<span>').addClass('label label-danger');
+                  var icon = $('<i>').addClass('fa fa-minus-circle deploy-blocked');
 
-                  label.text(utils.formatDate(date));
-                  link.append(label);
-                  utils.addActionTooltip(link, "deploy_block'd",
+                  link.append(icon);
+                  utils.addActionTooltip(icon, "deploy_block'd",
                   current_block.created_at, current_block.user.login);
 
                   node.append(link);
@@ -155,7 +154,7 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
          shrinkToButton: false
       },
       {
-         title: "dev_blocked Pulls",
+         title: "Dev Blocked Pulls",
          id: "blockPulls",
          selector: function(pull) {
             return pull.dev_blocked();
@@ -177,17 +176,13 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
          indicators: {
             actor: function actor(pull, node) {
                var current_block = pull.status.dev_block.slice(-1)[0].data;
-
                var date = new Date(current_block.created_at);
-
                var link = utils.getCommentLink(pull, current_block);
+               var icon = $('<i>').addClass('fa fa-minus-circle dev-blocked');
 
-               var label = $('<span>').addClass('label label-default');
-
-               label.text(utils.formatDate(date));
-               link.append(label);
-               utils.addActionTooltip(link, "dev_block'd",
-               current_block.created_at, current_block.user.login);
+               link.append(icon);
+               utils.addActionTooltip(icon, "dev_block'd",
+                current_block.created_at, current_block.user.login);
 
                node.append(link);
             }
