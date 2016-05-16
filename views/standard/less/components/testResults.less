@@ -1,53 +1,27 @@
-.pull:hover .build_status .glyphicon-ok {
-   color: @build-status-checkmark;
-   top: -35px;
-   right: 10px;
-}
-
 .build_status {
-   .glyphicon {
-      font-weight: bold;
-   }
-
    .build_status_link {
-      float: right;
-      position: relative;
-      width: 45px;
-      height: 45px;
-      top: -10px;
-      right: -15px;
-   }
-
-   .status-icon {
       position: absolute;
-      top: -40px;
-      right: 5px;
-      color: @status-icon;
+      width: 5px;
+      top: 10px;
+      left: 7px;
+      bottom: 10px;
+      border-radius: 15px;
+      transition: .2s;
    }
 
-   .triangle {
-      width: 0;
-      height: 0;
-      position: absolute;
-      top: 0;
-      right: 0;
-      border-top: 45px solid transparent;
-      border-left: 45px solid transparent;
+   .build-state-pending {
+      background: @pending-triangle;
    }
 
-   .pending-triangle {
-      border-top-color: @pending-triangle;
+   .build-state-failure {
+      background: @warning-triangle;
    }
 
-   .warning-triangle {
-      border-top-color: @warning-triangle;
+   .build-state-error {
+      background: @error-triangle;
    }
 
-   .error-triangle {
-      border-top-color: @error-triangle;
-   }
-
-   .success-triangle {
-      border-top-color: @success-triangle;
+   .build-state-success {
+      background: @success-triangle;
    }
 }

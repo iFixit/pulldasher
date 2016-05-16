@@ -97,7 +97,7 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
          },
          // This is a magical option (in a bad way) which makes the column
          // collapsible. It would be better if no more such options were added.
-         shrinkToButton: true
+         shrinkToButton: false
          // Take a look at the next column for more on the parts we haven't seen
          // yet!
       },
@@ -136,7 +136,7 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
                }
             }
          },
-         shrinkToButton: true
+         shrinkToButton: false
       },
       {
          title: "Ready Pulls",
@@ -152,7 +152,7 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
                utils.hideIfEmpty(container, blob, '.pull');
             }
          },
-         shrinkToButton: true
+         shrinkToButton: false
       },
       {
          title: "dev_blocked Pulls",

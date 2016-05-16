@@ -114,22 +114,45 @@
    color: @refresh-hover;
 }
 
+.pull {
+   .pull-contents {
+      transition: .2s;
+      margin-left: 7px;
+   }
+
+   &:hover {
+      .build_status_link {
+         width: 10px;
+      }
+
+      .pull-contents {
+         margin-left: 12px;
+      }
+   }
+}
+
 .pull:hover .refresh {
    visibility: visible;
 }
 
 .pull-count {
-   float: right;
     float: right;
-    text-align: center;
-    height: 37px;
-    margin-top: -10px;
+    height: 38px;
     width: 45px;
-    margin-right: -15px;
     background: darkblue;
     text-align: center;
-    border-radius: 0 4px 0 0;
+    border-radius: 0 3px 3px 0;
     line-height: 35px;
+    position: absolute;
+    z-index: 999;
+    right: 16px;
+    top: 1px;
+
+   @media @mobile {
+      height: 48px;
+      width: 54px;
+      line-height: 45px;
+   }
 }
 
 .info-tag {

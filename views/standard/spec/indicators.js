@@ -210,32 +210,11 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
             var title = commit_status.description;
             var url   = commit_status.target_url;
 
-            var corner = $('<div class="triangle"></div>');
-
             var link = $('<a target="_blank" class="build_status_link" data-toggle="tooltip" data-placement="top" title="' + title + '" href="' + url + '"></a>');
-            var icon = $('<span>').addClass('status-icon glyphicon');
 
             node.append(link);
-            link.append(corner);
-            corner.append(icon);
 
-            switch(commit_status.state) {
-               case 'pending':
-               corner.addClass('pending-triangle');
-               icon.addClass('glyphicon-repeat');
-               break;
-               case 'success':
-               icon.addClass('glyphicon-ok');
-               break;
-               case 'error':
-               corner.addClass('error-triangle');
-               icon.addClass('glyphicon-exclamation-sign');
-               break;
-               case 'failure':
-               corner.addClass('warning-triangle');
-               icon.addClass('glyphicon-remove');
-               break;
-            }
+            link.addClass('build-state-' + commit_status.state);
 
             link.tooltip();
          }
