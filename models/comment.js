@@ -11,6 +11,7 @@ function Comment(data) {
          login: data.user.login
       },
       created_at:    new Date(data.created_at),
+      comment_type:  data.type,
       comment_id:    data.id
    };
 }
@@ -27,7 +28,8 @@ Comment.getFromDB = function(data) {
          login: data.user
       },
       created_at: utils.fromUnixTime(data.date),
-      id: data.comment_id
+      type:       data.comment_type,
+      id:         data.comment_id
    });
 };
 
