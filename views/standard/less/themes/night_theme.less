@@ -7,3 +7,14 @@
 @import "../components/header.less";
 @import "../components/pull.less";
 @import "../components/leaderboard.less";
+
+.leaderboard-posting {
+   border-width: 1px;
+   border-style: solid;
+   height: 27px !important;
+   border-color: @leaderboard-posting-border;
+
+   &.leaderboard-leaders {
+      border-color: @leaderboard-leader-border;
+   }
+}

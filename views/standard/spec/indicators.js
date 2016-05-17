@@ -3,7 +3,12 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
    var signatureStatus = function(pull, node, type, required, signatures) {
          var signatureMark = function() {
             var check = $('<i>');
-            check.addClass('signature fa fa-check-circle');
+            if ($('i[data-css="night_theme"] .active')) {
+               check.addClass('signature fa fa-check');
+            } else {
+               check.addClass('signature fa fa-check-circle');
+            }
+
             return check;
          };
 

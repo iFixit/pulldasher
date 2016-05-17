@@ -40,7 +40,7 @@
 
          .leaderboard-count {
             display: inline-block;
-            color: @leaderboard-count;
+            color: @leaderboard-posting-count;
             width: @avatar-width;
             position: relative;
             text-align: center;
@@ -50,6 +50,10 @@
 
          &.leaderboard-leaders {
             background-color: @leaderboard-leader-background;
+
+            .leaderboard-count {
+               color: @leaderboard-leader-count;
+            }
          }
       }
    }
