@@ -103,7 +103,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
             var oldSignatures = signatures.old;
             var userSignature = signatures.user;
 
-            var tallies = valid = invalid = 0;
+            var tallies = valid = invalid = myValid = myInvalid = 0;
 
             log("Tallies so far (should be 0):", tallies);
             log("Currently-valid signatures:", currentSignatures);
@@ -114,6 +114,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                   if (utils.mySig(signature)) {
                      tipper.append(myValidSignatureDescription(pull, signature));
                      node.append(mySignatureValidMark());
+                     myValid += 1;
                   } else {
                      tipper.append(validSignatureDescription(pull, signature));
                      node.append(signatureValidMark());
@@ -134,6 +135,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                   node.append(mySignatureInvalidatedMark());
                   tallies += 1;
                   invalid += 1;
+                  myInvalid += 1;
                }
                log("Tallies so far:", tallies);
 
@@ -162,11 +164,21 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                container.append(message);
             } else if (valid + invalid == required) {
                if (invalid == 0) {
-                  node.addClass('full-valid');
+                  node.addClass(myValid > 0 ?
+                   'full-valid-mine' : 'full-valid');
                } else if (valid == 0) {
-                  node.addClass('full-invalid');
+                  node.addClass(myInvalid > 0 ?
+                   'full-invalid-mine' : 'full-invalid');
                } else {
                   node.addClass('full-mix');
+
+                  if (myValid > 0) {
+                     node.addClass('myValid');
+                  }
+
+                  if (myInvalid > 0) {
+                     node.addClass('myInvalid');
+                  }
                }
             }
 
