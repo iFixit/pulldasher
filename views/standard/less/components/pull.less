@@ -110,12 +110,27 @@
    border: 1px solid @status-border;
    font-size: 14px;
    font-weight: 700;
-}
 
-.status-type {
-   padding-right: 11px;
-   position: relative;
-   top: -2px;
+   .status-type {
+      padding-right: 11px;
+      position: relative;
+      top: -2px;
+   }
+
+   &.full-valid {
+      border-color: @brand-success;
+   }
+
+   &.full-invalid {
+      border-color: @brand-warning;
+   }
+
+   &.full-mix {
+      border-left-color: @brand-success;
+      border-top-color: @brand-success;
+      border-right-color: @brand-warning;
+      border-bottom-color: @brand-warning;
+   }
 }
 
 .pull-title {

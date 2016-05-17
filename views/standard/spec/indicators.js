@@ -88,6 +88,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
 
          if (required === 0) {
             // Handle no-signature situation
+            node.addClass('full-valid');
             node.append(signatureValidMark());
             node.tooltip({'title': 'No ' + type + ' required!'});
             log("required === 0");
@@ -102,7 +103,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
             var oldSignatures = signatures.old;
             var userSignature = signatures.user;
 
-            var tallies = 0;
+            var tallies = valid = invalid = 0;
 
             log("Tallies so far (should be 0):", tallies);
             log("Currently-valid signatures:", currentSignatures);
@@ -119,6 +120,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                   }
 
                   tallies += 1;
+                  valid += 1;
                });
             }
             log("Tallies so far:", tallies);
@@ -131,6 +133,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                if (tallies < required && userSignature && !userSignature.data.active) {
                   node.append(mySignatureInvalidatedMark());
                   tallies += 1;
+                  invalid += 1;
                }
                log("Tallies so far:", tallies);
 
@@ -143,6 +146,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                      // Only add checkmarks if we don't have enough already
                      if (tallies < required) {
                         node.append(signatureInvalidatedMark());
+                        invalid += 1;
                         tallies += 1;
                      }
                   }
@@ -156,6 +160,14 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                var message = $('<span>');
                message.text('No signoffs yet!');
                container.append(message);
+            } else if (valid + invalid == required) {
+               if (invalid == 0) {
+                  node.addClass('full-valid');
+               } else if (valid == 0) {
+                  node.addClass('full-invalid');
+               } else {
+                  node.addClass('full-mix');
+               }
             }
 
             for (; tallies < required; tallies++) {
