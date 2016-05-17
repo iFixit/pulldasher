@@ -1,24 +1,67 @@
-// Marvel Color Scheme
-@black: #1F2D3D;
-@steel: #273444;
-@slate: #3C4858;
-@silver: #8492A6;
-@smoke: #E0E6ED;
+@cornflower-blue: #4174d9;
+@rosy-pink: #f0747d;
+@soft-blue: #6292f0;
+@sand-brown: #ce9b5f;
+@soft-green: #76c773;
+@charcoal-grey: #3d444c;
 
-@background-color: @black;
 
-@brand-highlight: @brand-primary;
-// Build status on hover
-@build-status-checkmark: @steel;
+// Color Scheme
+               @brand-primary: #3683C5;
+               @brand-success: #6CB644;
+               @brand-info:    #57A8EB;
+               @brand-warning: #E7B049;
+               @brand-danger:  #DB524B;
+
+@background-color: #20242B;
+
+// Header
+@header-background: #171A1F;
+@header-border: #171A1F;
+
+@theme-selector-text: #ABB2C0;
+@theme-selector-active: #FAFAFA;
+@theme-selector-inactive: #777777;
+
+@brand-color: #ABB2C0;
+@brand-highlight: #6193EA;
+
+@global-indicator-text: #ABB2C0;
+@global-indicator-text-link: @cornflower-blue;
+@global-indicator-count-text: #FAFAFA;
+@global-indicator-count-border: #777777;
+@global-indicator-count-background: #20242B;
+
+// Leaderboard
+@leaderboard-title-text: #777777;
+
+@leaderboard-posting-background: @brand-primary;
+@leaderboard-leader-background: @brand-success;
+
+@leaderboard-count: #FAFAFA;
+@leaderboard-user: #FAFAFA;
+
+// Pulls
+@panel-default-background: darken(#F5F5F5, 10%);
+@panel-primary-background: darken(@brand-primary, 15%);
+@panel-success-background: darken(@brand-success, 15%);
+
+@panel-default-text: #000000;
+@panel-primary-text: #FAFAFA;
+@panel-success-text: #FAFAFA;
 
 // Build statuses
-@pending-triangle: #000;
-@warning-triangle: #000;
-@error-triangle: #000;
-@success-triangle: #6CB644;
+@build-state-pending: #DDDDDD;
+@build-state-failure: #E7B049;
+@build-state-error:   #DB524B;
+@build-state-success: #6CB644;
 
-// Icon in triangle
-@status-icon: #FFFFFF;
+@tag-border: #EEEEEE;
+@tag-default-background: #FAFAFA;
+@tag-current-milestone: @brand-primary;
+@tag-past-milestone: @brand-danger;
+@tag-dev-blocked: #777777;
+@tag-deploy-blocked: @brand-danger;
 
 // CR and QA boxes
 @status-background: #FAFAFA;
@@ -26,10 +69,10 @@
 
 // Signatures (CR / QA)
 @signature-default: #D5D5D5;
-@signature-valid: @steel;
+@signature-valid: @brand-success;
 @signature-valid-mine: #663399;
-@signature-invalid: @silver;
-@signature-invalid-mine: @smoke;
+@signature-invalid: @brand-warning;
+@signature-invalid-mine: @brand-danger;
 
 // On hover signoffs
 @signature-separator-border: #eeeeee;
@@ -37,17 +80,3 @@
 
 // Refresh on hover
 @refresh-hover: #265b89;
-
-// Labels
-@label-milestone: #5BABF1;
-@label-milestone-background: #EFF7FF;
-
-@label-past-milestone: @smoke;
-@label-past-milestone-background: #FBEBEA;
-
-// Leaderboard
-@leaderboard-background: @black;
-@leaderboard-leader-background: @steel;
-
-@leaderboard-count: #FFFFFF;
-@leaderboard-user: #FFFFFF;

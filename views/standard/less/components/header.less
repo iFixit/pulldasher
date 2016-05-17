@@ -1,6 +1,8 @@
 .navbar {
    height: 50px;
    z-index: 999;
+   background: @header-background;
+   border-color: @header-border;
 
    @media @mobile {
       height: auto;
@@ -8,6 +10,7 @@
 
    .navbar-text {
       margin: 15px 0;
+      color: @theme-selector-text;
 
       @media @mobile {
          &#theme-selector {
@@ -24,6 +27,7 @@
       i {
          padding-left: 10px;
          font-size: 18px;  
+         color: @theme-selector-inactive;
 
          &:hover, &.active {
             cursor: pointer;
@@ -40,10 +44,14 @@
       margin: auto;
       text-align: center;
       text-transform: uppercase;
+      font-size: 17px;
+      letter-spacing: 1px;
       font-weight: 200;
+      color: @brand-color !important;
 
       span.brand-highlight {
          color: @brand-highlight;
+         font-size: 19px;
          font-weight: 400;
       }
    }
@@ -59,6 +67,7 @@
       float: left;
       padding-right: 25px;
       text-align: center;
+      color: @global-indicator-text;
 
       @media @mobile {
          padding-right: 5px;
@@ -67,7 +76,7 @@
       .number {
          padding: 3px;
          border-width: 1px;
-         border-color: @global-indicator-border;
+         border-color: @global-indicator-count-border;
          border-style: solid;
          border-radius: 7px;
 
@@ -75,11 +84,15 @@
          height: 25px;
          display: block;
          float: left;
-         color: @global-indicator-text;
-         background: @global-indicator-background;
+         color: @global-indicator-count-text;
+         background: @global-indicator-count-background;
          margin: -3px 5px 0 0;
          font-size: 15px;
          line-height: 17px;
+      }
+
+      a {
+         color: @global-indicator-text-link !important;
       }
 
       &.frozen_count:hover {
@@ -90,6 +103,9 @@
 
 #debug-indicators {
    display: none;
+   .fa-plane {
+      padding: 0 20px;
+   }
 }
 
 .navbar:hover #debug-indicators {
