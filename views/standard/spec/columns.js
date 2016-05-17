@@ -295,18 +295,12 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
             qa_in_progress: function qa_in_progress(pull, node) {
                var label;
                if ((label = pull.getLabel('QAing'))) {
-                  var labelElem = $('<span>' + label.title + '</span>');
-                  var labelclass;
+                  var icon = $('<i>').addClass('fa fa-eye qaing');
                   if (label.user === App.user) {
-                     labelclass = 'label-success';
-                  } else {
-                     labelclass = 'label-warning';
+                     icon.addClass('mine');
                   }
-                  labelElem.addClass('label ' + labelclass);
-                  labelElem = utils.addActionTooltip(labelElem, '',
-                  label.created_at, label.user);
-
-                  node.append(labelElem);
+                  utils.addActionTooltip(icon, '', label.created_at, label.user);
+                  node.append(icon);
                }
             }
          }
