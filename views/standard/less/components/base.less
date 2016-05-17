@@ -1,114 +1,24 @@
+@mobile: ~"only screen and (max-width: 599px)";
+
+@avatar-width: 25px;
+
+.click-heading {
+   cursor: pointer;
+
+   @media @mobile {
+      padding: 15px;
+   }
+}
+
+.avatar {
+   width: @avatar-width;
+}
+
+
 #branch_name_clipboard {
    position: fixed;
-   top: 0px;
+   top: 0;
    left: -1000px;
-}
-
-#restore-buttons {
-   @media @mobile {
-      display: block;
-      margin: 15px 0px;
-   }
-}
-
-.navbar {
-   height: 50px;
-
-   z-index: 9999;
-
-   @media @mobile {
-      height: auto;
-   }
-}
-
-#global-indicators {
-   @media @mobile {
-      display: block;
-      margin-top: 20px;
-   }
-
-   .global-indicator {
-      float: left;
-      padding-right: 25px;
-      text-align: center;
-
-      @media @mobile {
-         padding-right: 5px;
-      }
-
-      .number {
-         color: #777;
-         padding: 3px;
-         border-width: 1px;
-         border-color: @brand-primary;
-         border-style: solid;
-         border-radius: 7px;
-
-         width: 30px;
-         height: 25px;
-         display: block;
-         float: left;
-         background: #f8f8f8;
-         margin: -3px 5px 0 0;
-         font-size: 15px;
-         line-height: 18px;
-      }
-
-      &.frozen_count:hover .number {
-         color: #000;
-      }
-   }
-}
-
-.navbar-text {
-   margin: 15px 0;
-
-   @media @mobile {
-      &.theme-selector {
-         clear: left;
-         float: left;
-         margin: 22px 8px;
-      }
-
-      &.global-indicator {
-         margin: 0 0 0 9px;
-      }
-   }
-   
-   i {
-      padding-left: 10px;
-      font-size: 18px;  
-
-      &:hover, .active {
-         cursor: pointer;
-         font-weight: bolder;
-         color: #000;
-      }
-   }
-}
-
-#debug-indicators {
-   display: none;
-}
-
-.navbar:hover #debug-indicators {
-   display: inline;
-}
-
-.navbar-brand {
-   position: absolute;
-   width: 200px;
-   left: 0;
-   right: 0;
-   margin: auto;
-   text-align: center;
-   text-transform: uppercase;
-   font-weight: 200;
-
-   span.brand-highlight {
-      color: @brand-highlight;
-      font-weight: 400;
-   }
 }
 
 body {

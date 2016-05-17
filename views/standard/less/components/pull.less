@@ -32,26 +32,41 @@
    }
 }
 
-.status-row {
-   margin-top: 5px;
+.build_status {
+   .build_status_link {
+      position: absolute;
+      width: 5px;
+      top: 10px;
+      left: 7px;
+      bottom: 10px;
+      border-radius: 15px;
+      transition: .2s;
+   }
+
+   .build-state-pending {
+      background: @pending-triangle;
+   }
+
+   .build-state-failure {
+      background: @warning-triangle;
+   }
+
+   .build-state-error {
+      background: @error-triangle;
+   }
+
+   .build-state-success {
+      background: @success-triangle;
+   }
 }
 
-.col() {
+.status-col {
    float: left;
    position: relative;
 }
 
 .cr_remaining {
    margin-right: 6px;
-}
-
-.status-col {
-   .col;
-}
-
-.refresh-col {
-   .col;
-   margin: 6px 20px;
 }
 
 .info-tag i {
@@ -65,15 +80,23 @@
    line-height: 32px;
    text-align: center;
 
-   background-color: #FAFAFA;
    border-radius: 2px;
    border: 1px solid #eeeeee;
+   background-color: #FAFAFA;
    
    &.flag-milestone {
       color: @brand-primary;
    }
 
    &.flag-past-due {
+      color: @brand-danger;
+   }
+
+   &.dev-blocked {
+      color: #777777;
+   }
+
+   &.deploy-blocked {
       color: @brand-danger;
    }
 }
@@ -180,6 +203,7 @@
    .pull-contents {
       transition: .2s;
       margin-left: 4px;
+      max-width: 350px;
    }
 
    &:hover {
