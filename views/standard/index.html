@@ -13,29 +13,36 @@
 
       // Color switcher
       $(document).ready(function() {
-         var cookies = document.cookie.split(';');
          var cscookie = "";
-         cookies.forEach(function(currentValue) {
+         document.cookie.split(';').forEach(function(currentValue) {
             var elem = currentValue.split('=');
             if (elem[0] == "pulldasher-colorscheme") {
                cscookie = elem[1];
             }
          });
 
-         if (cscookie) {
-            $('#theme-selector').val(cscookie);
-            $('.stylesheet').attr('disabled', 'disabled');
-            $('head').remove('#stylesheet');
-            $('head').append('<link class="stylesheet" rel="stylesheet" type="text/css" href="css/themes/' + cscookie + '.css">');
-         }
+         $('#theme-selector > i').on('click', function() {
+            if ($(this).hasClass('active')) {
+               return;
+            }
 
-         $('#theme-selector').on('change', function() {
-            var colorscheme = $(this).val().toLowerCase();
+            var colorscheme = $(this).data('css');
             $('.stylesheet').attr('disabled', 'disabled');
             $('head').remove('#stylesheet');
             $('head').append('<link class="stylesheet" rel="stylesheet" type="text/css" href="css/themes/' + colorscheme + '.css">');
             document.cookie = ("pulldasher-colorscheme=" + colorscheme + ";");
+
+            $("i[data-css]").removeClass('active');
+            $(this).addClass('active');
          });
+
+         var colorscheme = cscookie ? cscookie : 'day_theme';
+         if (colorscheme != 'day_theme') {
+            //$('#theme-selector').val(cscookie);
+            $('i[data-css="' + colorscheme + '"]').click();
+         }
+
+         $('i[data-css="' + colorscheme + '"]').addClass('active');
       });
    });
 </script>
@@ -57,10 +64,10 @@
       <div id="navbar" class="collapse navbar-collapse">
          <span id="restore-buttons"></span>
          <span id="global-indicators"></span>
-         <div class="navbar-text navbar-right theme-selector">
+         <div class="navbar-text navbar-right" id="theme-selector">
             Mode:
-            <i class="fa fa-sun-o"></i>
-            <i class="fa fa-moon-o"></i>
+            <i data-css="day_theme" class="fa fa-sun-o"></i>
+            <i data-css="night_theme" class="fa fa-moon-o"></i>
          </div>
          <span id="debug-indicators" class="navbar-right"></span>
       </div>
