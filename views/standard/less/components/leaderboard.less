@@ -7,61 +7,48 @@
    @media @mobile {
       height: 75px;
    }
-}
 
-.leaderboard-wrapper {
-   @media @mobile {
-      display: table;
-      margin-left: auto;
-      margin-right: auto;
+   .leaderboard-title {
+      float: left;
+      margin: 5px 25px 0 15px;
+      font-size: 16px;
+      line-height: 16px;
+      color: @leaderboard-title-text;
+      font-weight: 400;
+
+      @media @mobile {
+         width: 100%;
+         margin: 0 0 10px 0;
+         text-align: center;
+      }
    }
-}
 
-.leaderboard-title {
-   float: left;
-   margin: 5px 25px 0 15px;
-   font-size: 16px;
-   line-height: 16px;
-   color: #777;
-   font-weight: 400;
+   .leaderboard-wrapper {
+      @media @mobile {
+         display: table;
+         margin-left: auto;
+         margin-right: auto;
+      }
 
-   @media @mobile {
-      width: 100%;
-      margin: 0 0 10px 0;
-      text-align: center;
+      .leaderboard-posting {
+         float: left;
+         background: @leaderboard-posting-background;
+         margin-right: 7px;
+         height: 25px;
+
+         .leaderboard-count {
+            display: inline-block;
+            color: @leaderboard-count;
+            width: @avatar-width;
+            position: relative;
+            text-align: center;
+            top: 2px;
+            font-weight: 400;
+         }
+
+         &.leaderboard-leaders {
+            background-color: @leaderboard-leader-background;
+         }
+      }
    }
-}
-
-.leaderboard-posting {
-   float: left;
-   background: @leaderboard-background;
-   margin-right: 7px;
-   height: 25px;
-}
-
-.leaderboard-postingelement() {
-   display: inline-block;
-}
-
-.leaderboard-count {
-   .leaderboard-postingelement;
-   color: @leaderboard-count;
-   width: @avatar-width;
-   position: relative;
-   text-align: center;
-   top: 2px;
-   font-weight: 400;
-}
-
-.leaderboard-user {
-   .leaderboard-postingelement;
-   color: @leaderboard-user;
-}
-
-.leaderboard-leaders {
-   background-color: @leaderboard-leader-background;
-}
-
-.leaderboard-avatar {
-   .leaderboard-postingelement;
 }

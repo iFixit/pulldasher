@@ -1,15 +1,17 @@
 .panel {
    &.panel-primary .pull-count {
-      background: darken(@brand-primary, 15%);
+      color: @panel-primary-text;
+      background: @panel-primary-background;
    }
 
    &.panel-default .pull-count {
-      background: darken(#f5f5f5, 15%);
+      color: @panel-default-text;
+      background: @panel-default-background;
    }
 
    &.panel-success .pull-count {
-      color: #ffffff;
-      background: darken(@brand-success, 15%);
+      color: @panel-success-text;
+      background: @panel-success-background;
    }
 
    .pull-count {
@@ -44,19 +46,19 @@
    }
 
    .build-state-pending {
-      background: @pending-triangle;
+      background: @build-state-pending;
    }
 
    .build-state-failure {
-      background: @warning-triangle;
+      background: @build-state-failure;
    }
 
    .build-state-error {
-      background: @error-triangle;
+      background: @build-state-error;
    }
 
    .build-state-success {
-      background: @success-triangle;
+      background: @build-state-success;
    }
 }
 
@@ -81,23 +83,23 @@
    text-align: center;
 
    border-radius: 2px;
-   border: 1px solid #eeeeee;
-   background-color: #FAFAFA;
+   border: 1px solid @tag-border;
+   background-color: @tag-default-background;
    
    &.flag-milestone {
-      color: @brand-primary;
+      color: @tag-current-milestone;
    }
 
    &.flag-past-due {
-      color: @brand-danger;
+      color: @tag-past-milestone;
    }
 
    &.dev-blocked {
-      color: #777777;
+      color: @tag-dev-blocked;
    }
 
    &.deploy-blocked {
-      color: @brand-danger;
+      color: @tag-deploy-blocked;
    }
 }
 
@@ -114,22 +116,22 @@
    .status-type {
       padding-right: 11px;
       position: relative;
-      top: -2px;
+      top: -1px;
    }
 
    &.full-valid {
-      border-color: @brand-success;
+      border-color: @signature-valid;
    }
 
    &.full-invalid {
-      border-color: @brand-warning;
+      border-color: @signature-invalid;
    }
 
    &.full-mix {
-      border-left-color: @brand-success;
-      border-top-color: @brand-success;
-      border-right-color: @brand-warning;
-      border-bottom-color: @brand-warning;
+      border-left-color: @signature-valid;
+      border-top-color: @signature-valid;
+      border-right-color: @signature-invalid;
+      border-bottom-color: @signature-invalid;
    }
 }
 
@@ -142,9 +144,10 @@
 }
 
 .signature {
-   font-size: 18px;
-   padding: 0px 2px;
-   top: 2px;
+   font-size: 20px;
+   padding: 0 2px;
+   position: relative;
+   top: 1px;
    color: @signature-default;
 }
 
@@ -206,7 +209,7 @@
    font-size: 16px;
    position: absolute;
    top: 12px;
-   right: 14px;
+   right: 15px;
    visibility: hidden;
 }
 
@@ -243,14 +246,4 @@
 .user_icon {
    float: left;
    margin-right: 5px;
-}
-
-.label-milestone {
-   color: @label-milestone;
-   background-color: @label-milestone-background;
-}
-
-.label-past-due {
-   color: @label-past-milestone;
-   background-color: @label-past-milestone-background;
 }

@@ -23,8 +23,8 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 
       // change the pull data at all, making it easier to trigger a debugger as
       // needed.
       rerender: whenDebug(function(pulls, node) {
-         var button = $('<span>');
-         button.addClass('glyphicon glyphicon-blackboard');
+         var button = $('<i>');
+         button.addClass('fa fa-paint-brush');
          button.on('click', function() {
             _manager.trigger();
          });

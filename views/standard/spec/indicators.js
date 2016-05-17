@@ -2,8 +2,8 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
    var log = debug('indicators');
    var signatureStatus = function(pull, node, type, required, signatures) {
          var signatureMark = function() {
-            var check = $('<span>');
-            check.addClass('signature glyphicon glyphicon-ok-sign');
+            var check = $('<i>');
+            check.addClass('signature fa fa-check-circle');
             return check;
          };
 
@@ -233,7 +233,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
       },
       user_icon: function user_icon(pull, node) {
          if (pull.is_mine()) {
-            node.append('<span class="glyphicon glyphicon-user"></span>');
+            node.append('<i class="fa fa-user"></i>');
          }
       },
       milestone_label: function milestone_label(pull, node){
@@ -282,6 +282,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
       // has its icon. This just adds the `click` event handler. Indicators are
       // super powerful!
       refresh: function(pull, node) {
+         utils.addTooltip(node, 'Rebuild #' + pull.number);
          node.on('click', function(event) {
             event.preventDefault();
             pull.refresh();

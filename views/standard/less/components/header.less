@@ -1,6 +1,6 @@
 .navbar {
    height: 50px;
-   z-index: 9999;
+   z-index: 999;
 
    @media @mobile {
       height: auto;
@@ -27,7 +27,7 @@
 
          &:hover, &.active {
             cursor: pointer;
-            color: #000;
+            color: @theme-selector-active;
          }
       }
    }
@@ -67,7 +67,7 @@
       .number {
          padding: 3px;
          border-width: 1px;
-         border-color: @brand-primary;
+         border-color: @global-indicator-border;
          border-style: solid;
          border-radius: 7px;
 
@@ -75,8 +75,8 @@
          height: 25px;
          display: block;
          float: left;
-         color: #ffffff;
-         background: @brand-primary;
+         color: @global-indicator-text;
+         background: @global-indicator-background;
          margin: -3px 5px 0 0;
          font-size: 15px;
          line-height: 17px;
