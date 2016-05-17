@@ -7,11 +7,11 @@
 
 
 // Color Scheme
-               @brand-primary: #3683C5;
-               @brand-success: #6CB644;
-               @brand-info:    #57A8EB;
-               @brand-warning: #E7B049;
-               @brand-danger:  #DB524B;
+@brand-primary: darken(#3683C5, 10%);
+@brand-success: darken(#6CB644, 10%);
+@brand-info:    darken(#57A8EB, 10%);
+@brand-warning: darken(#E7B049, 10%);
+@brand-danger:  darken(#DB524B, 10%);
 
 @background-color: #20242B;
 
@@ -65,35 +65,51 @@
 @panel-ready-count-background: #171A1F;
 @panel-ready-count-border: @brand-success;
 
-@panel-default-text: #000000;
-@panel-default-background: #F5F5F5;
-@panel-default-border: darken(#F5F5F5, 15%);
-@panel-default-count-text: #000000;
-@panel-default-count-background: darken(#F5F5F5, 15%);
-@panel-default-count-border: darken(#F5F5F5, 15%);
+@panel-default-text: #FFFFFF;
+@panel-default-background: #2F353B;
+@panel-default-border: #2F353B;
+@panel-default-count-text: #FFFFFF;
+@panel-default-count-background: #3A4148;
+@panel-default-count-border: #3A4148;
 
+@pull-title: #ABB2C0;
+@pull-number: #FFFFFF;
 @pull-background: #20242B;
 @pull-background-hover: #171A1F;
+@pull-separator: #2F353B;
 
 // Build statuses
 @build-state-pending: #DDDDDD;
-@build-state-failure: #E7B049;
-@build-state-error:   #DB524B;
-@build-state-success: #6CB644;
+@build-state-failure: @brand-warning;
+@build-state-error:   @brand-danger;
+@build-state-success: @brand-success;
 
-@tag-border: #EEEEEE;
-@tag-default-background: #FAFAFA;
+@tag-default-border: #2D3239;
+@tag-default-background: #2D3239;
+
 @tag-current-milestone: @brand-primary;
+@tag-current-milestone-border: @tag-default-border;
+@tag-current-milestone-background: @tag-default-background;
+
 @tag-past-milestone: @brand-danger;
-@tag-dev-blocked: #777777;
+@tag-past-milestone-border: @tag-default-border;
+@tag-past-milestone-background: @tag-default-background;
+
+@tag-dev-blocked: @brand-warning;
+@tag-dev-blocked-border: @tag-default-border;
+@tag-dev-blocked-background: @tag-default-background;
+
 @tag-deploy-blocked: @brand-danger;
+@tag-deploy-blocked-border: @tag-default-border;
+@tag-deploy-blocked-background: @tag-default-background;
 
 // CR and QA boxes
-@status-background: #FAFAFA;
-@status-border: #eeeeee;
+@status-background: #2D3239;
+@status-border: #2D3239;
+@status-text: #ABB2C0;
 
 // Signatures (CR / QA)
-@signature-default: #D5D5D5;
+@signature-default: #20242B;
 @signature-valid: @brand-success;
 @signature-valid-mine: #663399;
 @signature-invalid: @brand-warning;

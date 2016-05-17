@@ -64,25 +64,41 @@
 @panel-default-count-background: darken(#F5F5F5, 15%);
 @panel-default-count-border: darken(#F5F5F5, 15%);
 
+@pull-title: #555555;
+@pull-number: #000000;
 @pull-background: #FFFFFF;
 @pull-background-hover: #F5F5F5;
+@pull-separator: darken(#F5F5F5, 15%);
 
 // Build statuses
 @build-state-pending: #DDDDDD;
-@build-state-failure: #E7B049;
-@build-state-error:   #DB524B;
-@build-state-success: #6CB644;
+@build-state-failure: @brand-warning;
+@build-state-error:   @brand-danger;
+@build-state-success: @brand-success;
 
-@tag-border: #EEEEEE;
+@tag-default-border: #EEEEEE;
 @tag-default-background: #FAFAFA;
+
 @tag-current-milestone: @brand-primary;
+@tag-current-milestone-border: @tag-default-border;
+@tag-current-milestone-background: @tag-default-background;
+
 @tag-past-milestone: @brand-danger;
-@tag-dev-blocked: #777777;
+@tag-past-milestone-border: @tag-default-border;
+@tag-past-milestone-background: @tag-default-background;
+
+@tag-dev-blocked: @brand-warning;
+@tag-dev-blocked-border: @tag-default-border;
+@tag-dev-blocked-background: @tag-default-background;
+
 @tag-deploy-blocked: @brand-danger;
+@tag-deploy-blocked-border: @tag-default-border;
+@tag-deploy-blocked-background: @tag-default-background;
 
 // CR and QA boxes
 @status-background: #FAFAFA;
-@status-border: #eeeeee;
+@status-border: #EEEEEE;
+@status-text: #555555;
 
 // Signatures (CR / QA)
 @signature-default: #D5D5D5;

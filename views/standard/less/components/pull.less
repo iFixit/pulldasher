@@ -1,18 +1,4 @@
 .panel {
-   border-color: @panel-default-border;
-
-   .panel-heading {
-      color: @panel-default-text;
-      border-color: @panel-default-border;
-      background: @panel-default-background;
-   }
-
-   .pull-count {
-      color: @panel-default-count-text;
-      border-color: @panel-default-count-border;
-      background: @panel-default-count-background;
-   }
-
    .pull-count {
       float: right;
       height: 37px;
@@ -31,6 +17,10 @@
          width: 54px;
          line-height: 45px;
       }
+   }
+
+   .list-group-item {
+      border-color: @pull-separator;
    }
 }
 
@@ -82,6 +72,26 @@
    }
 }
 
+#blockPulls-container .panel,
+#crPulls-container .panel,
+#qaPulls-container .panel {
+   border-radius: 5px;
+   border-color: @panel-default-border;
+
+   .panel-heading {
+      color: @panel-default-text;
+      border-color: @panel-default-border;
+      background: @panel-default-background;
+   }
+
+   .pull-count {
+      color: @panel-default-count-text;
+      border-color: @panel-default-count-border;
+      background: @panel-default-count-background;
+   }
+
+}
+
 .build_status {
    .build_status_link {
       position: absolute;
@@ -121,33 +131,40 @@
 
 .info-tag i {
    display: inline-block;
-   height: 31px;
+   height: 32px;
    width: 33px;
    font-size: 17px;
    margin-left: 6px;
-   border-radius: 3px;
    float: left;
    line-height: 32px;
    text-align: center;
+   border-radius: 3px;
 
-   border-radius: 2px;
-   border: 1px solid @tag-border;
-   background-color: @tag-default-background;
+   border: 1px solid @tag-default-border;
+   background: @tag-default-background;
    
    &.flag-milestone {
       color: @tag-current-milestone;
+      border-color: @tag-current-milestone-border;
+      background: @tag-current-milestone-background;
    }
 
    &.flag-past-due {
       color: @tag-past-milestone;
+      border-color: @tag-past-milestone-border;
+      background: @tag-past-milestone-background;
    }
 
    &.dev-blocked {
       color: @tag-dev-blocked;
+      border-color: @tag-dev-blocked-border;
+      background: @tag-dev-blocked-background;
    }
 
    &.deploy-blocked {
       color: @tag-deploy-blocked;
+      border-color: @tag-deploy-blocked-border;
+      background: @tag-deploy-blocked-background;
    }
 }
 
@@ -156,6 +173,7 @@
    padding-left: 8px;
    padding-right: 10px;
    background-color: @status-background;
+   color: @status-text;
    border-radius: 2px;
    border: 1px solid @status-border;
    font-size: 14px;
@@ -184,11 +202,13 @@
 }
 
 .pull-title {
+   color: @pull-title;
    max-width: 300px;
-}
 
-.pull-number {
-   font-weight: bold;
+   .pull-number {
+      color: @pull-number;
+      font-weight: bold;
+   }
 }
 
 .signature {

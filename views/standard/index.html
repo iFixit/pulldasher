@@ -34,11 +34,16 @@
 
             $("i[data-css]").removeClass('active');
             $(this).addClass('active');
+
+            if (colorscheme == 'night_theme') {
+               $('.fa-check-circle').removeClass('fa-check-circle').addClass('fa-check-circle-o');
+            } else {
+               $('.fa-check-circle-o').removeClass('fa-check-circle-o').addClass('fa-check-circle');
+            }
          });
 
          var colorscheme = cscookie ? cscookie : 'day_theme';
          if (colorscheme != 'day_theme') {
-            //$('#theme-selector').val(cscookie);
             $('i[data-css="' + colorscheme + '"]').click();
          }
 
