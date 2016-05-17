@@ -1,17 +1,15 @@
 .panel {
-   &.panel-primary .pull-count {
-      color: @panel-primary-text;
-      background: @panel-primary-background;
-   }
+   border-color: @panel-default-border;
 
-   &.panel-default .pull-count {
+   .panel-heading {
       color: @panel-default-text;
+      border-color: @panel-default-border;
       background: @panel-default-background;
    }
 
-   &.panel-success .pull-count {
-      color: @panel-success-text;
-      background: @panel-success-background;
+   .pull-count {
+      color: @panel-default-count-text;
+      background: @panel-default-count-background;
    }
 
    .pull-count {
@@ -31,6 +29,51 @@
          width: 54px;
          line-height: 45px;
       }
+   }
+}
+
+#ciBlocked-container .panel {
+   border-color: @panel-ci-blocked-border;
+
+   .panel-heading {
+      color: @panel-ci-blocked-text;
+      border-color: @panel-ci-blocked-border;
+      background: @panel-ci-blocked-background;
+   }
+
+   .pull-count {
+      color: @panel-ci-blocked-count-text;
+      background: @panel-ci-blocked-count-background;
+   }
+}
+
+#deployBlockPulls-container .panel {
+   border-color: @panel-deploy-blocked-border;
+
+   .panel-heading {
+      color: @panel-deploy-blocked-text;
+      border-color: @panel-deploy-blocked-border;
+      background: @panel-deploy-blocked-background;
+   }
+
+   .pull-count {
+      color: @panel-deploy-blocked-count-text;
+      background: @panel-deploy-blocked-count-background;
+   }
+}
+
+#readyPulls-container .panel {
+   border-color: @panel-ready-border;
+
+   .panel-heading {
+      color: @panel-ready-text;
+      border-color: @panel-ready-border;
+      background: @panel-ready-background;
+   }
+
+   .pull-count {
+      color: @panel-ready-count-text;
+      background: @panel-ready-count-background;
    }
 }
 
@@ -73,7 +116,7 @@
 
 .info-tag i {
    display: inline-block;
-   height: 33px;
+   height: 31px;
    width: 33px;
    font-size: 17px;
    margin-left: 6px;
@@ -218,6 +261,8 @@
 }
 
 .pull {
+   background: @pull-background;
+
    .pull-contents {
       transition: .2s;
       margin-left: 4px;
@@ -225,6 +270,8 @@
    }
 
    &:hover {
+      background: @pull-background-hover !important;
+
       .build_status_link {
          width: 10px;
       }
@@ -233,14 +280,6 @@
          margin-left: 9px;
       }
    }
-}
-
-.info-tag {
-   display: inline-block;
-}
-
-.info-tag:empty {
-   display: none;
 }
 
 .user_icon {

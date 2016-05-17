@@ -8,7 +8,7 @@
 @background-color: #FFFFFF;
 
 // Header
-@header-background: #E7E7E7;
+@header-background: #F5F5F5;
 @header-border: #E7E7E7;
 
 @theme-selector-text: #777777;
@@ -25,6 +25,8 @@
 @global-indicator-count-background: @brand-primary;
 
 // Leaderboard
+@leaderboard-background: #f5f5f5;
+@leaderboard-border: #E7E7E7;
 @leaderboard-title-text: #777777;
 
 @leaderboard-posting-background: @brand-primary;
@@ -34,13 +36,32 @@
 @leaderboard-user: #FFFFFF;
 
 // Pulls
-@panel-default-background: darken(#F5F5F5, 10%);
-@panel-primary-background: darken(@brand-primary, 15%);
-@panel-success-background: darken(@brand-success, 15%);
+@panel-ci-blocked-text: #000000;
+@panel-ci-blocked-background: @brand-warning;
+@panel-ci-blocked-border: @brand-warning;
+@panel-ci-blocked-count-text: #000000;
+@panel-ci-blocked-count-background: darken(@brand-warning, 10%);
+
+@panel-deploy-blocked-text: #000000;
+@panel-deploy-blocked-background: @brand-danger;
+@panel-deploy-blocked-border: @brand-danger;
+@panel-deploy-blocked-count-text: #000000;
+@panel-deploy-blocked-count-background: darken(@brand-danger, 10%);
+
+@panel-ready-text: #000000;
+@panel-ready-background: @brand-success;
+@panel-ready-border: @brand-success;
+@panel-ready-count-text: #000000;
+@panel-ready-count-background: darken(@brand-success, 10%);
 
 @panel-default-text: #000000;
-@panel-primary-text: #FFFFFF;
-@panel-success-text: #FFFFFF;
+@panel-default-background: #F5F5F5;
+@panel-default-border: darken(#F5F5F5, 15%);
+@panel-default-count-text: #000000;
+@panel-default-count-background: darken(#F5F5F5, 15%);
+
+@pull-background: #FFFFFF;
+@pull-background-hover: #F5F5F5;
 
 // Build statuses
 @build-state-pending: #DDDDDD;
