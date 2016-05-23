@@ -1,114 +1,119 @@
-// Color Scheme
-@brand-primary: #3683C5;
-@brand-success: #6CB644;
-@brand-info:    #57A8EB;
-@brand-warning: #E7B049;
-@brand-danger:  #DB524B;
+@blue:   #3683C5;
+@green:  #6CB644;
+@yellow: #E7B049;
+@red:    #DB524B;
+@purple: #663399;
 
-@background-color: #FFFFFF;
+@white:      #FFFFFF;
+@light-grey: #F5F5F5;
+@grey:       #E7E7E7;
+@dark-grey:  #555555;
+@black:      #000000;
+
+@background-color: @white;
 
 // Header
-@header-background: #F5F5F5;
-@header-border: #E7E7E7;
+@header-background: @light-grey;
+@header-border: @grey;
 
-@theme-selector-text: #777777;
-@theme-selector-active: #000000;
-@theme-selector-inactive: #777777;
+@theme-selector-text: @dark-grey;
+@theme-selector-active: @black;
+@theme-selector-inactive: @dark-grey;
 
-@brand-color: #777777;
-@brand-highlight: #6193EA;
+@brand-color: @dark-grey;
+@brand-highlight: @blue;
 
-@global-indicator-text: #777777;
-@global-indicator-text-link: @brand-primary;
-@global-indicator-count-text: @brand-primary;
-@global-indicator-count-border: #FFFFFF;
-@global-indicator-count-background: #FFFFFF;
+@global-indicator-text: @dark-grey;
+@global-indicator-text-link: @blue;
+@global-indicator-count-text: @blue;
+@global-indicator-count-border: @white;
+@global-indicator-count-background: @white;
 
 // Leaderboard
-@leaderboard-background: #f5f5f5;
-@leaderboard-border: #E7E7E7;
-@leaderboard-title-text: #777777;
+@leaderboard-background: @light-grey;
+@leaderboard-border: @grey;
+@leaderboard-title-text: @dark-grey;
 
-@leaderboard-posting-background: @brand-primary;
-@leaderboard-posting-count: #FFFFFF;
+@leaderboard-posting-background: @blue;
+@leaderboard-posting-count: @white;
 
-@leaderboard-leader-background: @brand-success;
-@leaderboard-leader-count: #FFFFFF;
+@leaderboard-leader-background: @green;
+@leaderboard-leader-count: @white;
 
 // Pulls
-@panel-ci-blocked-text: #000000;
-@panel-ci-blocked-background: lighten(@brand-warning, 15%);
-@panel-ci-blocked-border: @brand-warning;
-@panel-ci-blocked-count-text: #000000;
-@panel-ci-blocked-count-background: lighten(@brand-warning, 5%);
-@panel-ci-blocked-count-border: darken(@brand-warning, 10%);
+@panel-ci-blocked-text: @black;
+@panel-ci-blocked-background: lighten(@yellow, 15%);
+@panel-ci-blocked-border: @yellow;
+@panel-ci-blocked-count-text: @black;
+@panel-ci-blocked-count-background: lighten(@yellow, 5%);
+@panel-ci-blocked-count-border: darken(@yellow, 10%);
 
-@panel-deploy-blocked-text: #000000;
-@panel-deploy-blocked-background: lighten(@brand-danger, 15%);
-@panel-deploy-blocked-border: @brand-danger;
-@panel-deploy-blocked-count-text: #000000;
-@panel-deploy-blocked-count-background: lighten(@brand-danger, 5%);
-@panel-deploy-blocked-count-border: darken(@brand-danger, 10%);
+@panel-deploy-blocked-text: @black;
+@panel-deploy-blocked-background: lighten(@red, 15%);
+@panel-deploy-blocked-border: @red;
+@panel-deploy-blocked-count-text: @black;
+@panel-deploy-blocked-count-background: lighten(@red, 5%);
+@panel-deploy-blocked-count-border: darken(@red, 10%);
 
-@panel-ready-text: #000000;
-@panel-ready-background: lighten(@brand-success, 15%);
-@panel-ready-border: @brand-success;
-@panel-ready-count-text: #000000;
-@panel-ready-count-background: lighten(@brand-success, 5%);
-@panel-ready-count-border: darken(@brand-success, 10%);
+@panel-ready-text: @black;
+@panel-ready-background: lighten(@green, 15%);
+@panel-ready-border: @green;
+@panel-ready-count-text: @black;
+@panel-ready-count-background: lighten(@green, 5%);
+@panel-ready-count-border: darken(@green, 10%);
 
-@panel-default-text: #000000;
-@panel-default-background: #F5F5F5;
-@panel-default-border: darken(#F5F5F5, 15%);
-@panel-default-count-text: #000000;
-@panel-default-count-background: darken(#F5F5F5, 15%);
-@panel-default-count-border: darken(#F5F5F5, 15%);
+@panel-default-text: @black;
+@panel-default-background: @light-grey;
+@panel-default-border: darken(@light-grey, 15%);
+@panel-default-count-text: @black;
+@panel-default-count-background: darken(@light-grey, 15%);
+@panel-default-count-border: darken(@light-grey, 15%);
 
-@pull-title: #555555;
-@pull-number: #000000;
-@pull-background: #FFFFFF;
-@pull-background-hover: #F5F5F5;
-@pull-separator: darken(#F5F5F5, 15%);
+@pull-title: @dark-grey;
+@pull-number: @black;
+@pull-background: @white;
+@pull-background-hover: @light-grey;
+@pull-separator: darken(@light-grey, 15%);
 
 // Build statuses
-@build-state-pending: #DDDDDD;
-@build-state-failure: @brand-warning;
-@build-state-error:   @brand-danger;
-@build-state-success: @brand-success;
+@build-state-pending: @grey;
+@build-state-failure: @yellow;
+@build-state-error:   @red;
+@build-state-success: @green;
 
-@tag-default-border: #EEEEEE;
-@tag-default-background: #FAFAFA;
+@tag-default-border: darken(@grey, 10%);
+@tag-default-background: @light-grey;
 
-@tag-current-milestone: @brand-primary;
+@tag-current-milestone: @blue;
 @tag-current-milestone-border: @tag-default-border;
 @tag-current-milestone-background: @tag-default-background;
 
-@tag-past-milestone: @brand-danger;
+@tag-past-milestone: @red;
 @tag-past-milestone-border: @tag-default-border;
 @tag-past-milestone-background: @tag-default-background;
 
-@tag-qaing: @brand-success;
-@tag-qaing-mine: #663399;
+@tag-qaing: @green;
+@tag-qaing-mine: @purple;
 @tag-qaing-border: @tag-default-border;
 @tag-qaing-background: @tag-default-background;
 
-@user-icon: @brand-primary;
+@user-icon: @blue;
 
 // CR and QA boxes
-@status-background: #FAFAFA;
-@status-border: #EEEEEE;
-@status-text: #555555;
+@status-background: @light-grey;
+@status-border: darken(@grey, 10%);
+@status-text: @dark-grey;
 
 // Signatures (CR / QA)
-@signature-default: #D5D5D5;
-@signature-valid: @brand-success;
-@signature-valid-mine: #663399;
-@signature-invalid: @brand-warning;
-@signature-invalid-mine: @brand-danger;
+@signature-default: darken(@grey, 10%);
+@signature-valid: @green;
+@signature-valid-mine: @purple;
+@signature-invalid: @yellow;
+@signature-invalid-mine: @red;
 
 // On hover signoffs
-@signature-separator-border: #eeeeee;
-@signature-separator-background: #000000;
+@signature-separator-border: @grey;
+@signature-separator-background: @black;
 
 // Refresh on hover
-@refresh-hover: #265b89;
+@refresh-hover: darken(@blue, 10%);
