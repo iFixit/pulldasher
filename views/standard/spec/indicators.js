@@ -299,7 +299,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
       // has its icon. This just adds the `click` event handler. Indicators are
       // super powerful!
       refresh: function(pull, node) {
-         utils.addTooltip(node, 'Rebuild #' + pull.number);
+         utils.addTooltip(node, 'Refresh #' + pull.number);
          node.on('click', function(event) {
             event.preventDefault();
             pull.refresh();

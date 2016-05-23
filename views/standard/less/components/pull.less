@@ -75,7 +75,7 @@
 #blockPulls-container .panel,
 #crPulls-container .panel,
 #qaPulls-container .panel {
-   border-radius: 5px;
+   border-radius: 3px;
    border-color: @panel-default-border;
 
    .panel-heading {
@@ -153,18 +153,6 @@
       color: @tag-past-milestone;
       border-color: @tag-past-milestone-border;
       background: @tag-past-milestone-background;
-   }
-
-   &.dev-blocked {
-      color: @tag-dev-blocked;
-      border-color: @tag-dev-blocked-border;
-      background: @tag-dev-blocked-background;
-   }
-
-   &.deploy-blocked {
-      color: @tag-deploy-blocked;
-      border-color: @tag-deploy-blocked-border;
-      background: @tag-deploy-blocked-background;
    }
 
    &.qaing {
@@ -318,7 +306,7 @@
       max-width: 350px;
    }
 
-   &:hover {
+   &:hover, &:focus {
       background: @pull-background-hover !important;
 
       .build_status_link {

@@ -115,26 +115,6 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
                utils.hideIfEmpty(container, blob, '.pull');
             }
          },
-         // Now here's a new thing: indicators. As mentioned in the README,
-         // indicators provide icons and such on each pull. In this section, we
-         // can set the indicators for this column only. See
-         // `spec/indicators.js` for more on how indicators work.
-         indicators: {
-            deploy_block: function deploy_block(pull, node) {
-               if (pull.deploy_blocked()) {
-                  var current_block = pull.status.deploy_block.slice(-1)[0].data;
-                  var date = new Date(current_block.created_at);
-                  var link = utils.getCommentLink(pull, current_block);
-                  var icon = $('<i>').addClass('fa fa-minus-circle deploy-blocked');
-
-                  link.append(icon);
-                  utils.addActionTooltip(icon, "deploy_block'd",
-                  current_block.created_at, current_block.user.login);
-
-                  node.append(link);
-               }
-            }
-         },
          shrinkToButton: false
       },
       {
@@ -172,20 +152,6 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
             }
 
             return score;
-         },
-         indicators: {
-            actor: function actor(pull, node) {
-               var current_block = pull.status.dev_block.slice(-1)[0].data;
-               var date = new Date(current_block.created_at);
-               var link = utils.getCommentLink(pull, current_block);
-               var icon = $('<i>').addClass('fa fa-minus-circle dev-blocked');
-
-               link.append(icon);
-               utils.addActionTooltip(icon, "dev_block'd",
-                current_block.created_at, current_block.user.login);
-
-               node.append(link);
-            }
          }
       },
       {
