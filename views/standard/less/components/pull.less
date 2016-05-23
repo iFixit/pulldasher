@@ -285,16 +285,17 @@
 }
 
 .refresh {
+   color: @refresh-default;
    cursor: pointer;
    font-size: 16px;
    position: absolute;
    top: 12px;
    right: 15px;
    visibility: hidden;
-}
 
-.refresh:hover {
-   color: @refresh-hover;
+   &:hover {
+      color: @refresh-hover;
+   }
 }
 
 .pull {

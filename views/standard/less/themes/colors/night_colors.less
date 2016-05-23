@@ -1,122 +1,123 @@
-@blue:   #3683C5;
-@green:  #6CB644;
-@yellow: #E7B049;
-@red:    #DB524B;
-@purple: #663399;
+@blue:   lighten(#3683C5, 10%);
+@green:  lighten(#6CB644, 10%);
+@yellow: lighten(#E7B049, 10%);
+@red:    lighten(#DB524B, 10%);
+@purple: lighten(#663399, 10%);
 
-// Color Scheme
-@brand-primary: lighten(#3683C5, 10%);
-@brand-success: lighten(#6CB644, 10%);
-@brand-info:    lighten(#57A8EB, 10%);
-@brand-warning: lighten(#E7B049, 10%);
-@brand-danger:  lighten(#DB524B, 10%);
+@white:      #F5F5F5;
+@light-grey: #ABB2C0;
+@grey:       #777777;
+@dark-grey:  #2D3239;
+@steel:      #20242b;
+@black:      #171A1F;
 
-@background-color: #20242B;
+@background-color: @steel;
 
 // Header
-@header-background: #171A1F;
-@header-border: #171A1F;
+@header-background: @black;
+@header-border: @black;
 
-@theme-selector-text: #ABB2C0;
-@theme-selector-active: #FAFAFA;
-@theme-selector-inactive: #777777;
+@theme-selector-text: @light-grey;
+@theme-selector-active: @white;
+@theme-selector-inactive: @grey;
 
-@brand-color: #ABB2C0;
+@brand-color: @light-grey;
 @brand-highlight: @blue;
 
-@global-indicator-text: #ABB2C0;
-@global-indicator-text-link: #6193EA;
-@global-indicator-count-text: #FAFAFA;
-@global-indicator-count-border: #20242B;
-@global-indicator-count-background: #20242B;
+@global-indicator-text: @light-grey;
+@global-indicator-text-link: @blue;
+@global-indicator-count-text: @white;
+@global-indicator-count-border: @steel;
+@global-indicator-count-background: @steel;
 
 // Leaderboard
-@leaderboard-background: #171A1F;
-@leaderboard-border: #171A1F;
-@leaderboard-title-text: #ABB2C0;
+@leaderboard-background: @black;
+@leaderboard-border: @black;
+@leaderboard-title-text: @light-grey;
 
-@leaderboard-posting-background: #20242B;
-@leaderboard-posting-border: @brand-primary;
-@leaderboard-posting-count: @brand-primary;
+@leaderboard-posting-background: @steel;
+@leaderboard-posting-border: @blue;
+@leaderboard-posting-count: @blue;
 
-@leaderboard-leader-background: #20242B;
-@leaderboard-leader-border: @brand-success;
-@leaderboard-leader-count: @brand-success;
+@leaderboard-leader-background: @steel;
+@leaderboard-leader-border: @green;
+@leaderboard-leader-count: @green;
 
 // Pulls
-@panel-ci-blocked-text: @brand-warning;
-@panel-ci-blocked-background: #171A1F;
-@panel-ci-blocked-border: @brand-warning;
-@panel-ci-blocked-count-text: @brand-warning;
-@panel-ci-blocked-count-background: #171A1F;
-@panel-ci-blocked-count-border: @brand-warning;
+@panel-ci-blocked-text: @yellow;
+@panel-ci-blocked-background: @black;
+@panel-ci-blocked-border: @yellow;
+@panel-ci-blocked-count-text: @yellow;
+@panel-ci-blocked-count-background: @black;
+@panel-ci-blocked-count-border: @yellow;
 
-@panel-deploy-blocked-text: @brand-danger;
-@panel-deploy-blocked-background: #171A1F;
-@panel-deploy-blocked-border: @brand-danger;
-@panel-deploy-blocked-count-text: @brand-danger;
-@panel-deploy-blocked-count-background: #171A1F;
-@panel-deploy-blocked-count-border: @brand-danger;
+@panel-deploy-blocked-text: @red;
+@panel-deploy-blocked-background: @black;
+@panel-deploy-blocked-border: @red;
+@panel-deploy-blocked-count-text: @red;
+@panel-deploy-blocked-count-background: @black;
+@panel-deploy-blocked-count-border: @red;
 
-@panel-ready-text: @brand-success;
-@panel-ready-background: #171A1F;
-@panel-ready-border: @brand-success;
-@panel-ready-count-text: @brand-success;
-@panel-ready-count-background: #171A1F;
-@panel-ready-count-border: @brand-success;
+@panel-ready-text: @green;
+@panel-ready-background: @black;
+@panel-ready-border: @green;
+@panel-ready-count-text: @green;
+@panel-ready-count-background: @black;
+@panel-ready-count-border: @green;
 
-@panel-default-text: #ABB2C0;
-@panel-default-background: #171A1F;
-@panel-default-border: #ABB2C0;
-@panel-default-count-text: #ABB2C0;
-@panel-default-count-background: #171A1F;
-@panel-default-count-border: #ABB2C0;
+@panel-default-text: @light-grey;
+@panel-default-background: @black;
+@panel-default-border: @light-grey;
+@panel-default-count-text: @light-grey;
+@panel-default-count-background: @black;
+@panel-default-count-border: @light-grey;
 
-@pull-title: #ABB2C0;
-@pull-number: #FFFFFF;
-@pull-background: #20242B;
-@pull-background-hover: #171A1F;
-@pull-separator: #2F353B;
+@pull-title: @light-grey;
+@pull-number: @white;
+@pull-background: @steel;
+@pull-background-hover: @black;
+@pull-separator: lighten(@steel, 15%);
 
 // Build statuses
-@build-state-pending: #DDDDDD;
-@build-state-failure: @brand-warning;
-@build-state-error:   @brand-danger;
-@build-state-success: @brand-success;
+@build-state-pending: @grey;
+@build-state-failure: @yellow;
+@build-state-error:   @red;
+@build-state-success: @green;
 
-@tag-default-border: #2D3239;
-@tag-default-background: #2D3239;
+@tag-default-border: @dark-grey;
+@tag-default-background: @dark-grey;
 
-@tag-current-milestone: #3683C5;
+@tag-current-milestone: @blue;
 @tag-current-milestone-border: @tag-default-border;
 @tag-current-milestone-background: @tag-default-background;
 
-@tag-past-milestone: @brand-danger;
+@tag-past-milestone: @red;
 @tag-past-milestone-border: @tag-default-border;
 @tag-past-milestone-background: @tag-default-background;
 
-@tag-qaing: @brand-success;
-@tag-qaing-mine: #553285;
+@tag-qaing: @green;
+@tag-qaing-mine: @purple;
 @tag-qaing-border: @tag-default-border;
 @tag-qaing-background: @tag-default-background;
 
-@user-icon: #3683C5;
+@user-icon: @blue;
 
 // CR and QA boxes
-@status-background: #2D3239;
-@status-border: #2D3239;
-@status-text: #ABB2C0;
+@status-background: @dark-grey;
+@status-border: @dark-grey;
+@status-text: @light-grey;
 
 // Signatures (CR / QA)
-@signature-default: #20242B;
-@signature-valid: @brand-success;
-@signature-valid-mine: #553285;
-@signature-invalid: @brand-warning;
-@signature-invalid-mine: @brand-danger;
+@signature-default: @steel;
+@signature-valid: @green;
+@signature-valid-mine: @purple;
+@signature-invalid: @yellow;
+@signature-invalid-mine: @red;
 
 // On hover signoffs
-@signature-separator-border: #eeeeee;
-@signature-separator-background: #000000;
+@signature-separator-border: @grey;
+@signature-separator-background: @black;
 
 // Refresh on hover
-@refresh-hover: #3683C5;
+@refresh-default: @grey;
+@refresh-hover: @blue;

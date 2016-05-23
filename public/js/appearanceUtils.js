@@ -49,9 +49,9 @@ define(['jquery'], function ($) {
          return this.addTooltip(node, info);
       },
 
-      addTooltip: function(node, text) {
+      addTooltip: function(node, text, placement) {
          node.attr('data-toggle', "tooltip");
-         node.attr('data-placement', "top");
+         node.attr('data-placement', placement);
          node.attr('title', text);
 
          node.tooltip();
