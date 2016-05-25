@@ -30,8 +30,11 @@
          color: @theme-selector-inactive;
 
          &:hover, &.active {
-            cursor: pointer;
             color: @theme-selector-active;
+         }
+
+         &:not(.active) {
+            cursor: pointer;
          }
       }
    }
