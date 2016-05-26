@@ -27,8 +27,7 @@
             }
 
             var colorscheme = $(this).data('css');
-            $('.stylesheet').attr('disabled', 'disabled');
-            $('head').remove('#stylesheet');
+            $('head .stylesheet').remove();
             $('head').append('<link class="stylesheet" rel="stylesheet" type="text/css" href="css/themes/' + colorscheme + '.css">');
             document.cookie = ("pulldasher-colorscheme=" + colorscheme + ";");
 

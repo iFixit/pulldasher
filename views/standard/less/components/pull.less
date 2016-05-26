@@ -4,7 +4,7 @@
       height: 37px;
       width: 45px;
       text-align: center;
-      border-radius: 0 3px 3px 0;
+      border-radius: 0 2px 2px 0;
       border-left: solid 1px;
       line-height: 35px;
       position: absolute;
@@ -25,6 +25,7 @@
 }
 
 #ciBlocked-container .panel {
+   background: @panel-ci-blocked-border;
    border-color: @panel-ci-blocked-border;
 
    .panel-heading {
@@ -41,6 +42,7 @@
 }
 
 #deployBlockPulls-container .panel {
+   background: @panel-deploy-blocked-border;
    border-color: @panel-deploy-blocked-border;
 
    .panel-heading {
@@ -57,6 +59,7 @@
 }
 
 #readyPulls-container .panel {
+   background: @panel-ready-border;
    border-color: @panel-ready-border;
 
    .panel-heading {
@@ -75,7 +78,7 @@
 #blockPulls-container .panel,
 #crPulls-container .panel,
 #qaPulls-container .panel {
-   border-radius: 3px;
+   background: @panel-default-border;
    border-color: @panel-default-border;
 
    .panel-heading {
@@ -113,10 +116,6 @@
 
    .build-state-error {
       background: @build-state-error;
-   }
-
-   .build-state-success {
-      background: @build-state-success;
    }
 }
 
@@ -172,7 +171,7 @@
    padding-right: 10px;
    background-color: @status-background;
    color: @status-text;
-   border-radius: 2px;
+   border-radius: 3px;
    border: 1px solid @status-border;
    font-size: 14px;
    font-weight: 700;
@@ -184,31 +183,28 @@
    }
 
    &.full-valid {
-      border-color: @signature-valid;
+      background-color: @status-valid-background;
+      border-color: @status-valid-border;
+
+      &, i.signature-valid {
+         color: @status-valid-text;
+      }
+
+      i.signature-valid-mine {
+         color: @status-valid-mine-text;
+      }
    }
 
    &.full-valid-mine {
-      border-color: @signature-valid-mine;
-   }
+      background-color: @status-valid-mine-background;
+      border-color: @status-valid-mine-border;
 
-   &.full-invalid {
-      border-color: @signature-invalid;
-   }
-
-   &.full-mix {
-      border-left-color: @signature-valid;
-      border-top-color: @signature-valid;
-      border-right-color: @signature-invalid;
-      border-bottom-color: @signature-invalid;
-
-      &.myValid {
-         border-left-color: @signature-valid-mine;
-         border-top-color: @signature-valid-mine;
+      i.signature-valid {
+         color: @status-valid-text;
       }
 
-      &.myInvalid {
-         border-right-color: @signature-invalid-mine;
-         border-bottom-color: @signature-invalid-mine;
+      &, i.signature-valid-mine {
+         color: @status-valid-mine-text;
       }
    }
 }
@@ -216,6 +212,7 @@
 .pull-title {
    color: @pull-title;
    max-width: 300px;
+   font-weight: 300;
 
    .pull-number {
       color: @pull-number;
@@ -280,10 +277,6 @@
    padding-left: 10px;
 }
 
-.pull:hover .refresh {
-   visibility: visible;
-}
-
 .refresh {
    color: @refresh-default;
    cursor: pointer;
@@ -316,6 +309,14 @@
 
       .pull-contents {
          margin-left: 9px;
+      }
+
+      .build-state-success {
+         background: @build-state-success;
+      }
+
+      .refresh {
+         visibility: visible;
       }
    }
 }

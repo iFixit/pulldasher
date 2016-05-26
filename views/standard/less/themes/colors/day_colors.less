@@ -2,7 +2,6 @@
 @green:  #6CB644;
 @yellow: #E7B049;
 @red:    #DB524B;
-@purple: #663399;
 
 @white:      #FFFFFF;
 @light-grey: #F5F5F5;
@@ -93,7 +92,7 @@
 @tag-past-milestone-background: @tag-default-background;
 
 @tag-qaing: @green;
-@tag-qaing-mine: @purple;
+@tag-qaing-mine: @blue;
 @tag-qaing-border: @tag-default-border;
 @tag-qaing-background: @tag-default-background;
 
@@ -104,10 +103,18 @@
 @status-border: darken(@grey, 10%);
 @status-text: @dark-grey;
 
+@status-valid-background: lighten(@green, 35%);
+@status-valid-border: @green;
+@status-valid-text: @green;
+
+@status-valid-mine-background: lighten(@blue, 35%);
+@status-valid-mine-border: @blue;
+@status-valid-mine-text: @blue;
+
 // Signatures (CR / QA)
 @signature-default: darken(@grey, 10%);
 @signature-valid: @green;
-@signature-valid-mine: @purple;
+@signature-valid-mine: @blue;
 @signature-invalid: @yellow;
 @signature-invalid-mine: @red;
 

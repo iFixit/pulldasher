@@ -1,8 +1,11 @@
-@blue:   lighten(#3683C5, 10%);
-@green:  lighten(#6CB644, 10%);
-@yellow: lighten(#E7B049, 10%);
-@red:    lighten(#DB524B, 10%);
-@purple: lighten(#663399, 10%);
+@blue:   #3683C5;
+@green:  #67BA76;
+@yellow: #D59A6A;
+@red:    #E66873;
+
+@dark-green:  #334C3E;
+@dark-yellow: #4B4139;
+@dark-red:    #50343C;
 
 @white:      #F5F5F5;
 @light-grey: #ABB2C0;
@@ -45,32 +48,32 @@
 
 // Pulls
 @panel-ci-blocked-text: @yellow;
-@panel-ci-blocked-background: @black;
-@panel-ci-blocked-border: @yellow;
-@panel-ci-blocked-count-text: @yellow;
-@panel-ci-blocked-count-background: @black;
-@panel-ci-blocked-count-border: @yellow;
+@panel-ci-blocked-background: @dark-yellow;
+@panel-ci-blocked-border: @dark-yellow;
+@panel-ci-blocked-count-text: @white;
+@panel-ci-blocked-count-background: #906E51;
+@panel-ci-blocked-count-border: @dark-yellow;
 
 @panel-deploy-blocked-text: @red;
-@panel-deploy-blocked-background: @black;
-@panel-deploy-blocked-border: @red;
-@panel-deploy-blocked-count-text: @red;
-@panel-deploy-blocked-count-background: @black;
-@panel-deploy-blocked-count-border: @red;
+@panel-deploy-blocked-background: @dark-red;
+@panel-deploy-blocked-border: @dark-red;
+@panel-deploy-blocked-count-text: @white;
+@panel-deploy-blocked-count-background: #9B4D57;
+@panel-deploy-blocked-count-border: @dark-red;
 
 @panel-ready-text: @green;
-@panel-ready-background: @black;
-@panel-ready-border: @green;
-@panel-ready-count-text: @green;
-@panel-ready-count-background: @black;
-@panel-ready-count-border: @green;
+@panel-ready-background: @dark-green;
+@panel-ready-border: @dark-green;
+@panel-ready-count-text: @white;
+@panel-ready-count-background: #569262;
+@panel-ready-count-border: @dark-green;
 
-@panel-default-text: @light-grey;
-@panel-default-background: @black;
-@panel-default-border: @light-grey;
-@panel-default-count-text: @light-grey;
-@panel-default-count-background: @black;
-@panel-default-count-border: @light-grey;
+@panel-default-text: #A7AFBD;
+@panel-default-background: @dark-grey;
+@panel-default-border: @dark-grey;
+@panel-default-count-text: @white;
+@panel-default-count-background: #3A4148;
+@panel-default-count-border: @dark-grey;
 
 @pull-title: @light-grey;
 @pull-number: @white;
@@ -96,7 +99,7 @@
 @tag-past-milestone-background: @tag-default-background;
 
 @tag-qaing: @green;
-@tag-qaing-mine: @purple;
+@tag-qaing-mine: @blue;
 @tag-qaing-border: @tag-default-border;
 @tag-qaing-background: @tag-default-background;
 
@@ -107,10 +110,18 @@
 @status-border: @dark-grey;
 @status-text: @light-grey;
 
+@status-valid-background: @dark-green;
+@status-valid-border: @dark-green;
+@status-valid-text: @green;
+
+@status-valid-mine-background: darken(@blue, 30%);
+@status-valid-mine-border: darken(@blue, 30%);
+@status-valid-mine-text: @blue;
+
 // Signatures (CR / QA)
 @signature-default: @steel;
 @signature-valid: @green;
-@signature-valid-mine: @purple;
+@signature-valid-mine: @blue;
 @signature-invalid: @yellow;
 @signature-invalid-mine: @red;
 
