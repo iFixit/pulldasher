@@ -147,7 +147,7 @@ function refreshAll(all) {
             queue.resume();
             next();
          });
-      };
+      }
       next();
    });
 }
