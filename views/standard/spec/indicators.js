@@ -167,7 +167,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                var message = $('<span>');
                message.text('No signoffs yet!');
                container.append(message);
-            } else if (valid + invalid == required) {
+            } else if (valid + invalid >= required) {
                if (invalid == 0) {
                   node.addClass(myValid > 0 ?
                    'full-valid-mine' : 'full-valid');
