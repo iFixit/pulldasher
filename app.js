@@ -14,6 +14,7 @@ var config = require('./config'),
     Signature = require('./models/signature'),
     mainController = require('./controllers/main'),
     hooksController = require('./controllers/githubHooks'),
+    debug = require('debug')('pulldasher'),
     reqLogger = require('debug')('pulldasher:server:request');
 
 var args = process.argv.slice(2);
@@ -121,27 +122,33 @@ function refreshAll(all) {
    var githubPulls;
 
    if (all === true) {
+      debug("rebuilding all pulls");
       githubPulls = gitManager.getAllPulls();
    } else {
+      debug("rebuilding all open pulls");
       githubPulls = gitManager.getOpenPulls();
    }
 
-   queue.pause();
-
    githubPulls.done(function(gPulls) {
-      var pullsUpdated = gPulls.map(function(gPull) {
+      debug("done retrieving pulls");
+      function next() {
+         if (!gPulls.length) {
+            debug("done building all pulls");
+            return;
+         }
+
+         var gPull = gPulls.shift();
+         debug("building pull %s", gPull.number);
+
+         queue.pause();
          var pull = gitManager.parse(gPull);
 
-         return new Promise(function(resolve, reject) {
-            update(pull).done(function() {
-               resolve();
-            });
+         update(pull).done(function() {
+            queue.resume();
+            next();
          });
-      });
-
-      Promise.all(pullsUpdated).done(function() {
-         queue.resume();
-      });
+      };
+      next();
    });
 }
 
