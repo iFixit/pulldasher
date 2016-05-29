@@ -22,8 +22,16 @@
             var newTheme = $(this).data('css');
             $.cookie('pulldasher-theme', newTheme);
 
+            // This will fade one theme into the next over 1s
+            $('html').addClass('transitioning');
+
             var newThemePath = 'css/themes/' + newTheme + '.css';
             $('head .active-theme').attr('href', newThemePath);
+
+            // Cut off transition effect 1s after overriding theme
+            setTimeout(function() {
+               $('html').removeClass('transitioning');
+            }, 1000);
 
             $("i[data-css]").removeClass('active');
             $(this).addClass('active');

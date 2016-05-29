@@ -33,10 +33,14 @@
       }
 
       .leaderboard-posting {
-         float: left;
-         background: @leaderboard-posting-background;
+         border-width: 1px;
+         border-style: solid;
+         height: 27px;
          margin-right: 7px;
-         height: 25px;
+         float: left;
+
+         border-color: @leaderboard-posting-border;
+         background: @leaderboard-posting-background;
 
          .leaderboard-count {
             display: inline-block;
@@ -50,6 +54,7 @@
 
          &.leaderboard-leaders {
             background-color: @leaderboard-leader-background;
+            border-color: @leaderboard-leader-border;
 
             .leaderboard-count {
                color: @leaderboard-leader-count;
