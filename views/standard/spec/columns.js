@@ -10,21 +10,17 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
    // Sorting functions that are run on each column.
    var globalSorts = {
       sortByMilestone: function(pull) {
-         var score = 0;
-
-         if (pull.milestone.title) {
-            var due_date = pull.milestone.due_on &&
-             new Date(pull.milestone.due_on);
-
-            // If milestone is past due date.
-            if (due_date && due_date < new Date()) {
-               score -= 1500;
-            } else {
-               score -= 750;
-            }
+         if (!pull.milestone.due_on) {
+            return 0;
          }
 
-         return score;
+         var milestone = new Date(pull.milestone.due_on);
+         var timeDiff = milestone.getTime() - $.now();
+
+         return -1000 + Math.ceil(timeDiff / (1000 * 3600 * 24));
+      },
+      sortOwnerFirst: function(pull) {
+         return pull.is_mine() ? -5000 : 0;
       }
    };
 

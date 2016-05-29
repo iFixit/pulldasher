@@ -250,7 +250,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
       },
       user_icon: function user_icon(pull, node) {
          if (pull.is_mine()) {
-            node.append('<i class="fa fa-user"></i>');
+            node.append('<i class="fa fa-star"></i>');
          }
       },
       milestone_label: function milestone_label(pull, node){
