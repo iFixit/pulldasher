@@ -5,42 +5,31 @@
       debug: <%= debug %>
    };
 
-   require(['pullManager', 'jquery'], function(_manager, $) {
+   require(['pullManager', 'jquery', 'cookies'], function(_manager, $) {
       App.debugStart = function debugStart() {
          App.debug = true;
          _manager.trigger();
       };
 
-      // Color switcher
       $(document).ready(function() {
-         var cscookie = "";
-         document.cookie.split(';').forEach(function(currentValue) {
-            var elem = currentValue.split('=');
-            if (elem[0] == "pulldasher-colorscheme") {
-               cscookie = elem[1];
-            }
-         });
+         var theme = $.cookie('pulldasher-theme') || 'day_theme';
 
          $('#theme-selector > i').on('click', function() {
             if ($(this).hasClass('active')) {
                return;
             }
 
-            var colorscheme = $(this).data('css');
-            $('head .stylesheet').remove();
-            $('head').append('<link class="stylesheet" rel="stylesheet" type="text/css" href="css/themes/' + colorscheme + '.css">');
-            document.cookie = ("pulldasher-colorscheme=" + colorscheme + ";");
+            var newTheme = $(this).data('css');
+            $.cookie('pulldasher-theme', newTheme);
+
+            var newThemePath = 'css/themes/' + newTheme + '.css';
+            $('head .active-theme').attr('href', newThemePath);
 
             $("i[data-css]").removeClass('active');
             $(this).addClass('active');
          });
 
-         var colorscheme = cscookie ? cscookie : 'day_theme';
-         if (colorscheme != 'day_theme') {
-            $('i[data-css="' + colorscheme + '"]').click();
-         }
-
-         $('i[data-css="' + colorscheme + '"]').addClass('active');
+         $('i[data-css="' + theme + '"]').click();
       });
 
       // Stop hover events from triggering when scrolling
