@@ -42,7 +42,10 @@ module.exports = function(grunt) {
         outputSourceFiles: true
       },
       files: {
-         src: ['views/current/less/themes/*.less'],
+         src: [
+            'views/current/less/*.less',
+            'views/current/less/themes/*.less'
+         ],
          expand: true,
          rename: function(dest, src) {
             return src.replace(/less/g, 'css');

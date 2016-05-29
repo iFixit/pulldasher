@@ -1,5 +1,11 @@
 #navbar {
-   background: @header-background;
+   border-color: @header-border;
+
+   &.collapsing, &.collapse.in {
+      @media (max-width: 768px) {
+         background: @header-background;
+      }
+   }
 }
 
 .navbar {
@@ -60,6 +66,15 @@
          color: @brand-highlight;
          font-size: 18px;
          font-weight: 400;
+      }
+   }
+
+   .navbar-toggle {
+      border-color: @toggle-border !important;
+      background: @toggle-background !important;
+
+      &:hover, &:focus {
+         background: @toggle-background-hover !important;
       }
    }
 }
