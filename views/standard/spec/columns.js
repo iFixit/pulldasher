@@ -298,5 +298,5 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
             }
          }
       }
-      ];
-   });
+   ];
+});
