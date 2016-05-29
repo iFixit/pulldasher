@@ -104,7 +104,6 @@
       left: 7px;
       bottom: 10px;
       border-radius: 3px;
-      transition: .2s;
    }
 
    .build-state-pending {
@@ -306,7 +305,7 @@
    position: absolute;
    top: 12px;
    right: 15px;
-   visibility: hidden;
+   opacity: 0;
 
    &:hover {
       color: @refresh-hover;
@@ -317,7 +316,6 @@
    background: @pull-background;
 
    .pull-contents {
-      transition: .2s;
       margin-left: 4px;
       max-width: 350px;
    }
@@ -338,7 +336,7 @@
       }
 
       .refresh {
-         visibility: visible;
+         opacity: 1;
       }
    }
 }

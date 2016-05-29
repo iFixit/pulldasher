@@ -5,6 +5,11 @@
 * {
    font-family: "Lato";
    -webkit-font-smoothing: antialiased;
+   .transition(.25s);
+}
+
+body {
+   background-color: @background-color;
 }
 
 .disable-hover {
@@ -23,13 +28,8 @@
    width: @avatar-width;
 }
 
-
 #branch_name_clipboard {
    position: fixed;
    top: 0;
    left: -1000px;
-}
-
-body {
-   background-color: @background-color;
 }
