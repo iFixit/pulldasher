@@ -30,9 +30,12 @@
    border-color: @panel-ci-blocked-border;
 
    .panel-heading {
-      color: @panel-ci-blocked-text;
       border-color: @panel-ci-blocked-border;
       background: @panel-ci-blocked-background;
+
+      &, .panel-title {
+         color: @panel-ci-blocked-text;
+      }
    }
 
    .pull-count {
@@ -47,9 +50,12 @@
    border-color: @panel-deploy-blocked-border;
 
    .panel-heading {
-      color: @panel-deploy-blocked-text;
       border-color: @panel-deploy-blocked-border;
       background: @panel-deploy-blocked-background;
+
+      &, .panel-title {
+         color: @panel-deploy-blocked-text;
+      }
    }
 
    .pull-count {
@@ -64,9 +70,12 @@
    border-color: @panel-ready-border;
 
    .panel-heading {
-      color: @panel-ready-text;
       border-color: @panel-ready-border;
       background: @panel-ready-background;
+
+      &, .panel-title {
+         color: @panel-ready-text;
+      }
    }
 
    .pull-count {
@@ -83,9 +92,12 @@
    border-color: @panel-default-border;
 
    .panel-heading {
-      color: @panel-default-text;
       border-color: @panel-default-border;
       background: @panel-default-background;
+
+      &, .panel-title {
+         color: @panel-default-text;
+      }
    }
 
    .pull-count {
@@ -93,7 +105,6 @@
       border-color: @panel-default-count-border;
       background: @panel-default-count-background;
    }
-
 }
 
 .build_status {
