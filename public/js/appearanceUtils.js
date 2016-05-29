@@ -36,15 +36,24 @@ define(['jquery'], function ($) {
       },
 
       /**
+       * Formats a date to be the first three characters of the month followed
+       * by the day of the month. (Ex. "Oct 6")
+       */
+      formatDate: function(date) {
+         return date.toLocaleDateString('en-us', {
+            'month': 'short',
+            'day': 'numeric'
+         });
+      },
+
+      /**
        * Adds a tooltip containing information about an
        * action (such as CR or dev_block) on a pull. Does NOT activate the
        * tooltip; the user will need to call node.tooltip() to activate.
        */
       addActionTooltip: function(node, action, created_at, user) {
-         var date = new Date(created_at);
-         var info = action ? action + ' on ' : '';
-         info += date.toLocaleDateString();
-         info += user ? ' by ' + user : '';
+         var date = this.formatDate((new Date(created_at)));
+         var info = [action, "on", date, 'by', user].join(" ");
 
          return this.addTooltip(node, info);
       },
@@ -56,15 +65,6 @@ define(['jquery'], function ($) {
 
          node.tooltip();
          return node;
-      },
-
-      /**
-       * Formats a date to be the first three characters of the month followed
-       * by the day of the month. (Ex. "Oct 6")
-       */
-      formatDate: function(date) {
-         var matches = date.toString().match(/([A-Z][a-z]{2})\w* 0?(\d+)/);
-         return matches[1] + " " + matches[2];
       },
 
       /**

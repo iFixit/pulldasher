@@ -33,12 +33,6 @@
 
             $("i[data-css]").removeClass('active');
             $(this).addClass('active');
-
-            if (colorscheme == 'night_theme') {
-               $('.fa-check-circle').removeClass('fa-check-circle').addClass('fa-check');
-            } else {
-               $('.fa-check').removeClass('fa-check').addClass('fa-check-circle');
-            }
          });
 
          var colorscheme = cscookie ? cscookie : 'day_theme';

@@ -2,107 +2,83 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
    var log = debug('indicators');
    var signatureStatus = function(pull, node, type, required, signatures) {
          var signatureMark = function() {
-            var check = $('<i>');
-            if ($('i[data-css="night_theme"]').hasClass('active')) {
-               check.addClass('signature fa fa-check');
-            } else {
-               check.addClass('signature fa fa-check-circle');
-            }
-
-            return check;
+            return $('<i>').addClass('signature fa fa-check-circle');
          };
 
          var signatureValidMark = function() {
-            var check = signatureMark();
-            check.addClass('signature-valid');
-            return check;
+            return signatureMark().addClass('signature-valid');
          };
 
          var mySignatureValidMark = function() {
-            var check = signatureMark();
-            check.addClass('signature-valid-mine');
-            return check;
+            return signatureMark().addClass('signature-valid-mine');
          };
 
          var signatureInvalidatedMark = function() {
-            var check = signatureMark();
-            check.addClass('signature-invalid');
-            return check;
+            return signatureMark().addClass('signature-invalid');
          };
 
          var mySignatureInvalidatedMark = function() {
-            var check = signatureMark();
-            check.addClass('signature-invalid-mine');
-            return check;
+            return signatureMark().addClass('signature-invalid-mine');
          };
 
          var signatureDescription = function(pull, signature) {
-            var sig = $('<tr>');
-            sig.addClass('sig-row');
-            var avatarCell = $('<td>');
-            avatarCell.addClass('sig-avatar');
-            avatarCell.append(utils.getAvatar(signature.data.user.id));
-            var info = $('<td>');
-            info.addClass('sig-info');
-            var date = new Date(signature.data.created_at);
-            info.text(date.toLocaleDateString('en-us', {'month': 'short', 'day': 'numeric'}) + ' by ' + signature.data.user.login);
+            var sig = $('<tr>').addClass('sig-row');
+            var avatarCell = $('<td>').
+             addClass('sig-avatar').
+             append(utils.getAvatar(signature.data.user.id));
+            var info = $('<td>').addClass('sig-info');
 
-            sig.append(avatarCell);
-            sig.append(info);
-            return sig;
+            var date = new Date(signature.data.created_at);
+            info.text(utils.formatDate(date) + ' by ' +
+             signature.data.user.login);
+
+            return sig.append(avatarCell).append(info);
          };
 
          var validSignatureDescription = function(pull, signature) {
-            var sig = signatureDescription(pull, signature);
-            sig.addClass('signature-valid-listing');
-            return sig;
+            return signatureDescription(pull, signature).
+             addClass('signature-valid-listing');
          };
 
          var myValidSignatureDescription = function(pull, signature) {
-            var sig = signatureDescription(pull, signature);
-            sig.addClass('signature-valid-listing-mine');
-            return sig;
+            return signatureDescription(pull, signature).
+             addClass('signature-valid-listing-mine');
          };
 
          var invalidSignatureDescription = function(pull, signature) {
-            var sig = signatureDescription(pull, signature);
-            sig.addClass('signature-invalid-listing');
-            return sig;
+            return signatureDescription(pull, signature).
+             addClass('signature-invalid-listing');
          };
 
          var myInvalidSignatureDescription = function(pull, signature) {
-            var sig = invalidSignatureDescription(pull, signature);
-            sig.addClass('signature-invalid-listing-mine');
-            return sig;
+            return invalidSignatureDescription(pull, signature).
+             addClass('signature-invalid-listing-mine');
          };
 
          var signatureSeparator = function(message) {
-               var divider = $('<tr>');
-               var cell = $('<td>');
-               cell.attr('colspan', 2);
-               var text = $('<p>');
-               text.text(message);
-               var border = $('<div>');
-               border.addClass("signature-separator");
-               border.append(text);
-               cell.append(border);
-               cell.addClass('signature-divider');
-               divider.append(cell);
-               return divider;
+            var text = $('<p>').text(message);
+            var border = $('<div>').
+             addClass("signature-separator").
+             append(text);
+            var cell = $('<td>').
+             attr('colspan', 2).
+             append(border).
+             addClass('signature-divider');
+
+            return $('<tr>').append(cell);
          };
 
          if (required === 0) {
             // Handle no-signature situation
-            node.addClass('full-valid');
-            node.append(signatureValidMark());
-            node.tooltip({'title': 'No ' + type + ' required!'});
+            node.addClass('full-valid').
+             append(signatureValidMark()).
+             tooltip({'title': 'No ' + type + ' required!'});
             log("required === 0");
          } else {
             // container is a div that won't be inserted; it's just used to get the
             // HTML for the tooltip
             var tipper = $('<table>');
-            var container = $('<div>');
-            container.append(tipper);
+            var container = $('<div>').append(tipper);
 
             var currentSignatures = signatures.current;
             var oldSignatures = signatures.old;
@@ -168,10 +144,10 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                message.text('No signoffs yet!');
                container.append(message);
             } else if (valid + invalid >= required) {
-               if (invalid == 0) {
+               if (invalid === 0) {
                   node.addClass(myValid > 0 ?
                    'full-valid-mine' : 'full-valid');
-               } else if (valid == 0) {
+               } else if (valid === 0) {
                   node.addClass(myInvalid > 0 ?
                    'full-invalid-mine' : 'full-invalid');
                } else {

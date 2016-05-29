@@ -141,7 +141,7 @@
 
    border: 1px solid @tag-default-border;
    background: @tag-default-background;
-   
+
    &.flag-milestone {
       color: @tag-current-milestone;
       border-color: @tag-current-milestone-border;
@@ -152,6 +152,19 @@
       color: @tag-past-milestone;
       border-color: @tag-past-milestone-border;
       background: @tag-past-milestone-background;
+   }
+
+
+   &.dev-blocked {
+      color: @tag-dev-blocked;
+      border-color: @tag-dev-blocked-border;
+      background: @tag-dev-blocked-background;
+   }
+
+   &.deploy-blocked {
+      color: @tag-deploy-blocked;
+      border-color: @tag-deploy-blocked-border;
+      background: @tag-deploy-blocked-background;
    }
 
    &.qaing {
