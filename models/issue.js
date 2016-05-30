@@ -2,6 +2,7 @@ var utils   = require('../lib/utils');
 var _       = require('underscore');
 var config  = require('../config');
 var log     = require('debug')('pulldasher:issue');
+var Promise = require('promise');
 
 /**
  * Create a new issue.
@@ -49,7 +50,7 @@ Issue.getFromGH = function(data) {
    };
    var issue = new Issue(issueData);
    issue.updateFromLabels(data.labels);
-   return issue;
+   return Promise.resolve(issue);
 };
 
 /**

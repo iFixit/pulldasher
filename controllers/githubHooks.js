@@ -31,7 +31,8 @@ var HooksController = {
       if (event === 'status') {
          dbUpdated = dbManager.updateCommitStatus(new Status(body));
       } else if (event === 'issues') {
-         dbUpdated = dbManager.updateIssue(Issue.getFromGH(body.issue));
+         dbUpdated = Issue.getFromGH(body.issue)
+         .then(dbManager.updateIssue);
       } else if (event === 'pull_request') {
          // Promise that resolves when everything that needs to be done before
          // we call `updatePull` has finished.
