@@ -43,6 +43,7 @@ var HooksController = {
             case "opened":
             case "reopened":
             case "closed":
+            case "edited":
             case "merged":
                break;
             case "labeled":
