@@ -1,3 +1,8 @@
+// This tends to fall into the "hack that works" category. This reuses
+// IndicatorFilter to handle the indicators on the entire page. There's some
+// oddity about how that has to be done (stemming from the fact that the
+// pageIndicators aren't blown away by default, unlike pull indicators (since
+// all the pulls are rerendered every time)
 define(['jquery', 'Templates', 'IndicatorFilter'], function($, Templates, IndicatorFilter) {
    /**
     * Renders the page indicators specified by spec.page_indicators

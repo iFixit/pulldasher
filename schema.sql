@@ -21,12 +21,13 @@ DROP TABLE IF EXISTS `comments`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `comments` (
+  `comment_type` enum('issue','review') NOT NULL DEFAULT 'issue',
   `comment_id` int(10) unsigned NOT NULL,
   `number` int(10) unsigned NOT NULL,
   `repo_name` varchar(255) NOT NULL,
   `user` varchar(255) NOT NULL,
   `date` int(11) unsigned DEFAULT NULL,
-  PRIMARY KEY (`comment_id`),
+  PRIMARY KEY (`comment_type`,`comment_id`),
   KEY `pull` (`repo_name`,`number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;

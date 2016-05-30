@@ -1,4 +1,5 @@
 var config = require('./config'),
+    _ = require('underscore'),
     httpServer,
     express = require('express'),
     partials = require('express-partials'),
@@ -13,8 +14,10 @@ var config = require('./config'),
     Signature = require('./models/signature'),
     mainController = require('./controllers/main'),
     hooksController = require('./controllers/githubHooks'),
+    debug = require('debug')('pulldasher'),
     reqLogger = require('debug')('pulldasher:server:request');
 
+var args = process.argv.slice(2);
 var app = express();
 
 httpServer = require('http').createServer(app);
@@ -117,19 +120,6 @@ function parseAndUpdate(gPull) {
    return update(pull);
 }
 
-/**
- * Refreshes all open pulls.
- */
-function refreshAll() {
-   queue.pause();
-   gitManager.getAllPulls().
-   then(function(gPulls) {
-      var pullsUpdated = gPulls.map(parseAndUpdate);
-      return Promise.all(pullsUpdated);
-   }).
-   done(queue.resume.bind(queue));
-}
-
 function refreshAllIssues() {
    gitManager.getAllIssues().
    then(function(gIssues) {
@@ -142,9 +132,49 @@ function refreshAllIssues() {
    done();
 }
 
+/**
+ * Refreshes all open pulls. If parameter `all` is true, refreshes all pulls,
+ * open *and* closed.
+ */
+function refreshAll(all) {
+   var githubPulls;
+
+   if (all === true) {
+      debug("rebuilding all pulls");
+      githubPulls = gitManager.getAllPulls();
+   } else {
+      debug("rebuilding all open pulls");
+      githubPulls = gitManager.getOpenPulls();
+   }
+
+   githubPulls.done(function(gPulls) {
+      debug("done retrieving pulls");
+      function next() {
+         if (!gPulls.length) {
+            debug("done building all pulls");
+            return;
+         }
+
+         var gPull = gPulls.shift();
+         debug("building pull %s", gPull.number);
+
+         queue.pause();
+         var pull = gitManager.parse(gPull);
+
+         update(pull).done(function() {
+            queue.resume();
+            next();
+         });
+      };
+      next();
+   });
+}
+
+// Gets all pulls, open and closed, if argument is passed.
+var all = _.contains(args, 'rebuild-history');
 
 // Called, to populate app, on startup.
-refreshAll();
+refreshAll(all);
 
 // Pull issues into DB
 refreshAllIssues();

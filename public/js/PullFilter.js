@@ -38,6 +38,11 @@ define(['underscore'], function(_) {
       };
 
       var filter = function(pulls) {
+         // Notice that the use of tryApply on all these means that they all
+         // accept arrays as well as functions. I've only documented that for
+         // spec.selector in the user-facing docs, because it doesn't make sense
+         // for the others, but it is there. If we had a stable sort, we could
+         // use it to do cleaner sorts of things.
          pulls = tryApply(pulls, _.filter, spec.selector);
          pulls = tryApply(pulls, _.sortBy, spec.sort);
 

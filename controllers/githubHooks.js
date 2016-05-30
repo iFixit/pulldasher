@@ -83,20 +83,30 @@ var HooksController = {
 
          body.comment.number = body.issue.number;
          body.comment.repo = body.repository.name;
+         body.comment.type = 'issue';
          var comment = new Comment(body.comment);
 
          promises.push(dbManager.updateComment(comment));
 
          dbUpdated = Promise.all(promises);
+      } else if (event === 'pull_request_review_comment') {
+         body.comment.number = body.pull_request.number;
+         body.comment.repo =   body.repository.name;
+         body.comment.type =   'review';
+         var comment = new Comment(body.comment);
+
+         dbUpdated = dbManager.updateComment(comment);
       }
 
-      dbUpdated.then(function fulfilled() {
-         res.status(200).send('Success!');
-      },
-      function rejected(err) {
-         console.log(err);
-         res.status(500).send(err.toString());
-      }).done();
+      if (dbUpdated) {
+         dbUpdated.then(function fulfilled() {
+            res.status(200).send('Success!');
+         },
+         function rejected(err) {
+            console.log(err);
+            res.status(500).send(err.toString());
+         }).done();
+      }
    }
 
 };

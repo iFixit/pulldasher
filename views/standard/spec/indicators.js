@@ -170,7 +170,28 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                "title": container.html()
             });
          }
-   };
+      };
+
+   // These are indicators. Each indicator is a function which will be called
+   // for every pull. It is passed the Pull object (see `/public/js/Pull.js`)
+   // and the HTML element into which it should render itself. That element can
+   // come from one of two places: either it is an element in the pull HTML
+   // template (see `html/pull.html`) or it is a new element placed in the
+   // element in the pull template with class `indicators`. Basically, if
+   // there's an element in the pull template with a class of the same name as
+   // the indicator, then the indicator will be passed that element as the node
+   // to render into.  Otherwise, a new element will be created. This makes it
+   // really easy to add a basic tag on a bunch of pulls, should you wish to. An
+   // example may help to make this all clearer: The `cr_remaining` indicator
+   // below renders into the `div` with class `cr_remaining` in the pull
+   // template (which is how the check marks for CR are implemented). On the
+   // other hand, there's no element with class `custom_label`, so the
+   // `custom_label` indicator below will be rrendered into a newly-created
+   // element on each pull.
+
+   // The indicators in this file will be called for every pull in every column,
+   // so they add information that we want regardless of the column the pull is
+   // in.
    return {
       cr_remaining: function cr_remaining(pull, node) {
          log("Working on CR on pull #" + pull.number);
@@ -232,14 +253,24 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
          }
 
          if (milestone.title) {
-            var label = $('<span>').addClass('label label-info');
+            var label = $('<span>').addClass('label');
             var label_text = milestone.title;
 
             // If there's a due date, show that instead of the milestone title.
             if (milestone.due_on) {
                var date = new Date(milestone.due_on);
-               label_text = (date.getMonth() + 1) + '/' + date.getDate();
-               utils.addTooltip(label, milestone.title);
+               var past_due = date.getTime() < Date.now();
+               var tooltip_text = milestone.title;
+
+               if (past_due) {
+                  label.addClass('label-past-due');
+                  tooltip_text = "Past Due: " + tooltip_text;
+               } else {
+                  label.addClass('label-milestone');
+               }
+
+               label_text = utils.formatDate(date);
+               utils.addTooltip(label, tooltip_text);
             }
 
             label.text(label_text);
@@ -255,6 +286,12 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
             node.append(label);
          });
       },
+
+      // Here's an interesting duck! This indicator actually adds the event
+      // handler to _the refresh button_ on each pull. If you look at the pull
+      // template (`html/pull.html`), you'll see that the refresh button already
+      // has its icon. This just adds the `click` event handler. Indicators are
+      // super powerful!
       refresh: function(pull, node) {
          node.on('click', function(event) {
             event.preventDefault();

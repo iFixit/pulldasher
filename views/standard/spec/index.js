@@ -1,3 +1,6 @@
+// This is the main spec file for Pulldasher. In reality, it's the only spec
+// file. The others are being required (see immediately below) and stuck in
+// their respective places in the overall config.
 define(['jquery', 'underscore', 'appearanceUtils', 'spec/utils', 'spec/pageIndicators', 'spec/indicators', 'spec/columns', 'spec/debugIndicators'], function($, _, utils, specUtils, pageIndicators, indicators, columns, debugIndicators) {
    var clipboard = $('#branch_name_clipboard');
    return {
@@ -6,8 +9,10 @@ define(['jquery', 'underscore', 'appearanceUtils', 'spec/utils', 'spec/pageIndic
       page_indicators: pageIndicators,
       debug_indicator_box: "#debug-indicators",
       debug_indicators: debugIndicators,
-      // Global filters
-      // where
+      // Global filters: These are used to set which pulls should show on the
+      // page at all. Notice that you're allowed to use multiple
+      // functions here, as in all the other selector filters. See
+      // `spec/columns.js` for more on filters.
       selector: [
          function(pull) {
             return specUtils.shouldShowPull(pull);
@@ -33,6 +38,8 @@ define(['jquery', 'underscore', 'appearanceUtils', 'spec/utils', 'spec/pageIndic
       sort: function(pull) {
          return pull.created_at;
       },
+      // This provides a hook to make modifications to each pull as it's
+      // rendered.
       adjust: function(pull, node) {
          var titleElem = node.find('.pull-title');
          utils.addTooltip(titleElem, pull.author());
@@ -41,7 +48,8 @@ define(['jquery', 'underscore', 'appearanceUtils', 'spec/utils', 'spec/pageIndic
             clipboard.val(pull.head.ref).focus().select();
          });
       },
-      // Functions to stick status information in indicators at the bottom of each pull
+      // Functions to stick status information in indicators at the bottom of
+      // each pull.
       indicators: indicators,
       columns: columns
    };

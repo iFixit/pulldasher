@@ -1,4 +1,6 @@
+// These are various utility functions for the rest of the config.
 define(['underscore'], function(_) {
+   // Get a `GET` parameter from the URL
    var params = function() {
       var filters = {};
       var filterString = window.location.search;
@@ -10,7 +12,8 @@ define(['underscore'], function(_) {
          }
          var pair = filter.split('=');
          var key = pair[0];
-         var data = pair[1].split(',');
+         // Decode value as needed
+         var data = decodeURIComponent(pair[1]).split(',');
          filters[key] = data;
       });
       return filters;

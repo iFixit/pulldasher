@@ -12,6 +12,7 @@ function DBComment(comment) {
       repo_name:  commentData.repo,
       user:       commentData.user.login,
       date:       utils.toUnixTime(commentData.created_at),
+      comment_type: commentData.comment_type,
       comment_id: commentData.comment_id
    };
 }
