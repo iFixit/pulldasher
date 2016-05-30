@@ -109,6 +109,8 @@ var HooksController = {
             console.log(err);
             res.status(500).send(err.toString());
          }).done();
+      } else {
+         res.status(200).send('Success!');
       }
    }
 };
