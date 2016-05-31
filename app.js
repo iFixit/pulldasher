@@ -57,49 +57,8 @@ authManager.setupRoutes(app);
 app.get('/',            mainController.index);
 app.post('/hooks/main', hooksController.main);
 
-/**
- * Refreshes all open pulls. If parameter `all` is true, refreshes all pulls,
- * open *and* closed.
- */
-function refreshAll(all) {
-   var githubPulls;
-
-   if (all === true) {
-      debug("rebuilding all pulls");
-      githubPulls = gitManager.getAllPulls();
-   } else {
-      debug("rebuilding all open pulls");
-      githubPulls = gitManager.getOpenPulls();
-   }
-
-   githubPulls.done(function(gPulls) {
-      debug("done retrieving pulls");
-      function next() {
-         if (!gPulls.length) {
-            debug("done building all pulls");
-            return;
-         }
-
-         var gPull = gPulls.shift();
-         debug("building pull %s", gPull.number);
-
-         queue.pause();
-         var pull = gitManager.parse(gPull);
-
-         update(pull).done(function() {
-            queue.resume();
-            next();
-         });
-      }
-      next();
-   });
-}
-
-// Gets all pulls, open and closed, if argument is passed.
-var all = _.contains(args, 'rebuild-history');
-
 // Called, to populate app, on startup.
-refreshAll(all);
+refresh.openPulls();
 
 /*
 @TODO: Update pulls which were open last time Pulldasher ran but are closed now.

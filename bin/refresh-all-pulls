@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+require('debug').enable(require('debug').load() || 'pulldasher:refresh*');
+
+var refresh = require('../lib/refresh');
+var db = require('../lib/db');
+
+refresh.allPulls()
+.done(function() {
+   db.end();
+});
