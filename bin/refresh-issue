@@ -1,3 +1,6 @@
+#!/usr/bin/env node
+require('debug').enable('*');
+
 var refresh = require('../lib/refresh');
 var db = require('../lib/db');
 var number = process.argv[2];
