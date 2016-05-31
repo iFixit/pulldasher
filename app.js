@@ -8,6 +8,7 @@ var config = require('./config'),
     passport = authManager.passport,
     socketAuthenticator = require('./lib/socket-auth'),
     queue = require('./lib/pull-queue.js'),
+    refresh = require('./lib/refresh.js'),
     pullManager = require('./lib/pull-manager'),
     dbManager = require('./lib/db-manager'),
     gitManager = require('./lib/git-manager'),
@@ -97,10 +98,6 @@ function update(pullPromise) {
    });
 }
 
-function updateIssue(issue) {
-   return dbManager.updateIssue(issue);
-}
-
 /**
  * Refreshes the specified pull.
  */
@@ -118,18 +115,6 @@ function parseAndUpdate(gPull) {
    // This returns a promise because it has to get more data
    var pull = gitManager.parse(gPull);
    return update(pull);
-}
-
-function refreshAllIssues() {
-   gitManager.getAllIssues().
-   then(function(gIssues) {
-      var issuesUpdated = gIssues.map(function(githubIssue) {
-         var issue = gitManager.parseIssue(githubIssue);
-         return updateIssue(issue);
-      });
-      return Promise.all(issuesUpdated);
-   }).
-   done();
 }
 
 /**
@@ -175,9 +160,6 @@ var all = _.contains(args, 'rebuild-history');
 
 // Called, to populate app, on startup.
 refreshAll(all);
-
-// Pull issues into DB
-refreshAllIssues();
 
 /*
 @TODO: Update pulls which were open last time Pulldasher ran but are closed now.

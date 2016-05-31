@@ -18,7 +18,7 @@ function Issue(data) {
 Issue.prototype.updateFromLabels = function(labels) {
    var self = this;
    if (labels) {
-      config.labels.forEach(function(labelConfig) {
+      (config.labels || []).forEach(function(labelConfig) {
          labels.forEach(function(label) {
             if (labelConfig.regex.test(label.name)) {
                log("Attached %s to %s because of a label reading %s", labelConfig.name, self.number, label.name);
