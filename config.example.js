@@ -95,6 +95,19 @@ module.exports = {
          regex: /\bCR :[^\n:]+:/i
       }
    ],
+
+   /**
+    * This is a list of objects describing labels on issues which should be
+    * converted to properties on the issue. Note that if more than one label
+    * matches the regex, only one will appear in the property.
+    */
+   labels: [
+      {
+         name: 'difficulty',
+         regex: /^size-[0-9]+$/
+      }
+   ],
+
    // Where to store the PID of the pulldasher process when run.
    pidFile: "/var/run/pulldasher.pid",
    // Setting this to true prints more debugging information.

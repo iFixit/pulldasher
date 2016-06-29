@@ -5,7 +5,8 @@ var utils = require('../lib/utils'),
  * Builds an object representation of a row in the DB `comments` table
  * from the Comment object.
  */
-function DBComment(commentData) {
+function DBComment(comment) {
+   var commentData = comment.data;
    this.data = {
       number:     commentData.number,
       repo_name:  commentData.repo,

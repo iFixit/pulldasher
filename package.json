@@ -14,7 +14,8 @@
     "github": "iFixit/node-github",
     "ejs": "1.0.x",
     "mysql": "2.1.x",
-    "debug": "1.0.4"
+    "debug": "1.0.4",
+    "notify-queue": "0.0.5"
   },
   "devDependencies": {
     "grunt": "0.4.5",
