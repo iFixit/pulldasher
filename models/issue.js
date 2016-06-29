@@ -3,6 +3,7 @@ var _       = require('underscore');
 var config  = require('../config');
 var log     = require('debug')('pulldasher:issue');
 var Promise = require('promise');
+var DBIssue = require('./db_issue');
 
 /**
  * Create a new issue.
@@ -10,6 +11,11 @@ var Promise = require('promise');
 function Issue(data) {
    _.extend(this, data);
 }
+
+Issue.findByNumber = function(number) {
+   return DBIssue.findByNumber(number).
+   then(Issue.getFromDB);
+};
 
 /**
  * Create properties on this object for each label it has of the configured
