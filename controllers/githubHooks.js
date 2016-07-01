@@ -43,6 +43,7 @@ var HooksController = {
             case "opened":
             case "reopened":
             case "closed":
+            case "edited":
             case "merged":
                break;
             case "labeled":
@@ -77,27 +78,45 @@ var HooksController = {
             return dbManager.updatePull(new Pull(body.pull_request));
          });
       } else if (event === 'issue_comment') {
-         var promises = [];
+         if (body.action == 'created') {
+            var promises = [];
 
-         // Parse any signature(s) out of the comment.
-         var sigs = Signature.parseComment(body.comment, body.issue.number);
-         promises.push(dbManager.insertSignatures(sigs));
+            // Parse any signature(s) out of the comment.
+            var sigs = Signature.parseComment(body.comment, body.issue.number);
+            promises.push(dbManager.insertSignatures(sigs));
 
-         body.comment.number = body.issue.number;
-         body.comment.repo = body.repository.name;
-         body.comment.type = 'issue';
-         comment = new Comment(body.comment);
+            body.comment.number = body.issue.number;
+            body.comment.repo = body.repository.name;
+            body.comment.type = 'issue';
+            comment = new Comment(body.comment);
 
-         promises.push(dbManager.updateComment(comment));
+            promises.push(dbManager.updateComment(comment));
 
-         dbUpdated = Promise.all(promises);
+            dbUpdated = Promise.all(promises);
+         } else {
+            // If the comment was edited or deleted, the easiest way to deal
+            // with the result is to simply refresh all data for the pull (or
+            // issue). Otherwise, we'd have to delete or update the comment,
+            // delete or update any signatures tied to that comment, then
+            // delete all signatures and re-insert in order them so the
+            // dev_blocking and such comes out correct.
+            if (body.comment.issue.pull_request) {
+               refresh.pull(body.issue.number);
+            } else {
+               refresh.issue(body.issue.number);
+            }
+         }
       } else if (event === 'pull_request_review_comment') {
-         body.comment.number = body.pull_request.number;
-         body.comment.repo =   body.repository.name;
-         body.comment.type =   'review';
-         comment = new Comment(body.comment);
+         if (body.action == 'deleted') {
+            dbUpdated = dbManager.deleteReviewComment(body.comment.id);
+         } else {
+            body.comment.number = body.pull_request.number;
+            body.comment.repo =   body.repository.name;
+            body.comment.type =   'review';
+            comment = new Comment(body.comment);
 
-         dbUpdated = dbManager.updateComment(comment);
+            dbUpdated = dbManager.updateComment(comment);
+         }
       }
 
       if (dbUpdated) {
@@ -108,6 +127,8 @@ var HooksController = {
             console.log(err);
             res.status(500).send(err.toString());
          }).done();
+      } else {
+         res.status(200).send('Success!');
       }
    }
 };
