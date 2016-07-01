@@ -8,6 +8,7 @@ var config = require('./config'),
     passport = authManager.passport,
     socketAuthenticator = require('./lib/socket-auth'),
     queue = require('./lib/pull-queue.js'),
+    refresh = require('./lib/refresh.js'),
     pullManager = require('./lib/pull-manager'),
     dbManager = require('./lib/db-manager'),
     gitManager = require('./lib/git-manager'),
@@ -53,7 +54,7 @@ app.use(function(req, res, next) {
  * Routes
  */
 authManager.setupRoutes(app);
-app.get('/',         mainController.index);
+app.get('/',            mainController.index);
 app.post('/hooks/main', hooksController.main);
 
 
@@ -102,16 +103,19 @@ function update(pullPromise) {
  * Refreshes the specified pull.
  */
 function refresh(number) {
-   var githubPull = gitManager.getPull(number);
-
    queue.pause();
+   gitManager.getPull(number).
+   then(parseAndUpdate).
+   done(queue.resume.bind(queue));
+}
 
-   githubPull.done(function(gPull) {
-      var pullPromise = gitManager.parse(gPull);
-      update(pullPromise).done(function() {
-         queue.resume();
-      });
-   });
+/**
+ * Parse the pull and update the database with the new data
+ */
+function parseAndUpdate(gPull) {
+   // This returns a promise because it has to get more data
+   var pull = gitManager.parse(gPull);
+   return update(pull);
 }
 
 /**

@@ -1,0 +1,16 @@
+#!/usr/bin/env node
+require('debug').enable('*');
+
+var refresh = require('../lib/refresh');
+var db = require('../lib/db');
+var number = process.argv[2];
+
+if ("" + parseInt(number, 10) !== number) {
+   console.error("%s is not a number", number)
+   process.exit(1);
+}
+
+refresh.issue(number)
+.done(function() {
+   db.end();
+});

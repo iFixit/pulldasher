@@ -1,4 +1,10 @@
 var port = process.env.PORT || 3000;
+
+// Support text emojis and almost all unicode emojis / symbols
+var emoji = "[\u2190-\u2BFF]|\ud83c[\udf00-\udfff]|\ud83d([\udc00-\ude4f]|[\ude80-\udeff])";
+var emojiText = ":[^\n:]+:";
+var signature = "(" + emojiText + '|' + emoji + ")";
+
 module.exports = {
    // This is the port Pulldasher will run on. If you want to have multiple
    // instances of Pulldasher running on the same server, just assign them
@@ -65,6 +71,16 @@ module.exports = {
          name: 'qa_req',
          regex: /\bqa_req ([0-9]+)\b/i,
          default: 1
+      },
+      {
+         name: 'closes',
+         regex: /\b(?:close(?:s|d)?|fix(?:es|ed)?|resolve(?:s|d)?) #([0-9]+)\b/i,
+         default: null
+      },
+      {
+         name: 'connects',
+         regex: /\b(?:connect(?:s|ed)? to|connects) #([0-9]+)\b/i,
+         default: null
       }
    ],
    // Tags which indicate a comment is significant and should be parsed.
@@ -72,29 +88,46 @@ module.exports = {
    tags: [
       {
          name: 'dev_block',
-         regex: /\bdev_block :[^\n:]+:/i
+         // This regex supports thins like :smile: as well as the actual
+         // unicode representation of emoticons. Mainly added because github
+         // started making their autocompletor inject actual unicode emojis
+         // in the text.
+         regex: new RegExp("\\bdev_block " + signature, "i")
       },
       {
          name: 'un_dev_block',
-         regex: /\bun_dev_block :[^\n:]+:/i
+         regex: new RegExp("\\bun_dev_block " + signature, "i")
       },
       {
          name: 'deploy_block',
-         regex: /\bdeploy_block :[^\n:]+:/i
+         regex: new RegExp("\\bdeploy_block " + signature, "i")
       },
       {
          name: 'un_deploy_block',
-         regex: /\bun_deploy_block :[^\n:]+:/i
+         regex: new RegExp("\\bun_deploy_block " + signature, "i")
       },
       {
          name: 'QA',
-         regex: /\bQA :[^\n:]+:/i
+         regex: new RegExp("\\bQA " + signature, "i")
       },
       {
          name: 'CR',
-         regex: /\bCR :[^\n:]+:/i
+         regex: new RegExp("\\bCR " + signature, "i")
       }
    ],
+
+   /**
+    * This is a list of objects describing labels on issues which should be
+    * converted to properties on the issue. Note that if more than one label
+    * matches the regex, only one will appear in the property.
+    */
+   labels: [
+      {
+         name: 'difficulty',
+         regex: /^size-[0-9]+$/
+      }
+   ],
+
    // Where to store the PID of the pulldasher process when run.
    pidFile: "/var/run/pulldasher.pid",
    // Setting this to true prints more debugging information.

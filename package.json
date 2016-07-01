@@ -13,6 +13,7 @@
     "express-partials": "0.1.1",
     "github": "iFixit/node-github",
     "mysql": "2.1.x",
+    "notify-queue": "0.0.5",
     "passport": "0.1.17",
     "passport-github": "0.1.5",
     "promise": "5.0.x",

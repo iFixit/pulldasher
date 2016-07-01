@@ -3,7 +3,8 @@ var utils = require('../lib/utils'),
 
 // Builds an object representation of a row in the DB `pulls` table
 // from the data returned by GitHub's API.
-function DBPull(pullData) {
+function DBPull(pull) {
+   var pullData = pull.data;
    this.data = {
       number: pullData.number,
       state: pullData.state,
@@ -13,6 +14,7 @@ function DBPull(pullData) {
       date_updated: utils.toUnixTime(pullData.updated_at),
       date_closed: utils.toUnixTime(pullData.closed_at),
       date_merged: utils.toUnixTime(pullData.merged_at),
+      difficulty: pullData.difficulty,
       milestone_title: pullData.milestone.title,
       milestone_due_on: utils.toUnixTime(pullData.milestone.due_on),
       head_branch: pullData.head.ref,
@@ -22,7 +24,9 @@ function DBPull(pullData) {
       base_branch: pullData.base.ref,
       owner: pullData.user.login,
       cr_req: pullData.cr_req,
-      qa_req: pullData.qa_req
+      qa_req: pullData.qa_req,
+      closes: pullData.closes,
+      connects: pullData.connects
    };
 }
 

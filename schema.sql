@@ -50,6 +50,27 @@ CREATE TABLE `commit_statuses` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `issues`
+--
+
+DROP TABLE IF EXISTS `issues`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `issues` (
+  `number` int(10) NOT NULL,
+  `title` varchar(255) DEFAULT NULL,
+  `difficulty` int(10) DEFAULT NULL,
+  `milestone_title` varchar(255) DEFAULT NULL,
+  `milestone_due_date` int(11) DEFAULT NULL,
+  `assignee` varchar(255) DEFAULT NULL,
+  `status` varchar(30) DEFAULT NULL,
+  `dateCreated` int(11) DEFAULT NULL,
+  `dateClosed` int(11) DEFAULT NULL,
+  PRIMARY KEY (`number`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `pull_labels`
 --
 
@@ -113,6 +134,9 @@ CREATE TABLE `pulls` (
   `date_merged` int(11) unsigned DEFAULT NULL,
   `milestone_title` varchar(255) DEFAULT NULL,
   `milestone_due_on` int(11) unsigned DEFAULT NULL,
+  `closes` int(10) unsigned DEFAULT NULL,
+  `connects` int(10) unsigned DEFAULT NULL,
+  `difficulty` int(11) DEFAULT NULL,
   PRIMARY KEY (`number`),
   KEY `pulls_state` (`state`),
   KEY `pulls_repo` (`repo_owner`,`repo_name`),

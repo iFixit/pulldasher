@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+require('debug').enable('*');
+
+var refresh = require('../lib/refresh');
+var db = require('../lib/db');
+
+refresh.openIssues()
+.done(function() {
+   db.end();
+});

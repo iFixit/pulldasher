@@ -4,12 +4,13 @@ var utils = require('../lib/utils'),
 // Builds an object representation of a row in the DB `pull_labels` table
 // from the data returned by GitHub's API.
 function DBLabel(label) {
+   var labelData = label.data;
    this.data = {
-      number: label.number,
-      title: label.title,
-      repo_name: label.repo_name,
-      user: label.user,
-      date: utils.toUnixTime(label.created_at)
+      number: labelData.number,
+      title: labelData.title,
+      repo_name: labelData.repo_name,
+      user: labelData.user,
+      date: utils.toUnixTime(labelData.created_at)
    };
 }
 
