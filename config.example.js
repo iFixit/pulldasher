@@ -1,4 +1,10 @@
 var port = process.env.PORT || 3000;
+
+// Support text emojis and almost all unicode emojis / symbols
+var emoji = "[\u2190-\u2BFF]|\ud83c[\udf00-\udfff]|\ud83d([\udc00-\ude4f]|[\ude80-\udeff])";
+var emojiText = ":[^\n:]+:";
+var signature = "(" + emojiText + '|' + emoji + ")";
+
 module.exports = {
    // This is the port Pulldasher will run on. If you want to have multiple
    // instances of Pulldasher running on the same server, just assign them
@@ -82,27 +88,31 @@ module.exports = {
    tags: [
       {
          name: 'dev_block',
-         regex: /\bdev_block :[^\n:]+:/i
+         // This regex supports thins like :smile: as well as the actual
+         // unicode representation of emoticons. Mainly added because github
+         // started making their autocompletor inject actual unicode emojis
+         // in the text.
+         regex: new RegExp("\\bdev_block " + signature, "i")
       },
       {
          name: 'un_dev_block',
-         regex: /\bun_dev_block :[^\n:]+:/i
+         regex: new RegExp("\\bun_dev_block " + signature, "i")
       },
       {
          name: 'deploy_block',
-         regex: /\bdeploy_block :[^\n:]+:/i
+         regex: new RegExp("\\bdeploy_block " + signature, "i")
       },
       {
          name: 'un_deploy_block',
-         regex: /\bun_deploy_block :[^\n:]+:/i
+         regex: new RegExp("\\bun_deploy_block " + signature, "i")
       },
       {
          name: 'QA',
-         regex: /\bQA :[^\n:]+:/i
+         regex: new RegExp("\\bQA " + signature, "i")
       },
       {
          name: 'CR',
-         regex: /\bCR :[^\n:]+:/i
+         regex: new RegExp("\\bCR " + signature, "i")
       }
    ],
 
