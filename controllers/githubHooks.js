@@ -6,6 +6,7 @@ var config     = require('../config'),
     Signature  = require('../models/signature'),
     Comment    = require('../models/comment'),
     Label      = require('../models/label'),
+    refresh    = require('../lib/refresh'),
     dbManager  = require('../lib/db-manager');
 
 var HooksController = {
@@ -100,7 +101,7 @@ var HooksController = {
             // delete or update any signatures tied to that comment, then
             // delete all signatures and re-insert in order them so the
             // dev_blocking and such comes out correct.
-            if (body.comment.issue.pull_request) {
+            if (body.issue.pull_request) {
                refresh.pull(body.issue.number);
             } else {
                refresh.issue(body.issue.number);
