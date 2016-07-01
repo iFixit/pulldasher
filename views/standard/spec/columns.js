@@ -10,21 +10,17 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
    // Sorting functions that are run on each column.
    var globalSorts = {
       sortByMilestone: function(pull) {
-         var score = 0;
-
-         if (pull.milestone.title) {
-            var due_date = pull.milestone.due_on &&
-             new Date(pull.milestone.due_on);
-
-            // If milestone is past due date.
-            if (due_date && due_date < new Date()) {
-               score -= 1500;
-            } else {
-               score -= 750;
-            }
+         if (!pull.milestone.due_on) {
+            return 0;
          }
 
-         return score;
+         var milestone = new Date(pull.milestone.due_on);
+         var timeDiff = milestone.getTime() - $.now();
+
+         return -1000 + Math.ceil(timeDiff / (1000 * 3600 * 24));
+      },
+      sortOwnerFirst: function(pull) {
+         return pull.is_mine() ? -5000 : 0;
       }
    };
 
@@ -97,12 +93,12 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
          },
          // This is a magical option (in a bad way) which makes the column
          // collapsible. It would be better if no more such options were added.
-         shrinkToButton: true
+         shrinkToButton: false
          // Take a look at the next column for more on the parts we haven't seen
          // yet!
       },
       {
-         title: "deploy_blocked Pulls",
+         title: "Deploy Blocked Pulls",
          id: "deployBlockPulls",
          selector: function(pull) {
             return pull.ready() && pull.deploy_blocked();
@@ -115,28 +111,23 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
                utils.hideIfEmpty(container, blob, '.pull');
             }
          },
-         // Now here's a new thing: indicators. As mentioned in the README,
-         // indicators provide icons and such on each pull. In this section, we
-         // can set the indicators for this column only. See
-         // `spec/indicators.js` for more on how indicators work.
          indicators: {
             deploy_block: function deploy_block(pull, node) {
                if (pull.deploy_blocked()) {
                   var current_block = pull.status.deploy_block.slice(-1)[0].data;
                   var date = new Date(current_block.created_at);
                   var link = utils.getCommentLink(pull, current_block);
-                  var label = $('<span>').addClass('label label-danger');
+                  var icon = $('<i>').addClass('fa fa-warning deploy-blocked');
 
-                  label.text(utils.formatDate(date));
-                  link.append(label);
-                  utils.addActionTooltip(link, "deploy_block'd",
+                  link.append(icon);
+                  utils.addActionTooltip(icon, "Deploy Blocked",
                   current_block.created_at, current_block.user.login);
 
                   node.append(link);
                }
             }
          },
-         shrinkToButton: true
+         shrinkToButton: false
       },
       {
          title: "Ready Pulls",
@@ -152,10 +143,10 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
                utils.hideIfEmpty(container, blob, '.pull');
             }
          },
-         shrinkToButton: true
+         shrinkToButton: false
       },
       {
-         title: "dev_blocked Pulls",
+         title: "Dev Blocked Pulls",
          id: "blockPulls",
          selector: function(pull) {
             return pull.dev_blocked();
@@ -177,17 +168,13 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
          indicators: {
             actor: function actor(pull, node) {
                var current_block = pull.status.dev_block.slice(-1)[0].data;
-
                var date = new Date(current_block.created_at);
-
                var link = utils.getCommentLink(pull, current_block);
+               var icon = $('<i>').addClass('fa fa-minus-circle dev-blocked');
 
-               var label = $('<span>').addClass('label label-default');
-
-               label.text(utils.formatDate(date));
-               link.append(label);
-               utils.addActionTooltip(link, "dev_block'd",
-               current_block.created_at, current_block.user.login);
+               link.append(icon);
+               utils.addActionTooltip(icon, "Dev Blocked",
+                current_block.created_at, current_block.user.login);
 
                node.append(link);
             }
@@ -300,21 +287,16 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
             qa_in_progress: function qa_in_progress(pull, node) {
                var label;
                if ((label = pull.getLabel('QAing'))) {
-                  var labelElem = $('<span>' + label.title + '</span>');
-                  var labelclass;
+                  var icon = $('<i>').addClass('fa fa-eye qaing');
                   if (label.user === App.user) {
-                     labelclass = 'label-success';
-                  } else {
-                     labelclass = 'label-warning';
+                     icon.addClass('mine');
                   }
-                  labelElem.addClass('label ' + labelclass);
-                  labelElem = utils.addActionTooltip(labelElem, '',
-                  label.created_at, label.user);
-
-                  node.append(labelElem);
+                  utils.addActionTooltip(icon, 'QA started',
+                   label.created_at, label.user);
+                  node.append(icon);
                }
             }
          }
       }
-      ];
-   });
+   ];
+});

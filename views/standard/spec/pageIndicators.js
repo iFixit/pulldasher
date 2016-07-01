@@ -22,9 +22,11 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _,
 
       var text = $('<div>');
       text.addClass('leaderboard-title');
-      text.text(type + ' Leaderboard:');
+      text.text(type + ' Leaders:');
 
       node.append(text);
+
+      var leaderboardWrapper = $('<div class="leaderboard-wrapper">');
 
       var date = new Date();
       var difference = 7 * 24 * 60 * 60 * 1000; // Two weeks in ms
@@ -77,20 +79,26 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _,
             info.addClass('leaderboard-trailing');
          }
 
-         node.append(info);
+         leaderboardWrapper.append(info);
       });
+      node.append(leaderboardWrapper);
    };
    return {
       pull_count: function(pulls, node) {
          pulls = pulls.filter(utils.shouldShowPull);
-         node.text(pulls.length + " open pulls");
-         node.wrapInner('<strong></strong>');
+         node.text(pulls.length);
+         node.wrapInner('<span class="number"></span>');
+         node.append(' Open');
       },
       frozen_count: function(pulls, node) {
          var frozen = pulls.filter(function(pull) {
             return pull.hasLabel('Cryogenic Storage') && pull.state === 'open';
          });
-         node.text(frozen.length + " frozen pulls");
+
+         node.text(frozen.length);
+         node.wrapInner('<span class="number"></span>');
+         node.append(' Frozen');
+
          // If we have frozen pulls, make the count a link.
          if (frozen.length) {
             // Pull the repo and org from the first frozen pull.
@@ -100,7 +108,6 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _,
             var link = $('<a target="_blank" href="https://www.github.com/' + org + '/' + repo + '/labels/' + label + '"></a>');
             node.wrapInner(link);
          }
-         node.wrapInner('<strong></strong>');
       },
       cr_leaderboard: function(pulls, node) {
          summarize(pulls, node, "CR", function(pull) {

@@ -14,6 +14,7 @@ var HooksController = {
       // Variable for promise that will resolve when the hook is known to have
       // succeeded or failed.
       var dbUpdated;
+      var comment;
 
       var secret = req.param('secret');
       if (secret !== config.github.hook_secret) {
@@ -85,7 +86,7 @@ var HooksController = {
          body.comment.number = body.issue.number;
          body.comment.repo = body.repository.name;
          body.comment.type = 'issue';
-         var comment = new Comment(body.comment);
+         comment = new Comment(body.comment);
 
          promises.push(dbManager.updateComment(comment));
 
@@ -94,7 +95,7 @@ var HooksController = {
          body.comment.number = body.pull_request.number;
          body.comment.repo =   body.repository.name;
          body.comment.type =   'review';
-         var comment = new Comment(body.comment);
+         comment = new Comment(body.comment);
 
          dbUpdated = dbManager.updateComment(comment);
       }
@@ -109,7 +110,6 @@ var HooksController = {
          }).done();
       }
    }
-
 };
 
 module.exports = HooksController;

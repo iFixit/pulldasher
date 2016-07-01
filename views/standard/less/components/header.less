@@ -1,0 +1,142 @@
+#navbar {
+   border-color: @header-border;
+
+   &.collapsing, &.collapse.in {
+      @media (max-width: 768px) {
+         background: @header-background;
+      }
+   }
+}
+
+.navbar {
+   height: 50px;
+   z-index: 999;
+   background: @header-background;
+   border-color: @header-border;
+
+   @media @mobile {
+      height: auto;
+   }
+
+   .navbar-text {
+      margin: 15px 0;
+      color: @theme-selector-text;
+
+      @media @mobile {
+         &#theme-selector {
+            clear: left;
+            float: left;
+            margin: 22px 8px;
+         }
+
+         &.global-indicator {
+            margin: 0 0 0 9px;
+         }
+      }
+      
+      i {
+         padding-left: 10px;
+         font-size: 18px;  
+         color: @theme-selector-inactive;
+
+         &:hover, &.active {
+            color: @theme-selector-active;
+         }
+
+         &:not(.active) {
+            cursor: pointer;
+         }
+      }
+   }
+
+   .navbar-brand {
+      position: absolute;
+      width: 200px;
+      left: 0;
+      right: 0;
+      margin: auto;
+      text-align: center;
+      text-transform: uppercase;
+      font-size: 16px;
+      letter-spacing: 1px;
+      font-weight: 200;
+      color: @brand-color !important;
+
+      span.brand-highlight {
+         color: @brand-highlight;
+         font-size: 18px;
+         font-weight: 400;
+      }
+   }
+
+   .navbar-toggle {
+      border-color: @toggle-border !important;
+      background: @toggle-background !important;
+
+      &:hover, &:focus {
+         background: @toggle-background-hover !important;
+      }
+   }
+}
+
+#global-indicators {
+   @media @mobile {
+      display: block;
+      margin-top: 20px;
+   }
+
+   .global-indicator {
+      float: left;
+      padding-right: 25px;
+      text-align: center;
+      color: @global-indicator-text;
+
+      @media @mobile {
+         padding-right: 5px;
+      }
+
+      .number {
+         padding: 3px;
+         border-width: 1px;
+         border-color: @global-indicator-count-border;
+         border-style: solid;
+         border-radius: 7px;
+
+         width: 30px;
+         height: 25px;
+         display: block;
+         float: left;
+         color: @global-indicator-count-text;
+         background: @global-indicator-count-background;
+         margin: -3px 5px 0 0;
+         font-size: 15px;
+         line-height: 17px;
+      }
+
+      a {
+         color: @global-indicator-text-link !important;
+      }
+
+      &.frozen_count:hover {
+         text-decoration: underline;
+      }
+   }
+}
+
+#debug-indicators {
+   display: none;
+   .fa-plane {
+      padding: 0 20px;
+   }
+}
+
+.navbar:hover #debug-indicators {
+   display: inline;
+}
+
+#restore-buttons {
+   @media @mobile {
+      display: block;
+      margin: 15px 0px;
+   }
+}

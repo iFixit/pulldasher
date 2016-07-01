@@ -1,0 +1,39 @@
+@mobile: ~"only screen and (max-width: 599px)";
+
+@avatar-width: 25px;
+
+* {
+   font-family: "Lato";
+   -webkit-font-smoothing: antialiased;
+   .transition(.25s);
+}
+
+html.transitioning * {
+   .transition(1s);
+}
+
+body {
+   background-color: @background-color;
+}
+
+.disable-hover {
+  pointer-events: none;
+}
+
+.click-heading {
+   cursor: pointer;
+
+   @media @mobile {
+      padding: 15px;
+   }
+}
+
+.avatar {
+   width: @avatar-width;
+}
+
+#branch_name_clipboard {
+   position: fixed;
+   top: 0;
+   left: -1000px;
+}
