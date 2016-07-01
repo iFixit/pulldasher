@@ -3,7 +3,7 @@ var _       = require('underscore');
 var config  = require('../config');
 var queue = require('../lib/pull-queue');
 var Promise = require('promise');
-var debug = require('debug')('pulldasher:pull');
+var debug = require('../lib/debug')('pulldasher:pull');
 var DBPull = require('./db_pull');
 var getLogin = require('../lib/get-user-login');
 
