@@ -50,7 +50,7 @@ Issue.getFromGH = function(data) {
       date_closed: new Date(data.closed_at),
       milestone: data.milestone ? {
          title: data.milestone.title,
-         dueDate: new Date(data.milestone.due_on)
+         due_on: new Date(data.milestone.due_on)
       } : null,
       assignee: data.assignee ? data.assignee.login : null
    };
@@ -71,7 +71,7 @@ Issue.getFromDB = function(data) {
       date_closed: utils.fromUnixTime(data.date_closed),
       milestone: data.milestone_title ? {
          title: data.milestone_title,
-         dueDate: utils.fromUnixTime(data.milestone_due_on)
+         due_on: utils.fromUnixTime(data.milestone_due_on)
       } : null,
       difficulty: data.difficulty,
       assignee: data.assignee

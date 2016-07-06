@@ -61,7 +61,7 @@ CREATE TABLE `issues` (
   `title` varchar(255) DEFAULT NULL,
   `difficulty` int(10) DEFAULT NULL,
   `milestone_title` varchar(255) DEFAULT NULL,
-  `milestone_due_date` int(11) DEFAULT NULL,
+  `milestone_due_on` int(11) DEFAULT NULL,
   `assignee` varchar(255) DEFAULT NULL,
   `status` varchar(30) DEFAULT NULL,
   `date_created` int(11) DEFAULT NULL,
