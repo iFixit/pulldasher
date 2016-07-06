@@ -124,7 +124,7 @@ module.exports = {
    labels: [
       {
          name: 'difficulty',
-         regex: /^size-[0-9]+$/
+         regex: /^size: [0-9]+$/
       }
    ],
 
