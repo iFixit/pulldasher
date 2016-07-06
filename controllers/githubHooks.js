@@ -158,7 +158,7 @@ function handleIssueEvent(body) {
             new Label(
                body.label,
                body.number,
-               body.issue.repository.name,
+               body.issue.repository.name
             )
          );
          break;
