@@ -9,8 +9,8 @@ function DBIssue(issue) {
       title: issue.title,
       assignee: issue.assignee,
       status: issue.status,
-      dateCreated: utils.toUnixTime(issue.dateCreated),
-      dateClosed: utils.toUnixTime(issue.dateClosed)
+      date_created: utils.toUnixTime(issue.date_created),
+      date_closed: utils.toUnixTime(issue.date_closed)
    };
 
    if (issue.difficulty) {

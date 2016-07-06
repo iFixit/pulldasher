@@ -64,8 +64,8 @@ CREATE TABLE `issues` (
   `milestone_due_date` int(11) DEFAULT NULL,
   `assignee` varchar(255) DEFAULT NULL,
   `status` varchar(30) DEFAULT NULL,
-  `dateCreated` int(11) DEFAULT NULL,
-  `dateClosed` int(11) DEFAULT NULL,
+  `date_created` int(11) DEFAULT NULL,
+  `date_closed` int(11) DEFAULT NULL,
   PRIMARY KEY (`number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
