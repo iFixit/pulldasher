@@ -34,8 +34,7 @@ var HooksController = {
       if (event === 'status') {
          dbUpdated = dbManager.updateCommitStatus(new Status(body));
       } else if (event === 'issues') {
-         dbUpdated = Issue.getFromGH(body.issue)
-         .then(dbManager.updateIssue);
+         dbUpdated = handleIssueEvent(body);
       } else if (event === 'pull_request') {
          // Promise that resolves when everything that needs to be done before
          // we call `updatePull` has finished.
@@ -134,5 +133,48 @@ var HooksController = {
       }
    }
 };
+
+function handleIssueEvent(body) {
+   var before = Promise.resolve();
+   switch(body.action) {
+      case "opened":
+         // Always do this for opened issues because a full refresh
+         // is the easiest way to get *who* assigned the initial labels.
+         return refresh.issue(body.number);
+
+      case "labeled":
+         before = dbManager.insertLabel(
+            new Label(
+               body.label,
+               body.number,
+               body.issue.repository.name,
+               body.sender.login,
+               body.issue.updated_at
+            )
+         );
+         break;
+      case "unlabeled":
+         before = dbManager.deleteLabel(
+            new Label(
+               body.label,
+               body.number,
+               body.issue.repository.name,
+            )
+         );
+         break;
+
+      case "reopened":
+      case "closed":
+      case "edited":
+      case "assigned":
+      case "unassigned":
+        // Default case is update the issue
+   }
+
+   return before.then(function() {
+      return Issue.getFromGH(githubIssue)
+   })
+   .then(dbManager.updateIssue);
+}
 
 module.exports = HooksController;

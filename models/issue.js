@@ -6,7 +6,8 @@ var Promise = require('promise');
 var DBIssue = require('./db_issue');
 
 /**
- * Create a new issue.
+ * Create a new issue. Not meant to be used directly, see
+ * Issue.getFromGH or Issue.findByNumber
  */
 function Issue(data) {
    _.extend(this, data);
@@ -41,7 +42,7 @@ Issue.prototype.updateFromLabels = function(labels) {
  * A factory method to create an issue from GitHub data. Currently, the data
  * in Issue is almost identical to the data coming from GitHub.
  */
-Issue.getFromGH = function(data) {
+Issue.getFromGH = function(data, labels) {
    var issueData = {
       number: data.number,
       title: data.title,
@@ -52,10 +53,11 @@ Issue.getFromGH = function(data) {
          title: data.milestone.title,
          due_on: new Date(data.milestone.due_on)
       } : null,
-      assignee: data.assignee ? data.assignee.login : null
+      assignee: data.assignee ? data.assignee.login : null,
+      labels: labels || []
    };
    var issue = new Issue(issueData);
-   issue.updateFromLabels(data.labels);
+   issue.updateFromLabels(labels | []);
    return Promise.resolve(issue);
 };
 
