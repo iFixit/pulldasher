@@ -7,29 +7,36 @@ var DBIssue = require('./db_issue');
 
 /**
  * Create a new issue. Not meant to be used directly, see
- * Issue.getFromGH or Issue.findByNumber
+ * Issue.getFromGH or Issue.getFromDB
  */
-function Issue(data) {
+function Issue(data, labels) {
    _.extend(this, data);
+   if (labels) {
+      this.updateFromLabels(labels);
+   }
 }
-
-Issue.findByNumber = function(number) {
-   return DBIssue.findByNumber(number).
-   then(Issue.getFromDB);
-};
 
 /**
  * Create properties on this object for each label it has of the configured
  * labels.
+ *
+ * @labels: array of Label objects
  */
 Issue.prototype.updateFromLabels = function(labels) {
    var self = this;
    if (labels) {
       (config.labels || []).forEach(function(labelConfig) {
+         self[labelConfig.name] = null;
          labels.forEach(function(label) {
             if (labelConfig.regex.test(label.name)) {
-               log("Attached %s to %s because of a label reading %s", labelConfig.name, self.number, label.name);
-               self[labelConfig.name] = label.name;
+               log("Setting %s on #%s because of a label reading %s",
+                labelConfig.name, self.number, label.name);
+
+               if (labelConfig.process) {
+                  self[labelConfig.name] = labelConfig.process(label.name);
+               } else {
+                  self[labelConfig.name] = label.name;
+               }
             }
          });
       });
@@ -54,17 +61,16 @@ Issue.getFromGH = function(data, labels) {
          due_on: new Date(data.milestone.due_on)
       } : null,
       assignee: data.assignee ? data.assignee.login : null,
-      labels: labels || []
+      labels: labels || [],
    };
-   var issue = new Issue(issueData);
-   issue.updateFromLabels(labels | []);
-   return Promise.resolve(issue);
+
+   return new Issue(issueData, labels);
 };
 
 /**
  * A factory method to create an issue from a DBIssue.
  */
-Issue.getFromDB = function(data) {
+Issue.getFromDB = function(data, labels) {
    var issueData = {
       number: data.number,
       title: data.title,
@@ -76,8 +82,10 @@ Issue.getFromDB = function(data) {
          due_on: utils.fromUnixTime(data.milestone_due_on)
       } : null,
       difficulty: data.difficulty,
-      assignee: data.assignee
+      assignee: data.assignee,
+      labels: labels || []
    };
-   return new Issue(issueData);
+   return new Issue(issueData, labels)
 };
+
 module.exports = Issue;

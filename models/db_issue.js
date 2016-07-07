@@ -10,14 +10,9 @@ function DBIssue(issue) {
       assignee: issue.assignee,
       status: issue.status,
       date_created: utils.toUnixTime(issue.date_created),
-      date_closed: utils.toUnixTime(issue.date_closed)
+      date_closed: utils.toUnixTime(issue.date_closed),
+      difficulty: issue.difficulty
    };
-
-   if (issue.difficulty) {
-      this.data.difficulty = extractInt(issue.difficulty);
-   } else {
-      this.data.difficulty = null;
-   }
 
    if (issue.milestone) {
       this.data.milestone_title = issue.milestone.title;
@@ -46,10 +41,5 @@ DBIssue.prototype.save = function() {
 
    return db.query(q_update, issueData);
 };
-
-function extractInt(str) {
-   var result = str && str.match(/[0-9]+/);
-   return result ? parseInt(result[0], 10) : null;
-}
 
 module.exports = DBIssue;
