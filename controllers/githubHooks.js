@@ -141,7 +141,7 @@ function handleIssueEvent(body) {
       case "opened":
          // Always do this for opened issues because a full refresh
          // is the easiest way to get *who* assigned the initial labels.
-         return refresh.issue(body.number);
+         return refresh.issue(body.issue.number);
 
       case "labeled":
          debug('Added label: %s', body.label.name);
