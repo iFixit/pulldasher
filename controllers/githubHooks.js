@@ -149,19 +149,19 @@ function handleIssueEvent(body) {
          var label = new Label(
             body.label,
             body.issue.number,
-            body.issue.repository.name,
+            body.repository.name,
             body.sender.login,
             body.issue.updated_at
          );
          before = dbManager.insertLabel(label);
-         after = reprocessLabels(body.issue.number);
+         after = reprocessLabels(body.issue.number, body.repository.name);
          break;
       case "unlabeled":
          debug('Removed label: %s', body.label.name);
          var label = new Label(
             body.label,
             body.issue.number,
-            body.issue.repository.name
+            body.repository.name
          );
          before = dbManager.deleteLabel(label);
          after = reprocessLabels(body.issue.number);
@@ -186,13 +186,13 @@ function handleIssueEvent(body) {
  * After a label has been added or removed we have to re-process all the labels
  * in case one of them matches one of our configured label updaters.
  */
-function reprocessLabels(issueNumber) {
+function reprocessLabels(issueNumber, repo) {
    return function() {
       if (!config.labels || !config.labels.length) {
          return;
       }
       debug("Reprocessing labels for Issue #%s", issueNumber);
-      return dbManager.getIssue(issueNumber)
+      return dbManager.getIssue(issueNumber, repo)
       .then(dbManager.updateIssue);
    }
 }
