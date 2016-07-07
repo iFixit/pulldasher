@@ -96,4 +96,5 @@ io.sockets.on('connection', function (socket) {
    }, unauthenticated_timeout);
 });
 
+debug("Listening on port %s", config.port);
 httpServer.listen(config.port);
