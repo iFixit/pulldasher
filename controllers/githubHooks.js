@@ -137,7 +137,6 @@ var HooksController = {
 function handleIssueEvent(body) {
    debug('Webhook action: %s for issue #%s', body.action, body.issue.number);
    var before = Promise.resolve();
-   var after = Promise.resolve();
    switch(body.action) {
       case "opened":
          // Always do this for opened issues because a full refresh
@@ -154,7 +153,6 @@ function handleIssueEvent(body) {
             body.issue.updated_at
          );
          before = dbManager.insertLabel(label);
-         after = reprocessLabels(body.issue.number, body.repository.name);
          break;
       case "unlabeled":
          debug('Removed label: %s', body.label.name);
@@ -164,7 +162,6 @@ function handleIssueEvent(body) {
             body.repository.name
          );
          before = dbManager.deleteLabel(label);
-         after = reprocessLabels(body.issue.number);
          break;
 
       case "reopened":
@@ -179,7 +176,9 @@ function handleIssueEvent(body) {
       return Issue.getFromGH(body.issue)
    })
    .then(dbManager.updateIssue)
-   .then(after);
+   .then(function() {
+      return reprocessLabels(body.issue.number, body.repository.name);
+   });
 }
 
 /**
@@ -187,14 +186,12 @@ function handleIssueEvent(body) {
  * in case one of them matches one of our configured label updaters.
  */
 function reprocessLabels(issueNumber, repo) {
-   return function() {
-      if (!config.labels || !config.labels.length) {
-         return;
-      }
-      debug("Reprocessing labels for Issue #%s", issueNumber);
-      return dbManager.getIssue(issueNumber, repo)
-      .then(dbManager.updateIssue);
+   if (!config.labels || !config.labels.length) {
+      return;
    }
+   debug("Reprocessing labels for Issue #%s", issueNumber);
+   return dbManager.getIssue(issueNumber, repo)
+   .then(dbManager.updateIssue);
 }
 
 module.exports = HooksController;
