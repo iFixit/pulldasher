@@ -25,17 +25,20 @@ function Issue(data, labels) {
 Issue.prototype.updateFromLabels = function(labels) {
    var self = this;
    if (labels) {
+      log("Processing %s labels on #%s", labels.length, self.number);
       (config.labels || []).forEach(function(labelConfig) {
          self[labelConfig.name] = null;
          labels.forEach(function(label) {
-            if (labelConfig.regex.test(label.name)) {
+            var labelName = label.data.title;
+            log("Testing label '%s' against regex %s", labelName, labelConfig.regex);
+            if (labelConfig.regex.test(labelName)) {
                log("Setting %s on #%s because of a label reading %s",
-                labelConfig.name, self.number, label.name);
+                labelConfig.name, self.number, labelName);
 
                if (labelConfig.process) {
-                  self[labelConfig.name] = labelConfig.process(label.name);
+                  self[labelConfig.name] = labelConfig.process(labelName);
                } else {
-                  self[labelConfig.name] = label.name;
+                  self[labelConfig.name] = labelName;
                }
             }
          });
