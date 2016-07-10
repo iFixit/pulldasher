@@ -122,7 +122,7 @@ Pull.prototype.getAllSignatures = function(tagName) {
 };
 
 Pull.prototype.isOpen = function() {
-   return this.data.state == 'open';
+   return this.data.state === 'open';
 };
 
 
