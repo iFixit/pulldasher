@@ -63,7 +63,6 @@ function Pull(data, signatures, comments, commitStatus, labels) {
 }
 
 Pull.prototype.update = function() {
-   var updatedPull = this;
    debug('Calling `updatePull` for pull #%s', this.data.number);
    var dbPull = new DBPull(this);
    var number = dbPull.data.number;

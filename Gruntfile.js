@@ -11,6 +11,7 @@ module.exports = function(grunt) {
         latedef: 'nofunc', // Allow function definitions after their use.
         noarg: true,
         undef: true,
+        unused: 'vars',
         // Deprecated relaxers
         sub: true,
         multistr: true
