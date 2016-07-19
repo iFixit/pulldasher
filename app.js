@@ -1,24 +1,16 @@
 var config = require('./config'),
-    _ = require('underscore'),
     httpServer,
     express = require('express'),
     partials = require('express-partials'),
-    Promise = require('promise'),
     authManager = require('./lib/authentication'),
     passport = authManager.passport,
     socketAuthenticator = require('./lib/socket-auth'),
-    queue = require('./lib/pull-queue.js'),
     refresh = require('./lib/refresh.js'),
     pullManager = require('./lib/pull-manager'),
-    dbManager = require('./lib/db-manager'),
-    gitManager = require('./lib/git-manager'),
-    Signature = require('./models/signature'),
     mainController = require('./controllers/main'),
     hooksController = require('./controllers/githubHooks'),
-    debug = require('debug')('pulldasher'),
     reqLogger = require('debug')('pulldasher:server:request');
 
-var args = process.argv.slice(2);
 var app = express();
 
 httpServer = require('http').createServer(app);

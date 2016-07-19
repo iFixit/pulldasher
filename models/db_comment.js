@@ -25,7 +25,7 @@ DBComment.prototype.save = function() {
    return db.query(q_update, commentData);
 };
 
-DBComment.delete = function deleteComment(type, commentid) {
+DBComment.delete = function deleteComment(type, comment_id) {
    debug("deleting %s comment %s", type, comment_id);
    var q_delete = 'DELETE FROM comments \
                    WHERE `comment_type` = ? \

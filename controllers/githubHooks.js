@@ -80,7 +80,7 @@ var HooksController = {
             return dbManager.updatePull(new Pull(body.pull_request));
          });
       } else if (event === 'issue_comment') {
-         if (body.action == 'created') {
+         if (body.action === 'created') {
             var promises = [];
 
             // Parse any signature(s) out of the comment.
@@ -109,7 +109,7 @@ var HooksController = {
             }
          }
       } else if (event === 'pull_request_review_comment') {
-         if (body.action == 'deleted') {
+         if (body.action === 'deleted') {
             dbUpdated = dbManager.deleteReviewComment(body.comment.id);
          } else {
             body.comment.number = body.pull_request.number;
