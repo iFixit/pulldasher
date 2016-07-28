@@ -77,7 +77,7 @@ Issue.getFromDB = function(data, labels) {
    var issueData = {
       number: data.number,
       title: data.title,
-      status: data.state,
+      status: data.status,
       date_created: utils.fromUnixTime(data.date_created),
       date_closed: utils.fromUnixTime(data.date_closed),
       milestone: data.milestone_title ? {
