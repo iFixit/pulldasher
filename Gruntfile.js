@@ -37,18 +37,20 @@ module.exports = function(grunt) {
       }
     },
     less: {
-      // The following lines are derived from Bootstrap's Gruntfile:
-      /*!
-       * Bootstrap's Gruntfile
-       * http://getbootstrap.com
-       * Copyright 2013-2015 Twitter, Inc.
-       * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
-       */
       options: {
         strictMath: true,
         outputSourceFiles: true
       },
-      file: {src: 'views/current/less/main.less', dest: 'views/current/css/pulldasher.css'}
+      files: {
+         src: [
+            'views/current/less/*.less',
+            'views/current/less/themes/*.less'
+         ],
+         expand: true,
+         rename: function(dest, src) {
+            return src.replace(/less/g, 'css');
+         }
+      }
       // END derived lines
     },
 
@@ -70,5 +72,4 @@ module.exports = function(grunt) {
 
   // Default task.
   grunt.registerTask('default', ['jshint:backend', 'less']);
-
 };

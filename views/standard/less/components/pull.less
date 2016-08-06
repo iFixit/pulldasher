@@ -1,0 +1,359 @@
+.panel {
+   .pull-count {
+      float: right;
+      height: 37px;
+      width: 45px;
+      text-align: center;
+      border-radius: 0 2px 2px 0;
+      border-left: solid 1px;
+      line-height: 35px;
+      position: absolute;
+      z-index: 999;
+      right: 16px;
+      top: 1px;
+
+      @media @mobile {
+         height: 47px;
+         width: 54px;
+         line-height: 45px;
+      }
+   }
+
+   .list-group-item {
+      padding: 15px 15px;
+      border-color: @pull-separator;
+   }
+}
+
+#ciBlocked-container .panel {
+   background: @panel-ci-blocked-border;
+   border-color: @panel-ci-blocked-border;
+
+   .panel-heading {
+      border-color: @panel-ci-blocked-border;
+      background: @panel-ci-blocked-background;
+
+      &, .panel-title {
+         color: @panel-ci-blocked-text;
+      }
+   }
+
+   .pull-count {
+      color: @panel-ci-blocked-count-text;
+      border-color: @panel-ci-blocked-count-border;
+      background: @panel-ci-blocked-count-background;
+   }
+}
+
+#deployBlockPulls-container .panel {
+   background: @panel-deploy-blocked-border;
+   border-color: @panel-deploy-blocked-border;
+
+   .panel-heading {
+      border-color: @panel-deploy-blocked-border;
+      background: @panel-deploy-blocked-background;
+
+      &, .panel-title {
+         color: @panel-deploy-blocked-text;
+      }
+   }
+
+   .pull-count {
+      color: @panel-deploy-blocked-count-text;
+      border-color: @panel-deploy-blocked-count-border;
+      background: @panel-deploy-blocked-count-background;
+   }
+}
+
+#readyPulls-container .panel {
+   background: @panel-ready-border;
+   border-color: @panel-ready-border;
+
+   .panel-heading {
+      border-color: @panel-ready-border;
+      background: @panel-ready-background;
+
+      &, .panel-title {
+         color: @panel-ready-text;
+      }
+   }
+
+   .pull-count {
+      color: @panel-ready-count-text;
+      border-color: @panel-ready-count-border;
+      background: @panel-ready-count-background;
+   }
+}
+
+#blockPulls-container .panel,
+#crPulls-container .panel,
+#qaPulls-container .panel {
+   background: @panel-default-border;
+   border-color: @panel-default-border;
+
+   .panel-heading {
+      border-color: @panel-default-border;
+      background: @panel-default-background;
+
+      &, .panel-title {
+         color: @panel-default-text;
+      }
+   }
+
+   .pull-count {
+      color: @panel-default-count-text;
+      border-color: @panel-default-count-border;
+      background: @panel-default-count-background;
+   }
+}
+
+.build_status {
+   .build_status_link {
+      position: absolute;
+      width: 4px;
+      top: 10px;
+      left: 7px;
+      bottom: 10px;
+      border-radius: 3px;
+   }
+
+   .build-state-pending {
+      background: @build-state-pending;
+   }
+
+   .build-state-failure {
+      background: @build-state-failure;
+   }
+
+   .build-state-error {
+      background: @build-state-error;
+   }
+}
+
+.status-col {
+   float: left;
+   position: relative;
+}
+
+.cr_remaining {
+   margin-right: 6px;
+}
+
+.info-tag i {
+   display: inline-block;
+   height: 32px;
+   width: 33px;
+   font-size: 17px;
+   margin-left: 6px;
+   float: left;
+   line-height: 32px;
+   text-align: center;
+   border-radius: 3px;
+
+   border: 1px solid @tag-default-border;
+   background: @tag-default-background;
+
+   &:hover {
+      box-shadow: 0 0 0 1px;
+   }
+
+   &.flag-milestone {
+      color: @tag-current-milestone;
+      border-color: @tag-current-milestone-border;
+      background: @tag-current-milestone-background;
+   }
+
+   &.flag-past-due {
+      color: @tag-past-milestone;
+      border-color: @tag-past-milestone-border;
+      background: @tag-past-milestone-background;
+   }
+
+
+   &.dev-blocked {
+      color: @tag-dev-blocked;
+      border-color: @tag-dev-blocked-border;
+      background: @tag-dev-blocked-background;
+   }
+
+   &.deploy-blocked {
+      color: @tag-deploy-blocked;
+      border-color: @tag-deploy-blocked-border;
+      background: @tag-deploy-blocked-background;
+   }
+
+   &.qaing {
+      color: @tag-qaing;
+      border-color: @tag-qaing-border;
+      background: @tag-qaing-background;
+
+      &.mine {
+         color: @tag-qaing-mine;
+      }
+   }
+}
+
+.status {
+   padding: 4px;
+   padding-left: 8px;
+   padding-right: 10px;
+   background-color: @status-background;
+   color: @status-text;
+   border-radius: 3px;
+   border: 1px solid @status-border;
+   font-size: 14px;
+   font-weight: 700;
+
+   &:hover {
+      box-shadow: 0 0 0 1px;
+   }
+
+   .status-type {
+      padding-right: 11px;
+      position: relative;
+      top: -1px;
+      color: @status-text;
+   }
+
+   &.full-valid {
+      background-color: @status-valid-background;
+      border-color: @status-valid-border;
+
+      &, i.signature-valid, .status-type {
+         color: @status-valid-text;
+      }
+
+      i.signature-valid-mine {
+         color: @status-valid-mine-text;
+      }
+   }
+
+   &.full-valid-mine {
+      background-color: @status-valid-mine-background;
+      border-color: @status-valid-mine-border;
+
+      i.signature-valid {
+         color: @status-valid-text;
+      }
+
+      &, i.signature-valid-mine, .status-type {
+         color: @status-valid-mine-text;
+      }
+   }
+}
+
+.pull-title {
+   color: @pull-title;
+   max-width: 300px;
+
+   .pull-number {
+      color: @pull-number;
+      font-weight: 700;
+   }
+}
+
+.signature {
+   font-size: 20px;
+   padding: 0 2px;
+   position: relative;
+   top: 1px;
+   color: @signature-default;
+}
+
+.signature-valid-listing, .signature-valid {
+   color: @signature-valid;
+}
+
+.signature-valid-listing-mine, .signature-valid-mine {
+   color: @signature-valid-mine;
+}
+
+.signature-invalid-listing, .signature-invalid {
+   color: @signature-invalid;
+}
+
+.signature-invalid-listing-mine, .signature-invalid-mine {
+   color: @signature-invalid-mine;
+}
+
+.signature-separator {
+   border-bottom: 1px dashed @signature-separator-border;
+   height: 1px;
+   margin: 8px 0px;
+   position: relative;
+   opacity: .5;
+
+   p {
+      position: absolute;
+      top: -5px;
+      left: 0px;
+      background-color: @signature-separator-background;
+      padding-right: 8px;
+      text-transform: uppercase;
+      font-size: 10px;
+   }
+}
+
+.status-row .tooltip-inner {
+   padding-top: 6px;
+   padding-bottom: 6px;
+}
+
+.sig-row td {
+   padding-top: 1px;
+   padding-bottom: 1px;
+}
+
+.sig-info {
+   text-align: left;
+   padding-left: 10px;
+}
+
+.refresh {
+   color: @refresh-default;
+   cursor: pointer;
+   font-size: 16px;
+   position: absolute;
+   top: 12px;
+   right: 15px;
+   opacity: 0;
+
+   &:hover {
+      color: @refresh-hover;
+   }
+}
+
+.pull {
+   background: @pull-background;
+
+   .pull-contents {
+      margin-left: 4px;
+      max-width: 350px;
+   }
+
+   &:hover, &:focus {
+      background: @pull-background-hover !important;
+
+      .build_status_link {
+         width: 10px;
+      }
+
+      .pull-contents {
+         margin-left: 9px;
+      }
+
+      .build-state-success {
+         background: @build-state-success;
+      }
+
+      .refresh {
+         opacity: 1;
+      }
+   }
+}
+
+.user_icon {
+   float: left;
+   margin-right: 5px;
+   color: @user-icon;
+}

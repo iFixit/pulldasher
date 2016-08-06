@@ -23,25 +23,15 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 
       // change the pull data at all, making it easier to trigger a debugger as
       // needed.
       rerender: whenDebug(function(pulls, node) {
-         var button = $('<span>');
-         button.addClass('glyphicon glyphicon-blackboard');
+         var button = $('<i>');
+         button.addClass('fa fa-paint-brush');
          button.on('click', function() {
             _manager.trigger();
          });
-         button.attr('title', 'Rerender page');
+         button.attr('title', 'Rerender page. Last rendered: ' + (new Date())
+          .toLocaleDateString('en-us', {'hour': 'numeric', 'minute': 'numeric', 'second': 'numeric'}));
          button.tooltip({'placement': 'auto top'});
          node.append(button);
-      }),
-
-      // This displays the last time the page was rerendered. It makes it easier
-      // to track when renders are happening. Note that it doesn't use any
-      // special hooks or anything, it just shows the date when it was last
-      // rerendered.
-      rendertime: whenDebug(function(pulls, node) {
-         node.text((new Date()).toLocaleDateString('en-us', {'hour': 'numeric', 'minute': 'numeric', 'second': 'numeric'}));
-         node.attr('title', 'Date of last rerender');
-         node.tooltip({'placement': 'auto top'});
-         log("Last render: " + new Date());
       }),
 
       // Allows the user to disable all the actions that happen when the server
@@ -50,8 +40,8 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 
       // of a hack, and it has to refresh the page upon deactivation in order to
       // ensure it's got up-to-date data.
       offline: whenDebug(function(pulls, node) {
-         var button = $('<span>');
-         button.addClass('glyphicon glyphicon-plane');
+         var button = $('<i>');
+         button.addClass('fa fa-plane');
          button.on('click', function() {
             if (App.airplane) {
                App.airplane = false;

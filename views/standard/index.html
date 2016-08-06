@@ -5,14 +5,60 @@
       debug: <%= debug %>
    };
 
-   require(['pullManager'], function(_manager) {
+   require(['pullManager', 'jquery', 'cookies'], function(_manager, $) {
       App.debugStart = function debugStart() {
          App.debug = true;
          _manager.trigger();
       };
+
+      $(document).ready(function() {
+         var theme = $.cookie('pulldasher-theme') || 'day_theme';
+
+         $('#theme-selector > i').on('click', function() {
+            if ($(this).hasClass('active')) {
+               return;
+            }
+
+            var newTheme = $(this).data('css');
+            $.cookie('pulldasher-theme', newTheme);
+
+            // This will fade one theme into the next over 1s
+            $('html').addClass('transitioning');
+
+            var newThemePath = 'css/themes/' + newTheme + '.css';
+            $('head .active-theme').attr('href', newThemePath);
+
+            // Cut off transition effect 1s after overriding theme
+            setTimeout(function() {
+               $('html').removeClass('transitioning');
+            }, 1000);
+
+            $("i[data-css]").removeClass('active');
+            $(this).addClass('active');
+         });
+
+         $('i[data-css="' + theme + '"]').click();
+      });
+
+      // Stop hover events from triggering when scrolling
+      var body = document.body, timer;
+      window.addEventListener('scroll', function() {
+         clearTimeout(timer);
+         if (!body.classList.contains('disable-hover')) {
+            body.classList.add('disable-hover')
+         }
+
+         timer = setTimeout(function() {
+            body.classList.remove('disable-hover')
+         }, 100);
+      }, false);
    });
 </script>
+
 <nav class="navbar navbar-default" role="navigation">
+   <p class="navbar-brand">
+      <span class="brand-highlight">Pull</span>dasher
+   </p>
    <div class="container-fluid">
       <div class="navbar-header">
          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
@@ -21,15 +67,16 @@
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
          </button>
-         <a class="navbar-brand" href="#">Pulldasher</a>
       </div>
 
       <div id="navbar" class="collapse navbar-collapse">
          <span id="restore-buttons"></span>
          <span id="global-indicators"></span>
-         <p class="navbar-text navbar-right">
-         State: <span id="connectionState"></span>
-         </p>
+         <div class="navbar-text navbar-right" id="theme-selector">
+            Mode:
+            <i data-css="day_theme" class="fa fa-sun-o"></i>
+            <i data-css="night_theme" class="fa fa-moon-o"></i>
+         </div>
          <span id="debug-indicators" class="navbar-right"></span>
       </div>
    </div>

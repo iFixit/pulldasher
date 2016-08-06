@@ -2,107 +2,89 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
    var log = debug('indicators');
    var signatureStatus = function(pull, node, type, required, signatures) {
          var signatureMark = function() {
-            var check = $('<span>');
-            check.addClass('signature glyphicon glyphicon-ok-sign');
-            return check;
+            return $('<i>').addClass('signature fa fa-check-circle');
          };
 
          var signatureValidMark = function() {
-            var check = signatureMark();
-            check.addClass('signature-valid');
-            return check;
+            return signatureMark().addClass('signature-valid');
          };
 
          var mySignatureValidMark = function() {
-            var check = signatureMark();
-            check.addClass('signature-valid-mine');
-            return check;
+            return signatureMark().addClass('signature-valid-mine');
          };
 
          var signatureInvalidatedMark = function() {
-            var check = signatureMark();
-            check.addClass('signature-invalid');
-            return check;
+            return signatureMark().addClass('signature-invalid');
          };
 
          var mySignatureInvalidatedMark = function() {
-            var check = signatureMark();
-            check.addClass('signature-invalid-mine');
-            return check;
+            return signatureMark().addClass('signature-invalid-mine');
          };
 
          var signatureDescription = function(pull, signature) {
-            var sig = $('<tr>');
-            sig.addClass('sig-row');
-            var avatarCell = $('<td>');
-            avatarCell.addClass('sig-avatar');
-            avatarCell.append(utils.getAvatar(signature.data.user.id));
-            var info = $('<td>');
-            info.addClass('sig-info');
-            var date = new Date(signature.data.created_at);
-            info.text(date.toLocaleDateString('en-us', {'month': 'short', 'day': 'numeric'}) + ' by ' + signature.data.user.login);
+            var sig = $('<tr>').addClass('sig-row');
+            var avatarCell = $('<td>').
+             addClass('sig-avatar').
+             append(utils.getAvatar(signature.data.user.id));
+            var info = $('<td>').addClass('sig-info');
 
-            sig.append(avatarCell);
-            sig.append(info);
-            return sig;
+            var date = new Date(signature.data.created_at);
+            info.text(utils.formatDate(date) + ' by ' +
+             signature.data.user.login);
+
+            return sig.append(avatarCell).append(info);
          };
 
          var validSignatureDescription = function(pull, signature) {
-            var sig = signatureDescription(pull, signature);
-            sig.addClass('signature-valid-listing');
-            return sig;
+            return signatureDescription(pull, signature).
+             addClass('signature-valid-listing');
          };
 
          var myValidSignatureDescription = function(pull, signature) {
-            var sig = signatureDescription(pull, signature);
-            sig.addClass('signature-valid-listing-mine');
-            return sig;
+            return signatureDescription(pull, signature).
+             addClass('signature-valid-listing-mine');
          };
 
          var invalidSignatureDescription = function(pull, signature) {
-            var sig = signatureDescription(pull, signature);
-            sig.addClass('signature-invalid-listing');
-            return sig;
+            return signatureDescription(pull, signature).
+             addClass('signature-invalid-listing');
          };
 
          var myInvalidSignatureDescription = function(pull, signature) {
-            var sig = invalidSignatureDescription(pull, signature);
-            sig.addClass('signature-invalid-listing-mine');
-            return sig;
+            return invalidSignatureDescription(pull, signature).
+             addClass('signature-invalid-listing-mine');
          };
 
          var signatureSeparator = function(message) {
-               var divider = $('<tr>');
-               var cell = $('<td>');
-               cell.attr('colspan', 2);
-               var text = $('<p>');
-               text.text(message);
-               var border = $('<div>');
-               border.addClass("signature-separator");
-               border.append(text);
-               cell.append(border);
-               cell.addClass('signature-divider');
-               divider.append(cell);
-               return divider;
+            var text = $('<p>').text(message);
+            var border = $('<div>').
+             addClass("signature-separator").
+             append(text);
+            var cell = $('<td>').
+             attr('colspan', 2).
+             append(border).
+             addClass('signature-divider');
+
+            return $('<tr>').append(cell);
          };
 
          if (required === 0) {
             // Handle no-signature situation
-            node.append(signatureValidMark());
-            node.tooltip({'title': 'No ' + type + ' required!'});
+            node.addClass('full-valid').
+             append(signatureValidMark()).
+             tooltip({'title': 'No ' + type + ' required!'});
             log("required === 0");
          } else {
             // container is a div that won't be inserted; it's just used to get the
             // HTML for the tooltip
             var tipper = $('<table>');
-            var container = $('<div>');
-            container.append(tipper);
+            var container = $('<div>').append(tipper);
 
             var currentSignatures = signatures.current;
             var oldSignatures = signatures.old;
             var userSignature = signatures.user;
 
-            var tallies = 0;
+            var tallies = valid = invalid = myValid = myInvalid = 0;
 
             log("Tallies so far (should be 0):", tallies);
             log("Currently-valid signatures:", currentSignatures);
@@ -113,12 +95,14 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                   if (utils.mySig(signature)) {
                      tipper.append(myValidSignatureDescription(pull, signature));
                      node.append(mySignatureValidMark());
+                     myValid += 1;
                   } else {
                      tipper.append(validSignatureDescription(pull, signature));
                      node.append(signatureValidMark());
                   }
 
                   tallies += 1;
+                  valid += 1;
                });
             }
             log("Tallies so far:", tallies);
@@ -131,6 +115,8 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                if (tallies < required && userSignature && !userSignature.data.active) {
                   node.append(mySignatureInvalidatedMark());
                   tallies += 1;
+                  invalid += 1;
+                  myInvalid += 1;
                }
                log("Tallies so far:", tallies);
 
@@ -143,6 +129,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                      // Only add checkmarks if we don't have enough already
                      if (tallies < required) {
                         node.append(signatureInvalidatedMark());
+                        invalid += 1;
                         tallies += 1;
                      }
                   }
@@ -156,6 +143,24 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                var message = $('<span>');
                message.text('No signoffs yet!');
                container.append(message);
+            } else if (valid + invalid >= required) {
+               if (invalid === 0) {
+                  node.addClass(myValid > 0 ?
+                   'full-valid-mine' : 'full-valid');
+               } else if (valid === 0) {
+                  node.addClass(myInvalid > 0 ?
+                   'full-invalid-mine' : 'full-invalid');
+               } else {
+                  node.addClass('full-mix');
+
+                  if (myValid > 0) {
+                     node.addClass('myValid');
+                  }
+
+                  if (myInvalid > 0) {
+                     node.addClass('myInvalid');
+                  }
+               }
             }
 
             for (; tallies < required; tallies++) {
@@ -210,39 +215,18 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
             var title = commit_status.description;
             var url   = commit_status.target_url;
 
-            var corner = $('<div class="triangle"></div>');
-
             var link = $('<a target="_blank" class="build_status_link" data-toggle="tooltip" data-placement="top" title="' + title + '" href="' + url + '"></a>');
-            var icon = $('<span>').addClass('status-icon glyphicon');
 
             node.append(link);
-            link.append(corner);
-            corner.append(icon);
 
-            switch(commit_status.state) {
-               case 'pending':
-               corner.addClass('pending-triangle');
-               icon.addClass('glyphicon-repeat');
-               break;
-               case 'success':
-               icon.addClass('glyphicon-ok');
-               break;
-               case 'error':
-               corner.addClass('error-triangle');
-               icon.addClass('glyphicon-exclamation-sign');
-               break;
-               case 'failure':
-               corner.addClass('warning-triangle');
-               icon.addClass('glyphicon-remove');
-               break;
-            }
+            link.addClass('build-state-' + commit_status.state);
 
             link.tooltip();
          }
       },
       user_icon: function user_icon(pull, node) {
          if (pull.is_mine()) {
-            node.append('<span class="glyphicon glyphicon-user"></span>');
+            node.append('<i class="fa fa-star"></i>');
          }
       },
       difficulty_score: function(pull, node) {
@@ -276,8 +260,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
          }
 
          if (milestone.title) {
-            var label = $('<span>').addClass('label');
-            var label_text = milestone.title;
+            var flag = $('<i>').addClass('fa fa-flag');
 
             // If there's a due date, show that instead of the milestone title.
             if (milestone.due_on) {
@@ -286,27 +269,26 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                var tooltip_text = milestone.title;
 
                if (past_due) {
-                  label.addClass('label-past-due');
+                  flag.addClass('flag-past-due');
                   tooltip_text = "Past Due: " + tooltip_text;
                } else {
-                  label.addClass('label-milestone');
+                  flag.addClass('flag-milestone');
                }
 
-               label_text = utils.formatDate(date);
-               utils.addTooltip(label, tooltip_text);
+               flag_text = utils.formatDate(date);
+               utils.addTooltip(flag, tooltip_text);
             }
 
-            label.text(label_text);
-            node.append(label);
+            node.append(flag);
          }
       },
       custom_label: function custom_label(pull, node) {
          var titles = pull.getLabelTitlesLike(/pulldasher-(.*)/);
 
          _.each(titles, function(title) {
-            var label = $('<span>').addClass('label label-primary');
-            label.text(title);
-            node.append(label);
+            var tag = $('<i>').addClass('fa fa-tag');
+            utils.addTooltip(tag, title);
+            node.append(tag);
          });
       },
 
@@ -316,6 +298,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
       // has its icon. This just adds the `click` event handler. Indicators are
       // super powerful!
       refresh: function(pull, node) {
+         utils.addTooltip(node, 'Refresh #' + pull.number, "left");
          node.on('click', function(event) {
             event.preventDefault();
             pull.refresh();

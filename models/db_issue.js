@@ -1,6 +1,5 @@
 var utils = require('../lib/utils');
 var db = require('../lib/db');
-var log = require('debug')('pulldasher:dbissue');
 var utils = require('../lib/utils');
 
 function DBIssue(issue) {
@@ -13,10 +12,10 @@ function DBIssue(issue) {
       dateClosed: utils.toUnixTime(issue.dateClosed)
    };
 
-   if (isNaN(issue.difficulty)) {
-      this.data.difficulty = null;
+   if (issue.difficulty) {
+      this.data.difficulty = extractInt(issue.difficulty);
    } else {
-      this.data.difficulty = parseInt(issue.difficulty, 10);
+      this.data.difficulty = null;
    }
 
    if (issue.milestone) {
@@ -46,5 +45,10 @@ DBIssue.prototype.save = function() {
 
    return db.query(q_update, issueData);
 };
+
+function extractInt(str) {
+   var result = str && str.match(/[0-9]+/);
+   return result ? parseInt(result[0], 10) : null;
+}
 
 module.exports = DBIssue;
