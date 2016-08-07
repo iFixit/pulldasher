@@ -230,27 +230,20 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
          }
       },
       difficulty_score: function(pull, node) {
-         var difficulty = pull.difficulty;
-         var label = $('<span>');
-         label.addClass('label');
-
+         var tag;
          var tooltip;
-         if (difficulty) {
-            if (difficulty > 8) {
-               label.addClass('label-danger');
-            } else {
-               label.addClass('label-default');
-            }
-            tooltip = "Assigned " + pull.difficulty + " difficulty"
-            label.text(pull.difficulty);
+
+         if (pull.difficulty) {
+            tag = $('<span>').addClass('difficulty');
+            tag.text(pull.difficulty);
+            tooltip = "Assigned " + pull.difficulty + " difficulty";
          } else {
-            label.addClass('label-danger');
-            label.append('<span class="glyphicon glyphicon-question-sign"></span>');
+            tag = $('<i>').addClass('fa fa-question difficulty');
             tooltip =  "No difficulty assigned!";
          }
 
-         utils.addTooltip(label, tooltip);
-         node.append(label);
+         utils.addTooltip(tag, tooltip);
+         node.append(tag);
       },
       milestone_label: function milestone_label(pull, node){
          var milestone = pull.milestone;

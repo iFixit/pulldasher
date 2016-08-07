@@ -139,7 +139,7 @@
    margin-right: 6px;
 }
 
-.info-tag i {
+.info-tag i, .info-tag span {
    display: inline-block;
    height: 32px;
    width: 33px;
@@ -190,6 +190,13 @@
       &.mine {
          color: @tag-qaing-mine;
       }
+   }
+
+   &.difficulty {
+      line-height: 30px;
+      color: @tag-difficulty;
+      border-color: @tag-difficulty-border;
+      background: @tag-difficulty-background;
    }
 }
 
