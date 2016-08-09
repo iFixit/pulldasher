@@ -193,10 +193,30 @@
    }
 
    &.difficulty {
-      line-height: 30px;
+      &:not(.fa-question) {
+         line-height: 30px;
+         font-weight: bolder;
+      }
+
       color: @tag-difficulty;
       border-color: @tag-difficulty-border;
       background: @tag-difficulty-background;
+
+      &.difficulty-trivial {
+         color: @tag-difficulty-trivial;
+      }
+
+      &.difficulty-easy {
+         color: @tag-difficulty-easy;
+      }
+
+      &.difficulty-medium {
+         color: @tag-difficulty-medium;
+      }
+
+      &.difficulty-hard {
+         color: @tag-difficulty-hard;
+      }
    }
 }
 

@@ -46,8 +46,8 @@ Issue.getFromGH = function(data) {
       number: data.number,
       title: data.title,
       status: data.state,
-      dateCreated: new Date(data.created_at),
-      dateClosed: new Date(data.closed_at),
+      date_created: new Date(data.created_at),
+      date_closed: new Date(data.closed_at),
       milestone: data.milestone ? {
          title: data.milestone.title,
          dueDate: new Date(data.milestone.due_on)
