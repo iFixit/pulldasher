@@ -123,8 +123,14 @@ module.exports = {
     */
    labels: [
       {
-         name: 'difficulty',
-         regex: /^size: [0-9]+$/
+         name: "difficulty",
+         regex: /^size: [0-9]+$/,
+         // Take in a string (or null, when a label is deleted), returns the
+         // new value to be stored: issue[name] = process(label)
+         process: function (label) {
+            var match = label ? label.match(/[0-9]+/) : null;
+            return match ? parseInt(match[0], 10) : null;
+         }
       }
    ],
 

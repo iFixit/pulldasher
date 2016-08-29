@@ -34,8 +34,7 @@ var HooksController = {
       if (event === 'status') {
          dbUpdated = dbManager.updateCommitStatus(new Status(body));
       } else if (event === 'issues') {
-         dbUpdated = Issue.getFromGH(body.issue)
-         .then(dbManager.updateIssue);
+         dbUpdated = handleIssueEvent(body);
       } else if (event === 'pull_request') {
          // Promise that resolves when everything that needs to be done before
          // we call `updatePull` has finished.
@@ -134,5 +133,65 @@ var HooksController = {
       }
    }
 };
+
+function handleIssueEvent(body) {
+   debug('Webhook action: %s for issue #%s', body.action, body.issue.number);
+   var before = Promise.resolve();
+   switch(body.action) {
+      case "opened":
+         // Always do this for opened issues because a full refresh
+         // is the easiest way to get *who* assigned the initial labels.
+         return refresh.issue(body.issue.number);
+
+      case "labeled":
+         debug('Added label: %s', body.label.name);
+         var label = new Label(
+            body.label,
+            body.issue.number,
+            body.repository.name,
+            body.sender.login,
+            body.issue.updated_at
+         );
+         before = dbManager.insertLabel(label);
+         break;
+      case "unlabeled":
+         debug('Removed label: %s', body.label.name);
+         var label = new Label(
+            body.label,
+            body.issue.number,
+            body.repository.name
+         );
+         before = dbManager.deleteLabel(label);
+         break;
+
+      case "reopened":
+      case "closed":
+      case "edited":
+      case "assigned":
+      case "unassigned":
+        // Default case is update the issue
+   }
+
+   return before.then(function() {
+      return Issue.getFromGH(body.issue)
+   })
+   .then(dbManager.updateIssue)
+   .then(function() {
+      return reprocessLabels(body.issue.number, body.repository.name);
+   });
+}
+
+/**
+ * After a label has been added or removed we have to re-process all the labels
+ * in case one of them matches one of our configured label updaters.
+ */
+function reprocessLabels(issueNumber, repo) {
+   if (!config.labels || !config.labels.length) {
+      return;
+   }
+   debug("Reprocessing labels for Issue #%s", issueNumber);
+   return dbManager.getIssue(issueNumber, repo)
+   .then(dbManager.updateIssue);
+}
 
 module.exports = HooksController;
