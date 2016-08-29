@@ -94,7 +94,7 @@ Pull.prototype.syncToIssue = function() {
          return self;
       });
    } else {
-      return new Promise.resolve(self);
+      return Promise.resolve(self);
    }
 };
 
