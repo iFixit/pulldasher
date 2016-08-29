@@ -16,6 +16,11 @@ function Issue(data, labels) {
    }
 }
 
+Issue.findByNumber = function(number) {
+   return DBIssue.findByNumber(number).
+    then(Issue.getFromDB);
+};
+
 /**
  * Create properties on this object for each label it has of the configured
  * labels.
