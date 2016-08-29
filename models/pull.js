@@ -84,7 +84,7 @@ Pull.prototype.syncToIssue = function() {
          if (issue.milestone) {
             var milestone = self.data.milestone;
             milestone.title = issue.milestone.title;
-            milestone.dueDate = issue.milestone.dueDate;
+            milestone.due_on = issue.milestone.due_on;
          }
          self.data.difficulty = issue.difficulty;
          return self.update();
