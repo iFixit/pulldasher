@@ -75,6 +75,9 @@ Pull.prototype.update = function() {
 };
 
 Pull.prototype.syncToIssue = function() {
+   return Promise.resolve(this);
+   /* The below needs to be rethought a bit and possibly the causal direction
+    * reversed (updates to the issue should propagate to the pull).
    var self = this;
    var connected = this.data.closes || this.data.connects;
    if (!this.data.milestone.title && connected) {
@@ -96,6 +99,7 @@ Pull.prototype.syncToIssue = function() {
    } else {
       return new Promise.resolve(self);
    }
+   */
 };
 
 Pull.prototype.toObject = function() {
