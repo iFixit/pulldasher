@@ -12,7 +12,7 @@ function Signature(data) {
          login:         data.user.login
       },
       type:             data.type,
-      created_at:       new Date(data.created_at),
+      created_at:       utils.fromDateString(data.created_at),
       active:           data.active,
       comment_id:       data.comment_id
    };

@@ -9,7 +9,7 @@ function Label(data, pullNumber, repoName, user, created_at) {
       number: pullNumber,
       repo_name: repoName,
       user: user,
-      created_at: created_at && new Date(created_at)
+      created_at: utils.fromDateString(created_at)
    };
 }
 
