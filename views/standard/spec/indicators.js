@@ -229,35 +229,53 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
             node.append('<i class="fa fa-star"></i>');
          }
       },
+      difficulty_score: function(pull, node) {
+         var tag;
+         var tooltip;
+
+         if (pull.difficulty) {
+            tag = $('<span>').addClass('difficulty');
+            tag.text(pull.difficulty);
+            var desc = (pull.difficulty < 2)  ? 'trivial' :
+                       (pull.difficulty < 5)  ? 'easy' :
+                       (pull.difficulty < 13) ? 'medium' : 'hard';
+            tag.addClass('difficulty-' + desc);
+            tooltip = "Difficulty: " + pull.difficulty + " (" + desc + ")";
+         } else {
+            tag = $('<i>').addClass('fa fa-question difficulty');
+            tooltip =  "No difficulty assigned!";
+         }
+
+         utils.addTooltip(tag, tooltip);
+         node.append(tag);
+      },
       milestone_label: function milestone_label(pull, node){
          var milestone = pull.milestone;
 
-         if (!milestone) {
+         if (!milestone.title || !milestone.due_on) {
             return;
          }
 
-         if (milestone.title) {
-            var flag = $('<i>').addClass('fa fa-flag');
+         var flag = $('<i>').addClass('fa fa-flag');
 
-            // If there's a due date, show that instead of the milestone title.
-            if (milestone.due_on) {
-               var date = new Date(milestone.due_on);
-               var past_due = date.getTime() < Date.now();
-               var tooltip_text = milestone.title;
+         // If there's a due date, show that instead of the milestone title.
+         if (milestone.due_on) {
+            var date = new Date(milestone.due_on);
+            var past_due = date.getTime() < Date.now();
+            var tooltip_text = milestone.title;
 
-               if (past_due) {
-                  flag.addClass('flag-past-due');
-                  tooltip_text = "Past Due: " + tooltip_text;
-               } else {
-                  flag.addClass('flag-milestone');
-               }
-
-               flag_text = utils.formatDate(date);
-               utils.addTooltip(flag, tooltip_text);
+            if (past_due) {
+               flag.addClass('flag-past-due');
+               tooltip_text = "Past Due: " + tooltip_text;
+            } else {
+               flag.addClass('flag-milestone');
             }
 
-            node.append(flag);
+            flag_text = utils.formatDate(date);
+            utils.addTooltip(flag, tooltip_text);
          }
+
+         node.append(flag);
       },
       custom_label: function custom_label(pull, node) {
          var titles = pull.getLabelTitlesLike(/pulldasher-(.*)/);

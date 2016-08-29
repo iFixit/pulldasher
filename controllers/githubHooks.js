@@ -76,8 +76,11 @@ var HooksController = {
 
          // Update DB with new pull request content.
          dbUpdated = preUpdate.then(function() {
-            return dbManager.updatePull(new Pull(body.pull_request));
-         });
+            var pull = new Pull(body.pull_request);
+            // Update the pull with information from the related issue
+            return pull.syncToIssue();
+         }).
+         then(dbManager.updatePull.bind(dbManager));
       } else if (event === 'issue_comment') {
          if (body.action === 'created') {
             var promises = [];

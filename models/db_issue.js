@@ -16,9 +16,11 @@ function DBIssue(issue) {
    if (issue.milestone) {
       this.data.milestone_title = issue.milestone.title;
       this.data.milestone_due_on = utils.toUnixTime(issue.milestone.due_on);
+      this.data.milestone_number = issue.milestone.number;
    } else {
       this.data.milestone_title = null;
       this.data.milestone_due_on = null;
+      this.data.milestone_number = null;
    }
 }
 

@@ -9,6 +9,9 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
 
    // Sorting functions that are run on each column.
    var globalSorts = {
+      sortOwnerFirst: function(pull) {
+         return pull.is_mine() ? -10000 : 0;
+      },
       sortByMilestone: function(pull) {
          if (!pull.milestone.due_on) {
             return 0;
@@ -19,8 +22,8 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
 
          return -1000 + Math.ceil(timeDiff / (1000 * 3600 * 24));
       },
-      sortOwnerFirst: function(pull) {
-         return pull.is_mine() ? -5000 : 0;
+      sortByDifficulty: function(pull) {
+         return pull.difficulty * 10;
       }
    };
 
@@ -60,9 +63,6 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
          // of the column. Pulls with a high score are sorted to the top.
          sort: function(pull) {
             var score = sortGlobally(pull);
-            if (pull.is_mine()) {
-               score -= 30;
-            }
 
             score -= pull.status.CR.length * 1;
             score -= pull.status.QA.length * 2;

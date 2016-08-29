@@ -17,6 +17,7 @@ function DBPull(pull) {
       difficulty: pullData.difficulty,
       milestone_title: pullData.milestone.title,
       milestone_due_on: utils.toUnixTime(pullData.milestone.due_on),
+      milestone_number: pullData.milestone.number,
       head_branch: pullData.head.ref,
       head_sha: pullData.head.sha,
       repo_owner: pullData.head.repo.owner.login,

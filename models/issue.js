@@ -16,6 +16,11 @@ function Issue(data, labels) {
    }
 }
 
+Issue.findByNumber = function(number) {
+   return DBIssue.findByNumber(number)
+   .then(Issue.getFromDB);
+};
+
 /**
  * Create properties on this object for each label it has of the configured
  * labels.
@@ -61,7 +66,8 @@ Issue.getFromGH = function(data, labels) {
       date_closed: new Date(data.closed_at),
       milestone: data.milestone ? {
          title: data.milestone.title,
-         due_on: new Date(data.milestone.due_on)
+         due_on: new Date(data.milestone.due_on),
+         number: data.milestone.number
       } : null,
       assignee: data.assignee ? data.assignee.login : null,
       labels: labels || [],
@@ -74,6 +80,9 @@ Issue.getFromGH = function(data, labels) {
  * A factory method to create an issue from a DBIssue.
  */
 Issue.getFromDB = function(data, labels) {
+   if (!data) {
+      return null;
+   }
    var issueData = {
       number: data.number,
       title: data.title,
@@ -82,7 +91,8 @@ Issue.getFromDB = function(data, labels) {
       date_closed: utils.fromUnixTime(data.date_closed),
       milestone: data.milestone_title ? {
          title: data.milestone_title,
-         due_on: utils.fromUnixTime(data.milestone_due_on)
+         due_on: utils.fromUnixTime(data.milestone_due_on),
+         number: data.milestone_number
       } : null,
       difficulty: data.difficulty,
       assignee: data.assignee,

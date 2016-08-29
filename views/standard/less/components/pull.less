@@ -139,7 +139,7 @@
    margin-right: 6px;
 }
 
-.info-tag i {
+.info-tag i, .info-tag span {
    display: inline-block;
    height: 32px;
    width: 33px;
@@ -189,6 +189,33 @@
 
       &.mine {
          color: @tag-qaing-mine;
+      }
+   }
+
+   &.difficulty {
+      &:not(.fa-question) {
+         font-size: 14px;
+         font-weight: bolder;
+      }
+
+      color: @tag-difficulty;
+      border-color: @tag-difficulty-border;
+      background: @tag-difficulty-background;
+
+      &.difficulty-trivial {
+         color: @tag-difficulty-trivial;
+      }
+
+      &.difficulty-easy {
+         color: @tag-difficulty-easy;
+      }
+
+      &.difficulty-medium {
+         color: @tag-difficulty-medium;
+      }
+
+      &.difficulty-hard {
+         color: @tag-difficulty-hard;
       }
    }
 }
