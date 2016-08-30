@@ -9,7 +9,8 @@ var config = require('./config'),
     pullManager = require('./lib/pull-manager'),
     mainController = require('./controllers/main'),
     hooksController = require('./controllers/githubHooks'),
-    reqLogger = require('debug')('pulldasher:server:request');
+    reqLogger = require('debug')('pulldasher:server:request'),
+    debug = require('debug')('pulldasher');
 
 var app = express();
 
