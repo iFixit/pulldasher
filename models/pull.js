@@ -13,15 +13,14 @@ function Pull(data, signatures, comments, commitStatus, labels) {
       state: data.state,
       title: data.title,
       body: data.body,
-      created_at: new Date(data.created_at),
-      updated_at: new Date(data.updated_at),
-      closed_at: new Date(data.closed_at),
-      merged_at: new Date(data.merged_at),
+      created_at: utils.fromDateString(data.created_at),
+      updated_at: utils.fromDateString(data.updated_at),
+      closed_at: utils.fromDateString(data.closed_at),
+      merged_at: utils.fromDateString(data.merged_at),
       difficulty: data.difficulty,
       milestone: {
          title: data.milestone && data.milestone.title,
-         due_on: data.milestone && data.milestone.due_on ?
-          new Date(data.milestone.due_on) : null,
+         due_on: data.milestone && utils.fromDateString(data.milestone.due_on)
       },
       head: {
          ref: data.head.ref,
