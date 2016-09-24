@@ -145,23 +145,21 @@ function handleIssueEvent(body) {
 
       case "labeled":
          debug('Added label: %s', body.label.name);
-         var label = new Label(
+         before = dbManager.insertLabel(new Label(
             body.label,
             body.issue.number,
             body.repository.name,
             body.sender.login,
             body.issue.updated_at
-         );
-         before = dbManager.insertLabel(label);
+         ));
          break;
       case "unlabeled":
          debug('Removed label: %s', body.label.name);
-         var label = new Label(
+         before = dbManager.deleteLabel(new Label(
             body.label,
             body.issue.number,
             body.repository.name
-         );
-         before = dbManager.deleteLabel(label);
+         ));
          break;
 
       case "reopened":
