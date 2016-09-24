@@ -252,7 +252,6 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                   flag.addClass('flag-milestone');
                }
 
-               flag_text = utils.formatDate(date);
                utils.addTooltip(flag, tooltip_text);
             }
 
