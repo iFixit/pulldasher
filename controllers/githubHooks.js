@@ -171,7 +171,7 @@ function handleIssueEvent(body) {
    }
 
    return before.then(function() {
-      return Issue.getFromGH(body.issue)
+      return Issue.getFromGH(body.issue);
    })
    .then(dbManager.updateIssue)
    .then(function() {
