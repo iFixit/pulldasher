@@ -84,7 +84,11 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
             var oldSignatures = signatures.old;
             var userSignature = signatures.user;
 
-            var tallies = valid = invalid = myValid = myInvalid = 0;
+            var tallies = 0,
+                valid = 0,
+                invalid = 0,
+                myValid = 0,
+                myInvalid = 0;
 
             log("Tallies so far (should be 0):", tallies);
             log("Currently-valid signatures:", currentSignatures);
