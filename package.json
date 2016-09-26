@@ -28,7 +28,8 @@
   },
   "scripts": {
     "start": "node app.js",
-    "debug": "node debug app.js"
+    "debug": "node debug app.js",
+    "test":  "grunt --verbose"
   },
   "main": "app.js",
   "repository": "git@github.com:ifixit/pulldasher.git",
