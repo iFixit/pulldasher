@@ -92,7 +92,7 @@ Issue.getFromDB = function(data, labels) {
       assignee: data.assignee,
       labels: labels || []
    };
-   return new Issue(issueData, labels)
+   return new Issue(issueData, labels);
 };
 
 module.exports = Issue;
