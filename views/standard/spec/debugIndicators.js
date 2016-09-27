@@ -5,7 +5,6 @@
 //
 // See the views README (`/views/README.md`) for more on activating debug mode.
 define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 'socket', 'debug'], function($, _, utils, aUtils, _manager, socket, debug) {
-   var log = debug('pulldasher:debug-indicators');
    var whenDebug = function(f) {
       // This function will run f if App.debug is true. f will be passed any
       // arguments to this function

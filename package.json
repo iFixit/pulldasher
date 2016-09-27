@@ -18,7 +18,8 @@
     "passport-github": "0.1.5",
     "promise": "5.0.x",
     "socket.io": "1.0.6",
-    "underscore": "1.5.x"
+    "underscore": "1.5.x",
+    "bower": "1.x"
   },
   "devDependencies": {
     "grunt": "0.4.5",
@@ -28,7 +29,9 @@
   },
   "scripts": {
     "start": "node app.js",
-    "debug": "node debug app.js"
+    "debug": "node debug app.js",
+    "test":  "grunt --verbose",
+    "postinstall" : "bower install"
   },
   "main": "app.js",
   "repository": "git@github.com:ifixit/pulldasher.git",

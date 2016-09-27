@@ -5,7 +5,6 @@ var queue = require('../lib/pull-queue');
 var Promise = require('promise');
 var debug = require('debug')('pulldasher:pull');
 var DBPull = require('./db_pull');
-var Issue = require('./issue');
 
 function Pull(data, signatures, comments, commitStatus, labels) {
    this.data = {
@@ -77,6 +76,7 @@ Pull.prototype.syncToIssue = function() {
    return Promise.resolve(this);
    /* The below needs to be rethought a bit and possibly the causal direction
     * reversed (updates to the issue should propagate to the pull).
+   var Issue = require('./issue');
    var self = this;
    var connected = this.data.closes || this.data.connects;
    if (!this.data.milestone.title && connected) {
