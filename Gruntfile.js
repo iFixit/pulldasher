@@ -14,7 +14,8 @@ module.exports = function(grunt) {
         unused: 'vars',
         // Deprecated relaxers
         sub: true,
-        multistr: true
+        multistr: true,
+        reporterOutput: ""
       },
       gruntfile: {
         src: 'Gruntfile.js'
