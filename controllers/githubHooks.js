@@ -51,8 +51,8 @@ var HooksController = {
                preUpdate = dbManager.insertLabel(
                   new Label(
                      body.label,
-                     body.number,
-                     body.pull_request.head.repo.name,
+                     body.pull_request.number,
+                     body.repository.name,
                      body.sender.login,
                      body.pull_request.updated_at
                   )
@@ -62,8 +62,8 @@ var HooksController = {
                preUpdate = dbManager.deleteLabel(
                   new Label(
                      body.label,
-                     body.number,
-                     body.pull_request.head.repo.name
+                     body.pull_request.number,
+                     body.repository.name
                   )
                );
                break;
