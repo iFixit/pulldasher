@@ -101,11 +101,7 @@ var HooksController = {
             // delete or update any signatures tied to that comment, then
             // delete all signatures and re-insert in order them so the
             // dev_blocking and such comes out correct.
-            if (body.issue.pull_request) {
-               refresh.pull(body.issue.number);
-            } else {
-               refresh.issue(body.issue.number);
-            }
+            refreshPullOrIssue(body);
          }
       } else if (event === 'pull_request_review_comment') {
          if (body.action === 'deleted') {
@@ -190,6 +186,16 @@ function reprocessLabels(issueNumber, repo) {
    debug("Reprocessing labels for Issue #%s", issueNumber);
    return dbManager.getIssue(issueNumber, repo)
    .then(dbManager.updateIssue);
+}
+
+function refreshPullOrIssue(responseBody) {
+   // The Docs: https://developer.github.com/v3/issues/#list-issues say you can
+   // tell the difference like this:
+   if (responseBody.issue.pull_request) {
+      refresh.pull(responseBody.issue.number);
+   } else {
+      refresh.issue(responseBody.issue.number);
+   }
 }
 
 module.exports = HooksController;
