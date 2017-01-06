@@ -113,13 +113,16 @@ var HooksController = {
 
 function handleIssueEvent(body) {
    debug('Webhook action: %s for issue #%s', body.action, body.issue.number);
+   // Some of these events are also triggered on pull requests
+   var isPull = body.issue.pull_request;
+
    var doneHandling = handleLabelEvents(body);
 
    switch(body.action) {
       case "opened":
          // Always do this for opened issues because a full refresh
          // is the easiest way to get *who* assigned the initial labels.
-         return refresh.issue(body.issue.number);
+         return refreshPullOrIssue(body);
 
       case "reopened":
       case "closed":
@@ -127,6 +130,14 @@ function handleIssueEvent(body) {
       case "assigned":
       case "unassigned":
         // Default case is update the issue
+   }
+
+   // If github is fooling us and this is actually a pull request,
+   // let's not create an issue object out of it.
+   if (isPull) {
+      return doneHandling.then(function() {
+         return dbManager.updatePull(new Pull(body.pull_request));
+      });
    }
 
    return doneHandling.then(function() {
