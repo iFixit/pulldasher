@@ -38,7 +38,7 @@ var HooksController = {
       } else if (event === 'pull_request') {
          // Promise that resolves when everything that needs to be done before
          // we call `updatePull` has finished.
-         var preUpdate = Promise.resolve();
+         var preUpdate = handleLabelEvents(body);
 
          switch(body.action) {
             case "opened":
@@ -47,26 +47,7 @@ var HooksController = {
             case "edited":
             case "merged":
                break;
-            case "labeled":
-               preUpdate = dbManager.insertLabel(
-                  new Label(
-                     body.label,
-                     body.pull_request.number,
-                     body.repository.name,
-                     body.sender.login,
-                     body.pull_request.updated_at
-                  )
-               );
-               break;
-            case "unlabeled":
-               preUpdate = dbManager.deleteLabel(
-                  new Label(
-                     body.label,
-                     body.pull_request.number,
-                     body.repository.name
-                  )
-               );
-               break;
+
             case "synchronize":
                preUpdate = dbManager.invalidateSignatures(
                   body.pull_request.number,
@@ -166,22 +147,23 @@ function handleIssueEvent(body) {
  * Note: will return a fulfilled promise if this is not a label event.
  */
 function handleLabelEvents(body) {
+   var object = body.pull_request || body.issue;
    switch(body.action) {
       case "labeled":
          debug('Added label: %s', body.label.name);
          return dbManager.insertLabel(new Label(
             body.label,
-            body.issue.number,
+            object.number,
             body.repository.name,
             body.sender.login,
-            body.issue.updated_at
+            object.updated_at
          ));
 
       case "unlabeled":
          debug('Removed label: %s', body.label.name);
          return dbManager.deleteLabel(new Label(
             body.label,
-            body.issue.number,
+            object.number,
             body.repository.name
          ));
    }
