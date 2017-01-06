@@ -132,31 +132,13 @@ var HooksController = {
 
 function handleIssueEvent(body) {
    debug('Webhook action: %s for issue #%s', body.action, body.issue.number);
-   var before = Promise.resolve();
+   var doneHandling = handleLabelEvents(body);
+
    switch(body.action) {
       case "opened":
          // Always do this for opened issues because a full refresh
          // is the easiest way to get *who* assigned the initial labels.
          return refresh.issue(body.issue.number);
-
-      case "labeled":
-         debug('Added label: %s', body.label.name);
-         before = dbManager.insertLabel(new Label(
-            body.label,
-            body.issue.number,
-            body.repository.name,
-            body.sender.login,
-            body.issue.updated_at
-         ));
-         break;
-      case "unlabeled":
-         debug('Removed label: %s', body.label.name);
-         before = dbManager.deleteLabel(new Label(
-            body.label,
-            body.issue.number,
-            body.repository.name
-         ));
-         break;
 
       case "reopened":
       case "closed":
@@ -166,13 +148,44 @@ function handleIssueEvent(body) {
         // Default case is update the issue
    }
 
-   return before.then(function() {
+   return doneHandling.then(function() {
       return Issue.getFromGH(body.issue);
    })
    .then(dbManager.updateIssue)
    .then(function() {
       return reprocessLabels(body.issue.number, body.repository.name);
    });
+}
+
+
+/**
+ * Handles the response body if it represents a labeled / unlabled issue
+ * (or pull) event and returns a promise that is fulfilled when the DB change
+ * is committed.
+ *
+ * Note: will return a fulfilled promise if this is not a label event.
+ */
+function handleLabelEvents(body) {
+   switch(body.action) {
+      case "labeled":
+         debug('Added label: %s', body.label.name);
+         return dbManager.insertLabel(new Label(
+            body.label,
+            body.issue.number,
+            body.repository.name,
+            body.sender.login,
+            body.issue.updated_at
+         ));
+
+      case "unlabeled":
+         debug('Removed label: %s', body.label.name);
+         return dbManager.deleteLabel(new Label(
+            body.label,
+            body.issue.number,
+            body.repository.name
+         ));
+   }
+   return Promise.resolve();
 }
 
 /**
