@@ -122,7 +122,11 @@ function handleIssueEvent(body) {
       case "opened":
          // Always do this for opened issues because a full refresh
          // is the easiest way to get *who* assigned the initial labels.
-         return refreshPullOrIssue(body);
+         return doneHandling.then(function() {
+            // Not returning here cause we don't want to delay replying to the
+            // hook with a 200 since we know what needs to be done.
+            refreshPullOrIssue(body);
+         });
 
       case "reopened":
       case "closed":
