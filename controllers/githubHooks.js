@@ -8,6 +8,7 @@ var config     = require('../config'),
     Comment    = require('../models/comment'),
     Label      = require('../models/label'),
     refresh    = require('../lib/refresh'),
+    getLogin   = require('../lib/get-user-login'),
     dbManager  = require('../lib/db-manager');
 
 var HooksController = {
@@ -170,7 +171,7 @@ function handleLabelEvents(body) {
             body.label,
             object.number,
             body.repository.name,
-            body.sender.login,
+            getLogin(body.sender),
             object.updated_at
          ));
 

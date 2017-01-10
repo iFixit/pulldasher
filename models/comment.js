@@ -1,4 +1,5 @@
 var utils = require('../lib/utils');
+var getLogin = require('../lib/get-user-login');
 
 /**
  * A Pull Request comment.
@@ -8,7 +9,7 @@ function Comment(data) {
       number:        data.number,
       repo:          data.repo,
       user: {
-         login: data.user.login
+         login: getLogin(data.user)
       },
       created_at:    new Date(data.created_at),
       comment_type:  data.type,

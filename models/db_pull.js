@@ -1,4 +1,5 @@
 var utils = require('../lib/utils'),
+    getLogin = require('../lib/get-user-login'),
     db = require('../lib/db');
 
 // Builds an object representation of a row in the DB `pulls` table
@@ -22,7 +23,7 @@ function DBPull(pull) {
       repo_owner: pullData.head.repo.owner.login,
       repo_name: pullData.head.repo.name,
       base_branch: pullData.base.ref,
-      owner: pullData.user.login,
+      owner: getLogin(pullData.user),
       cr_req: pullData.cr_req,
       qa_req: pullData.qa_req,
       closes: pullData.closes,

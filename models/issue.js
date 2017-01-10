@@ -3,6 +3,7 @@ var _       = require('underscore');
 var config  = require('../config');
 var log     = require('debug')('pulldasher:issue');
 var DBIssue = require('./db_issue');
+var getLogin = require('../lib/get-user-login');
 
 /**
  * Create a new issue. Not meant to be used directly, see
@@ -67,7 +68,7 @@ Issue.getFromGH = function(data, labels) {
          title: data.milestone.title,
          due_on: new Date(data.milestone.due_on)
       } : null,
-      assignee: data.assignee ? data.assignee.login : null,
+      assignee: getLogin(data.assignee),
       labels: labels || [],
    };
 

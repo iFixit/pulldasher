@@ -1,4 +1,5 @@
 var config = require('../config'),
+    getLogin = require('../lib/get-user-login'),
     utils = require('../lib/utils');
 
 /**
@@ -9,7 +10,7 @@ function Signature(data) {
       number:           data.number,
       user: {
          id:            data.user.id,
-         login:         data.user.login
+         login:         getLogin(data.user)
       },
       type:             data.type,
       created_at:       utils.fromDateString(data.created_at),
@@ -30,7 +31,7 @@ Signature.parseComment = function parseComment(comment, pullNumber) {
             number: pullNumber,
             user: {
                id:    comment.user.id,
-               login: comment.user.login
+               login: getLogin(comment.user)
             },
             type: tag.name,
             created_at: comment.created_at,

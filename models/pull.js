@@ -5,6 +5,7 @@ var queue = require('../lib/pull-queue');
 var Promise = require('promise');
 var debug = require('debug')('pulldasher:pull');
 var DBPull = require('./db_pull');
+var getLogin = require('../lib/get-user-login');
 
 function Pull(data, signatures, comments, commitStatus, labels) {
    this.data = {
@@ -35,7 +36,7 @@ function Pull(data, signatures, comments, commitStatus, labels) {
          ref: data.base.ref
       },
       user: {
-         login: data.user.login
+         login: getLogin(data.user)
       }
    };
 
