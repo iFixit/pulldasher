@@ -38,7 +38,7 @@ var HooksController = {
       } else if (event === 'pull_request') {
          // Promise that resolves when everything that needs to be done before
          // we call `updatePull` has finished.
-         var preUpdate = Promise.resolve();
+         var preUpdate = handleLabelEvents(body);
 
          switch(body.action) {
             case "opened":
@@ -47,26 +47,7 @@ var HooksController = {
             case "edited":
             case "merged":
                break;
-            case "labeled":
-               preUpdate = dbManager.insertLabel(
-                  new Label(
-                     body.label,
-                     body.number,
-                     body.pull_request.head.repo.name,
-                     body.sender.login,
-                     body.pull_request.updated_at
-                  )
-               );
-               break;
-            case "unlabeled":
-               preUpdate = dbManager.deleteLabel(
-                  new Label(
-                     body.label,
-                     body.number,
-                     body.pull_request.head.repo.name
-                  )
-               );
-               break;
+
             case "synchronize":
                preUpdate = dbManager.invalidateSignatures(
                   body.pull_request.number,
@@ -101,11 +82,7 @@ var HooksController = {
             // delete or update any signatures tied to that comment, then
             // delete all signatures and re-insert in order them so the
             // dev_blocking and such comes out correct.
-            if (body.issue.pull_request) {
-               refresh.pull(body.issue.number);
-            } else {
-               refresh.issue(body.issue.number);
-            }
+            refreshPullOrIssue(body);
          }
       } else if (event === 'pull_request_review_comment') {
          if (body.action === 'deleted') {
@@ -136,31 +113,20 @@ var HooksController = {
 
 function handleIssueEvent(body) {
    debug('Webhook action: %s for issue #%s', body.action, body.issue.number);
-   var before = Promise.resolve();
+   // Some of these events are also triggered on pull requests
+   var isPull = body.issue.pull_request;
+
+   var doneHandling = handleLabelEvents(body);
+
    switch(body.action) {
       case "opened":
          // Always do this for opened issues because a full refresh
          // is the easiest way to get *who* assigned the initial labels.
-         return refresh.issue(body.issue.number);
-
-      case "labeled":
-         debug('Added label: %s', body.label.name);
-         before = dbManager.insertLabel(new Label(
-            body.label,
-            body.issue.number,
-            body.repository.name,
-            body.sender.login,
-            body.issue.updated_at
-         ));
-         break;
-      case "unlabeled":
-         debug('Removed label: %s', body.label.name);
-         before = dbManager.deleteLabel(new Label(
-            body.label,
-            body.issue.number,
-            body.repository.name
-         ));
-         break;
+         return doneHandling.then(function() {
+            // Not returning here cause we don't want to delay replying to the
+            // hook with a 200 since we know what needs to be done.
+            refreshPullOrIssue(body);
+         });
 
       case "reopened":
       case "closed":
@@ -170,13 +136,53 @@ function handleIssueEvent(body) {
         // Default case is update the issue
    }
 
-   return before.then(function() {
+   // If github is fooling us and this is actually a pull request,
+   // let's not create an issue object out of it.
+   if (isPull) {
+      return doneHandling.then(function() {
+         return dbManager.updatePull(new Pull(body.pull_request));
+      });
+   }
+
+   return doneHandling.then(function() {
       return Issue.getFromGH(body.issue);
    })
    .then(dbManager.updateIssue)
    .then(function() {
       return reprocessLabels(body.issue.number, body.repository.name);
    });
+}
+
+
+/**
+ * Handles the response body if it represents a labeled / unlabled issue
+ * (or pull) event and returns a promise that is fulfilled when the DB change
+ * is committed.
+ *
+ * Note: will return a fulfilled promise if this is not a label event.
+ */
+function handleLabelEvents(body) {
+   var object = body.pull_request || body.issue;
+   switch(body.action) {
+      case "labeled":
+         debug('Added label: %s', body.label.name);
+         return dbManager.insertLabel(new Label(
+            body.label,
+            object.number,
+            body.repository.name,
+            body.sender.login,
+            object.updated_at
+         ));
+
+      case "unlabeled":
+         debug('Removed label: %s', body.label.name);
+         return dbManager.deleteLabel(new Label(
+            body.label,
+            object.number,
+            body.repository.name
+         ));
+   }
+   return Promise.resolve();
 }
 
 /**
@@ -190,6 +196,16 @@ function reprocessLabels(issueNumber, repo) {
    debug("Reprocessing labels for Issue #%s", issueNumber);
    return dbManager.getIssue(issueNumber, repo)
    .then(dbManager.updateIssue);
+}
+
+function refreshPullOrIssue(responseBody) {
+   // The Docs: https://developer.github.com/v3/issues/#list-issues say you can
+   // tell the difference like this:
+   if (responseBody.issue.pull_request) {
+      refresh.pull(responseBody.issue.number);
+   } else {
+      refresh.issue(responseBody.issue.number);
+   }
 }
 
 module.exports = HooksController;
