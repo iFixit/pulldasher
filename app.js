@@ -7,6 +7,8 @@ var config = require('./config'),
     socketAuthenticator = require('./lib/socket-auth'),
     refresh = require('./lib/refresh.js'),
     pullManager = require('./lib/pull-manager'),
+    dbManager = require('./lib/db-manager'),
+    pullQueue  = require('./lib/pull-queue'),
     mainController = require('./controllers/main'),
     hooksController = require('./controllers/githubHooks'),
     reqLogger = require('debug')('pulldasher:server:request'),
@@ -49,6 +51,15 @@ app.use(function(req, res, next) {
 authManager.setupRoutes(app);
 app.get('/',            mainController.index);
 app.post('/hooks/main', hooksController.main);
+
+// Load open pulls from the DB so we don't start blank.
+dbManager.getOpenPulls(config.repo.name).then(function(pulls) {
+   pullQueue.pause();
+   pulls.forEach(function(pull) {
+      pullManager.updatePull(pull);
+   });
+   pullQueue.resume();
+});
 
 // Called, to populate app, on startup.
 refresh.openPulls();
