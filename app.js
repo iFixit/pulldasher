@@ -59,10 +59,11 @@ dbManager.getOpenPulls(config.repo.name).then(function(pulls) {
       pullManager.updatePull(pull);
    });
    pullQueue.resume();
+})
+// Get the most recent version of each pull from the API
+.then(function () {
+   refresh.openPulls();
 });
-
-// Called, to populate app, on startup.
-refresh.openPulls();
 
 /*
 @TODO: Update pulls which were open last time Pulldasher ran but are closed now.
