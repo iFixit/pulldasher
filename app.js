@@ -62,8 +62,8 @@ dbManager.getOpenPulls(config.repo.name).then(function(pulls) {
 })
 // Get the most recent version of each pull from the API
 .then(function () {
-   refresh.openPulls();
-});
+   return refresh.openPulls();
+}).done();
 
 /*
 @TODO: Update pulls which were open last time Pulldasher ran but are closed now.
