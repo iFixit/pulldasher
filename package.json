@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "grunt": "0.4.5",
+    "grunt-cli": "1.2.0",
     "grunt-contrib-jshint": "0.11.0",
     "grunt-contrib-less": "1.0.0",
     "grunt-contrib-watch": "~0.6.1"
@@ -31,7 +32,7 @@
     "start": "node app.js",
     "debug": "node debug app.js",
     "test":  "grunt --verbose",
-    "postinstall" : "bower install"
+    "postinstall" : "bower install && grunt"
   },
   "main": "app.js",
   "repository": "git@github.com:ifixit/pulldasher.git",
