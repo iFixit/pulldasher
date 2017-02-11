@@ -1,0 +1,26 @@
+version: '2'
+
+services:
+   web:
+      build: .
+      entrypoint: '/opt/pulldasher/entrypoint.sh'
+      ports:
+         - 8080:8080                # Map the container's port 8080 to the host's 8080
+                                    # NOTE: The host port will need to match
+                                    # the callback URL specified in the GitHub
+                                    # application setting.
+      volumes:
+         - .:/opt/pulldasher        # Mount the current directory to /opt/pulldasher
+   db:
+      image: "mariadb:latest"
+      volumes:
+         - db_data:/var/lib/mysql   # Create a persistent volume so that we don't lose data between restarts
+      environment:
+         # Please use strong passwords if you are deploying pulldasher in a
+         # production environment.
+         MYSQL_ROOT_PASSWORD: pulldasher
+         MYSQL_DATABASE: pulldasher
+         MYSQL_USER: pulldasher
+         MYSQL_PASSWORD: pulldasher
+volumes:
+   db_data:
