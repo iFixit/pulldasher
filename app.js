@@ -7,6 +7,8 @@ var config = require('./config'),
     socketAuthenticator = require('./lib/socket-auth'),
     refresh = require('./lib/refresh.js'),
     pullManager = require('./lib/pull-manager'),
+    dbManager = require('./lib/db-manager'),
+    pullQueue  = require('./lib/pull-queue'),
     mainController = require('./controllers/main'),
     hooksController = require('./controllers/githubHooks'),
     reqLogger = require('debug')('pulldasher:server:request'),
@@ -50,8 +52,18 @@ authManager.setupRoutes(app);
 app.get('/',            mainController.index);
 app.post('/hooks/main', hooksController.main);
 
-// Called, to populate app, on startup.
-refresh.openPulls();
+// Load open pulls from the DB so we don't start blank.
+dbManager.getOpenPulls(config.repo.name).then(function(pulls) {
+   pullQueue.pause();
+   pulls.forEach(function(pull) {
+      pullManager.updatePull(pull);
+   });
+   pullQueue.resume();
+})
+// Get the most recent version of each pull from the API
+.then(function () {
+   return refresh.openPulls();
+}).done();
 
 /*
 @TODO: Update pulls which were open last time Pulldasher ran but are closed now.
