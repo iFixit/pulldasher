@@ -75,6 +75,13 @@ dbManager.closeStalePulls();
 // Socket.IO
 var io = require('socket.io').listen(httpServer);
 io.sockets.on('connection', function (socket) {
+   var unauthenticated_timeout = config.unauthenticated_timeout !== undefined ?
+      config.unauthenticated_timeout : 10 * 1000;
+
+   var autoDisconnect = setTimeout(function() {
+      socket.disconnect();
+   }, unauthenticated_timeout);
+
    socket.on('authenticate', function(token) {
       // They did respond. No need to drop their connection for not responding.
       clearTimeout(autoDisconnect);
@@ -92,13 +99,6 @@ io.sockets.on('connection', function (socket) {
    socket.on('refresh', function(number) {
       refresh.pull(number);
    });
-
-   var unauthenticated_timeout = config.unauthenticated_timeout !== undefined ?
-      config.unauthenticated_timeout : 10 * 1000;
-
-   var autoDisconnect = setTimeout(function() {
-      socket.disconnect();
-   }, unauthenticated_timeout);
 });
 
 debug("Listening on port %s", config.port);
