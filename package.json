@@ -32,7 +32,7 @@
     "start": "node app.js",
     "debug": "node debug app.js",
     "test":  "grunt --verbose",
-    "postinstall" : "bower install"
+    "postinstall" : "bower install && grunt"
   },
   "main": "app.js",
   "repository": "git@github.com:ifixit/pulldasher.git",

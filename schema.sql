@@ -17,10 +17,9 @@
 -- Table structure for table `comments`
 --
 
-DROP TABLE IF EXISTS `comments`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `comments` (
+CREATE TABLE IF NOT EXISTS `comments` (
   `comment_type` enum('issue','review') NOT NULL DEFAULT 'issue',
   `comment_id` int(10) unsigned NOT NULL,
   `number` int(10) unsigned NOT NULL,
@@ -36,10 +35,9 @@ CREATE TABLE `comments` (
 -- Table structure for table `commit_statuses`
 --
 
-DROP TABLE IF EXISTS `commit_statuses`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `commit_statuses` (
+CREATE TABLE IF NOT EXISTS `commit_statuses` (
   `commit` char(40) NOT NULL,
   `state` enum('pending','success','error','failure') NOT NULL,
   `description` varchar(255) NOT NULL,
@@ -53,10 +51,9 @@ CREATE TABLE `commit_statuses` (
 -- Table structure for table `issues`
 --
 
-DROP TABLE IF EXISTS `issues`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `issues` (
+CREATE TABLE IF NOT EXISTS `issues` (
   `number` int(10) NOT NULL,
   `title` varchar(255) DEFAULT NULL,
   `difficulty` int(10) DEFAULT NULL,
@@ -74,10 +71,9 @@ CREATE TABLE `issues` (
 -- Table structure for table `pull_labels`
 --
 
-DROP TABLE IF EXISTS `pull_labels`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `pull_labels` (
+CREATE TABLE IF NOT EXISTS `pull_labels` (
   `number` int(10) unsigned NOT NULL,
   `title` varchar(32) NOT NULL,
   `repo_name` varchar(255) NOT NULL,
@@ -92,10 +88,9 @@ CREATE TABLE `pull_labels` (
 -- Table structure for table `pull_signatures`
 --
 
-DROP TABLE IF EXISTS `pull_signatures`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `pull_signatures` (
+CREATE TABLE IF NOT EXISTS `pull_signatures` (
   `number` int(10) unsigned NOT NULL,
   `user` varchar(255) NOT NULL,
   `type` varchar(32) NOT NULL,
@@ -112,10 +107,9 @@ CREATE TABLE `pull_signatures` (
 -- Table structure for table `pulls`
 --
 
-DROP TABLE IF EXISTS `pulls`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `pulls` (
+CREATE TABLE IF NOT EXISTS `pulls` (
   `number` int(10) unsigned NOT NULL,
   `state` enum('open','closed') NOT NULL,
   `title` varchar(255) NOT NULL,
