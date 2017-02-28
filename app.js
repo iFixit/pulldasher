@@ -1,11 +1,12 @@
 var config = require('./config'),
-    httpServer,
     express = require('express'),
     partials = require('express-partials'),
+    bodyParser = require('body-parser'),
+    expressSession = require('express-session'),
     authManager = require('./lib/authentication'),
     passport = authManager.passport,
     socketAuthenticator = require('./lib/socket-auth'),
-    refresh = require('./lib/refresh.js'),
+    refresh = require('./lib/refresh'),
     pullManager = require('./lib/pull-manager'),
     dbManager = require('./lib/db-manager'),
     pullQueue  = require('./lib/pull-queue'),
@@ -15,8 +16,7 @@ var config = require('./config'),
     debug = require('debug')('pulldasher');
 
 var app = express();
-
-httpServer = require('http').createServer(app);
+var httpServer = require('http').createServer(app);
 
 app.engine('html', require('ejs').renderFile);
 app.set('view engine', 'html');
@@ -32,10 +32,9 @@ app.use("/html", express.static(__dirname + '/views/current/html'));
 app.use("/fonts", express.static(__dirname + '/bower_components/font-awesome/fonts'));
 app.use("/lib", express.static(__dirname + '/bower_components'));
 app.use(partials());
-app.use(express.urlencoded());
-app.use(express.json());
-app.use(express.cookieParser());
-app.use(express.session({secret: config.session.secret}));
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
+app.use(expressSession({secret: config.session.secret}));
 app.use(passport.initialize());
 app.use(passport.session());
 
