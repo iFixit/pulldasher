@@ -6,6 +6,7 @@ module.exports = function(grunt) {
     // Task configuration.
     jshint: {
       options: {
+        esversion: 6,
         curly: true,
         eqeqeq: true,
         latedef: 'nofunc', // Allow function definitions after their use.
