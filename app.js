@@ -34,7 +34,11 @@ app.use("/lib", express.static(__dirname + '/bower_components'));
 app.use(partials());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
-app.use(expressSession({secret: config.session.secret}));
+app.use(expressSession({
+   secret: config.session.secret,
+   resave: false,
+   saveUninitialized: false
+}));
 app.use(passport.initialize());
 app.use(passport.session());
 
