@@ -10,7 +10,7 @@
     "express": "4.x",
     "express-partials": "0.1.1",
     "express-session": "1.15.1",
-    "github": "iFixit/node-github",
+    "github": "iFixit/node-github#0373d45dbbd6c2548b6ed9a0092e2a029e26a3e3",
     "mysql": "2.13.x",
     "notify-queue": "0.0.5",
     "passport": "0.3.2",
