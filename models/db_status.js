@@ -6,6 +6,7 @@ var _ = require('underscore'),
 function DBStatus(status) {
    var statusData = status.data;
    this.data = {
+      repo: statusData.repo,
       commit: statusData.sha,
       state: statusData.state,
       description: statusData.description,

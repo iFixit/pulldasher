@@ -33,6 +33,10 @@ var HooksController = {
       debug('Received GitHub webhook, Event: %s', event);
 
       if (event === 'status') {
+         // The payload for statuses looks different from the api response.
+         // Here we somewhat normalize this by making the repo available on
+         // the 'repo' property.
+         body.repo = body.name;
          dbUpdated = dbManager.updateCommitStatus(new Status(body));
       } else if (event === 'issues') {
          dbUpdated = handleIssueEvent(body);
