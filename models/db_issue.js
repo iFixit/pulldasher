@@ -1,9 +1,12 @@
 var utils = require('../lib/utils');
 var db = require('../lib/db');
-var utils = require('../lib/utils');
 
+/**
+ * Create a new instance from an Issue object
+ */
 function DBIssue(issue) {
    this.data = {
+      repo: issue.repo,
       number: issue.number,
       title: issue.title,
       assignee: issue.assignee,
