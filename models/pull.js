@@ -160,6 +160,7 @@ Pull.parseBody = function(body) {
 
 Pull.fromGithubApi = function(data, signatures, comments, commitStatus, labels) {
    var data = {
+      repo: data.base.repo.full_name,
       number: data.number,
       state: data.state,
       title: data.title,
@@ -200,6 +201,7 @@ Pull.fromGithubApi = function(data, signatures, comments, commitStatus, labels) 
  */
 Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
    var pullData = {
+      repo: data.repo,
       number: data.number,
       state: data.state,
       title: data.title,
@@ -220,7 +222,7 @@ Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
             owner: {
                login: data.repo_owner
             },
-            name: data.repo_name
+            name: data.repo_name,
          }
       },
       base: {

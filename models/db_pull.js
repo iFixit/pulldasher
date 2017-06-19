@@ -7,6 +7,7 @@ var utils = require('../lib/utils'),
 function DBPull(pull) {
    var pullData = pull.data;
    this.data = {
+      repo: pullData.repo,
       number: pullData.number,
       state: pullData.state,
       title: pullData.title,
