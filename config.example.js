@@ -41,13 +41,13 @@ module.exports = {
    session: {
       secret: "secret for signing session cookies"
    },
-   repo: {
-      // The GitHub username of the person or organization owning the repo you
-      // want to monitor.
-     owner:       'repo owner',
+
+   // List of repositories for pulldasher to watch.
+   repo: [
      // The name of the GitHub repo you want to monitor.
-     name:        'repo name'
-   },
+     "owner/name"
+   ],
+
    // The usual MySQL stuff. Like every other MySQL webapp, basically.
    // You will need to source the `schema.sql` file in the database to create
    // all the tables that Pulldasher expects.
