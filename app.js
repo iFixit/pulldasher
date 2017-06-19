@@ -55,18 +55,20 @@ authManager.setupRoutes(app);
 app.get('/',            mainController.index);
 app.post('/hooks/main', hooksController.main);
 
-// Load open pulls from the DB so we don't start blank.
-dbManager.getOpenPulls(config.repo.name).then(function(pulls) {
-   pullQueue.pause();
-   pulls.forEach(function(pull) {
-      pullManager.updatePull(pull);
-   });
-   pullQueue.resume();
-})
-// Get the most recent version of each pull from the API
-.then(function () {
-   return refresh.openPulls();
-}).done();
+config.repos.forEach(function(repo) {
+   // Load open pulls from the DB so we don't start blank.
+   dbManager.getOpenPulls(repo).then(function(pulls) {
+      pullQueue.pause();
+      pulls.forEach(function(pull) {
+         pullManager.updatePull(pull);
+      });
+      pullQueue.resume();
+   })
+   // Get the most recent version of each pull from the API
+   .then(function () {
+      return refresh.openPulls();
+   }).done();
+});
 
 /*
 @TODO: Update pulls which were open last time Pulldasher ran but are closed now.
