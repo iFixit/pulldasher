@@ -8,38 +8,7 @@ var DBPull = require('./db_pull');
 var getLogin = require('../lib/get-user-login');
 
 function Pull(data, signatures, comments, commitStatus, labels) {
-   this.data = {
-      number: data.number,
-      state: data.state,
-      title: data.title,
-      body: data.body,
-      created_at: utils.fromDateString(data.created_at),
-      updated_at: utils.fromDateString(data.updated_at),
-      closed_at: utils.fromDateString(data.closed_at),
-      merged_at: utils.fromDateString(data.merged_at),
-      difficulty: data.difficulty,
-      milestone: {
-         title: data.milestone && data.milestone.title,
-         due_on: data.milestone && utils.fromDateString(data.milestone.due_on)
-      },
-      head: {
-         ref: data.head.ref,
-         sha: data.head.sha,
-         repo: {
-            owner: {
-               login: data.head.repo.owner.login
-            },
-            name: data.head.repo.name
-         }
-      },
-      base: {
-         ref: data.base.ref
-      },
-      user: {
-         login: getLogin(data.user)
-      }
-   };
-
+   this.data = data;
    this.signatures = signatures || [];
    this.comments = comments || [];
    this.commitStatus = commitStatus;
@@ -188,6 +157,42 @@ Pull.parseBody = function(body) {
 
    return bodyTags;
 };
+
+Pull.fromGithubApi = function(data, signatures, comments, commitStatus, labels) {
+   var data = {
+      number: data.number,
+      state: data.state,
+      title: data.title,
+      body: data.body,
+      created_at: utils.fromDateString(data.created_at),
+      updated_at: utils.fromDateString(data.updated_at),
+      closed_at: utils.fromDateString(data.closed_at),
+      merged_at: utils.fromDateString(data.merged_at),
+      difficulty: data.difficulty,
+      milestone: {
+         title: data.milestone && data.milestone.title,
+         due_on: data.milestone && utils.fromDateString(data.milestone.due_on)
+      },
+      head: {
+         ref: data.head.ref,
+         sha: data.head.sha,
+         repo: {
+            owner: {
+               login: data.head.repo.owner.login
+            },
+            name: data.head.repo.name
+         }
+      },
+      base: {
+         ref: data.base.ref,
+      },
+      user: {
+         login: getLogin(data.user)
+      }
+   };
+
+   return new Pull(data, signatures, comments, commitStatus, labels);
+}
 
 /**
  * Takes an object representing a DB row, and returns an instance of this

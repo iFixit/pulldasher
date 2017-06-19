@@ -62,7 +62,7 @@ var HooksController = {
 
          // Update DB with new pull request content.
          dbUpdated = preUpdate.then(function() {
-            return dbManager.updatePull(new Pull(body.pull_request));
+            return dbManager.updatePull(Pull.fromGithubApi(body.pull_request));
          });
       } else if (event === 'issue_comment') {
          if (body.action === 'created') {
@@ -145,7 +145,7 @@ function handleIssueEvent(body) {
    // let's not create an issue object out of it.
    if (isPull) {
       return doneHandling.then(function() {
-         return dbManager.updatePull(new Pull(body.pull_request));
+         return dbManager.updatePull(Pull.fromGithubApi(body.pull_request));
       });
    }
 
