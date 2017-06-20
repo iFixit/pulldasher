@@ -10,6 +10,7 @@ var utils = require('../lib/utils'),
 function DBSignature(signature) {
    var sigData = signature.data;
    this.data = {
+      repo:       sigData.repo,
       number:     sigData.number,
       user:       getLogin(sigData.user),
       userid:     getUserid(sigData.user),

@@ -69,7 +69,8 @@ var HooksController = {
             var promises = [];
 
             // Parse any signature(s) out of the comment.
-            var sigs = Signature.parseComment(body.comment, body.issue.number);
+            var sigs = Signature.parseComment(
+             body.comment, body.repository.full_name, body.issue.number);
             promises.push(dbManager.insertSignatures(sigs));
 
             body.comment.number = body.issue.number;

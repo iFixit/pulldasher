@@ -8,6 +8,7 @@ var config = require('../config'),
  */
 function Signature(data) {
    this.data = {
+      repo:             data.repo,
       number:           data.number,
       user: {
          id:            getUserid(data.user),
@@ -24,11 +25,12 @@ function Signature(data) {
  * Parses a GitHub comment and returns an array of Signature objects.
  * Returns an empty array if the comment did not contain any of our tags.
  */
-Signature.parseComment = function parseComment(comment, pullNumber) {
+Signature.parseComment = function parseComment(comment, repoFullName, pullNumber) {
    var signatures = [];
    config.tags.forEach(function(tag) {
       if (hasTag(comment.body, tag)) {
          signatures.push(new Signature({
+            repo: repoFullName,
             number: pullNumber,
             user: {
                id:    getUserid(comment.user),
@@ -53,6 +55,7 @@ Signature.parseComment = function parseComment(comment, pullNumber) {
  */
 Signature.getFromDB = function(data) {
    var sig = new Signature({
+      repo:        data.repo,
       number:      data.number,
       user: {
          id:       data.userid,
