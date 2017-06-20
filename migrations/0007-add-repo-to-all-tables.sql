@@ -1,3 +1,6 @@
+ALTER TABLE `comments`
+ADD COLUMN `repo` VARCHAR(255) NULL BEFORE `repo_name`;
+--
 ALTER TABLE `commit_statuses`
 ADD COLUMN `repo` VARCHAR(255) NULL BEFORE `commit`;
 --

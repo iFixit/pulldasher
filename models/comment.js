@@ -7,6 +7,7 @@ var getLogin = require('../lib/get-user-login');
 function Comment(data) {
    this.data = {
       number:        data.number,
+      repo:          data.repo,
       repo_name:     data.repo_name,
       user: {
          login: getLogin(data.user)
@@ -24,6 +25,7 @@ function Comment(data) {
 Comment.getFromDB = function(data) {
    return new Comment({
       number:     data.number,
+      repo:       data.repo,
       repo_name:  data.repo_name,
       user: {
          login: data.user

@@ -75,6 +75,7 @@ var HooksController = {
 
             body.comment.number = body.issue.number;
             body.comment.repo_name = body.repository.name;
+            body.comment.repo = body.repository.full_name;
             body.comment.type = 'issue';
             comment = new Comment(body.comment);
 
@@ -96,6 +97,7 @@ var HooksController = {
          } else {
             body.comment.number = body.pull_request.number;
             body.comment.repo_name = body.repository.name;
+            body.comment.repo = body.repository.full_name;
             body.comment.type =   'review';
             comment = new Comment(body.comment);
 
