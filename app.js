@@ -101,8 +101,8 @@ io.sockets.on('connection', function (socket) {
       }
    });
 
-   socket.on('refresh', function(number) {
-      refresh.pull(number);
+   socket.on('refresh', function(repo, number) {
+      refresh.pull(repo, number);
    });
 });
 

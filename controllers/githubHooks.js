@@ -212,12 +212,14 @@ function reprocessLabels(issueNumber, repo) {
 }
 
 function refreshPullOrIssue(responseBody) {
+   var repo = responseBody.repository.full_name;
+
    // The Docs: https://developer.github.com/v3/issues/#list-issues say you can
    // tell the difference like this:
    if (responseBody.issue.pull_request) {
-      refresh.pull(responseBody.issue.number);
+      refresh.pull(repo, responseBody.issue.number);
    } else {
-      refresh.issue(responseBody.issue.number);
+      refresh.issue(repo, responseBody.issue.number);
    }
 }
 
