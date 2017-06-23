@@ -159,7 +159,7 @@ Pull.parseBody = function(body) {
 };
 
 Pull.fromGithubApi = function(data, signatures, comments, commitStatus, labels) {
-   var data = {
+   data = {
       repo: data.base.repo.full_name,
       number: data.number,
       state: data.state,
@@ -193,7 +193,7 @@ Pull.fromGithubApi = function(data, signatures, comments, commitStatus, labels) 
    };
 
    return new Pull(data, signatures, comments, commitStatus, labels);
-}
+};
 
 /**
  * Takes an object representing a DB row, and returns an instance of this
