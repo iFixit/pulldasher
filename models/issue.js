@@ -59,7 +59,7 @@ Issue.prototype.updateFromLabels = function(labels) {
  */
 Issue.getFromGH = function(data, labels) {
    var issueData = {
-      repo: data.repository.full_name,
+      repo: data.repo,
       number: data.number,
       title: data.title,
       status: data.state,

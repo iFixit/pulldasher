@@ -153,6 +153,9 @@ function handleIssueEvent(body) {
    }
 
    return doneHandling.then(function() {
+      // Copy the full name of the repo into the issue object so we can
+      // normalize the structure.
+      body.issue.repo = body.repository.full_name;
       return Issue.getFromGH(body.issue);
    })
    .then(dbManager.updateIssue)
