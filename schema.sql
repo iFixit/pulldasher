@@ -35,7 +35,7 @@ CREATE TABLE `comments` (
   `repo_name` varchar(255) NOT NULL,
   `user` varchar(255) NOT NULL,
   `date` int(11) unsigned DEFAULT NULL,
-  PRIMARY KEY (`comment_type`,`comment_id`),
+  PRIMARY KEY (`repo`,`number`),
   KEY `pull` (`repo_name`,`number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -47,12 +47,12 @@ CREATE TABLE `comments` (
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `commit_statuses` (
-  `repo` varchar(255) DEFAULT NULL,
+  `repo` varchar(255) NOT NULL,
   `commit` char(40) NOT NULL,
   `state` enum('pending','success','error','failure') NOT NULL,
   `description` varchar(255) NOT NULL,
   `log_url` varchar(255) NOT NULL,
-  PRIMARY KEY (`commit`),
+  PRIMARY KEY (`repo`,`commit`),
   KEY `commit_statuses_state` (`state`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -74,7 +74,7 @@ CREATE TABLE `issues` (
   `status` varchar(30) DEFAULT NULL,
   `date_closed` int(11) DEFAULT NULL,
   `date_created` int(11) DEFAULT NULL,
-  PRIMARY KEY (`number`)
+  PRIMARY KEY (`repo`,`number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -91,7 +91,7 @@ CREATE TABLE `pull_labels` (
   `repo_name` varchar(255) NOT NULL,
   `user` varchar(255) DEFAULT NULL,
   `date` int(11) unsigned DEFAULT NULL,
-  PRIMARY KEY (`number`,`title`,`repo_name`),
+  PRIMARY KEY (`repo`,`number`),
   KEY `pull_labels_title` (`title`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -111,6 +111,7 @@ CREATE TABLE `pull_signatures` (
   `comment_id` int(10) unsigned NOT NULL,
   `userid` int(10) unsigned NOT NULL,
   `date` int(11) unsigned DEFAULT NULL,
+  PRIMARY KEY (`repo`,`number`),
   KEY `pull_signatures_number` (`number`,`active`),
   KEY `pull_signatures_user_type` (`user`,`type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
