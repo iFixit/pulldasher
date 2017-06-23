@@ -25,9 +25,9 @@ function DBIssue(issue) {
    }
 }
 
-DBIssue.findByNumber = function(number) {
-   var q_select = 'SELECT * FROM `issues` WHERE `number` = ?';
-   return db.query(q_select, [number]).
+DBIssue.findByNumber = function(repo, number) {
+   var q_select = 'SELECT * FROM `issues` WHERE `number` = ? AND repo = ?';
+   return db.query(q_select, [repo, number]).
    then(function(rows) {
       if (rows) {
          return rows[0];
