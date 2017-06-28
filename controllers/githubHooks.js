@@ -33,6 +33,10 @@ var HooksController = {
       debug('Received GitHub webhook, Event: %s', event);
 
       if (event === 'status') {
+         // The payload for statuses looks different from the api response.
+         // Here we somewhat normalize this by making the repo available on
+         // the 'repo' property.
+         body.repo = body.name;
          dbUpdated = dbManager.updateCommitStatus(new Status(body));
       } else if (event === 'issues') {
          dbUpdated = handleIssueEvent(body);
@@ -58,18 +62,20 @@ var HooksController = {
 
          // Update DB with new pull request content.
          dbUpdated = preUpdate.then(function() {
-            return dbManager.updatePull(new Pull(body.pull_request));
+            return dbManager.updatePull(Pull.fromGithubApi(body.pull_request));
          });
       } else if (event === 'issue_comment') {
          if (body.action === 'created') {
             var promises = [];
 
             // Parse any signature(s) out of the comment.
-            var sigs = Signature.parseComment(body.comment, body.issue.number);
+            var sigs = Signature.parseComment(
+             body.comment, body.repository.full_name, body.issue.number);
             promises.push(dbManager.insertSignatures(sigs));
 
             body.comment.number = body.issue.number;
-            body.comment.repo = body.repository.name;
+            body.comment.repo_name = body.repository.name;
+            body.comment.repo = body.repository.full_name;
             body.comment.type = 'issue';
             comment = new Comment(body.comment);
 
@@ -90,7 +96,8 @@ var HooksController = {
             dbUpdated = dbManager.deleteReviewComment(body.comment.id);
          } else {
             body.comment.number = body.pull_request.number;
-            body.comment.repo =   body.repository.name;
+            body.comment.repo_name = body.repository.name;
+            body.comment.repo = body.repository.full_name;
             body.comment.type =   'review';
             comment = new Comment(body.comment);
 
@@ -141,11 +148,14 @@ function handleIssueEvent(body) {
    // let's not create an issue object out of it.
    if (isPull) {
       return doneHandling.then(function() {
-         return dbManager.updatePull(new Pull(body.pull_request));
+         return dbManager.updatePull(Pull.fromGithubApi(body.pull_request));
       });
    }
 
    return doneHandling.then(function() {
+      // Copy the full name of the repo into the issue object so we can
+      // normalize the structure.
+      body.issue.repo = body.repository.full_name;
       return Issue.getFromGH(body.issue);
    })
    .then(dbManager.updateIssue)
@@ -171,6 +181,7 @@ function handleLabelEvents(body) {
             body.label,
             object.number,
             body.repository.name,
+            body.repository.full_name,
             getLogin(body.sender),
             object.updated_at
          ));
@@ -180,7 +191,8 @@ function handleLabelEvents(body) {
          return dbManager.deleteLabel(new Label(
             body.label,
             object.number,
-            body.repository.name
+            body.repository.name,
+            body.repository.full_name
          ));
    }
    return Promise.resolve();
