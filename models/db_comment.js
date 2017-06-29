@@ -11,7 +11,6 @@ function DBComment(comment) {
    var commentData = comment.data;
    this.data = {
       number:     commentData.number,
-      repo_name:  commentData.repo_name,
       repo:       commentData.repo,
       user:       getLogin(commentData.user),
       date:       utils.toUnixTime(commentData.created_at),
