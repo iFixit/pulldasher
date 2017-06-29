@@ -35,7 +35,7 @@ CREATE TABLE `comments` (
   `repo_name` varchar(255) NOT NULL,
   `user` varchar(255) NOT NULL,
   `date` int(11) unsigned DEFAULT NULL,
-  PRIMARY KEY (`repo`, `comment_type`, `comment_id`),
+  PRIMARY KEY (`repo`,`comment_type`,`comment_id`),
   KEY `pull` (`repo_name`,`number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -91,7 +91,7 @@ CREATE TABLE `pull_labels` (
   `repo_name` varchar(255) NOT NULL,
   `user` varchar(255) DEFAULT NULL,
   `date` int(11) unsigned DEFAULT NULL,
-  PRIMARY KEY (`repo`, `number`, `title`),
+  PRIMARY KEY (`repo`,`number`,`title`),
   KEY `pull_labels_title` (`title`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -111,8 +111,8 @@ CREATE TABLE `pull_signatures` (
   `comment_id` int(10) unsigned NOT NULL,
   `userid` int(10) unsigned NOT NULL,
   `date` int(11) unsigned DEFAULT NULL,
-  KEY `pull_signatures_number` (``number`,`active`),
-  KEY `pull_signatures_user_type` (`user`,`type`)
+  KEY `pull_signatures_number` (`repo`,`number`,`active`),
+  KEY `pull_signatures_type` (`repo`,`user`,`type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -145,7 +145,7 @@ CREATE TABLE `pulls` (
   `closes` int(10) unsigned DEFAULT NULL,
   `connects` int(10) unsigned DEFAULT NULL,
   `difficulty` int(11) DEFAULT NULL,
-  PRIMARY KEY (`repo`, `number`),
+  PRIMARY KEY (`repo`,`number`),
   KEY `pulls_state` (`state`),
   KEY `pulls_repo` (`repo_owner`,`repo_name`),
   KEY `pulls_user` (`owner`)
