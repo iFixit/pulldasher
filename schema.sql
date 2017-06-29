@@ -32,11 +32,10 @@ CREATE TABLE `comments` (
   `comment_type` enum('issue','review') NOT NULL DEFAULT 'issue',
   `comment_id` int(10) unsigned NOT NULL,
   `number` int(10) unsigned NOT NULL,
-  `repo_name` varchar(255) DEFAULT NULL,
   `user` varchar(255) NOT NULL,
   `date` int(11) unsigned DEFAULT NULL,
   PRIMARY KEY (`repo`,`comment_type`,`comment_id`),
-  KEY `pull` (`repo_name`,`number`)
+  KEY `pull` (`number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -88,7 +87,6 @@ CREATE TABLE `pull_labels` (
   `repo` varchar(255) DEFAULT NULL,
   `number` int(10) unsigned NOT NULL,
   `title` varchar(32) NOT NULL,
-  `repo_name` varchar(255) DEFAULT NULL,
   `user` varchar(255) DEFAULT NULL,
   `date` int(11) unsigned DEFAULT NULL,
   PRIMARY KEY (`repo`,`number`,`title`),
@@ -131,7 +129,6 @@ CREATE TABLE `pulls` (
   `head_branch` varchar(255) NOT NULL,
   `head_sha` char(40) NOT NULL,
   `repo_owner` varchar(255) NOT NULL,
-  `repo_name` varchar(255) DEFAULT NULL,
   `base_branch` varchar(255) NOT NULL,
   `owner` varchar(255) NOT NULL,
   `cr_req` int(11) NOT NULL DEFAULT '2',
