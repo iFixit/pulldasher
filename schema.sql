@@ -32,7 +32,7 @@ CREATE TABLE `comments` (
   `comment_type` enum('issue','review') NOT NULL DEFAULT 'issue',
   `comment_id` int(10) unsigned NOT NULL,
   `number` int(10) unsigned NOT NULL,
-  `repo_name` varchar(255) NOT NULL,
+  `repo_name` varchar(255) DEFAULT NULL,
   `user` varchar(255) NOT NULL,
   `date` int(11) unsigned DEFAULT NULL,
   PRIMARY KEY (`repo`,`comment_type`,`comment_id`),
@@ -88,7 +88,7 @@ CREATE TABLE `pull_labels` (
   `repo` varchar(255) DEFAULT NULL,
   `number` int(10) unsigned NOT NULL,
   `title` varchar(32) NOT NULL,
-  `repo_name` varchar(255) NOT NULL,
+  `repo_name` varchar(255) DEFAULT NULL,
   `user` varchar(255) DEFAULT NULL,
   `date` int(11) unsigned DEFAULT NULL,
   PRIMARY KEY (`repo`,`number`,`title`),
@@ -131,7 +131,7 @@ CREATE TABLE `pulls` (
   `head_branch` varchar(255) NOT NULL,
   `head_sha` char(40) NOT NULL,
   `repo_owner` varchar(255) NOT NULL,
-  `repo_name` varchar(255) NOT NULL,
+  `repo_name` varchar(255) DEFAULT NULL,
   `base_branch` varchar(255) NOT NULL,
   `owner` varchar(255) NOT NULL,
   `cr_req` int(11) NOT NULL DEFAULT '2',
@@ -147,8 +147,8 @@ CREATE TABLE `pulls` (
   `difficulty` int(11) DEFAULT NULL,
   PRIMARY KEY (`repo`,`number`),
   KEY `pulls_state` (`state`),
-  KEY `pulls_repo` (`repo_owner`,`repo_name`),
-  KEY `pulls_user` (`owner`)
+  KEY `pulls_user` (`owner`),
+  KEY `pulls_repo` (`repo`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!50112 SET @disable_bulk_load = IF (@is_rocksdb_supported, 'SET SESSION rocksdb_bulk_load = @old_rocksdb_bulk_load', 'SET @dummy_rocksdb_bulk_load = 0') */;
