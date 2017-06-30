@@ -43,8 +43,7 @@ module.exports = {
    },
 
    // List of repositories for pulldasher to watch.
-   repo: [
-     // The name of the GitHub repo you want to monitor.
+   repos: [
      "owner/name"
    ],
 
