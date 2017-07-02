@@ -3,6 +3,7 @@
  */
 function Status(data) {
    this.data = {
+      repo: data.repo,
       sha: data.sha,
       target_url: data.target_url,
       description: data.description,

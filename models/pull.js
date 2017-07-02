@@ -5,42 +5,10 @@ var queue = require('../lib/pull-queue');
 var Promise = require('promise');
 var debug = require('debug')('pulldasher:pull');
 var DBPull = require('./db_pull');
-var Issue = require('./issue');
+var getLogin = require('../lib/get-user-login');
 
 function Pull(data, signatures, comments, commitStatus, labels) {
-   this.data = {
-      number: data.number,
-      state: data.state,
-      title: data.title,
-      body: data.body,
-      created_at: new Date(data.created_at),
-      updated_at: new Date(data.updated_at),
-      closed_at: new Date(data.closed_at),
-      merged_at: new Date(data.merged_at),
-      difficulty: data.difficulty,
-      milestone: {
-         title: data.milestone && data.milestone.title,
-         due_on: data.milestone && data.milestone.due_on ?
-          new Date(data.milestone.due_on) : null,
-      },
-      head: {
-         ref: data.head.ref,
-         sha: data.head.sha,
-         repo: {
-            owner: {
-               login: data.head.repo.owner.login
-            },
-            name: data.head.repo.name
-         }
-      },
-      base: {
-         ref: data.base.ref
-      },
-      user: {
-         login: data.user.login
-      }
-   };
-
+   this.data = data;
    this.signatures = signatures || [];
    this.comments = comments || [];
    this.commitStatus = commitStatus;
@@ -75,6 +43,10 @@ Pull.prototype.update = function() {
 };
 
 Pull.prototype.syncToIssue = function() {
+   return Promise.resolve(this);
+   /* The below needs to be rethought a bit and possibly the causal direction
+    * reversed (updates to the issue should propagate to the pull).
+   var Issue = require('./issue');
    var self = this;
    var connected = this.data.closes || this.data.connects;
    if (connected) {
@@ -96,6 +68,7 @@ Pull.prototype.syncToIssue = function() {
    } else {
       return Promise.resolve(self);
    }
+   */
 };
 
 Pull.prototype.toObject = function() {
@@ -185,12 +158,50 @@ Pull.parseBody = function(body) {
    return bodyTags;
 };
 
+Pull.fromGithubApi = function(data, signatures, comments, commitStatus, labels) {
+   data = {
+      repo: data.base.repo.full_name,
+      number: data.number,
+      state: data.state,
+      title: data.title,
+      body: data.body,
+      created_at: utils.fromDateString(data.created_at),
+      updated_at: utils.fromDateString(data.updated_at),
+      closed_at: utils.fromDateString(data.closed_at),
+      merged_at: utils.fromDateString(data.merged_at),
+      difficulty: data.difficulty,
+      milestone: {
+         title: data.milestone && data.milestone.title,
+         due_on: data.milestone && utils.fromDateString(data.milestone.due_on)
+      },
+      head: {
+         ref: data.head.ref,
+         sha: data.head.sha,
+         repo: {
+            owner: {
+               login: data.head.repo.owner.login
+            },
+            name: data.head.repo.name
+         }
+      },
+      base: {
+         ref: data.base.ref,
+      },
+      user: {
+         login: getLogin(data.user)
+      }
+   };
+
+   return new Pull(data, signatures, comments, commitStatus, labels);
+};
+
 /**
  * Takes an object representing a DB row, and returns an instance of this
  * Pull object.
  */
 Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
    var pullData = {
+      repo: data.repo,
       number: data.number,
       state: data.state,
       title: data.title,
@@ -211,7 +222,7 @@ Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
             owner: {
                login: data.repo_owner
             },
-            name: data.repo_name
+            name: data.repo_name,
          }
       },
       base: {

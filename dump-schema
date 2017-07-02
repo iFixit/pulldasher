@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Executes mysqldump, passing through all arguments to this script.
+# invoke like dump-schema db_name -u ...
+mysqldump "$@" \
+   --no-data \
+   --skip-add-drop-table \
+   --skip-dump-date \
+   --no-create-db \
+   comments \
+   commit_statuses \
+   issues \
+   pull_labels \
+   pull_signatures \
+   pulls \
+   > schema.sql

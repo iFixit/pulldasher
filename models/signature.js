@@ -1,4 +1,6 @@
 var config = require('../config'),
+    getLogin = require('../lib/get-user-login'),
+    getUserid = require('../lib/get-user-id'),
     utils = require('../lib/utils');
 
 /**
@@ -6,13 +8,14 @@ var config = require('../config'),
  */
 function Signature(data) {
    this.data = {
+      repo:             data.repo,
       number:           data.number,
       user: {
-         id:            data.user.id,
-         login:         data.user.login
+         id:            getUserid(data.user),
+         login:         getLogin(data.user)
       },
       type:             data.type,
-      created_at:       new Date(data.created_at),
+      created_at:       utils.fromDateString(data.created_at),
       active:           data.active,
       comment_id:       data.comment_id
    };
@@ -22,15 +25,16 @@ function Signature(data) {
  * Parses a GitHub comment and returns an array of Signature objects.
  * Returns an empty array if the comment did not contain any of our tags.
  */
-Signature.parseComment = function parseComment(comment, pullNumber) {
+Signature.parseComment = function parseComment(comment, repoFullName, pullNumber) {
    var signatures = [];
    config.tags.forEach(function(tag) {
       if (hasTag(comment.body, tag)) {
          signatures.push(new Signature({
+            repo: repoFullName,
             number: pullNumber,
             user: {
-               id:    comment.user.id,
-               login: comment.user.login
+               id:    getUserid(comment.user),
+               login: getLogin(comment.user)
             },
             type: tag.name,
             created_at: comment.created_at,
@@ -51,6 +55,7 @@ Signature.parseComment = function parseComment(comment, pullNumber) {
  */
 Signature.getFromDB = function(data) {
    var sig = new Signature({
+      repo:        data.repo,
       number:      data.number,
       user: {
          id:       data.userid,

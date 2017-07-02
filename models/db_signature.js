@@ -1,4 +1,6 @@
 var utils = require('../lib/utils'),
+    getLogin = require('../lib/get-user-login'),
+    getUserid = require('../lib/get-user-id'),
     db = require('../lib/db');
 
 /**
@@ -8,9 +10,10 @@ var utils = require('../lib/utils'),
 function DBSignature(signature) {
    var sigData = signature.data;
    this.data = {
+      repo:       sigData.repo,
       number:     sigData.number,
-      user:       sigData.user.login,
-      userid:     sigData.user.id,
+      user:       getLogin(sigData.user),
+      userid:     getUserid(sigData.user),
       type:       sigData.type,
       date:       utils.toUnixTime(sigData.created_at),
       active:     sigData.active,

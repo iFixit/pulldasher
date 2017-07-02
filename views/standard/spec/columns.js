@@ -115,7 +115,6 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
             deploy_block: function deploy_block(pull, node) {
                if (pull.deploy_blocked()) {
                   var current_block = pull.status.deploy_block.slice(-1)[0].data;
-                  var date = new Date(current_block.created_at);
                   var link = utils.getCommentLink(pull, current_block);
                   var icon = $('<i>').addClass('fa fa-warning deploy-blocked');
 
@@ -168,7 +167,6 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
          indicators: {
             actor: function actor(pull, node) {
                var current_block = pull.status.dev_block.slice(-1)[0].data;
-               var date = new Date(current_block.created_at);
                var link = utils.getCommentLink(pull, current_block);
                var icon = $('<i>').addClass('fa fa-minus-circle dev-blocked');
 

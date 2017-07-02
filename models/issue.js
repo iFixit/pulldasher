@@ -2,8 +2,8 @@ var utils   = require('../lib/utils');
 var _       = require('underscore');
 var config  = require('../config');
 var log     = require('debug')('pulldasher:issue');
-var Promise = require('promise');
 var DBIssue = require('./db_issue');
+var getLogin = require('../lib/get-user-login');
 
 /**
  * Create a new issue. Not meant to be used directly, see
@@ -15,6 +15,11 @@ function Issue(data, labels) {
       this.updateFromLabels(labels);
    }
 }
+
+Issue.findByNumber = function(number) {
+   return DBIssue.findByNumber(number).
+    then(Issue.getFromDB);
+};
 
 /**
  * Create properties on this object for each label it has of the configured
@@ -54,16 +59,17 @@ Issue.prototype.updateFromLabels = function(labels) {
  */
 Issue.getFromGH = function(data, labels) {
    var issueData = {
+      repo: data.repo,
       number: data.number,
       title: data.title,
       status: data.state,
       date_created: new Date(data.created_at),
-      date_closed: new Date(data.closed_at),
+      date_closed: utils.fromDateString(data.closed_at),
       milestone: data.milestone ? {
          title: data.milestone.title,
          due_on: new Date(data.milestone.due_on)
       } : null,
-      assignee: data.assignee ? data.assignee.login : null,
+      assignee: getLogin(data.assignee),
       labels: labels || [],
    };
 
@@ -75,6 +81,7 @@ Issue.getFromGH = function(data, labels) {
  */
 Issue.getFromDB = function(data, labels) {
    var issueData = {
+      repo: data.repo,
       number: data.number,
       title: data.title,
       status: data.status,
@@ -88,7 +95,7 @@ Issue.getFromDB = function(data, labels) {
       assignee: data.assignee,
       labels: labels || []
    };
-   return new Issue(issueData, labels)
+   return new Issue(issueData, labels);
 };
 
 module.exports = Issue;

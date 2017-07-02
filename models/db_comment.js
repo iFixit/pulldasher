@@ -1,5 +1,6 @@
 var utils = require('../lib/utils'),
     db = require('../lib/db'),
+    getLogin = require('../lib/get-user-login'),
     debug = require('debug')('pulldasher:db_comment');
 
 /**
@@ -10,8 +11,9 @@ function DBComment(comment) {
    var commentData = comment.data;
    this.data = {
       number:     commentData.number,
-      repo_name:  commentData.repo,
-      user:       commentData.user.login,
+      repo_name:  commentData.repo_name,
+      repo:       commentData.repo,
+      user:       getLogin(commentData.user),
       date:       utils.toUnixTime(commentData.created_at),
       comment_type: commentData.comment_type,
       comment_id: commentData.comment_id
