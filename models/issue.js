@@ -16,8 +16,8 @@ function Issue(data, labels) {
    }
 }
 
-Issue.findByNumber = function(number) {
-   return DBIssue.findByNumber(number).
+Issue.findByNumber = function(repo, number) {
+   return DBIssue.findByNumber(repo, number).
     then(Issue.getFromDB);
 };
 

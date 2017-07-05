@@ -52,7 +52,7 @@ Pull.prototype.syncToIssue = function() {
    var self = this;
    var connected = this.data.closes || this.data.connects;
    if (!this.data.milestone.title && connected) {
-      return Issue.findByNumber(connected).
+      return Issue.findByNumber(this.data.repo, connected).
       then(function(issue) {
          debug("Updating pull from issue: %s", issue.number);
          if (issue.milestone) {
