@@ -54,7 +54,7 @@ var HooksController = {
                break;
 
             case "synchronize":
-               preUpdate = dbManager.invalidateSignatures(
+               preUpdate = dbManager.invalidateSignatures(body.repo,
                   body.pull_request.number,
                   ['QA', 'CR']
                );
