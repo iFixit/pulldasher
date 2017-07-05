@@ -93,7 +93,8 @@ var HooksController = {
          }
       } else if (event === 'pull_request_review_comment') {
          if (body.action === 'deleted') {
-            dbUpdated = dbManager.deleteReviewComment(body.comment.id);
+            dbUpdated = dbManager.deleteReviewComment(
+             body.repository.full_name, body.comment.id);
          } else {
             body.comment.number = body.pull_request.number;
             body.comment.repo_name = body.repository.name;
