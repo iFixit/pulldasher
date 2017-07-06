@@ -35,7 +35,7 @@ Pull.prototype.update = function() {
     this.data.repo);
    var dbPull = new DBPull(this);
    var number = dbPull.data.number;
-   var repo = dbPull.data.repo
+   var repo = dbPull.data.repo;
 
    return dbPull.save().
    then(function() {
