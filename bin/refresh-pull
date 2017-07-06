@@ -3,14 +3,16 @@ require('debug').enable(require('debug').load() || 'pulldasher:refresh*');
 
 var refresh = require('../lib/refresh');
 var db = require('../lib/db');
-var number = process.argv[2];
+var repo = process.argv[2];
+var number = process.argv[3];
 
 if ("" + parseInt(number, 10) !== number) {
    console.error("%s is not a number", number)
+   console.error("Usage: refresh-pull user/repo number")
    process.exit(1);
 }
 
-refresh.pull(number)
+refresh.pull(repo, number)
 .done(function() {
    db.end();
 });
