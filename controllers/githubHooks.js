@@ -28,7 +28,7 @@ var HooksController = {
       }
 
       // Begin the webhook decoding
-      var body = JSON.parse(req.body.payload);
+      var body = req.body;
       var event = req.get('X-GitHub-Event');
       debug('Received GitHub webhook, Event: %s', event);
 
