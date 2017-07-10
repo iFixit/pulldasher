@@ -28,7 +28,15 @@ var HooksController = {
       }
 
       // Begin the webhook decoding
-      var body = req.body;
+      var body;
+      if (req.headers["content-type"] === "application/json") {
+         body = req.body;
+      } else if (req.headers["content-type"] === "application/x-www-form-urlencoded") {
+         body = JSON.parse(req.body.payload);
+      } else {
+         return res.status(400).send('Invalid content-type ' + req.headers["content-type"]);
+      }
+
       var event = req.get('X-GitHub-Event');
       debug('Received GitHub webhook, Event: %s', event);
 
