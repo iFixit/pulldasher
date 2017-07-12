@@ -169,7 +169,7 @@ function handleIssueEvent(body) {
    })
    .then(dbManager.updateIssue)
    .then(function() {
-      return reprocessLabels(body.issue.number, body.repository.name);
+      return reprocessLabels(body.repository.full_name, body.issue.number);
    });
 }
 
@@ -211,7 +211,7 @@ function handleLabelEvents(body) {
  * After a label has been added or removed we have to re-process all the labels
  * in case one of them matches one of our configured label updaters.
  */
-function reprocessLabels(issueNumber, repo) {
+function reprocessLabels(repo, issueNumber) {
    if (!config.labels || !config.labels.length) {
       return;
    }
