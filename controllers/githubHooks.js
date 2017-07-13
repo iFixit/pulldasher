@@ -38,7 +38,7 @@ var HooksController = {
       }
 
       var event = req.get('X-GitHub-Event');
-      debug('Received GitHub webhook, Event: %s', event);
+      debug('Received GitHub webhook, Event: %s, Action: %s', event, body.action);
 
       if (event === 'status') {
          // The payload for statuses looks different from the api response.
