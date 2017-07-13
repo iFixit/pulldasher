@@ -215,8 +215,8 @@ function reprocessLabels(repo, issueNumber) {
    if (!config.labels || !config.labels.length) {
       return;
    }
-   debug("Reprocessing labels for Issue #%s", issueNumber);
-   return dbManager.getIssue(issueNumber, repo)
+   debug("Reprocessing labels for Issue #%s in repo %s", issueNumber, repo);
+   return dbManager.getIssue(repo, issueNumber)
    .then(dbManager.updateIssue);
 }
 
