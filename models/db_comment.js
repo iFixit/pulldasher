@@ -27,14 +27,15 @@ DBComment.prototype.save = function() {
    return db.query(q_update, commentData);
 };
 
-DBComment.delete = function deleteComment(type, comment_id) {
-   debug("deleting %s comment %s", type, comment_id);
+DBComment.delete = function deleteComment(repo, type, comment_id) {
+   debug("deleting %s comment %s in repo %s", type, comment_id, repo);
    var q_delete = 'DELETE FROM comments \
                    WHERE `comment_type` = ? \
-                   AND `comment_id` = ?';
+                   AND `comment_id` = ? \
+                   AND `repo` = ?';
 
-   return db.query(q_delete, [type, comment_id]).then(function() {
-      debug('deleted %s comment %s', type, comment_id);
+   return db.query(q_delete, [type, comment_id, repo]).then(function() {
+      debug('deleted %s comment %s in repo %s', type, comment_id, repo);
    });
 };
 

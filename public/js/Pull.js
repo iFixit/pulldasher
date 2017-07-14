@@ -115,7 +115,7 @@ define(['underscore', 'appearanceUtils', 'socket'], function(_, utils, socket) {
       },
 
       refresh: function() {
-         socket.emit('refresh', this.number);
+         socket.emit('refresh', this.repo, this.number);
       }
    });
 

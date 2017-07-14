@@ -25,10 +25,10 @@ DBLabel.prototype.save = function() {
 DBLabel.prototype.delete = function() {
    var labelData = this.data;
    var q_update = 'DELETE FROM pull_labels WHERE ' +
-    'number = ? AND title = ? AND repo_name = ?';
+    'number = ? AND title = ? AND repo = ?';
 
    return db.query(q_update, [labelData.number, labelData.title,
-    labelData.repo_name]);
+    labelData.repo]);
 };
 
 module.exports = DBLabel;

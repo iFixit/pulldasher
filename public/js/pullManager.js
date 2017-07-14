@@ -47,13 +47,13 @@ define(['underscore', 'socket', 'Pull'], function(_, socket, Pull) {
    }
 
    function getPull(pullData) {
-      return pullIndex[pullData.number] || createPull(pullData);
+      return pullIndex[pullData.repo + "#" + pullData.number] || createPull(pullData);
    }
 
    function createPull(pullData) {
       var pull = new Pull(pullData);
       pulls.push(pull);
-      pullIndex[pull.number] = pull;
+      pullIndex[pull.repo + "#" + pull.number] = pull;
       return pull;
    }
 
