@@ -12,8 +12,8 @@ var config = require('./config'),
     pullQueue  = require('./lib/pull-queue'),
     mainController = require('./controllers/main'),
     hooksController = require('./controllers/githubHooks'),
-    reqLogger = require('debug')('pulldasher:server:request'),
-    debug = require('debug')('pulldasher');
+    reqLogger = require('./lib/debug')('pulldasher:server:request'),
+    debug = require('./lib/debug')('pulldasher');
 
 var app = express();
 var httpServer = require('http').createServer(app);
