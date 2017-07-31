@@ -1,6 +1,6 @@
 var config     = require('../config'),
     Promise    = require('promise'),
-    debug      = require('debug')('pulldasher:githubHooks'),
+    debug      = require('../lib/debug')('pulldasher:githubHooks'),
     Pull       = require('../models/pull'),
     Status     = require('../models/status'),
     Signature  = require('../models/signature'),
@@ -28,9 +28,17 @@ var HooksController = {
       }
 
       // Begin the webhook decoding
-      var body = JSON.parse(req.body.payload);
+      var body;
+      if (req.headers["content-type"] === "application/json") {
+         body = req.body;
+      } else if (req.headers["content-type"] === "application/x-www-form-urlencoded") {
+         body = JSON.parse(req.body.payload);
+      } else {
+         return res.status(400).send('Invalid content-type ' + req.headers["content-type"]);
+      }
+
       var event = req.get('X-GitHub-Event');
-      debug('Received GitHub webhook, Event: %s', event);
+      debug('Received GitHub webhook, Event: %s, Action: %s', event, body.action);
 
       if (event === 'status') {
          // The payload for statuses looks different from the api response.
@@ -54,7 +62,7 @@ var HooksController = {
                break;
 
             case "synchronize":
-               preUpdate = dbManager.invalidateSignatures(
+               preUpdate = dbManager.invalidateSignatures(body.repository.full_name,
                   body.pull_request.number,
                   ['QA', 'CR']
                );
@@ -93,7 +101,8 @@ var HooksController = {
          }
       } else if (event === 'pull_request_review_comment') {
          if (body.action === 'deleted') {
-            dbUpdated = dbManager.deleteReviewComment(body.comment.id);
+            dbUpdated = dbManager.deleteReviewComment(
+             body.repository.full_name, body.comment.id);
          } else {
             body.comment.number = body.pull_request.number;
             body.comment.repo_name = body.repository.name;
@@ -160,7 +169,7 @@ function handleIssueEvent(body) {
    })
    .then(dbManager.updateIssue)
    .then(function() {
-      return reprocessLabels(body.issue.number, body.repository.name);
+      return reprocessLabels(body.repository.full_name, body.issue.number);
    });
 }
 
@@ -202,22 +211,24 @@ function handleLabelEvents(body) {
  * After a label has been added or removed we have to re-process all the labels
  * in case one of them matches one of our configured label updaters.
  */
-function reprocessLabels(issueNumber, repo) {
+function reprocessLabels(repo, issueNumber) {
    if (!config.labels || !config.labels.length) {
       return;
    }
-   debug("Reprocessing labels for Issue #%s", issueNumber);
-   return dbManager.getIssue(issueNumber, repo)
+   debug("Reprocessing labels for Issue #%s in repo %s", issueNumber, repo);
+   return dbManager.getIssue(repo, issueNumber)
    .then(dbManager.updateIssue);
 }
 
 function refreshPullOrIssue(responseBody) {
+   var repo = responseBody.repository.full_name;
+
    // The Docs: https://developer.github.com/v3/issues/#list-issues say you can
    // tell the difference like this:
    if (responseBody.issue.pull_request) {
-      refresh.pull(responseBody.issue.number);
+      refresh.pull(repo, responseBody.issue.number);
    } else {
-      refresh.issue(responseBody.issue.number);
+      refresh.issue(repo, responseBody.issue.number);
    }
 }
 

@@ -12,8 +12,8 @@ var config = require('./config'),
     pullQueue  = require('./lib/pull-queue'),
     mainController = require('./controllers/main'),
     hooksController = require('./controllers/githubHooks'),
-    reqLogger = require('debug')('pulldasher:server:request'),
-    debug = require('debug')('pulldasher');
+    reqLogger = require('./lib/debug')('pulldasher:server:request'),
+    debug = require('./lib/debug')('pulldasher');
 
 var app = express();
 var httpServer = require('http').createServer(app);
@@ -55,18 +55,20 @@ authManager.setupRoutes(app);
 app.get('/',            mainController.index);
 app.post('/hooks/main', hooksController.main);
 
-// Load open pulls from the DB so we don't start blank.
-dbManager.getOpenPulls(config.repo.name).then(function(pulls) {
-   pullQueue.pause();
-   pulls.forEach(function(pull) {
-      pullManager.updatePull(pull);
-   });
-   pullQueue.resume();
-})
-// Get the most recent version of each pull from the API
-.then(function () {
-   return refresh.openPulls();
-}).done();
+config.repos.forEach(function(repo) {
+   // Load open pulls from the DB so we don't start blank.
+   dbManager.getOpenPulls(repo).then(function(pulls) {
+      pullQueue.pause();
+      pulls.forEach(function(pull) {
+         pullManager.updatePull(pull);
+      });
+      pullQueue.resume();
+   })
+   // Get the most recent version of each pull from the API
+   .then(function () {
+      return refresh.openPulls();
+   }).done();
+});
 
 /*
 @TODO: Update pulls which were open last time Pulldasher ran but are closed now.
@@ -99,8 +101,8 @@ io.sockets.on('connection', function (socket) {
       }
    });
 
-   socket.on('refresh', function(number) {
-      refresh.pull(number);
+   socket.on('refresh', function(repo, number) {
+      refresh.pull(repo, number);
    });
 });
 

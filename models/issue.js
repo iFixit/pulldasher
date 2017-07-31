@@ -1,7 +1,7 @@
 var utils   = require('../lib/utils');
 var _       = require('underscore');
 var config  = require('../config');
-var log     = require('debug')('pulldasher:issue');
+var log     = require('../lib/debug')('pulldasher:issue');
 var DBIssue = require('./db_issue');
 var getLogin = require('../lib/get-user-login');
 
@@ -16,8 +16,8 @@ function Issue(data, labels) {
    }
 }
 
-Issue.findByNumber = function(number) {
-   return DBIssue.findByNumber(number).
+Issue.findByNumber = function(repo, number) {
+   return DBIssue.findByNumber(repo, number).
     then(Issue.getFromDB);
 };
 
