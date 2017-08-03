@@ -9,6 +9,7 @@ var config = require('./config'),
     refresh = require('./lib/refresh'),
     pullManager = require('./lib/pull-manager'),
     dbManager = require('./lib/db-manager'),
+    gitManager = require('./git-manager'),
     pullQueue  = require('./lib/pull-queue'),
     mainController = require('./controllers/main'),
     hooksController = require('./controllers/githubHooks'),
@@ -55,7 +56,18 @@ authManager.setupRoutes(app);
 app.get('/',            mainController.index);
 app.post('/hooks/main', hooksController.main);
 
-config.repos.forEach(function(repo) {
+
+var repos = [];
+
+if (config.organization) {
+   repos = repos.concat(gitManager.getOrgRepos(config.organization));
+}
+
+if (config.repos) {
+   repos = repos.concat(config.repos);
+}
+
+repos.forEach(function(repo) {
    // Load open pulls from the DB so we don't start blank.
    dbManager.getOpenPulls(repo).then(function(pulls) {
       pullQueue.pause();
