@@ -47,6 +47,9 @@ module.exports = {
      "owner/name"
    ],
 
+   // Show pull requests from all repos belonging to this organization
+   organization: "owner",
+
    // The usual MySQL stuff. Like every other MySQL webapp, basically.
    // You will need to source the `schema.sql` file in the database to create
    // all the tables that Pulldasher expects.
