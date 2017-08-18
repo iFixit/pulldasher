@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 var mysql = require('mysql'),
     config = require('./config'),
     fs = require('fs');
