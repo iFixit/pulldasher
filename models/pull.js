@@ -51,7 +51,7 @@ Pull.prototype.syncToIssue = function() {
    var Issue = require('./issue');
    var self = this;
    var connected = this.data.closes || this.data.connects;
-   if (!this.data.milestone.title && connected) {
+   if (connected) {
       return Issue.findByNumber(this.data.repo, connected).
       then(function(issue) {
          debug("Updating pull from issue: %s", issue.number);
@@ -68,7 +68,7 @@ Pull.prototype.syncToIssue = function() {
          return self;
       });
    } else {
-      return new Promise.resolve(self);
+      return Promise.resolve(self);
    }
    */
 };
@@ -234,7 +234,9 @@ Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
          login: data.owner
       },
       cr_req: data.cr_req,
-      qa_req: data.qa_req
+      qa_req: data.qa_req,
+      closes: data.closes,
+      connects: data.connects
    };
 
    return new Pull(pullData, signatures, comments, commitStatus, labels);
