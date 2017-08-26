@@ -28,15 +28,14 @@
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `comments` (
-  `repo` varchar(255) DEFAULT NULL,
+  `repo` varchar(255) NOT NULL,
   `comment_type` enum('issue','review') NOT NULL DEFAULT 'issue',
   `comment_id` int(10) unsigned NOT NULL,
   `number` int(10) unsigned NOT NULL,
-  `repo_name` varchar(255) NOT NULL,
   `user` varchar(255) NOT NULL,
   `date` int(11) unsigned DEFAULT NULL,
   PRIMARY KEY (`repo`,`comment_type`,`comment_id`),
-  KEY `pull` (`repo_name`,`number`)
+  KEY `pull` (`number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -47,7 +46,7 @@ CREATE TABLE `comments` (
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `commit_statuses` (
-  `repo` varchar(255) DEFAULT NULL,
+  `repo` varchar(255) NOT NULL,
   `commit` char(40) NOT NULL,
   `state` enum('pending','success','error','failure') NOT NULL,
   `description` varchar(255) NOT NULL,
@@ -64,7 +63,7 @@ CREATE TABLE `commit_statuses` (
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `issues` (
-  `repo` varchar(255) DEFAULT NULL,
+  `repo` varchar(255) NOT NULL,
   `number` int(10) NOT NULL,
   `title` varchar(255) DEFAULT NULL,
   `difficulty` int(10) DEFAULT NULL,
@@ -85,10 +84,9 @@ CREATE TABLE `issues` (
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `pull_labels` (
-  `repo` varchar(255) DEFAULT NULL,
+  `repo` varchar(255) NOT NULL,
   `number` int(10) unsigned NOT NULL,
   `title` varchar(32) NOT NULL,
-  `repo_name` varchar(255) NOT NULL,
   `user` varchar(255) DEFAULT NULL,
   `date` int(11) unsigned DEFAULT NULL,
   PRIMARY KEY (`repo`,`number`,`title`),
@@ -123,7 +121,7 @@ CREATE TABLE `pull_signatures` (
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `pulls` (
-  `repo` varchar(255) DEFAULT NULL,
+  `repo` varchar(255) NOT NULL,
   `number` int(10) unsigned NOT NULL,
   `state` enum('open','closed') NOT NULL,
   `title` varchar(255) NOT NULL,
@@ -131,7 +129,6 @@ CREATE TABLE `pulls` (
   `head_branch` varchar(255) NOT NULL,
   `head_sha` char(40) NOT NULL,
   `repo_owner` varchar(255) NOT NULL,
-  `repo_name` varchar(255) NOT NULL,
   `base_branch` varchar(255) NOT NULL,
   `owner` varchar(255) NOT NULL,
   `cr_req` int(11) NOT NULL DEFAULT '2',
@@ -147,7 +144,7 @@ CREATE TABLE `pulls` (
   `difficulty` int(11) DEFAULT NULL,
   PRIMARY KEY (`repo`,`number`),
   KEY `pulls_state` (`state`),
-  KEY `pulls_repo` (`repo_owner`,`repo_name`),
+  KEY `pulls_repo` (`repo_owner`),
   KEY `pulls_user` (`owner`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
