@@ -1,6 +1,7 @@
--- MySQL dump 10.13  Distrib 5.6.35-81.0, for Linux (x86_64)
+-- MySQL dump 10.16  Distrib 10.1.26-MariaDB, for Linux (x86_64)
+--
 -- ------------------------------------------------------
--- Server version	5.6.35-81.0-log
+-- Server version	10.1.21-MariaDB-1~jessie
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -12,14 +13,6 @@
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-/*!50112 SELECT COUNT(*) INTO @is_rocksdb_supported FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE VARIABLE_NAME='rocksdb_bulk_load' */;
-/*!50112 SET @save_old_rocksdb_bulk_load = IF (@is_rocksdb_supported, 'SET @old_rocksdb_bulk_load = @@rocksdb_bulk_load', 'SET @dummy_old_rocksdb_bulk_load = 0') */;
-/*!50112 PREPARE s FROM @save_old_rocksdb_bulk_load */;
-/*!50112 EXECUTE s */;
-/*!50112 SET @enable_bulk_load = IF (@is_rocksdb_supported, 'SET SESSION rocksdb_bulk_load = 1', 'SET @dummy_rocksdb_bulk_load = 0') */;
-/*!50112 PREPARE s FROM @enable_bulk_load */;
-/*!50112 EXECUTE s */;
-/*!50112 DEALLOCATE PREPARE s */;
 
 --
 -- Table structure for table `comments`
@@ -27,8 +20,8 @@
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `comments` (
-  `repo` varchar(255) DEFAULT NULL,
+CREATE TABLE IF NOT EXISTS `comments` (
+  `repo` varchar(255) NOT NULL,
   `comment_type` enum('issue','review') NOT NULL DEFAULT 'issue',
   `comment_id` int(10) unsigned NOT NULL,
   `number` int(10) unsigned NOT NULL,
@@ -45,8 +38,8 @@ CREATE TABLE `comments` (
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `commit_statuses` (
-  `repo` varchar(255) DEFAULT NULL,
+CREATE TABLE IF NOT EXISTS `commit_statuses` (
+  `repo` varchar(255) NOT NULL,
   `commit` char(40) NOT NULL,
   `state` enum('pending','success','error','failure') NOT NULL,
   `description` varchar(255) NOT NULL,
@@ -62,8 +55,8 @@ CREATE TABLE `commit_statuses` (
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `issues` (
-  `repo` varchar(255) DEFAULT NULL,
+CREATE TABLE IF NOT EXISTS `issues` (
+  `repo` varchar(255) NOT NULL,
   `number` int(10) NOT NULL,
   `title` varchar(255) DEFAULT NULL,
   `difficulty` int(10) DEFAULT NULL,
@@ -83,8 +76,8 @@ CREATE TABLE `issues` (
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `pull_labels` (
-  `repo` varchar(255) DEFAULT NULL,
+CREATE TABLE IF NOT EXISTS `pull_labels` (
+  `repo` varchar(255) NOT NULL,
   `number` int(10) unsigned NOT NULL,
   `title` varchar(32) NOT NULL,
   `user` varchar(255) DEFAULT NULL,
@@ -100,7 +93,7 @@ CREATE TABLE `pull_labels` (
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `pull_signatures` (
+CREATE TABLE IF NOT EXISTS `pull_signatures` (
   `repo` varchar(255) DEFAULT NULL,
   `number` int(10) unsigned NOT NULL,
   `user` varchar(255) NOT NULL,
@@ -120,8 +113,8 @@ CREATE TABLE `pull_signatures` (
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `pulls` (
-  `repo` varchar(255) DEFAULT NULL,
+CREATE TABLE IF NOT EXISTS `pulls` (
+  `repo` varchar(255) NOT NULL,
   `number` int(10) unsigned NOT NULL,
   `state` enum('open','closed') NOT NULL,
   `title` varchar(255) NOT NULL,
@@ -148,10 +141,6 @@ CREATE TABLE `pulls` (
   KEY `pulls_repo` (`repo`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
-/*!50112 SET @disable_bulk_load = IF (@is_rocksdb_supported, 'SET SESSION rocksdb_bulk_load = @old_rocksdb_bulk_load', 'SET @dummy_rocksdb_bulk_load = 0') */;
-/*!50112 PREPARE s FROM @disable_bulk_load */;
-/*!50112 EXECUTE s */;
-/*!50112 DEALLOCATE PREPARE s */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;

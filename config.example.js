@@ -20,9 +20,22 @@ module.exports = {
    // determining permissions and the active user.
    //
    // To use Pulldasher, you'll need to set up the following on GitHub:
-   // 1. A GitHub Application for your organization
-   // 2. An API key that has access to the repo you're going to track
-   // 3. A GitHub webhook on the repo you want to monitor
+   // 1. A GitHub OAuth Application for your organization (see Settings > OAuth
+   // applications on GitHub)
+   //   - The homepage URL will be the URL at which Pulldasher is available on
+   //     your machine
+   //   - The authorization callback URL will be the URL below under
+   //     callbackURL.
+   // 2. An API token that has access to the repo you're going to track (see
+   // Settings > Personal access tokens on GitHub)
+   // 3. A GitHub webhook on the repo you want to monitor (Settings (on the
+   //    repo) > Webhooks > Add webhook)
+   //   - The Payload URL should be the externally-visible URL of the Pulldasher
+   //     instance with '/hooks/main' appended
+   //   - Content type should be `application/json`
+   //   - Secret should be the hook_secret below
+   //   - Choose to be sent individual events, and then check the Issues and
+   //     Push boxes
    github: {
       // Get this from the GitHub application setup page.
       clientId:     "your github application client id",
@@ -43,8 +56,7 @@ module.exports = {
    },
 
    // List of repositories for pulldasher to watch.
-   repo: [
-     // The name of the GitHub repo you want to monitor.
+   repos: [
      "owner/name"
    ],
 
