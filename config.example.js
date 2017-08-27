@@ -57,7 +57,12 @@ module.exports = {
 
    // List of repositories for pulldasher to watch.
    repos: [
-     "owner/name"
+      {
+         full_name: "owner/name",
+         required_passing_builds: {
+            "build-context"
+         }
+      },
    ],
 
    // The usual MySQL stuff. Like every other MySQL webapp, basically.
