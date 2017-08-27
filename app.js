@@ -1,4 +1,5 @@
 var config = require('./config'),
+    utils = require('./utils'),
     express = require('express'),
     partials = require('express-partials'),
     bodyParser = require('body-parser'),

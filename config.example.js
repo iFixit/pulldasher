@@ -59,9 +59,9 @@ module.exports = {
    repos: [
       {
          full_name: "owner/name",
-         required_passing_builds: {
+         required_passing_builds: [
             "build-context"
-         }
+         ]
       },
    ],
 

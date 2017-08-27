@@ -242,13 +242,13 @@ Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
 };
 
 Pull.isPassing = function() {
-   required_builds = config.repos.find(function(repo) {
+   var required_builds = config.repos.find(function(repo) {
       if (repo.full_name === this.repo) {
          return repo.required_builds;
       }
    }).required_builds;
 
-   passing_builds = this.commitStatuses.reduce(function(passingAccum, build) {
+   var passing_builds = this.commitStatuses.reduce(function(passingAccum, build) {
       if (build.state === 'success') {
          passingAccum.push(build);
       }
@@ -256,7 +256,7 @@ Pull.isPassing = function() {
       return passingAccum;
    });
 
-   return !required_builds.filter(build => passing_builds.indexOf(build) == -1);
-}
+   return !required_builds.filter(build => passing_builds.indexOf(build) === -1);
+};
 
 module.exports = Pull;
