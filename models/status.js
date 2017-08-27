@@ -7,7 +7,8 @@ function Status(data) {
       sha: data.sha,
       target_url: data.target_url,
       description: data.description,
-      state: data.state
+      state: data.state,
+      context: data.context,
    };
 }
 
@@ -21,7 +22,8 @@ Status.getFromDB = function(data) {
       sha:           data.commit,
       target_url:    data.log_url,
       description:   data.description,
-      state:         data.state
+      state:         data.state,
+      context:       data.context,
    });
 };
 
