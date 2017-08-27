@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS `commit_statuses` (
   `state` enum('pending','success','error','failure') NOT NULL,
   `description` varchar(255) NOT NULL,
   `log_url` varchar(255) NOT NULL,
+  `context` varchar(255) NOT NULL,
   PRIMARY KEY (`repo`,`commit`),
   KEY `commit_statuses_state` (`state`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
