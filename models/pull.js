@@ -7,12 +7,13 @@ var debug = require('../lib/debug')('pulldasher:pull');
 var DBPull = require('./db_pull');
 var getLogin = require('../lib/get-user-login');
 
-function Pull(data, signatures, comments, commitStatus, labels) {
+function Pull(data, signatures, comments, commitStatuses, labels) {
    this.data = data;
    this.signatures = signatures || [];
    this.comments = comments || [];
-   this.commitStatus = commitStatus;
+   this.commitStatuses = commitStatuses;
    this.labels = labels || [];
+   this.passing = this.isPassing();
 
    // If github pull-data, parse the body for the cr and qa req... else
    // use the values stored in the db.
@@ -240,14 +241,14 @@ Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
    return new Pull(pullData, signatures, comments, commitStatus, labels);
 };
 
-Pull.passing = function() {
+Pull.isPassing = function() {
    required_builds = config.repos.find(function(repo) {
       if (repo.full_name === this.repo) {
          return repo.required_builds;
       }
    }).required_builds;
 
-   passing_builds = this.commit_statuses.reduce(function(passingAccum, build) {
+   passing_builds = this.commitStatuses.reduce(function(passingAccum, build) {
       if (build.state === 'success') {
          passingAccum.push(build);
       }
