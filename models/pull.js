@@ -240,4 +240,22 @@ Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
    return new Pull(pullData, signatures, comments, commitStatus, labels);
 };
 
+Pull.passing = function() {
+   required_builds = config.repos.find(function(repo) {
+      if (repo.full_name === this.repo) {
+         return repo.required_builds;
+      }
+   }).required_builds;
+
+   passing_builds = this.commit_statuses.reduce(function(passingAccum, build) {
+      if (build.state === 'success') {
+         passingAccum.push(build);
+      }
+
+      return passingAccum;
+   });
+
+   return !required_builds.filter(build => passing_builds.indexOf(build) == -1);
+}
+
 module.exports = Pull;
