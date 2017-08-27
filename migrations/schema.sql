@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS `pulls` (
   `closes` int(10) unsigned DEFAULT NULL,
   `connects` int(10) unsigned DEFAULT NULL,
   `difficulty` int(11) DEFAULT NULL,
+  `passing` tinyint(1) NOT NULL,
   PRIMARY KEY (`repo`,`number`),
   KEY `pulls_state` (`state`),
   KEY `pulls_repo` (`repo_owner`,`repo_name`),
