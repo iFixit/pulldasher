@@ -293,6 +293,13 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
                    label.created_at, label.user);
                   node.append(icon);
                }
+               if ((label = pull.getLabel('external_block'))) {
+                  var icon = $('<i>').addClass('fa fa-eye-slash externally-blocked');
+
+                  utils.addActionTooltip(icon, 'Externally Blocked',
+                   label.created_at, label.user);
+                  node.append(icon);
+               }
             }
          }
       }
