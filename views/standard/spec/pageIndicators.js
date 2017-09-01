@@ -104,7 +104,7 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _,
             // Pull the repo and org from the first frozen pull.
             var repo = frozen[0].repo;
             var label = 'Cryogenic Storage';
-            var link = $('<a target="_blank" href="https://www.github.com/' + org + '/' + repo + '/labels/' + label + '"></a>');
+            var link = $('<a target="_blank" href="https://www.github.com/' + repo + '/labels/' + label + '"></a>');
             node.wrapInner(link);
          }
       },
