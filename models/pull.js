@@ -248,13 +248,8 @@ Pull.isPassing = function() {
       }
    }).required_builds;
 
-   var passing_builds = this.commitStatuses.reduce(function(passingAccum, build) {
-      if (build.state === 'success') {
-         passingAccum.push(build);
-      }
-
-      return passingAccum;
-   });
+   var passing_builds = this.commitStatuses.filter(
+      build => build.state === 'success');
 
    return !required_builds.filter(build => passing_builds.indexOf(build) === -1);
 };
