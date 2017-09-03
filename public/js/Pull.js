@@ -100,19 +100,8 @@ define(['underscore', 'appearanceUtils', 'socket'], function(_, utils, socket) {
          return _.findWhere(this.labels, {title: labelName});
       },
 
-      build_status: function() {
-         var status = this.status.commit_status;
-         return status && status.data.state;
-      },
-
-      build_failed: function() {
-         var status = this.build_status();
-         return status === 'failure' || status === 'error';
-      },
-
-      build_succeeded: function() {
-         return this.build_status() === 'success';
-      },
+      build_failed: () => !this.passing,
+      build_succeeded: () => this.passing,
 
       refresh: function() {
          socket.emit('refresh', this.repo, this.number);
