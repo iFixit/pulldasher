@@ -8,7 +8,6 @@ function DBLabel(label) {
    this.data = {
       number: labelData.number,
       title: labelData.title,
-      repo_name: labelData.repo_name,
       repo: labelData.repo,
       user: labelData.user,
       date: utils.toUnixTime(labelData.created_at)

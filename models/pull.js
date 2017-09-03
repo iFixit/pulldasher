@@ -223,8 +223,7 @@ Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
          repo: {
             owner: {
                login: data.repo_owner
-            },
-            name: data.repo_name,
+            }
          }
       },
       base: {
