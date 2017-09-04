@@ -29,6 +29,19 @@ function Pull(data, signatures, comments, commitStatuses, labels) {
       this.data.closes = data.closes;
       this.data.connects = data.connects;
    }
+
+   this.isPassing = function() {
+      var repoConfig = config.repos.find(repo => repo.full_name === this.data.repo);
+      var requiredBuilds = repoConfig.required_passing_builds;
+
+      console.log("statuses", this.commitStatuses);
+      var passingBuilds = this.commitStatuses.filter(
+         build => build.state === 'success');
+
+      return !requiredBuilds.filter(build => passingBuilds.indexOf(build) === -1);
+   };
+
+   this.passing = this.isPassing();
 }
 
 Pull.prototype.update = function() {
@@ -238,17 +251,7 @@ Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
       qa_req: data.qa_req
    };
 
-   return new Pull(pullData, signatures, comments, commitStatus, labels);
-};
-
-Pull.isPassing = function() {
-   var repoConfig = config.repos.find(repo => repo.full_name === this.repo);
-   var requiredBuilds = repoConfig.required_builds;
-
-   var passingBuilds = this.commitStatuses.filter(
-      build => build.state === 'success');
-
-   return !requiredBuilds.filter(build => passingBuilds.indexOf(build) === -1);
+   return new Pull(pullData, signatures, comments, commitStatuses, labels);
 };
 
 module.exports = Pull;
