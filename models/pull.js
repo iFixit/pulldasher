@@ -40,7 +40,7 @@ function Pull(data, signatures, comments, commitStatuses, labels) {
       return !requiredBuilds.filter(build => passingBuilds.indexOf(build) === -1);
    };
 
-   this.passing = this.isPassing();
+   this.data.passing = this.isPassing();
 }
 
 Pull.prototype.update = function() {
