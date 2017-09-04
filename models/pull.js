@@ -11,9 +11,8 @@ function Pull(data, signatures, comments, commitStatuses, labels) {
    this.data = data;
    this.signatures = signatures || [];
    this.comments = comments || [];
-   this.commitStatuses = commitStatuses;
+   this.commitStatuses = commitStatuses || [];
    this.labels = labels || [];
-   this.passing = this.isPassing();
 
    // If github pull-data, parse the body for the cr and qa req... else
    // use the values stored in the db.
@@ -128,7 +127,7 @@ Pull.prototype.isOpen = function() {
  *    'deploy_block'  : An array containing the last 'deploy_block' signature if pull is deploy blocked,
  *                       or an empty array
  *    'ready'         : A boolean indicating whether the pull is ready to be deployed.
- *    'commit_status' : A Status object or null.
+ *    'commit_statuses' : A Status object or null.
  * }
  */
 Pull.prototype.getStatus = function getStatus() {
@@ -143,7 +142,7 @@ Pull.prototype.getStatus = function getStatus() {
       'allCR' : this.getAllSignatures('CR'),
       'dev_block'    : this.getSignatures('dev_block'),
       'deploy_block' : this.getSignatures('deploy_block'),
-      'commit_status' : this.commitStatus
+      'commit_statuses' : this.commitStatuses
    };
 
    status['ready'] =
@@ -174,7 +173,7 @@ Pull.parseBody = function(body) {
    return bodyTags;
 };
 
-Pull.fromGithubApi = function(data, signatures, comments, commitStatus, labels) {
+Pull.fromGithubApi = function(data, signatures, comments, commitStatuses, labels) {
    data = {
       repo: data.base.repo.full_name,
       number: data.number,
@@ -208,14 +207,14 @@ Pull.fromGithubApi = function(data, signatures, comments, commitStatus, labels) 
       }
    };
 
-   return new Pull(data, signatures, comments, commitStatus, labels);
+   return new Pull(data, signatures, comments, commitStatuses, labels);
 };
 
 /**
  * Takes an object representing a DB row, and returns an instance of this
  * Pull object.
  */
-Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
+Pull.getFromDB = function(data, signatures, comments, commitStatuses, labels) {
    var pullData = {
       repo: data.repo,
       number: data.number,
