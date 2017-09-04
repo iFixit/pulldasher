@@ -33,11 +33,10 @@ function Pull(data, signatures, comments, commitStatuses, labels) {
       var repoConfig = config.repos.find(repo => repo.full_name === this.data.repo);
       var requiredBuilds = repoConfig.required_passing_builds;
 
-      console.log("statuses", this.commitStatuses);
       var passingBuilds = this.commitStatuses.filter(
          build => build.state === 'success');
 
-      return !requiredBuilds.filter(build => passingBuilds.indexOf(build) === -1);
+      return !!_.without(requiredBuilds, ...passingBuilds);
    };
 
    this.data.passing = this.isPassing();
