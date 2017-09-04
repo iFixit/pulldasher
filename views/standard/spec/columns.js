@@ -53,7 +53,7 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
          // `false` otherwise. This property may also be an array of functions,
          // in which case the selectors are chained.
          selector: function(pull) {
-            return !pull.dev_blocked() && !pull.build_succeeded();
+            return !pull.dev_blocked() && !pull.passing;
          },
          // This describes the sort order for the pull. It returns a numeric
          // score for each pull. Pulls with a low score are sorted to the bottom
@@ -67,7 +67,7 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
             score -= pull.status.CR.length * 1;
             score -= pull.status.QA.length * 2;
 
-            if (!pull.build_failed()) {
+            if (!pull.passing) {
                score += 15;
             }
 
@@ -211,7 +211,7 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
                score += 500;
             }
 
-            if (pull.build_succeeded()) {
+            if (pull.passing) {
                score -= 4;
             }
 
@@ -229,7 +229,7 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
          id: "qaPulls",
          selector: function(pull) {
             return !pull.qa_done() && !pull.dev_blocked() &&
-             pull.build_succeeded();
+             pull.passing;
          },
          sort: function(pull) {
             // The higher score is, the lower the pull will be sorted.
@@ -268,7 +268,7 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
                score += 500;
             }
 
-            if (pull.build_succeeded()) {
+            if (pull.passing) {
                score -= 2;
             }
 

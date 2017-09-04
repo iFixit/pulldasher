@@ -70,7 +70,7 @@ define(['underscore', 'appearanceUtils', 'socket'], function(_, utils, socket) {
        */
       ready: function() {
          return !this.dev_blocked() && this.qa_done() &&
-          this.cr_done() && this.build_succeeded();
+          this.cr_done() && this.passing;
       },
 
       author: function() {
@@ -99,9 +99,6 @@ define(['underscore', 'appearanceUtils', 'socket'], function(_, utils, socket) {
       getLabel: function(labelName) {
          return _.findWhere(this.labels, {title: labelName});
       },
-
-      build_failed: () => !this.passing,
-      build_succeeded: () => this.passing,
 
       refresh: function() {
          socket.emit('refresh', this.repo, this.number);

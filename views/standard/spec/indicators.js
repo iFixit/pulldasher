@@ -214,8 +214,8 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
          signatureStatus(pull, node, 'QA', required, pull.qa_signatures);
       },
       build_status: function status(pull, node) {
-         if (pull.status.commit_status) {
-            var commit_status = pull.status.commit_status.data;
+         if (pull.status.commit_statuses) {
+            var commit_status = pull.status.commit_statuses[0].data;
             var title = commit_status.description;
             var url   = commit_status.target_url;
 
