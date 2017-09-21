@@ -1,3 +1,5 @@
+import _ from 'underscore'
+
 /**
  * PullFilter runs pulls through the various functions (optionally) provided by
  * the user to choose which pulls to display and how to order and group them.
@@ -13,63 +15,62 @@
  * one resulting list of pulls, due to the PullFilter not modifying the list it
  * is passed, but only copying it.
  */
-define(['underscore'], function(_) {
-   var pullFilter = function (spec) {
-      var listeners = [];
 
-      // Only run func on obj and maybeFunction if maybeFunction is a function.
-      // If maybeFunction is a function, return the result of running func
-      // If maybeFunction is not a function, return obj.
-      // Used to (potentially) run Underscore functions across an array of
-      // pulls, where the Underscore function needs a function as an argument,
-      // but I can't be sure if there will be any function to give it. Then
-      // what I do is I pass the Underscore function as func and my function as
-      // maybeFunction, and if my function exists, then it will run the
-      // Underscore function with it.
-      var tryApply = function(obj, func, maybeFunction) {
-         if (maybeFunction instanceof Function) {
-            return func(obj, maybeFunction);
-         } else if (maybeFunction instanceof Array) {
-            return _.reduce(maybeFunction, function(obj, maybeFunction) {
-               return tryApply(obj, func, maybeFunction);
-            }, obj);
-         }
-         return obj;
-      };
+function PullFilter(spec) {
+   var listeners = [];
 
-      var filter = function(pulls) {
-         // Notice that the use of tryApply on all these means that they all
-         // accept arrays as well as functions. I've only documented that for
-         // spec.selector in the user-facing docs, because it doesn't make sense
-         // for the others, but it is there. If we had a stable sort, we could
-         // use it to do cleaner sorts of things.
-         pulls = tryApply(pulls, _.filter, spec.selector);
-         pulls = tryApply(pulls, _.sortBy, spec.sort);
-
-         if (spec.group instanceof Function) {
-            pulls = _.groupBy(pulls, spec.group);
-            pulls = _.flatten(pulls);
-         }
-
-         return pulls;
-      };
-
-      _.extend(this, {
-         filter: filter,
-
-         update: function(pullList) {
-            var filtered = filter(pullList);
-
-            _.each(listeners, function(listener) {
-               listener(filtered);
-            });
-         },
-
-         onUpdate: function(listener) {
-            listeners.push(listener);
-         }
-      });
+   // Only run func on obj and maybeFunction if maybeFunction is a function.
+   // If maybeFunction is a function, return the result of running func
+   // If maybeFunction is not a function, return obj.
+   // Used to (potentially) run Underscore functions across an array of
+   // pulls, where the Underscore function needs a function as an argument,
+   // but I can't be sure if there will be any function to give it. Then
+   // what I do is I pass the Underscore function as func and my function as
+   // maybeFunction, and if my function exists, then it will run the
+   // Underscore function with it.
+   var tryApply = function(obj, func, maybeFunction) {
+      if (maybeFunction instanceof Function) {
+         return func(obj, maybeFunction);
+      } else if (maybeFunction instanceof Array) {
+         return _.reduce(maybeFunction, function(obj, maybeFunction) {
+            return tryApply(obj, func, maybeFunction);
+         }, obj);
+      }
+      return obj;
    };
 
-   return pullFilter;
-});
+   var filter = function(pulls) {
+      // Notice that the use of tryApply on all these means that they all
+      // accept arrays as well as functions. I've only documented that for
+      // spec.selector in the user-facing docs, because it doesn't make sense
+      // for the others, but it is there. If we had a stable sort, we could
+      // use it to do cleaner sorts of things.
+      pulls = tryApply(pulls, _.filter, spec.selector);
+      pulls = tryApply(pulls, _.sortBy, spec.sort);
+
+      if (spec.group instanceof Function) {
+         pulls = _.groupBy(pulls, spec.group);
+         pulls = _.flatten(pulls);
+      }
+
+      return pulls;
+   };
+
+   _.extend(this, {
+      filter: filter,
+
+      update: function(pullList) {
+         var filtered = filter(pullList);
+
+         _.each(listeners, function(listener) {
+            listener(filtered);
+         });
+      },
+
+      onUpdate: function(listener) {
+         listeners.push(listener);
+      }
+   });
+};
+
+export default PullFilter;

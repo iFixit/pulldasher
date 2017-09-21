@@ -1,73 +1,77 @@
-define(['underscore', 'socket', 'Pull'], function(_, socket, Pull) {
-   var listeners = [];
+import _ from 'underscore'
+import socket from './socket'
+import Pull from 'Pull'
 
-   var pullIndex = {};
-   var pulls = [];
+var listeners = [];
 
-   var throttledUpdate = _.throttle(update, 500);
+var pullIndex = {};
+var pulls = [];
 
-   socket.on('allPulls', function(pulls) {
-      if (!App.airplane) {
-         removeAll();
-         updatePulls(pulls);
+var throttledUpdate = _.throttle(update, 500);
 
-         update();
-      }
-   });
+socket.on('allPulls', function(pulls) {
+   if (!App.airplane) {
+      removeAll();
+      updatePulls(pulls);
 
-   socket.on('pullChange', function(pull) {
-      if (!App.airplane) {
-         updatePull(pull);
-
-         throttledUpdate();
-      }
-   });
-
-   function update() {
-      _.each(listeners, function(listener) {
-         listener(pulls);
-      });
+      update();
    }
-
-   function removeAll() {
-      pulls.forEach(function(pull) {
-         pull.remove();
-      });
-      pulls = [];
-      pullIndex = {};
-   }
-
-   function updatePulls(pulls) {
-      pulls.forEach(updatePull);
-   }
-
-   function updatePull(pullData) {
-      var pull = getPull(pullData);
-      pull.update(pullData);
-   }
-
-   function getPull(pullData) {
-      return pullIndex[pullData.repo + "#" + pullData.number] || createPull(pullData);
-   }
-
-   function createPull(pullData) {
-      var pull = new Pull(pullData);
-      pulls.push(pull);
-      pullIndex[pull.repo + "#" + pull.number] = pull;
-      return pull;
-   }
-
-   return {
-      onUpdate: function(listener) {
-         listeners.push(listener);
-      },
-
-      getPulls: function() {
-         return pulls;
-      },
-
-      trigger: function() {
-         update();
-      }
-   };
 });
+
+socket.on('pullChange', function(pull) {
+   if (!App.airplane) {
+      updatePull(pull);
+
+      throttledUpdate();
+   }
+});
+
+function update() {
+   _.each(listeners, function(listener) {
+      listener(pulls);
+   });
+}
+
+function removeAll() {
+   pulls.forEach(function(pull) {
+      pull.remove();
+   });
+   pulls = [];
+   pullIndex = {};
+}
+
+function updatePulls(pulls) {
+   pulls.forEach(updatePull);
+}
+
+function updatePull(pullData) {
+   var pull = getPull(pullData);
+   pull.update(pullData);
+}
+
+function getPull(pullData) {
+   return pullIndex[pullData.repo + "#" + pullData.number] || createPull(pullData);
+}
+
+function createPull(pullData) {
+   var pull = new Pull(pullData);
+   pulls.push(pull);
+   pullIndex[pull.repo + "#" + pull.number] = pull;
+   return pull;
+}
+
+const pullManager = {
+   onUpdate: function(listener) {
+      listeners.push(listener);
+   },
+
+   getPulls: function() {
+      return pulls;
+   },
+
+   trigger: function() {
+      update();
+   }
+};
+
+export default pullManager;

@@ -1,16 +1,17 @@
-define(['socketjs'], function(io) {
-   var socket = io.connect('/');
+// TODO: This might need some working
+import io from 'socket.io-client'
 
-   socket.on('unauthenticated', function() {
-      if (!App.airplane) {
-         window.location.reload();
-      }
-   });
+var socket = io.connect('/');
 
-   socket.on('connect', function() {
-      var token = App.socketToken;
-      socket.emit('authenticate', token);
-   });
-
-   return socket;
+socket.on('unauthenticated', function() {
+   if (!App.airplane) {
+      window.location.reload();
+   }
 });
+
+socket.on('connect', function() {
+   var token = App.socketToken;
+   socket.emit('authenticate', token);
+});
+
+export default socket;
