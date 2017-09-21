@@ -137,7 +137,6 @@ CREATE TABLE IF NOT EXISTS `pulls` (
   `difficulty` int(11) DEFAULT NULL,
   PRIMARY KEY (`repo`,`number`),
   KEY `pulls_state` (`state`),
-  KEY `pulls_user` (`owner`),
   KEY `pulls_repo` (`repo`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;

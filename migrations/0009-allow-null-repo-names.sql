@@ -1,6 +1,8 @@
-ALTER TABLE comments MODIFY COLUMN repo_name varchar(255) NULL;
-ALTER TABLE pull_labels MODIFY COLUMN repo_name varchar(255);
-ALTER TABLE pulls MODIFY COLUMN repo_name varchar(255);
+ALTER TABLE `pulls` DROP KEY `pulls_user`; 
+ALTER TABLE `pulls` DROP KEY `pulls_repo`;
+ALTER TABLE `pulls` ADD KEY `pulls_repo` (`repo`);
 
-ALTER TABLE pulls DROP KEY pulls_repo;
-ALTER TABLE pulls ADD KEY pulls_repo (repo);
+ALTER TABLE `comments` DROP COLUMN `repo_name`;
+ALTER TABLE `pull_labels` DROP COLUMN `repo_name`;
+ALTER TABLE `pulls` DROP COLUMN `repo_name`;
+ALTER TABLE `pulls` DROP COLUMN `repo_owner`;
