@@ -5,55 +5,10 @@
       debug: <%= debug %>
    };
 
-   require(['pullManager', 'jquery', 'cookies'], function(_manager, $) {
-      App.debugStart = function debugStart() {
-         App.debug = true;
-         _manager.trigger();
-      };
-
-      $(document).ready(function() {
-         var theme = $.cookie('pulldasher-theme') || 'day_theme';
-
-         $('#theme-selector > i').on('click', function() {
-            if ($(this).hasClass('active')) {
-               return;
-            }
-
-            var newTheme = $(this).data('css');
-            $.cookie('pulldasher-theme', newTheme);
-
-            // This will fade one theme into the next over 1s
-            $('html').addClass('transitioning');
-
-            var newThemePath = 'css/themes/' + newTheme + '.css';
-            $('head .active-theme').attr('href', newThemePath);
-
-            // Cut off transition effect 1s after overriding theme
-            setTimeout(function() {
-               $('html').removeClass('transitioning');
-            }, 1000);
-
-            $("i[data-css]").removeClass('active');
-            $(this).addClass('active');
-         });
-
-         $('i[data-css="' + theme + '"]').click();
-      });
-
-      // Stop hover events from triggering when scrolling
-      var body = document.body, timer;
-      window.addEventListener('scroll', function() {
-         clearTimeout(timer);
-         if (!body.classList.contains('disable-hover')) {
-            body.classList.add('disable-hover')
-         }
-
-         timer = setTimeout(function() {
-            body.classList.remove('disable-hover')
-         }, 100);
-      }, false);
-   });
+   // TODO: Maybe this should be another entry file
+   <!-- require(['pullManager', 'jquery', 'cookies'], function(_manager, $) { -->
 </script>
+<script src="/public/js/bundle.js"></script>
 
 <nav class="navbar navbar-default" role="navigation">
    <p class="navbar-brand">

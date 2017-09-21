@@ -1,3 +1,7 @@
+import $ from 'jquery'
+import utils from 'appearanceUtils'
+import _ from 'underscore'
+
 /* `spec/columns.js`
  *
  * This file defines the columns which Pulldasher shows. It is required and
@@ -5,7 +9,7 @@
  */
 // The header here is standard RequireJS to pull in jquery, a helper library
 // which is available in `/public/js/appearanceUtils.js`, and underscore.
-define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
+// define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
 
    // Sorting functions that are run on each column.
    var globalSorts = {
@@ -37,7 +41,7 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
    // This array will contain one object for each column configured. Adding a
    // column requires adding a new element to the array and adding a spot on
    // index.html for the column to go in.
-   return [
+   export default [
       // This object describes a column in Pulldasher, specifically, the CI
       // Blocked column.
       {
@@ -304,4 +308,4 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
          }
       }
    ];
-});
+// });

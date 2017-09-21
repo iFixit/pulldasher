@@ -1,9 +1,19 @@
+import $ from 'jquery'
+import _ from 'underscore'
+import utils from 'appearanceUtils'
+import specUtils from 'spec/utils'
+import pageIndicators from 'spec/pageIndicators'
+import indicators from 'spec/indicators'
+import columns from 'spec/columns'
+import debugIndicators from 'spec/debugIndicators'
+
 // This is the main spec file for Pulldasher. In reality, it's the only spec
 // file. The others are being required (see immediately below) and stuck in
 // their respective places in the overall config.
-define(['jquery', 'underscore', 'appearanceUtils', 'spec/utils', 'spec/pageIndicators', 'spec/indicators', 'spec/columns', 'spec/debugIndicators'], function($, _, utils, specUtils, pageIndicators, indicators, columns, debugIndicators) {
+// define(['jquery', 'underscore', 'appearanceUtils', 'spec/utils', 'spec/pageIndicators', 'spec/indicators', 'spec/columns', 'spec/debugIndicators'],
+// function($, _, utils, specUtils, pageIndicators, indicators, columns, debugIndicators) {
    var clipboard = $('#branch_name_clipboard');
-   return {
+   export default {
       navbar: "#restore-buttons",
       page_indicator_box: "#global-indicators",
       page_indicators: pageIndicators,
@@ -53,4 +63,4 @@ define(['jquery', 'underscore', 'appearanceUtils', 'spec/utils', 'spec/pageIndic
       indicators: indicators,
       columns: columns
    };
-});
+// });

@@ -1,3 +1,8 @@
+import $ from 'jquery'
+import _ from 'underscore'
+import utils from 'spec/utils'
+import aUtils from 'appearanceUtils'
+
 // This file contains _page indicators_. What are page indicators? They're like
 // indicators (`spec/indicators.js`), but act in summary on all the pulls in the
 // page. They're rendered into the navbar by default, but just like normal
@@ -8,7 +13,8 @@
 // pulls, even before the global filters (see `spec/index.js`). This enables
 // them to do things like summarize the number of pulls which _aren't_ shown on
 // the page.
-define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _, utils, aUtils) {
+
+// define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _, utils, aUtils) {
    // This function generates the data for the CR and QA leaderboards. There's a
    // known bug, however. When a pull is closed, the frontend doesn't discard
    // it. But on refresh, the frontend won't get it back. This function
@@ -83,7 +89,7 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _,
       });
       node.append(leaderboardWrapper);
    };
-   return {
+   export default {
       pull_count: function(pulls, node) {
          pulls = pulls.filter(utils.shouldShowPull);
          node.text(pulls.length);
@@ -120,4 +126,4 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _,
          });
       }
    };
-});
+// });

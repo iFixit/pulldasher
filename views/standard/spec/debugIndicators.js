@@ -1,10 +1,19 @@
+import $ from 'jquery'
+import _ from 'underscore'
+import utils from 'spec/utils'
+import aUtils from 'appearanceUtils'
+import _manager from 'pullManager'
+import socket from 'socket'
+import debug from 'debug'
+import bootstrap from 'bootstrap'
+
 // This defines the debug indicators. These are a group of indicators on the
 // right-hand side of the navbar which are only visible in debugging mode. In
 // general, these should work the same way as page indicators (see
 // `spec/pageIndicators.js`).
 //
 // See the views README (`/views/README.md`) for more on activating debug mode.
-define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 'socket', 'debug'], function($, _, utils, aUtils, _manager, socket, debug) {
+// define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 'socket', 'debug'], function($, _, utils, aUtils, _manager, socket, debug) {
    var whenDebug = function(f) {
       // This function will run f if App.debug is true. f will be passed any
       // arguments to this function
@@ -16,7 +25,7 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 
          f.apply(this, arguments);
       };
    };
-   return {
+   export default {
       // Allows the user to rerender all the pulls. This does the same thing
       // that happens when the server sends an update to a pull, but it doesn't
       // change the pull data at all, making it easier to trigger a debugger as
@@ -29,6 +38,7 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 
          });
          button.attr('title', 'Rerender page. Last rendered: ' + (new Date())
           .toLocaleDateString('en-us', {'hour': 'numeric', 'minute': 'numeric', 'second': 'numeric'}));
+          debugger;
          button.tooltip({'placement': 'auto top'});
          node.append(button);
       }),
@@ -61,4 +71,4 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils', 'pullManager', 
          node.append(button);
       })
    };
-});
+// });
