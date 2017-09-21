@@ -25,6 +25,12 @@ statistics-gathering and some sorting and filtering.
  * `source schema.sql;`
 4. `bin/pulldasher`
 
+## Getting Started With Vagrant
+1. `vagrant up`
+2. `vagrant ssh`
+The provided Vagrantfile creates an Ubuntu machine with MySQL installed
+with the schema created.
+
 ## Use
 Pulldasher is driven by tags in pull requests and pull comments. Normally, it
 assumes that two code review and one quality assurance signoff will be
