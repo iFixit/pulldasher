@@ -9,14 +9,7 @@ RUN npm install
 
 COPY . /opt/pulldasher
 
-RUN npm install -g bower grunt-cli
-RUN bower install --allow-root
-
-# This makes the bootstrapcdn link the font path, instead of loading it locally.
-RUN sed -i -e "/^@fa-font-path/d" bower_components/font-awesome/less/variables.less
-RUN sed -i -e "s/\/\/@fa-font-path/@fa-font-path/" bower_components/font-awesome/less/variables.less
-
-RUN grunt
+# TODO Run webpack build
 
 EXPOSE 8080
 CMD ["bin/pulldasher"]
