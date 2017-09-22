@@ -130,8 +130,6 @@ var HooksController = {
 
 function handleIssueEvent(body) {
    debug('Webhook action: %s for issue #%s', body.action, body.issue.number);
-   // Some of these events are also triggered on pull requests
-   var isPull = body.issue.pull_request;
 
    var doneHandling = handleLabelEvents(body);
 
@@ -151,14 +149,6 @@ function handleIssueEvent(body) {
       case "assigned":
       case "unassigned":
         // Default case is update the issue
-   }
-
-   // If github is fooling us and this is actually a pull request,
-   // let's not create an issue object out of it.
-   if (isPull) {
-      return doneHandling.then(function() {
-         return dbManager.updatePull(Pull.fromGithubApi(body.pull_request));
-      });
    }
 
    return doneHandling.then(function() {
