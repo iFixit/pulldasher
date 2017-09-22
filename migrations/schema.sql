@@ -121,7 +121,6 @@ CREATE TABLE IF NOT EXISTS `pulls` (
   `body` text NOT NULL,
   `head_branch` varchar(255) NOT NULL,
   `head_sha` char(40) NOT NULL,
-  `repo_owner` varchar(255) NOT NULL,
   `base_branch` varchar(255) NOT NULL,
   `owner` varchar(255) NOT NULL,
   `cr_req` int(11) NOT NULL DEFAULT '2',
