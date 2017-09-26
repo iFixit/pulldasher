@@ -222,7 +222,7 @@ Pull.getFromDB = function(data, signatures, comments, commitStatus, labels) {
          sha: data.head_sha,
          repo: {
             owner: {
-               login: data.repo.split("/")[0];
+               login: data.repo.split("/")[0],
             }
          }
       },
