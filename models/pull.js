@@ -29,7 +29,7 @@ function Pull(data, signatures, comments, commitStatuses, labels) {
       this.data.connects = data.connects;
    }
 
-   this.isPassing = function() {
+   var isPassing = function() {
       var repoConfig = config.repos.find(repo => repo.full_name === this.data.repo);
       var requiredBuilds = repoConfig.required_passing_builds;
 
@@ -39,7 +39,7 @@ function Pull(data, signatures, comments, commitStatuses, labels) {
       return !!_.without(requiredBuilds, ...passingBuilds);
    };
 
-   this.data.passing = this.isPassing();
+   this.data.passing = isPassing();
 }
 
 Pull.prototype.update = function() {
