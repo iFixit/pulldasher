@@ -21,8 +21,6 @@ function DBPull(pull) {
       milestone_due_on: utils.toUnixTime(pullData.milestone.due_on),
       head_branch: pullData.head.ref,
       head_sha: pullData.head.sha,
-      repo_owner: pullData.head.repo.owner.login,
-      repo_name: pullData.head.repo.name,
       base_branch: pullData.base.ref,
       owner: getLogin(pullData.user),
       cr_req: pullData.cr_req,

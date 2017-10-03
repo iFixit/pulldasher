@@ -102,8 +102,7 @@ define(['jquery', 'underscore', 'spec/utils', 'appearanceUtils'], function($, _,
          // If we have frozen pulls, make the count a link.
          if (frozen.length) {
             // Pull the repo and org from the first frozen pull.
-            var repo = frozen[0].head.repo.name;
-            var org = frozen[0].head.repo.owner.login;
+            var repo = frozen[0].repo;
             var label = 'Cryogenic Storage';
             var link = $('<a target="_blank" href="https://www.github.com/' + org + '/' + repo + '/labels/' + label + '"></a>');
             node.wrapInner(link);

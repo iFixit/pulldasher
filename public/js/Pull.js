@@ -5,7 +5,7 @@ define(['underscore', 'appearanceUtils', 'socket'], function(_, utils, socket) {
 
    _.extend(constructor.prototype, {
       url: function() {
-         return 'https://github.com/' + this.head.repo.owner.login + '/' + this.head.repo.name + '/pull/' + this.number;
+         return 'https://github.com/' + this.repo + '/pull/' + this.number;
       },
 
       update: function(data) {
