@@ -63,7 +63,7 @@ config.repos.forEach(function(repo) {
          pullManager.updatePull(pull);
       });
       pullQueue.resume();
-   });
+   }).done();
 });
 
 /*
