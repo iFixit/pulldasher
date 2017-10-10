@@ -3,7 +3,7 @@ var utils  = require('../lib/utils');
 /**
  * Build a Label object.
  */
-function Label(data, pullNumber, repoName, repoFullName, user, created_at) {
+function Label(data, pullNumber, repoFullName, user, created_at) {
    this.data = {
       title: data.name,
       number: pullNumber,
