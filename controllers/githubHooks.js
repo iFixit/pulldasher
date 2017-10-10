@@ -177,7 +177,6 @@ function handleLabelEvents(body) {
          return dbManager.insertLabel(new Label(
             body.label,
             object.number,
-            body.repository.name,
             body.repository.full_name,
             getLogin(body.sender),
             object.updated_at
@@ -188,7 +187,6 @@ function handleLabelEvents(body) {
          return dbManager.deleteLabel(new Label(
             body.label,
             object.number,
-            body.repository.name,
             body.repository.full_name
          ));
    }
