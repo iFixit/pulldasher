@@ -4,11 +4,15 @@ services:
    web:
       build: .
       entrypoint: '/opt/pulldasher/entrypoint.sh'
+      environment:
+         DEBUG: pulldasher*         # Enables all debug prints and opens 127.0.0.1:9229 for remote debugging
       ports:
          - 8080:8080                # Map the container's port 8080 to the host's 8080
                                     # NOTE: The host port will need to match
                                     # the callback URL specified in the GitHub
                                     # application setting.
+
+         - 9229:9229                # Map debugging port to localhost
       volumes:
          - .:/opt/pulldasher        # Mount the current directory to /opt/pulldasher
    db:
