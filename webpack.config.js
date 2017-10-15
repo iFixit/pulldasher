@@ -1,5 +1,5 @@
 const path = require('path');
-const webpack = require('webpack')
+const webpack = require('webpack');
 
 module.exports = {
    module: {
@@ -17,11 +17,13 @@ module.exports = {
       new webpack.ProvidePlugin({
         $: "jquery",
         jQuery: "jquery"
-       })
+      }),
+      new webpack.optimize.UglifyJsPlugin()
    ],
    entry: './public/js/main.js',
    output: {
       filename: 'bundle.js',
       path: path.resolve(__dirname, 'dist')
-   }
+   },
+   devtool: 'eval-source-map'
 };
