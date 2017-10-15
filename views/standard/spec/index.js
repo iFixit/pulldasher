@@ -1,5 +1,6 @@
 import $ from 'jquery'
 import _ from 'underscore'
+import Cookies from 'js-cookie'
 import utils from 'appearanceUtils'
 import specUtils from 'spec/utils'
 import pageIndicators from 'spec/pageIndicators'
@@ -7,11 +8,51 @@ import indicators from 'spec/indicators'
 import columns from 'spec/columns'
 import debugIndicators from 'spec/debugIndicators'
 
+$(document).ready(function() {
+var theme = Cookies.get('pulldasher-theme') || 'day_theme';
+
+$('#theme-selector > i').on('click', function() {
+	if ($(this).hasClass('active')) {
+		return;
+	}
+
+	var newTheme = $(this).data('css');
+	Cookies.set('pulldasher-theme', newTheme);
+
+	// This will fade one theme into the next over 1s
+	$('html').addClass('transitioning');
+
+	var newThemePath = 'css/themes/' + newTheme + '.css';
+	$('head .active-theme').attr('href', newThemePath);
+
+	// Cut off transition effect 1s after overriding theme
+	setTimeout(function() {
+	$('html').removeClass('transitioning');
+	}, 1000);
+
+	$("i[data-css]").removeClass('active');
+	$(this).addClass('active');
+});
+
+$('i[data-css="' + theme + '"]').click();
+});
+
+// Stop hover events from triggering when scrolling
+var body = document.body, timer;
+window.addEventListener('scroll', function() {
+ clearTimeout(timer);
+ if (!body.classList.contains('disable-hover')) {
+    body.classList.add('disable-hover')
+ }
+
+ timer = setTimeout(function() {
+    body.classList.remove('disable-hover')
+ }, 100);
+}, false);
+
 // This is the main spec file for Pulldasher. In reality, it's the only spec
 // file. The others are being required (see immediately below) and stuck in
 // their respective places in the overall config.
-// define(['jquery', 'underscore', 'appearanceUtils', 'spec/utils', 'spec/pageIndicators', 'spec/indicators', 'spec/columns', 'spec/debugIndicators'],
-// function($, _, utils, specUtils, pageIndicators, indicators, columns, debugIndicators) {
    var clipboard = $('#branch_name_clipboard');
    export default {
       navbar: "#restore-buttons",

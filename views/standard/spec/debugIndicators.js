@@ -38,7 +38,6 @@ import bootstrap from 'bootstrap'
          });
          button.attr('title', 'Rerender page. Last rendered: ' + (new Date())
           .toLocaleDateString('en-us', {'hour': 'numeric', 'minute': 'numeric', 'second': 'numeric'}));
-          debugger;
          button.tooltip({'placement': 'auto top'});
          node.append(button);
       }),
