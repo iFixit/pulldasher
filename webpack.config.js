@@ -1,6 +1,8 @@
 const path = require('path');
 const webpack = require('webpack');
 
+const debug = process.env.DEBUG;
+
 module.exports = {
    module: {
       rules: [
@@ -25,5 +27,5 @@ module.exports = {
       filename: 'bundle.js',
       path: path.resolve(__dirname, 'dist')
    },
-   devtool: 'eval-source-map'
+   devtool: debug ? 'eval-source-map' : ''
 };
