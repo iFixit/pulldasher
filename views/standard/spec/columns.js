@@ -282,7 +282,7 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
             var extBlockLabel = pull.getLabel('external_block');
             
             if (extBlockLabel) {
-               score += 1000;
+               score += 2000;
             }
 
             return score;
