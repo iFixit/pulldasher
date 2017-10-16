@@ -8,7 +8,7 @@ var Pull = function(data) {
 
 _.extend(Pull.prototype, {
    url: function() {
-      return 'https://github.com/' + this.head.repo.owner.login + '/' + this.head.repo.name + '/pull/' + this.number;
+      return 'https://github.com/' + this.repo + '/pull/' + this.number;
    },
 
    update: function(data) {
