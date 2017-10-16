@@ -25,7 +25,7 @@ function IndicatorFilter(indicators, prefilter) {
       var existingIndicatorNodes;
 
       // First, run any "predecessor" filters over it
-      if (prefilter instanceof constructor) {
+      if (prefilter instanceof IndicatorFilter) {
          // Get the existing nodes this prefilter made
          existingIndicatorNodes = prefilter.filter(pull, element, template);
       } else {
