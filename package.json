@@ -10,10 +10,10 @@
     "express": "4.x",
     "express-partials": "0.1.1",
     "express-session": "1.15.1",
+    "font-awesome": "^4.7.0",
     "github": "iFixit/node-github#0373d45dbbd6c2548b6ed9a0092e2a029e26a3e3",
     "jquery": "^3.2.1",
     "js-cookie": "^2.1.4",
-    "less": "^3.0.0-alpha.3",
     "mysql": "2.13.x",
     "notify-queue": "0.0.5",
     "passport": "0.3.2",
@@ -24,15 +24,17 @@
     "underscore": "^1.8.3"
   },
   "devDependencies": {
+    "grunt": "^1.0.1",
+    "grunt-contrib-jshint": "^1.1.0",
+    "grunt-contrib-less": "^1.4.1",
+    "grunt-contrib-watch": "^1.0.0",
     "raw-loader": "^0.5.1",
-    "url-loader": "^0.6.2",
-    "less-loader": "^4.0.5",
     "webpack": "^3.6.0"
   },
   "scripts": {
     "start": "node app.js",
     "debug": "node debug app.js",
-    "postinstall": "webpack"
+    "postinstall": "grunt && webpack"
   },
   "main": "app.js",
   "repository": "git@github.com:ifixit/pulldasher.git",
