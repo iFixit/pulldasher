@@ -25,7 +25,6 @@ module.exports = function(grunt) {
         options: {
           browser: true,
           globals: {
-            define: false,
             App: false
           }
         },

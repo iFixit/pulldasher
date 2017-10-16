@@ -15,8 +15,6 @@ var templates = {
    global_indicator: globalIndicatorTemplate
 };
 
-debugger;
-
 var compiledTemplates = {};
 
 export default {

@@ -10,8 +10,6 @@ import PageIndicatorHandler from 'pageIndicatorHandler'
 import ConnectionManager from 'ConnectionManager'
 import bootstrap from 'bootstrap'
 
-// define(['spec/index', 'IndicatorFilter', 'pageIndicatorHandler',
-// 'ConnectionManager', 'bootstrap'],
 // Note that not all of the required items above are represented in the
 // function argument list. Some just need to be loaded, but that's all.
 

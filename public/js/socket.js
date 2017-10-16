@@ -1,4 +1,3 @@
-// TODO: This might need some working
 import io from 'socket.io-client'
 
 var socket = io.connect('/');

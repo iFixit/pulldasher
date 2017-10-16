@@ -3,7 +3,6 @@ import _ from 'underscore'
 import utils from 'appearanceUtils'
 import debug from 'debug'
 
-// define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, utils, debug) {
 var log = debug('indicators');
 var signatureStatus = function(pull, node, type, required, signatures) {
       var signatureMark = function() {
@@ -290,4 +289,3 @@ export default {
       });
    }
 };
-// });
