@@ -278,6 +278,12 @@ define(['jquery', 'appearanceUtils', 'underscore'], function($, utils, _) {
                // current CRs to become complete, push it up.
                score -= 1;
             }
+            
+            var extBlockLabel = pull.getLabel('external_block');
+            
+            if (extBlockLabel) {
+               score += 2000;
+            }
 
             return score;
          },
