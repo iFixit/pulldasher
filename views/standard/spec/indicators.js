@@ -242,12 +242,12 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
 
          if (milestone.title) {
             var flag = $('<i>').addClass('fa fa-flag');
+	    var tooltip_text = milestone.title;
 
             // If there's a due date, show that instead of the milestone title.
             if (milestone.due_on) {
                var date = new Date(milestone.due_on);
                var past_due = date.getTime() < Date.now();
-               var tooltip_text = milestone.title;
 
                if (past_due) {
                   flag.addClass('flag-past-due');
@@ -256,9 +256,8 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
                   flag.addClass('flag-milestone');
                }
 
-               utils.addTooltip(flag, tooltip_text);
             }
-
+            utils.addTooltip(flag, tooltip_text);
             node.append(flag);
          }
       },
