@@ -4,3 +4,5 @@ node_modules
 bower_components
 /views/standard/css
 pulldasher.pid
+ubuntu-xenial-16.04-cloudimg-console.log
+.vagrant
