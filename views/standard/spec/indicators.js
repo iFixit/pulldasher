@@ -242,7 +242,7 @@ define(['jquery', 'underscore', 'appearanceUtils', 'debug'], function($, _, util
 
          if (milestone.title) {
             var flag = $('<i>').addClass('fa fa-flag');
-	    var tooltip_text = milestone.title;
+            var tooltip_text = milestone.title;
 
             // If there's a due date, show that instead of the milestone title.
             if (milestone.due_on) {
