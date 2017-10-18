@@ -280,6 +280,12 @@ export default [
             score -= 1;
          }
 
+         var extBlockLabel = pull.getLabel('external_block');
+         
+         if (extBlockLabel) {
+            score += 2000;
+         }
+
          return score;
       },
       indicators: {
