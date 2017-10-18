@@ -5,6 +5,8 @@
   "description": "Simple pull request dashboard",
   "dependencies": {
     "body-parser": "^1.15.1",
+    "bower": "1.x",
+    "db-migrate": "^0.10.0-beta.24",
     "debug": "2.6.1",
     "ejs": "2.5.x",
     "express": "4.x",
@@ -17,8 +19,7 @@
     "passport-github": "1.1.0",
     "promise": "5.0.x",
     "socket.io": "1.7.3",
-    "underscore": "1.8.x",
-    "bower": "1.x"
+    "underscore": "1.8.x"
   },
   "devDependencies": {
     "grunt": "1.0.x",
@@ -30,8 +31,8 @@
   "scripts": {
     "start": "node app.js",
     "debug": "node debug app.js",
-    "test":  "grunt --verbose",
-    "postinstall" : "bower install && grunt"
+    "test": "grunt --verbose",
+    "postinstall": "bower install && grunt"
   },
   "main": "app.js",
   "repository": "git@github.com:ifixit/pulldasher.git",
