@@ -34,7 +34,8 @@ function Pull(data, signatures, comments, commitStatuses, labels) {
       var requiredBuilds = repoConfig.required_passing_builds;
 
       var passingBuilds = this.commitStatuses.filter(
-         build => build.state === 'success');
+         build => build.state === 'success')
+         .map(build => {return build.data.context;});
 
       return !!_.without(requiredBuilds, ...passingBuilds);
    };
