@@ -25,17 +25,16 @@ module.exports = function(grunt) {
         options: {
           browser: true,
           globals: {
-            define: false,
             App: false
           }
         },
-        src: ['public/**/*.js', '!public/js/debug.js', 'views/**/*.js']
+        src: ['public/**/*.js', '!public/js/debug.js', '!dist/**/*.js', 'views/**/*.js']
       },
       backend: {
         options: {
           node: true
         },
-        src: ['**/*.js', '!public/**/*.js', '!views/**/*.js', '!bower_components/**', '!node_modules/**']
+        src: ['**/*.js', '!public/**/*.js', '!dist/**/*.js', '!views/**/*.js', '!bower_components/**', '!node_modules/**']
       }
     },
     less: {

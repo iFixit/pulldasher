@@ -82,7 +82,6 @@ var HooksController = {
             promises.push(dbManager.insertSignatures(sigs));
 
             body.comment.number = body.issue.number;
-            body.comment.repo_name = body.repository.name;
             body.comment.repo = body.repository.full_name;
             body.comment.type = 'issue';
             comment = new Comment(body.comment);
@@ -105,7 +104,6 @@ var HooksController = {
              body.repository.full_name, body.comment.id);
          } else {
             body.comment.number = body.pull_request.number;
-            body.comment.repo_name = body.repository.name;
             body.comment.repo = body.repository.full_name;
             body.comment.type =   'review';
             comment = new Comment(body.comment);
@@ -130,8 +128,6 @@ var HooksController = {
 
 function handleIssueEvent(body) {
    debug('Webhook action: %s for issue #%s', body.action, body.issue.number);
-   // Some of these events are also triggered on pull requests
-   var isPull = body.issue.pull_request;
 
    var doneHandling = handleLabelEvents(body);
 
@@ -151,14 +147,6 @@ function handleIssueEvent(body) {
       case "assigned":
       case "unassigned":
         // Default case is update the issue
-   }
-
-   // If github is fooling us and this is actually a pull request,
-   // let's not create an issue object out of it.
-   if (isPull) {
-      return doneHandling.then(function() {
-         return dbManager.updatePull(Pull.fromGithubApi(body.pull_request));
-      });
    }
 
    return doneHandling.then(function() {
@@ -189,7 +177,6 @@ function handleLabelEvents(body) {
          return dbManager.insertLabel(new Label(
             body.label,
             object.number,
-            body.repository.name,
             body.repository.full_name,
             getLogin(body.sender),
             object.updated_at
@@ -200,7 +187,6 @@ function handleLabelEvents(body) {
          return dbManager.deleteLabel(new Label(
             body.label,
             object.number,
-            body.repository.name,
             body.repository.full_name
          ));
    }

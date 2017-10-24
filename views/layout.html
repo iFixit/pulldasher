@@ -9,31 +9,15 @@
       <link rel="stylesheet" href="css/font_awesome.css">
       <link class='active-theme' rel="stylesheet" href="css/themes/empty.css">
       <script>
-      var require = {
-         paths: {
-            "jquery":"//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min",
-            "cookies":"//cdnjs.cloudflare.com/ajax/libs/jquery-cookie/1.4.1/jquery.cookie.min",
-            "bootstrap":"//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min",
-            "socketjs":"//cdnjs.cloudflare.com/ajax/libs/socket.io/<%= socketVersion %>/socket.io.min",
-            "underscore":"//cdnjs.cloudflare.com/ajax/libs/underscore.js/1.6.0/underscore-min",
-            "text":"/lib/requirejs-text/text",
-            "html":"/html",
-            "spec":"/spec"
-         },
-         shim: {
-            'bootstrap': ['jquery'],
-            'socketio': {
-               exports: 'io'
-            },
-            'debug': {
-               exports: 'debug'
-            }
-         }
-      };
+         var App = {
+            socketToken: "<%= socketToken %>",
+            user: "<%= user %>",
+            debug: <%= debug %>
+         };
       </script>
-      <script data-main="public/js/main" src="/lib/requirejs/require.js"></script>
    </head>
    <body>
       <%- body %>
+      <script src="/js/bundle.js"></script>
    </body>
 </html>

@@ -11,4 +11,8 @@ done
 echo "Setup done, starting pulldasher..."
 
 # Start pulldasher
-bin/pulldasher
+if [ -n "$DEBUG" ]; then
+   node --inspect="0.0.0.0:9229" bin/pulldasher
+else
+   node bin/pulldasher
+fi

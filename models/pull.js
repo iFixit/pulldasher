@@ -235,9 +235,8 @@ Pull.getFromDB = function(data, signatures, comments, commitStatuses, labels) {
          sha: data.head_sha,
          repo: {
             owner: {
-               login: data.repo_owner
-            },
-            name: data.repo_name,
+               login: data.repo.split("/")[0],
+            }
          }
       },
       base: {

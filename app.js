@@ -22,16 +22,15 @@ var httpServer = require('http').createServer(app);
 app.engine('html', require('ejs').renderFile);
 app.set('view engine', 'html');
 
-
 /**
  * Middleware
  */
 app.use("/public", express.static(__dirname + '/public'));
+app.use("/js", express.static(__dirname + '/dist'));
 app.use("/spec", express.static(__dirname + '/views/current/spec'));
 app.use("/css", express.static(__dirname + '/views/current/css'));
 app.use("/html", express.static(__dirname + '/views/current/html'));
-app.use("/fonts", express.static(__dirname + '/bower_components/font-awesome/fonts'));
-app.use("/lib", express.static(__dirname + '/bower_components'));
+app.use("/fonts", express.static(__dirname + '/node_modules/font-awesome/fonts'));
 app.use(partials());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
@@ -64,10 +63,6 @@ utils.getRepoFullNames().forEach(function(repo) {
          pullManager.updatePull(pull);
       });
       pullQueue.resume();
-   })
-   // Get the most recent version of each pull from the API
-   .then(function () {
-      return refresh.openPulls();
    }).done();
 });
 
