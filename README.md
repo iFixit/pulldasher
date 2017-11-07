@@ -1,6 +1,5 @@
 # Pulldasher
-[![Build
-Status](https://travis-ci.org/iFixit/pulldasher.svg?branch=ci--add-travis)](https://travis-ci.org/iFixit/pulldasher)
+[![Build Status](https://travis-ci.org/iFixit/pulldasher.svg?branch=master)](https://travis-ci.org/iFixit/pulldasher)
 
 Pulldasher is self-hosted to-do list for GitHub repositories.
 Pulldasher tracks your pull requests and displays them according to their
