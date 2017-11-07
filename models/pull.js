@@ -38,7 +38,7 @@ function Pull(data, signatures, comments, commitStatuses, labels) {
          .map(build => {return build.data.context;});
 
       return !!_.without(requiredBuilds, ...passingBuilds);
-   };
+   }.bind(this);
 
    this.data.passing = isPassing();
 }
