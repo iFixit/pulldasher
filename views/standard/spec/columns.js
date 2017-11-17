@@ -216,7 +216,7 @@ export default [
             score += 500;
          }
 
-         if (pull.build_succeeded()) {
+         if (pull.passing) {
             score -= 4;
          }
 
@@ -277,7 +277,7 @@ export default [
             score += 500;
          }
 
-         if (pull.build_succeeded()) {
+         if (pull.passing) {
             score -= 2;
          }
 
