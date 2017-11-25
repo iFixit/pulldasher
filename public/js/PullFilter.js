@@ -71,6 +71,6 @@ function PullFilter(spec) {
          listeners.push(listener);
       }
    });
-};
+}
 
 export default PullFilter;

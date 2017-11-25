@@ -7,8 +7,11 @@ import Column from './Column'
 import spec from 'spec/index'
 import IndicatorFilter from 'IndicatorFilter'
 import PageIndicatorHandler from 'pageIndicatorHandler'
+
+/* eslint-disable no-unused-vars */
 import ConnectionManager from 'ConnectionManager'
 import bootstrap from 'bootstrap'
+/* eslint-enable no-unused-vars */
 
 // Note that not all of the required items above are represented in the
 // function argument list. Some just need to be loaded, but that's all.

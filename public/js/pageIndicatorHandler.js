@@ -28,6 +28,6 @@ function PageIndicatorHandler(spec, indicatorContainer) {
          });
       }
    };
-};
+}
 
 export default PageIndicatorHandler;

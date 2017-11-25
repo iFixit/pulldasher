@@ -37,7 +37,7 @@ function Column(elementFilter, indicatorFilter, spec) {
    var container;
 
    // Private methods
-   
+
    /**
     * Renders the button that can be used to restore the column when it is
     * collapsed. Is only called if the button needs to be rendered.
@@ -191,6 +191,6 @@ function Column(elementFilter, indicatorFilter, spec) {
    if (spec.triggers && spec.triggers.onCreate instanceof Function) {
       spec.triggers.onCreate(column, container);
    }
-};
+}
 
 export default Column;

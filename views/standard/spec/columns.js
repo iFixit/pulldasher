@@ -81,7 +81,7 @@ export default [
       triggers: {
          // This hook will be run on column creation. In this case, it sets
          // the nice blue color on the column header.
-         onCreate: function(blob, container) {
+         onCreate: function(blob) {
             blob.removeClass('panel-default').addClass('panel-primary');
          },
          // This hook will be run whenever Pulldasher receives an update from
@@ -105,7 +105,7 @@ export default [
          return pull.ready() && pull.deploy_blocked();
       },
       triggers: {
-         onCreate: function(blob, container) {
+         onCreate: function(blob) {
             blob.removeClass('panel-default').addClass('panel-primary');
          },
          onUpdate: function(blob, container) {
@@ -136,7 +136,7 @@ export default [
          return pull.ready() && !pull.deploy_blocked();
       },
       triggers: {
-         onCreate: function(blob, container) {
+         onCreate: function(blob) {
             blob.removeClass('panel-default').addClass('panel-success');
          },
          onUpdate: function(blob, container) {
@@ -281,7 +281,7 @@ export default [
          }
 
          var extBlockLabel = pull.getLabel('external_block');
-         
+
          if (extBlockLabel) {
             score += 2000;
          }
@@ -290,9 +290,9 @@ export default [
       },
       indicators: {
          qa_in_progress: function qa_in_progress(pull, node) {
-            var label;
+            var label, icon;
             if ((label = pull.getLabel('QAing'))) {
-               var icon = $('<i>').addClass('fa fa-eye qaing');
+               icon = $('<i>').addClass('fa fa-eye qaing');
                if (label.user === App.user) {
                   icon.addClass('mine');
                }
@@ -301,7 +301,7 @@ export default [
                node.append(icon);
             }
             if ((label = pull.getLabel('external_block'))) {
-               var icon = $('<i>').addClass('fa fa-eye-slash externally-blocked');
+               icon = $('<i>').addClass('fa fa-eye-slash externally-blocked');
 
                utils.addActionTooltip(icon, 'Externally Blocked',
                 label.created_at, label.user);

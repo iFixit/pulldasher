@@ -1,11 +1,6 @@
 import $ from 'jquery'
-import _ from 'underscore'
-import utils from 'spec/utils'
-import aUtils from 'appearanceUtils'
 import _manager from 'pullManager'
 import socket from 'socket'
-import debug from 'debug'
-import bootstrap from 'bootstrap'
 
 // This defines the debug indicators. These are a group of indicators on the
 // right-hand side of the navbar which are only visible in debugging mode. In

@@ -1,5 +1,3 @@
-import _ from 'underscore'
-
 /**
  * ElementFilter runs pulls and their associated DOM nodes through a function
  * which can do whatever it wants to them. It is intended to make it easy to
@@ -45,6 +43,6 @@ function ElementFilter(spec, prefilter) {
          }
       }
    };
-};
+}
 
 export default ElementFilter;

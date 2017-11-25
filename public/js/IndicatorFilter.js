@@ -65,6 +65,6 @@ function IndicatorFilter(indicators, prefilter) {
 
       return existingIndicatorNodes;
    };
-};
+}
 
 export default IndicatorFilter;
