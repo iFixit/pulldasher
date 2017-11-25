@@ -9,7 +9,10 @@ module.exports = {
          {
             test: /\.js$/,
             exclude: /node_modules/,
-            use: 'eslint-loader'
+            use: [
+               'babel-loader',
+               'eslint-loader'
+            ]
          },
          {
             test: /\.html$/,

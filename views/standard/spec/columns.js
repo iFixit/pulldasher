@@ -290,9 +290,9 @@ export default [
       },
       indicators: {
          qa_in_progress: function qa_in_progress(pull, node) {
-            var label, icon;
+            var label;
             if ((label = pull.getLabel('QAing'))) {
-               icon = $('<i>').addClass('fa fa-eye qaing');
+               const icon = $('<i>').addClass('fa fa-eye qaing');
                if (label.user === App.user) {
                   icon.addClass('mine');
                }
@@ -301,7 +301,7 @@ export default [
                node.append(icon);
             }
             if ((label = pull.getLabel('external_block'))) {
-               icon = $('<i>').addClass('fa fa-eye-slash externally-blocked');
+               const icon = $('<i>').addClass('fa fa-eye-slash externally-blocked');
 
                utils.addActionTooltip(icon, 'Externally Blocked',
                 label.created_at, label.user);
