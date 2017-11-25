@@ -21,15 +21,6 @@ module.exports = function(grunt) {
       gruntfile: {
         src: 'Gruntfile.js'
       },
-      frontend: {
-        options: {
-          browser: true,
-          globals: {
-            App: false
-          }
-        },
-        src: ['public/**/*.js', '!public/js/debug.js', '!dist/**/*.js', 'views/**/*.js']
-      },
       backend: {
         options: {
           node: true

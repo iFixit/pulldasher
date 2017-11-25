@@ -24,6 +24,9 @@
     "underscore": "^1.8.3"
   },
   "devDependencies": {
+    "eslint": "^4.11.0",
+    "eslint-loader": "^1.9.0",
+    "eslint-plugin-import": "^2.8.0",
     "grunt": "^1.0.1",
     "grunt-contrib-jshint": "^1.1.0",
     "grunt-contrib-less": "^1.4.1",
