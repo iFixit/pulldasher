@@ -16,13 +16,20 @@ To run Pulldasher, you'll need MySQL as well as Node. MySQL is used for
 statistics-gathering and some sorting and filtering.
 
 ## Getting Started
-1. `make`
-2. `cp config.example.js config.js; $EDITOR config.js`
-3. Create a new MySQL database and source the schema.sql file.
- * `create database pulldasher;`
- * `use pulldasher;`
- * `source schema.sql;`
-4. `bin/pulldasher`
+
+### Run a MySQL Container
+1. `docker run --name="test-mysql" -e "MYSQL_ROOT_PASSWORD=mypassword" -d mysql`
+   * If you leave the root password as `mypassword`, DO NOT MAKE THIS CONTAINER ACCESSIBLE FROM THE INTERNET.
+### Preparing Pulldasher
+1. `git clone https://github.com/iFixit/pulldasher`
+2. `cd pulldasher`
+3. `cp config.example.js config.js`
+4. `$EDITOR config.js`
+   * Use your favorite editor in place of `$EDITOR`
+   * Edit the config.js file to reference correct URLs and above MySQL DB
+5. `docker build -t pulldasher .`
+### Running Pulldasher
+6. `docker run --name="test-pulldasher" --publish 8080:8080 -d pulldasher`
 
 ## Use
 Pulldasher is driven by tags in pull requests and pull comments. Normally, it
