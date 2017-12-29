@@ -73,7 +73,7 @@ _.extend(Pull.prototype, {
     */
    ready: function() {
       return !this.dev_blocked() && this.qa_done() &&
-       this.cr_done() && this.build_succeeded();
+       this.cr_done() && this.passing;
    },
 
    author: function() {
@@ -101,20 +101,6 @@ _.extend(Pull.prototype, {
 
    getLabel: function(labelName) {
       return _.findWhere(this.labels, {title: labelName});
-   },
-
-   build_status: function() {
-      var status = this.status.commit_status;
-      return status && status.data.state;
-   },
-
-   build_failed: function() {
-      var status = this.build_status();
-      return status === 'failure' || status === 'error';
-   },
-
-   build_succeeded: function() {
-      return this.build_status() === 'success';
    },
 
    refresh: function() {

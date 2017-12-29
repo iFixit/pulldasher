@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS `commit_statuses` (
   `state` enum('pending','success','error','failure') NOT NULL,
   `description` varchar(255) NOT NULL,
   `log_url` varchar(255) NOT NULL,
+  `context` varchar(255) NOT NULL,
   PRIMARY KEY (`repo`,`commit`),
   KEY `commit_statuses_state` (`state`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
@@ -134,6 +135,7 @@ CREATE TABLE IF NOT EXISTS `pulls` (
   `closes` int(10) unsigned DEFAULT NULL,
   `connects` int(10) unsigned DEFAULT NULL,
   `difficulty` int(11) DEFAULT NULL,
+  `passing` tinyint(1) NOT NULL,
   PRIMARY KEY (`repo`,`number`),
   KEY `pulls_state` (`state`),
   KEY `pulls_repo` (`repo`)

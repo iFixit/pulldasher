@@ -1,4 +1,5 @@
 var config = require('./config'),
+    utils = require('./lib/utils'),
     express = require('express'),
     partials = require('express-partials'),
     bodyParser = require('body-parser'),
@@ -54,7 +55,7 @@ authManager.setupRoutes(app);
 app.get('/',            mainController.index);
 app.post('/hooks/main', hooksController.main);
 
-config.repos.forEach(function(repo) {
+utils.getRepoFullNames().forEach(function(repo) {
    // Load open pulls from the DB so we don't start blank.
    dbManager.getOpenPulls(repo).then(function(pulls) {
       pullQueue.pause();

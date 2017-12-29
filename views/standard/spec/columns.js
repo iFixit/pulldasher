@@ -54,7 +54,7 @@ export default [
       // `false` otherwise. This property may also be an array of functions,
       // in which case the selectors are chained.
       selector: function(pull) {
-         return !pull.dev_blocked() && !pull.build_succeeded();
+         return !pull.dev_blocked() && !pull.passing;
       },
       // This describes the sort order for the pull. It returns a numeric
       // score for each pull. Pulls with a low score are sorted to the bottom
@@ -68,7 +68,7 @@ export default [
          score -= pull.status.CR.length * 1;
          score -= pull.status.QA.length * 2;
 
-         if (!pull.build_failed()) {
+         if (!pull.passing) {
             score += 15;
          }
 
@@ -171,6 +171,10 @@ export default [
             var link = utils.getCommentLink(pull, current_block);
             var icon = $('<i>').addClass('fa fa-minus-circle dev-blocked');
 
+            if (pull.passing) {
+               score -= 4;
+            }
+
             link.append(icon);
             utils.addActionTooltip(icon, "Dev Blocked",
              current_block.created_at, current_block.user.login);
@@ -212,7 +216,7 @@ export default [
             score += 500;
          }
 
-         if (pull.build_succeeded()) {
+         if (pull.passing) {
             score -= 4;
          }
 
@@ -230,7 +234,7 @@ export default [
       id: "qaPulls",
       selector: function(pull) {
          return !pull.qa_done() && !pull.dev_blocked() &&
-          pull.build_succeeded();
+          pull.passing;
       },
       sort: function(pull) {
          // The higher score is, the lower the pull will be sorted.
@@ -265,11 +269,15 @@ export default [
             }
          }
 
+         if (pull.passing) {
+            score -= 2;
+         }
+
          if (pull.is_mine()) {
             score += 500;
          }
 
-         if (pull.build_succeeded()) {
+         if (pull.passing) {
             score -= 2;
          }
 
