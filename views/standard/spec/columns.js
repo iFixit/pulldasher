@@ -230,7 +230,7 @@ export default [
       id: "qaPulls",
       selector: function(pull) {
          return !pull.qa_done() && !pull.dev_blocked() &&
-          pull.build_succeeded();
+          (pull.build_succeeded() || !pull.status.commit_status);
       },
       sort: function(pull) {
          // The higher score is, the lower the pull will be sorted.
