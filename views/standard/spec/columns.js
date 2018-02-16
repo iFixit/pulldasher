@@ -54,7 +54,8 @@ export default [
       // `false` otherwise. This property may also be an array of functions,
       // in which case the selectors are chained.
       selector: function(pull) {
-         return !pull.dev_blocked() && !pull.build_succeeded();
+         return !pull.dev_blocked() && !pull.build_succeeded() &&
+          !pull.build_unavailable();
       },
       // This describes the sort order for the pull. It returns a numeric
       // score for each pull. Pulls with a low score are sorted to the bottom
@@ -102,7 +103,8 @@ export default [
       title: "Deploy Blocked Pulls",
       id: "deployBlockPulls",
       selector: function(pull) {
-         return pull.ready() && pull.deploy_blocked();
+         return (pull.ready() && pull.deploy_blocked()) ||
+          pull.buildUnavailableReady();
       },
       triggers: {
          onCreate: function(blob) {
@@ -230,7 +232,7 @@ export default [
       id: "qaPulls",
       selector: function(pull) {
          return !pull.qa_done() && !pull.dev_blocked() &&
-          pull.build_succeeded();
+          (pull.build_succeeded() || pull.build_unavailable());
       },
       sort: function(pull) {
          // The higher score is, the lower the pull will be sorted.
