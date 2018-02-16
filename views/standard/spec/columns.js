@@ -126,6 +126,12 @@ export default [
                current_block.created_at, current_block.user.login);
 
                node.append(link);
+            } else if (pull.buildUnavailableReady()) {
+               const icon = $('<i>').addClass('fa fa-exclamation deploy-blocked');
+
+               utils.addTooltip(icon, 'No CI - Deploy Carefully');
+
+               node.append(icon);
             }
          }
       },
