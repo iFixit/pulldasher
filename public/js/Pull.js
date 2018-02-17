@@ -72,8 +72,15 @@ _.extend(Pull.prototype, {
     * on which both the "deploy_blocked" and "Ready" columns are based.
     */
    ready: function() {
-      return !this.dev_blocked() && this.qa_done() &&
-       this.cr_done() && this.build_succeeded();
+      return this.noCICheckReady() && this.build_succeeded();
+   },
+
+   buildUnavailableReady: function() {
+      return this.noCICheckReady() && this.build_unavailable();
+   },
+
+   noCICheckReady: function() {
+      return !this.dev_blocked() && this.qa_done() && this.cr_done();
    },
 
    author: function() {
@@ -115,6 +122,10 @@ _.extend(Pull.prototype, {
 
    build_succeeded: function() {
       return this.build_status() === 'success';
+   },
+
+   build_unavailable: function() {
+      return this.status.commit_status === null;
    },
 
    refresh: function() {
