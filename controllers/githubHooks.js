@@ -1,5 +1,5 @@
 var config     = require('../config'),
-    Promise    = require('promise'),
+    Promise    = require('bluebird'),
     debug      = require('../lib/debug')('pulldasher:githubHooks'),
     Pull       = require('../models/pull'),
     Status     = require('../models/status'),
