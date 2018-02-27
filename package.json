@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "description": "Simple pull request dashboard",
   "dependencies": {
+    "bluebird": "^3.5.1",
     "body-parser": "^1.15.1",
     "bootstrap": "^3.3.7",
     "debug": "2.6.1",
@@ -18,7 +19,6 @@
     "notify-queue": "0.0.5",
     "passport": "0.3.2",
     "passport-github": "1.1.0",
-    "promise": "5.0.x",
     "socket.io": "1.7.3",
     "socket.io-client": "^2.0.3",
     "underscore": "^1.8.3"
