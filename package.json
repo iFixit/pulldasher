@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "description": "Simple pull request dashboard",
   "dependencies": {
+    "@octokit/rest": "^15.4.1",
     "bluebird": "^3.5.1",
     "body-parser": "^1.15.1",
     "bootstrap": "^3.3.7",
@@ -12,7 +13,6 @@
     "express-partials": "0.1.1",
     "express-session": "^1.15.6",
     "font-awesome": "^4.7.0",
-    "github": "github:iFixit/node-github#0373d45dbbd6c2548b6ed9a0092e2a029e26a3e3",
     "jquery": "^3.3.1",
     "js-cookie": "^2.2.0",
     "mysql": "^2.15.0",
@@ -45,9 +45,14 @@
     "precommit": "lint-staged"
   },
   "lint-staged": {
-    "*.js": [ "eslint --fix", "git add" ]
+    "*.js": [
+      "eslint --fix",
+      "git add"
+    ]
   },
-  "eslintIgnore": [ "dist/bundle.js" ],
+  "eslintIgnore": [
+    "dist/bundle.js"
+  ],
   "main": "app.js",
   "repository": "git@github.com:ifixit/pulldasher.git",
   "author": "iFixit",
