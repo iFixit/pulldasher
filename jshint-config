@@ -1,8 +1,0 @@
-{
-   "bitwise": true,
-   "curly": true,
-   "eqeqeq": true,
-   "indent":3,
-   "undef": true,
-   "unused": true
-}

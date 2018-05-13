@@ -4,30 +4,6 @@ module.exports = function(grunt) {
   // Project configuration.
   grunt.initConfig({
     // Task configuration.
-    jshint: {
-      options: {
-        esversion: 6,
-        curly: true,
-        eqeqeq: true,
-        latedef: 'nofunc', // Allow function definitions after their use.
-        noarg: true,
-        undef: true,
-        unused: 'vars',
-        // Deprecated relaxers
-        sub: true,
-        multistr: true,
-        reporterOutput: ""
-      },
-      gruntfile: {
-        src: 'Gruntfile.js'
-      },
-      backend: {
-        options: {
-          node: true
-        },
-        src: ['**/*.js', '!public/**/*.js', '!dist/**/*.js', '!views/**/*.js', '!bower_components/**', '!node_modules/**']
-      }
-    },
     less: {
       options: {
         strictMath: true,
@@ -44,24 +20,12 @@ module.exports = function(grunt) {
          }
       }
       // END derived lines
-    },
-
-    watch: {
-      less: {
-        options: {
-          spawn: false
-        },
-        files: ['views/**/*.less', 'less/*.less', 'public/**/*.less'],
-        tasks: 'less'
-      }
-    },
+    }
   });
 
   // These plugins provide necessary tasks.
   grunt.loadNpmTasks('grunt-contrib-less');
-  grunt.loadNpmTasks('grunt-contrib-jshint');
-  grunt.loadNpmTasks('grunt-contrib-watch');
 
   // Default task.
-  grunt.registerTask('default', ['jshint:backend', 'less']);
+  grunt.registerTask('default', ['less']);
 };
