@@ -5,6 +5,6 @@ var refresh = require('../lib/refresh');
 var db = require('../lib/db');
 
 refresh.openPulls()
-.done(function() {
+.then(function() {
    db.end();
 });
