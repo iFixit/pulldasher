@@ -40,7 +40,7 @@
   },
   "scripts": {
     "start": "node app.js",
-    "debug": "node debug app.js",
+    "debug": "node inspect app.js",
     "postinstall": "grunt && webpack",
     "precommit": "lint-staged"
   },
