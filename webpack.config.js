@@ -24,6 +24,14 @@ module.exports = {
          {
             test: /\.html$/,
             use: 'raw-loader'
+         },
+         {
+            test: /\.less$/,
+            use: [
+               { loader: 'style-loader'},
+               { loader: 'css-loader'},
+               { loader: 'less-loader'}
+            ]
          }
       ]
    },
@@ -36,7 +44,10 @@ module.exports = {
         jQuery: "jquery"
       })
    ],
-   entry: './public/js/main.js',
+   entry: [
+     './public/js/main.js',
+     './views/standard/less/themes/day_theme.less'
+   ],
    output: {
       filename: 'bundle.js',
       path: path.resolve(__dirname, 'dist')
