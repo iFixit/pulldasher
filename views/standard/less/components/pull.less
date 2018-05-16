@@ -21,89 +21,89 @@
 
    .list-group-item {
       padding: 15px 15px;
-      border-color: @pull-separator;
+      border-color: var(--pull-separator);
    }
 }
 
 #ciBlocked-container .panel {
-   background: @panel-ci-blocked-border;
-   border-color: @panel-ci-blocked-border;
+   background: var(--panel-ci-blocked-border);
+   border-color: var(--panel-ci-blocked-border);
 
    .panel-heading {
-      border-color: @panel-ci-blocked-border;
-      background: @panel-ci-blocked-background;
+      border-color: var(--panel-ci-blocked-border);
+      background: var(--panel-ci-blocked-background);
 
       &, .panel-title {
-         color: @panel-ci-blocked-text;
+         color: var(--panel-ci-blocked-text);
       }
    }
 
    .pull-count {
-      color: @panel-ci-blocked-count-text;
-      border-color: @panel-ci-blocked-count-border;
-      background: @panel-ci-blocked-count-background;
+      color: var(--panel-ci-blocked-count-text);
+      border-color: var(--panel-ci-blocked-count-border);
+      background: var(--panel-ci-blocked-count-background);
    }
 }
 
 #deployBlockPulls-container .panel {
-   background: @panel-deploy-blocked-border;
-   border-color: @panel-deploy-blocked-border;
+   background: var(--panel-deploy-blocked-border);
+   border-color: var(--panel-deploy-blocked-border);
 
    .panel-heading {
-      border-color: @panel-deploy-blocked-border;
-      background: @panel-deploy-blocked-background;
+      border-color: var(--panel-deploy-blocked-border);
+      background: var(--panel-deploy-blocked-background);
 
       &, .panel-title {
-         color: @panel-deploy-blocked-text;
+         color: var(--panel-deploy-blocked-text);
       }
    }
 
    .pull-count {
-      color: @panel-deploy-blocked-count-text;
-      border-color: @panel-deploy-blocked-count-border;
-      background: @panel-deploy-blocked-count-background;
+      color: var(--panel-deploy-blocked-count-text);
+      border-color: var(--panel-deploy-blocked-count-border);
+      background: var(--panel-deploy-blocked-count-background);
    }
 }
 
 #readyPulls-container .panel {
-   background: @panel-ready-border;
-   border-color: @panel-ready-border;
+   background: var(--panel-ready-border);
+   border-color: var(--panel-ready-border);
 
    .panel-heading {
-      border-color: @panel-ready-border;
-      background: @panel-ready-background;
+      border-color: var(--panel-ready-border);
+      background: var(--panel-ready-background);
 
       &, .panel-title {
-         color: @panel-ready-text;
+         color: var(--panel-ready-text);
       }
    }
 
    .pull-count {
-      color: @panel-ready-count-text;
-      border-color: @panel-ready-count-border;
-      background: @panel-ready-count-background;
+      color: var(--panel-ready-count-text);
+      border-color: var(--panel-ready-count-border);
+      background: var(--panel-ready-count-background);
    }
 }
 
 #blockPulls-container .panel,
 #crPulls-container .panel,
 #qaPulls-container .panel {
-   background: @panel-default-border;
-   border-color: @panel-default-border;
+   background: var(--panel-default-border);
+   border-color: var(--panel-default-border);
 
    .panel-heading {
-      border-color: @panel-default-border;
-      background: @panel-default-background;
+      border-color: var(--panel-default-border);
+      background: var(--panel-default-background);
 
       &, .panel-title {
-         color: @panel-default-text;
+         color: var(--panel-default-text);
       }
    }
 
    .pull-count {
-      color: @panel-default-count-text;
-      border-color: @panel-default-count-border;
-      background: @panel-default-count-background;
+      color: var(--panel-default-count-text);
+      border-color: var(--panel-default-count-border);
+      background: var(--panel-default-count-background);
    }
 }
 
@@ -118,15 +118,15 @@
    }
 
    .build-state-pending {
-      background: @build-state-pending;
+      background: var(--build-state-pending);
    }
 
    .build-state-failure {
-      background: @build-state-failure;
+      background: var(--build-state-failure);
    }
 
    .build-state-error {
-      background: @build-state-error;
+      background: var(--build-state-error);
    }
 }
 
@@ -150,52 +150,52 @@
    text-align: center;
    border-radius: 3px;
 
-   border: 1px solid @tag-default-border;
-   background: @tag-default-background;
+   border: 1px solid var(--tag-default-border);
+   background: var(--tag-default-background);
 
    &:hover {
       box-shadow: 0 0 0 1px;
    }
 
    &.flag-milestone {
-      color: @tag-current-milestone;
-      border-color: @tag-current-milestone-border;
-      background: @tag-current-milestone-background;
+      color: var(--tag-current-milestone);
+      border-color: var(--tag-current-milestone-border);
+      background: var(--tag-current-milestone-background);
    }
 
    &.flag-past-due {
-      color: @tag-past-milestone;
-      border-color: @tag-past-milestone-border;
-      background: @tag-past-milestone-background;
+      color: var(--tag-past-milestone);
+      border-color: var(--tag-past-milestone-border);
+      background: var(--tag-past-milestone-background);
    }
 
 
    &.dev-blocked {
-      color: @tag-dev-blocked;
-      border-color: @tag-dev-blocked-border;
-      background: @tag-dev-blocked-background;
+      color: var(--tag-dev-blocked);
+      border-color: var(--tag-dev-blocked-border);
+      background: var(--tag-dev-blocked-background);
    }
 
    &.deploy-blocked {
-      color: @tag-deploy-blocked;
-      border-color: @tag-deploy-blocked-border;
-      background: @tag-deploy-blocked-background;
+      color: var(--tag-deploy-blocked);
+      border-color: var(--tag-deploy-blocked-border);
+      background: var(--tag-deploy-blocked-background);
    }
 
    &.qaing {
-      color: @tag-qaing;
-      border-color: @tag-qaing-border;
-      background: @tag-qaing-background;
+      color: var(--tag-qaing);
+      border-color: var(--tag-qaing-border);
+      background: var(--tag-qaing-background);
 
       &.mine {
-         color: @tag-qaing-mine;
+         color: var(--tag-qaing-mine);
       }
    }
 
    &.externally-blocked {
-      color: @tag-externally-blocked;
-      border-color: @tag-externally-blocked-border;
-      background: @tag-externally-blocked-background;
+      color: var(--tag-externally-blocked);
+      border-color: var(--tag-externally-blocked-border);
+      background: var(--tag-externally-blocked-background);
    }
 }
 
@@ -203,10 +203,10 @@
    padding: 4px;
    padding-left: 8px;
    padding-right: 10px;
-   background-color: @status-background;
-   color: @status-text;
+   background-color: var(--status-background);
+   color: var(--status-text);
    border-radius: 3px;
-   border: 1px solid @status-border;
+   border: 1px solid var(--status-border);
    font-size: 14px;
    font-weight: 700;
 
@@ -218,38 +218,38 @@
       padding-right: 11px;
       position: relative;
       top: -1px;
-      color: @status-text;
+      color: var(--status-text);
    }
 
    &.full-valid {
-      background-color: @status-valid-background;
-      border-color: @status-valid-border;
+      background-color: var(--status-valid-background);
+      border-color: var(--status-valid-border);
 
       &, i.signature-valid, .status-type {
-         color: @status-valid-text;
+         color: var(--status-valid-text);
       }
 
       i.signature-valid-mine {
-         color: @status-valid-mine-text;
+         color: var(--status-valid-mine-text);
       }
    }
 
    &.full-valid-mine {
-      background-color: @status-valid-mine-background;
-      border-color: @status-valid-mine-border;
+      background-color: var(--status-valid-mine-background);
+      border-color: var(--status-valid-mine-border);
 
       i.signature-valid {
-         color: @status-valid-text;
+         color: var(--status-valid-text);
       }
 
       &, i.signature-valid-mine, .status-type {
-         color: @status-valid-mine-text;
+         color: var(--status-valid-mine-text);
       }
    }
 }
 
 .pull-title {
-   color: @pull-title;
+   color: var(--pull-title);
    max-width: 300px;
 
    .pull-repo {
@@ -257,7 +257,7 @@
    }
 
    .pull-number, .pull-repo {
-      color: @pull-number;
+      color: var(--pull-number);
       font-weight: 700;
    }
 }
@@ -267,27 +267,27 @@
    padding: 0 2px;
    position: relative;
    top: 1px;
-   color: @signature-default;
+   color: var(--signature-default);
 }
 
 .signature-valid-listing, .signature-valid {
-   color: @signature-valid;
+   color: var(--signature-valid);
 }
 
 .signature-valid-listing-mine, .signature-valid-mine {
-   color: @signature-valid-mine;
+   color: var(--signature-valid-mine);
 }
 
 .signature-invalid-listing, .signature-invalid {
-   color: @signature-invalid;
+   color: var(--signature-invalid);
 }
 
 .signature-invalid-listing-mine, .signature-invalid-mine {
-   color: @signature-invalid-mine;
+   color: var(--signature-invalid-mine);
 }
 
 .signature-separator {
-   border-bottom: 1px dashed @signature-separator-border;
+   border-bottom: 1px dashed var(--signature-separator-border);
    height: 1px;
    margin: 8px 0px;
    position: relative;
@@ -297,7 +297,7 @@
       position: absolute;
       top: -5px;
       left: 0px;
-      background-color: @signature-separator-background;
+      background-color: var(--signature-separator-background);
       padding-right: 8px;
       text-transform: uppercase;
       font-size: 10px;
@@ -320,7 +320,7 @@
 }
 
 .refresh {
-   color: @refresh-default;
+   color: var(--refresh-default);
    cursor: pointer;
    font-size: 16px;
    position: absolute;
@@ -329,12 +329,12 @@
    opacity: 0;
 
    &:hover {
-      color: @refresh-hover;
+      color: var(--refresh-hover);
    }
 }
 
 .pull {
-   background: @pull-background;
+   background: var(--pull-background);
 
    .pull-contents {
       margin-left: 4px;
@@ -342,7 +342,7 @@
    }
 
    &:hover, &:focus {
-      background: @pull-background-hover !important;
+      background: var(--pull-background-hover) !important;
 
       .build_status_link {
          width: 10px;
@@ -353,7 +353,7 @@
       }
 
       .build-state-success {
-         background: @build-state-success;
+         background: var(--build-state-success);
       }
 
       .refresh {
@@ -365,5 +365,5 @@
 .user_icon {
    float: left;
    margin-right: 5px;
-   color: @user-icon;
+   color: var(--user-icon);
 }

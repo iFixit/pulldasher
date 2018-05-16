@@ -46,7 +46,7 @@ module.exports = {
    ],
    entry: [
      './public/js/main.js',
-     './views/standard/less/themes/day_theme.less'
+     './views/standard/less/main.less'
    ],
    output: {
       filename: 'bundle.js',

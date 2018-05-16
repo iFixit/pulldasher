@@ -2,8 +2,8 @@
    font-weight: 700;
    padding: 12px;
    height: 50px;
-   background: @leaderboard-background;
-   border-color: @leaderboard-border;
+   background: var(--leaderboard-background);
+   border-color: var(--leaderboard-border);
 
    @media @mobile {
       height: 75px;
@@ -14,7 +14,7 @@
       margin: 5px 25px 0 15px;
       font-size: 16px;
       line-height: 16px;
-      color: @leaderboard-title-text;
+      color: var(--leaderboard-title-text);
       font-weight: 400;
 
       @media @mobile {
@@ -38,12 +38,12 @@
          margin-right: 7px;
          float: left;
 
-         border-color: @leaderboard-posting-border;
-         background: @leaderboard-posting-background;
+         border-color: var(--leaderboard-posting-border);
+         background: var(--leaderboard-posting-background);
 
          .leaderboard-count {
             display: inline-block;
-            color: @leaderboard-posting-count;
+            color: var(--leaderboard-posting-count);
             width: @avatar-width;
             position: relative;
             text-align: center;
@@ -52,11 +52,11 @@
          }
 
          &.leaderboard-leaders {
-            background-color: @leaderboard-leader-background;
-            border-color: @leaderboard-leader-border;
+            background-color: var(--leaderboard-leader-background);
+            border-color: var(--leaderboard-leader-border);
 
             .leaderboard-count {
-               color: @leaderboard-leader-count;
+               color: var(--leaderboard-leader-count);
             }
          }
       }
