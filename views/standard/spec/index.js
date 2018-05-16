@@ -8,34 +8,31 @@ import indicators from 'spec/indicators'
 import columns from 'spec/columns'
 import debugIndicators from 'spec/debugIndicators'
 
-$(document).ready(function() {
-   var theme = Cookies.get('pulldasher-theme') || 'day_theme';
+var theme = Cookies.get('pulldasher-theme') || 'day_theme';
 
-   $('#theme-selector > i').on('click', function() {
-      if ($(this).hasClass('active')) {
-         return;
-      }
+$('#theme-selector > i').on('click', function() {
+    if ($(this).hasClass('active')) {
+        return;
+    }
 
-      var newTheme = $(this).data('css');
-      Cookies.set('pulldasher-theme', newTheme);
+    var newTheme = $(this).data('css');
+    Cookies.set('pulldasher-theme', newTheme);
 
-      // This will fade one theme into the next over 1s
-      $('html').addClass('transitioning');
+    // This will fade one theme into the next over 1s
+    $('html').addClass('transitioning');
 
-      var newThemePath = 'css/themes/' + newTheme + '.css';
-      $('head .active-theme').attr('href', newThemePath);
+    document.body.setAttribute('data-theme', newTheme);
 
-      // Cut off transition effect 1s after overriding theme
-      setTimeout(function() {
-         $('html').removeClass('transitioning');
-      }, 1000);
+    // Cut off transition effect 1s after overriding theme
+    setTimeout(function() {
+        $('html').removeClass('transitioning');
+    }, 1000);
 
-      $("i[data-css]").removeClass('active');
-      $(this).addClass('active');
-   });
-
-   $('i[data-css="' + theme + '"]').click();
+    $("i[data-css]").removeClass('active');
+    $(this).addClass('active');
 });
+
+document.body.setAttribute('data-theme', theme);
 
 // Stop hover events from triggering when scrolling
 var body = document.body, timer;
