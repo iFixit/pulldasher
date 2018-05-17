@@ -26,10 +26,6 @@ app.set('view engine', 'html');
  */
 app.use("/public", express.static(__dirname + '/public'));
 app.use("/js", express.static(__dirname + '/dist'));
-app.use("/spec", express.static(__dirname + '/views/current/spec'));
-app.use("/css", express.static(__dirname + '/views/current/css'));
-app.use("/html", express.static(__dirname + '/views/current/html'));
-app.use("/fonts", express.static(__dirname + '/node_modules/font-awesome/fonts'));
 app.use(partials());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
@@ -45,7 +41,6 @@ app.use(function(req, res, next) {
    reqLogger("%s %s", req.method, req.url);
    next();
 });
-
 
 /**
  * Routes

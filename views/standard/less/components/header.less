@@ -1,9 +1,9 @@
 #navbar {
-   border-color: @header-border;
+   border-color: var(--header-border);
 
    &.collapsing, &.collapse.in {
       @media (max-width: 768px) {
-         background: @header-background;
+         background: var(--header-background);
       }
    }
 }
@@ -11,8 +11,8 @@
 .navbar {
    height: 50px;
    z-index: 999;
-   background: @header-background;
-   border-color: @header-border;
+   background: var(--header-background);
+   border-color: var(--header-border);
 
    @media @mobile {
       height: auto;
@@ -20,7 +20,7 @@
 
    .navbar-text {
       margin: 15px 0;
-      color: @theme-selector-text;
+      color: var(--theme-selector-text);
 
       @media @mobile {
          &#theme-selector {
@@ -37,10 +37,10 @@
       i {
          padding-left: 10px;
          font-size: 18px;  
-         color: @theme-selector-inactive;
+         color: var(--theme-selector-inactive);
 
          &:hover, &.active {
-            color: @theme-selector-active;
+            color: var(--theme-selector-active);
          }
 
          &:not(.active) {
@@ -60,21 +60,21 @@
       font-size: 16px;
       letter-spacing: 1px;
       font-weight: 200;
-      color: @brand-color !important;
+      color: var(--brand-color) !important;
 
       span.brand-highlight {
-         color: @brand-highlight;
+         color: var(--brand-highlight);
          font-size: 18px;
          font-weight: 400;
       }
    }
 
    .navbar-toggle {
-      border-color: @toggle-border !important;
-      background: @toggle-background !important;
+      border-color: var(--toggle-border) !important;
+      background: var(--toggle-background) !important;
 
       &:hover, &:focus {
-         background: @toggle-background-hover !important;
+         background: var(--toggle-background-hover) !important;
       }
    }
 }
@@ -89,7 +89,7 @@
       float: left;
       padding-right: 25px;
       text-align: center;
-      color: @global-indicator-text;
+      color: var(--global-indicator-text);
 
       @media @mobile {
          padding-right: 5px;
@@ -98,7 +98,7 @@
       .number {
          padding: 3px;
          border-width: 1px;
-         border-color: @global-indicator-count-border;
+         border-color: var(--global-indicator-count-border);
          border-style: solid;
          border-radius: 7px;
 
@@ -106,15 +106,15 @@
          height: 25px;
          display: block;
          float: left;
-         color: @global-indicator-count-text;
-         background: @global-indicator-count-background;
+         color: var(--global-indicator-count-text);
+         background: var(--global-indicator-count-background);
          margin: -3px 5px 0 0;
          font-size: 15px;
          line-height: 17px;
       }
 
       a {
-         color: @global-indicator-text-link !important;
+         color: var(--global-indicator-text-link) !important;
       }
 
       &.frozen_count:hover {
