@@ -43,6 +43,7 @@
     "start": "node app.js",
     "debug": "node inspect app.js",
     "postinstall": "webpack",
+    "build": "webpack",
     "precommit": "lint-staged"
   },
   "lint-staged": {
