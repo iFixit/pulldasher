@@ -8,7 +8,7 @@ module.exports = {
          socketToken: socketAuthenticator.getTokenForUser(req.user),
          socketVersion: socketio,
          user: req.user.username,
-         debug: config.debug
+         debugTools: config.debug,
       });
    }
 };
