@@ -14,7 +14,7 @@ var whenDebug = function(f) {
    // arguments to this function
    return function() {
       // Don't show indicators if the debug setting is off.
-      if (!App.debug) {
+      if (!App.debugTools) {
          return;
       }
       f.apply(this, arguments);
