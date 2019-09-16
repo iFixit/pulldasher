@@ -13,5 +13,4 @@ socket.on('connect', function() {
    socket.emit('authenticate', token);
 });
 
-
 export default socket;
