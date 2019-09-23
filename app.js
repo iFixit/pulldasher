@@ -77,7 +77,7 @@ io.sockets.on('connection', function (socket) {
       socket.disconnect();
    }, unauthenticated_timeout);
 
-   socket.on('authenticate', function(token) {
+   socket.once('authenticate', function(token) {
       // They did respond. No need to drop their connection for not responding.
       clearTimeout(autoDisconnect);
 
