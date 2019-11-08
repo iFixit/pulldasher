@@ -177,6 +177,7 @@ var signatureStatus = function(pull, node, type, required, signatures) {
 
          // Set the tooltip to the combined contents of tipper
          node.tooltip({
+            sanitize: false,
             "html": true,
             // Derived from
             // https://github.com/twbs/bootstrap/issues/2091#issuecomment-4051978
