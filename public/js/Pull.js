@@ -111,8 +111,8 @@ _.extend(Pull.prototype, {
    },
 
    build_status: function() {
-      var status = this.status.commit_status;
-      return status && status.data.state;
+      var statuses = this.status.commit_statuses || [];
+      return statuses[0] && statuses[0].data.state;
    },
 
    build_failed: function() {
@@ -125,7 +125,7 @@ _.extend(Pull.prototype, {
    },
 
    build_unavailable: function() {
-      return this.status.commit_status === null;
+      return this.status.commit_statuses.length == 0;
    },
 
    refresh: function() {

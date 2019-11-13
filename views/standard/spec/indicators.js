@@ -219,8 +219,9 @@ export default {
       signatureStatus(pull, node, 'QA', required, pull.qa_signatures);
    },
    build_status: function status(pull, node) {
-      if (pull.status.commit_status) {
-         var commit_status = pull.status.commit_status.data;
+      let status = pull.status.commit_statuses[0];
+      if (status) {
+         var commit_status = status.data;
          var title = commit_status.description;
          var url   = commit_status.target_url;
 
