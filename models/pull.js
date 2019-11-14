@@ -114,7 +114,7 @@ Pull.prototype.isOpen = function() {
  *    'deploy_block'  : An array containing the last 'deploy_block' signature if pull is deploy blocked,
  *                       or an empty array
  *    'ready'         : A boolean indicating whether the pull is ready to be deployed.
- *    'commit_statuses' : A Status object or null.
+ *    'commit_statuses' : An array of Status objects
  * }
  */
 Pull.prototype.getStatus = function getStatus() {
