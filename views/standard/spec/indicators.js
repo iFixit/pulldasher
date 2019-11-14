@@ -222,7 +222,8 @@ export default {
       const statuses = pull.status.commit_statuses;
       if (statuses && statuses.length) {
          const statusContainer = $('<div class="build_status_container"></div>');
-         statusContainer.append(statuses.map((status) => {
+         const sortedStatuses = statuses.sort(compareByContext);
+         statusContainer.append(sortedStatuses.map((status) => {
             const commit_status = status.data;
             const title = commit_status.description;
             const url   = commit_status.target_url;
@@ -294,3 +295,13 @@ export default {
       });
    }
 };
+
+function compareByContext(statusA, statusB) {
+   if (statusA.data.context < statusB.data.context) {
+     return -1;
+   }
+   if (statusA.data.context > statusB.data.context) {
+     return 1;
+   }
+   return 0;
+}
