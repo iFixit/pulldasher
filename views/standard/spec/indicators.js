@@ -225,7 +225,9 @@ export default {
          var title = commit_status.description;
          var url   = commit_status.target_url;
 
-         var link = $('<a target="_blank" class="build_status_link" data-toggle="tooltip" data-placement="top" title="' + title + '" href="' + url + '"></a>');
+         var link = $('<a target="_blank" class="build_status_link" data-toggle="tooltip" data-placement="top"></a>');
+         link.attr('href', url);
+         link.attr('title', title);
 
          node.append(link);
 

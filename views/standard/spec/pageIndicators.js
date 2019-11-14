@@ -109,7 +109,8 @@ export default {
          // Pull the org/repo string from the first frozen pull.
          var repo = frozen[0].repo;
          var label = 'Cryogenic Storage';
-         var link = $('<a target="_blank" href="https://www.github.com/' + repo + '/labels/' + label + '"></a>');
+         var link = $('<a target="_blank" ></a>');
+         link.attr('href', 'https://www.github.com/' + repo + '/labels/' + label);
          node.wrapInner(link);
       }
    },
