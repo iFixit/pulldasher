@@ -11,7 +11,7 @@ function Pull(data, signatures, comments, commitStatuses, labels) {
    this.data = data;
    this.signatures = signatures || [];
    this.comments = comments || [];
-   this.commitStatuses = commitStatuses || [];
+   this.commitStatuses = commitStatuses;
    this.labels = labels || [];
 
    // If github pull-data, parse the body for the cr and qa req... else
