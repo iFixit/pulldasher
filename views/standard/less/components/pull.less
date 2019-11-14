@@ -108,13 +108,20 @@
 }
 
 .build_status {
-   .build_status_link {
+   .build_status_container {
       position: absolute;
       width: 4px;
       top: 10px;
       left: 7px;
       bottom: 10px;
       border-radius: 3px;
+      display: flex;
+      justify-content: space-between;
+      flex-direction: column;
+   }
+
+   .build_status_link {
+      height: 100%;
    }
 
    .build-state-pending {

@@ -219,21 +219,23 @@ export default {
       signatureStatus(pull, node, 'QA', required, pull.qa_signatures);
    },
    build_status: function status(pull, node) {
-      let status = pull.status.commit_statuses[0];
-      if (status) {
-         var commit_status = status.data;
-         var title = commit_status.description;
-         var url   = commit_status.target_url;
+      const statuses = pull.status.commit_statuses;
+      if (statuses && statuses.length) {
+         const statusContainer = $('<div class="build_status_container"></div>');
+         statusContainer.append(statuses.map((status) => {
+            const commit_status = status.data;
+            const title = commit_status.description;
+            const url   = commit_status.target_url;
 
-         var link = $('<a target="_blank" class="build_status_link" data-toggle="tooltip" data-placement="top"></a>');
-         link.attr('href', url);
-         link.attr('title', title);
+            const link = $('<a target="_blank" class="build_status_link" data-toggle="tooltip" data-placement="top"></a>');
+            link.attr('href', url);
+            link.attr('title', commit_status.context + ": " + title);
+            link.addClass('build-state-' + commit_status.state);
+            link.tooltip();
+            return link;
+         }));
 
-         node.append(link);
-
-         link.addClass('build-state-' + commit_status.state);
-
-         link.tooltip();
+         node.append(statusContainer);
       }
    },
    user_icon: function user_icon(pull, node) {
