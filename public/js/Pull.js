@@ -116,13 +116,13 @@ _.extend(Pull.prototype, {
 
    build_failed: function() {
       return this.build_statuses().some(
-         ({data}) => data.status === 'failure' || data.status === 'error');
+         ({data}) => data.state === 'failure' || data.state === 'error');
    },
 
    build_succeeded: function() {
       const statuses = this.build_statuses();
       return statuses.length && statuses.every(
-         ({data}) => data.status === 'success');
+         ({data}) => data.state === 'success');
    },
 
    build_unavailable: function() {
