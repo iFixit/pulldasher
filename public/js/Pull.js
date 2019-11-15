@@ -110,22 +110,23 @@ _.extend(Pull.prototype, {
       return _.findWhere(this.labels, {title: labelName});
    },
 
-   build_status: function() {
-      var status = this.status.commit_status;
-      return status && status.data.state;
+   build_statuses: function() {
+      return this.status.commit_statuses || [];
    },
 
    build_failed: function() {
-      var status = this.build_status();
-      return status === 'failure' || status === 'error';
+      return this.build_statuses().some(
+         ({data}) => data.status === 'failure' || data.status === 'error');
    },
 
    build_succeeded: function() {
-      return this.build_status() === 'success';
+      const statuses = this.build_statuses();
+      return statuses.length && statuses.every(
+         ({data}) => data.status === 'success');
    },
 
    build_unavailable: function() {
-      return this.status.commit_status === null;
+      return this.status.commit_statuses.length === 0;
    },
 
    refresh: function() {

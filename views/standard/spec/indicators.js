@@ -219,18 +219,24 @@ export default {
       signatureStatus(pull, node, 'QA', required, pull.qa_signatures);
    },
    build_status: function status(pull, node) {
-      if (pull.status.commit_status) {
-         var commit_status = pull.status.commit_status.data;
-         var title = commit_status.description;
-         var url   = commit_status.target_url;
+      const statuses = pull.status.commit_statuses;
+      if (statuses && statuses.length) {
+         const statusContainer = $('<div class="build_status_container"></div>');
+         const sortedStatuses = statuses.sort(compareByContext);
+         statusContainer.append(sortedStatuses.map((status) => {
+            const commit_status = status.data;
+            const title = commit_status.description;
+            const url   = commit_status.target_url;
 
-         var link = $('<a target="_blank" class="build_status_link" data-toggle="tooltip" data-placement="top" title="' + title + '" href="' + url + '"></a>');
+            const link = $('<a target="_blank" class="build_status_link" data-toggle="tooltip" data-placement="top"></a>');
+            link.attr('href', url);
+            link.attr('title', commit_status.context + ": " + title);
+            link.addClass('build-state-' + commit_status.state);
+            link.tooltip();
+            return link;
+         }));
 
-         node.append(link);
-
-         link.addClass('build-state-' + commit_status.state);
-
-         link.tooltip();
+         node.append(statusContainer);
       }
    },
    user_icon: function user_icon(pull, node) {
@@ -289,3 +295,13 @@ export default {
       });
    }
 };
+
+function compareByContext(statusA, statusB) {
+   if (statusA.data.context < statusB.data.context) {
+     return -1;
+   }
+   if (statusA.data.context > statusB.data.context) {
+     return 1;
+   }
+   return 0;
+}
