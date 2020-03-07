@@ -26,7 +26,11 @@ function DBPull(pull) {
       cr_req: pullData.cr_req,
       qa_req: pullData.qa_req,
       closes: pullData.closes,
-      connects: pullData.connects
+      connects: pullData.connects,
+      commits: pullData.commits,
+      additions: pullData.additions,
+      deletions: pullData.deletions,
+      changed_files: pullData.changed_files
    };
 }
 

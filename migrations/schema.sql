@@ -135,6 +135,10 @@ CREATE TABLE IF NOT EXISTS `pulls` (
   `closes` int(10) unsigned DEFAULT NULL,
   `connects` int(10) unsigned DEFAULT NULL,
   `difficulty` int(11) DEFAULT NULL,
+  `commits` int(11) unsigned DEFAULT NULL,
+  `additions` int(11) unsigned DEFAULT NULL,
+  `deletions` int(11) unsigned DEFAULT NULL,
+  `changed_files` int(11) unsigned DEFAULT NULL,
   PRIMARY KEY (`repo`,`number`),
   KEY `pulls_state` (`state`),
   KEY `pulls_repo` (`repo`)

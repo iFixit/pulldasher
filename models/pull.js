@@ -191,7 +191,11 @@ Pull.fromGithubApi = function(data, signatures, comments, commitStatuses, labels
       },
       user: {
          login: getLogin(data.user)
-      }
+      },
+      commits: data.commits,
+      additions: data.additions,
+      deletions: data.deletions,
+      changed_files: data.changed_files
    };
 
    return new Pull(data, signatures, comments, commitStatuses, labels);
