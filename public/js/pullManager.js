@@ -9,10 +9,10 @@ var pulls = [];
 
 var throttledUpdate = _.throttle(update, 500);
 
-socket.on('allPulls', function(pulls) {
+socket.on('initialize', function(data) {
    if (!App.airplane) {
       removeAll();
-      pulls.forEach(updatePull);
+      data.pulls.forEach(updatePull);
 
       update();
    }
