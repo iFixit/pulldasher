@@ -1,6 +1,4 @@
-var configPath = process.env.CONFIG_PATH || './config';
-
-var config = require(configPath),
+var config = require('./lib/config'),
     express = require('express'),
     partials = require('express-partials'),
     bodyParser = require('body-parser'),

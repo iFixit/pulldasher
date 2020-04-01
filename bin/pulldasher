@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 var fs = require('fs');
-var config = require(__dirname + '/../config.js');
+var config = require('../lib/config');
 var debug = require('../lib/debug')('pulldasher:bin');
 
 // Save the pid to a file if requested (for an init script)
