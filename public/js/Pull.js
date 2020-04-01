@@ -121,8 +121,7 @@ _.extend(Pull.prototype, {
 
    build_succeeded: function() {
       const statuses = this.build_statuses();
-      return statuses.length && statuses.every(
-         ({data}) => data.state === 'success');
+      return statuses.length && statuses.every(isSuccessfulStatus);
    },
 
    build_unavailable: function() {
@@ -133,5 +132,9 @@ _.extend(Pull.prototype, {
       socket.emit('refresh', this.repo, this.number);
    }
 });
+
+function isSuccessfulStatus(status) {
+   return status.data.state === 'success';
+}
 
 export default Pull;
