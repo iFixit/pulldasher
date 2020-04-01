@@ -51,7 +51,7 @@ app.post('/hooks/main', hooksController.main);
 
 config.repos.forEach(function(repo) {
    // Load open pulls from the DB so we don't start blank.
-   dbManager.getOpenPulls(repo).then(function(pulls) {
+   dbManager.getOpenPulls(repo.name).then(function(pulls) {
       pullQueue.pause();
       pulls.forEach(function(pull) {
          pullManager.updatePull(pull);

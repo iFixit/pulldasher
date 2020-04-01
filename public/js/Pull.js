@@ -121,6 +121,15 @@ _.extend(Pull.prototype, {
 
    build_succeeded: function() {
       const statuses = this.build_statuses();
+      if (this.repoSpec) {
+         let requiredStatuses = this.repoSpec.requiredStatuses;
+         if (requiredStatuses) {
+            return requiredStatuses.every((context) => {
+               let status = statuses.find(status => status.data.context == context);
+               return status && isSuccessfulStatus(status);
+            });
+         }
+      }
       return statuses.length && statuses.every(isSuccessfulStatus);
    },
 
