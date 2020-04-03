@@ -1,4 +1,4 @@
-var config = require('./lib/config'),
+var config = require('./lib/config-loader'),
     express = require('express'),
     partials = require('express-partials'),
     bodyParser = require('body-parser'),

@@ -1,4 +1,4 @@
-var config     = require('../lib/config'),
+var config     = require('../lib/config-loader'),
     Promise    = require('bluebird'),
     debug      = require('../lib/debug')('pulldasher:githubHooks'),
     Pull       = require('../models/pull'),

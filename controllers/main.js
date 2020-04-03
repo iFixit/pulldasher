@@ -1,6 +1,6 @@
 var socketAuthenticator = require('../lib/socket-auth');
 var socketio = require('../package').dependencies['socket.io'];
-var config = require('../lib/config');
+var config = require('../lib/config-loader');
 
 module.exports = {
    index: function(req, res) {

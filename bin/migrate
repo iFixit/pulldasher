@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-var config = require('../lib/config');
+var config = require('../lib/config-loader');
 var mysql = require('mysql'),
     fs = require('fs');
 
