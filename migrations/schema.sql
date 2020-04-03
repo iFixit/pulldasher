@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS `commit_statuses` (
   `description` varchar(255) NOT NULL,
   `log_url` varchar(255) NOT NULL,
   `context` varchar(255) NOT NULL,
-  PRIMARY KEY (`repo`,`commit`),
+  PRIMARY KEY (`repo`,`commit`, `context`),
   KEY `commit_statuses_state` (`state`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
