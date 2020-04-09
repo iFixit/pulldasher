@@ -1,4 +1,4 @@
-var config = require('../config'),
+var config = require('../lib/config-loader'),
     getLogin = require('../lib/get-user-login'),
     getUserid = require('../lib/get-user-id'),
     utils = require('../lib/utils');

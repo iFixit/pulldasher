@@ -57,7 +57,13 @@ module.exports = {
 
    // List of repositories for pulldasher to watch.
    repos: [
-     "owner/name"
+      // Just listing the repo as a string indicates pulldasher should consider
+      // CI passing if all the statuses that exist are passing and that there
+      // is at least one.
+      "owner/repo",
+      // Listing them like this allows being more explicit with the commit
+      // statuses
+      {name: "owner/otherRepo", requiredStatuses: ["tests", "build", "codeClimate"]}
    ],
 
    // The usual MySQL stuff. Like every other MySQL webapp, basically.

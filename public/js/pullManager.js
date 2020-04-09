@@ -6,13 +6,15 @@ var listeners = [];
 
 var pullIndex = {};
 var pulls = [];
+var repoSpecs = [];
 
 var throttledUpdate = _.throttle(update, 500);
 
-socket.on('allPulls', function(pulls) {
+socket.on('initialize', function(data) {
    if (!App.airplane) {
       removeAll();
-      pulls.forEach(updatePull);
+      repoSpecs = data.repos;
+      data.pulls.forEach(updatePull);
 
       update();
    }
@@ -42,6 +44,7 @@ function removeAll() {
 
 function updatePull(pullData) {
    var pull = getPull(pullData);
+   pullData.repoSpec = repoSpecs.find(repo => repo.name == pullData.repo)
    pull.update(pullData);
 }
 

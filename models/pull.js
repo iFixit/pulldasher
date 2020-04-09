@@ -1,6 +1,6 @@
 var utils   = require('../lib/utils');
 var _       = require('underscore');
-var config  = require('../config');
+var config  = require('../lib/config-loader');
 var queue = require('../lib/pull-queue');
 var Promise = require('bluebird');
 var debug = require('../lib/debug')('pulldasher:pull');

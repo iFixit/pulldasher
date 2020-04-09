@@ -1,6 +1,4 @@
-var configPath = process.env.CONFIG_PATH || './config';
-
-var config = require(configPath),
+var config = require('./lib/config-loader'),
     express = require('express'),
     partials = require('express-partials'),
     bodyParser = require('body-parser'),
@@ -53,7 +51,7 @@ app.post('/hooks/main', hooksController.main);
 
 config.repos.forEach(function(repo) {
    // Load open pulls from the DB so we don't start blank.
-   dbManager.getOpenPulls(repo).then(function(pulls) {
+   dbManager.getOpenPulls(repo.name).then(function(pulls) {
       pullQueue.pause();
       pulls.forEach(function(pull) {
          pullManager.updatePull(pull);

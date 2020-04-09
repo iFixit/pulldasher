@@ -1,6 +1,6 @@
 var utils   = require('../lib/utils');
 var _       = require('underscore');
-var config  = require('../config');
+var config  = require('../lib/config-loader');
 var log     = require('../lib/debug')('pulldasher:issue');
 var DBIssue = require('./db_issue');
 var getLogin = require('../lib/get-user-login');
