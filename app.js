@@ -59,6 +59,8 @@ utils.forEachRepo(function(repo) {
       });
       pullQueue.resume();
    }).done();
+}).then(function() {
+   refresh.openPulls();
 });
 
 /*
