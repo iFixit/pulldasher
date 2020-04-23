@@ -13,6 +13,7 @@ var config = require('./lib/config-loader'),
     mainController = require('./controllers/main'),
     hooksController = require('./controllers/githubHooks'),
     reqLogger = require('./lib/debug')('pulldasher:server:request'),
+    utils = require('./lib/utils'),
     debug = require('./lib/debug')('pulldasher');
 
 var app = express();
@@ -49,9 +50,9 @@ authManager.setupRoutes(app);
 app.get('/',            mainController.index);
 app.post('/hooks/main', hooksController.main);
 
-config.repos.forEach(function(repo) {
+utils.forEachRepo(function(repo) {
    // Load open pulls from the DB so we don't start blank.
-   dbManager.getOpenPulls(repo.name).then(function(pulls) {
+   dbManager.getOpenPulls(repo).then(function(pulls) {
       pullQueue.pause();
       pulls.forEach(function(pull) {
          pullManager.updatePull(pull);
