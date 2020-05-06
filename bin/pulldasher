@@ -5,7 +5,7 @@ var debug = require('../lib/debug')('pulldasher:bin');
 
 // Save the pid to a file if requested (for an init script)
 if (config.pidFile) {
-   fs.writeFileSync(config.pidFile, process.pid);
+   fs.writeFileSync(config.pidFile, '' + process.pid);
    process.on('exit', function() {
       var m = "\nExiting...";
       debug(m);
