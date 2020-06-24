@@ -49,14 +49,26 @@ will update the pull's display to indicate that one of the required CRs is
 completed.  Similarly, when you QA a pull, add a comment containing
 `QA :emoji:`, and the number of QA signoffs will increase.
 
+## Feature Details
+### CR Leaders/QA Leaders
+The lists of CR Leaders and QA Leaders at the top of Pulldasher are displays of
+the number of signoffs by each person in each category which are currently visible
+on Pulldasher. They do not take into account merged or closed pulls. They can be
+fun to see who’s been doing a lot of CR recently, and they can be helpful in
+balancing the number of CRs you’re doing versus everyone else.
+
+### Dark Mode
+Pulldasher supports a dark mode! See the button on the upper-right.
+
+
 ## Magic Features
 There's a couple features which aren't exposed clearly through the UI:
 
-#### Hover Copy
-If you hover over a pull and type `ctrl-c` (`command-c` on a Mac), the branch
-name of the pull will be copied to your clipboard.
+### Hover Copy
+If you hover over a pull request, you can use `Ctrl-C` (`Command-C` on Mac) to
+copy the branch name of the pull to your clipboard.
 
-#### Filter parameters
+### Filter Parameters
 Two query string parameters are available to filter the displayed pulls:
 
 1. `assigned`: Providing a comma-separated list of usernames to the `assigned`
@@ -70,6 +82,11 @@ Two query string parameters are available to filter the displayed pulls:
 
    ```ex. https://pulldasher.example.com?milestone=site-redesign,12/5,12/19```
 
+### Frozen Pulls
+When you assign the `Cryogenic Storage` label to a pull, Pulldasher will not
+display it in the main window. Instead, it will be added to the count of "Frozen"
+pulls, visible in the top-left corner. This allows inactive pulls to be removed
+from the main view, rather than taking up space.
 
 ## Architecture
 When first started, the Pulldasher server fetches information about the current
