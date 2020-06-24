@@ -32,11 +32,12 @@ module.exports = {
    // 3. A GitHub webhook on the repo you want to monitor (Settings (on the
    //    repo) > Webhooks > Add webhook)
    //   - The Payload URL should be the externally-visible URL of the Pulldasher
-   //     instance with '/hooks/main' appended
-   //   - Content type should be `application/json`
-   //   - Secret should be the hook_secret below
-   //   - Choose to be sent individual events, and then check the Issues and
-   //     Push boxes
+   //     instance with '/hooks/main' appended and a GET param containing the secret
+   //     from `hook_secret` below.
+   //   - Content type should be `application/x-www-form-urlencoded`
+   //   - Choose to be sent individual events, and then check the Issue comments,
+   //     Issues, Pull requests, Pull request review comments, Pushes, and
+   //     Statuses boxes
    github: {
       // Get this from the GitHub application setup page.
       clientId:     "your github application client id",
