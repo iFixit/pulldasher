@@ -27,18 +27,13 @@ _.extend(Pull.prototype, {
             if (!users[signature.data.user.id]) {
                if (signature.data.active) {
                   groups.current.push(signature);
-                  users[signature.data.user.id] = true;
-
-                  if (utils.mySig(signature)) {
-                     groups.user = signature;
-                  }
                } else {
                   groups.old.push(signature);
-                  users[signature.data.user.id] = true;
+               }
+               users[signature.data.user.id] = true;
 
-                  if (utils.mySig(signature)) {
-                     groups.user = signature;
-                  }
+               if (utils.mySig(signature)) {
+                  groups.user = signature;
                }
             }
          });
