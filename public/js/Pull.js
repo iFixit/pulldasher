@@ -24,19 +24,21 @@ _.extend(Pull.prototype, {
          groups.user = null;
 
          signatures.forEach(function(signature) {
-            if (signature.data.active) {
-               groups.current.push(signature);
-               users[signature.data.user.id] = true;
+            if (!users[signature.data.user.id]) {
+               if (signature.data.active) {
+                  groups.current.push(signature);
+                  users[signature.data.user.id] = true;
 
-               if (utils.mySig(signature)) {
-                  groups.user = signature;
-               }
-            } else if (!users[signature.data.user.id]) {
-               groups.old.push(signature);
-               users[signature.data.user.id] = true;
+                  if (utils.mySig(signature)) {
+                     groups.user = signature;
+                  }
+               } else {
+                  groups.old.push(signature);
+                  users[signature.data.user.id] = true;
 
-               if (utils.mySig(signature)) {
-                  groups.user = signature;
+                  if (utils.mySig(signature)) {
+                     groups.user = signature;
+                  }
                }
             }
          });
