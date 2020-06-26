@@ -24,17 +24,20 @@ _.extend(Pull.prototype, {
          groups.user = null;
 
          signatures.forEach(function(signature) {
-            if (!users[signature.data.user.id]) {
-               if (signature.data.active) {
-                  groups.current.push(signature);
-               } else {
-                  groups.old.push(signature);
-               }
-               users[signature.data.user.id] = true;
+            if (users[signature.data.user.id]) {
+               return;
+            }
 
-               if (utils.mySig(signature)) {
-                  groups.user = signature;
-               }
+            if (signature.data.active) {
+               groups.current.push(signature);
+            } else {
+               groups.old.push(signature);
+            }
+
+            users[signature.data.user.id] = true;
+
+            if (utils.mySig(signature)) {
+               groups.user = signature;
             }
          });
 
