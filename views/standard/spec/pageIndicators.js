@@ -95,25 +95,6 @@ export default {
       node.wrapInner('<span class="number"></span>');
       node.append(' Open');
    },
-   frozen_count: function(pulls, node) {
-      var frozen = pulls.filter(function(pull) {
-         return pull.hasLabel('Cryogenic Storage') && pull.state === 'open';
-      });
-
-      node.text(frozen.length);
-      node.wrapInner('<span class="number"></span>');
-      node.append(' Frozen');
-
-      // If we have frozen pulls, make the count a link.
-      if (frozen.length) {
-         // Pull the org/repo string from the first frozen pull.
-         var repo = frozen[0].repo;
-         var label = 'Cryogenic Storage';
-         var link = $('<a target="_blank" ></a>');
-         link.attr('href', 'https://www.github.com/' + repo + '/labels/' + label);
-         node.wrapInner(link);
-      }
-   },
    cr_leaderboard: function(pulls, node) {
       summarize(pulls, node, "CR", function(pull) {
          return pull.status.allCR;

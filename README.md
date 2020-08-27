@@ -82,12 +82,6 @@ Two query string parameters are available to filter the displayed pulls:
 
    ```ex. https://pulldasher.example.com?milestone=site-redesign,12/5,12/19```
 
-### Frozen Pulls
-When you assign the `Cryogenic Storage` label to a pull, Pulldasher will not
-display it in the main window. Instead, it will be added to the count of "Frozen"
-pulls, visible in the top-left corner. This allows inactive pulls to be removed
-from the main view, rather than taking up space.
-
 ## Architecture
 When first started, the Pulldasher server fetches information about the current
 pulls in the repo from GitHub. It then monitors GitHub hooks for updated

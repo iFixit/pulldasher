@@ -24,8 +24,7 @@ Within the `standard` directory, you should find the following things:
 ## Making changes
 First, a bit of terminology is in order: We call the small icons that appear on
 a pull _indicators_. By similarity of purpose and implementation, we call the
-parts that display information like the total number of open pulls and the
-number of frozen pulls _page indicators_.
+parts that display information like the total number of open pulls _page indicators_.
 
 Okay, now a guide on where to look to make a change:
 * If you want to change the appearance of part of pulldasher, look at the `less`
