@@ -131,6 +131,22 @@ function handleIssueEvent(body) {
 
    var doneHandling = handleLabelEvents(body);
 
+   // If we get issue events for pull requests, we have to go refresh from
+   // the api cause the body here is just a subset of pull request fields
+   // See https://docs.github.com/en/rest/reference/issues#list-issues-assigned-to-the-authenticated-user
+   //
+   // > GitHub's REST API v3 considers every pull request an issue, but
+   // not every issue is a pull request. For this reason, "Issues"
+   // endpoints may return both issues and pull requests in the response.
+   // You can identify pull requests by the pull_request key.
+   if (body.issue.pull_request) {
+      return doneHandling.then(function() {
+         // Not returning here cause we don't want to delay replying to the
+         // hook with a 200 since we know what needs to be done.
+         refreshPullOrIssue(body);
+      });
+   }
+
    switch(body.action) {
       case "opened":
          // Always do this for opened issues because a full refresh
