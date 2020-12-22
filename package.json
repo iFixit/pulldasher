@@ -47,6 +47,8 @@
   "scripts": {
     "start": "node app.js",
     "debug": "node inspect app.js",
+    "frontend:start": "webpack-dev-server --config ./frontend/webpack.dev.config.js --open",
+    "frontend:build": "webpack --config ./frontend/webpack.prod.config.js",
     "postinstall": "webpack",
     "build": "webpack",
     "precommit": "lint-staged"
