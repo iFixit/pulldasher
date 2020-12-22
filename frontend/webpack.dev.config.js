@@ -25,6 +25,7 @@ module.exports = {
    },
    output: {
       path: relative("dist"),
+      publicPath: '/frontend'
    },
    entry: {
       "main": relative("src/index.jsx")
@@ -34,4 +35,8 @@ module.exports = {
    ],
    mode: 'development',
    devtool: 'eval-cheap-module-source-map',
+   devServer: {
+      open: true,
+      openPage: "frontend/"
+   }
 };

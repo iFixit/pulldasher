@@ -25,6 +25,7 @@ app.set('view engine', 'html');
 /**
  * Middleware
  */
+app.use("/frontend", express.static(__dirname + '/frontend/dist'));
 app.use("/public", express.static(__dirname + '/public'));
 app.use("/js", express.static(__dirname + '/dist'));
 app.use(partials());
