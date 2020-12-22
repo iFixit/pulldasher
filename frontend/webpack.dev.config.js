@@ -17,18 +17,22 @@ module.exports = {
                // attach the presets to the loader (most projects use .babelrc file instead)
                presets: ["@babel/preset-env", "@babel/preset-react"]
             }
+         }, {
+            test: /\.tsx?$/,
+            loader: 'ts-loader'
          }
       ]
    },
    resolve: {
-      modules: [relative('../node_modules')]
+      modules: [relative('../node_modules')],
+      extensions: ['.ts', '.tsx', '.js'],
    },
    output: {
       path: relative("dist"),
       publicPath: '/frontend'
    },
    entry: {
-      "main": relative("src/index.jsx")
+      "main": relative("src/index.tsx")
    },
    plugins: [
       new HtmlWebpackPlugin()
