@@ -8,5 +8,6 @@
   "include": [
     "src"
   ],
+  "strictNullChecks": true,
   "compileOnSave": false
 }

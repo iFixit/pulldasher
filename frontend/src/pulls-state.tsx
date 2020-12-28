@@ -1,9 +1,17 @@
 import * as React from 'react';
 import { useState } from 'react';
+import { Pull } from  './types';
 
-var pulls = process.env.DUMMY_PULLS || [];
+var pulls: Record<string, Pull> = {};
+var dummyPulls: Pull[] = (process.env.DUMMY_PULLS || []) as Pull[];
+dummyPulls.forEach(storePull);
 
-export default function() {
-   const [pullState, setPullsState] = useState(pulls);
+function storePull(pull: Pull) {
+   const pullKey = pull.repo + "#" + pull.number;
+   pulls[pullKey] = pull;
+}
+
+export default function(): Pull[] {
+   const [pullState, setPullsState] = useState(Object.values(pulls));
    return pullState;
 };
