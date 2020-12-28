@@ -1,7 +1,10 @@
+const webpack = require('webpack');
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const definePluginReadFile = require('./webpack-define-read-file');
 
 const relative = (pathPart) => path.resolve(__dirname, pathPart);
+const dummyPullsPath = process.env.DUMMY_PULLS;
 
 module.exports = {
    module: {
@@ -35,6 +38,9 @@ module.exports = {
       "main": relative("src/index.tsx")
    },
    plugins: [
+      new webpack.DefinePlugin({
+         "process.env.DUMMY_PULLS": dummyPullsPath ? definePluginReadFile(dummyPullsPath) : null
+      }),
       new HtmlWebpackPlugin()
    ],
    mode: 'development',
