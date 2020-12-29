@@ -52,8 +52,10 @@ app.get('/',            mainController.index);
 app.post('/hooks/main', hooksController.main);
 
 utils.forEachRepo(function(repo) {
+   debug("Repo %s: Loading pulls from the DB", repo);
    // Load open pulls from the DB so we don't start blank.
    dbManager.getOpenPulls(repo).then(function(pulls) {
+      debug("Repo %s: Loaded pulls", repo, pulls.length);
       pullQueue.pause();
       pulls.forEach(function(pull) {
          pullManager.updatePull(pull);
@@ -61,6 +63,7 @@ utils.forEachRepo(function(repo) {
       pullQueue.resume();
    }).done();
 }).then(function() {
+   debug("Refreshing all open pulls from the API");
    refresh.openPulls();
 });
 
