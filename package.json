@@ -18,6 +18,7 @@
     "notify-queue": "0.0.5",
     "passport": "^0.4.0",
     "passport-github": "1.1.0",
+    "popper.js": "^1.16.1",
     "react": "^17.0.1",
     "react-bootstrap": "^1.4.0",
     "react-dom": "^17.0.1",
@@ -58,8 +59,8 @@
     "frontend:start": "DUMMY_PULLS=./frontend/dummy-pulls.json webpack-dev-server --config ./frontend/webpack.dev.config.js",
     "frontend:watch": "webpack --watch --config ./frontend/webpack.dev.config.js",
     "frontend:build": "webpack --config ./frontend/webpack.prod.config.js",
-    "postinstall": "webpack",
-    "build": "webpack",
+    "postinstall": "webpack && npm run frontend:build",
+    "build": "webpack && npm run frontend:build",
     "precommit": "lint-staged"
   },
   "lint-staged": {
