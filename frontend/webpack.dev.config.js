@@ -27,7 +27,6 @@ module.exports = {
       ]
    },
    resolve: {
-      modules: [relative('../node_modules')],
       extensions: ['.ts', '.tsx', '.js'],
    },
    output: {
