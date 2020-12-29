@@ -6,6 +6,9 @@ module.exports = {
    index: function(req, res) {
       res.render('current/index', connectionDetails(req));
    },
+   getToken: function(req, res) {
+      res.json(connectionDetails(req));
+   }
 };
 
 function connectionDetails(req) {

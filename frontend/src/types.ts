@@ -54,6 +54,9 @@ export interface CommitStatus {
 
 export interface Pull {
    repo: string;
+   repoSpec: {
+      requiredStatuses: string[]
+   };
    number: number;
    state: PullState;
    title: string;

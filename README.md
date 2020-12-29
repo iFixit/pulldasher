@@ -135,3 +135,14 @@ specify the `QA` and `CR` signatures to be
 ## License
 
 Pulldasher is released under the [MIT License](LICENSE/).
+
+## Developing Pulldasher
+
+### React UI
+There's a new React UI under development. It lives in `/frontend/`
+
+* Hack on the just the UI: `npm frontend:start`
+   * Then open http://localhost:8080
+* Hack on both the frontend + backend: `npm frontend:watch` + `npm start`
+   * Then open http://localhost:{port} where port is from your config.js
+

@@ -49,6 +49,7 @@ app.use(function(req, res, next) {
  */
 authManager.setupRoutes(app);
 app.get('/',            mainController.index);
+app.get('/token',       mainController.getToken);
 app.post('/hooks/main', hooksController.main);
 
 utils.forEachRepo(function(repo) {
