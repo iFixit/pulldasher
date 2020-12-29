@@ -40,7 +40,9 @@ module.exports = {
       new webpack.DefinePlugin({
          "process.env.DUMMY_PULLS": dummyPullsPath ? definePluginReadFile(dummyPullsPath) : null
       }),
-      new HtmlWebpackPlugin()
+      new HtmlWebpackPlugin({
+         template: relative("index.html")
+      })
    ],
    mode: 'development',
    devtool: 'eval-cheap-module-source-map',
