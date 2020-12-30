@@ -23,11 +23,20 @@ module.exports = {
          }, {
             test: /\.tsx?$/,
             loader: 'ts-loader'
-         }
+         }, {
+            test: /\.less$/,
+            use: [{
+               loader: 'style-loader' // creates style nodes from JS strings
+            }, {
+               loader: 'css-loader'
+            }, {
+               loader: 'less-loader'
+            }]
+         },
       ]
    },
    resolve: {
-      extensions: ['.ts', '.tsx', '.js'],
+      extensions: ['.ts', '.tsx', '.js', '.less'],
    },
    output: {
       path: relative("dist"),

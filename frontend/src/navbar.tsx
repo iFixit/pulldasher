@@ -13,13 +13,17 @@ const Brand = styled(Navbar.Brand)`
    right: 0;
 `;
 
+const PulldasherNav = styled(Navbar)`
+   background: var(--header-background);
+`;
+
 export default function() {
    const pulls: Pull[] = useContext(PullsContext).pulls;
    return (
-      <Navbar bg="dark" expand="sm" variant="dark">
+      <PulldasherNav expand="sm">
          <Navbar.Text>{pulls.length} open</Navbar.Text>
          <Brand>Pulldasher</Brand>
          <Navbar.Toggle/>
-      </Navbar>
+      </PulldasherNav>
    );
 }
