@@ -19,6 +19,11 @@ export enum SignatureType {
    deploy_block = "deploy_block",
 }
 
+export interface RepoSpec {
+   requiredStatuses: string[];
+   name: string;
+};
+
 export interface Label {
    title: string;
    number: number;
@@ -54,9 +59,7 @@ export interface CommitStatus {
 
 export interface Pull {
    repo: string;
-   repoSpec: {
-      requiredStatuses: string[]
-   };
+   repoSpec: RepoSpec | null;
    number: number;
    state: PullState;
    title: string;

@@ -1,4 +1,4 @@
-import getPageContext from './page-context.js';
+import getPageContext from './page-context';
 import * as io from 'socket.io-client';
 
 /**

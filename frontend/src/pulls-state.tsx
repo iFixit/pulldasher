@@ -2,9 +2,9 @@ import * as React from 'react';
 import { useState, useEffect } from 'react';
 import Socket from './socket';
 import { throttle } from 'underscore';
-import { Pull } from  './types';
+import { Pull, RepoSpec } from  './types';
 
-var repoSpecs = [];
+var repoSpecs: RepoSpec[] = [];
 var pulls: Record<string, Pull> = {};
 var dummyPulls: Pull[] = (process.env.DUMMY_PULLS || []) as Pull[];
 dummyPulls.forEach(storePull);
@@ -16,10 +16,10 @@ function storePull(pull: Pull) {
 }
 
 function addRepoSpec(pull: Pull) {
-   pull.repoSpec = repoSpecs.find(repo => repo.name == pull.repo);
+   pull.repoSpec = repoSpecs.find(repo => repo.name == pull.repo) || null;
 }
 
-function initSocket(onPullsChanged) {
+function initSocket(onPullsChanged: (pulls: Pull[]) => void) {
    const update = () => onPullsChanged(Object.values(pulls));
    const throttledUpdate = throttle(update, 500);
 
