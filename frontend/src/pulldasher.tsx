@@ -1,5 +1,6 @@
 import * as React from 'react';
 import usePullsState from './pulls-state';
+import PullsContext from './pulls-context';
 import { Pull } from './types';
 import Navbar from 'react-bootstrap/Navbar';
 import Container from 'react-bootstrap/Container';
@@ -8,7 +9,7 @@ import Col from 'react-bootstrap/Col';
 
 export default function() {
    const pulls: Pull[] = usePullsState();
-   return (<>
+   return (<PullsContext.Provider value={{pulls:pulls}}>
       <Navbar expand="sm">
          <Navbar.Brand>Pulldasher</Navbar.Brand>
          <Navbar.Toggle/>
@@ -29,5 +30,5 @@ export default function() {
             <Col>QA</Col>
          </Row>
       </Container>
-   </>);
+   </PullsContext.Provider>);
 }
