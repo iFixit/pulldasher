@@ -1,4 +1,4 @@
 export default function getPageContext(): Promise<any> {
-   return fetch(process.env.BACKEND_URL + "/token")
+   return fetch("/token")
       .then((response) => response.json());
 }
