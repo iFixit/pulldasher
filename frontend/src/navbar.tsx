@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useContext } from 'react';
-import PullsContext from './pulls-context';
+import { usePulls } from './pulls-context';
 import { Pull } from './types';
 import Navbar from 'react-bootstrap/Navbar';
 import styled from 'styled-components';
@@ -18,7 +18,7 @@ const PulldasherNav = styled(Navbar)`
 `;
 
 export default function() {
-   const pulls: Pull[] = useContext(PullsContext).pulls;
+   const pulls: Pull[] = usePulls();
    return (
       <PulldasherNav expand="sm">
          <Navbar.Text>{pulls.length} open</Navbar.Text>
