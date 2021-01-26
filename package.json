@@ -18,7 +18,7 @@
     "notify-queue": "0.0.5",
     "passport": "^0.4.0",
     "passport-github": "1.1.0",
-    "socket.io": "^2.3.0",
+    "socket.io": "^2.4.0",
     "socket.io-client": "^2.3.0",
     "underscore": "^1.9.1"
   },
