@@ -1,31 +1,33 @@
-version: '2'
+version: '3'
 
 services:
    web:
       build: .
+      image: ${DOCKER_IMAGE_NAME}
       entrypoint: '/opt/pulldasher/entrypoint.sh'
       environment:
          DEBUG: pulldasher*         # Enables all debug prints and opens 127.0.0.1:9229 for remote debugging
          MOCK_AUTH_AS_USER: "fakeuser"
       ports:
-         - 8080:8080                # Map the container's port 8080 to the host's 8080
+         - ${APP_PORT}:8090         # Map the container's port 8090 to the host's 8080
                                     # NOTE: The host port will need to match
                                     # the callback URL specified in the GitHub
                                     # application setting.
 
-         - 9229:9229                # Map debugging port to localhost
+         - ${DEBUG_PORT}:9229       # Map debugging port to localhost
       volumes:
          - .:/opt/pulldasher        # Mount the current directory to /opt/pulldasher
    db:
       image: "mariadb:latest"
       volumes:
-         - db_data:/var/lib/mysql   # Create a persistent volume so that we don't lose data between restarts
+         - data-volume:/var/lib/mysql   # Create a persistent volume so that we don't lose data between restarts
       environment:
          # Please use strong passwords if you are deploying pulldasher in a
          # production environment.
-         MYSQL_ROOT_PASSWORD: pulldasher
-         MYSQL_DATABASE: pulldasher
-         MYSQL_USER: pulldasher
-         MYSQL_PASSWORD: pulldasher
+         MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+         MYSQL_DATABASE: ${MYSQL_DATABASE}
+         MYSQL_USER: ${MYSQL_USER}
+         MYSQL_PASSWORD: ${MYSQL_PASSWORD}
 volumes:
-   db_data:
+   data-volume:
+

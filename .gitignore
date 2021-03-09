@@ -4,3 +4,4 @@ node_modules
 /views/standard/css
 pulldasher.pid
 dist
+.env
