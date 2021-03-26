@@ -1,12 +1,13 @@
--- MySQL dump 10.16  Distrib 10.1.26-MariaDB, for Linux (x86_64)
+-- MariaDB dump 10.19  Distrib 10.5.9-MariaDB, for debian-linux-gnu (x86_64)
 --
+-- Host: localhost    Database: pulldasher
 -- ------------------------------------------------------
--- Server version	10.1.21-MariaDB-1~jessie
+-- Server version	10.5.9-MariaDB-1:10.5.9+maria~focal
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8 */;
+/*!40101 SET NAMES utf8mb4 */;
 /*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
 /*!40103 SET TIME_ZONE='+00:00' */;
 /*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
@@ -15,13 +16,21 @@
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
 --
+-- Current Database: `pulldasher`
+--
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `pulldasher` /*!40100 DEFAULT CHARACTER SET utf8mb4 */;
+
+USE `pulldasher`;
+
+--
 -- Table structure for table `comments`
 --
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE IF NOT EXISTS `comments` (
-  `repo` varchar(255) NOT NULL,
+  `repo` varchar(255) NOT NULL DEFAULT '',
   `comment_type` enum('issue','review') NOT NULL DEFAULT 'issue',
   `comment_id` int(10) unsigned NOT NULL,
   `number` int(10) unsigned NOT NULL,
@@ -39,13 +48,13 @@ CREATE TABLE IF NOT EXISTS `comments` (
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE IF NOT EXISTS `commit_statuses` (
-  `repo` varchar(255) NOT NULL,
+  `repo` varchar(255) NOT NULL DEFAULT '',
   `commit` char(40) NOT NULL,
   `state` enum('pending','success','error','failure') NOT NULL,
   `description` varchar(255) NOT NULL,
   `log_url` varchar(255) NOT NULL,
-  `context` varchar(255) NOT NULL,
-  PRIMARY KEY (`repo`,`commit`, `context`),
+  `context` varchar(255) NOT NULL DEFAULT 'default',
+  PRIMARY KEY (`repo`,`commit`,`context`),
   KEY `commit_statuses_state` (`state`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -57,7 +66,7 @@ CREATE TABLE IF NOT EXISTS `commit_statuses` (
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE IF NOT EXISTS `issues` (
-  `repo` varchar(255) NOT NULL,
+  `repo` varchar(255) NOT NULL DEFAULT '',
   `number` int(10) NOT NULL,
   `title` varchar(255) DEFAULT NULL,
   `difficulty` int(10) DEFAULT NULL,
@@ -78,12 +87,30 @@ CREATE TABLE IF NOT EXISTS `issues` (
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE IF NOT EXISTS `pull_labels` (
-  `repo` varchar(255) NOT NULL,
+  `repo` varchar(255) NOT NULL DEFAULT '',
   `number` int(10) unsigned NOT NULL,
   `title` varchar(32) NOT NULL,
   `user` varchar(255) DEFAULT NULL,
   `date` int(11) unsigned DEFAULT NULL,
   PRIMARY KEY (`repo`,`number`,`title`),
+  KEY `pull_labels_title` (`title`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `pull_labels_history`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `pull_labels_history` (
+  `repo` varchar(255) NOT NULL DEFAULT '',
+  `number` int(10) unsigned NOT NULL,
+  `title` varchar(32) NOT NULL,
+  `user` varchar(255) DEFAULT NULL,
+  `date_added` int(11) unsigned NOT NULL,
+  `date_removed` int(11) unsigned NOT NULL,
+  PRIMARY KEY (`repo`,`number`,`title`,`date_added`,`date_removed`) USING BTREE,
   KEY `pull_labels_title` (`title`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -99,7 +126,7 @@ CREATE TABLE IF NOT EXISTS `pull_signatures` (
   `number` int(10) unsigned NOT NULL,
   `user` varchar(255) NOT NULL,
   `type` varchar(32) NOT NULL,
-  `active` tinyint(1) NOT NULL DEFAULT '1',
+  `active` tinyint(1) NOT NULL DEFAULT 1,
   `comment_id` int(10) unsigned NOT NULL,
   `userid` int(10) unsigned NOT NULL,
   `date` int(11) unsigned DEFAULT NULL,
@@ -115,7 +142,7 @@ CREATE TABLE IF NOT EXISTS `pull_signatures` (
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE IF NOT EXISTS `pulls` (
-  `repo` varchar(255) NOT NULL,
+  `repo` varchar(255) NOT NULL DEFAULT '',
   `number` int(10) unsigned NOT NULL,
   `state` enum('open','closed') NOT NULL,
   `title` varchar(255) NOT NULL,
@@ -124,8 +151,8 @@ CREATE TABLE IF NOT EXISTS `pulls` (
   `head_sha` char(40) NOT NULL,
   `base_branch` varchar(255) NOT NULL,
   `owner` varchar(255) NOT NULL,
-  `cr_req` int(11) NOT NULL DEFAULT '2',
-  `qa_req` int(11) NOT NULL DEFAULT '1',
+  `cr_req` int(11) NOT NULL DEFAULT 2,
+  `qa_req` int(11) NOT NULL DEFAULT 1,
   `date` int(11) unsigned DEFAULT NULL,
   `date_updated` int(11) unsigned DEFAULT NULL,
   `date_closed` int(11) unsigned DEFAULT NULL,
