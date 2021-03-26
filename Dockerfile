@@ -1,6 +1,5 @@
 FROM node:latest
 
-RUN mkdir -p /opt/pulldasher
 WORKDIR /opt/pulldasher
 
 # Install dependencies
@@ -10,3 +9,4 @@ ENV DEBUG=pulldasher:*
 
 EXPOSE 8080
 CMD ["bin/pulldasher"]
+
