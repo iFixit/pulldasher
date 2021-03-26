@@ -1,11 +1,10 @@
 #!/bin/bash
 
-: "${ENV_FILE:?ENV_FILE must be defined and non-empty}"
 : "${SCHEMA_FILE:?SCHEMA_FILE must be defined and non-empty}"
 
-source $ENV_FILE
-
-docker-compose exec db sh -c "mysqldump --databases ${MYSQL_DATABASE} --no-data --skip-add-drop-table --skip-dump-date -u${MYSQL_USER} -p${MYSQL_PASSWORD}" > $SCHEMA_FILE
+docker-compose exec db \
+   sh -c 'mysqldump --databases ${MYSQL_DATABASE} --no-data --skip-add-drop-table --skip-dump-date -u${MYSQL_USER} -p${MYSQL_PASSWORD}' \
+   > $SCHEMA_FILE
 
 sed -i -e "s/CREATE TABLE/CREATE TABLE IF NOT EXISTS/" $SCHEMA_FILE
 

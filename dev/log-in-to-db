@@ -1,6 +1,4 @@
 #!/bin/bash
 
-: "${ENV_FILE:?ENV_FILE must be defined and non-empty}"
-
-docker-compose --env-file=$ENV_FILE exec db sh -c 'mysql ${MYSQL_DATABASE} -u${MYSQL_USER} -p${MYSQL_PASSWORD}'
+docker-compose exec db sh -c 'mysql ${MYSQL_DATABASE} -u${MYSQL_USER} -p${MYSQL_PASSWORD}'
 
