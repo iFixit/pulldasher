@@ -1,16 +1,20 @@
-.panel {
+.card {
+   .card-header {
+      font-size: 1rem;
+      position: relative;
+      padding-right: 55px;
+   }
+
    .pull-count {
-      float: right;
-      height: 37px;
-      width: 45px;
+      top: 0;
+      bottom: 0;
+      padding: 12px 15px;
       text-align: center;
       border-radius: 0 2px 2px 0;
       border-left: solid 1px;
-      line-height: 35px;
       position: absolute;
       z-index: 999;
-      right: 16px;
-      top: 1px;
+      right: 0;
 
       @media @mobile {
          height: 47px;
@@ -23,17 +27,19 @@
       padding: 15px 15px;
       border-color: var(--pull-separator);
    }
+
+   margin-bottom: 20px;
 }
 
-#ciBlocked-container .panel {
+#ciBlocked-container .card {
    background: var(--panel-ci-blocked-border);
    border-color: var(--panel-ci-blocked-border);
 
-   .panel-heading {
+   .card-header {
       border-color: var(--panel-ci-blocked-border);
       background: var(--panel-ci-blocked-background);
 
-      &, .panel-title {
+      &, .card-title {
          color: var(--panel-ci-blocked-text);
       }
    }
@@ -45,15 +51,15 @@
    }
 }
 
-#deployBlockPulls-container .panel {
+#deployBlockPulls-container .card {
    background: var(--panel-deploy-blocked-border);
    border-color: var(--panel-deploy-blocked-border);
 
-   .panel-heading {
+   .card-header {
       border-color: var(--panel-deploy-blocked-border);
       background: var(--panel-deploy-blocked-background);
 
-      &, .panel-title {
+      &, .card-title {
          color: var(--panel-deploy-blocked-text);
       }
    }
@@ -65,15 +71,15 @@
    }
 }
 
-#readyPulls-container .panel {
+#readyPulls-container .card {
    background: var(--panel-ready-border);
    border-color: var(--panel-ready-border);
 
-   .panel-heading {
+   .card-header {
       border-color: var(--panel-ready-border);
       background: var(--panel-ready-background);
 
-      &, .panel-title {
+      &, .card-title {
          color: var(--panel-ready-text);
       }
    }
@@ -85,17 +91,17 @@
    }
 }
 
-#blockPulls-container .panel,
-#crPulls-container .panel,
-#qaPulls-container .panel {
+#blockPulls-container .card,
+#crPulls-container .card,
+#qaPulls-container .card {
    background: var(--panel-default-border);
    border-color: var(--panel-default-border);
 
-   .panel-heading {
+   .card-header {
       border-color: var(--panel-default-border);
       background: var(--panel-default-background);
 
-      &, .panel-title {
+      &, .card-title {
          color: var(--panel-default-text);
       }
    }
@@ -344,6 +350,10 @@
 }
 
 .pull {
+   &:hover {
+      text-decoration: none;
+   }
+
    background: var(--pull-background);
 
    .pull-contents {
