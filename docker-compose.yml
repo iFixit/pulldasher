@@ -4,6 +4,8 @@ services:
    web:
       build: .
       image: ${DOCKER_IMAGE_NAME}
+      depends_on:
+        - 'db'
       env_file:
         - "./.env.db"
       environment:
@@ -17,7 +19,7 @@ services:
          - ${DEBUG_PORT}:9229       # Map debugging port to localhost:DEBUG_PORT
       volumes:
          - .:/opt/pulldasher        # Mount the current directory to /opt/pulldasher
-      entrypoint: 'node --inspect=127.0.0.1:9229 bin/pulldasher'
+      entrypoint: '/opt/pulldasher/entrypoint.sh'
    db:
       image: "mariadb:latest"
       env_file: "./.env.db"
