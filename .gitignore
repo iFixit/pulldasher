@@ -6,4 +6,5 @@ pulldasher.pid
 dist
 .env
 .env.db
+config/
 

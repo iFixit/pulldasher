@@ -72,10 +72,10 @@ module.exports = {
    // You will need to source the `schema.sql` file in the database to create
    // all the tables that Pulldasher expects.
    mysql: {
-      host: 'mysql remote host URL',
-      db:   'database name',
-      user: 'username',
-      pass: 'password'
+      host: process.env.MYSQL_HOST,
+      db:   process.env.MYSQL_DATABASE,
+      user: process.env.MYSQL_USER,
+      pass: process.env.MYSQL_PASSWORD
    },
    // The tags Pulldasher uses to determine how many CR and QA are required for
    // a given pull. The names are currently non-negotiable as far as the
