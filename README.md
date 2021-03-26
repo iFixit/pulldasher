@@ -24,12 +24,36 @@ statistics-gathering and some sorting and filtering.
 1. `git clone https://github.com/iFixit/pulldasher`
 2. `cd pulldasher`
 3. `cp config.example.js config.js`
-4. `$EDITOR config.js`
+4. `cp .env.db.example .env.db`
+5. `$EDITOR config.js` and  `$EDITOR .env.db`
    * Use your favorite editor in place of `$EDITOR`
-   * Edit the config.js file to reference correct URLs and above MySQL DB
-5. `docker build -t pulldasher .`
+   * Edit the config.js file to reference correct URLs
+   * Edit the .env.db file to reference correct MySQL DB
+6. `docker build -t pulldasher .`
+
 ### Running Pulldasher
-6. `docker run --name="test-pulldasher" --publish 8080:8080 -d pulldasher`
+
+```
+docker run \
+  --name="test-pulldasher" \
+  --env-file=.env.db \
+  --publish 8080:8080 \
+  --detach \
+  pulldasher`
+```
+
+### Development and docker compose
+
+For ease of development you can also set things up with docker compose.
+
+Note, running the `entrypoint.sh` (as happens when running the docker-compose) runs the `bin/migrate` script and applies the `migrations/schema.sql` file.
+
+1. Set up the .env and .env.db files appropriately.
+2. Build it with `./build-compose`
+3. Run it with `docker-compose up --detach`
+4. Check the logs with `docker-compose logs -t`
+
+There are a few scripts in `dev/` to help inspect the running DB.
 
 ## Use
 Pulldasher is driven by tags in pull requests and pull comments. Normally, it
