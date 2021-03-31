@@ -83,7 +83,7 @@ export default [
          // This hook will be run on column creation. In this case, it sets
          // the nice blue color on the column header.
          onCreate: function(blob) {
-            blob.removeClass('panel-default').addClass('panel-primary');
+            blob.removeClass('card-default').addClass('card-primary');
          },
          // This hook will be run whenever Pulldasher receives an update from
          // the server. It should typically be used to update things about
