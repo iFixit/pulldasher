@@ -7,6 +7,7 @@ var config     = require('../lib/config-loader'),
     Issue      = require('../models/issue'),
     Comment    = require('../models/comment'),
     Label      = require('../models/label'),
+    HistoryLabel = require('../models/historylabel'),
     refresh    = require('../lib/refresh'),
     getLogin   = require('../lib/get-user-login'),
     dbManager  = require('../lib/db-manager');
@@ -23,7 +24,7 @@ var HooksController = {
       if (secret !== config.github.hook_secret) {
          var m = 'Invalid Hook Secret: ' + secret;
          debug(m);
-         console.error(m);
+         // console.error(m);
          return res.status(401).send('Invalid POST');
       }
 
@@ -190,6 +191,14 @@ function handleLabelEvents(body) {
    switch(body.action) {
       case "labeled":
          debug('Added label: %s', body.label.name);
+         dbManager.insertLabelHistory(new HistoryLabel(
+            body.label,
+            object.number,
+            body.repository.full_name,
+            getLogin(body.sender),
+            object.updated_at,
+            0
+         ));
          return dbManager.insertLabel(new Label(
             body.label,
             object.number,
@@ -200,6 +209,14 @@ function handleLabelEvents(body) {
 
       case "unlabeled":
          debug('Removed label: %s', body.label.name);
+         dbManager.updateLabelHistory(new HistoryLabel(
+            body.label,
+            object.number,
+            body.repository.full_name,
+            getLogin(body.sender),
+            0,
+            object.updated_at
+         ));
          return dbManager.deleteLabel(new Label(
             body.label,
             object.number,
@@ -217,7 +234,7 @@ function reprocessLabels(repo, issueNumber) {
    if (!config.labels || !config.labels.length) {
       return;
    }
-   debug("Reprocessing labels for Issue #%s in repo %s", issueNumber, repo);
+   // debug("Reprocessing labels for Issue #%s in repo %s", issueNumber, repo);
    return dbManager.getIssue(repo, issueNumber)
    .then(dbManager.updateIssue);
 }

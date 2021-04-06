@@ -8,7 +8,7 @@ if (config.pidFile) {
    fs.writeFileSync(config.pidFile, '' + process.pid);
    process.on('exit', function() {
       var m = "\nExiting...";
-      debug(m);
+      // debug(m);
       console.warn(m);
       fs.unlinkSync(config.pidFile);
    });

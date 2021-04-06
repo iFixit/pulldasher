@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 var config = require('./lib/config-loader'),
     express = require('express'),
     partials = require('express-partials'),

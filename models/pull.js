@@ -31,8 +31,8 @@ function Pull(data, signatures, comments, commitStatuses, labels) {
 }
 
 Pull.prototype.update = function() {
-   debug('Calling `updatePull` for pull #%s in repo %s', this.data.number,
-    this.data.repo);
+   // debug('Calling `updatePull` for pull #%s in repo %s', this.data.number,
+   //  this.data.repo);
    var dbPull = new DBPull(this);
    var number = dbPull.data.number;
    var repo = dbPull.data.repo;
@@ -40,7 +40,7 @@ Pull.prototype.update = function() {
    return dbPull.save().
    then(function() {
       queue.markPullAsDirty(repo, number);
-      debug('updatePull: Pull #%s updated in repo %s', number, repo);
+      // debug('updatePull: Pull #%s updated in repo %s', number, repo);
    });
 };
 
@@ -54,7 +54,7 @@ Pull.prototype.syncToIssue = function() {
    if (!this.data.milestone.title && connected) {
       return Issue.findByNumber(this.data.repo, connected).
       then(function(issue) {
-         debug("Updating pull from issue: %s", issue.number);
+         // debug("Updating pull from issue: %s", issue.number);
          if (issue.milestone) {
             var milestone = self.data.milestone;
             milestone.title = issue.milestone.title;

@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Executes mysqldump, passing through all arguments to this script.
+# invoke like dump-schema db_name -u ...
+SCHEMA_FILE="migrations/schema.sql"
+mysqldump "$@" \
+   --no-data \
+   --skip-add-drop-table \
+   --skip-dump-date \
+   --no-create-db \
+   comments \
+   commit_statuses \
+   issues \
+   pull_labels \
+   pull_signatures \
+   pulls \
+   > $SCHEMA_FILE
+
+sed -i -e "s/CREATE TABLE/CREATE TABLE IF NOT EXISTS/" $SCHEMA_FILE
