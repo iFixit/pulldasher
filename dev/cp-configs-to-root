@@ -1,6 +1,0 @@
-#!/bin/bash
-
-# Meant to be run from the project root
-
-cp config/.env* .
-
