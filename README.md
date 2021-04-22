@@ -24,14 +24,18 @@ statistics-gathering and some sorting and filtering.
 1. `git clone https://github.com/iFixit/pulldasher`
 2. `cd pulldasher`
 3. `cp config.example.js config.js`
-4. `cp .env.db.example .env.db`
-5. `$EDITOR config.js` and  `$EDITOR .env.db`
+4. `$EDITOR config.js`
    * Use your favorite editor in place of `$EDITOR`
    * Edit the config.js file to reference correct URLs
-   * Edit the .env.db file to reference correct MySQL DB
-6. `docker build -t pulldasher .`
+5. `docker build -t pulldasher .`
 
 ### Running Pulldasher
+
+Copy the example DB env vars file and confgiure it for your database setup. 
+1. `cp .env.db.example .env.db`
+2. `$EDITOR .env.db`
+   * Edit the `.env.db` file to reference correct MySQL instance
+3. Run the container!
 
 ```
 docker run \
