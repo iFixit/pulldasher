@@ -5,6 +5,7 @@ node_modules
 pulldasher.pid
 dist
 .env
+.env.compose
 .env.db
 config/
 

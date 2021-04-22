@@ -52,7 +52,7 @@ For ease of development you can also set things up with docker compose.
 
 Note, running the `entrypoint.sh` (as happens when running the docker-compose) runs the `bin/migrate` script and applies the `migrations/schema.sql` file.
 
-1. Set up the .env and .env.db files appropriately.
+1. Set up the .env.compose and .env.db files appropriately.
 2. Build it with `./build-compose`
 3. Run it with `docker-compose up --detach`
 4. Check the logs with `docker-compose logs -t`
