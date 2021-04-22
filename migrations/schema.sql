@@ -1,6 +1,5 @@
 -- MariaDB dump 10.19  Distrib 10.5.9-MariaDB, for debian-linux-gnu (x86_64)
 --
--- Host: localhost    Database: pulldasher
 -- ------------------------------------------------------
 -- Server version	10.5.9-MariaDB-1:10.5.9+maria~focal
 
@@ -14,14 +13,6 @@
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-
---
--- Current Database: `pulldasher`
---
-
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `pulldasher` /*!40100 DEFAULT CHARACTER SET utf8mb4 */;
-
-USE `pulldasher`;
 
 --
 -- Table structure for table `comments`
