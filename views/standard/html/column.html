@@ -1,9 +1,9 @@
-<div class="panel panel-default pull-list">
-   <div class="click-heading panel-heading" data-toggle="collapse" data-target="#<%- column.id %>">
-      <h1 class="panel-title">
-         <span class="pull-count"></span>
+<div class="card pull-list">
+   <div class="click-heading card-header show" data-toggle="collapse" data-target="#<%- column.id %>">
+      <span class="card-title">
          <%- column.title %>
-      </h1>
+      </span>
+      <span class="pull-count float-right"></span>
    </div>
-   <div id="<%- column.id %>" class="list-group collapse in"></div>
+   <div id="<%- column.id %>" class="list-group in collapse show"></div>
 </div>
