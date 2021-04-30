@@ -311,7 +311,7 @@ export default {
 function getAgeColor(days) {
    switch (Math.floor(days / 3)) {
       case 0: return 'green';
-      case 1: return '#fabd02';
+      case 1: return '#ffe62f';
       case 2: return 'orange';
       default: return 'red';
    }
