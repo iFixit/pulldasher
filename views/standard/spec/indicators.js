@@ -284,7 +284,7 @@ export default {
    age: function age(pull, node) {
       const timeDifference = Date.now() - new Date(pull.created_at).getTime();
       const daysSinceCreation = Math.ceil(timeDifference / (1000 * 3600 * 24));
-      const numDots = daysSinceCreation < 21 ? daysSinceCreation : 20;
+      const numDots = Math.min(daysSinceCreation, 20);
       const dot = "•";
       const daysInDots = dot.repeat(numDots);
       const severityColor  = getAgeColor(daysSinceCreation);
@@ -311,7 +311,7 @@ export default {
 function getAgeColor(days) {
    switch (Math.floor(days / 3)) {
       case 0: return 'green';
-      case 1: return 'yellow';
+      case 1: return '#fabd02';
       case 2: return 'orange';
       default: return 'red';
    }
