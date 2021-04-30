@@ -284,13 +284,13 @@ export default {
    age: function age(pull, node) {
       const timeDifference = Date.now() - new Date(pull.created_at).getTime();
       const daysSinceCreation = Math.ceil(timeDifference / (1000 * 3600 * 24));
-      const numDots = Math.min(daysSinceCreation, 20);
+      const numDots = Math.min(daysSinceCreation, 30);
       const dot = "•";
       const daysInDots = dot.repeat(numDots);
       const severityColor  = getAgeColor(daysSinceCreation);
 
       var ageContainer = $(`<div class="age_container" style="color:${severityColor}">${daysInDots}</div>`);
-      utils.addTooltip(ageContainer, `Age: ${daysSinceCreation}`);
+      utils.addTooltip(ageContainer, `Age: ${daysSinceCreation}`, 'right');
       node.append(ageContainer);
    },
 
