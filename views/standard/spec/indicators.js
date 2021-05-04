@@ -281,6 +281,18 @@ export default {
          node.append(tag);
       });
    },
+   age: function age(pull, node) {
+      const timeDifference = Date.now() - new Date(pull.created_at).getTime();
+      const daysSinceCreation = Math.ceil(timeDifference / (1000 * 3600 * 24));
+      const numDots = Math.min(daysSinceCreation, 30);
+      const dot = "•";
+      const daysInDots = dot.repeat(numDots);
+      const severityColor  = getAgeColor(daysSinceCreation);
+
+      var ageContainer = $(`<div class="age_container" style="color:${severityColor}">${daysInDots}</div>`);
+      utils.addTooltip(ageContainer, `Age: ${daysSinceCreation}`, 'right');
+      node.append(ageContainer);
+   },
 
    // Here's an interesting duck! This indicator actually adds the event
    // handler to _the refresh button_ on each pull. If you look at the pull
@@ -295,6 +307,15 @@ export default {
       });
    }
 };
+
+function getAgeColor(days) {
+   switch (Math.floor(days / 3)) {
+      case 0: return 'green';
+      case 1: return '#ffe62f';
+      case 2: return 'orange';
+      default: return 'red';
+   }
+}
 
 function compareByContext(statusA, statusB) {
    if (statusA.data.context < statusB.data.context) {
