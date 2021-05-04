@@ -287,9 +287,9 @@ export default {
       const numDots = Math.min(daysSinceCreation, 30);
       const dot = "•";
       const daysInDots = dot.repeat(numDots);
-      const severityColor  = getAgeColor(daysSinceCreation);
+      const age = getAge(daysSinceCreation);
 
-      var ageContainer = $(`<div class="age_container" style="color:${severityColor}">${daysInDots}</div>`);
+      var ageContainer = $(`<div class="age_container ${age}">${daysInDots}</div>`);
       utils.addTooltip(ageContainer, `Age: ${daysSinceCreation}`, 'right');
       node.append(ageContainer);
    },
@@ -308,12 +308,11 @@ export default {
    }
 };
 
-function getAgeColor(days) {
-   switch (Math.floor(days / 3)) {
-      case 0: return 'green';
-      case 1: return '#ffe62f';
-      case 2: return 'orange';
-      default: return 'red';
+function getAge(days) {
+   switch (Math.ceil(days / 4)) {
+      case 1: return 'age-1';
+      case 2: return 'age-2';
+      default: return 'age-3';
    }
 }
 
