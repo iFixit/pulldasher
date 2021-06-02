@@ -26,25 +26,16 @@ function Signature(data) {
  * Returns an empty array if the comment did not contain any of our tags.
  */
 Signature.parseComment = function parseComment(comment, repoFullName, pullNumber) {
-   var signatures = [];
-   config.tags.forEach(function(tag) {
-      if (hasTag(comment.body, tag)) {
-         signatures.push(new Signature({
-            repo: repoFullName,
-            number: pullNumber,
-            user: {
-               id:    getUserid(comment.user),
-               login: getLogin(comment.user)
-            },
-            type: tag.name,
-            created_at: comment.created_at,
-            active: true,
-            comment_id: comment.id
-         }));
-      }
-   });
+   const commentData = {
+      repo: repoFullName,
+      number: pullNumber,
+      body: comment.body,
+      user: comment.user,
+      created_at: comment.created_at,
+      id: comment.id
+   }
 
-   return signatures;
+   return parseSignatures(commentData);
 };
 
 /**
@@ -52,26 +43,40 @@ Signature.parseComment = function parseComment(comment, repoFullName, pullNumber
  * Returns an empty array if the comment did not contain any of our tags.
  */
 Signature.parseReview = function parseReview(review, repoFullName, pullNumber) {
-   var signatures = [];
+   const reviewData = {
+      repo: repoFullName,
+      number: pullNumber,
+      body: review.body,
+      user: review.user,
+      created_at: review.submitted_at,
+      id: review.id
+   }
+
+   return parseSignatures(reviewData);
+};
+
+function parseSignatures(data) {
+	let signatures = [];
+
    config.tags.forEach(function(tag) {
-      if (hasTag(review.body, tag)) {
+      if (hasTag(data.body, tag)) {
          signatures.push(new Signature({
-            repo: repoFullName,
-            number: pullNumber,
+            repo: data.repo,
+            number: data.number,
             user: {
-               id:    getUserid(review.user),
-               login: getLogin(review.user)
+               id:    getUserid(data.user),
+               login: getLogin(data.user)
             },
             type: tag.name,
-            created_at: review.submitted_at,
+            created_at: data.created_at,
             active: true,
-            comment_id: review.id
+            comment_id: data.id
          }));
       }
    });
 
    return signatures;
-};
+}
 
 /**
  * Takes an object representing a DB row, and returns an instance of this
