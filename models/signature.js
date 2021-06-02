@@ -38,8 +38,6 @@ Signature.parseComment = function parseComment(comment, repoFullName, pullNumber
             },
             type: tag.name,
             created_at: comment.created_at,
-            // `active` is unknown until all the signatures have been created
-            // and parsed. See Pull.prototype.updateActiveSignatures()
             active: true,
             comment_id: comment.id
          }));
