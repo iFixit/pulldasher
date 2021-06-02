@@ -7,10 +7,11 @@ var debug = require('../lib/debug')('pulldasher:pull');
 var DBPull = require('./db_pull');
 var getLogin = require('../lib/get-user-login');
 
-function Pull(data, signatures, comments, commitStatuses, labels) {
+function Pull(data, signatures, comments, reviews, commitStatuses, labels) {
    this.data = data;
    this.signatures = signatures || [];
    this.comments = comments || [];
+   this.reviews = reviews || [];
    this.commitStatuses = commitStatuses;
    this.labels = labels || [];
 
@@ -160,7 +161,7 @@ Pull.parseBody = function(body) {
    return bodyTags;
 };
 
-Pull.fromGithubApi = function(data, signatures, comments, commitStatuses, labels) {
+Pull.fromGithubApi = function(data, signatures, comments, reviews, commitStatuses, labels) {
    data = {
       repo: data.base.repo.full_name,
       number: data.number,
@@ -198,14 +199,14 @@ Pull.fromGithubApi = function(data, signatures, comments, commitStatuses, labels
       changed_files: data.changed_files
    };
 
-   return new Pull(data, signatures, comments, commitStatuses, labels);
+   return new Pull(data, signatures, comments, reviews, commitStatuses, labels);
 };
 
 /**
  * Takes an object representing a DB row, and returns an instance of this
  * Pull object.
  */
-Pull.getFromDB = function(data, signatures, comments, commitStatuses, labels) {
+Pull.getFromDB = function(data, signatures, comments, reviews, commitStatuses, labels) {
    var pullData = {
       repo: data.repo,
       number: data.number,
@@ -240,7 +241,7 @@ Pull.getFromDB = function(data, signatures, comments, commitStatuses, labels) {
       qa_req: data.qa_req
    };
 
-   return new Pull(pullData, signatures, comments, commitStatuses, labels);
+   return new Pull(pullData, signatures, comments, reviews, commitStatuses, labels);
 };
 
 module.exports = Pull;
