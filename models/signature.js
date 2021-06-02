@@ -50,6 +50,32 @@ Signature.parseComment = function parseComment(comment, repoFullName, pullNumber
 };
 
 /**
+ * Parses a GitHub review and returns an array of Signature objects.
+ * Returns an empty array if the comment did not contain any of our tags.
+ */
+Signature.parseReview = function parseReview(review, repoFullName, pullNumber) {
+   var signatures = [];
+   config.tags.forEach(function(tag) {
+      if (hasTag(review.body, tag)) {
+         signatures.push(new Signature({
+            repo: repoFullName,
+            number: pullNumber,
+            user: {
+               id:    getUserid(review.user),
+               login: getLogin(review.user)
+            },
+            type: tag.name,
+            created_at: review.submitted_at,
+            active: true,
+            comment_id: review.id
+         }));
+      }
+   });
+
+   return signatures;
+};
+
+/**
  * Takes an object representing a DB row, and returns an instance of this
  * Signature object.
  */
