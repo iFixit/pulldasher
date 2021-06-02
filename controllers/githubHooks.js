@@ -6,6 +6,7 @@ var config     = require('../lib/config-loader'),
     Signature  = require('../models/signature'),
     Issue      = require('../models/issue'),
     Comment    = require('../models/comment'),
+    Review    = require('../models/review'),
     Label      = require('../models/label'),
     refresh    = require('../lib/refresh'),
     getLogin   = require('../lib/get-user-login'),
@@ -96,6 +97,31 @@ var HooksController = {
             // delete or update any signatures tied to that comment, then
             // delete all signatures and re-insert in order them so the
             // dev_blocking and such comes out correct.
+            refreshPullOrIssue(body);
+         }
+      } else if (event === 'pull_request_review') {
+         if (body.action === 'submitted') {
+            promises = [];
+
+            // Parse any signature(s) out of the comment.
+            sigs = Signature.parseReview(
+             body.review, body.repository.full_name, body.pull_request.number);
+            promises.push(dbManager.insertSignatures(sigs));
+
+            body.review.number = body.pull_request.number;
+            body.review.repo = body.repository.full_name;
+            const review = new Review(body.review);
+
+            promises.push(dbManager.updateReview(review));
+
+            dbUpdated = Promise.all(promises);
+         } else {
+            // If the review was edited or deleted, the easiest way to deal
+            // with the result is to simply refresh all data for the pull.
+            // Otherwise, we'd have to delete or update the review, delete or
+            // update any signatures tied to that review, then delete all
+            // signatures and re-insert in order them so the dev_blocking and
+            // such comes out correct.
             refreshPullOrIssue(body);
          }
       } else if (event === 'pull_request_review_comment') {
@@ -227,7 +253,9 @@ function refreshPullOrIssue(responseBody) {
 
    // The Docs: https://developer.github.com/v3/issues/#list-issues say you can
    // tell the difference like this:
-   if (responseBody.issue.pull_request) {
+   if (responseBody.pull_request) {
+      refresh.pull(repo, responseBody.pull_request.number);
+   } else if (responseBody.issue.pull_request) {
       refresh.pull(repo, responseBody.issue.number);
    } else {
       refresh.issue(repo, responseBody.issue.number);
