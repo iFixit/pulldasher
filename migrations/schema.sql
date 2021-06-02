@@ -144,6 +144,25 @@ CREATE TABLE IF NOT EXISTS `pulls` (
   KEY `pulls_repo` (`repo`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `reviews`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `reviews` (
+  `repo` varchar(255) NOT NULL,
+  `review_id` int(10) unsigned NOT NULL,
+  `number` int(10) unsigned NOT NULL,
+  `body` text NOT NULL,
+  `state` varchar(255) NOT NULL,
+  `user` varchar(255) NOT NULL,
+  `date` int(11) unsigned DEFAULT NULL,
+  PRIMARY KEY (`repo`,`review_id`),
+  KEY `pull` (`number`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+/*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
