@@ -51,7 +51,7 @@ module.exports = {
       hook_secret:  "some random string to use (?secret=oxwm5gks) to 'secure' github hook handlers",
       // Limit access to specific users or teams.
       requireOrg:   "Limit access to users belonging to this github organization",
-      requireTeam:  "[Optional] Limit access to users belonging to this team name within the above github organization"
+      requireTeam:  "[Optional] Limit access to users belonging to this team name within the above github organization, uses the slug version of the team name, i.e. 'some-team' from @SomeOrg/some-team"
    },
    session: {
       secret: "secret for signing session cookies"

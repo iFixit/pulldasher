@@ -3,7 +3,8 @@
   "version": "0.0.1",
   "description": "Simple pull request dashboard",
   "dependencies": {
-    "@octokit/rest": "^15.18.3",
+    "@octokit/plugin-throttling": "^3.4.1",
+    "@octokit/rest": "^18.5.3",
     "@types/socket.io-client": "^1.4.34",
     "@types/underscore": "^1.10.24",
     "bluebird": "^3.7.1",
@@ -19,7 +20,7 @@
     "mysql": "^2.17.1",
     "notify-queue": "0.0.5",
     "passport": "^0.4.0",
-    "passport-github": "1.1.0",
+    "passport-github2": "^0.1.12",
     "popper.js": "^1.16.1",
     "react": "^17.0.1",
     "react-bootstrap": "^1.4.0",
