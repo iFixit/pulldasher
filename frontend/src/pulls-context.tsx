@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import { Pull } from './types';
+import { Pull } from './pull';
 
 interface PullContextProps {
    pulls: Pull[];

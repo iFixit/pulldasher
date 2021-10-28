@@ -57,7 +57,7 @@ export interface CommitStatus {
    }
 }
 
-export interface Pull {
+export class PullData {
    repo: string;
    repoSpec: RepoSpec | null;
    number: number;

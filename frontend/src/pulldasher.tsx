@@ -1,6 +1,6 @@
 import usePullsState from './pulls-state';
 import PullsContext from './pulls-context';
-import { Pull } from './types';
+import { Pull } from './pull';
 import Navbar from './navbar';
 import CRColumn from './cr-column';
 import Container from 'react-bootstrap/Container';
