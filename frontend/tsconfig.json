@@ -5,7 +5,7 @@
     "target": "es6",
     "strictNullChecks": true,
     "noImplicitAny": true,
-    "jsx": "react"
+    "jsx": "react-jsx"
   },
   "include": [
     "src"

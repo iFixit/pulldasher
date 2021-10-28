@@ -2,7 +2,7 @@
     "parser": "typescript-eslint-parser",
     "extends": [
        "eslint:recommended",
-       "plugin:react/recommended",
+       "plugin:react/recommended"
     ],
     "parserOptions": {
        "ecmaVersion": 2017,
@@ -15,5 +15,9 @@
     },
     "globals": {
        "App": true
+    },
+    "rules": {
+       "react/jsx-uses-react": "off",
+       "react/react-in-jsx-scope": "off"
     }
 }

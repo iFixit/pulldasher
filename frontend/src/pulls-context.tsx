@@ -1,12 +1,11 @@
-import * as React from 'react';
-import { useContext } from 'react';
+import { createContext, useContext } from 'react';
 import { Pull } from './types';
 
 interface PullContextProps {
    pulls: Pull[];
 }
 
-const PullsContext = React.createContext<PullContextProps>({pulls:[]});
+const PullsContext = createContext<PullContextProps>({pulls:[]});
 
 export default PullsContext;
 

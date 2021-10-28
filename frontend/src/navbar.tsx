@@ -1,5 +1,3 @@
-import * as React from 'react';
-import { useContext } from 'react';
 import { usePulls } from './pulls-context';
 import { Pull } from './types';
 import Navbar from 'react-bootstrap/Navbar';

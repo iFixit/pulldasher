@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { useState, useEffect } from 'react';
 import Socket from './socket';
 import { throttle } from 'underscore';

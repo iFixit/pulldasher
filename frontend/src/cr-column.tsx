@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { usePulls } from './pulls-context';
 import { Pull } from './types';
 import styled from 'styled-components';
