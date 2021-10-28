@@ -15,4 +15,8 @@ export class Pull extends PullData {
    getKey(): string {
       return this.repo + "#" + this.number;
    }
+
+   isCrDone(): boolean {
+      return this.status.CR.length >= this.status.cr_req;
+   }
 }

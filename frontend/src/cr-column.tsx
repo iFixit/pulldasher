@@ -7,12 +7,13 @@ import PullCard from './pull-card';
 
 export default function() {
    const pulls: Pull[] = usePulls();
+   const pullsNeedingCR = pulls.filter(pull => pull.isCrDone());
    return (
       <Card>
-         <Card.Header>CR {pulls.length}</Card.Header>
+         <Card.Header>CR {pullsNeedingCR.length}</Card.Header>
          <Card.Body>
             <ListGroup>
-               {pulls.map((pull) =>
+               {pullsNeedingCR.map((pull) =>
                   <PullCard key={pull.getKey()} pull={pull}/>
                )}
             </ListGroup>
