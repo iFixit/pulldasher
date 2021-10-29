@@ -2,13 +2,14 @@ import usePullsState from './pulls-state';
 import PullsContext from './pulls-context';
 import { Pull } from './pull';
 import Navbar from './navbar';
-import CRColumn from './cr-column';
+import { Column } from './column';
 import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 
 export default function() {
    const pulls: Pull[] = usePullsState();
+   const pullsNeedingCR = pulls.filter(pull => pull.isCrDone());
    return (<PullsContext.Provider value={{pulls:pulls}}>
       <Navbar/>
       <Container>
@@ -23,7 +24,10 @@ export default function() {
          </Row>
          <Row>
             <Col>Dev Blocked</Col>
-            <Col><CRColumn/></Col>
+            <Col>
+               <Column title={`CR ${pullsNeedingCR.length}`}
+                  pulls={pullsNeedingCR}/>
+            </Col>
             <Col>QA</Col>
          </Row>
       </Container>
