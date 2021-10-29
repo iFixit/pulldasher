@@ -9,6 +9,7 @@ import Col from 'react-bootstrap/Col';
 
 export default function() {
    const pulls: Pull[] = usePullsState();
+   const pullsDevBlocked = pulls.filter(pull => pull.isDevBlocked());
    const pullsNeedingCR = pulls.filter(pull => pull.isCrDone());
    return (<PullsContext.Provider value={{pulls:pulls}}>
       <Navbar/>
@@ -23,7 +24,10 @@ export default function() {
             <Col>Ready</Col>
          </Row>
          <Row>
-            <Col>Dev Blocked</Col>
+            <Col>
+               <Column title={`Dev Block ${pullsDevBlocked.length}`}
+                  pulls={pullsDevBlocked}/>
+            </Col>
             <Col>
                <Column title={`CR ${pullsNeedingCR.length}`}
                   pulls={pullsNeedingCR}/>

@@ -34,6 +34,10 @@ export class Pull extends PullData {
    isCrDone(): boolean {
       return this.status.CR.length >= this.status.cr_req;
    }
+
+   isDevBlocked(): boolean {
+      return this.status.dev_block.length > 0;
+   }
 }
 
 function computeSignatures(signatures: Signature[]): SignatureGroup {
