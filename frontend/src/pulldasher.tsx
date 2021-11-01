@@ -10,7 +10,7 @@ import Col from 'react-bootstrap/Col';
 export default function() {
    const pulls: Pull[] = usePullsState();
    const pullsDevBlocked = pulls.filter(pull => pull.isDevBlocked());
-   const pullsNeedingCR = pulls.filter(pull => pull.isCrDone());
+   const pullsNeedingCR = pulls.filter(pull => !pull.isCrDone());
    return (<PullsContext.Provider value={{pulls:pulls}}>
       <Navbar/>
       <Container>
