@@ -7,7 +7,7 @@ import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 
-export default function() {
+export default function Pulldasher() {
    const pulls: Pull[] = usePullsState();
    const pullsDevBlocked = pulls.filter(pull => pull.isDevBlocked());
    const pullsNeedingCR = pulls.filter(pull => !pull.isCrDone());

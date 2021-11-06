@@ -1,5 +1,4 @@
 import { Pull } from './pull';
-import ListGroup from 'react-bootstrap/ListGroup';
 import styled from 'styled-components';
 
 const padding = 5;

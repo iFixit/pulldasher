@@ -4,9 +4,9 @@ import { throttle } from 'underscore';
 import { PullData, RepoSpec } from  './types';
 import { Pull } from  './pull';
 
-var repoSpecs: RepoSpec[] = [];
-var pulls: Record<string, Pull> = {};
-var dummyPulls: PullData[] = (process.env.DUMMY_PULLS || []) as PullData[];
+let repoSpecs: RepoSpec[] = [];
+const pulls: Record<string, Pull> = {};
+const dummyPulls: PullData[] = (process.env.DUMMY_PULLS || []) as PullData[];
 dummyPulls.forEach(storePull);
 
 function storePull(pullData: PullData) {
@@ -24,13 +24,13 @@ function initSocket(onPullsChanged: (pulls: Pull[]) => void) {
    const throttledUpdate = throttle(update, 500);
 
    Socket((socket) => {
-      socket.on('initialize', function(data: {repos: any[], pulls: Pull[]}) {
+      socket.on('initialize', function(data: {repos: RepoSpec[], pulls: Pull[]}) {
          repoSpecs = data.repos;
          data.pulls.forEach(storePull);
          update();
       });
 
-      socket.on('pullChange', function(pull) {
+      socket.on('pullChange', function(pull: PullData) {
          storePull(pull);
          throttledUpdate();
       });
@@ -47,4 +47,4 @@ export default function(): Pull[] {
       }
    }, []);
    return pullState;
-};
+}

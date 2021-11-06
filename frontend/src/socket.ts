@@ -1,19 +1,11 @@
 import getPageContext from './page-context';
 import * as io from 'socket.io-client';
 
-/**
- * Giving socket.io some types
- */
-export interface Socket {
-   on: (event: string, callback: (data: any) => void) => void;
-   emit: (event: string, data: any) => void;
-}
+type InitFunc = (socket: SocketIOClient.Socket) => void;
 
-type InitFunc = (socket: Socket) => void;
+let socket: SocketIOClient.Socket;
 
-let socket: Socket;
-
-export function createSocket(onInit: InitFunc): Socket {
+export function createSocket(onInit: InitFunc): SocketIOClient.Socket {
    socket = io.connect('/');
 
    socket.on('connect', function() {
@@ -26,6 +18,6 @@ export function createSocket(onInit: InitFunc): Socket {
    return socket;
 }
 
-export default function(onInit: InitFunc): Socket {
+export default function(onInit: InitFunc): SocketIOClient.Socket {
    return socket = socket || createSocket(onInit);
 }

@@ -8,7 +8,7 @@ interface SignatureGroup {
    old: Signature[],
    // Contains the most recent signature from the current user
    user: Signature | null
-};
+}
 
 export class Pull extends PullData {
    cr_signatures: SignatureGroup;
@@ -41,12 +41,12 @@ export class Pull extends PullData {
 }
 
 function computeSignatures(signatures: Signature[]): SignatureGroup {
-   var groups: SignatureGroup = {
+   const groups: SignatureGroup = {
       current: [],
       old: [],
       user: null
    };
-   var users: Record<number, boolean> = {};
+   const users: Record<number, boolean> = {};
 
    signatures.forEach(function(signature) {
       if (users[signature.data.user.id]) {
@@ -63,4 +63,4 @@ function computeSignatures(signatures: Signature[]): SignatureGroup {
    });
 
    return groups;
-};
+}
