@@ -22,8 +22,6 @@ import Templates from './Templates'
  * general-purpose.
  */
 function Column(elementFilter, indicatorFilter, spec) {
-   var self = this;
-
    // The DOM node that holds all the elements for this column. Remove it, and
    // it is as if this column never existed (although there's still the
    // columnRestore button--to really remove the entire column, you have to
@@ -69,7 +67,7 @@ function Column(elementFilter, indicatorFilter, spec) {
     * @return a jQuery object containing the new DOM node
     */
    var createDOMNode = function createDOMNode(pull) {
-      var html = self.renderPull(pull);
+      var html = renderPull(pull);
       var elem = $($.parseHTML(html));
 
       if (elementFilter) {
@@ -154,27 +152,25 @@ function Column(elementFilter, indicatorFilter, spec) {
       });
    };
 
-   _.extend(this, {
-      /**
-       * update is called to update the column with a new list of pulls.
-       */
-      update: setPulls,
+   /**
+    * update is called to update the column with a new list of pulls.
+    */
+   this.update = setPulls;
 
-      /**
-       * Renders the HTML for a pull. spec.templateName and spec.data both
-       * affect this function.
-       */
-      renderPull: function renderPull(pull) {
-         var template = Templates.get(spec.templateName || 'pull');
+   /**
+    * Renders the HTML for a pull. spec.templateName and spec.data both
+    * affect this function.
+    */
+   const renderPull = function(pull) {
+      var template = Templates.get(spec.templateName || 'pull');
 
-         var data = _.clone(pull);
-         if (spec.data) {
-            _.defaults(data, spec.data);
-         }
-
-         return template(pull);
+      var data = _.clone(pull);
+      if (spec.data) {
+         _.defaults(data, spec.data);
       }
-   });
+
+      return template(pull);
+   };
 
    column = renderColumn();
 

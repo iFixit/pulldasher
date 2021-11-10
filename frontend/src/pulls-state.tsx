@@ -1,22 +1,22 @@
-import * as React from 'react';
 import { useState, useEffect } from 'react';
 import Socket from './socket';
 import { throttle } from 'underscore';
-import { Pull, RepoSpec } from  './types';
+import { PullData, RepoSpec } from  './types';
+import { Pull } from  './pull';
 
-var repoSpecs: RepoSpec[] = [];
-var pulls: Record<string, Pull> = {};
-var dummyPulls: Pull[] = (process.env.DUMMY_PULLS || []) as Pull[];
+let repoSpecs: RepoSpec[] = [];
+const pulls: Record<string, Pull> = {};
+const dummyPulls: PullData[] = (process.env.DUMMY_PULLS || []) as PullData[];
 dummyPulls.forEach(storePull);
 
-function storePull(pull: Pull) {
-   addRepoSpec(pull);
-   const pullKey = pull.repo + "#" + pull.number;
-   pulls[pullKey] = pull;
+function storePull(pullData: PullData) {
+   addRepoSpec(pullData);
+   const pull: Pull = new Pull(pullData);
+   pulls[pull.getKey()] = pull;
 }
 
-function addRepoSpec(pull: Pull) {
-   pull.repoSpec = repoSpecs.find(repo => repo.name == pull.repo) || null;
+function addRepoSpec(pullData: PullData) {
+   pullData.repoSpec = repoSpecs.find(repo => repo.name == pullData.repo) || null;
 }
 
 function initSocket(onPullsChanged: (pulls: Pull[]) => void) {
@@ -24,13 +24,13 @@ function initSocket(onPullsChanged: (pulls: Pull[]) => void) {
    const throttledUpdate = throttle(update, 500);
 
    Socket((socket) => {
-      socket.on('initialize', function(data: {repos: any[], pulls: Pull[]}) {
+      socket.on('initialize', function(data: {repos: RepoSpec[], pulls: Pull[]}) {
          repoSpecs = data.repos;
          data.pulls.forEach(storePull);
          update();
       });
 
-      socket.on('pullChange', function(pull) {
+      socket.on('pullChange', function(pull: PullData) {
          storePull(pull);
          throttledUpdate();
       });
@@ -47,4 +47,4 @@ export default function(): Pull[] {
       }
    }, []);
    return pullState;
-};
+}

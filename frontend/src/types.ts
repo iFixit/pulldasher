@@ -1,7 +1,7 @@
 export enum PullState {
    open = "open",
    closed = "closed",
-};
+}
 
 type DateString = string;
 
@@ -22,7 +22,7 @@ export enum SignatureType {
 export interface RepoSpec {
    requiredStatuses: string[];
    name: string;
-};
+}
 
 export interface Label {
    title: string;
@@ -45,7 +45,7 @@ export interface Signature {
       active: number;
       comment_id: number;
    }
-};
+}
 
 export interface CommitStatus {
    data: {
@@ -57,7 +57,7 @@ export interface CommitStatus {
    }
 }
 
-export interface Pull {
+export class PullData {
    repo: string;
    repoSpec: RepoSpec | null;
    number: number;

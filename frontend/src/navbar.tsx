@@ -1,7 +1,5 @@
-import * as React from 'react';
-import { useContext } from 'react';
 import { usePulls } from './pulls-context';
-import { Pull } from './types';
+import { Pull } from './pull';
 import Navbar from 'react-bootstrap/Navbar';
 import styled from 'styled-components';
 
@@ -17,7 +15,7 @@ const PulldasherNav = styled(Navbar)`
    background: var(--header-background);
 `;
 
-export default function() {
+export default function navbar() {
    const pulls: Pull[] = usePulls();
    return (
       <PulldasherNav expand="sm">

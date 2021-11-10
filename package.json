@@ -37,12 +37,15 @@
     "@types/react": "^17.0.0",
     "@types/react-dom": "^17.0.0",
     "@types/styled-components": "^5.1.7",
+    "@typescript-eslint/eslint-plugin": "^5.2.0",
+    "@typescript-eslint/parser": "^5.2.0",
     "babel-loader": "^8.2.2",
     "babel-plugin-styled-components": "^1.12.0",
     "css-loader": "^2.1.1",
-    "eslint": "^4.19.1",
+    "eslint": "^7.32.0",
     "eslint-loader": "^2.2.1",
-    "eslint-plugin-import": "^2.18.2",
+    "eslint-plugin-import": "^2.25.2",
+    "eslint-plugin-react": "^7.26.1",
     "html-webpack-plugin": "^4.5.0",
     "husky": "^0.14.3",
     "less": "^3.10.3",
@@ -59,6 +62,7 @@
   "scripts": {
     "start": "node app.js",
     "debug": "node inspect app.js",
+    "lint": "eslint ./",
     "frontend:start": "DUMMY_PULLS=./frontend/dummy-pulls.json webpack-dev-server --config ./frontend/webpack.dev.config.js",
     "frontend:watch": "webpack --watch --config ./frontend/webpack.dev.config.js",
     "frontend:build": "webpack --config ./frontend/webpack.prod.config.js",
@@ -67,7 +71,7 @@
     "precommit": "lint-staged"
   },
   "lint-staged": {
-    "*.js": [
+    "*.(js|jsx|ts|tsx)": [
       "eslint --fix",
       "git add"
     ]

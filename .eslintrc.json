@@ -1,5 +1,7 @@
 {
-    "extends": "eslint:recommended",
+    "extends": [
+       "eslint:recommended"
+    ],
     "parserOptions": {
        "ecmaVersion": 2017,
        "sourceType": "module"
@@ -11,5 +13,37 @@
     },
     "globals": {
        "App": true
-    }
+    },
+    "ignorePatterns": [
+       "dist/*",
+       "frontend/dist/*"
+    ],
+    "overrides": [{
+       "files": ["**/*.ts", "**/*.tsx"],
+       "parser": "@typescript-eslint/parser",
+       "plugins": [
+          "@typescript-eslint"
+       ],
+       "extends": [
+          "eslint:recommended",
+          "plugin:react/recommended",
+          "plugin:@typescript-eslint/recommended"
+       ],
+       "parserOptions": {
+          "ecmaVersion": 2017,
+          "sourceType": "module"
+       },
+       "env": {
+          "browser": true,
+          "node": true,
+          "es6": true
+       },
+       "globals": {
+          "App": true
+       },
+       "rules": {
+          "react/jsx-uses-react": "off",
+          "react/react-in-jsx-scope": "off"
+       }
+    }]
 }

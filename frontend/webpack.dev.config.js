@@ -10,19 +10,25 @@ module.exports = {
    module: {
       rules: [
          {
-            // for any file with a suffix of js or jsx
-            test: /\.jsx?$/,
+            // for any file with a suffix of js,jsx,ts,tsx
+            test: /\.(jsx?|tsx?)$/,
             // ignore transpiling JavaScript from node_modules as it should be that state
             exclude: /node_modules/,
             // use the babel-loader for transpiling JavaScript to a suitable format
-            loader: 'babel-loader',
-            options: {
-               // attach the presets to the loader (most projects use .babelrc file instead)
-               presets: ["@babel/preset-env", "@babel/preset-react"]
-            }
-         }, {
-            test: /\.tsx?$/,
-            loader: 'ts-loader'
+            use: [
+               {
+                  loader: 'babel-loader',
+                  options: {
+                     // attach the presets to the loader (most projects use .babelrc file instead)
+                     presets: [
+                        "@babel/preset-env",
+                        ["@babel/preset-react", { runtime: "automatic" }]
+                     ]
+                  }
+               },
+               { loader: 'ts-loader' },
+               { loader: 'eslint-loader' },
+            ],
          }, {
             test: /\.less$/,
             use: [{

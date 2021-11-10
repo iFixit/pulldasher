@@ -1,15 +1,16 @@
-import * as React from 'react';
 import usePullsState from './pulls-state';
 import PullsContext from './pulls-context';
-import { Pull } from './types';
+import { Pull } from './pull';
 import Navbar from './navbar';
-import CRColumn from './cr-column';
+import { Column } from './column';
 import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 
-export default function() {
+export default function Pulldasher() {
    const pulls: Pull[] = usePullsState();
+   const pullsDevBlocked = pulls.filter(pull => pull.isDevBlocked());
+   const pullsNeedingCR = pulls.filter(pull => !pull.isCrDone());
    return (<PullsContext.Provider value={{pulls:pulls}}>
       <Navbar/>
       <Container>
@@ -23,8 +24,14 @@ export default function() {
             <Col>Ready</Col>
          </Row>
          <Row>
-            <Col>Dev Blocked</Col>
-            <Col><CRColumn/></Col>
+            <Col>
+               <Column title={`Dev Block ${pullsDevBlocked.length}`}
+                  pulls={pullsDevBlocked}/>
+            </Col>
+            <Col>
+               <Column title={`CR ${pullsNeedingCR.length}`}
+                  pulls={pullsNeedingCR}/>
+            </Col>
             <Col>QA</Col>
          </Row>
       </Container>
