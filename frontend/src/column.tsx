@@ -1,12 +1,6 @@
 import { Pull } from './pull';
-import styled from 'styled-components';
-import Card from 'react-bootstrap/Card';
-import ListGroup from 'react-bootstrap/ListGroup';
 import PullCard from './pull-card';
-
-const ColumnBody = styled(Card.Body)`
-   padding: 0;
-`;
+import { Box } from "@chakra-ui/react"
 
 interface ColumnProps {
    pulls: Pull[],
@@ -15,15 +9,15 @@ interface ColumnProps {
 
 export function Column(props: ColumnProps) {
    return (
-      <Card>
-         <Card.Header>{props.title}</Card.Header>
-         <ColumnBody>
-            <ListGroup>
-               {props.pulls.map((pull) =>
-                  <PullCard key={pull.getKey()} pull={pull}/>
-               )}
-            </ListGroup>
-         </ColumnBody>
-      </Card>
+      <Box border="1px" borderRadius={7} overflow="hidden">
+         <Box bgColor="var(--panel-default-background)" size="m" p={4}>
+            {props.title}
+         </Box>
+         <Box>
+            {props.pulls.map((pull) =>
+               <PullCard key={pull.getKey()} pull={pull}/>
+            )}
+         </Box>
+      </Box>
    );
 }

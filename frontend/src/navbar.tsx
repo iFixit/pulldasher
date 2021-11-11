@@ -1,27 +1,16 @@
 import { usePulls } from './pulls-context';
 import { Pull } from './pull';
-import Navbar from 'react-bootstrap/Navbar';
-import styled from 'styled-components';
+import { Center, Flex, Box, BoxProps } from "@chakra-ui/react"
 
-const Brand = styled(Navbar.Brand)`
-   width: 200px;
-   position: absolute;
-   margin: auto;
-   left: 0;
-   right: 0;
-`;
-
-const PulldasherNav = styled(Navbar)`
-   background: var(--header-background);
-`;
-
-export default function navbar() {
+export default function Navbar(props: BoxProps) {
    const pulls: Pull[] = usePulls();
    return (
-      <PulldasherNav expand="sm">
-         <Navbar.Text>{pulls.length} open</Navbar.Text>
-         <Brand>Pulldasher</Brand>
-         <Navbar.Toggle/>
-      </PulldasherNav>
+      <Center p={2} bgColor="var(--header-background)" {...props}>
+         <Flex w={1024} justify="space-between">
+            <Box alignSelf="center" w={150}>{pulls.length} open</Box>
+            <Box alignSelf="center">PULLDASHER</Box>
+            <Box alignSelf="center" w={150}></Box>
+         </Flex>
+      </Center>
    );
 }

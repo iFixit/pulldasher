@@ -1,26 +1,16 @@
 import { Pull } from './pull';
-import ListGroup from 'react-bootstrap/ListGroup';
-import { CommitStatuses, Status } from './commit-statuses';
-import styled from 'styled-components';
-
-const PullCardContainer = styled(ListGroup.Item)`
-   border-left: 0;
-   border-right: 0;
-
-   &:hover ${Status} {
-      display: block;
-   }
-`;
+import { CommitStatuses } from './commit-statuses';
+import { Box, Link } from "@chakra-ui/react"
 
 export default function PullCard({pull}: {pull: Pull}) {
    return (
-      <PullCardContainer>
+      <Box borderTop="1px" p={3}>
          <CommitStatuses pull={pull}/>
-         <a href={pull.getUrl()}>{pull.title}</a>
+         <Link href={pull.getUrl()}>{pull.title}</Link>
          <div>
             <span>CRs: {pull.cr_signatures.current.length}</span>&nbsp;
             <span>QAs: {pull.qa_signatures.current.length}</span>
          </div>
-      </PullCardContainer>
+      </Box>
    );
 }
