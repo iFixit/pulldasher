@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "description": "Simple pull request dashboard",
   "dependencies": {
+    "@chakra-ui/react": "^1.6.12",
+    "@emotion/react": "^11.5.0",
+    "@emotion/styled": "^11.3.0",
     "@octokit/plugin-throttling": "^3.4.1",
     "@octokit/rest": "^18.5.3",
     "@types/socket.io-client": "^1.4.34",
@@ -15,6 +18,7 @@
     "express": "^4.17.1",
     "express-partials": "0.1.1",
     "express-session": "^1.17.0",
+    "framer-motion": "^4.1.17",
     "jquery": "^3.5.0",
     "js-cookie": "^2.2.1",
     "mysql": "^2.17.1",
