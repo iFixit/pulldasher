@@ -35,6 +35,10 @@ export class Pull extends PullData {
       return this.status.CR.length >= this.status.cr_req;
    }
 
+   isQaDone(): boolean {
+      return this.status.QA.length >= this.status.qa_req;
+   }
+
    isDevBlocked(): boolean {
       return this.status.dev_block.length > 0;
    }

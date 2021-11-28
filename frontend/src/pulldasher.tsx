@@ -10,6 +10,7 @@ export default function Pulldasher() {
    const pulls: Pull[] = usePullsState();
    const pullsDevBlocked = pulls.filter(pull => pull.isDevBlocked());
    const pullsNeedingCR = pulls.filter(pull => !pull.isCrDone());
+   const pullsNeedingQA = pulls.filter(pull => !pull.isQaDone());
    return (<ChakraProvider>
       <PullsContext.Provider value={{pulls:pulls}}>
          <Navbar mb={4}/>
@@ -32,7 +33,10 @@ export default function Pulldasher() {
                <Column title={`CR ${pullsNeedingCR.length}`}
                   pulls={pullsNeedingCR}/>
             </Box>
-            <Box>QA</Box>
+            <Box>
+               <Column title={`QA ${pullsNeedingQA.length}`}
+                  pulls={pullsNeedingQA}/>
+            </Box>
          </SimpleGrid>
          </Box>
       </PullsContext.Provider>
