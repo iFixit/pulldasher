@@ -26,16 +26,13 @@ export default function Pulldasher() {
          </SimpleGrid>
          <SimpleGrid columns={3} spacing={6}>
             <Box>
-               <Column title="Dev Block"
-                  pulls={pullsDevBlocked}/>
+               <Column title="Dev Block" pulls={pullsDevBlocked}/>
             </Box>
             <Box>
-               <Column title={`CR ${pullsNeedingCR.length}`}
-                  pulls={pullsNeedingCR}/>
+               <Column title="CR" pulls={pullsNeedingCR}/>
             </Box>
             <Box>
-               <Column title={`QA ${pullsNeedingQA.length}`}
-                  pulls={pullsNeedingQA}/>
+               <Column title="QA" pulls={pullsNeedingQA}/>
             </Box>
          </SimpleGrid>
          </Box>
