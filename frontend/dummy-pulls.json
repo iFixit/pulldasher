@@ -4246,8 +4246,8 @@
           "data": {
             "sha": "da71dabf590388eea6844460386962c4a34e74af",
             "target_url": "https://wwww.example.com",
-            "description": "Build success",
-            "state": "success",
+            "description": "Build Failure",
+            "state": "failure",
             "context": "jest"
           }
         },

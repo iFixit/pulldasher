@@ -1,5 +1,5 @@
 import { extend } from "underscore";
-import { PullData, Signature } from "./types";
+import { PullData, Signature, CommitStatus } from "./types";
 
 interface SignatureGroup {
    // Contains all signatures that are active
@@ -39,8 +39,30 @@ export class Pull extends PullData {
       return this.status.QA.length >= this.status.qa_req;
    }
 
+   isCiBlocked(): boolean {
+      return !this.isDevBlocked() && !this.buildSucceeded();
+   }
+
    isDevBlocked(): boolean {
       return this.status.dev_block.length > 0;
+   }
+
+   buildSucceeded(): boolean {
+      const statuses = this.buildStatuses();
+      if (this.repoSpec) {
+         const requiredStatuses = this.repoSpec.requiredStatuses;
+         if (requiredStatuses) {
+            return requiredStatuses.every((context) => {
+               const status = statuses.find(status => status.data.context == context);
+               return status && isSuccessfulStatus(status);
+            });
+         }
+      }
+      return statuses.length > 0 && statuses.every(isSuccessfulStatus);
+   }
+
+   buildStatuses(): CommitStatus[] {
+      return this.status.commit_statuses || [];
    }
 }
 
@@ -67,4 +89,8 @@ function computeSignatures(signatures: Signature[]): SignatureGroup {
    });
 
    return groups;
+}
+
+function isSuccessfulStatus(status: CommitStatus) {
+   return status.data.state === 'success';
 }

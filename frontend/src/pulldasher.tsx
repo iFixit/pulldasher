@@ -8,6 +8,7 @@ import { Box, SimpleGrid } from "@chakra-ui/react"
 
 export default function Pulldasher() {
    const pulls: Pull[] = usePullsState();
+   const pullsCIBlocked = pulls.filter(pull => pull.isCiBlocked());
    const pullsDevBlocked = pulls.filter(pull => pull.isDevBlocked());
    const pullsNeedingCR = pulls.filter(pull => !pull.isCrDone());
    const pullsNeedingQA = pulls.filter(pull => !pull.isQaDone());
@@ -20,7 +21,9 @@ export default function Pulldasher() {
             <Box>CR Leaderboard</Box>
          </SimpleGrid>
          <SimpleGrid columns={3} spacing={6}>
-            <Box>CI Blocked</Box>
+            <Box>
+               <Column title="CI Blocked" pulls={pullsCIBlocked}/>
+            </Box>
             <Box>Deploy Blocked</Box>
             <Box>Ready</Box>
          </SimpleGrid>
