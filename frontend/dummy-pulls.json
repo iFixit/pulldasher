@@ -1025,22 +1025,7 @@
         }
       ],
       "dev_block": [],
-      "deploy_block": [
-        {
-          "data": {
-            "repo": "iFixit/ifixit",
-            "number": 35103,
-            "user": {
-              "id": 8008311,
-              "login": "rjmccluskey"
-            },
-            "type": "deploy_block",
-            "created_at": "2020-11-12T23:24:08.000Z",
-            "active": 1,
-            "comment_id": 726402490
-          }
-        }
-      ],
+      "deploy_block": [],
       "commit_statuses": [
         {
           "data": {
