@@ -58,6 +58,28 @@ export class Pull extends PullData {
       });
    }
 
+   isReady(): boolean {
+      return this.hasMetDeployRequirements()
+         && !this.isDevBlocked()
+         && !this.hasDeployBlock();
+   }
+
+   isDeployBlocked(): boolean {
+      return this.hasMetDeployRequirements()
+         && !this.isDevBlocked()
+         && this.hasDeployBlock();
+   }
+
+   hasMetDeployRequirements(): boolean {
+      return this.isQaDone()
+         && this.isCrDone()
+         && this.hasPassedCI();
+   }
+
+   hasDeployBlock(): boolean {
+      return this.status.deploy_block.length > 0;
+   }
+
    buildStatuses(): CommitStatus[] {
       return this.status.commit_statuses || [];
    }
