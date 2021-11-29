@@ -40,29 +40,33 @@ export class Pull extends PullData {
    }
 
    isCiBlocked(): boolean {
-      return !this.isDevBlocked() && !this.buildSucceeded();
+      return !this.isDevBlocked() && !this.hasPassedCI();
    }
 
    isDevBlocked(): boolean {
       return this.status.dev_block.length > 0;
    }
 
-   buildSucceeded(): boolean {
+   /**
+    * Returns true if the CI requirement has been met
+    */
+   hasPassedCI(): boolean {
       const statuses = this.buildStatuses();
-      if (this.repoSpec) {
-         const requiredStatuses = this.repoSpec.requiredStatuses;
-         if (requiredStatuses) {
-            return requiredStatuses.every((context) => {
-               const status = statuses.find(status => status.data.context == context);
-               return status && isSuccessfulStatus(status);
-            });
-         }
-      }
-      return statuses.length > 0 && statuses.every(isSuccessfulStatus);
+      return this.getRequiredBuildStatuses().every((context) => {
+         const status = statuses.find(status => status.data.context == context);
+         return status && isSuccessfulStatus(status);
+      });
    }
 
    buildStatuses(): CommitStatus[] {
       return this.status.commit_statuses || [];
+   }
+
+   getRequiredBuildStatuses(): string[] {
+      return this.repoSpec?.requiredStatuses
+         // If there are no required statuses, then all existing statuses
+         // are required to be passing
+         ?? this.buildStatuses().map((status) => status.data.context);
    }
 }
 
