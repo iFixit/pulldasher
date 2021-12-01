@@ -1,38 +1,49 @@
 import { Pull } from './pull';
-import styled from 'styled-components';
+import { StatusState } from './types';
+import { Box, chakra } from "@chakra-ui/react"
 
 const padding = 5;
-const width = 10;
+const height = 10;
 const marginBetween = 4;
 
-export const Status = styled.a`
-   width: 100%;
-   height: 100%;
-   margin: ${marginBetween / 2}px 0;
-   border-radius: 5px;
-   background: green;
-   display: none;
-`;
+export const Status = chakra(Box, {
+   baseStyle: {
+      pos: "relative",
+      h: `${height}px`,
+      flexGrow: 1,
+      borderRadius: "5px",
+   }
+});
 
-const StatusContainer = styled.div`
-   position: absolute;
-   left: ${padding}px;
-   top: ${padding}px;
-   bottom: ${padding}px;
-   width: ${width}px;
-   display: flex;
-   justify-content: flex-start;
-   flex-direction: column;
-`;
+const StatusContainer = chakra(Box, {
+   baseStyle: {
+      marginBottom: `${padding}px`,
+      display: "flex",
+      justifyContent: "space-between",
+      gap: `${marginBetween}px`,
+   }
+});
 
 export function CommitStatuses({pull}: {pull: Pull}) {
    return (
    <StatusContainer>
-      {pull.status.commit_statuses.map((status) => 
-         <Status key={status.data.context} href={status.data.target_url}>
+      {pull.buildStatuses().map((status) =>
+         <Status
+            title={status.data.context + ": " + status.data.description}
+            key={status.data.context}
+            href={status.data.target_url}
+            bg={stateToColor(status.data.state)}
+         >
          </Status>
       )}
    </StatusContainer>
    );
+}
+
+function stateToColor(state: StatusState) {
+   return state === StatusState.success ? "green" :
+      state === StatusState.pending ? "orange" :
+      state === StatusState.error ? "black" :
+      state === StatusState.failure ? "red" : "#ddd;";
 }
 
