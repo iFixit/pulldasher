@@ -1,49 +1,36 @@
 import { Pull } from './pull';
-import { StatusState } from './types';
-import { Box, chakra } from "@chakra-ui/react"
+import { StatusState, CommitStatus } from './types';
+import { Box, Link, chakra, useStyleConfig} from "@chakra-ui/react"
+import styled from "@emotion/styled"
 
-const padding = 5;
-const height = 10;
+const statusSize = 10;
 const marginBetween = 4;
+const horizontalMargin = 4;
 
-export const Status = chakra(Box, {
-   baseStyle: {
-      pos: "relative",
-      h: `${height}px`,
-      flexGrow: 1,
-      borderRadius: "5px",
-   }
-});
+const Status = chakra.a;
 
-const StatusContainer = chakra(Box, {
-   baseStyle: {
-      marginBottom: `${padding}px`,
-      display: "flex",
-      justifyContent: "space-between",
-      gap: `${marginBetween}px`,
-   }
-});
+const StatusContainer = styled.div`
+   margin: 0 ${horizontalMargin}px 0 ${horizontalMargin}px;
+   width: ${statusSize}px;
+   display: flex;
+   flex-shrink: 0;
+   flex-direction: column;
+   justify-content: space-between;
+   gap: ${marginBetween}px;
+`;
 
 export function CommitStatuses({pull}: {pull: Pull}) {
    return (
-   <StatusContainer>
-      {pull.buildStatuses().map((status) =>
-         <Status
-            title={status.data.context + ": " + status.data.description}
+   <StatusContainer className="build_status_container">
+      {pull.buildStatuses().map((status) => {
+         const styles = useStyleConfig('Status', {variant: status.data.state});
+         return (<Status __css={styles}
             key={status.data.context}
+            title={status.data.context + ": " + status.data.description}
             href={status.data.target_url}
-            bg={stateToColor(status.data.state)}
-         >
-         </Status>
-      )}
+            className="build_status"
+         />)
+      })}
    </StatusContainer>
    );
 }
-
-function stateToColor(state: StatusState) {
-   return state === StatusState.success ? "green" :
-      state === StatusState.pending ? "orange" :
-      state === StatusState.error ? "black" :
-      state === StatusState.failure ? "red" : "#ddd;";
-}
-
