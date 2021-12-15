@@ -136,6 +136,8 @@ var HooksController = {
 
             dbUpdated = dbManager.updateComment(comment);
          }
+      } else if (event === 'check_run') {
+         dbUpdated = dbManager.updateCommitCheck(body);
       }
 
       if (dbUpdated) {
