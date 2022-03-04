@@ -25,13 +25,13 @@ export default function Pulldasher() {
          </SimpleGrid>
          <SimpleGrid columns={3} spacing={6}>
             <Box>
-               <Column title="CI Blocked" pulls={pullsCIBlocked}/>
+               <Column title="CI Blocked" variant="ciBlocked" pulls={pullsCIBlocked}/>
             </Box>
             <Box>
-               <Column title="Deploy Blocked" pulls={pullsDeployBlocked}/>
+               <Column title="Deploy Blocked" variant="deployBlocked" pulls={pullsDeployBlocked}/>
             </Box>
             <Box>
-               <Column title="Ready" pulls={pullsReady}/>
+               <Column title="Ready" variant="ready" pulls={pullsReady}/>
             </Box>
          </SimpleGrid>
          <SimpleGrid columns={3} spacing={6}>
