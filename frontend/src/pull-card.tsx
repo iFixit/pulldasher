@@ -2,6 +2,8 @@ import { Pull } from './pull';
 import { CommitStatuses } from './commit-statuses';
 import { Signatures } from './signatures';
 import { Flex, Box, Link, HStack, chakra } from "@chakra-ui/react"
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faStar } from '@fortawesome/free-solid-svg-icons'
 
 const Card = chakra(Flex, {
    baseStyle: {
@@ -11,6 +13,9 @@ const Card = chakra(Flex, {
       "&:hover .build_status": {
          opacity: 1
       },
+      "& .star": {
+         marginRight: "0.5em"
+      }
    }
 });
 
@@ -20,6 +25,7 @@ export default function PullCard({pull}: {pull: Pull}) {
          <CommitStatuses pull={pull}/>
          <Box>
             <Link href={pull.getUrl()}>
+               {pull.isMine() && <FontAwesomeIcon icon={faStar} className="star" color="var(--user-icon)"/>}
                <chakra.span fontWeight="bold">{pull.getRepoName()} #{pull.number}: </chakra.span>
                {pull.title}
             </Link>
