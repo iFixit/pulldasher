@@ -4,12 +4,15 @@ import styled from "@emotion/styled"
 
 const statusSize = 10;
 const marginBetween = 4;
-const horizontalMargin = 4;
 
 const Status = chakra.a;
 
 const StatusContainer = styled.div`
-   margin: 0 ${horizontalMargin}px 0 ${horizontalMargin}px;
+   position: absolute;
+   top: 0;
+   left: 0;
+   bottom: 0;
+   margin: 6px;
    width: ${statusSize}px;
    display: flex;
    flex-shrink: 0;

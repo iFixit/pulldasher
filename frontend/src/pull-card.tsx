@@ -6,7 +6,7 @@ import { Flex, Box, Link, HStack, chakra } from "@chakra-ui/react"
 const Card = chakra(Flex, {
    baseStyle: {
       p: 4,
-      pl: 0,
+      pl: 6,
       borderTop: "1px #ccc solid",
       "&:hover .build_status": {
          opacity: 1
@@ -16,7 +16,7 @@ const Card = chakra(Flex, {
 
 export default function PullCard({pull}: {pull: Pull}) {
    return (
-      <Card>
+      <Card position="relative">
          <CommitStatuses pull={pull}/>
          <Box>
             <Link href={pull.getUrl()}>
