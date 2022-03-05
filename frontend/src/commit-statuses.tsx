@@ -1,6 +1,5 @@
 import { Pull } from './pull';
-import { StatusState, CommitStatus } from './types';
-import { Box, Link, chakra, useStyleConfig} from "@chakra-ui/react"
+import { chakra, useStyleConfig} from "@chakra-ui/react"
 import styled from "@emotion/styled"
 
 const statusSize = 10;
