@@ -5,6 +5,13 @@ interface tokenResponse {
 
 let pageContext: tokenResponse;
 
+if (process.env.DUMMY_USER) {
+   pageContext = {
+      user: process.env.DUMMY_USER,
+      socketToken: "fake-token",
+   };
+}
+
 export function getUser() {
    return pageContext && pageContext.user;
 }
