@@ -2,6 +2,13 @@ import { extendTheme } from "@chakra-ui/react"
 
 export const theme = extendTheme({
    components: {
+      Link: {
+         baseStyle: {
+            "&:hover": {
+               textDecoration: "none",
+            }
+         }
+      },
       Column: {
          baseStyle: {
             border: "1px solid var(--panel-default-border)",
