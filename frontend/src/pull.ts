@@ -1,14 +1,5 @@
 import { extend } from "underscore";
-import { PullData, Signature, CommitStatus } from "./types";
-
-interface SignatureGroup {
-   // Contains all signatures that are active
-   current: Signature[],
-   // Contains all signatures that are inactive from users without signatures in current
-   old: Signature[],
-   // Contains the most recent signature from the current user
-   user: Signature | null
-}
+import { PullData, Signature, CommitStatus, SignatureGroup } from "./types";
 
 export class Pull extends PullData {
    cr_signatures: SignatureGroup;

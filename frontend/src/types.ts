@@ -47,6 +47,15 @@ export interface Signature {
    }
 }
 
+export interface SignatureGroup {
+   // Contains all signatures that are active
+   current: Signature[],
+   // Contains all signatures that are inactive from users without signatures in current
+   old: Signature[],
+   // Contains the most recent signature from the current user
+   user: Signature | null
+}
+
 export interface CommitStatus {
    data: {
       sha: string;
