@@ -7,46 +7,47 @@ export const theme = extendTheme({
             border: "1px solid var(--panel-default-border)",
             borderRadius: "7px",
             "& .column_header": {
-               bg: "var(--panel-default-background)",
+               background: "var(--panel-default-background)",
+               fontSize: "1rem",
             },
             "& .pull_count": {
                color: "var(--panel-default-count-text)",
                borderLeft: "solid 1px var(--panel-default-count-border)",
-               bg: "var(--panel-default-count-background)",
+               background: "var(--panel-default-count-background)",
             }
          },
          variants: {
             "ciBlocked": {
                borderColor: "var(--panel-ci-blocked-border)",
                "& .column_header": {
-                  bg: "var(--panel-ci-blocked-background)",
+                  background: "var(--panel-ci-blocked-background)",
                },
                "& .pull_count": {
                   color: "var(--panel-ci-blocked-count-text)",
                   borderLeft: "solid 1px var(--panel-ci-blocked-count-border)",
-                  bg: "var(--panel-ci-blocked-count-background)",
+                  background: "var(--panel-ci-blocked-count-background)",
                },
             },
             "deployBlocked": {
                borderColor: "var(--panel-deploy-blocked-border)",
                "& .column_header": {
-                  bg: "var(--panel-deploy-blocked-background)",
+                  background: "var(--panel-deploy-blocked-background)",
                },
                "& .pull_count": {
                   color: "var(--panel-deploy-blocked-count-text)",
                   borderLeft: "solid 1px var(--panel-deploy-blocked-count-border)",
-                  bg: "var(--panel-deploy-blocked-background)",
+                  background: "var(--panel-deploy-blocked-count-background)",
                },
             },
             "ready": {
                borderColor: "var(--panel-ready-border)",
                "& .column_header": {
-                  bg: "var(--panel-ready-background)",
+                  background: "var(--panel-ready-background)",
                },
                "& .pull_count": {
                   color: "var(--panel-ready-count-text)",
                   borderLeft: "solid 1px var(--panel-ready-count-border)",
-                  bg: "var(--panel-ready-background)",
+                  background: "var(--panel-ready-count-background)",
                },
             }
          }
