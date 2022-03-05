@@ -18,6 +18,10 @@ export class Pull extends PullData {
       return 'https://github.com/' + this.repo + '/pull/' + this.number;
    }
 
+   getRepoName(): string {
+      return this.repo.replace(/.*\//g, '');
+   }
+
    // Returns a string that is stable and unique to this pull
    getKey(): string {
       return this.repo + "#" + this.number;
