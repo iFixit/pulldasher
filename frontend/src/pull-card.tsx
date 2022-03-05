@@ -1,6 +1,7 @@
 import { Pull } from './pull';
 import { CommitStatuses } from './commit-statuses';
-import { Flex, Box, Link, useStyleConfig, chakra } from "@chakra-ui/react"
+import { Signatures } from './signatures';
+import { Flex, Box, Link, HStack, chakra } from "@chakra-ui/react"
 
 const Card = chakra(Flex, {
    baseStyle: {
@@ -19,10 +20,18 @@ export default function PullCard({pull}: {pull: Pull}) {
          <CommitStatuses pull={pull}/>
          <Box>
             <Link href={pull.getUrl()}>{pull.title}</Link>
-            <div>
-               <span>CRs: {pull.cr_signatures.current.length}</span>&nbsp;
-               <span>QAs: {pull.qa_signatures.current.length}</span>
-            </div>
+            <HStack>
+               <Signatures
+                  pull={pull}
+                  signatures={pull.cr_signatures}
+                  required={pull.status.cr_req}
+                  title="CR"/>
+               <Signatures
+                  pull={pull}
+                  signatures={pull.qa_signatures}
+                  required={pull.status.qa_req}
+                  title="QA"/>
+            </HStack>
          </Box>
       </Card>
    );

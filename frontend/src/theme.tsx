@@ -77,6 +77,29 @@ export const theme = extendTheme({
                bg: "var(--build-state-failure)",
             },
          }
+      },
+      Signatures: {
+         baseStyle: {
+            fontSize: 14,
+            fontWeight: 700,
+            borderRadius: "3px",
+            backgroundColor: "var(--status-background)",
+            borderWidth: "1px",
+            borderColor: "var(--status-border)",
+            color: "var(--status-text)",
+         },
+         variants: {
+            valid: {
+               backgroundColor: "var(--status-valid-background)",
+               borderColor: "var(--status-valid-border)",
+               color: "var(--status-valid-text)",
+            },
+            validMine: {
+               backgroundColor: "var(--status-valid-mine-background)",
+               borderColor: "var(--status-valid-mine-border)",
+               color: "var(--status-valid-mine-text)",
+            },
+         }
       }
    }
 });
