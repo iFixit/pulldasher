@@ -1,3 +1,4 @@
+import { getUser } from "./page-context";
 import { extend } from "underscore";
 import { PullData, Signature, CommitStatus, SignatureGroup } from "./types";
 
@@ -20,6 +21,10 @@ export class Pull extends PullData {
    // Returns a string that is stable and unique to this pull
    getKey(): string {
       return this.repo + "#" + this.number;
+   }
+
+   isMine(): boolean {
+      return this.user.login == getUser();
    }
 
    isCrDone(): boolean {
