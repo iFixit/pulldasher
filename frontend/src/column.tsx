@@ -11,7 +11,7 @@ interface ColumnProps {
 export function Column(props: ColumnProps) {
    const styles = useStyleConfig('Column', {variant: props.variant});
    return (
-      <Box __css={styles} overflow="hidden">
+      <Box __css={styles} overflow="hidden" mb="var(--body-gutter)">
          <Flex className="column_header" size="m">
             <Box p={3} pl={4}>{props.title}</Box>
             <Spacer/>

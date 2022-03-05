@@ -18,12 +18,12 @@ export default function Pulldasher() {
    return (<ChakraProvider theme={theme}>
       <PullsContext.Provider value={{pulls:pulls}}>
          <Navbar mb={4}/>
-         <Box maxW={1024} m="auto">
-         <SimpleGrid columns={3} spacing={6}>
+         <Box maxW={1024} m="auto" px="var(--body-gutter)">
+         <SimpleGrid columns={3} spacing="var(--body-gutter)">
             <Box>QA Leaderboard</Box>
             <Box>CR Leaderboard</Box>
          </SimpleGrid>
-         <SimpleGrid columns={3} spacing={6}>
+         <SimpleGrid columns={3} spacing="var(--body-gutter)">
             <Box>
                <Column title="CI Blocked" variant="ciBlocked" pulls={pullsCIBlocked}/>
             </Box>
@@ -34,7 +34,7 @@ export default function Pulldasher() {
                <Column title="Ready" variant="ready" pulls={pullsReady}/>
             </Box>
          </SimpleGrid>
-         <SimpleGrid columns={3} spacing={6}>
+         <SimpleGrid columns={3} spacing="var(--body-gutter)">
             <Box>
                <Column title="Dev Block" pulls={pullsDevBlocked}/>
             </Box>
