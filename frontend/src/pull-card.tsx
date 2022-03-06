@@ -19,7 +19,7 @@ const Card = chakra(Flex, {
    }
 });
 
-export default function PullCard({pull}: {pull: Pull}) {
+export function PullCard({pull}: {pull: Pull}) {
    return (
       <Card position="relative">
          <CommitStatuses pull={pull}/>

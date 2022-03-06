@@ -1,13 +1,13 @@
-import usePullsState from './pulls-state';
-import PullsContext from './pulls-context';
+import { usePullsState } from './pulls-state';
+import { PullsContext } from './pulls-context';
 import { ChakraProvider } from "@chakra-ui/react"
 import { Pull } from './pull';
-import Navbar from './navbar';
+import { Navbar } from './navbar';
 import { Column } from './column';
 import { Box, SimpleGrid } from "@chakra-ui/react"
 import { theme } from './theme';
 
-export default function Pulldasher() {
+export function Pulldasher () {
    const pulls: Pull[] = usePullsState();
    const pullsCIBlocked = pulls.filter(pull => pull.isCiBlocked());
    const pullsDeployBlocked = pulls.filter(pull => pull.isDeployBlocked());

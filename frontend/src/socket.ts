@@ -1,4 +1,4 @@
-import getPageContext from './page-context';
+import { getPageContext } from './page-context';
 import * as io from 'socket.io-client';
 
 type InitFunc = (socket: SocketIOClient.Socket) => void;
@@ -18,6 +18,6 @@ export function createSocket(onInit: InitFunc): SocketIOClient.Socket {
    return socket;
 }
 
-export default function(onInit: InitFunc): SocketIOClient.Socket {
+export function Socket(onInit: InitFunc): SocketIOClient.Socket {
    return socket = socket || createSocket(onInit);
 }

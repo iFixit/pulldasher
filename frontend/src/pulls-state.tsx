@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import Socket from './socket';
+import { Socket } from './socket';
 import { throttle } from 'underscore';
 import { PullData, RepoSpec } from  './types';
 import { Pull } from  './pull';
@@ -37,7 +37,7 @@ function initSocket(onPullsChanged: (pulls: Pull[]) => void) {
    });
 }
 
-export default function(): Pull[] {
+export function usePullsState(): Pull[] {
    const [pullState, setPullsState] = useState(Object.values(pulls));
    useEffect(() => {
       // If we have stubbed the pull list, we are in front-end-only mode and

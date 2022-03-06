@@ -1,5 +1,5 @@
 import { Pull } from './pull';
-import PullCard from './pull-card';
+import { PullCard } from './pull-card';
 import { Box, Flex, Spacer, useStyleConfig } from "@chakra-ui/react"
 
 interface ColumnProps {

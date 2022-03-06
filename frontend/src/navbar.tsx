@@ -2,7 +2,7 @@ import { usePulls } from './pulls-context';
 import { Pull } from './pull';
 import { Center, Flex, Box, BoxProps } from "@chakra-ui/react"
 
-export default function Navbar(props: BoxProps) {
+export function Navbar(props: BoxProps) {
    const pulls: Pull[] = usePulls();
    return (
       <Center p={2} bgColor="var(--header-background)" {...props}>

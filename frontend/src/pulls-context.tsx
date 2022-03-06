@@ -5,9 +5,7 @@ interface PullContextProps {
    pulls: Pull[];
 }
 
-const PullsContext = createContext<PullContextProps>({pulls:[]});
-
-export default PullsContext;
+export const PullsContext = createContext<PullContextProps>({pulls:[]});
 
 export function usePulls(): Pull[] {
    return useContext(PullsContext).pulls;
