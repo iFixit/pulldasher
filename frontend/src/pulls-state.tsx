@@ -19,7 +19,9 @@ function addRepoSpec(pullData: PullData) {
    pullData.repoSpec = repoSpecs.find(repo => repo.name == pullData.repo) || null;
 }
 
+let socketInitialized = false;
 function initSocket(onPullsChanged: (pulls: Pull[]) => void) {
+   socketInitialized = true;
    const update = () => onPullsChanged(Object.values(pulls));
    const throttledUpdate = throttle(update, 500);
 
@@ -39,12 +41,10 @@ function initSocket(onPullsChanged: (pulls: Pull[]) => void) {
 
 export function usePullsState(): Pull[] {
    const [pullState, setPullsState] = useState(Object.values(pulls));
-   useEffect(() => {
-      // If we have stubbed the pull list, we are in front-end-only mode and
-      // don't need a socket to a backend that doesn't exist
-      if (!dummyPulls.length) {
-         initSocket(setPullsState);
-      }
-   }, []);
+   // If we have stubbed the pull list, we are in front-end-only mode and
+   // don't need a socket to a backend that doesn't exist
+   if (!dummyPulls.length && !socketInitialized) {
+      initSocket(setPullsState);
+   }
    return pullState;
 }
