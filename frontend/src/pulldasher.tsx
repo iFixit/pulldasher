@@ -1,5 +1,4 @@
-import { usePullsState } from './pulls-state';
-import { PullsContext } from './pulls-context';
+import { usePulls } from './pulls-context';
 import { ChakraProvider } from "@chakra-ui/react"
 import { Pull } from './pull';
 import { Navbar } from './navbar';
@@ -7,8 +6,8 @@ import { Column } from './column';
 import { Box, SimpleGrid } from "@chakra-ui/react"
 import { theme } from './theme';
 
-export function Pulldasher () {
-   const pulls: Pull[] = usePullsState();
+export const Pulldasher: React.FC = function() {
+   const pulls: Pull[] = usePulls();
    const pullsCIBlocked = pulls.filter(pull => pull.isCiBlocked());
    const pullsDeployBlocked = pulls.filter(pull => pull.isDeployBlocked());
    const pullsReady = pulls.filter(pull => pull.isReady());
@@ -16,7 +15,6 @@ export function Pulldasher () {
    const pullsNeedingCR = pulls.filter(pull => !pull.isCrDone());
    const pullsNeedingQA = pulls.filter(pull => !pull.isQaDone());
    return (<ChakraProvider theme={theme}>
-      <PullsContext.Provider value={{pulls:pulls}}>
          <Navbar mb={4}/>
          <Box maxW={1024} m="auto" px="var(--body-gutter)">
          <SimpleGrid columns={3} spacing="var(--body-gutter)">
@@ -46,6 +44,5 @@ export function Pulldasher () {
             </Box>
          </SimpleGrid>
          </Box>
-      </PullsContext.Provider>
    </ChakraProvider>);
 }
