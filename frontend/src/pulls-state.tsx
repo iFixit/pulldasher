@@ -35,7 +35,8 @@ function initSocket(onPullsChanged: (pulls: Pull[]) => void) {
 }
 
 export function usePullsState(): Pull[] {
-   const [pullState, setPullsState] = useState(Object.values(pulls));
+   const pullArray = Object.values(pulls);
+   const [pullState, setPullsState] = useState(pullArray);
    // If we have stubbed the pull list, we are in front-end-only mode and
    // don't need a socket to a backend that doesn't exist
    if (!dummyPulls.length && !socketInitialized) {
