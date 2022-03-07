@@ -21,7 +21,7 @@ function initSocket(onPullsChanged: (pulls: Pull[]) => void) {
    const update = () => onPullsChanged(Object.values(pulls));
    const throttledUpdate = throttle(update, 500);
 
-   Socket((socket) => {
+   Socket((socket: SocketIOClient.Socket) => {
       socket.on('initialize', function(data: {repos: RepoSpec[], pulls: Pull[]}) {
          repoSpecs = data.repos;
          data.pulls.forEach(storePull);
