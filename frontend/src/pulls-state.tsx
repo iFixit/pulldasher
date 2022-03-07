@@ -19,18 +19,17 @@ let socketInitialized = false;
 function initSocket(onPullsChanged: (pulls: Pull[]) => void) {
    socketInitialized = true;
    const update = () => onPullsChanged(Object.values(pulls));
-   const throttledUpdate = throttle(update, 500);
-
+   const throttledPullRefresh: () => void = throttle(update, 500);
    Socket((socket: SocketIOClient.Socket) => {
       socket.on('initialize', function(data: {repos: RepoSpec[], pulls: Pull[]}) {
          repoSpecs = data.repos;
          data.pulls.forEach(storePull);
-         update();
+         throttledPullRefresh();
       });
 
       socket.on('pullChange', function(pull: PullData) {
          storePull(pull);
-         throttledUpdate();
+         throttledPullRefresh();
       });
    });
 }
