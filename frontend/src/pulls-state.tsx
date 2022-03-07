@@ -18,8 +18,8 @@ function storePull(pullData: PullData) {
 let socketInitialized = false;
 function initSocket(onPullsChanged: (pulls: Pull[]) => void) {
    socketInitialized = true;
-   const update = () => onPullsChanged(Object.values(pulls));
-   const throttledPullRefresh: () => void = throttle(update, 500);
+   const pullRefresh = () => onPullsChanged(Object.values(pulls));
+   const throttledPullRefresh: () => void = throttle(pullRefresh, 500);
    Socket((socket: SocketIOClient.Socket) => {
       socket.on('initialize', function(data: {repos: RepoSpec[], pulls: Pull[]}) {
          repoSpecs = data.repos;
