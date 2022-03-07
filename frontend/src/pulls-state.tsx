@@ -10,13 +10,9 @@ const dummyPulls: PullData[] = (process.env.DUMMY_PULLS || []) as PullData[];
 dummyPulls.forEach(storePull);
 
 function storePull(pullData: PullData) {
-   addRepoSpec(pullData);
+   pullData.repoSpec = repoSpecs.find(repo => repo.name == pullData.repo) || null;
    const pull: Pull = new Pull(pullData);
    pulls[pull.getKey()] = pull;
-}
-
-function addRepoSpec(pullData: PullData) {
-   pullData.repoSpec = repoSpecs.find(repo => repo.name == pullData.repo) || null;
 }
 
 let socketInitialized = false;
