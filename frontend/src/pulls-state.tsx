@@ -15,9 +15,7 @@ function storePull(pullData: PullData) {
    pulls[pull.getKey()] = pull;
 }
 
-let socketInitialized = false;
 function initSocket(onPullsChanged: (pulls: Pull[]) => void) {
-   socketInitialized = true;
    const pullRefresh = () => onPullsChanged(Object.values(pulls));
    const throttledPullRefresh: () => void = throttle(pullRefresh, 500);
    Socket((socket: SocketIOClient.Socket) => {
@@ -34,13 +32,20 @@ function initSocket(onPullsChanged: (pulls: Pull[]) => void) {
    });
 }
 
+/**
+ * Note: This is only meant to be used in one component
+ */
+let socketInitialized = false;
 export function usePullsState(): Pull[] {
    const pullArray = Object.values(pulls);
    const [pullState, setPullsState] = useState(pullArray);
-   // If we have stubbed the pull list, we are in front-end-only mode and
-   // don't need a socket to a backend that doesn't exist
-   if (!dummyPulls.length && !socketInitialized) {
-      initSocket(setPullsState);
-   }
+   useEffect(() => {
+      // If we have stubbed the pull list, we are in front-end-only mode and
+      // don't need a socket to a backend that doesn't exist
+      if (!dummyPulls.length && !socketInitialized) {
+         socketInitialized = true;
+         initSocket(setPullsState);
+      }
+   }, []);
    return pullState;
 }
