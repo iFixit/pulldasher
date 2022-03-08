@@ -18,6 +18,7 @@ export function Signatures({pull, title, signatures, required}: SignaturesProps)
    const styles = useStyleConfig('Signatures', {variant: statusVariant});
    const allSignatures = [...signatures.current, ...signatures.old];
    const unfulfilledCount = Math.max(0, required - signatures.current.length);
+   const noneToShow = required == 0 && allSignatures.length == 0;
 
    return (
       <HStack
@@ -27,8 +28,9 @@ export function Signatures({pull, title, signatures, required}: SignaturesProps)
          lineHeight="1em"
          spacing={1}
          sx={styles}
+         title={noneToShow ? `No ${title} Required` : ''}
       >
-      <Box mr={2}>{title}</Box>
+      <Box m="2px" mr={noneToShow ? "2px" : 2}>{title}</Box>
       {NewAndOldSigs(allSignatures)}
       {UnfullfilledSigs(unfulfilledCount)}
    </HStack>
