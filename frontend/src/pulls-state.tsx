@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Socket } from './socket';
+import { Socket } from './backend/socket';
 import { throttle } from 'underscore';
 import { PullData, RepoSpec } from  './types';
 import { Pull } from  './pull';
