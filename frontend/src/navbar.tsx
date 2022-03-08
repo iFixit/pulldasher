@@ -6,10 +6,14 @@ export function Navbar(props: BoxProps) {
    const pulls: Pull[] = usePulls();
    const setPullFilter = useSetFilter();
    const updateFilter = function(event: React.ChangeEvent<HTMLInputElement>) {
-      const pattern = event.target.value;
-      setPullFilter((pull: Pull) => {
-         return pull.title.includes(pattern);
-      });
+      const patterns = event.target.value
+         .trim()
+         .split(/\s+/)
+         .filter((s) => s.length)
+         .map((s) => new RegExp(s, 'i'))
+      setPullFilter(patterns.length ? (pull: Pull) => {
+         return patterns.every((pattern) => pull.title.match(pattern));
+      }: null);
    };
 
    return (
