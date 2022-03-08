@@ -90,6 +90,14 @@ export class Pull extends PullData {
          // are required to be passing
          ?? this.buildStatuses().map((status) => status.data.context);
    }
+
+   url() {
+      return 'https://github.com/' + this.repo + '/pull/' + this.number;
+   }
+
+   linkToSignature(sig: Signature): string {
+      return this.url() + '#issuecomment-' + sig.data.comment_id;
+   }
 }
 
 function computeSignatures(signatures: Signature[]): SignatureGroup {
