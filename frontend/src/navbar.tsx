@@ -13,12 +13,11 @@ export function Navbar(props: BoxProps) {
    };
 
    return (
-      <Center p={2} bgColor="var(--header-background)" {...props}>
+      <Center pl="var(--body-gutter)" pr="var(--body-gutter)" py={2} bgColor="var(--header-background)" {...props}>
          <Flex w={1024} justify="space-between">
             <Box alignSelf="center" w={150}>{pulls.length} open</Box>
             <Box alignSelf="center">PULLDASHER</Box>
             <Input alignSelf="center" w={150} onChange={updateFilter} placeholder="Search"/>
-            <Box alignSelf="center" w={150}></Box>
          </Flex>
       </Center>
    );
