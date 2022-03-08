@@ -1,6 +1,6 @@
 import { render } from 'react-dom';
 import { Pulldasher } from './pulldasher';
-import { PullsProvider } from './pulls-context';
+import { PullsProvider } from './pulldasher/pulls-context';
 import { ChakraProvider } from "@chakra-ui/react"
 import { theme } from './theme';
 import '../../views/standard/less/themes/day_theme.less';

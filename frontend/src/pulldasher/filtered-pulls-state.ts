@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { usePullsState } from './pulls-state';
-import { Pull } from  './pull';
+import { Pull } from  '../pull';
 
 export type FilterFunction = (pull: Pull) => boolean;
 export type FilterFunctionSetter = (filter: FilterFunction|null) => void;

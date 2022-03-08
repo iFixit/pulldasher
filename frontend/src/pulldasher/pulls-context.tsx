@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import { useFilteredPullsState, FilterFunction, FilterFunctionSetter } from './filtered-pulls-state';
-import { Pull } from './pull';
+import { Pull } from '../pull';
 
 interface PullContextProps {
    // Array of pulls passing the filter function

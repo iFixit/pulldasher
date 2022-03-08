@@ -1,7 +1,7 @@
 import { usePulls } from './pulls-context';
-import { Pull } from './pull';
-import { Navbar } from './navbar';
-import { Column } from './column';
+import { Pull } from '../pull';
+import { Navbar } from '../navbar';
+import { Column } from '../column';
 import { Box, SimpleGrid } from "@chakra-ui/react"
 
 export const Pulldasher: React.FC = function() {

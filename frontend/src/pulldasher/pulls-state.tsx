@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { createPullSocket } from './backend/pull-socket';
+import { createPullSocket } from '../backend/pull-socket';
 import { throttle } from 'underscore';
-import { PullData, RepoSpec } from  './types';
-import { Pull } from  './pull';
+import { PullData, RepoSpec } from  '../types';
+import { Pull } from  '../pull';
 
 function onPullsChanged(pullsChanged: (pulls: Pull[]) => void) {
    const pulls: Record<string, Pull> = {};
