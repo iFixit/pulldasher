@@ -1,34 +1,21 @@
 import { useState, useEffect } from 'react';
-import { getSocket } from './backend/socket';
+import { createPullSocket } from './backend/pull-socket';
 import { throttle } from 'underscore';
 import { PullData, RepoSpec } from  './types';
 import { Pull } from  './pull';
 
-let repoSpecs: RepoSpec[] = [];
-const pulls: Record<string, Pull> = {};
-const dummyPulls: PullData[] = (process.env.DUMMY_PULLS || []) as PullData[];
-dummyPulls.forEach(storePull);
-
-function storePull(pullData: PullData) {
-   pullData.repoSpec = repoSpecs.find(repo => repo.name == pullData.repo) || null;
-   const pull: Pull = new Pull(pullData);
-   pulls[pull.getKey()] = pull;
-}
-
-function initSocket(onPullsChanged: (pulls: Pull[]) => void) {
-   const pullRefresh = () => onPullsChanged(Object.values(pulls));
+function onPullsChanged(pullsChanged: (pulls: Pull[]) => void) {
+   const pulls: Record<string, Pull> = {};
+   const pullRefresh = () => pullsChanged(Object.values(pulls));
    const throttledPullRefresh: () => void = throttle(pullRefresh, 500);
-   getSocket().then((socket: SocketIOClient.Socket) => {
-      socket.on('initialize', function(data: {repos: RepoSpec[], pulls: Pull[]}) {
-         repoSpecs = data.repos;
-         data.pulls.forEach(storePull);
-         throttledPullRefresh();
-      });
 
-      socket.on('pullChange', function(pull: PullData) {
-         storePull(pull);
-         throttledPullRefresh();
+   createPullSocket((pullDatas: PullData[], repoSpecs: RepoSpec[]) => {
+      pullDatas.forEach((pullData: PullData) => {
+         pullData.repoSpec = repoSpecs.find(repo => repo.name == pullData.repo) || null;
+         const pull: Pull = new Pull(pullData);
+         pulls[pull.getKey()] = pull;
       });
+      throttledPullRefresh();
    });
 }
 
@@ -37,17 +24,16 @@ function initSocket(onPullsChanged: (pulls: Pull[]) => void) {
  */
 let socketInitialized = false;
 export function usePullsState(): Pull[] {
-   const pullArray = Object.values(pulls);
-   const [pullState, setPullsState] = useState(pullArray);
+   const [pullState, setPullsState] = useState<Pull[]>([]);
    useEffect(() => {
       if (socketInitialized) {
          throw new Error("usePullsState() connects to socket-io and is only meant to be used in the PullsProvider component, see usePulls() instead.");
       }
       // If we have stubbed the pull list, we are in front-end-only mode and
       // don't need a socket to a backend that doesn't exist
-      if (!dummyPulls.length && !socketInitialized) {
+      if (!socketInitialized) {
          socketInitialized = true;
-         initSocket(setPullsState);
+         onPullsChanged(setPullsState);
       }
    }, []);
    return pullState;
