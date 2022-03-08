@@ -3,7 +3,7 @@ export enum PullState {
    closed = "closed",
 }
 
-type DateString = string;
+export type DateString = string;
 
 export enum StatusState {
    error = "error",

@@ -1,5 +1,6 @@
 import { Pull } from '../pull';
 import { CommitStatuses } from './commit-statuses';
+import { Age } from './age';
 import { Signatures } from './signatures';
 import { Flex, Box, Link, HStack, chakra } from "@chakra-ui/react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -41,6 +42,7 @@ export function PullCard({pull}: {pull: Pull}) {
                   required={pull.status.qa_req}
                   title="QA"/>
             </HStack>
+            <Age created_at={pull.created_at}/>
          </Box>
       </Card>
    );
