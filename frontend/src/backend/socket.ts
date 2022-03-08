@@ -1,23 +1,22 @@
 import { getPageContext } from '../page-context';
 import * as io from 'socket.io-client';
 
-type InitFunc = (socket: SocketIOClient.Socket) => void;
+type SocketPromise = Promise<SocketIOClient.Socket>;
+let socket: SocketPromise;
 
-let socket: SocketIOClient.Socket;
+function createSocket(): Promise<SocketIOClient.Socket> {
+   return new Promise((resolve) => {
+      const socket = io.connect('/');
 
-export function createSocket(onInit: InitFunc): SocketIOClient.Socket {
-   socket = io.connect('/');
-
-   socket.on('connect', function() {
-      getPageContext().then((details) => {
-         socket.emit('authenticate', details.socketToken);
+      socket.on('connect', function() {
+         getPageContext().then((details) => {
+            socket.emit('authenticate', details.socketToken);
+         });
       });
+      resolve(socket);
    });
-
-   onInit(socket);
-   return socket;
 }
 
-export function Socket(onInit: InitFunc): SocketIOClient.Socket {
-   return socket = socket || createSocket(onInit);
+export function getSocket(): SocketPromise {
+   return socket = socket || createSocket();
 }

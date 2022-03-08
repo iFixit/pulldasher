@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Socket } from './backend/socket';
+import { getSocket } from './backend/socket';
 import { throttle } from 'underscore';
 import { PullData, RepoSpec } from  './types';
 import { Pull } from  './pull';
@@ -18,7 +18,7 @@ function storePull(pullData: PullData) {
 function initSocket(onPullsChanged: (pulls: Pull[]) => void) {
    const pullRefresh = () => onPullsChanged(Object.values(pulls));
    const throttledPullRefresh: () => void = throttle(pullRefresh, 500);
-   Socket((socket: SocketIOClient.Socket) => {
+   getSocket().then((socket: SocketIOClient.Socket) => {
       socket.on('initialize', function(data: {repos: RepoSpec[], pulls: Pull[]}) {
          repoSpecs = data.repos;
          data.pulls.forEach(storePull);
