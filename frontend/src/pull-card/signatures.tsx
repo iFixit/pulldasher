@@ -1,6 +1,6 @@
-import { getUser } from './page-context';
-import { Pull } from './pull';
-import { Signature, SignatureGroup } from './types';
+import { getUser } from '../page-context';
+import { Pull } from '../pull';
+import { Signature, SignatureGroup } from '../types';
 import { Box, HStack, useStyleConfig } from "@chakra-ui/react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCheckCircle } from '@fortawesome/free-solid-svg-icons'

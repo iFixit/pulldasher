@@ -1,4 +1,4 @@
-import { Pull } from './pull';
+import { Pull } from '../pull';
 import { CommitStatuses } from './commit-statuses';
 import { Signatures } from './signatures';
 import { Flex, Box, Link, HStack, chakra } from "@chakra-ui/react"

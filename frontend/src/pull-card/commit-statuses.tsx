@@ -1,4 +1,4 @@
-import { Pull } from './pull';
+import { Pull } from '../pull';
 import { chakra, useStyleConfig} from "@chakra-ui/react"
 import styled from "@emotion/styled"
 
