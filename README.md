@@ -16,6 +16,8 @@ To run Pulldasher, you'll need MySQL as well as Node. MySQL is used for
 statistics-gathering and some sorting and filtering.
 
 ## Getting Started
+### Testing pulldasher
+If you need to test a pull request for Pulldasher, check out the branch on Cominor and use the script `/home/ifixit/ifixit_scripts/update-pulldasher-dev`. This script looks in your own Pulldasher checkout, builds and tags a docker image, and runs a new container with it. The new Pulldasher will be accessible at [pulldasher-dev.cominor.com](https://pulldasher-dev.cominor.com/).
 
 ### Run a MySQL Container
 1. `docker run --name="test-mysql" -e "MYSQL_ROOT_PASSWORD=mypassword" -d mysql`
