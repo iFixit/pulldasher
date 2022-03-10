@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS `commit_statuses` (
   `commit` char(40) COLLATE utf8mb4_general_ci NOT NULL,
   `state` enum('pending','success','error','failure') COLLATE utf8mb4_general_ci NOT NULL,
   `description` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
-  `log_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `log_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
   `context` varchar(255) COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'default',
   PRIMARY KEY (`repo`,`commit`,`context`),
   KEY `commit_statuses_state` (`state`)
