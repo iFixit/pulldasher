@@ -29,12 +29,8 @@ export function usePullsState(): Pull[] {
       if (socketInitialized) {
          throw new Error("usePullsState() connects to socket-io and is only meant to be used in the PullsProvider component, see usePulls() instead.");
       }
-      // If we have stubbed the pull list, we are in front-end-only mode and
-      // don't need a socket to a backend that doesn't exist
-      if (!socketInitialized) {
-         socketInitialized = true;
-         onPullsChanged(setPullsState);
-      }
+      socketInitialized = true;
+      onPullsChanged(setPullsState);
    }, []);
    return pullState;
 }
