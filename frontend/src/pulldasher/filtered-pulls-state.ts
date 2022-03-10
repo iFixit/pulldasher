@@ -17,6 +17,8 @@ export function useFilteredPullsState(): [Pull[], FilterFunctionSetter] {
    const [{filter}, setFilter] = useState<FilterProps>({filter: defaultFilter});
    return [
       usePullsState().filter(filter),
-      (filter: FilterFunction) => setFilter({filter: filter || defaultFilter}),
+      (filter: FilterFunction) => {
+         setTimeout(() => setFilter({filter: filter || defaultFilter}), 0);
+      }
    ];
 }

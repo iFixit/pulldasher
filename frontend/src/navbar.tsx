@@ -10,7 +10,7 @@ export function Navbar(props: BoxProps) {
          .trim()
          .split(/\s+/)
          .filter((s) => s.length)
-         .map((s) => new RegExp(s, 'i'))
+         .map((s) => new RegExp(s, 'i'));
       setPullFilter(patterns.length ? (pull: Pull) => {
          return patterns.every((pattern) => pull.title.match(pattern));
       }: null);
