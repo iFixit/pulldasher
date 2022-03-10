@@ -13,14 +13,14 @@ export function createPullSocket(pullsUpdated: PullUpdater) {
    if (dummyPulls.length) {
       return pullsUpdated(dummyPulls, repoSpecs);
    }
-   getSocket().then((socket: SocketIOClient.Socket) => {
-      socket.on('initialize', function(data: {repos: RepoSpec[], pulls: PullData[]}) {
-         repoSpecs = data.repos;
-         pullsUpdated(data.pulls, repoSpecs)
-      });
 
-      socket.on('pullChange', function(pull: PullData) {
-         pullsUpdated([pull], repoSpecs)
-      });
+   const socket = getSocket();
+   socket.on('initialize', function(data: {repos: RepoSpec[], pulls: PullData[]}) {
+      repoSpecs = data.repos;
+      pullsUpdated(data.pulls, repoSpecs)
+   });
+
+   socket.on('pullChange', function(pull: PullData) {
+      pullsUpdated([pull], repoSpecs)
    });
 }
