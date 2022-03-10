@@ -1,7 +1,23 @@
 interface tokenResponse {
-   socketToken: string
+   socketToken: string,
+   user: string,
 }
-export default function getPageContext(): Promise<tokenResponse> {
+
+let pageContext: tokenResponse;
+
+if (process.env.DUMMY_USER) {
+   pageContext = {
+      user: process.env.DUMMY_USER,
+      socketToken: "fake-token",
+   };
+}
+
+export function getUser() {
+   return pageContext && pageContext.user;
+}
+
+export function getPageContext(): Promise<tokenResponse> {
    return fetch("/token")
-      .then((response) => response.json());
+      .then((response) => response.json())
+      .then((response) => pageContext = response);
 }

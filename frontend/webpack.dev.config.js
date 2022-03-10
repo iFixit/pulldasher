@@ -5,6 +5,7 @@ const definePluginReadFile = require('./webpack-define-read-file');
 
 const relative = (pathPart) => path.resolve(__dirname, pathPart);
 const dummyPullsPath = process.env.DUMMY_PULLS;
+const dummyUser = process.env.DUMMY_USER;
 
 module.exports = {
    module: {
@@ -53,7 +54,8 @@ module.exports = {
    },
    plugins: [
       new webpack.DefinePlugin({
-         "process.env.DUMMY_PULLS": dummyPullsPath ? definePluginReadFile(dummyPullsPath) : null
+         "process.env.DUMMY_PULLS": dummyPullsPath ? definePluginReadFile(dummyPullsPath) : null,
+         "process.env.DUMMY_USER": JSON.stringify(dummyUser),
       }),
       new HtmlWebpackPlugin({
          template: relative("index.html")
