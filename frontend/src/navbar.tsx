@@ -20,7 +20,7 @@ export function Navbar(props: BoxProps) {
       <Center py={2} bgColor="var(--header-background)" {...props}>
          <Flex px="var(--body-gutter)" w={1024} justify="space-between">
             <Box alignSelf="center" w={150}>{pulls.length} open</Box>
-            <Box alignSelf="center">PULLDASHER</Box>
+            <Box alignSelf="center" fontSize={20} __css={{fontVariantCaps: "small-caps"}}>Pulldasher</Box>
             <Input alignSelf="center" w={150} onChange={updateFilter} placeholder="Search"/>
          </Flex>
       </Center>
