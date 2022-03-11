@@ -1,11 +1,10 @@
 import { Pull } from '../pull';
+import { CommitStatus } from '../types';
 import { chakra, useStyleConfig} from "@chakra-ui/react"
 import styled from "@emotion/styled"
 
 const statusSize = 10;
 const marginBetween = 4;
-
-const Status = chakra.a;
 
 const StatusContainer = styled.div`
    position: absolute;
@@ -21,18 +20,24 @@ const StatusContainer = styled.div`
    gap: ${marginBetween}px;
 `;
 
+function Status({status}: {status: CommitStatus}) {
+   const styles = useStyleConfig('Status', {variant: status.data.state});
+   return (<chakra.a __css={styles}
+      title={status.data.context + ": " + status.data.description}
+      href={status.data.target_url}
+      className="build_status"
+   />)
+}
+
 export function CommitStatuses({pull}: {pull: Pull}) {
    return (
    <StatusContainer className="build_status_container">
-      {pull.buildStatuses().map((status) => {
-         const styles = useStyleConfig('Status', {variant: status.data.state});
-         return (<Status __css={styles}
+      {pull.buildStatuses().map((status) =>
+         <Status
+            status={status}
             key={status.data.context}
-            title={status.data.context + ": " + status.data.description}
-            href={status.data.target_url}
-            className="build_status"
-         />)
-      })}
+         />
+      )}
    </StatusContainer>
    );
 }
