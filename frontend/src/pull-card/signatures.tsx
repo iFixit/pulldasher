@@ -17,7 +17,7 @@ export function Signatures({pull, title, signatures, required}: SignaturesProps)
       (pull.isMine() ? 'validMine' : 'valid') : undefined;
    const styles = useStyleConfig('Signatures', {variant: statusVariant});
    const allSignatures = [...signatures.current, ...signatures.old];
-   const unfulfilledCount = Math.max(0, required - signatures.current.length);
+   const unfulfilledCount = Math.max(0, required - allSignatures.length);
    const noneToShow = required == 0 && allSignatures.length == 0;
 
    return (
