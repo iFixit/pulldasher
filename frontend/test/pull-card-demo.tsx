@@ -1,6 +1,7 @@
 import { Pull } from '../src/pull';
-import { Box, SimpleGrid, useStyleConfig } from "@chakra-ui/react";
-import { NamedPulls } from "./named-pulls";
+import { PullData } from '../src/types';
+import { Box, HStack, Heading } from "@chakra-ui/react";
+import { AgePulls, Requirements } from "./named-pulls";
 import { PullCard } from '../src/pull-card';
 
 import { render } from 'react-dom';
@@ -13,16 +14,27 @@ const root = document.createElement("div");
 document.body.appendChild(root);
 
 function PullCardDemo() {
-   const styles = useStyleConfig('Column');
-   const pull = new Pull(NamedPulls["Needs CR"]);
    return (
       <ChakraProvider theme={theme}>
-      <Box __css={styles} overflow="hidden" mb="var(--body-gutter)">
-         <Box>
-            <PullCard pull={pull}/>
-         </Box>
-      </Box>
+         <Row title="Different Ages" pullDatas={AgePulls}/>
+         <Row title="Different Requirements" pullDatas={Requirements}/>
       </ChakraProvider>
    );
 }
+
+function Row({title, pullDatas}: {title: string, pullDatas: PullData[]}) {
+   return (<>
+      <Box m={10} maxW={1024}>
+         <Heading size="lg">{title}</Heading>
+         <HStack spacing={5}>
+            {pullDatas.map((pullData, i) =>
+               <Box key={i} w="30%" border="1px solid var(--panel-default-border)"  overflow="hidden">
+                  <PullCard pull={new Pull(pullData)}/>
+               </Box>
+            )}
+         </HStack>
+      </Box>
+   </>);
+}
+
 render(<PullCardDemo/>, root);
