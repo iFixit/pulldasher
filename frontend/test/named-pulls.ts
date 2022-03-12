@@ -1,5 +1,5 @@
-import { PullData } from '../src/types';
-import { head, daysAgo, pullData } from "./pull-data-parts";
+import { PullData, SignatureType } from '../src/types';
+import { sig, daysAgo, pullData } from "./pull-data-parts";
 
 export const AgePulls = <PullData[]> [
    pullData({
@@ -15,7 +15,7 @@ export const AgePulls = <PullData[]> [
    }),
 ];
 
-export const Requirements = <PullData[]> [
+export const UnfulfilledRequirements = <PullData[]> [
    pullData({
       title: "No Requirements",
       cr_req: 0,
@@ -30,5 +30,31 @@ export const Requirements = <PullData[]> [
       title: "3 CR Required and 2 QA",
       cr_req: 3,
       qa_req: 2,
+   }),
+];
+
+const activeCR = sig(SignatureType.CR, true);
+const activeQA = sig(SignatureType.QA, true);
+export const PartialRequirements = <PullData[]> [
+   pullData({
+      title: "1 CR and 1 QA",
+      status: {
+         allQA: [activeQA],
+         allCR: [activeCR],
+      },
+   }),
+   pullData({
+      title: "1 CR and 1 QA, but higher requirements",
+      cr_req: 3,
+      qa_req: 2,
+      status: {
+         allQA: [activeQA],
+         allCR: [activeCR],
+      },
+   }),
+   pullData({
+      title: "1 CR and 1 QA, but no requirements",
+      cr_req: 0,
+      qa_req: 0,
    }),
 ];

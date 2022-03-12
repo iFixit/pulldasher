@@ -1,4 +1,6 @@
-import { PullData } from '../src/types';
+import { PullData, Signature, SignatureType } from '../src/types';
+
+const repo = "iFixit/ifixit";
 
 export const head = {
    "ref": "some-branch-name",
@@ -14,9 +16,26 @@ export function daysAgo(days:number): string {
    return (new Date(Date.now() - days * 86400 * 1000)).toString();
 }
 
-export function pullData(p: Partial<PullData>): PullData {
+export function sig(type : SignatureType, active: boolean, user?: string): Signature {
+   return <Signature>{
+      "data": {
+         "repo": repo,
+         "number": 34221,
+         "user": {
+            "id": id(),
+            "login": user || username()
+         },
+         "type": type,
+         "created_at": "2020-09-04T20:08:21.000Z",
+         "active": active ? 1 : 0,
+         "comment_id": id(),
+      }
+   };
+}
+
+export function pullData(p: DeepPartial<PullData>): PullData {
    return <PullData> {
-      "repo": "iFixit/ifixit",
+      "repo": repo,
       "repoSpec": null,
       "number": 33495,
       "state": "open",
@@ -43,10 +62,10 @@ export function pullData(p: Partial<PullData>): PullData {
       "status": {
          "cr_req": p.cr_req != null ? p.cr_req : 2,
          "qa_req": p.qa_req != null ? p.qa_req : 1,
-         "QA": [],
-         "CR": [],
-         "allQA": [],
-         "allCR": [],
+         "QA": p.status?.QA || [],
+         "CR": p.status?.CR || [],
+         "allQA": p.status?.allQA || [],
+         "allCR": p.status?.allCR || [],
          "dev_block": [],
          "deploy_block": [],
          "commit_statuses": [],
@@ -55,3 +74,15 @@ export function pullData(p: Partial<PullData>): PullData {
       "labels": []
    };
 }
+
+function id(): number {
+   return Math.floor(Math.random()*1000000);
+}
+
+function username(): string {
+   return "username-" + Math.floor(Math.random()*1000);
+}
+
+type DeepPartial<T> = {
+    [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+};

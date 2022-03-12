@@ -1,7 +1,11 @@
 import { Pull } from '../src/pull';
 import { PullData } from '../src/types';
 import { Box, HStack, Heading } from "@chakra-ui/react";
-import { AgePulls, Requirements } from "./named-pulls";
+import {
+   AgePulls,
+   UnfulfilledRequirements,
+   PartialRequirements,
+} from "./named-pulls";
 import { PullCard } from '../src/pull-card';
 
 import { render } from 'react-dom';
@@ -17,7 +21,8 @@ function PullCardDemo() {
    return (
       <ChakraProvider theme={theme}>
          <Row title="Different Ages" pullDatas={AgePulls}/>
-         <Row title="Different Requirements" pullDatas={Requirements}/>
+         <Row title="Unfulfilled Requirements" pullDatas={UnfulfilledRequirements}/>
+         <Row title="Partial Requirements" pullDatas={PartialRequirements}/>
       </ChakraProvider>
    );
 }
