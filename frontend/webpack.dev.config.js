@@ -50,7 +50,8 @@ module.exports = {
       publicPath: '/frontend'
    },
    entry: {
-      "main": relative("src/index.tsx")
+      "main": relative("src/index.tsx"),
+      "pull-card-demo": relative("test/pull-card-demo.tsx"),
    },
    plugins: [
       new webpack.DefinePlugin({
@@ -58,6 +59,11 @@ module.exports = {
          "process.env.DUMMY_USER": JSON.stringify(dummyUser),
       }),
       new HtmlWebpackPlugin({
+         template: relative("index.html")
+      }),
+      new HtmlWebpackPlugin({
+         filename: "./pull-card-demo.html",
+         chunks: ["pull-card-demo"],
          template: relative("index.html")
       })
    ],
