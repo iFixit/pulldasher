@@ -91,9 +91,9 @@ export const FulfilledRequirements = <PullData[]> [
 
 export const FewStatuses = <PullData[]> [
    pullData({
-      title: "One pending status",
+      title: "Pending status with no log url",
       status: {
-         commit_statuses: [status("pending")]
+         commit_statuses: [status("pending", null)]
       },
    }),
    pullData({

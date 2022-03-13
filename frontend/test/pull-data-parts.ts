@@ -33,11 +33,11 @@ export function sig(type : SignatureType, active: boolean, user?: string): Signa
    };
 }
 
-export function status(state?: keyof typeof StatusState, url?: string): CommitStatus {
+export function status(state?: keyof typeof StatusState, url?: string | null): CommitStatus {
    return {
       "data": {
          "sha": "64bf41772407e98112f173eeb75b7118096203d1",
-         "target_url": url || "https://www.example.com",
+         "target_url": url === undefined ? "https://www.example.com" : url,
          "description": "Build success",
          "state": <StatusState>state || StatusState.success,
          "context": statusContext(),
