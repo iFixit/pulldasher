@@ -127,7 +127,7 @@ export const ManyStatuses = <PullData[]> [
       status: {
          commit_statuses: [
             status("error"),
-            status("pending"),
+            status("failure"),
             status("success"),
             status("pending"),
             status("success"),
@@ -144,9 +144,9 @@ export const ManyStatuses = <PullData[]> [
             status("success"),
             status("pending"),
             status("success"),
-            status("pending"),
+            status("failure"),
             status("success"),
-            status("success"),
+            status("failure"),
             status("success"),
             status("success"),
          ]
