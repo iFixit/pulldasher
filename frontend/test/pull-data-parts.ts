@@ -1,4 +1,10 @@
-import { PullData, Signature, SignatureType, StatusState, CommitStatus } from '../src/types';
+import {
+   PullData,
+   Signature,
+   SignatureType,
+   StatusState,
+   CommitStatus,
+} from '../src/types';
 
 const repo = "iFixit/ifixit";
 
