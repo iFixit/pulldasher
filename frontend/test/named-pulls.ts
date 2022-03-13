@@ -1,5 +1,5 @@
 import { PullData, SignatureType } from '../src/types';
-import { sig, daysAgo, pullData } from "./pull-data-parts";
+import { status, sig, daysAgo, pullData } from "./pull-data-parts";
 
 export const AgePulls = <PullData[]> [
    pullData({
@@ -85,6 +85,27 @@ export const FulfilledRequirements = <PullData[]> [
       status: {
          allQA: [activeQA, activeQA2, sig(SignatureType.QA, false)],
          allCR: [activeCR, activeCR2, sig(SignatureType.CR, false)],
+      },
+   }),
+];
+
+export const FewStatuses = <PullData[]> [
+   pullData({
+      title: "One pending status",
+      status: {
+         commit_statuses: [status("pending")]
+      },
+   }),
+   pullData({
+      title: "One error commit status",
+      status: {
+         commit_statuses: [status("error")]
+      },
+   }),
+   pullData({
+      title: "One successful and one failed commit status",
+      status: {
+         commit_statuses: [status("success"), status("failure")]
       },
    }),
 ];

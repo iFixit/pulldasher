@@ -6,6 +6,7 @@ import {
    UnfulfilledRequirements,
    PartialRequirements,
    FulfilledRequirements,
+   FewStatuses,
 } from "./named-pulls";
 import { PullCard } from '../src/pull-card';
 
@@ -25,6 +26,7 @@ function PullCardDemo() {
          <Row title="Unfulfilled Requirements" pullDatas={UnfulfilledRequirements}/>
          <Row title="Partial Requirements" pullDatas={PartialRequirements}/>
          <Row title="Fulfilled Requirements" pullDatas={FulfilledRequirements}/>
+         <Row title="Few Commit Statuses" pullDatas={FewStatuses}/>
       </ChakraProvider>
    );
 }

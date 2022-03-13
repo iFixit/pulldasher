@@ -1,4 +1,4 @@
-import { PullData, Signature, SignatureType } from '../src/types';
+import { PullData, Signature, SignatureType, StatusState, CommitStatus } from '../src/types';
 
 const repo = "iFixit/ifixit";
 
@@ -29,6 +29,18 @@ export function sig(type : SignatureType, active: boolean, user?: string): Signa
          "created_at": "2020-09-04T20:08:21.000Z",
          "active": active ? 1 : 0,
          "comment_id": id(),
+      }
+   };
+}
+
+export function status(state?: keyof typeof StatusState, url?: string): CommitStatus {
+   return {
+      "data": {
+         "sha": "64bf41772407e98112f173eeb75b7118096203d1",
+         "target_url": url || "https://www.example.com",
+         "description": "Build success",
+         "state": <StatusState>state || StatusState.success,
+         "context": statusContext(),
       }
    };
 }
@@ -68,7 +80,7 @@ export function pullData(p: DeepPartial<PullData>): PullData {
          "allCR": p.status?.allCR || [],
          "dev_block": [],
          "deploy_block": [],
-         "commit_statuses": [],
+         "commit_statuses": p.status?.commit_statuses || [],
          "ready": false,
       },
       "labels": []
@@ -85,6 +97,10 @@ function pullNumber(): number {
 
 function username(): string {
    return "username-" + Math.floor(Math.random()*1000);
+}
+
+function statusContext(): string {
+   return "context-" + Math.floor(Math.random()*1000);
 }
 
 type DeepPartial<T> = {
