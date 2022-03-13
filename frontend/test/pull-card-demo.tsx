@@ -5,6 +5,7 @@ import {
    AgePulls,
    UnfulfilledRequirements,
    PartialRequirements,
+   FulfilledRequirements,
 } from "./named-pulls";
 import { PullCard } from '../src/pull-card';
 
@@ -23,6 +24,7 @@ function PullCardDemo() {
          <Row title="Different Ages" pullDatas={AgePulls}/>
          <Row title="Unfulfilled Requirements" pullDatas={UnfulfilledRequirements}/>
          <Row title="Partial Requirements" pullDatas={PartialRequirements}/>
+         <Row title="Fulfilled Requirements" pullDatas={FulfilledRequirements}/>
       </ChakraProvider>
    );
 }

@@ -58,3 +58,33 @@ export const PartialRequirements = <PullData[]> [
       qa_req: 0,
    }),
 ];
+
+const activeCR2 = sig(SignatureType.CR, true);
+const activeQA2 = sig(SignatureType.QA, true);
+export const FulfilledRequirements = <PullData[]> [
+   pullData({
+      title: "1 CR and 1 QA",
+      status: {
+         allQA: [activeQA],
+         allCR: [activeCR],
+      },
+   }),
+   pullData({
+      title: "2 CR and 2 QA but 2,1 is required",
+      cr_req: 2,
+      qa_req: 1,
+      status: {
+         allQA: [activeQA, activeQA2],
+         allCR: [activeCR, activeCR2],
+      },
+   }),
+   pullData({
+      title: "2 active and 1 out of date CR where only 2 are required. Same with QA",
+      cr_req: 2,
+      qa_req: 1,
+      status: {
+         allQA: [activeQA, activeQA2, sig(SignatureType.QA, false)],
+         allCR: [activeCR, activeCR2, sig(SignatureType.CR, false)],
+      },
+   }),
+];

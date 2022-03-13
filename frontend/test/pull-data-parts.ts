@@ -20,7 +20,7 @@ export function sig(type : SignatureType, active: boolean, user?: string): Signa
    return <Signature>{
       "data": {
          "repo": repo,
-         "number": 34221,
+         "number": 100, // Meant to be a pull number, but it's never used
          "user": {
             "id": id(),
             "login": user || username()
@@ -37,7 +37,7 @@ export function pullData(p: DeepPartial<PullData>): PullData {
    return <PullData> {
       "repo": repo,
       "repoSpec": null,
-      "number": 33495,
+      "number": pullNumber(),
       "state": "open",
       "title": p.title || "Young pull with no CR / QA",
       "body": "pull request dummy body",
@@ -77,6 +77,10 @@ export function pullData(p: DeepPartial<PullData>): PullData {
 
 function id(): number {
    return Math.floor(Math.random()*1000000);
+}
+
+function pullNumber(): number {
+   return Math.floor(Math.random()*10000 + 10000);
 }
 
 function username(): string {
