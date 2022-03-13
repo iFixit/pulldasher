@@ -109,3 +109,46 @@ export const FewStatuses = <PullData[]> [
       },
    }),
 ];
+
+export const ManyStatuses = <PullData[]> [
+   pullData({
+      title: "Three commit statuses",
+      status: {
+         commit_statuses: [
+            status("pending"),
+            status("success"),
+            status("error"),
+         ]
+      },
+   }),
+   pullData({
+      title: "Six commit statuses",
+      status: {
+         commit_statuses: [
+            status("error"),
+            status("pending"),
+            status("success"),
+            status("pending"),
+            status("success"),
+            status("error"),
+         ]
+      },
+   }),
+   pullData({
+      title: "Ten commit statuses",
+      status: {
+         commit_statuses: [
+            status("success"),
+            status("error"),
+            status("success"),
+            status("pending"),
+            status("success"),
+            status("pending"),
+            status("success"),
+            status("success"),
+            status("success"),
+            status("success"),
+         ]
+      },
+   }),
+];
