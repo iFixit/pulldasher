@@ -9,7 +9,7 @@ export const Pulldasher: React.FC = function() {
    const pullsCIBlocked = pulls.filter(pull => pull.isCiBlocked());
    const pullsDeployBlocked = pulls.filter(pull => pull.isDeployBlocked());
    const pullsReady = pulls.filter(pull => pull.isReady());
-   const pullsDevBlocked = pulls.filter(pull => pull.isDevBlocked());
+   const pullsDevBlocked = pulls.filter(pull => pull.getDevBlock());
    const pullsNeedingCR = pulls.filter(pull => !pull.isCrDone());
    const pullsNeedingQA = pulls.filter(pull => !pull.isQaDone());
    return (<>
