@@ -169,3 +169,20 @@ export const Blocked = <PullData[]> [
       },
    }),
 ];
+
+export const Milestones = <PullData[]> [
+   pullData({
+      title: "With a future Milestone",
+      milestone: {
+         title: "Some big project",
+         due_on: daysAgo(-10),
+      }
+   }),
+   pullData({
+      title: "With a past Milestone",
+      milestone: {
+         title: "Some overdue project",
+         due_on: daysAgo(10),
+      }
+   }),
+];

@@ -58,7 +58,7 @@ export function pullData(p: DeepPartial<PullData>): PullData {
       "closed_at": null,
       "merged_at": null,
       "difficulty": null,
-      "milestone": {
+      "milestone": p.milestone || {
          "title": null,
          "due_on": null
       },
