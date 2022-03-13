@@ -84,7 +84,7 @@ export function pullData(p: DeepPartial<PullData>): PullData {
          "ref": "master"
       },
       "user": {
-         "login": "BaseInfinity"
+         "login": p.user?.login || username(),
       },
       "cr_req": p.cr_req != null ? p.cr_req : 2,
       "qa_req": p.qa_req != null ? p.qa_req : 1,

@@ -1,3 +1,4 @@
+import { getUser } from '../src/page-context';
 import { PullData, SignatureType } from '../src/types';
 import { label, status, sig, daysAgo, pullData } from "./pull-data-parts";
 
@@ -203,5 +204,28 @@ export const Labels = <PullData[]> [
          "user": "someOtherUser",
          "created_at": daysAgo(1),
       })],
+   }),
+];
+
+export const MyOwn = <PullData[]> [
+   pullData({
+      title: "Pull Created By Me",
+      user: {
+         login: getUser(),
+      }
+   }),
+   pullData({
+      title: "With an up-to-date CR and a QA by Me",
+      status: {
+         allQA: [sig(SignatureType.QA, true, getUser())],
+         allCR: [sig(SignatureType.CR, true, getUser())],
+      },
+   }),
+   pullData({
+      title: "With an out-of-date CR and a QA by Me",
+      status: {
+         allQA: [sig(SignatureType.QA, false, getUser())],
+         allCR: [sig(SignatureType.CR, false, getUser())],
+      },
    }),
 ];
