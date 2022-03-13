@@ -152,3 +152,20 @@ export const ManyStatuses = <PullData[]> [
       },
    }),
 ];
+
+const devBlock = sig(SignatureType.dev_block, true);
+const deployBlock = sig(SignatureType.deploy_block, true);
+export const Blocked = <PullData[]> [
+   pullData({
+      title: "Deploy Blocked",
+      status: {
+         deploy_block: [deployBlock],
+      },
+   }),
+   pullData({
+      title: "Dev Blocked",
+      status: {
+         dev_block: [devBlock],
+      },
+   }),
+];

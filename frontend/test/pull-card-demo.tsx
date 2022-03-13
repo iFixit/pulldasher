@@ -8,6 +8,7 @@ import {
    FulfilledRequirements,
    FewStatuses,
    ManyStatuses,
+   Blocked,
 } from "./named-pulls";
 import { PullCard } from '../src/pull-card';
 
@@ -29,6 +30,7 @@ function PullCardDemo() {
          <Row title="Fulfilled Requirements" pullDatas={FulfilledRequirements}/>
          <Row title="Few Commit Statuses" pullDatas={FewStatuses}/>
          <Row title="Many Commit Statuses" pullDatas={ManyStatuses}/>
+         <Row title="Blocked" pullDatas={Blocked}/>
       </ChakraProvider>
    );
 }
