@@ -1,5 +1,5 @@
 import { PullData, SignatureType } from '../src/types';
-import { status, sig, daysAgo, pullData } from "./pull-data-parts";
+import { label, status, sig, daysAgo, pullData } from "./pull-data-parts";
 
 export const AgePulls = <PullData[]> [
    pullData({
@@ -184,5 +184,24 @@ export const Milestones = <PullData[]> [
          title: "Some overdue project",
          due_on: daysAgo(10),
       }
+   }),
+];
+
+export const Labels = <PullData[]> [
+   pullData({
+      title: "With a QAing Label applied 1 hour ago",
+      labels: [label({
+         "title": "QAing",
+         "user": "someUser",
+         "created_at": daysAgo(1/24),
+      })],
+   }),
+   pullData({
+      title: "With an external_block Label applied 1 day ago",
+      labels: [label({
+         "title": "external_block",
+         "user": "someOtherUser",
+         "created_at": daysAgo(1),
+      })],
    }),
 ];

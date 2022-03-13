@@ -10,6 +10,7 @@ import {
    ManyStatuses,
    Blocked,
    Milestones,
+   Labels,
 } from "./named-pulls";
 import { PullCard } from '../src/pull-card';
 
@@ -33,6 +34,7 @@ function PullCardDemo() {
          <Row title="Many Commit Statuses" pullDatas={ManyStatuses}/>
          <Row title="Blocked" pullDatas={Blocked}/>
          <Row title="Milestones" pullDatas={Milestones}/>
+         <Row title="Labels" pullDatas={Labels}/>
       </ChakraProvider>
    );
 }

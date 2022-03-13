@@ -4,6 +4,7 @@ import {
    SignatureType,
    StatusState,
    CommitStatus,
+   Label,
 } from '../src/types';
 
 const repo = "iFixit/ifixit";
@@ -20,6 +21,16 @@ export const head = {
 
 export function daysAgo(days:number): string {
    return (new Date(Date.now() - days * 86400 * 1000)).toString();
+}
+
+export function label(label: Partial<Label>): Label {
+   return {
+      "title": label.title || labelTitle(),
+      "number": 35103,
+      "repo": repo,
+      "user": label.user || username(),
+      "created_at": label.created_at || daysAgo(3),
+   };
 }
 
 export function sig(type : SignatureType, active: boolean, user?: string): Signature {
@@ -106,7 +117,11 @@ function username(): string {
 }
 
 function statusContext(): string {
-   return "context-" + Math.floor(Math.random()*1000);
+   return "context-" + Math.floor(Math.random()*10000);
+}
+
+function labelTitle(): string {
+   return "Label title " + Math.floor(Math.random()*1000);
 }
 
 type DeepPartial<T> = {
