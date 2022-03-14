@@ -8,12 +8,14 @@ export interface FilterProps {
    filter: FilterFunction
 }
 
+type ReturnType = [Pull[], FilterFunctionSetter];
+
 const defaultFilter = (pull: Pull) => !!pull;
 
 /**
  * Wrapper around usePullsState that provides filtering
  */
-export function useFilteredPullsState(): [Pull[], FilterFunctionSetter] {
+export function useFilteredPullsState(): ReturnType {
    const [{filter}, setFilter] = useState<FilterProps>({filter: defaultFilter});
    return [
       usePullsState().filter(filter),
