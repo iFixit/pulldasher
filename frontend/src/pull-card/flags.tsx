@@ -1,4 +1,5 @@
 import { Pull } from '../pull';
+import { actionMessage } from '../utils';
 import { Link, Box, useStyleConfig } from "@chakra-ui/react"
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -11,16 +12,19 @@ export function Flags({pull}: {pull: Pull}) {
    return (<>
       {deployBlock && <PullFlag
          variant="deployBlock"
+         title={actionMessage('Deploy blocked', deployBlock.data.created_at, deployBlock.data.user.login)}
          href={pull.linkToSignature(deployBlock)}
          icon={faWarning}
       />}
       {devBlock && <PullFlag
          variant="devBlock"
+         title={actionMessage('Dev blocked', devBlock.data.created_at, devBlock.data.user.login)}
          href={pull.linkToSignature(devBlock)}
          icon={faMinusCircle}
       />}
       {QAing && <PullFlag
          variant="QAing"
+         title={actionMessage('QA started', QAing.created_at, QAing.user)}
          icon={faEye}
       />}
    </>);
@@ -29,10 +33,11 @@ export function Flags({pull}: {pull: Pull}) {
 interface PullFlagProps {
    href?: string,
    variant: string,
+   title?: string,
    icon: IconDefinition;
 }
 
-function PullFlag({variant, href, icon}: PullFlagProps) {
+function PullFlag({variant, title, href, icon}: PullFlagProps) {
    const styles = useStyleConfig('PullFlag', {variant: variant});
    return (href ?
    <Link
@@ -43,6 +48,7 @@ function PullFlag({variant, href, icon}: PullFlagProps) {
    </Link> :
    <Box
       sx={styles}
+      title={title}
       className="pull-flag">
       <FontAwesomeIcon icon={icon}/>
    </Box>);
