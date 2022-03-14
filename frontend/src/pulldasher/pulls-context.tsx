@@ -28,8 +28,8 @@ export function useSetFilter(): FilterFunctionSetter {
 
 export const PullsProvider = function({children}: {children: React.ReactNode}) {
    const unfilteredPulls = usePullsState();
-   const [pulls, setFilter] = useFilteredPullsState(unfilteredPulls);
-   return (<PullsContext.Provider value={{pulls, setFilter}}>
+   const [filteredPulls, setFilter] = useFilteredPullsState(unfilteredPulls);
+   return (<PullsContext.Provider value={{pulls: filteredPulls, setFilter}}>
       {children}
    </PullsContext.Provider>);
 }
