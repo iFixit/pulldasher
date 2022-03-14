@@ -59,7 +59,8 @@ module.exports = {
          "process.env.DUMMY_USER": JSON.stringify(dummyUser),
       }),
       new HtmlWebpackPlugin({
-         template: relative("index.html")
+         template: relative("index.html"),
+         chunks: ["main"],
       }),
       new HtmlWebpackPlugin({
          filename: "./pull-card-demo.html",
