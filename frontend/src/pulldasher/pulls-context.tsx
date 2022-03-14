@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react';
 import { useFilteredPullsState, FilterFunction, FilterFunctionSetter } from './filtered-pulls-state';
+import { usePullsState } from './pulls-state';
 import { Pull } from '../pull';
 
 interface PullContextProps {
@@ -26,7 +27,8 @@ export function useSetFilter(): FilterFunctionSetter {
 }
 
 export const PullsProvider = function({children}: {children: React.ReactNode}) {
-   const [pulls, setFilter] = useFilteredPullsState();
+   const unfilteredPulls = usePullsState();
+   const [pulls, setFilter] = useFilteredPullsState(unfilteredPulls);
    return (<PullsContext.Provider value={{pulls, setFilter}}>
       {children}
    </PullsContext.Provider>);

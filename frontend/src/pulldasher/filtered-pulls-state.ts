@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { usePullsState } from './pulls-state';
 import { Pull } from  '../pull';
 
 export type FilterFunction = (pull: Pull) => boolean;
@@ -13,12 +12,12 @@ type ReturnType = [Pull[], FilterFunctionSetter];
 const defaultFilter = (pull: Pull) => !!pull;
 
 /**
- * Wrapper around usePullsState that provides filtering
+ * Wrapper around an array of pulls that provides filtering
  */
-export function useFilteredPullsState(): ReturnType {
+export function useFilteredPullsState(pulls: Pull[]): ReturnType {
    const [{filter}, setFilter] = useState<FilterProps>({filter: defaultFilter});
    return [
-      usePullsState().filter(filter),
+      pulls.filter(filter),
       (filter: FilterFunction) => {
          setTimeout(() => setFilter({filter: filter || defaultFilter}), 0);
       }
