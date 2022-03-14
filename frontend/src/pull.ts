@@ -1,6 +1,6 @@
 import { getUser } from "./page-context";
 import { extend } from "underscore";
-import { PullData, Signature, CommitStatus, SignatureGroup } from "./types";
+import { PullData, Signature, CommitStatus, SignatureGroup, Label } from "./types";
 
 export class Pull extends PullData {
    cr_signatures: SignatureGroup;
@@ -78,6 +78,10 @@ export class Pull extends PullData {
 
    getDeployBlock(): Signature | null {
       return this.status.deploy_block[0];
+   }
+
+   getLabel(title: string) {
+      return this.labels.find((label) => label.title == title);
    }
 
    buildStatuses(): CommitStatus[] {
