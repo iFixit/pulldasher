@@ -1,8 +1,6 @@
 import { Pull } from '../pull';
 import { Link } from "@chakra-ui/react"
-import {
-    IconDefinition,
-} from '@fortawesome/fontawesome-svg-core';
+import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faWarning, faMinusCircle } from '@fortawesome/free-solid-svg-icons'
 
