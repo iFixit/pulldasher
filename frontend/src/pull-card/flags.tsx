@@ -1,5 +1,5 @@
 import { Pull } from '../pull';
-import { Link } from "@chakra-ui/react"
+import { Link, useStyleConfig } from "@chakra-ui/react"
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faWarning, faMinusCircle } from '@fortawesome/free-solid-svg-icons'
@@ -9,13 +9,13 @@ export function Flags({pull}: {pull: Pull}) {
    const deployBlock = pull.getDeployBlock();
    return (<>
       {deployBlock && <PullFlag
+         variant="deployBlock"
          href={pull.linkToSignature(deployBlock)}
-         cssVarPrefix="--tag-deploy-blocked"
          icon={faWarning}
       />}
       {devBlock && <PullFlag
+         variant="devBlock"
          href={pull.linkToSignature(devBlock)}
-         cssVarPrefix="--tag-dev-blocked"
          icon={faMinusCircle}
       />}
    </>);
@@ -23,22 +23,16 @@ export function Flags({pull}: {pull: Pull}) {
 
 interface PullFlagProps {
    href: string,
+   variant: string,
    icon: IconDefinition;
-   cssVarPrefix: string;
 }
 
-function PullFlag({href, icon, cssVarPrefix}: PullFlagProps) {
+function PullFlag({variant, href, icon}: PullFlagProps) {
+   const styles = useStyleConfig('PullFlag', {variant: variant});
    return (<Link
+      sx={styles}
       href={href}
-      color={`var(${cssVarPrefix})`}
-      py="5px"
-      px="6px"
-      lineHeight="1em"
-      className="pull-flag"
-      backgroundColor={`var(${cssVarPrefix}-background)`}
-      border={`var(${cssVarPrefix}-border) solid 1px`}
-      borderRadius="3px"><FontAwesomeIcon
-         fontSize="18px"
-         icon={icon}/>
+      className="pull-flag">
+      <FontAwesomeIcon icon={icon}/>
    </Link>);
 }
