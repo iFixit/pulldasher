@@ -134,6 +134,11 @@ export const theme = extendTheme({
                backgroundColor: "var(--tag-qaing-background)",
                borderColor: "var(--tag-qaing-border)",
             },
+            externalBlock: {
+               color: "var(--tag-externally-blocked)",
+               backgroundColor: "var(--tag-externally-blocked-background)",
+               borderColor: "var(--tag-externally-blocked-border)",
+            },
          },
       },
    }

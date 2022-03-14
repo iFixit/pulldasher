@@ -3,12 +3,13 @@ import { actionMessage } from '../utils';
 import { Link, Box, useStyleConfig } from "@chakra-ui/react"
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faWarning, faMinusCircle, faEye } from '@fortawesome/free-solid-svg-icons'
+import { faWarning, faMinusCircle, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 
 export function Flags({pull}: {pull: Pull}) {
    const devBlock = pull.getDevBlock();
    const deployBlock = pull.getDeployBlock();
    const QAing = pull.getLabel("QAing");
+   const externalBlock = pull.getLabel("external_block");
    return (<>
       {deployBlock && <PullFlag
          variant="deployBlock"
@@ -26,6 +27,11 @@ export function Flags({pull}: {pull: Pull}) {
          variant="QAing"
          title={actionMessage('QA started', QAing.created_at, QAing.user)}
          icon={faEye}
+      />}
+      {externalBlock && <PullFlag
+         variant="externalBlock"
+         title={actionMessage('Externally blocked', externalBlock.created_at, externalBlock.user)}
+         icon={faEyeSlash}
       />}
    </>);
 }
