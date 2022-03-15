@@ -58,6 +58,7 @@ module.exports = {
          "process.env.DUMMY_USER": JSON.stringify(dummyUser),
       }),
       new HtmlWebpackPlugin({
+         chunks: ["main"],
          template: relative("index.html")
       })
    ],
