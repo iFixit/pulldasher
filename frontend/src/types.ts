@@ -19,6 +19,11 @@ export enum SignatureType {
    deploy_block = "deploy_block",
 }
 
+export interface SignatureUser {
+   id: number;
+   login: string;
+}
+
 export interface RepoSpec {
    requiredStatuses: string[];
    name: string;
@@ -36,10 +41,7 @@ export interface Signature {
    data: {
       repo: string;
       number: number;
-      user: {
-         id: number;
-         login: string;
-      };
+      user: SignatureUser;
       type: SignatureType;
       created_at: DateString | null;
       active: number;
