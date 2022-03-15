@@ -16,7 +16,7 @@ export function LeaderList({leaders, title}: {leaders: SigCount[], title: string
       bgColor="var(--leaderboard-background)">
       <HStack spacing={2} textAlign="center">
          <chakra.span p={1}>{title}:</chakra.span>
-         {leaders.map(({user, count}, i) =>
+         {leaders.slice(0, 5).map(({user, count}, i) =>
             <HStack
                overflow="hidden"
                borderRadius="4px"
@@ -56,6 +56,5 @@ export function getLeaders(pulls: Pull[], extractSigsFromPull: (pull: Pull) => S
       }, new Map())
       .values();
    return Array.from(groupedByUsers)
-      .sort((a: SigCount, b: SigCount) => b.count - a.count)
-      .slice(0, 5);
+      .sort((a: SigCount, b: SigCount) => b.count - a.count);
 }
