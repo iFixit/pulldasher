@@ -61,7 +61,7 @@ export interface SignatureGroup {
 export interface CommitStatus {
    data: {
       sha: string;
-      target_url: string;
+      target_url: string | null;
       description: string;
       state: StatusState;
       context: string;

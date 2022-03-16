@@ -1,6 +1,6 @@
 import { Pull } from '../pull';
 import { CommitStatus } from '../types';
-import { chakra, useStyleConfig} from "@chakra-ui/react"
+import { chakra, Box, useStyleConfig } from "@chakra-ui/react"
 import styled from "@emotion/styled"
 
 const statusSize = 10;
@@ -22,11 +22,18 @@ const StatusContainer = styled.div`
 
 function Status({status}: {status: CommitStatus}) {
    const styles = useStyleConfig('Status', {variant: status.data.state});
-   return (<chakra.a __css={styles}
-      title={status.data.context + ": " + status.data.description}
-      href={status.data.target_url}
-      className="build_status"
-   />)
+   const title = status.data.context + ": " + status.data.description;
+   return (status.data.target_url ?
+      <chakra.a __css={styles}
+         title={title}
+         href={status.data.target_url}
+         className="build_status"
+      /> :
+      <Box __css={styles}
+         title={title}
+         className="build_status"
+      />
+   );
 }
 
 export function CommitStatuses({pull}: {pull: Pull}) {
