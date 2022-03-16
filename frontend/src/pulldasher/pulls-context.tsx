@@ -38,7 +38,7 @@ export const PullsProvider = function({children}: {children: React.ReactNode}) {
 
 function defaultSort(a: Pull, b: Pull): number {
    return (
-    // My pulls above pulls that aren't mind
+    // My pulls above pulls that aren't mine
     compareBool(a.isMine(), b.isMine()) ||
     // Pulls I have to CR/QA above those I don't
     compareBool(a.hasOutdatedSig(getUser()), b.hasOutdatedSig(getUser())) ||
