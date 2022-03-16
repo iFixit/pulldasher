@@ -1,6 +1,6 @@
 import { getUser } from "./page-context";
 import { extend } from "underscore";
-import { PullData, Signature, CommitStatus, SignatureGroup, Label } from "./types";
+import { PullData, Signature, CommitStatus, SignatureGroup } from "./types";
 
 export class Pull extends PullData {
    cr_signatures: SignatureGroup;

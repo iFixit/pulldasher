@@ -1,16 +1,14 @@
 import { createContext, useContext } from 'react';
 import { useFilteredPullsState, FilterFunction, FilterFunctionSetter } from './filtered-pulls-state';
-import { useSortedPullsState, CompareFunction, CompareFunctionSetter } from './sorted-pulls-state';
 import { usePullsState } from './pulls-state';
 import { Pull } from '../pull';
+import { getUser } from "../page-context";
 
 interface PullContextProps {
    // Array of pulls passing the filter function
    pulls: Pull[];
    // Changes the filter function
    setFilter: FilterFunctionSetter;
-   // Changes the compare function for sorting
-   setCompare: CompareFunctionSetter;
 }
 
 const defaultProps = {
@@ -18,7 +16,6 @@ const defaultProps = {
    // Default implementation is a no-op, just so there's
    // something there until the provider is used
    setFilter: (filter: FilterFunction) => filter,
-   setCompare: (compare: CompareFunction) => compare,
 }
 export const PullsContext = createContext<PullContextProps>(defaultProps);
 
@@ -30,15 +27,26 @@ export function useSetFilter(): FilterFunctionSetter {
    return useContext(PullsContext).setFilter;
 }
 
-export function useSetCompare(): CompareFunctionSetter {
-   return useContext(PullsContext).setCompare;
-}
-
 export const PullsProvider = function({children}: {children: React.ReactNode}) {
    const unfilteredPulls = usePullsState();
    const [filteredPulls, setFilter] = useFilteredPullsState(unfilteredPulls);
-   const [sortedPulls, setCompare] = useSortedPullsState(filteredPulls);
-   return (<PullsContext.Provider value={{pulls: sortedPulls, setFilter, setCompare}}>
+   const sortedPulls = filteredPulls.sort(defaultSort);
+   return (<PullsContext.Provider value={{pulls: sortedPulls, setFilter}}>
       {children}
    </PullsContext.Provider>);
+}
+
+function defaultSort(a: Pull, b: Pull): number {
+   return (
+    // My pulls above pulls that aren't mind
+    compareBool(a.isMine(), b.isMine()) ||
+    // Pulls I have to CR/QA above those I don't
+    compareBool(a.hasOutdatedSig(getUser()), b.hasOutdatedSig(getUser())) ||
+    // Pulls I haven't touched vs those I have already CRed
+    compareBool(!a.hasCurrentSig(getUser()), !b.hasCurrentSig(getUser()))
+   );
+}
+
+function compareBool(a: boolean, b: boolean): number {
+   return a == b ? 0 : (a ? -1 : 1);
 }
