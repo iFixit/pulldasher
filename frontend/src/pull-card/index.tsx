@@ -3,7 +3,7 @@ import { CommitStatuses } from './commit-statuses';
 import { Age } from './age';
 import { Flags } from './flags';
 import { Signatures } from './signatures';
-import { Flex, Box, Link, HStack, chakra } from "@chakra-ui/react"
+import { Flex, Box, Link, chakra } from "@chakra-ui/react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faStar } from '@fortawesome/free-solid-svg-icons'
 
@@ -21,6 +21,16 @@ const Card = chakra(Flex, {
    }
 });
 
+const SigsAndFlags = chakra(Flex, {
+   baseStyle: {
+      mt: 3,
+      "& > *": {
+         marginRight: "5px",
+         marginBottom: "5px",
+      }
+   }
+});
+
 export function PullCard({pull}: {pull: Pull}) {
    return (
       <Card position="relative">
@@ -31,7 +41,7 @@ export function PullCard({pull}: {pull: Pull}) {
                <chakra.span fontWeight="bold">{pull.getRepoName()} #{pull.number}: </chakra.span>
                {pull.title}
             </Link>
-            <HStack mt={3}>
+            <SigsAndFlags wrap="wrap">
                <Signatures
                   pull={pull}
                   signatures={pull.cr_signatures}
@@ -43,7 +53,7 @@ export function PullCard({pull}: {pull: Pull}) {
                   required={pull.status.qa_req}
                   title="QA"/>
                <Flags pull={pull}/>
-            </HStack>
+            </SigsAndFlags>
             <Age created_at={pull.created_at}/>
          </Box>
       </Card>
