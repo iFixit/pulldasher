@@ -48,5 +48,5 @@ function defaultSort(a: Pull, b: Pull): number {
 }
 
 function compareBool(a: boolean, b: boolean): number {
-   return a == b ? 0 : (a ? -1 : 1);
+   return b - a;
 }
