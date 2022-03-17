@@ -40,11 +40,11 @@ export class Pull extends PullData {
    }
 
    isCiBlocked(): boolean {
-      return !this.isDevBlocked() && !this.hasPassedCI();
+      return !this.getDevBlock() && !this.hasPassedCI();
    }
 
-   isDevBlocked(): boolean {
-      return this.status.dev_block.length > 0;
+   getDevBlock(): Signature | null {
+      return this.status.dev_block[0];
    }
 
    /**
@@ -60,14 +60,14 @@ export class Pull extends PullData {
 
    isReady(): boolean {
       return this.hasMetDeployRequirements()
-         && !this.isDevBlocked()
-         && !this.hasDeployBlock();
+         && !this.getDevBlock()
+         && !this.getDeployBlock();
    }
 
    isDeployBlocked(): boolean {
       return this.hasMetDeployRequirements()
-         && !this.isDevBlocked()
-         && this.hasDeployBlock();
+         && !this.getDevBlock()
+         && !!this.getDeployBlock();
    }
 
    hasMetDeployRequirements(): boolean {
@@ -76,8 +76,12 @@ export class Pull extends PullData {
          && this.hasPassedCI();
    }
 
-   hasDeployBlock(): boolean {
-      return this.status.deploy_block.length > 0;
+   getDeployBlock(): Signature | null {
+      return this.status.deploy_block[0];
+   }
+
+   getLabel(title: string) {
+      return this.labels.find((label) => label.title == title);
    }
 
    buildStatuses(): CommitStatus[] {

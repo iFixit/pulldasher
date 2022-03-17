@@ -101,7 +101,7 @@ export function pullData(p: DeepPartial<PullData>): PullData {
          "commit_statuses": p.status?.commit_statuses || [],
          "ready": false,
       },
-      "labels": []
+      "labels": p.labels || []
    };
 }
 

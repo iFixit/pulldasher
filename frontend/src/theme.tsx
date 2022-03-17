@@ -108,6 +108,38 @@ export const theme = extendTheme({
                color: "var(--status-valid-mine-text)",
             },
          }
-      }
+      },
+      PullFlag: {
+         baseStyle: {
+            py: "5px",
+            px: "6px",
+            lineHeight: "1em",
+            borderRadius: "3px",
+            fontSize:"18px",
+            border: "solid 1px",
+         },
+         variants: {
+            devBlock: {
+               color: "var(--tag-dev-blocked)",
+               backgroundColor: "var(--tag-dev-blocked-background)",
+               borderColor: "var(--tag-dev-blocked-border)",
+            },
+            deployBlock: {
+               color: "var(--tag-deploy-blocked)",
+               backgroundColor: "var(--tag-deploy-blocked-background)",
+               borderColor: "var(--tag-deploy-blocked-border)",
+            },
+            QAing: {
+               color: "var(--tag-qaing)",
+               backgroundColor: "var(--tag-qaing-background)",
+               borderColor: "var(--tag-qaing-border)",
+            },
+            externalBlock: {
+               color: "var(--tag-externally-blocked)",
+               backgroundColor: "var(--tag-externally-blocked-background)",
+               borderColor: "var(--tag-externally-blocked-border)",
+            },
+         },
+      },
    }
 });

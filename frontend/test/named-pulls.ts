@@ -57,6 +57,10 @@ export const PartialRequirements = <PullData[]> [
       title: "1 CR and 1 QA, but no requirements",
       cr_req: 0,
       qa_req: 0,
+      status: {
+         allQA: [activeQA],
+         allCR: [activeCR],
+      },
    }),
 ];
 
@@ -80,7 +84,7 @@ export const FulfilledRequirements = <PullData[]> [
       },
    }),
    pullData({
-      title: "2 active and 1 out of date CR where only 2 are required. Same with QA",
+      title: "2 active and 1 out of date CR where only 2 are required. QA has 2 active, 1 out of date and 1 required",
       cr_req: 2,
       qa_req: 1,
       status: {
@@ -227,5 +231,37 @@ export const MyOwn = <PullData[]> [
          allQA: [sig(SignatureType.QA, false, getUser())],
          allCR: [sig(SignatureType.CR, false, getUser())],
       },
+   }),
+];
+
+export const KitchenSink = <PullData[]> [
+   pullData({
+      title: "Pull With Lots of flags and such and a really long title",
+      user: {
+         login: getUser(),
+      },
+      cr_req: 3,
+      qa_req: 2,
+      status: {
+         deploy_block: [deployBlock],
+         dev_block: [devBlock],
+         commit_statuses: [
+            status("success"),
+            status("error"),
+            status("success"),
+            status("pending"),
+            status("success"),
+            status("failure"),
+            status("success"),
+            status("failure"),
+            status("success"),
+            status("success"),
+         ]
+      },
+      labels: [label({
+         "title": "QAing",
+         "user": "someUser",
+         "created_at": daysAgo(1/24),
+      })],
    }),
 ];
