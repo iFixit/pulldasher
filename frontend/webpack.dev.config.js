@@ -8,6 +8,7 @@ const dummyPullsPath = process.env.DUMMY_PULLS;
 const dummyUser = process.env.DUMMY_USER;
 
 module.exports = {
+   node: false,
    module: {
       rules: [
          {
