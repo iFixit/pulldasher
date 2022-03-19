@@ -43,6 +43,16 @@ export class Pull extends PullData {
       return !this.getDevBlock() && !this.hasPassedCI();
    }
 
+   hasOutdatedSig(user: string) {
+      return this.cr_signatures.old.some((sig) => sig.data.user.login == user) ||
+             this.qa_signatures.old.some((sig) => sig.data.user.login == user);
+   }
+
+   hasCurrentSig(user: string) {
+      return this.cr_signatures.current.some((sig) => sig.data.user.login == user) ||
+             this.qa_signatures.current.some((sig) => sig.data.user.login == user);
+   }
+
    getDevBlock(): Signature | null {
       return this.status.dev_block[0];
    }
