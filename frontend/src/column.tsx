@@ -6,6 +6,7 @@ interface ColumnProps {
    variant?: string,
    pulls: Pull[],
    title: string,
+   id: string,
 }
 
 export function Column(props: ColumnProps) {
