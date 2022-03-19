@@ -8,7 +8,8 @@
     "jsx": "react-jsx"
   },
   "include": [
-    "src"
+    "src/**/*",
+    "test/**/*"
   ],
   "compileOnSave": false
 }
