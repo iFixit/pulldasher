@@ -29,11 +29,10 @@ export function useUrlState(paramName: string, paramDefault: string): useUrlStat
 
    // Wrap setState so it pushes history and transforms the url
    const setUrlState = useCallback((newState: state) => {
-      const isDefault = newState === paramDefault;
       // Turn null into the default so state is never null
-      setState(newState === null ? paramDefault : newState);
+      setState(newState || paramDefault);
       // Turn default into null so that default values disappear from the url
-      pushStateToUrl(paramName, isDefault ? null : newState);
+      pushStateToUrl(paramName, newState === paramDefault ? null : newState);
    }, []);
 
    return [state, setUrlState];
@@ -44,10 +43,10 @@ export function useUrlState(paramName: string, paramDefault: string): useUrlStat
  */
 function pushStateToUrl(paramName: string, newState: state): void {
    const url = new URL(window.location.href);
-   if (newState === null) {
-      url.searchParams.delete(paramName);
-   } else {
+   if (newState) {
       url.searchParams.set(paramName, newState);
+   } else {
+      url.searchParams.delete(paramName);
    }
    history.replaceState({}, '', url.toString());
 }
