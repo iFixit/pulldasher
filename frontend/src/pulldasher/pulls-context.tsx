@@ -15,7 +15,7 @@ const defaultProps = {
    pulls: [],
    // Default implementation is a no-op, just so there's
    // something there until the provider is used
-   setFilter: (filter: FilterFunction) => filter,
+   setFilter: (name:string, filter:FilterFunction) => filter,
 }
 export const PullsContext = createContext<PullContextProps>(defaultProps);
 

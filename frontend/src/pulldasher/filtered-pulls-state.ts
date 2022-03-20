@@ -2,24 +2,31 @@ import { useState } from 'react';
 import { Pull } from  '../pull';
 
 export type FilterFunction = (pull: Pull) => boolean;
-export type FilterFunctionSetter = (filter: FilterFunction|null) => void;
-export interface FilterProps {
-   filter: FilterFunction
-}
-
+export type FilterFunctionSetter = (filterName:string, filter:FilterFunction|null) => void;
+// Map of human name to filter functions
+type Filters = Record<string, FilterFunction>;
 type ReturnType = [Pull[], FilterFunctionSetter];
 
-const defaultFilter = (pull: Pull) => !!pull;
-
 /**
- * Wrapper around an array of pulls that provides filtering
+ * Wrapper around an array of pulls that allows multiple filters to be
+ * specified.
+ * setFilter(name, func) will *remove* the filter if func is null
  */
 export function useFilteredPullsState(pulls: Pull[]): ReturnType {
-   const [{filter}, setFilter] = useState<FilterProps>({filter: defaultFilter});
+   const [filters, setFilter] = useState<Filters>({});
    return [
-      pulls.filter(filter),
-      (filter: FilterFunction) => {
-         setTimeout(() => setFilter({filter: filter || defaultFilter}), 0);
+      filterPulls(pulls, filters),
+      (filterName:string, filter:FilterFunction|null) => {
+         if (filter) {
+            filters[filterName] = filter;
+         } else {
+            delete filters[filterName];
+         }
+         setTimeout(() => setFilter({...filters}), 0);
       }
    ];
+}
+
+function filterPulls(pulls: Pull[], filters: Filters): Pull[] {
+   return Object.values(filters).reduce((pulls, filter) => pulls.filter(filter), pulls)
 }
