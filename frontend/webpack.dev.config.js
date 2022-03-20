@@ -63,6 +63,7 @@ module.exports = {
          chunks: ["main"],
       }),
       new HtmlWebpackPlugin({
+         template: relative("index.html"),
          filename: "./pull-card-demo.html",
          chunks: ["pull-card-demo"],
       })
