@@ -23,7 +23,7 @@ export const Pulldasher: React.FC = function() {
                <LeaderList title="CR Leaders" leaders={leadersCR}/>
                <LeaderList title="QA Leaders" leaders={leadersQA}/>
             </SimpleGrid>
-            <SimpleGrid columns={3} spacing="var(--body-gutter)">
+            <SimpleGrid columns={3} spacing="var(--body-gutter)" w="100%">
                <Box>
                   <Column id="ci" title="CI Blocked" variant="ciBlocked" pulls={pullsCIBlocked}/>
                </Box>
@@ -34,7 +34,7 @@ export const Pulldasher: React.FC = function() {
                   <Column id="ready" title="Ready" variant="ready" pulls={pullsReady}/>
                </Box>
             </SimpleGrid>
-            <SimpleGrid columns={3} spacing="var(--body-gutter)">
+            <SimpleGrid columns={3} spacing="var(--body-gutter)" w="100%">
                <Box>
                   <Column id="dev" title="Dev Block" pulls={pullsDevBlocked}/>
                </Box>

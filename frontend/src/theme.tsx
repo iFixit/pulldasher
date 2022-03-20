@@ -14,6 +14,7 @@ export const theme = extendTheme({
             border: "1px solid var(--panel-default-border)",
             borderRadius: "7px",
             "& .column_header": {
+               cursor: "pointer",
                background: "var(--panel-default-background)",
                fontSize: "1rem",
             },
