@@ -2,11 +2,14 @@ import { useState, useCallback, useEffect } from 'react';
 
 type state = string|null;
 type stateSetter = (state: state) => void;
+type stringSetter = (state: string) => void;
 
 type useUrlStateReturn = [
    string,
    stateSetter,
 ];
+
+type HistoryState = Record<string, string>;
 
 /**
  * like useState(), but the state is stored in the url as a query param.
@@ -19,6 +22,7 @@ export function useUrlState(paramName: string, paramDefault: string): useUrlStat
 
    // Load state from url, only once per component
    useEffect(() => {
+      watchForPopstate(paramName, setState, paramDefault);
       const url = new URL(window.location.href);
       const urlState = url.searchParams.get(paramName);
       if (urlState === null || urlState === state) {
@@ -38,8 +42,16 @@ export function useUrlState(paramName: string, paramDefault: string): useUrlStat
    return [state, setUrlState];
 }
 
+function watchForPopstate(paramName: string, setState: stringSetter, paramDefault: string) {
+   window.addEventListener('popstate', (event) => {
+      const stateFromHistory = event.state ?  event.state[paramName] : undefined;
+      setState(stateFromHistory || paramDefault);
+   });
+}
+
 /**
- * Update the current url to match the new state
+ * Update the current url to match the new state and push the new historyState
+ * on the stack
  */
 function pushStateToUrl(paramName: string, newState: state): void {
    const url = new URL(window.location.href);
@@ -48,7 +60,15 @@ function pushStateToUrl(paramName: string, newState: state): void {
    } else {
       url.searchParams.delete(paramName);
    }
-   history.replaceState({}, '', url.toString());
+   history.pushState(urlToStateObject(url), '', url.toString());
+}
+
+function urlToStateObject(url: URL): HistoryState {
+   const historyState: HistoryState = {};
+   url.searchParams.forEach((value, key) => {
+      historyState[key] = value;
+   });
+   return historyState;
 }
 
 /**
