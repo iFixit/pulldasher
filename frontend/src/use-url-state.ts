@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
 
 type state = string|null;
+type stateSetter = (state: state) => void;
 
 type useUrlStateReturn = [
    string,
-   (state: state) => void,
+   stateSetter,
 ];
 
 /**
