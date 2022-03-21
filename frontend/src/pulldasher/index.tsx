@@ -23,26 +23,26 @@ export const Pulldasher: React.FC = function() {
                <LeaderList title="CR Leaders" leaders={leadersCR}/>
                <LeaderList title="QA Leaders" leaders={leadersQA}/>
             </SimpleGrid>
-            <SimpleGrid columns={3} spacing="var(--body-gutter)">
+            <SimpleGrid columns={3} spacing="var(--body-gutter)" w="100%">
                <Box>
-                  <Column title="CI Blocked" variant="ciBlocked" pulls={pullsCIBlocked}/>
+                  <Column id="ci" title="CI Blocked" variant="ciBlocked" pulls={pullsCIBlocked}/>
                </Box>
                <Box>
-                  <Column title="Deploy Blocked" variant="deployBlocked" pulls={pullsDeployBlocked}/>
+                  <Column id="dep" title="Deploy Blocked" variant="deployBlocked" pulls={pullsDeployBlocked}/>
                </Box>
                <Box>
-                  <Column title="Ready" variant="ready" pulls={pullsReady}/>
+                  <Column id="ready" title="Ready" variant="ready" pulls={pullsReady}/>
                </Box>
             </SimpleGrid>
-            <SimpleGrid columns={3} spacing="var(--body-gutter)">
+            <SimpleGrid columns={3} spacing="var(--body-gutter)" w="100%">
                <Box>
-                  <Column title="Dev Block" pulls={pullsDevBlocked}/>
+                  <Column id="dev" title="Dev Block" pulls={pullsDevBlocked}/>
                </Box>
                <Box>
-                  <Column title="CR" pulls={pullsNeedingCR}/>
+                  <Column id="cr" title="CR" pulls={pullsNeedingCR}/>
                </Box>
                <Box>
-                  <Column title="QA" pulls={pullsNeedingQA}/>
+                  <Column id="qa" title="QA" pulls={pullsNeedingQA}/>
                </Box>
             </SimpleGrid>
          </VStack>
