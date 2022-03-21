@@ -22,13 +22,14 @@ export function useUrlState(paramName: string, paramDefault: string): useUrlStat
 
    // Load state from url, only once per component
    useEffect(() => {
-      watchForPopstate(paramName, setState, paramDefault);
+      const unsubscribe = watchForPopstate(paramName, setState, paramDefault);
       const url = new URL(window.location.href);
       const urlState = url.searchParams.get(paramName);
       if (urlState === null || urlState === state) {
          return;
       }
       setState(urlState);
+      return unsubscribe;
    }, []);
 
    // Wrap setState so it pushes history and transforms the url
@@ -43,10 +44,12 @@ export function useUrlState(paramName: string, paramDefault: string): useUrlStat
 }
 
 function watchForPopstate(paramName: string, setState: stringSetter, paramDefault: string) {
-   window.addEventListener('popstate', (event) => {
+   const handler = (event: PopStateEvent) => {
       const stateFromHistory = event.state ?  event.state[paramName] : undefined;
       setState(stateFromHistory || paramDefault);
-   });
+   };
+   window.addEventListener('popstate', handler);
+   return () => window.removeEventListener('popstate', handler);
 }
 
 /**
