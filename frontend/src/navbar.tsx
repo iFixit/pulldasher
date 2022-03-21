@@ -31,7 +31,12 @@ export function Navbar(props: BoxProps) {
          <Flex px="var(--body-gutter)" w={1024} justify="space-between">
             <HStack alignSelf="center" w="200px" spacing="2">
                <span>{pulls.length} open</span>
-               <Button size="sm" colorScheme="blue" variant={showCryo ? 'solid' : 'ghost'} onClick={toggleCryoFilter}>
+               <Button
+                  size="sm"
+                  title="Show pulls with label Cryogenic Storage"
+                  colorScheme="blue"
+                  variant={showCryo ? 'solid' : 'ghost'}
+                  onClick={toggleCryoFilter}>
                   <FontAwesomeIcon icon={faIcicles}/>
                </Button>
             </HStack>
