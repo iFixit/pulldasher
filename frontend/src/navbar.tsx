@@ -1,10 +1,14 @@
 import { usePulls, useSetFilter } from './pulldasher/pulls-context';
 import { Pull } from './pull';
-import { HStack, Center, Flex, Box, BoxProps, Input } from "@chakra-ui/react";
+import { Button, HStack, Center, Flex, Box, BoxProps, Input } from "@chakra-ui/react";
+import { useBoolUrlState } from "./use-url-state";
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faIcicles } from '@fortawesome/free-solid-svg-icons'
 
 export function Navbar(props: BoxProps) {
    const pulls: Pull[] = usePulls();
    const setPullFilter = useSetFilter();
+   const [showCryo, setShowCryo] = useBoolUrlState('cryo', false);
    const updateSearchFilter = function(event: React.ChangeEvent<HTMLInputElement>) {
       const patterns = event.target.value
          .trim()
@@ -15,12 +19,21 @@ export function Navbar(props: BoxProps) {
          return patterns.every((pattern) => pull.title.match(pattern));
       }: null);
    };
+   const toggleCryoFilter = function() {
+      setShowCryo(!showCryo);
+      setPullFilter('cryo', showCryo ? null : (pull: Pull) => {
+         return !pull.getLabel("Cryogenic Storage");
+      });
+   };
 
    return (
       <Center py={2} bgColor="var(--header-background)" {...props}>
          <Flex px="var(--body-gutter)" w={1024} justify="space-between">
             <HStack alignSelf="center" w="200px" spacing="2">
                <span>{pulls.length} open</span>
+               <Button size="sm" colorScheme="blue" variant={showCryo ? 'solid' : 'ghost'} onClick={toggleCryoFilter}>
+                  <FontAwesomeIcon icon={faIcicles}/>
+               </Button>
             </HStack>
             <Box alignSelf="center" fontSize={20} __css={{fontVariantCaps: "small-caps"}}>Pulldasher</Box>
             <Box w="200px" textAlign="right">
