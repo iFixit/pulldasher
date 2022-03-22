@@ -1,6 +1,7 @@
 import { usePulls, useSetFilter } from './pulldasher/pulls-context';
 import { Pull } from './pull';
 import { Button, HStack, Center, Flex, Box, BoxProps, Input } from "@chakra-ui/react";
+import { useEffect, useCallback } from "react";
 import { useBoolUrlState } from "./use-url-state";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faSnowflake } from '@fortawesome/free-solid-svg-icons'
@@ -19,12 +20,8 @@ export function Navbar(props: BoxProps) {
          return patterns.every((pattern) => pull.title.match(pattern));
       }: null);
    };
-   const toggleCryoFilter = function() {
-      setShowCryo(!showCryo);
-      setPullFilter('cryo', showCryo ? null : (pull: Pull) => {
-         return !pull.getLabel("Cryogenic Storage");
-      });
-   };
+   const toggleShowCryo = useCallback(() => setShowCryo(!showCryo), [showCryo]);
+   useEffect(() => setPullFilter('cryo', showCryo ? null : isPullCryo), [showCryo]);
 
    return (
       <Center py={2} bgColor="var(--header-background)" {...props}>
@@ -36,7 +33,7 @@ export function Navbar(props: BoxProps) {
                   title="Show pulls with label Cryogenic Storage"
                   colorScheme="blue"
                   variant={showCryo ? 'solid' : 'ghost'}
-                  onClick={toggleCryoFilter}>
+                  onClick={toggleShowCryo}>
                   <FontAwesomeIcon icon={faSnowflake}/>
                </Button>
             </HStack>
@@ -47,4 +44,8 @@ export function Navbar(props: BoxProps) {
          </Flex>
       </Center>
    );
+}
+
+function isPullCryo(pull: Pull): boolean {
+   return !pull.getLabel("Cryogenic Storage");
 }
