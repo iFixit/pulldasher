@@ -3,13 +3,14 @@ import { actionMessage } from '../utils';
 import { Link, Box, useStyleConfig } from "@chakra-ui/react"
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faWarning, faMinusCircle, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
+import { faWarning, faMinusCircle, faEye, faEyeSlash, faSnowflake } from '@fortawesome/free-solid-svg-icons'
 
 export function Flags({pull}: {pull: Pull}) {
    const devBlock = pull.getDevBlock();
    const deployBlock = pull.getDeployBlock();
    const QAing = pull.getLabel("QAing");
    const externalBlock = pull.getLabel("external_block");
+   const cryogenicStorage = pull.getLabel("Cryogenic Storage");
    return (<>
       {deployBlock && <PullFlag
          variant="deployBlock"
@@ -32,6 +33,11 @@ export function Flags({pull}: {pull: Pull}) {
          variant="externalBlock"
          title={actionMessage('Externally blocked', externalBlock.created_at, externalBlock.user)}
          icon={faEyeSlash}
+      />}
+      {cryogenicStorage && <PullFlag
+         variant="cryogenicStorage"
+         title={actionMessage('Put on ice', cryogenicStorage.created_at, cryogenicStorage.user)}
+         icon={faSnowflake}
       />}
    </>);
 }

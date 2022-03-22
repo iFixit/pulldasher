@@ -209,6 +209,14 @@ export const Labels = <PullData[]> [
          "created_at": daysAgo(1),
       })],
    }),
+   pullData({
+      title: "With a \"Cryogenic Storage\" Label applied 10 days ago",
+      labels: [label({
+         "title": "Cryogenic Storage",
+         "user": "someCryoUser",
+         "created_at": daysAgo(10),
+      })],
+   }),
 ];
 
 export const MyOwn = <PullData[]> [

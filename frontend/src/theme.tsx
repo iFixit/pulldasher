@@ -140,6 +140,11 @@ export const theme = extendTheme({
                backgroundColor: "var(--tag-externally-blocked-background)",
                borderColor: "var(--tag-externally-blocked-border)",
             },
+            cryogenicStorage: {
+               color: "var(--tag-cryo)",
+               backgroundColor: "var(--tag-cryo-background)",
+               borderColor: "var(--tag-cryo-border)",
+            },
          },
       },
    }
