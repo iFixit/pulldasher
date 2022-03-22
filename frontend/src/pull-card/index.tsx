@@ -3,6 +3,7 @@ import { CommitStatuses } from './commit-statuses';
 import { Age } from './age';
 import { Flags } from './flags';
 import { Signatures } from './signatures';
+import { CopyBranch } from './copy-branch';
 import { Flex, Box, Link, chakra } from "@chakra-ui/react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faStar } from '@fortawesome/free-solid-svg-icons'
@@ -14,6 +15,12 @@ const Card = chakra(Flex, {
       borderTop: "1px #ccc solid",
       "&:hover .build_status": {
          opacity: 1
+      },
+      "& .copy": {
+         visibility: "hidden",
+      },
+      "&:hover .copy": {
+         visibility: "visible",
       },
       "& .star": {
          marginRight: "0.5em"
@@ -41,6 +48,10 @@ export function PullCard({pull}: {pull: Pull}) {
                <chakra.span fontWeight="bold">{pull.getRepoName()} #{pull.number}: </chakra.span>
                {pull.title}
             </Link>
+            <CopyBranch
+               value={pull.head.ref}
+               className="copy"
+            />
             <SigsAndFlags wrap="wrap">
                <Signatures
                   pull={pull}
