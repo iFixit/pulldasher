@@ -4,10 +4,11 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const definePluginReadFile = require('./webpack-define-read-file');
 
 const relative = (pathPart) => path.resolve(__dirname, pathPart);
-const dummyPullsPath = process.env.DUMMY_PULLS;
+const dummyPullsPath = process.env.DUMMY_PULLS && path.resolve(process.env.DUMMY_PULLS);
 const dummyUser = process.env.DUMMY_USER;
 
 module.exports = {
+   node: false,
    module: {
       rules: [
          {
@@ -71,7 +72,6 @@ module.exports = {
    mode: 'development',
    devtool: 'eval-cheap-module-source-map',
    devServer: {
-      open: true,
-      openPage: "frontend/"
+      open: ["frontend/"],
    }
 };

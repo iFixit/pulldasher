@@ -1,5 +1,4 @@
 import { getUser } from "./page-context";
-import { extend } from "underscore";
 import { PullData, Signature, CommitStatus, SignatureGroup } from "./types";
 
 export class Pull extends PullData {
@@ -8,7 +7,7 @@ export class Pull extends PullData {
 
    constructor(data: PullData) {
       super();
-      extend(this, data);
+      Object.assign(this, data);
 
       this.cr_signatures = computeSignatures(data.status.allCR);
       this.qa_signatures = computeSignatures(data.status.allQA);

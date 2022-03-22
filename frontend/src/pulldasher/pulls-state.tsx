@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
+import { throttle } from 'lodash-es';
 import { createPullSocket } from '../backend/pull-socket';
-import { throttle } from 'underscore';
 import { PullData, RepoSpec } from  '../types';
 import { Pull } from  '../pull';
 

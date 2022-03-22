@@ -1,14 +1,16 @@
 {
   "compilerOptions": {
     "sourceMap": true,
-    "module": "commonjs",
+    "module": "esnext",
+    "moduleResolution": "node",
     "target": "es2019",
     "strictNullChecks": true,
     "noImplicitAny": true,
     "jsx": "react-jsx"
   },
   "include": [
-    "src"
+    "src/**/*",
+    "test/**/*"
   ],
   "compileOnSave": false
 }
