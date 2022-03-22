@@ -3,7 +3,7 @@ import { Pull } from './pull';
 import { Button, HStack, Center, Flex, Box, BoxProps, Input } from "@chakra-ui/react";
 import { useBoolUrlState } from "./use-url-state";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faIcicles } from '@fortawesome/free-solid-svg-icons'
+import { faSnowflake } from '@fortawesome/free-solid-svg-icons'
 
 export function Navbar(props: BoxProps) {
    const pulls: Pull[] = usePulls();
@@ -37,7 +37,7 @@ export function Navbar(props: BoxProps) {
                   colorScheme="blue"
                   variant={showCryo ? 'solid' : 'ghost'}
                   onClick={toggleCryoFilter}>
-                  <FontAwesomeIcon icon={faIcicles}/>
+                  <FontAwesomeIcon icon={faSnowflake}/>
                </Button>
             </HStack>
             <Box alignSelf="center" fontSize={20} __css={{fontVariantCaps: "small-caps"}}>Pulldasher</Box>
