@@ -17,7 +17,7 @@ export const Pulldasher: React.FC = function() {
    const leadersQA = getLeaders(pulls, (pull) => pull.qa_signatures.current);
    return (<>
       <Navbar mb={4}/>
-      <Box maxW={1024} m="auto" px="var(--body-gutter)">
+      <Box maxW="var(--body-max-width)" m="auto" px="var(--body-gutter)">
          <VStack spacing="var(--body-gutter)">
             <SimpleGrid w="100%" columns={2} spacing="var(--body-gutter)">
                <LeaderList title="CR Leaders" leaders={leadersCR}/>

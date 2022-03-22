@@ -25,7 +25,7 @@ export function Navbar(props: BoxProps) {
 
    return (
       <Center py={2} bgColor="var(--header-background)" {...props}>
-         <Flex px="var(--body-gutter)" w={1024} justify="space-between">
+         <Flex px="var(--body-gutter)" maxW="100%" w="var(--body-max-width)" justify="space-between">
             <HStack alignSelf="center" w="200px" spacing="2">
                <span>{pulls.length} open</span>
                <Button

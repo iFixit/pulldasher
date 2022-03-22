@@ -1,3 +1,11 @@
+// Variables that don't vary between themes
+body {
+    --body-max-width: 1200px;
+
+    // Padding around columns
+    --body-gutter: 24px;
+}
+
 body[data-theme="day_theme"] {
     font: 400 14px Lato;
     line-height: 1.5;
@@ -16,9 +24,6 @@ body[data-theme="day_theme"] {
     @grey:       #E7E7E7;
     @dark-grey:  #555555;
     @black:      #000000;
-
-    // Padding around columns
-    --body-gutter: 24px;
 
     --background-color: @white;
 
