@@ -40,9 +40,9 @@ const SigsAndFlags = chakra(Flex, {
 });
 
 export const PullCard = memo(
-function PullCard({pull}: {pull: Pull}) {
+function PullCard({pull, show}: {pull: Pull, show: boolean}) {
    return (
-      <Card position="relative">
+      <Card position="relative" display={show ? "" : "none"}>
          <CommitStatuses pull={pull}/>
          <Box>
             <Link href={pull.getUrl()}>

@@ -4,6 +4,8 @@ import { PullData, Signature, CommitStatus, SignatureGroup } from "./types";
 export class Pull extends PullData {
    cr_signatures: SignatureGroup;
    qa_signatures: SignatureGroup;
+   // Passes the current set of filters, updated by use-filtered-pulls
+   show = true;
 
    constructor(data: PullData) {
       super();

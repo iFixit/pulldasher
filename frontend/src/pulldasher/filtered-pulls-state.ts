@@ -15,7 +15,7 @@ type ReturnType = [Pull[], FilterFunctionSetter];
 export function useFilteredPullsState(pulls: Pull[]): ReturnType {
    const [filters, setFilter] = useState<Filters>({});
    return [
-      filterPulls(pulls, filters),
+      markFilteredPulls(pulls, filters),
       (filterName:string, filter:FilterFunction|null) => {
          if (filter) {
             filters[filterName] = filter;
@@ -27,6 +27,11 @@ export function useFilteredPullsState(pulls: Pull[]): ReturnType {
    ];
 }
 
-function filterPulls(pulls: Pull[], filters: Filters): Pull[] {
-   return Object.values(filters).reduce((pulls, filter) => pulls.filter(filter), pulls)
+function markFilteredPulls(pulls: Pull[], filters: Filters): Pull[] {
+   const filterArray = Object.values(filters);
+   const combinedFilter = (pull: Pull): boolean => filterArray.every((filter) => filter(pull));
+   return pulls.map((pull) => {
+      pull.show = combinedFilter(pull);
+      return pull;
+   });
 }

@@ -22,7 +22,8 @@ export function Column(props: ColumnProps) {
          </Flex>
          <Box display={open ? 'block' : 'none'}>
             {props.pulls.map((pull) =>
-               <PullCard key={pull.getKey()} pull={pull}/>
+               // show is passed at top-level so PullCard is still memoizable
+               <PullCard key={pull.getKey()} pull={pull} show={pull.show}/>
             )}
          </Box>
       </Box>
