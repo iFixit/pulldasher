@@ -50,7 +50,7 @@ function Row({title, pullDatas}: {title: string, pullDatas: PullData[]}) {
          <HStack spacing={5}>
             {pullDatas.map((pullData, i) =>
                <Box key={i} w="30%" border="1px solid var(--panel-default-border)"  overflow="hidden">
-                  <PullCard pull={new Pull(pullData)}/>
+                  <PullCard pull={new Pull(pullData)} show={true}/>
                </Box>
             )}
          </HStack>

@@ -1,6 +1,7 @@
 import { Pull } from '../pull';
 import { CommitStatus } from '../types';
 import { chakra, Box, useStyleConfig } from "@chakra-ui/react"
+import { memo } from "react"
 import styled from "@emotion/styled"
 
 const statusSize = 10;
@@ -36,7 +37,8 @@ function Status({status}: {status: CommitStatus}) {
    );
 }
 
-export function CommitStatuses({pull}: {pull: Pull}) {
+export const CommitStatuses = memo(
+function CommitStatuses({pull}: {pull: Pull}) {
    return (
    <StatusContainer className="build_status_container">
       {pull.buildStatuses().map((status) =>
@@ -47,4 +49,4 @@ export function CommitStatuses({pull}: {pull: Pull}) {
       )}
    </StatusContainer>
    );
-}
+});

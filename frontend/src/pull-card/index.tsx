@@ -4,6 +4,7 @@ import { Age } from './age';
 import { Flags } from './flags';
 import { Signatures } from './signatures';
 import { CopyBranch } from './copy-branch';
+import { memo } from "react";
 import { Flex, Box, Link, chakra } from "@chakra-ui/react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faStar } from '@fortawesome/free-solid-svg-icons'
@@ -38,7 +39,8 @@ const SigsAndFlags = chakra(Flex, {
    }
 });
 
-export function PullCard({pull}: {pull: Pull}) {
+export const PullCard = memo(
+function PullCard({pull}: {pull: Pull}) {
    return (
       <Card position="relative">
          <CommitStatuses pull={pull}/>
@@ -69,4 +71,4 @@ export function PullCard({pull}: {pull: Pull}) {
          </Box>
       </Card>
    );
-}
+});
