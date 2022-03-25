@@ -1,6 +1,7 @@
 import { Pull } from './pull';
 import { PullCard } from './pull-card';
 import { useBoolUrlState } from './use-url-state';
+import { usePulls } from './pulldasher/pulls-context';
 import { Box, Flex, Spacer, useStyleConfig } from "@chakra-ui/react"
 
 interface ColumnProps {
@@ -11,6 +12,7 @@ interface ColumnProps {
 }
 
 export function Column(props: ColumnProps) {
+   const pullsToShow = usePulls();
    const [open, setOpen] = useBoolUrlState(props.id, true);
    const styles = useStyleConfig('Column', {variant: props.variant});
    return (
@@ -22,8 +24,7 @@ export function Column(props: ColumnProps) {
          </Flex>
          <Box display={open ? 'block' : 'none'}>
             {props.pulls.map((pull) =>
-               // show is passed at top-level so PullCard is still memoizable
-               <PullCard key={pull.getKey()} pull={pull} show={pull.show}/>
+               <PullCard key={pull.getKey()} pull={pull} show={pullsToShow.has(pull)}/>
             )}
          </Box>
       </Box>

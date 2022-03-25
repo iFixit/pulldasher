@@ -5,21 +5,28 @@ import { Pull } from '../pull';
 import { getUser } from "../page-context";
 
 interface PullContextProps {
-   // Array of pulls passing the filter function
-   pulls: Pull[];
+   // Array of all pulls
+   allPulls: Pull[];
+   // Set pf pulls passing the filter function
+   pulls: Set<Pull>;
    // Changes the filter function
    setFilter: FilterFunctionSetter;
 }
 
 const defaultProps = {
-   pulls: [],
+   allPulls: [],
+   pulls: new Set<Pull>(),
    // Default implementation is a no-op, just so there's
    // something there until the provider is used
    setFilter: (name:string, filter:FilterFunction) => filter,
 }
 export const PullsContext = createContext<PullContextProps>(defaultProps);
 
-export function usePulls(): Pull[] {
+export function useAllPulls(): Pull[] {
+   return useContext(PullsContext).allPulls;
+}
+
+export function usePulls(): Set<Pull> {
    return useContext(PullsContext).pulls;
 }
 
@@ -30,8 +37,13 @@ export function useSetFilter(): FilterFunctionSetter {
 export const PullsProvider = function({children}: {children: React.ReactNode}) {
    const unfilteredPulls = usePullsState();
    const [filteredPulls, setFilter] = useFilteredPullsState(unfilteredPulls);
-   const sortedPulls = filteredPulls.sort(defaultSort);
-   return (<PullsContext.Provider value={{pulls: sortedPulls, setFilter}}>
+   const sortedPulls = unfilteredPulls.sort(defaultSort);
+   const contextValue = {
+      pulls: new Set(filteredPulls),
+      allPulls: sortedPulls,
+      setFilter
+   };
+   return (<PullsContext.Provider value={contextValue}>
       {children}
    </PullsContext.Provider>);
 }
