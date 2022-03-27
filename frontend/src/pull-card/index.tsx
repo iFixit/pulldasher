@@ -4,6 +4,7 @@ import { Age } from './age';
 import { Flags } from './flags';
 import { Signatures } from './signatures';
 import { CopyBranch } from './copy-branch';
+import { RefreshButton } from './refresh';
 import { Flex, Box, Link, chakra } from "@chakra-ui/react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faStar } from '@fortawesome/free-solid-svg-icons'
@@ -20,6 +21,9 @@ const Card = chakra(Flex, {
          visibility: "hidden",
       },
       "&:hover .copy": {
+         visibility: "visible",
+      },
+      "&:hover .refresh": {
          visibility: "visible",
       },
       "& .star": {
@@ -41,6 +45,7 @@ const SigsAndFlags = chakra(Flex, {
 export function PullCard({pull}: {pull: Pull}) {
    return (
       <Card position="relative">
+         <RefreshButton pull={pull}/>
          <CommitStatuses pull={pull}/>
          <Box>
             <Link href={pull.getUrl()}>
