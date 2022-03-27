@@ -75,6 +75,7 @@ export class PullData {
    state: PullState;
    title: string;
    body: string;
+   received_at: Date | null;
    created_at: DateString;
    updated_at: DateString;
    closed_at: DateString | null;
