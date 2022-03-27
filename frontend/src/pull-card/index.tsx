@@ -11,6 +11,7 @@ import { faStar } from '@fortawesome/free-solid-svg-icons'
 
 const Card = chakra(Flex, {
    baseStyle: {
+      position: "relative",
       p: 4,
       pl: 6,
       borderTop: "1px #ccc solid",
@@ -44,7 +45,7 @@ const SigsAndFlags = chakra(Flex, {
 
 export function PullCard({pull}: {pull: Pull}) {
    return (
-      <Card position="relative">
+      <Card>
          <RefreshButton pull={pull}/>
          <CommitStatuses pull={pull}/>
          <Box>
