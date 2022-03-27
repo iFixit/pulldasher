@@ -14,6 +14,7 @@ export const theme = extendTheme({
             border: "1px solid var(--panel-default-border)",
             borderRadius: "7px",
             "& .column_header": {
+               color: "var(--panel-default-text)",
                cursor: "pointer",
                background: "var(--panel-default-background)",
                fontSize: "1rem",
@@ -29,6 +30,7 @@ export const theme = extendTheme({
                borderColor: "var(--panel-ci-blocked-border)",
                "& .column_header": {
                   background: "var(--panel-ci-blocked-background)",
+                  color: "var(--panel-ci-blocked-text)",
                },
                "& .pull_count": {
                   color: "var(--panel-ci-blocked-count-text)",
@@ -40,6 +42,7 @@ export const theme = extendTheme({
                borderColor: "var(--panel-deploy-blocked-border)",
                "& .column_header": {
                   background: "var(--panel-deploy-blocked-background)",
+                  color: "var(--panel-deploy-blocked-text)",
                },
                "& .pull_count": {
                   color: "var(--panel-deploy-blocked-count-text)",
@@ -51,6 +54,7 @@ export const theme = extendTheme({
                borderColor: "var(--panel-ready-border)",
                "& .column_header": {
                   background: "var(--panel-ready-background)",
+                  color: "var(--panel-ready-text)",
                },
                "& .pull_count": {
                   color: "var(--panel-ready-count-text)",
