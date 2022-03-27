@@ -6,6 +6,7 @@ import { Signatures } from './signatures';
 import { CopyBranch } from './copy-branch';
 import { RefreshButton } from './refresh';
 import { Flex, Box, Link, chakra } from "@chakra-ui/react"
+import { useEffect, useRef } from "react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faStar } from '@fortawesome/free-solid-svg-icons'
 
@@ -29,6 +30,9 @@ const Card = chakra(Flex, {
       },
       "& .star": {
          marginRight: "0.5em"
+      },
+      "&.highlight": {
+         animation: "highlightPull 2s",
       }
    }
 });
@@ -44,8 +48,17 @@ const SigsAndFlags = chakra(Flex, {
 });
 
 export function PullCard({pull}: {pull: Pull}) {
+   const cardRef = useRef<HTMLElement>(null);
+
+   // Animate a highlight when pull.received_at changes
+   useEffect(() => {
+      cardRef.current?.classList.add("highlight");
+      // 1s after the animation, remove the class
+      setTimeout(() => cardRef.current?.classList.remove("highlight"), 3000);
+   }, [pull.received_at]);
+
    return (
-      <Card>
+      <Card ref={cardRef}>
          <RefreshButton pull={pull}/>
          <CommitStatuses pull={pull}/>
          <Box>
