@@ -4,11 +4,12 @@ import { Button, HStack, Center, Flex, Box, BoxProps, Input } from "@chakra-ui/r
 import { useEffect, useCallback } from "react";
 import { useBoolUrlState } from "./use-url-state";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faSnowflake } from '@fortawesome/free-solid-svg-icons'
+import { faSnowflake, faMoon } from '@fortawesome/free-solid-svg-icons'
 
 export function Navbar(props: BoxProps) {
    const pulls: Pull[] = usePulls();
    const setPullFilter = useSetFilter();
+   const [darkmode, setDarkmode] = useBoolUrlState('dark', false);
    const [showCryo, setShowCryo] = useBoolUrlState('cryo', false);
    const updateSearchFilter = function(event: React.ChangeEvent<HTMLInputElement>) {
       const patterns = event.target.value
@@ -23,6 +24,10 @@ export function Navbar(props: BoxProps) {
    const toggleShowCryo = useCallback(() => setShowCryo(!showCryo), [showCryo]);
    useEffect(() => setPullFilter('cryo', showCryo ? null : isPullCryo), [showCryo]);
 
+   useEffect(() => {
+      document.body.setAttribute('data-theme', darkmode ? "night_theme" : "day_theme");
+   }, [darkmode]);
+
    return (
       <Center py={2} bgColor="var(--header-background)" {...props}>
          <Flex px="var(--body-gutter)" maxW="100%" w="var(--body-max-width)" justify="space-between">
@@ -35,6 +40,14 @@ export function Navbar(props: BoxProps) {
                   variant={showCryo ? 'solid' : 'ghost'}
                   onClick={toggleShowCryo}>
                   <FontAwesomeIcon icon={faSnowflake}/>
+               </Button>
+               <Button
+                  size="sm"
+                  title="Dark Mode"
+                  colorScheme="blue"
+                  variant='ghost'
+                  onClick={() => setDarkmode(!darkmode)}>
+                  <FontAwesomeIcon icon={faMoon}/>
                </Button>
             </HStack>
             <Box alignSelf="center" fontSize={20}>
