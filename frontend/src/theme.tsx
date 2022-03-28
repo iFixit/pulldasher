@@ -20,6 +20,8 @@ export const theme = extendTheme({
                fontSize: "1rem",
             },
             "& .pull_count": {
+               minWidth: "50px",
+               textAlign: "center",
                color: "var(--panel-default-count-text)",
                borderLeft: "solid 1px var(--panel-default-count-border)",
                background: "var(--panel-default-count-background)",
