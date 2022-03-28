@@ -1,19 +1,4 @@
-// Variables that don't vary between themes
-body {
-    --body-max-width: 1200px;
-
-    // Padding around columns
-    --body-gutter: 24px;
-}
-
 body[data-theme="day_theme"] {
-    font: 400 14px Lato;
-    line-height: 1.5;
-
-    .pull-flag:hover {
-       box-shadow: 0 0 0 1px;
-    }
-
     @blue:   #3683C5;
     @green:  #6CB644;
     @yellow: #E7B049;
@@ -95,6 +80,7 @@ body[data-theme="day_theme"] {
     --pull-background: @white;
     --pull-background-hover: @light-grey;
     --pull-separator: darken(@light-grey, 10%);
+    --pull-updated-background: #fff3a6;
 
     // Build statuses
     --build-state-pending: @grey;
@@ -171,4 +157,7 @@ body[data-theme="day_theme"] {
 
     --copy-branch: darken(@grey, 25%);
     --copy-branch-hover: darken(@blue, 10%);
+
+    --refresh: darken(@grey, 25%);
+    --refresh-hover: darken(@blue, 10%);
 }
