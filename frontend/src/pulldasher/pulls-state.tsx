@@ -12,6 +12,7 @@ function onPullsChanged(pullsChanged: (pulls: Pull[]) => void) {
    createPullSocket((pullDatas: PullData[], repoSpecs: RepoSpec[]) => {
       pullDatas.forEach((pullData: PullData) => {
          pullData.repoSpec = repoSpecs.find(repo => repo.name == pullData.repo) || null;
+         pullData.received_at = new Date();
          const pull: Pull = new Pull(pullData);
          pulls[pull.getKey()] = pull;
       });

@@ -1,3 +1,4 @@
+import { Pull } from '../pull';
 import { getSocket } from './socket';
 import { PullData, RepoSpec } from  '../types';
 
@@ -9,11 +10,7 @@ export const dummyPulls: PullData[] = (process.env.DUMMY_PULLS || []) as PullDat
  * connects to the backend and calls the callback each time we receive
  * pullChange events from the server.
  */
-export function createPullSocket(pullsUpdated: PullUpdater) {
-   if (dummyPulls.length) {
-      return pullsUpdated(dummyPulls, repoSpecs);
-   }
-
+function pullSocket(pullsUpdated: PullUpdater) {
    const socket = getSocket();
    socket.on('initialize', function(data: {repos: RepoSpec[], pulls: PullData[]}) {
       repoSpecs = data.repos;
@@ -24,3 +21,31 @@ export function createPullSocket(pullsUpdated: PullUpdater) {
       pullsUpdated([pull], repoSpecs)
    });
 }
+
+function sendRefreshPull(pull: Pull) {
+   const socket = getSocket();
+   socket.emit('refresh', pull.repo, pull.number);
+}
+
+/**************
+ * When we are faking the backend with a dummy array of pulls,
+ * we need to fake other backend interactions (like refresh)
+ */
+
+let pullsUpdatedHandler: PullUpdater|null;
+function mockPullSocket(pullsUpdated: PullUpdater) {
+   pullsUpdatedHandler = pullsUpdated;
+   return pullsUpdated(dummyPulls, repoSpecs);
+}
+
+export function mockRefreshPull(pull: Pull) {
+   // Pretend the pull is updated from the server-side a bit later.
+   setTimeout(() => {
+      if (pullsUpdatedHandler) {
+         pullsUpdatedHandler([pull], []);
+      }
+   }, 2000);
+}
+
+export const createPullSocket = dummyPulls ? mockPullSocket: pullSocket;
+export const refreshPull = dummyPulls ? mockRefreshPull : sendRefreshPull;
