@@ -1,6 +1,6 @@
 import { usePulls, useSetFilter } from './pulldasher/pulls-context';
 import { Pull } from './pull';
-import { Button, HStack, Center, Flex, Box, BoxProps, Input } from "@chakra-ui/react";
+import { useColorMode, Button, HStack, Center, Flex, Box, BoxProps, Input } from "@chakra-ui/react";
 import { useEffect, useCallback } from "react";
 import { useBoolUrlState } from "./use-url-state";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -9,7 +9,7 @@ import { faSnowflake, faMoon } from '@fortawesome/free-solid-svg-icons'
 export function Navbar(props: BoxProps) {
    const pulls: Pull[] = usePulls();
    const setPullFilter = useSetFilter();
-   const [darkmode, setDarkmode] = useBoolUrlState('dark', false);
+   const {toggleColorMode} = useColorMode();
    const [showCryo, setShowCryo] = useBoolUrlState('cryo', false);
    const updateSearchFilter = function(event: React.ChangeEvent<HTMLInputElement>) {
       const patterns = event.target.value
@@ -23,10 +23,6 @@ export function Navbar(props: BoxProps) {
    };
    const toggleShowCryo = useCallback(() => setShowCryo(!showCryo), [showCryo]);
    useEffect(() => setPullFilter('cryo', showCryo ? null : isPullCryo), [showCryo]);
-
-   useEffect(() => {
-      document.body.setAttribute('data-theme', darkmode ? "night_theme" : "day_theme");
-   }, [darkmode]);
 
    return (
       <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
@@ -46,7 +42,7 @@ export function Navbar(props: BoxProps) {
                   title="Dark Mode"
                   colorScheme="blue"
                   variant='ghost'
-                  onClick={() => setDarkmode(!darkmode)}>
+                  onClick={toggleColorMode}>
                   <FontAwesomeIcon icon={faMoon}/>
                </Button>
             </HStack>
