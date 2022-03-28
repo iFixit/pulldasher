@@ -36,13 +36,13 @@ const RefreshContainer = chakra(Box, {
 export function RefreshButton({pull}: {pull: Pull}) {
    const [oldReceivedAt, setOldReceivedAt] = useState<Date|null>(new Date());
    const waitingOnRefreshing = oldReceivedAt == pull.received_at;
-   const onClick = () => {
+   const handleOnClick = () => {
       refreshPull(pull);
       setOldReceivedAt(pull.received_at);
    }
    return (
       <RefreshContainer
-         onClick={onClick}
+         onClick={handleOnClick}
          title="Refresh"
          className={"refresh " + (waitingOnRefreshing ? "refreshing" : undefined)}>
          <FontAwesomeIcon className={waitingOnRefreshing ? "fa-spin" : undefined} icon={faRefresh}/>
