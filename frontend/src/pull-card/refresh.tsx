@@ -17,7 +17,7 @@ const RefreshContainer = chakra(Box, {
       borderWidth: '1px',
       borderColor: 'var(--refresh)',
       padding: "5px",
-      background: "white",
+      background: "var(--refresh-background)",
       color: "var(--refresh)",
       "&.refreshing": {
          visibility: "visible",
