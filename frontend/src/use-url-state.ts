@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 
 type state = string|null;
 type stateSetter = (state: state) => void;
@@ -82,4 +82,21 @@ export function useBoolUrlState(paramName: string, paramDefault: boolean): [bool
    }, []);
 
    return [state === '1', setBoolState];
+}
+
+/**
+ * Just like useUrlState(), but typed for storing an array of strings
+ */
+export function useArrayUrlState(paramName: string, paramDefault: string[]): [string[], (state: string[]) => void] {
+   const [state, setState] = useUrlState(paramName, paramDefault.join(','));
+
+   const setArrayState = useCallback((newState: string[]) => {
+      setState(newState.join(','));
+   }, [setState]);
+
+   // useMemo() is here so that downstream callers can depend on the array
+   // staying the same referentially if the state hasn't changed.
+   const valueArray = useMemo(() => state ? state.split(',') : [], [state]);
+
+   return [valueArray, setArrayState];
 }
