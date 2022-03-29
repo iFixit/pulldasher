@@ -18,18 +18,15 @@ type HistoryState = Record<string, string>;
  * paramName is expected not to change over the life of the component.
  */
 export function useUrlState(paramName: string, paramDefault: string): useUrlStateReturn  {
-   const [state, setState] = useState(paramDefault);
-
-   // Load state from url, only once per component
-   useEffect(() => {
-      const unsubscribe = watchForPopstate(paramName, setState, paramDefault);
+   const [state, setState] = useState((): string =>  {
       const url = new URL(window.location.href);
       const urlState = url.searchParams.get(paramName);
-      if (urlState === null || urlState === state) {
-         return;
-      }
-      setState(urlState);
-      return unsubscribe;
+      return urlState === null ? paramDefault : urlState;
+   });
+
+   // Watch for url state changes (back button) only once per component.
+   useEffect(() => {
+      return watchForPopstate(paramName, setState, paramDefault);
    }, []);
 
    // Wrap setState so it pushes history and transforms the url
