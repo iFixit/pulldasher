@@ -13,7 +13,6 @@ var config = require('./lib/config-loader'),
     mainController = require('./controllers/main'),
     hooksController = require('./controllers/githubHooks'),
     reqLogger = require('./lib/debug')('pulldasher:server:request'),
-    utils = require('./lib/utils'),
     debug = require('./lib/debug')('pulldasher');
 
 var app = express();
@@ -52,21 +51,18 @@ app.get('/',            mainController.index);
 app.get('/token',       mainController.getToken);
 app.post('/hooks/main', hooksController.main);
 
-utils.forEachRepo(function(repo) {
-   debug("Repo %s: Loading pulls from the DB", repo);
-   // Load open pulls from the DB so we don't start blank.
-   dbManager.getOpenPulls(repo).then(function(pulls) {
-      debug("Repo %s: Loaded pulls", repo, pulls.length);
-      pullQueue.pause();
-      pulls.forEach(function(pull) {
-         pullManager.updatePull(pull);
-      });
-      pullQueue.resume();
-   }).done();
+debug("Loading all open pulls from the DB");
+dbManager.getOpenPulls().then(function(pulls) {
+   debug("Loaded %s pulls", pulls.length);
+   pullQueue.pause();
+   pulls.forEach(function(pull) {
+      pullManager.updatePull(pull);
+   });
+   pullQueue.resume();
 }).then(function() {
    debug("Refreshing all open pulls from the API");
    refresh.openPulls();
-});
+}).done();
 
 /*
 @TODO: Update pulls which were open last time Pulldasher ran but are closed now.
