@@ -13,6 +13,10 @@ export class Pull extends PullData {
       this.qa_signatures = computeSignatures(data.status.allQA);
    }
 
+   isOpen(): boolean {
+      return this.state == 'open';
+   }
+
    getUrl(): string {
       return 'https://github.com/' + this.repo + '/pull/' + this.number;
    }

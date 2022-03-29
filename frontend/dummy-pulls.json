@@ -7672,8 +7672,8 @@
   {
     "repo": "iFixit/server-templates",
     "number": 2886,
-    "state": "open",
-    "title": "Akeneo: Polish RDS and drop services",
+    "state": "closed",
+    "title": "Akeneo: This pull is closed and should be hidden",
     "body": "pull request dummy body",
     "created_at": "2020-12-23T01:36:52.000Z",
     "updated_at": "2020-12-23T01:37:27.000Z",
