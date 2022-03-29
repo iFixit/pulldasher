@@ -47,5 +47,5 @@ export function mockRefreshPull(pull: Pull) {
    }, 2000);
 }
 
-export const createPullSocket = dummyPulls ? mockPullSocket: pullSocket;
-export const refreshPull = dummyPulls ? mockRefreshPull : sendRefreshPull;
+export const createPullSocket = dummyPulls.length ? mockPullSocket: pullSocket;
+export const refreshPull = dummyPulls.length ? mockRefreshPull : sendRefreshPull;

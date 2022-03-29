@@ -15,7 +15,7 @@ const Card = chakra(Flex, {
       position: "relative",
       p: 4,
       pl: 6,
-      borderTop: "1px #ccc solid",
+      borderTop: "1px var(--pull-separator) solid",
       "&:hover .build_status": {
          opacity: 1
       },
@@ -62,7 +62,7 @@ export function PullCard({pull}: {pull: Pull}) {
          <RefreshButton pull={pull}/>
          <CommitStatuses pull={pull}/>
          <Box>
-            <Link href={pull.getUrl()}>
+            <Link href={pull.getUrl()} color="var(--pull-title)">
                {pull.isMine() && <FontAwesomeIcon icon={faStar} className="star" color="var(--user-icon)"/>}
                <chakra.span fontWeight="bold">{pull.getRepoName()} #{pull.number}: </chakra.span>
                {pull.title}

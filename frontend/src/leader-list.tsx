@@ -13,6 +13,7 @@ export function LeaderList({leaders, title}: {leaders: SigCount[], title: string
       px={6}
       py={2}
       fontSize="1rem"
+      color="var(--leaderboard-title-text)"
       bgColor="var(--leaderboard-background)">
       <HStack spacing={2} textAlign="center">
          <chakra.span p={1}>{title}:</chakra.span>
