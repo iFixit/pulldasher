@@ -1,7 +1,7 @@
 import { Pull } from '../pull';
 import { refreshPull } from '../backend/pull-socket';
 import { Box, chakra } from "@chakra-ui/react"
-import { useState } from "react"
+import { useState, memo } from "react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faRefresh } from '@fortawesome/free-solid-svg-icons'
 
@@ -33,7 +33,8 @@ const RefreshContainer = chakra(Box, {
    }
 });
 
-export function RefreshButton({pull}: {pull: Pull}) {
+export const RefreshButton = memo(
+function RefreshButton({pull}: {pull: Pull}) {
    const [oldReceivedAt, setOldReceivedAt] = useState<Date|null>(new Date());
    const waitingOnRefreshing = oldReceivedAt == pull.received_at;
    const handleOnClick = () => {
@@ -48,4 +49,4 @@ export function RefreshButton({pull}: {pull: Pull}) {
          <FontAwesomeIcon className={waitingOnRefreshing ? "fa-spin" : undefined} icon={faRefresh}/>
       </RefreshContainer>
    );
-}
+});

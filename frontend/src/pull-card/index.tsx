@@ -4,6 +4,7 @@ import { Age } from './age';
 import { Flags } from './flags';
 import { Signatures } from './signatures';
 import { CopyBranch } from './copy-branch';
+import { memo } from "react";
 import { RefreshButton } from './refresh';
 import { Flex, Box, Link, chakra } from "@chakra-ui/react"
 import { useEffect, useRef } from "react"
@@ -47,7 +48,8 @@ const SigsAndFlags = chakra(Flex, {
    }
 });
 
-export function PullCard({pull}: {pull: Pull}) {
+export const PullCard = memo(
+function PullCard({pull, show}: {pull: Pull, show: boolean}) {
    const cardRef = useRef<HTMLElement>(null);
 
    // Animate a highlight when pull.received_at changes
@@ -58,7 +60,7 @@ export function PullCard({pull}: {pull: Pull}) {
    }, [pull.received_at]);
 
    return (
-      <Card ref={cardRef}>
+      <Card ref={cardRef} display={show ? undefined : "none"}>
          <RefreshButton pull={pull}/>
          <CommitStatuses pull={pull}/>
          <Box>
@@ -88,4 +90,4 @@ export function PullCard({pull}: {pull: Pull}) {
          </Box>
       </Card>
    );
-}
+});

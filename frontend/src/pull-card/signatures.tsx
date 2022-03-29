@@ -2,6 +2,7 @@ import { getUser } from '../page-context';
 import { Pull } from '../pull';
 import { Signature, SignatureGroup } from '../types';
 import { Box, HStack, useStyleConfig } from "@chakra-ui/react"
+import { memo } from "react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCheckCircle } from '@fortawesome/free-solid-svg-icons'
 
@@ -12,7 +13,8 @@ interface SignaturesProps {
    required: number,
 }
 
-export function Signatures({pull, title, signatures, required}: SignaturesProps) {
+export const Signatures = memo(
+function Signatures({pull, title, signatures, required}: SignaturesProps) {
    const statusVariant = signatures.current.length >= required ?
       (pull.isMine() ? 'validMine' : 'valid') : undefined;
    const styles = useStyleConfig('Signatures', {variant: statusVariant});
@@ -35,7 +37,7 @@ export function Signatures({pull, title, signatures, required}: SignaturesProps)
       {UnfullfilledSigs(unfulfilledCount)}
    </HStack>
    );
-}
+});
 
 function NewAndOldSigs(allSignatures: Signature[]) {
    return allSignatures.map((sig) => {

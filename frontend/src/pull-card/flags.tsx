@@ -1,11 +1,13 @@
 import { Pull } from '../pull';
 import { actionMessage } from '../utils';
 import { Link, Box, useStyleConfig } from "@chakra-ui/react"
+import { memo } from "react"
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faWarning, faMinusCircle, faEye, faEyeSlash, faSnowflake } from '@fortawesome/free-solid-svg-icons'
 
-export function Flags({pull}: {pull: Pull}) {
+export const Flags = memo(
+function Flags({pull}: {pull: Pull}) {
    const devBlock = pull.getDevBlock();
    const deployBlock = pull.getDeployBlock();
    const QAing = pull.getLabel("QAing");
@@ -40,7 +42,7 @@ export function Flags({pull}: {pull: Pull}) {
          icon={faSnowflake}
       />}
    </>);
-}
+});
 
 interface PullFlagProps {
    href?: string,

@@ -7,7 +7,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faSnowflake, faMoon } from '@fortawesome/free-solid-svg-icons'
 
 export function Navbar(props: BoxProps) {
-   const pulls: Pull[] = usePulls();
+   const pulls: Set<Pull> = usePulls();
    const setPullFilter = useSetFilter();
    const {toggleColorMode} = useColorMode();
    const [showCryo, setShowCryo] = useBoolUrlState('cryo', false);
@@ -28,7 +28,7 @@ export function Navbar(props: BoxProps) {
       <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
          <Flex px="var(--body-gutter)" maxW="100%" w="var(--body-max-width)" justify="space-between">
             <HStack alignSelf="center" w="200px" spacing="2">
-               <span>{pulls.length} open</span>
+               <span>{pulls.size} open</span>
                <Button
                   size="sm"
                   title="Show pulls with label Cryogenic Storage"

@@ -1,12 +1,11 @@
-import { usePulls } from './pulls-context';
-import { Pull } from '../pull';
+import { useAllPulls } from './pulls-context';
 import { Navbar } from '../navbar';
 import { Column } from '../column';
 import { LeaderList, getLeaders } from '../leader-list';
 import { Box, SimpleGrid, VStack } from "@chakra-ui/react"
 
 export const Pulldasher: React.FC = function() {
-   const pulls: Pull[] = usePulls();
+   const pulls = useAllPulls();
    const pullsCIBlocked = pulls.filter(pull => pull.isCiBlocked());
    const pullsDeployBlocked = pulls.filter(pull => pull.isDeployBlocked());
    const pullsReady = pulls.filter(pull => pull.isReady());
