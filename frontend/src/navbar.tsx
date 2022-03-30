@@ -1,3 +1,4 @@
+import { RepoMenu } from './repo-menu';
 import { usePulls, useSetFilter } from './pulldasher/pulls-context';
 import { Pull } from './pull';
 import { useColorMode, Button, HStack, Center, Flex, Box, BoxProps, Input } from "@chakra-ui/react";
@@ -45,6 +46,7 @@ export function Navbar(props: BoxProps) {
                   onClick={toggleColorMode}>
                   <FontAwesomeIcon icon={faMoon}/>
                </Button>
+               <RepoMenu/>
             </HStack>
             <Box alignSelf="center" fontSize={20}>
                <span style={{fontVariantCaps: "small-caps"}}>Pulldasher</span>
