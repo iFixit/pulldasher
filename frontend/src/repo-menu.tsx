@@ -1,7 +1,10 @@
 import { useAllPulls, useSetFilter } from './pulldasher/pulls-context';
 import { useArrayUrlState } from './use-url-state';
+import { Pull } from './pull';
 import { Button, Menu, MenuButton, MenuList, MenuOptionGroup, MenuItemOption } from "@chakra-ui/react";
 import { useEffect, useCallback, useMemo } from 'react'
+
+type RepoCounts = Map<string, number>;
 
 export function RepoMenu() {
    const pulls = useAllPulls();
@@ -12,6 +15,7 @@ export function RepoMenu() {
 
    const allRepos = useMemo(() => Array.from(new Set(pulls.map((pull) => pull.getRepoName()))), [pulls]);
    const selectedReposSet = useMemo(() => new Set(selectedRepos), [selectedRepos]);
+   const repoToPullCount = useMemo(() => getRepoToPullCount(pulls), [pulls]);
 
    const onSelectedChange = useCallback((newSelectedRepos: string | string[]) => {
       newSelectedRepos = Array.from(newSelectedRepos);
@@ -49,11 +53,18 @@ export function RepoMenu() {
                 key={repo}
                 value={repo}
                 isChecked={showAll || selectedReposSet.has(repo)}>
-                {repo}
+                {repo} ({repoToPullCount.get(repo) || 0})
              </MenuItemOption>
           )}
        </MenuOptionGroup>
      </MenuList>
    </Menu>
    );
+}
+
+function getRepoToPullCount(pulls: Pull[]): RepoCounts {
+   return pulls.reduce((counts, pull) => {
+      counts.set(pull.getRepoName(), (counts.get(pull.getRepoName()) || 0) + 1);
+      return counts;
+   }, new Map() as RepoCounts);
 }
