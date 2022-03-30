@@ -71,16 +71,23 @@ export class Pull extends PullData {
       });
    }
 
+   // Returns true if this pull doesn't have and doesn't need any CI statuses
+   isCiNotNeeded(): boolean {
+      return this.getRequiredBuildStatuses().length === 0 &&
+         this.buildStatuses().length === 0;
+   }
+
    isReady(): boolean {
       return this.hasMetDeployRequirements()
          && !this.getDevBlock()
-         && !this.getDeployBlock();
+         && !this.getDeployBlock()
+         && !this.isCiNotNeeded();
    }
 
    isDeployBlocked(): boolean {
       return this.hasMetDeployRequirements()
          && !this.getDevBlock()
-         && !!this.getDeployBlock();
+         && (!!this.getDeployBlock() || this.isCiNotNeeded());
    }
 
    hasMetDeployRequirements(): boolean {
