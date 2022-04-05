@@ -14,7 +14,6 @@ export function RepoMenu() {
    const setPullFilter = useSetFilter();
 
    const allRepos = useMemo(() => Array.from(new Set(pulls.map((pull) => pull.getRepoName()))), [pulls]);
-   const selectedReposSet = useMemo(() => new Set(selectedRepos), [selectedRepos]);
    const repoToPullCount = useMemo(() => getRepoToPullCount(pulls), [pulls]);
 
    const onSelectedChange = useCallback((newSelectedRepos: string | string[]) => {
@@ -51,8 +50,7 @@ export function RepoMenu() {
           {allRepos.map((repo) =>
              <MenuItemOption
                 key={repo}
-                value={repo}
-                isChecked={showAll || selectedReposSet.has(repo)}>
+                value={repo}>
                 {repo} ({repoToPullCount.get(repo) || 0})
              </MenuItemOption>
           )}
