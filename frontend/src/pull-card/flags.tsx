@@ -57,6 +57,7 @@ function PullFlag({variant, title, href, icon}: PullFlagProps) {
    <Link
       sx={styles}
       href={href}
+      title={title}
       className="pull-flag">
       <FontAwesomeIcon icon={icon}/>
    </Link> :
