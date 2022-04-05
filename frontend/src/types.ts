@@ -103,8 +103,6 @@ export class PullData {
    status: {
       qa_req: number;
       cr_req: number;
-      QA: Signature[];
-      CR: Signature[];
       allQA: Signature[];
       allCR: Signature[];
       dev_block: Signature[];
