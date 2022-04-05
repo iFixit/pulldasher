@@ -119,8 +119,6 @@ Pull.prototype.isOpen = function() {
  */
 Pull.prototype.getStatus = function getStatus() {
    var status = {
-      // TODO get these from the pull's comment or default
-      // if the pull doesn't specify
       'qa_req' : this.data.qa_req,
       'cr_req' : this.data.cr_req,
       'QA' : this.getSignatures('QA'),
