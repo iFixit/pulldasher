@@ -35,11 +35,11 @@ export class Pull extends PullData {
    }
 
    isCrDone(): boolean {
-      return this.status.CR.length >= this.status.cr_req;
+      return this.cr_signatures.current.length >= this.status.cr_req;
    }
 
    isQaDone(): boolean {
-      return this.status.QA.length >= this.status.qa_req;
+      return this.qa_signatures.current.length >= this.status.qa_req;
    }
 
    isCiBlocked(): boolean {
