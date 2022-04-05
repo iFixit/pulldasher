@@ -124,7 +124,9 @@ function computeSignatures(signatures: Signature[]): SignatureGroup {
    };
    const users: Record<string, boolean> = {};
 
-   signatures.forEach(function(signature) {
+   signatures
+   .sort(activeSignaturesFirst)
+   .forEach(function(signature) {
       if (users[signature.data.user.login]) {
          return;
       }
@@ -139,6 +141,10 @@ function computeSignatures(signatures: Signature[]): SignatureGroup {
    });
 
    return groups;
+}
+
+function activeSignaturesFirst(a: Signature, b: Signature): number {
+   return b.data.active - a.data.active;
 }
 
 function isSuccessfulStatus(status: CommitStatus) {
