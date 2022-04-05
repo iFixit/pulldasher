@@ -122,10 +122,10 @@ function computeSignatures(signatures: Signature[]): SignatureGroup {
       current: [],
       old: [],
    };
-   const users: Record<number, boolean> = {};
+   const users: Record<string, boolean> = {};
 
    signatures.forEach(function(signature) {
-      if (users[signature.data.user.id]) {
+      if (users[signature.data.user.login]) {
          return;
       }
 
@@ -135,7 +135,7 @@ function computeSignatures(signatures: Signature[]): SignatureGroup {
          groups.old.push(signature);
       }
 
-      users[signature.data.user.id] = true;
+      users[signature.data.user.login] = true;
    });
 
    return groups;

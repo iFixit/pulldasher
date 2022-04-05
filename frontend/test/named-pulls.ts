@@ -64,11 +64,47 @@ export const PartialRequirements = <PullData[]> [
    }),
 ];
 
+export const Signatures = <PullData[]> [
+   pullData({
+      title: "1 Out-of-date CR and 1 out-of-date QA by the same user",
+      status: {
+         allQA: [sig(SignatureType.QA, false, "user1")],
+         allCR: [sig(SignatureType.CR, false, "user1")],
+      },
+   }),
+   pullData({
+      title: "1 CR and 1 out-of-date CR by the same user. 1 QA and 1 out-of-date QA by the same user",
+      status: {
+         allQA: [sig(SignatureType.QA, true, "user1"), sig(SignatureType.QA, false, "user1")],
+         allCR: [sig(SignatureType.CR, false, "user1"), sig(SignatureType.CR, true, "user1")],
+      },
+   }),
+   pullData({
+      title: "Many active CRs and inactive CRs by the same user",
+      status: {
+         allCR: [
+            sig(SignatureType.CR, false, "user1"),
+            sig(SignatureType.CR, false, "user1"),
+            sig(SignatureType.CR, false, "user1"),
+            sig(SignatureType.CR, false, "user1"),
+            sig(SignatureType.CR, false, "user1"),
+            sig(SignatureType.CR, true, "user1"),
+            sig(SignatureType.CR, true, "user1"),
+            sig(SignatureType.CR, true, "user1"),
+            sig(SignatureType.CR, true, "user1"),
+            sig(SignatureType.CR, true, "user1"),
+         ],
+      },
+   }),
+];
+
 const activeCR2 = sig(SignatureType.CR, true);
 const activeQA2 = sig(SignatureType.QA, true);
 export const FulfilledRequirements = <PullData[]> [
    pullData({
-      title: "1 CR and 1 QA",
+      title: "1 CR and 1 QA with a 1,1 requirement",
+      cr_req: 1,
+      qa_req: 1,
       status: {
          allQA: [activeQA],
          allCR: [activeCR],
