@@ -8,6 +8,7 @@ type RepoCounts = Map<string, number>;
 
 export function RepoMenu() {
    const pulls = useAllPulls();
+   // Default is empty array that implies show all pulls (no filtering)
    const [selectedRepos, setSelectedRepos] = useArrayUrlState('repo', []);
    // Nothing selected == show everything, otherwise, it'd be empty
    const showAll = selectedRepos.length === 0;
@@ -17,6 +18,8 @@ export function RepoMenu() {
    const repoToPullCount = useMemo(() => getRepoToPullCount(pulls), [pulls]);
 
    const onSelectedChange = useCallback((newSelectedRepos: string | string[]) => {
+      // Make typescript happy cause it thinks newSelectedRepos can be a single
+      // string
       newSelectedRepos = Array.from(newSelectedRepos);
 
       // Update the url
