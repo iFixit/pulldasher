@@ -9,6 +9,7 @@ import { faWarning, faMinusCircle, faEye, faEyeSlash, faSnowflake } from '@forta
 export const Flags = memo(
 function Flags({pull}: {pull: Pull}) {
    const devBlock = pull.getDevBlock();
+   const readyButNoCI = pull.isReady() && !pull.isCiRequired();
    const deployBlock = pull.getDeployBlock();
    const QAing = pull.getLabel("QAing");
    const externalBlock = pull.getLabel("external_block");
@@ -18,6 +19,11 @@ function Flags({pull}: {pull: Pull}) {
          variant="deployBlock"
          title={actionMessage('Deploy blocked', deployBlock.data.created_at, deployBlock.data.user.login)}
          href={pull.linkToSignature(deployBlock)}
+         icon={faWarning}
+      />}
+      {readyButNoCI && <PullFlag
+         variant="deployBlock"
+         title={"No CI, deploy carefully"}
          icon={faWarning}
       />}
       {devBlock && <PullFlag
@@ -57,6 +63,7 @@ function PullFlag({variant, title, href, icon}: PullFlagProps) {
    <Link
       sx={styles}
       href={href}
+      title={title}
       className="pull-flag">
       <FontAwesomeIcon icon={icon}/>
    </Link> :

@@ -71,6 +71,15 @@ export class Pull extends PullData {
       });
    }
 
+   /**
+    * Returns true if there are required CI statues OR if there are *any* CI
+    * statuses
+    */
+   isCiRequired(): boolean {
+      return this.getRequiredBuildStatuses().length > 0 ||
+         this.buildStatuses().length > 0;
+   }
+
    isReady(): boolean {
       return this.hasMetDeployRequirements()
          && !this.getDevBlock()
@@ -80,7 +89,7 @@ export class Pull extends PullData {
    isDeployBlocked(): boolean {
       return this.hasMetDeployRequirements()
          && !this.getDevBlock()
-         && !!this.getDeployBlock();
+         && (!!this.getDeployBlock() || !this.isCiRequired());
    }
 
    hasMetDeployRequirements(): boolean {
