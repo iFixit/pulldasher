@@ -121,7 +121,6 @@ function computeSignatures(signatures: Signature[]): SignatureGroup {
    const groups: SignatureGroup = {
       current: [],
       old: [],
-      user: null
    };
    const users: Record<number, boolean> = {};
 
