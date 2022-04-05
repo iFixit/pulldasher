@@ -110,7 +110,6 @@ export class PullData {
       dev_block: Signature[];
       deploy_block: Signature[];
       commit_statuses: CommitStatus[];
-      ready: boolean;
    };
    labels: Label[];
 }

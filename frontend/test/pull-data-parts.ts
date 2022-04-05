@@ -99,7 +99,6 @@ export function pullData(p: DeepPartial<PullData>): PullData {
          "dev_block": p.status?.dev_block || [],
          "deploy_block": p.status?.deploy_block || [],
          "commit_statuses": p.status?.commit_statuses || [],
-         "ready": false,
       },
       "labels": p.labels || []
    };
