@@ -1,7 +1,7 @@
 import { useAllPulls, useSetFilter } from './pulldasher/pulls-context';
 import { useArrayUrlState } from './use-url-state';
 import { Pull } from './pull';
-import { Button, Menu, MenuButton, MenuList, MenuDivider, MenuOptionGroup, MenuItemOption } from "@chakra-ui/react";
+import { useConst, Button, Menu, MenuButton, MenuList, MenuDivider, MenuOptionGroup, MenuItemOption } from "@chakra-ui/react";
 import { useEffect, useCallback, useMemo } from 'react'
 
 type RepoCounts = Map<string, number>;
@@ -12,9 +12,16 @@ export function RepoMenu() {
    const [selectedRepos, setSelectedRepos] = useArrayUrlState('repo', []);
    // Nothing selected == show everything, otherwise, it'd be empty
    const showAll = selectedRepos.length === 0;
+   // List from url may contain repos we have no pulls for
+   const urlRepos = useConst(() => new Set(selectedRepos));
    const setPullFilter = useSetFilter();
 
-   const allRepos = useMemo(() => Array.from(new Set(pulls.map((pull) => pull.getRepoName()))), [pulls]);
+   // May include repos frmo the url for which there are no pulls
+   const allRepos = useMemo(() => {
+      // All repos of open pulls
+      const pullRepos = new Set(pulls.map((pull) => pull.getRepoName()));
+      return [...new Set([...pullRepos, ...urlRepos])]
+   }, [pulls]);
    const repoToPullCount = useMemo(() => getRepoToPullCount(pulls), [pulls]);
 
    const onSelectedChange = useCallback((newSelectedRepos: string | string[]) => {
