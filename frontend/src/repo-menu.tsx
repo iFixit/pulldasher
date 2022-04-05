@@ -1,7 +1,7 @@
 import { useAllPulls, useSetFilter } from './pulldasher/pulls-context';
 import { useArrayUrlState } from './use-url-state';
 import { Pull } from './pull';
-import { Button, Menu, MenuButton, MenuList, MenuOptionGroup, MenuItemOption } from "@chakra-ui/react";
+import { Button, Menu, MenuButton, MenuList, MenuDivider, MenuOptionGroup, MenuItemOption } from "@chakra-ui/react";
 import { useEffect, useCallback, useMemo } from 'react'
 
 type RepoCounts = Map<string, number>;
@@ -18,11 +18,6 @@ export function RepoMenu() {
 
    const onSelectedChange = useCallback((newSelectedRepos: string | string[]) => {
       newSelectedRepos = Array.from(newSelectedRepos);
-      // If they've selected *all* the repos, then let's reset it to the
-      // default (empty array == show all repos)
-      if (newSelectedRepos.length == allRepos.length) {
-         newSelectedRepos = [];
-      }
 
       // Update the url
       setSelectedRepos(newSelectedRepos);
@@ -32,7 +27,7 @@ export function RepoMenu() {
       setPullFilter('repo', selectedReposSet.size === 0 ? null : (pull) =>
          selectedReposSet.has(pull.getRepoName())
       );
-   }, [setPullFilter, setSelectedRepos, allRepos]);
+   }, [setPullFilter, setSelectedRepos]);
 
    // Load initial state from url just once
    useEffect(() => onSelectedChange(selectedRepos), []);
@@ -55,6 +50,13 @@ export function RepoMenu() {
              </MenuItemOption>
           )}
        </MenuOptionGroup>
+       <MenuDivider/>
+       <MenuItemOption
+          key="Show All"
+          onClick={() => onSelectedChange([])}
+          isChecked={showAll}>
+          Show All
+       </MenuItemOption>
      </MenuList>
    </Menu>
    );
