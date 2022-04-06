@@ -24,9 +24,7 @@ app.set('view engine', 'html');
 /**
  * Middleware
  */
-app.use("/frontend", express.static(__dirname + '/frontend/dist'));
 app.use("/public", express.static(__dirname + '/public'));
-app.use("/js", express.static(__dirname + '/dist'));
 app.use(partials());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
@@ -47,7 +45,7 @@ app.use(function(req, res, next) {
  * Routes
  */
 authManager.setupRoutes(app);
-app.get('/',            mainController.index);
+app.use("/", express.static(__dirname + '/frontend/dist'));
 app.get('/token',       mainController.getToken);
 app.post('/hooks/main', hooksController.main);
 

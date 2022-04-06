@@ -48,7 +48,7 @@ module.exports = {
    },
    output: {
       path: relative("dist"),
-      publicPath: '/frontend'
+      publicPath: '/'
    },
    entry: {
       "main": relative("src/index.tsx"),
@@ -72,6 +72,6 @@ module.exports = {
    mode: 'development',
    devtool: 'eval-cheap-module-source-map',
    devServer: {
-      open: ["frontend/"],
+      open: ["/"],
    }
 };
