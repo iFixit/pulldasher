@@ -92,14 +92,11 @@ export function pullData(p: DeepPartial<PullData>): PullData {
       "status": {
          "cr_req": p.cr_req != null ? p.cr_req : 2,
          "qa_req": p.qa_req != null ? p.qa_req : 1,
-         "QA": p.status?.QA || [],
-         "CR": p.status?.CR || [],
          "allQA": p.status?.allQA || [],
          "allCR": p.status?.allCR || [],
          "dev_block": p.status?.dev_block || [],
          "deploy_block": p.status?.deploy_block || [],
          "commit_statuses": p.status?.commit_statuses || [],
-         "ready": false,
       },
       "labels": p.labels || []
    };

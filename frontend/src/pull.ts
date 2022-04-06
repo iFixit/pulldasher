@@ -35,11 +35,11 @@ export class Pull extends PullData {
    }
 
    isCrDone(): boolean {
-      return this.status.CR.length >= this.status.cr_req;
+      return this.cr_signatures.current.length >= this.status.cr_req;
    }
 
    isQaDone(): boolean {
-      return this.status.QA.length >= this.status.qa_req;
+      return this.qa_signatures.current.length >= this.status.qa_req;
    }
 
    isCiBlocked(): boolean {
@@ -71,6 +71,15 @@ export class Pull extends PullData {
       });
    }
 
+   /**
+    * Returns true if there are required CI statues OR if there are *any* CI
+    * statuses
+    */
+   isCiRequired(): boolean {
+      return this.getRequiredBuildStatuses().length > 0 ||
+         this.buildStatuses().length > 0;
+   }
+
    isReady(): boolean {
       return this.hasMetDeployRequirements()
          && !this.getDevBlock()
@@ -80,7 +89,7 @@ export class Pull extends PullData {
    isDeployBlocked(): boolean {
       return this.hasMetDeployRequirements()
          && !this.getDevBlock()
-         && !!this.getDeployBlock();
+         && (!!this.getDeployBlock() || !this.isCiRequired());
    }
 
    hasMetDeployRequirements(): boolean {
@@ -121,12 +130,13 @@ function computeSignatures(signatures: Signature[]): SignatureGroup {
    const groups: SignatureGroup = {
       current: [],
       old: [],
-      user: null
    };
-   const users: Record<number, boolean> = {};
+   const users: Record<string, boolean> = {};
 
-   signatures.forEach(function(signature) {
-      if (users[signature.data.user.id]) {
+   signatures
+   .sort(activeSignaturesFirst)
+   .forEach(function(signature) {
+      if (users[signature.data.user.login]) {
          return;
       }
 
@@ -136,10 +146,14 @@ function computeSignatures(signatures: Signature[]): SignatureGroup {
          groups.old.push(signature);
       }
 
-      users[signature.data.user.id] = true;
+      users[signature.data.user.login] = true;
    });
 
    return groups;
+}
+
+function activeSignaturesFirst(a: Signature, b: Signature): number {
+   return b.data.active - a.data.active;
 }
 
 function isSuccessfulStatus(status: CommitStatus) {
