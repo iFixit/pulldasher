@@ -67,8 +67,9 @@ dbManager.closeStalePulls();
 
 //====================================================
 // Socket.IO
-var io = require('socket.io').listen(httpServer);
-io.sockets.on('connection', function (socket) {
+const { Server } = require('socket.io');
+const io = new Server(httpServer);
+io.on('connection', function (socket) {
    var unauthenticated_timeout = config.unauthenticated_timeout !== undefined ?
       config.unauthenticated_timeout : 10 * 1000;
 
