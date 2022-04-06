@@ -14,7 +14,7 @@
     "@types/underscore": "^1.10.24",
     "bluebird": "^3.7.1",
     "body-parser": "^1.19.0",
-    "debug": "^3.2.6",
+    "debug": "^4.3.4",
     "express": "^4.17.1",
     "express-session": "^1.17.0",
     "framer-motion": "^4.1.17",
