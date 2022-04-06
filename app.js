@@ -1,6 +1,5 @@
 var config = require('./lib/config-loader'),
     express = require('express'),
-    partials = require('express-partials'),
     bodyParser = require('body-parser'),
     expressSession = require('express-session'),
     authManager = require('./lib/authentication'),
@@ -24,7 +23,6 @@ app.set('view engine', 'html');
  * Middleware
  */
 app.use("/public", express.static(__dirname + '/public'));
-app.use(partials());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(expressSession({
