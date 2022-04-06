@@ -18,7 +18,6 @@ var config = require('./lib/config-loader'),
 var app = express();
 var httpServer = require('http').createServer(app);
 
-app.engine('html', require('ejs').renderFile);
 app.set('view engine', 'html');
 
 /**
