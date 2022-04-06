@@ -75,8 +75,8 @@
     "frontend:start": "DUMMY_USER=danielbeardsley DUMMY_PULLS=./frontend/dummy-pulls.json webpack-dev-server --config ./frontend/webpack.dev.config.js",
     "frontend:watch": "webpack --watch --config ./frontend/webpack.dev.config.js",
     "frontend:build": "webpack --config ./frontend/webpack.prod.config.js",
-    "postinstall": "webpack && npm run frontend:build",
-    "build": "webpack && npm run frontend:build",
+    "postinstall": "npm run frontend:build",
+    "build": "npm run frontend:build",
     "precommit": "lint-staged"
   },
   "lint-staged": {
