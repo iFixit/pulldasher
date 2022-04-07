@@ -5,11 +5,18 @@ import { useConst, Button, Menu, MenuButton, MenuList, MenuDivider, MenuOptionGr
 import { useEffect, useCallback, useMemo } from 'react'
 
 type RepoCounts = Map<string, number>;
+type ValueGetter = (pull: Pull) => string;
 
-export function RepoMenu() {
+type FilterMenuProps = {
+   urlParam: string,
+   buttonText: string,
+   extractValueFromPull: ValueGetter,
+};
+
+export function RepoMenu({urlParam, buttonText, extractValueFromPull}: FilterMenuProps) {
    const pulls = useAllPulls();
    // Default is empty array that implies show all pulls (no filtering)
-   const [selectedRepos, setSelectedRepos] = useArrayUrlState('repo', []);
+   const [selectedRepos, setSelectedRepos] = useArrayUrlState(urlParam, []);
    // Nothing selected == show everything, otherwise, it'd be empty
    const showAll = selectedRepos.length === 0;
    // List from url may contain repos we have no pulls for
@@ -19,10 +26,10 @@ export function RepoMenu() {
    // May include repos frmo the url for which there are no pulls
    const allRepos = useMemo(() => {
       // All repos of open pulls
-      const pullRepos = new Set(pulls.map((pull) => pull.getRepoName()));
+      const pullRepos = new Set(pulls.map(extractValueFromPull));
       return [...new Set([...pullRepos, ...urlRepos])]
    }, [pulls]);
-   const repoToPullCount = useMemo(() => getRepoToPullCount(pulls), [pulls]);
+   const repoToPullCount = useMemo(() => getRepoToPullCount(pulls, extractValueFromPull), [pulls]);
 
    const onSelectedChange = useCallback((newSelectedRepos: string | string[]) => {
       // Make typescript happy cause it thinks newSelectedRepos can be a single
@@ -35,7 +42,7 @@ export function RepoMenu() {
       // Update the pull filter
       const selectedReposSet = new Set(newSelectedRepos);
       setPullFilter('repo', selectedReposSet.size === 0 ? null : (pull) =>
-         selectedReposSet.has(pull.getRepoName())
+         selectedReposSet.has(extractValueFromPull(pull))
       );
    }, [setPullFilter, setSelectedRepos]);
 
@@ -45,7 +52,7 @@ export function RepoMenu() {
    return (
    <Menu closeOnSelect={false}>
      <MenuButton as={Button} colorScheme='blue' size="sm" variant="outline">
-       Repo
+       {buttonText}
      </MenuButton>
      <MenuList minWidth='240px'>
         <MenuOptionGroup
@@ -72,9 +79,10 @@ export function RepoMenu() {
    );
 }
 
-function getRepoToPullCount(pulls: Pull[]): RepoCounts {
+function getRepoToPullCount(pulls: Pull[], extractValueFromPull: ValueGetter): RepoCounts {
    return pulls.reduce((counts, pull) => {
-      counts.set(pull.getRepoName(), (counts.get(pull.getRepoName()) || 0) + 1);
+      const pullKey = extractValueFromPull(pull);
+      counts.set(pullKey, (counts.get(pullKey) || 0) + 1);
       return counts;
    }, new Map() as RepoCounts);
 }

@@ -49,7 +49,7 @@ export function Navbar(props: BoxProps) {
                   onClick={toggleColorMode}>
                   <FontAwesomeIcon icon={faMoon}/>
                </Button>
-               <RepoMenu/>
+               <RepoMenu urlParam="repo" buttonText="Repo" extractValueFromPull={(pull: Pull) => pull.getRepoName()}/>
             </HStack>
             <Box alignSelf="center" fontSize={20} flexShrink="0">
                <span style={{fontVariantCaps: "small-caps"}}>Pulldasher</span>
