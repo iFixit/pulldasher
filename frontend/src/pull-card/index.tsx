@@ -4,10 +4,9 @@ import { Age } from './age';
 import { Flags } from './flags';
 import { Signatures } from './signatures';
 import { CopyBranch } from './copy-branch';
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 import { RefreshButton } from './refresh';
 import { Flex, Box, Link, chakra } from "@chakra-ui/react"
-import { useEffect, useRef } from "react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faStar } from '@fortawesome/free-solid-svg-icons'
 

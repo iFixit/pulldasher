@@ -48,10 +48,6 @@ export function Navbar(props: BoxProps) {
             </HStack>
             <Box alignSelf="center" fontSize={20}>
                <span style={{fontVariantCaps: "small-caps"}}>Pulldasher</span>
-               &nbsp;&nbsp;-&nbsp;&nbsp;
-               <span style={{fontSize: "12px"}}>
-                  back to <a href="/">old ui</a>
-               </span>
             </Box>
             <Box w="200px" textAlign="right">
                <Input w={150} onChange={updateSearchFilter} placeholder="Search"/>

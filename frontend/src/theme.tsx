@@ -1,4 +1,7 @@
 import { extendTheme } from "@chakra-ui/react"
+import './theme/base.less';
+import './theme/day_theme.less';
+import './theme/night_theme.less';
 
 export const theme = extendTheme({
    initialColorMode: 'light',
