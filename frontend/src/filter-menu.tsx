@@ -4,7 +4,8 @@ import { Pull } from './pull';
 import { useConst, Button, Menu, MenuButton, MenuList, MenuDivider, MenuOptionGroup, MenuItemOption } from "@chakra-ui/react";
 import { useEffect, useCallback, useMemo } from 'react'
 
-type RepoCounts = Map<string, number>;
+// Map from value to number of pulls that have that value
+type ValueCounts = Map<string, number>;
 type ValueGetter = (pull: Pull) => string;
 
 type FilterMenuProps = {
@@ -16,38 +17,38 @@ type FilterMenuProps = {
 export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterMenuProps) {
    const pulls = useAllPulls();
    // Default is empty array that implies show all pulls (no filtering)
-   const [selectedRepos, setSelectedRepos] = useArrayUrlState(urlParam, []);
+   const [selectedValues, setSelectedValues] = useArrayUrlState(urlParam, []);
    // Nothing selected == show everything, otherwise, it'd be empty
-   const showAll = selectedRepos.length === 0;
-   // List from url may contain repos we have no pulls for
-   const urlRepos = useConst(() => new Set(selectedRepos));
+   const showAll = selectedValues.length === 0;
+   // List from url may contain values we have no pulls for
+   const urlValues = useConst(() => new Set(selectedValues));
    const setPullFilter = useSetFilter();
 
-   // May include repos frmo the url for which there are no pulls
-   const allRepos = useMemo(() => {
-      // All repos of open pulls
-      const pullRepos = new Set(pulls.map(extractValueFromPull));
-      return [...new Set([...pullRepos, ...urlRepos])]
+   // May include values frmo the url for which there are no pulls
+   const allValues = useMemo(() => {
+      // All values of open pulls
+      const pullValues = new Set<string>(pulls.map(extractValueFromPull));
+      return [...new Set([...pullValues, ...urlValues])]
    }, [pulls]);
-   const repoToPullCount = useMemo(() => getRepoToPullCount(pulls, extractValueFromPull), [pulls]);
+   const valueToPullCount = useMemo(() => getValueToPullCount(pulls, extractValueFromPull), [pulls]);
 
-   const onSelectedChange = useCallback((newSelectedRepos: string | string[]) => {
-      // Make typescript happy cause it thinks newSelectedRepos can be a single
+   const onSelectedChange = useCallback((newSelectedValues: string | string[]) => {
+      // Make typescript happy cause it thinks newSelectedValues can be a single
       // string
-      newSelectedRepos = Array.from(newSelectedRepos);
+      newSelectedValues = Array.from(newSelectedValues);
 
       // Update the url
-      setSelectedRepos(newSelectedRepos);
+      setSelectedValues(newSelectedValues);
 
       // Update the pull filter
-      const selectedReposSet = new Set(newSelectedRepos);
-      setPullFilter('repo', selectedReposSet.size === 0 ? null : (pull) =>
-         selectedReposSet.has(extractValueFromPull(pull))
+      const selectedValuesSet = new Set(newSelectedValues);
+      setPullFilter(urlParam, selectedValuesSet.size === 0 ? null : (pull) =>
+         selectedValuesSet.has(extractValueFromPull(pull))
       );
-   }, [setPullFilter, setSelectedRepos]);
+   }, [setPullFilter, setSelectedValues]);
 
    // Load initial state from url just once
-   useEffect(() => onSelectedChange(selectedRepos), []);
+   useEffect(() => onSelectedChange(selectedValues), []);
 
    return (
    <Menu closeOnSelect={false}>
@@ -57,13 +58,13 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
      <MenuList minWidth='240px'>
         <MenuOptionGroup
            type='checkbox'
-           value={showAll ? allRepos : selectedRepos}
+           value={showAll ? allValues : selectedValues}
            onChange={onSelectedChange}>
-          {allRepos.map((repo) =>
+          {allValues.map((value) =>
              <MenuItemOption
-                key={repo}
-                value={repo}>
-                {repo} ({repoToPullCount.get(repo) || 0})
+                key={value}
+                value={value}>
+                {value} ({valueToPullCount.get(value) || 0})
              </MenuItemOption>
           )}
        </MenuOptionGroup>
@@ -79,10 +80,10 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
    );
 }
 
-function getRepoToPullCount(pulls: Pull[], extractValueFromPull: ValueGetter): RepoCounts {
+function getValueToPullCount(pulls: Pull[], extractValueFromPull: ValueGetter): ValueCounts {
    return pulls.reduce((counts, pull) => {
       const pullKey = extractValueFromPull(pull);
       counts.set(pullKey, (counts.get(pullKey) || 0) + 1);
       return counts;
-   }, new Map() as RepoCounts);
+   }, new Map() as ValueCounts);
 }
