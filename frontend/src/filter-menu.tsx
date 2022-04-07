@@ -13,7 +13,7 @@ type FilterMenuProps = {
    extractValueFromPull: ValueGetter,
 };
 
-export function RepoMenu({urlParam, buttonText, extractValueFromPull}: FilterMenuProps) {
+export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterMenuProps) {
    const pulls = useAllPulls();
    // Default is empty array that implies show all pulls (no filtering)
    const [selectedRepos, setSelectedRepos] = useArrayUrlState(urlParam, []);
