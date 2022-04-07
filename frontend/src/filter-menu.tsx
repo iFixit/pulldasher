@@ -28,7 +28,7 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
    const allValues = useMemo(() => {
       // All values of open pulls
       const pullValues = new Set<string>(pulls.map(extractValueFromPull));
-      return [...new Set([...pullValues, ...urlValues])]
+      return sortValues([...new Set([...pullValues, ...urlValues])]);
    }, [pulls]);
    const valueToPullCount = useMemo(() => getValueToPullCount(pulls, extractValueFromPull), [pulls]);
 
@@ -78,6 +78,11 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
      </MenuList>
    </Menu>
    );
+}
+
+function sortValues(values: string[]): string[] {
+   return values.sort((a: string, b: string) =>
+      a.localeCompare(b, undefined, {sensitivity: "base"}));
 }
 
 function getValueToPullCount(pulls: Pull[], extractValueFromPull: ValueGetter): ValueCounts {
