@@ -1,6 +1,6 @@
 import { Pull } from '../src/pull';
 import { PullData } from '../src/types';
-import { Box, HStack, Heading } from "@chakra-ui/react";
+import { ChakraProvider, Box, HStack, Heading } from "@chakra-ui/react";
 import {
    AgePulls,
    UnfulfilledRequirements,
@@ -15,9 +15,7 @@ import {
    KitchenSink,
 } from "./named-pulls";
 import { PullCard } from '../src/pull-card';
-
 import { render } from 'react-dom';
-import { ChakraProvider } from "@chakra-ui/react"
 import { theme } from '../src/theme';
 
 const root = document.createElement("div");
