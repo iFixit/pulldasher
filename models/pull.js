@@ -114,14 +114,11 @@ Pull.prototype.isOpen = function() {
  *                       or an empty array
  *    'deploy_block'  : An array containing the last 'deploy_block' signature if pull is deploy blocked,
  *                       or an empty array
- *    'ready'         : A boolean indicating whether the pull is ready to be deployed.
  *    'commit_statuses' : An array of Status objects
  * }
  */
 Pull.prototype.getStatus = function getStatus() {
    var status = {
-      // TODO get these from the pull's comment or default
-      // if the pull doesn't specify
       'qa_req' : this.data.qa_req,
       'cr_req' : this.data.cr_req,
       'QA' : this.getSignatures('QA'),
@@ -132,12 +129,6 @@ Pull.prototype.getStatus = function getStatus() {
       'deploy_block' : this.getSignatures('deploy_block'),
       'commit_statuses' : this.commitStatuses
    };
-
-   status['ready'] =
-            status['dev_block'].length === 0 &&
-            status['deploy_block'].length === 0 &&
-            status['QA'].length >= status['qa_req'] &&
-            status['CR'].length >= status['cr_req'];
 
    return status;
 };

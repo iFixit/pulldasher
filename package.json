@@ -23,7 +23,6 @@
     "notify-queue": "0.0.5",
     "passport": "^0.4.0",
     "passport-github2": "^0.1.12",
-    "popper.js": "^1.16.1",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
     "socket.io": "^4.4.1",
@@ -63,9 +62,8 @@
     "lint": "eslint ./",
     "frontend:start": "DUMMY_USER=danielbeardsley DUMMY_PULLS=./frontend/dummy-pulls.json webpack-dev-server --config ./frontend/webpack.dev.config.js",
     "frontend:watch": "webpack --watch --config ./frontend/webpack.dev.config.js",
-    "frontend:build": "webpack --config ./frontend/webpack.prod.config.js",
-    "postinstall": "npm run frontend:build",
-    "build": "npm run frontend:build",
+    "postinstall": "npm run build",
+    "build": "webpack --config ./frontend/webpack.prod.config.js",
     "precommit": "lint-staged"
   },
   "lint-staged": {
