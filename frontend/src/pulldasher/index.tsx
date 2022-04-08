@@ -28,8 +28,6 @@ export const Pulldasher: React.FC = function() {
                <Box>
                   <Column id="ready" title="Ready" variant="ready" pulls={pullsReady}/>
                </Box>
-            </SimpleGrid>
-            <SimpleGrid columns={3} spacing="var(--body-gutter)" w="100%">
                <Box>
                   <Column id="dev" title="Dev Block" pulls={pullsDevBlocked}/>
                </Box>
