@@ -25,9 +25,7 @@ export function useUrlState(paramName: string, paramDefault: string): useUrlStat
    });
 
    // Watch for url state changes (back button) only once per component.
-   useEffect(() => {
-      return watchForPopstate(paramName, setState, paramDefault);
-   }, []);
+   useEffect(() => watchForPopstate(paramName, setState, paramDefault), []);
 
    // Wrap setState so it pushes history and transforms the url
    const setUrlState = useCallback((newState: state) => {
