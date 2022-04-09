@@ -3,9 +3,9 @@ import { useArrayUrlState } from './use-url-state';
 import { Pull } from './pull';
 import { useConst, Button, Menu, MenuButton, MenuList, MenuDivider, MenuOptionGroup, MenuItemOption } from "@chakra-ui/react";
 import { useEffect, useMemo } from 'react'
+import { countBy } from 'lodash-es'
 
 // Map from value to number of pulls that have that value
-type ValueCounts = Map<string, number>;
 type ValueGetter = (pull: Pull) => string;
 
 type FilterMenuProps = {
@@ -30,7 +30,7 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
       const pullValues = new Set<string>(pulls.map(extractValueFromPull));
       return sortValues([...new Set([...pullValues, ...urlValues])]);
    }, [pulls]);
-   const valueToPullCount = useMemo(() => getValueToPullCount(pulls, extractValueFromPull), [pulls]);
+   const valueToPullCount = useMemo(() => countBy(pulls, extractValueFromPull), [pulls]);
 
    useEffect(() => {
       const selectedValuesSet = new Set(selectedValues);
@@ -53,7 +53,7 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
              <MenuItemOption
                 key={value}
                 value={value}>
-                {value} ({valueToPullCount.get(value) || 0})
+                {value} ({valueToPullCount[value] || 0})
              </MenuItemOption>
           )}
        </MenuOptionGroup>
@@ -72,12 +72,4 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
 function sortValues(values: string[]): string[] {
    return values.sort((a: string, b: string) =>
       a.localeCompare(b, undefined, {sensitivity: "base"}));
-}
-
-function getValueToPullCount(pulls: Pull[], extractValueFromPull: ValueGetter): ValueCounts {
-   return pulls.reduce((counts, pull) => {
-      const pullKey = extractValueFromPull(pull);
-      counts.set(pullKey, (counts.get(pullKey) || 0) + 1);
-      return counts;
-   }, new Map() as ValueCounts);
 }
