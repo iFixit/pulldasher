@@ -1,6 +1,7 @@
 import { useAllPulls } from './pulls-context';
 import { Navbar } from '../navbar';
 import { Column } from '../column';
+import { QACompare } from './sort';
 import { LeaderList, getLeaders } from '../leader-list';
 import { Box, SimpleGrid, VStack } from "@chakra-ui/react"
 
@@ -41,7 +42,7 @@ export const Pulldasher: React.FC = function() {
                   <Column id="cr" title="CR" pulls={pullsNeedingCR}/>
                </Box>
                <Box>
-                  <Column id="qa" title="QA" pulls={pullsNeedingQA}/>
+                  <Column id="qa" title="QA" pulls={pullsNeedingQA.sort(QACompare)}/>
                </Box>
             </SimpleGrid>
          </VStack>
