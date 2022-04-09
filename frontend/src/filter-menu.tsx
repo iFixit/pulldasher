@@ -24,7 +24,7 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
    const urlValues = useConst(() => new Set(selectedValues));
    const setPullFilter = useSetFilter();
 
-   // May include values frmo the url for which there are no pulls
+   // May include values from the url for which there are no pulls
    const allValues = useMemo(() => {
       // All values of open pulls
       const pullValues = new Set<string>(pulls.map(extractValueFromPull));
