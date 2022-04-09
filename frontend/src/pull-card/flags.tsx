@@ -62,6 +62,7 @@ function PullFlag({variant, title, href, icon}: PullFlagProps) {
    return (href ?
    <Link
       sx={styles}
+      isExternal
       href={href}
       title={title}
       className="pull-flag">

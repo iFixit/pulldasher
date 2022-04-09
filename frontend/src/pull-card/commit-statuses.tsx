@@ -26,6 +26,7 @@ function Status({status}: {status: CommitStatus}) {
    const title = status.data.context + ": " + status.data.description;
    return (status.data.target_url ?
       <chakra.a __css={styles}
+         target="_blank"
          title={title}
          href={status.data.target_url}
          className="build_status"

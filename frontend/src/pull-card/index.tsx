@@ -63,7 +63,7 @@ function PullCard({pull, show}: {pull: Pull, show: boolean}) {
          <RefreshButton pull={pull}/>
          <CommitStatuses pull={pull}/>
          <Box>
-            <Link href={pull.getUrl()} color="var(--pull-title)">
+            <Link href={pull.getUrl()} isExternal color="var(--pull-title)">
                {pull.isMine() && <FontAwesomeIcon icon={faStar} className="star" color="var(--user-icon)"/>}
                <chakra.span fontWeight="bold">{pull.getRepoName()} #{pull.number}: </chakra.span>
                {pull.title}
