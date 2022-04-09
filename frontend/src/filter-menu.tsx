@@ -2,7 +2,7 @@ import { useAllPulls, useSetFilter } from './pulldasher/pulls-context';
 import { useArrayUrlState } from './use-url-state';
 import { Pull } from './pull';
 import { useConst, Button, Menu, MenuButton, MenuList, MenuDivider, MenuOptionGroup, MenuItemOption } from "@chakra-ui/react";
-import { useEffect, useCallback, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 
 // Map from value to number of pulls that have that value
 type ValueCounts = Map<string, number>;
@@ -32,23 +32,12 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
    }, [pulls]);
    const valueToPullCount = useMemo(() => getValueToPullCount(pulls, extractValueFromPull), [pulls]);
 
-   const onSelectedChange = useCallback((newSelectedValues: string | string[]) => {
-      // Make typescript happy cause it thinks newSelectedValues can be a single
-      // string
-      newSelectedValues = Array.from(newSelectedValues);
-
-      // Update the url
-      setSelectedValues(newSelectedValues);
-
-      // Update the pull filter
-      const selectedValuesSet = new Set(newSelectedValues);
+   useEffect(() => {
+      const selectedValuesSet = new Set(selectedValues);
       setPullFilter(urlParam, selectedValuesSet.size === 0 ? null : (pull) =>
          selectedValuesSet.has(extractValueFromPull(pull))
       );
-   }, [setPullFilter, setSelectedValues]);
-
-   // Load initial state from url just once
-   useEffect(() => onSelectedChange(selectedValues), []);
+   }, [selectedValues]);
 
    return (
    <Menu closeOnSelect={false}>
@@ -59,7 +48,7 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
         <MenuOptionGroup
            type='checkbox'
            value={showAll ? allValues : selectedValues}
-           onChange={onSelectedChange}>
+           onChange={setSelectedValues}>
           {allValues.map((value) =>
              <MenuItemOption
                 key={value}
@@ -71,7 +60,7 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
        <MenuDivider/>
        <MenuItemOption
           key="Show All"
-          onClick={() => onSelectedChange([])}
+          onClick={() => setSelectedValues([])}
           isChecked={showAll}>
           Show All
        </MenuItemOption>
