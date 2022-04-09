@@ -8,7 +8,7 @@ services:
          DEBUG: pulldasher*         # Enables all debug prints and opens 127.0.0.1:9229 for remote debugging
          MOCK_AUTH_AS_USER: "fakeuser"
       ports:
-         - 8080:8080                # Map the container's port 8080 to the host's 8080
+         - 3000:3000                # Map the container's port 8080 to the host's 8080
                                     # NOTE: The host port will need to match
                                     # the callback URL specified in the GitHub
                                     # application setting.
@@ -17,9 +17,10 @@ services:
       volumes:
          - .:/opt/pulldasher        # Mount the current directory to /opt/pulldasher
    db:
-      image: "mariadb:latest"
+      image: "mysql:latest"
+      command: --authentication_policy=mysql_native_password
       volumes:
-         - db_data:/var/lib/mysql   # Create a persistent volume so that we don't lose data between restarts
+         - ./db_data:/var/lib/mysql   # Create a persistent volume so that we don't lose data between restarts
       environment:
          # Please use strong passwords if you are deploying pulldasher in a
          # production environment.

@@ -3,9 +3,6 @@ var socketio = require('../package').dependencies['socket.io'];
 var config = require('../lib/config-loader');
 
 module.exports = {
-   index: function(req, res) {
-      res.render('current/index', connectionDetails(req));
-   },
    getToken: function(req, res) {
       res.json(connectionDetails(req));
    }
