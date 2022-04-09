@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react';
 import { useFilteredPullsState, FilterFunction, FilterFunctionSetter } from './filtered-pulls-state';
 import { usePullsState } from './pulls-state';
 import { Pull } from '../pull';
-import { getUser } from "../page-context";
+import { defaultCompare } from "./sort";
 
 interface PullContextProps {
    // Array of all pulls
@@ -37,7 +37,7 @@ export function useSetFilter(): FilterFunctionSetter {
 export const PullsProvider = function({children}: {children: React.ReactNode}) {
    const unfilteredPulls = usePullsState();
    const [filteredPulls, setFilter] = useFilteredPullsState(unfilteredPulls);
-   const sortedPulls = unfilteredPulls.sort(defaultSort);
+   const sortedPulls = unfilteredPulls.sort(defaultCompare);
    const contextValue = {
       pulls: new Set(filteredPulls),
       allPulls: sortedPulls,
@@ -46,19 +46,4 @@ export const PullsProvider = function({children}: {children: React.ReactNode}) {
    return (<PullsContext.Provider value={contextValue}>
       {children}
    </PullsContext.Provider>);
-}
-
-function defaultSort(a: Pull, b: Pull): number {
-   return (
-    // My pulls above pulls that aren't mine
-    compareBool(a.isMine(), b.isMine()) ||
-    // Pulls I have to CR/QA above those I don't
-    compareBool(a.hasOutdatedSig(getUser()), b.hasOutdatedSig(getUser())) ||
-    // Pulls I haven't touched vs those I have already CRed
-    compareBool(!a.hasCurrentSig(getUser()), !b.hasCurrentSig(getUser()))
-   );
-}
-
-function compareBool(a: boolean, b: boolean): number {
-   return +b - +a;
 }
