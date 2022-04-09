@@ -44,7 +44,7 @@ function parseStateFromUrl(paramName: string, paramDefault: string): string {
 function watchForPopstate(paramName: string, setState: stringSetter, paramDefault: string) {
    const handler = (event: PopStateEvent) => {
       const stateFromHistory = event.state ?  event.state[paramName] : undefined;
-      setState(stateFromHistory || paramDefault);
+      setState(stateFromHistory || parseStateFromUrl(paramName, paramDefault));
    };
    window.addEventListener('popstate', handler);
    return () => window.removeEventListener('popstate', handler);
