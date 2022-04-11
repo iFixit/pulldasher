@@ -29,7 +29,9 @@ export function Navbar(props: BoxProps) {
       <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
          <Flex px="var(--body-gutter)" maxW="100%" w="var(--body-max-width)" justify="space-between">
             <HStack alignSelf="center" w="200px" spacing="2">
-               <span>open: {pulls.size}&nbsp;&nbsp;({allPulls.length})</span>
+               <span title={`Shown: ${pulls.size} Total: ${allPulls.length}`}>
+                  open: {pulls.size}
+               </span>
                <Button
                   size="sm"
                   title="Show pulls with label Cryogenic Storage"
