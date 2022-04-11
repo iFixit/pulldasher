@@ -1,5 +1,5 @@
 import { getUser } from "./page-context";
-import { PullData, Signature, CommitStatus, SignatureGroup } from "./types";
+import { PullData, Signature, CommitStatus, CommentSource, SignatureGroup } from "./types";
 
 export class Pull extends PullData {
    cr_signatures: SignatureGroup;
@@ -122,7 +122,9 @@ export class Pull extends PullData {
    }
 
    linkToSignature(sig: Signature): string {
-      return this.url() + '#issuecomment-' + sig.data.comment_id;
+      const isReview = sig.data.source_type === CommentSource.review;
+      const linkIdPrefix = isReview ? "pullrequestreview" : "issuecomment";
+      return this.url() + `#${linkIdPrefix}-${sig.data.comment_id}`;
    }
 }
 

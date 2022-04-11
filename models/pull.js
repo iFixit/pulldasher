@@ -29,6 +29,7 @@ function Pull(data, signatures, comments, reviews, commitStatuses, labels) {
       this.data.closes = data.closes;
       this.data.connects = data.connects;
    }
+   this.identifySignatures();
 }
 
 Pull.prototype.update = function() {
@@ -44,6 +45,21 @@ Pull.prototype.update = function() {
       debug('updatePull: Pull #%s updated in repo %s', number, repo);
    });
 };
+
+/**
+ * Sets sig.data.source_type for each comment, determining where it came from
+ * by checking for the presence of the comment_id in the list of review ids
+ * from the DB.
+ *
+ * TODO: add a column on signatures table for this value, instead of testing
+ * for presence in our reviews list.
+ */
+Pull.prototype.identifySignatures = function() {
+   const reviewIds = new Set(this.reviews.map((review) => review.data.review_id));
+   this.signatures.forEach((sig) => {
+      sig.data.source_type = reviewIds.has(sig.data.comment_id) ? 'review' : 'comment'
+   });
+}
 
 Pull.prototype.syncToIssue = function() {
    return Promise.resolve(this);
