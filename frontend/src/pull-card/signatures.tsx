@@ -33,21 +33,25 @@ function Signatures({pull, title, signatures, required}: SignaturesProps) {
          title={noneToShow ? `No ${title} Required` : ''}
       >
       <Box m="2px" mr={noneToShow ? "2px" : 2}>{title}</Box>
-      {NewAndOldSigs(allSignatures)}
+      {NewAndOldSigs(allSignatures, pull)}
       {UnfullfilledSigs(unfulfilledCount)}
    </HStack>
    );
 });
 
-function NewAndOldSigs(allSignatures: Signature[]) {
+function NewAndOldSigs(allSignatures: Signature[], pull: Pull) {
    return allSignatures.map((sig) => {
-      return (<FontAwesomeIcon
-         fontSize="18px"
-         color={colorForSignature(sig)}
+      return (<a
          key={sig.data.comment_id}
-         title={sig.data.user.login}
-         className="build_status"
-         icon={faCheckCircle}/>)
+         href={pull.linkToSignature(sig)}>
+         <FontAwesomeIcon
+            fontSize="18px"
+            color={colorForSignature(sig)}
+            title={sig.data.user.login}
+            className="build_status"
+            icon={faCheckCircle}/>
+      </a>
+      )
    });
 }
 

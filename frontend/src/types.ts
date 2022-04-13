@@ -12,6 +12,11 @@ export enum StatusState {
    failure = "failure",
 }
 
+export enum CommentSource {
+   comment = "comment",
+   review = "review",
+}
+
 export enum SignatureType {
    CR = "CR",
    QA = "QA",
@@ -46,6 +51,7 @@ export interface Signature {
       created_at: DateString | null;
       active: number;
       comment_id: number;
+      source_type: CommentSource;
    }
 }
 
