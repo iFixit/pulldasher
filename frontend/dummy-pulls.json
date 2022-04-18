@@ -1907,7 +1907,7 @@
     "repo": "iFixit/ifixit",
     "number": 35249,
     "state": "open",
-    "title": "Algolia Search Keywords: Index them",
+    "title": "Ready pull that has no CI and should be in Deploy Block column",
     "body": "pull request dummy body",
     "created_at": "2020-11-30T20:28:50.000Z",
     "updated_at": "2020-12-01T15:50:31.000Z",
@@ -1938,7 +1938,22 @@
     "status": {
       "qa_req": 1,
       "cr_req": 2,
-      "QA": [],
+      "QA": [
+        {
+          "data": {
+            "repo": "iFixit/ifixit",
+            "number": 35258,
+            "user": {
+              "id": 58952979,
+              "login": "batbattur"
+            },
+            "type": "QA",
+            "created_at": "2020-12-01T01:02:51.000Z",
+            "active": 1,
+            "comment_id": 736148899
+          }
+        }
+      ],
       "CR": [
         {
           "data": {
@@ -1969,7 +1984,22 @@
           }
         }
       ],
-      "allQA": [],
+      "allQA": [
+        {
+          "data": {
+            "repo": "iFixit/ifixit",
+            "number": 35258,
+            "user": {
+              "id": 58952979,
+              "login": "batbattur"
+            },
+            "type": "QA",
+            "created_at": "2020-12-01T01:02:51.000Z",
+            "active": 1,
+            "comment_id": 736148899
+          }
+        }
+      ],
       "allCR": [
         {
           "data": {
@@ -2016,46 +2046,10 @@
       ],
       "dev_block": [],
       "deploy_block": [],
-      "commit_statuses": [
-        {
-          "data": {
-            "sha": "86b6d9cd5fdb231a6e2c5249aaa745b7428a981c",
-            "target_url": "https://wwww.example.com",
-            "description": "Build success",
-            "state": "success",
-            "context": "jest"
-          }
-        },
-        {
-          "data": {
-            "sha": "86b6d9cd5fdb231a6e2c5249aaa745b7428a981c",
-            "target_url": "https://wwww.example.com",
-            "description": "Build success",
-            "state": "success",
-            "context": "phpunit"
-          }
-        },
-        {
-          "data": {
-            "sha": "86b6d9cd5fdb231a6e2c5249aaa745b7428a981c",
-            "target_url": "https://wwww.example.com",
-            "description": "Build success",
-            "state": "success",
-            "context": "psalm"
-          }
-        }
-      ],
+      "commit_statuses": [],
       "ready": false
     },
-    "labels": [
-      {
-        "title": "QAing",
-        "number": 35249,
-        "repo": "iFixit/ifixit",
-        "user": "k0rvusk0r4x",
-        "created_at": "2020-12-01T15:50:31.000Z"
-      }
-    ]
+    "labels": []
   },
   {
     "repo": "iFixit/ifixit",

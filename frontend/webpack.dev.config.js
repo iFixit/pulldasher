@@ -2,6 +2,7 @@ const webpack = require('webpack');
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const definePluginReadFile = require('./webpack-define-read-file');
+const ESLintPlugin = require('eslint-webpack-plugin');
 
 const relative = (pathPart) => path.resolve(__dirname, pathPart);
 const dummyPullsPath = process.env.DUMMY_PULLS && path.resolve(process.env.DUMMY_PULLS);
@@ -29,7 +30,6 @@ module.exports = {
                   }
                },
                { loader: 'ts-loader' },
-               { loader: 'eslint-loader' },
             ],
          }, {
             test: /\.less$/,
@@ -48,7 +48,7 @@ module.exports = {
    },
    output: {
       path: relative("dist"),
-      publicPath: '/frontend'
+      publicPath: '/'
    },
    entry: {
       "main": relative("src/index.tsx"),
@@ -67,11 +67,14 @@ module.exports = {
          template: relative("index.html"),
          filename: "./pull-card-demo.html",
          chunks: ["pull-card-demo"],
-      })
+      }),
+      new ESLintPlugin({
+         extensions: ['ts', 'tsx', 'js'],
+      }),
    ],
    mode: 'development',
    devtool: 'eval-cheap-module-source-map',
    devServer: {
-      open: ["frontend/"],
+      open: ["/"],
    }
 };

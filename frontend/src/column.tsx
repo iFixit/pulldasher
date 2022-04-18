@@ -20,7 +20,7 @@ export function Column(props: ColumnProps) {
          <Flex className="column_header" onClick={() => setOpen(!open)}>
             <Box p={3} pl={4}>{props.title}</Box>
             <Spacer/>
-            <Box className="pull_count" p={3}>{props.pulls.length}</Box>
+            <Box className="pull_count" p={3}>{countPulls(props.pulls, pullsToShow)}</Box>
          </Flex>
          <Box display={open ? 'block' : 'none'}>
             {props.pulls.map((pull) =>
@@ -29,4 +29,8 @@ export function Column(props: ColumnProps) {
          </Box>
       </Box>
    );
+}
+
+function countPulls(pulls: Pull[], pullsToShow: Set<Pull>): number {
+   return pulls.reduce((count, pull) => count + (pullsToShow.has(pull) ? 1 : 0), 0);
 }

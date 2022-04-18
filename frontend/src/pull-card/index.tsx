@@ -4,10 +4,9 @@ import { Age } from './age';
 import { Flags } from './flags';
 import { Signatures } from './signatures';
 import { CopyBranch } from './copy-branch';
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 import { RefreshButton } from './refresh';
 import { Flex, Box, Link, chakra } from "@chakra-ui/react"
-import { useEffect, useRef } from "react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faStar } from '@fortawesome/free-solid-svg-icons'
 
@@ -64,7 +63,7 @@ function PullCard({pull, show}: {pull: Pull, show: boolean}) {
          <RefreshButton pull={pull}/>
          <CommitStatuses pull={pull}/>
          <Box>
-            <Link href={pull.getUrl()} color="var(--pull-title)">
+            <Link href={pull.getUrl()} isExternal color="var(--pull-title)">
                {pull.isMine() && <FontAwesomeIcon icon={faStar} className="star" color="var(--user-icon)"/>}
                <chakra.span fontWeight="bold">{pull.getRepoName()} #{pull.number}: </chakra.span>
                {pull.title}

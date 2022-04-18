@@ -1,10 +1,12 @@
 import { getPageContext } from '../page-context';
-import * as io from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 
-let socket: SocketIOClient.Socket;
+type SocketIO = Socket;
 
-function createSocket(): SocketIOClient.Socket {
-   socket = io.connect('/');
+let socket: SocketIO;
+
+function createSocket(): SocketIO {
+   socket = io();
 
    socket.on('connect', function() {
       getPageContext().then((details) => {

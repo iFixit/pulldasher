@@ -1,11 +1,12 @@
 import { Pull } from '../src/pull';
 import { PullData } from '../src/types';
-import { Box, HStack, Heading } from "@chakra-ui/react";
+import { ChakraProvider, Box, HStack, Heading } from "@chakra-ui/react";
 import {
    AgePulls,
    UnfulfilledRequirements,
    PartialRequirements,
    FulfilledRequirements,
+   Signatures,
    FewStatuses,
    ManyStatuses,
    Blocked,
@@ -15,12 +16,8 @@ import {
    KitchenSink,
 } from "./named-pulls";
 import { PullCard } from '../src/pull-card';
-
 import { render } from 'react-dom';
-import { ChakraProvider } from "@chakra-ui/react"
 import { theme } from '../src/theme';
-import '../../views/standard/less/themes/day_theme.less';
-import '../../views/standard/less/themes/night_theme.less';
 
 const root = document.createElement("div");
 document.body.appendChild(root);
@@ -32,6 +29,7 @@ function PullCardDemo() {
          <Row title="Unfulfilled Requirements" pullDatas={UnfulfilledRequirements}/>
          <Row title="Partial Requirements" pullDatas={PartialRequirements}/>
          <Row title="Fulfilled Requirements" pullDatas={FulfilledRequirements}/>
+         <Row title="Signatures in Different states" pullDatas={Signatures}/>
          <Row title="Few Commit Statuses" pullDatas={FewStatuses}/>
          <Row title="Many Commit Statuses" pullDatas={ManyStatuses}/>
          <Row title="Blocked" pullDatas={Blocked}/>

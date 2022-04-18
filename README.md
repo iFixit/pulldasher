@@ -1,5 +1,5 @@
 # Pulldasher
-[![Build Status](https://travis-ci.org/iFixit/pulldasher.svg?branch=master)](https://travis-ci.org/iFixit/pulldasher)
+[![Build](https://github.com/iFixit/pulldasher/actions/workflows/build.yml/badge.svg)](https://github.com/iFixit/pulldasher/actions/workflows/build.yml)
 
 Pulldasher is self-hosted to-do list for GitHub repositories.
 Pulldasher tracks your pull requests and displays them according to their
@@ -9,7 +9,7 @@ it extensively without touching the core code.
 ![pulldasher-image](https://cloud.githubusercontent.com/assets/2539016/11315808/78af398e-8fad-11e5-81d4-b59ae6109dec.png)
 
 Pulldasher is written primarily in JavaScript, using Node.js. See the
-[`package.json`](package.json/) and [`bower.json`](bower.json/) files for more on the front- and back-end
+[`package.json`](package.json/) for more on the front and back-end
 dependencies, respectively.
 
 To run Pulldasher, you'll need MySQL as well as Node. MySQL is used for
@@ -58,15 +58,7 @@ fun to see who’s been doing a lot of CR recently, and they can be helpful in
 balancing the number of CRs you’re doing versus everyone else.
 
 ### Dark Mode
-Pulldasher supports a dark mode! See the button on the upper-right.
-
-
-## Magic Features
-There's a couple features which aren't exposed clearly through the UI:
-
-### Hover Copy
-If you hover over a pull request, you can use `Ctrl-C` (`Command-C` on Mac) to
-copy the branch name of the pull to your clipboard.
+Pulldasher supports a dark mode! See the button in the nav bar
 
 ### Filter Parameters
 Two query string parameters are available to filter the displayed pulls:
@@ -91,10 +83,6 @@ active pulls.  The main filtering and sorting of pulls takes place on the client
 side.
 
 ## Customization
-
-### UI
-Pulldasher is designed to be customizable through the files in the
-[`views/`](views/) directory. See the README there for the full details.
 
 ### Signatures
 Signatures are customizable through `config.js`.
@@ -138,11 +126,11 @@ Pulldasher is released under the [MIT License](LICENSE/).
 
 ## Developing Pulldasher
 
-### React UI
-There's a new React UI under development. It lives in `/frontend/`
+### React Frontend
 
-* Hack on the just the UI: `npm frontend:start`
-   * Then open http://localhost:8080
+* Hack on the just the UI (no DB needed): `npm frontend:start`
+   * Then open http://localhost:8080/
+   * Or the demo page at http://localhost:8080/pull-card-demo.html
 * Hack on both the frontend + backend: `npm frontend:watch` + `npm start`
    * Then open http://localhost:{port} where port is from your config.js
 

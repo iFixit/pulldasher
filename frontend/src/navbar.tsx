@@ -1,5 +1,5 @@
 import { FilterMenu } from './filter-menu';
-import { usePulls, useSetFilter } from './pulldasher/pulls-context';
+import { usePulls, useAllPulls, useSetFilter } from './pulldasher/pulls-context';
 import { Pull } from './pull';
 import { useColorMode, Button, HStack, Center, Flex, Box, BoxProps, Input } from "@chakra-ui/react";
 import { useEffect, useCallback } from "react";
@@ -12,6 +12,7 @@ const sideWidth = "220px";
 
 export function Navbar(props: BoxProps) {
    const pulls: Set<Pull> = usePulls();
+   const allPulls: Pull[] = useAllPulls();
    const setPullFilter = useSetFilter();
    const {toggleColorMode} = useColorMode();
    const [showCryo, setShowCryo] = useBoolUrlState('cryo', false);
@@ -32,7 +33,9 @@ export function Navbar(props: BoxProps) {
       <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
          <Flex px="var(--body-gutter)" maxW="100%" w="var(--body-max-width)" gap="var(--body-gutter)" justify="space-between">
             <HStack alignSelf="center" flexGrow="1" flexBasis={sideWidth} spacing="2">
-               <span>{pulls.size} open</span>
+               <span title={`Shown: ${pulls.size} Total: ${allPulls.length}`}>
+                  open: {pulls.size}
+               </span>
                <Button
                   size="sm"
                   title="Show pulls with label Cryogenic Storage"
@@ -54,10 +57,6 @@ export function Navbar(props: BoxProps) {
             </HStack>
             <Box alignSelf="center" fontSize={20} flexShrink="0">
                <span style={{fontVariantCaps: "small-caps"}}>Pulldasher</span>
-               &nbsp;&nbsp;-&nbsp;&nbsp;
-               <span style={{fontSize: "12px"}}>
-                  back to <a href="/">old ui</a>
-               </span>
             </Box>
             <Box flexBasis={sideWidth} flexGrow="1" flexShrink="1" textAlign="right">
                <Input w="100%" maxWidth={sideWidth} onChange={updateSearchFilter} placeholder="Search"/>

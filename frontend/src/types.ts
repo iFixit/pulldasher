@@ -12,6 +12,11 @@ export enum StatusState {
    failure = "failure",
 }
 
+export enum CommentSource {
+   comment = "comment",
+   review = "review",
+}
+
 export enum SignatureType {
    CR = "CR",
    QA = "QA",
@@ -46,6 +51,7 @@ export interface Signature {
       created_at: DateString | null;
       active: number;
       comment_id: number;
+      source_type: CommentSource;
    }
 }
 
@@ -54,8 +60,6 @@ export interface SignatureGroup {
    current: Signature[],
    // Contains all signatures that are inactive from users without signatures in current
    old: Signature[],
-   // Contains the most recent signature from the current user
-   user: Signature | null
 }
 
 export interface CommitStatus {
@@ -105,14 +109,11 @@ export class PullData {
    status: {
       qa_req: number;
       cr_req: number;
-      QA: Signature[];
-      CR: Signature[];
       allQA: Signature[];
       allCR: Signature[];
       dev_block: Signature[];
       deploy_block: Signature[];
       commit_statuses: CommitStatus[];
-      ready: boolean;
    };
    labels: Label[];
 }

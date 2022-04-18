@@ -29,6 +29,7 @@ function Pull(data, signatures, comments, reviews, commitStatuses, labels) {
       this.data.closes = data.closes;
       this.data.connects = data.connects;
    }
+   this.identifySignatures();
 }
 
 Pull.prototype.update = function() {
@@ -44,6 +45,21 @@ Pull.prototype.update = function() {
       debug('updatePull: Pull #%s updated in repo %s', number, repo);
    });
 };
+
+/**
+ * Sets sig.data.source_type for each comment, determining where it came from
+ * by checking for the presence of the comment_id in the list of review ids
+ * from the DB.
+ *
+ * TODO: add a column on signatures table for this value, instead of testing
+ * for presence in our reviews list.
+ */
+Pull.prototype.identifySignatures = function() {
+   const reviewIds = new Set(this.reviews.map((review) => review.data.review_id));
+   this.signatures.forEach((sig) => {
+      sig.data.source_type = reviewIds.has(sig.data.comment_id) ? 'review' : 'comment'
+   });
+}
 
 Pull.prototype.syncToIssue = function() {
    return Promise.resolve(this);
@@ -114,14 +130,11 @@ Pull.prototype.isOpen = function() {
  *                       or an empty array
  *    'deploy_block'  : An array containing the last 'deploy_block' signature if pull is deploy blocked,
  *                       or an empty array
- *    'ready'         : A boolean indicating whether the pull is ready to be deployed.
  *    'commit_statuses' : An array of Status objects
  * }
  */
 Pull.prototype.getStatus = function getStatus() {
    var status = {
-      // TODO get these from the pull's comment or default
-      // if the pull doesn't specify
       'qa_req' : this.data.qa_req,
       'cr_req' : this.data.cr_req,
       'QA' : this.getSignatures('QA'),
@@ -132,12 +145,6 @@ Pull.prototype.getStatus = function getStatus() {
       'deploy_block' : this.getSignatures('deploy_block'),
       'commit_statuses' : this.commitStatuses
    };
-
-   status['ready'] =
-            status['dev_block'].length === 0 &&
-            status['deploy_block'].length === 0 &&
-            status['QA'].length >= status['qa_req'] &&
-            status['CR'].length >= status['cr_req'];
 
    return status;
 };

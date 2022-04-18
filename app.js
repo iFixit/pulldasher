@@ -1,6 +1,5 @@
 var config = require('./lib/config-loader'),
     express = require('express'),
-    partials = require('express-partials'),
     bodyParser = require('body-parser'),
     expressSession = require('express-session'),
     authManager = require('./lib/authentication'),
@@ -18,16 +17,12 @@ var config = require('./lib/config-loader'),
 var app = express();
 var httpServer = require('http').createServer(app);
 
-app.engine('html', require('ejs').renderFile);
 app.set('view engine', 'html');
 
 /**
  * Middleware
  */
-app.use("/frontend", express.static(__dirname + '/frontend/dist'));
 app.use("/public", express.static(__dirname + '/public'));
-app.use("/js", express.static(__dirname + '/dist'));
-app.use(partials());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(expressSession({
@@ -47,7 +42,7 @@ app.use(function(req, res, next) {
  * Routes
  */
 authManager.setupRoutes(app);
-app.get('/',            mainController.index);
+app.use("/", express.static(__dirname + '/frontend/dist'));
 app.get('/token',       mainController.getToken);
 app.post('/hooks/main', hooksController.main);
 
@@ -72,8 +67,9 @@ dbManager.closeStalePulls();
 
 //====================================================
 // Socket.IO
-var io = require('socket.io').listen(httpServer);
-io.sockets.on('connection', function (socket) {
+const { Server } = require('socket.io');
+const io = new Server(httpServer);
+io.on('connection', function (socket) {
    var unauthenticated_timeout = config.unauthenticated_timeout !== undefined ?
       config.unauthenticated_timeout : 10 * 1000;
 
