@@ -16,7 +16,7 @@ export function LeaderList({leaders, title}: {leaders: SigCount[], title: string
       color="var(--leaderboard-title-text)"
       bgColor="var(--leaderboard-background)">
       <Flex textAlign="center" align="center" overflow="hidden" wrap="wrap" maxHeight={27}>
-         <chakra.span mb={1} flexShrink="0">{title}:</chakra.span>
+         <chakra.span mb={1} flexShrink={0}>{title}:</chakra.span>
          {leaders.map(({user, count}, i) =>
             <HStack
                overflow="hidden"
@@ -28,7 +28,7 @@ export function LeaderList({leaders, title}: {leaders: SigCount[], title: string
                bg={colorForIndex(i)}
                border={`solid 1px ${colorForIndex(i)}`}
                key={user.login}
-               flexShrink="0"
+               flexShrink={0}
                spacing={0}>
                <Avatar user={user}/>
                <chakra.span px="5px" minW="26px">{count}</chakra.span>
