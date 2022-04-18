@@ -29,7 +29,7 @@ export function QACompare(a: Pull, b: Pull): number {
 
 function isQAingByMe(pull: Pull): boolean {
    const label = pull.getLabel('QAing');
-   return !!(label && label.user == getUser());
+   return !!(label?.user == getUser());
 }
 
 function compareBool(a: boolean, b: boolean): number {
