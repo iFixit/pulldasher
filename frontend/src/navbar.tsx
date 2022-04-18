@@ -32,7 +32,7 @@ export function Navbar(props: BoxProps) {
    return (
       <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
          <Flex px="var(--body-gutter)" maxW="100%" w="var(--body-max-width)" gap="var(--body-gutter)" justify="space-between">
-            <HStack alignSelf="center" flexGrow="1" flexBasis={sideWidth} spacing="2">
+            <HStack alignSelf="center" flexGrow={1} flexBasis={sideWidth} spacing="2">
                <span title={`Shown: ${pulls.size} Total: ${allPulls.length}`}>
                   open: {pulls.size}
                </span>
@@ -55,10 +55,10 @@ export function Navbar(props: BoxProps) {
                <FilterMenu urlParam="repo" buttonText="Repo" extractValueFromPull={(pull: Pull) => pull.getRepoName()}/>
                <FilterMenu urlParam="author" buttonText="Author" extractValueFromPull={(pull: Pull) => pull.user.login}/>
             </HStack>
-            <Box alignSelf="center" fontSize={20} flexShrink="0">
+            <Box alignSelf="center" fontSize={20} flexShrink={0}>
                <span style={{fontVariantCaps: "small-caps"}}>Pulldasher</span>
             </Box>
-            <Box flexBasis={sideWidth} flexGrow="1" flexShrink="1" textAlign="right">
+            <Box flexBasis={sideWidth} flexGrow={1} flexShrink={1} textAlign="right">
                <Input w="100%" maxWidth={sideWidth} onChange={updateSearchFilter} placeholder="Search"/>
             </Box>
          </Flex>
