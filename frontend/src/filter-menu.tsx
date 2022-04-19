@@ -53,7 +53,7 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
        </MenuItemOption>
         <MenuOptionGroup
            type='checkbox'
-           value={showAll ? allValues : selectedValues}
+           value={showAll ? [] : selectedValues}
            onChange={setSelectedValues}>
           {allValues.map((value) =>
              <MenuItemOption
