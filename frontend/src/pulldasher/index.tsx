@@ -13,15 +13,11 @@ export const Pulldasher: React.FC = function() {
    const pullsNeedingCR = pulls.filter(pull => !pull.isCrDone() && !pull.getDevBlock());
    const pullsNeedingQA = pulls.filter(pull => !pull.isQaDone() && !pull.getDevBlock() && pull.hasPassedCI());
    const leadersCR = getLeaders(pulls, (pull) => pull.cr_signatures.current);
-   const leadersQA = getLeaders(pulls, (pull) => pull.qa_signatures.current);
    return (<>
       <Navbar mb={4}/>
       <Box maxW="var(--body-max-width)" m="auto" px="var(--body-gutter)">
          <VStack spacing="var(--body-gutter)">
-            <SimpleGrid w="100%" columns={2} spacing="var(--body-gutter)">
-               <LeaderList title="CR Leaders" leaders={leadersCR}/>
-               <LeaderList title="QA Leaders" leaders={leadersQA}/>
-            </SimpleGrid>
+            <LeaderList title="CR Leaders" leaders={leadersCR}/>
             <SimpleGrid columns={3} spacing="var(--body-gutter)" w="100%">
                <Box>
                   <Column id="ci" title="CI Blocked" variant="ciBlocked" pulls={pullsCIBlocked}/>
@@ -32,8 +28,6 @@ export const Pulldasher: React.FC = function() {
                <Box>
                   <Column id="ready" title="Ready" variant="ready" pulls={pullsReady}/>
                </Box>
-            </SimpleGrid>
-            <SimpleGrid columns={3} spacing="var(--body-gutter)" w="100%">
                <Box>
                   <Column id="dev" title="Dev Block" pulls={pullsDevBlocked}/>
                </Box>

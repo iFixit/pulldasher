@@ -1,6 +1,6 @@
 import { Pull } from './pull';
 import { Signature, SignatureUser } from './types';
-import { HStack, Box, chakra } from "@chakra-ui/react"
+import { Flex, HStack, Box, chakra } from "@chakra-ui/react"
 
 interface SigCount {
    user: SignatureUser;
@@ -15,23 +15,26 @@ export function LeaderList({leaders, title}: {leaders: SigCount[], title: string
       fontSize="1rem"
       color="var(--leaderboard-title-text)"
       bgColor="var(--leaderboard-background)">
-      <HStack spacing={2} textAlign="center">
-         <chakra.span p={1}>{title}:</chakra.span>
-         {leaders.slice(0, 5).map(({user, count}, i) =>
+      <Flex textAlign="center" align="center" overflow="hidden" wrap="wrap" maxHeight={27}>
+         <chakra.span mb={1} flexShrink={0}>{title}:</chakra.span>
+         {leaders.map(({user, count}, i) =>
             <HStack
                overflow="hidden"
                borderRadius="4px"
                fontWeight="bold"
+               mb={1}
+               ml={2}
                color="white"
                bg={colorForIndex(i)}
                border={`solid 1px ${colorForIndex(i)}`}
                key={user.login}
+               flexShrink={0}
                spacing={0}>
                <Avatar user={user}/>
                <chakra.span px="5px" minW="26px">{count}</chakra.span>
             </HStack>
          )}
-      </HStack>
+      </Flex>
    </Box>);
 }
 
