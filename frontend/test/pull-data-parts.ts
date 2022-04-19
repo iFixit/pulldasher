@@ -50,7 +50,7 @@ export function sig(type : SignatureType, active: boolean, user?: string): Signa
    };
 }
 
-export function status(state?: keyof typeof StatusState, url?: string | null): CommitStatus {
+export function status(state?: keyof typeof StatusState, url?: string | null, context?: string | null): CommitStatus {
    const statusState = <StatusState>state || StatusState.success;
    return {
       "data": {
@@ -58,7 +58,7 @@ export function status(state?: keyof typeof StatusState, url?: string | null): C
          "target_url": url === undefined ? "https://www.example.com" : url,
          "description": "Build " + statusState,
          "state": statusState,
-         "context": statusContext(),
+         "context": context || statusContext(),
       }
    };
 }
@@ -66,7 +66,7 @@ export function status(state?: keyof typeof StatusState, url?: string | null): C
 export function pullData(p: DeepPartial<PullData>): PullData {
    return <PullData> {
       "repo": repo,
-      "repoSpec": null,
+      "repoSpec": p.repoSpec || null,
       "number": pullNumber(),
       "state": "open",
       "title": p.title || "Young pull with no CR / QA",

@@ -1,5 +1,5 @@
 import { getUser } from "./page-context";
-import { PullData, Signature, CommitStatus, CommentSource, SignatureGroup } from "./types";
+import { PullData, Signature, CommitStatus, StatusState, CommentSource, SignatureGroup } from "./types";
 
 export class Pull extends PullData {
    cr_signatures: SignatureGroup;
@@ -107,7 +107,29 @@ export class Pull extends PullData {
    }
 
    buildStatuses(): CommitStatus[] {
-      return this.status.commit_statuses || [];
+      return this.status.commit_statuses;
+   }
+
+   hasBuildStatus(context: string): boolean {
+      return this.status.commit_statuses.some((status) => status.data.context === context);
+   }
+
+   buildStatusesWithRequired(): CommitStatus[] {
+      const statuses = this.buildStatuses();
+      (this.repoSpec?.requiredStatuses || []).forEach((requiredContext) => {
+         if (!this.hasBuildStatus(requiredContext)) {
+            statuses.push({
+               data: {
+                  sha: "unknown", // unused and doesn't matter
+                  target_url: null,
+                  description: "Missing (not started)",
+                  state: StatusState.pending,
+                  context: requiredContext,
+               }
+            });
+         }
+      });
+      return statuses;
    }
 
    getRequiredBuildStatuses(): string[] {

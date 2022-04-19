@@ -42,7 +42,7 @@ export const CommitStatuses = memo(
 function CommitStatuses({pull}: {pull: Pull}) {
    return (
    <StatusContainer className="build_status_container">
-      {pull.buildStatuses().map((status) =>
+      {pull.buildStatusesWithRequired().map((status) =>
          <Status
             status={status}
             key={status.data.context}
