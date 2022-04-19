@@ -45,6 +45,12 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
        {buttonText}
      </MenuButton>
      <MenuList minWidth='240px'>
+       <MenuItemOption
+          key="Show All"
+          onClick={() => setSelectedValues([])}
+          isChecked={showAll}>
+          Show All
+       </MenuItemOption>
         <MenuOptionGroup
            type='checkbox'
            value={showAll ? allValues : selectedValues}
@@ -58,12 +64,6 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
           )}
        </MenuOptionGroup>
        <MenuDivider/>
-       <MenuItemOption
-          key="Show All"
-          onClick={() => setSelectedValues([])}
-          isChecked={showAll}>
-          Show All
-       </MenuItemOption>
      </MenuList>
    </Menu>
    );
