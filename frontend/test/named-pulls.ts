@@ -151,6 +151,31 @@ export const FewStatuses = <PullData[]> [
    }),
 ];
 
+const repoSpec = {name: 'some/repo', requiredStatuses: ['unit-tests']};
+export const RequiredStatuses = <PullData[]> [
+   pullData({
+      repoSpec,
+      title: "Required 'unit-tests' status with it being a failure",
+      status: {
+         commit_statuses: [status("failure", null, 'unit-tests')]
+      },
+   }),
+   pullData({
+      repoSpec,
+      title: "Required 'unit-tests' status with a second non-required status",
+      status: {
+         commit_statuses: [status("success")]
+      },
+   }),
+   pullData({
+      repoSpec,
+      title: "Required 'unit-tests' status with no actual statuses",
+      status: {
+         commit_statuses: []
+      },
+   }),
+];
+
 export const ManyStatuses = <PullData[]> [
    pullData({
       title: "Three commit statuses",
