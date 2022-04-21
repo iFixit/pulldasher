@@ -1,3 +1,4 @@
+import { FilterMenu } from './filter-menu';
 import { usePulls, useAllPulls, useSetFilter } from './pulldasher/pulls-context';
 import { Pull } from './pull';
 import { useColorMode, Button, HStack, Center, Flex, Box, BoxProps, Input } from "@chakra-ui/react";
@@ -5,6 +6,9 @@ import { useEffect, useCallback } from "react";
 import { useBoolUrlState } from "./use-url-state";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faSnowflake, faMoon } from '@fortawesome/free-solid-svg-icons'
+
+// Default width of the left and right sections of the nav bar
+const sideWidth = "220px";
 
 export function Navbar(props: BoxProps) {
    const pulls: Set<Pull> = usePulls();
@@ -27,8 +31,8 @@ export function Navbar(props: BoxProps) {
 
    return (
       <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
-         <Flex px="var(--body-gutter)" maxW="100%" w="var(--body-max-width)" justify="space-between">
-            <HStack alignSelf="center" w="200px" spacing="2">
+         <Flex px="var(--body-gutter)" maxW="100%" w="var(--body-max-width)" gap="var(--body-gutter)" justify="space-between">
+            <HStack alignSelf="center" flexGrow={1} flexBasis={sideWidth} spacing="2">
                <span title={`Shown: ${pulls.size} Total: ${allPulls.length}`}>
                   open: {pulls.size}
                </span>
@@ -48,12 +52,14 @@ export function Navbar(props: BoxProps) {
                   onClick={toggleColorMode}>
                   <FontAwesomeIcon icon={faMoon}/>
                </Button>
+               <FilterMenu urlParam="repo" buttonText="Repo" extractValueFromPull={(pull: Pull) => pull.getRepoName()}/>
+               <FilterMenu urlParam="author" buttonText="Author" extractValueFromPull={(pull: Pull) => pull.user.login}/>
             </HStack>
-            <Box alignSelf="center" fontSize={20}>
+            <Box alignSelf="center" fontSize={20} flexShrink={0}>
                <span style={{fontVariantCaps: "small-caps"}}>Pulldasher</span>
             </Box>
-            <Box w="200px" textAlign="right">
-               <Input w={150} onChange={updateSearchFilter} placeholder="Search"/>
+            <Box flexBasis={sideWidth} flexGrow={1} flexShrink={1} textAlign="right">
+               <Input w="100%" maxWidth={sideWidth} onChange={updateSearchFilter} placeholder="Search"/>
             </Box>
          </Flex>
       </Center>
