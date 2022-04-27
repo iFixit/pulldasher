@@ -22,6 +22,7 @@ export function LeaderList({leaders, title}: {leaders: SigCount[], title: string
          <chakra.span mb={1} flexShrink={0}>{title}:</chakra.span>
          {leaders.map(({user, count}, i) =>
             <HStack
+               title={user.login}
                overflow="hidden"
                borderRadius="4px"
                fontWeight="bold"
