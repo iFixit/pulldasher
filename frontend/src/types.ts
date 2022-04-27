@@ -48,7 +48,7 @@ export interface Signature {
       number: number;
       user: SignatureUser;
       type: SignatureType;
-      created_at: DateString | null;
+      created_at: DateString;
       active: number;
       comment_id: number;
       source_type: CommentSource;
