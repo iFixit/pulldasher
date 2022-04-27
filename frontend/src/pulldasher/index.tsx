@@ -13,7 +13,7 @@ export const Pulldasher: React.FC = function() {
    const pullsDevBlocked = pulls.filter(pull => pull.getDevBlock());
    const pullsNeedingCR = pulls.filter(pull => !pull.isCrDone() && !pull.getDevBlock());
    const pullsNeedingQA = pulls.filter(pull => !pull.isQaDone() && !pull.getDevBlock() && pull.hasPassedCI());
-   const leadersCR = getLeaders(pulls, (pull) => pull.cr_signatures.current);
+   const leadersCR = getLeaders(pulls, (pull) => pull.status.allCR);
    return (<>
       <Navbar mb={4}/>
       <Box maxW="var(--body-max-width)" m="auto" px="var(--body-gutter)">

@@ -13,3 +13,7 @@ function formatDate(date: DateString) {
    });
 }
 
+export function toDateString(date: Date): DateString {
+   return date.toISOString();
+}
+
