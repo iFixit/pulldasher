@@ -55,7 +55,7 @@ function colorForIndex(index: number): string {
 export function getLeaders(pulls: Pull[], extractSigsFromPull: (pull: Pull) => Signature[]) {
    const recent = toDateString(new Date(Date.now() - 86400 * 1000 * DAYS_TO_EXAMINE));
    const recentPulls = pulls.filter((pull) => {
-      return pull.merged_at ? pull.merged_at > recent : true;
+      return pull.closed_at ? pull.closed_at > recent : true;
    });
    const sigCounts = new Map<number, SigCount>();
    recentPulls.forEach((pull) => {
