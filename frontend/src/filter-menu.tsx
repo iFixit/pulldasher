@@ -51,6 +51,7 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
           isChecked={showAll}>
           Show All
        </MenuItemOption>
+        <MenuDivider/>
         <MenuOptionGroup
            type='checkbox'
            value={showAll ? [] : selectedValues}
@@ -63,7 +64,6 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
              </MenuItemOption>
           )}
        </MenuOptionGroup>
-       <MenuDivider/>
      </MenuList>
    </Menu>
    );
