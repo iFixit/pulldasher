@@ -47,9 +47,8 @@ app.get('/token',       mainController.getToken);
 app.post('/hooks/main', hooksController.main);
 
 debug("Loading all recent pulls from the DB");
-const includePullsClosedWithinDays = 14; // Keep the same or higher than the value in leader-list.tsx
-const recent = Date.now() / 1000 - 86400 * includePullsClosedWithinDays;
-dbManager.getRecentPulls(recent).then(function(pulls) {
+dbManager.getRecentPulls(pullManager.getOldestAllowedPullTimestamp())
+.then(function(pulls) {
    debug("Loaded %s pulls", pulls.length);
    pullQueue.pause();
    pulls.forEach(function(pull) {
