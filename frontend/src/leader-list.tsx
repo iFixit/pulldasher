@@ -1,4 +1,5 @@
 import { Pull } from './pull';
+import { toDateString } from './utils';
 import { Signature, SignatureUser } from './types';
 import { Flex, HStack, Box, chakra } from "@chakra-ui/react"
 
@@ -6,6 +7,8 @@ interface SigCount {
    user: SignatureUser;
    count: number;
 }
+
+const DAYS_TO_EXAMINE = 14;
 
 export function LeaderList({leaders, title}: {leaders: SigCount[], title: string}) {
    return (
@@ -19,6 +22,7 @@ export function LeaderList({leaders, title}: {leaders: SigCount[], title: string
          <chakra.span mb={1} flexShrink={0}>{title}:</chakra.span>
          {leaders.map(({user, count}, i) =>
             <HStack
+               title={user.login}
                overflow="hidden"
                borderRadius="4px"
                fontWeight="bold"
@@ -49,16 +53,27 @@ function colorForIndex(index: number): string {
 }
 
 export function getLeaders(pulls: Pull[], extractSigsFromPull: (pull: Pull) => Signature[]) {
-   const signatures: Signature[] = pulls.flatMap(extractSigsFromPull);
-   const users = signatures.map((signature) => signature.data.user);
-   const groupedByUsers = users
-      .reduce((grouped: Map<number, SigCount>, user: SignatureUser) => {
-         const group = grouped.get(user.id) || {user, count:0};
-         group.count++;
-         grouped.set(user.id, group)
-         return grouped;
-      }, new Map())
-      .values();
-   return Array.from(groupedByUsers)
+   const recent = toDateString(new Date(Date.now() - 86400 * 1000 * DAYS_TO_EXAMINE));
+   const recentPulls = pulls.filter((pull) => {
+      return pull.closed_at ? pull.closed_at > recent : true;
+   });
+   const sigCounts = new Map<number, SigCount>();
+   recentPulls.forEach((pull) => {
+      const sigs: Signature[] = extractSigsFromPull(pull);
+      const recentSigs = sigs.filter((sig) => sig.data.created_at > recent);
+      // Count one sig per user from this pull
+      const seenUsers = new Set<number>();
+      recentSigs.forEach((sig) => {
+         const user = sig.data.user;
+         if (seenUsers.has(user.id)) {
+            return;
+         }
+         seenUsers.add(user.id);
+         const sigCount = sigCounts.get(user.id) || {user, count:0};
+         sigCount.count++;
+         sigCounts.set(user.id, sigCount)
+      });
+   });
+   return Array.from(sigCounts.values())
       .sort((a: SigCount, b: SigCount) => b.count - a.count);
 }

@@ -1,4 +1,4 @@
-import { useAllPulls } from './pulls-context';
+import { useAllPulls, useAllOpenPulls } from './pulls-context';
 import { Navbar } from '../navbar';
 import { Column } from '../column';
 import { QACompare } from './sort';
@@ -6,14 +6,15 @@ import { LeaderList, getLeaders } from '../leader-list';
 import { Box, SimpleGrid, VStack } from "@chakra-ui/react"
 
 export const Pulldasher: React.FC = function() {
-   const pulls = useAllPulls();
+   const allPulls = useAllPulls();
+   const pulls = useAllOpenPulls();
    const pullsCIBlocked = pulls.filter(pull => pull.isCiBlocked());
    const pullsDeployBlocked = pulls.filter(pull => pull.isDeployBlocked());
    const pullsReady = pulls.filter(pull => pull.isReady() && pull.isCiRequired());
    const pullsDevBlocked = pulls.filter(pull => pull.getDevBlock());
    const pullsNeedingCR = pulls.filter(pull => !pull.isCrDone() && !pull.getDevBlock());
    const pullsNeedingQA = pulls.filter(pull => !pull.isQaDone() && !pull.getDevBlock() && pull.hasPassedCI());
-   const leadersCR = getLeaders(pulls, (pull) => pull.cr_signatures.current);
+   const leadersCR = getLeaders(allPulls, (pull) => pull.status.allCR);
    return (<>
       <Navbar mb={4}/>
       <Box maxW="var(--body-max-width)" m="auto" px="var(--body-gutter)">

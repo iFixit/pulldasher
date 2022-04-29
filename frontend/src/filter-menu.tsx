@@ -1,4 +1,4 @@
-import { useAllPulls, useSetFilter } from './pulldasher/pulls-context';
+import { useAllOpenPulls, useSetFilter } from './pulldasher/pulls-context';
 import { useArrayUrlState } from './use-url-state';
 import { Pull } from './pull';
 import { useConst, Button, Menu, MenuButton, MenuList, MenuDivider, MenuOptionGroup, MenuItemOption } from "@chakra-ui/react";
@@ -15,7 +15,7 @@ type FilterMenuProps = {
 };
 
 export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterMenuProps) {
-   const pulls = useAllPulls();
+   const pulls = useAllOpenPulls();
    // Default is empty array that implies show all pulls (no filtering)
    const [selectedValues, setSelectedValues] = useArrayUrlState(urlParam, []);
    // Nothing selected == show everything, otherwise, it'd be empty
