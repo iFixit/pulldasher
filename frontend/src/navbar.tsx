@@ -10,11 +10,13 @@ import {
    Box,
    BoxProps,
    Input,
+   InputGroup,
+   InputRightElement,
 } from "@chakra-ui/react";
 import { useEffect, useCallback, useState } from "react";
 import { useBoolUrlState } from "./use-url-state";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faSnowflake, faMoon } from '@fortawesome/free-solid-svg-icons'
+import { faSnowflake, faMoon, faXmark } from '@fortawesome/free-solid-svg-icons'
 
 // Default width of the left and right sections of the nav bar
 const sideWidth = "220px";
@@ -38,6 +40,8 @@ export function Navbar(props: BoxProps) {
    }, [searchValue]);
    const updateSearchFilter = useCallback(
       (event: React.ChangeEvent<HTMLInputElement>) => setSearchValue(event.target.value), []);
+   const clearSearch = useCallback(() => setSearchValue(''), []);
+
    const toggleShowCryo = useCallback(() => setShowCryo(!showCryo), [showCryo]);
    useEffect(() => setPullFilter('cryo', showCryo ? null : isPullCryo), [showCryo]);
 
@@ -70,8 +74,15 @@ export function Navbar(props: BoxProps) {
             <Box alignSelf="center" fontSize={20} flexShrink={0}>
                <span style={{fontVariantCaps: "small-caps"}}>Pulldasher</span>
             </Box>
-            <Box flexBasis={sideWidth} flexGrow={1} flexShrink={1} textAlign="right">
-               <Input w="100%" value={searchValue} maxWidth={sideWidth} onChange={updateSearchFilter} placeholder="Search"/>
+            <Box flexBasis={sideWidth} flexGrow={1} flexShrink={1} display="flex" justifyContent="flex-end">
+               <InputGroup w="100%" maxWidth={sideWidth}>
+                  <Input w="100%" value={searchValue} onChange={updateSearchFilter} placeholder="Search"/>
+                  {searchValue &&
+                     <InputRightElement cursor="pointer" onClick={clearSearch}>
+                        <FontAwesomeIcon icon={faXmark}/>
+                     </InputRightElement>
+                  }
+               </InputGroup>
             </Box>
          </Flex>
       </Center>
