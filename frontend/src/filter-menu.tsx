@@ -41,7 +41,7 @@ export function FilterMenu({urlParam, buttonText, extractValueFromPull}: FilterM
 
    return (
    <Menu closeOnSelect={false}>
-     <MenuButton as={Button} colorScheme='blue' size="sm" variant="outline">
+     <MenuButton as={Button} colorScheme='blue' size="sm" variant={showAll ? 'outline' : null}>
        {buttonText}
      </MenuButton>
      <MenuList minWidth='240px'>
