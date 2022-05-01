@@ -13,7 +13,7 @@ import {
    InputGroup,
    InputRightElement,
 } from "@chakra-ui/react";
-import { useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import { useBoolUrlState } from "./use-url-state";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faSnowflake, faMoon, faXmark } from '@fortawesome/free-solid-svg-icons'
@@ -28,6 +28,7 @@ export function Navbar(props: BoxProps) {
    const {toggleColorMode} = useColorMode();
    const [showCryo, setShowCryo] = useBoolUrlState('cryo', false);
    const [searchValue, setSearchValue] = useState<string>('');
+   const searchInputRef = useRef<HTMLInputElement>(null);
    useEffect(() => {
       const patterns = searchValue
          .trim()
@@ -76,7 +77,13 @@ export function Navbar(props: BoxProps) {
             </Box>
             <Box flexBasis={sideWidth} flexGrow={1} flexShrink={1} display="flex" justifyContent="flex-end">
                <InputGroup w="100%" maxWidth={sideWidth}>
-                  <Input w="100%" value={searchValue} onChange={updateSearchFilter} placeholder="Search"/>
+                  <Input
+                     w="100%"
+                     value={searchValue}
+                     onChange={updateSearchFilter}
+                     placeholder="Search"
+                     ref={searchInputRef}
+                  />
                   {searchValue &&
                      <InputRightElement cursor="pointer" onClick={clearSearch}>
                         <FontAwesomeIcon icon={faXmark}/>
