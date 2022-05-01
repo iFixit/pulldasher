@@ -15,6 +15,7 @@ import {
 } from "@chakra-ui/react";
 import { useRef, useEffect, useCallback, useState } from "react";
 import { useBoolUrlState } from "./use-url-state";
+import { useHotkeys } from 'react-hotkeys-hook';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faSnowflake, faMoon, faXmark } from '@fortawesome/free-solid-svg-icons'
 
@@ -45,6 +46,13 @@ export function Navbar(props: BoxProps) {
 
    const toggleShowCryo = useCallback(() => setShowCryo(!showCryo), [showCryo]);
    useEffect(() => setPullFilter('cryo', showCryo ? null : isPullCryo), [showCryo]);
+   useHotkeys('/', (event) => {
+      if (searchInputRef.current) {
+         searchInputRef.current.focus();
+         searchInputRef.current.select();
+         event.preventDefault();
+      }
+   });
 
    return (
       <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>

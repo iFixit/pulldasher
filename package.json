@@ -25,6 +25,7 @@
     "passport-github2": "^0.1.12",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
+    "react-hotkeys-hook": "^3.4.4",
     "socket.io": "^4.4.1",
     "socket.io-client": "^4.4.1",
     "underscore": "^1.12.1"
