@@ -63,7 +63,7 @@ function PullCard({pull, show}: {pull: Pull, show: boolean}) {
          <RefreshButton pull={pull}/>
          <CommitStatuses pull={pull}/>
          <Box>
-            <Link href={pull.getUrl()} isExternal color="var(--pull-title)">
+            <Link href={pull.getUrl()} title={pull.user.login} isExternal color="var(--pull-title)">
                {pull.isMine() ?
                <FontAwesomeIcon icon={faStar} className="star" color="var(--user-icon)"/> :
                <Avatar user={pull.user.login}/>}
