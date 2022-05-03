@@ -111,7 +111,8 @@ function pullNumber(): number {
 }
 
 function username(): string {
-   return "username-" + Math.floor(Math.random()*1000);
+   // Some static username so pulls still get a nice avatar
+   return "dependabot[bot]";
 }
 
 function statusContext(): string {

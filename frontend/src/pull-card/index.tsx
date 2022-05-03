@@ -94,6 +94,7 @@ function PullCard({pull, show}: {pull: Pull, show: boolean}) {
 });
 
 function Avatar({user}: {user: string}) {
+   const cleanUsername = user.replace(/\[bot\]$/, "");
    return <Img
       mr="7px"
       mb="1px"
@@ -103,6 +104,6 @@ function Avatar({user}: {user: string}) {
       borderRadius="full"
       verticalAlign="bottom"
       title={user}
-      src={`https://github.com/${user}.png?size=20`}
+      src={`https://github.com/${cleanUsername}.png?size=20`}
    />;
 }
