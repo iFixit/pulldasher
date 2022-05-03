@@ -1,4 +1,5 @@
 import { Pull } from '../pull';
+import { userProfileUrl } from '../utils';
 import { CommitStatuses } from './commit-statuses';
 import { Age } from './age';
 import { Flags } from './flags';
@@ -95,6 +96,8 @@ function PullCard({pull, show}: {pull: Pull, show: boolean}) {
 
 function Avatar({user}: {user: string}) {
    return <Img
+      data-user={user}
+      onClick={avatarClickHandler}
       mr="7px"
       mb="1px"
       height="20px"
@@ -105,4 +108,13 @@ function Avatar({user}: {user: string}) {
       title={user}
       src={`https://github.com/${user}.png?size=20`}
    />;
+}
+
+function avatarClickHandler(event: React.MouseEvent<HTMLElement>) {
+   const user: string | undefined = event.currentTarget?.dataset.user;
+   if (!user) {
+      return;
+   }
+   window.open(userProfileUrl(user), "_blank");
+   event.preventDefault();
 }
