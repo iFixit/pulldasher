@@ -1,7 +1,7 @@
 import { Pull } from './pull';
-import { toDateString } from './utils';
+import { toDateString, userProfileUrl } from './utils';
 import { Signature, SignatureUser } from './types';
-import { Flex, HStack, Box, chakra } from "@chakra-ui/react"
+import { Link, Flex, HStack, Box, chakra } from "@chakra-ui/react"
 
 interface SigCount {
    user: SignatureUser;
@@ -34,7 +34,9 @@ export function LeaderList({leaders, title}: {leaders: SigCount[], title: string
                key={user.login}
                flexShrink={0}
                spacing={0}>
-               <Avatar user={user}/>
+               <Link href={userProfileUrl(user.login)} isExternal>
+                  <Avatar user={user}/>
+               </Link>
                <chakra.span px="5px" minW="26px">{count}</chakra.span>
             </HStack>
          )}

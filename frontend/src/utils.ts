@@ -17,3 +17,8 @@ export function toDateString(date: Date): DateString {
    return date.toISOString();
 }
 
+export function userProfileUrl(username: string): string {
+   const debottedName = username.replace(/\[bot\]$/, '');
+   const safeUsername = encodeURIComponent(debottedName);
+   return `https://github.com/${safeUsername}`;
+}
