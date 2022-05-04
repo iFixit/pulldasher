@@ -10,14 +10,12 @@ import {
    Box,
    BoxProps,
    Input,
-   InputGroup,
-   InputRightElement,
 } from "@chakra-ui/react";
 import { useRef, useEffect, useCallback, useState } from "react";
 import { useBoolUrlState } from "./use-url-state";
 import { useHotkeys } from 'react-hotkeys-hook';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faSnowflake, faMoon, faXmark } from '@fortawesome/free-solid-svg-icons'
+import { faSnowflake, faMoon } from '@fortawesome/free-solid-svg-icons'
 
 // Default width of the left and right sections of the nav bar
 const sideWidth = "220px";
@@ -89,7 +87,6 @@ function SearchInput() {
    }, [searchValue]);
    const updateSearchFilter = useCallback(
       (event: React.ChangeEvent<HTMLInputElement>) => setSearchValue(event.target.value), []);
-   const clearSearch = useCallback(() => setSearchValue(''), []);
 
    useHotkeys('/', (event) => {
       if (searchInputRef.current) {
@@ -100,19 +97,14 @@ function SearchInput() {
    });
 
    return (
-      <InputGroup w="100%" maxWidth={sideWidth}>
-         <Input
-            w="100%"
-            value={searchValue}
-            onChange={updateSearchFilter}
-            placeholder="Search"
-            ref={searchInputRef}
-         />
-         {searchValue &&
-            <InputRightElement cursor="pointer" onClick={clearSearch}>
-               <FontAwesomeIcon icon={faXmark}/>
-            </InputRightElement>
-         }
-      </InputGroup>
+      <Input
+         maxWidth={sideWidth}
+         w="100%"
+         type="search"
+         value={searchValue}
+         onChange={updateSearchFilter}
+         placeholder="Search"
+         ref={searchInputRef}
+      />
    );
 }
