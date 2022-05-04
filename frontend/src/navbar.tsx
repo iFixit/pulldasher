@@ -11,7 +11,7 @@ import {
    BoxProps,
    Input,
 } from "@chakra-ui/react";
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import { useBoolUrlState } from "./use-url-state";
 import { useHotkeys } from 'react-hotkeys-hook';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -73,10 +73,10 @@ function isPullCryo(pull: Pull): boolean {
 
 function SearchInput() {
    const setPullFilter = useSetFilter();
-   const [searchValue, setSearchValue] = useState<string>('');
    const searchInputRef = useRef<HTMLInputElement>(null);
-   useEffect(() => {
-      const patterns = searchValue
+   const updateSearchFilter = useCallback(
+      (event: React.ChangeEvent<HTMLInputElement>) => {
+      const patterns = event.target.value
          .trim()
          .split(/\s+/)
          .filter((s) => s.length)
@@ -84,9 +84,7 @@ function SearchInput() {
       setPullFilter('search', patterns.length ? (pull: Pull) => {
          return patterns.every((pattern) => pull.title.match(pattern));
       }: null);
-   }, [searchValue]);
-   const updateSearchFilter = useCallback(
-      (event: React.ChangeEvent<HTMLInputElement>) => setSearchValue(event.target.value), []);
+   }, []);
 
    useHotkeys('/', (event) => {
       if (searchInputRef.current) {
@@ -101,7 +99,6 @@ function SearchInput() {
          maxWidth={sideWidth}
          w="100%"
          type="search"
-         value={searchValue}
          onChange={updateSearchFilter}
          placeholder="Search"
          ref={searchInputRef}
