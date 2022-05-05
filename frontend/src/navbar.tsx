@@ -1,5 +1,5 @@
 import { FilterMenu } from './filter-menu';
-import { usePulls, useAllPulls, useSetFilter } from './pulldasher/pulls-context';
+import { usePulls, useAllOpenPulls, useSetFilter } from './pulldasher/pulls-context';
 import { Pull } from './pull';
 import {
    useColorMode,
@@ -22,7 +22,7 @@ const sideWidth = "220px";
 
 export function Navbar(props: BoxProps) {
    const pulls: Set<Pull> = usePulls();
-   const allPulls: Pull[] = useAllPulls();
+   const allOpenPulls: Pull[] = useAllOpenPulls();
    const setPullFilter = useSetFilter();
    const {toggleColorMode} = useColorMode();
    const [showCryo, setShowCryo] = useBoolUrlState('cryo', false);
@@ -34,7 +34,7 @@ export function Navbar(props: BoxProps) {
       <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
          <Flex px="var(--body-gutter)" maxW="100%" w="var(--body-max-width)" gap="var(--body-gutter)" justify="space-between">
             <HStack alignSelf="center" flexGrow={1} flexBasis={sideWidth} spacing="2">
-               <span title={`Shown: ${pulls.size} Total: ${allPulls.length}`}>
+               <span title={`Shown: ${pulls.size} Total: ${allOpenPulls.length}`}>
                   open: {pulls.size}
                </span>
                <Button
