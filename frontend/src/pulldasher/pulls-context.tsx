@@ -5,9 +5,9 @@ import { Pull } from '../pull';
 import { defaultCompare } from "./sort";
 
 interface PullContextProps {
-   // Array of all pulls (open + recently closed)
+   // Unsorted array of all pulls (open + recently closed)
    allPulls: Pull[];
-   // Array of all open pulls (open)
+   // Sorted array of all open pulls (open)
    allOpenPulls: Pull[];
    // Set pf pulls passing the filter function
    pulls: Set<Pull>;
@@ -44,12 +44,11 @@ export function useSetFilter(): FilterFunctionSetter {
 export const PullsProvider = function({children}: {children: React.ReactNode}) {
    const unfilteredPulls = usePullsState();
    const [filteredPulls, setFilter] = useFilteredPullsState(unfilteredPulls);
-   const allOpenPulls = unfilteredPulls.filter((pull) => pull.isOpen());
-   const sortedPulls = unfilteredPulls.sort(defaultCompare);
+   const openPulls = unfilteredPulls.filter((pull) => pull.isOpen());
    const contextValue = {
       pulls: new Set(filteredPulls),
-      allOpenPulls: allOpenPulls,
-      allPulls: sortedPulls,
+      allOpenPulls: openPulls.sort(defaultCompare),
+      allPulls: unfilteredPulls,
       setFilter
    };
    return (<PullsContext.Provider value={contextValue}>
