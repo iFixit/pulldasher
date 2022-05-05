@@ -10,14 +10,12 @@ import {
    Box,
    BoxProps,
    Input,
-   InputGroup,
-   InputRightElement,
 } from "@chakra-ui/react";
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import { useBoolUrlState } from "./use-url-state";
 import { useHotkeys } from 'react-hotkeys-hook';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faSnowflake, faMoon, faXmark } from '@fortawesome/free-solid-svg-icons'
+import { faSnowflake, faMoon } from '@fortawesome/free-solid-svg-icons'
 
 // Default width of the left and right sections of the nav bar
 const sideWidth = "220px";
@@ -28,31 +26,9 @@ export function Navbar(props: BoxProps) {
    const setPullFilter = useSetFilter();
    const {toggleColorMode} = useColorMode();
    const [showCryo, setShowCryo] = useBoolUrlState('cryo', false);
-   const [searchValue, setSearchValue] = useState<string>('');
-   const searchInputRef = useRef<HTMLInputElement>(null);
-   useEffect(() => {
-      const patterns = searchValue
-         .trim()
-         .split(/\s+/)
-         .filter((s) => s.length)
-         .map((s) => new RegExp(s, 'i'));
-      setPullFilter('search', patterns.length ? (pull: Pull) => {
-         return patterns.every((pattern) => pull.title.match(pattern));
-      }: null);
-   }, [searchValue]);
-   const updateSearchFilter = useCallback(
-      (event: React.ChangeEvent<HTMLInputElement>) => setSearchValue(event.target.value), []);
-   const clearSearch = useCallback(() => setSearchValue(''), []);
 
    const toggleShowCryo = useCallback(() => setShowCryo(!showCryo), [showCryo]);
    useEffect(() => setPullFilter('cryo', showCryo ? null : isPullCryo), [showCryo]);
-   useHotkeys('/', (event) => {
-      if (searchInputRef.current) {
-         searchInputRef.current.focus();
-         searchInputRef.current.select();
-         event.preventDefault();
-      }
-   });
 
    return (
       <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
@@ -84,20 +60,7 @@ export function Navbar(props: BoxProps) {
                <span style={{fontVariantCaps: "small-caps"}}>Pulldasher</span>
             </Box>
             <Box flexBasis={sideWidth} flexGrow={1} flexShrink={1} display="flex" justifyContent="flex-end">
-               <InputGroup w="100%" maxWidth={sideWidth}>
-                  <Input
-                     w="100%"
-                     value={searchValue}
-                     onChange={updateSearchFilter}
-                     placeholder="Search"
-                     ref={searchInputRef}
-                  />
-                  {searchValue &&
-                     <InputRightElement cursor="pointer" onClick={clearSearch}>
-                        <FontAwesomeIcon icon={faXmark}/>
-                     </InputRightElement>
-                  }
-               </InputGroup>
+               <SearchInput/>
             </Box>
          </Flex>
       </Center>
@@ -106,4 +69,39 @@ export function Navbar(props: BoxProps) {
 
 function isPullCryo(pull: Pull): boolean {
    return !pull.getLabel("Cryogenic Storage");
+}
+
+function SearchInput() {
+   const setPullFilter = useSetFilter();
+   const searchInputRef = useRef<HTMLInputElement>(null);
+   const updateSearchFilter = useCallback(
+      (event: React.ChangeEvent<HTMLInputElement>) => {
+      const patterns = event.target.value
+         .trim()
+         .split(/\s+/)
+         .filter((s) => s.length)
+         .map((s) => new RegExp(s, 'i'));
+      setPullFilter('search', patterns.length ? (pull: Pull) => {
+         return patterns.every((pattern) => pull.title.match(pattern));
+      }: null);
+   }, []);
+
+   useHotkeys('/', (event) => {
+      if (searchInputRef.current) {
+         searchInputRef.current.focus();
+         searchInputRef.current.select();
+         event.preventDefault();
+      }
+   });
+
+   return (
+      <Input
+         maxWidth={sideWidth}
+         w="100%"
+         type="search"
+         onChange={updateSearchFilter}
+         placeholder="Search"
+         ref={searchInputRef}
+      />
+   );
 }
