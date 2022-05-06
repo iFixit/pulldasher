@@ -1,5 +1,6 @@
 import { getPageContext } from '../page-context';
 import { io, Socket } from 'socket.io-client';
+import { useState, useEffect } from 'react';
 
 type SocketIO = Socket;
 
@@ -18,4 +19,32 @@ function createSocket(): SocketIO {
 
 export function getSocket() {
    return socket = socket || createSocket();
+}
+
+export enum ConnectionState {
+   disconnected = "disconnected",
+   connected = "connected",
+   connecting = "connecting",
+   error = "error",
+}
+
+export function useConnectionState(): ConnectionState {
+   const [state, setState] = useState<ConnectionState>(ConnectionState.connecting);
+   useEffect(() => listenForConnectionEvents(setState), [getSocket()]);
+   return state;
+}
+
+function listenForConnectionEvents(setState: (state: ConnectionState) => void) {
+   const onConnect = () => setState(ConnectionState.connected);
+   const onDisconnect = () => setState(ConnectionState.disconnected);
+   const onReconnectAttempt = () => setState(ConnectionState.connecting);
+   const socket = getSocket();
+   socket.on('connect', onConnect);
+   socket.on('disconnect', onDisconnect);
+   socket.io.on('reconnect_attempt', onReconnectAttempt);
+   return () => {
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+      socket.io.off('reconnect_attempt', onReconnectAttempt);
+   };
 }
