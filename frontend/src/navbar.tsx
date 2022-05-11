@@ -35,6 +35,9 @@ export function Navbar(props: BoxProps) {
       <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
          <Flex px="var(--body-gutter)" maxW="100%" w="var(--body-max-width)" gap="var(--body-gutter)" justify="space-between">
             <HStack alignSelf="center" flexGrow={1} flexBasis={sideWidth} spacing="2">
+               <Box p="0 15px 0 0" fontSize="16px">
+                  <ConnectionStateIndicator/>
+               </Box>
                <span title={`Shown: ${pulls.size} Total: ${allOpenPulls.length}`}>
                   open: {pulls.size}
                </span>
@@ -59,9 +62,6 @@ export function Navbar(props: BoxProps) {
             </HStack>
             <Flex alignSelf="center" fontSize={20} flexShrink={0}>
                <span style={{fontVariantCaps: "small-caps"}}>Pulldasher</span>
-               <Box p="0px 15px">
-                  <ConnectionStateIndicator/>
-               </Box>
             </Flex>
             <Box flexBasis={sideWidth} flexGrow={1} flexShrink={1} display="flex" justifyContent="flex-end">
                <SearchInput/>
