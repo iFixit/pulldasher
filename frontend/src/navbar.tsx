@@ -13,9 +13,10 @@ import {
 } from "@chakra-ui/react";
 import { useRef, useEffect, useCallback } from "react";
 import { useBoolUrlState } from "./use-url-state";
+import { useConnectionState, ConnectionState } from "./backend/socket";
 import { useHotkeys } from 'react-hotkeys-hook';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faSnowflake, faMoon } from '@fortawesome/free-solid-svg-icons'
+import { faSnowflake, faMoon, faWifi, faCircleNotch, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
 
 // Default width of the left and right sections of the nav bar
 const sideWidth = "220px";
@@ -34,6 +35,9 @@ export function Navbar(props: BoxProps) {
       <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
          <Flex px="var(--body-gutter)" maxW="100%" w="var(--body-max-width)" gap="var(--body-gutter)" justify="space-between">
             <HStack alignSelf="center" flexGrow={1} flexBasis={sideWidth} spacing="2">
+               <Box p="0 15px 0 0" fontSize="16px">
+                  <ConnectionStateIndicator/>
+               </Box>
                <span title={`Shown: ${pulls.size} Total: ${allOpenPulls.length}`}>
                   open: {pulls.size}
                </span>
@@ -56,9 +60,9 @@ export function Navbar(props: BoxProps) {
                <FilterMenu urlParam="repo" buttonText="Repo" extractValueFromPull={(pull: Pull) => pull.getRepoName()}/>
                <FilterMenu urlParam="author" buttonText="Author" extractValueFromPull={(pull: Pull) => pull.user.login}/>
             </HStack>
-            <Box alignSelf="center" fontSize={20} flexShrink={0}>
+            <Flex alignSelf="center" fontSize={20} flexShrink={0}>
                <span style={{fontVariantCaps: "small-caps"}}>Pulldasher</span>
-            </Box>
+            </Flex>
             <Box flexBasis={sideWidth} flexGrow={1} flexShrink={1} display="flex" justifyContent="flex-end">
                <SearchInput/>
             </Box>
@@ -104,4 +108,21 @@ function SearchInput() {
          ref={searchInputRef}
       />
    );
+}
+
+function ConnectionStateIndicator() {
+   const connectionState = useConnectionState();
+   if (connectionState == ConnectionState.connected) {
+      return <FontAwesomeIcon icon={faWifi} title="Connected"/>;
+   }
+   if (connectionState == ConnectionState.connecting) {
+      return <FontAwesomeIcon className='fa-spin' icon={faCircleNotch} title="Connecting..."/>;
+   }
+   if (connectionState == ConnectionState.disconnected) {
+      return <FontAwesomeIcon icon={faXmark} title="Disconnected"/>;
+   }
+   if (connectionState == ConnectionState.error) {
+      return <FontAwesomeIcon icon={faCircleExclamation} title="Error" />;
+   }
+   return null;
 }
