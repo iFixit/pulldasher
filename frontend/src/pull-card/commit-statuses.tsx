@@ -38,7 +38,10 @@ const StatusContainer = styled.div`
 
 function StatusLink({status}: {status: CommitStatus}) {
    const styles = useStyleConfig('StatusLink', {variant: status.data.state});
-   const title = status.data.context + ": " + status.data.description;
+   const description = status.data.description === status.data.state
+      ? ""
+      : status.data.description;
+   const title = status.data.context + description;
    return (status.data.target_url ?
       <chakra.a
          __css={styles}
