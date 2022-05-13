@@ -1,6 +1,20 @@
 import { Pull } from '../pull';
-import { CommitStatus } from '../types';
-import { chakra, Box, useStyleConfig } from "@chakra-ui/react"
+import { CommitStatus, StatusState } from '../types';
+import {
+   chakra,
+   Box,
+   useStyleConfig,
+   Popover,
+   PopoverTrigger,
+   PopoverContent,
+   PopoverHeader,
+   PopoverBody,
+   PopoverArrow,
+   PopoverCloseButton,
+   Portal,
+   VStack,
+} from "@chakra-ui/react"
+import { groupBy } from 'lodash-es';
 import { memo } from "react"
 import styled from "@emotion/styled"
 
@@ -19,19 +33,34 @@ const StatusContainer = styled.div`
    flex-direction: column;
    justify-content: space-between;
    gap: ${marginBetween}px;
+   cursor: pointer;
 `;
 
-function Status({status}: {status: CommitStatus}) {
-   const styles = useStyleConfig('Status', {variant: status.data.state});
+function StatusLink({status}: {status: CommitStatus}) {
+   const styles = useStyleConfig('StatusLink', {variant: status.data.state});
    const title = status.data.context + ": " + status.data.description;
    return (status.data.target_url ?
-      <chakra.a __css={styles}
+      <chakra.a
+         __css={styles}
          target="_blank"
-         title={title}
          href={status.data.target_url}
-         className="build_status"
-      /> :
+         className="build_status">
+         {title}
+      </chakra.a> :
+      <Box __css={styles} title={title} className="build_status">
+         {title}
+      </Box>
+   );
+}
+
+function StatusGroup({statuses}: {statuses: CommitStatus[]}) {
+   const state = statuses[0].data.state;
+   const styles = useStyleConfig('StatusGroup', {variant: state});
+   const contexts = statuses.map(status => status.data.context).join("\n");
+   const title = `${state}:${statuses.length > 1 ? "\n" : " "}${contexts}`;
+   return (
       <Box __css={styles}
+         flexBasis={1 + statuses.length}
          title={title}
          className="build_status"
       />
@@ -40,14 +69,31 @@ function Status({status}: {status: CommitStatus}) {
 
 export const CommitStatuses = memo(
 function CommitStatuses({pull}: {pull: Pull}) {
+   const statuses = pull.buildStatusesWithRequired();
+   const grouped = groupBy(statuses, (status) => status.data.state);
    return (
-   <StatusContainer className="build_status_container">
-      {pull.buildStatusesWithRequired().map((status) =>
-         <Status
-            status={status}
-            key={status.data.context}
-         />
-      )}
-   </StatusContainer>
+   <Popover>
+      <PopoverTrigger>
+          <StatusContainer className="build_status_container">
+             {Object.keys(grouped).map((state: StatusState) => (
+                <StatusGroup
+                   key={state}
+                   statuses={grouped[state]} />
+             ))}
+          </StatusContainer>
+      </PopoverTrigger>
+      <Portal>
+         <PopoverContent>
+            <PopoverArrow />
+            <PopoverCloseButton />
+            <PopoverHeader>CI Statuses</PopoverHeader>
+            <PopoverBody>
+               <VStack spacing="5px">
+                  {statuses.map(status => <StatusLink key={status.data.context} status={status}/>)}
+               </VStack>
+            </PopoverBody>
+         </PopoverContent>
+      </Portal>
+   </Popover>
    );
 });
