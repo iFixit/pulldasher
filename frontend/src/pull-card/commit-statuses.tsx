@@ -90,26 +90,10 @@ function CommitStatuses({pull}: {pull: Pull}) {
    <Popover isLazy>
       <PopoverTrigger>
           <StatusContainer className="build_status_container">
-             {grouped.success &&
-                <StatusGroup
-                   key={StatusState.success}
-                   statuses={grouped.success} />
-             }
-             {grouped.pending &&
-                <StatusGroup
-                   key={StatusState.pending}
-                   statuses={grouped.pending} />
-             }
-             {grouped.failure &&
-                <StatusGroup
-                   key={StatusState.failure}
-                   statuses={grouped.failure} />
-             }
-             {grouped.error &&
-                <StatusGroup
-                   key={StatusState.error}
-                   statuses={grouped.error} />
-             }
+             {grouped.success && <StatusGroup statuses={grouped.success}/> }
+             {grouped.pending && <StatusGroup statuses={grouped.pending}/> }
+             {grouped.failure && <StatusGroup statuses={grouped.failure}/> }
+             {grouped.error && <StatusGroup statuses={grouped.error}/> }
           </StatusContainer>
       </PopoverTrigger>
       <Portal>
