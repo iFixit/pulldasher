@@ -130,7 +130,7 @@ export class Pull extends PullData {
             });
          }
       });
-      return sortBy(statuses, ['data.context']);
+      return sortBy(statuses, [status => status.data.context.toLowerCase()]);
    }
 
    getRequiredBuildStatuses(): string[] {
