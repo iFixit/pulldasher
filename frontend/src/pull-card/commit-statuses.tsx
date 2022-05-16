@@ -83,7 +83,7 @@ function CommitStatuses({pull}: {pull: Pull}) {
    const statuses = pull.buildStatusesWithRequired();
    const grouped = groupBy(statuses, (status) => status.data.state);
    return (
-   <Popover>
+   <Popover isLazy>
       <PopoverTrigger>
           <StatusContainer className="build_status_container">
              {grouped.success &&
