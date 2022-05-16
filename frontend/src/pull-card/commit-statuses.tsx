@@ -45,6 +45,7 @@ function StatusLink({status}: {status: CommitStatus}) {
    return (
       <StatusLinkContainer
          __css={styles}
+         title={status.data.state}
          cursor={link ? "pointer" : "auto"}
          onClick={link ? () => newTab(link) : undefined}
       >
