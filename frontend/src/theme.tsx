@@ -99,24 +99,30 @@ export const theme = extendTheme({
       },
       StatusLink: {
          baseStyle: {
-            display: "block",
-            borderRadius: "5px",
-            padding: "3px 10px",
-            width: "100%",
+            borderBottom: "1px solid var(--build-status-link-divider)",
+            "&:last-child": {
+               borderBottom: "none",
+            },
+            padding: "5px",
+            "> span": {
+               color: "var(--build-status-text)",
+            },
+            "&:hover": {
+               "background": "rgb(128,128,128,0.1)",
+            }
          },
          variants: {
             pending: {
-               bg: "var(--build-state-pending)",
+               color: "var(--build-state-pending)",
             },
             success: {
-               bg: "var(--build-state-success)",
+               color: "var(--build-state-success)",
             },
             error: {
-               bg: "var(--build-state-error)",
-               color: "white",
+               color: "var(--build-state-error)",
             },
             failure: {
-               bg: "var(--build-state-failure)",
+               color: "var(--build-state-failure)",
             },
          }
       },

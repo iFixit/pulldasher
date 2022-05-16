@@ -1,5 +1,6 @@
 import { Pull } from '../pull';
 import { CommitStatus, StatusState } from '../types';
+import { newTab } from "../utils";
 import {
    chakra,
    Box,
@@ -7,16 +8,16 @@ import {
    Popover,
    PopoverTrigger,
    PopoverContent,
-   PopoverHeader,
    PopoverBody,
    PopoverArrow,
    PopoverCloseButton,
    Portal,
-   VStack,
 } from "@chakra-ui/react"
 import { groupBy } from 'lodash-es';
 import { memo } from "react"
 import styled from "@emotion/styled"
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCircleExclamation, faCircleXmark, faCircleCheck, faClock, IconDefinition } from '@fortawesome/free-solid-svg-icons'
 
 const statusSize = 10;
 const marginBetween = 4;
@@ -36,24 +37,31 @@ const StatusContainer = styled.div`
    cursor: pointer;
 `;
 
+const StatusLinkContainer = Box;
+
 function StatusLink({status}: {status: CommitStatus}) {
    const styles = useStyleConfig('StatusLink', {variant: status.data.state});
-   const description = status.data.description === status.data.state
-      ? ""
-      : status.data.description;
-   const title = status.data.context + description;
-   return (status.data.target_url ?
-      <chakra.a
+   const link = status.data.target_url;
+   return (
+      <StatusLinkContainer
          __css={styles}
-         target="_blank"
-         href={status.data.target_url}
-         className="build_status">
-         {title}
-      </chakra.a> :
-      <Box __css={styles} title={title} className="build_status">
-         {title}
-      </Box>
+         cursor={link ? "pointer" : "auto"}
+         onClick={link ? () => newTab(link) : undefined}
+      >
+         <FontAwesomeIcon size="lg" icon={iconForStatus(status)}/>
+         <chakra.span ml="10px" color="black">
+            {status.data.context}: {status.data.description}
+         </chakra.span>
+      </StatusLinkContainer>
    );
+}
+
+function iconForStatus(status: CommitStatus): IconDefinition {
+   const state = status.data.state;
+   return state === StatusState.pending ? faClock
+      : state === StatusState.error ? faCircleExclamation
+      : state === StatusState.failure ? faCircleXmark
+      : faCircleCheck;
 }
 
 function StatusGroup({statuses}: {statuses: CommitStatus[]}) {
@@ -104,11 +112,8 @@ function CommitStatuses({pull}: {pull: Pull}) {
          <PopoverContent>
             <PopoverArrow />
             <PopoverCloseButton />
-            <PopoverHeader>CI Statuses</PopoverHeader>
             <PopoverBody>
-               <VStack spacing="5px">
-                  {statuses.map(status => <StatusLink key={status.data.context} status={status}/>)}
-               </VStack>
+               {statuses.map(status => <StatusLink key={status.data.context} status={status}/>)}
             </PopoverBody>
          </PopoverContent>
       </Portal>
