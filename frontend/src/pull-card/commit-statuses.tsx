@@ -50,8 +50,11 @@ function StatusLink({status}: {status: CommitStatus}) {
          onClick={link ? () => newTab(link) : undefined}
       >
          <FontAwesomeIcon size="lg" icon={iconForStatus(status)}/>
-         <chakra.span ml="10px" color="black">
-            {status.data.context}: {status.data.description}
+         <chakra.span fontWeight="bold">
+            {status.data.context}:
+         </chakra.span>
+         <chakra.span>
+            {status.data.description}
          </chakra.span>
       </StatusLinkContainer>
    );

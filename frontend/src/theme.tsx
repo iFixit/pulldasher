@@ -106,6 +106,7 @@ export const theme = extendTheme({
             padding: "5px",
             "> span": {
                color: "var(--build-status-text)",
+               marginLeft: "10px",
             },
             "&:hover": {
                "background": "rgb(128,128,128,0.1)",
