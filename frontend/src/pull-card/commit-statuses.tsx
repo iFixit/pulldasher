@@ -85,6 +85,9 @@ function StatusGroup({statuses}: {statuses: CommitStatus[]}) {
 export const CommitStatuses = memo(
 function CommitStatuses({pull}: {pull: Pull}) {
    const statuses = pull.buildStatusesWithRequired();
+   if (statuses.length === 0) {
+      return null;
+   }
    const grouped = groupBy(statuses, (status) => status.data.state);
    return (
    <Popover isLazy>
