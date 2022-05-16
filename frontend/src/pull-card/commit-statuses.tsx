@@ -78,11 +78,26 @@ function CommitStatuses({pull}: {pull: Pull}) {
    <Popover>
       <PopoverTrigger>
           <StatusContainer className="build_status_container">
-             {Object.keys(grouped).map((state: StatusState) => (
+             {grouped.success &&
                 <StatusGroup
-                   key={state}
-                   statuses={grouped[state]} />
-             ))}
+                   key={StatusState.success}
+                   statuses={grouped.success} />
+             }
+             {grouped.pending &&
+                <StatusGroup
+                   key={StatusState.pending}
+                   statuses={grouped.pending} />
+             }
+             {grouped.failure &&
+                <StatusGroup
+                   key={StatusState.failure}
+                   statuses={grouped.failure} />
+             }
+             {grouped.error &&
+                <StatusGroup
+                   key={StatusState.error}
+                   statuses={grouped.error} />
+             }
           </StatusContainer>
       </PopoverTrigger>
       <Portal>
