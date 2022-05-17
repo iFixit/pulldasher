@@ -18,8 +18,7 @@ const defaultFilters = {
  */
 export function useFilteredPullsState(pulls: Pull[]): ReturnType {
    const [filters, setFilter] = useState<Filters>(defaultFilters);
-   return [
-      filterPulls(pulls, filters),
+   const replaceNamedFilter =
       (filterName:string, filter:FilterFunction|null) => {
          if (filter) {
             filters[filterName] = filter;
@@ -27,7 +26,10 @@ export function useFilteredPullsState(pulls: Pull[]): ReturnType {
             delete filters[filterName];
          }
          setTimeout(() => setFilter({...filters}), 0);
-      }
+      };
+   return [
+      filterPulls(pulls, filters),
+      replaceNamedFilter,
    ];
 }
 
