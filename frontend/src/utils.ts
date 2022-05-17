@@ -24,3 +24,6 @@ export function userProfileUrl(username: string): string {
 }
 
 export const dummyPulls: PullData[] = (process.env.DUMMY_PULLS || []) as PullData[];
+export function hasDummyPulls() {
+   return dummyPulls.length > 0;
+}
