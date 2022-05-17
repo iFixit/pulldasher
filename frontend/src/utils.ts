@@ -22,3 +22,7 @@ export function userProfileUrl(username: string): string {
    const safeUsername = encodeURIComponent(debottedName);
    return `https://github.com/${safeUsername}`;
 }
+
+export function newTab(url: string) {
+   window.open(url, "_blank");
+}

@@ -5,7 +5,7 @@ import { Age } from './age';
 import { Flags } from './flags';
 import { Signatures } from './signatures';
 import { CopyBranch } from './copy-branch';
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, RefObject } from "react";
 import { RefreshButton } from './refresh';
 import { Flex, Box, Link, chakra, Img } from "@chakra-ui/react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -51,13 +51,7 @@ const SigsAndFlags = chakra(Flex, {
 export const PullCard = memo(
 function PullCard({pull, show}: {pull: Pull, show: boolean}) {
    const cardRef = useRef<HTMLElement>(null);
-
-   // Animate a highlight when pull.received_at changes
-   useEffect(() => {
-      cardRef.current?.classList.add("highlight");
-      // 1s after the animation, remove the class
-      setTimeout(() => cardRef.current?.classList.remove("highlight"), 3000);
-   }, [pull.received_at]);
+   highlightOnChange(cardRef, [pull.received_at]);
 
    return (
       <Card ref={cardRef} display={show ? undefined : "none"}>
@@ -118,4 +112,14 @@ function avatarClickHandler(event: React.MouseEvent<HTMLElement>) {
    }
    window.open(userProfileUrl(user), "_blank");
    event.preventDefault();
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function highlightOnChange(ref: RefObject<HTMLElement>, dependencies: Array<any>) {
+   // Animate a highlight when pull.received_at changes
+   useEffect(() => {
+      ref.current?.classList.add("highlight");
+      // 1s after the animation, remove the class
+      setTimeout(() => ref.current?.classList.remove("highlight"), 3000);
+   }, dependencies);
 }
