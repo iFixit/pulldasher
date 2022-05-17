@@ -71,12 +71,11 @@ export const theme = extendTheme({
             }
          }
       },
-      Status: {
+      StatusGroup: {
          baseStyle: {
             display: "block",
             pos: "relative",
             w: "100%",
-            height: "10px",
             opacity: 1,
             flexGrow: 1,
             transition: "opacity 0.3s ease-in-out",
@@ -95,6 +94,36 @@ export const theme = extendTheme({
             },
             failure: {
                bg: "var(--build-state-failure)",
+            },
+         }
+      },
+      StatusLink: {
+         baseStyle: {
+            borderBottom: "1px solid var(--build-status-link-divider)",
+            "&:last-child": {
+               borderBottom: "none",
+            },
+            padding: "5px",
+            "> span": {
+               color: "var(--build-status-text)",
+               marginLeft: "10px",
+            },
+            "&:hover": {
+               "background": "rgb(128,128,128,0.1)",
+            }
+         },
+         variants: {
+            pending: {
+               color: "var(--build-state-pending)",
+            },
+            success: {
+               color: "var(--build-state-success)",
+            },
+            error: {
+               color: "var(--build-state-error)",
+            },
+            failure: {
+               color: "var(--build-state-failure)",
             },
          }
       },

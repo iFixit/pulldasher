@@ -1,3 +1,4 @@
+import { sortBy } from "lodash-es";
 import { getUser } from "./page-context";
 import { PullData, Signature, CommitStatus, StatusState, CommentSource, SignatureGroup } from "./types";
 
@@ -129,7 +130,7 @@ export class Pull extends PullData {
             });
          }
       });
-      return statuses;
+      return sortBy(statuses, [status => status.data.context.toLowerCase()]);
    }
 
    getRequiredBuildStatuses(): string[] {

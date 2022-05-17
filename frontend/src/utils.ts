@@ -27,3 +27,7 @@ export const dummyPulls: PullData[] = (process.env.DUMMY_PULLS || []) as PullDat
 export function hasDummyPulls() {
    return dummyPulls.length > 0;
 }
+
+export function newTab(url: string) {
+   window.open(url, "_blank");
+}
