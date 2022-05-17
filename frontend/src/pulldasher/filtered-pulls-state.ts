@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Pull } from  '../pull';
 
 export type FilterFunction = (pull: Pull) => boolean;
@@ -18,7 +18,7 @@ const defaultFilters = {
  */
 export function useFilteredPullsState(pulls: Pull[]): ReturnType {
    const [filters, setFilter] = useState<Filters>(defaultFilters);
-   const replaceNamedFilter =
+   const replaceNamedFilter = useCallback(
       (filterName:string, filter:FilterFunction|null) => {
          // Use the functional form of `setState()` so we can base our new
          // value on the previous one.
@@ -30,7 +30,9 @@ export function useFilteredPullsState(pulls: Pull[]): ReturnType {
             }
             return {...currentFilters};
          });
-      };
+      },
+      []
+   );
 
    return [
       filterPulls(pulls, filters),
