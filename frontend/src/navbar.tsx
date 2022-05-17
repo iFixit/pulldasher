@@ -57,8 +57,12 @@ export function Navbar(props: BoxProps) {
                   onClick={toggleColorMode}>
                   <FontAwesomeIcon icon={faMoon}/>
                </Button>
-               <FilterMenu urlParam="repo" buttonText="Repo" extractValueFromPull={(pull: Pull) => pull.getRepoName()}/>
-               <FilterMenu urlParam="author" buttonText="Author" extractValueFromPull={(pull: Pull) => pull.user.login}/>
+               <Box>
+                  <FilterMenu urlParam="repo" buttonText="Repo" extractValueFromPull={(pull: Pull) => pull.getRepoName()}/>
+               </Box>
+               <Box>
+                  <FilterMenu urlParam="author" buttonText="Author" extractValueFromPull={(pull: Pull) => pull.user.login}/>
+               </Box>
             </HStack>
             <Flex alignSelf="center" fontSize={20} flexShrink={0}>
                <span style={{fontVariantCaps: "small-caps"}}>Pulldasher</span>
