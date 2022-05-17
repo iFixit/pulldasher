@@ -12,6 +12,7 @@ import {
    PopoverArrow,
    PopoverCloseButton,
    Portal,
+   BoxProps,
 } from "@chakra-ui/react"
 import { groupBy } from 'lodash-es';
 import { memo } from "react"
@@ -68,17 +69,33 @@ function iconForStatus(status: CommitStatus): IconDefinition {
       : faCircleCheck;
 }
 
-function StatusGroup({statuses}: {statuses: CommitStatus[]}) {
+type StatusGroupProps = BoxProps & {
+   statuses: CommitStatus[];
+}
+
+function StatusGroup({statuses, ...props}: StatusGroupProps) {
    const state = statuses[0].data.state;
    const styles = useStyleConfig('StatusGroup', {variant: state});
    const contexts = statuses.map(status => status.data.context).join("\n");
    const title = `${state}:${statuses.length > 1 ? "\n" : " "}${contexts}`;
    return (
       <Box __css={styles}
+         {...props}
          flexBasis={1 + statuses.length}
          title={title}
          className="build_status"
       />
+   );
+}
+
+function SingleStatus(status: CommitStatus) {
+   const link = status.data.target_url;
+   return (
+    <StatusContainer className="build_status_container">
+      <StatusGroup
+         onClick={link ? () => newTab(link) : undefined}
+         statuses={[status]}/>
+    </StatusContainer>
    );
 }
 
@@ -87,6 +104,8 @@ function CommitStatuses({pull}: {pull: Pull}) {
    const statuses = pull.buildStatusesWithRequired();
    if (statuses.length === 0) {
       return null;
+   } else if (statuses.length === 1) {
+      return SingleStatus(statuses[0]);
    }
    const grouped = groupBy(statuses, (status) => status.data.state);
    return (
