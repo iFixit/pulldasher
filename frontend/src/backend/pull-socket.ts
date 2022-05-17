@@ -1,10 +1,10 @@
 import { Pull } from '../pull';
 import { getSocket } from './socket';
 import { PullData, RepoSpec } from  '../types';
+import { dummyPulls } from  '../utils';
 
 type PullUpdater = (pullDatas: PullData[], repoSpecs: RepoSpec[]) => void;
 let repoSpecs: RepoSpec[] = [];
-export const dummyPulls: PullData[] = (process.env.DUMMY_PULLS || []) as PullData[];
 
 /**
  * connects to the backend and calls the callback each time we receive
