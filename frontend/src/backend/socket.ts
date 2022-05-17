@@ -1,6 +1,7 @@
 import { getPageContext } from '../page-context';
 import { io, Socket } from 'socket.io-client';
 import { useState, useEffect } from 'react';
+import { hasDummyPulls } from  '../utils';
 
 type SocketIO = Socket;
 
@@ -30,6 +31,9 @@ export enum ConnectionState {
 
 export function useConnectionState(): ConnectionState {
    const [state, setState] = useState<ConnectionState>(ConnectionState.connecting);
+   if (hasDummyPulls()) {
+      return ConnectionState.connected;
+   }
    useEffect(() => listenForConnectionEvents(setState), [getSocket()]);
    return state;
 }
