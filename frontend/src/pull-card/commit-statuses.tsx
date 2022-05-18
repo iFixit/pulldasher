@@ -81,7 +81,7 @@ function StatusGroup({statuses, ...props}: StatusGroupProps) {
    return (
       <Box __css={styles}
          {...props}
-         flexBasis={1 + statuses.length}
+         flexGrow={1 + statuses.length}
          title={title}
          className="build_status"
       />
