@@ -77,7 +77,6 @@ export const theme = extendTheme({
             pos: "relative",
             w: "100%",
             opacity: 1,
-            flexGrow: 1,
             transition: "opacity 0.3s ease-in-out",
             borderRadius: "5px",
          },

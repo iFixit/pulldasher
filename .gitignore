@@ -3,4 +3,5 @@
 node_modules
 pulldasher.pid
 dist
+db_data/
 /.env.db
