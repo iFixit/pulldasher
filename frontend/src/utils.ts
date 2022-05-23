@@ -6,10 +6,10 @@ export function actionMessage(action: string, date: DateString | null, user: str
     `${action} by ${user}`;
 }
 
-function formatDate(date: DateString) {
-   return (new Date(date)).toLocaleDateString('en-us', {
-      'month': 'short',
-      'day': 'numeric'
+export function formatDate(date: DateString) {
+   return (new Date(date)).toLocaleDateString([], {
+      month: 'short',
+      day: 'numeric',
    });
 }
 
