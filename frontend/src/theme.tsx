@@ -149,6 +149,20 @@ export const theme = extendTheme({
             },
          }
       },
+      SignatureListItem: {
+         baseStyle: {
+            display: "block",
+            color: "var(--build-status-text)",
+            borderBottom: "1px solid var(--build-status-link-divider)",
+            "&:last-child": {
+               borderBottom: "none",
+            },
+            padding: "5px",
+            "&:hover": {
+               "background": "var(--build-status-hover)",
+            }
+         },
+      },
       PullFlag: {
          baseStyle: {
             py: "5px",

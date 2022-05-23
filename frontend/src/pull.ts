@@ -178,7 +178,8 @@ function computeSignatures(signatures: Signature[]): SignatureGroup {
 }
 
 function activeSignaturesFirst(a: Signature, b: Signature): number {
-   return b.data.active - a.data.active;
+   return b.data.active - a.data.active ||
+      a.data.created_at.localeCompare(b.data.created_at);
 }
 
 function isSuccessfulStatus(status: CommitStatus) {
