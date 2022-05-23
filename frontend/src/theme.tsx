@@ -108,7 +108,7 @@ export const theme = extendTheme({
                marginLeft: "10px",
             },
             "&:hover": {
-               "background": "rgb(128,128,128,0.1)",
+               "background": "var(--build-status-hover)",
             }
          },
          variants: {
