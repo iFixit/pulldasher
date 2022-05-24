@@ -32,6 +32,8 @@ export function signatureCompare(a: Signature, b: Signature) {
    return (
       // Active before inactive
       b.data.active - a.data.active ||
+      // My sigs before others
+      compareBool(a.data.user.login == getUser(), b.data.user.login == getUser()) ||
       // Older before newer
       a.data.created_at.localeCompare(b.data.created_at)
    );

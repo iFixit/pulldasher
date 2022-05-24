@@ -34,6 +34,7 @@ function SignaturesFlag({pull, title, signatures, required}: SignaturesProps) {
       (pull.isMine() ? 'validMine' : 'valid') : undefined;
    const styles = useStyleConfig('Signatures', {variant: statusVariant});
    const allSignatures = [...signatures.current, ...signatures.old];
+   const requiredSignatures = required ? allSignatures.slice(0, required) : allSignatures;
    const unfulfilledCount = Math.max(0, required - allSignatures.length);
    const noneToShow = required == 0 && allSignatures.length == 0;
 
@@ -48,7 +49,8 @@ function SignaturesFlag({pull, title, signatures, required}: SignaturesProps) {
          title={noneToShow ? `No ${title} Required` : ''}
       >
          <Box m="2px" mr={noneToShow ? "2px" : 2}>{title}</Box>
-         {allSignatures.map((sig) => <SignatureBubble pull={pull} sig={sig}/>)}
+         {requiredSignatures.map((sig) =>
+            <SignatureBubble key={sig.data.created_at} pull={pull} sig={sig}/>)}
          {UnfullfilledSigs(unfulfilledCount)}
       </HStack>
    );
