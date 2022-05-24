@@ -7,6 +7,7 @@ import {
    PartialRequirements,
    FulfilledRequirements,
    Signatures,
+   ManySignatures,
    FewStatuses,
    RequiredStatuses,
    ManyStatuses,
@@ -31,6 +32,7 @@ function PullCardDemo() {
          <Row title="Partial Requirements" pullDatas={PartialRequirements}/>
          <Row title="Fulfilled Requirements" pullDatas={FulfilledRequirements}/>
          <Row title="Signatures in Different states" pullDatas={Signatures}/>
+         <Row title="Many Signatures" pullDatas={ManySignatures}/>
          <Row title="Few Commit Statuses" pullDatas={FewStatuses}/>
          <Row title="Repo with Required Commit Status 'unit-tests'" pullDatas={RequiredStatuses}/>
          <Row title="Many Commit Statuses" pullDatas={ManyStatuses}/>
