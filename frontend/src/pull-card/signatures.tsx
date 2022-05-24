@@ -48,7 +48,7 @@ function SignaturesFlag({pull, title, signatures, required}: SignaturesProps) {
          title={noneToShow ? `No ${title} Required` : ''}
       >
          <Box m="2px" mr={noneToShow ? "2px" : 2}>{title}</Box>
-         {NewAndOldSigs(allSignatures, pull)}
+         {allSignatures.map((sig) => <SignatureBubble pull={pull} sig={sig}/>)}
          {UnfullfilledSigs(unfulfilledCount)}
       </HStack>
    );
@@ -98,20 +98,17 @@ function Signatures(props: SignaturesProps) {
    );
 });
 
-function NewAndOldSigs(allSignatures: Signature[], pull: Pull) {
-   return allSignatures.map((sig) => {
-      return (<a
-         key={sig.data.comment_id}
-         href={pull.linkToSignature(sig)}>
-         <FontAwesomeIcon
-            fontSize="18px"
-            color={colorForSignature(sig)}
-            title={sig.data.user.login}
-            className="build_status"
-            icon={faCheckCircle}/>
-      </a>
-      )
-   });
+function SignatureBubble({sig, pull}: {sig: Signature, pull: Pull}) {
+   return (<a
+      key={sig.data.comment_id}
+      href={pull.linkToSignature(sig)}>
+      <FontAwesomeIcon
+         fontSize="18px"
+         color={colorForSignature(sig)}
+         title={sig.data.user.login}
+         className="build_status"
+         icon={faCheckCircle}/>
+   </a>);
 }
 
 function UnfullfilledSigs(count: number) {
