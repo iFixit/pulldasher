@@ -1,11 +1,11 @@
 import { Img } from "@chakra-ui/react"
 import { userProfileUrl } from '../utils';
 
-export function Avatar({user}: {user: string}) {
+export function Avatar({user, linkToProfile}: {user: string, linkToProfile?: boolean}) {
    const cleanUsername = user.replace(/\[bot\]$/, "");
    return <Img
       data-user={user}
-      onClick={avatarClickHandler}
+      onClick={linkToProfile ? avatarClickHandler : undefined}
       mr="7px"
       mb="1px"
       height="20px"

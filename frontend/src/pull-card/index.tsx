@@ -61,7 +61,7 @@ function PullCard({pull, show}: {pull: Pull, show: boolean}) {
             <Link href={pull.getUrl()} title={pull.user.login} isExternal color="var(--pull-title)">
                {pull.isMine() ?
                <FontAwesomeIcon icon={faStar} className="star" color="var(--user-icon)"/> :
-               <Avatar user={pull.user.login}/>}
+               <Avatar user={pull.user.login} linkToProfile/>}
                <chakra.span fontWeight="bold">{pull.getRepoName()} #{pull.number}: </chakra.span>
                {pull.title}
             </Link>
