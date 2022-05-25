@@ -50,7 +50,7 @@ function SignaturesFlag({pull, title, signatures, required}: SignaturesProps) {
       >
          <Box m="2px" mr={noneToShow ? "2px" : 2}>{title}</Box>
          {requiredSignatures.map((sig) =>
-            <SignatureBubble key={sig.data.created_at} pull={pull} sig={sig}/>)}
+            <SignatureBubble key={sig.data.created_at} sig={sig}/>)}
          {UnfullfilledSigs(unfulfilledCount)}
       </HStack>
    );
@@ -100,10 +100,9 @@ function Signatures(props: SignaturesProps) {
    );
 });
 
-function SignatureBubble({sig, pull}: {sig: Signature, pull: Pull}) {
+function SignatureBubble({sig}: {sig: Signature}) {
    return (<a
-      key={sig.data.comment_id}
-      href={pull.linkToSignature(sig)}>
+      key={sig.data.comment_id}>
       <FontAwesomeIcon
          fontSize="18px"
          color={colorForSignature(sig)}
