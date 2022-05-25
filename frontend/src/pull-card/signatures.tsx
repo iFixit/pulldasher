@@ -66,9 +66,9 @@ function Signatures(props: SignaturesProps) {
    }
 
    return (
-   <Popover>
+   <Popover isLazy>
       <PopoverTrigger>
-         <Box>
+         <Box cursor="pointer">
             <SignaturesFlag {...props}/>
          </Box>
       </PopoverTrigger>
