@@ -98,6 +98,56 @@ export const Signatures = <PullData[]> [
    }),
 ];
 
+export const ManySignatures = <PullData[]> [
+   pullData({
+      title: "1 out-of-date QA by me, 1 active and 3 out of date CRs, with one by me",
+      status: {
+         allQA: [sig(SignatureType.QA, false, "user1")],
+         allCR: [
+            sig(SignatureType.CR, true, "user8"),
+            sig(SignatureType.CR, false, "user9"),
+            sig(SignatureType.CR, false, "user10"),
+            sig(SignatureType.CR, false, getUser()),
+         ],
+      },
+   }),
+   pullData({
+      title: "3 active QAs, 5 active CRs and 5 out of date CRs by different users",
+      status: {
+         allQA: [
+            sig(SignatureType.QA, true, "user8"),
+            sig(SignatureType.QA, true, "user9"),
+            sig(SignatureType.QA, true, "user10"),
+         ],
+         allCR: [
+            sig(SignatureType.CR, false, "user1"),
+            sig(SignatureType.CR, false, "user2"),
+            sig(SignatureType.CR, false, "user3"),
+            sig(SignatureType.CR, false, "user4"),
+            sig(SignatureType.CR, false, "user5"),
+            sig(SignatureType.CR, true, "user6"),
+            sig(SignatureType.CR, true, "user7"),
+            sig(SignatureType.CR, true, "user8"),
+            sig(SignatureType.CR, true, "user9"),
+            sig(SignatureType.CR, true, "user10"),
+         ],
+      },
+   }),
+   pullData({
+      title: "1 active CR and 5 out of date CRs by different users",
+      status: {
+         allQA: [],
+         allCR: [
+            sig(SignatureType.CR, false, "user1"),
+            sig(SignatureType.CR, false, "user2"),
+            sig(SignatureType.CR, false, "user3"),
+            sig(SignatureType.CR, false, "user4"),
+            sig(SignatureType.CR, false, "user5"),
+            sig(SignatureType.CR, true, "user6"),
+         ],
+      },
+   }),
+];
 const activeCR2 = sig(SignatureType.CR, true);
 const activeQA2 = sig(SignatureType.QA, true);
 export const FulfilledRequirements = <PullData[]> [

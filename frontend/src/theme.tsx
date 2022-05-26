@@ -108,7 +108,7 @@ export const theme = extendTheme({
                marginLeft: "10px",
             },
             "&:hover": {
-               "background": "rgb(128,128,128,0.1)",
+               "background": "var(--build-status-hover)",
             }
          },
          variants: {
@@ -148,6 +148,20 @@ export const theme = extendTheme({
                color: "var(--status-valid-mine-text)",
             },
          }
+      },
+      SignatureListItem: {
+         baseStyle: {
+            display: "block",
+            color: "var(--build-status-text)",
+            borderBottom: "1px solid var(--build-status-link-divider)",
+            "&:last-child": {
+               borderBottom: "none",
+            },
+            padding: "5px",
+            "&:hover": {
+               "background": "var(--build-status-hover)",
+            }
+         },
       },
       PullFlag: {
          baseStyle: {

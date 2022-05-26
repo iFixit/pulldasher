@@ -1,5 +1,6 @@
 import { sortBy } from "lodash-es";
 import { getUser } from "./page-context";
+import { signatureCompare } from "./pulldasher/sort";
 import { PullData, Signature, CommitStatus, StatusState, CommentSource, SignatureGroup } from "./types";
 
 export class Pull extends PullData {
@@ -159,7 +160,7 @@ function computeSignatures(signatures: Signature[]): SignatureGroup {
    const users: Record<string, boolean> = {};
 
    signatures
-   .sort(activeSignaturesFirst)
+   .sort(signatureCompare)
    .forEach(function(signature) {
       if (users[signature.data.user.login]) {
          return;
@@ -175,10 +176,6 @@ function computeSignatures(signatures: Signature[]): SignatureGroup {
    });
 
    return groups;
-}
-
-function activeSignaturesFirst(a: Signature, b: Signature): number {
-   return b.data.active - a.data.active;
 }
 
 function isSuccessfulStatus(status: CommitStatus) {

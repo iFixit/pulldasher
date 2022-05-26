@@ -1,13 +1,13 @@
 import { Pull } from '../pull';
-import { userProfileUrl } from '../utils';
 import { CommitStatuses } from './commit-statuses';
 import { Age } from './age';
 import { Flags } from './flags';
+import { Avatar } from './avatar';
 import { Signatures } from './signatures';
 import { CopyBranch } from './copy-branch';
 import { memo, useEffect, useRef, RefObject } from "react";
 import { RefreshButton } from './refresh';
-import { Flex, Box, Link, chakra, Img } from "@chakra-ui/react"
+import { Flex, Box, Link, chakra } from "@chakra-ui/react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faStar } from '@fortawesome/free-solid-svg-icons'
 
@@ -61,7 +61,7 @@ function PullCard({pull, show}: {pull: Pull, show: boolean}) {
             <Link href={pull.getUrl()} title={pull.user.login} isExternal color="var(--pull-title)">
                {pull.isMine() ?
                <FontAwesomeIcon icon={faStar} className="star" color="var(--user-icon)"/> :
-               <Avatar user={pull.user.login}/>}
+               <Avatar user={pull.user.login} linkToProfile/>}
                <chakra.span fontWeight="bold">{pull.getRepoName()} #{pull.number}: </chakra.span>
                {pull.title}
             </Link>
@@ -87,32 +87,6 @@ function PullCard({pull, show}: {pull: Pull, show: boolean}) {
       </Card>
    );
 });
-
-function Avatar({user}: {user: string}) {
-   const cleanUsername = user.replace(/\[bot\]$/, "");
-   return <Img
-      data-user={user}
-      onClick={avatarClickHandler}
-      mr="7px"
-      mb="1px"
-      height="20px"
-      width="20px"
-      display="inline-block"
-      borderRadius="full"
-      verticalAlign="bottom"
-      title={user}
-      src={`https://github.com/${cleanUsername}.png?size=20`}
-   />;
-}
-
-function avatarClickHandler(event: React.MouseEvent<HTMLElement>) {
-   const user: string | undefined = event.currentTarget?.dataset.user;
-   if (!user) {
-      return;
-   }
-   window.open(userProfileUrl(user), "_blank");
-   event.preventDefault();
-}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function highlightOnChange(ref: RefObject<HTMLElement>, dependencies: Array<any>) {

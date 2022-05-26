@@ -1,5 +1,6 @@
 import { Pull } from '../pull';
 import { getUser } from "../page-context";
+import { Signature } from '../types';
 
 export function defaultCompare(a: Pull, b: Pull): number {
    return (
@@ -24,6 +25,17 @@ export function QACompare(a: Pull, b: Pull): number {
       compareBool(a.isCrDone(), b.isCrDone()) ||
       // Older pulls before younger pulls
       a.created_at.localeCompare(b.created_at)
+   );
+}
+
+export function signatureCompare(a: Signature, b: Signature) {
+   return (
+      // Active before inactive
+      b.data.active - a.data.active ||
+      // My sigs before others
+      compareBool(a.data.user.login == getUser(), b.data.user.login == getUser()) ||
+      // Older before newer
+      a.data.created_at.localeCompare(b.data.created_at)
    );
 }
 
