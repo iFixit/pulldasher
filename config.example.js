@@ -154,6 +154,8 @@ module.exports = {
       }
    ],
 
+   // Don't invalidate signatures on a clean merge commit.
+   ignoreCleanMerge: true,
    // Where to store the PID of the pulldasher process when run.
    pidFile: "/var/run/pulldasher.pid",
    // Setting this to true prints more debugging information.
