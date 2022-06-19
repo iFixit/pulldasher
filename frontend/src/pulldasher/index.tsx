@@ -20,7 +20,7 @@ export const Pulldasher: React.FC = function() {
       <Box maxW="var(--body-max-width)" m="auto" px="var(--body-gutter)">
          <VStack spacing="var(--body-gutter)">
             <LeaderList title="CR Leaders" leaders={leadersCR}/>
-            <SimpleGrid columns={3} spacing="var(--body-gutter)" w="100%">
+            <SimpleGrid minChildWidth='300px' spacing="var(--body-gutter)" w="100%">
                <Box>
                   <Column id="ci" title="CI Blocked" variant="ciBlocked" pulls={pullsCIBlocked}/>
                </Box>
