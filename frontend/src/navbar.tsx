@@ -2,6 +2,7 @@ import { FilterMenu } from './filter-menu';
 import { usePulls, useAllOpenPulls, useSetFilter } from './pulldasher/pulls-context';
 import { Pull } from './pull';
 import {
+   chakra,
    useColorMode,
    Button,
    HStack,
@@ -27,6 +28,8 @@ export function Navbar(props: BoxProps) {
    const setPullFilter = useSetFilter();
    const {toggleColorMode} = useColorMode();
    const [showCryo, setShowCryo] = useBoolUrlState('cryo', false);
+   const hideBelowMedium = ['none', 'none', 'block'];
+   const hideBelowLarge = ['none', 'none', 'none', 'block'];
 
    const toggleShowCryo = useCallback(() => setShowCryo(!showCryo), [showCryo]);
    useEffect(() => setPullFilter('cryo', showCryo ? null : isPullCryo), [showCryo]);
@@ -35,13 +38,14 @@ export function Navbar(props: BoxProps) {
       <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
          <Flex px="var(--body-gutter)" maxW="100%" w="var(--body-max-width)" gap="var(--body-gutter)" justify="space-between">
             <HStack alignSelf="center" flexGrow={1} flexBasis={sideWidth} spacing="2">
-               <Box p="0 15px 0 0" fontSize="16px">
+               <Box display={hideBelowLarge} p="1 15px 0 0" fontSize="16px">
                   <ConnectionStateIndicator/>
                </Box>
-               <span title={`Shown: ${pulls.size} Total: ${allOpenPulls.length}`}>
+               <chakra.span display={hideBelowLarge} title={`Shown: ${pulls.size} Total: ${allOpenPulls.length}`}>
                   open: {pulls.size}
-               </span>
+               </chakra.span>
                <Button
+                  display={hideBelowMedium}
                   size="sm"
                   title="Show pulls with label Cryogenic Storage"
                   colorScheme="blue"
@@ -50,6 +54,7 @@ export function Navbar(props: BoxProps) {
                   <FontAwesomeIcon icon={faSnowflake}/>
                </Button>
                <Button
+                  display={hideBelowMedium}
                   size="sm"
                   title="Dark Mode"
                   colorScheme="blue"
