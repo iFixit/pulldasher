@@ -24,6 +24,7 @@ export function useNotification<T>(
       const msg = message(unseen);
       if (Notification.permission === "granted") {
         new Notification(msg);
+        new Audio("/sounds/bell.mp3").play();
       }
     }
     const proposed = filtered.map(key);
