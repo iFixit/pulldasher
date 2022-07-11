@@ -1,6 +1,6 @@
 import { Pull } from '../pull';
 import { getSocket } from './socket';
-import { PullData, RepoSpec } from  '../types';
+import { PullData, RepoSpec, Signature, SignatureType, CommentSource } from  '../types';
 import { dummyPulls } from  '../utils';
 
 type PullUpdater = (pullDatas: PullData[], repoSpecs: RepoSpec[]) => void;
@@ -42,7 +42,42 @@ export function mockRefreshPull(pull: Pull) {
    // Pretend the pull is updated from the server-side a bit later.
    setTimeout(() => {
       if (pullsUpdatedHandler) {
-         pullsUpdatedHandler([pull], []);
+         const comment_id = 13371337
+         const isSynthComment = (sig: Signature) => sig.data.comment_id === comment_id
+         const sig = (type: SignatureType) => ({
+            data: {
+               repo: "iFixit/ifixit",
+               number: pull.number,
+               user: {
+                  id: 13455801,
+                  login: "danielbeardsley",
+               },
+               type,
+               created_at: "1970-11-16T20:06:15.000Z",
+               active: 1,
+               comment_id,
+               source_type: CommentSource.review,
+            },
+         });
+         const signed: PullData = {
+            ...pull,
+            status: {
+               ...pull.status,
+               allQA: [...pull.status.allQA, sig(SignatureType.QA)],
+               allCR: [...pull.status.allCR, sig(SignatureType.CR)],
+            },
+         };
+         const unsigned: PullData = {
+            ...pull,
+            status: {
+               ...pull.status,
+               allQA: pull.status.allQA.filter((sig) => !isSynthComment(sig)),
+               allCR: pull.status.allCR.filter((sig) => !isSynthComment(sig)),
+            },
+         };
+         const isFaked = pull.status.allQA.find(isSynthComment)
+         const updatedPull = new Pull(isFaked ? unsigned : signed);
+         pullsUpdatedHandler([updatedPull], []);
       }
    }, 2000);
 }
