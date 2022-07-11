@@ -2,6 +2,7 @@ import * as React from "react";
 import { Button } from "@chakra-ui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faBellSlash } from "@fortawesome/free-solid-svg-icons";
+import { isEqual } from "lodash-es";
 
 type KeyType = number | string;
 
@@ -25,7 +26,11 @@ export function useNotification<T>(
         new Notification(msg);
       }
     }
-    setSeen(filtered.map(key));
+    const proposed = filtered.map(key);
+
+    if (!isEqual(seen, proposed)) {
+      setSeen(proposed);
+    }
   });
 }
 
