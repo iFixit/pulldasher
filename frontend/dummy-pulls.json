@@ -1069,6 +1069,146 @@
   },
   {
     "repo": "iFixit/ifixit",
+    "number": 351011,
+    "state": "open",
+    "title": "Add migration to flip default 'release-gate-sso-approvals-signoffs' setting",
+    "body": "pull request dummy body",
+    "created_at": "2020-11-12T22:46:37.000Z",
+    "updated_at": "2020-11-19T17:20:17.000Z",
+    "closed_at": null,
+    "merged_at": null,
+    "difficulty": null,
+    "milestone": {
+      "title": "Dozuki - 12/01/2020",
+      "due_on": "2020-12-01T08:00:00.000Z"
+    },
+    "head": {
+      "ref": "sso--change-default-sso-approvals-signoffs-setting",
+      "sha": "ebe411f77d67f418b2bcfe59fc166218c9f76f24",
+      "repo": {
+        "owner": {
+          "login": "iFixit"
+        }
+      }
+    },
+    "base": {
+      "ref": "master"
+    },
+    "user": {
+      "login": "danielbeardsley"
+    },
+    "cr_req": 2,
+    "qa_req": 0,
+    "status": {
+      "qa_req": 0,
+      "cr_req": 2,
+      "QA": [],
+      "CR": [
+        {
+          "data": {
+            "repo": "iFixit/ifixit",
+            "number": 35103,
+            "user": {
+              "id": 13455801,
+              "login": "hackalot805"
+            },
+            "type": "CR",
+            "created_at": "2020-11-16T20:06:15.000Z",
+            "active": 1,
+            "comment_id": 728294783
+          }
+        },
+        {
+          "data": {
+            "repo": "iFixit/ifixit",
+            "number": 35103,
+            "user": {
+              "id": 5891146,
+              "login": "bcooper94"
+            },
+            "type": "CR",
+            "created_at": "2020-11-13T16:36:35.000Z",
+            "active": 1,
+            "comment_id": 726865047
+          }
+        }
+      ],
+      "allQA": [],
+      "allCR": [
+        {
+          "data": {
+            "repo": "iFixit/ifixit",
+            "number": 35103,
+            "user": {
+              "id": 13455801,
+              "login": "hackalot805"
+            },
+            "type": "CR",
+            "created_at": "2020-11-16T20:06:15.000Z",
+            "active": 1,
+            "comment_id": 728294783
+          }
+        },
+        {
+          "data": {
+            "repo": "iFixit/ifixit",
+            "number": 35103,
+            "user": {
+              "id": 5891146,
+              "login": "bcooper94"
+            },
+            "type": "CR",
+            "created_at": "2020-11-13T16:36:35.000Z",
+            "active": 1,
+            "comment_id": 726865047
+          }
+        }
+      ],
+      "dev_block": [],
+      "deploy_block": [],
+      "commit_statuses": [
+        {
+          "data": {
+            "sha": "ebe411f77d67f418b2bcfe59fc166218c9f76f24",
+            "target_url": "https://wwww.example.com",
+            "description": "Build success",
+            "state": "success",
+            "context": "jest"
+          }
+        },
+        {
+          "data": {
+            "sha": "ebe411f77d67f418b2bcfe59fc166218c9f76f24",
+            "target_url": "https://wwww.example.com",
+            "description": "Build success",
+            "state": "success",
+            "context": "phpunit"
+          }
+        },
+        {
+          "data": {
+            "sha": "ebe411f77d67f418b2bcfe59fc166218c9f76f24",
+            "target_url": "https://wwww.example.com",
+            "description": "Build success",
+            "state": "success",
+            "context": "psalm"
+          }
+        }
+      ],
+      "ready": false
+    },
+    "labels": [
+      {
+        "title": "squad-application",
+        "number": 35103,
+        "repo": "iFixit/ifixit",
+        "user": "raquelmsmith",
+        "created_at": "2020-11-13T22:56:45.000Z"
+      }
+    ]
+  },
+  {
+    "repo": "iFixit/ifixit",
     "number": 35129,
     "state": "open",
     "title": "Training Periods: Remove feature switch for training periods from the DB.",
