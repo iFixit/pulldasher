@@ -23,9 +23,9 @@ export function useNotification<T>(
       const msg = message(unseen);
       if (Notification.permission === "granted") {
         new Notification(msg);
-        setSeen(filtered.map(key));
       }
     }
+    setSeen(filtered.map(key));
   });
 }
 
