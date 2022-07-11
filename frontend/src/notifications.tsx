@@ -1,29 +1,32 @@
 import * as React from "react";
-import { Pull } from "./pull";
-import { getUser } from "./page-context";
 import { Button } from "@chakra-ui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBellExclamation } from "@fortawesome/free-solid-svg-icons";
+import { faBellSlash } from "@fortawesome/free-solid-svg-icons";
 
-type NotificationOptions = {
-  filter?: (pull: Pull) => boolean;
-  message: (pulls: Pull[], titles: string) => string;
+type KeyType = number | string;
+
+type NotificationOptions<T> = {
+  filter: (x: T) => boolean;
+  message: (xs: T[]) => string;
+  key: (x: T) => KeyType;
 };
 
-const defaults = {
-  filter: (pull: Pull) => pull.isMine() || pull.hasOutdatedSig(getUser()),
-};
-
-export function useNotification(pulls: Pull[], options: NotificationOptions) {
-  const { filter, message } = Object.assign({}, defaults, options);
-  const filtered = pulls.filter(filter);
+export function useNotification<T>(
+  xs: T[],
+  { filter, message, key }: NotificationOptions<T>
+) {
+  const [seen, setSeen] = React.useState<KeyType[]>([]);
+  const unseen = xs.filter((x) => !seen.includes(key(x)));
+  const filtered = unseen.filter(filter);
   React.useEffect(() => {
-    const titles = filtered.map((p) => p.title).join(", ");
-    const msg = message(filtered, titles);
-    if (Notification.permission === "granted") {
-      new Notification(msg);
+    if (filtered.length > 0) {
+      const msg = message(filtered);
+      if (Notification.permission === "granted") {
+        new Notification(msg);
+        setSeen((seen) => [...seen, ...filtered.map(key)]);
+      }
     }
-  }, [filtered]);
+  });
 }
 
 export function NotificationRequest() {
@@ -33,14 +36,13 @@ export function NotificationRequest() {
   if (Notification.permission === "default") {
     return (
       <Button
-        display={hideBelowMedium}
         size="sm"
-        title="Dark Mode"
+        title="Activate Notifications"
         colorScheme="blue"
         variant="ghost"
         onClick={activateNotifications}
       >
-        <FontAwesomeIcon icon={faBellExclamation} />
+        <FontAwesomeIcon icon={faBellSlash} />
       </Button>
     );
   }

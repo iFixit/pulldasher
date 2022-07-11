@@ -1,14 +1,18 @@
 import { useNotification } from "../notifications";
+import { getUser } from "../page-context";
+import { Pull } from "../pull";
 
-type Pulls = Parameters<typeof useNotification>[0];
-
-export function useNotifyReadyPull(pulls: Pulls) {
-  useNotification(pulls, {
-    message: (titles, pulls) => {
+export function usePullNotification(pulls: Pull[], action: string) {
+  useNotification<Pull>(pulls, {
+    key: (pull: Pull) => pull.number,
+    filter: (pull: Pull) => pull.isMine() || pull.hasOutdatedSig(getUser()),
+    message(pulls) {
+      const titles = pulls.map((p) => p.title).join(", ");
+      console.log(action, titles);
       if (pulls.length === 1) {
-        return "Pull ready: " + titles;
+        return `Pull ready for ${action}: ` + titles;
       }
-      return `Pulls ready: ${titles}`;
+      return `Pulls ready for ${action}: ${titles}`;
     },
   });
 }
