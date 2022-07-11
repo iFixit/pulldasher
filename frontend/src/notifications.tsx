@@ -16,14 +16,14 @@ export function useNotification<T>(
   { filter, message, key }: NotificationOptions<T>
 ) {
   const [seen, setSeen] = React.useState<KeyType[]>([]);
-  const unseen = xs.filter((x) => !seen.includes(key(x)));
-  const filtered = unseen.filter(filter);
+  const filtered = xs.filter(filter);
+  const unseen = filtered.filter((x) => !seen.includes(key(x)));
   React.useEffect(() => {
-    if (filtered.length > 0) {
-      const msg = message(filtered);
+    if (unseen.length > 0) {
+      const msg = message(unseen);
       if (Notification.permission === "granted") {
         new Notification(msg);
-        setSeen((seen) => [...seen, ...filtered.map(key)]);
+        setSeen(filtered.map(key));
       }
     }
   });
