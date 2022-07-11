@@ -14,6 +14,7 @@ import {
 } from "@chakra-ui/react";
 import { useRef, useEffect, useCallback } from "react";
 import { useBoolUrlState } from "./use-url-state";
+import { NotificationRequest } from "./notifications"
 import { useConnectionState, ConnectionState } from "./backend/socket";
 import { useHotkeys } from 'react-hotkeys-hook';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -62,6 +63,7 @@ export function Navbar(props: BoxProps) {
                   onClick={toggleColorMode}>
                   <FontAwesomeIcon icon={faMoon}/>
                </Button>
+               <NotificationRequest />
                <Box>
                   <FilterMenu urlParam="repo" buttonText="Repo" extractValueFromPull={(pull: Pull) => pull.getRepoName()}/>
                </Box>
