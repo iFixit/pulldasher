@@ -12,10 +12,8 @@ export function usePullNotification(
     filter,
     message(pulls) {
       const titles = pulls.map((p) => p.title).join(", ");
-      if (pulls.length === 1) {
-        return `Pull ready for ${action}: ` + titles;
-      }
-      return `Pulls ready for ${action}: ${titles}`;
+      const pull = pulls.length === 1 ? 'Pull' : 'Pulls'
+      return `${pull} ready for ${action}: ${titles}`;
     },
   });
 }
