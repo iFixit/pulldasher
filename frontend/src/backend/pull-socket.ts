@@ -2,6 +2,7 @@ import { Pull } from '../pull';
 import { getSocket } from './socket';
 import { PullData, RepoSpec } from  '../types';
 import { dummyPulls } from  '../utils';
+import { toggleSynthReview } from  './dummy-pulls';
 
 type PullUpdater = (pullDatas: PullData[], repoSpecs: RepoSpec[]) => void;
 let repoSpecs: RepoSpec[] = [];
@@ -42,7 +43,8 @@ export function mockRefreshPull(pull: Pull) {
    // Pretend the pull is updated from the server-side a bit later.
    setTimeout(() => {
       if (pullsUpdatedHandler) {
-         pullsUpdatedHandler([pull], []);
+         const updatedPull = toggleSynthReview(pull)
+         pullsUpdatedHandler([updatedPull], []);
       }
    }, 2000);
 }

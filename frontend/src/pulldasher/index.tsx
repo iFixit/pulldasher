@@ -3,6 +3,7 @@ import { Navbar } from '../navbar';
 import { Column } from '../column';
 import { QACompare } from './sort';
 import { LeaderList, getLeaders } from '../leader-list';
+import { useMyPullNotification, useMyReviewNotification } from "./notifications"
 import { Box, SimpleGrid, VStack } from "@chakra-ui/react"
 
 export const Pulldasher: React.FC = function() {
@@ -15,6 +16,8 @@ export const Pulldasher: React.FC = function() {
    const pullsNeedingCR = pulls.filter(pull => !pull.isCrDone() && !pull.getDevBlock());
    const pullsNeedingQA = pulls.filter(pull => !pull.isQaDone() && !pull.getDevBlock() && pull.hasPassedCI());
    const leadersCR = getLeaders(allPulls, (pull) => pull.status.allCR);
+   useMyPullNotification(pullsReady, 'merge');
+   useMyReviewNotification([...pullsNeedingCR, ...pullsNeedingQA], 're-review');
    return (<>
       <Navbar mb={4}/>
       <Box maxW="var(--body-max-width)" m="auto" px="var(--body-gutter)">
