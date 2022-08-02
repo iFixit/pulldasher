@@ -36,7 +36,7 @@ function Flags({pull}: {pull: Pull}) {
       {draftBlock && <PullFlag
          variant="draftBlock"
          title={"Draft"}
-         icon={faMinusCircle}
+         icon={faMinusSquare}
       />}
       {QAing && <PullFlag
          variant="QAing"
