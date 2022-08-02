@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS `pulls` (
   `state` enum('open','closed') COLLATE utf8mb4_general_ci NOT NULL,
   `title` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
   `body` text COLLATE utf8mb4_general_ci NOT NULL,
-  `draft` boolean,
+  `draft` boolean default false,
   `head_branch` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
   `head_sha` char(40) COLLATE utf8mb4_general_ci NOT NULL,
   `base_branch` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
