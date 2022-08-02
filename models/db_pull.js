@@ -12,7 +12,7 @@ function DBPull(pull) {
       state: pullData.state,
       title: pullData.title,
       body: pullData.body,
-      draft: pullData.draft,
+      draft: pullData.draft === 1,
       date: utils.toUnixTime(pullData.created_at),
       date_updated: utils.toUnixTime(pullData.updated_at),
       date_closed: utils.toUnixTime(pullData.closed_at),

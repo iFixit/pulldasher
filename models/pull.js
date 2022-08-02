@@ -221,7 +221,7 @@ Pull.getFromDB = function(data, signatures, comments, reviews, commitStatuses, l
       state: data.state,
       title: data.title,
       body: data.body,
-      draft: data.draft,
+      draft: data.draft === 1,
       created_at: utils.fromUnixTime(data.date),
       updated_at: utils.fromUnixTime(data.date_updated),
       closed_at: utils.fromUnixTime(data.date_closed),
