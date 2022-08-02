@@ -59,7 +59,11 @@ export class Pull extends PullData {
    }
 
    getDevBlock(): Signature | null {
-      return this.status.dev_block[0] || this.draft == true;
+      return this.status.dev_block[0];
+   }
+
+   isDraft(): boolean {
+      return this.draft;
    }
 
    /**
