@@ -31,6 +31,7 @@ function DBPull(pull) {
       additions: pullData.additions,
       deletions: pullData.deletions,
       changed_files: pullData.changed_files
+      // Testing...
    };
 }
 
