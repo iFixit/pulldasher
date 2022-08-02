@@ -62,6 +62,9 @@ export class Pull extends PullData {
       return this.status.dev_block[0];
    }
 
+   /**
+    * Returns true if the pull request is in a draft state
+    */
    isDraft(): boolean {
       return this.draft;
    }
