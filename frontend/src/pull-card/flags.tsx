@@ -4,7 +4,7 @@ import { Link, Box, useStyleConfig } from "@chakra-ui/react"
 import { memo } from "react"
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faWarning, faMinusCircle, faEye, faEyeSlash, faSnowflake, faMinusSquare } from '@fortawesome/free-solid-svg-icons'
+import { faWarning, faMinusCircle, faEye, faEyeSlash, faSnowflake, faPenToSquare } from '@fortawesome/free-solid-svg-icons'
 
 export const Flags = memo(
 function Flags({pull}: {pull: Pull}) {
@@ -36,7 +36,7 @@ function Flags({pull}: {pull: Pull}) {
       {draftBlock && <PullFlag
          variant="draftBlock"
          title={"Draft"}
-         icon={faMinusSquare}
+         icon={faPenToSquare}
       />}
       {QAing && <PullFlag
          variant="QAing"
