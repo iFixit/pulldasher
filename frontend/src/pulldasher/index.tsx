@@ -13,8 +13,8 @@ export const Pulldasher: React.FC = function() {
    const pullsDeployBlocked = pulls.filter(pull => pull.isDeployBlocked());
    const pullsReady = pulls.filter(pull => pull.isReady() && pull.isCiRequired());
    const pullsDevBlocked = pulls.filter(pull => pull.getDevBlock() || pull.isDraft());
-   const pullsNeedingCR = pulls.filter(pull => !pull.isCrDone() && !pull.getDevBlock());
-   const pullsNeedingQA = pulls.filter(pull => !pull.isQaDone() && !pull.getDevBlock() && pull.hasPassedCI());
+   const pullsNeedingCR = pulls.filter(pull => !pull.isCrDone() && !pull.getDevBlock() && !pull.isDraft()) ;
+   const pullsNeedingQA = pulls.filter(pull => !pull.isQaDone() && !pull.getDevBlock() && !pull.isDraft() && pull.hasPassedCI());
    const leadersCR = getLeaders(allPulls, (pull) => pull.status.allCR);
    useMyPullNotification(pullsReady, 'merge');
    useMyReviewNotification([...pullsNeedingCR, ...pullsNeedingQA], 're-review');
