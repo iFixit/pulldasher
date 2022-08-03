@@ -178,6 +178,11 @@ export const theme = extendTheme({
                backgroundColor: "var(--tag-dev-blocked-background)",
                borderColor: "var(--tag-dev-blocked-border)",
             },
+            draftBlock: {
+               color: "var(--tag-draft-blocked)",
+               backgroundColor: "var(--tag-draft-blocked-background)",
+               borderColor: "var(--tag-draft-blocked-border)",
+            },
             deployBlock: {
                color: "var(--tag-deploy-blocked)",
                backgroundColor: "var(--tag-deploy-blocked-background)",
