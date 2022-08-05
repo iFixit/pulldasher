@@ -1,0 +1,1 @@
+ALTER TABLE `pulls` ADD COLUMN `draft` BOOLEAN default false AFTER `body`; 

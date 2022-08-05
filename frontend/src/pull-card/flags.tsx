@@ -4,11 +4,12 @@ import { Link, Box, useStyleConfig } from "@chakra-ui/react"
 import { memo } from "react"
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faWarning, faMinusCircle, faEye, faEyeSlash, faSnowflake } from '@fortawesome/free-solid-svg-icons'
+import { faWarning, faMinusCircle, faEye, faEyeSlash, faSnowflake, faSpinner } from '@fortawesome/free-solid-svg-icons'
 
 export const Flags = memo(
 function Flags({pull}: {pull: Pull}) {
    const devBlock = pull.getDevBlock();
+   const draftBlock = pull.isDraft();
    const readyButNoCI = pull.isReady() && !pull.isCiRequired();
    const deployBlock = pull.getDeployBlock();
    const QAing = pull.getLabel("QAing");
@@ -31,6 +32,11 @@ function Flags({pull}: {pull: Pull}) {
          title={actionMessage('Dev blocked', devBlock.data.created_at, devBlock.data.user.login)}
          href={pull.linkToSignature(devBlock)}
          icon={faMinusCircle}
+      />}
+      {draftBlock && <PullFlag
+         variant="draftBlock"
+         title={"Draft"}
+         icon={faSpinner}
       />}
       {QAing && <PullFlag
          variant="QAing"

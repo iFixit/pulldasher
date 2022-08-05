@@ -63,6 +63,13 @@ export class Pull extends PullData {
    }
 
    /**
+    * Returns true if the pull request is in a draft state
+    */
+   isDraft(): boolean {
+      return this.draft;
+   }
+
+   /**
     * Returns true if the CI requirement has been met
     */
    hasPassedCI(): boolean {
