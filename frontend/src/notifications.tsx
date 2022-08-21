@@ -16,6 +16,9 @@ export function useNotification<T>(
   xs: T[],
   { filter, message, key }: NotificationOptions<T>
 ) {
+  if (!("Notification" in window)) {
+    return
+  }
   const [seen, setSeen] = React.useState<KeyType[]>([]);
   const filtered = xs.filter(filter);
   const unseen = filtered.filter((x) => !seen.includes(key(x)));
