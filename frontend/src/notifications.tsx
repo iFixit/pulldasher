@@ -45,7 +45,7 @@ export function NotificationRequest() {
     Notification.requestPermission();
   };
   if (!notificationsSupported) {
-    return
+    return null
   }
   if (Notification.permission === "default") {
     return (
