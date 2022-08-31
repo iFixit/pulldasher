@@ -18,7 +18,7 @@ import { NotificationRequest } from "./notifications"
 import { useConnectionState, ConnectionState } from "./backend/socket";
 import { useHotkeys } from 'react-hotkeys-hook';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faSnowflake, faMoon, faWifi, faCircleNotch, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
+import { faSnowflake, faMoon, faWifi, faCircleNotch, faXmark, faCircleExclamation, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 
 // Default width of the left and right sections of the nav bar
 const sideWidth = "220px";
