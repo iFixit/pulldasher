@@ -61,6 +61,15 @@ export function Navbar(props: BoxProps) {
                <Button
                   display={hideBelowMedium}
                   size="sm"
+                  title="Toggle display for externally blocked pull requests"
+                  colorScheme="blue"
+                  variant={showBlocked ? 'solid' : 'ghost'}
+                  onClick={toggleShowBlocked}>
+                  <FontAwesomeIcon icon={faEyeSlash}/>
+               </Button>
+               <Button
+                  display={hideBelowMedium}
+                  size="sm"
                   title="Dark Mode"
                   colorScheme="blue"
                   variant='ghost'
