@@ -29,11 +29,15 @@ export function Navbar(props: BoxProps) {
    const setPullFilter = useSetFilter();
    const {toggleColorMode} = useColorMode();
    const [showCryo, setShowCryo] = useBoolUrlState('cryo', false);
+   const [showBlocked, setShowBlocked] = useBoolUrlState('external_block', false);
    const hideBelowMedium = ['none', 'none', 'block'];
    const hideBelowLarge = ['none', 'none', 'none', 'block'];
 
    const toggleShowCryo = useCallback(() => setShowCryo(!showCryo), [showCryo]);
    useEffect(() => setPullFilter('cryo', showCryo ? null : isPullCryo), [showCryo]);
+
+   const toggleShowBlocked = useCallback(() => setShowBlocked(!showBlocked), [showBlocked]);
+   useEffect(() => setPullFilter('external_block', showBlocked ? null : isPullBlocked), [showBlocked]);
 
    return (
       <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
