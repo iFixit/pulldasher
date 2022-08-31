@@ -99,6 +99,10 @@ function isPullCryo(pull: Pull): boolean {
    return !pull.getLabel("Cryogenic Storage");
 }
 
+function isPullBlocked(pull: Pull): boolean {
+   return !pull.getLabel("external_block");
+}
+
 function SearchInput() {
    const setPullFilter = useSetFilter();
    const searchInputRef = useRef<HTMLInputElement>(null);
