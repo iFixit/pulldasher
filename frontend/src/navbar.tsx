@@ -29,7 +29,7 @@ export function Navbar(props: BoxProps) {
    const setPullFilter = useSetFilter();
    const {toggleColorMode} = useColorMode();
    const [showCryo, setShowCryo] = useBoolUrlState('cryo', false);
-   const [showBlocked, setShowBlocked] = useBoolUrlState('external_block', false);
+   const [showBlocked, setShowBlocked] = useBoolUrlState('external_block', true);
    const hideBelowMedium = ['none', 'none', 'block'];
    const hideBelowLarge = ['none', 'none', 'none', 'block'];
 
