@@ -29,15 +29,15 @@ export function Navbar(props: BoxProps) {
    const setPullFilter = useSetFilter();
    const {toggleColorMode} = useColorMode();
    const [showCryo, setShowCryo] = useBoolUrlState('cryo', false);
-   const [showBlocked, setShowBlocked] = useBoolUrlState('external_block', true);
+   const [showExtBlocked, setShowExtBlocked] = useBoolUrlState('external_block', true);
    const hideBelowMedium = ['none', 'none', 'block'];
    const hideBelowLarge = ['none', 'none', 'none', 'block'];
 
    const toggleShowCryo = useCallback(() => setShowCryo(!showCryo), [showCryo]);
    useEffect(() => setPullFilter('cryo', showCryo ? null : isPullCryo), [showCryo]);
 
-   const toggleShowBlocked = useCallback(() => setShowBlocked(!showBlocked), [showBlocked]);
-   useEffect(() => setPullFilter('external_block', showBlocked ? null : isPullBlocked), [showBlocked]);
+   const toggleShowExtBlocked = useCallback(() => setShowExtBlocked(!showExtBlocked), [showExtBlocked]);
+   useEffect(() => setPullFilter('external_block', showExtBlocked ? null : isPullExtBlocked), [showExtBlocked]);
 
    return (
       <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
@@ -63,8 +63,8 @@ export function Navbar(props: BoxProps) {
                   size="sm"
                   title="Toggle display for externally blocked pull requests"
                   colorScheme="blue"
-                  variant={showBlocked ? 'solid' : 'ghost'}
-                  onClick={toggleShowBlocked}>
+                  variant={showExtBlocked ? 'solid' : 'ghost'}
+                  onClick={toggleShowExtBlocked}>
                   <FontAwesomeIcon icon={faEyeSlash}/>
                </Button>
                <Button
@@ -99,7 +99,7 @@ function isPullCryo(pull: Pull): boolean {
    return !pull.getLabel("Cryogenic Storage");
 }
 
-function isPullBlocked(pull: Pull): boolean {
+function isPullExtBlocked(pull: Pull): boolean {
    return !pull.getLabel("external_block");
 }
 
