@@ -18,7 +18,7 @@ import { NotificationRequest } from "./notifications"
 import { useConnectionState, ConnectionState } from "./backend/socket";
 import { useHotkeys } from 'react-hotkeys-hook';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faSnowflake, faMoon, faWifi, faCircleNotch, faXmark, faCircleExclamation, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
+import { faSnowflake, faMoon, faWifi, faCircleNotch, faXmark, faCircleExclamation, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 
 // Default width of the left and right sections of the nav bar
 const sideWidth = "220px";
@@ -63,9 +63,9 @@ export function Navbar(props: BoxProps) {
                   size="sm"
                   title="Toggle display for externally blocked pull requests"
                   colorScheme="blue"
-                  variant='ghost'
+                  variant={showExtBlocked ? 'ghost' : 'solid'}
                   onClick={toggleShowExtBlocked}>
-                  <FontAwesomeIcon icon={showExtBlocked ? faEyeSlash : faEye}/>
+                  <FontAwesomeIcon icon={faEyeSlash}/>
                </Button>
                <Button
                   display={hideBelowMedium}
