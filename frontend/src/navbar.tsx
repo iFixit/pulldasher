@@ -11,6 +11,12 @@ import {
    Box,
    BoxProps,
    Input,
+   Menu,
+   MenuButton,
+   MenuList,
+   Checkbox,
+   CheckboxGroup,
+   Stack,
 } from "@chakra-ui/react";
 import { useRef, useEffect, useCallback } from "react";
 import { useBoolUrlState } from "./use-url-state";
@@ -18,7 +24,7 @@ import { NotificationRequest } from "./notifications"
 import { useConnectionState, ConnectionState } from "./backend/socket";
 import { useHotkeys } from 'react-hotkeys-hook';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faSnowflake, faMoon, faWifi, faCircleNotch, faXmark, faCircleExclamation, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
+import { faMoon, faWifi, faCircleNotch, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
 
 // Default width of the left and right sections of the nav bar
 const sideWidth = "220px";
@@ -52,30 +58,54 @@ export function Navbar(props: BoxProps) {
                <Button
                   display={hideBelowMedium}
                   size="sm"
-                  title="Show pulls with label Cryogenic Storage"
-                  colorScheme="blue"
-                  variant={showCryo ? 'solid' : 'ghost'}
-                  onClick={toggleShowCryo}>
-                  <FontAwesomeIcon icon={faSnowflake}/>
-               </Button>
-               <Button
-                  display={hideBelowMedium}
-                  size="sm"
-                  title="Toggle display for externally blocked pull requests"
-                  colorScheme="blue"
-                  variant={showExtBlocked ? 'ghost' : 'solid'}
-                  onClick={toggleShowExtBlocked}>
-                  <FontAwesomeIcon icon={faEyeSlash}/>
-               </Button>
-               <Button
-                  display={hideBelowMedium}
-                  size="sm"
                   title="Dark Mode"
                   colorScheme="blue"
                   variant='ghost'
                   onClick={toggleColorMode}>
                   <FontAwesomeIcon icon={faMoon}/>
                </Button>
+               <Menu closeOnSelect={false}>
+                  <MenuButton
+                     as={Button}
+                     height="32px"
+                     textColor={"blue.600"}
+                     borderRadius='md'
+                     borderWidth='1px'
+                     borderColor="blue.600"
+                     fontSize="sm"
+                     rounded={'full'}
+                     background={'transparent'}>
+                     Label
+                  </MenuButton>
+                  <MenuList>
+                     <CheckboxGroup defaultValue={['external_block']}>
+                        <Stack marginTop='10px' marginBottom='10px' spacing={[1, 5]} direction={['column']}>
+                           <Checkbox value='cryo'
+                              paddingLeft="12px"
+                              spacing="12px"
+                              height="12px"
+                              onChange={toggleShowCryo}
+                              colorScheme='transparent'
+                              borderColor='transparent'
+                              iconColor="#555555"
+                              size="sm">
+                              Cryogenic Storage
+                           </Checkbox>
+                           <Checkbox value='external_block'
+                              paddingLeft="12px"
+                              spacing="12px"
+                              height="12px"
+                              onChange={toggleShowExtBlocked}
+                              colorScheme='transparent'
+                              borderColor='transparent'
+                              iconColor="#555555"
+                              size="sm">
+                              External Block
+                           </Checkbox>
+                        </Stack>
+                     </CheckboxGroup>
+                  </MenuList>
+               </Menu>
                <NotificationRequest />
                <Box>
                   <FilterMenu urlParam="repo" buttonText="Repo" extractValueFromPull={(pull: Pull) => pull.getRepoName()}/>
