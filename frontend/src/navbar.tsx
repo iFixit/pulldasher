@@ -40,10 +40,10 @@ export function Navbar(props: BoxProps) {
    const hideBelowLarge = ['none', 'none', 'none', 'block'];
 
    const toggleShowCryo = useCallback(() => setShowCryo(!showCryo), [showCryo]);
-   useEffect(() => setPullFilter('cryo', showCryo ? null : isPullCryo), [showCryo]);
+   useEffect(() => setPullFilter('cryo', showCryo ? null : isNotCryogenic), [showCryo]);
 
    const toggleShowExtBlocked = useCallback(() => setShowExtBlocked(!showExtBlocked), [showExtBlocked]);
-   useEffect(() => setPullFilter('external_block', showExtBlocked ? null : isPullExtBlocked), [showExtBlocked]);
+   useEffect(() => setPullFilter('external_block', showExtBlocked ? null : isNotExternallyBlocked), [showExtBlocked]);
 
    return (
       <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
@@ -125,11 +125,11 @@ export function Navbar(props: BoxProps) {
    );
 }
 
-function isPullCryo(pull: Pull): boolean {
+function isNotCryogenic(pull: Pull): boolean {
    return !pull.getLabel("Cryogenic Storage");
 }
 
-function isPullExtBlocked(pull: Pull): boolean {
+function isNotExternallyBlocked(pull: Pull): boolean {
    return !pull.getLabel("external_block");
 }
 
