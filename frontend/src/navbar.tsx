@@ -73,36 +73,43 @@ export function Navbar(props: BoxProps) {
                      borderWidth='1px'
                      borderColor="blue.600"
                      fontSize="sm"
-                     rounded={'full'}
+                     rounded={'md'}
                      background={'transparent'}>
                      Label
                   </MenuButton>
                   <MenuList>
                      <CheckboxGroup defaultValue={['external_block']}>
-                        <Stack marginTop='10px' marginBottom='10px' spacing={[1, 5]} direction={['column']}>
-                           <Checkbox value='cryo'
-                              paddingLeft="12px"
-                              spacing="12px"
-                              height="12px"
-                              onChange={toggleShowCryo}
-                              colorScheme='transparent'
-                              borderColor='transparent'
-                              iconColor="#555555"
-                              size="sm">
-                              Cryogenic Storage
-                           </Checkbox>
-                           <Checkbox value='external_block'
-                              paddingLeft="12px"
-                              spacing="12px"
-                              height="12px"
-                              onChange={toggleShowExtBlocked}
-                              colorScheme='transparent'
-                              borderColor='transparent'
-                              iconColor="#555555"
-                              size="sm">
-                              External Block
-                           </Checkbox>
-                        </Stack>
+                        <Flex direction={['column']}>
+                           <Box _hover={{ bgColor: "gray.100" }} height="34px">
+                              <Checkbox value='cryo'
+                                 paddingLeft="12px"
+                                 spacing="12px"
+                                 height="12px"
+                                 onChange={toggleShowCryo}
+                                 colorScheme='transparent'
+                                 borderColor='transparent'
+                                 iconColor="#555555"
+                                 marginTop={'10px'}
+                                 size="sm">
+                                 Cryogenic Storage
+                              </Checkbox>
+                           </Box>
+                           <Box _hover={{ bgColor: "gray.100" }} height="34px">
+                              <Checkbox value='external_block'
+                                 paddingLeft="12px"
+                                 paddingBottom="10px"
+                                 paddingTop="16px"
+                                 spacing="12px"
+                                 height="12px"
+                                 onChange={toggleShowExtBlocked}
+                                 colorScheme='transparent'
+                                 borderColor='transparent'
+                                 iconColor="#555555"
+                                 size="sm">
+                                 External Block
+                              </Checkbox>
+                           </Box>
+                        </Flex>
                      </CheckboxGroup>
                   </MenuList>
                </Menu>
