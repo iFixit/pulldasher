@@ -16,7 +16,6 @@ import {
    MenuList,
    Checkbox,
    CheckboxGroup,
-   Stack,
 } from "@chakra-ui/react";
 import { useRef, useEffect, useCallback } from "react";
 import { useBoolUrlState } from "./use-url-state";
