@@ -13,9 +13,8 @@ import {
    Input,
    Menu,
    MenuButton,
+   MenuItemOption,
    MenuList,
-   Checkbox,
-   CheckboxGroup,
 } from "@chakra-ui/react";
 import { useRef, useEffect, useCallback } from "react";
 import { useBoolUrlState } from "./use-url-state";
@@ -66,50 +65,24 @@ export function Navbar(props: BoxProps) {
                <Menu closeOnSelect={false}>
                   <MenuButton
                      as={Button}
-                     height="32px"
-                     textColor={"blue.600"}
-                     borderRadius='md'
-                     borderWidth='1px'
-                     borderColor="blue.600"
-                     fontSize="sm"
-                     rounded={'md'}
-                     background={'transparent'}>
+                     colorScheme='blue'
+                     size='sm'
+                     variant='outline'>
                      Label
                   </MenuButton>
                   <MenuList>
-                     <CheckboxGroup defaultValue={['external_block']}>
-                        <Flex direction={['column']}>
-                           <Box _hover={{ bgColor: "gray.100" }} height="34px">
-                              <Checkbox value='cryo'
-                                 paddingLeft="12px"
-                                 spacing="12px"
-                                 height="12px"
-                                 onChange={toggleShowCryo}
-                                 colorScheme='transparent'
-                                 borderColor='transparent'
-                                 iconColor="#555555"
-                                 marginTop={'10px'}
-                                 size="sm">
-                                 Cryogenic Storage
-                              </Checkbox>
-                           </Box>
-                           <Box _hover={{ bgColor: "gray.100" }} height="34px">
-                              <Checkbox value='external_block'
-                                 paddingLeft="12px"
-                                 paddingBottom="10px"
-                                 paddingTop="16px"
-                                 spacing="12px"
-                                 height="12px"
-                                 onChange={toggleShowExtBlocked}
-                                 colorScheme='transparent'
-                                 borderColor='transparent'
-                                 iconColor="#555555"
-                                 size="sm">
-                                 External Block
-                              </Checkbox>
-                           </Box>
-                        </Flex>
-                     </CheckboxGroup>
+                     <MenuItemOption
+                         key="Cryo"
+                         onClick={toggleShowCryo}
+                         isChecked={showCryo}>
+                        Cryogenic Storage
+                     </MenuItemOption>
+                     <MenuItemOption
+                         key="External"
+                         onClick={toggleShowExtBlocked}
+                         isChecked={showExtBlocked}>
+                        External Block
+                     </MenuItemOption>
                   </MenuList>
                </Menu>
                <NotificationRequest />
