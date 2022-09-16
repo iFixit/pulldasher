@@ -11,6 +11,10 @@ import {
    Box,
    BoxProps,
    Input,
+   Menu,
+   MenuButton,
+   MenuItemOption,
+   MenuList,
 } from "@chakra-ui/react";
 import { useRef, useEffect, useCallback } from "react";
 import { useBoolUrlState } from "./use-url-state";
@@ -18,7 +22,7 @@ import { NotificationRequest } from "./notifications"
 import { useConnectionState, ConnectionState } from "./backend/socket";
 import { useHotkeys } from 'react-hotkeys-hook';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faSnowflake, faMoon, faWifi, faCircleNotch, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
+import { faMoon, faWifi, faCircleNotch, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
 
 // Default width of the left and right sections of the nav bar
 const sideWidth = "220px";
@@ -29,11 +33,15 @@ export function Navbar(props: BoxProps) {
    const setPullFilter = useSetFilter();
    const {toggleColorMode} = useColorMode();
    const [showCryo, setShowCryo] = useBoolUrlState('cryo', false);
+   const [showExtBlocked, setShowExtBlocked] = useBoolUrlState('external_block', true);
    const hideBelowMedium = ['none', 'none', 'block'];
    const hideBelowLarge = ['none', 'none', 'none', 'block'];
 
    const toggleShowCryo = useCallback(() => setShowCryo(!showCryo), [showCryo]);
-   useEffect(() => setPullFilter('cryo', showCryo ? null : isPullCryo), [showCryo]);
+   useEffect(() => setPullFilter('cryo', showCryo ? null : isNotCryogenic), [showCryo]);
+
+   const toggleShowExtBlocked = useCallback(() => setShowExtBlocked(!showExtBlocked), [showExtBlocked]);
+   useEffect(() => setPullFilter('external_block', showExtBlocked ? null : isNotExternallyBlocked), [showExtBlocked]);
 
    return (
       <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
@@ -48,21 +56,35 @@ export function Navbar(props: BoxProps) {
                <Button
                   display={hideBelowMedium}
                   size="sm"
-                  title="Show pulls with label Cryogenic Storage"
-                  colorScheme="blue"
-                  variant={showCryo ? 'solid' : 'ghost'}
-                  onClick={toggleShowCryo}>
-                  <FontAwesomeIcon icon={faSnowflake}/>
-               </Button>
-               <Button
-                  display={hideBelowMedium}
-                  size="sm"
                   title="Dark Mode"
                   colorScheme="blue"
                   variant='ghost'
                   onClick={toggleColorMode}>
                   <FontAwesomeIcon icon={faMoon}/>
                </Button>
+               <Menu closeOnSelect={false}>
+                  <MenuButton
+                     as={Button}
+                     colorScheme='blue'
+                     size='sm'
+                     variant='outline'>
+                     Label
+                  </MenuButton>
+                  <MenuList>
+                     <MenuItemOption
+                         key="Cryo"
+                         onClick={toggleShowCryo}
+                         isChecked={showCryo}>
+                        Cryogenic Storage
+                     </MenuItemOption>
+                     <MenuItemOption
+                         key="External"
+                         onClick={toggleShowExtBlocked}
+                         isChecked={showExtBlocked}>
+                        External Block
+                     </MenuItemOption>
+                  </MenuList>
+               </Menu>
                <NotificationRequest />
                <Box>
                   <FilterMenu urlParam="repo" buttonText="Repo" extractValueFromPull={(pull: Pull) => pull.getRepoName()}/>
@@ -82,8 +104,12 @@ export function Navbar(props: BoxProps) {
    );
 }
 
-function isPullCryo(pull: Pull): boolean {
+function isNotCryogenic(pull: Pull): boolean {
    return !pull.getLabel("Cryogenic Storage");
+}
+
+function isNotExternallyBlocked(pull: Pull): boolean {
+   return !pull.getLabel("external_block");
 }
 
 function SearchInput() {
