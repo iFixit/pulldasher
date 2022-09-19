@@ -80,54 +80,31 @@ Signature.parseReview = function parseReview(review, repoFullName, pullNumber) {
 };
 
 function parseReviewSignature(data) {
-   let signatures = [];
+   let signatureData = {
+      repo: data.repo,
+      number: data.number,
+      user: {
+         id:    getUserid(data.user),
+         login: getLogin(data.user)
+      },
+      created_at: data.created_at,
+      comment_id: data.id
+   };
 
    if (data.state === 'APPROVED') {
-      signatures.push(new Signature({
-         repo: data.repo,
-         number: data.number,
-         user: {
-            id:    getUserid(data.user),
-            login: getLogin(data.user)
-         },
-         type: 'CR',
-         created_at: data.created_at,
-         active: true,
-         comment_id: data.id
-      }));
+      signatureData.active = true;
+      signatureData.type = 'CR';
+   } else if (data.state === 'DISMISSED' || data.state === 'PENDING') {
+      signatureData.active = false;
+      signatureData.type = 'CR';
+   } else if (data.state === 'CHANGES_REQUESTED') {
+      signatureData.active = true;
+      signatureData.type = 'dev_block';
+   } else {
+      return [];
    }
 
-   if (data.state === 'DISMISSED' || data.state === 'PENDING') {
-      signatures.push(new Signature({
-         repo: data.repo,
-         number: data.number,
-         user: {
-            id:    getUserid(data.user),
-            login: getLogin(data.user)
-         },
-         type: 'CR',
-         created_at: data.created_at,
-         active: false,
-         comment_id: data.id
-      }));
-   }
-
-   if (data.state === 'CHANGES_REQUESTED') {
-      signatures.push(new Signature({
-         repo: data.repo,
-         number: data.number,
-         user: {
-            id:    getUserid(data.user),
-            login: getLogin(data.user)
-         },
-         type: 'dev_block',
-         created_at: data.created_at,
-         active: true,
-         comment_id: data.id
-      }));
-   }
-
-   return signatures;
+   return [new Signature(signatureData)];
 }
 
 /**
