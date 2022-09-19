@@ -35,28 +35,11 @@ Signature.parseComment = function parseComment(comment, repoFullName, pullNumber
       id: comment.id
    }
 
-   return parseSignatures(commentData);
+   return parseCommentSignatures(commentData);
 };
 
-/**
- * Parses a GitHub review and returns an array of Signature objects.
- * Returns an empty array if the comment did not contain any of our tags.
- */
-Signature.parseReview = function parseReview(review, repoFullName, pullNumber) {
-   const reviewData = {
-      repo: repoFullName,
-      number: pullNumber,
-      body: review.body,
-      user: review.user,
-      created_at: review.submitted_at,
-      id: review.id
-   }
-
-   return parseSignatures(reviewData);
-};
-
-function parseSignatures(data) {
-	let signatures = [];
+function parseCommentSignatures(data) {
+   let signatures = [];
 
    config.tags.forEach(function(tag) {
       if (hasTag(data.body, tag)) {
@@ -74,6 +57,75 @@ function parseSignatures(data) {
          }));
       }
    });
+
+   return signatures;
+}
+
+/**
+ * Parses a GitHub review and returns an array of Signature objects.
+ * Returns an empty array if the comment did not contain any of our tags.
+ */
+Signature.parseReview = function parseReview(review, repoFullName, pullNumber) {
+   const reviewData = {
+      repo: repoFullName,
+      number: pullNumber,
+      body: review.body,
+      user: review.user,
+      created_at: review.submitted_at,
+      id: review.id,
+      state: review.state
+   }
+
+   return parseReviewSignature(reviewData);
+};
+
+function parseReviewSignature(data) {
+   let signatures = [];
+
+   if (data.state === 'APPROVED') {
+      signatures.push(new Signature({
+         repo: data.repo,
+         number: data.number,
+         user: {
+            id:    getUserid(data.user),
+            login: getLogin(data.user)
+         },
+         type: 'CR',
+         created_at: data.created_at,
+         active: true,
+         comment_id: data.id
+      }));
+   };
+
+   if (data.state === 'DISMISSED' || data.state === 'PENDING') {
+      signatures.push(new Signature({
+         repo: data.repo,
+         number: data.number,
+         user: {
+            id:    getUserid(data.user),
+            login: getLogin(data.user)
+         },
+         type: 'CR',
+         created_at: data.created_at,
+         active: false,
+         comment_id: data.id
+      }));
+   }
+
+   if (data.state === 'CHANGES_REQUESTED') {
+      signatures.push(new Signature({
+         repo: data.repo,
+         number: data.number,
+         user: {
+            id:    getUserid(data.user),
+            login: getLogin(data.user)
+         },
+         type: 'dev_block',
+         created_at: data.created_at,
+         active: true,
+         comment_id: data.id
+      }));
+   }
 
    return signatures;
 }
