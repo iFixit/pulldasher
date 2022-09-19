@@ -95,7 +95,7 @@ function parseReviewSignature(data) {
          active: true,
          comment_id: data.id
       }));
-   };
+   }
 
    if (data.state === 'DISMISSED' || data.state === 'PENDING') {
       signatures.push(new Signature({
