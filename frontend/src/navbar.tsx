@@ -62,6 +62,7 @@ export function Navbar(props: BoxProps) {
                   onClick={toggleColorMode}>
                   <FontAwesomeIcon icon={faMoon}/>
                </Button>
+               <NotificationRequest />
                <Menu closeOnSelect={false}>
                   <MenuButton
                      as={Button}
@@ -85,7 +86,6 @@ export function Navbar(props: BoxProps) {
                      </MenuItemOption>
                   </MenuList>
                </Menu>
-               <NotificationRequest />
                <Box>
                   <FilterMenu urlParam="repo" buttonText="Repo" extractValueFromPull={(pull: Pull) => pull.getRepoName()}/>
                </Box>
