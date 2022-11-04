@@ -155,6 +155,10 @@ Pull.prototype.getStatus = function getStatus() {
 Pull.parseBody = function(body) {
    var bodyTags = [];
 
+   if (!body) {
+      return [];
+   }
+
    config.body_tags.forEach(function(tag) {
       var matches = body.match(tag.regex);
 
