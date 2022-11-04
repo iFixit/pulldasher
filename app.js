@@ -16,6 +16,7 @@ var config = require('./lib/config-loader'),
 
 var app = express();
 var httpServer = require('http').createServer(app);
+const maxPostSize = 1024*1024;
 
 app.set('view engine', 'html');
 
@@ -23,8 +24,8 @@ app.set('view engine', 'html');
  * Middleware
  */
 app.use("/public", express.static(__dirname + '/public'));
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ limit: maxPostSize, extended: false }));
+app.use(bodyParser.json({limit: maxPostSize}));
 app.use(expressSession({
    secret: config.session.secret,
    resave: false,
