@@ -1,5 +1,5 @@
 import { FilterMenu } from './filter-menu';
-import { usePulls, useAllOpenPulls, useSetFilter } from './pulldasher/pulls-context';
+import { usePulls, useAllOpenPulls, useAllPulls, useSetFilter } from './pulldasher/pulls-context';
 import { Pull } from './pull';
 import {
    chakra,
@@ -30,6 +30,7 @@ const sideWidth = "220px";
 export function Navbar(props: BoxProps) {
    const pulls: Set<Pull> = usePulls();
    const allOpenPulls: Pull[] = useAllOpenPulls();
+   const mergedPulls: Pull[] = Array.from(useAllPulls()).filter(pull => pull.merged_at);
    const setPullFilter = useSetFilter();
    const {toggleColorMode} = useColorMode();
    const [showCryo, setShowCryo] = useBoolUrlState('cryo', false);

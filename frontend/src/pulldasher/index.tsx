@@ -1,10 +1,12 @@
 import { useAllPulls, useAllOpenPulls } from './pulls-context';
+import { Pull } from '../pull';
 import { Navbar } from '../navbar';
 import { Column } from '../column';
 import { QACompare } from './sort';
 import { LeaderList, getLeaders } from '../leader-list';
 import { useMyPullNotification, useMyReviewNotification } from "./notifications"
-import { Box, SimpleGrid, VStack } from "@chakra-ui/react"
+import { useStyleConfig, Drawer, DrawerContent, Box, SimpleGrid, VStack } from "@chakra-ui/react"
+import { ClosedPullCard } from "../pull-card";
 
 export const Pulldasher: React.FC = function() {
    const allPulls = useAllPulls();
@@ -44,6 +46,26 @@ export const Pulldasher: React.FC = function() {
                </Box>
             </SimpleGrid>
          </VStack>
+         <ClosedPulls/>
       </Box>
    </>);
+}
+
+function ClosedPulls() {
+   const closedPulls: Pull[] = Array.from(useAllPulls()).filter(pull => pull.closed_at);
+   const styles = useStyleConfig('Column', {variant: "closed"});
+   return (
+      <Drawer placement="right" isOpen={true} onClose={() => 0}>
+         <DrawerContent>
+            <Box __css={styles}>
+               <Box className="column_header">
+                  <Box p={3} pl={4}>Recently Closed Pulls</Box>
+               </Box>
+               {closedPulls.map(pull =>
+                  <ClosedPullCard key={Math.random()} pull={pull} show={true}/>
+               )}
+            </Box>
+         </DrawerContent>
+      </Drawer>
+   );
 }

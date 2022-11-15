@@ -5,11 +5,11 @@ import { Flags } from './flags';
 import { Avatar } from './avatar';
 import { Signatures } from './signatures';
 import { CopyBranch } from './copy-branch';
-import { memo, useEffect, useRef, RefObject } from "react";
+import { memo,  useEffect, useRef, RefObject } from "react";
 import { RefreshButton } from './refresh';
 import { Flex, Box, Link, chakra } from "@chakra-ui/react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faStar } from '@fortawesome/free-solid-svg-icons'
+import { faStar, faCodeMerge, faXmark } from '@fortawesome/free-solid-svg-icons'
 
 const Card = chakra(Flex, {
    baseStyle: {
@@ -87,6 +87,49 @@ function PullCard({pull, show}: {pull: Pull, show: boolean}) {
       </Card>
    );
 });
+
+export const ClosedPullCard = memo(
+function ClosedPullCard({pull, show}: {pull: Pull, show: boolean}) {
+   const wasMerged = !!pull.merged_at;
+   return (
+      <Card display={show ? undefined : "none"}>
+         <RefreshButton pull={pull}/>
+         <Box>
+            <Box mt={-2} ml={-2} mb={2}>
+               <chakra.span pr={2}>
+                  {wasMerged ?
+                     <FontAwesomeIcon icon={faCodeMerge} size="lg" color="var(--pull-merged)"/> :
+                     <FontAwesomeIcon icon={faXmark} color="var(--pull-closed)"/>
+                  }
+               </chakra.span>
+               <chakra.span color="var(--pull-title)">
+                  {formatDate(pull.closed_at)}
+               </chakra.span>
+            </Box>
+            <Link href={pull.getUrl()}
+               title={pull.user.login}
+               isExternal
+               textDecoration={wasMerged ? "none" : "line-through"}
+               color="var(--pull-title)">
+               {pull.isMine() ?
+               <FontAwesomeIcon icon={faStar} className="star" color="var(--user-icon)"/> :
+               <Avatar user={pull.user.login} linkToProfile/>}
+               <chakra.span fontWeight="bold">{pull.getRepoName()} #{pull.number}: </chakra.span>
+               {pull.title}
+            </Link>
+         </Box>
+      </Card>
+   );
+});
+
+const formatter = new Intl.DateTimeFormat(undefined, {
+   dateStyle: "short",
+   timeStyle: "short",
+});
+
+const formatDate = (dateStr: string|null) => {
+   return dateStr ? formatter.format(new Date(dateStr)) : null;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function highlightOnChange(ref: RefObject<HTMLElement>, dependencies: Array<any>) {
