@@ -71,6 +71,7 @@ export const theme = extendTheme({
             },
             "closed": {
                borderRadius: 0,
+               backgroundColor: "var(--background-color)",
             }
          }
       },

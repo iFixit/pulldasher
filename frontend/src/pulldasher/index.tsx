@@ -5,8 +5,9 @@ import { Column } from '../column';
 import { QACompare } from './sort';
 import { LeaderList, getLeaders } from '../leader-list';
 import { useMyPullNotification, useMyReviewNotification } from "./notifications"
-import { useStyleConfig, Drawer, DrawerContent, Box, SimpleGrid, VStack } from "@chakra-ui/react"
+import { useStyleConfig, Flex, Spacer, Box, SimpleGrid, VStack } from "@chakra-ui/react"
 import { ClosedPullCard } from "../pull-card";
+import { useBoolUrlState } from "../use-url-state";
 
 export const Pulldasher: React.FC = function() {
    const allPulls = useAllPulls();
@@ -18,10 +19,12 @@ export const Pulldasher: React.FC = function() {
    const pullsNeedingCR = pulls.filter(pull => !pull.isCrDone() && !pull.getDevBlock() && !pull.isDraft());
    const pullsNeedingQA = pulls.filter(pull => !pull.isQaDone() && !pull.getDevBlock() && !pull.isDraft() && pull.hasPassedCI());
    const leadersCR = getLeaders(allPulls, (pull) => pull.status.allCR);
+   const [showClosedPulls, setShowClosedPulls] = useBoolUrlState("closed", false);
+   const toggleShowClosedPulls = () => setShowClosedPulls(!showClosedPulls);
    useMyPullNotification(pullsReady, 'merge');
    useMyReviewNotification([...pullsNeedingCR, ...pullsNeedingQA], 're-review');
    return (<>
-      <Navbar mb={4}/>
+      <Navbar mb={4} toggleShowClosedPulls={toggleShowClosedPulls} showClosedPulls={showClosedPulls}/>
       <Box maxW="var(--body-max-width)" m="auto" px="var(--body-gutter)">
          <VStack spacing="var(--body-gutter)">
             <LeaderList title="CR Leaders" leaders={leadersCR}/>
@@ -46,26 +49,24 @@ export const Pulldasher: React.FC = function() {
                </Box>
             </SimpleGrid>
          </VStack>
-         <ClosedPulls/>
+         {showClosedPulls && <ClosedPulls onClickClose={() => setShowClosedPulls(false)}/>}
       </Box>
    </>);
 }
 
-function ClosedPulls() {
+function ClosedPulls({onClickClose}: {onClickClose: () => void}) {
    const closedPulls: Pull[] = Array.from(useAllPulls()).filter(pull => pull.closed_at);
    const styles = useStyleConfig('Column', {variant: "closed"});
    return (
-      <Drawer placement="right" isOpen={true} onClose={() => 0}>
-         <DrawerContent>
-            <Box __css={styles}>
-               <Box className="column_header">
-                  <Box p={3} pl={4}>Recently Closed Pulls</Box>
-               </Box>
-               {closedPulls.map(pull =>
-                  <ClosedPullCard key={Math.random()} pull={pull} show={true}/>
-               )}
-            </Box>
-         </DrawerContent>
-      </Drawer>
+      <Box __css={styles} position="absolute" right="0" top="70" bottom="0" width="300px" boxShadow="0px 0px 10px 0px #00000020">
+         <Flex className="column_header" onClick={onClickClose}>
+            <Box p={3} pl={4}>Recently Closed Pulls</Box>
+            <Spacer/>
+            <Box className="pull_count" p={3}>{closedPulls.length}</Box>
+         </Flex>
+         {closedPulls.map(pull =>
+            <ClosedPullCard key={Math.random()} pull={pull} show={true}/>
+         )}
+      </Box>
    );
 }

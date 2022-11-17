@@ -22,12 +22,18 @@ import { NotificationRequest } from "./notifications"
 import { useConnectionState, ConnectionState } from "./backend/socket";
 import { useHotkeys } from 'react-hotkeys-hook';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faMoon, faWifi, faCircleNotch, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
+import { faMoon, faCodeMerge, faWifi, faCircleNotch, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
 
 // Default width of the left and right sections of the nav bar
 const sideWidth = "220px";
 
-export function Navbar(props: BoxProps) {
+type NavBarProps = BoxProps & {
+   toggleShowClosedPulls: () => void;
+   showClosedPulls: boolean;
+}
+
+export function Navbar(props: NavBarProps) {
+   const {toggleShowClosedPulls, showClosedPulls, ...boxProps} = props;
    const pulls: Set<Pull> = usePulls();
    const allOpenPulls: Pull[] = useAllOpenPulls();
    const mergedPulls: Pull[] = Array.from(useAllPulls()).filter(pull => pull.merged_at);
@@ -45,7 +51,7 @@ export function Navbar(props: BoxProps) {
    useEffect(() => setPullFilter('external_block', showExtBlocked ? null : isNotExternallyBlocked), [showExtBlocked]);
 
    return (
-      <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
+      <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...boxProps}>
          <Flex px="var(--body-gutter)" maxW="100%" w="var(--body-max-width)" gap="var(--body-gutter)" justify="space-between">
             <HStack alignSelf="center" flexGrow={1} flexBasis={sideWidth} spacing="2">
                <Box display={hideBelowLarge} p="1 15px 0 0" fontSize="16px">
@@ -62,6 +68,15 @@ export function Navbar(props: BoxProps) {
                   variant='ghost'
                   onClick={toggleColorMode}>
                   <FontAwesomeIcon icon={faMoon}/>
+               </Button>
+               <Button
+                  display={hideBelowMedium}
+                  size="sm"
+                  title="Show Recently Merged"
+                  colorScheme="blue"
+                  variant={showClosedPulls ? 'solid' : 'ghost'}
+                  onClick={toggleShowClosedPulls}>
+                  <FontAwesomeIcon icon={faCodeMerge}/>
                </Button>
                <NotificationRequest />
                <Menu closeOnSelect={false}>
