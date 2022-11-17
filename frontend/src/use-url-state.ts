@@ -75,14 +75,17 @@ function urlToStateObject(url: URL): HistoryState {
 /**
  * Just like useUrlState(), but typed for storing a boolean
  */
-export function useBoolUrlState(paramName: string, paramDefault: boolean): [boolean, (state: boolean|null) => void] {
+export function useBoolUrlState(paramName: string, paramDefault: boolean): [boolean, () => void] {
    const [state, setState] = useUrlState(paramName, paramDefault ? '1' : '0');
 
-   const setBoolState = useCallback((newState: boolean) => {
-      setState(newState ? '1' : '0');
-   }, []);
+   const toggleBoolState = useCallback(() => {
+      const newState = state == '0' ? '1' : '0';
+      console.log(`Toggling ${paramName} from ${state} to ${newState}`);
+      setState(newState)
+   }
+   , [state]);
 
-   return [state === '1', setBoolState];
+   return [state === '1', toggleBoolState];
 }
 
 /**

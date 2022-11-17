@@ -39,15 +39,12 @@ export function Navbar(props: NavBarProps) {
    const mergedPulls: Pull[] = Array.from(useAllPulls()).filter(pull => pull.merged_at);
    const setPullFilter = useSetFilter();
    const {toggleColorMode} = useColorMode();
-   const [showCryo, setShowCryo] = useBoolUrlState('cryo', false);
-   const [showExtBlocked, setShowExtBlocked] = useBoolUrlState('external_block', true);
+   const [showCryo, toggleShowCryo] = useBoolUrlState('cryo', false);
+   const [showExtBlocked, toggleShowExtBlocked] = useBoolUrlState('external_block', true);
    const hideBelowMedium = ['none', 'none', 'block'];
    const hideBelowLarge = ['none', 'none', 'none', 'block'];
 
-   const toggleShowCryo = useCallback(() => setShowCryo(!showCryo), [showCryo]);
    useEffect(() => setPullFilter('cryo', showCryo ? null : isNotCryogenic), [showCryo]);
-
-   const toggleShowExtBlocked = useCallback(() => setShowExtBlocked(!showExtBlocked), [showExtBlocked]);
    useEffect(() => setPullFilter('external_block', showExtBlocked ? null : isNotExternallyBlocked), [showExtBlocked]);
 
    return (

@@ -13,11 +13,11 @@ interface ColumnProps {
 
 export function Column(props: ColumnProps) {
    const pullsToShow = usePulls();
-   const [open, setOpen] = useBoolUrlState(props.id, true);
+   const [open, toggleOpen] = useBoolUrlState(props.id, true);
    const styles = useStyleConfig('Column', {variant: props.variant});
    return (
       <Box __css={styles} overflow="hidden">
-         <Flex className="column_header" onClick={() => setOpen(!open)}>
+         <Flex className="column_header" onClick={toggleOpen}>
             <Box p={3} pl={4}>{props.title}</Box>
             <Spacer/>
             <Box className="pull_count" p={3}>{countPulls(props.pulls, pullsToShow)}</Box>

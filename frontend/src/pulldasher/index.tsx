@@ -19,8 +19,7 @@ export const Pulldasher: React.FC = function() {
    const pullsNeedingCR = pulls.filter(pull => !pull.isCrDone() && !pull.getDevBlock() && !pull.isDraft());
    const pullsNeedingQA = pulls.filter(pull => !pull.isQaDone() && !pull.getDevBlock() && !pull.isDraft() && pull.hasPassedCI());
    const leadersCR = getLeaders(allPulls, (pull) => pull.status.allCR);
-   const [showClosedPulls, setShowClosedPulls] = useBoolUrlState("closed", false);
-   const toggleShowClosedPulls = () => setShowClosedPulls(!showClosedPulls);
+   const [showClosedPulls, toggleShowClosedPulls] = useBoolUrlState("closed", false);
    useMyPullNotification(pullsReady, 'merge');
    useMyReviewNotification([...pullsNeedingCR, ...pullsNeedingQA], 're-review');
    return (<>
@@ -49,7 +48,7 @@ export const Pulldasher: React.FC = function() {
                </Box>
             </SimpleGrid>
          </VStack>
-         {showClosedPulls && <ClosedPulls onClickClose={() => setShowClosedPulls(false)}/>}
+         {showClosedPulls && <ClosedPulls onClickClose={toggleShowClosedPulls}/>}
       </Box>
    </>);
 }
