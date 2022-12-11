@@ -46,7 +46,7 @@ export const PullsProvider = function({children}: {children: React.ReactNode}) {
    const [filteredPulls, setFilter] = useFilteredPullsState(unfilteredPulls);
    const openPulls = unfilteredPulls.filter(isOpen);
    const contextValue = {
-      pulls: new Set(filteredPulls),
+      pulls: new Set(filteredPulls.filter(isOpen)),
       allOpenPulls: openPulls.sort(defaultCompare),
       allPulls: unfilteredPulls,
       setFilter
