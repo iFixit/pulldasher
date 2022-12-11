@@ -23,7 +23,7 @@ const defaultProps = {
    // something there until the provider is used
    setFilter: (name:string, filter:FilterFunction) => filter,
 }
-export const PullsContext = createContext<PullContextProps>(defaultProps);
+const PullsContext = createContext<PullContextProps>(defaultProps);
 
 export function useAllOpenPulls(): Pull[] {
    return useContext(PullsContext).allOpenPulls;
