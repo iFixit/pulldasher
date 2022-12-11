@@ -33,7 +33,7 @@ export function useAllPulls(): Pull[] {
    return useContext(PullsContext).allPulls;
 }
 
-export function usePulls(): Set<Pull> {
+export function useFilteredOpenPulls(): Set<Pull> {
    return useContext(PullsContext).filteredOpenPulls;
 }
 

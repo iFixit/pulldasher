@@ -1,5 +1,5 @@
 import { FilterMenu } from './filter-menu';
-import { usePulls, useAllOpenPulls, useAllPulls, useSetFilter } from './pulldasher/pulls-context';
+import { useFilteredOpenPulls, useAllOpenPulls, useAllPulls, useSetFilter } from './pulldasher/pulls-context';
 import { Pull } from './pull';
 import {
    chakra,
@@ -34,7 +34,7 @@ type NavBarProps = BoxProps & {
 
 export function Navbar(props: NavBarProps) {
    const {toggleShowClosedPulls, showClosedPulls, ...boxProps} = props;
-   const pulls: Set<Pull> = usePulls();
+   const pulls: Set<Pull> = useFilteredOpenPulls();
    const allOpenPulls: Pull[] = useAllOpenPulls();
    const mergedPulls: Pull[] = Array.from(useAllPulls()).filter(pull => pull.merged_at);
    const setPullFilter = useSetFilter();

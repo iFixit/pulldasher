@@ -1,7 +1,7 @@
 import { Pull } from './pull';
 import { PullCard } from './pull-card';
 import { useBoolUrlState } from './use-url-state';
-import { usePulls } from './pulldasher/pulls-context';
+import { useFilteredOpenPulls } from './pulldasher/pulls-context';
 import { Box, Flex, Spacer, useStyleConfig } from "@chakra-ui/react"
 
 interface ColumnProps {
@@ -12,7 +12,7 @@ interface ColumnProps {
 }
 
 export function Column(props: ColumnProps) {
-   const pullsToShow = usePulls();
+   const pullsToShow = useFilteredOpenPulls();
    const [open, toggleOpen] = useBoolUrlState(props.id, true);
    const styles = useStyleConfig('Column', {variant: props.variant});
    return (
