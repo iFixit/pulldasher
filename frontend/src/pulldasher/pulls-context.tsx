@@ -44,7 +44,7 @@ export function useSetFilter(): FilterFunctionSetter {
 export const PullsProvider = function({children}: {children: React.ReactNode}) {
    const unfilteredPulls = usePullsState();
    const [filteredPulls, setFilter] = useFilteredPullsState(unfilteredPulls);
-   const openPulls = unfilteredPulls.filter((pull) => pull.isOpen());
+   const openPulls = unfilteredPulls.filter(isOpen);
    const contextValue = {
       pulls: new Set(filteredPulls),
       allOpenPulls: openPulls.sort(defaultCompare),
@@ -55,3 +55,5 @@ export const PullsProvider = function({children}: {children: React.ReactNode}) {
       {children}
    </PullsContext.Provider>);
 }
+
+const isOpen = (pull: Pull) => pull.isOpen();
