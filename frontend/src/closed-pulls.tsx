@@ -1,10 +1,10 @@
-import { useAllPulls, useAllOpenPulls } from './pulldasher/pulls-context';
+import { useFilteredPulls, useAllOpenPulls } from './pulldasher/pulls-context';
 import { Pull } from './pull';
 import { useStyleConfig, Flex, Spacer, Box } from "@chakra-ui/react"
 import { ClosedPullCard } from "./pull-card";
 
 export function ClosedPulls({onClickClose}: {onClickClose: () => void}) {
-   const closedPulls: Pull[] = useAllPulls().filter(pull => pull.closed_at);
+   const closedPulls: Pull[] = useFilteredPulls().filter(pull => pull.closed_at);
    const styles = useStyleConfig('Column', {variant: "closed"});
    return (
       <Box __css={styles} position="absolute" right="0" top="70" bottom="0" width="300px" boxShadow="0px 0px 10px 0px #00000020">
