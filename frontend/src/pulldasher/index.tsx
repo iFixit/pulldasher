@@ -1,5 +1,4 @@
 import { useAllPulls, useAllOpenPulls } from './pulls-context';
-import { Pull } from '../pull';
 import { Navbar } from '../navbar';
 import { Column } from '../column';
 import { QACompare } from './sort';
