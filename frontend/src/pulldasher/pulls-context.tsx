@@ -9,6 +9,8 @@ interface PullContextProps {
    allPulls: Pull[];
    // Sorted array of all open pulls (open)
    allOpenPulls: Pull[];
+   // Array of pulls from allPulls that pass the filter function
+   filteredPulls: Pull[];
    // Set of open pulls passing the filter function
    filteredOpenPulls: Set<Pull>;
    // Changes the filter function
@@ -19,6 +21,7 @@ const defaultProps = {
    allPulls: [],
    allOpenPulls: [],
    filteredOpenPulls: new Set<Pull>(),
+   filteredPulls: [],
    // Default implementation is a no-op, just so there's
    // something there until the provider is used
    setFilter: (name:string, filter:FilterFunction) => filter,
@@ -37,6 +40,10 @@ export function useFilteredOpenPulls(): Set<Pull> {
    return useContext(PullsContext).filteredOpenPulls;
 }
 
+export function useFilteredPulls(): Pull[] {
+   return useContext(PullsContext).filteredPulls;
+}
+
 export function useSetFilter(): FilterFunctionSetter {
    return useContext(PullsContext).setFilter;
 }
@@ -48,6 +55,7 @@ export const PullsProvider = function({children}: {children: React.ReactNode}) {
    const contextValue = {
       filteredOpenPulls: new Set(filteredPulls.filter(isOpen)),
       allOpenPulls: openPulls.sort(defaultCompare),
+      filteredPulls: filteredPulls,
       allPulls: unfilteredPulls,
       setFilter
    };
