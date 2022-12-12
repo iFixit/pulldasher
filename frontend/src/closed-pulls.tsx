@@ -20,7 +20,7 @@ export function ClosedPulls({onClickClose}: {onClickClose: () => void}) {
             <Box className="pull_count" p={3}>{closedPulls.length}</Box>
          </Flex>
          {closedPulls.map(pull =>
-            <ClosedPullCard key={Math.random()} pull={pull} show={true}/>
+            <ClosedPullCard key={pull.getKey()} pull={pull} show={true}/>
          )}
       </Box>
    );
