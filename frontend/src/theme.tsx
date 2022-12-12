@@ -70,8 +70,11 @@ export const theme = extendTheme({
                },
             },
             "closed": {
-               borderRadius: 0,
+               borderRadius: "7px 0 0 7px",
                backgroundColor: "var(--background-color)",
+               "& .column_header": {
+                  borderRadius: "7px 0 0 0",
+               }
             }
          }
       },
