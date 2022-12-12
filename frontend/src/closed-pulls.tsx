@@ -7,7 +7,9 @@ import { useMemo } from "react";
 export function ClosedPulls({onClickClose}: {onClickClose: () => void}) {
    const filteredPulls = useFilteredPulls();
    const closedPulls = useMemo(() => {
-      return filteredPulls.filter(pull => pull.closed_at);
+      const pulls = filteredPulls.filter(pull => pull.closed_at);
+      pulls.sort(closedAtCompare);
+      return pulls;
    }, [filteredPulls]);
 
    const styles = useStyleConfig('Column', {variant: "closed"});
