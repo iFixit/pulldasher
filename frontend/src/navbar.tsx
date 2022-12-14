@@ -36,7 +36,6 @@ export function Navbar(props: NavBarProps) {
    const {toggleShowClosedPulls, showClosedPulls, ...boxProps} = props;
    const pulls: Set<Pull> = useFilteredOpenPulls();
    const allOpenPulls: Pull[] = useAllOpenPulls();
-   const mergedPulls: Pull[] = Array.from(useAllPulls()).filter(pull => pull.merged_at);
    const setPullFilter = useSetFilter();
    const {toggleColorMode} = useColorMode();
    const [showCryo, toggleShowCryo] = useBoolUrlState('cryo', false);

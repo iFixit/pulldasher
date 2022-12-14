@@ -5,7 +5,7 @@ import { Flags } from './flags';
 import { Avatar } from './avatar';
 import { Signatures } from './signatures';
 import { CopyBranch } from './copy-branch';
-import { memo,  useEffect, useRef, RefObject } from "react";
+import { memo, useEffect, useRef, RefObject } from "react";
 import { RefreshButton } from './refresh';
 import { Flex, Box, Link, chakra } from "@chakra-ui/react"
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
