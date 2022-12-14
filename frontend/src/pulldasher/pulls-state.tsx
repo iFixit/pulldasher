@@ -28,7 +28,7 @@ export function usePullsState(): Pull[] {
    const [pullState, setPullsState] = useState<Pull[]>([]);
    useEffect(() => {
       if (socketInitialized) {
-         throw new Error("usePullsState() connects to socket-io and is only meant to be used in the PullsProvider component, see usePulls() instead.");
+         throw new Error("usePullsState() connects to socket-io and is only meant to be used in the PullsProvider component, see useFilteredOpenPulls() instead.");
       }
       socketInitialized = true;
       onPullsChanged(setPullsState);

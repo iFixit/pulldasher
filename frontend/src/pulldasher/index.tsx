@@ -5,6 +5,8 @@ import { QACompare } from './sort';
 import { LeaderList, getLeaders } from '../leader-list';
 import { useMyPullNotification, useMyReviewNotification } from "./notifications"
 import { Box, SimpleGrid, VStack } from "@chakra-ui/react"
+import { useBoolUrlState } from "../use-url-state";
+import { ClosedPulls } from '../closed-pulls';
 
 export const Pulldasher: React.FC = function() {
    const allPulls = useAllPulls();
@@ -16,10 +18,11 @@ export const Pulldasher: React.FC = function() {
    const pullsNeedingCR = pulls.filter(pull => !pull.isCrDone() && !pull.getDevBlock() && !pull.isDraft());
    const pullsNeedingQA = pulls.filter(pull => !pull.isQaDone() && !pull.getDevBlock() && !pull.isDraft() && pull.hasPassedCI());
    const leadersCR = getLeaders(allPulls, (pull) => pull.status.allCR);
+   const [showClosedPulls, toggleShowClosedPulls] = useBoolUrlState("closed", false);
    useMyPullNotification(pullsReady, 'merge');
    useMyReviewNotification([...pullsNeedingCR, ...pullsNeedingQA], 're-review');
    return (<>
-      <Navbar mb={4}/>
+      <Navbar mb={4} toggleShowClosedPulls={toggleShowClosedPulls} showClosedPulls={showClosedPulls}/>
       <Box maxW="var(--body-max-width)" m="auto" px="var(--body-gutter)">
          <VStack spacing="var(--body-gutter)">
             <LeaderList title="CR Leaders" leaders={leadersCR}/>
@@ -44,6 +47,7 @@ export const Pulldasher: React.FC = function() {
                </Box>
             </SimpleGrid>
          </VStack>
+         {showClosedPulls && <ClosedPulls onClickClose={toggleShowClosedPulls}/>}
       </Box>
    </>);
 }

@@ -68,6 +68,13 @@ export const theme = extendTheme({
                   borderLeft: "solid 1px var(--panel-ready-count-border)",
                   background: "var(--panel-ready-count-background)",
                },
+            },
+            "closed": {
+               borderRadius: "7px 0 0 7px",
+               backgroundColor: "var(--background-color)",
+               "& .column_header": {
+                  borderRadius: "7px 0 0 0",
+               }
             }
          }
       },

@@ -1,5 +1,5 @@
 import { FilterMenu } from './filter-menu';
-import { usePulls, useAllOpenPulls, useSetFilter } from './pulldasher/pulls-context';
+import { useFilteredOpenPulls, useAllOpenPulls, useSetFilter } from './pulldasher/pulls-context';
 import { Pull } from './pull';
 import {
    chakra,
@@ -22,29 +22,32 @@ import { NotificationRequest } from "./notifications"
 import { useConnectionState, ConnectionState } from "./backend/socket";
 import { useHotkeys } from 'react-hotkeys-hook';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faMoon, faWifi, faCircleNotch, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
+import { faMoon, faCodeMerge, faWifi, faCircleNotch, faXmark, faCircleExclamation } from '@fortawesome/free-solid-svg-icons'
 
 // Default width of the left and right sections of the nav bar
 const sideWidth = "220px";
 
-export function Navbar(props: BoxProps) {
-   const pulls: Set<Pull> = usePulls();
+type NavBarProps = BoxProps & {
+   toggleShowClosedPulls: () => void;
+   showClosedPulls: boolean;
+}
+
+export function Navbar(props: NavBarProps) {
+   const {toggleShowClosedPulls, showClosedPulls, ...boxProps} = props;
+   const pulls: Set<Pull> = useFilteredOpenPulls();
    const allOpenPulls: Pull[] = useAllOpenPulls();
    const setPullFilter = useSetFilter();
    const {toggleColorMode} = useColorMode();
-   const [showCryo, setShowCryo] = useBoolUrlState('cryo', false);
-   const [showExtBlocked, setShowExtBlocked] = useBoolUrlState('external_block', true);
+   const [showCryo, toggleShowCryo] = useBoolUrlState('cryo', false);
+   const [showExtBlocked, toggleShowExtBlocked] = useBoolUrlState('external_block', true);
    const hideBelowMedium = ['none', 'none', 'block'];
    const hideBelowLarge = ['none', 'none', 'none', 'block'];
 
-   const toggleShowCryo = useCallback(() => setShowCryo(!showCryo), [showCryo]);
    useEffect(() => setPullFilter('cryo', showCryo ? null : isNotCryogenic), [showCryo]);
-
-   const toggleShowExtBlocked = useCallback(() => setShowExtBlocked(!showExtBlocked), [showExtBlocked]);
    useEffect(() => setPullFilter('external_block', showExtBlocked ? null : isNotExternallyBlocked), [showExtBlocked]);
 
    return (
-      <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...props}>
+      <Center py={2} bgColor="var(--header-background)" color="var(--brand-color)" {...boxProps}>
          <Flex px="var(--body-gutter)" maxW="100%" w="var(--body-max-width)" gap="var(--body-gutter)" justify="space-between">
             <HStack alignSelf="center" flexGrow={1} flexBasis={sideWidth} spacing="2">
                <Box display={hideBelowLarge} p="1 15px 0 0" fontSize="16px">
@@ -61,6 +64,15 @@ export function Navbar(props: BoxProps) {
                   variant='ghost'
                   onClick={toggleColorMode}>
                   <FontAwesomeIcon icon={faMoon}/>
+               </Button>
+               <Button
+                  display={hideBelowMedium}
+                  size="sm"
+                  title="Show Recently Merged"
+                  colorScheme="blue"
+                  variant={showClosedPulls ? 'solid' : 'ghost'}
+                  onClick={toggleShowClosedPulls}>
+                  <FontAwesomeIcon icon={faCodeMerge}/>
                </Button>
                <NotificationRequest />
                <Menu closeOnSelect={false}>

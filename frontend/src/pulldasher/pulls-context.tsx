@@ -9,8 +9,10 @@ interface PullContextProps {
    allPulls: Pull[];
    // Sorted array of all open pulls (open)
    allOpenPulls: Pull[];
-   // Set pf pulls passing the filter function
-   pulls: Set<Pull>;
+   // Array of pulls from allPulls that pass the filter function
+   filteredPulls: Pull[];
+   // Set of open pulls passing the filter function
+   filteredOpenPulls: Set<Pull>;
    // Changes the filter function
    setFilter: FilterFunctionSetter;
 }
@@ -18,12 +20,13 @@ interface PullContextProps {
 const defaultProps = {
    allPulls: [],
    allOpenPulls: [],
-   pulls: new Set<Pull>(),
+   filteredOpenPulls: new Set<Pull>(),
+   filteredPulls: [],
    // Default implementation is a no-op, just so there's
    // something there until the provider is used
    setFilter: (name:string, filter:FilterFunction) => filter,
 }
-export const PullsContext = createContext<PullContextProps>(defaultProps);
+const PullsContext = createContext<PullContextProps>(defaultProps);
 
 export function useAllOpenPulls(): Pull[] {
    return useContext(PullsContext).allOpenPulls;
@@ -33,8 +36,12 @@ export function useAllPulls(): Pull[] {
    return useContext(PullsContext).allPulls;
 }
 
-export function usePulls(): Set<Pull> {
-   return useContext(PullsContext).pulls;
+export function useFilteredOpenPulls(): Set<Pull> {
+   return useContext(PullsContext).filteredOpenPulls;
+}
+
+export function useFilteredPulls(): Pull[] {
+   return useContext(PullsContext).filteredPulls;
 }
 
 export function useSetFilter(): FilterFunctionSetter {
@@ -44,10 +51,11 @@ export function useSetFilter(): FilterFunctionSetter {
 export const PullsProvider = function({children}: {children: React.ReactNode}) {
    const unfilteredPulls = usePullsState();
    const [filteredPulls, setFilter] = useFilteredPullsState(unfilteredPulls);
-   const openPulls = unfilteredPulls.filter((pull) => pull.isOpen());
+   const openPulls = unfilteredPulls.filter(isOpen);
    const contextValue = {
-      pulls: new Set(filteredPulls),
+      filteredOpenPulls: new Set(filteredPulls.filter(isOpen)),
       allOpenPulls: openPulls.sort(defaultCompare),
+      filteredPulls: filteredPulls,
       allPulls: unfilteredPulls,
       setFilter
    };
@@ -55,3 +63,5 @@ export const PullsProvider = function({children}: {children: React.ReactNode}) {
       {children}
    </PullsContext.Provider>);
 }
+
+const isOpen = (pull: Pull) => pull.isOpen();

@@ -39,6 +39,12 @@ export function signatureCompare(a: Signature, b: Signature) {
    );
 }
 
+export function closedAtCompare(a: Pull, b: Pull) {
+   const astr = String(a.closed_at);
+   const bstr = String(b.closed_at);
+   return astr < bstr ? 1 : (astr > bstr ? -1 : 0);
+}
+
 function isQAingByMe(pull: Pull): boolean {
    const label = pull.getLabel('QAing');
    return label?.user == getUser();
