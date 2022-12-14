@@ -1,5 +1,5 @@
 import { FilterMenu } from './filter-menu';
-import { useFilteredOpenPulls, useAllOpenPulls, useAllPulls, useSetFilter } from './pulldasher/pulls-context';
+import { useFilteredOpenPulls, useAllOpenPulls, useSetFilter } from './pulldasher/pulls-context';
 import { Pull } from './pull';
 import {
    chakra,
