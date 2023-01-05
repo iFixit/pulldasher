@@ -2,7 +2,6 @@ var config     = require('../lib/config-loader'),
     Promise    = require('bluebird'),
     debug      = require('../lib/debug')('pulldasher:githubHooks'),
     Pull       = require('../models/pull'),
-    Status     = require('../models/status'),
     Signature  = require('../models/signature'),
     Issue      = require('../models/issue'),
     Comment    = require('../models/comment'),
@@ -46,7 +45,7 @@ var HooksController = {
          // Here we somewhat normalize this by making the repo available on
          // the 'repo' property.
          body.repo = body.name;
-         dbUpdated = dbManager.updateCommitStatus(new Status(body));
+         dbUpdated = dbManager.updateCommitStatus(body);
       } else if (event === 'issues') {
          dbUpdated = handleIssueEvent(body);
       } else if (event === 'pull_request') {
