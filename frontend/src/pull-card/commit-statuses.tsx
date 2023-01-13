@@ -57,6 +57,9 @@ function StatusLink({status}: {status: CommitStatus}) {
          <chakra.span>
             {status.data.description}
          </chakra.span>
+         <chakra.span>
+            <Duration status={status}/>
+         </chakra.span>
       </StatusLinkContainer>
    );
 }
@@ -130,3 +133,14 @@ function CommitStatuses({pull}: {pull: Pull}) {
    </Popover>
    );
 });
+
+function Duration({status}: {status:CommitStatus}) {
+   const {started_at, completed_at} = status.data;
+   if (!started_at) {
+      return <>Queued</>;
+   }
+
+   const completed = completed_at || Date.now() / 1000;
+   const min = Math.ceil((completed - started_at)/60);
+   return <>{min}m</>;
+}

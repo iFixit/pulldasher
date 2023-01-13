@@ -134,6 +134,8 @@ export class Pull extends PullData {
                   description: "Missing (not started)",
                   state: StatusState.pending,
                   context: requiredContext,
+                  started_at: null,
+                  completed_at: null,
                }
             });
          }

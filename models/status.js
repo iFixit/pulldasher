@@ -1,3 +1,5 @@
+var utils   = require('../lib/utils');
+
 /**
  * An object representing the build status of the head commit of a pull.
  */
@@ -9,6 +11,8 @@ function Status(data) {
       description: data.description,
       state: data.state,
       context: data.context,
+      started_at: utils.toUnixTime(data.started_at),
+      completed_at: utils.toUnixTime(data.completed_at),
    };
 }
 
@@ -24,6 +28,8 @@ Status.getFromDB = function(data) {
       description:   data.description,
       state:         data.state,
       context:       data.context,
+      started_at:    data.started_at,
+      completed_at:  data.completed_at,
    });
 };
 
