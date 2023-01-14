@@ -142,5 +142,5 @@ function Duration({status}: {status:CommitStatus}) {
 
    const completed = completed_at || Date.now() / 1000;
    const min = Math.ceil((completed - started_at)/60);
-   return <>{min}m</>;
+   return min ? <>{min}m</> : null;
 }
