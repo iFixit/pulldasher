@@ -1,6 +1,6 @@
 import { Pull } from '../pull';
 import { CommitStatus, StatusState } from '../types';
-import { newTab } from "../utils";
+import { newTab, useDurationMinutes } from "../utils";
 import {
    chakra,
    Box,
@@ -43,6 +43,7 @@ const StatusLinkContainer = Box;
 function StatusLink({status}: {status: CommitStatus}) {
    const styles = useStyleConfig('StatusLink', {variant: status.data.state});
    const link = status.data.target_url;
+   const duration = useDurationMinutes(status);
    return (
       <StatusLinkContainer
          __css={styles}
@@ -58,7 +59,7 @@ function StatusLink({status}: {status: CommitStatus}) {
             {status.data.description}
          </chakra.span>
          <chakra.span>
-            <Duration status={status}/>
+            {duration && `${Math.ceil(duration)}m`}
          </chakra.span>
       </StatusLinkContainer>
    );
@@ -133,14 +134,3 @@ function CommitStatuses({pull}: {pull: Pull}) {
    </Popover>
    );
 });
-
-function Duration({status}: {status:CommitStatus}) {
-   const {started_at, completed_at} = status.data;
-   if (!started_at) {
-      return <>Queued</>;
-   }
-
-   const completed = completed_at || Date.now() / 1000;
-   const min = Math.ceil((completed - started_at)/60);
-   return min ? <>{min}m</> : null;
-}

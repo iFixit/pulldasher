@@ -1,4 +1,4 @@
-import { DateString, PullData, StatusState } from './types';
+import { DateString, PullData, StatusState, CommitStatus } from './types';
 
 export function actionMessage(action: string, date: DateString | null, user: string): string {
    return date ?
@@ -62,4 +62,15 @@ function finishedState() {
 
 function unix() {
    return Date.now() / 1000;
+}
+
+export function useDurationMinutes(status: CommitStatus) {
+   const {started_at, completed_at} = status.data;
+   if (!started_at) {
+      return null;
+   }
+
+   const completed = completed_at || Date.now() / 1000;
+   const min = (completed - started_at)/60;
+   return min > 0 ? min : null;
 }
