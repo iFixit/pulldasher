@@ -7,12 +7,15 @@ import { useMyPullNotification, useMyReviewNotification } from "./notifications"
 import { Box, SimpleGrid, VStack } from "@chakra-ui/react"
 import { useBoolUrlState } from "../use-url-state";
 import { ClosedPulls } from '../closed-pulls';
+import { CiDasher } from '../cidasher/cidasher';
 
 export function Page() {
    const [showClosedPulls, toggleShowClosedPulls] = useBoolUrlState("closed", false);
+   const [showCiDasher] = useBoolUrlState("ci-dash", false);
    return <>
       <Navbar mb={4} toggleShowClosedPulls={toggleShowClosedPulls} showClosedPulls={showClosedPulls}/>
-      <Pulldasher/>
+      {!showCiDasher && <Pulldasher/>}
+      {showCiDasher && <CiDasher/>}
       {showClosedPulls && <ClosedPulls onClickClose={toggleShowClosedPulls}/>}
    </>;
 }
