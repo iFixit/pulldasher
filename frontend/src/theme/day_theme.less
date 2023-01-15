@@ -166,4 +166,16 @@ body[data-theme="day_theme"] {
     --refresh: darken(@grey, 25%);
     --refresh-background: @white;
     --refresh-hover: @blue;
+
+    // CI Dashboard
+    // CI Card
+    --ci-card-duration: fadeout(@dark-grey, 30);
+    --ci-card-border-pending: fadeout(@dark-grey, 50);
+    --ci-card-border-failure: @yellow;
+    --ci-card-border-error:   @red;
+    --ci-card-border-success: @green;
+    --ci-card-bg-pending: fadeout(@grey, 50);
+    --ci-card-bg-failure: fadeout(@yellow, 80);
+    --ci-card-bg-error:   fadeout(@red, 80);
+    --ci-card-bg-success: fadeout(@green, 80);
 }

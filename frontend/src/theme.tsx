@@ -14,6 +14,48 @@ export const theme = extendTheme({
             }
          }
       },
+      CILane: {
+         baseStyle: {
+            flexDirection: "row",
+            "> .lane-header": {
+               textAlign: "center",
+               fontWeight: "bold",
+               padding: "1em 0.5em",
+            },
+         },
+      },
+      CICard: {
+         baseStyle: {
+            border: "2px solid",
+            borderRadius: "7px",
+            padding: "1em",
+            "> .ci-duration": {
+               color: "var(--ci-card-duration)",
+               textAlign: "right",
+            },
+         },
+         variants: {
+            "success": {
+               borderColor: "var(--ci-card-border-success)",
+               background: "var(--ci-card-bg-success)",
+            },
+            "pending": {
+               borderColor: "var(--ci-card-border-pending)",
+               background: "var(--ci-card-bg-pending)",
+               borderTop: 0,
+               borderTopLeftRadius: 0,
+               borderTopRightRadius: 0,
+            },
+            "failure": {
+               borderColor: "var(--ci-card-border-failure)",
+               background: "var(--ci-card-bg-failure)",
+            },
+            "error": {
+               borderColor: "var(--ci-card-border-error)",
+               background: "var(--ci-card-bg-error)",
+            },
+         }
+      },
       Column: {
          baseStyle: {
             border: "1px solid var(--panel-default-border)",

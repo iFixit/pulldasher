@@ -1,6 +1,7 @@
 import { useAllPulls } from '../pulldasher/pulls-context';
 import { Pull } from '../pull';
-import { Box, Flex, VStack } from "@chakra-ui/react"
+import { Fragment } from 'react';
+import { Box, Flex, VStack, useStyleConfig } from "@chakra-ui/react"
 import { CommitStatus } from "../types"
 import { useUrlState } from "../use-url-state"
 import { useDurationMinutes } from "../utils";
@@ -14,9 +15,11 @@ export function CiDasher() {
          gap={[2,3,4,5]}
          m="auto"
          px="var(--body-gutter)">
-         {mapMap(statusesByContext, (statuses, context) =>
-            <CILane key={context} context={context} statuses={statuses}/>
-         )}
+         {mapMap(statusesByContext, (statuses, context) => (
+            <Fragment key={context}>
+               <CILane context={context} statuses={statuses}/>
+            </Fragment>
+         ))}
       </Flex>
    </>);
 }
@@ -24,29 +27,32 @@ export function CiDasher() {
 type CILaneProps = {
    context: string;
    statuses: CommitStatus[];
-}
+};
 
 function CILane({context, statuses}: CILaneProps) {
+   const styles = useStyleConfig('CILane');
    return (
-      <Box flex={1}>
-         <Box textAlign="center">{context}</Box>
+      <Box __css={styles} flex={100}>
+         <Box className="lane-header">{context}</Box>
          <VStack align="stretch">
             {statuses.map((status, index) => (
-               <Status key={index} status={status}/>
+               <CICard key={index} status={status}/>
             ))}
          </VStack>
       </Box>
    );
 }
 
-function Status({status}: {status: CommitStatus}) {
+function CICard({status}: {status: CommitStatus}) {
+   const styles = useStyleConfig('CICard', {variant: status.data.state});
    const duration = useDurationMinutes(status);
    return <Box
-      border="1px solid #ccc"
-      borderRadius={10}
+      __css={styles}
       h={((duration||0) + 5) * 10 + "px"}
       p={2}
-      >{status.data.state} {duration ? `${Math.ceil(duration)}m` : null}
+   >
+      {duration &&
+      <Box className="ci-duration">{Math.ceil(duration)}m</Box>}
    </Box>;
 }
 
