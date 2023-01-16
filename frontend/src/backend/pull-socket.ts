@@ -1,8 +1,7 @@
 import { Pull } from '../pull';
 import { getSocket } from './socket';
 import { PullData, RepoSpec } from  '../types';
-import { dummyPulls } from  '../utils';
-import { toggleSynthReview } from  './dummy-pulls';
+import { toggleSynthReview, dummyPulls } from  './dummy-pulls';
 
 type PullUpdater = (pullDatas: PullData[], repoSpecs: RepoSpec[]) => void;
 let repoSpecs: RepoSpec[] = [];

@@ -1,7 +1,7 @@
 import { getPageContext } from '../page-context';
 import { io, Socket } from 'socket.io-client';
 import { useState, useEffect } from 'react';
-import { hasDummyPulls } from  '../utils';
+import { hasDummyPulls } from  './dummy-pulls';
 
 type SocketIO = Socket;
 
