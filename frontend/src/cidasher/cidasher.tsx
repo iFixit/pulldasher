@@ -1,14 +1,12 @@
 import { useAllPulls } from '../pulldasher/pulls-context';
 import { Pull } from '../pull';
-import { Fragment } from 'react';
-import { LinkBox, LinkOverlay, Box, Flex, VStack, useStyleConfig } from "@chakra-ui/react"
+import { Flex } from "@chakra-ui/react"
 import { CommitStatus } from "../types"
 import { useUrlState } from "../use-url-state"
-import { useDurationMinutes } from "../utils";
-import { sortBy } from 'lodash-es'
+import { CILane } from "./ci-lane";
 
 export function CiDasher() {
-   const [repo] = useUrlState('ci-repo', "iFixit/ifixit");
+   const [repo] = useUrlState('repo', '');
    const statusesByContext = useStatusesByContext(repo);
    return (<>
       <Flex
@@ -17,56 +15,17 @@ export function CiDasher() {
          m="auto"
          px="var(--body-gutter)">
          {mapMap(statusesByContext, (statuses, context) => (
-            <Fragment key={context}>
-               <CILane context={context} statuses={statuses}/>
-            </Fragment>
+            <CILane key={context} context={context} statuses={statuses}/>
          ))}
       </Flex>
    </>);
-}
-
-type CILaneProps = {
-   context: string;
-   statuses: CommitStatus[];
-};
-
-function CILane({context, statuses}: CILaneProps) {
-   const styles = useStyleConfig('CILane');
-   const statusesWithTime = statuses.filter(status => status.data.started_at);
-   const sorted = sortBy(statusesWithTime, (status) => (-(status.data.started_at || 0)));
-   return (
-      <Box __css={styles}>
-         <Box className="lane-header">{context}</Box>
-         <VStack align="stretch">
-            {sorted.map((status, index) => (
-               <CICard key={index} status={status}/>
-            ))}
-         </VStack>
-      </Box>
-   );
-}
-
-function CICard({status}: {status: CommitStatus}) {
-   const styles = useStyleConfig('CICard', {variant: status.data.state});
-   const duration = useDurationMinutes(status);
-   return <LinkBox>
-      <Box
-         __css={styles}
-         h={((duration||0) + 5) * 10 + "px"}
-         p={2}
-      >
-         {status.data.target_url && <LinkOverlay href={status.data.target_url}/>}
-         {duration &&
-         <Box className="ci-duration">{Math.ceil(duration)}m</Box>}
-      </Box>
-   </LinkBox>;
 }
 
 type StatusesByContext = Map<string, CommitStatus[]>;
 
 function useStatusesByContext(repo: string): StatusesByContext {
    const allPulls = useAllPulls();
-   const pulls = allPulls.filter((pull) => pull.repo == repo);
+   const pulls = repo ? allPulls.filter((pull) => pull.repo == repo) : allPulls;
    return pulls.reduce((byContext, pull: Pull) => {
       pull.buildStatuses().forEach((status) => {
          const {context} = status.data;
