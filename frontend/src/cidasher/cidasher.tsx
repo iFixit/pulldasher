@@ -50,15 +50,15 @@ function CICard({status}: {status: CommitStatus}) {
    const styles = useStyleConfig('CICard', {variant: status.data.state});
    const duration = useDurationMinutes(status);
    return <LinkBox>
-   <Box
-      __css={styles}
-      h={((duration||0) + 5) * 10 + "px"}
-      p={2}
-   >
-      {status.data.target_url && <LinkOverlay href={status.data.target_url}/>}
-      {duration &&
-      <Box className="ci-duration">{Math.ceil(duration)}m</Box>}
-   </Box>
+      <Box
+         __css={styles}
+         h={((duration||0) + 5) * 10 + "px"}
+         p={2}
+      >
+         {status.data.target_url && <LinkOverlay href={status.data.target_url}/>}
+         {duration &&
+         <Box className="ci-duration">{Math.ceil(duration)}m</Box>}
+      </Box>
    </LinkBox>;
 }
 
