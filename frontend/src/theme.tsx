@@ -45,9 +45,6 @@ export const theme = extendTheme({
             "pending": {
                borderColor: "var(--ci-card-border-pending)",
                background: "var(--ci-card-bg-pending)",
-               borderTop: 0,
-               borderTopLeftRadius: 0,
-               borderTopRightRadius: 0,
             },
             "failure": {
                borderColor: "var(--ci-card-border-failure)",
