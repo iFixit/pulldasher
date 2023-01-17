@@ -16,11 +16,14 @@ export const theme = extendTheme({
       },
       CILane: {
          baseStyle: {
-            flexDirection: "row",
+            // width=0 and flex-basis=0 ensures all lanes have the same width
+            width: 0,
+            flex: "1 1 0",
             "> .lane-header": {
                textAlign: "center",
                fontWeight: "bold",
-               padding: "1em 0.5em",
+               padding: "0 0.5em 1em 0.5em",
+               minHeight: "4em",
             },
          },
       },

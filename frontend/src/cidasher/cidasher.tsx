@@ -35,7 +35,7 @@ function CILane({context, statuses}: CILaneProps) {
    const statusesWithTime = statuses.filter(status => status.data.started_at);
    const sorted = sortBy(statusesWithTime, (status) => (-(status.data.started_at || 0)));
    return (
-      <Box __css={styles} flex={100}>
+      <Box __css={styles} flex="1 1 0">
          <Box className="lane-header">{context}</Box>
          <VStack align="stretch">
             {sorted.map((status, index) => (
