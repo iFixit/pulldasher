@@ -8,7 +8,7 @@ services:
          DEBUG: pulldasher*         # Enables all debug prints and opens 127.0.0.1:9229 for remote debugging
          MOCK_AUTH_AS_USER: "fakeuser"
       ports:
-         - 8000:3000                # Map the container's port 8080 to the host's 8080
+         - 8000:3000                # Map the container's port 3000 to the host's 8000
                                     # NOTE: The host port will need to match
                                     # the callback URL specified in the GitHub
                                     # application setting.
