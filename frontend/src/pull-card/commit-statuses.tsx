@@ -58,9 +58,7 @@ function StatusLink({status}: {status: CommitStatus}) {
          <chakra.span>
             {status.data.description}
          </chakra.span>
-         <chakra.span>
-            {duration && `${Math.ceil(duration)}m`}
-         </chakra.span>
+         {duration && <chakra.span>{Math.ceil(duration) + 'm'}</chakra.span>}
       </StatusLinkContainer>
    );
 }
