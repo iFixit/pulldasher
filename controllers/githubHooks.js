@@ -2,14 +2,15 @@ var config     = require('../lib/config-loader'),
     Promise    = require('bluebird'),
     debug      = require('../lib/debug')('pulldasher:githubHooks'),
     Pull       = require('../models/pull'),
-    Status     = require('../models/status'),
     Signature  = require('../models/signature'),
     Issue      = require('../models/issue'),
     Comment    = require('../models/comment'),
-    Review    = require('../models/review'),
+    Review     = require('../models/review'),
+    Status     = require('../models/status'),
     Label      = require('../models/label'),
     refresh    = require('../lib/refresh'),
     getLogin   = require('../lib/get-user-login'),
+    utils      = require('../lib/utils'),
     dbManager  = require('../lib/db-manager');
 
 var HooksController = {
@@ -42,11 +43,17 @@ var HooksController = {
       debug('Received GitHub webhook, Event: %s, Action: %s', event, body.action);
 
       if (event === 'status') {
-         // The payload for statuses looks different from the api response.
-         // Here we somewhat normalize this by making the repo available on
-         // the 'repo' property.
-         body.repo = body.name;
-         dbUpdated = dbManager.updateCommitStatus(new Status(body));
+         const updatedStatus = new Status({
+            repo:          body.name,
+            sha:           body.sha,
+            state:         body.state,
+            context:       body.context,
+            description:   body.description,
+            target_url:    body.target_url,
+            started_at:    body.created_at,
+            completed_at:  body.state == 'pending' ? null : body.updated_at,
+         });
+         dbUpdated = dbManager.updateCommitStatus(updatedStatus);
       } else if (event === 'issues') {
          dbUpdated = handleIssueEvent(body);
       } else if (event === 'pull_request') {
@@ -137,7 +144,19 @@ var HooksController = {
             dbUpdated = dbManager.updateComment(comment);
          }
       } else if (event === 'check_run') {
-         dbUpdated = dbManager.updateCommitCheck(body);
+         const state = utils.mapCheckToStatus(body.check_run.conclusion || body.check_run.status);
+
+         const status = new Status({
+            repo:          body.repository.full_name,
+            sha:           body.check_run.head_sha,
+            state:         state,
+            context:       body.check_run.name,
+            description:   state,
+            target_url:    body.check_run.html_url,
+            started_at:    body.check_run.started_at,
+            completed_at:  body.check_run.completed_at,
+         });
+         dbUpdated = dbManager.updateCommitStatus(status);
       }
 
       if (dbUpdated) {

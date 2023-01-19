@@ -1,6 +1,6 @@
 import { Pull } from '../pull';
 import { CommitStatus, StatusState } from '../types';
-import { newTab } from "../utils";
+import { newTab, useDurationMinutes } from "../utils";
 import {
    chakra,
    Box,
@@ -43,6 +43,7 @@ const StatusLinkContainer = Box;
 function StatusLink({status}: {status: CommitStatus}) {
    const styles = useStyleConfig('StatusLink', {variant: status.data.state});
    const link = status.data.target_url;
+   const duration = useDurationMinutes(status);
    return (
       <StatusLinkContainer
          __css={styles}
@@ -57,6 +58,7 @@ function StatusLink({status}: {status: CommitStatus}) {
          <chakra.span>
             {status.data.description}
          </chakra.span>
+         {duration && <chakra.span>{Math.ceil(duration) + 'm'}</chakra.span>}
       </StatusLinkContainer>
    );
 }

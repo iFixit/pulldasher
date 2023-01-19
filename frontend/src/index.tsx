@@ -1,5 +1,5 @@
 import { render } from 'react-dom';
-import { Pulldasher } from './pulldasher';
+import { Page } from './pulldasher';
 import { PullsProvider } from './pulldasher/pulls-context';
 import { ChakraProvider } from "@chakra-ui/react"
 import { theme } from './theme';
@@ -11,7 +11,7 @@ function App() {
    return (
    <PullsProvider>
       <ChakraProvider theme={theme}>
-         <Pulldasher/>
+         <Page/>
       </ChakraProvider>
    </PullsProvider>);
 }

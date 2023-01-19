@@ -59,6 +59,8 @@ export function status(state?: keyof typeof StatusState, url?: string | null, co
          "description": "Build " + statusState,
          "state": statusState,
          "context": context || statusContext(),
+         "started_at": (Date.now()/1000) - Math.random() * 400,
+         "completed_at": statusState == "pending" ? null : (Date.now()/1000),
       }
    };
 }

@@ -69,6 +69,8 @@ export interface CommitStatus {
       description: string;
       state: StatusState;
       context: string;
+      started_at: number | null;
+      completed_at: number | null;
    }
 }
 

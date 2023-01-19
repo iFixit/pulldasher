@@ -155,12 +155,8 @@ Pull.prototype.getStatus = function getStatus() {
 Pull.parseBody = function(body) {
    var bodyTags = [];
 
-   if (!body) {
-      return [];
-   }
-
    config.body_tags.forEach(function(tag) {
-      var matches = body.match(tag.regex);
+      var matches = body && body.match(tag.regex);
 
       if (matches) {
          bodyTags[tag.name] = matches[1];
@@ -178,7 +174,7 @@ Pull.fromGithubApi = function(data, signatures, comments, reviews, commitStatuse
       number: data.number,
       state: data.state,
       title: data.title,
-      body: data.body,
+      body: data.body || '',
       draft: data.draft,
       created_at: utils.fromDateString(data.created_at),
       updated_at: utils.fromDateString(data.updated_at),
