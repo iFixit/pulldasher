@@ -175,7 +175,7 @@ const formatDate = (dateStr: string | null) => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function highlightOnChange(
   ref: RefObject<HTMLElement>,
-  dependencies: Array<any>
+  dependencies: Array<unknown>
 ) {
   // Animate a highlight when pull.received_at changes
   useEffect(() => {
