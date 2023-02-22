@@ -1,4 +1,5 @@
 # Pulldasher
+
 [![Build](https://github.com/iFixit/pulldasher/actions/workflows/build.yml/badge.svg)](https://github.com/iFixit/pulldasher/actions/workflows/build.yml)
 
 Pulldasher is self-hosted to-do list for GitHub repositories.
@@ -18,20 +19,26 @@ statistics-gathering and some sorting and filtering.
 ## Getting Started
 
 ### Run a MySQL Container
+
 1. `docker run --name="test-mysql" -e "MYSQL_ROOT_PASSWORD=mypassword" -d mysql`
-   * If you leave the root password as `mypassword`, DO NOT MAKE THIS CONTAINER ACCESSIBLE FROM THE INTERNET.
+   - If you leave the root password as `mypassword`, DO NOT MAKE THIS CONTAINER ACCESSIBLE FROM THE INTERNET.
+
 ### Preparing Pulldasher
+
 1. `git clone https://github.com/iFixit/pulldasher`
 2. `cd pulldasher`
 3. `cp config.example.js config.js`
 4. `$EDITOR config.js`
-   * Use your favorite editor in place of `$EDITOR`
-   * Edit the config.js file to reference correct URLs and above MySQL DB
+   - Use your favorite editor in place of `$EDITOR`
+   - Edit the config.js file to reference correct URLs and above MySQL DB
 5. `docker build -t pulldasher .`
+
 ### Running Pulldasher
+
 6. `docker run --name="test-pulldasher" --publish 8080:8080 -d pulldasher`
 
 ## Use
+
 Pulldasher is driven by tags in pull requests and pull comments. Normally, it
 assumes that two code review and one quality assurance signoff will be
 required per pull. This can be adjusted on a per-pull basis by using the
@@ -46,11 +53,13 @@ When you CR a pull, add a comment to it with `CR :emoji:` in it.
 (`emoji` is simply a word or words between colons; we often use GitHub emoji,
 which follow this format.) This comment is considered a _signoff_. Pulldasher
 will update the pull's display to indicate that one of the required CRs is
-completed.  Similarly, when you QA a pull, add a comment containing
+completed. Similarly, when you QA a pull, add a comment containing
 `QA :emoji:`, and the number of QA signoffs will increase.
 
 ## Feature Details
+
 ### CR Leaders/QA Leaders
+
 The lists of CR Leaders and QA Leaders at the top of Pulldasher are displays of
 the number of signoffs by each person in each category which are currently visible
 on Pulldasher. They do not take into account merged or closed pulls. They can be
@@ -58,33 +67,37 @@ fun to see who’s been doing a lot of CR recently, and they can be helpful in
 balancing the number of CRs you’re doing versus everyone else.
 
 ### Dark Mode
+
 Pulldasher supports a dark mode! See the button in the nav bar
 
 ### Filter Parameters
+
 Two query string parameters are available to filter the displayed pulls:
 
 1. `assigned`: Providing a comma-separated list of usernames to the `assigned`
    parameter will filter the pulls to only those assigned to those users.
 
-   ```ex. https://pulldasher.example.com?assigned=copperwall,scotttherobot,davidrans```
+   `ex. https://pulldasher.example.com?assigned=copperwall,scotttherobot,davidrans`
 
 2. `milestone`: Providing a comma-separated list of milestones to the
    `milestone` parameter will filter the pulls to only those on the specified
    milestones.
 
-   ```ex. https://pulldasher.example.com?milestone=site-redesign,12/5,12/19```
+   `ex. https://pulldasher.example.com?milestone=site-redesign,12/5,12/19`
 
 ## Architecture
+
 When first started, the Pulldasher server fetches information about the current
 pulls in the repo from GitHub. It then monitors GitHub hooks for updated
 information on the current pulls. When a client connects initially, the server
 authenticates it and then (assuming it passes) sends it a data dump of the
-active pulls.  The main filtering and sorting of pulls takes place on the client
+active pulls. The main filtering and sorting of pulls takes place on the client
 side.
 
 ## Customization
 
 ### Signatures
+
 Signatures are customizable through `config.js`.
 
 The defaults are
@@ -128,9 +141,8 @@ Pulldasher is released under the [MIT License](LICENSE/).
 
 ### React Frontend
 
-* Hack on the just the UI (no DB needed): `npm frontend:start`
-   * Then open http://localhost:8080/
-   * Or the demo page at http://localhost:8080/pull-card-demo.html
-* Hack on both the frontend + backend: `npm frontend:watch` + `npm start`
-   * Then open http://localhost:{port} where port is from your config.js
-
+- Hack on the just the UI (no DB needed): `npm frontend:start`
+  - Then open http://localhost:8080/
+  - Or the demo page at http://localhost:8080/pull-card-demo.html
+- Hack on both the frontend + backend: `npm frontend:watch` + `npm start`
+  - Then open http://localhost:{port} where port is from your config.js

@@ -12,7 +12,7 @@ export function usePullNotification(
     filter,
     message(pulls) {
       const titles = pulls.map((p) => p.title).join(", ");
-      const pull = pulls.length === 1 ? 'Pull' : 'Pulls'
+      const pull = pulls.length === 1 ? "Pull" : "Pulls";
       return `${pull} ready for ${action}: ${titles}`;
     },
   });

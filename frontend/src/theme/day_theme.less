@@ -1,169 +1,169 @@
 body.chakra-ui-light,
 body[data-theme="day_theme"] {
-    @blue:   #3683C5;
-    @green:  #6CB644;
-    @yellow: #E7B049;
-    @red:    #DB524B;
+  @blue: #3683c5;
+  @green: #6cb644;
+  @yellow: #e7b049;
+  @red: #db524b;
 
-    @closed: #CF222E;
-    @merged: #8250DF;
+  @closed: #cf222e;
+  @merged: #8250df;
 
-    @white:      #FFFFFF;
-    @light-grey: #F5F5F5;
-    @grey:       #E7E7E7;
-    @dark-grey:  #555555;
-    @black:      #000000;
+  @white: #ffffff;
+  @light-grey: #f5f5f5;
+  @grey: #e7e7e7;
+  @dark-grey: #555555;
+  @black: #000000;
 
-    --background-color: @white;
+  --background-color: @white;
 
-    // Header
-    --header-background: @light-grey;
-    --header-border: @grey;
+  // Header
+  --header-background: @light-grey;
+  --header-border: @grey;
 
-    --theme-selector-text: @dark-grey;
-    --theme-selector-active: @black;
-    --theme-selector-inactive: @dark-grey;
+  --theme-selector-text: @dark-grey;
+  --theme-selector-active: @black;
+  --theme-selector-inactive: @dark-grey;
 
-    --toggle-border: darken(@grey, 10%);
-    --toggle-background: @light-grey;
-    --toggle-background-hover: @grey;
+  --toggle-border: darken(@grey, 10%);
+  --toggle-background: @light-grey;
+  --toggle-background-hover: @grey;
 
-    --brand-color: @dark-grey;
-    --brand-highlight: @blue;
+  --brand-color: @dark-grey;
+  --brand-highlight: @blue;
 
-    --global-indicator-text: @dark-grey;
-    --global-indicator-text-link: @blue;
-    --global-indicator-count-text: @blue;
-    --global-indicator-count-border: @white;
-    --global-indicator-count-background: @white;
+  --global-indicator-text: @dark-grey;
+  --global-indicator-text-link: @blue;
+  --global-indicator-count-text: @blue;
+  --global-indicator-count-border: @white;
+  --global-indicator-count-background: @white;
 
-    // Leaderboard
-    --leaderboard-background: @light-grey;
-    --leaderboard-border: @grey;
-    --leaderboard-title-text: @dark-grey;
+  // Leaderboard
+  --leaderboard-background: @light-grey;
+  --leaderboard-border: @grey;
+  --leaderboard-title-text: @dark-grey;
 
-    --leaderboard-posting-background: @blue;
-    --leaderboard-posting-border: @blue;
-    --leaderboard-posting-count: @white;
+  --leaderboard-posting-background: @blue;
+  --leaderboard-posting-border: @blue;
+  --leaderboard-posting-count: @white;
 
-    --leaderboard-leader-background: @green;
-    --leaderboard-leader-border: @green;
-    --leaderboard-leader-count: @white;
+  --leaderboard-leader-background: @green;
+  --leaderboard-leader-border: @green;
+  --leaderboard-leader-count: @white;
 
-    // Pulls
-    --panel-ci-blocked-text: @black;
-    --panel-ci-blocked-background: lighten(@yellow, 15%);
-    --panel-ci-blocked-border: @yellow;
-    --panel-ci-blocked-count-text: @black;
-    --panel-ci-blocked-count-background: lighten(@yellow, 5%);
-    --panel-ci-blocked-count-border: darken(@yellow, 10%);
+  // Pulls
+  --panel-ci-blocked-text: @black;
+  --panel-ci-blocked-background: lighten(@yellow, 15%);
+  --panel-ci-blocked-border: @yellow;
+  --panel-ci-blocked-count-text: @black;
+  --panel-ci-blocked-count-background: lighten(@yellow, 5%);
+  --panel-ci-blocked-count-border: darken(@yellow, 10%);
 
-    --panel-deploy-blocked-text: @black;
-    --panel-deploy-blocked-background: lighten(@red, 15%);
-    --panel-deploy-blocked-border: @red;
-    --panel-deploy-blocked-count-text: @black;
-    --panel-deploy-blocked-count-background: lighten(@red, 5%);
-    --panel-deploy-blocked-count-border: darken(@red, 10%);
+  --panel-deploy-blocked-text: @black;
+  --panel-deploy-blocked-background: lighten(@red, 15%);
+  --panel-deploy-blocked-border: @red;
+  --panel-deploy-blocked-count-text: @black;
+  --panel-deploy-blocked-count-background: lighten(@red, 5%);
+  --panel-deploy-blocked-count-border: darken(@red, 10%);
 
-    --panel-ready-text: @black;
-    --panel-ready-background: lighten(@green, 15%);
-    --panel-ready-border: @green;
-    --panel-ready-count-text: @black;
-    --panel-ready-count-background: lighten(@green, 5%);
-    --panel-ready-count-border: darken(@green, 10%);
+  --panel-ready-text: @black;
+  --panel-ready-background: lighten(@green, 15%);
+  --panel-ready-border: @green;
+  --panel-ready-count-text: @black;
+  --panel-ready-count-background: lighten(@green, 5%);
+  --panel-ready-count-border: darken(@green, 10%);
 
-    --panel-default-text: @black;
-    --panel-default-background: @light-grey;
-    --panel-default-border: darken(@light-grey, 15%);
-    --panel-default-count-text: @black;
-    --panel-default-count-background: darken(@light-grey, 15%);
-    --panel-default-count-border: darken(@light-grey, 15%);
+  --panel-default-text: @black;
+  --panel-default-background: @light-grey;
+  --panel-default-border: darken(@light-grey, 15%);
+  --panel-default-count-text: @black;
+  --panel-default-count-background: darken(@light-grey, 15%);
+  --panel-default-count-border: darken(@light-grey, 15%);
 
-    --pull-title: @dark-grey;
-    --pull-number: @black;
-    --pull-background: @white;
-    --pull-background-hover: @light-grey;
-    --pull-separator: darken(@light-grey, 10%);
-    --pull-updated-background: #fff3a6;
-    --pull-merged: @merged;
-    --pull-closed: @closed;
+  --pull-title: @dark-grey;
+  --pull-number: @black;
+  --pull-background: @white;
+  --pull-background-hover: @light-grey;
+  --pull-separator: darken(@light-grey, 10%);
+  --pull-updated-background: #fff3a6;
+  --pull-merged: @merged;
+  --pull-closed: @closed;
 
-    // Build statuses
-    --build-state-pending: @grey;
-    --build-state-failure: @yellow;
-    --build-state-error:   @red;
-    --build-state-success: @green;
-    --build-status-link-divider: rgba(128,128,128,0.2);
-    --build-status-hover: var(--build-status-link-divider);
-    --build-status-text: @dark-grey;
+  // Build statuses
+  --build-state-pending: @grey;
+  --build-state-failure: @yellow;
+  --build-state-error: @red;
+  --build-state-success: @green;
+  --build-status-link-divider: rgba(128, 128, 128, 0.2);
+  --build-status-hover: var(--build-status-link-divider);
+  --build-status-text: @dark-grey;
 
-    --tag-default-border: darken(@light-grey, 10%);
-    --tag-default-background: @white;
+  --tag-default-border: darken(@light-grey, 10%);
+  --tag-default-background: @white;
 
-    --tag-current-milestone: @blue;
-    --tag-current-milestone-border: var(--tag-default-border);
-    --tag-current-milestone-background: var(--tag-default-background);
+  --tag-current-milestone: @blue;
+  --tag-current-milestone-border: var(--tag-default-border);
+  --tag-current-milestone-background: var(--tag-default-background);
 
-    --tag-past-milestone: @red;
-    --tag-past-milestone-border: var(--tag-default-border);
-    --tag-past-milestone-background: var(--tag-default-background);
+  --tag-past-milestone: @red;
+  --tag-past-milestone-border: var(--tag-default-border);
+  --tag-past-milestone-background: var(--tag-default-background);
 
-    --tag-dev-blocked: @yellow;
-    --tag-dev-blocked-border: var(--tag-default-border);
-    --tag-dev-blocked-background: var(--tag-default-background);
+  --tag-dev-blocked: @yellow;
+  --tag-dev-blocked-border: var(--tag-default-border);
+  --tag-dev-blocked-background: var(--tag-default-background);
 
-    --tag-draft-blocked: @blue;
-    --tag-draft-blocked-border: var(--tag-default-border);
-    --tag-draft-blocked-background: var(--tag-default-background);
+  --tag-draft-blocked: @blue;
+  --tag-draft-blocked-border: var(--tag-default-border);
+  --tag-draft-blocked-background: var(--tag-default-background);
 
-    --tag-deploy-blocked: @red;
-    --tag-deploy-blocked-border: var(--tag-default-border);
-    --tag-deploy-blocked-background: var(--tag-default-background);
+  --tag-deploy-blocked: @red;
+  --tag-deploy-blocked-border: var(--tag-default-border);
+  --tag-deploy-blocked-background: var(--tag-default-background);
 
-    --tag-qaing: @green;
-    --tag-qaing-mine: @blue;
-    --tag-qaing-border: var(--tag-default-border);
-    --tag-qaing-background: var(--tag-default-background);
+  --tag-qaing: @green;
+  --tag-qaing-mine: @blue;
+  --tag-qaing-border: var(--tag-default-border);
+  --tag-qaing-background: var(--tag-default-background);
 
-    --tag-externally-blocked: @red;
-    --tag-externally-blocked-border: var(--tag-default-border);
-    --tag-externally-blocked-background: var(--tag-default-background);
+  --tag-externally-blocked: @red;
+  --tag-externally-blocked-border: var(--tag-default-border);
+  --tag-externally-blocked-background: var(--tag-default-background);
 
-    --tag-cryo: var(--tag-default-background);;
-    --tag-cryo-border: var(--tag-default-border);
-    --tag-cryo-background: @blue;
+  --tag-cryo: var(--tag-default-background);
+  --tag-cryo-border: var(--tag-default-border);
+  --tag-cryo-background: @blue;
 
-    --user-icon: @blue;
+  --user-icon: @blue;
 
-    // Pull age
-    --age-1: @green;
-    --age-2: @yellow;
-    --age-3: @red;
+  // Pull age
+  --age-1: @green;
+  --age-2: @yellow;
+  --age-3: @red;
 
-    // CR and QA boxes
-    --status-background: @white;
-    --status-border: darken(@light-grey, 10%);
-    --status-text: @dark-grey;
+  // CR and QA boxes
+  --status-background: @white;
+  --status-border: darken(@light-grey, 10%);
+  --status-text: @dark-grey;
 
-    --status-valid-background: lighten(@green, 35%);
-    --status-valid-border: @green;
-    --status-valid-text: @green;
+  --status-valid-background: lighten(@green, 35%);
+  --status-valid-border: @green;
+  --status-valid-text: @green;
 
-    --status-valid-mine-background: lighten(@blue, 35%);
-    --status-valid-mine-border: @blue;
-    --status-valid-mine-text: @blue;
+  --status-valid-mine-background: lighten(@blue, 35%);
+  --status-valid-mine-border: @blue;
+  --status-valid-mine-text: @blue;
 
-    // Signatures (CR / QA)
-    --signature-default: darken(@grey, 10%);
-    --signature-valid: @green;
-    --signature-valid-mine: @blue;
-    --signature-invalid: @yellow;
-    --signature-invalid-mine: @red;
+  // Signatures (CR / QA)
+  --signature-default: darken(@grey, 10%);
+  --signature-valid: @green;
+  --signature-valid-mine: @blue;
+  --signature-invalid: @yellow;
+  --signature-invalid-mine: @red;
 
-    --copy-branch: darken(@grey, 25%);
-    --copy-branch-hover: darken(@blue, 10%);
+  --copy-branch: darken(@grey, 25%);
+  --copy-branch-hover: darken(@blue, 10%);
 
-    --refresh: darken(@grey, 25%);
-    --refresh-background: @white;
-    --refresh-hover: @blue;
+  --refresh: darken(@grey, 25%);
+  --refresh-background: @white;
+  --refresh-hover: @blue;
 }

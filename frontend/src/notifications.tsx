@@ -12,14 +12,14 @@ type NotificationOptions<T> = {
   key: (x: T) => KeyType;
 };
 
-const notificationsSupported = ("Notification" in window);
+const notificationsSupported = "Notification" in window;
 
 export function useNotification<T>(
   xs: T[],
   { filter, message, key }: NotificationOptions<T>
 ) {
   if (!notificationsSupported) {
-    return
+    return;
   }
   const [seen, setSeen] = React.useState<KeyType[]>([]);
   const filtered = xs.filter(filter);
@@ -45,7 +45,7 @@ export function NotificationRequest() {
     Notification.requestPermission();
   };
   if (!notificationsSupported) {
-    return null
+    return null;
   }
   if (Notification.permission === "default") {
     return (
