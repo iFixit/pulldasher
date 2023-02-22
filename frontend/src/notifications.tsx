@@ -12,7 +12,7 @@ type KeyType = number | string;
 
 type NotificationOptions<T> = {
   filter: (x: T) => boolean;
-  message: (xs: T[]) => string;
+  message: (xs: T) => { text: string; url: string };
   key: (x: T) => KeyType;
 };
 
@@ -34,9 +34,14 @@ export function useNotification<T>(
   const unseen = filtered.filter((x) => !seen.includes(key(x)));
   React.useEffect(() => {
     if (unseen.length > 0) {
-      const msg = message(unseen);
+      const first = unseen[0];
+      const { text, url } = message(first);
       if (Notification.permission === "granted") {
-        new Notification(msg);
+        const notification = new Notification(text);
+        notification.addEventListener("click", () => {
+          window.focus();
+          window.open(url, "_blank");
+        });
         if (isBellActive()) {
           new Audio("/public/sounds/bell.mp3").play();
         }

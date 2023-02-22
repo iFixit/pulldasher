@@ -10,10 +10,13 @@ export function usePullNotification(
   useNotification<Pull>(pulls, {
     key: (pull: Pull) => pull.number,
     filter,
-    message(pulls) {
-      const titles = pulls.map((p) => p.title).join(", ");
-      const pull = pulls.length === 1 ? "Pull" : "Pulls";
-      return `${pull} ready for ${action}: ${titles}`;
+    message(pull) {
+      const titles = pull.title;
+      const text = `Pull ready for ${action}: ${titles}`;
+      return {
+        text,
+        url: pull.getUrl(),
+      };
     },
   });
 }
