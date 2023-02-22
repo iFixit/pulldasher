@@ -84,5 +84,9 @@ module.exports = {
   devtool: "eval-cheap-module-source-map",
   devServer: {
     open: ["/"],
+    static: {
+      directory: "public",
+      publicPath: "/public",
+    },
   },
 };
