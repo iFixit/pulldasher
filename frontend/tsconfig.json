@@ -8,9 +8,6 @@
     "noImplicitAny": true,
     "jsx": "react-jsx"
   },
-  "include": [
-    "src/**/*",
-    "test/**/*"
-  ],
+  "include": ["src/**/*", "test/**/*"],
   "compileOnSave": false
 }

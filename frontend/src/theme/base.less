@@ -1,33 +1,34 @@
 body.themed {
-    background-color: var(--background-color);
+  background-color: var(--background-color);
 
-   --body-max-width: 1200px;
+  --body-max-width: 1200px;
 
-   // Padding around columns
-   --body-gutter: 24px;
+  // Padding around columns
+  --body-gutter: 24px;
 
-   font: 400 14px Lato;
-   line-height: 1.5;
+  font: 400 14px Lato;
+  line-height: 1.5;
 
-   .pull-flag:hover {
-      box-shadow: 0 0 0 1px;
-   }
+  .pull-flag:hover {
+    box-shadow: 0 0 0 1px;
+  }
 }
 
 @keyframes highlightPull {
-   from {
-      background-color: var(--pull-updated-background);
-   }
+  from {
+    background-color: var(--pull-updated-background);
+  }
 }
 
-body.themed,html {
-   min-height: 100vh;
+body.themed,
+html {
+  min-height: 100vh;
 }
 
 *:focus {
-   box-shadow: none !important;
- }
- 
- *[data-focus] {
-   box-shadow: none !important;
- }
+  box-shadow: none !important;
+}
+
+*[data-focus] {
+  box-shadow: none !important;
+}
