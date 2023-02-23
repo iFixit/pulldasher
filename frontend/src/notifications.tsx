@@ -39,8 +39,9 @@ export function useNotification<T>(
       if (Notification.permission === "granted") {
         const notification = new Notification(text);
         notification.addEventListener("click", () => {
-          window.focus();
-          window.open(url, "_blank");
+          const target = new URL(window.location.href);
+          target.searchParams.set("redirect", url.toString());
+          window.open(target.toString(), "_blank", "noopener,noreferrer");
         });
         if (isBellActive()) {
           new Audio("/public/sounds/bell.mp3").play();
