@@ -1,7 +1,11 @@
 import * as React from "react";
 import { Button } from "@chakra-ui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBellSlash } from "@fortawesome/free-solid-svg-icons";
+import {
+  faBellSlash,
+  faVolumeHigh,
+  faVolumeXmark,
+} from "@fortawesome/free-solid-svg-icons";
 import { isEqual } from "lodash-es";
 
 type KeyType = number | string;
@@ -13,6 +17,10 @@ type NotificationOptions<T> = {
 };
 
 const notificationsSupported = "Notification" in window;
+
+function isBellActive() {
+  return window.localStorage.getItem("bell") === "ring";
+}
 
 export function useNotification<T>(
   xs: T[],
@@ -29,7 +37,9 @@ export function useNotification<T>(
       const msg = message(unseen);
       if (Notification.permission === "granted") {
         new Notification(msg);
-        new Audio("/sounds/bell.mp3").play();
+        if (isBellActive()) {
+          new Audio("/public/sounds/bell.mp3").play();
+        }
       }
     }
     const proposed = filtered.map(key);
@@ -41,9 +51,22 @@ export function useNotification<T>(
 }
 
 export function NotificationRequest() {
+  const [bellActive, setBellActive] = React.useState(isBellActive());
+
+  const activateBell = () => {
+    window.localStorage.setItem("bell", "ring");
+    setBellActive(true);
+  };
+
+  const deactivateBell = () => {
+    window.localStorage.removeItem("bell");
+    setBellActive(false);
+  };
+
   const activateNotifications = () => {
     Notification.requestPermission();
   };
+
   if (!notificationsSupported) {
     return null;
   }
@@ -60,5 +83,29 @@ export function NotificationRequest() {
       </Button>
     );
   }
-  return null;
+
+  if (bellActive) {
+    return (
+      <Button
+        size="sm"
+        title="Deactivate Bell"
+        colorScheme="blue"
+        variant="ghost"
+        onClick={deactivateBell}
+      >
+        <FontAwesomeIcon icon={faVolumeXmark} />
+      </Button>
+    );
+  }
+  return (
+    <Button
+      size="sm"
+      title="Activate Bell"
+      colorScheme="blue"
+      variant="ghost"
+      onClick={activateBell}
+    >
+      <FontAwesomeIcon icon={faVolumeHigh} />
+    </Button>
+  );
 }
