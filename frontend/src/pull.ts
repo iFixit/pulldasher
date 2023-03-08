@@ -140,6 +140,10 @@ export class Pull extends PullData {
     );
   }
 
+  hasMergeConflicts(): boolean | null {
+   return this.mergeable == false;
+  }
+
   buildStatusesWithRequired(): CommitStatus[] {
     const statuses = this.buildStatuses();
     (this.repoSpec?.requiredStatuses || []).forEach((requiredContext) => {
