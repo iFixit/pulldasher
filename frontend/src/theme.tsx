@@ -210,6 +210,11 @@ export const theme = extendTheme({
           backgroundColor: "var(--tag-cryo-background)",
           borderColor: "var(--tag-cryo-border)",
         },
+        mergeConflict: {
+          color: "var(--tag-merge-conflict)",
+          backgroundColor: "var(--tag-merge-conflict-background)",
+          borderColor: "var(--tag-merge-conflict-border)",
+        },
       },
     },
   },
