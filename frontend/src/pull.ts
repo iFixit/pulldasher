@@ -140,7 +140,7 @@ export class Pull extends PullData {
     );
   }
 
-  hasMergeConflicts(): boolean | null {
+  hasMergeConflicts(): boolean {
    return this.mergeable == false;
   }
 
