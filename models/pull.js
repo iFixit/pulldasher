@@ -193,6 +193,7 @@ Pull.fromGithubApi = function (
     created_at: utils.fromDateString(data.created_at),
     updated_at: utils.fromDateString(data.updated_at),
     closed_at: utils.fromDateString(data.closed_at),
+    mergeable: data.mergeable,
     merged_at: utils.fromDateString(data.merged_at),
     difficulty: data.difficulty,
     milestone: {
@@ -246,6 +247,7 @@ Pull.getFromDB = function (
     created_at: utils.fromUnixTime(data.date),
     updated_at: utils.fromUnixTime(data.date_updated),
     closed_at: utils.fromUnixTime(data.date_closed),
+    mergeable: data.mergeable,
     merged_at: utils.fromUnixTime(data.date_merged),
     difficulty: data.difficulty,
     milestone: {
