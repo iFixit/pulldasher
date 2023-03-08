@@ -17,6 +17,8 @@ export function QACompare(a: Pull, b: Pull): number {
   return (
     // Pulls I'm QAing above those I'm not
     compareBool(isQAingByMe(a), isQAingByMe(b)) ||
+    // Pulls with no merge conflicts above those with merge conflicts
+    compareBool(!a.hasMergeConflicts(), !b.hasMergeConflicts) ||
     // Pulls with no external_block above those with external_block
     compareBool(!a.getLabel("external_block"), !b.getLabel("external_block")) ||
     // Pulls with no QAing label above those with QAing
