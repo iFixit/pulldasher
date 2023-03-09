@@ -14,6 +14,7 @@ import {
   Blocked,
   Milestones,
   Labels,
+  Draft,
   MyOwn,
   KitchenSink,
 } from "./named-pulls";
