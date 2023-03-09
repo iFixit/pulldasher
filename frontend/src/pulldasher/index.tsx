@@ -33,7 +33,7 @@ function Pulldasher() {
   const allPulls = useAllPulls();
   const pulls = useAllOpenPulls();
   const pullsCIBlocked = pulls.filter((pull) => pull.isCiBlocked());
-  const pullsDeployBlocked = pulls.filter((pull) => pull.isDeployBlocked() || pull.hasMergeConflicts());
+  const pullsDeployBlocked = pulls.filter((pull) => pull.isDeployBlocked());
   const pullsReady = pulls.filter(
     (pull) => pull.isReady() && pull.isCiRequired()
   );
