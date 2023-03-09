@@ -1,1 +1,1 @@
-ALTER TABLE `pulls` ADD COLUMN `mergeable` BOOLEAN default NULL AFTER `date_merged`; 
+ALTER TABLE `pulls` ADD COLUMN `mergeable` tinyint default NULL AFTER `date_merged`;
