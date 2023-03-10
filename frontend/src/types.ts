@@ -86,6 +86,7 @@ export class PullData {
   created_at: DateString;
   updated_at: DateString;
   closed_at: DateString | null;
+  mergeable: boolean;
   merged_at: DateString | null;
   difficulty: number | null;
   milestone: {
