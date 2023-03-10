@@ -30,6 +30,13 @@ export function QACompare(a: Pull, b: Pull): number {
   );
 }
 
+export function DeployCompare(a: Pull, b: Pull): number {
+  return (
+    // Pulls with no merge conflicts above those with merge conflicts
+    compareBool(!a.hasMergeConflicts(), !b.hasMergeConflicts())
+  );
+}
+
 export function signatureCompare(a: Signature, b: Signature) {
   return (
     // Active before inactive
