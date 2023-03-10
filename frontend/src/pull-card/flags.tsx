@@ -11,6 +11,7 @@ import {
   faEyeSlash,
   faSnowflake,
   faSpinner,
+  faCodeCompare,
 } from "@fortawesome/free-solid-svg-icons";
 
 export const Flags = memo(function Flags({ pull }: { pull: Pull }) {
@@ -84,6 +85,13 @@ export const Flags = memo(function Flags({ pull }: { pull: Pull }) {
             cryogenicStorage.user
           )}
           icon={faSnowflake}
+        />
+      )}
+      {pull.hasMergeConflicts() && (
+        <PullFlag
+          variant="mergeConflict"
+          title={"This pull request has merge conflicts"}
+          icon={faCodeCompare}
         />
       )}
     </>

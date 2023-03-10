@@ -19,12 +19,21 @@ export function QACompare(a: Pull, b: Pull): number {
     compareBool(isQAingByMe(a), isQAingByMe(b)) ||
     // Pulls with no external_block above those with external_block
     compareBool(!a.getLabel("external_block"), !b.getLabel("external_block")) ||
+    // Pulls with no merge conflicts above those with merge conflicts
+    compareBool(!a.hasMergeConflicts(), !b.hasMergeConflicts()) ||
     // Pulls with no QAing label above those with QAing
     compareBool(!a.getLabel("QAing"), !b.getLabel("QAing")) ||
     // Pulls with CR completed above those that need more
     compareBool(a.isCrDone(), b.isCrDone()) ||
     // Older pulls before younger pulls
     a.created_at.localeCompare(b.created_at)
+  );
+}
+
+export function DeployCompare(a: Pull, b: Pull): number {
+  return (
+    // Pulls with no merge conflicts above those with merge conflicts
+    compareBool(!a.hasMergeConflicts(), !b.hasMergeConflicts())
   );
 }
 

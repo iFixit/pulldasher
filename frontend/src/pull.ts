@@ -106,7 +106,8 @@ export class Pull extends PullData {
     return (
       this.hasMetDeployRequirements() &&
       !this.getDevBlock() &&
-      !this.getDeployBlock()
+      !this.getDeployBlock() &&
+      !this.hasMergeConflicts()
     );
   }
 
@@ -114,7 +115,7 @@ export class Pull extends PullData {
     return (
       this.hasMetDeployRequirements() &&
       !this.getDevBlock() &&
-      (!!this.getDeployBlock() || !this.isCiRequired())
+      (!!this.getDeployBlock() || !this.isCiRequired() || this.hasMergeConflicts())
     );
   }
 
@@ -138,6 +139,10 @@ export class Pull extends PullData {
     return this.status.commit_statuses.some(
       (status) => status.data.context === context
     );
+  }
+
+  hasMergeConflicts(): boolean {
+   return this.mergeable == false;
   }
 
   buildStatusesWithRequired(): CommitStatus[] {

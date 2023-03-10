@@ -14,6 +14,7 @@ import {
   Blocked,
   Milestones,
   Labels,
+  Draft,
   MyOwn,
   KitchenSink,
 } from "./named-pulls";
@@ -45,6 +46,7 @@ function PullCardDemo() {
       <Row title="Blocked" pullDatas={Blocked} />
       <Row title="Milestones" pullDatas={Milestones} />
       <Row title="Labels" pullDatas={Labels} />
+      <Row title="Draft" pullDatas={Draft} />
       <Row title="My Own" pullDatas={MyOwn} />
       <Row title="Kitchen Sink (all the things)" pullDatas={KitchenSink} />
     </ChakraProvider>

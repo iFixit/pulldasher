@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS `pulls` (
   `date_updated` int unsigned DEFAULT NULL,
   `date_closed` int unsigned DEFAULT NULL,
   `date_merged` int unsigned DEFAULT NULL,
+  `mergeable` tinyint(1) DEFAULT NULL,
   `milestone_title` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `milestone_due_on` int unsigned DEFAULT NULL,
   `closes` int unsigned DEFAULT NULL,

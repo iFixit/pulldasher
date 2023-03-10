@@ -290,6 +290,10 @@ export const Blocked = <PullData[]>[
       dev_block: [devBlock],
     },
   }),
+  pullData({
+    title: "Merge Conflict(s)",
+    mergeable: false,
+  }),
 ];
 
 export const Milestones = <PullData[]>[
@@ -342,6 +346,13 @@ export const Labels = <PullData[]>[
   }),
 ];
 
+export const Draft = <PullData[]>[
+  pullData({
+    title: "Draft",
+    draft: true,
+  }),
+];
+
 export const MyOwn = <PullData[]>[
   pullData({
     title: "Pull Created By Me",
@@ -371,6 +382,8 @@ export const KitchenSink = <PullData[]>[
     user: {
       login: getUser(),
     },
+    mergeable: false,
+    draft: true,
     cr_req: 3,
     qa_req: 2,
     status: {

@@ -1,7 +1,7 @@
 import { useAllPulls, useAllOpenPulls } from "./pulls-context";
 import { Navbar } from "../navbar";
 import { Column } from "../column";
-import { QACompare } from "./sort";
+import { QACompare, DeployCompare } from "./sort";
 import { LeaderList, getLeaders } from "../leader-list";
 import {
   useMyPullNotification,
@@ -76,7 +76,7 @@ function Pulldasher() {
                 id="dep"
                 title="Deploy Blocked"
                 variant="deployBlocked"
-                pulls={pullsDeployBlocked}
+                pulls={pullsDeployBlocked.sort(DeployCompare)}
               />
             </Box>
             <Box>
