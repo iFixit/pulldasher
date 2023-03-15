@@ -52,7 +52,7 @@ export class Pull extends PullData {
   }
 
   isCiBlocked(): boolean {
-    return !this.getDevBlock() && !this.hasPassedCI();
+    return !this.getDevBlock() && !this.hasPassedCI() && !this.isDraft();
   }
 
   hasOutdatedSig(user: string) {
