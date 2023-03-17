@@ -115,8 +115,12 @@ export class Pull extends PullData {
     return (
       this.hasMetDeployRequirements() &&
       !this.getDevBlock() &&
-      (!!this.getDeployBlock() || !this.isCiRequired() || this.hasMergeConflicts())
+      (!!this.getDeployBlock() || !this.isCiRequired() || this.hasMergeConflicts() || this.isDependent())
     );
+  }
+
+  isDependent(): boolean {
+    return !(this.base.ref == "main" || this.base.ref == "master");
   }
 
   hasMetDeployRequirements(): boolean {
