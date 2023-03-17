@@ -94,7 +94,7 @@ export function pullData(p: DeepPartial<PullData>): PullData {
     },
     head: head,
     base: {
-      ref: "master",
+      ref: p.base?.ref || "main",
     },
     user: {
       login: p.user?.login || username(),

@@ -294,6 +294,12 @@ export const Blocked = <PullData[]>[
     title: "Merge Conflict(s)",
     mergeable: false,
   }),
+  pullData({
+    title: "Awaiting a merge",
+    base: {
+      ref: "not-main",
+    },
+  }),
 ];
 
 export const Milestones = <PullData[]>[
@@ -381,6 +387,9 @@ export const KitchenSink = <PullData[]>[
     title: "Pull With Lots of flags and such and a really long title",
     user: {
       login: getUser(),
+    },
+    base: {
+      ref: "not-main",
     },
     mergeable: false,
     draft: true,
