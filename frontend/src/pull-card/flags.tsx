@@ -18,6 +18,7 @@ export const Flags = memo(function Flags({ pull }: { pull: Pull }) {
   const devBlock = pull.getDevBlock();
   const draftBlock = pull.isDraft();
   const readyButNoCI = pull.isReady() && !pull.isCiRequired();
+  const dependentPR = pull.isDependent() && !pull.getDeployBlock() && pull.isCiRequired() && !pull.isDraft();
   const deployBlock = pull.getDeployBlock();
   const QAing = pull.getLabel("QAing");
   const externalBlock = pull.getLabel("external_block");
@@ -40,6 +41,13 @@ export const Flags = memo(function Flags({ pull }: { pull: Pull }) {
         <PullFlag
           variant="deployBlock"
           title={"No CI, deploy carefully"}
+          icon={faWarning}
+        />
+      )}
+      {dependentPR && (
+        <PullFlag
+          variant="deployBlock"
+          title={"This pull request is waiting for another to merge"}
           icon={faWarning}
         />
       )}
