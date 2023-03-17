@@ -215,6 +215,11 @@ export const theme = extendTheme({
           backgroundColor: "var(--tag-merge-conflict-background)",
           borderColor: "var(--tag-merge-conflict-border)",
         },
+        dependentPR: {
+          color: "var(--tag-dependent-pr)",
+          backgroundColor: "var(--tag-dependent-pr-background)",
+          borderColor: "var(--tag-dependent-pr-border)",
+        },
       },
     },
   },
