@@ -50,7 +50,7 @@ export const Flags = memo(function Flags({ pull }: { pull: Pull }) {
           variant="dependentPR"
           title={"This pull request is waiting for a branch to merge"}
           icon={faCodeBranch}
-          href={pull.linkToBranch()}
+          href={pull.getUrlOfBaseBranch()}
         />
       )}
       {devBlock && (

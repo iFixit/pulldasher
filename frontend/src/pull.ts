@@ -188,7 +188,7 @@ export class Pull extends PullData {
     return this.url() + `#${linkIdPrefix}-${sig.data.comment_id}`;
   }
 
-  linkToBranch() {
+  getUrlOfBaseBranch() {
     return "https://github.com/" + this.repo + "/compare/" + this.base.ref;
   }
 }
