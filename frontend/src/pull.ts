@@ -189,7 +189,7 @@ export class Pull extends PullData {
   }
 
   linkToBranch() {
-    return "https://github.com/" + this.repo + "/tree/" + this.base.ref;
+    return "https://github.com/" + this.repo + "/compare/" + this.base.ref;
   }
 }
 
