@@ -187,6 +187,10 @@ export class Pull extends PullData {
     const linkIdPrefix = isReview ? "pullrequestreview" : "issuecomment";
     return this.url() + `#${linkIdPrefix}-${sig.data.comment_id}`;
   }
+
+  getUrlOfBaseBranch() {
+    return "https://github.com/" + this.repo + "/compare/" + encodeURIComponent(this.base.ref);
+  }
 }
 
 function computeSignatures(signatures: Signature[]): SignatureGroup {
