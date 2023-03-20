@@ -189,7 +189,7 @@ export class Pull extends PullData {
   }
 
   getUrlOfBaseBranch() {
-    return "https://github.com/" + this.repo + "/compare/" + this.base.ref;
+    return "https://github.com/" + this.repo + "/compare/" + encodeURIComponent(this.base.ref);
   }
 }
 
