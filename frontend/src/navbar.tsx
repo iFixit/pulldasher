@@ -37,7 +37,7 @@ import {
 
 let title = 'Pulldasher';
 
-if (document.URL.includes('-dev')) {
+if (document.URL.includes('pulldasher-dev')) {
   title = 'Pulldasher-Dev';
   document.title = title;
 }
