@@ -35,6 +35,13 @@ import {
   faCircleExclamation,
 } from "@fortawesome/free-solid-svg-icons";
 
+let title = 'Pulldasher';
+
+if (document.URL.includes('dev')) {
+  document.title = 'Pulldasher-Dev';
+  title = 'Pulldasher-Dev';
+}
+
 // Default width of the left and right sections of the nav bar
 const sideWidth = "220px";
 
@@ -162,7 +169,7 @@ export function Navbar(props: NavBarProps) {
           </Box>
         </HStack>
         <Flex alignSelf="center" fontSize={20} flexShrink={0}>
-          <span style={{ fontVariantCaps: "small-caps" }}>Pulldasher</span>
+          <span style={{ fontVariantCaps: "small-caps" }}>{title}</span>
         </Flex>
         <Box
           flexBasis={sideWidth}
