@@ -38,8 +38,8 @@ import {
 let title = 'Pulldasher';
 
 if (document.URL.includes('-dev')) {
-  document.title = 'Pulldasher-Dev';
   title = 'Pulldasher-Dev';
+  document.title = title;
 }
 
 // Default width of the left and right sections of the nav bar
