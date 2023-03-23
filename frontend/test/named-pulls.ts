@@ -16,6 +16,14 @@ export const AgePulls = <PullData[]>[
   }),
 ];
 
+export const LinesChanged = <PullData[]>[
+  pullData({
+    title: "Pull card with # of lines changed",
+    additions: 248,
+    deletions: 50,
+  }),
+];
+
 export const UnfulfilledRequirements = <PullData[]>[
   pullData({
     title: "No Requirements",
@@ -391,6 +399,8 @@ export const KitchenSink = <PullData[]>[
     base: {
       ref: "not-main",
     },
+    additions: 120,
+    deletions: 20,
     mergeable: false,
     draft: true,
     cr_req: 3,
