@@ -55,9 +55,11 @@ const SigsAndFlags = chakra(Flex, {
 export const PullCard = memo(function PullCard({
   pull,
   show,
+  showLinesChanged,
 }: {
   pull: Pull;
   show: boolean;
+  showLinesChanged: boolean;
 }) {
   const cardRef = useRef<HTMLElement>(null);
   highlightOnChange(cardRef, [pull.received_at]);
