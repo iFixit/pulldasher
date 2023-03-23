@@ -1,5 +1,5 @@
 import { Pull } from "./pull";
-import { PullCard } from "./pull-card";
+import { PullCard, PullCardWithLinesChanged } from "./pull-card";
 import { useBoolUrlState } from "./use-url-state";
 import { useFilteredOpenPulls } from "./pulldasher/pulls-context";
 import { Box, Flex, Spacer, useStyleConfig } from "@chakra-ui/react";
@@ -28,7 +28,14 @@ export function Column(props: ColumnProps) {
         </Box>
       </Flex>
       <Box display={open ? "block" : "none"}>
-        {props.pulls.map((pull) => (
+        {props.showLinesChanged && props.pulls.map((pull) => (
+          <PullCardWithLinesChanged
+            key={pull.getKey()}
+            pull={pull}
+            show={pullsToShow.has(pull)}
+          />
+        ))}
+        {!props.showLinesChanged && props.pulls.map((pull) => (
           <PullCard
             key={pull.getKey()}
             pull={pull}
