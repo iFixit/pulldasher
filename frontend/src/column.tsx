@@ -1,5 +1,5 @@
 import { Pull } from "./pull";
-import { PullCard, PullCardWithLinesChanged } from "./pull-card";
+import { PullCard } from "./pull-card";
 import { useBoolUrlState } from "./use-url-state";
 import { useFilteredOpenPulls } from "./pulldasher/pulls-context";
 import { Box, Flex, Spacer, useStyleConfig } from "@chakra-ui/react";

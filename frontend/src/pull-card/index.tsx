@@ -103,69 +103,14 @@ export const PullCard = memo(function PullCard({
           />
           <Flags pull={pull} />
         </SigsAndFlags>
-        <Age created_at={pull.created_at} />
-      </Box>
-    </Card>
-  );
-});
-
-export const PullCardWithLinesChanged = memo(function PullCard({
-  pull,
-  show,
-}: {
-  pull: Pull;
-  show: boolean;
-}) {
-  const cardRef = useRef<HTMLElement>(null);
-  highlightOnChange(cardRef, [pull.received_at]);
-
-  return (
-    <Card ref={cardRef} display={show ? undefined : "none"}>
-      <RefreshButton pull={pull} />
-      <CommitStatuses pull={pull} />
-      <Box>
-        <Link
-          href={pull.getUrl()}
-          title={pull.user.login}
-          isExternal
-          color="var(--pull-title)"
-        >
-          {pull.isMine() ? (
-            <FontAwesomeIcon
-              icon={faStar}
-              className="star"
-              color="var(--user-icon)"
-            />
-          ) : (
-            <Avatar user={pull.user.login} linkToProfile />
-          )}
-          <chakra.span fontWeight="bold">
-            {pull.getRepoName()} #{pull.number}:{" "}
-          </chakra.span>
-          {pull.title}
-        </Link>
-        <CopyBranch value={pull.head.ref} className="copy" />
-        <SigsAndFlags wrap="wrap">
-          <Signatures
-            pull={pull}
-            signatures={pull.cr_signatures}
-            required={pull.status.cr_req}
-            title="CR"
-          />
-          <Signatures
-            pull={pull}
-            signatures={pull.qa_signatures}
-            required={pull.status.qa_req}
-            title="QA"
-          />
-          <Flags pull={pull} />
-        </SigsAndFlags>
+        { showLinesChanged &&
         <Code>
           <HStack>
             <Text title={`${pull.additions} additions`} color="var(--additions)">+{pull.additions}</Text>
             <Text title={`${pull.deletions} deletions`} color="var(--deletions)">-{pull.deletions}</Text>
           </HStack>
         </Code>
+        }
         <Age created_at={pull.created_at} />
       </Box>
     </Card>
