@@ -3,6 +3,7 @@ import { PullData } from "../src/types";
 import { ChakraProvider, Box, HStack, Heading } from "@chakra-ui/react";
 import {
   AgePulls,
+  LinesChanged,
   UnfulfilledRequirements,
   PartialRequirements,
   FulfilledRequirements,
@@ -29,6 +30,7 @@ function PullCardDemo() {
   return (
     <ChakraProvider theme={theme}>
       <Row title="Different Ages" pullDatas={AgePulls} />
+      <Row title="Lines Changed" pullDatas={LinesChanged} linesChanged={true} />
       <Row
         title="Unfulfilled Requirements"
         pullDatas={UnfulfilledRequirements}
@@ -48,12 +50,12 @@ function PullCardDemo() {
       <Row title="Labels" pullDatas={Labels} />
       <Row title="Draft" pullDatas={Draft} />
       <Row title="My Own" pullDatas={MyOwn} />
-      <Row title="Kitchen Sink (all the things)" pullDatas={KitchenSink} />
+      <Row title="Kitchen Sink (all the things)" pullDatas={KitchenSink} linesChanged={true}/>
     </ChakraProvider>
   );
 }
 
-function Row({ title, pullDatas }: { title: string; pullDatas: PullData[] }) {
+function Row({ title, pullDatas, linesChanged }: { title: string; pullDatas: PullData[]; linesChanged: boolean }) {
   return (
     <>
       <Box m={10} maxW={1024}>
@@ -66,13 +68,17 @@ function Row({ title, pullDatas }: { title: string; pullDatas: PullData[] }) {
               border="1px solid var(--panel-default-border)"
               overflow="hidden"
             >
-              <PullCard pull={new Pull(pullData)} show={true} showLinesChanged={false}/>
+              <PullCard pull={new Pull(pullData)} show={true} showLinesChanged={linesChanged}/>
             </Box>
           ))}
         </HStack>
       </Box>
     </>
   );
+}
+
+Row.defaultProps = {
+  linesChanged: false,
 }
 
 render(<PullCardDemo />, root);
