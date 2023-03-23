@@ -28,19 +28,13 @@ export function Column(props: ColumnProps) {
         </Box>
       </Flex>
       <Box display={open ? "block" : "none"}>
-        {props.showLinesChanged && props.pulls.map((pull) => (
-          <PullCardWithLinesChanged
-            key={pull.getKey()}
-            pull={pull}
-            show={pullsToShow.has(pull)}
-          />
-        ))}
-        {!props.showLinesChanged && props.pulls.map((pull) => (
+        {props.pulls.map((pull) => (
           <PullCard
             key={pull.getKey()}
             pull={pull}
             show={pullsToShow.has(pull)}
-          />
+            showLinesChanged={props.showLinesChanged}
+        />
         ))}
       </Box>
     </Box>
