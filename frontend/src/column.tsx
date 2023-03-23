@@ -9,6 +9,7 @@ interface ColumnProps {
   pulls: Pull[];
   title: string;
   id: string;
+  showLinesChanged: boolean;
 }
 
 export function Column(props: ColumnProps) {
