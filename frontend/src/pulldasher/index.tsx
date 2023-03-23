@@ -69,7 +69,6 @@ function Pulldasher() {
                 title="CI Blocked"
                 variant="ciBlocked"
                 pulls={pullsCIBlocked}
-                showLinesChanged={false}
               />
             </Box>
             <Box>
@@ -78,7 +77,6 @@ function Pulldasher() {
                 title="Deploy Blocked"
                 variant="deployBlocked"
                 pulls={pullsDeployBlocked.sort(DeployCompare)}
-                showLinesChanged={false}
               />
             </Box>
             <Box>
@@ -87,11 +85,10 @@ function Pulldasher() {
                 title="Ready"
                 variant="ready"
                 pulls={pullsReady}
-                showLinesChanged={false}
               />
             </Box>
             <Box>
-              <Column id="dev" title="Dev Block" pulls={pullsDevBlocked} showLinesChanged={false} />
+              <Column id="dev" title="Dev Block" pulls={pullsDevBlocked} />
             </Box>
             <Box>
               <Column id="cr" title="CR" pulls={pullsNeedingCR} showLinesChanged={true} />
@@ -101,7 +98,6 @@ function Pulldasher() {
                 id="qa"
                 title="QA"
                 pulls={pullsNeedingQA.sort(QACompare)}
-                showLinesChanged={false}
               />
             </Box>
           </SimpleGrid>

@@ -55,7 +55,7 @@ function PullCardDemo() {
   );
 }
 
-function Row({ title, pullDatas, linesChanged }: { title: string; pullDatas: PullData[]; linesChanged: boolean }) {
+function Row({ title, pullDatas, linesChanged }: { title: string; pullDatas: PullData[]; linesChanged?: boolean }) {
   return (
     <>
       <Box m={10} maxW={1024}>
@@ -75,10 +75,6 @@ function Row({ title, pullDatas, linesChanged }: { title: string; pullDatas: Pul
       </Box>
     </>
   );
-}
-
-Row.defaultProps = {
-  linesChanged: false,
 }
 
 render(<PullCardDemo />, root);

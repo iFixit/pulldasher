@@ -59,7 +59,7 @@ export const PullCard = memo(function PullCard({
 }: {
   pull: Pull;
   show: boolean;
-  showLinesChanged: boolean;
+  showLinesChanged?: boolean;
 }) {
   const cardRef = useRef<HTMLElement>(null);
   highlightOnChange(cardRef, [pull.received_at]);
