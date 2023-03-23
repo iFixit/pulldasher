@@ -105,8 +105,8 @@ export const PullCard = memo(function PullCard({
           />
           <Flags pull={pull} />
         </SigsAndFlags>
-        { showLinesChanged &&
-        <Code>
+        {showLinesChanged &&
+        <Code backgroundColor="transparent">
           <HStack>
             <Text title={`${pull.additions} additions`} color="var(--additions)">+{pull.additions}</Text>
             <Text title={`${pull.deletions} deletions`} color="var(--deletions)">-{pull.deletions}</Text>
