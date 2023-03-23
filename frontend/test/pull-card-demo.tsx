@@ -66,7 +66,7 @@ function Row({ title, pullDatas }: { title: string; pullDatas: PullData[] }) {
               border="1px solid var(--panel-default-border)"
               overflow="hidden"
             >
-              <PullCard pull={new Pull(pullData)} show={true} />
+              <PullCard pull={new Pull(pullData)} show={true} showLinesChanged={false}/>
             </Box>
           ))}
         </HStack>
