@@ -89,6 +89,26 @@ export const PullCard = memo(function PullCard({
           </chakra.span>
           {pull.title}
         </Link>
+        {showLinesChanged &&
+          <>
+          <Text
+            as="span"
+            ml="6px"
+            title={pull.additions == 1 ? `${pull.additions} addition` : `${pull.additions} additions`}
+            fontSize="13px"
+            color="var(--additions)">
+            +{pull.additions}
+          </Text>
+          <Text
+            as="span"
+            ml="6px"
+            title={pull.deletions == 1 ? `${pull.deletions} deletion` : `${pull.deletions} deletions`}
+            fontSize="13px"
+            color="var(--deletions)">
+            -{pull.deletions}
+          </Text>
+          </>
+        }
         <CopyBranch value={pull.head.ref} className="copy" />
         <SigsAndFlags wrap="wrap">
           <Signatures
@@ -105,22 +125,6 @@ export const PullCard = memo(function PullCard({
           />
           <Flags pull={pull} />
         </SigsAndFlags>
-        {showLinesChanged &&
-          <HStack>
-            <Text
-              title={pull.additions == 1 ? `${pull.additions} addition` : `${pull.additions} additions`}
-              fontSize="13px"
-              color="var(--additions)">
-              +{pull.additions}
-            </Text>
-            <Text
-              title={pull.deletions == 1 ? `${pull.deletions} deletion` : `${pull.deletions} deletions`}
-              fontSize="13px"
-              color="var(--deletions)">
-              -{pull.deletions}
-            </Text>
-          </HStack>
-        }
         <Age created_at={pull.created_at} />
       </Box>
     </Card>
