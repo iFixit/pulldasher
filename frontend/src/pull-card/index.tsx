@@ -7,7 +7,7 @@ import { Signatures } from "./signatures";
 import { CopyBranch } from "./copy-branch";
 import { memo, useEffect, useRef, RefObject } from "react";
 import { RefreshButton } from "./refresh";
-import { Flex, Box, Link, chakra, HStack, Text, Code } from "@chakra-ui/react";
+import { Flex, Box, Link, chakra, Text } from "@chakra-ui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faStar,
