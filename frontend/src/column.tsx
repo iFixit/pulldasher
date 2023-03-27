@@ -9,6 +9,7 @@ interface ColumnProps {
   pulls: Pull[];
   title: string;
   id: string;
+  showLinesChanged?: boolean;
 }
 
 export function Column(props: ColumnProps) {
@@ -32,7 +33,8 @@ export function Column(props: ColumnProps) {
             key={pull.getKey()}
             pull={pull}
             show={pullsToShow.has(pull)}
-          />
+            showLinesChanged={props.showLinesChanged}
+        />
         ))}
       </Box>
     </Box>

@@ -250,6 +250,8 @@ Pull.getFromDB = function (
     mergeable: data.mergeable,
     merged_at: utils.fromUnixTime(data.date_merged),
     difficulty: data.difficulty,
+    additions: data.additions,
+    deletions: data.deletions,
     milestone: {
       title: data.milestone_title,
       due_on: utils.fromUnixTime(data.milestone_due_on),

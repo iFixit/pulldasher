@@ -91,7 +91,7 @@ function Pulldasher() {
               <Column id="dev" title="Dev Block" pulls={pullsDevBlocked} />
             </Box>
             <Box>
-              <Column id="cr" title="CR" pulls={pullsNeedingCR} />
+              <Column id="cr" title="CR" pulls={pullsNeedingCR} showLinesChanged={true} />
             </Box>
             <Box>
               <Column
