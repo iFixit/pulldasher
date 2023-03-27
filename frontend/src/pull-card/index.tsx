@@ -106,22 +106,20 @@ export const PullCard = memo(function PullCard({
           <Flags pull={pull} />
         </SigsAndFlags>
         {showLinesChanged &&
-        <Code backgroundColor="transparent">
           <HStack>
-            <Text fontFamily='Verdana'
+            <Text
               title={pull.additions == 1 ? `${pull.additions} addition` : `${pull.additions} additions`}
-              fontSize="12px"
+              fontSize="13px"
               color="var(--additions)">
               +{pull.additions}
             </Text>
-            <Text fontFamily='Verdana'
+            <Text
               title={pull.deletions == 1 ? `${pull.deletions} deletion` : `${pull.deletions} deletions`}
-              fontSize="12px"
+              fontSize="13px"
               color="var(--deletions)">
               -{pull.deletions}
             </Text>
           </HStack>
-        </Code>
         }
         <Age created_at={pull.created_at} />
       </Box>
