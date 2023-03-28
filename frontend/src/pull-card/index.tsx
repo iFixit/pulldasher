@@ -64,6 +64,8 @@ export const PullCard = memo(function PullCard({
   const cardRef = useRef<HTMLElement>(null);
   highlightOnChange(cardRef, [pull.received_at]);
 
+  const linesAvailable = pull.additions && pull.deletions;
+
   return (
     <Card ref={cardRef} display={show ? undefined : "none"}>
       <RefreshButton pull={pull} />
@@ -89,7 +91,7 @@ export const PullCard = memo(function PullCard({
           </chakra.span>
           {pull.title}
         </Link>
-        {showLinesChanged &&
+        {showLinesChanged && linesAvailable &&
           <>
           <Text
             as="span"
