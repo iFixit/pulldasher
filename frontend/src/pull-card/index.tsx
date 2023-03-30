@@ -64,7 +64,7 @@ export const PullCard = memo(function PullCard({
   const cardRef = useRef<HTMLElement>(null);
   highlightOnChange(cardRef, [pull.received_at]);
 
-  const linesAvailable = pull.additions && pull.deletions;
+  const linesAvailable = (pull.additions != null) && (pull.deletions != null);
 
   return (
     <Card ref={cardRef} display={show ? undefined : "none"}>
