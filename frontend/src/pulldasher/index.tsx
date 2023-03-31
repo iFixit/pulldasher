@@ -35,7 +35,7 @@ function Pulldasher() {
   const pullsCIBlocked = pulls.filter((pull) => pull.isCiBlocked());
   const pullsDeployBlocked = pulls.filter((pull) => pull.isDeployBlocked());
   const pullsReady = pulls.filter(
-    (pull) => pull.isReady() && pull.isCiRequired()
+    (pull) => pull.isReady()
   );
   const pullsDevBlocked = pulls.filter(
     (pull) => pull.getDevBlock() || pull.isDraft()
