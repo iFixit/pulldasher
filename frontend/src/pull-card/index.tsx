@@ -64,6 +64,8 @@ export const PullCard = memo(function PullCard({
   const cardRef = useRef<HTMLElement>(null);
   highlightOnChange(cardRef, [pull.received_at]);
 
+  const linesAvailable = (pull.additions != null) && (pull.deletions != null);
+
   return (
     <Card ref={cardRef} display={show ? undefined : "none"}>
       <RefreshButton pull={pull} />
@@ -89,28 +91,24 @@ export const PullCard = memo(function PullCard({
           </chakra.span>
           {pull.title}
         </Link>
-        {showLinesChanged &&
+        {showLinesChanged && linesAvailable &&
           <>
-          {pull.additions > 0 &&
-            <Text
-              as="span"
-              ml="6px"
-              title={pull.additions == 1 ? `${pull.additions} addition` : `${pull.additions} additions`}
-              fontSize="13px"
-              color="var(--additions)">
-              +{pull.additions}
-            </Text>
-          }
-          {pull.deletions > 0 &&
-            <Text
-              as="span"
-              ml="6px"
-              title={pull.deletions == 1 ? `${pull.deletions} deletion` : `${pull.deletions} deletions`}
-              fontSize="13px"
-              color="var(--deletions)">
-              -{pull.deletions}
-            </Text>
-          }
+          <Text
+            as="span"
+            ml="6px"
+            title={pull.additions == 1 ? `${pull.additions} addition` : `${pull.additions} additions`}
+            fontSize="13px"
+            color="var(--additions)">
+            +{pull.additions}
+          </Text>
+          <Text
+            as="span"
+            ml="6px"
+            title={pull.deletions == 1 ? `${pull.deletions} deletion` : `${pull.deletions} deletions`}
+            fontSize="13px"
+            color="var(--deletions)">
+            -{pull.deletions}
+          </Text>
           </>
         }
         <CopyBranch value={pull.head.ref} className="copy" />
