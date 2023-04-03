@@ -115,7 +115,7 @@ export class Pull extends PullData {
     return (
       this.hasMetDeployRequirements() &&
       !this.getDevBlock() &&
-      (!!this.getDeployBlock() || !this.isCiRequired() || this.hasMergeConflicts() || this.isDependent())
+      (!!this.getDeployBlock() || this.hasMergeConflicts() || this.isDependent())
     );
   }
 
