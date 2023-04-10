@@ -1,4 +1,5 @@
 import { FilterMenu } from "./filter-menu";
+import { title } from "../../../config.js";
 import {
   useFilteredOpenPulls,
   useAllOpenPulls,
@@ -34,13 +35,6 @@ import {
   faXmark,
   faCircleExclamation,
 } from "@fortawesome/free-solid-svg-icons";
-
-let title = 'Pulldasher';
-
-if (document.URL.includes('pulldasher-dev')) {
-  title = 'Pulldasher-Dev';
-  document.title = title;
-}
 
 // Default width of the left and right sections of the nav bar
 const sideWidth = "220px";
