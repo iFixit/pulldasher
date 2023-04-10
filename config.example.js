@@ -8,6 +8,9 @@ var emojiText = ":[^\n:]+:";
 var signature = "(" + emojiText + "|" + emoji + ")";
 
 module.exports = {
+  // This is the title of the window & navbar heading
+  title: "Pulldasher",
+
   // This is the port Pulldasher will run on. If you want to have multiple
   // instances of Pulldasher running on the same server, just assign them
   // different ports.
