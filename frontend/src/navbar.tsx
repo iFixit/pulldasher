@@ -1,5 +1,5 @@
 import { FilterMenu } from "./filter-menu";
-import { title } from "../../../config.js";
+import config from "../lib/config-loader";
 import {
   useFilteredOpenPulls,
   useAllOpenPulls,
@@ -163,7 +163,7 @@ export function Navbar(props: NavBarProps) {
           </Box>
         </HStack>
         <Flex alignSelf="center" fontSize={20} flexShrink={0}>
-          <span style={{ fontVariantCaps: "small-caps" }}>{title}</span>
+          <span style={{ fontVariantCaps: "small-caps" }}>{config.title}</span>
         </Flex>
         <Box
           flexBasis={sideWidth}
