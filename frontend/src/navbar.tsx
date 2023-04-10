@@ -1,5 +1,5 @@
 import { FilterMenu } from "./filter-menu";
-import config from "../lib/config-loader";
+import config from "../../lib/config-loader";
 import {
   useFilteredOpenPulls,
   useAllOpenPulls,
