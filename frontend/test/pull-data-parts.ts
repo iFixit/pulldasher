@@ -88,6 +88,8 @@ export function pullData(p: DeepPartial<PullData>): PullData {
     merged_at: null,
     mergeable: p.mergeable,
     difficulty: null,
+    additions: p.additions,
+    deletions: p.deletions,
     milestone: p.milestone || {
       title: null,
       due_on: null,

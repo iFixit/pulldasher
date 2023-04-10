@@ -7,7 +7,7 @@ import { Signatures } from "./signatures";
 import { CopyBranch } from "./copy-branch";
 import { memo, useEffect, useRef, RefObject } from "react";
 import { RefreshButton } from "./refresh";
-import { Flex, Box, Link, chakra } from "@chakra-ui/react";
+import { Flex, Box, Link, chakra, Text } from "@chakra-ui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faStar,
@@ -55,12 +55,16 @@ const SigsAndFlags = chakra(Flex, {
 export const PullCard = memo(function PullCard({
   pull,
   show,
+  showLinesChanged,
 }: {
   pull: Pull;
   show: boolean;
+  showLinesChanged?: boolean;
 }) {
   const cardRef = useRef<HTMLElement>(null);
   highlightOnChange(cardRef, [pull.received_at]);
+
+  const linesAvailable = (pull.additions != null) && (pull.deletions != null);
 
   return (
     <Card ref={cardRef} display={show ? undefined : "none"}>
@@ -87,6 +91,26 @@ export const PullCard = memo(function PullCard({
           </chakra.span>
           {pull.title}
         </Link>
+        {showLinesChanged && linesAvailable &&
+          <>
+          <Text
+            as="span"
+            ml="6px"
+            title={pull.additions == 1 ? `${pull.additions} addition` : `${pull.additions} additions`}
+            fontSize="13px"
+            color="var(--additions)">
+            +{pull.additions}
+          </Text>
+          <Text
+            as="span"
+            ml="6px"
+            title={pull.deletions == 1 ? `${pull.deletions} deletion` : `${pull.deletions} deletions`}
+            fontSize="13px"
+            color="var(--deletions)">
+            -{pull.deletions}
+          </Text>
+          </>
+        }
         <CopyBranch value={pull.head.ref} className="copy" />
         <SigsAndFlags wrap="wrap">
           <Signatures
