@@ -1,4 +1,5 @@
 import { FilterMenu } from "./filter-menu";
+import { getTitle } from "./page-context";
 import {
   useFilteredOpenPulls,
   useAllOpenPulls,
@@ -162,7 +163,7 @@ export function Navbar(props: NavBarProps) {
           </Box>
         </HStack>
         <Flex alignSelf="center" fontSize={20} flexShrink={0}>
-          <span style={{ fontVariantCaps: "small-caps" }}>Pulldasher</span>
+          <span style={{ fontVariantCaps: "small-caps" }}>{getTitle()}</span>
         </Flex>
         <Box
           flexBasis={sideWidth}
