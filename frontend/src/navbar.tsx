@@ -36,11 +36,6 @@ import {
   faCircleExclamation,
 } from "@fortawesome/free-solid-svg-icons";
 
-// Set the page title
-useEffect(() => {
-  document.title = getTitle();
-}, []);
-
 // Default width of the left and right sections of the nav bar
 const sideWidth = "220px";
 
@@ -75,6 +70,9 @@ export function Navbar(props: NavBarProps) {
       ),
     [showExtBlocked]
   );
+  // Set the page title
+  const title = getTitle();
+  useEffect(() => { document.title = title; }, [title]);
 
   return (
     <Center
@@ -168,7 +166,7 @@ export function Navbar(props: NavBarProps) {
           </Box>
         </HStack>
         <Flex alignSelf="center" fontSize={20} flexShrink={0}>
-          <span style={{ fontVariantCaps: "small-caps" }}>{getTitle()}</span>
+          <span style={{ fontVariantCaps: "small-caps" }}>{title}</span>
         </Flex>
         <Box
           flexBasis={sideWidth}
