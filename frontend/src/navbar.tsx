@@ -36,6 +36,11 @@ import {
   faCircleExclamation,
 } from "@fortawesome/free-solid-svg-icons";
 
+// Set the page title
+useEffect(() => {
+  document.title = getTitle();
+}, []);
+
 // Default width of the left and right sections of the nav bar
 const sideWidth = "220px";
 
