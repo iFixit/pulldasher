@@ -204,7 +204,7 @@ function SearchInput() {
         "search",
         patterns.length
           ? (pull: Pull) => {
-              return patterns.every((pattern) => pull.title.match(pattern));
+              return patterns.every((pattern) => pull.title.match(pattern) || pull.repo.match(pattern));
             }
           : null
       );
