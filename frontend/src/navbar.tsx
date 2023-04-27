@@ -1,4 +1,5 @@
 import { FilterMenu } from "./filter-menu";
+import { getTitle } from "./page-context";
 import {
   useFilteredOpenPulls,
   useAllOpenPulls,
@@ -69,6 +70,9 @@ export function Navbar(props: NavBarProps) {
       ),
     [showExtBlocked]
   );
+  // Set the page title
+  const title = getTitle();
+  useEffect(() => { document.title = title; }, [title]);
 
   return (
     <Center
@@ -162,7 +166,7 @@ export function Navbar(props: NavBarProps) {
           </Box>
         </HStack>
         <Flex alignSelf="center" fontSize={20} flexShrink={0}>
-          <span style={{ fontVariantCaps: "small-caps" }}>Pulldasher</span>
+          <span style={{ fontVariantCaps: "small-caps" }}>{title}</span>
         </Flex>
         <Box
           flexBasis={sideWidth}
