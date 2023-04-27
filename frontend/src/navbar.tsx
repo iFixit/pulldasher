@@ -200,9 +200,7 @@ function SearchInput() {
         "search",
         patterns.length
           ? (pull: Pull) => {
-              const titleMatch = patterns.every((pattern) => pull.title.match(pattern));
-              const repoNameMatch = patterns.every((pattern) => pull.repo.match(pattern));
-              return titleMatch || repoNameMatch;
+              return patterns.every((pattern) => pull.title.match(pattern) || pull.repo.match(pattern));
             }
           : null
       );
