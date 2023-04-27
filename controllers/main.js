@@ -13,6 +13,7 @@ function connectionDetails(req) {
     socketToken: socketAuthenticator.getTokenForUser(req.user),
     socketVersion: socketio,
     user: req.user.username,
+    title: config.title,
     debugTools: config.debug,
   };
 }
