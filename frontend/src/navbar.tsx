@@ -72,7 +72,7 @@ export function Navbar(props: NavBarProps) {
   );
   // Set the page title
   const title = getTitle();
-  useEffect(() => { document.title = title; }, [title]);
+  useEffect(() => { document.title = title || ''; }, [title]);
 
   return (
     <Center
