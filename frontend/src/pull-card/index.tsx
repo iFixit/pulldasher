@@ -196,9 +196,9 @@ const formatDate = (dateStr: string | null) => {
   return dateStr ? formatter.format(new Date(dateStr)) : null;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function highlightOnChange(
   ref: RefObject<HTMLElement>,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
   dependencies: Array<any>
 ) {
   // Animate a highlight when pull.received_at changes
