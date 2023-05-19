@@ -131,8 +131,6 @@ Pull.prototype.isOpen = function () {
  *                       in order for this pull to be ready for deploy.
  *    'cr_req'        : The *needed* number of CR signatures occuring after the last commit
  *                       in order for this pull to be ready for deploy.
- *    'QA'            : An array of signatures occuring after latest commit with QA tags
- *    'CR'            : An array of signatures occuring after latest commit with CR tags
  *    'dev_block'     : An array containing the last 'dev_block' signature if the pull is dev blocked,
  *                       or an empty array
  *    'deploy_block'  : An array containing the last 'deploy_block' signature if pull is deploy blocked,
@@ -144,8 +142,6 @@ Pull.prototype.getStatus = function getStatus() {
   var status = {
     qa_req: this.data.qa_req,
     cr_req: this.data.cr_req,
-    QA: this.getSignatures("QA"),
-    CR: this.getSignatures("CR"),
     allQA: this.getAllSignatures("QA"),
     allCR: this.getAllSignatures("CR"),
     dev_block: this.getSignatures("dev_block"),
