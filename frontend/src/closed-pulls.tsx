@@ -19,7 +19,6 @@ export function ClosedPulls({ onClickClose }: { onClickClose: () => void }) {
       position="absolute"
       right="0"
       top="70"
-      bottom="0"
       width="300px"
       boxShadow="0px 0px 10px 0px #00000020"
     >
