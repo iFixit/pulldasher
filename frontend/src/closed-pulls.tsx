@@ -21,6 +21,7 @@ export function ClosedPulls({ onClickClose }: { onClickClose: () => void }) {
       top="70"
       bottom="0"
       width="300px"
+      height="fit-content"
       boxShadow="0px 0px 10px 0px #00000020"
     >
       <Flex className="column_header" onClick={onClickClose}>
