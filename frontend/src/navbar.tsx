@@ -77,6 +77,10 @@ export function Navbar(props: NavBarProps) {
     () => setPullFilter("drafts", showDrafts ? null : isNotDraft),
     [showDrafts]
   );
+  useEffect(
+    () => setPullFilter("personal", showPersonalView ? isMineViaAffiliation : null),
+    [showPersonalView]
+  );
   // Set the page title
   const title = getTitle();
   useEffect(() => { document.title = title || ''; }, [title]);
