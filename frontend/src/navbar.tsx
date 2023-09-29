@@ -214,6 +214,10 @@ function isNotDraft(pull: Pull): boolean {
   return !pull.isDraft();
 }
 
+function isMineViaAffiliation(pull: Pull): boolean {
+  return pull.isMineViaAffiliation();
+}
+
 function SearchInput() {
   const setPullFilter = useSetFilter();
   const searchInputRef = useRef<HTMLInputElement>(null);
