@@ -7,7 +7,6 @@ import {
 } from "./pulldasher/pulls-context";
 import { Pull } from "./pull";
 import {
-  chakra,
   useColorMode,
   Button,
   HStack,
