@@ -7,7 +7,6 @@ import {
 } from "./pulldasher/pulls-context";
 import { Pull } from "./pull";
 import {
-  chakra,
   useColorMode,
   Button,
   HStack,
@@ -20,6 +19,7 @@ import {
   MenuButton,
   MenuItemOption,
   MenuList,
+  Text
 } from "@chakra-ui/react";
 import { useRef, useEffect, useCallback } from "react";
 import { useBoolUrlState } from "./use-url-state";
@@ -34,6 +34,8 @@ import {
   faCircleNotch,
   faXmark,
   faCircleExclamation,
+  faUser,
+  faUsers
 } from "@fortawesome/free-solid-svg-icons";
 
 // Default width of the left and right sections of the nav bar
@@ -56,6 +58,7 @@ export function Navbar(props: NavBarProps) {
     true
   );
   const [showDrafts, toggleShowDrafts] = useBoolUrlState("drafts", true);
+  const [showPersonalView , togglePersonalView] = useBoolUrlState("personal", false);
   const hideBelowMedium = ["none", "none", "block"];
   const hideBelowLarge = ["none", "none", "none", "block"];
 
@@ -74,6 +77,10 @@ export function Navbar(props: NavBarProps) {
   useEffect(
     () => setPullFilter("drafts", showDrafts ? null : isNotDraft),
     [showDrafts]
+  );
+  useEffect(
+    () => setPullFilter("personal", showPersonalView ? isMineViaAffiliation : null),
+    [showPersonalView]
   );
   // Set the page title
   const title = getTitle();
@@ -99,15 +106,6 @@ export function Navbar(props: NavBarProps) {
           flexBasis={sideWidth}
           spacing="2"
         >
-          <Box display={hideBelowLarge} p="1 15px 0 0" fontSize="16px">
-            <ConnectionStateIndicator />
-          </Box>
-          <chakra.span
-            display={hideBelowLarge}
-            title={`Shown: ${pulls.size} Total: ${allOpenPulls.length}`}
-          >
-            open: {pulls.size}
-          </chakra.span>
           <Button
             display={hideBelowMedium}
             size="sm"
@@ -129,6 +127,16 @@ export function Navbar(props: NavBarProps) {
             <FontAwesomeIcon icon={faCodeMerge} />
           </Button>
           <NotificationRequest />
+          <Button
+            display={hideBelowMedium}
+            size="sm"
+            title={showPersonalView ? "Show All" : "Show Personal View"}
+            colorScheme="blue"
+            variant="ghost"
+            onClick={togglePersonalView}
+          >
+            <FontAwesomeIcon icon={showPersonalView ? faUsers : faUser} />
+          </Button>
           <Menu closeOnSelect={false}>
             <MenuButton
               as={Button}
@@ -187,6 +195,21 @@ export function Navbar(props: NavBarProps) {
           display="flex"
           justifyContent="flex-end"
         >
+          <HStack marginRight="12px" >
+            <Box display={hideBelowLarge} p="1 15px 0 0" fontSize="16px">
+              <ConnectionStateIndicator />
+            </Box>
+            <Box display={hideBelowLarge} title={`Shown: ${pulls.size} Total: ${allOpenPulls.length}`}>
+              <HStack>
+                <Text>
+                  open:
+                </Text>
+                <Text w="1.25em" textAlign="center">
+                  {pulls.size}
+                </Text>
+              </HStack>
+            </Box>
+          </HStack>
           <SearchInput />
         </Box>
       </Flex>
@@ -204,6 +227,10 @@ function isNotExternallyBlocked(pull: Pull): boolean {
 
 function isNotDraft(pull: Pull): boolean {
   return !pull.isDraft();
+}
+
+function isMineViaAffiliation(pull: Pull): boolean {
+  return pull.isMineViaAffiliation();
 }
 
 function SearchInput() {

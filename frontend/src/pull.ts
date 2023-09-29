@@ -43,6 +43,16 @@ export class Pull extends PullData {
     return this.user.login == getUser();
   }
 
+  isMineViaAffiliation(): boolean {
+    return (
+      this.isMine() ||
+      this.hasCurrentSig(getUser()) ||
+      this.hasOutdatedSig(getUser()) ||
+      this.hasMyDevBlock() ||
+      this.hasMyDeployBlock()
+    );
+  }
+
   isCrDone(): boolean {
     return this.cr_signatures.current.length >= this.status.cr_req;
   }
@@ -67,6 +77,14 @@ export class Pull extends PullData {
       this.cr_signatures.current.some((sig) => sig.data.user.login == user) ||
       this.qa_signatures.current.some((sig) => sig.data.user.login == user)
     );
+  }
+
+  hasMyDevBlock(): boolean {
+    return this.getDevBlock()?.data.user.login == getUser();
+  }
+
+  hasMyDeployBlock(): boolean {
+    return this.getDeployBlock()?.data.user.login == getUser();
   }
 
   getDevBlock(): Signature | null {
