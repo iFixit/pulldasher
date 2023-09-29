@@ -43,6 +43,16 @@ export class Pull extends PullData {
     return this.user.login == getUser();
   }
 
+  isMineViaAffiliation(): boolean {
+    return (
+      this.isMine() ||
+      this.hasCurrentSig(getUser()) ||
+      this.hasOutdatedSig(getUser()) ||
+      this.getDevBlock()?.data.user.login == getUser() ||
+      this.getDeployBlock()?.data.user.login == getUser()
+    );
+  }
+
   isCrDone(): boolean {
     return this.cr_signatures.current.length >= this.status.cr_req;
   }
