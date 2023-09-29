@@ -35,6 +35,8 @@ import {
   faCircleNotch,
   faXmark,
   faCircleExclamation,
+  faUser,
+  faUsers
 } from "@fortawesome/free-solid-svg-icons";
 
 // Default width of the left and right sections of the nav bar
@@ -126,6 +128,16 @@ export function Navbar(props: NavBarProps) {
             <FontAwesomeIcon icon={faCodeMerge} />
           </Button>
           <NotificationRequest />
+          <Button
+            display={hideBelowMedium}
+            size="sm"
+            title={showPersonalView ? "Show All" : "Show Personal View"}
+            colorScheme="blue"
+            variant="ghost"
+            onClick={togglePersonalView}
+          >
+            <FontAwesomeIcon icon={showPersonalView ? faUsers : faUser} />
+          </Button>
           <Menu closeOnSelect={false}>
             <MenuButton
               as={Button}
