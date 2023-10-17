@@ -123,6 +123,7 @@ export class Pull extends PullData {
   isReady(): boolean {
     return (
       this.hasMetDeployRequirements() &&
+      !this.isDraft() &&
       !this.getDevBlock() &&
       !this.getDeployBlock() &&
       !this.hasMergeConflicts()
