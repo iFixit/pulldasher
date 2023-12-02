@@ -57,7 +57,7 @@ export function Navbar(props: NavBarProps) {
     "external_block",
     true
   );
-  const [showDrafts, toggleShowDrafts] = useBoolUrlState("drafts", true);
+  const [showDrafts, toggleShowDrafts] = useBoolUrlState("drafts", false);
   const [showPersonalView , togglePersonalView] = useBoolUrlState("personal", false);
   const hideBelowMedium = ["none", "none", "block"];
   const hideBelowLarge = ["none", "none", "none", "block"];
