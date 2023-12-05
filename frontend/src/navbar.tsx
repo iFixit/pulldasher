@@ -57,7 +57,7 @@ export function Navbar(props: NavBarProps) {
     "external_block",
     true
   );
-  const [showDrafts, toggleShowDrafts] = useBoolUrlState("drafts", true);
+  const [showDrafts, toggleShowDrafts] = useBoolUrlState("drafts", false);
   const [showPersonalView , togglePersonalView] = useBoolUrlState("personal", false);
   const hideBelowMedium = ["none", "none", "block"];
   const hideBelowLarge = ["none", "none", "none", "block"];
@@ -75,7 +75,7 @@ export function Navbar(props: NavBarProps) {
     [showExtBlocked]
   );
   useEffect(
-    () => setPullFilter("drafts", showDrafts ? null : isNotDraft),
+    () => setPullFilter("drafts", showDrafts ? null : isNotDraftOrMine),
     [showDrafts]
   );
   useEffect(
@@ -225,8 +225,8 @@ function isNotExternallyBlocked(pull: Pull): boolean {
   return !pull.getLabel("external_block");
 }
 
-function isNotDraft(pull: Pull): boolean {
-  return !pull.isDraft();
+function isNotDraftOrMine(pull: Pull): boolean {
+  return !pull.isDraft() || pull.isMine();
 }
 
 function isMineViaAffiliation(pull: Pull): boolean {
