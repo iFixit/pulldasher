@@ -48,6 +48,7 @@ function Pulldasher() {
       !pull.isQaDone() &&
       !pull.getDevBlock() &&
       !pull.isDraft() &&
+      !pull.hasMergeConflicts() &&
       pull.hasPassedCI()
   );
   const leadersCR = getLeaders(allPulls, (pull) => pull.status.allCR);
