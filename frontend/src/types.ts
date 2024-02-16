@@ -30,7 +30,8 @@ export interface SignatureUser {
 }
 
 export interface RepoSpec {
-  requiredStatuses: string[];
+  requiredStatuses?: string[];
+  ignoredStatuses?: string[];
   name: string;
 }
 

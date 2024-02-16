@@ -74,6 +74,7 @@ module.exports = {
     {
       name: "owner/otherRepo",
       requiredStatuses: ["tests", "build", "codeClimate"],
+      ignoredStatuses: ["coverage"],
     },
   ],
 
