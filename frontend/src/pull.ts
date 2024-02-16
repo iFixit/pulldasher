@@ -192,8 +192,16 @@ export class Pull extends PullData {
     return (
       this.repoSpec?.requiredStatuses ??
       // If there are no required statuses, then all existing statuses
-      // are required to be passing
-      this.buildStatuses().map((status) => status.data.context)
+      // are required to be passing unless they are ignored.
+      this.getBuildStatusesWithoutIgnored()
+    );
+  }
+
+  getBuildStatusesWithoutIgnored(): string[] {
+    return this.buildStatuses()
+      .map((status) => status.data.context)
+      .filter((context) =>
+        !this.repoSpec?.ignoredStatuses?.includes(context)
     );
   }
 
