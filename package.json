@@ -19,7 +19,7 @@
     "express-session": "^1.17.0",
     "framer-motion": "^4.1.17",
     "lodash-es": "^4.17.21",
-    "mysql": "^2.17.1",
+    "mysql2": "^3.11.0",
     "notify-queue": "0.0.5",
     "passport": "^0.6.0",
     "passport-github2": "^0.1.12",
