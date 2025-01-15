@@ -4,6 +4,7 @@ import {
   useFilteredOpenPulls,
   useAllOpenPulls,
   useSetFilter,
+  useRepoSpecs,
 } from "./pulldasher/pulls-context";
 import { Pull } from "./pull";
 import {
@@ -21,7 +22,7 @@ import {
   MenuList,
   Text
 } from "@chakra-ui/react";
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useMemo } from "react";
 import { useBoolUrlState } from "./use-url-state";
 import { NotificationRequest } from "./notifications";
 import { useConnectionState, ConnectionState } from "./backend/socket";
@@ -51,6 +52,10 @@ export function Navbar(props: NavBarProps) {
   const pulls: Set<Pull> = useFilteredOpenPulls();
   const allOpenPulls: Pull[] = useAllOpenPulls();
   const setPullFilter = useSetFilter();
+  const repoSpecs = useRepoSpecs();
+  const reposToHide = useMemo(() =>
+    repoSpecs.filter((repo) => repo.hideByDefault).map((repo) => repo.name.replace(/.*\//g, "")),
+    [repoSpecs]);
   const { toggleColorMode } = useColorMode();
   const [showCryo, toggleShowCryo] = useBoolUrlState("cryo", false);
   const [showExtBlocked, toggleShowExtBlocked] = useBoolUrlState(
@@ -174,6 +179,7 @@ export function Navbar(props: NavBarProps) {
             <FilterMenu
               urlParam="repo"
               buttonText="Repo"
+              defaultExculdedValues={reposToHide}
               extractValueFromPull={(pull: Pull) => pull.getRepoName()}
             />
           </Box>

@@ -4,19 +4,22 @@ import { createPullSocket } from "../backend/pull-socket";
 import { PullData, RepoSpec } from "../types";
 import { Pull } from "../pull";
 
-function onPullsChanged(pullsChanged: (pulls: Pull[]) => void) {
+function onPullsChanged(pullsChanged: (pulls: Pull[], repoSpecs: RepoSpec[]) => void) {
   const pulls: Record<string, Pull> = {};
-  const pullRefresh = () => pullsChanged(Object.values(pulls));
+  const pullRefresh = () => pullsChanged(Object.values(pulls), repoSpecs);
   const throttledPullRefresh: () => void = throttle(pullRefresh, 500);
+  let repoSpecs: RepoSpec[] = [];
 
-  createPullSocket((pullDatas: PullData[], repoSpecs: RepoSpec[]) => {
+  createPullSocket((pullDatas: PullData[], newRepoSpecs: RepoSpec[]) => {
     pullDatas.forEach((pullData: PullData) => {
       pullData.repoSpec =
-        repoSpecs.find((repo) => repo.name == pullData.repo) || null;
+        newRepoSpecs.find((repo) => repo.name == pullData.repo) || null;
       pullData.received_at = new Date();
       const pull: Pull = new Pull(pullData);
       pulls[pull.getKey()] = pull;
     });
+
+    repoSpecs = newRepoSpecs || [];
     throttledPullRefresh();
   });
 }
@@ -25,8 +28,9 @@ function onPullsChanged(pullsChanged: (pulls: Pull[]) => void) {
  * Note: This is only meant to be used in one component
  */
 let socketInitialized = false;
-export function usePullsState(): Pull[] {
+export function usePullsState() {
   const [pullState, setPullsState] = useState<Pull[]>([]);
+  const [repoSpecs, setRepoSpecs] = useState<RepoSpec[]>([]);
   useEffect(() => {
     if (socketInitialized) {
       throw new Error(
@@ -34,7 +38,10 @@ export function usePullsState(): Pull[] {
       );
     }
     socketInitialized = true;
-    onPullsChanged(setPullsState);
+    onPullsChanged((pulls, repoSpecs) => {
+      setPullsState(pulls);
+      setRepoSpecs(repoSpecs);
+    });
   }, []);
-  return pullState;
+  return {pullState, repoSpecs};
 }

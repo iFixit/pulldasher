@@ -69,7 +69,7 @@ export function FilterMenu({
         : (showDefault ? (pull) => !defaultExculdedValues?.includes(extractValueFromPull(pull))
           : (pull) => selectedValuesSet.has(extractValueFromPull(pull)))
     );
-  }, [selectedValues]);
+  }, [selectedValues, defaultExculdedValues]);
 
   return (
     <Menu closeOnSelect={false}>
@@ -92,7 +92,7 @@ export function FilterMenu({
               Show All
             </MenuItemOption>
             <MenuItemOption
-              key="Show All"
+              key="Show Default"
               onClick={() => setSelectedValues([])}
               isChecked={showDefault}
             >

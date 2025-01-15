@@ -6,6 +6,7 @@ import {
 } from "./filtered-pulls-state";
 import { usePullsState } from "./pulls-state";
 import { Pull } from "../pull";
+import { RepoSpec } from "../types";
 import { defaultCompare } from "./sort";
 
 interface PullContextProps {
@@ -19,6 +20,8 @@ interface PullContextProps {
   filteredOpenPulls: Set<Pull>;
   // Changes the filter function
   setFilter: FilterFunctionSetter;
+  // RepoSpecs (.repos) from the config
+  repoSpecs: RepoSpec[];
 }
 
 const defaultProps = {
@@ -29,6 +32,7 @@ const defaultProps = {
   // Default implementation is a no-op, just so there's
   // something there until the provider is used
   setFilter: (name: string, filter: FilterFunction) => filter,
+  repoSpecs: [],
 };
 const PullsContext = createContext<PullContextProps>(defaultProps);
 
@@ -52,12 +56,16 @@ export function useSetFilter(): FilterFunctionSetter {
   return useContext(PullsContext).setFilter;
 }
 
+export function useRepoSpecs(): RepoSpec[] {
+  return useContext(PullsContext).repoSpecs;
+}
+
 export const PullsProvider = function ({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const unfilteredPulls = usePullsState();
+  const {pullState: unfilteredPulls, repoSpecs} = usePullsState();
   const [filteredPulls, setFilter] = useFilteredPullsState(unfilteredPulls);
   const openPulls = unfilteredPulls.filter(isOpen);
   const contextValue = {
@@ -66,6 +74,7 @@ export const PullsProvider = function ({
     filteredPulls: filteredPulls,
     allPulls: unfilteredPulls,
     setFilter,
+    repoSpecs,
   };
   return (
     <PullsContext.Provider value={contextValue}>

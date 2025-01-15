@@ -75,6 +75,8 @@ module.exports = {
       name: "owner/otherRepo",
       requiredStatuses: ["tests", "build", "codeClimate"],
       ignoredStatuses: ["coverage"],
+      // Hides pulls on this repo on page load, users can unhide them with the repo filter
+      hideByDefault: true,
     },
   ],
 
