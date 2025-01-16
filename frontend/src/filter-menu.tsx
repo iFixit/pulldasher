@@ -10,6 +10,7 @@ import {
   MenuDivider,
   MenuOptionGroup,
   MenuItemOption,
+  chakra,
 } from "@chakra-ui/react";
 import { useEffect, useMemo } from "react";
 import { countBy } from "lodash-es";
@@ -87,14 +88,12 @@ export function FilterMenu({
             <MenuItemOption
               key="Show All"
               onClick={() => setSelectedValues([SHOWALL])}
-              isChecked={showAll}
             >
               Show All
             </MenuItemOption>
             <MenuItemOption
               key="Show Default"
               onClick={() => setSelectedValues([])}
-              isChecked={showDefault}
             >
               Show Default
             </MenuItemOption>
@@ -104,7 +103,6 @@ export function FilterMenu({
           <MenuItemOption
             key="Show All"
             onClick={() => setSelectedValues([])}
-            isChecked={showAll}
           >
             Show All
           </MenuItemOption>
@@ -112,12 +110,24 @@ export function FilterMenu({
         <MenuDivider />
         <MenuOptionGroup
           type="checkbox"
-          value={showAll ? [] : (showDefault ? defaultSelectedValues : selectedValues)}
+          value={showAll ? allValues : (showDefault ? defaultSelectedValues : selectedValues)}
           onChange={setSelectedValues}
         >
           {allValues.map((value) => (
-            <MenuItemOption key={value} value={value}>
+            <MenuItemOption className="filterOption" key={value} value={value}>
               {value} ({valueToPullCount[value] || 0})
+              <chakra.span
+                visibility="hidden"
+                float="right"
+                _hover={{textDecoration:"underline"}}
+                mt={1}
+                fontSize="xs"
+                sx={{'.filterOption:hover &': {visibility: 'visible'}}}
+                onClick={(e)=> {
+                  setSelectedValues([value]);
+                  e.stopPropagation();
+                }
+              }>only</chakra.span>
             </MenuItemOption>
           ))}
         </MenuOptionGroup>
