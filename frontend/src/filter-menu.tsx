@@ -72,6 +72,8 @@ export function FilterMenu({
     );
   }, [selectedValues, defaultExculdedValues]);
 
+  const numberText = showDefault ? "" : (showAll ? allValues.length : selectedValues.length);
+
   return (
     <Menu closeOnSelect={false}>
       <MenuButton
@@ -80,7 +82,7 @@ export function FilterMenu({
         size="sm"
         variant={showDefault ? "outline" : null}
       >
-        {buttonText} {selectedValues.length ? `(${selectedValues.length})` : ""}
+        {buttonText} {numberText ? `(${numberText})` : ""}
       </MenuButton>
       <MenuList minWidth="240px">
         {notEmpty(defaultExculdedValues) && (
