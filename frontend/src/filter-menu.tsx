@@ -133,9 +133,7 @@ function sortValues(values: string[]): string[] {
 }
 
 function arrayDiff<T>(a: T[], b: T[]): T[] {
-  const ret = a.filter((x) => !b.includes(x));
-   console.log(ret);
-   return ret;
+  return a.filter((x) => !b.includes(x));
 }
 
 function empty<T>(array: T[] | undefined): boolean {
