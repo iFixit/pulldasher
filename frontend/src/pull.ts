@@ -8,6 +8,7 @@ import {
   StatusState,
   CommentSource,
   SignatureGroup,
+  SignatureType,
 } from "./types";
 
 export class Pull extends PullData {
@@ -18,6 +19,10 @@ export class Pull extends PullData {
     super();
     Object.assign(this, data);
 
+    const syntheticCRs = this.getSyntheticSignatures(SignatureType.CR);
+    const syntheticQAs = this.getSyntheticSignatures(SignatureType.QA);
+    this.status.allCR = this.status.allCR.concat(syntheticCRs);
+    this.status.allQA = this.status.allQA.concat(syntheticQAs);
     this.cr_signatures = computeSignatures(data.status.allCR);
     this.qa_signatures = computeSignatures(data.status.allQA);
   }
@@ -107,6 +112,20 @@ export class Pull extends PullData {
       const status = statuses.find((status) => status.data.context == context);
       return status && isSuccessfulStatus(status);
     });
+  }
+
+   getSyntheticSignatures(type: SignatureType): Signature[] {
+     // Treat dev_block sigs as out-of-date CRs in that they hold a place
+     // in the CR requirements.
+     return this.status.dev_block.map((devBlock) => {
+        return {
+           data: {
+              ...devBlock.data,
+              type,
+              active: 0,
+           }
+        };
+     });
   }
 
   /**
