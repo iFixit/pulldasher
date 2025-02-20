@@ -1,22 +1,30 @@
-var config = require("./lib/config-loader"),
-  express = require("express"),
-  bodyParser = require("body-parser"),
-  expressSession = require("express-session"),
-  authManager = require("./lib/authentication"),
-  passport = authManager.passport,
-  socketAuthenticator = require("./lib/socket-auth"),
-  refresh = require("./lib/refresh"),
-  pullManager = require("./lib/pull-manager"),
-  dbManager = require("./lib/db-manager"),
-  pullQueue = require("./lib/pull-queue"),
-  mainController = require("./controllers/main"),
-  hooksController = require("./controllers/githubHooks"),
-  reqLogger = require("./lib/debug")("pulldasher:server:request"),
-  debug = require("./lib/debug")("pulldasher");
+import config from "./lib/config-loader.js";
+import express from "express";
+import bodyParser from "body-parser";
+import expressSession from "express-session";
+import authManager from "./lib/authentication.js";
+import socketAuthenticator from "./lib/socket-auth.js";
+import refresh from "./lib/refresh.js";
+import pullManager from "./lib/pull-manager.js";
+import dbManager from "./lib/db-manager.js";
+import pullQueue from "./lib/pull-queue.js";
+import mainController from "./controllers/main.js";
+import hooksController from "./controllers/githubHooks.js";
+import Debug from "./lib/debug.js";
+import { createServer } from "http";
+import { Server } from "socket.io";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
 
-var app = express();
-var httpServer = require("http").createServer(app);
+const reqLogger = Debug("pulldasher:server:request");
+const debug = Debug("pulldasher");
+
+const app = express();
+const httpServer = createServer(app);
 const maxPostSize = 1024 * 1024;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 app.set("view engine", "html");
 
@@ -33,8 +41,8 @@ app.use(
     saveUninitialized: false,
   })
 );
-app.use(passport.initialize());
-app.use(passport.session());
+app.use(authManager.passport.initialize());
+app.use(authManager.passport.session());
 
 app.use(function (req, res, next) {
   reqLogger("%s %s", req.method, req.url);
@@ -73,7 +81,6 @@ dbManager.closeStalePulls();
 
 //====================================================
 // Socket.IO
-const { Server } = require("socket.io");
 const io = new Server(httpServer);
 io.on("connection", function (socket) {
   var unauthenticated_timeout =
