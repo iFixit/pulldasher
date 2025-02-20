@@ -79,5 +79,6 @@
   "main": "app.js",
   "repository": "git@github.com:ifixit/pulldasher.git",
   "author": "iFixit",
-  "license": "MIT"
+  "license": "MIT",
+  "type": "module"
 }
