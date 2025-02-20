@@ -1,15 +1,19 @@
-const webpack = require("webpack");
-const path = require("path");
-const HtmlWebpackPlugin = require("html-webpack-plugin");
-const definePluginReadFile = require("./webpack-define-read-file");
-const ESLintPlugin = require("eslint-webpack-plugin");
+import webpack from "webpack";
+import path from "path";
+import HtmlWebpackPlugin from "html-webpack-plugin";
+import definePluginReadFile from "./webpack-define-read-file.js";
+import ESLintPlugin from "eslint-webpack-plugin";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const relative = (pathPart) => path.resolve(__dirname, pathPart);
 const dummyPullsPath =
   process.env.DUMMY_PULLS && path.resolve(process.env.DUMMY_PULLS);
 const dummyUser = process.env.DUMMY_USER;
 
-module.exports = {
+export default {
   node: false,
   module: {
     rules: [
