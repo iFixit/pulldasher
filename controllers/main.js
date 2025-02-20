@@ -1,12 +1,9 @@
-var socketAuthenticator = require("../lib/socket-auth");
-var socketio = require("../package").dependencies["socket.io"];
-var config = require("../lib/config-loader");
+import socketAuthenticator from "../lib/socket-auth.js";
+import config from "../lib/config-loader.js";
+import { createRequire } from "module";
 
-module.exports = {
-  getToken: function (req, res) {
-    res.json(connectionDetails(req));
-  },
-};
+const require = createRequire(import.meta.url);
+const socketio = require("../package.json").dependencies["socket.io"];
 
 function connectionDetails(req) {
   return {
@@ -17,3 +14,10 @@ function connectionDetails(req) {
     debugTools: config.debug,
   };
 }
+
+export default {
+  getToken: function (req, res) {
+    res.json(connectionDetails(req));
+  },
+};
+

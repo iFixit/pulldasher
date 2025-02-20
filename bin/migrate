@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-var config = require('../lib/config-loader');
-var mysql = require('mysql2'),
-    fs = require('fs');
+import { createConnection } from 'mysql2';
+import { readFileSync } from 'fs/promises';
+import config from '../lib/config-loader.js';
 
-var db = mysql.createConnection({
+const db = createConnection({
    host: config.mysql.host,
    database: config.mysql.db,
    user: config.mysql.user,
@@ -15,23 +15,19 @@ var db = mysql.createConnection({
 console.log("Running this script will initalize your database for pulldasher.");
 console.log("It will not drop any existing tables.");
 
-fs.readFile('migrations/schema.sql', function(err, data) {
+const data = readFileSync('migrations/schema.sql');
+
+db.query(data.toString(), function (err) {
+   // If the connection fails, return a failure code so that entrypoint.sh
+   // will retry this script.
    if (err) {
-      throw err;
+      console.log(err);
+      process.exit(1);
    }
 
-   db.query(data.toString(), function(err, res, fields) {
-      // If the connection fails, return a failure code so that entrypoint.sh
-      // will retry this script.
+   db.end(function (err) {
       if (err) {
-         console.log(err);
-         process.exit(1);
+         throw err;
       }
-
-      db.end(function(err) {
-         if (err) {
-            throw err;
-         }
-      });
    });
 });

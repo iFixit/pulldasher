@@ -1,7 +1,7 @@
-var config = require("../lib/config-loader"),
-  getLogin = require("../lib/get-user-login"),
-  getUserid = require("../lib/get-user-id"),
-  utils = require("../lib/utils");
+import config from "../lib/config-loader.js";
+import getLogin from "../lib/get-user-login.js";
+import getUserid from "../lib/get-user-id.js";
+import utils from "../lib/utils.js";
 
 /**
  * A block or signoff in a comment.
@@ -113,8 +113,8 @@ Signature.compare = function (a, b) {
   return Date.parse(a.data.created_at) - Date.parse(b.data.created_at);
 };
 
-module.exports = Signature;
-
 function hasTag(body, tag) {
   return tag.regex.test(body);
 }
+
+export default Signature;

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-require('../lib/debug').default('pulldasher:refresh*');
+import { default as debugInit } from '../lib/debug.js';
+import refresh from '../lib/refresh.js';
+import db from '../lib/db.js';
 
-var refresh = require('../lib/refresh');
-var db = require('../lib/db');
+debugInit('pulldasher:refresh*');
 
 refresh.openPulls()
-.then(function() {
-   db.end();
-});
+   .done(function () {
+      db.end();
+   });

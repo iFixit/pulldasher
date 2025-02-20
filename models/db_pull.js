@@ -1,6 +1,6 @@
-var utils = require("../lib/utils"),
-  getLogin = require("../lib/get-user-login"),
-  db = require("../lib/db");
+import utils from "../lib/utils.js";
+import getLogin from "../lib/get-user-login.js";
+import db from "../lib/db.js";
 
 // Builds an object representation of a row in the DB `pulls` table
 // from the data returned by GitHub's API.
@@ -43,4 +43,4 @@ DBPull.prototype.save = function () {
   return db.query(q_update, pullData);
 };
 
-module.exports = DBPull;
+export default DBPull;
