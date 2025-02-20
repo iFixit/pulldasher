@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-require('../lib/debug').default('pulldasher:refresh*');
+import { default as debugInit } from '../lib/debug.js';
+import refresh from '../lib/refresh.js';
+import db from '../lib/db.js';
 
-var refresh = require('../lib/refresh');
-var db = require('../lib/db');
-var repo = process.argv[2];
-var number = process.argv[3];
+debugInit('pulldasher:refresh*');
+
+const repo = process.argv[2];
+const number = process.argv[3];
 
 if ("" + parseInt(number, 10) !== number) {
    console.error("%s is not a number", number)
@@ -13,6 +15,6 @@ if ("" + parseInt(number, 10) !== number) {
 }
 
 refresh.issue(repo, number)
-.done(function() {
-   db.end();
-});
+   .done(function () {
+      db.end();
+   });

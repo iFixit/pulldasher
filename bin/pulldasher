@@ -1,26 +1,26 @@
 #!/usr/bin/env node
-var fs = require('fs');
-var config = require('../lib/config-loader');
-var debug = require('../lib/debug')('pulldasher:bin');
+import { writeFileSync, unlinkSync } from 'fs';
+import config from '../lib/config-loader.js';
+import debug from '../lib/debug.js';
 
 // Save the pid to a file if requested (for an init script)
 if (config.pidFile) {
-   fs.writeFileSync(config.pidFile, '' + process.pid);
-   process.on('exit', function() {
-      var m = "\nExiting...";
+   writeFileSync(config.pidFile, '' + process.pid);
+   process.on('exit', function () {
+      const m = "\nExiting...";
       debug(m);
       console.warn(m);
-      fs.unlinkSync(config.pidFile);
+      unlinkSync(config.pidFile);
    });
 
    // Without these, the onExit handler above is never called.
-   process.on('SIGINT',  exitBad);
+   process.on('SIGINT', exitBad);
    process.on('SIGTERM', exitBad);
-   process.on('SIGHUP',  exitBad);
+   process.on('SIGHUP', exitBad);
 
    function exitBad() {
       process.exit(1);
    }
 }
 
-require(__dirname + "/../app.js");
+import('../app.js');
