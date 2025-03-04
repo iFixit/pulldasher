@@ -1,19 +1,19 @@
-var config = require("../lib/config-loader"),
-  Promise = require("bluebird"),
-  debug = require("../lib/debug")("pulldasher:githubHooks"),
-  Pull = require("../models/pull"),
-  Signature = require("../models/signature"),
-  Issue = require("../models/issue"),
-  Comment = require("../models/comment"),
-  Review = require("../models/review"),
-  Status = require("../models/status"),
-  Label = require("../models/label"),
-  refresh = require("../lib/refresh"),
-  getLogin = require("../lib/get-user-login"),
-  utils = require("../lib/utils"),
-  dbManager = require("../lib/db-manager");
+import config from "../lib/config-loader.js";
+import Promise from "bluebird";
+import debug from "../lib/debug.js";
+import Pull from "../models/pull.js";
+import Signature from "../models/signature.js";
+import Issue from "../models/issue.js";
+import Comment from "../models/comment.js";
+import Review from "../models/review.js";
+import Status from "../models/status.js";
+import Label from "../models/label.js";
+import refresh from "../lib/refresh.js";
+import getLogin from "../lib/get-user-login.js";
+import utils from "../lib/utils.js";
+import dbManager from "../lib/db-manager.js";
 
-var HooksController = {
+const HooksController = {
   main: function (req, res) {
     // Variable for promise that will resolve when the hook is known to have
     // succeeded or failed.
@@ -300,4 +300,4 @@ function refreshPullOrIssue(responseBody) {
   }
 }
 
-module.exports = HooksController;
+export default HooksController;
