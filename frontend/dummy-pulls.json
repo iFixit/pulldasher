@@ -167,6 +167,7 @@
     "base": {
       "ref": "master"
     },
+    "participants": ["ianrohde", "Another"],
     "user": {
       "login": "ianrohde"
     },
@@ -457,6 +458,7 @@
     "body": "pull request dummy body",
     "created_at": "2020-10-28T01:02:33.000Z",
     "updated_at": "2020-11-10T22:16:17.000Z",
+    "participants": ["danielbeardsley", "someone else"],
     "closed_at": null,
     "merged_at": null,
     "difficulty": null,
@@ -4702,6 +4704,7 @@
     "base": {
       "ref": "master"
     },
+    "participants": ["BaseInfinity", "other", "another"],
     "user": {
       "login": "BaseInfinity"
     },
@@ -4991,6 +4994,7 @@
     "base": {
       "ref": "master"
     },
+    "participants": ["evannoronha", "someone else"],
     "user": {
       "login": "evannoronha"
     },

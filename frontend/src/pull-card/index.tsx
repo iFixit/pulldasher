@@ -1,5 +1,6 @@
 import { Pull } from "../pull";
 import { CommitStatuses } from "./commit-statuses";
+import { Participants } from "./participants";
 import { Age } from "./age";
 import { Flags } from "./flags";
 import { Avatar } from "./avatar";
@@ -68,6 +69,7 @@ export const PullCard = memo(function PullCard({
 
   return (
     <Card ref={cardRef} display={show ? undefined : "none"}>
+      <Participants pull={pull} />
       <RefreshButton pull={pull} />
       <CommitStatuses pull={pull} />
       <Box>

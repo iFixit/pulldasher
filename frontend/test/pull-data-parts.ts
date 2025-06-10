@@ -77,7 +77,7 @@ export function pullData(p: DeepPartial<PullData>): PullData {
   return <PullData>{
     repo: repo,
     repoSpec: p.repoSpec || null,
-    number: pullNumber(),
+    number: p.number || pullNumber(),
     state: "open",
     draft: p.draft,
     title: p.title || "Young pull with no CR / QA",
@@ -113,6 +113,7 @@ export function pullData(p: DeepPartial<PullData>): PullData {
       commit_statuses: p.status?.commit_statuses || [],
     },
     labels: p.labels || [],
+    participants: p.participants || [],
   };
 }
 

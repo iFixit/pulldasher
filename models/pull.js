@@ -32,6 +32,7 @@ class Pull {
       this.data.closes = data.closes;
       this.data.connects = data.connects;
     }
+    this.data.participants = this.collectParticipants();
     this.identifySignatures();
   }
 
@@ -68,6 +69,17 @@ class Pull {
         ? "review"
         : "comment";
     });
+  }
+
+  collectParticipants() {
+     const participants = new Set();
+     this.comments.forEach((comment) => {
+       participants.add(comment.data.user.login);
+     });
+     this.reviews.forEach((review) => {
+       participants.add(review.data.user.login);
+     });
+     return Array.from(participants);
   }
 
   syncToIssue() {

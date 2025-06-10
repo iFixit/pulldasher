@@ -390,6 +390,39 @@ export const MyOwn = <PullData[]>[
   }),
 ];
 
+export const Participants = <PullData[]>[
+  pullData({
+    number: 1,
+    title: "No participants",
+    cr_req: 0,
+    participants: [],
+  }),
+  pullData({
+    number: 2,
+    title: "One participant",
+    cr_req: 0,
+    participants: ["Other"],
+  }),
+  pullData({
+    number: 3,
+    title: "Multiple participants",
+    cr_req: 0,
+    participants: ["User2", "User3"],
+  }),
+  pullData({
+    number: 4,
+    title: "Only me participating",
+    cr_req: 0,
+    participants: [getUser()],
+  }),
+  pullData({
+    number: 5,
+    title: "multiple participants (including me)",
+    cr_req: 0,
+    participants: ["User2", "User3", getUser()],
+  }),
+];
+
 export const KitchenSink = <PullData[]>[
   pullData({
     title: "Pull With Lots of flags and such and a really long title",
@@ -428,5 +461,6 @@ export const KitchenSink = <PullData[]>[
         created_at: daysAgo(1 / 24),
       }),
     ],
+    participants: ["other person", getUser()],
   }),
 ];
