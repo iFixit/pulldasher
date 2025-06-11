@@ -77,7 +77,7 @@ export default {
     }),
     new HtmlWebpackPlugin({
       template: relative("index.html"),
-      filename: "./pull-card-demo.html",
+      filename: "./pull-card-demo/index.html",
       chunks: ["pull-card-demo"],
     }),
     new ESLintPlugin({

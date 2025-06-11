@@ -49,7 +49,8 @@ export class Pull extends PullData {
       this.hasCurrentSig(getUser()) ||
       this.hasOutdatedSig(getUser()) ||
       this.hasMyDevBlock() ||
-      this.hasMyDeployBlock()
+      this.hasMyDeployBlock() ||
+      this.participating()
     );
   }
 
@@ -77,6 +78,10 @@ export class Pull extends PullData {
       this.cr_signatures.current.some((sig) => sig.data.user.login == user) ||
       this.qa_signatures.current.some((sig) => sig.data.user.login == user)
     );
+  }
+
+  participating(): boolean {
+    return this.participants && this.participants.includes(getUser());
   }
 
   hasMyDevBlock(): boolean {

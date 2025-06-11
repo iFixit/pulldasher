@@ -124,4 +124,5 @@ export class PullData {
     commit_statuses: CommitStatus[];
   };
   labels: Label[];
+  participants: string[];
 }
