@@ -9,7 +9,9 @@ export function defaultCompare(a: Pull, b: Pull): number {
     // Pulls I have to CR/QA above those I don't
     compareBool(a.hasOutdatedSig(getUser()), b.hasOutdatedSig(getUser())) ||
     // Pulls I haven't touched vs those I have already CRed
-    compareBool(!a.hasCurrentSig(getUser()), !b.hasCurrentSig(getUser()))
+    compareBool(!a.hasCurrentSig(getUser()), !b.hasCurrentSig(getUser())) ||
+    // younger pulls above older pulls so new things get review sooner
+    b.created_at.localeCompare(a.created_at)
   );
 }
 
@@ -25,8 +27,8 @@ export function QACompare(a: Pull, b: Pull): number {
     compareBool(!a.getLabel("QAing"), !b.getLabel("QAing")) ||
     // Pulls with CR completed above those that need more
     compareBool(a.isCrDone(), b.isCrDone()) ||
-    // Older pulls before younger pulls
-    a.created_at.localeCompare(b.created_at)
+    // younger pulls before older pulls
+    b.created_at.localeCompare(a.created_at)
   );
 }
 
