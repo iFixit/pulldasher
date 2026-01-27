@@ -18,7 +18,7 @@
     "express": "^4.22.1",
     "express-session": "^1.18.2",
     "framer-motion": "^4.1.17",
-    "lodash-es": "^4.17.21",
+    "lodash-es": "^4.17.23",
     "mysql2": "^3.11.0",
     "notify-queue": "0.0.5",
     "passport": "^0.6.0",
