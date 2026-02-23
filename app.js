@@ -33,7 +33,10 @@ app.set("view engine", "html");
  */
 app.use("/public", express.static(__dirname + "/public"));
 app.use(bodyParser.urlencoded({ limit: maxPostSize, extended: false }));
-app.use(bodyParser.json({ limit: maxPostSize }));
+app.use(bodyParser.json({
+  limit: maxPostSize,
+  verify: (req, res, buf) => { req.rawBody = buf; },
+}));
 app.use(
   expressSession({
     secret: config.session.secret,
