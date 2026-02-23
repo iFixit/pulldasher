@@ -18,24 +18,64 @@ statistics-gathering and some sorting and filtering.
 
 ## Getting Started
 
-### Run a MySQL Container
+### 1. Create a GitHub App
 
-1. `docker run --name="test-mysql" -e "MYSQL_ROOT_PASSWORD=mypassword" -d mysql`
-   - If you leave the root password as `mypassword`, DO NOT MAKE THIS CONTAINER ACCESSIBLE FROM THE INTERNET.
+Go to **Settings > Developer settings > GitHub Apps > New GitHub App** on GitHub.
 
-### Preparing Pulldasher
+- **Homepage URL**: The URL where Pulldasher will be accessible
+- **Webhook URL**: `https://your-pulldasher-url/hooks/main`
+- **Webhook secret**: A random string (Pulldasher verifies webhook signatures using HMAC-SHA256)
 
-1. `git clone https://github.com/iFixit/pulldasher`
-2. `cd pulldasher`
-3. `cp config.example.js config.js`
-4. `$EDITOR config.js`
-   - Use your favorite editor in place of `$EDITOR`
-   - Edit the config.js file to reference correct URLs and above MySQL DB
-5. `docker build -t pulldasher .`
+**Repository permissions** (all Read-only):
+- Actions, Checks, Commit statuses, Contents, Issues, Metadata, Pull requests
 
-### Running Pulldasher
+**Subscribe to events**: Check run, Issue comment, Issues, Pull request, Pull request review, Pull request review comment, Status
 
-6. `docker run --name="test-pulldasher" --publish 8080:8080 -d pulldasher`
+After creating the app:
+1. Note the **App ID** from the settings page
+2. **Generate a private key** — download the `.pem` file
+3. **Install the app** on the repositories you want to monitor
+4. Note the **Installation ID** from the installation URL
+
+### 2. Create a GitHub OAuth App
+
+Go to **Settings > Developer settings > OAuth Apps > New OAuth App**.
+
+- **Homepage URL**: Your Pulldasher URL
+- **Authorization callback URL**: `https://your-pulldasher-url/auth/github/callback`
+
+Note the **Client ID** and generate a **Client Secret**.
+
+### 3. Configure and Run
+
+```bash
+git clone https://github.com/iFixit/pulldasher
+cd pulldasher
+cp config.example.js config.js
+```
+
+Edit `config.js` with your credentials (see `config.example.js` for detailed documentation):
+- `github.clientId` / `github.secret` — OAuth App credentials
+- `github.appId` / `github.privateKey` / `github.installationId` — GitHub App credentials
+- `github.hook_secret` — the webhook secret from step 1
+- `mysql.*` — your MySQL connection details
+- `repos` — list of `"owner/repo"` strings to monitor
+
+#### With Docker Compose
+
+```bash
+docker compose up -d    # Starts MySQL and Pulldasher
+./bin/migrate           # Initialize the database (first run only)
+```
+
+#### Without Docker (local Node + Docker MySQL)
+
+```bash
+docker compose up -d db   # Start just MySQL
+npm install               # Install dependencies and build frontend
+./bin/migrate             # Initialize the database (first run only)
+npm start                 # Start the server
+```
 
 ## Use
 
@@ -87,12 +127,14 @@ Two query string parameters are available to filter the displayed pulls:
 
 ## Architecture
 
-When first started, the Pulldasher server fetches information about the current
-pulls in the repo from GitHub. It then monitors GitHub hooks for updated
-information on the current pulls. When a client connects initially, the server
-authenticates it and then (assuming it passes) sends it a data dump of the
-active pulls. The main filtering and sorting of pulls takes place on the client
-side.
+Pulldasher uses a **GitHub App** for backend API access with auto-rotating
+installation tokens. User login is handled separately via a **GitHub OAuth App**.
+
+On startup, the server fetches all open pulls from the configured repos via the
+GitHub API. It then receives real-time updates through GitHub webhooks (verified
+with HMAC-SHA256 signatures). When a client connects, the server authenticates
+it via Socket.IO and sends the current pull state. Updates are pushed to all
+connected clients in real-time. Filtering and sorting happens on the client side.
 
 ## Customization
 
