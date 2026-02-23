@@ -1,5 +1,3 @@
-version: "2"
-
 services:
   web:
     build: .
@@ -17,8 +15,10 @@ services:
     volumes:
       - .:/opt/pulldasher # Mount the current directory to /opt/pulldasher
   db:
-    image: "mysql:latest"
-    command: --authentication_policy=mysql_native_password
+    image: "mysql:8.0"
+    command: --default-authentication-plugin=mysql_native_password
+    ports:
+      - 3306:3306 # Expose MySQL to host for local Node development
     volumes:
       - ./db_data:/var/lib/mysql # Create a persistent volume so that we don't lose data between restarts
     environment:
