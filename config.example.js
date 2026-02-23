@@ -16,25 +16,39 @@ module.exports = {
   // different ports.
   port: port,
 
-  // The use of the Github API in Pulldasher is slightly unconventional.
-  // Rather than using a token for the currently-logged-in user to access the
-  // API, we use one token belonging to the organization for everyone. This is
-  // driven by Pulldasher's back-end/front-end separation. Because the backend
-  // has to be able to access the API even when no one is logged into the front
-  // end, it can't use the users' tokens. The user logins are used only for
+  // Pulldasher's backend needs to access the GitHub API independently of any
+  // logged-in user. The user logins (via OAuth, below) are used only for
   // determining permissions and the active user.
   //
   // To use Pulldasher, you'll need to set up the following on GitHub:
-  // 1. A GitHub OAuth Application for your organization (see Settings > OAuth
-  // applications on GitHub)
-  //   - The homepage URL will be the URL at which Pulldasher is available on
-  //     your machine
-  //   - The authorization callback URL will be the URL below under
-  //     callbackURL.
-  // 2. An API token that has access to the repo you're going to track (see
-  // Settings > Personal access tokens on GitHub)
+  //
+  // 1. A GitHub OAuth Application for user login (see Settings > Developer
+  //    settings > OAuth Apps on GitHub)
+  //   - The homepage URL will be the URL at which Pulldasher is available
+  //   - The authorization callback URL will be the callbackURL below
+  //
+  // 2. A GitHub App for backend API access (RECOMMENDED, replaces classic PATs)
+  //    Go to Settings > Developer settings > GitHub Apps > New GitHub App
+  //    Required permissions:
+  //      - Contents: Read
+  //      - Issues: Read & Write
+  //      - Pull Requests: Read & Write
+  //      - Commit statuses: Read
+  //      - Actions: Read
+  //      - Members: Read (needed if requireOrg/requireTeam is set)
+  //    Subscribe to events: Issues, Pull requests, Issue comments,
+  //      Pull request reviews, Pull request review comments, Check runs, Status
+  //    After creating the app:
+  //      - Note the App ID (shown on the app's settings page)
+  //      - Generate and download a private key (.pem file)
+  //      - Install the app on your organization/repositories
+  //      - Note the Installation ID (visible in the URL when viewing the
+  //        installation: github.com/organizations/ORG/settings/installations/ID)
+  //
   // 3. A GitHub webhook on the repo you want to monitor (Settings (on the
   //    repo) > Webhooks > Add webhook)
+  //    NOTE: If you configured webhook events on the GitHub App above, the app
+  //    can deliver webhooks automatically and you may not need a separate hook.
   //   - The Payload URL should be the externally-visible URL of the Pulldasher
   //     instance with '/hooks/main' appended and a GET param named `secret`
   //     containing the secret from `hook_secret` below.
@@ -43,13 +57,29 @@ module.exports = {
   //     Issues, Pull requests, Pull request review comments, Pushes, and
   //     Statuses boxes
   github: {
-    // Get this from the GitHub application setup page.
+    // --- OAuth App credentials (for user login) ---
+    // Get these from the GitHub OAuth Application setup page.
     clientId: "your github application client id",
-    secret: "your github appliction secret",
+    secret: "your github application secret",
     // Where GitHub will send the user's browser after authentication.
     callbackURL: "http://localhost:" + port + "/auth/github/callback",
-    // An API token for the backend to make API requests with.
-    token: "oauth api token for server-side api calls",
+
+    // --- GitHub App auth (RECOMMENDED for backend API calls) ---
+    // These replace the classic PAT ('token' below). When appId is set,
+    // Pulldasher uses auto-rotating GitHub App installation tokens.
+    appId: "your GitHub App ID (numeric, from the app settings page)",
+    // The private key can be provided as:
+    //   1. The PEM string directly (with literal \n for newlines)
+    //   2. An absolute file path to the .pem file (e.g. "/path/to/private-key.pem")
+    //   3. Via the GITHUB_APP_PRIVATE_KEY environment variable
+    privateKey: "/path/to/your-github-app-private-key.pem",
+    installationId:
+      "your GitHub App installation ID (numeric, from the installation URL)",
+
+    // --- Classic PAT auth (DEPRECATED, use GitHub App above instead) ---
+    // If appId is not set, Pulldasher falls back to this token.
+    // token: "classic personal access token for server-side api calls",
+
     // This will need to be the same secret you use on the Webhooks page for
     // the repo Pulldasher is going to monitor.
     hook_secret:

@@ -9,6 +9,7 @@
     "@fortawesome/fontawesome-svg-core": "^6.1.1",
     "@fortawesome/free-solid-svg-icons": "^6.0.0",
     "@fortawesome/react-fontawesome": "^0.1.17",
+    "@octokit/auth-app": "^8.2.0",
     "@octokit/plugin-throttling": "^9.4.0",
     "@octokit/rest": "^21.1.0",
     "@types/underscore": "^1.10.24",
