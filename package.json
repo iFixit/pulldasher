@@ -28,7 +28,7 @@
     "react-hotkeys-hook": "^3.4.4",
     "socket.io": "^4.8.0",
     "socket.io-client": "^4.7.5",
-    "underscore": "^1.12.1"
+    "underscore": "^1.13.8"
   },
   "devDependencies": {
     "@babel/core": "^7.12.10",
