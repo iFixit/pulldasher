@@ -3,7 +3,7 @@ import type { Team } from '../types';
 import { Avatar } from '../components/bits';
 import { Fold, Lane, RestGroup } from '../components/Lane';
 import { Row, type RowOptions } from '../components/Row';
-import { crSort } from './ForYou';
+import { crSort } from '../model/sort';
 
 export function People({
    pulls,
