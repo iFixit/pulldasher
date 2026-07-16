@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import type { DerivedPull } from '../model/status';
 import { isIterating } from '../model/status';
 import { ago, githubUrl, shortRepo } from '../format';
+import { refreshPull } from '../store';
 import { Avatar, Heat, Pips, StatusBadge, WeightChip } from './bits';
 
 export interface RowOptions {
@@ -25,12 +27,76 @@ function cue(p: DerivedPull, me: string): string | null {
    }
    if (p.status === 'ready')
       return `CR✓ QA✓ green: ${d.user.login === me ? 'your' : `${d.user.login}’s`} merge button`;
-   if (p.status === 'needs_qa') return 'CR✓, author drives QA';
-   if (p.status === 'blocked') {
-      const block = d.status.dev_block[0] ?? d.status.deploy_block[0];
-      return block ? `held by ${block.data.user.login}` : null;
-   }
+   if (p.status === 'needs_qa')
+      return p.qaingBy ? `${p.qaingBy} is QAing` : 'CR✓, author drives QA';
+   if (p.status === 'ci_pending') return 'signed off, waiting on CI';
+   if (p.status === 'blocked' && p.blockedBy) return `held by ${p.blockedBy}`;
    return null;
+}
+
+/** Small warning flags that ride along regardless of lane. */
+function WarnFlags({ pull }: { pull: DerivedPull }) {
+   return (
+      <>
+         {pull.conflict && (
+            <span className="flag-amber" title="merge conflicts with the base branch">
+               conflicts
+            </span>
+         )}
+         {pull.dependent && (
+            <span
+               className="flag-amber"
+               title={`based on ${pull.data.base.ref}, lands with its parent`}
+            >
+               dependent
+            </span>
+         )}
+         {pull.ci === 'pending' && pull.status !== 'ci_pending' && (
+            <span className="text-xs text-ink-3" title="CI is still running">
+               CI…
+            </span>
+         )}
+         {pull.externalBlock && (
+            <span className="flag-amber" title="blocked on something outside the repo">
+               external
+            </span>
+         )}
+         {pull.qaingBy && pull.status === 'needs_qa' && (
+            <span className="flag-qaing" title={`${pull.qaingBy} is already testing this`}>
+               ◉ {pull.qaingBy}
+            </span>
+         )}
+      </>
+   );
+}
+
+/** Hover actions: re-fetch from GitHub, copy the branch name. */
+function RowActions({ pull }: { pull: DerivedPull }) {
+   const [copied, setCopied] = useState(false);
+   return (
+      <span className="row-actions hidden flex-none items-center gap-1 min-[860px]:inline-flex">
+         <button
+            type="button"
+            title={`copy branch: ${pull.data.head.ref}`}
+            className="rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
+            onClick={() => {
+               void navigator.clipboard.writeText(pull.data.head.ref);
+               setCopied(true);
+               setTimeout(() => setCopied(false), 1200);
+            }}
+         >
+            {copied ? '✓' : '⎘'}
+         </button>
+         <button
+            type="button"
+            title="re-fetch this pull from GitHub"
+            className="rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
+            onClick={() => refreshPull(pull.data.repo, pull.data.number)}
+         >
+            ↻
+         </button>
+      </span>
+   );
 }
 
 export function Row({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
@@ -44,7 +110,7 @@ export function Row({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
 
    return (
       <div
-         className={`flex items-center gap-2.5 border-t border-secondary border-l-[3px] border-l-transparent py-2 pr-3.5 pl-[11px] first:border-t-0 hover:bg-muted ${fresh ? 'row-fresh' : ''} ${iterating && !opts.noDim ? 'opacity-60' : ''} transition-[background-color,opacity] duration-150 motion-reduce:transition-none`}
+         className={`pd-row flex items-center gap-2.5 border-t border-secondary border-l-[3px] border-l-transparent py-2 pr-3.5 pl-[11px] first:border-t-0 hover:bg-muted ${fresh ? 'row-fresh' : ''} ${iterating && !opts.noDim ? 'opacity-60' : ''} transition-[background-color,opacity] duration-150 motion-reduce:transition-none`}
       >
          {opts.badge === false ? null : <StatusBadge status={pull.status} />}
          <Avatar login={d.user.login} onClick={opts.onPerson} />
@@ -61,6 +127,7 @@ export function Row({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
                {d.title}
             </a>
          </span>
+         <RowActions pull={pull} />
          {iterating && (
             <span
                className="flag-amber"
@@ -70,6 +137,7 @@ export function Row({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
             </span>
          )}
          {opts.aging && pull.starved && <span className="flag-amber">waiting {pull.ageDays}d</span>}
+         <WarnFlags pull={pull} />
          {line && (
             <span className="hidden max-w-[300px] flex-none truncate text-xs text-ink-2 min-[860px]:inline">
                {line}
