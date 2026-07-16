@@ -1,0 +1,275 @@
+@import "tailwindcss";
+
+/* ── iFixit house tokens: gray-ramp neutrals, brand blue as the only action
+   color, status badges as 200-tint bg / 900-step text. The dark board keeps
+   pulldasher's night-shift habit, derived from the same gray ramp. ── */
+:root {
+  --canvas: #f9fafb;
+  --surface: #ffffff;
+  --muted: #f3f4f6;
+  --secondary: #e5e7eb;
+  --border: #d1d5dc;
+  --ring: #99a1af;
+  --ink: #030712;
+  --ink-2: #4b5563;
+  --ink-3: #6b7280;
+  --brand: #0071ce;
+  --brand-50: #e0f1ff;
+  --brand-100: #cce7ff;
+  --brand-700: #004a87;
+  --brand-900: #002b4e;
+  --badge-green-bg: #bbf7d0;
+  --badge-green-fg: #14532d;
+  --badge-red-bg: #fecaca;
+  --badge-red-fg: #7f1d1d;
+  --badge-amber-bg: #fde68a;
+  --badge-amber-fg: #78350f;
+  --badge-purple-bg: #e9d5ff;
+  --badge-purple-fg: #581c87;
+  --badge-brand-bg: var(--brand-100);
+  --badge-brand-fg: var(--brand-900);
+  --badge-gray-bg: #e5e7eb;
+  --badge-gray-fg: #101828;
+  --ok: #16a34a;
+  --warn: #d97706;
+  --bad: #dc2626;
+  --violet: #9333ea;
+  --heat0: #d1d5dc;
+  --heat1: #fe9a00;
+  --heat2: #e7000b;
+  --ease-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-quart: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.dark {
+  --canvas: #030712;
+  --surface: #101828;
+  --muted: #1e2939;
+  --secondary: #364153;
+  --border: #364153;
+  --ring: #6a7282;
+  --ink: #f9fafb;
+  --ink-2: #99a1af;
+  --ink-3: #6a7282;
+  --brand: #4da3e8;
+  --brand-50: #0d2b47;
+  --brand-100: #123a5f;
+  --brand-700: #8ec6f2;
+  --brand-900: #cce7ff;
+  --badge-green-bg: #14532d;
+  --badge-green-fg: #bbf7d0;
+  --badge-red-bg: #7f1d1d;
+  --badge-red-fg: #fecaca;
+  --badge-amber-bg: #78350f;
+  --badge-amber-fg: #fde68a;
+  --badge-purple-bg: #581c87;
+  --badge-purple-fg: #e9d5ff;
+  --badge-brand-bg: #123a5f;
+  --badge-brand-fg: #cce7ff;
+  --badge-gray-bg: #364153;
+  --badge-gray-fg: #e5e7eb;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --bad: #f87171;
+  --violet: #c084fc;
+  --heat0: #364153;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
+  --color-secondary: var(--secondary);
+  --color-line: var(--border);
+  --color-ring: var(--ring);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-brand: var(--brand);
+  --color-brand-50: var(--brand-50);
+  --color-brand-700: var(--brand-700);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font: 400 14px/1.5 ui-sans-serif, system-ui, sans-serif;
+}
+
+a:hover {
+  color: var(--brand);
+}
+
+/* shared focus ring (house: border-ring + ring/50 at 3px) */
+:is(select, input, button, summary, a):focus-visible {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+}
+
+@layer components {
+  /* status badge: house Badge (200-tint bg, 900 text, 8px radius) */
+  .badge {
+    @apply rounded-lg px-0 py-[3px] text-center text-xs font-medium;
+    width: 84px;
+    flex: none;
+  }
+  .badge-ready { background: var(--badge-green-bg); color: var(--badge-green-fg); }
+  .badge-recr { background: var(--badge-brand-bg); color: var(--badge-brand-fg); }
+  .badge-qa { background: var(--badge-purple-bg); color: var(--badge-purple-fg); }
+  .badge-cr { background: var(--badge-gray-bg); color: var(--badge-gray-fg); }
+  .badge-blocked { background: var(--badge-amber-bg); color: var(--badge-amber-fg); }
+  .badge-red { background: var(--badge-red-bg); color: var(--badge-red-fg); }
+  .badge-draft { background: none; color: var(--ink-3); border: 1px dashed var(--border); }
+
+  .chip-w { @apply rounded-lg px-1.5 py-0.5 text-center text-[11px] font-medium; min-width: 26px; flex: none; }
+  .chip-w-XS, .chip-w-S { background: var(--badge-green-bg); color: var(--badge-green-fg); }
+  .chip-w-M { background: var(--badge-gray-bg); color: var(--badge-gray-fg); }
+  .chip-w-L { background: var(--badge-amber-bg); color: var(--badge-amber-fg); }
+  .chip-w-XL { background: var(--badge-red-bg); color: var(--badge-red-fg); }
+
+  .flag-amber {
+    @apply rounded-lg px-1.5 py-0.5 text-[11px] font-medium;
+    background: var(--badge-amber-bg);
+    color: var(--badge-amber-fg);
+    flex: none;
+  }
+
+  /* signature pips */
+  .pip { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--ring); }
+  .pip-full { background: var(--ok); border-color: var(--ok); }
+  .pip-stale { border-color: var(--warn); position: relative; }
+  .pip-stale::after {
+    content: "";
+    position: absolute;
+    left: -2px;
+    right: -2px;
+    top: 3px;
+    border-top: 1.5px solid var(--warn);
+    transform: rotate(-30deg);
+  }
+
+  /* age heat bars */
+  .heat-bar { width: 4px; height: 10px; border-radius: 2px; background: var(--heat0); }
+  .heat-warm { background: var(--heat1); }
+  .heat-hot { background: var(--heat2); }
+}
+
+/* ── Motion: state feedback only, exponential ease-out, one settle entrance ── */
+@keyframes settle {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
+main > * {
+  animation: settle 300ms var(--ease-quint) backwards;
+}
+main > *:nth-child(2) { animation-delay: 40ms; }
+main > *:nth-child(3) { animation-delay: 80ms; }
+main > *:nth-child(4) { animation-delay: 120ms; }
+main > *:nth-child(n + 5) { animation-delay: 160ms; }
+
+details[open] > .fold-body {
+  animation: settle 220ms var(--ease-quint);
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    scale: 0.97;
+    translate: 0 -4px;
+  }
+}
+.popover {
+  transform-origin: top left;
+  animation: pop 180ms var(--ease-quint);
+}
+
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    translate: 0 -6px;
+  }
+}
+.notice-inner {
+  animation: slide-down 250ms var(--ease-quint);
+}
+
+/* changed rows: the tick flashes once, then rests */
+@keyframes fresh-flash {
+  0% {
+    background: color-mix(in srgb, var(--brand) 12%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+.row-fresh {
+  border-left-color: var(--brand) !important;
+  animation: fresh-flash 1.4s var(--ease-quart) 300ms backwards;
+}
+
+/* press feedback: house scale-97 */
+.pressable {
+  transition:
+    background-color 150ms ease-out,
+    color 150ms ease-out,
+    border-color 150ms ease-out,
+    scale 150ms ease-out;
+}
+.pressable:active {
+  scale: 0.97;
+}
+
+/* the live dot breathes: connected and listening */
+@keyframes breathe {
+  50% {
+    opacity: 0.4;
+  }
+}
+.conn-live {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+/* empty-state check draws itself */
+@keyframes draw-check {
+  from {
+    stroke-dashoffset: 26;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.draw-check {
+  stroke-dasharray: 26;
+  animation: draw-check 500ms var(--ease-quint) 200ms backwards;
+}
+
+@keyframes nod {
+  50% {
+    scale: 1.25;
+  }
+}
+input[type="checkbox"]:checked {
+  animation: nod 180ms var(--ease-quint);
+}
+input[type="checkbox"] {
+  accent-color: var(--brand);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .pressable:active {
+    scale: 1;
+  }
+}
