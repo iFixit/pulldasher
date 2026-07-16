@@ -1,0 +1,4 @@
+[
+  { "team": "carpenter", "members": ["alice", "bob"] },
+  { "team": "nextjs", "members": ["carol"] }
+]

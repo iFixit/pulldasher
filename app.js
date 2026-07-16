@@ -53,6 +53,7 @@ app.use(function (req, res, next) {
  * Routes
  */
 authManager.setupRoutes(app);
+app.use("/v2", express.static(__dirname + "/frontend-v2/dist"));
 app.use("/", express.static(__dirname + "/frontend/dist"));
 app.get("/token", mainController.getToken);
 app.post("/hooks/main", hooksController.main);
