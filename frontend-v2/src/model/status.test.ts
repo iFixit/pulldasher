@@ -126,6 +126,70 @@ describe('status derivation precedence', () => {
       });
       expect(derive(p, undefined, NOW).status).toBe('needs_cr');
    });
+
+   it('pending CI never hides a pull from review, but gates ready', () => {
+      const needsCr = withStatus({ commit_statuses: [ci('pending')] });
+      expect(derive(needsCr, undefined, NOW).status).toBe('needs_cr');
+
+      const signedOff = withStatus({
+         allCR: [sig('CR', 'r', true)],
+         allQA: [sig('QA', 'q', true)],
+         commit_statuses: [ci('pending')],
+      });
+      expect(derive(signedOff, undefined, NOW).status).toBe('ci_pending');
+   });
+
+   it('conflicts and a dependent base flag everywhere and block ready', () => {
+      const conflicted = withStatus(
+         { allCR: [sig('CR', 'r', true)], allQA: [sig('QA', 'q', true)] },
+         { mergeable: false }
+      );
+      const d = derive(conflicted, undefined, NOW);
+      expect(d.conflict).toBe(true);
+      expect(d.status).toBe('blocked');
+
+      const dependent = withStatus(
+         { allCR: [sig('CR', 'r', true)], allQA: [sig('QA', 'q', true)] },
+         { base: { ref: 'parent-feature' } }
+      );
+      const dd = derive(dependent, undefined, NOW);
+      expect(dd.dependent).toBe(true);
+      expect(dd.status).toBe('blocked');
+
+      // still reviewable while CR is missing: conflict is a flag, not a gate
+      const needsCr = pull({ mergeable: false });
+      expect(derive(needsCr, undefined, NOW).status).toBe('needs_cr');
+   });
+
+   it('reads the v1 label conventions', () => {
+      const labeled = pull({
+         labels: [
+            {
+               title: 'QAing',
+               number: 1,
+               repo: 'iFixit/ifixit',
+               user: 'tester',
+               created_at: '2026-01-01T00:00:00Z',
+            },
+            {
+               title: 'Cryogenic Storage',
+               number: 1,
+               repo: 'iFixit/ifixit',
+               user: 'x',
+               created_at: '2026-01-01T00:00:00Z',
+            },
+         ],
+      });
+      const d = derive(labeled, undefined, NOW);
+      expect(d.qaingBy).toBe('tester');
+      expect(d.cryo).toBe(true);
+      expect(d.externalBlock).toBe(false);
+   });
+
+   it('names who holds a block', () => {
+      const p = withStatus({ dev_block: [sig('dev_block', 'holder', true)] });
+      expect(derive(p, undefined, NOW).blockedBy).toBe('holder');
+   });
 });
 
 function ci(state: 'success' | 'failure' | 'pending' | 'error', context = 'build', sha = 'abc') {

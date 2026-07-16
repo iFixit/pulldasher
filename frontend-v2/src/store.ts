@@ -12,6 +12,8 @@ import type { PullData, RepoSpec } from './types';
 export interface Snapshot {
    pulls: DerivedPull[];
    repoSpecs: RepoSpec[];
+   /** merged/closed in the last 14 days (the server's retention window) */
+   closed: PullData[];
    me: string;
    connection: ConnectionState;
    /** epoch secs of the last-seen marker captured at page load */
@@ -30,14 +32,23 @@ const listeners = new Set<() => void>();
 const lastSeen = Number(localStorage.getItem(LAST_SEEN_KEY)) || Date.now() / 1000 - 6 * 3600;
 localStorage.setItem(LAST_SEEN_KEY, String(Date.now() / 1000));
 
-let snapshot: Snapshot = { pulls: [], repoSpecs, me, connection, lastSeen };
+let snapshot: Snapshot = {
+   pulls: [],
+   repoSpecs,
+   closed: [],
+   me,
+   connection,
+   lastSeen,
+};
 
 function publish() {
    const specByName = new Map(repoSpecs.map(s => [s.name, s]));
+   const all = [...raw.values()];
    snapshot = {
-      pulls: [...raw.values()]
-         .filter(p => p.state === 'open')
-         .map(p => derive(p, specByName.get(p.repo))),
+      pulls: all.filter(p => p.state === 'open').map(p => derive(p, specByName.get(p.repo))),
+      closed: all
+         .filter(p => p.state === 'closed')
+         .sort((a, b) => Date.parse(b.closed_at ?? '0') - Date.parse(a.closed_at ?? '0')),
       repoSpecs,
       me,
       connection,

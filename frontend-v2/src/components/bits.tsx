@@ -3,6 +3,7 @@ import { loginHue } from '../format';
 
 export const STATUS_LABEL: Record<Status, string> = {
    ready: 'Ready',
+   ci_pending: 'CI running',
    needs_recr: 'Re-stamp',
    needs_qa: 'Needs QA',
    needs_cr: 'Needs CR',
@@ -13,6 +14,7 @@ export const STATUS_LABEL: Record<Status, string> = {
 
 const STATUS_CLASS: Record<Status, string> = {
    ready: 'badge-ready',
+   ci_pending: 'badge-blocked',
    needs_recr: 'badge-recr',
    needs_qa: 'badge-qa',
    needs_cr: 'badge-cr',
@@ -23,6 +25,7 @@ const STATUS_CLASS: Record<Status, string> = {
 
 export const STATUS_DOT: Record<Status, string> = {
    ready: 'var(--ok)',
+   ci_pending: 'var(--warn)',
    needs_recr: 'var(--brand)',
    needs_qa: 'var(--violet)',
    needs_cr: 'var(--ink-3)',

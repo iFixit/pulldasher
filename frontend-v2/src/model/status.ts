@@ -4,7 +4,13 @@ import type { CommitStatus, PullData, RepoSpec, Signature } from '../types';
  * One pull, one status. Mutually exclusive by precedence — the fix for v1's
  * six overlapping column predicates (a pull could sit in CR and QA at once).
  * Precedence mirrors the what-to-review skill's derivation:
- *   draft > blocked > ci_red > needs_recr > needs_cr > needs_qa > ready
+ *   draft > blocked > ci_red > needs_recr > needs_cr > needs_qa >
+ *   ci_pending > ready
+ *
+ * ci_pending exists only at the ready gate: pending CI never hides a pull
+ * from the review lanes (reviews don't need green), but a fully-signed-off
+ * pull isn't "ready" until CI agrees. Merge conflicts and a dependent base
+ * gate the same way: reviewable as usual, but never "ready".
  */
 export type Status =
    | 'draft'
@@ -13,6 +19,7 @@ export type Status =
    | 'needs_recr'
    | 'needs_cr'
    | 'needs_qa'
+   | 'ci_pending'
    | 'ready';
 
 export const STATUS_ORDER: Status[] = [
@@ -20,10 +27,18 @@ export const STATUS_ORDER: Status[] = [
    'needs_recr',
    'needs_qa',
    'needs_cr',
+   'ci_pending',
    'blocked',
    'ci_red',
    'draft',
 ];
+
+/** v1's label conventions, still in active use on the boards. */
+export const LABELS = {
+   qaing: 'QAing',
+   externalBlock: 'external_block',
+   cryo: 'Cryogenic Storage',
+} as const;
 
 export type CiVerdict = 'success' | 'pending' | 'failing' | 'none';
 
@@ -45,6 +60,16 @@ export interface DerivedPull {
    starved: boolean;
    starveScore: number;
    weight: Weight;
+   /** mergeable === false: shows as a flag everywhere, gates "ready" */
+   conflict: boolean;
+   /** base isn't main/master: lands with its parent, gates "ready" */
+   dependent: boolean;
+   /** who holds the active dev/deploy block, if any */
+   blockedBy: string | null;
+   /** login from the QAing label: someone is already testing this */
+   qaingBy: string | null;
+   externalBlock: boolean;
+   cryo: boolean;
 }
 
 export type Weight = 'XS' | 'S' | 'M' | 'L' | 'XL';
@@ -121,17 +146,24 @@ export function derive(
          .filter(u => !crBy.includes(u) && u !== pull.user.login)
    );
 
-   const blocked = st.dev_block.length > 0 || st.deploy_block.length > 0;
+   const blockSig = st.dev_block[0] ?? st.deploy_block[0];
    const crDone = crHave >= st.cr_req;
    const qaDone = qaHave >= st.qa_req;
 
+   const conflict = pull.mergeable === false;
+   const dependent = !['main', 'master'].includes(pull.base.ref);
+   const label = (title: string) => pull.labels.find(l => l.title === title);
+
    let status: Status;
    if (pull.draft) status = 'draft';
-   else if (blocked) status = 'blocked';
+   else if (blockSig) status = 'blocked';
    else if (ci === 'failing') status = 'ci_red';
    else if (!crDone && staleCr.length) status = 'needs_recr';
    else if (!crDone) status = 'needs_cr';
    else if (!qaDone) status = 'needs_qa';
+   else if (ci === 'pending') status = 'ci_pending';
+   // signed off and green, but unmergeable as-is: that's a block, not ready
+   else if (conflict || dependent) status = 'blocked';
    else status = 'ready';
 
    const created = Date.parse(pull.created_at) / 1000;
@@ -153,6 +185,12 @@ export function derive(
       starved,
       starveScore: starved ? ageDays * Math.max(size, 1) : 0,
       weight: reviewWeight(pull),
+      conflict,
+      dependent,
+      blockedBy: blockSig?.data.user.login ?? null,
+      qaingBy: label(LABELS.qaing)?.user ?? null,
+      externalBlock: !!label(LABELS.externalBlock),
+      cryo: !!label(LABELS.cryo),
    };
 }
 
