@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { STATUS_ORDER, type DerivedPull } from './model/status';
 import type { Team } from './types';
 import { usePulldasher } from './store';
@@ -6,26 +6,30 @@ import { loadTeams, useScope } from './prefs';
 import { ScopeControl } from './components/Scope';
 import { STATUS_LABEL } from './components/bits';
 import type { RowOptions } from './components/Row';
-import { ForYou } from './views/ForYou';
+import { Review } from './views/Review';
+import { MyWork } from './views/MyWork';
 import { People } from './views/People';
 import { Teams } from './views/Teams';
+import { Board } from './views/Board';
 
-type Lens = 'you' | 'people' | 'teams';
+type Lens = 'review' | 'mine' | 'people' | 'teams' | 'board';
 
 const BOT_LOGINS = new Set(['ifixit-systems']);
 const isBot = (p: DerivedPull) =>
    p.data.user.login.endsWith('[bot]') || BOT_LOGINS.has(p.data.user.login);
 
 export function App() {
-   const { pulls, me, connection, lastSeen } = usePulldasher();
+   const { pulls, closed, repoSpecs, me, connection, lastSeen } = usePulldasher();
    const [scope] = useScope();
-   const [lens, setLens] = useState<Lens>('you');
+   const [lens, setLens] = useState<Lens>('review');
    const [person, setPerson] = useState<string | null>(null);
    const [team, setTeam] = useState<string | null>(null);
    const [query, setQuery] = useState('');
    const [onlyChanged, setOnlyChanged] = useState(false);
+   const [showHidden, setShowHidden] = useState(false);
    const [teams, setTeams] = useState<Team[]>([]);
    const [dark, setDark] = useState(() => matchMedia('(prefers-color-scheme: dark)').matches);
+   const searchRef = useRef<HTMLInputElement>(null);
 
    useEffect(() => {
       void loadTeams().then(setTeams);
@@ -33,9 +37,33 @@ export function App() {
    useEffect(() => {
       document.documentElement.classList.toggle('dark', dark);
    }, [dark]);
+   // v1's `/` hotkey: jump to the filter box from anywhere
+   useEffect(() => {
+      const onKey = (e: KeyboardEvent) => {
+         if (e.key !== '/' || e.metaKey || e.ctrlKey) return;
+         const t = e.target as HTMLElement;
+         if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.isContentEditable) return;
+         e.preventDefault();
+         searchRef.current?.focus();
+         searchRef.current?.select();
+      };
+      document.addEventListener('keydown', onKey);
+      return () => document.removeEventListener('keydown', onKey);
+   }, []);
+
+   const hiddenRepos = useMemo(
+      () => new Set(repoSpecs.filter(s => s.hideByDefault).map(s => s.name)),
+      [repoSpecs]
+   );
 
    const scoped = useMemo(() => {
       let out = pulls;
+      // v1 conventions: Cryogenic-Storage pulls and hideByDefault repos stay
+      // off the board unless asked for (or the scope names the repo).
+      if (!showHidden)
+         out = out.filter(
+            p => !p.cryo && (!hiddenRepos.has(p.data.repo) || scope.repos.includes(p.data.repo))
+         );
       if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.data.repo));
       if (scope.authors.length)
          out = out.filter(p => isBot(p) || scope.authors.includes(p.data.user.login));
@@ -52,12 +80,15 @@ export function App() {
       }
       if (onlyChanged) out = out.filter(p => Date.parse(p.data.updated_at) / 1000 > lastSeen);
       return out;
-   }, [pulls, scope, query, onlyChanged, lastSeen]);
+   }, [pulls, scope, query, onlyChanged, lastSeen, showHidden, hiddenRepos]);
 
    const humans = scoped.filter(p => !isBot(p));
    const bots = scoped.filter(isBot);
    const changedCount = pulls.filter(
       p => !isBot(p) && Date.parse(p.data.updated_at) / 1000 > lastSeen
+   ).length;
+   const hiddenCount = pulls.filter(
+      p => p.cryo || (hiddenRepos.has(p.data.repo) && !scope.repos.includes(p.data.repo))
    ).length;
 
    const statusCounts = new Map<string, number>();
@@ -73,7 +104,8 @@ export function App() {
       },
    };
 
-   const tab = (id: Lens, label: string) => (
+   const mineCount = humans.filter(p => p.data.user.login === me).length;
+   const tab = (id: Lens, label: string, count?: number) => (
       <button
          type="button"
          onClick={() => setLens(id)}
@@ -82,15 +114,18 @@ export function App() {
          }`}
       >
          {label}
+         {count != null && count > 0 && (
+            <span className="ml-1.5 text-xs text-ink-3 tabular-nums">{count}</span>
+         )}
       </button>
    );
 
    return (
       <>
          <header className="sticky top-0 z-10 border-b border-line bg-surface">
-            <div className="mx-auto flex max-w-[1080px] items-center gap-3.5 px-5 py-2.5">
+            <div className="mx-auto flex max-w-[1240px] items-center gap-3.5 px-5 py-2.5">
                <span className="text-base font-semibold tracking-tight">
-                  pull<em className="not-italic text-brand">dasher</em>
+                  pull<em className="text-brand not-italic">dasher</em>
                </span>
                <span
                   className={`h-[7px] w-[7px] rounded-full ${
@@ -131,27 +166,44 @@ export function App() {
                   ◐ theme
                </button>
             </div>
-            <div className="mx-auto flex max-w-[1080px] flex-wrap items-center gap-2 px-5 pb-2.5">
+            <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-2 px-5 pb-2.5">
                <nav className="mr-1 flex gap-1">
-                  {tab('you', 'For you')}
+                  {tab('review', 'Review')}
+                  {tab('mine', 'My work', mineCount)}
                   {tab('people', 'People')}
                   {tab('teams', 'Teams')}
+                  {tab('board', 'Board')}
                </nav>
                <ScopeControl pulls={pulls} teams={teams} />
                <input
+                  ref={searchRef}
                   type="search"
-                  placeholder="filter…"
+                  placeholder="filter…  ( / )"
                   value={query}
                   onChange={e => setQuery(e.target.value)}
                   className="h-8 w-[170px] rounded-lg border border-line bg-surface px-2.5 text-[13px]"
                />
+               {hiddenCount > 0 && (
+                  <button
+                     type="button"
+                     onClick={() => setShowHidden(v => !v)}
+                     className={`pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium ${
+                        showHidden
+                           ? 'border-brand bg-brand-50 text-brand-700'
+                           : 'border-line bg-surface text-ink-3 hover:text-brand'
+                     }`}
+                     title="Cryogenic-Storage pulls and hide-by-default repos"
+                  >
+                     ❄ {hiddenCount} hidden
+                  </button>
+               )}
                <span className="flex-1" />
-               <span className="text-xs text-ink-3 tabular-nums">{bots.length} bot PRs below</span>
+               <span className="text-xs text-ink-3 tabular-nums">{bots.length} bot PRs</span>
             </div>
          </header>
 
          {changedCount > 0 && !query && (
-            <div className="mx-auto mt-3 max-w-[1080px] px-5 text-[13px]">
+            <div className="mx-auto mt-3 max-w-[1240px] px-5 text-[13px]">
                <div className="notice-inner flex items-center gap-2 rounded-lg border border-brand bg-brand-50 px-3 py-[7px] text-brand-700">
                   <span>●</span>
                   <span className="tabular-nums">
@@ -169,8 +221,11 @@ export function App() {
             </div>
          )}
 
-         <main key={lens} className="mx-auto mt-4 max-w-[1080px] px-5 pb-16">
-            {lens === 'you' && <ForYou pulls={humans} bots={bots} opts={rowOpts} />}
+         <main key={lens} className="mx-auto mt-4 max-w-[1240px] px-5 pb-16">
+            {lens === 'review' && (
+               <Review pulls={humans} bots={bots} closed={closed} opts={rowOpts} />
+            )}
+            {lens === 'mine' && <MyWork pulls={humans} closed={closed} opts={rowOpts} />}
             {lens === 'people' && (
                <People
                   pulls={humans}
@@ -184,6 +239,7 @@ export function App() {
             {lens === 'teams' && (
                <Teams pulls={humans} teams={teams} team={team} onTeam={setTeam} opts={rowOpts} />
             )}
+            {lens === 'board' && <Board pulls={scoped} opts={rowOpts} />}
          </main>
       </>
    );
