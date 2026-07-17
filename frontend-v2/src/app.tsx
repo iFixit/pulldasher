@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ago, n, shortRepo } from './format';
 import { readStorage, writeStorage } from './storage';
 import { STATUS_ORDER, type DerivedPull } from './model/status';
@@ -44,6 +44,55 @@ const THEME_KEY = 'pd2.theme';
 const BOT_LOGINS = new Set(['ifixit-systems']);
 const isBot = (p: DerivedPull) =>
    p.data.user.login.endsWith('[bot]') || BOT_LOGINS.has(p.data.user.login);
+
+/** Full-width notice under the header: bad = red alert, warn = amber, brand = informational. */
+function Banner({ tone, children }: { tone: 'bad' | 'warn' | 'brand'; children: ReactNode }) {
+   const inner: Record<typeof tone, string> = {
+      bad: 'border-bad bg-surface text-bad',
+      warn: 'border-warn bg-surface',
+      brand: 'notice-inner border-brand bg-brand-50 text-brand-700',
+   };
+   return (
+      <div className="mx-auto mt-3 max-w-[1240px] px-5 text-[13px]">
+         <div
+            className={`flex items-center gap-2 rounded-lg border px-3 py-[7px] ${inner[tone]}`}
+            role={tone === 'brand' ? undefined : 'alert'}
+         >
+            {children}
+         </div>
+      </div>
+   );
+}
+
+/** Header pill toggle: brand-tinted while active, quiet outline otherwise. */
+function ToggleChip({
+   active,
+   onClick,
+   title,
+   className = '',
+   children,
+}: {
+   active: boolean;
+   onClick: () => void;
+   title?: string;
+   className?: string;
+   children: ReactNode;
+}) {
+   return (
+      <button
+         type="button"
+         onClick={onClick}
+         title={title}
+         className={`pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium ${
+            active
+               ? 'border-brand bg-brand-50 text-brand-700'
+               : 'border-line bg-surface text-ink-3 hover:text-brand'
+         } ${className}`}
+      >
+         {children}
+      </button>
+   );
+}
 
 export function App() {
    const {
@@ -290,41 +339,35 @@ export function App() {
                   className="h-8 w-[170px] rounded-lg border border-line bg-surface px-2.5 text-[13px]"
                />
                {legacy && (
-                  <button
-                     type="button"
+                  <ToggleChip
+                     active
                      onClick={() => setLegacy(null)}
                      title={`filters from your v1 bookmark: ${describeLegacyView(legacy) || 'defaults'}. Click to drop them`}
-                     className="pressable inline-flex h-8 max-w-[260px] items-center gap-1.5 rounded-lg border border-brand bg-brand-50 px-2.5 text-xs font-medium text-brand-700"
+                     className="max-w-[260px]"
                   >
                      <span className="truncate">
                         v1 view: {describeLegacyView(legacy) || 'defaults'}
                      </span>
                      <span aria-hidden>✕</span>
-                  </button>
+                  </ToggleChip>
                )}
                {onlyChanged && (
-                  <button
-                     type="button"
+                  <ToggleChip
+                     active
                      onClick={() => setOnlyChanged(false)}
                      title="showing only PRs changed since your last look. Click to show everything"
-                     className="pressable inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand bg-brand-50 px-2.5 text-xs font-medium text-brand-700"
                   >
                      changed only ✕
-                  </button>
+                  </ToggleChip>
                )}
                {hiddenCount > 0 && (
-                  <button
-                     type="button"
+                  <ToggleChip
+                     active={showHidden}
                      onClick={() => setShowHidden(v => !v)}
-                     className={`pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium ${
-                        showHidden
-                           ? 'border-brand bg-brand-50 text-brand-700'
-                           : 'border-line bg-surface text-ink-3 hover:text-brand'
-                     }`}
                      title="Cryogenic-Storage PRs and hide-by-default repos"
                   >
                      ❄ {hiddenCount} hidden
-                  </button>
+                  </ToggleChip>
                )}
                <span className="flex-1" />
                {bots.length > 0 && (
@@ -337,53 +380,41 @@ export function App() {
          </header>
 
          {authFailed && (
-            <div className="mx-auto mt-3 max-w-[1240px] px-5 text-[13px]">
-               <div
-                  className="flex items-center gap-2 rounded-lg border border-bad bg-surface px-3 py-[7px] text-bad"
-                  role="alert"
-               >
-                  <span className="font-semibold">Sign-in failed.</span>
-                  <span className="text-ink-2">
-                     Your session may have expired.{' '}
-                     <a href="/v2/" className="font-semibold underline">
-                        Reload to sign in again
-                     </a>
-                     .
-                  </span>
-               </div>
-            </div>
+            <Banner tone="bad">
+               <span className="font-semibold">Sign-in failed.</span>
+               <span className="text-ink-2">
+                  Your session may have expired.{' '}
+                  <a href="/v2/" className="font-semibold underline">
+                     Reload to sign in again
+                  </a>
+                  .
+               </span>
+            </Banner>
          )}
          {initialized && (connection === 'disconnected' || connection === 'error') && (
-            <div className="mx-auto mt-3 max-w-[1240px] px-5 text-[13px]">
-               <div
-                  className="flex items-center gap-2 rounded-lg border border-warn bg-surface px-3 py-[7px]"
-                  role="alert"
-               >
-                  <span className="font-semibold text-warn">Live updates lost.</span>
-                  <span className="text-ink-2">
-                     Showing data as of {lastPayloadAt ? `${ago(lastPayloadAt)} ago` : 'page load'},
-                     retrying in the background.
-                  </span>
-               </div>
-            </div>
+            <Banner tone="warn">
+               <span className="font-semibold text-warn">Live updates lost.</span>
+               <span className="text-ink-2">
+                  Showing data as of {lastPayloadAt ? `${ago(lastPayloadAt)} ago` : 'page load'},
+                  retrying in the background.
+               </span>
+            </Banner>
          )}
          {changedCount > 0 && !query && (
-            <div className="mx-auto mt-3 max-w-[1240px] px-5 text-[13px]">
-               <div className="notice-inner flex items-center gap-2 rounded-lg border border-brand bg-brand-50 px-3 py-[7px] text-brand-700">
-                  <span>●</span>
-                  <span className="tabular-nums">
-                     <b className="font-semibold">{n(changedCount, 'PR')}</b> changed since your
-                     last look
-                  </span>
-                  <button
-                     type="button"
-                     onClick={() => setOnlyChanged(v => !v)}
-                     className="border-0 bg-transparent p-0 text-[13px] font-semibold underline"
-                  >
-                     {onlyChanged ? 'show everything' : 'show only changes'}
-                  </button>
-               </div>
-            </div>
+            <Banner tone="brand">
+               <span>●</span>
+               <span className="tabular-nums">
+                  <b className="font-semibold">{n(changedCount, 'PR')}</b> changed since your
+                  last look
+               </span>
+               <button
+                  type="button"
+                  onClick={() => setOnlyChanged(v => !v)}
+                  className="border-0 bg-transparent p-0 text-[13px] font-semibold underline"
+               >
+                  {onlyChanged ? 'show everything' : 'show only changes'}
+               </button>
+            </Banner>
          )}
 
          <main
