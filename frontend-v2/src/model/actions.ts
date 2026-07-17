@@ -59,25 +59,27 @@ export function rowNote(p: DerivedPull, me: string): RowNote | null {
       return { text: verb, tone: 'do' };
    }
 
+   // the badge already names the state; a wait note only adds who/when/why and
+   // must not echo the badge's words ("re-stamp", "dev-blocked", "QA")
    const wait = (text: string): RowNote => ({ text, tone: 'wait' });
    switch (p.status) {
       case 'needs_recr':
-         return p.recrBy.length ? wait(`waiting on ${who(p.recrBy)}’s re-stamp${pushed}`) : null;
+         return p.recrBy.length ? wait(`waiting on ${who(p.recrBy)}${pushed}`) : null;
       case 'needs_qa':
-         if (p.qaingBy) return wait(`${who([p.qaingBy])} is QAing`);
-         if (p.reqaBy.length) return wait(`${who(p.reqaBy)}’s QA stamp needs redoing`);
+         if (p.qaingBy) return wait(`${who([p.qaingBy])} is testing it`);
+         if (p.reqaBy.length) return wait(`${who(p.reqaBy)}’s QA fell to a push`);
          return null;
       case 'needs_cr':
          if (p.crHave > 0) return wait(`${p.crHave} of ${d.status.cr_req} CRs`);
-         return p.starved ? wait(`no CR for ${p.ageDays}d`) : null;
+         return p.starved ? wait(`unreviewed for ${p.ageDays}d`) : null;
       case 'ci_red':
-         return p.ciFailing.length ? wait(`red: ${p.ciFailing.join(', ')}`) : null;
+         return p.ciFailing.length ? wait(`${p.ciFailing.join(', ')}`) : null;
       case 'dev_block':
-         return p.devBlockedBy.length ? wait(`dev-blocked by ${who(p.devBlockedBy)}`) : null;
+         return p.devBlockedBy.length ? wait(`feedback from ${who(p.devBlockedBy)}`) : null;
       case 'deploy_block':
-         return p.deployBlockedBy.length ? wait(`held by ${who(p.deployBlockedBy)}`) : null;
+         return p.deployBlockedBy.length ? wait(`ask ${who(p.deployBlockedBy)} first`) : null;
       case 'unmergeable':
-         return wait(p.conflict ? 'signed off, but conflicts' : 'lands with its parent');
+         return wait(p.conflict ? 'conflicts, author rebases' : 'lands with its parent');
       default:
          return null;
    }

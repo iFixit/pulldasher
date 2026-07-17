@@ -191,18 +191,25 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          meta={
             <>
                {fresh && <FreshTag kind={fresh} />}
-               <StatusBadge status={pull.status} inline />
+               {/* your move: the imperative IS the signal, so it leads and the
+                   badge (which would only echo it) steps aside. Otherwise the
+                   badge names the state and any note just adds who/when. */}
+               {note?.tone === 'do' ? (
+                  <span
+                     className="max-w-[40ch] flex-none truncate font-semibold text-brand-700"
+                     title={note.text}
+                  >
+                     {note.text}
+                  </span>
+               ) : (
+                  <StatusBadge status={pull.status} inline />
+               )}
                <RepoRef repo={d.repo} number={d.number} />
                {pull.sizeKnown && (
                   <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
                )}
-               {note && (
-                  <span
-                     className={`max-w-[38ch] truncate ${
-                        note.tone === 'do' ? 'font-semibold text-brand-700' : 'text-ink-2'
-                     }`}
-                     title={note.text}
-                  >
+               {note?.tone === 'wait' && (
+                  <span className="max-w-[38ch] truncate text-ink-2" title={note.text}>
                      {note.text}
                   </span>
                )}
