@@ -92,6 +92,12 @@ serves v1 at `/` and v2 at `/v2`, both fed by the same socket protocol
   Review (newest first), not a bar toggle — it collects the delta at the top
   the way "Yours to do" collects your actions, rather than filtering the board.
   A slim banner still counts the PRs merged or closed while you were away.
+- **Desktop notifications.** Opt-in from Settings: a browser notification when
+  one of your PRs becomes ready to merge or a re-review (re-CR/re-QA) falls to
+  you, with an optional chime. It watches the whole board (not the current
+  filter) and only fires on new transitions — the first payload after load just
+  primes the baseline, so it never alerts for the backlog already there.
+  `src/notifications.ts`.
 - **Keyboard:** `/` filter, `j`/`k` walk rows, `Enter` opens, `c` copies the
   focused row's branch.
 
@@ -140,4 +146,3 @@ lens `#lens=board` merged into Classic; old links redirect.)
 - **Stats are windowed, not historical.** Leaderboards and merge-time only see
   the open pool plus the server's 14-day closed window, so they read "lately",
   not "all time". Career totals would need the server to expose more history.
-- **Desktop notifications** aren't ported yet.
