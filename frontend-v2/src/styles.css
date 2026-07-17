@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
-/* ── iFixit house tokens: gray-ramp neutrals, brand blue as the only action
+/* ── Design tokens: gray-ramp neutrals, one brand blue as the only action
    color, status badges as 200-tint bg / 900-step text. The dark board keeps
-   pulldasher's night-shift habit, derived from the same gray ramp. ── */
+   pulldasher's night-shift habit, derived from the same gray ramp. Retheme
+   by swapping --brand* and the badge pairs. ── */
 :root {
   --canvas: #f9fafb;
   --surface: #ffffff;

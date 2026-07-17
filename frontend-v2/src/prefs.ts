@@ -46,26 +46,38 @@ export function useScope(): [Scope, (next: Scope) => void] {
    return [value, setScope];
 }
 
+export interface SiteConfig {
+   /** team → members, for the People lens chips and scope presets */
+   teams: Team[];
+   /** bot logins beyond the `[bot]` suffix GitHub Apps carry */
+   bots: string[];
+}
+
 /**
- * Team → members config for the Teams lens and the scope presets. Served as
- * a static file next to the app (see teams.example.json); absent file means
- * no team features, everything else still works.
+ * Deployment-specific config, served as a static file next to the app (see
+ * config.example.json). Absent file means no team features and suffix-only
+ * bot detection; everything else still works.
  */
-export async function loadTeams(): Promise<Team[]> {
+export async function loadSiteConfig(): Promise<SiteConfig> {
+   const none: SiteConfig = { teams: [], bots: [] };
    try {
-      const res = await fetch(`${import.meta.env.BASE_URL}teams.json`);
-      if (!res.ok) return [];
-      const teams: unknown = await res.json();
-      if (!Array.isArray(teams)) return [];
-      // one malformed entry must not white-screen the whole app
-      return teams.filter(
-         (t): t is Team =>
-            !!t &&
-            typeof (t as Team).team === 'string' &&
-            Array.isArray((t as Team).members) &&
-            (t as Team).members.every(m => typeof m === 'string')
-      );
+      const res = await fetch(`${import.meta.env.BASE_URL}config.json`);
+      if (!res.ok) return none;
+      const raw = (await res.json()) as { teams?: unknown; bots?: unknown };
+      const teams = Array.isArray(raw.teams) ? raw.teams : [];
+      const bots = Array.isArray(raw.bots) ? raw.bots : [];
+      return {
+         // one malformed entry must not white-screen the whole app
+         teams: teams.filter(
+            (t): t is Team =>
+               !!t &&
+               typeof (t as Team).team === 'string' &&
+               Array.isArray((t as Team).members) &&
+               (t as Team).members.every(m => typeof m === 'string')
+         ),
+         bots: bots.filter((b): b is string => typeof b === 'string'),
+      };
    } catch {
-      return [];
+      return none;
    }
 }

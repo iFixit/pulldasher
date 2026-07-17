@@ -5,7 +5,7 @@ import { STATUS_ORDER, type DerivedPull } from './model/status';
 import type { Team } from './types';
 import { usePulldasher } from './store';
 import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
-import { loadTeams, useScope } from './prefs';
+import { loadSiteConfig, useScope } from './prefs';
 import { Legend } from './components/Legend';
 import { ScopeControl } from './components/Scope';
 import { STATUS_LABEL } from './components/bits';
@@ -41,9 +41,10 @@ function writeHash(lens: Lens, person: string | null, team: string | null) {
 }
 
 const THEME_KEY = 'pd2.theme';
-const BOT_LOGINS = new Set(['ifixit-systems']);
-const isBot = (p: DerivedPull) =>
-   p.data.user.login.endsWith('[bot]') || BOT_LOGINS.has(p.data.user.login);
+// GitHub Apps carry a [bot] suffix; other machine accounts are named in
+// config.json's `bots` list.
+const isBotLogin = (login: string, extra: ReadonlySet<string>) =>
+   login.endsWith('[bot]') || extra.has(login);
 
 /** Full-width notice under the header: bad = red alert, warn = amber, brand = informational. */
 function Banner({ tone, children }: { tone: 'bad' | 'warn' | 'brand'; children: ReactNode }) {
@@ -123,6 +124,11 @@ export function App() {
       () => !!legacy && (legacy.cryo || legacy.showAllRepos)
    );
    const [teams, setTeams] = useState<Team[]>([]);
+   const [extraBots, setExtraBots] = useState<ReadonlySet<string>>(new Set());
+   const isBot = useCallback(
+      (p: DerivedPull) => isBotLogin(p.data.user.login, extraBots),
+      [extraBots]
+   );
    // explicit choice persists; otherwise follow the OS, live
    const [dark, setDarkState] = useState(
       () =>
@@ -136,7 +142,10 @@ export function App() {
    const searchRef = useRef<HTMLInputElement>(null);
 
    useEffect(() => {
-      void loadTeams().then(setTeams);
+      void loadSiteConfig().then(c => {
+         setExtraBots(new Set(c.bots));
+         setTeams(c.teams);
+      });
    }, []);
    useEffect(() => {
       writeHash(lens, person, team);
@@ -220,7 +229,7 @@ export function App() {
          );
       }
       return out;
-   }, [pulls, scope, query, showHidden, hiddenRepos, legacy, me]);
+   }, [pulls, scope, query, showHidden, hiddenRepos, legacy, me, isBot]);
 
    const scoped = useMemo(
       () =>

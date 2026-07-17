@@ -1,0 +1,7 @@
+{
+  "teams": [
+    { "team": "frontend", "members": ["alice", "bob"] },
+    { "team": "backend", "members": ["carol"] }
+  ],
+  "bots": ["renovate-bot"]
+}

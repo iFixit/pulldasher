@@ -37,13 +37,17 @@ npm run build        # type-check + bundle to frontend-v2/dist (served at /v2)
 npm test             # vitest: status-derivation and CI-verdict unit tests
 ```
 
-## Teams config
+## Site config
 
-Copy `public/teams.example.json` to `public/teams.json` (gitignored) and list
-GitHub team slugs with member logins. It powers the team chips on the People
-lens and the scope presets; without it those features quietly disappear. Long-term this belongs
-in the backend (fetch org teams via the existing Octokit client and ship them
-with the socket handshake).
+Copy `public/config.example.json` to `public/config.json` (gitignored) for
+deployment-specific settings:
+
+- `teams` — GitHub team slugs with member logins. Powers the team chips on
+  the People lens and the scope presets; without it those features quietly
+  disappear. Long-term this belongs in the backend (fetch org teams via the
+  existing Octokit client and ship them with the socket handshake).
+- `bots` — machine-account logins to fold into the bot-PRs group. Accounts
+  with GitHub's `[bot]` suffix are detected without config.
 
 ## v1 bookmark compatibility
 
