@@ -11,10 +11,9 @@ import type { RowOptions } from './components/Row';
 import { Review } from './views/Review';
 import { MyWork } from './views/MyWork';
 import { People } from './views/People';
-import { Teams } from './views/Teams';
 import { Board } from './views/Board';
 
-type Lens = 'review' | 'mine' | 'people' | 'teams' | 'board';
+type Lens = 'review' | 'mine' | 'people' | 'board';
 
 const BOT_LOGINS = new Set(['ifixit-systems']);
 const isBot = (p: DerivedPull) =>
@@ -124,6 +123,7 @@ export function App() {
       lastSeen,
       onPerson: login => {
          setPerson(login);
+         setTeam(null);
          setLens('people');
       },
    };
@@ -195,7 +195,6 @@ export function App() {
                   {tab('review', 'Review')}
                   {tab('mine', 'My work', mineCount)}
                   {tab('people', 'People')}
-                  {tab('teams', 'Teams')}
                   {tab('board', 'Board')}
                </nav>
                <ScopeControl pulls={pulls} teams={teams} />
@@ -307,12 +306,17 @@ export function App() {
                   allPulls={pulls.filter(p => !isBot(p))}
                   teams={teams}
                   person={person}
-                  onPerson={setPerson}
+                  team={team}
+                  onPerson={login => {
+                     setPerson(login);
+                     setTeam(null);
+                  }}
+                  onTeam={name => {
+                     setTeam(name);
+                     setPerson(null);
+                  }}
                   opts={rowOpts}
                />
-            )}
-            {initialized && lens === 'teams' && (
-               <Teams pulls={humans} teams={teams} team={team} onTeam={setTeam} opts={rowOpts} />
             )}
             {initialized && lens === 'board' && <Board pulls={humans} bots={bots} opts={rowOpts} />}
          </main>

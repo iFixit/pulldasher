@@ -17,7 +17,7 @@ function yourMove(p: DerivedPull): string | null {
    if (p.status === 'ready') return 'Merge it';
    if (p.status === 'ci_red') return 'Fix CI';
    if (p.conflict) return 'Resolve conflicts';
-   if (p.status === 'needs_qa' && !p.qaingBy) return 'QA it';
+   if (p.status === 'needs_qa' && !p.qaingBy) return 'Find a QA-er';
    if (p.status === 'draft') return 'Finish the draft';
    return null;
 }
@@ -26,10 +26,13 @@ function waitingOn(p: DerivedPull): string {
    if (p.status === 'blocked' && p.blockedBy.length)
       return `blocked by ${p.blockedBy.join(', ')}, ask them to lift the block`;
    if (p.status === 'needs_recr' && p.recrBy.length) {
-      const wait = p.headPushedAt ? ` (fix up ${ago(p.headPushedAt)})` : '';
+      const wait = p.headPushedAt ? ` (fix pushed ${ago(p.headPushedAt)} ago)` : '';
       return `waiting on ${p.recrBy.join(', ')}’s re-stamp${wait}`;
    }
-   if (p.status === 'needs_cr') return `waiting on first CR, ${p.ageDays}d old`;
+   if (p.status === 'needs_cr')
+      return p.crHave > 0
+         ? `${p.crHave} of ${p.data.status.cr_req} CRs, open ${p.ageDays}d`
+         : `no CR yet, open ${p.ageDays}d`;
    if (p.status === 'needs_qa' && p.qaingBy) return `${p.qaingBy} is QAing now`;
    if (p.status === 'ci_pending') return 'waiting on CI';
    return 'waiting';
@@ -46,15 +49,16 @@ export function MyWork({
 }) {
    const me = opts.me;
    const mine = pulls.filter(p => p.data.user.login === me);
-   const move = mine.filter(p => yourMove(p) !== null);
-   const waiting = mine.filter(p => yourMove(p) === null);
+   const byUrgency = (a: DerivedPull, b: DerivedPull) => b.ageDays - a.ageDays;
+   const move = mine.filter(p => yourMove(p) !== null).sort(byUrgency);
+   const waiting = mine.filter(p => yourMove(p) === null).sort(byUrgency);
    const shipped = closed.filter(p => p.user.login === me);
 
    if (!mine.length && !shipped.length) {
       return (
          <EmptyState
             title="Nothing of yours is open"
-            sub="Every PR you authored is merged or closed. Ship something new."
+            sub="Everything you authored is merged or closed."
          />
       );
    }
@@ -74,7 +78,7 @@ export function MyWork({
             ))}
             {!move.length && (
                <div className="px-3.5 py-3 text-[13px] text-ink-3">
-                  Nothing needs you right now — it’s all in other people’s hands below.
+                  Nothing needs you right now. Everything below is waiting on someone else.
                </div>
             )}
          </Lane>
@@ -105,8 +109,8 @@ export function MyWork({
                <Fold
                   dot="var(--ok)"
                   count={shipped.length}
-                  label="shipped in the last 14 days"
-                  hint="nice work"
+                  label="merged or closed in the last 14 days"
+                  hint=""
                >
                   <Truncated>
                      {shipped.map(p => (

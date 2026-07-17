@@ -24,17 +24,26 @@ export function Review({
    const me = opts.me;
    const others = pulls.filter(p => p.data.user.login !== me);
 
-   // 1. Act now: re-stamps (yours first), then merge nudges. Minutes each.
-   const actNow = [
-      ...others.filter(p => p.status === 'needs_recr' && p.recrBy.includes(me)),
-      ...others.filter(p => p.status === 'needs_recr' && !p.recrBy.includes(me)),
-      ...others.filter(p => p.status === 'ready'),
-   ];
+   // 1. Act now: ONLY re-stamps you personally owe. The review pass found the
+   //    old version padded with other people's jobs (their re-stamps, other
+   //    authors' merge buttons) — three mornings of that and the lane reads
+   //    as noise. Now it's always truthfully "minutes, and yours".
+   const actNow = others.filter(p => p.status === 'needs_recr' && p.recrBy.includes(me));
 
-   // 2. Review queue: lightest to heaviest.
-   const crPool = others.filter(p => p.status === 'needs_cr' && !p.crBy.includes(me));
+   // 2. Review queue: lightest first. Includes pulls waiting on someone
+   //    else's re-stamp — a fresh CR from you counts there too (the stale
+   //    pip marks them).
+   const crPool = others.filter(
+      p =>
+         (p.status === 'needs_cr' && !p.crBy.includes(me)) ||
+         (p.status === 'needs_recr' && !p.recrBy.includes(me))
+   );
    const aged = crPool.filter(p => p.starved).sort((a, b) => b.starveScore - a.starveScore);
    const queue = crSort(crPool.filter(p => !p.starved));
+
+   // Ready-to-merge is the author's button, not the reviewer's job: a count
+   // in the rest group, not a lane at the top.
+   const ready = others.filter(p => p.status === 'ready');
 
    // 4. Needs QA: a real lane again (v1's QA column earned it); QAing-label
    //    rows sort last since someone is already on them.
@@ -52,12 +61,13 @@ export function Review({
       </Truncated>
    );
 
-   const empty = !actNow.length && !crPool.length && !needsQa.length && !others.length;
+   // bots/shipped stay reachable even when no human PRs need review
+   const empty = !others.length && !bots.length && !closed.length;
    if (empty) {
       return (
          <EmptyState
             title="Workbench clear"
-            sub="Nothing to review in this scope. Widen it, or savor the moment."
+            sub="Nothing to review in this scope. Widen the scope to see more."
          />
       );
    }
@@ -66,7 +76,7 @@ export function Review({
       <>
          <Lane
             title="Act now"
-            sub="reviewed already or fully signed off, minutes each"
+            sub="re-stamps you owe, minutes each"
             pulls={actNow}
             cap={8}
             opts={{ ...opts, pips: 'cr' }}
@@ -87,17 +97,25 @@ export function Review({
          />
          <Lane
             title="Needs QA"
-            sub="CR done — grab one, or nudge the author"
+            sub="CR done, grab one or nudge the author"
             pulls={needsQa}
             cap={6}
             opts={{ ...opts, pips: 'qa' }}
          />
-         <RestGroup title="The rest of the board" sub="counts stay visible, rows open on demand">
+         <RestGroup title="The rest of the board" sub="blocked, red, drafts, bots, shipped">
+            <Fold
+               dot={STATUS_DOT.ready}
+               count={ready.length}
+               label="ready to merge"
+               hint="authors can merge, nudge if idle"
+            >
+               {foldRows(ready, { pips: 'none' })}
+            </Fold>
             <Fold
                dot="var(--ok)"
                count={stamped.length}
-               label="you stamped"
-               hint="waiting on a second reviewer"
+               label="stamped by you"
+               hint="waiting on another reviewer"
             >
                {foldRows(stamped, { pips: 'cr', badge: false })}
             </Fold>
@@ -105,7 +123,7 @@ export function Review({
                dot={STATUS_DOT.blocked}
                count={others.filter(p => p.status === 'blocked').length}
                label="blocked"
-               hint="find who holds the block"
+               hint="each row names the holder"
             >
                {foldRows(others.filter(p => p.status === 'blocked'))}
             </Fold>
@@ -121,7 +139,7 @@ export function Review({
                dot={STATUS_DOT.ci_red}
                count={others.filter(p => p.status === 'ci_red').length}
                label="CI red"
-               hint="authors’ move"
+               hint="usually the author's fix"
             >
                {foldRows(others.filter(p => p.status === 'ci_red'))}
             </Fold>
@@ -137,7 +155,7 @@ export function Review({
                dot="var(--ink-3)"
                count={bots.length}
                label="bot PRs"
-               hint="batch in one sitting or automerge"
+               hint="dependency bumps, review in a batch"
             >
                {foldRows(bots)}
             </Fold>

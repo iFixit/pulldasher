@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { STATUS_ORDER, type DerivedPull } from '../model/status';
 import type { Team } from '../types';
 import { Avatar } from '../components/bits';
@@ -5,12 +6,19 @@ import { Fold, Lane, RestGroup } from '../components/Lane';
 import { Row, type RowOptions } from '../components/Row';
 import { crSort } from '../model/sort';
 
+/**
+ * The directory: one tab, pick a person OR a team, same board below.
+ * (Teams used to be its own tab — structurally a clone of this view minus
+ * the person-only data, so the two merged.)
+ */
 export function People({
    pulls,
    allPulls,
    teams,
    person,
+   team,
    onPerson,
+   onTeam,
    opts,
 }: {
    /** scoped pool (what the lanes show) */
@@ -19,9 +27,12 @@ export function People({
    allPulls: DerivedPull[];
    teams: Team[];
    person: string | null;
+   team: string | null;
    onPerson: (login: string) => void;
+   onTeam: (team: string) => void;
    opts: RowOptions;
 }) {
+   const [allPeople, setAllPeople] = useState(false);
    const counts = new Map<string, number>();
    for (const p of allPulls)
       counts.set(p.data.user.login, (counts.get(p.data.user.login) ?? 0) + 1);
@@ -31,53 +42,128 @@ export function People({
    const logins = [...new Set([...counts.keys(), ...owes.keys()])].sort(
       (a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0)
    );
-   const selected = person && logins.includes(person) ? person : logins[0];
-   if (!selected) return null;
 
-   const theirs = pulls.filter(p => p.data.user.login === selected);
-   const owed = owes.get(selected) ?? [];
+   // an explicit pick always wins, even with zero open PRs — silently
+   // showing someone else's board mid-conversation is worse than an empty one
+   const selectedTeam = team && teams.some(t => t.team === team) ? team : null;
+   const selectedPerson = selectedTeam ? null : (person ?? logins[0]);
+   if (!selectedPerson && !selectedTeam) return null;
+
+   const members = selectedTeam
+      ? (teams.find(t => t.team === selectedTeam)?.members ?? [])
+      : [selectedPerson as string];
+   const isSubject = (p: DerivedPull) => members.includes(p.data.user.login);
+
+   const theirs = pulls.filter(isSubject);
+   const theirsUnscoped = allPulls.filter(isSubject);
+   const owed = selectedPerson ? (owes.get(selectedPerson) ?? []) : [];
    const reviewable = crSort(
       theirs.filter(
-         p => ['needs_cr', 'needs_recr'].includes(p.status) && p.data.user.login !== opts.me
+         p =>
+            ['needs_cr', 'needs_recr'].includes(p.status) &&
+            p.data.user.login !== opts.me &&
+            !p.crBy.includes(opts.me) &&
+            !p.recrBy.includes(opts.me)
       )
    );
+   const mine = theirs.filter(
+      p =>
+         ['needs_cr', 'needs_recr'].includes(p.status) &&
+         p.data.user.login !== opts.me &&
+         (p.crBy.includes(opts.me) || p.recrBy.includes(opts.me))
+   );
    const rest = theirs
-      .filter(p => !reviewable.includes(p))
+      .filter(p => !reviewable.includes(p) && !mine.includes(p))
       .sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status));
-   const team = teams.find(t => t.members.includes(selected))?.team;
+   const memberTeam = selectedPerson
+      ? teams.find(t => t.members.includes(selectedPerson))?.team
+      : null;
    const shipping = theirs.filter(p => ['ready', 'needs_qa'].includes(p.status)).length;
+   const scopeHides = theirsUnscoped.length - theirs.length;
+
+   const chip = (key: string, label: React.ReactNode, active: boolean, onPick: () => void) => (
+      <button
+         key={key}
+         type="button"
+         onClick={onPick}
+         aria-pressed={active}
+         className={`pressable inline-flex items-center gap-1.5 rounded-lg border bg-surface py-[5px] pr-2.5 pl-1.5 text-[13px] font-medium text-ink-2 ${
+            active ? 'border-brand shadow-[0_0_0_1px_var(--brand)]' : 'border-line hover:bg-muted'
+         }`}
+      >
+         {label}
+      </button>
+   );
+
+   const shownLogins = allPeople ? logins : logins.slice(0, 24);
 
    return (
       <>
+         {teams.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+               {teams.map(t =>
+                  chip(
+                     `team:${t.team}`,
+                     <>
+                        <b className="pl-1 font-semibold text-ink">{t.team}</b>
+                        <span className="text-[11px] text-ink-3 tabular-nums">
+                           {allPulls.filter(p => t.members.includes(p.data.user.login)).length}
+                        </span>
+                     </>,
+                     t.team === selectedTeam,
+                     () => onTeam(t.team)
+                  )
+               )}
+            </div>
+         )}
          <div className="mb-4 flex flex-wrap gap-1.5">
-            {logins.slice(0, 24).map(login => (
+            {shownLogins.map(login =>
+               chip(
+                  login,
+                  <>
+                     <Avatar login={login} />
+                     <b className="font-semibold text-ink">{login}</b>
+                     <span className="text-[11px] text-ink-3 tabular-nums">
+                        {counts.get(login) ?? 0}
+                     </span>
+                  </>,
+                  login === selectedPerson,
+                  () => onPerson(login)
+               )
+            )}
+            {!allPeople && logins.length > 24 && (
                <button
-                  key={login}
                   type="button"
-                  onClick={() => onPerson(login)}
-                  className={`pressable inline-flex items-center gap-1.5 rounded-lg border bg-surface py-[5px] pr-2.5 pl-1.5 text-[13px] font-medium text-ink-2 ${
-                     login === selected
-                        ? 'border-brand shadow-[0_0_0_1px_var(--brand)]'
-                        : 'border-line hover:bg-muted'
-                  }`}
+                  onClick={() => setAllPeople(true)}
+                  className="pressable inline-flex items-center rounded-lg border border-line bg-surface px-2.5 py-[5px] text-[13px] font-medium text-ink-3 hover:text-brand"
                >
-                  <Avatar login={login} />
-                  <b className="font-semibold text-ink">{login}</b>
-                  <span className="text-[11px] text-ink-3 tabular-nums">
-                     {counts.get(login) ?? 0}
-                  </span>
+                  + {logins.length - 24} more
                </button>
-            ))}
+            )}
          </div>
 
          <div className="mb-4 flex items-center gap-3 rounded-2xl border border-line bg-surface p-4">
-            <Avatar login={selected} size={38} />
+            {selectedPerson ? (
+               <Avatar login={selectedPerson} size={38} />
+            ) : (
+               <span className="flex -space-x-1.5">
+                  {members.slice(0, 6).map(m => (
+                     <Avatar key={m} login={m} onClick={onPerson} />
+                  ))}
+               </span>
+            )}
             <span>
-               <span className="text-base leading-snug font-semibold">{selected}</span>
+               <span className="text-base leading-snug font-semibold">
+                  {selectedPerson ?? selectedTeam}
+               </span>
                <br />
                <span className="text-xs text-ink-3">
-                  {team ? `${team} · ` : ''}
-                  {theirs.length} open PRs
+                  {memberTeam ? `${memberTeam} · ` : ''}
+                  {selectedTeam ? `${members.length} members · ` : ''}
+                  {theirs.length} open {theirs.length === 1 ? 'PR' : 'PRs'}
+                  {scopeHides > 0 && (
+                     <span className="text-warn"> · scope hides {scopeHides} more</span>
+                  )}
                </span>
             </span>
             <span className="ml-auto flex gap-4 text-center text-xs text-ink-3">
@@ -89,54 +175,60 @@ export function People({
                </span>
                <span>
                   <b className="block text-base font-semibold text-ink tabular-nums">{shipping}</b>
-                  close to shipping
+                  ready or in QA
                </span>
-               <span>
-                  <b className="block text-base font-semibold text-ink tabular-nums">
-                     {owed.length}
-                  </b>
-                  re-stamps owed
-               </span>
+               {selectedPerson && (
+                  <span>
+                     <b className="block text-base font-semibold text-ink tabular-nums">
+                        {owed.length}
+                     </b>
+                     {owed.length === 1 ? 're-stamp owed' : 're-stamps owed'}
+                  </span>
+               )}
             </span>
          </div>
 
          <Lane
-            title="You can help ship these"
-            sub="waiting on review, your move if you have time"
+            title="Review queue"
+            sub="waiting on review, lightest first"
             pulls={reviewable}
             cap={8}
             opts={opts}
          />
-         {(rest.length > 0 || owed.length > 0) && (
+         {(rest.length > 0 || owed.length > 0 || mine.length > 0) && (
             <RestGroup>
+               <Fold
+                  dot="var(--ok)"
+                  count={mine.length}
+                  label="stamped by you"
+                  hint="waiting on another reviewer"
+               >
+                  {mine.map(p => (
+                     <Row key={`${p.data.repo}#${p.data.number}`} pull={p} opts={opts} />
+                  ))}
+               </Fold>
                <Fold
                   dot="var(--ink-3)"
                   count={rest.length}
-                  label="more on their board"
+                  label={selectedTeam ? 'their other team PRs' : 'their other PRs'}
                   hint="their move or waiting"
                >
                   {rest.map(p => (
-                     <Row
-                        key={`${p.data.repo}#${p.data.number}`}
-                        pull={p}
-                        opts={{ ...opts }}
-                     />
+                     <Row key={`${p.data.repo}#${p.data.number}`} pull={p} opts={opts} />
                   ))}
                </Fold>
-               <Fold
-                  dot="var(--brand)"
-                  count={owed.length}
-                  label="re-stamps they owe others"
-                  hint="fair game to nudge"
-               >
-                  {owed.map(p => (
-                     <Row
-                        key={`${p.data.repo}#${p.data.number}`}
-                        pull={p}
-                        opts={{ ...opts }}
-                     />
-                  ))}
-               </Fold>
+               {selectedPerson && (
+                  <Fold
+                     dot="var(--brand)"
+                     count={owed.length}
+                     label="re-stamps they owe others"
+                     hint="worth a nudge"
+                  >
+                     {owed.map(p => (
+                        <Row key={`${p.data.repo}#${p.data.number}`} pull={p} opts={opts} />
+                     ))}
+                  </Fold>
+               )}
             </RestGroup>
          )}
       </>
