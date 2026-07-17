@@ -1,6 +1,6 @@
 import type { PullData } from '../types';
-import { ago } from '../format';
-import { Avatar, PullTitleLink, RepoRef } from './bits';
+import { ago, closedEpoch } from '../format';
+import { Avatar, ClosedBadge, PullTitleLink, RepoRef } from './bits';
 
 /**
  * Full-width row: the badge, avatar, and right cluster are all flex-none, so
@@ -10,7 +10,7 @@ import { Avatar, PullTitleLink, RepoRef } from './bits';
  */
 export function ClosedRow({ pull, lastSeen }: { pull: PullData; lastSeen?: number }) {
    const merged = !!pull.merged_at;
-   const closedAt = Date.parse(pull.closed_at ?? pull.updated_at) / 1000;
+   const closedAt = closedEpoch(pull);
    const fresh = lastSeen != null && closedAt > lastSeen;
    return (
       <div className="pd-row relative flex items-center gap-2.5 border-t border-secondary py-2 pr-3.5 pl-[11px] first:border-t-0 hover:bg-muted">
@@ -22,12 +22,7 @@ export function ClosedRow({ pull, lastSeen }: { pull: PullData; lastSeen?: numbe
                title={`${merged ? 'merged' : 'closed'} since your last look`}
             />
          )}
-         <span
-            className={`badge ${merged ? 'badge-ready' : 'badge-cr'}`}
-            title={merged ? 'merged' : 'closed without merging'}
-         >
-            {merged ? 'Merged' : 'Closed'}
-         </span>
+         <ClosedBadge merged={merged} />
          <span className="pd-raise flex-none">
             <Avatar login={pull.user.login} />
          </span>

@@ -1,3 +1,5 @@
+import type { PullData } from './types';
+
 /** "34m" / "5h" / "3d" — matches the terseness of the board rows. */
 export function ago(epochSecs: number, now: number = Date.now() / 1000) {
    const s = Math.max(0, now - epochSecs);
@@ -26,6 +28,15 @@ export function shortRepo(repo: string) {
 /** The one true row key. */
 export function pullKey(d: { repo: string; number: number }) {
    return `${d.repo}#${d.number}`;
+}
+
+/**
+ * When a pull actually stopped moving, in epoch seconds: its close time, or
+ * last activity as a fallback for the rare pull with no `closed_at`. The one
+ * definition of the "closed at" rule the closed-row card and its sort share.
+ */
+export function closedEpoch(pull: Pick<PullData, 'closed_at' | 'updated_at'>) {
+   return Date.parse(pull.closed_at ?? pull.updated_at) / 1000;
 }
 
 /** "1 PR" / "3 PRs" — counts read as grammar, not as a template. */

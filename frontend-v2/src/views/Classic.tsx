@@ -1,7 +1,7 @@
 import { crDone, qaDone, type DerivedPull } from '../model/status';
 import type { PullData } from '../types';
-import { ago, pullKey } from '../format';
-import { EmptyState, RepoRef } from '../components/bits';
+import { ago, closedEpoch, pullKey } from '../format';
+import { ClosedBadge, EmptyState, RepoRef } from '../components/bits';
 import { CardShell } from '../components/Card';
 import { BoardColumn } from '../components/Column';
 import { Truncated } from '../components/Lane';
@@ -77,7 +77,6 @@ function Column({
 /** The closed card shares the column card's two-zone anatomy. */
 function ClosedCard({ pull }: { pull: PullData }) {
    const merged = !!pull.merged_at;
-   const closedAt = Date.parse(pull.closed_at ?? pull.updated_at) / 1000;
    return (
       <CardShell
          login={pull.user.login}
@@ -86,16 +85,10 @@ function ClosedCard({ pull }: { pull: PullData }) {
          title={pull.title}
          meta={
             <>
+               <ClosedBadge merged={merged} inline />
                <RepoRef repo={pull.repo} number={pull.number} />
-               <span className="ml-auto inline-flex items-center gap-2.5">
-                  <span
-                     className="font-medium"
-                     style={{ color: merged ? 'var(--ok)' : undefined }}
-                     title={merged ? 'merged' : 'closed without merging'}
-                  >
-                     {merged ? 'Merged' : 'Closed'}
-                  </span>
-                  <span className="w-16 text-right tabular-nums">{ago(closedAt)} ago</span>
+               <span className="ml-auto w-16 text-right tabular-nums">
+                  {ago(closedEpoch(pull))} ago
                </span>
             </>
          }
@@ -105,9 +98,7 @@ function ClosedCard({ pull }: { pull: PullData }) {
 
 /** v1's Recently Closed panel, honored for ?closed=1 bookmarks. */
 function ClosedColumn({ pulls }: { pulls: PullData[] }) {
-   const ordered = [...pulls].sort(
-      (a, b) => Date.parse(b.closed_at ?? b.updated_at) - Date.parse(a.closed_at ?? a.updated_at)
-   );
+   const ordered = [...pulls].sort((a, b) => closedEpoch(b) - closedEpoch(a));
    return (
       <BoardColumn count={pulls.length} header="Recently Closed" empty="none">
          {ordered.map(p => (

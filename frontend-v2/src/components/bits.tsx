@@ -54,6 +54,22 @@ export function StatusBadge({ status, inline }: { status: Status; inline?: boole
    );
 }
 
+/**
+ * Merged/closed state as a pill, in the same badge vocabulary StatusBadge uses
+ * for every open state — so a closed pull reads with the same grammar as an
+ * open one instead of the ad-hoc colored text the board used to show.
+ */
+export function ClosedBadge({ merged, inline }: { merged: boolean; inline?: boolean }) {
+   return (
+      <span
+         className={`badge ${merged ? 'badge-ready' : 'badge-cr'} ${inline ? 'badge-inline' : ''}`}
+         title={merged ? 'merged' : 'closed without merging'}
+      >
+         {merged ? 'Merged' : 'Closed'}
+      </span>
+   );
+}
+
 export function Avatar({
    login,
    size = 22,
