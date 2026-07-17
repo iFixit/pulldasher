@@ -195,10 +195,7 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
                    badge (which would only echo it) steps aside. Otherwise the
                    badge names the state and any note just adds who/when. */}
                {note?.tone === 'do' ? (
-                  <span
-                     className="max-w-[40ch] flex-none truncate font-semibold text-brand-700"
-                     title={note.text}
-                  >
+                  <span className="badge-do max-w-[40ch] truncate" title={note.text}>
                      {note.text}
                   </span>
                ) : (

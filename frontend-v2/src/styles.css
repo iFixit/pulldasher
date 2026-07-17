@@ -125,6 +125,14 @@ a:hover {
   }
   .badge-ready { background: var(--badge-green-bg); color: var(--badge-green-fg); }
   .badge-recr { background: var(--badge-brand-bg); color: var(--badge-brand-fg); }
+  /* the imperative for YOUR move: a status badge's shape, a lighter brand tint
+     and a touch bolder so it reads as "do this", not a state */
+  .badge-do {
+    @apply rounded-lg px-[7px] py-[3px] text-xs font-semibold;
+    background: var(--brand-50);
+    color: var(--brand-700);
+    flex: none;
+  }
   .badge-qa { background: var(--badge-purple-bg); color: var(--badge-purple-fg); }
   .badge-cr { background: var(--badge-gray-bg); color: var(--badge-gray-fg); }
   .badge-blocked { background: var(--badge-amber-bg); color: var(--badge-amber-fg); }
