@@ -60,6 +60,25 @@ export function Lane({
 }
 
 
+/** The standard fold body: capped, expandable rows for a list of pulls. */
+export function FoldRows({
+   list,
+   opts,
+   extra,
+}: {
+   list: DerivedPull[];
+   opts: RowOptions;
+   extra?: Partial<RowOptions>;
+}) {
+   return (
+      <Truncated>
+         {list.map(p => (
+            <Row key={pullKey(p.data)} pull={p} opts={extra ? { ...opts, ...extra } : opts} />
+         ))}
+      </Truncated>
+   );
+}
+
 /**
  * The one truncation behavior: show `cap` items and a working "+ N more"
  * button. Every capped list in the app goes through this or Lane's own

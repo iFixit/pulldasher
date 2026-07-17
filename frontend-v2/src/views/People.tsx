@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { pullKey } from '../format';
 import { STATUS_ORDER, type DerivedPull } from '../model/status';
 import type { Team } from '../types';
 import { Avatar } from '../components/bits';
-import { Fold, Lane, RestGroup } from '../components/Lane';
-import { Row, type RowOptions } from '../components/Row';
+import { Fold, FoldRows, Lane, RestGroup } from '../components/Lane';
+import type { RowOptions } from '../components/Row';
 import { crSort } from '../model/sort';
 
 /**
@@ -206,9 +205,7 @@ export function People({
                   label="stamped by you"
                   hint="waiting on another reviewer"
                >
-                  {mine.map(p => (
-                     <Row key={pullKey(p.data)} pull={p} opts={opts} />
-                  ))}
+                  <FoldRows list={mine} opts={opts} />
                </Fold>
                <Fold
                   dot="var(--ink-3)"
@@ -216,9 +213,7 @@ export function People({
                   label={selectedTeam ? 'their other team PRs' : 'their other PRs'}
                   hint="their move or waiting"
                >
-                  {rest.map(p => (
-                     <Row key={pullKey(p.data)} pull={p} opts={opts} />
-                  ))}
+                  <FoldRows list={rest} opts={opts} />
                </Fold>
                {selectedPerson && (
                   <Fold
@@ -227,9 +222,7 @@ export function People({
                      label="re-stamps they owe others"
                      hint="worth a nudge"
                   >
-                     {owed.map(p => (
-                        <Row key={pullKey(p.data)} pull={p} opts={opts} />
-                     ))}
+                     <FoldRows list={owed} opts={opts} />
                   </Fold>
                )}
             </RestGroup>

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { DerivedPull } from '../model/status';
 import type { PullData } from '../types';
 import { ago, pullKey } from '../format';
@@ -38,6 +39,52 @@ function waitingOn(p: DerivedPull): string {
    return 'waiting';
 }
 
+/**
+ * A row with the lane's explanation column beside it: the action label on
+ * the left in "Your move", the who-to-nudge note on the right in "Waiting
+ * on others". The row itself drops its cue — the annotation carries it.
+ */
+function AnnotatedRow({
+   pull,
+   opts,
+   side,
+   children,
+}: {
+   pull: DerivedPull;
+   opts: RowOptions;
+   side: 'left' | 'right';
+   children: ReactNode;
+}) {
+   const row = (
+      <span className="min-w-0 flex-1">
+         <Row pull={pull} opts={{ ...opts, cue: false }} />
+      </span>
+   );
+   return (
+      <div
+         className={`flex border-t border-secondary first:border-t-0 ${
+            side === 'left' ? 'items-stretch' : 'items-center'
+         }`}
+      >
+         {side === 'left' ? (
+            <>
+               <span className="flex w-[130px] flex-none items-center pl-3.5 text-xs font-semibold text-brand-700">
+                  {children}
+               </span>
+               {row}
+            </>
+         ) : (
+            <>
+               {row}
+               <span className="w-[280px] flex-none truncate pr-3.5 pl-2 text-right text-xs text-ink-2">
+                  {children}
+               </span>
+            </>
+         )}
+      </div>
+   );
+}
+
 export function MyWork({
    pulls,
    closed,
@@ -73,17 +120,9 @@ export function MyWork({
             opts={opts}
          >
             {move.map(p => (
-               <div
-                  key={pullKey(p.data)}
-                  className="flex items-stretch border-t border-secondary first:border-t-0"
-               >
-                  <span className="flex w-[130px] flex-none items-center pl-3.5 text-xs font-semibold text-brand-700">
-                     {yourMove(p)}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                     <Row pull={p} opts={{ ...opts, cue: false }} />
-                  </span>
-               </div>
+               <AnnotatedRow key={pullKey(p.data)} pull={p} opts={opts} side="left">
+                  {yourMove(p)}
+               </AnnotatedRow>
             ))}
             {!move.length && (
                <div className="px-3.5 py-3 text-[13px] text-ink-3">
@@ -99,17 +138,9 @@ export function MyWork({
             opts={opts}
          >
             {waiting.map(p => (
-               <div
-                  key={pullKey(p.data)}
-                  className="flex items-center border-t border-secondary first:border-t-0"
-               >
-                  <span className="min-w-0 flex-1">
-                     <Row pull={p} opts={{ ...opts, cue: false }} />
-                  </span>
-                  <span className="w-[280px] flex-none truncate pr-3.5 pl-2 text-right text-xs text-ink-2">
-                     <span title={waitingOn(p)}>{waitingOn(p)}</span>
-                  </span>
-               </div>
+               <AnnotatedRow key={pullKey(p.data)} pull={p} opts={opts} side="right">
+                  <span title={waitingOn(p)}>{waitingOn(p)}</span>
+               </AnnotatedRow>
             ))}
             {!waiting.length && (
                <div className="px-3.5 py-3 text-[13px] text-ink-3">

@@ -1,10 +1,10 @@
-import type { DerivedPull } from '../model/status';
+import type { DerivedPull, Status } from '../model/status';
 import { pullKey } from '../format';
 import { crSort } from '../model/sort';
 import type { PullData } from '../types';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
-import { Fold, Lane, RestGroup, Truncated } from '../components/Lane';
-import { Row, type RowOptions } from '../components/Row';
+import { Fold, FoldRows, Lane, RestGroup, Truncated } from '../components/Lane';
+import type { RowOptions } from '../components/Row';
 import { ClosedRow } from '../components/ClosedRow';
 
 /**
@@ -53,14 +53,11 @@ export function Review({
    );
 
    const stamped = others.filter(p => p.status === 'needs_cr' && p.crBy.includes(me));
-   const rowKey = (p: DerivedPull) => `${p.data.repo}#${p.data.number}`;
-   const foldRows = (list: DerivedPull[], o: Partial<RowOptions> = {}) => (
-      <Truncated>
-         {list.map(p => (
-            <Row key={rowKey(p)} pull={p} opts={{ ...opts, ...o }} />
-         ))}
-      </Truncated>
-   );
+   const byStatus = (s: Status) => others.filter(p => p.status === s);
+   const blocked = byStatus('blocked');
+   const ciPending = byStatus('ci_pending');
+   const ciRed = byStatus('ci_red');
+   const drafts = byStatus('draft');
 
    // bots/shipped stay reachable even when no human PRs need review
    const empty = !others.length && !bots.length && !closed.length;
@@ -110,7 +107,7 @@ export function Review({
                label="ready to merge"
                hint="authors can merge, nudge if idle"
             >
-               {foldRows(ready)}
+               <FoldRows list={ready} opts={opts} />
             </Fold>
             <Fold
                dot="var(--ok)"
@@ -118,39 +115,29 @@ export function Review({
                label="stamped by you"
                hint="waiting on another reviewer"
             >
-               {foldRows(stamped, { badge: false })}
+               <FoldRows list={stamped} opts={opts} extra={{ badge: false }} />
             </Fold>
-            <Fold
-               dot={STATUS_DOT.blocked}
-               count={others.filter(p => p.status === 'blocked').length}
-               label="blocked"
-               hint="each row names the holder"
-            >
-               {foldRows(others.filter(p => p.status === 'blocked'))}
+            <Fold dot={STATUS_DOT.blocked} count={blocked.length} label="blocked" hint="each row names the holder">
+               <FoldRows list={blocked} opts={opts} />
             </Fold>
             <Fold
                dot={STATUS_DOT.ci_pending}
-               count={others.filter(p => p.status === 'ci_pending').length}
+               count={ciPending.length}
                label={STATUS_LABEL.ci_pending.toLowerCase()}
                hint="signed off, waiting on green"
             >
-               {foldRows(others.filter(p => p.status === 'ci_pending'))}
+               <FoldRows list={ciPending} opts={opts} />
             </Fold>
-            <Fold
-               dot={STATUS_DOT.ci_red}
-               count={others.filter(p => p.status === 'ci_red').length}
-               label="CI red"
-               hint="usually the author's fix"
-            >
-               {foldRows(others.filter(p => p.status === 'ci_red'))}
+            <Fold dot={STATUS_DOT.ci_red} count={ciRed.length} label="CI red" hint="usually the author's fix">
+               <FoldRows list={ciRed} opts={opts} />
             </Fold>
             <Fold
                dot={STATUS_DOT.draft}
-               count={others.filter(p => p.status === 'draft').length}
-               label={others.filter(p => p.status === 'draft').length === 1 ? 'draft' : 'drafts'}
+               count={drafts.length}
+               label={drafts.length === 1 ? 'draft' : 'drafts'}
                hint="not reviewable yet"
             >
-               {foldRows(others.filter(p => p.status === 'draft'))}
+               <FoldRows list={drafts} opts={opts} />
             </Fold>
             <Fold
                dot="var(--ink-3)"
@@ -158,7 +145,7 @@ export function Review({
                label="bot PRs"
                hint="dependency bumps, review in a batch"
             >
-               {foldRows(bots)}
+               <FoldRows list={bots} opts={opts} />
             </Fold>
             <Fold
                dot="var(--ok)"
