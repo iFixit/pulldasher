@@ -101,7 +101,7 @@ function rowFlags(pull: DerivedPull, showIterating: boolean, aging: boolean): Fl
       flags.push({
          key: 'merge',
          tone: 'note',
-         label: 'merge?',
+         label: 'merge check',
          detail: 'GitHub hasn’t confirmed this merges cleanly yet.',
       });
    if (p.ci === 'pending' && p.status !== 'ci_pending')
@@ -110,8 +110,8 @@ function rowFlags(pull: DerivedPull, showIterating: boolean, aging: boolean): Fl
       flags.push({
          key: 'iterating',
          tone: 'note',
-         label: 'iterating',
-         detail: 'Changed in the last 30 minutes; it may still be moving, so hold off.',
+         label: 'recent changes',
+         detail: 'Pushed in the last half hour; it may still be moving, so hold off.',
       });
    return flags;
 }

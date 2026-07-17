@@ -83,9 +83,9 @@ export function Legend() {
          {item(
             <span className="flex items-center gap-1.5">
                <span className="flag-warn">conflicts</span>
-               <span className="flag-note">iterating</span>
+               <span className="flag-note">recent changes</span>
             </span>,
-            'row flags: amber = act on it (conflicts, hold, external, aging), gray = a neutral fact (stacked, CI, iterating). Hover them for the full meaning'
+            'row flags: amber = act on it (conflicts, hold, external, aging), gray = a neutral fact (stacked, CI, recent changes). Hover them for the full meaning'
          )}
          {item(
             <span className="badge badge-blocked">Dev blocked</span>,
