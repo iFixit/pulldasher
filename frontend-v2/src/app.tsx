@@ -4,6 +4,7 @@ import { STATUS_ORDER, type DerivedPull } from './model/status';
 import type { Team } from './types';
 import { usePulldasher } from './store';
 import { loadTeams, useScope } from './prefs';
+import { Legend } from './components/Legend';
 import { ScopeControl } from './components/Scope';
 import { STATUS_LABEL } from './components/bits';
 import type { RowOptions } from './components/Row';
@@ -233,6 +234,7 @@ export function App() {
                )}
                <span className="flex-1" />
                <span className="text-xs text-ink-3 tabular-nums">{bots.length} bot PRs</span>
+               <Legend />
             </div>
          </header>
 

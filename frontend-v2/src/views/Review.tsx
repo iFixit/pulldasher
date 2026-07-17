@@ -47,7 +47,7 @@ export function Review({
    const foldRows = (list: DerivedPull[], o: Partial<RowOptions> = {}) => (
       <Truncated>
          {list.map(p => (
-            <Row key={rowKey(p)} pull={p} opts={{ ...opts, noDim: true, ...o }} />
+            <Row key={rowKey(p)} pull={p} opts={{ ...opts, ...o }} />
          ))}
       </Truncated>
    );
@@ -90,7 +90,7 @@ export function Review({
             sub="CR done — grab one, or nudge the author"
             pulls={needsQa}
             cap={6}
-            opts={{ ...opts, pips: 'qa', noDim: true }}
+            opts={{ ...opts, pips: 'qa' }}
          />
          <RestGroup title="The rest of the board" sub="counts stay visible, rows open on demand">
             <Fold

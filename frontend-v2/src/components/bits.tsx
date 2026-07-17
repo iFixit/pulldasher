@@ -2,9 +2,11 @@ import type { Status, Weight } from '../model/status';
 import { loginHue } from '../format';
 
 export const STATUS_LABEL: Record<Status, string> = {
-   ready: 'Ready',
-   ci_pending: 'CI running',
-   needs_recr: 'Re-stamp',
+   ready: 'Ready to merge',
+   // only at the ready gate: fully signed off, nothing left but a green build.
+   // 'CI running' would lie — a needs-CR pull can have CI running too.
+   ci_pending: 'Only CI left',
+   needs_recr: 'Needs re-CR',
    needs_qa: 'Needs QA',
    needs_cr: 'Needs CR',
    blocked: 'Blocked',
@@ -47,8 +49,10 @@ export function Avatar({
    size?: number;
    onClick?: (login: string) => void;
 }) {
+   // OKLCH holds perceived lightness constant across the hue wheel — the
+   // old hsl(h 45% 45%) made yellow-green logins illegible under white text
    const style = {
-      background: `hsl(${loginHue(login)} 45% 45%)`,
+      background: `oklch(0.48 0.09 ${loginHue(login)})`,
       width: size,
       height: size,
       fontSize: Math.round(size * 0.42),
@@ -60,7 +64,8 @@ export function Avatar({
          type="button"
          className={`${cls} cursor-pointer border-0 p-0 hover:scale-115`}
          style={style}
-         title={login}
+         aria-label={`${login}: view their PRs`}
+         title={`${login} · view their PRs`}
          onClick={() => onClick(login)}
       >
          {login.slice(0, 2)}
@@ -72,10 +77,14 @@ export function Avatar({
    );
 }
 
-export function WeightChip({ weight }: { weight: Weight }) {
-   return (
-      <span className={`chip-w chip-w-${weight}`} title="review weight">
+export function WeightChip({ weight, known = true }: { weight: Weight; known?: boolean }) {
+   return known ? (
+      <span className={`chip-w chip-w-${weight}`} title="estimated review effort, from diff size">
          {weight}
+      </span>
+   ) : (
+      <span className="chip-w chip-w-XS" title="diff size unknown, effort not estimated">
+         ?
       </span>
    );
 }
@@ -92,32 +101,22 @@ export function Pips({
    stale?: boolean;
 }) {
    const total = Math.max(req, have);
+   const staleNote = stale && have === 0;
    return (
-      <span className="inline-flex items-center gap-[3px]">
-         <span className="text-[11px] font-medium text-ink-3">{label}</span>
-         {have === 0 && stale ? (
-            <i className="pip pip-stale" title="stamp invalidated by a push" />
+      <span
+         className="inline-flex items-center gap-[3px]"
+         aria-label={`${label} ${have} of ${req}${staleNote ? ', earlier stamp invalidated by a push' : ''}`}
+      >
+         <span aria-hidden className="text-[11px] font-medium text-ink-3">
+            {label}
+         </span>
+         {staleNote ? (
+            <i aria-hidden className="pip pip-stale" title="stamp invalidated by a push" />
          ) : (
             Array.from({ length: total }, (_, i) => (
-               <i key={i} className={`pip ${i < have ? 'pip-full' : ''}`} />
+               <i aria-hidden key={i} className={`pip ${i < have ? 'pip-full' : ''}`} />
             ))
          )}
-      </span>
-   );
-}
-
-export function Heat({ days }: { days: number }) {
-   const n = Math.min(5, Math.ceil((days + 1) / 7));
-   const tone = days >= 28 ? 'heat-hot' : days >= 14 ? 'heat-warm' : '';
-   return (
-      <span className="inline-flex gap-[2px]" title={`${days}d old`}>
-         {Array.from({ length: 5 }, (_, i) => (
-            <i
-               key={i}
-               className={`heat-bar ${i < n ? tone : ''}`}
-               style={i >= n ? { opacity: 0.25 } : undefined}
-            />
-         ))}
       </span>
    );
 }

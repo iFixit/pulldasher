@@ -119,7 +119,7 @@ export function People({
                      <Row
                         key={`${p.data.repo}#${p.data.number}`}
                         pull={p}
-                        opts={{ ...opts, noDim: true }}
+                        opts={{ ...opts }}
                      />
                   ))}
                </Fold>
@@ -133,7 +133,7 @@ export function People({
                      <Row
                         key={`${p.data.repo}#${p.data.number}`}
                         pull={p}
-                        opts={{ ...opts, noDim: true }}
+                        opts={{ ...opts }}
                      />
                   ))}
                </Fold>

@@ -68,7 +68,7 @@ export function MyWork({
                      {yourMove(p)}
                   </span>
                   <span className="min-w-0 flex-1">
-                     <Row pull={p} opts={{ ...opts, noDim: true }} />
+                     <Row pull={p} opts={{ ...opts }} />
                   </span>
                </div>
             ))}
@@ -87,7 +87,7 @@ export function MyWork({
             {waiting.map(p => (
                <div key={`${p.data.repo}#${p.data.number}`} className="flex items-stretch">
                   <span className="min-w-0 flex-1">
-                     <Row pull={p} opts={{ ...opts, noDim: true }} />
+                     <Row pull={p} opts={{ ...opts }} />
                   </span>
                   <span className="flex max-w-[280px] flex-none items-center border-t border-secondary pr-3.5 pl-2 text-right text-xs text-ink-2">
                      {waitingOn(p)}

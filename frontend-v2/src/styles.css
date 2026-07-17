@@ -12,7 +12,7 @@
   --ring: #99a1af;
   --ink: #030712;
   --ink-2: #4b5563;
-  --ink-3: #6b7280;
+  --ink-3: #5d6673;
   --brand: #0071ce;
   --brand-50: #e0f1ff;
   --brand-100: #cce7ff;
@@ -34,9 +34,6 @@
   --warn: #d97706;
   --bad: #dc2626;
   --violet: #9333ea;
-  --heat0: #d1d5dc;
-  --heat1: #fe9a00;
-  --heat2: #e7000b;
   --ease-quint: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-quart: cubic-bezier(0.25, 1, 0.5, 1);
 }
@@ -48,9 +45,11 @@
   --secondary: #364153;
   --border: #364153;
   --ring: #6a7282;
+  /* ink-2/ink-3 sit a step lighter than the gray ramp suggests: they carry
+     11-12px content (repo#, counts, cues) and must clear AA on --muted too */
   --ink: #f9fafb;
-  --ink-2: #99a1af;
-  --ink-3: #6a7282;
+  --ink-2: #b6bcc7;
+  --ink-3: #99a1af;
   --brand: #4da3e8;
   --brand-50: #0d2b47;
   --brand-100: #123a5f;
@@ -228,7 +227,6 @@ details[open] > .fold-body {
   }
 }
 .row-fresh {
-  border-left-color: var(--brand) !important;
   animation: fresh-flash 1.4s var(--ease-quart) 300ms backwards;
 }
 

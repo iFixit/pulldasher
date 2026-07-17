@@ -3,16 +3,14 @@ import type { DerivedPull } from '../model/status';
 import { isIterating } from '../model/status';
 import { ago, githubUrl, shortRepo } from '../format';
 import { refreshPull } from '../store';
-import { Avatar, Heat, Pips, StatusBadge, WeightChip } from './bits';
+import { Avatar, Pips, StatusBadge, WeightChip } from './bits';
 
 export interface RowOptions {
    /** hide the status badge when the lane already says it */
    badge?: boolean;
    pips?: 'cr' | 'qa' | 'both' | 'none';
-   /** show the waiting-Nd flag on starved pulls */
+   /** show the open-Nd flag on starved pulls */
    aging?: boolean;
-   /** skip the cooldown dimming (own PRs, folded sections) */
-   noDim?: boolean;
    me: string;
    lastSeen: number;
    onPerson?: (login: string) => void;
@@ -22,14 +20,14 @@ function cue(p: DerivedPull, me: string): string | null {
    const d = p.data;
    if (p.status === 'needs_recr' && p.recrBy.length) {
       const who = p.recrBy.includes(me) ? 'you' : p.recrBy.join(', ');
-      const wait = p.headPushedAt ? ` · fix waiting ${ago(p.headPushedAt)}` : '';
+      const wait = p.headPushedAt ? ` · fix pushed ${ago(p.headPushedAt)} ago` : '';
       return `CR’d by ${who}${wait}`;
    }
    if (p.status === 'ready')
-      return `CR✓ QA✓ green: ${d.user.login === me ? 'your' : `${d.user.login}’s`} merge button`;
+      return `signed off and green, ${d.user.login === me ? 'you' : d.user.login} can merge`;
    if (p.status === 'needs_qa')
-      return p.qaingBy ? `${p.qaingBy} is QAing` : 'CR✓, author drives QA';
-   if (p.status === 'ci_pending') return 'signed off, waiting on CI';
+      return p.qaingBy ? `${p.qaingBy} is QAing` : 'CR done, needs a QA stamp';
+   if (p.status === 'ci_pending') return 'signed off, only CI left';
    if (p.status === 'blocked' && p.blockedBy.length) return `blocked by ${p.blockedBy.join(', ')}`;
    return null;
 }
@@ -67,21 +65,25 @@ function WarnFlags({ pull }: { pull: DerivedPull }) {
             </span>
          )}
          {pull.qaingBy && pull.status === 'needs_qa' && (
-            <span className="flag-qaing" title={`${pull.qaingBy} is already testing this`}>
-               ◉ {pull.qaingBy}
+            <span
+               className="flag-qaing"
+               title={`${pull.qaingBy} is already testing this (the QAing label)`}
+            >
+               QAing: {pull.qaingBy}
             </span>
          )}
       </>
    );
 }
 
-/** Hover actions: re-fetch from GitHub, copy the branch name. */
+/** Hover/focus actions: copy the branch name, re-fetch from GitHub. */
 function RowActions({ pull }: { pull: DerivedPull }) {
    const [copied, setCopied] = useState(false);
    return (
       <span className="row-actions hidden flex-none items-center gap-1 min-[860px]:inline-flex">
          <button
             type="button"
+            aria-label={`copy branch name ${pull.data.head.ref}`}
             title={`copy branch: ${pull.data.head.ref}`}
             className="rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
             onClick={() => {
@@ -90,15 +92,24 @@ function RowActions({ pull }: { pull: DerivedPull }) {
                setTimeout(() => setCopied(false), 1200);
             }}
          >
-            {copied ? '✓' : '⎘'}
+            {copied ? (
+               '✓'
+            ) : (
+               <svg viewBox="0 0 16 16" aria-hidden className="h-3.5 w-3.5 fill-current">
+                  <path d="M5 1a1 1 0 0 0-1 1v1H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1a1 1 0 0 0 1-1V4.4L11.6 1H5Zm6 11v1H3V4h1v7a1 1 0 0 0 1 1h6Zm2-2H5V2h5v3h3v5Z" />
+               </svg>
+            )}
          </button>
          <button
             type="button"
-            title="re-fetch this pull from GitHub"
+            aria-label="re-fetch this PR from GitHub"
+            title="re-fetch this PR from GitHub"
             className="rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
             onClick={() => refreshPull(pull.data.repo, pull.data.number)}
          >
-            ↻
+            <svg viewBox="0 0 16 16" aria-hidden className="h-3.5 w-3.5 fill-current">
+               <path d="M8 3a5 5 0 1 0 4.9 6h-1.55A3.5 3.5 0 1 1 8 4.5c.97 0 1.85.4 2.48 1.02L8.5 7.5H13V3l-1.46 1.46A4.98 4.98 0 0 0 8 3Z" />
+            </svg>
          </button>
       </span>
    );
@@ -106,7 +117,6 @@ function RowActions({ pull }: { pull: DerivedPull }) {
 
 export function Row({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const d = pull.data;
-   const iterating = isIterating(d);
    const fresh = Date.parse(d.updated_at) / 1000 > opts.lastSeen;
    const pips = opts.pips ?? 'both';
    const showWeight = ['needs_cr', 'needs_recr'].includes(pull.status);
@@ -115,8 +125,9 @@ export function Row({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
 
    return (
       <div
-         className={`pd-row flex items-center gap-2.5 border-t border-secondary border-l-[3px] border-l-transparent py-2 pr-3.5 pl-[11px] first:border-t-0 hover:bg-muted ${fresh ? 'row-fresh' : ''} ${iterating && !opts.noDim ? 'opacity-60' : ''} transition-[background-color,opacity] duration-150 motion-reduce:transition-none`}
+         className={`pd-row flex items-center gap-2.5 border-t border-secondary py-2 pr-3.5 pl-3.5 first:border-t-0 hover:bg-muted ${fresh ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
       >
+         {fresh && <span className="dot-fresh" title="changed since your last look" />}
          {opts.badge === false ? null : <StatusBadge status={pull.status} />}
          <Avatar login={d.user.login} onClick={opts.onPerson} />
          <span className="min-w-0 flex-1 truncate text-sm">
@@ -133,15 +144,16 @@ export function Row({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
             </a>
          </span>
          <RowActions pull={pull} />
-         {iterating && (
-            <span
-               className="flag-amber"
-               title="author active in the last 30 min, may still be pushing"
-            >
+         {isIterating(d) && (
+            <span className="flag-amber" title="changed in the last 30 min, may still be moving">
                iterating
             </span>
          )}
-         {opts.aging && pull.starved && <span className="flag-amber">waiting {pull.ageDays}d</span>}
+         {opts.aging && pull.starved && (
+            <span className="flag-amber" title={`open ${pull.ageDays} days with no CR stamp yet`}>
+               open {pull.ageDays}d
+            </span>
+         )}
          <WarnFlags pull={pull} />
          {line && (
             <span className="hidden max-w-[300px] flex-none truncate text-xs text-ink-2 min-[860px]:inline">
@@ -149,18 +161,19 @@ export function Row({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
             </span>
          )}
          <span className="flex flex-none items-center gap-2.5 text-xs text-ink-3">
-            {showWeight && <WeightChip weight={pull.weight} />}
+            {showWeight && <WeightChip weight={pull.weight} known={pull.sizeKnown} />}
             {(pips === 'cr' || pips === 'both') && (
                <Pips label="CR" have={pull.crHave} req={d.status.cr_req} stale={staleCr} />
             )}
             {(pips === 'qa' || pips === 'both') && (
                <Pips label="QA" have={pull.qaHave} req={d.status.qa_req} />
             )}
-            <span className="tabular-nums">
-               <span className="text-ok">+{d.additions ?? '?'}</span>{' '}
-               <span className="text-bad">−{d.deletions ?? '?'}</span>
+            <span
+               className="tabular-nums"
+               title={`opened ${pull.ageDays} ${pull.ageDays === 1 ? 'day' : 'days'} ago`}
+            >
+               {pull.ageDays}d
             </span>
-            <Heat days={pull.ageDays} />
          </span>
       </div>
    );

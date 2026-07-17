@@ -60,7 +60,7 @@ function Column({
                   <Row
                      key={`${p.data.repo}#${p.data.number}`}
                      pull={p}
-                     opts={{ ...opts, badge: false, noDim: true }}
+                     opts={{ ...opts, badge: false }}
                   />
                ))}
             </div>
