@@ -311,6 +311,8 @@ export function AgeStamp({
    createdAt,
    updatedAt,
    quiet,
+   warnDays = STARVE_DAYS,
+   rotDays = ROT_DAYS,
 }: {
    ageDays: number;
    /** epoch secs the pull opened */
@@ -319,12 +321,16 @@ export function AgeStamp({
    updatedAt: number;
    /** drafts and holds age on purpose: no urgency color */
    quiet?: boolean;
+   /** amber at/after this many days (user setting; defaults to the model's) */
+   warnDays?: number;
+   /** red at/after this many days */
+   rotDays?: number;
 }) {
    const hot = quiet
       ? null
-      : ageDays >= ROT_DAYS
+      : ageDays >= rotDays
         ? 'var(--bad)'
-        : ageDays >= STARVE_DAYS
+        : ageDays >= warnDays
           ? 'var(--warn)'
           : null;
    const text = ageDays === 0 ? ago(createdAt) : `${ageDays}d`;

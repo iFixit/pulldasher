@@ -1,0 +1,70 @@
+import { useSyncExternalStore } from 'react';
+import { ROT_DAYS, STARVE_DAYS } from './model/status';
+import { readStorage, writeStorage } from './storage';
+
+/**
+ * User settings: the knobs that are a matter of personal taste, not team
+ * policy (that's config.json) or model correctness (that's the sort and
+ * starvation math). Persisted per-browser, same as scope. New fields fall
+ * back to their default so an old saved blob never breaks.
+ */
+export interface Settings {
+   /** 'system' follows the OS; the others pin it */
+   theme: 'system' | 'light' | 'dark';
+   /** row height: comfortable is the default, compact packs more on screen */
+   density: 'comfortable' | 'compact';
+   /** which lens a bare /v2/ URL opens */
+   defaultLens: string;
+   /** a PR's age turns amber at this many days (display only) */
+   ageWarnDays: number;
+   /** and red at this many (display only) */
+   ageRotDays: number;
+   /** seconds of attention before leaving stamps "last seen" (the glance guard) */
+   seenAfterSecs: number;
+}
+
+export const DEFAULT_SETTINGS: Settings = {
+   theme: 'system',
+   density: 'comfortable',
+   defaultLens: 'review',
+   ageWarnDays: STARVE_DAYS,
+   ageRotDays: ROT_DAYS,
+   seenAfterSecs: 45,
+};
+
+const KEY = 'pd2.settings';
+
+function load(): Settings {
+   try {
+      return {
+         ...DEFAULT_SETTINGS,
+         ...(JSON.parse(readStorage(KEY) ?? '{}') as Partial<Settings>),
+      };
+   } catch {
+      return { ...DEFAULT_SETTINGS };
+   }
+}
+
+let settings = load();
+const listeners = new Set<() => void>();
+
+/** Plain getter for non-React readers (the store's glance guard). */
+export function getSettings(): Settings {
+   return settings;
+}
+
+export function setSettings(patch: Partial<Settings>) {
+   settings = { ...settings, ...patch };
+   writeStorage(KEY, JSON.stringify(settings));
+   for (const fn of listeners) fn();
+}
+
+export function useSettings(): Settings {
+   return useSyncExternalStore(
+      fn => {
+         listeners.add(fn);
+         return () => listeners.delete(fn);
+      },
+      () => settings
+   );
+}

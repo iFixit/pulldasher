@@ -1,0 +1,275 @@
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { markAllSeen } from '../store';
+import { type Settings as SettingsShape, setSettings, useSettings } from '../settings';
+
+const LENS_OPTIONS: [string, string][] = [
+   ['review', 'Review'],
+   ['mine', 'My work'],
+   ['people', 'People'],
+   ['classic', 'Classic'],
+   ['stats', 'Stats'],
+];
+
+/** A labelled group of controls inside the panel. */
+function Group({ title, children }: { title: string; children: ReactNode }) {
+   return (
+      <section className="border-t border-secondary px-4 py-3.5 first:border-t-0">
+         <h3 className="m-0 mb-2.5 text-xs font-semibold tracking-wide text-ink-3 uppercase">
+            {title}
+         </h3>
+         <div className="flex flex-col gap-3.5">{children}</div>
+      </section>
+   );
+}
+
+/** One setting: a label (+ optional hint) over its control. */
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+   return (
+      <div className="flex flex-col gap-1.5">
+         <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[13px] font-medium text-ink">{label}</span>
+            {children}
+         </div>
+         {hint && <span className="text-xs text-ink-3">{hint}</span>}
+      </div>
+   );
+}
+
+/** A pill segmented control — the house pattern for a small closed choice. */
+function Segmented<T extends string>({
+   value,
+   options,
+   onChange,
+   ariaLabel,
+}: {
+   value: T;
+   options: [T, string][];
+   onChange: (next: T) => void;
+   ariaLabel: string;
+}) {
+   return (
+      <div
+         role="radiogroup"
+         aria-label={ariaLabel}
+         className="inline-flex flex-wrap gap-0.5 rounded-lg border border-line bg-muted p-0.5"
+      >
+         {options.map(([val, label]) => (
+            <button
+               key={val}
+               type="button"
+               role="radio"
+               aria-checked={value === val}
+               onClick={() => onChange(val)}
+               className={`pressable rounded-md px-2.5 py-1 text-xs font-medium ${
+                  value === val ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-brand'
+               }`}
+            >
+               {label}
+            </button>
+         ))}
+      </div>
+   );
+}
+
+/** A small bounded number stepper (days, seconds). */
+function NumberField({
+   value,
+   min,
+   max,
+   suffix,
+   onChange,
+}: {
+   value: number;
+   min: number;
+   max: number;
+   suffix: string;
+   onChange: (next: number) => void;
+}) {
+   return (
+      <span className="inline-flex items-center gap-1.5">
+         <input
+            type="number"
+            min={min}
+            max={max}
+            value={value}
+            onChange={e => {
+               const n = Number(e.target.value);
+               if (Number.isFinite(n)) onChange(Math.min(max, Math.max(min, Math.round(n))));
+            }}
+            className="h-8 w-16 rounded-lg border border-line bg-surface px-2 text-right text-[13px] tabular-nums"
+         />
+         <span className="text-xs text-ink-3">{suffix}</span>
+      </span>
+   );
+}
+
+export function Settings() {
+   const [open, setOpen] = useState(false);
+   const s = useSettings();
+   const panelRef = useRef<HTMLDivElement>(null);
+   const triggerRef = useRef<HTMLButtonElement>(null);
+   const [seenNote, setSeenNote] = useState(false);
+
+   useEffect(() => {
+      if (!open) return;
+      const onKey = (e: KeyboardEvent) => {
+         if (e.key === 'Escape') setOpen(false);
+      };
+      document.addEventListener('keydown', onKey);
+      // focus the panel so Escape and tabbing land inside it
+      panelRef.current?.focus();
+      return () => document.removeEventListener('keydown', onKey);
+   }, [open]);
+
+   // return focus to the cog when the panel closes
+   useEffect(() => {
+      if (!open) triggerRef.current?.focus?.();
+   }, [open]);
+
+   const set = (patch: Partial<SettingsShape>) => setSettings(patch);
+
+   return (
+      <>
+         <button
+            ref={triggerRef}
+            type="button"
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            aria-label="settings"
+            title="settings"
+            onClick={() => setOpen(o => !o)}
+            className="pressable inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-surface text-ink-2 hover:text-brand"
+         >
+            <svg viewBox="0 0 20 20" aria-hidden className="h-4 w-4 fill-current">
+               <path d="M11.5 1.5a.6.6 0 0 1 .59.49l.24 1.42a6.6 6.6 0 0 1 1.36.79l1.34-.53a.6.6 0 0 1 .74.27l1.5 2.6a.6.6 0 0 1-.15.76l-1.11.9c.05.26.07.53.07.8s-.02.54-.07.8l1.11.9a.6.6 0 0 1 .15.76l-1.5 2.6a.6.6 0 0 1-.74.27l-1.34-.53c-.42.33-.88.6-1.36.79l-.24 1.42a.6.6 0 0 1-.59.49h-3a.6.6 0 0 1-.59-.49l-.24-1.42a6.6 6.6 0 0 1-1.36-.79l-1.34.53a.6.6 0 0 1-.74-.27l-1.5-2.6a.6.6 0 0 1 .15-.76l1.11-.9a6.7 6.7 0 0 1 0-1.6l-1.11-.9a.6.6 0 0 1-.15-.76l1.5-2.6a.6.6 0 0 1 .74-.27l1.34.53c.42-.33.88-.6 1.36-.79l.24-1.42a.6.6 0 0 1 .59-.49h3ZM10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
+            </svg>
+         </button>
+         {open &&
+            createPortal(
+               <div className="fixed inset-0 z-[100]">
+                  <div
+                     className="settings-scrim absolute inset-0 bg-black/30"
+                     onClick={() => setOpen(false)}
+                     aria-hidden
+                  />
+                  <div
+                     ref={panelRef}
+                     role="dialog"
+                     aria-label="Settings"
+                     aria-modal="true"
+                     tabIndex={-1}
+                     className="settings-panel absolute top-0 right-0 flex h-full w-[min(360px,100vw)] flex-col overflow-y-auto border-l border-line bg-surface shadow-xl outline-none"
+                  >
+                     <div className="sticky top-0 flex items-center justify-between border-b border-line bg-surface px-4 py-3">
+                        <span className="text-sm font-semibold text-ink">Settings</span>
+                        <button
+                           type="button"
+                           aria-label="close settings"
+                           onClick={() => setOpen(false)}
+                           className="pressable inline-flex h-7 w-7 items-center justify-center rounded-lg text-ink-3 hover:bg-muted hover:text-ink"
+                        >
+                           ✕
+                        </button>
+                     </div>
+
+                     <Group title="Appearance">
+                        <Field label="Theme">
+                           <Segmented
+                              ariaLabel="theme"
+                              value={s.theme}
+                              options={[
+                                 ['system', 'System'],
+                                 ['light', 'Light'],
+                                 ['dark', 'Dark'],
+                              ]}
+                              onChange={theme => set({ theme })}
+                           />
+                        </Field>
+                        <Field
+                           label="Density"
+                           hint="Compact tightens each row to fit more on screen."
+                        >
+                           <Segmented
+                              ariaLabel="density"
+                              value={s.density}
+                              options={[
+                                 ['comfortable', 'Comfortable'],
+                                 ['compact', 'Compact'],
+                              ]}
+                              onChange={density => set({ density })}
+                           />
+                        </Field>
+                     </Group>
+
+                     <Group title="Board">
+                        <Field label="Default view" hint="The lens a bare pulldasher link opens.">
+                           <Segmented
+                              ariaLabel="default view"
+                              value={s.defaultLens}
+                              options={LENS_OPTIONS}
+                              onChange={defaultLens => set({ defaultLens })}
+                           />
+                        </Field>
+                        <Field
+                           label="Age turns amber"
+                           hint="When a PR's age reads as getting old (color only; the aging lane is unchanged)."
+                        >
+                           <NumberField
+                              value={s.ageWarnDays}
+                              min={1}
+                              max={s.ageRotDays - 1}
+                              suffix="days"
+                              onChange={ageWarnDays => set({ ageWarnDays })}
+                           />
+                        </Field>
+                        <Field label="Age turns red">
+                           <NumberField
+                              value={s.ageRotDays}
+                              min={s.ageWarnDays + 1}
+                              max={120}
+                              suffix="days"
+                              onChange={ageRotDays => set({ ageRotDays })}
+                           />
+                        </Field>
+                     </Group>
+
+                     <Group title="Changed since your last look">
+                        <Field
+                           label="Mark the board seen after"
+                           hint="How long it must stay open, in view, before leaving counts as a look. A quick glance won't clear the delta."
+                        >
+                           <NumberField
+                              value={s.seenAfterSecs}
+                              min={0}
+                              max={600}
+                              suffix="sec"
+                              onChange={seenAfterSecs => set({ seenAfterSecs })}
+                           />
+                        </Field>
+                        <div className="flex items-center gap-3">
+                           <button
+                              type="button"
+                              onClick={() => {
+                                 markAllSeen();
+                                 setSeenNote(true);
+                                 setTimeout(() => setSeenNote(false), 1600);
+                              }}
+                              className="pressable inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink-2 hover:text-brand"
+                           >
+                              Mark everything as seen
+                           </button>
+                           {seenNote && (
+                              <span className="text-xs" style={{ color: 'var(--ok)' }}>
+                                 done
+                              </span>
+                           )}
+                        </div>
+                     </Group>
+                  </div>
+               </div>,
+               document.body
+            )}
+      </>
+   );
+}

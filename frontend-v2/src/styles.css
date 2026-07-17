@@ -265,6 +265,30 @@ a:hover {
   background: transparent;
 }
 
+/* compact density: pack more rows on screen by tightening the row gutter */
+:root[data-density="compact"] .pd-row {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+/* settings slide-out from the right, with a fading scrim */
+@keyframes panel-in {
+  from {
+    translate: 100% 0;
+  }
+}
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+.settings-panel {
+  animation: panel-in 220ms var(--ease-quint);
+}
+.settings-scrim {
+  animation: scrim-in 160ms ease-out;
+}
+
 /* press feedback: house scale-97 */
 .pressable {
   transition:

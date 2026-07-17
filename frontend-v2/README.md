@@ -46,12 +46,24 @@ serves v1 at `/` and v2 at `/v2`, both fed by the same socket protocol
   days): ages show hours under a day, heat amber past 4 days and red past
   10, with both clocks in the tooltip. "Iterating" keys on the push clock,
   not updated_at, so a reviewer's comment can't sink a pull down the queue.
-- **Four lenses, one filter.** Review / My work / People (person or team
-  drill-down) / Classic, over the same pool, with a single saved Scope
-  (repos + people, with GitHub-team presets). The whole view — lens, query,
-  scope, toggles — lives in the URL hash: any board is pasteable and a
+- **Five lenses, one filter.** Review / My work / People (person or team
+  drill-down) / Classic / Stats, over the same pool, with a single saved
+  Scope (repos + people, with GitHub-team presets). The whole view — lens,
+  query, scope, toggles — lives in the URL hash: any board is pasteable and a
   bookmark is a saved view. The filter understands `#number`, `label:x`,
   `status:x`, `older:5`, `repo:x`, and `author:x`.
+- **The Stats lens.** The board's shape and its review economics: the open
+  breakdown as a stacked bar, CR and QA leaderboards (distinct PRs signed off,
+  over the current pool), who's waiting longest for CR by author, and time to
+  merge by diff-size class over the closed window. It moves with the scope, so
+  scoping to a team makes these that team's numbers. `src/model/stats.ts` is
+  the aggregation layer; the cards are pure presentational.
+- **Settings.** A cog opens a right-side panel for the knobs that are personal
+  taste, not team policy or model math: theme (system/light/dark), row
+  density, default view, the age-color thresholds (amber/red days, display
+  only), and the glance guard — how many attended seconds count as a look,
+  plus a one-click "mark everything as seen". Persisted per-browser in
+  `src/settings.ts`.
 - **An eye, not a snowflake.** Two kinds of PR hide by default —
   Cryogenic-Storage (deliberately parked) and hide-by-default repos (quiet
   noise). The visibility control is a selector, not an all-or-nothing toggle:
@@ -111,6 +123,9 @@ lens `#lens=board` merged into Classic; old links redirect.)
   ago" need the server to include recent comment metadata in `toObject()`.
 - **Teams over the handshake** instead of a static file (see above).
 - **`changed_files`** is stored in the DB but not sent; the review-effort
-  meter falls back to size-only until it is.
-- **CR leaderboard** (v1's leader-list) and **desktop notifications** aren't
-  ported yet.
+  meter falls back to size-only until it is, and the Stats merge-time chart
+  drops PRs missing `additions`/`deletions`.
+- **Stats are windowed, not historical.** Leaderboards and merge-time only see
+  the open pool plus the server's 14-day closed window, so they read "lately",
+  not "all time". Career totals would need the server to expose more history.
+- **Desktop notifications** aren't ported yet.

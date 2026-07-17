@@ -1,3 +1,4 @@
+import { useSettings } from '../settings';
 import { WeightMeter } from './bits';
 import { usePopover } from './usePopover';
 
@@ -8,6 +9,7 @@ import { usePopover } from './usePopover';
  */
 export function Legend() {
    const pop = usePopover<HTMLSpanElement, HTMLButtonElement>();
+   const s = useSettings();
 
    const item = (term: React.ReactNode, def: string) => (
       <div className="flex items-baseline gap-2 px-1 py-[3px]">
@@ -66,10 +68,10 @@ export function Legend() {
                )}
                {item(
                   <span className="tabular-nums">
-                     <b style={{ color: 'var(--warn)' }}>5d</b>/
-                     <b style={{ color: 'var(--bad)' }}>12d</b>
+                     <b style={{ color: 'var(--warn)' }}>{s.ageWarnDays}d</b>/
+                     <b style={{ color: 'var(--bad)' }}>{s.ageRotDays}d</b>
                   </span>,
-                  'age: hours under a day, amber past 4 days, red past 10. Hover for both clocks'
+                  `age: hours under a day, amber past ${s.ageWarnDays} days, red past ${s.ageRotDays}. Hover for both clocks`
                )}
                {item(<WeightMeter weight="M" />, 'review effort, light to heavy, from diff size')}
                {item(

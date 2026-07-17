@@ -1,25 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ago, n, shortRepo } from './format';
-import { readStorage, writeStorage } from './storage';
-import { STATUS_ORDER, type DerivedPull } from './model/status';
+import type { DerivedPull } from './model/status';
 import type { Team } from './types';
 import { isFresh, usePulldasher } from './store';
 import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
 import { loadSiteConfig, primeScope, useScope } from './prefs';
+import { getSettings, useSettings } from './settings';
 import { matchesQuery } from './model/query';
 import { Legend } from './components/Legend';
 import { CRYO_KEY, HiddenSelector } from './components/HiddenSelector';
 import { ScopeControl } from './components/Scope';
-import { STATUS_LABEL } from './components/bits';
 import type { RowOptions } from './components/Row';
 import { Review } from './views/Review';
 import { MyWork } from './views/MyWork';
 import { People } from './views/People';
 import { Classic } from './views/Classic';
+import { Stats } from './views/Stats';
+import { Settings } from './components/Settings';
 
-type Lens = 'review' | 'mine' | 'people' | 'classic';
+type Lens = 'review' | 'mine' | 'people' | 'classic' | 'stats';
 
-const LENSES: Lens[] = ['review', 'mine', 'people', 'classic'];
+const LENSES: Lens[] = ['review', 'mine', 'people', 'classic', 'stats'];
 
 /**
  * The whole view lives in the hash — lens, drill-downs, query, scope,
@@ -47,8 +48,11 @@ function readHash(): HashState {
    // the Board lens merged into Classic (same columns, real justification);
    // old #lens=board links keep working
    if ((lens as string) === 'board') lens = 'classic';
+   // a bare URL (no lens param) opens the user's configured default view
+   const preferred = getSettings().defaultLens as Lens;
+   const fallback = LENSES.includes(preferred) ? preferred : ('review' as Lens);
    return {
-      lens: lens && LENSES.includes(lens) ? lens : ('review' as Lens),
+      lens: lens && LENSES.includes(lens) ? lens : fallback,
       person: p.get('person'),
       team: p.get('team'),
       q: p.get('q') ?? '',
@@ -81,7 +85,6 @@ if (urlState.repos.length || urlState.authors.length) {
    primeScope({ repos: urlState.repos, authors: urlState.authors });
 }
 
-const THEME_KEY = 'pd2.theme';
 // GitHub Apps carry a [bot] suffix; other machine accounts are named in
 // config.json's `bots` list.
 const isBotLogin = (login: string, extra: ReadonlySet<string>) =>
@@ -179,16 +182,13 @@ export function App() {
       (p: DerivedPull) => isBotLogin(p.data.user.login, extraBots),
       [extraBots]
    );
-   // explicit choice persists; otherwise follow the OS, live
-   const [dark, setDarkState] = useState(
-      () =>
-         readStorage(THEME_KEY) ??
-         (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+   // theme, density, default view, age colors, glance guard — all live in
+   // settings now (the cog panel), persisted per-browser
+   const settings = useSettings();
+   const [systemDark, setSystemDark] = useState(
+      () => matchMedia('(prefers-color-scheme: dark)').matches
    );
-   const setDark = (next: string) => {
-      setDarkState(next);
-      writeStorage(THEME_KEY, next);
-   };
+   const dark = settings.theme === 'dark' || (settings.theme === 'system' && systemDark);
    const searchRef = useRef<HTMLInputElement>(null);
 
    useEffect(() => {
@@ -244,12 +244,15 @@ export function App() {
       return () => clearTimeout(t);
    }, []);
    useEffect(() => {
-      document.documentElement.classList.toggle('dark', dark === 'dark');
+      document.documentElement.classList.toggle('dark', dark);
    }, [dark]);
    useEffect(() => {
-      if (readStorage(THEME_KEY)) return;
+      document.documentElement.dataset.density = settings.density;
+   }, [settings.density]);
+   // follow the OS live (only visible while theme is 'system')
+   useEffect(() => {
       const mq = matchMedia('(prefers-color-scheme: dark)');
-      const follow = () => setDarkState(mq.matches ? 'dark' : 'light');
+      const follow = () => setSystemDark(mq.matches);
       mq.addEventListener('change', follow);
       return () => mq.removeEventListener('change', follow);
    }, []);
@@ -368,8 +371,6 @@ export function App() {
            return cryoHidden || repoHidden;
         }).length;
 
-   const statusCounts = new Map<string, number>();
-   for (const p of humans) statusCounts.set(p.status, (statusCounts.get(p.status) ?? 0) + 1);
    const isScoped = scope.repos.length || scope.authors.length || query || onlyChanged;
 
    const onPerson = useCallback((login: string) => {
@@ -379,8 +380,15 @@ export function App() {
    }, []);
    // stable identity so memo(Row) can skip untouched rows on socket bursts
    const rowOpts: RowOptions = useMemo(
-      () => ({ me, lastSeen, acked, onPerson }),
-      [me, lastSeen, acked, onPerson]
+      () => ({
+         me,
+         lastSeen,
+         acked,
+         onPerson,
+         ageWarnDays: settings.ageWarnDays,
+         ageRotDays: settings.ageRotDays,
+      }),
+      [me, lastSeen, acked, onPerson, settings.ageWarnDays, settings.ageRotDays]
    );
 
    const mineCount = humans.filter(p => p.data.user.login === me).length;
@@ -420,18 +428,17 @@ export function App() {
                >
                   <span className="sr-only">live updates {connection}</span>
                </span>
-               <span className="min-w-0 truncate text-xs text-ink-3 tabular-nums">
+               <button
+                  type="button"
+                  onClick={() => setLens('stats')}
+                  title="the breakdown by status, and review stats"
+                  className="text-xs text-ink-3 tabular-nums hover:text-brand"
+               >
                   <b className="text-ink">
                      {isScoped ? `${scoped.length} of ${pulls.length}` : pulls.length}
                   </b>{' '}
-                  open
-                  {STATUS_ORDER.filter(s => statusCounts.get(s)).map(s => (
-                     <span key={s}>
-                        {' · '}
-                        {statusCounts.get(s)} {STATUS_LABEL[s].toLowerCase()}
-                     </span>
-                  ))}
-               </span>
+                  open · stats ▸
+               </button>
                <span className="flex-1" />
                <span className="text-xs text-ink-3">{me ? `signed in as ${me}` : '…'}</span>
                <a
@@ -441,13 +448,7 @@ export function App() {
                >
                   v1 board
                </a>
-               <button
-                  type="button"
-                  onClick={() => setDark(dark === 'dark' ? 'light' : 'dark')}
-                  className="pressable h-8 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium whitespace-nowrap hover:bg-muted"
-               >
-                  {dark === 'dark' ? 'light mode' : 'dark mode'}
-               </button>
+               <Settings />
             </div>
             <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-2 px-5 pb-2.5">
                <nav className="mr-1 flex gap-1">
@@ -455,6 +456,7 @@ export function App() {
                   {tab('mine', 'My work', mineCount)}
                   {tab('people', 'People')}
                   {tab('classic', 'Classic')}
+                  {tab('stats', 'Stats')}
                </nav>
                <ScopeControl pulls={pulls} teams={teams} hiddenRepos={hiddenRepos} />
                <input
@@ -601,6 +603,9 @@ export function App() {
                   collapsed={legacy?.collapsed}
                   closed={legacy?.closed ? closed : null}
                />
+            )}
+            {initialized && lens === 'stats' && (
+               <Stats pulls={humans} closed={closed} me={me} onPerson={onPerson} />
             )}
          </main>
       </>

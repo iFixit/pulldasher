@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { backend, type ConnectionState } from './backend/socket';
 import { derive, type DerivedPull } from './model/status';
+import { getSettings } from './settings';
 import { readStorage, writeStorage } from './storage';
 import type { PullData, RepoSpec } from './types';
 
@@ -44,9 +45,9 @@ const listeners = new Set<() => void>();
 // arrive — an accidental reload must not erase "changed since yesterday".
 // And only after the page has actually been LOOKED AT: a two-second Monday
 // glance on the way to Slack must not mark the weekend's forty changes as
-// seen. "Looked at" = 45 cumulative visible seconds since the last stamp.
-const MIN_ATTENDED_SECS = 45;
-const lastSeen = Number(readStorage(LAST_SEEN_KEY)) || Date.now() / 1000 - 6 * 3600;
+// seen. "Looked at" = N cumulative visible seconds since the last stamp,
+// where N is the user's glance-guard setting (seenAfterSecs).
+let lastSeen = Number(readStorage(LAST_SEEN_KEY)) || Date.now() / 1000 - 6 * 3600;
 let attendedSecs = 0;
 let visibleSince: number | null = document.visibilityState === 'visible' ? Date.now() / 1000 : null;
 const settleAttention = () => {
@@ -57,8 +58,9 @@ const settleAttention = () => {
 };
 const stampSeen = () => {
    settleAttention();
-   if (attendedSecs < MIN_ATTENDED_SECS) return;
-   writeStorage(LAST_SEEN_KEY, String(Date.now() / 1000));
+   if (attendedSecs < getSettings().seenAfterSecs) return;
+   lastSeen = Date.now() / 1000;
+   writeStorage(LAST_SEEN_KEY, String(lastSeen));
    attendedSecs = 0;
 };
 window.addEventListener('pagehide', stampSeen);
@@ -66,6 +68,14 @@ document.addEventListener('visibilitychange', () => {
    if (document.visibilityState === 'hidden') stampSeen();
    else visibleSince = Date.now() / 1000;
 });
+
+/** Settings action: treat everything on the board as seen, right now. */
+export function markAllSeen() {
+   lastSeen = Date.now() / 1000;
+   writeStorage(LAST_SEEN_KEY, String(lastSeen));
+   attendedSecs = 0;
+   schedulePublish();
+}
 
 // Per-row acknowledgment: opening a PR clears its fresh dot for this session
 // without waiting for departure to stamp the whole board.

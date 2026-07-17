@@ -18,6 +18,9 @@ export interface RowOptions {
    /** pull keys opened this session (their fresh dots are cleared) */
    acked: ReadonlySet<string>;
    onPerson?: (login: string) => void;
+   /** age-color thresholds from user settings (fall back to the model's) */
+   ageWarnDays?: number;
+   ageRotDays?: number;
 }
 
 /**
@@ -182,8 +185,9 @@ function RowActions({ pull }: { pull: DerivedPull }) {
  * fixed-geometry, so it reads as vertical columns down any lens. Raised above
  * the card's click layer so the sign-off popovers still open.
  */
-function MetricRail({ pull, me }: { pull: DerivedPull; me: string }) {
+function MetricRail({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const d = pull.data;
+   const me = opts.me;
    return (
       <span className="pd-raise ml-auto flex flex-none items-center gap-2.5">
          <RowActions pull={pull} />
@@ -211,6 +215,8 @@ function MetricRail({ pull, me }: { pull: DerivedPull; me: string }) {
             createdAt={Date.parse(d.created_at) / 1000}
             updatedAt={Date.parse(d.updated_at) / 1000}
             quiet={['draft', 'dev_block', 'deploy_block'].includes(pull.status)}
+            warnDays={opts.ageWarnDays}
+            rotDays={opts.ageRotDays}
          />
       </span>
    );
@@ -275,7 +281,7 @@ function RowImpl({
                   </span>
                )}
                <WarnFlags pull={pull} />
-               <MetricRail pull={pull} me={opts.me} />
+               <MetricRail pull={pull} opts={opts} />
             </>
          }
       />
@@ -299,5 +305,7 @@ export const Row = memo(
       a.opts.me === b.opts.me &&
       a.opts.lastSeen === b.opts.lastSeen &&
       a.opts.acked === b.opts.acked &&
-      a.opts.onPerson === b.opts.onPerson
+      a.opts.onPerson === b.opts.onPerson &&
+      a.opts.ageWarnDays === b.opts.ageWarnDays &&
+      a.opts.ageRotDays === b.opts.ageRotDays
 );
