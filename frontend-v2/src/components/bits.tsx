@@ -337,10 +337,7 @@ export function SigPips({
                {s.data.active ? (
                   <span className="pip pip-on" title="active stamp" />
                ) : (
-                  <span
-                     className="pip pip-stale"
-                     title="invalidated by a later push — a re-stamp is owed"
-                  />
+                  <span className="pip pip-stale" title="invalidated by a later push" />
                )}
             </a>
          ))}
