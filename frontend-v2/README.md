@@ -87,9 +87,10 @@ serves v1 at `/` and v2 at `/v2`, both fed by the same socket protocol
 - **Changed since your last look.** A last-seen marker in localStorage,
   stamped when you leave (pagehide) and only after ~45 visible seconds, so a
   glance at another tab can't erase the weekend's delta. Solid dot = new PR,
-  ring = updated; opening a PR clears its dot. A persistent `● changed N`
-  toggle sits in the filter row (not just the arrival banner) to narrow the
-  board to those PRs, and the banner also counts merges while you were away.
+  ring = updated; opening a PR clears its dot. What changed is a **lane** in
+  Review (newest first), not a bar toggle — it collects the delta at the top
+  the way "Yours to do" collects your actions, rather than filtering the board.
+  A slim banner still counts the PRs merged or closed while you were away.
 - **Keyboard:** `/` filter, `j`/`k` walk rows, `Enter` opens, `c` copies the
   focused row's branch.
 

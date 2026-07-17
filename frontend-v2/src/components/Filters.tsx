@@ -29,7 +29,6 @@ export function Filters({
    cryoCount,
    draftsMode,
    setDraftsMode,
-   hiddenCount,
 }: {
    pulls: DerivedPull[];
    /** all repos with open-PR counts (org-hidden and muted included) */
@@ -43,7 +42,6 @@ export function Filters({
    cryoCount: number;
    draftsMode: 'mine' | 'all';
    setDraftsMode: (m: 'mine' | 'all') => void;
-   hiddenCount: number;
 }) {
    const pop = usePopover<HTMLSpanElement, HTMLButtonElement>();
    const [scope, setScope] = useScope();
@@ -87,8 +85,16 @@ export function Filters({
    if (draftsMode === 'all') bits.push('all drafts');
    if (showAll) bits.push('all hidden shown');
    else if (reveal.length) bits.push(`${reveal.length} revealed`);
-   const active = bits.length > 0 || scope.repos.length > 0 || scope.authors.length > 0;
+   const active = bits.length > 0;
    const summary = bits.length ? bits.join(' · ') : 'All repos';
+   // what "Clear" would actually change — the transient filters, not your
+   // durable mutes (those are your board; unmute them in the list or Settings)
+   const clearable =
+      scope.repos.length > 0 ||
+      scope.authors.length > 0 ||
+      reveal.length > 0 ||
+      showAll ||
+      draftsMode !== settings.draftsMode;
 
    const reset = () => {
       setScope({ repos: [], authors: [] });
@@ -209,21 +215,10 @@ export function Filters({
                <path d="M1.5 3h13a.5.5 0 0 1 .4.8l-4.9 6v3.7a.5.5 0 0 1-.7.45l-2-1a.5.5 0 0 1-.3-.45V9.8l-4.9-6a.5.5 0 0 1 .4-.8Z" />
             </svg>
             <span className="truncate">{summary}</span>
-            <span aria-hidden className="text-ink-3">
+            <span aria-hidden className="ml-auto text-ink-3">
                ▾
             </span>
          </button>
-         {(active || hiddenCount > 0) && (
-            <button
-               type="button"
-               aria-label="reset filters to your board"
-               title="reset to your board"
-               onClick={reset}
-               className="pressable ml-1 inline-flex h-8 w-6 items-center justify-center rounded-lg border border-line bg-surface text-[13px] text-ink-3 hover:text-brand"
-            >
-               ✕
-            </button>
-         )}
          {pop.open && (
             <span
                ref={pop.panelRef}
@@ -362,6 +357,18 @@ export function Filters({
                            ? 'Other people’s drafts are hidden. Your own drafts always show.'
                            : 'Everyone’s drafts show.'}
                      </p>
+                  </div>
+               )}
+
+               {clearable && (
+                  <div className="mt-1.5 border-t border-secondary px-1 pt-1.5 text-right">
+                     <button
+                        type="button"
+                        onClick={reset}
+                        className="text-xs font-medium text-brand hover:underline"
+                     >
+                        Clear filters
+                     </button>
                   </div>
                )}
             </span>

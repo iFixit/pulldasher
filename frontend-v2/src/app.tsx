@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { ago, n, shortRepo } from './format';
 import type { DerivedPull } from './model/status';
 import type { Team } from './types';
-import { isFresh, usePulldasher } from './store';
+import { usePulldasher } from './store';
 import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
 import { loadSiteConfig, primeScope, useScope } from './prefs';
 import { getSettings, useSettings } from './settings';
@@ -41,7 +41,6 @@ interface HashState {
    reveal: string[];
    /** session override of the drafts default (null = use the durable default) */
    drafts: 'mine' | 'all' | null;
-   changed: boolean;
 }
 
 function readHash(): HashState {
@@ -63,7 +62,6 @@ function readHash(): HashState {
       hidden: p.get('hidden') === '1',
       reveal: p.get('show')?.split(',').filter(Boolean) ?? [],
       drafts: p.get('drafts') === 'all' ? 'all' : p.get('drafts') === 'mine' ? 'mine' : null,
-      changed: p.get('changed') === '1',
    };
 }
 
@@ -78,7 +76,6 @@ function buildHash(s: HashState): string {
    if (s.hidden) p.set('hidden', '1');
    if (s.reveal.length) p.set('show', s.reveal.join(','));
    if (s.drafts) p.set('drafts', s.drafts);
-   if (s.changed) p.set('changed', '1');
    return p.toString();
 }
 
@@ -168,7 +165,6 @@ export function App() {
    const [person, setPerson] = useState<string | null>(() => urlState.person);
    const [team, setTeam] = useState<string | null>(() => urlState.team);
    const [query, setQuery] = useState(() => urlState.q);
-   const [onlyChanged, setOnlyChanged] = useState(() => urlState.changed);
    // "hidden" is two off-by-default groups (Cryogenic-Storage PRs, quiet
    // repos). showAll reveals both; reveal names individual groups to show.
    const [showAll, setShowAll] = useState(
@@ -220,7 +216,6 @@ export function App() {
          hidden: showAll,
          reveal,
          drafts: draftsMode !== settings.draftsMode ? draftsMode : null,
-         changed: onlyChanged,
       });
       if (next === location.hash.slice(1)) return;
       const prev = prevView.current;
@@ -231,18 +226,7 @@ export function App() {
       } else {
          history.replaceState(null, '', next ? `#${next}` : location.pathname + location.search);
       }
-   }, [
-      lens,
-      person,
-      team,
-      query,
-      scope,
-      showAll,
-      reveal,
-      draftsMode,
-      settings.draftsMode,
-      onlyChanged,
-   ]);
+   }, [lens, person, team, query, scope, showAll, reveal, draftsMode, settings.draftsMode]);
    useEffect(() => {
       const onHash = () => {
          const h = readHash();
@@ -253,7 +237,6 @@ export function App() {
          setShowAll(h.hidden);
          setReveal(h.reveal);
          setDraftsMode(h.drafts ?? getSettings().draftsMode);
-         setOnlyChanged(h.changed);
       };
       window.addEventListener('hashchange', onHash);
       return () => window.removeEventListener('hashchange', onHash);
@@ -384,20 +367,13 @@ export function App() {
       draftsMode,
    ]);
 
-   // changed-only and the banner count share one predicate (bots excluded,
-   // acked rows drop out) so the toggle always shows exactly what the banner
-   // promised
-   const scoped = useMemo(
-      () =>
-         onlyChanged ? inScope.filter(p => !isBot(p) && isFresh(p.data, lastSeen, acked)) : inScope,
-      [inScope, onlyChanged, lastSeen, acked, isBot]
-   );
-
+   // "what changed since your last look" is now a lane in Review, not a bar
+   // toggle, so the pool is just the scoped board
+   const scoped = inScope;
    const humans = scoped.filter(p => !isBot(p));
    const bots = scoped.filter(isBot);
-   const changedCount = inScope.filter(p => !isBot(p) && isFresh(p.data, lastSeen, acked)).length;
    // "did my PR merge over the weekend" is the cheapest answer the board can
-   // give — it belongs in the banner, not buried in a fold
+   // give — a slim banner, since the open-PR changes live in the lane
    const mergedCount = closed.filter(
       p => (Date.parse(p.closed_at ?? '') / 1000 || 0) > lastSeen
    ).length;
@@ -414,18 +390,8 @@ export function App() {
    }, [pulls, hiddenRepos, settings.repoPrefs]);
 
    const cryoCount = pulls.filter(p => p.cryo).length;
-   // how many PRs are hidden *right now*, given mutes/org-hides and reveals
-   const hiddenCount = showAll
-      ? 0
-      : pulls.filter(p => {
-           const hiddenRepo =
-              repoHidden(p.data.repo, hiddenRepos, settings.repoPrefs) &&
-              !revealedRepo(p.data.repo);
-           const cryoHidden = p.cryo && !settings.showCryo && !reveal.includes(CRYO_KEY);
-           return hiddenRepo || cryoHidden;
-        }).length;
 
-   const isScoped = scope.repos.length || scope.authors.length || query || onlyChanged;
+   const isScoped = scope.repos.length || scope.authors.length || query;
 
    const onPerson = useCallback((login: string) => {
       setPerson(login);
@@ -524,28 +490,26 @@ export function App() {
                   cryoCount={cryoCount}
                   draftsMode={draftsMode}
                   setDraftsMode={setDraftsMode}
-                  hiddenCount={hiddenCount}
                />
-               <input
-                  ref={searchRef}
-                  type="search"
-                  aria-label="Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x"
-                  placeholder="filter (press /)"
-                  title="text, #number, label:x, status:x, older:5, repo:x, author:x"
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  className="h-8 w-[170px] max-w-full grow rounded-lg border border-line bg-surface px-2.5 text-[13px] sm:grow-0"
-               />
-               {(changedCount > 0 || onlyChanged) && (
-                  <ToggleChip
-                     active={onlyChanged}
-                     onClick={() => setOnlyChanged(v => !v)}
-                     title="PRs updated since your last visit. The marker only advances after you've had the board open a while, so a quick glance won't clear the weekend's changes. Click to show just these."
+               <span className="relative inline-flex max-w-full grow items-center sm:grow-0">
+                  <svg
+                     viewBox="0 0 16 16"
+                     aria-hidden
+                     className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 fill-ink-3"
                   >
-                     <span className="dot-fresh" />
-                     changed{changedCount > 0 ? ` ${changedCount}` : ''}
-                  </ToggleChip>
-               )}
+                     <path d="M7 2a5 5 0 1 0 3.02 8.98l2.5 2.5a.75.75 0 1 0 1.06-1.06l-2.5-2.5A5 5 0 0 0 7 2Zm0 1.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Z" />
+                  </svg>
+                  <input
+                     ref={searchRef}
+                     type="search"
+                     aria-label="Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x"
+                     placeholder="filter (press /)"
+                     title="text, #number, label:x, status:x, older:5, repo:x, author:x"
+                     value={query}
+                     onChange={e => setQuery(e.target.value)}
+                     className="h-8 w-[190px] max-w-full grow rounded-lg border border-line bg-surface pr-2.5 pl-8 text-[13px] sm:grow-0"
+                  />
+               </span>
                {legacy && (
                   <ToggleChip
                      active
@@ -590,32 +554,13 @@ export function App() {
                </span>
             </Banner>
          )}
-         {(changedCount > 0 || mergedCount > 0) && !query && (
+         {mergedCount > 0 && !query && (
             <Banner tone="brand">
                <span>●</span>
                <span className="tabular-nums">
-                  {changedCount > 0 && (
-                     <>
-                        <b className="font-semibold">{n(changedCount, 'PR')}</b> changed
-                     </>
-                  )}
-                  {changedCount > 0 && mergedCount > 0 && ' · '}
-                  {mergedCount > 0 && (
-                     <>
-                        <b className="font-semibold">{mergedCount}</b> merged or closed
-                     </>
-                  )}{' '}
-                  since your last look
+                  <b className="font-semibold">{mergedCount}</b> merged or closed since your last
+                  look
                </span>
-               {changedCount > 0 && (
-                  <button
-                     type="button"
-                     onClick={() => setOnlyChanged(v => !v)}
-                     className="border-0 bg-transparent p-0 text-[13px] font-semibold underline"
-                  >
-                     {onlyChanged ? 'show everything' : 'show only changes'}
-                  </button>
-               )}
             </Banner>
          )}
 

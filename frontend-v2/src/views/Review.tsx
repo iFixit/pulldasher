@@ -2,6 +2,7 @@ import type { DerivedPull, Status } from '../model/status';
 import { pullKey } from '../format';
 import { crSort } from '../model/sort';
 import { authorMove, reviewerMove } from '../model/actions';
+import { isFresh } from '../store';
 import type { PullData } from '../types';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
 import { AnnotatedRow, Fold, FoldRows, Lane, RestGroup, Truncated } from '../components/Lane';
@@ -99,6 +100,14 @@ export function Review({
    const ciRed = byStatus('ci_red');
    const drafts = byStatus('draft');
 
+   // Changed since your last look: everything that moved (new or updated),
+   // collected at the top instead of a bar toggle — newest change first. A
+   // pull can also live in a lane below; this is the "what happened while I
+   // was away" glance, not an exclusive bucket.
+   const changed = pulls
+      .filter(p => isFresh(p.data, opts.lastSeen, opts.acked))
+      .sort((a, b) => Date.parse(b.data.updated_at) - Date.parse(a.data.updated_at));
+
    // bots/shipped stay reachable even when no human PRs need review
    const empty = !pulls.length && !bots.length && !closed.length;
    if (empty) {
@@ -123,6 +132,13 @@ export function Review({
                </Truncated>
             </Lane>
          )}
+         <Lane
+            title="Changed since your last look"
+            sub="new or updated while you were away"
+            pulls={changed}
+            cap={8}
+            opts={opts}
+         />
          <Lane title="Review queue" pulls={queue} cap={9} opts={{ ...opts, badge: false }} />
          <Lane
             title="Aging without full review"
