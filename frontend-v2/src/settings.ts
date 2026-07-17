@@ -1,6 +1,5 @@
-import { useSyncExternalStore } from 'react';
 import { ROT_DAYS, STARVE_DAYS } from './model/status';
-import { readStorage, writeStorage } from './storage';
+import { createPersistentStore } from './storage';
 
 /**
  * User settings: the knobs that are a matter of personal taste, not team
@@ -43,47 +42,25 @@ export const DEFAULT_SETTINGS: Settings = {
    showCryo: false,
 };
 
-const KEY = 'pd2.settings';
-
-function load(): Settings {
-   try {
-      return {
-         ...DEFAULT_SETTINGS,
-         ...(JSON.parse(readStorage(KEY) ?? '{}') as Partial<Settings>),
-      };
-   } catch {
-      return { ...DEFAULT_SETTINGS };
-   }
-}
-
-let settings = load();
-const listeners = new Set<() => void>();
+const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
 
 /** Plain getter for non-React readers (the store's glance guard). */
 export function getSettings(): Settings {
-   return settings;
+   return store.get();
 }
 
 export function setSettings(patch: Partial<Settings>) {
-   settings = { ...settings, ...patch };
-   writeStorage(KEY, JSON.stringify(settings));
-   for (const fn of listeners) fn();
+   store.set({ ...store.get(), ...patch });
 }
 
 /** Set or clear one repo's visibility override. null follows the org default. */
 export function setRepoPref(repo: string, pref: 'mute' | 'show' | null) {
-   const next = { ...settings.repoPrefs };
+   const next = { ...store.get().repoPrefs };
    if (pref == null) delete next[repo];
    else next[repo] = pref;
    setSettings({ repoPrefs: next });
 }
 
 export function useSettings(): Settings {
-   return useSyncExternalStore(
-      fn => {
-         listeners.add(fn);
-         return () => listeners.delete(fn);
-      },
-      () => settings
-   );
+   return store.useValue();
 }

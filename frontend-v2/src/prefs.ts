@@ -1,5 +1,4 @@
-import { useCallback, useSyncExternalStore } from 'react';
-import { readStorage, writeStorage } from './storage';
+import { createPersistentStore } from './storage';
 import type { Team } from './types';
 
 /**
@@ -13,22 +12,7 @@ export interface Scope {
    authors: string[];
 }
 
-const SCOPE_KEY = 'pd2.scope';
-
-function loadScope(): Scope {
-   try {
-      return {
-         repos: [],
-         authors: [],
-         ...(JSON.parse(readStorage(SCOPE_KEY) ?? '{}') as object),
-      };
-   } catch {
-      return { repos: [], authors: [] };
-   }
-}
-
-let scope = loadScope();
-const listeners = new Set<() => void>();
+const store = createPersistentStore<Scope>('pd2.scope', { repos: [], authors: [] });
 
 /**
  * Apply a scope from a shared URL for this session WITHOUT persisting it —
@@ -37,24 +21,13 @@ const listeners = new Set<() => void>();
  * as usual.
  */
 export function primeScope(next: Scope) {
-   scope = next;
-   for (const fn of listeners) fn();
+   store.prime(next);
 }
 
 export function useScope(): [Scope, (next: Scope) => void] {
-   const value = useSyncExternalStore(
-      fn => {
-         listeners.add(fn);
-         return () => listeners.delete(fn);
-      },
-      () => scope
-   );
-   const setScope = useCallback((next: Scope) => {
-      scope = next;
-      writeStorage(SCOPE_KEY, JSON.stringify(next));
-      for (const fn of listeners) fn();
-   }, []);
-   return [value, setScope];
+   // store.set is a stable module-level reference, so it's safe to hand out
+   // directly as the setter without wrapping it in useCallback.
+   return [store.useValue(), store.set];
 }
 
 export interface SiteConfig {
