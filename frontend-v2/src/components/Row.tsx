@@ -4,6 +4,7 @@ import { isIterating } from '../model/status';
 import { ago } from '../format';
 import { refreshPull } from '../store';
 import { Avatar, Pips, PullTitleLink, RepoRef, StatusBadge, WeightChip } from './bits';
+import { CardShell } from './Card';
 
 export interface RowOptions {
    /** hide the status badge when the lane already says it */
@@ -134,43 +135,32 @@ function CompactCard({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const fresh = Date.parse(d.updated_at) / 1000 > opts.lastSeen;
    const staleCr = pull.recrBy.length > 0;
    return (
-      <div
-         className={`pd-row relative flex items-start gap-2.5 border-t border-secondary px-4 py-2.5 first:border-t-0 hover:bg-muted ${fresh ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
-      >
-         {/* lives in the padding gutter: a changed card must not indent its content */}
-         {fresh && (
-            <span
-               className="dot-fresh absolute top-4 left-[5px]"
-               title="changed since your last look"
-            />
-         )}
-         <span className="mt-px flex-none">
-            <Avatar login={d.user.login} onClick={opts.onPerson} />
-         </span>
-         <span className="min-w-0 flex-1">
-            <span className="block text-sm leading-snug break-words">
-               <PullTitleLink repo={d.repo} number={d.number} title={d.title} />
-            </span>
-            <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-ink-3">
-               <RepoRef repo={d.repo} number={d.number} />
-               <span className="ml-auto inline-flex items-center gap-2.5">
-                  {pull.qaingBy && pull.status === 'needs_qa' && (
-                     <span className="flag-qaing" title={`${pull.qaingBy} is already testing this`}>
-                        ◉
-                     </span>
-                  )}
-                  <Pips label="CR" have={pull.crHave} req={d.status.cr_req} stale={staleCr} />
-                  <Pips label="QA" have={pull.qaHave} req={d.status.qa_req} />
-                  <span
-                     className="w-7 text-right tabular-nums"
-                     title={`opened ${pull.ageDays} ${pull.ageDays === 1 ? 'day' : 'days'} ago`}
-                  >
-                     {pull.ageDays}d
+      <CardShell
+         login={d.user.login}
+         onPerson={opts.onPerson}
+         repo={d.repo}
+         number={d.number}
+         title={d.title}
+         fresh={fresh}
+         className={`pd-row ${fresh ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
+         right={
+            <>
+               {pull.qaingBy && pull.status === 'needs_qa' && (
+                  <span className="flag-qaing" title={`${pull.qaingBy} is already testing this`}>
+                     ◉
                   </span>
+               )}
+               <Pips label="CR" have={pull.crHave} req={d.status.cr_req} stale={staleCr} />
+               <Pips label="QA" have={pull.qaHave} req={d.status.qa_req} />
+               <span
+                  className="w-7 text-right tabular-nums"
+                  title={`opened ${pull.ageDays} ${pull.ageDays === 1 ? 'day' : 'days'} ago`}
+               >
+                  {pull.ageDays}d
                </span>
-            </span>
-         </span>
-      </div>
+            </>
+         }
+      />
    );
 }
 

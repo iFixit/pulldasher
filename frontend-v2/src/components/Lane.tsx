@@ -59,13 +59,6 @@ export function Lane({
    );
 }
 
-export function DividerLine({ label }: { label: string }) {
-   return (
-      <div className="border-t border-secondary bg-muted/50 px-3.5 py-[5px] text-[11px] font-medium text-ink-3">
-         {label}
-      </div>
-   );
-}
 
 /**
  * The one truncation behavior: show `cap` items and a working "+ N more"

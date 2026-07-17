@@ -1,8 +1,9 @@
-import { useState } from 'react';
 import type { DerivedPull } from '../model/status';
 import type { PullData } from '../types';
 import { ago, pullKey } from '../format';
-import { Avatar, EmptyState, PullTitleLink, RepoRef } from '../components/bits';
+import { EmptyState } from '../components/bits';
+import { CardShell } from '../components/Card';
+import { BoardColumn } from '../components/Column';
 import { Row, type RowOptions } from '../components/Row';
 
 /**
@@ -62,37 +63,12 @@ function Column({
    opts: RowOptions;
    defaultOpen?: boolean;
 }) {
-   const [open, setOpen] = useState(defaultOpen);
    return (
-      <section className="min-w-0">
-         <h2 className="m-0">
-            <button
-               type="button"
-               aria-expanded={open}
-               onClick={() => setOpen(o => !o)}
-               className={`flex w-full items-center gap-2 border border-line bg-muted px-4 py-2.5 text-left text-sm font-semibold ${
-                  open ? 'rounded-t-2xl' : 'rounded-2xl'
-               }`}
-               title={open ? 'collapse column' : 'expand column'}
-            >
-               {title}
-               <span className="flex-1" />
-               <span className="text-xs font-normal text-ink-3 tabular-nums">{pulls.length}</span>
-            </button>
-         </h2>
-         {open && (
-            <div className="overflow-hidden rounded-b-2xl border border-t-0 border-line bg-surface">
-               {pulls.map(p => (
-                  <Row
-                     key={pullKey(p.data)}
-                     pull={p}
-                     opts={{ ...opts, badge: false, compact: true }}
-                  />
-               ))}
-               {!pulls.length && <div className="px-4 py-3 text-[13px] text-ink-3">none</div>}
-            </div>
-         )}
-      </section>
+      <BoardColumn count={pulls.length} header={title} defaultOpen={defaultOpen} empty="none">
+         {pulls.map(p => (
+            <Row key={pullKey(p.data)} pull={p} opts={{ ...opts, compact: true }} />
+         ))}
+      </BoardColumn>
    );
 }
 
@@ -101,29 +77,24 @@ function ClosedCard({ pull }: { pull: PullData }) {
    const merged = !!pull.merged_at;
    const closedAt = Date.parse(pull.closed_at ?? pull.updated_at) / 1000;
    return (
-      <div className="flex items-start gap-2.5 border-t border-secondary px-4 py-2.5 first:border-t-0 hover:bg-muted">
-         <span className="mt-px flex-none">
-            <Avatar login={pull.user.login} />
-         </span>
-         <span className="min-w-0 flex-1">
-            <span className="block text-sm leading-snug break-words">
-               <PullTitleLink repo={pull.repo} number={pull.number} title={pull.title} />
-            </span>
-            <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-ink-3">
-               <RepoRef repo={pull.repo} number={pull.number} />
-               <span className="ml-auto inline-flex items-center gap-2.5">
-                  <span
-                     className="font-medium"
-                     style={{ color: merged ? 'var(--ok)' : undefined }}
-                     title={merged ? 'merged' : 'closed without merging'}
-                  >
-                     {merged ? 'Merged' : 'Closed'}
-                  </span>
-                  <span className="w-16 text-right tabular-nums">{ago(closedAt)} ago</span>
+      <CardShell
+         login={pull.user.login}
+         repo={pull.repo}
+         number={pull.number}
+         title={pull.title}
+         right={
+            <>
+               <span
+                  className="font-medium"
+                  style={{ color: merged ? 'var(--ok)' : undefined }}
+                  title={merged ? 'merged' : 'closed without merging'}
+               >
+                  {merged ? 'Merged' : 'Closed'}
                </span>
-            </span>
-         </span>
-      </div>
+               <span className="w-16 text-right tabular-nums">{ago(closedAt)} ago</span>
+            </>
+         }
+      />
    );
 }
 
@@ -133,19 +104,11 @@ function ClosedColumn({ pulls }: { pulls: PullData[] }) {
       (a, b) => Date.parse(b.closed_at ?? b.updated_at) - Date.parse(a.closed_at ?? a.updated_at)
    );
    return (
-      <section className="min-w-0">
-         <h2 className="m-0 flex w-full items-center gap-2 rounded-t-2xl border border-line bg-muted px-4 py-2.5 text-sm font-semibold">
-            Recently Closed
-            <span className="flex-1" />
-            <span className="text-xs font-normal text-ink-3 tabular-nums">{pulls.length}</span>
-         </h2>
-         <div className="overflow-hidden rounded-b-2xl border border-t-0 border-line bg-surface">
-            {ordered.map(p => (
-               <ClosedCard key={pullKey(p)} pull={p} />
-            ))}
-            {!pulls.length && <div className="px-4 py-3 text-[13px] text-ink-3">none</div>}
-         </div>
-      </section>
+      <BoardColumn count={pulls.length} header="Recently Closed" empty="none">
+         {ordered.map(p => (
+            <ClosedCard key={pullKey(p)} pull={p} />
+         ))}
+      </BoardColumn>
    );
 }
 

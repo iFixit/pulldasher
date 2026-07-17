@@ -1,8 +1,8 @@
-import { useState } from 'react';
 import { pullKey } from '../format';
 import type { DerivedPull, Status } from '../model/status';
 import { crSort } from '../model/sort';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
+import { BoardColumn } from '../components/Column';
 import { Fold, RestGroup } from '../components/Lane';
 import { Row, type RowOptions } from '../components/Row';
 
@@ -35,43 +35,26 @@ function Column({
    pulls: DerivedPull[];
    opts: RowOptions;
 }) {
-   const [open, setOpen] = useState(true);
    if (!pulls.length) return null;
    const ordered = ['needs_cr', 'needs_recr'].includes(status) ? crSort(pulls) : pulls;
    return (
-      <section className="min-w-0">
-         <h2 className="m-0">
-            <button
-               type="button"
-               aria-expanded={open}
-               onClick={() => setOpen(o => !o)}
-               className={`flex w-full items-center gap-2 border border-line bg-muted px-4 py-2.5 text-left text-sm font-semibold ${
-                  open ? 'rounded-t-2xl' : 'rounded-2xl'
-               }`}
-               title={open ? 'collapse column' : 'expand column'}
-            >
+      <BoardColumn
+         count={pulls.length}
+         header={
+            <>
                <span
                   className="h-2 w-2 flex-none rounded-[3px]"
                   style={{ background: STATUS_DOT[status] }}
                />
                {STATUS_LABEL[status]}
                <span className="min-w-0 truncate text-xs font-normal text-ink-3">{hint}</span>
-               <span className="flex-1" />
-               <span className="text-xs font-normal text-ink-3 tabular-nums">{pulls.length}</span>
-            </button>
-         </h2>
-         {open && (
-            <div className="overflow-hidden rounded-b-2xl border border-t-0 border-line bg-surface">
-               {ordered.map(p => (
-                  <Row
-                     key={pullKey(p.data)}
-                     pull={p}
-                     opts={{ ...opts, badge: false, compact: true }}
-                  />
-               ))}
-            </div>
-         )}
-      </section>
+            </>
+         }
+      >
+         {ordered.map(p => (
+            <Row key={pullKey(p.data)} pull={p} opts={{ ...opts, compact: true }} />
+         ))}
+      </BoardColumn>
    );
 }
 
