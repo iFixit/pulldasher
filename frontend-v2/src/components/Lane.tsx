@@ -31,7 +31,7 @@ export function Lane({
    return (
       <section className="mb-7">
          <div className="mb-2 flex items-baseline gap-2.5">
-            <span className="text-base leading-snug font-semibold">{title}</span>
+            <h2 className="m-0 text-base leading-snug font-semibold">{title}</h2>
             <span className="text-xs text-ink-3">{sub}</span>
             <span className="flex-1" />
             <span className="text-xs text-ink-3 tabular-nums">{pulls.length}</span>
@@ -139,7 +139,7 @@ export function RestGroup({
       <div className="mb-7">
          {title && (
             <div className="mb-2 flex items-baseline gap-2.5">
-               <span className="text-base leading-snug font-semibold">{title}</span>
+               <h2 className="m-0 text-base leading-snug font-semibold">{title}</h2>
                <span className="text-xs text-ink-3">{sub}</span>
             </div>
          )}

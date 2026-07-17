@@ -13,14 +13,14 @@ import { Row, type RowOptions } from '../components/Row';
  */
 
 const COLUMNS: { status: Status; hint: string }[] = [
-   { status: 'ready', hint: 'merge these' },
+   { status: 'ready', hint: 'authors can merge' },
    { status: 'needs_recr', hint: 'reviewed, fix pushed' },
    { status: 'needs_cr', hint: 'the review pool' },
    { status: 'needs_qa', hint: 'CR done' },
    { status: 'ci_pending', hint: 'signed off, CI running' },
-   { status: 'ci_red', hint: 'authors fix first' },
-   { status: 'blocked', hint: 'dev/deploy blocks, conflicts' },
-   { status: 'draft', hint: 'not ready for eyes' },
+   { status: 'ci_red', hint: "usually the author's fix" },
+   { status: 'blocked', hint: 'dev/deploy blocked, or signed off but unmergeable' },
+   { status: 'draft', hint: 'not ready for review' },
 ];
 
 function Column({
@@ -39,21 +39,24 @@ function Column({
    const ordered = ['needs_cr', 'needs_recr'].includes(status) ? crSort(pulls) : pulls;
    return (
       <section className="min-w-0">
-         <button
-            type="button"
-            onClick={() => setOpen(o => !o)}
-            className="mb-2 flex w-full items-baseline gap-2 border-0 bg-transparent px-0 text-left"
-            title={open ? 'collapse column' : 'expand column'}
-         >
-            <span
-               className="h-2 w-2 flex-none self-center rounded-[3px]"
-               style={{ background: STATUS_DOT[status] }}
-            />
-            <span className="text-base leading-snug font-semibold">{STATUS_LABEL[status]}</span>
-            <span className="text-xs text-ink-3">{hint}</span>
-            <span className="flex-1" />
-            <span className="text-xs text-ink-3 tabular-nums">{pulls.length}</span>
-         </button>
+         <h2 className="m-0 mb-2">
+            <button
+               type="button"
+               aria-expanded={open}
+               onClick={() => setOpen(o => !o)}
+               className="flex w-full items-baseline gap-2 border-0 bg-transparent px-0 text-left"
+               title={open ? 'collapse column' : 'expand column'}
+            >
+               <span
+                  className="h-2 w-2 flex-none self-center rounded-[3px]"
+                  style={{ background: STATUS_DOT[status] }}
+               />
+               <span className="text-base leading-snug font-semibold">{STATUS_LABEL[status]}</span>
+               <span className="text-xs font-normal text-ink-3">{hint}</span>
+               <span className="flex-1" />
+               <span className="text-xs font-normal text-ink-3 tabular-nums">{pulls.length}</span>
+            </button>
+         </h2>
          {open && (
             <div className="overflow-hidden rounded-2xl border border-line bg-surface">
                {ordered.map(p => (

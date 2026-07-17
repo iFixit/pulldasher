@@ -20,3 +20,8 @@ export function githubUrl(repo: string, number: number) {
 export function shortRepo(repo: string) {
    return repo.replace(/^iFixit\//, '');
 }
+
+/** "1 PR" / "3 PRs" — counts read as grammar, not as a template. */
+export function n(count: number, singular: string, plural = `${singular}s`) {
+   return `${count} ${count === 1 ? singular : plural}`;
+}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ago } from './format';
+import { ago, n } from './format';
+import { readStorage, writeStorage } from './storage';
 import { STATUS_ORDER, type DerivedPull } from './model/status';
 import type { Team } from './types';
 import { usePulldasher } from './store';
@@ -15,6 +16,7 @@ import { Board } from './views/Board';
 
 type Lens = 'review' | 'mine' | 'people' | 'board';
 
+const THEME_KEY = 'pd2.theme';
 const BOT_LOGINS = new Set(['ifixit-systems']);
 const isBot = (p: DerivedPull) =>
    p.data.user.login.endsWith('[bot]') || BOT_LOGINS.has(p.data.user.login);
@@ -39,21 +41,37 @@ export function App() {
    const [onlyChanged, setOnlyChanged] = useState(false);
    const [showHidden, setShowHidden] = useState(false);
    const [teams, setTeams] = useState<Team[]>([]);
-   const [dark, setDark] = useState(() => matchMedia('(prefers-color-scheme: dark)').matches);
+   // explicit choice persists; otherwise follow the OS, live
+   const [dark, setDarkState] = useState(
+      () =>
+         readStorage(THEME_KEY) ??
+         (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+   );
+   const setDark = (next: string) => {
+      setDarkState(next);
+      writeStorage(THEME_KEY, next);
+   };
    const searchRef = useRef<HTMLInputElement>(null);
 
    useEffect(() => {
       void loadTeams().then(setTeams);
    }, []);
    useEffect(() => {
-      document.documentElement.classList.toggle('dark', dark);
+      document.documentElement.classList.toggle('dark', dark === 'dark');
    }, [dark]);
+   useEffect(() => {
+      if (readStorage(THEME_KEY)) return;
+      const mq = matchMedia('(prefers-color-scheme: dark)');
+      const follow = () => setDarkState(mq.matches ? 'dark' : 'light');
+      mq.addEventListener('change', follow);
+      return () => mq.removeEventListener('change', follow);
+   }, []);
    // v1's `/` hotkey: jump to the filter box from anywhere
    useEffect(() => {
       const onKey = (e: KeyboardEvent) => {
          if (e.key !== '/' || e.metaKey || e.ctrlKey) return;
          const t = e.target as HTMLElement;
-         if (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.isContentEditable) return;
+         if (['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName) || t.isContentEditable) return;
          e.preventDefault();
          searchRef.current?.focus();
          searchRef.current?.select();
@@ -132,6 +150,7 @@ export function App() {
    const tab = (id: Lens, label: string, count?: number) => (
       <button
          type="button"
+         aria-current={lens === id ? 'page' : undefined}
          onClick={() => setLens(id)}
          className={`pressable rounded-lg border-0 px-3 py-2 text-sm font-medium ${
             lens === id ? 'bg-secondary text-ink' : 'bg-transparent text-ink-2 hover:text-brand'
@@ -147,11 +166,12 @@ export function App() {
    return (
       <>
          <header className="sticky top-0 z-10 border-b border-line bg-surface">
-            <div className="mx-auto flex max-w-[1240px] items-center gap-3.5 px-5 py-2.5">
+            <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-x-3.5 gap-y-1 px-5 py-2.5">
                <span className="text-base font-semibold tracking-tight">
                   pull<em className="text-brand not-italic">dasher</em>
                </span>
                <span
+                  role="status"
                   className={`h-[7px] w-[7px] rounded-full ${
                      connection === 'connected'
                         ? 'conn-live bg-ok'
@@ -160,21 +180,23 @@ export function App() {
                           : 'bg-bad'
                   }`}
                   title={connection}
-               />
-               <span className="text-xs text-ink-3 tabular-nums">
+               >
+                  <span className="sr-only">live updates {connection}</span>
+               </span>
+               <span className="min-w-0 truncate text-xs text-ink-3 tabular-nums">
                   <b className="text-ink">
                      {isScoped ? `${scoped.length} of ${pulls.length}` : pulls.length}
                   </b>{' '}
-                  open ·{' '}
-                  {STATUS_ORDER.filter(s => statusCounts.get(s)).map((s, i) => (
+                  open
+                  {STATUS_ORDER.filter(s => statusCounts.get(s)).map(s => (
                      <span key={s}>
-                        {i > 0 && ' · '}
+                        {' · '}
                         {statusCounts.get(s)} {STATUS_LABEL[s].toLowerCase()}
                      </span>
                   ))}
                </span>
                <span className="flex-1" />
-               <span className="text-xs text-ink-3">{me ? `viewing as ${me}` : '…'}</span>
+               <span className="text-xs text-ink-3">{me ? `signed in as ${me}` : '…'}</span>
                <a
                   href="/"
                   className="text-xs text-ink-3 hover:text-brand"
@@ -184,10 +206,10 @@ export function App() {
                </a>
                <button
                   type="button"
-                  onClick={() => setDark(d => !d)}
+                  onClick={() => setDark(dark === 'dark' ? 'light' : 'dark')}
                   className="pressable h-8 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium whitespace-nowrap hover:bg-muted"
                >
-                  ◐ theme
+                  {dark === 'dark' ? 'light mode' : 'dark mode'}
                </button>
             </div>
             <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-2 px-5 pb-2.5">
@@ -226,7 +248,7 @@ export function App() {
                            ? 'border-brand bg-brand-50 text-brand-700'
                            : 'border-line bg-surface text-ink-3 hover:text-brand'
                      }`}
-                     title="Cryogenic-Storage pulls and hide-by-default repos"
+                     title="Cryogenic-Storage PRs and hide-by-default repos"
                   >
                      ❄ {hiddenCount} hidden
                   </button>
@@ -273,8 +295,8 @@ export function App() {
                <div className="notice-inner flex items-center gap-2 rounded-lg border border-brand bg-brand-50 px-3 py-[7px] text-brand-700">
                   <span>●</span>
                   <span className="tabular-nums">
-                     <b className="font-semibold">{changedCount}</b> PRs changed since your last
-                     look
+                     <b className="font-semibold">{n(changedCount, 'PR')}</b> changed since your
+                     last look
                   </span>
                   <button
                      type="button"
