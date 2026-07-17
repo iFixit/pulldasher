@@ -9,6 +9,22 @@ export function Rows({ children }: { children: ReactNode }) {
    );
 }
 
+/** The shared lane/group header: title, optional subtitle, optional right-aligned count. */
+function GroupHeader({ title, sub, count }: { title: string; sub?: string; count?: number }) {
+   return (
+      <div className="mb-2 flex items-baseline gap-2.5">
+         <h2 className="m-0 text-base leading-snug font-semibold">{title}</h2>
+         {sub && <span className="text-xs text-ink-3">{sub}</span>}
+         {count != null && (
+            <>
+               <span className="flex-1" />
+               <span className="text-xs text-ink-3 tabular-nums">{count}</span>
+            </>
+         )}
+      </div>
+   );
+}
+
 export function Lane({
    title,
    sub,
@@ -31,12 +47,7 @@ export function Lane({
    if (!pulls.length && !children) return null;
    return (
       <section className="mb-7">
-         <div className="mb-2 flex items-baseline gap-2.5">
-            <h2 className="m-0 text-base leading-snug font-semibold">{title}</h2>
-            {sub && <span className="text-xs text-ink-3">{sub}</span>}
-            <span className="flex-1" />
-            <span className="text-xs text-ink-3 tabular-nums">{count ?? pulls.length}</span>
-         </div>
+         <GroupHeader title={title} sub={sub} count={count ?? pulls.length} />
          <Rows>
             {children}
             <Truncated cap={cap} id={`lane:${title}`}>
@@ -176,13 +187,8 @@ export function RestGroup({
 }) {
    return (
       <div className="mb-7">
-         {title && (
-            <div className="mb-2 flex items-baseline gap-2.5">
-               <h2 className="m-0 text-base leading-snug font-semibold">{title}</h2>
-               <span className="text-xs text-ink-3">{sub}</span>
-            </div>
-         )}
-         <div className="overflow-hidden rounded-2xl border border-line bg-surface">{children}</div>
+         {title && <GroupHeader title={title} sub={sub} />}
+         <Rows>{children}</Rows>
       </div>
    );
 }
