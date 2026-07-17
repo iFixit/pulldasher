@@ -137,9 +137,15 @@ function CompactCard({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const staleCr = pull.recrBy.length > 0;
    return (
       <div
-         className={`pd-row flex items-start gap-2.5 border-t border-secondary px-4 py-2.5 first:border-t-0 hover:bg-muted ${fresh ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
+         className={`pd-row relative flex items-start gap-2.5 border-t border-secondary px-4 py-2.5 first:border-t-0 hover:bg-muted ${fresh ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
       >
-         {fresh && <span className="dot-fresh mt-1.5" title="changed since your last look" />}
+         {/* lives in the padding gutter: a changed card must not indent its content */}
+         {fresh && (
+            <span
+               className="dot-fresh absolute top-4 left-[5px]"
+               title="changed since your last look"
+            />
+         )}
          <span className="mt-px flex-none">
             <Avatar login={d.user.login} onClick={opts.onPerson} />
          </span>
@@ -194,9 +200,15 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
 
    return (
       <div
-         className={`pd-row flex items-center gap-2.5 border-t border-secondary py-2 pr-3.5 pl-3.5 first:border-t-0 hover:bg-muted ${fresh ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
+         className={`pd-row relative flex items-center gap-2.5 border-t border-secondary py-2 pr-3.5 pl-3.5 first:border-t-0 hover:bg-muted ${fresh ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
       >
-         {fresh && <span className="dot-fresh" title="changed since your last look" />}
+         {/* lives in the padding gutter: a changed row must not indent its content */}
+         {fresh && (
+            <span
+               className="dot-fresh absolute top-1/2 left-[3px] -translate-y-1/2"
+               title="changed since your last look"
+            />
+         )}
          {opts.badge === false ? null : <StatusBadge status={pull.status} />}
          <Avatar login={d.user.login} onClick={opts.onPerson} />
          {/* the title is how a reviewer decides: never truncate it, wrap instead */}
