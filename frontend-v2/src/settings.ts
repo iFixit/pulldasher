@@ -28,6 +28,10 @@ export interface Settings {
    draftsMode: 'mine' | 'all';
    /** your default for Cryogenic-Storage (parked) PRs */
    showCryo: boolean;
+   /** desktop notifications when your PR is ready to merge / a re-review is owed */
+   notify: boolean;
+   /** play a chime alongside those notifications */
+   notifySound: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -40,6 +44,8 @@ export const DEFAULT_SETTINGS: Settings = {
    repoPrefs: {},
    draftsMode: 'mine',
    showCryo: false,
+   notify: false,
+   notifySound: false,
 };
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);

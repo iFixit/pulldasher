@@ -6,6 +6,7 @@ import { usePulldasher } from './store';
 import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
 import { loadSiteConfig, primeScope, useScope } from './prefs';
 import { getSettings, useSettings } from './settings';
+import { useNotifications } from './notifications';
 import { matchesQuery } from './model/query';
 import { CRYO_KEY, repoHidden } from './model/visibility';
 import { Legend } from './components/Legend';
@@ -153,6 +154,8 @@ export function App() {
       lastSeen,
       acked,
    } = usePulldasher();
+   // desktop notifications watch the whole board, not the current filter
+   useNotifications(pulls, me);
    const [scope] = useScope();
    // a v1 bookmark (?repo=…&author=…&cryo=1…) opens Classic configured the
    // same way; the chip below shows what it applied and dismisses it
