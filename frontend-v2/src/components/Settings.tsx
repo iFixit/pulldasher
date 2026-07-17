@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { markAllSeen } from '../store';
+import { markAllSeen, refreshAll } from '../store';
 import { type Settings as SettingsShape, setRepoPref, setSettings, useSettings } from '../settings';
 import { Segmented } from './bits';
 import { RepoManagerGroup } from './RepoManager';
@@ -83,6 +83,7 @@ export function Settings({
    const panelRef = useRef<HTMLDivElement>(null);
    const triggerRef = useRef<HTMLButtonElement>(null);
    const [seenNote, setSeenNote] = useState(false);
+   const [refreshNote, setRefreshNote] = useState('');
 
    useEffect(() => {
       if (!open) return;
@@ -238,6 +239,33 @@ export function Settings({
                         prefs={s.repoPrefs}
                         onRepoPref={setRepoPref}
                      />
+
+                     <Group title="Data">
+                        <span className="text-xs text-ink-3">
+                           Re-fetch every open PR from GitHub now, instead of waiting for the next
+                           webhook. The board updates as each one comes back.
+                        </span>
+                        <div className="flex items-center gap-3">
+                           <button
+                              type="button"
+                              onClick={() => {
+                                 const n = refreshAll();
+                                 setRefreshNote(
+                                    n
+                                       ? `refreshing ${n} PR${n === 1 ? '' : 's'}…`
+                                       : 'nothing to refresh'
+                                 );
+                                 setTimeout(() => setRefreshNote(''), 2500);
+                              }}
+                              className="pressable inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink-2 hover:text-brand"
+                           >
+                              Refresh all
+                           </button>
+                           {refreshNote && (
+                              <span className="text-xs text-ink-3">{refreshNote}</span>
+                           )}
+                        </div>
+                     </Group>
 
                      <Group title="Changed since your last look">
                         <Field

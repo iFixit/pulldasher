@@ -201,3 +201,21 @@ export function usePulldasher(): Snapshot {
 }
 
 export const refreshPull = backend.refreshPull;
+
+/**
+ * Settings action: ask the server to re-fetch every open pull from GitHub.
+ * The socket protocol has no bulk refresh, so this fans out one per-pull
+ * refresh (the same event a row's refresh button sends) and lets the server's
+ * serial refresh queue work through them. Returns how many were queued so the
+ * UI can say so. Closed pulls are historical, so they're left out.
+ */
+export function refreshAll(): number {
+   let n = 0;
+   for (const p of raw.values()) {
+      if (p.state === 'open') {
+         backend.refreshPull(p.repo, p.number);
+         n++;
+      }
+   }
+   return n;
+}
