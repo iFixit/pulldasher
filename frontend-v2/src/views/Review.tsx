@@ -1,4 +1,5 @@
 import type { DerivedPull } from '../model/status';
+import { pullKey } from '../format';
 import { crSort } from '../model/sort';
 import type { PullData } from '../types';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
@@ -167,7 +168,7 @@ export function Review({
             >
                <Truncated>
                   {closed.map(p => (
-                     <ClosedRow key={`${p.repo}#${p.number}`} pull={p} />
+                     <ClosedRow key={pullKey(p)} pull={p} />
                   ))}
                </Truncated>
             </Fold>

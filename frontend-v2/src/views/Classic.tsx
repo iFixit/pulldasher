@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import type { DerivedPull } from '../model/status';
 import type { PullData } from '../types';
-import { ago, githubUrl } from '../format';
-import { Avatar, EmptyState, RepoRef } from '../components/bits';
+import { ago, pullKey } from '../format';
+import { Avatar, EmptyState, PullTitleLink, RepoRef } from '../components/bits';
 import { Row, type RowOptions } from '../components/Row';
 
 /**
@@ -84,7 +84,7 @@ function Column({
             <div className="overflow-hidden rounded-b-2xl border border-t-0 border-line bg-surface">
                {pulls.map(p => (
                   <Row
-                     key={`${p.data.repo}#${p.data.number}`}
+                     key={pullKey(p.data)}
                      pull={p}
                      opts={{ ...opts, badge: false, compact: true }}
                   />
@@ -107,14 +107,7 @@ function ClosedCard({ pull }: { pull: PullData }) {
          </span>
          <span className="min-w-0 flex-1">
             <span className="block text-sm leading-snug break-words">
-               <a
-                  className="font-medium hover:underline hover:underline-offset-2"
-                  href={githubUrl(pull.repo, pull.number)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-               >
-                  {pull.title}
-               </a>
+               <PullTitleLink repo={pull.repo} number={pull.number} title={pull.title} />
             </span>
             <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-ink-3">
                <RepoRef repo={pull.repo} number={pull.number} />
@@ -148,7 +141,7 @@ function ClosedColumn({ pulls }: { pulls: PullData[] }) {
          </h2>
          <div className="overflow-hidden rounded-b-2xl border border-t-0 border-line bg-surface">
             {ordered.map(p => (
-               <ClosedCard key={`${p.repo}#${p.number}`} pull={p} />
+               <ClosedCard key={pullKey(p)} pull={p} />
             ))}
             {!pulls.length && <div className="px-4 py-3 text-[13px] text-ink-3">none</div>}
          </div>

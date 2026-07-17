@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { pullKey } from '../format';
 import { STATUS_ORDER, type DerivedPull } from '../model/status';
 import type { Team } from '../types';
 import { Avatar } from '../components/bits';
@@ -206,7 +207,7 @@ export function People({
                   hint="waiting on another reviewer"
                >
                   {mine.map(p => (
-                     <Row key={`${p.data.repo}#${p.data.number}`} pull={p} opts={opts} />
+                     <Row key={pullKey(p.data)} pull={p} opts={opts} />
                   ))}
                </Fold>
                <Fold
@@ -216,7 +217,7 @@ export function People({
                   hint="their move or waiting"
                >
                   {rest.map(p => (
-                     <Row key={`${p.data.repo}#${p.data.number}`} pull={p} opts={opts} />
+                     <Row key={pullKey(p.data)} pull={p} opts={opts} />
                   ))}
                </Fold>
                {selectedPerson && (
@@ -227,7 +228,7 @@ export function People({
                      hint="worth a nudge"
                   >
                      {owed.map(p => (
-                        <Row key={`${p.data.repo}#${p.data.number}`} pull={p} opts={opts} />
+                        <Row key={pullKey(p.data)} pull={p} opts={opts} />
                      ))}
                   </Fold>
                )}

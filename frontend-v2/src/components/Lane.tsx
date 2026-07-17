@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { pullKey } from '../format';
 import type { DerivedPull } from '../model/status';
 import { Row, type RowOptions } from './Row';
 
@@ -42,7 +43,7 @@ export function Lane({
          <Rows>
             {children}
             {shown.map(p => (
-               <Row key={`${p.data.repo}#${p.data.number}`} pull={p} opts={opts} />
+               <Row key={pullKey(p.data)} pull={p} opts={opts} />
             ))}
             {more > 0 && (
                <button

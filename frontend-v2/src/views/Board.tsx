@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { pullKey } from '../format';
 import type { DerivedPull, Status } from '../model/status';
 import { crSort } from '../model/sort';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
@@ -63,7 +64,7 @@ function Column({
             <div className="overflow-hidden rounded-b-2xl border border-t-0 border-line bg-surface">
                {ordered.map(p => (
                   <Row
-                     key={`${p.data.repo}#${p.data.number}`}
+                     key={pullKey(p.data)}
                      pull={p}
                      opts={{ ...opts, badge: false, compact: true }}
                   />
@@ -105,7 +106,7 @@ export function Board({
             <RestGroup>
                <Fold dot="var(--ink-3)" count={bots.length} label="bot PRs" hint="dependency bumps">
                   {bots.map(p => (
-                     <Row key={`${p.data.repo}#${p.data.number}`} pull={p} opts={opts} />
+                     <Row key={pullKey(p.data)} pull={p} opts={opts} />
                   ))}
                </Fold>
             </RestGroup>

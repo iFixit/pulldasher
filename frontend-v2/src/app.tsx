@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ago, n } from './format';
+import { ago, n, shortRepo } from './format';
 import { readStorage, writeStorage } from './storage';
 import { STATUS_ORDER, type DerivedPull } from './model/status';
 import type { Team } from './types';
@@ -152,7 +152,7 @@ export function App() {
                (!hiddenRepos.has(p.data.repo) ||
                   scope.repos.includes(p.data.repo) ||
                   // a legacy URL naming the repo means "show it", hidden or not
-                  legacy?.repos.includes(p.data.repo.replace(/.*\//, '')))
+                  legacy?.repos.includes(shortRepo(p.data.repo)))
          );
       if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.data.repo));
       // bots bypass the people filter on purpose: dependency bumps need review

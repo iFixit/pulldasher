@@ -1,5 +1,5 @@
 import type { Status, Weight } from '../model/status';
-import { loginHue, shortRepo } from '../format';
+import { githubUrl, loginHue, shortRepo } from '../format';
 
 export const STATUS_LABEL: Record<Status, string> = {
    ready: 'Ready to merge',
@@ -141,6 +141,28 @@ export function Pips({
             </span>
          )}
       </span>
+   );
+}
+
+/** The full-title GitHub link every row variant renders — never truncated. */
+export function PullTitleLink({
+   repo,
+   number,
+   title,
+}: {
+   repo: string;
+   number: number;
+   title: string;
+}) {
+   return (
+      <a
+         className="font-medium hover:underline hover:underline-offset-2"
+         href={githubUrl(repo, number)}
+         target="_blank"
+         rel="noopener noreferrer"
+      >
+         {title}
+      </a>
    );
 }
 

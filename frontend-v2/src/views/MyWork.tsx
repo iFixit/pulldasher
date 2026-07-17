@@ -1,6 +1,6 @@
 import type { DerivedPull } from '../model/status';
 import type { PullData } from '../types';
-import { ago } from '../format';
+import { ago, pullKey } from '../format';
 import { EmptyState } from '../components/bits';
 import { Fold, Lane, RestGroup, Truncated } from '../components/Lane';
 import { Row, type RowOptions } from '../components/Row';
@@ -74,7 +74,7 @@ export function MyWork({
          >
             {move.map(p => (
                <div
-                  key={`${p.data.repo}#${p.data.number}`}
+                  key={pullKey(p.data)}
                   className="flex items-stretch border-t border-secondary first:border-t-0"
                >
                   <span className="flex w-[130px] flex-none items-center pl-3.5 text-xs font-semibold text-brand-700">
@@ -100,7 +100,7 @@ export function MyWork({
          >
             {waiting.map(p => (
                <div
-                  key={`${p.data.repo}#${p.data.number}`}
+                  key={pullKey(p.data)}
                   className="flex items-center border-t border-secondary first:border-t-0"
                >
                   <span className="min-w-0 flex-1">
@@ -127,7 +127,7 @@ export function MyWork({
                >
                   <Truncated>
                      {shipped.map(p => (
-                        <ClosedRow key={`${p.repo}#${p.number}`} pull={p} />
+                        <ClosedRow key={pullKey(p)} pull={p} />
                      ))}
                   </Truncated>
                </Fold>

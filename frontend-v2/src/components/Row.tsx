@@ -1,9 +1,9 @@
 import { memo, useState } from 'react';
 import type { DerivedPull } from '../model/status';
 import { isIterating } from '../model/status';
-import { ago, githubUrl } from '../format';
+import { ago } from '../format';
 import { refreshPull } from '../store';
-import { Avatar, Pips, RepoRef, StatusBadge, WeightChip } from './bits';
+import { Avatar, Pips, PullTitleLink, RepoRef, StatusBadge, WeightChip } from './bits';
 
 export interface RowOptions {
    /** hide the status badge when the lane already says it */
@@ -149,14 +149,7 @@ function CompactCard({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          </span>
          <span className="min-w-0 flex-1">
             <span className="block text-sm leading-snug break-words">
-               <a
-                  className="font-medium hover:underline hover:underline-offset-2"
-                  href={githubUrl(d.repo, d.number)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-               >
-                  {d.title}
-               </a>
+               <PullTitleLink repo={d.repo} number={d.number} title={d.title} />
             </span>
             <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-ink-3">
                <RepoRef repo={d.repo} number={d.number} />
@@ -206,14 +199,7 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          <Avatar login={d.user.login} onClick={opts.onPerson} />
          {/* the title is how a reviewer decides: never truncate it, wrap instead */}
          <span className="min-w-0 flex-1 text-sm break-words">
-            <a
-               className="font-medium hover:underline hover:underline-offset-2"
-               href={githubUrl(d.repo, d.number)}
-               target="_blank"
-               rel="noopener noreferrer"
-            >
-               {d.title}
-            </a>
+            <PullTitleLink repo={d.repo} number={d.number} title={d.title} />
          </span>
          <RowActions pull={pull} />
          {isIterating(d) && (

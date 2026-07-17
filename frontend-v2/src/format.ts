@@ -17,8 +17,15 @@ export function githubUrl(repo: string, number: number) {
    return `https://github.com/${repo}/pull/${number}`;
 }
 
+/** Owner stripped whoever it is — v1's getRepoName() did the same, and the
+ * legacy ?repo= filter compares against these short names. */
 export function shortRepo(repo: string) {
-   return repo.replace(/^iFixit\//, '');
+   return repo.replace(/.*\//, '');
+}
+
+/** The one true row key. */
+export function pullKey(d: { repo: string; number: number }) {
+   return `${d.repo}#${d.number}`;
 }
 
 /** "1 PR" / "3 PRs" — counts read as grammar, not as a template. */

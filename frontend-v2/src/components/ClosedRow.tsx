@@ -1,6 +1,6 @@
 import type { PullData } from '../types';
-import { ago, githubUrl } from '../format';
-import { Avatar, RepoRef } from './bits';
+import { ago } from '../format';
+import { Avatar, PullTitleLink, RepoRef } from './bits';
 
 /**
  * Full-width row: the badge, avatar, and right cluster are all flex-none, so
@@ -21,14 +21,7 @@ export function ClosedRow({ pull }: { pull: PullData }) {
          </span>
          <Avatar login={pull.user.login} />
          <span className="min-w-0 flex-1 text-sm break-words">
-            <a
-               className="font-medium hover:underline hover:underline-offset-2"
-               href={githubUrl(pull.repo, pull.number)}
-               target="_blank"
-               rel="noopener noreferrer"
-            >
-               {pull.title}
-            </a>
+            <PullTitleLink repo={pull.repo} number={pull.number} title={pull.title} />
          </span>
          <span className="flex flex-none items-center gap-2.5 text-xs whitespace-nowrap text-ink-3">
             <RepoRef repo={pull.repo} number={pull.number} />
