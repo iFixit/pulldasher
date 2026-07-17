@@ -2,7 +2,7 @@ import { memo, useState } from 'react';
 import type { DerivedPull } from '../model/status';
 import { isIterating } from '../model/status';
 import { rowNote } from '../model/actions';
-import { pullKey } from '../format';
+import { ago, pullKey } from '../format';
 import { ackPull, isFresh, refreshPull } from '../store';
 import { AgeStamp, DiffSize, FreshTag, RepoRef, SigPips, StatusBadge, WeightMeter } from './bits';
 import { CardShell } from './Card';
@@ -106,13 +106,15 @@ function rowFlags(pull: DerivedPull, showIterating: boolean, aging: boolean): Fl
       });
    if (p.ci === 'pending' && p.status !== 'ci_pending')
       flags.push({ key: 'ci', tone: 'note', label: 'CI…', detail: 'CI is still running.' });
-   if (showIterating)
+   if (showIterating) {
+      const pushedAt = p.headPushedAt ?? Date.parse(p.data.updated_at) / 1000;
       flags.push({
          key: 'iterating',
          tone: 'note',
          label: 'recent changes',
-         detail: 'Pushed in the last half hour; it may still be moving, so hold off.',
+         detail: `Pushed ${ago(pushedAt)} ago; it may still be moving, so hold off.`,
       });
+   }
    return flags;
 }
 
