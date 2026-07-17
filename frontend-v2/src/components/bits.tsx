@@ -217,13 +217,13 @@ export function Pips({
             {label}
          </span>
          {none ? (
-            <span aria-hidden className="flex w-[30px] justify-end text-xs text-ink-3 opacity-60">
+            <span aria-hidden className="flex w-[30px] justify-start text-xs text-ink-3 opacity-60">
                –
             </span>
          ) : (
             <span
                aria-hidden
-               className={`flex w-[30px] items-center justify-end gap-1 ${
+               className={`flex w-[30px] items-center justify-start gap-1 ${
                   mine || owedByMe ? 'pip-mine' : ''
                }`}
             >
