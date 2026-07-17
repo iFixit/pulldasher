@@ -30,6 +30,17 @@ function loadScope(): Scope {
 let scope = loadScope();
 const listeners = new Set<() => void>();
 
+/**
+ * Apply a scope from a shared URL for this session WITHOUT persisting it —
+ * opening a teammate's link must not silently overwrite your saved board.
+ * The moment the user edits the scope themselves, useScope's setter saves
+ * as usual.
+ */
+export function primeScope(next: Scope) {
+   scope = next;
+   for (const fn of listeners) fn();
+}
+
 export function useScope(): [Scope, (next: Scope) => void] {
    const value = useSyncExternalStore(
       fn => {

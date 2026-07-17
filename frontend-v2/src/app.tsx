@@ -5,7 +5,8 @@ import { STATUS_ORDER, type DerivedPull } from './model/status';
 import type { Team } from './types';
 import { isFresh, usePulldasher } from './store';
 import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
-import { loadSiteConfig, useScope } from './prefs';
+import { loadSiteConfig, primeScope, useScope } from './prefs';
+import { matchesQuery } from './model/query';
 import { Legend } from './components/Legend';
 import { ScopeControl } from './components/Scope';
 import { STATUS_LABEL } from './components/bits';
@@ -19,8 +20,24 @@ type Lens = 'review' | 'mine' | 'people' | 'classic';
 
 const LENSES: Lens[] = ['review', 'mine', 'people', 'classic'];
 
-/** Lens and drill-down selections live in the hash: shareable, bookmarkable. */
-function readHash() {
+/**
+ * The whole view lives in the hash — lens, drill-downs, query, scope,
+ * toggles — so any board is pasteable and a bookmark is a saved view
+ * (v1's superpower, restored). Defaults are omitted, so a plain /v2/ URL
+ * stays plain.
+ */
+interface HashState {
+   lens: Lens;
+   person: string | null;
+   team: string | null;
+   q: string;
+   repos: string[];
+   authors: string[];
+   hidden: boolean;
+   changed: boolean;
+}
+
+function readHash(): HashState {
    const p = new URLSearchParams(location.hash.slice(1));
    let lens = p.get('lens') as Lens | null;
    // the Board lens merged into Classic (same columns, real justification);
@@ -30,16 +47,32 @@ function readHash() {
       lens: lens && LENSES.includes(lens) ? lens : ('review' as Lens),
       person: p.get('person'),
       team: p.get('team'),
+      q: p.get('q') ?? '',
+      repos: p.get('repos')?.split(',').filter(Boolean) ?? [],
+      authors: p.get('authors')?.split(',').filter(Boolean) ?? [],
+      hidden: p.get('hidden') === '1',
+      changed: p.get('changed') === '1',
    };
 }
 
-function writeHash(lens: Lens, person: string | null, team: string | null) {
+function buildHash(s: HashState): string {
    const p = new URLSearchParams();
-   if (lens !== 'review') p.set('lens', lens);
-   if (person) p.set('person', person);
-   if (team) p.set('team', team);
-   const next = p.toString();
-   history.replaceState(null, '', next ? `#${next}` : location.pathname + location.search);
+   if (s.lens !== 'review') p.set('lens', s.lens);
+   if (s.person) p.set('person', s.person);
+   if (s.team) p.set('team', s.team);
+   if (s.q) p.set('q', s.q);
+   if (s.repos.length) p.set('repos', s.repos.join(','));
+   if (s.authors.length) p.set('authors', s.authors.join(','));
+   if (s.hidden) p.set('hidden', '1');
+   if (s.changed) p.set('changed', '1');
+   return p.toString();
+}
+
+// A shared link's scope applies for the session without touching the
+// visitor's saved scope; their own edits still persist as usual.
+const urlState = readHash();
+if (urlState.repos.length || urlState.authors.length) {
+   primeScope({ repos: urlState.repos, authors: urlState.authors });
 }
 
 const THEME_KEY = 'pd2.theme';
@@ -119,12 +152,12 @@ export function App() {
       if (legacy && !location.hash.includes('lens=')) return 'classic';
       return h.lens;
    });
-   const [person, setPerson] = useState<string | null>(() => readHash().person);
-   const [team, setTeam] = useState<string | null>(() => readHash().team);
-   const [query, setQuery] = useState('');
-   const [onlyChanged, setOnlyChanged] = useState(false);
+   const [person, setPerson] = useState<string | null>(() => urlState.person);
+   const [team, setTeam] = useState<string | null>(() => urlState.team);
+   const [query, setQuery] = useState(() => urlState.q);
+   const [onlyChanged, setOnlyChanged] = useState(() => urlState.changed);
    const [showHidden, setShowHidden] = useState(
-      () => !!legacy && (legacy.cryo || legacy.showAllRepos)
+      () => urlState.hidden || (!!legacy && (legacy.cryo || legacy.showAllRepos))
    );
    const [teams, setTeams] = useState<Team[]>([]);
    const [extraBots, setExtraBots] = useState<ReadonlySet<string>>(new Set());
@@ -150,15 +183,40 @@ export function App() {
          setTeams(c.teams);
       });
    }, []);
+   // View changes (lens, person, team) earn a history entry so the back
+   // button navigates between boards; filter tweaks replace in place so
+   // typing a query doesn't bury history under keystrokes.
+   const prevView = useRef({ lens, person, team });
    useEffect(() => {
-      writeHash(lens, person, team);
-   }, [lens, person, team]);
+      const next = buildHash({
+         lens,
+         person,
+         team,
+         q: query,
+         repos: scope.repos,
+         authors: scope.authors,
+         hidden: showHidden,
+         changed: onlyChanged,
+      });
+      if (next === location.hash.slice(1)) return;
+      const prev = prevView.current;
+      prevView.current = { lens, person, team };
+      if (prev.lens !== lens || prev.person !== person || prev.team !== team) {
+         // fires hashchange; the listener below re-reads idempotently
+         location.hash = next;
+      } else {
+         history.replaceState(null, '', next ? `#${next}` : location.pathname + location.search);
+      }
+   }, [lens, person, team, query, scope, showHidden, onlyChanged]);
    useEffect(() => {
       const onHash = () => {
          const h = readHash();
          setLens(h.lens);
          setPerson(h.person);
          setTeam(h.team);
+         setQuery(h.q);
+         setShowHidden(h.hidden);
+         setOnlyChanged(h.changed);
       };
       window.addEventListener('hashchange', onHash);
       return () => window.removeEventListener('hashchange', onHash);
@@ -220,17 +278,7 @@ export function App() {
       // no matter whose work you follow (they land in the bots fold, not lanes)
       if (scope.authors.length)
          out = out.filter(p => isBot(p) || scope.authors.includes(p.data.user.login));
-      if (query) {
-         const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-         out = out.filter(p =>
-            terms.every(
-               t =>
-                  p.data.title.toLowerCase().includes(t) ||
-                  p.data.repo.toLowerCase().includes(t) ||
-                  p.data.user.login.toLowerCase().includes(t)
-            )
-         );
-      }
+      if (query) out = out.filter(p => matchesQuery(p, query));
       return out;
    }, [pulls, scope, query, showHidden, hiddenRepos, legacy, me, isBot]);
 
@@ -347,8 +395,9 @@ export function App() {
                <input
                   ref={searchRef}
                   type="search"
-                  aria-label="Filter PRs by title, repo, or author"
+                  aria-label="Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x"
                   placeholder="filter (press /)"
+                  title="text, #number, label:x, status:x, older:5, repo:x, author:x"
                   value={query}
                   onChange={e => setQuery(e.target.value)}
                   className="h-8 w-[170px] rounded-lg border border-line bg-surface px-2.5 text-[13px]"
