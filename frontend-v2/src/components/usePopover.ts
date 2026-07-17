@@ -61,7 +61,10 @@ export function usePopover<Panel extends HTMLElement, Trigger extends HTMLElemen
       // only a pinned (clicked/keyboard) open moves focus into the panel
       if (pinned.current) panelRef.current?.focus();
       const clickAway = (e: MouseEvent) => {
-         if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+         const t = e.target as Node;
+         // the panel may be portaled outside the root, so check it explicitly
+         if (rootRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+         setOpen(false);
       };
       const onKey = (e: KeyboardEvent) => {
          if (e.key !== 'Escape') return;
