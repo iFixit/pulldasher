@@ -10,10 +10,22 @@ export function Rows({ children }: { children: ReactNode }) {
 }
 
 /** The shared lane/group header: title, optional subtitle, optional right-aligned count. */
-function GroupHeader({ title, sub, count }: { title: string; sub?: string; count?: number }) {
+function GroupHeader({
+   title,
+   sub,
+   count,
+   compact,
+}: {
+   title: string;
+   sub?: string;
+   count?: number;
+   compact?: boolean;
+}) {
    return (
-      <div className="mb-2 flex items-baseline gap-2.5">
-         <h2 className="m-0 text-base leading-snug font-semibold">{title}</h2>
+      <div className={`flex items-baseline gap-2.5 ${compact ? 'mb-1' : 'mb-2'}`}>
+         <h2 className={`m-0 font-semibold leading-snug ${compact ? 'text-sm' : 'text-base'}`}>
+            {title}
+         </h2>
          {sub && <span className="text-xs text-ink-3">{sub}</span>}
          {count != null && (
             <>
@@ -45,12 +57,19 @@ export function Lane({
    children?: ReactNode;
 }) {
    if (!pulls.length && !children) return null;
+   // compact packs ~40% more rows per screen, so show more before folding
+   const shown = opts.compact ? Math.ceil(cap * 1.5) : cap;
    return (
-      <section className="mb-7">
-         <GroupHeader title={title} sub={sub} count={count ?? pulls.length} />
+      <section className={opts.compact ? 'mb-4' : 'mb-7'}>
+         <GroupHeader
+            title={title}
+            sub={sub}
+            count={count ?? pulls.length}
+            compact={opts.compact}
+         />
          <Rows>
             {children}
-            <Truncated cap={cap} id={`lane:${title}`}>
+            <Truncated cap={shown} id={`lane:${title}`}>
                {pulls.map(p => (
                   <Row key={pullKey(p.data)} pull={p} opts={opts} />
                ))}

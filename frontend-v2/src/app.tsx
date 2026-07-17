@@ -410,8 +410,9 @@ export function App() {
          onPerson,
          ageWarnDays: settings.ageWarnDays,
          ageRotDays: settings.ageRotDays,
+         compact: settings.density === 'compact',
       }),
-      [me, lastSeen, acked, onPerson, settings.ageWarnDays, settings.ageRotDays]
+      [me, lastSeen, acked, onPerson, settings.ageWarnDays, settings.ageRotDays, settings.density]
    );
 
    const mineCount = humans.filter(p => p.data.user.login === me).length;

@@ -10,6 +10,8 @@ import { CardShell } from './Card';
 export interface RowOptions {
    /** show the open-Nd flag on starved pulls */
    aging?: boolean;
+   /** compact density: one-line rows, smaller avatar, tighter spacing */
+   compact?: boolean;
    me: string;
    lastSeen: number;
    /** pull keys opened this session (their fresh dots are cleared) */
@@ -137,7 +139,7 @@ function MetricRail({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const d = pull.data;
    const me = opts.me;
    return (
-      <span className="pd-raise ml-auto flex flex-none items-center gap-2.5">
+      <span className="pd-rail pd-raise ml-auto flex flex-none items-center gap-2.5">
          <RowActions pull={pull} />
          <WeightMeter weight={pull.weight} known={pull.sizeKnown} />
          <SigPips
@@ -187,6 +189,7 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          number={d.number}
          title={d.title}
          onOpen={() => ackPull(key)}
+         compact={opts.compact}
          className={`${flashOnce(key, !!fresh) ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
          meta={
             <>
@@ -244,6 +247,7 @@ export const Row = memo(
    (a, b) =>
       a.pull === b.pull &&
       a.opts.aging === b.opts.aging &&
+      a.opts.compact === b.opts.compact &&
       a.opts.me === b.opts.me &&
       a.opts.lastSeen === b.opts.lastSeen &&
       a.opts.acked === b.opts.acked &&

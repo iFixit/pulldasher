@@ -2,17 +2,21 @@ import type { ReactNode } from 'react';
 import { Avatar, PullTitleLink } from './bits';
 
 /**
- * The one row every lens renders: identity on top (avatar + full-width
- * wrapping title), one meta line below (repo, context, flags, and a
- * right-anchored metric rail). Giving the title its own line is what lets a
- * long title wrap cleanly instead of fighting a dozen metadata chips, and
- * what lets the whole thing reflow to a phone. The meta content is the
- * caller's — only the shell (and its geometry) is shared, so the rail lands
- * at the same x down the board in every lens.
+ * The one row every lens renders. Two densities of the same content:
  *
- * The title link stretches over the whole card (`stretch`), so a click
- * anywhere opens the PR; genuinely interactive children opt back out with
- * `.pd-raise`.
+ * - comfortable: avatar + full-width wrapping title on top, one meta line
+ *   below. Giving the title its own line lets a long title wrap cleanly
+ *   instead of fighting a dozen metadata chips, and lets the card reflow to a
+ *   phone.
+ * - compact: everything on a single line — avatar, a truncating title, then
+ *   the meta chips and the right-anchored rail — with a smaller avatar and
+ *   tighter padding, so ~40% more rows fit on screen. The title gives up
+ *   wrapping (it ellipsizes) in exchange for the density.
+ *
+ * The meta content is the caller's; only the shell (and its geometry) is
+ * shared, so the rail lands at the same x down the board in every lens. The
+ * title link stretches over the whole card (`stretch`), so a click anywhere
+ * opens the PR; genuinely interactive children opt back out with `.pd-raise`.
  */
 export function CardShell({
    login,
@@ -24,6 +28,7 @@ export function CardShell({
    className = '',
    meta,
    stretch = true,
+   compact = false,
 }: {
    login: string;
    onPerson?: (login: string) => void;
@@ -35,7 +40,30 @@ export function CardShell({
    /** the whole meta line: badge, repo#number, context, flags, metric rail */
    meta: ReactNode;
    stretch?: boolean;
+   compact?: boolean;
 }) {
+   const titleLink = (
+      <PullTitleLink repo={repo} number={number} title={title} onOpen={onOpen} stretch={stretch} />
+   );
+
+   if (compact) {
+      return (
+         <div
+            className={`pd-row relative flex items-center gap-2 border-t border-secondary px-3 py-1 first:border-t-0 hover:bg-muted ${className}`}
+         >
+            <span className="pd-raise flex-none">
+               <Avatar login={login} onClick={onPerson} size={16} />
+            </span>
+            <span className="flex min-w-0 flex-1 items-center gap-x-2 text-xs text-ink-3">
+               <span className="min-w-[8ch] shrink truncate text-[13px] leading-none">
+                  {titleLink}
+               </span>
+               {meta}
+            </span>
+         </div>
+      );
+   }
+
    return (
       <div
          className={`pd-row relative flex items-start gap-2.5 border-t border-secondary px-3.5 py-2 first:border-t-0 hover:bg-muted ${className}`}
@@ -44,15 +72,7 @@ export function CardShell({
             <Avatar login={login} onClick={onPerson} />
          </span>
          <span className="min-w-0 flex-1">
-            <span className="block text-sm leading-snug break-words">
-               <PullTitleLink
-                  repo={repo}
-                  number={number}
-                  title={title}
-                  onOpen={onOpen}
-                  stretch={stretch}
-               />
-            </span>
+            <span className="block text-sm leading-snug break-words">{titleLink}</span>
             <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-3">
                {meta}
             </span>

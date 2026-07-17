@@ -274,11 +274,29 @@ a:hover {
   background: transparent;
 }
 
-/* compact density: pack more rows on screen by tightening the row gutter */
+/* compact density: the CardShell already collapses to one line with a smaller
+   avatar and tighter padding; these finish the job for the pieces it doesn't
+   own — the closed-row variant, the sign-off pips, the weight meter, and the
+   metric-rail gap — so the whole row shrinks together, not just the card. */
 :root[data-density="compact"] .pd-row {
-  padding-top: 0.25rem;
-  padding-bottom: 0.25rem;
+  padding-top: 0.125rem;
+  padding-bottom: 0.125rem;
 }
+:root[data-density="compact"] .pd-rail {
+  gap: 0.375rem;
+}
+:root[data-density="compact"] .pip {
+  width: 7px;
+  height: 7px;
+}
+:root[data-density="compact"] .wt {
+  height: 10px;
+}
+:root[data-density="compact"] .wt i:nth-child(1) { height: 3px; }
+:root[data-density="compact"] .wt i:nth-child(2) { height: 5px; }
+:root[data-density="compact"] .wt i:nth-child(3) { height: 6px; }
+:root[data-density="compact"] .wt i:nth-child(4) { height: 8px; }
+:root[data-density="compact"] .wt i:nth-child(5) { height: 10px; }
 
 /* settings slide-out from the right, with a fading scrim */
 @keyframes panel-in {
