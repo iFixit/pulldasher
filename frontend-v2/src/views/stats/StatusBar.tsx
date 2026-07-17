@@ -1,4 +1,5 @@
 import type { Status } from '../../model/status';
+import { StatsCard } from './parts';
 
 /**
  * The open-PR breakdown, moved out of the header and given room to breathe: a
@@ -14,7 +15,7 @@ export function StatusBar({
    total: number;
 }) {
    return (
-      <section className="rounded-2xl border border-line bg-surface p-4">
+      <StatsCard>
          <div className="flex items-baseline gap-2">
             <span className="text-2xl font-semibold tabular-nums text-ink">{total}</span>
             <span className="text-sm text-ink-2">open {total === 1 ? 'PR' : 'PRs'}</span>
@@ -44,6 +45,6 @@ export function StatusBar({
                </div>
             </>
          )}
-      </section>
+      </StatsCard>
    );
 }

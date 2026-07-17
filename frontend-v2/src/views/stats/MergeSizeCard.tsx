@@ -1,5 +1,6 @@
 import type { Weight } from '../../model/status';
 import { humanHours, type MergeBucket } from '../../model/stats';
+import { BarRow, StatsCard } from './parts';
 
 const RAMP: Record<Weight, string> = {
    XS: 'var(--ok)',
@@ -24,11 +25,7 @@ export function MergeSizeCard({
    const max = Math.max(...buckets.map(b => b.medianHours));
 
    return (
-      <section className="rounded-2xl border border-line bg-surface p-4">
-         <h3 className="m-0 text-sm font-semibold text-ink">
-            Time to merge by size
-            <span className="ml-2 text-xs text-ink-3">median, last 14 days</span>
-         </h3>
+      <StatsCard title="Time to merge by size" sub="median, last 14 days">
          {sampled === 0 ? (
             <div className="mt-3 text-[13px] text-ink-3">
                No merged PRs with size data in this window.
@@ -42,31 +39,31 @@ export function MergeSizeCard({
             <>
                <div className="mt-3 flex flex-col gap-2">
                   {buckets.map(b => {
-                     const pct = b.count > 0 && max > 0 ? (b.medianHours / max) * 100 : 0;
-                     return (
-                        <div
-                           key={b.weight}
-                           className="flex items-center gap-2 text-[13px]"
-                           title={`avg ${humanHours(b.avgHours)}`}
-                        >
-                           <span className="w-7 flex-none font-medium text-ink">{b.weight}</span>
-                           {b.count > 0 ? (
-                              <div className="h-2 flex-1 overflow-hidden rounded bg-secondary">
-                                 <div
-                                    className="h-full rounded"
-                                    style={{ width: `${pct}%`, background: RAMP[b.weight] }}
-                                 />
-                              </div>
-                           ) : (
+                     const label = (
+                        <span className="w-7 flex-none font-medium text-ink">{b.weight}</span>
+                     );
+                     if (b.count === 0) {
+                        return (
+                           <div key={b.weight} className="flex items-center gap-2 text-[13px]">
+                              {label}
                               <div className="flex-1 text-ink-3">no data</div>
-                           )}
-                           {b.count > 0 && (
+                           </div>
+                        );
+                     }
+                     return (
+                        <BarRow
+                           key={b.weight}
+                           title={`avg ${humanHours(b.avgHours)}`}
+                           pct={max > 0 ? (b.medianHours / max) * 100 : 0}
+                           color={RAMP[b.weight]}
+                           lead={label}
+                           trail={
                               <span className="flex-none text-right text-ink-2 tabular-nums">
                                  {humanHours(b.medianHours)}
                                  <span className="ml-1 text-ink-3">· {b.count}</span>
                               </span>
-                           )}
-                        </div>
+                           }
+                        />
                      );
                   })}
                </div>
@@ -77,6 +74,6 @@ export function MergeSizeCard({
                </div>
             </>
          )}
-      </section>
+      </StatsCard>
    );
 }
