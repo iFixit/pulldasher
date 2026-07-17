@@ -8,7 +8,6 @@ import { Avatar, Pips, RepoRef, StatusBadge, WeightChip } from './bits';
 export interface RowOptions {
    /** hide the status badge when the lane already says it */
    badge?: boolean;
-   pips?: 'cr' | 'qa' | 'both' | 'none';
    /** show the open-Nd flag on starved pulls */
    aging?: boolean;
    /**
@@ -133,7 +132,6 @@ function RowActions({ pull }: { pull: DerivedPull }) {
 function CompactCard({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const d = pull.data;
    const fresh = Date.parse(d.updated_at) / 1000 > opts.lastSeen;
-   const pips = opts.pips ?? 'both';
    const staleCr = pull.recrBy.length > 0;
    return (
       <div
@@ -168,12 +166,8 @@ function CompactCard({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
                         ◉
                      </span>
                   )}
-                  {(pips === 'cr' || pips === 'both') && (
-                     <Pips label="CR" have={pull.crHave} req={d.status.cr_req} stale={staleCr} />
-                  )}
-                  {(pips === 'qa' || pips === 'both') && (
-                     <Pips label="QA" have={pull.qaHave} req={d.status.qa_req} />
-                  )}
+                  <Pips label="CR" have={pull.crHave} req={d.status.cr_req} stale={staleCr} />
+                  <Pips label="QA" have={pull.qaHave} req={d.status.qa_req} />
                   <span
                      className="w-7 text-right tabular-nums"
                      title={`opened ${pull.ageDays} ${pull.ageDays === 1 ? 'day' : 'days'} ago`}
@@ -191,7 +185,6 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const d = pull.data;
    const compact = opts.compact === true;
    const fresh = Date.parse(d.updated_at) / 1000 > opts.lastSeen;
-   const pips = opts.pips ?? 'both';
    if (compact) return <CompactCard pull={pull} opts={opts} />;
 
    const showWeight = pull.sizeKnown && ['needs_cr', 'needs_recr'].includes(pull.status);
@@ -242,12 +235,8 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          <span className="flex flex-none items-center gap-2.5 text-xs text-ink-3">
             <RepoRef repo={d.repo} number={d.number} />
             {showWeight && <WeightChip weight={pull.weight} />}
-            {(pips === 'cr' || pips === 'both') && (
-               <Pips label="CR" have={pull.crHave} req={d.status.cr_req} stale={staleCr} />
-            )}
-            {(pips === 'qa' || pips === 'both') && (
-               <Pips label="QA" have={pull.qaHave} req={d.status.qa_req} />
-            )}
+            <Pips label="CR" have={pull.crHave} req={d.status.cr_req} stale={staleCr} />
+            <Pips label="QA" have={pull.qaHave} req={d.status.qa_req} />
             <span
                className="w-7 text-right tabular-nums"
                title={`opened ${pull.ageDays} ${pull.ageDays === 1 ? 'day' : 'days'} ago`}
@@ -269,7 +258,6 @@ export const Row = memo(
    (a, b) =>
       a.pull === b.pull &&
       a.opts.badge === b.opts.badge &&
-      a.opts.pips === b.opts.pips &&
       a.opts.aging === b.opts.aging &&
       a.opts.compact === b.opts.compact &&
       a.opts.cue === b.opts.cue &&

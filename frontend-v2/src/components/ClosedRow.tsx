@@ -26,7 +26,7 @@ export function ClosedRow({ pull }: { pull: PullData }) {
          </span>
          <span className="flex flex-none items-center gap-2.5 text-xs whitespace-nowrap text-ink-3">
             <RepoRef repo={pull.repo} number={pull.number} />
-            <span>{ago(closedAt)} ago</span>
+            <span className="w-16 text-right tabular-nums">{ago(closedAt)} ago</span>
          </span>
       </div>
    );

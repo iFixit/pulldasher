@@ -79,28 +79,28 @@ export function Review({
             sub="re-stamps you owe, minutes each"
             pulls={actNow}
             cap={8}
-            opts={{ ...opts, pips: 'cr' }}
+            opts={opts}
          />
          <Lane
             title="Review queue"
             sub="lightest first"
             pulls={queue}
             cap={9}
-            opts={{ ...opts, badge: false, pips: 'cr' }}
+            opts={{ ...opts, badge: false }}
          />
          <Lane
             title="Aging without review"
             sub="biggest debt first. Take one."
             pulls={aged}
             cap={3}
-            opts={{ ...opts, badge: false, pips: 'cr', aging: true }}
+            opts={{ ...opts, badge: false, aging: true }}
          />
          <Lane
             title="Needs QA"
             sub="CR done, grab one or nudge the author"
             pulls={needsQa}
             cap={6}
-            opts={{ ...opts, pips: 'qa' }}
+            opts={opts}
          />
          <RestGroup title="The rest of the board" sub="blocked, red, drafts, bots, shipped">
             <Fold
@@ -109,7 +109,7 @@ export function Review({
                label="ready to merge"
                hint="authors can merge, nudge if idle"
             >
-               {foldRows(ready, { pips: 'none' })}
+               {foldRows(ready)}
             </Fold>
             <Fold
                dot="var(--ok)"
@@ -117,7 +117,7 @@ export function Review({
                label="stamped by you"
                hint="waiting on another reviewer"
             >
-               {foldRows(stamped, { pips: 'cr', badge: false })}
+               {foldRows(stamped, { badge: false })}
             </Fold>
             <Fold
                dot={STATUS_DOT.blocked}
