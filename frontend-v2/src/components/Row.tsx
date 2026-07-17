@@ -30,7 +30,7 @@ function cue(p: DerivedPull, me: string): string | null {
    if (p.status === 'needs_qa')
       return p.qaingBy ? `${p.qaingBy} is QAing` : 'CR✓, author drives QA';
    if (p.status === 'ci_pending') return 'signed off, waiting on CI';
-   if (p.status === 'blocked' && p.blockedBy) return `held by ${p.blockedBy}`;
+   if (p.status === 'blocked' && p.blockedBy.length) return `blocked by ${p.blockedBy.join(', ')}`;
    return null;
 }
 
@@ -49,6 +49,11 @@ function WarnFlags({ pull }: { pull: DerivedPull }) {
                title={`based on ${pull.data.base.ref}, lands with its parent`}
             >
                dependent
+            </span>
+         )}
+         {pull.mergeUnknown && pull.status === 'ready' && (
+            <span className="flag-amber" title="GitHub hasn't confirmed this merges cleanly yet">
+               mergeable?
             </span>
          )}
          {pull.ci === 'pending' && pull.status !== 'ci_pending' && (

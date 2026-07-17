@@ -186,9 +186,30 @@ describe('status derivation precedence', () => {
       expect(d.externalBlock).toBe(false);
    });
 
-   it('names who holds a block', () => {
-      const p = withStatus({ dev_block: [sig('dev_block', 'holder', true)] });
-      expect(derive(p, undefined, NOW).blockedBy).toBe('holder');
+   it('names everyone holding a block', () => {
+      const p = withStatus({
+         dev_block: [sig('dev_block', 'holder', true)],
+         deploy_block: [sig('deploy_block', 'ops', true)],
+      });
+      expect(derive(p, undefined, NOW).blockedBy).toEqual(['holder', 'ops']);
+   });
+
+   it('a lifted (inactive) block no longer blocks', () => {
+      const p = withStatus({ dev_block: [sig('dev_block', 'holder', false)] });
+      const d = derive(p, undefined, NOW);
+      expect(d.status).toBe('needs_cr');
+      expect(d.blockedBy).toEqual([]);
+   });
+
+   it('unknown mergeability is flagged, not asserted', () => {
+      const p = withStatus(
+         { allCR: [sig('CR', 'r', true)], allQA: [sig('QA', 'q', true)] },
+         { mergeable: null }
+      );
+      const d = derive(p, undefined, NOW);
+      expect(d.mergeUnknown).toBe(true);
+      expect(d.conflict).toBe(false);
+      expect(d.status).toBe('ready');
    });
 });
 

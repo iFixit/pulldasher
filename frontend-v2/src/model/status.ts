@@ -62,10 +62,14 @@ export interface DerivedPull {
    weight: Weight;
    /** mergeable === false: shows as a flag everywhere, gates "ready" */
    conflict: boolean;
+   /** mergeable === null: GitHub hasn't recomputed yet, don't assert either way */
+   mergeUnknown: boolean;
    /** base isn't main/master: lands with its parent, gates "ready" */
    dependent: boolean;
-   /** who holds the active dev/deploy block, if any */
-   blockedBy: string | null;
+   /** additions/deletions absent from the wire: weight and size sorts are guesses */
+   sizeKnown: boolean;
+   /** everyone holding an active dev/deploy block, oldest first */
+   blockedBy: string[];
    /** login from the QAing label: someone is already testing this */
    qaingBy: string | null;
    externalBlock: boolean;
@@ -146,7 +150,10 @@ export function derive(
          .filter(u => !crBy.includes(u) && u !== pull.user.login)
    );
 
-   const blockSig = st.dev_block[0] ?? st.deploy_block[0];
+   // a lifted block deactivates its signature, same as a stale CR stamp
+   const blockHolders = unique(
+      [...st.dev_block, ...st.deploy_block].filter(s => s.data.active).map(s => s.data.user.login)
+   );
    const crDone = crHave >= st.cr_req;
    const qaDone = qaHave >= st.qa_req;
 
@@ -156,7 +163,7 @@ export function derive(
 
    let status: Status;
    if (pull.draft) status = 'draft';
-   else if (blockSig) status = 'blocked';
+   else if (blockHolders.length) status = 'blocked';
    else if (ci === 'failing') status = 'ci_red';
    else if (!crDone && staleCr.length) status = 'needs_recr';
    else if (!crDone) status = 'needs_cr';
@@ -168,6 +175,7 @@ export function derive(
 
    const created = Date.parse(pull.created_at) / 1000;
    const ageDays = Math.max(0, Math.floor((now - created) / 86400));
+   const sizeKnown = pull.additions != null || pull.deletions != null;
    const size = (pull.additions ?? 0) + (pull.deletions ?? 0);
    const starved = status === 'needs_cr' && crHave === 0 && ageDays >= STARVE_DAYS;
 
@@ -186,8 +194,10 @@ export function derive(
       starveScore: starved ? ageDays * Math.max(size, 1) : 0,
       weight: reviewWeight(pull),
       conflict,
+      mergeUnknown: pull.mergeable == null,
       dependent,
-      blockedBy: blockSig?.data.user.login ?? null,
+      sizeKnown,
+      blockedBy: blockHolders,
       qaingBy: label(LABELS.qaing)?.user ?? null,
       externalBlock: !!label(LABELS.externalBlock),
       cryo: !!label(LABELS.cryo),

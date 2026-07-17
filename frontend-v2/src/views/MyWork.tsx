@@ -23,7 +23,8 @@ function yourMove(p: DerivedPull): string | null {
 }
 
 function waitingOn(p: DerivedPull): string {
-   if (p.status === 'blocked' && p.blockedBy) return `held by ${p.blockedBy} — ask them to lift`;
+   if (p.status === 'blocked' && p.blockedBy.length)
+      return `blocked by ${p.blockedBy.join(', ')}, ask them to lift the block`;
    if (p.status === 'needs_recr' && p.recrBy.length) {
       const wait = p.headPushedAt ? ` (fix up ${ago(p.headPushedAt)})` : '';
       return `waiting on ${p.recrBy.join(', ')}’s re-stamp${wait}`;

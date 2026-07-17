@@ -18,9 +18,18 @@ function liveBackend(): Backend {
    let token: Promise<TokenResponse> | null = null;
 
    const getToken = () => {
-      token = token ?? fetch('/token').then(r => r.json());
+      token =
+         token ??
+         fetch('/token').then(async r => {
+            if (!r.ok) throw new Error(`token fetch failed: ${r.status}`);
+            const t = (await r.json()) as TokenResponse;
+            if (!t.socketToken) throw new Error('token response missing socketToken');
+            return t;
+         });
       return token;
    };
+
+   let onState: ((state: ConnectionState) => void) | null = null;
 
    const getSocket = () => {
       if (socket) return socket;
@@ -29,8 +38,12 @@ function liveBackend(): Backend {
          // Socket tokens are single-use and expire quickly: re-fetch on every
          // (re)connect rather than reusing the first one.
          token = null;
-         void getToken().then(t => socket!.emit('authenticate', t.socketToken));
+         getToken().then(
+            t => socket!.emit('authenticate', t.socketToken),
+            () => onState?.('error')
+         );
       });
+      socket.on('connect_error', () => onState?.('error'));
       return socket;
    };
 
@@ -42,6 +55,7 @@ function liveBackend(): Backend {
          s.on('pullChange', (pull: PullData) => handler(pull));
       },
       onConnection(handler) {
+         onState = handler;
          const s = getSocket();
          const connected = () => handler('connected');
          const disconnected = () => handler('disconnected');
@@ -50,6 +64,7 @@ function liveBackend(): Backend {
          s.on('disconnect', disconnected);
          s.io.on('reconnect_attempt', connecting);
          return () => {
+            onState = null;
             s.off('connect', connected);
             s.off('disconnect', disconnected);
             s.io.off('reconnect_attempt', connecting);

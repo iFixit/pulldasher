@@ -1,4 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react';
+import { readStorage, writeStorage } from './storage';
 import type { Team } from './types';
 
 /**
@@ -19,7 +20,7 @@ function loadScope(): Scope {
       return {
          repos: [],
          authors: [],
-         ...(JSON.parse(localStorage.getItem(SCOPE_KEY) ?? '{}') as object),
+         ...(JSON.parse(readStorage(SCOPE_KEY) ?? '{}') as object),
       };
    } catch {
       return { repos: [], authors: [] };
@@ -39,7 +40,7 @@ export function useScope(): [Scope, (next: Scope) => void] {
    );
    const setScope = useCallback((next: Scope) => {
       scope = next;
-      localStorage.setItem(SCOPE_KEY, JSON.stringify(next));
+      writeStorage(SCOPE_KEY, JSON.stringify(next));
       for (const fn of listeners) fn();
    }, []);
    return [value, setScope];
@@ -54,8 +55,16 @@ export async function loadTeams(): Promise<Team[]> {
    try {
       const res = await fetch(`${import.meta.env.BASE_URL}teams.json`);
       if (!res.ok) return [];
-      const teams = (await res.json()) as Team[];
-      return Array.isArray(teams) ? teams : [];
+      const teams: unknown = await res.json();
+      if (!Array.isArray(teams)) return [];
+      // one malformed entry must not white-screen the whole app
+      return teams.filter(
+         (t): t is Team =>
+            !!t &&
+            typeof (t as Team).team === 'string' &&
+            Array.isArray((t as Team).members) &&
+            (t as Team).members.every(m => typeof m === 'string')
+      );
    } catch {
       return [];
    }

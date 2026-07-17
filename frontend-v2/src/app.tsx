@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ago } from './format';
 import { STATUS_ORDER, type DerivedPull } from './model/status';
 import type { Team } from './types';
 import { usePulldasher } from './store';
@@ -19,7 +20,17 @@ const isBot = (p: DerivedPull) =>
    p.data.user.login.endsWith('[bot]') || BOT_LOGINS.has(p.data.user.login);
 
 export function App() {
-   const { pulls, closed, repoSpecs, me, connection, lastSeen } = usePulldasher();
+   const {
+      pulls,
+      closed,
+      repoSpecs,
+      me,
+      connection,
+      initialized,
+      authFailed,
+      lastPayloadAt,
+      lastSeen,
+   } = usePulldasher();
    const [scope] = useScope();
    const [lens, setLens] = useState<Lens>('review');
    const [person, setPerson] = useState<string | null>(null);
@@ -202,6 +213,37 @@ export function App() {
             </div>
          </header>
 
+         {authFailed && (
+            <div className="mx-auto mt-3 max-w-[1240px] px-5 text-[13px]">
+               <div
+                  className="flex items-center gap-2 rounded-lg border border-bad bg-surface px-3 py-[7px] text-bad"
+                  role="alert"
+               >
+                  <span className="font-semibold">Sign-in failed.</span>
+                  <span className="text-ink-2">
+                     Your session may have expired.{' '}
+                     <a href="/v2/" className="font-semibold underline">
+                        Reload to sign in again
+                     </a>
+                     .
+                  </span>
+               </div>
+            </div>
+         )}
+         {initialized && (connection === 'disconnected' || connection === 'error') && (
+            <div className="mx-auto mt-3 max-w-[1240px] px-5 text-[13px]">
+               <div
+                  className="flex items-center gap-2 rounded-lg border border-warn bg-surface px-3 py-[7px]"
+                  role="alert"
+               >
+                  <span className="font-semibold text-warn">Live updates lost.</span>
+                  <span className="text-ink-2">
+                     Showing data as of {lastPayloadAt ? `${ago(lastPayloadAt)} ago` : 'page load'},
+                     retrying in the background.
+                  </span>
+               </div>
+            </div>
+         )}
          {changedCount > 0 && !query && (
             <div className="mx-auto mt-3 max-w-[1240px] px-5 text-[13px]">
                <div className="notice-inner flex items-center gap-2 rounded-lg border border-brand bg-brand-50 px-3 py-[7px] text-brand-700">
@@ -222,11 +264,19 @@ export function App() {
          )}
 
          <main key={lens} className="mx-auto mt-4 max-w-[1240px] px-5 pb-16">
-            {lens === 'review' && (
+            {!initialized && !authFailed && (
+               <div className="flex flex-col items-center gap-2 py-20 text-ink-3" role="status">
+                  <span className="conn-live inline-block h-2.5 w-2.5 rounded-full bg-brand" />
+                  <span className="text-sm">Loading the board…</span>
+               </div>
+            )}
+            {initialized && lens === 'review' && (
                <Review pulls={humans} bots={bots} closed={closed} opts={rowOpts} />
             )}
-            {lens === 'mine' && <MyWork pulls={humans} closed={closed} opts={rowOpts} />}
-            {lens === 'people' && (
+            {initialized && lens === 'mine' && (
+               <MyWork pulls={humans} closed={closed} opts={rowOpts} />
+            )}
+            {initialized && lens === 'people' && (
                <People
                   pulls={humans}
                   allPulls={pulls.filter(p => !isBot(p))}
@@ -236,10 +286,10 @@ export function App() {
                   opts={rowOpts}
                />
             )}
-            {lens === 'teams' && (
+            {initialized && lens === 'teams' && (
                <Teams pulls={humans} teams={teams} team={team} onTeam={setTeam} opts={rowOpts} />
             )}
-            {lens === 'board' && <Board pulls={scoped} opts={rowOpts} />}
+            {initialized && lens === 'board' && <Board pulls={scoped} opts={rowOpts} />}
          </main>
       </>
    );
