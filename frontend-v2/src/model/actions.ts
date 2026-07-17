@@ -1,3 +1,4 @@
+import { ago } from '../format';
 import type { DerivedPull } from './status';
 
 /**
@@ -26,4 +27,58 @@ export function reviewerMove(p: DerivedPull, me: string): string | null {
    if (p.status === 'needs_qa' && p.qaingBy === me) return 'Finish QA';
    if (p.status === 'needs_qa' && p.reqaBy.includes(me)) return 'Re-QA';
    return null;
+}
+
+/** 'do' = your move (brand, bold imperative); 'wait' = context on someone else's move. */
+export interface RowNote {
+   text: string;
+   tone: 'do' | 'wait';
+}
+
+/**
+ * The one context line every row renders, in every lens: the imperative when
+ * it's your move (the verb from authorMove/reviewerMove, enriched with the
+ * when/which detail the badge can't carry), otherwise a terse who/when/why for
+ * whoever's move it is. It never restates the status badge — "Needs QA" the
+ * badge already says; this line adds "alice is QAing", not "needs a QA stamp".
+ *
+ * Source-agnostic on purpose: a CR, a re-stamp, or a dev block is the same
+ * whether it came from a `CR`/`dev_block` comment tag or a GitHub review, so
+ * the wording never says "requested changes" or "approved".
+ */
+export function rowNote(p: DerivedPull, me: string): RowNote | null {
+   const d = p.data;
+   const who = (logins: string[]) => logins.map(l => (l === me ? 'you' : l)).join(', ');
+   const pushed = p.headPushedAt ? ` · fix pushed ${ago(p.headPushedAt)} ago` : '';
+
+   const verb = d.user.login === me ? authorMove(p) : reviewerMove(p, me);
+   if (verb) {
+      if (verb === 'Re-stamp') return { text: `Re-stamp${pushed}`, tone: 'do' };
+      if (verb === 'Fix CI' && p.ciFailing.length)
+         return { text: `Fix CI: ${p.ciFailing.join(', ')}`, tone: 'do' };
+      return { text: verb, tone: 'do' };
+   }
+
+   const wait = (text: string): RowNote => ({ text, tone: 'wait' });
+   switch (p.status) {
+      case 'needs_recr':
+         return p.recrBy.length ? wait(`waiting on ${who(p.recrBy)}’s re-stamp${pushed}`) : null;
+      case 'needs_qa':
+         if (p.qaingBy) return wait(`${who([p.qaingBy])} is QAing`);
+         if (p.reqaBy.length) return wait(`${who(p.reqaBy)}’s QA stamp needs redoing`);
+         return null;
+      case 'needs_cr':
+         if (p.crHave > 0) return wait(`${p.crHave} of ${d.status.cr_req} CRs`);
+         return p.starved ? wait(`no CR for ${p.ageDays}d`) : null;
+      case 'ci_red':
+         return p.ciFailing.length ? wait(`red: ${p.ciFailing.join(', ')}`) : null;
+      case 'dev_block':
+         return p.devBlockedBy.length ? wait(`dev-blocked by ${who(p.devBlockedBy)}`) : null;
+      case 'deploy_block':
+         return p.deployBlockedBy.length ? wait(`held by ${who(p.deployBlockedBy)}`) : null;
+      case 'unmergeable':
+         return wait(p.conflict ? 'signed off, but conflicts' : 'lands with its parent');
+      default:
+         return null;
+   }
 }
