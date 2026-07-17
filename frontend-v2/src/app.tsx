@@ -13,10 +13,11 @@ import { Review } from './views/Review';
 import { MyWork } from './views/MyWork';
 import { People } from './views/People';
 import { Board } from './views/Board';
+import { Classic } from './views/Classic';
 
-type Lens = 'review' | 'mine' | 'people' | 'board';
+type Lens = 'review' | 'mine' | 'people' | 'board' | 'classic';
 
-const LENSES: Lens[] = ['review', 'mine', 'people', 'board'];
+const LENSES: Lens[] = ['review', 'mine', 'people', 'board', 'classic'];
 
 /** Lens and drill-down selections live in the hash: shareable, bookmarkable. */
 function readHash() {
@@ -260,6 +261,7 @@ export function App() {
                   {tab('mine', 'My work', mineCount)}
                   {tab('people', 'People')}
                   {tab('board', 'Board')}
+                  {tab('classic', 'Classic')}
                </nav>
                <ScopeControl pulls={pulls} teams={teams} />
                <input
@@ -385,6 +387,7 @@ export function App() {
                />
             )}
             {initialized && lens === 'board' && <Board pulls={humans} bots={bots} opts={rowOpts} />}
+            {initialized && lens === 'classic' && <Classic pulls={scoped} opts={rowOpts} />}
          </main>
       </>
    );

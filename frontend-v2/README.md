@@ -13,10 +13,15 @@ serves v1 at `/` and v2 at `/v2`, both fed by the same socket protocol
 - **The re-stamp lane.** Inactive CR signatures (invalidated by a push) are
   already on the wire; a pull that was reviewed and fixed but lacks a fresh
   stamp is the cheapest review on the board, so it leads.
-- **Four lenses, one filter.** Review / My work / People (person or team
-  drill-down) / Board, over the same pool, with a single saved Scope
-  (repos + people, with GitHub-team presets). Lens and drill-down live in
-  the URL hash, so views are shareable.
+- **Five lenses, one filter.** Review / My work / People (person or team
+  drill-down) / Board / Classic, over the same pool, with a single saved
+  Scope (repos + people, with GitHub-team presets). Lens and drill-down live
+  in the URL hash, so views are shareable.
+- **Classic is v1, faithfully.** The same six overlapping columns
+  (CI Blocked / Deploy Blocked / Ready / Dev Block / CR / QA), predicates
+  and sorts ported line-for-line from v1, for anyone whose muscle memory
+  lives there. Board is the v2 take on the same idea (one column per pull,
+  mutually exclusive statuses).
 - **Changed since your last look.** A last-seen marker in localStorage,
   stamped when you leave (pagehide), not when you arrive; rows updated after
   it get a dot, and a banner offers "show only changes".
