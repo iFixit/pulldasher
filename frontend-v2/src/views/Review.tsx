@@ -1,9 +1,8 @@
-import { Fragment } from 'react';
-import { weightRank, type DerivedPull } from '../model/status';
+import type { DerivedPull } from '../model/status';
 import { crSort } from '../model/sort';
 import type { PullData } from '../types';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
-import { DividerLine, Fold, Lane, RestGroup } from '../components/Lane';
+import { Fold, Lane, RestGroup, Truncated } from '../components/Lane';
 import { Row, type RowOptions } from '../components/Row';
 import { ClosedRow } from '../components/ClosedRow';
 
@@ -36,10 +35,6 @@ export function Review({
    const crPool = others.filter(p => p.status === 'needs_cr' && !p.crBy.includes(me));
    const aged = crPool.filter(p => p.starved).sort((a, b) => b.starveScore - a.starveScore);
    const queue = crSort(crPool.filter(p => !p.starved));
-   const firstHeavy = queue.findIndex(p => weightRank(p.weight) >= 2);
-
-   // 3. Aging: its own visible lane — the fairness debt, not a footnote.
-   const agingShown = aged.slice(0, 3);
 
    // 4. Needs QA: a real lane again (v1's QA column earned it); QAing-label
    //    rows sort last since someone is already on them.
@@ -49,10 +44,13 @@ export function Review({
 
    const stamped = others.filter(p => p.status === 'needs_cr' && p.crBy.includes(me));
    const rowKey = (p: DerivedPull) => `${p.data.repo}#${p.data.number}`;
-   const foldRows = (list: DerivedPull[], o: Partial<RowOptions> = {}) =>
-      list
-         .slice(0, 30)
-         .map(p => <Row key={rowKey(p)} pull={p} opts={{ ...opts, noDim: true, ...o }} />);
+   const foldRows = (list: DerivedPull[], o: Partial<RowOptions> = {}) => (
+      <Truncated>
+         {list.map(p => (
+            <Row key={rowKey(p)} pull={p} opts={{ ...opts, noDim: true, ...o }} />
+         ))}
+      </Truncated>
+   );
 
    const empty = !actNow.length && !crPool.length && !needsQa.length && !others.length;
    if (empty) {
@@ -73,38 +71,20 @@ export function Review({
             cap={8}
             opts={{ ...opts, pips: 'cr' }}
          />
-         {crPool.length > 0 && (
-            <Lane title="Review queue" sub="lightest first" pulls={[]} opts={opts}>
-               {queue.slice(0, 9).map((p, i) => (
-                  <Fragment key={rowKey(p)}>
-                     {i === firstHeavy && firstHeavy > 0 && (
-                        <DividerLine label="heavier from here" />
-                     )}
-                     <Row pull={p} opts={{ ...opts, badge: false, pips: 'cr' }} />
-                  </Fragment>
-               ))}
-               {queue.length > 9 && (
-                  <DividerLine label={`+ ${queue.length - 9} more in the queue`} />
-               )}
-            </Lane>
-         )}
-         {aged.length > 0 && (
-            <Lane
-               title="Aging without review"
-               sub="oldest debt first — take one per session"
-               pulls={[]}
-               opts={opts}
-            >
-               {agingShown.map(p => (
-                  <Row
-                     key={rowKey(p)}
-                     pull={p}
-                     opts={{ ...opts, badge: false, pips: 'cr', aging: true }}
-                  />
-               ))}
-               {aged.length > 3 && <DividerLine label={`+ ${aged.length - 3} more aging`} />}
-            </Lane>
-         )}
+         <Lane
+            title="Review queue"
+            sub="lightest first"
+            pulls={queue}
+            cap={9}
+            opts={{ ...opts, badge: false, pips: 'cr' }}
+         />
+         <Lane
+            title="Aging without review"
+            sub="biggest debt first. Take one."
+            pulls={aged}
+            cap={3}
+            opts={{ ...opts, badge: false, pips: 'cr', aging: true }}
+         />
          <Lane
             title="Needs QA"
             sub="CR done — grab one, or nudge the author"
@@ -167,9 +147,11 @@ export function Review({
                label="recently shipped"
                hint="merged or closed in the last 14 days"
             >
-               {closed.slice(0, 30).map(p => (
-                  <ClosedRow key={`${p.repo}#${p.number}`} pull={p} />
-               ))}
+               <Truncated>
+                  {closed.map(p => (
+                     <ClosedRow key={`${p.repo}#${p.number}`} pull={p} />
+                  ))}
+               </Truncated>
             </Fold>
          </RestGroup>
       </>

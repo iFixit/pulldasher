@@ -2,7 +2,7 @@ import type { DerivedPull } from '../model/status';
 import type { PullData } from '../types';
 import { ago } from '../format';
 import { EmptyState } from '../components/bits';
-import { Fold, Lane, RestGroup } from '../components/Lane';
+import { Fold, Lane, RestGroup, Truncated } from '../components/Lane';
 import { Row, type RowOptions } from '../components/Row';
 import { ClosedRow } from '../components/ClosedRow';
 
@@ -108,9 +108,11 @@ export function MyWork({
                   label="shipped in the last 14 days"
                   hint="nice work"
                >
-                  {shipped.slice(0, 30).map(p => (
-                     <ClosedRow key={`${p.repo}#${p.number}`} pull={p} />
-                  ))}
+                  <Truncated>
+                     {shipped.map(p => (
+                        <ClosedRow key={`${p.repo}#${p.number}`} pull={p} />
+                     ))}
+                  </Truncated>
                </Fold>
             </RestGroup>
          )}

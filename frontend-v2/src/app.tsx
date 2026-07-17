@@ -201,11 +201,22 @@ export function App() {
                <input
                   ref={searchRef}
                   type="search"
-                  placeholder="filter…  ( / )"
+                  aria-label="Filter PRs by title, repo, or author"
+                  placeholder="filter (press /)"
                   value={query}
                   onChange={e => setQuery(e.target.value)}
                   className="h-8 w-[170px] rounded-lg border border-line bg-surface px-2.5 text-[13px]"
                />
+               {onlyChanged && (
+                  <button
+                     type="button"
+                     onClick={() => setOnlyChanged(false)}
+                     title="showing only PRs changed since your last look. Click to show everything"
+                     className="pressable inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand bg-brand-50 px-2.5 text-xs font-medium text-brand-700"
+                  >
+                     changed only ✕
+                  </button>
+               )}
                {hiddenCount > 0 && (
                   <button
                      type="button"

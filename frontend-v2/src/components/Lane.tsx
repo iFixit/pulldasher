@@ -63,6 +63,39 @@ export function DividerLine({ label }: { label: string }) {
    );
 }
 
+/**
+ * The one truncation behavior: show `cap` items and a working "+ N more"
+ * button. Every capped list in the app goes through this or Lane's own
+ * more-line — a count the user can see but not open is a lie.
+ */
+export function Truncated({
+   children,
+   cap = 30,
+   label = 'more',
+}: {
+   children: ReactNode[];
+   cap?: number;
+   label?: string;
+}) {
+   const [expanded, setExpanded] = useState(false);
+   const shown = expanded ? children : children.slice(0, cap);
+   const more = children.length - shown.length;
+   return (
+      <>
+         {shown}
+         {more > 0 && (
+            <button
+               type="button"
+               onClick={() => setExpanded(true)}
+               className="block w-full border-t border-secondary bg-muted/50 px-3.5 py-[7px] text-left text-xs font-medium text-ink-2 hover:text-brand"
+            >
+               + {more} {label}
+            </button>
+         )}
+      </>
+   );
+}
+
 /** One folded line in "the rest of the board": count + hint, rows on demand. */
 export function Fold({
    dot,
