@@ -2,6 +2,12 @@ import type { PullData } from '../types';
 import { ago, githubUrl } from '../format';
 import { Avatar, RepoRef } from './bits';
 
+/**
+ * Full-width row: the badge, avatar, and right cluster are all flex-none, so
+ * inside a narrow column the title gets ~0px and wraps one character per
+ * line. Columns must use a compact two-zone card instead (Classic's
+ * ClosedCard).
+ */
 export function ClosedRow({ pull }: { pull: PullData }) {
    const merged = !!pull.merged_at;
    const closedAt = Date.parse(pull.closed_at ?? pull.updated_at) / 1000;
