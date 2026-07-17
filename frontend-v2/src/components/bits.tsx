@@ -248,7 +248,7 @@ export function SigPips({
    me?: string;
    sigs: Signature[];
 }) {
-   const pop = usePopover<HTMLSpanElement, HTMLButtonElement>();
+   const pop = usePopover<HTMLSpanElement, HTMLButtonElement>({ hover: true });
    const pips = <Pips label={label} have={have} req={req} by={by} staleBy={staleBy} me={me} />;
    if (!sigs.length) return pips;
 
@@ -265,14 +265,14 @@ export function SigPips({
    );
 
    return (
-      <span className="relative inline-flex" ref={pop.rootRef}>
+      <span className="relative inline-flex" ref={pop.rootRef} {...pop.hoverProps}>
          <button
             ref={pop.triggerRef}
             type="button"
             aria-haspopup="dialog"
             aria-expanded={pop.open}
-            title={`who ${label}’d this — click for details`}
-            onClick={() => pop.setOpen(o => !o)}
+            title={`who ${label}’d this`}
+            onClick={pop.toggle}
             className="cursor-pointer rounded border-0 bg-transparent p-0 text-left hover:bg-secondary/60"
          >
             {pips}
@@ -283,7 +283,7 @@ export function SigPips({
                tabIndex={-1}
                role="dialog"
                aria-label={`${label} signatures`}
-               className="popover absolute top-full right-0 z-50 mt-1 block w-max min-w-[190px] rounded-lg border border-line bg-surface p-2 text-xs whitespace-nowrap shadow-md outline-none"
+               className="popover popover-right absolute top-full right-0 z-50 mt-1 block w-max min-w-[190px] rounded-lg border border-line bg-surface p-2 text-xs whitespace-nowrap shadow-md outline-none"
             >
                <span className="block px-1 pb-1 font-semibold text-ink">{label} stamps</span>
                {rows.map(s => (

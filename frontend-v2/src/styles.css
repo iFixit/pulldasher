@@ -223,6 +223,10 @@ a:hover {
   transform-origin: top left;
   animation: pop 180ms var(--ease-quint);
 }
+/* right-anchored panels grow from their anchored corner, not across the row */
+.popover-right {
+  transform-origin: top right;
+}
 
 @keyframes slide-down {
   from {
