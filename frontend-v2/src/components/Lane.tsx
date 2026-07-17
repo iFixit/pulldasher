@@ -60,42 +60,12 @@ export function Lane({
    );
 }
 
-/**
- * A row carrying the lane's explanation in its own context slot: the action
- * verb ("Merge it", "Re-stamp") for your move, or the who-to-nudge note for
- * work you're waiting on. Folding it into the meta line (instead of a fixed
- * side column) is what lets these rows reflow to a phone.
- */
-export function AnnotatedRow({
-   pull,
-   opts,
-   side,
-   children,
-}: {
-   pull: DerivedPull;
-   opts: RowOptions;
-   side: 'left' | 'right';
-   children: ReactNode;
-}) {
-   return (
-      <Row pull={pull} opts={opts} note={children} noteTone={side === 'left' ? 'do' : 'wait'} />
-   );
-}
-
 /** The standard fold body: capped, expandable rows for a list of pulls. */
-export function FoldRows({
-   list,
-   opts,
-   extra,
-}: {
-   list: DerivedPull[];
-   opts: RowOptions;
-   extra?: Partial<RowOptions>;
-}) {
+export function FoldRows({ list, opts }: { list: DerivedPull[]; opts: RowOptions }) {
    return (
       <Truncated>
          {list.map(p => (
-            <Row key={pullKey(p.data)} pull={p} opts={extra ? { ...opts, ...extra } : opts} />
+            <Row key={pullKey(p.data)} pull={p} opts={opts} />
          ))}
       </Truncated>
    );

@@ -186,16 +186,6 @@ a:hover {
   visibility: visible;
 }
 
-.flag-qaing {
-  border-radius: 8px;
-  padding: 2px 7px;
-  font-size: 11px;
-  font-weight: 500;
-  background: var(--badge-purple-bg);
-  color: var(--badge-purple-fg);
-  flex: none;
-}
-
 /* ── Motion: state feedback only, exponential ease-out, one settle entrance ── */
 @keyframes settle {
   from {

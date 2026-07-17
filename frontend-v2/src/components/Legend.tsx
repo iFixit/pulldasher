@@ -77,8 +77,8 @@ export function Legend() {
             'lines added and removed'
          )}
          {item(
-            <span className="flag-qaing">QAing</span>,
-            'someone claimed QA by adding the QAing label on GitHub (◉ in columns)'
+            <span className="text-ink-2">is QAing</span>,
+            'someone claimed QA by adding the QAing label on GitHub'
          )}
          {item(
             <span className="flag-amber">iterating</span>,

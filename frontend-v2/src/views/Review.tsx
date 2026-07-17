@@ -5,8 +5,8 @@ import { authorMove, reviewerMove } from '../model/actions';
 import { isFresh } from '../store';
 import type { PullData } from '../types';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
-import { AnnotatedRow, Fold, FoldRows, Lane, RestGroup, Truncated } from '../components/Lane';
-import type { RowOptions } from '../components/Row';
+import { Fold, FoldRows, Lane, RestGroup, Truncated } from '../components/Lane';
+import { Row, type RowOptions } from '../components/Row';
 import { ClosedRow } from '../components/ClosedRow';
 
 /**
@@ -124,10 +124,8 @@ export function Review({
          {todo.length > 0 && (
             <Lane title="Yours to do" pulls={[]} count={todo.length} opts={opts}>
                <Truncated cap={10} id="lane:Yours to do">
-                  {todo.map(({ p, verb }) => (
-                     <AnnotatedRow key={pullKey(p.data)} pull={p} opts={opts} side="left">
-                        {verb}
-                     </AnnotatedRow>
+                  {todo.map(({ p }) => (
+                     <Row key={pullKey(p.data)} pull={p} opts={opts} />
                   ))}
                </Truncated>
             </Lane>
@@ -139,12 +137,12 @@ export function Review({
             cap={8}
             opts={opts}
          />
-         <Lane title="Review queue" pulls={queue} cap={9} opts={{ ...opts, badge: false }} />
+         <Lane title="Review queue" pulls={queue} cap={9} opts={opts} />
          <Lane
             title="Aging without full review"
             pulls={aged}
             cap={8}
-            opts={{ ...opts, badge: false, aging: true }}
+            opts={{ ...opts, aging: true }}
          />
          <Lane
             title="Needs QA"
@@ -168,7 +166,7 @@ export function Review({
                label="stamped by you"
                hint="waiting on another reviewer"
             >
-               <FoldRows list={stamped} opts={opts} extra={{ badge: false }} />
+               <FoldRows list={stamped} opts={opts} />
             </Fold>
             <Fold dot={STATUS_DOT.dev_block} count={devBlocked.length} label="dev blocked">
                <FoldRows list={devBlocked} opts={opts} />

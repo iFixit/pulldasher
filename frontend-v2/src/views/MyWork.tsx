@@ -1,37 +1,18 @@
 import type { DerivedPull } from '../model/status';
 import { authorMove } from '../model/actions';
 import type { PullData } from '../types';
-import { ago, pullKey } from '../format';
+import { pullKey } from '../format';
 import { EmptyState } from '../components/bits';
-import { AnnotatedRow, Fold, Lane, RestGroup, Truncated } from '../components/Lane';
-import type { RowOptions } from '../components/Row';
+import { Fold, Lane, RestGroup, Truncated } from '../components/Lane';
+import { Row, type RowOptions } from '../components/Row';
 import { ClosedRow } from '../components/ClosedRow';
 
 /**
  * The author's tab: only PRs you own, split by whose move it is. The old
  * "Your PRs" lane mixed both answers; here "do this next" and "nudge this
- * person" never share a section.
+ * person" never share a section. Each row's action/wait line comes from the
+ * shared rowNote (model/actions.ts), the same one every other lens renders.
  */
-
-function waitingOn(p: DerivedPull): string {
-   if (p.status === 'deploy_block' && p.deployBlockedBy.length)
-      return `held from deploy by ${p.deployBlockedBy.join(', ')}, ask before shipping`;
-   if (p.status === 'needs_recr' && p.recrBy.length) {
-      const wait = p.headPushedAt ? ` (fix pushed ${ago(p.headPushedAt)} ago)` : '';
-      return `waiting on ${p.recrBy.join(', ')}’s re-stamp${wait}`;
-   }
-   if (p.status === 'needs_cr') {
-      if (p.crHave > 0) return `${p.crHave} of ${p.data.status.cr_req} CRs, open ${p.ageDays}d`;
-      return p.starved
-         ? `no CR for ${p.ageDays}d — go ask in channel`
-         : `no CR yet, open ${p.ageDays}d`;
-   }
-   if (p.status === 'needs_qa' && p.qaingBy) return `${p.qaingBy} is QAing now`;
-   if (p.status === 'needs_qa' && p.reqaBy.length)
-      return `waiting on ${p.reqaBy.join(', ')}’s re-QA`;
-   if (p.status === 'ci_pending') return 'waiting on CI';
-   return 'waiting';
-}
 
 export function MyWork({
    pulls,
@@ -62,9 +43,7 @@ export function MyWork({
       <>
          <Lane title="Your move" pulls={[]} count={move.length} opts={opts}>
             {move.map(p => (
-               <AnnotatedRow key={pullKey(p.data)} pull={p} opts={opts} side="left">
-                  {authorMove(p)}
-               </AnnotatedRow>
+               <Row key={pullKey(p.data)} pull={p} opts={opts} />
             ))}
             {!move.length && (
                <div className="px-3.5 py-3 text-[13px] text-ink-3">
@@ -74,9 +53,7 @@ export function MyWork({
          </Lane>
          <Lane title="Waiting on others" pulls={[]} count={waiting.length} opts={opts}>
             {waiting.map(p => (
-               <AnnotatedRow key={pullKey(p.data)} pull={p} opts={opts} side="right">
-                  {waitingOn(p)}
-               </AnnotatedRow>
+               <Row key={pullKey(p.data)} pull={p} opts={opts} />
             ))}
             {!waiting.length && (
                <div className="px-3.5 py-3 text-[13px] text-ink-3">

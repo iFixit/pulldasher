@@ -1,18 +1,15 @@
-import { memo, useState, type ReactNode } from 'react';
+import { memo, useState } from 'react';
 import type { DerivedPull } from '../model/status';
 import { isIterating } from '../model/status';
-import { ago, pullKey } from '../format';
+import { rowNote } from '../model/actions';
+import { pullKey } from '../format';
 import { ackPull, isFresh, refreshPull } from '../store';
 import { AgeStamp, DiffSize, FreshTag, RepoRef, SigPips, StatusBadge, WeightMeter } from './bits';
 import { CardShell } from './Card';
 
 export interface RowOptions {
-   /** hide the status badge when the lane already says it */
-   badge?: boolean;
    /** show the open-Nd flag on starved pulls */
    aging?: boolean;
-   /** suppress the cue line when the view says the same thing beside the row */
-   cue?: boolean;
    me: string;
    lastSeen: number;
    /** pull keys opened this session (their fresh dots are cleared) */
@@ -40,47 +37,6 @@ function flashOnce(key: string, fresh: boolean): boolean {
    if (!fresh || flashed.has(key)) return false;
    flashed.add(key);
    return true;
-}
-
-function cue(p: DerivedPull, me: string): string | null {
-   const d = p.data;
-   if (p.status === 'needs_recr' && p.recrBy.length) {
-      const who = p.recrBy.includes(me) ? 'you' : p.recrBy.join(', ');
-      const wait = p.headPushedAt ? ` · fix pushed ${ago(p.headPushedAt)} ago` : '';
-      return `CR’d by ${who}${wait}`;
-   }
-   if (p.status === 'ready') {
-      const idle = p.signedOffAt ? `signed off ${ago(p.signedOffAt)} ago, ` : '';
-      return `${idle}${d.user.login === me ? 'you' : d.user.login} can merge`;
-   }
-   if (p.status === 'needs_qa') {
-      if (p.qaingBy) return `${p.qaingBy} is QAing`;
-      if (p.reqaBy.length) {
-         const who = p.reqaBy.includes(me) ? 'your QA stamp' : `${p.reqaBy.join(', ')}’s QA stamp`;
-         return `${who} was invalidated by a push`;
-      }
-      return 'CR done, needs a QA stamp';
-   }
-   if (p.status === 'ci_pending') return 'signed off, only CI left';
-   if (p.status === 'ci_red' && p.ciFailing.length) return `red: ${p.ciFailing.join(', ')}`;
-   if (p.status === 'dev_block' && p.devBlockedBy.length)
-      return `changes requested by ${p.devBlockedBy.join(', ')}`;
-   if (p.status === 'deploy_block' && p.deployBlockedBy.length)
-      return `held from deploy by ${p.deployBlockedBy.join(', ')}`;
-   if (p.status === 'unmergeable')
-      return p.conflict
-         ? 'signed off, but conflicts — the author rebases'
-         : `based on ${d.base.ref}, lands with its parent`;
-   return null;
-}
-
-/** A login that can't blow out the meta line. */
-function Who({ login }: { login: string }) {
-   return (
-      <span className="inline-block max-w-[10ch] truncate align-bottom" title={login}>
-         {login}
-      </span>
-   );
 }
 
 /** Small warning flags that ride along regardless of lane. */
@@ -126,14 +82,6 @@ function WarnFlags({ pull }: { pull: DerivedPull }) {
          {pull.externalBlock && (
             <span className="flag-amber" title="blocked on something outside the repo">
                external
-            </span>
-         )}
-         {pull.qaingBy && pull.status === 'needs_qa' && (
-            <span
-               className="flag-qaing inline-flex items-center gap-0.5"
-               title={`${pull.qaingBy} is already testing this (the QAing label)`}
-            >
-               QAing: <Who login={pull.qaingBy} />
             </span>
          )}
       </>
@@ -222,23 +170,14 @@ function MetricRail({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    );
 }
 
-function RowImpl({
-   pull,
-   opts,
-   note,
-   noteTone,
-}: {
-   pull: DerivedPull;
-   opts: RowOptions;
-   /** a lane-supplied phrase for the context slot (verb, or who to nudge) */
-   note?: ReactNode;
-   /** 'do' = your action (brand), 'wait' = a nudge note (muted) */
-   noteTone?: 'do' | 'wait';
-}) {
+function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const d = pull.data;
    const key = pullKey(d);
    const fresh = freshKind(pull, opts);
-   const context = note ?? (opts.cue === false ? null : cue(pull, opts.me));
+   // the one action/context line, the same in every lens (model/actions.ts)
+   const note = rowNote(pull, opts.me);
+   // "iterating" and a "fix pushed …" note say the same thing — don't say it twice
+   const showIterating = isIterating(d) && !note?.text.includes('pushed');
 
    return (
       <CardShell
@@ -252,22 +191,22 @@ function RowImpl({
          meta={
             <>
                {fresh && <FreshTag kind={fresh} />}
-               {opts.badge === false ? null : <StatusBadge status={pull.status} inline />}
+               <StatusBadge status={pull.status} inline />
                <RepoRef repo={d.repo} number={d.number} />
                {pull.sizeKnown && (
                   <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
                )}
-               {context != null && (
+               {note && (
                   <span
                      className={`max-w-[38ch] truncate ${
-                        noteTone === 'do' ? 'font-semibold text-brand-700' : 'text-ink-2'
+                        note.tone === 'do' ? 'font-semibold text-brand-700' : 'text-ink-2'
                      }`}
-                     title={typeof context === 'string' ? context : undefined}
+                     title={note.text}
                   >
-                     {context}
+                     {note.text}
                   </span>
                )}
-               {isIterating(d) && (
+               {showIterating && (
                   <span
                      className="flag-amber"
                      title="changed in the last 30 min, may still be moving"
@@ -300,11 +239,7 @@ export const Row = memo(
    RowImpl,
    (a, b) =>
       a.pull === b.pull &&
-      a.note === b.note &&
-      a.noteTone === b.noteTone &&
-      a.opts.badge === b.opts.badge &&
       a.opts.aging === b.opts.aging &&
-      a.opts.cue === b.opts.cue &&
       a.opts.me === b.opts.me &&
       a.opts.lastSeen === b.opts.lastSeen &&
       a.opts.acked === b.opts.acked &&
