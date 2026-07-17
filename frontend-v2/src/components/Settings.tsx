@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { clearStoredPrefs } from '../storage';
+import {
+   notificationsSupported,
+   notifyPermission,
+   requestNotifyPermission,
+} from '../notifications';
 import { markAllSeen, refreshAll } from '../store';
 import { type Settings as SettingsShape, setRepoPref, setSettings, useSettings } from '../settings';
 import { Segmented } from './bits';
@@ -86,6 +91,18 @@ export function Settings({
    const [seenNote, setSeenNote] = useState(false);
    const [refreshNote, setRefreshNote] = useState('');
    const [armReset, setArmReset] = useState(false);
+   const [perm, setPerm] = useState(notifyPermission());
+
+   const toggleNotify = async (on: boolean) => {
+      if (!on) {
+         setSettings({ notify: false });
+         return;
+      }
+      let p = notifyPermission();
+      if (p === 'default') p = await requestNotifyPermission();
+      setPerm(p);
+      setSettings({ notify: p === 'granted' });
+   };
 
    useEffect(() => {
       if (!open) return;
@@ -233,6 +250,51 @@ export function Settings({
                               onChange={v => set({ showCryo: v === 'show' })}
                            />
                         </Field>
+                     </Group>
+
+                     <Group title="Notifications">
+                        {notificationsSupported ? (
+                           <>
+                              <Field
+                                 label="Desktop notifications"
+                                 hint="Alert when one of your PRs is ready to merge, or a re-review falls to you."
+                              >
+                                 <Segmented
+                                    ariaLabel="desktop notifications"
+                                    value={s.notify && perm === 'granted' ? 'on' : 'off'}
+                                    options={[
+                                       ['off', 'Off'],
+                                       ['on', 'On'],
+                                    ]}
+                                    onChange={v => void toggleNotify(v === 'on')}
+                                 />
+                              </Field>
+                              {perm === 'denied' && (
+                                 <span className="text-xs text-bad">
+                                    Blocked in your browser settings — allow notifications for this
+                                    site to turn them on.
+                                 </span>
+                              )}
+                              <Field
+                                 label="Sound"
+                                 hint="Play a short chime with each notification."
+                              >
+                                 <Segmented
+                                    ariaLabel="notification sound"
+                                    value={s.notifySound ? 'on' : 'off'}
+                                    options={[
+                                       ['off', 'Off'],
+                                       ['on', 'On'],
+                                    ]}
+                                    onChange={v => set({ notifySound: v === 'on' })}
+                                 />
+                              </Field>
+                           </>
+                        ) : (
+                           <span className="text-xs text-ink-3">
+                              This browser doesn’t support desktop notifications.
+                           </span>
+                        )}
                      </Group>
 
                      <RepoManagerGroup
