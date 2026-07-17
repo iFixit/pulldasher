@@ -28,11 +28,13 @@ export function ClosedRow({ pull, lastSeen }: { pull: PullData; lastSeen?: numbe
          >
             {merged ? 'Merged' : 'Closed'}
          </span>
-         <Avatar login={pull.user.login} />
-         <span className="min-w-0 flex-1 text-sm break-words">
-            <PullTitleLink repo={pull.repo} number={pull.number} title={pull.title} />
+         <span className="pd-raise flex-none">
+            <Avatar login={pull.user.login} />
          </span>
-         <span className="flex flex-none items-center gap-2.5 text-xs whitespace-nowrap text-ink-3">
+         <span className="min-w-0 flex-1 text-sm break-words">
+            <PullTitleLink repo={pull.repo} number={pull.number} title={pull.title} stretch />
+         </span>
+         <span className="pd-raise flex flex-none items-center gap-2.5 text-xs whitespace-nowrap text-ink-3">
             <RepoRef repo={pull.repo} number={pull.number} />
             <span className="w-16 text-right tabular-nums">{ago(closedAt)} ago</span>
          </span>

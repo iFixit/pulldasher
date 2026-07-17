@@ -113,13 +113,7 @@ export function Review({
    return (
       <>
          {todo.length > 0 && (
-            <Lane
-               title="Yours to do"
-               sub="every action that's yours, oldest first"
-               pulls={[]}
-               count={todo.length}
-               opts={opts}
-            >
+            <Lane title="Yours to do" pulls={[]} count={todo.length} opts={opts}>
                <Truncated cap={10} id="lane:Yours to do">
                   {todo.map(({ p, verb }) => (
                      <AnnotatedRow key={pullKey(p.data)} pull={p} opts={opts} side="left">
@@ -129,33 +123,26 @@ export function Review({
                </Truncated>
             </Lane>
          )}
-         <Lane
-            title="Review queue"
-            sub="best next review first"
-            pulls={queue}
-            cap={9}
-            opts={{ ...opts, badge: false }}
-         />
+         <Lane title="Review queue" pulls={queue} cap={9} opts={{ ...opts, badge: false }} />
          <Lane
             title="Aging without full review"
-            sub="biggest debt first. Take one."
             pulls={aged}
             cap={8}
             opts={{ ...opts, badge: false, aging: true }}
          />
          <Lane
             title="Needs QA"
-            sub="green CI, grab one — QA runs in parallel with CR"
+            sub="CR and QA run in parallel"
             pulls={needsQa}
             cap={6}
             opts={opts}
          />
-         <RestGroup title="The rest of the board" sub="blocked, held, red, drafts, bots, shipped">
+         <RestGroup title="The rest of the board">
             <Fold
                dot={STATUS_DOT.ready}
                count={ready.length}
                label="ready to merge"
-               hint="authors can merge, nudge if idle"
+               hint="nudge if idle"
             >
                <FoldRows list={ready} opts={opts} />
             </Fold>
@@ -167,19 +154,14 @@ export function Review({
             >
                <FoldRows list={stamped} opts={opts} extra={{ badge: false }} />
             </Fold>
-            <Fold
-               dot={STATUS_DOT.dev_block}
-               count={devBlocked.length}
-               label="dev blocked"
-               hint="the author owes changes"
-            >
+            <Fold dot={STATUS_DOT.dev_block} count={devBlocked.length} label="dev blocked">
                <FoldRows list={devBlocked} opts={opts} />
             </Fold>
             <Fold
                dot={STATUS_DOT.deploy_block}
                count={deployHeld.length}
                label="deploy hold"
-               hint="done, deliberately not shipped — each row names the holder"
+               hint="each row names the holder"
             >
                <FoldRows list={deployHeld} opts={opts} />
             </Fold>
@@ -187,7 +169,7 @@ export function Review({
                dot={STATUS_DOT.unmergeable}
                count={unmergeable.length}
                label="can't merge"
-               hint="signed off but conflicted or dependent — the author rebases"
+               hint="the author rebases"
             >
                <FoldRows list={unmergeable} opts={opts} />
             </Fold>
@@ -195,32 +177,21 @@ export function Review({
                dot={STATUS_DOT.ci_pending}
                count={ciPending.length}
                label={STATUS_LABEL.ci_pending.toLowerCase()}
-               hint="signed off, waiting on green"
+               hint="waiting on green"
             >
                <FoldRows list={ciPending} opts={opts} />
             </Fold>
-            <Fold
-               dot={STATUS_DOT.ci_red}
-               count={ciRed.length}
-               label="CI red"
-               hint="usually the author's fix"
-            >
+            <Fold dot={STATUS_DOT.ci_red} count={ciRed.length} label="CI red">
                <FoldRows list={ciRed} opts={opts} />
             </Fold>
             <Fold
                dot={STATUS_DOT.draft}
                count={drafts.length}
                label={drafts.length === 1 ? 'draft' : 'drafts'}
-               hint="not reviewable yet"
             >
                <FoldRows list={drafts} opts={opts} />
             </Fold>
-            <Fold
-               dot="var(--ink-3)"
-               count={bots.length}
-               label="bot PRs"
-               hint="dependency bumps — security updates first"
-            >
+            <Fold dot="var(--ink-3)" count={bots.length} label="bot PRs" hint="security first">
                {/* `security` is this org's most-used label (50 in 3 months),
                    almost all on bot bumps: they lead the fold */}
                <FoldRows

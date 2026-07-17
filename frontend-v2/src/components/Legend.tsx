@@ -1,3 +1,4 @@
+import { WeightMeter } from './bits';
 import { usePopover } from './usePopover';
 
 /**
@@ -43,19 +44,24 @@ export function Legend() {
                   'a CR or QA sign-off, left as a comment on the PR'
                )}
                {item(
-                  <span className="tabular-nums">
-                     CR 1/2 <b style={{ color: 'var(--ok)' }}>✓</b>
+                  <span className="inline-flex items-center gap-1">
+                     CR
+                     <span className="pip pip-on" />
+                     <span className="pip pip-off" />
                   </span>,
-                  'sign-offs given / required; ✓ done, – not required. Click for who signed'
+                  'CR / QA sign-offs: one pip per required stamp, filled = done, hollow = still needed. Click a row’s pips for who signed'
                )}
                {item(
-                  <span className="tabular-nums" style={{ color: 'var(--warn)' }}>
-                     1/2<b className="font-semibold">⊘</b>
+                  <span className="inline-flex items-center gap-1">
+                     <span className="pip pip-on" />
+                     <span className="pip pip-stale" />
                   </span>,
-                  'a push invalidated a stamp: someone owes a re-stamp'
+                  'an amber pip means a push invalidated a stamp: a re-stamp is owed'
                )}
                {item(
-                  <span className="underline decoration-dotted underline-offset-2">1/2</span>,
+                  <span className="pip-mine inline-flex items-center gap-1 pb-0.5">
+                     <span className="pip pip-on" />
+                  </span>,
                   'the dotted underline marks a slot you stamped'
                )}
                {item(
@@ -65,10 +71,7 @@ export function Legend() {
                   </span>,
                   'age: hours under a day, amber past 4 days, red past 10. Hover for both clocks'
                )}
-               {item(
-                  <span className="chip-w chip-w-M">M</span>,
-                  'estimated review effort (XS to XL), from diff size'
-               )}
+               {item(<WeightMeter weight="M" />, 'review effort, light to heavy, from diff size')}
                {item(
                   <span className="flag-qaing">QAing</span>,
                   'someone claimed QA by adding the QAing label on GitHub (◉ in columns)'
@@ -94,7 +97,7 @@ export function Legend() {
                      <span className="dot-fresh" />
                      <span className="dot-updated" />
                   </span>,
-                  'since your last look: solid = new PR, ring = updated. Opening one clears it'
+                  'changed since your last visit: solid = new PR, ring = updated (tracked while you’re away). Opening one clears it'
                )}
                {item(<span>❄</span>, 'Cryogenic Storage PRs and quiet repos, hidden by default')}
                {item(

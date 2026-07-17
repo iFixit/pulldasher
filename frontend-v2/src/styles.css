@@ -31,8 +31,8 @@
   --badge-brand-fg: var(--brand-900);
   --badge-gray-bg: #e5e7eb;
   --badge-gray-fg: #101828;
-  /* text-grade in light mode: the 12px ledger ✓ and ⊘ are the two most
-     decision-critical glyphs on the board and must clear 4.5:1 on white */
+  /* text-grade in light mode: --ok/--warn also fill the 8px sign-off pips,
+     the most decision-critical marks on the board, and must stay legible */
   --ok: #15803d;
   --warn: #b45309;
   --bad: #b91c1c;
@@ -118,6 +118,11 @@ a:hover {
     width: 84px;
     flex: none;
   }
+  /* inline on a meta line: sized to its text, not a fixed column */
+  .badge-inline {
+    width: auto;
+    padding-inline: 7px;
+  }
   .badge-ready { background: var(--badge-green-bg); color: var(--badge-green-fg); }
   .badge-recr { background: var(--badge-brand-bg); color: var(--badge-brand-fg); }
   .badge-qa { background: var(--badge-purple-bg); color: var(--badge-purple-fg); }
@@ -128,11 +133,26 @@ a:hover {
   .badge-red { background: var(--badge-red-bg); color: var(--badge-red-fg); }
   .badge-draft { background: none; color: var(--ink-3); border: 1px dashed var(--border); }
 
-  .chip-w { @apply rounded-lg px-1.5 py-0.5 text-center text-[11px] font-medium; min-width: 26px; flex: none; }
-  .chip-w-XS, .chip-w-S { background: var(--badge-green-bg); color: var(--badge-green-fg); }
-  .chip-w-M { background: var(--badge-gray-bg); color: var(--badge-gray-fg); }
-  .chip-w-L { background: var(--badge-amber-bg); color: var(--badge-amber-fg); }
-  .chip-w-XL { background: var(--badge-red-bg); color: var(--badge-red-fg); }
+  /* review-effort meter: five rising segments, N filled by weight class,
+     color ramping green→gray→amber→red. Replaces the XS–XL letter chip so
+     "how heavy is this to review" reads without decoding a size code. */
+  .wt { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+  .wt i { width: 3px; border-radius: 1px; background: var(--secondary); }
+  .wt i:nth-child(1) { height: 4px; }
+  .wt i:nth-child(2) { height: 6px; }
+  .wt i:nth-child(3) { height: 8px; }
+  .wt i:nth-child(4) { height: 10px; }
+  .wt i:nth-child(5) { height: 12px; }
+
+  /* sign-off pips: one square per required stamp. Filled = a live stamp,
+     amber = a stamp a push invalidated (a re-stamp is owed), hollow = still
+     needed. This is the whole ledger vocabulary — no ✓, no ⊘. */
+  .pip { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+  .pip-on { background: var(--ok); }
+  .pip-stale { background: var(--warn); }
+  .pip-off { background: transparent; box-shadow: inset 0 0 0 1.5px var(--border); }
+  /* the slot you personally stamped: a dotted rule under the pips */
+  .pip-mine { border-bottom: 1px dotted var(--ink-3); padding-bottom: 2px; }
 
   .flag-amber {
     @apply rounded-lg px-1.5 py-0.5 text-[11px] font-medium;
@@ -141,6 +161,20 @@ a:hover {
     flex: none;
   }
 
+}
+
+/* whole-card click target: the title link stretches an invisible layer over
+   its positioned row, so clicking anywhere opens the PR. Genuinely
+   interactive children (avatar, ledger, actions) sit above it via .pd-raise. */
+.pd-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.pd-raise {
+  position: relative;
+  z-index: 1;
 }
 
 /* hover-reveal row actions (copy branch, refresh) */

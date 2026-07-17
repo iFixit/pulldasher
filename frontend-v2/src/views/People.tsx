@@ -132,13 +132,14 @@ export function People({
                          through 30 people */}
                      {(owes.get(login)?.length ?? 0) > 0 && (
                         <span
-                           className="text-[11px] font-semibold tabular-nums"
+                           className="inline-flex items-center gap-0.5 text-[11px] font-semibold tabular-nums"
                            style={{ color: 'var(--warn)' }}
                            title={`owes ${owes.get(login)!.length} re-stamp${
                               owes.get(login)!.length === 1 ? '' : 's'
                            }`}
                         >
-                           ⊘{owes.get(login)!.length}
+                           <span className="pip pip-stale" />
+                           {owes.get(login)!.length}
                         </span>
                      )}
                   </>,
@@ -203,13 +204,7 @@ export function People({
             </span>
          </div>
 
-         <Lane
-            title="Review queue"
-            sub="waiting on review, lightest first"
-            pulls={reviewable}
-            cap={8}
-            opts={opts}
-         />
+         <Lane title="Review queue" pulls={reviewable} cap={8} opts={opts} />
          {(rest.length > 0 || owed.length > 0 || mine.length > 0) && (
             <RestGroup>
                <Fold
@@ -224,17 +219,11 @@ export function People({
                   dot="var(--ink-3)"
                   count={rest.length}
                   label={selectedTeam ? 'their other team PRs' : 'their other PRs'}
-                  hint="their move or waiting"
                >
                   <FoldRows list={rest} opts={opts} />
                </Fold>
                {selectedPerson && (
-                  <Fold
-                     dot="var(--brand)"
-                     count={owed.length}
-                     label="re-stamps they owe others"
-                     hint="worth a nudge"
-                  >
+                  <Fold dot="var(--brand)" count={owed.length} label="re-stamps they owe others">
                      <FoldRows list={owed} opts={opts} />
                   </Fold>
                )}

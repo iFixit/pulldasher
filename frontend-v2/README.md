@@ -18,11 +18,27 @@ serves v1 at `/` and v2 at `/v2`, both fed by the same socket protocol
   re-stamps you owe (CR and QA), your merge buttons, your CI fixes —
   regardless of who authored the pull. `src/model/actions.ts` is the single
   source for "whose move is it", shared with My work.
+- **One item, one order, everywhere.** Every lens renders the same card:
+  avatar and full-width title on top, one meta line below (status, repo,
+  context, flags) ending in a fixed metric rail — review effort, then CR and
+  QA sign-off pips, then age — right-anchored so the rail reads as vertical
+  columns down any board. Giving the title its own line is what lets a long
+  title wrap cleanly and what lets the whole thing reflow to a phone;
+  Classic keeps its columns, but the card inside them is the same one the
+  lanes use. The whole card is a click target (the title link stretches over
+  it), so a click anywhere opens the PR.
 - **The re-stamp lane.** Inactive CR/QA signatures (invalidated by a push)
   are already on the wire; a pull that was reviewed and fixed but lacks a
-  fresh stamp is the cheapest review on the board, so it leads. The ledger
-  shows partial staleness (`1/2⊘`), marks slots you stamped with a dotted
-  underline, and clicking a slot lists who signed and when.
+  fresh stamp is the cheapest review on the board, so it leads. Sign-off is a
+  pip meter — one square per required stamp: filled green is a live stamp,
+  amber is a stamp a push invalidated (a re-stamp is owed, the board's most
+  actionable state), hollow is still needed. A dotted underline marks a slot
+  you stamped; clicking the pips lists who signed and when. No check glyph, no
+  slash — the fill is the whole vocabulary.
+- **Review effort, always shown.** A five-segment meter (light to heavy,
+  color-ramped) rides the rightmost rail of every row, so "can I fit this in
+  the time I have" reads without opening the diff. A cheap prior from diff
+  size; humans override by reading.
 - **A queue that ranks the right thing.** `src/model/sort.ts` scores by
   weight, then boosts pulls one stamp from done and credits age, so an old M
   outranks a fresh S before the starvation cliff. Thresholds are tuned to
@@ -43,8 +59,9 @@ serves v1 at `/` and v2 at `/v2`, both fed by the same socket protocol
 - **Changed since your last look.** A last-seen marker in localStorage,
   stamped when you leave (pagehide) and only after ~45 visible seconds, so a
   glance at another tab can't erase the weekend's delta. Solid dot = new PR,
-  ring = updated; opening a PR clears its dot; the banner also counts merges
-  while you were away.
+  ring = updated; opening a PR clears its dot. A persistent `● changed N`
+  toggle sits in the filter row (not just the arrival banner) to narrow the
+  board to those PRs, and the banner also counts merges while you were away.
 - **Keyboard:** `/` filter, `j`/`k` walk rows, `Enter` opens, `c` copies the
   focused row's branch.
 
@@ -87,7 +104,7 @@ lens `#lens=board` merged into Classic; old links redirect.)
 - **Comment/review activity isn't on the wire** — cues like "X commented 2h
   ago" need the server to include recent comment metadata in `toObject()`.
 - **Teams over the handshake** instead of a static file (see above).
-- **`changed_files`** is stored in the DB but not sent; the review-weight
-  chip falls back to size-only until it is.
+- **`changed_files`** is stored in the DB but not sent; the review-effort
+  meter falls back to size-only until it is.
 - **CR leaderboard** (v1's leader-list) and **desktop notifications** aren't
   ported yet.

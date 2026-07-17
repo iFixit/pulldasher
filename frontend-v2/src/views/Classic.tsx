@@ -1,7 +1,7 @@
 import { crDone, qaDone, type DerivedPull } from '../model/status';
 import type { PullData } from '../types';
 import { ago, pullKey } from '../format';
-import { EmptyState } from '../components/bits';
+import { EmptyState, RepoRef } from '../components/bits';
 import { CardShell } from '../components/Card';
 import { BoardColumn } from '../components/Column';
 import { Truncated } from '../components/Lane';
@@ -67,7 +67,7 @@ function Column({
          {/* a 60-row CR column is a 3600px scroll: cap it, keep the count honest */}
          <Truncated cap={15} id={`classic:${title}`}>
             {pulls.map(p => (
-               <Row key={pullKey(p.data)} pull={p} opts={{ ...opts, compact: true }} />
+               <Row key={pullKey(p.data)} pull={p} opts={opts} />
             ))}
          </Truncated>
       </BoardColumn>
@@ -84,16 +84,19 @@ function ClosedCard({ pull }: { pull: PullData }) {
          repo={pull.repo}
          number={pull.number}
          title={pull.title}
-         right={
+         meta={
             <>
-               <span
-                  className="font-medium"
-                  style={{ color: merged ? 'var(--ok)' : undefined }}
-                  title={merged ? 'merged' : 'closed without merging'}
-               >
-                  {merged ? 'Merged' : 'Closed'}
+               <RepoRef repo={pull.repo} number={pull.number} />
+               <span className="ml-auto inline-flex items-center gap-2.5">
+                  <span
+                     className="font-medium"
+                     style={{ color: merged ? 'var(--ok)' : undefined }}
+                     title={merged ? 'merged' : 'closed without merging'}
+                  >
+                     {merged ? 'Merged' : 'Closed'}
+                  </span>
+                  <span className="w-16 text-right tabular-nums">{ago(closedAt)} ago</span>
                </span>
-               <span className="w-16 text-right tabular-nums">{ago(closedAt)} ago</span>
             </>
          }
       />

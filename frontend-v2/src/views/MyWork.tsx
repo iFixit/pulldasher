@@ -60,13 +60,7 @@ export function MyWork({
 
    return (
       <>
-         <Lane
-            title="Your move"
-            sub="each of these is waiting on you"
-            pulls={[]}
-            count={move.length}
-            opts={opts}
-         >
+         <Lane title="Your move" pulls={[]} count={move.length} opts={opts}>
             {move.map(p => (
                <AnnotatedRow key={pullKey(p.data)} pull={p} opts={opts} side="left">
                   {authorMove(p)}
@@ -74,20 +68,14 @@ export function MyWork({
             ))}
             {!move.length && (
                <div className="px-3.5 py-3 text-[13px] text-ink-3">
-                  Nothing needs you right now. Everything below is waiting on someone else.
+                  Nothing needs you right now.
                </div>
             )}
          </Lane>
-         <Lane
-            title="Waiting on others"
-            sub="who to nudge, and how long it’s been"
-            pulls={[]}
-            count={waiting.length}
-            opts={opts}
-         >
+         <Lane title="Waiting on others" pulls={[]} count={waiting.length} opts={opts}>
             {waiting.map(p => (
                <AnnotatedRow key={pullKey(p.data)} pull={p} opts={opts} side="right">
-                  <span title={waitingOn(p)}>{waitingOn(p)}</span>
+                  {waitingOn(p)}
                </AnnotatedRow>
             ))}
             {!waiting.length && (
@@ -98,12 +86,7 @@ export function MyWork({
          </Lane>
          {shipped.length > 0 && (
             <RestGroup>
-               <Fold
-                  dot="var(--ok)"
-                  count={shipped.length}
-                  label="merged or closed in the last 14 days"
-                  hint=""
-               >
+               <Fold dot="var(--ok)" count={shipped.length} label="shipped in the last 14 days">
                   <Truncated>
                      {shipped.map(p => (
                         <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />

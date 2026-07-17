@@ -1,4 +1,4 @@
-import { ROT_DAYS, STARVE_DAYS, type Status, type Weight } from '../model/status';
+import { ROT_DAYS, STARVE_DAYS, type Status, type Weight, weightRank } from '../model/status';
 import type { Signature } from '../types';
 import { ago, githubUrl, loginHue, shortRepo } from '../format';
 import { usePopover } from './usePopover';
@@ -46,8 +46,12 @@ export const STATUS_DOT: Record<Status, string> = {
    draft: 'var(--border)',
 };
 
-export function StatusBadge({ status }: { status: Status }) {
-   return <span className={`badge ${STATUS_CLASS[status]}`}>{STATUS_LABEL[status]}</span>;
+export function StatusBadge({ status, inline }: { status: Status; inline?: boolean }) {
+   return (
+      <span className={`badge ${STATUS_CLASS[status]} ${inline ? 'badge-inline' : ''}`}>
+         {STATUS_LABEL[status]}
+      </span>
+   );
 }
 
 export function Avatar({
@@ -87,23 +91,52 @@ export function Avatar({
    );
 }
 
-export function WeightChip({ weight }: { weight: Weight }) {
+const WEIGHT_WORD: Record<Weight, string> = {
+   XS: 'very light',
+   S: 'light',
+   M: 'medium',
+   L: 'heavy',
+   XL: 'very heavy',
+};
+// green for the cheap ones, gray at medium, amber then red as effort climbs —
+// the same light→heavy read the old XS–XL colors carried, now as fill height
+const WEIGHT_FILL = ['var(--ok)', 'var(--ok)', 'var(--ink-3)', 'var(--warn)', 'var(--bad)'];
+
+/**
+ * Review effort as a five-segment meter: how heavy this is to review, filled
+ * by weight class and color-ramped. Always present, so the rightmost column
+ * of every row answers "can I fit this in the time I have" at a glance. A
+ * cheap prior from diff size; humans override by reading (dimmed when the
+ * wire didn't send additions/deletions).
+ */
+export function WeightMeter({ weight, known = true }: { weight: Weight; known?: boolean }) {
+   const fill = weightRank(weight) + 1;
+   const color = WEIGHT_FILL[weightRank(weight)];
+   const word = WEIGHT_WORD[weight];
+   const label = known ? `review effort: ${word}` : `review effort: ${word} (size estimated)`;
    return (
-      <span className={`chip-w chip-w-${weight}`} title="estimated review effort, from diff size">
-         {weight}
+      <span
+         className="wt"
+         role="img"
+         aria-label={label}
+         title={`${label}, from diff size`}
+         style={{ opacity: known ? 1 : 0.45 }}
+      >
+         {[0, 1, 2, 3, 4].map(i => (
+            <i key={i} style={i < fill ? { background: color } : undefined} />
+         ))}
       </span>
    );
 }
 
 /**
- * Sign-off state as a fixed-slot ledger: label and value each hold a constant
- * width so CR, QA, and age land at the same x on every row and read as
- * vertical columns down a board. A green check when satisfied, a fraction
- * while outstanding — with an amber slash appended whenever any stamp was
- * invalidated by a push (partial staleness is the single most actionable
- * state on the board; it must never hide inside a plain fraction) — and a
- * muted dash when nothing is required. The slot never collapses. A dotted
- * underline marks the slot you personally stamped.
+ * Sign-off state as a pip meter: one square per required stamp, in a
+ * fixed-width slot so CR, QA, and age land at the same x down a board. Filled
+ * green = a live stamp; amber = a stamp a push invalidated, so a re-stamp is
+ * owed (the single most actionable state on the board — it can't hide inside
+ * a fraction); hollow = still needed; a muted dash = nothing required. A
+ * dotted underline marks a slot you personally stamped. No check, no slash —
+ * the fill is the whole vocabulary.
  */
 export function Pips({
    label,
@@ -126,6 +159,9 @@ export function Pips({
    const met = !none && have >= req;
    const mine = me != null && by.includes(me);
    const owedByMe = me != null && staleBy.includes(me);
+   const on = Math.min(have, req);
+   const stale = Math.max(0, Math.min(staleBy.length, req - on));
+   const off = Math.max(0, req - on - stale);
    const aria = none
       ? `${label} not required`
       : `${label} ${have} of ${req}` +
@@ -136,41 +172,40 @@ export function Pips({
               ? ', your stamp was invalidated by a push'
               : `, ${staleBy.join(', ')}'s stamp was invalidated by a push`
            : '');
+   const title = none
+      ? `${label} not required`
+      : staleBy.length
+        ? `${staleBy.join(', ')} stamped an earlier version; a push invalidated it`
+        : met
+          ? mine
+             ? `${label} done, including your stamp`
+             : `${label} done`
+          : `${label}: ${have} of ${req}`;
    return (
-      <span className="inline-flex items-baseline gap-1" aria-label={aria}>
+      <span className="inline-flex items-center gap-1" aria-label={aria} title={title}>
          <span aria-hidden className="w-[18px] text-[11px] font-medium text-ink-3">
             {label}
          </span>
          {none ? (
-            <span aria-hidden className="w-[34px] text-xs text-ink-3 opacity-60">
+            <span aria-hidden className="flex w-[30px] justify-end text-xs text-ink-3 opacity-60">
                –
-            </span>
-         ) : met ? (
-            <span
-               aria-hidden
-               className={`w-[34px] text-xs font-semibold ${mine ? 'underline decoration-dotted underline-offset-2' : ''}`}
-               style={{ color: 'var(--ok)' }}
-               title={mine ? 'done — including your stamp' : 'done'}
-            >
-               ✓
             </span>
          ) : (
             <span
                aria-hidden
-               className={`w-[34px] text-xs tabular-nums ${
-                  mine || owedByMe ? 'underline decoration-dotted underline-offset-2' : ''
-               } ${staleBy.length ? '' : 'text-ink-2'}`}
-               style={staleBy.length ? { color: 'var(--warn)' } : undefined}
-               title={
-                  staleBy.length
-                     ? `${staleBy.join(', ')} stamped an earlier version; a push invalidated it`
-                     : mine
-                       ? 'your stamp counts here'
-                       : undefined
-               }
+               className={`flex w-[30px] items-center justify-end gap-1 ${
+                  mine || owedByMe ? 'pip-mine' : ''
+               }`}
             >
-               {have}/{req}
-               {staleBy.length > 0 && <span className="font-semibold">⊘</span>}
+               {Array.from({ length: on }, (_, i) => (
+                  <span key={`on${i}`} className="pip pip-on" />
+               ))}
+               {Array.from({ length: stale }, (_, i) => (
+                  <span key={`st${i}`} className="pip pip-stale" />
+               ))}
+               {Array.from({ length: off }, (_, i) => (
+                  <span key={`off${i}`} className="pip pip-off" />
+               ))}
             </span>
          )}
       </span>
@@ -249,17 +284,12 @@ export function SigPips({
                         {ago(Date.parse(s.data.created_at) / 1000)} ago
                      </span>
                      {s.data.active ? (
-                        <span className="font-semibold" style={{ color: 'var(--ok)' }}>
-                           ✓
-                        </span>
+                        <span className="pip pip-on" title="active stamp" />
                      ) : (
                         <span
-                           className="font-semibold"
-                           style={{ color: 'var(--warn)' }}
-                           title="invalidated by a later push"
-                        >
-                           ⊘
-                        </span>
+                           className="pip pip-stale"
+                           title="invalidated by a later push — a re-stamp is owed"
+                        />
                      )}
                   </span>
                ))}
@@ -309,22 +339,31 @@ export function AgeStamp({
    );
 }
 
-/** The full-title GitHub link every row variant renders — never truncated. */
+/**
+ * The full-title GitHub link every row variant renders — never truncated.
+ * With `stretch`, its click target covers the whole positioned row (see
+ * .pd-link): the entire card opens the PR, while raised children stay
+ * clickable. The visible title still underlines on hover so it reads as the
+ * link, and j/k / middle-click still land on this anchor.
+ */
 export function PullTitleLink({
    repo,
    number,
    title,
    onOpen,
+   stretch,
 }: {
    repo: string;
    number: number;
    title: string;
    /** fired when the user opens the PR — the row's natural "seen" ack */
    onOpen?: () => void;
+   /** cover the whole row as one click target */
+   stretch?: boolean;
 }) {
    return (
       <a
-         className="font-medium hover:underline hover:underline-offset-2"
+         className={`font-medium hover:underline hover:underline-offset-2 ${stretch ? 'pd-link' : ''}`}
          href={githubUrl(repo, number)}
          target="_blank"
          rel="noopener noreferrer"

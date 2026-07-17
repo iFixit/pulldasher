@@ -19,7 +19,7 @@ export function Lane({
    children,
 }: {
    title: string;
-   sub: string;
+   sub?: string;
    pulls: DerivedPull[];
    /** header count when rows come in via children instead of pulls */
    count?: number;
@@ -33,7 +33,7 @@ export function Lane({
       <section className="mb-7">
          <div className="mb-2 flex items-baseline gap-2.5">
             <h2 className="m-0 text-base leading-snug font-semibold">{title}</h2>
-            <span className="text-xs text-ink-3">{sub}</span>
+            {sub && <span className="text-xs text-ink-3">{sub}</span>}
             <span className="flex-1" />
             <span className="text-xs text-ink-3 tabular-nums">{count ?? pulls.length}</span>
          </div>
@@ -50,9 +50,10 @@ export function Lane({
 }
 
 /**
- * A row with the lane's explanation column beside it: the action verb on
- * the left ("Merge it", "Re-stamp"), or the who-to-nudge note on the right.
- * The row itself drops its cue — the annotation carries it.
+ * A row carrying the lane's explanation in its own context slot: the action
+ * verb ("Merge it", "Re-stamp") for your move, or the who-to-nudge note for
+ * work you're waiting on. Folding it into the meta line (instead of a fixed
+ * side column) is what lets these rows reflow to a phone.
  */
 export function AnnotatedRow({
    pull,
@@ -65,33 +66,8 @@ export function AnnotatedRow({
    side: 'left' | 'right';
    children: ReactNode;
 }) {
-   const row = (
-      <span className="min-w-0 flex-1">
-         <Row pull={pull} opts={{ ...opts, cue: false }} />
-      </span>
-   );
    return (
-      <div
-         className={`flex border-t border-secondary first:border-t-0 ${
-            side === 'left' ? 'items-stretch' : 'items-center'
-         }`}
-      >
-         {side === 'left' ? (
-            <>
-               <span className="flex w-[130px] flex-none items-center pl-3.5 text-xs font-semibold text-brand-700">
-                  {children}
-               </span>
-               {row}
-            </>
-         ) : (
-            <>
-               {row}
-               <span className="w-[280px] flex-none truncate pr-3.5 pl-2 text-right text-xs text-ink-2">
-                  {children}
-               </span>
-            </>
-         )}
-      </div>
+      <Row pull={pull} opts={opts} note={children} noteTone={side === 'left' ? 'do' : 'wait'} />
    );
 }
 
@@ -170,7 +146,7 @@ export function Fold({
    dot: string;
    count: number;
    label: string;
-   hint: string;
+   hint?: string;
    children: ReactNode;
 }) {
    if (!count) return null;
@@ -182,7 +158,7 @@ export function Fold({
             </span>
             <span className="h-2 w-2 flex-none rounded-[3px]" style={{ background: dot }} />
             <b className="font-semibold text-ink tabular-nums">{count}</b> {label}
-            <span className="ml-auto text-xs text-ink-3">{hint}</span>
+            {hint && <span className="ml-auto text-xs text-ink-3">{hint}</span>}
          </summary>
          <div className="border-t border-secondary">{children}</div>
       </details>

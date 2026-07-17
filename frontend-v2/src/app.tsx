@@ -429,8 +429,18 @@ export function App() {
                   title="text, #number, label:x, status:x, older:5, repo:x, author:x"
                   value={query}
                   onChange={e => setQuery(e.target.value)}
-                  className="h-8 w-[170px] rounded-lg border border-line bg-surface px-2.5 text-[13px]"
+                  className="h-8 w-[170px] max-w-full grow rounded-lg border border-line bg-surface px-2.5 text-[13px] sm:grow-0"
                />
+               {(changedCount > 0 || onlyChanged) && (
+                  <ToggleChip
+                     active={onlyChanged}
+                     onClick={() => setOnlyChanged(v => !v)}
+                     title="PRs updated since your last visit. The marker only advances after you've had the board open a while, so a quick glance won't clear the weekend's changes. Click to show just these."
+                  >
+                     <span className="dot-fresh" />
+                     changed{changedCount > 0 ? ` ${changedCount}` : ''}
+                  </ToggleChip>
+               )}
                {legacy && (
                   <ToggleChip
                      active
@@ -442,15 +452,6 @@ export function App() {
                         v1 view: {describeLegacyView(legacy) || 'defaults'}
                      </span>
                      <span aria-hidden>✕</span>
-                  </ToggleChip>
-               )}
-               {onlyChanged && (
-                  <ToggleChip
-                     active
-                     onClick={() => setOnlyChanged(false)}
-                     title="showing only PRs changed since your last look. Click to show everything"
-                  >
-                     changed only ✕
                   </ToggleChip>
                )}
                {hiddenCount > 0 && (
