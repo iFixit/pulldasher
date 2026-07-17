@@ -448,17 +448,12 @@ export function App() {
                >
                   <span className="sr-only">live updates {connection}</span>
                </span>
-               <button
-                  type="button"
-                  onClick={() => setLens('stats')}
-                  title="the breakdown by status, and review stats"
-                  className="text-xs text-ink-3 tabular-nums hover:text-brand"
-               >
+               <span className="text-xs text-ink-3 tabular-nums">
                   <b className="text-ink">
                      {isScoped ? `${scoped.length} of ${pulls.length}` : pulls.length}
                   </b>{' '}
-                  open · stats ▸
-               </button>
+                  open
+               </span>
                <span className="flex-1" />
                <span className="text-xs text-ink-3">{me ? `signed in as ${me}` : '…'}</span>
                <a
