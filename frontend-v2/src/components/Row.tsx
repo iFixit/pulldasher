@@ -83,7 +83,7 @@ function WarnFlags({ pull, compact }: { pull: DerivedPull; compact?: boolean }) 
    return (
       <>
          {pull.conflict && pull.status !== 'unmergeable' && (
-            <span className="flag-amber" title="merge conflicts with the base branch">
+            <span className="flag-amber" role="img" aria-label="merge conflicts with the base branch" title="merge conflicts with the base branch">
                conflicts
             </span>
          )}

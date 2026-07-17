@@ -237,15 +237,44 @@ export function App() {
       mq.addEventListener('change', follow);
       return () => mq.removeEventListener('change', follow);
    }, []);
-   // v1's `/` hotkey: jump to the filter box from anywhere
+   // The keyboard model for an audience that lives in editors:
+   //   /   jump to the filter box (v1's hotkey)
+   //   j/k move focus down/up the rows (Enter opens — it's a link)
+   //   c   copy the focused row's branch name
    useEffect(() => {
       const onKey = (e: KeyboardEvent) => {
-         if (e.key !== '/' || e.metaKey || e.ctrlKey) return;
+         if (e.metaKey || e.ctrlKey || e.altKey) return;
          const t = e.target as HTMLElement;
          if (['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName) || t.isContentEditable) return;
-         e.preventDefault();
-         searchRef.current?.focus();
-         searchRef.current?.select();
+         if (e.key === '/') {
+            e.preventDefault();
+            searchRef.current?.focus();
+            searchRef.current?.select();
+            return;
+         }
+         if (e.key === 'j' || e.key === 'k') {
+            const links = [
+               ...document.querySelectorAll<HTMLAnchorElement>('.pd-row a[href*="/pull/"]'),
+            ];
+            if (!links.length) return;
+            const at = links.indexOf(document.activeElement as HTMLAnchorElement);
+            const next =
+               at === -1
+                  ? e.key === 'j'
+                     ? 0
+                     : links.length - 1
+                  : e.key === 'j'
+                    ? Math.min(at + 1, links.length - 1)
+                    : Math.max(at - 1, 0);
+            links[next]?.focus();
+            e.preventDefault();
+            return;
+         }
+         if (e.key === 'c') {
+            const row = (document.activeElement as HTMLElement | null)?.closest('.pd-row');
+            const copy = row?.querySelector<HTMLButtonElement>('button[aria-label^="copy branch"]');
+            copy?.click();
+         }
       };
       document.addEventListener('keydown', onKey);
       return () => document.removeEventListener('keydown', onKey);

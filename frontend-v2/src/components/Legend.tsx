@@ -97,6 +97,10 @@ export function Legend() {
                   'since your last look: solid = new PR, ring = updated. Opening one clears it'
                )}
                {item(<span>❄</span>, 'Cryogenic Storage PRs and quiet repos, hidden by default')}
+               {item(
+                  <b className="font-semibold tabular-nums">/ j k c</b>,
+                  'keys: / filter · j/k walk rows · Enter opens · c copies the branch'
+               )}
             </span>
          )}
       </span>
