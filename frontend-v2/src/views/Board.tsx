@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { DerivedPull, Status } from '../model/status';
 import { crSort } from '../model/sort';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
+import { Fold, RestGroup } from '../components/Lane';
 import { Row, type RowOptions } from '../components/Row';
 
 /**
@@ -68,23 +69,42 @@ function Column({
    );
 }
 
-export function Board({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) {
-   if (!pulls.length) {
+export function Board({
+   pulls,
+   bots,
+   opts,
+}: {
+   pulls: DerivedPull[];
+   bots: DerivedPull[];
+   opts: RowOptions;
+}) {
+   if (!pulls.length && !bots.length) {
       return <EmptyState title="Workbench clear" sub="No open PRs in this scope." />;
    }
    const byStatus = new Map<Status, DerivedPull[]>();
    for (const p of pulls) byStatus.set(p.status, [...(byStatus.get(p.status) ?? []), p]);
    return (
-      <div className="grid gap-5 [grid-template-columns:repeat(auto-fill,minmax(340px,1fr))]">
-         {COLUMNS.map(({ status, hint }) => (
-            <Column
-               key={status}
-               status={status}
-               hint={hint}
-               pulls={byStatus.get(status) ?? []}
-               opts={opts}
-            />
-         ))}
-      </div>
+      <>
+         <div className="grid gap-5 [grid-template-columns:repeat(auto-fill,minmax(340px,1fr))]">
+            {COLUMNS.map(({ status, hint }) => (
+               <Column
+                  key={status}
+                  status={status}
+                  hint={hint}
+                  pulls={byStatus.get(status) ?? []}
+                  opts={opts}
+               />
+            ))}
+         </div>
+         {bots.length > 0 && (
+            <RestGroup>
+               <Fold dot="var(--ink-3)" count={bots.length} label="bot PRs" hint="dependency bumps">
+                  {bots.map(p => (
+                     <Row key={`${p.data.repo}#${p.data.number}`} pull={p} opts={opts} />
+                  ))}
+               </Fold>
+            </RestGroup>
+         )}
+      </>
    );
 }

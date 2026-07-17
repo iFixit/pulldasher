@@ -67,7 +67,10 @@ export function App() {
       [repoSpecs]
    );
 
-   const scoped = useMemo(() => {
+   // scope/query applied, but NOT the changed-only toggle: the changed count
+   // must describe the pool the toggle would narrow, or the banner promises
+   // rows the click doesn't deliver
+   const inScope = useMemo(() => {
       let out = pulls;
       // v1 conventions: Cryogenic-Storage pulls and hideByDefault repos stay
       // off the board unless asked for (or the scope names the repo).
@@ -76,6 +79,8 @@ export function App() {
             p => !p.cryo && (!hiddenRepos.has(p.data.repo) || scope.repos.includes(p.data.repo))
          );
       if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.data.repo));
+      // bots bypass the people filter on purpose: dependency bumps need review
+      // no matter whose work you follow (they land in the bots fold, not lanes)
       if (scope.authors.length)
          out = out.filter(p => isBot(p) || scope.authors.includes(p.data.user.login));
       if (query) {
@@ -89,13 +94,20 @@ export function App() {
             )
          );
       }
-      if (onlyChanged) out = out.filter(p => Date.parse(p.data.updated_at) / 1000 > lastSeen);
       return out;
-   }, [pulls, scope, query, onlyChanged, lastSeen, showHidden, hiddenRepos]);
+   }, [pulls, scope, query, showHidden, hiddenRepos]);
+
+   const scoped = useMemo(
+      () =>
+         onlyChanged
+            ? inScope.filter(p => Date.parse(p.data.updated_at) / 1000 > lastSeen)
+            : inScope,
+      [inScope, onlyChanged, lastSeen]
+   );
 
    const humans = scoped.filter(p => !isBot(p));
    const bots = scoped.filter(isBot);
-   const changedCount = pulls.filter(
+   const changedCount = inScope.filter(
       p => !isBot(p) && Date.parse(p.data.updated_at) / 1000 > lastSeen
    ).length;
    const hiddenCount = pulls.filter(
@@ -289,7 +301,7 @@ export function App() {
             {initialized && lens === 'teams' && (
                <Teams pulls={humans} teams={teams} team={team} onTeam={setTeam} opts={rowOpts} />
             )}
-            {initialized && lens === 'board' && <Board pulls={scoped} opts={rowOpts} />}
+            {initialized && lens === 'board' && <Board pulls={humans} bots={bots} opts={rowOpts} />}
          </main>
       </>
    );

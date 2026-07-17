@@ -13,14 +13,24 @@ export function ScopeControl({ pulls, teams }: { pulls: DerivedPull[]; teams: Te
    const [scope, setScope] = useScope();
    const [open, setOpen] = useState(false);
    const ref = useRef<HTMLSpanElement>(null);
+   const triggerRef = useRef<HTMLButtonElement>(null);
 
    useEffect(() => {
       if (!open) return;
-      const close = (e: MouseEvent) => {
+      const clickAway = (e: MouseEvent) => {
          if (!ref.current?.contains(e.target as Node)) setOpen(false);
       };
-      document.addEventListener('click', close);
-      return () => document.removeEventListener('click', close);
+      const onKey = (e: KeyboardEvent) => {
+         if (e.key !== 'Escape') return;
+         setOpen(false);
+         triggerRef.current?.focus();
+      };
+      document.addEventListener('click', clickAway);
+      document.addEventListener('keydown', onKey);
+      return () => {
+         document.removeEventListener('click', clickAway);
+         document.removeEventListener('keydown', onKey);
+      };
    }, [open]);
 
    const repoCounts = new Map<string, number>();
@@ -29,21 +39,32 @@ export function ScopeControl({ pulls, teams }: { pulls: DerivedPull[]; teams: Te
       repoCounts.set(p.data.repo, (repoCounts.get(p.data.repo) ?? 0) + 1);
       authorCounts.set(p.data.user.login, (authorCounts.get(p.data.user.login) ?? 0) + 1);
    }
+   // A saved scope can name people or repos with no open PRs today. They
+   // still filter, so they must stay visible (and uncheckable) or the scope
+   // becomes impossible to undo except by clearing everything.
+   for (const name of scope.authors) {
+      if (!authorCounts.has(name)) authorCounts.set(name, 0);
+   }
+   for (const name of scope.repos) {
+      if (!repoCounts.has(name)) repoCounts.set(name, 0);
+   }
    const repos = [...repoCounts.entries()].sort((a, b) => b[1] - a[1]);
    const authors = [...authorCounts.entries()].sort((a, b) => b[1] - a[1]);
 
    const scopedCount = scope.repos.length + scope.authors.length;
    const label = scopedCount
       ? `Scope: ${[
-           scope.repos.length && `${scope.repos.length} repos`,
-           scope.authors.length && `${scope.authors.length} people`,
+           scope.repos.length &&
+              `${scope.repos.length} ${scope.repos.length === 1 ? 'repo' : 'repos'}`,
+           scope.authors.length &&
+              `${scope.authors.length} ${scope.authors.length === 1 ? 'person' : 'people'}`,
         ]
            .filter(Boolean)
            .join(' · ')}`
       : 'Scope: everything';
 
    const commit = (key: keyof Scope, next: string[], all: string[]) =>
-      setScope({ ...scope, [key]: next.length === all.length ? [] : next });
+      setScope({ ...scope, [key]: all.length && next.length === all.length ? [] : next });
 
    const toggle = (key: keyof Scope, name: string, all: string[]) => {
       const cur = scope[key].length ? [...scope[key]] : [...all];
@@ -57,7 +78,7 @@ export function ScopeControl({ pulls, teams }: { pulls: DerivedPull[]; teams: Te
       list.map(([name, count]) => (
          <label
             key={name}
-            className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-[5px] text-[13px] hover:bg-muted [&:hover>.only]:visible"
+            className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-[5px] text-[13px] hover:bg-muted [&:hover>.only]:opacity-100"
          >
             <input
                type="checkbox"
@@ -71,10 +92,12 @@ export function ScopeControl({ pulls, teams }: { pulls: DerivedPull[]; teams: Te
                   )
                }
             />
-            <span>{strip ? shortRepo(name) : name}</span>
+            <span className={count === 0 ? 'text-ink-3' : ''}>
+               {strip ? shortRepo(name) : name}
+            </span>
             <button
                type="button"
-               className="only invisible border-0 bg-transparent p-0 text-[11px] text-brand"
+               className="only border-0 bg-transparent p-0 text-[11px] text-brand opacity-0 focus-visible:opacity-100"
                onClick={e => {
                   e.preventDefault();
                   commit(key, [name], []);
@@ -82,42 +105,45 @@ export function ScopeControl({ pulls, teams }: { pulls: DerivedPull[]; teams: Te
             >
                only
             </button>
-            <span className="ml-auto text-[11px] text-ink-3 tabular-nums">{count}</span>
+            <span className="ml-auto text-[11px] text-ink-3 tabular-nums">
+               {count === 0 ? 'no open PRs' : count}
+            </span>
          </label>
       ));
 
    return (
-      <span className="relative inline-block" ref={ref}>
+      <span className="relative inline-flex items-center" ref={ref}>
          <button
+            ref={triggerRef}
             type="button"
+            aria-haspopup="dialog"
+            aria-expanded={open}
             onClick={() => setOpen(o => !o)}
-            className={`pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13px] font-medium ${
+            className={`pressable inline-flex h-8 items-center gap-1.5 border px-2.5 text-[13px] font-medium ${
                scopedCount
                   ? 'border-brand bg-brand-50 text-brand-700'
                   : 'border-line bg-surface text-ink-2 hover:text-brand'
-            }`}
+            } ${scopedCount ? 'rounded-l-lg border-r-0' : 'rounded-lg'}`}
          >
             {label} ▾
-            {scopedCount > 0 && (
-               <span
-                  role="button"
-                  tabIndex={0}
-                  title="clear scope"
-                  className="pl-0.5"
-                  onClick={e => {
-                     e.stopPropagation();
-                     setScope({ repos: [], authors: [] });
-                  }}
-                  onKeyDown={e => {
-                     if (e.key === 'Enter') setScope({ repos: [], authors: [] });
-                  }}
-               >
-                  ✕
-               </span>
-            )}
          </button>
+         {scopedCount > 0 && (
+            <button
+               type="button"
+               aria-label="clear scope"
+               title="clear scope"
+               onClick={() => setScope({ repos: [], authors: [] })}
+               className="pressable inline-flex h-8 items-center rounded-r-lg border border-brand bg-brand-50 px-2 text-[13px] font-medium text-brand-700"
+            >
+               ✕
+            </button>
+         )}
          {open && (
-            <span className="popover absolute top-full left-0 z-50 mt-1 block max-h-[420px] w-[296px] overflow-auto rounded-lg border border-line bg-surface p-2 shadow-md">
+            <span
+               role="dialog"
+               aria-label="Scope filter"
+               className="popover absolute top-full left-0 z-50 mt-1 block max-h-[420px] w-[296px] overflow-auto rounded-lg border border-line bg-surface p-2 shadow-md"
+            >
                <span className="flex gap-3 px-1.5 pt-0.5 pb-1">
                   <button
                      type="button"
@@ -139,11 +165,10 @@ export function ScopeControl({ pulls, teams }: { pulls: DerivedPull[]; teams: Te
                               type="button"
                               className="rounded-lg border border-line bg-surface px-2 py-[3px] text-xs font-medium text-ink-2 hover:border-brand hover:text-brand"
                               onClick={() =>
-                                 commit(
-                                    'authors',
-                                    authors.map(([n]) => n).filter(n => t.members.includes(n)),
-                                    []
-                                 )
+                                 // the full roster, not just members with open
+                                 // PRs today: a preset that snapshots current
+                                 // authors silently drops quiet teammates
+                                 setScope({ ...scope, authors: [...t.members] })
                               }
                            >
                               {t.team}
