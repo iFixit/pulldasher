@@ -15,9 +15,6 @@ export function ClosedRow({ pull }: { pull: PullData }) {
          </span>
          <Avatar login={pull.user.login} />
          <span className="min-w-0 flex-1 text-sm break-words">
-            <span className="mr-1.5 text-xs text-ink-3">
-               {shortRepo(pull.repo)}#{pull.number}
-            </span>
             <a
                className="font-medium hover:underline hover:underline-offset-2"
                href={githubUrl(pull.repo, pull.number)}
@@ -27,7 +24,9 @@ export function ClosedRow({ pull }: { pull: PullData }) {
                {pull.title}
             </a>
          </span>
-         <span className="flex-none text-xs text-ink-3">{ago(closedAt)} ago</span>
+         <span className="flex-none text-xs whitespace-nowrap text-ink-3">
+            {shortRepo(pull.repo)}#{pull.number} · {ago(closedAt)} ago
+         </span>
       </div>
    );
 }

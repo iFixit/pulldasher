@@ -142,9 +142,6 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          <Avatar login={d.user.login} onClick={opts.onPerson} />
          {/* the title is how a reviewer decides: never truncate it, wrap instead */}
          <span className="min-w-0 flex-1 text-sm break-words">
-            <span className="mr-1.5 text-xs whitespace-nowrap text-ink-3">
-               {shortRepo(d.repo)}#{d.number}
-            </span>
             <a
                className="font-medium hover:underline hover:underline-offset-2"
                href={githubUrl(d.repo, d.number)}
@@ -177,6 +174,9 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
             </span>
          )}
          <span className="flex flex-none items-center gap-2.5 text-xs text-ink-3">
+            <span className="whitespace-nowrap">
+               {shortRepo(d.repo)}#{d.number}
+            </span>
             {showWeight && <WeightChip weight={pull.weight} />}
             {(pips === 'cr' || pips === 'both') && (
                <Pips label="CR" have={pull.crHave} req={d.status.cr_req} stale={staleCr} />
