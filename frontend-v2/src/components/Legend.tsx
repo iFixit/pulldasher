@@ -64,7 +64,7 @@ export function Legend() {
                   <span className="tabular-nums">
                      CR 1/2 <b style={{ color: 'var(--ok)' }}>✓</b>
                   </span>,
-                  'sign-offs given / required; a check means done'
+                  'sign-offs given / required; ✓ done, – not required'
                )}
                {item(
                   <b style={{ color: 'var(--warn)' }}>⊘</b>,

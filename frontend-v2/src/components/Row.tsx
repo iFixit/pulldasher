@@ -157,19 +157,19 @@ function CompactCard({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
             <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-ink-3">
                <RepoRef repo={d.repo} number={d.number} />
                <span className="ml-auto inline-flex items-center gap-2.5">
+                  {pull.qaingBy && pull.status === 'needs_qa' && (
+                     <span className="flag-qaing" title={`${pull.qaingBy} is already testing this`}>
+                        ◉
+                     </span>
+                  )}
                   {(pips === 'cr' || pips === 'both') && (
                      <Pips label="CR" have={pull.crHave} req={d.status.cr_req} stale={staleCr} />
                   )}
                   {(pips === 'qa' || pips === 'both') && (
                      <Pips label="QA" have={pull.qaHave} req={d.status.qa_req} />
                   )}
-                  {pull.qaingBy && pull.status === 'needs_qa' && (
-                     <span className="flag-qaing" title={`${pull.qaingBy} is already testing this`}>
-                        ◉
-                     </span>
-                  )}
                   <span
-                     className="tabular-nums"
+                     className="w-7 text-right tabular-nums"
                      title={`opened ${pull.ageDays} ${pull.ageDays === 1 ? 'day' : 'days'} ago`}
                   >
                      {pull.ageDays}d
@@ -237,7 +237,7 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
                <Pips label="QA" have={pull.qaHave} req={d.status.qa_req} />
             )}
             <span
-               className="tabular-nums"
+               className="w-7 text-right tabular-nums"
                title={`opened ${pull.ageDays} ${pull.ageDays === 1 ? 'day' : 'days'} ago`}
             >
                {pull.ageDays}d

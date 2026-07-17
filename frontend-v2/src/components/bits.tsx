@@ -86,9 +86,11 @@ export function WeightChip({ weight }: { weight: Weight }) {
 }
 
 /**
- * Sign-off state readable at a glance, no dot-counting: a green check when
- * satisfied, a fraction while outstanding, an amber slash when a push
- * invalidated the stamp. Nothing required and nothing given renders nothing.
+ * Sign-off state as a fixed-slot ledger: label and value each hold a constant
+ * width so CR, QA, and age land at the same x on every row and read as
+ * vertical columns down a board. A green check when satisfied, a fraction
+ * while outstanding, an amber slash when a push invalidated the stamp, and a
+ * muted dash when nothing is required — the slot never collapses.
  */
 export function Pips({
    label,
@@ -101,32 +103,40 @@ export function Pips({
    req: number;
    stale?: boolean;
 }) {
-   if (!req && !have) return null;
+   const none = !req && !have;
    const staleNote = stale && have === 0;
-   const met = have >= req;
+   const met = !none && have >= req;
+   const aria = none
+      ? `${label} not required`
+      : `${label} ${have} of ${req}${staleNote ? ', earlier stamp invalidated by a push' : met ? ', done' : ''}`;
    return (
-      <span
-         className="inline-flex items-baseline gap-1"
-         aria-label={`${label} ${have} of ${req}${staleNote ? ', earlier stamp invalidated by a push' : met ? ', done' : ''}`}
-      >
-         <span aria-hidden className="text-[11px] font-medium text-ink-3">
+      <span className="inline-flex items-baseline gap-1" aria-label={aria}>
+         <span aria-hidden className="w-[18px] text-[11px] font-medium text-ink-3">
             {label}
          </span>
-         {staleNote ? (
+         {none ? (
+            <span aria-hidden className="w-[26px] text-xs text-ink-3 opacity-60">
+               –
+            </span>
+         ) : staleNote ? (
             <span
                aria-hidden
-               className="text-[11px] font-semibold"
+               className="w-[26px] text-xs font-semibold"
                style={{ color: 'var(--warn)' }}
                title="stamp invalidated by a push"
             >
                ⊘
             </span>
          ) : met ? (
-            <span aria-hidden className="text-[11px] font-semibold" style={{ color: 'var(--ok)' }}>
+            <span
+               aria-hidden
+               className="w-[26px] text-xs font-semibold"
+               style={{ color: 'var(--ok)' }}
+            >
                ✓
             </span>
          ) : (
-            <span aria-hidden className="text-[11px] text-ink-2 tabular-nums">
+            <span aria-hidden className="w-[26px] text-xs text-ink-2 tabular-nums">
                {have}/{req}
             </span>
          )}
