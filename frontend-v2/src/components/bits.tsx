@@ -20,28 +20,32 @@ export const STATUS_LABEL: Record<Status, string> = {
    draft: 'Draft',
 };
 
+// ci_pending / dev_block / unmergeable used to share amber, which made
+// "only CI left" (benign, nearly done) look as urgent as "dev blocked" (you
+// owe feedback). Three distinct tones now: calm slate for the CI wait, amber
+// for the action-owed dev block, gray for the git-conflict rebase.
 const STATUS_CLASS: Record<Status, string> = {
    ready: 'badge-ready',
-   ci_pending: 'badge-blocked',
+   ci_pending: 'badge-slate',
    needs_recr: 'badge-recr',
    needs_qa: 'badge-qa',
    needs_cr: 'badge-cr',
    dev_block: 'badge-blocked',
    deploy_block: 'badge-hold',
-   unmergeable: 'badge-blocked',
+   unmergeable: 'badge-hold',
    ci_red: 'badge-red',
    draft: 'badge-draft',
 };
 
 export const STATUS_DOT: Record<Status, string> = {
    ready: 'var(--ok)',
-   ci_pending: 'var(--warn)',
+   ci_pending: 'var(--slate)',
    needs_recr: 'var(--brand)',
    needs_qa: 'var(--violet)',
    needs_cr: 'var(--ink-3)',
    dev_block: 'var(--warn)',
    deploy_block: 'var(--ink-3)',
-   unmergeable: 'var(--warn)',
+   unmergeable: 'var(--ink-3)',
    ci_red: 'var(--bad)',
    draft: 'var(--border)',
 };

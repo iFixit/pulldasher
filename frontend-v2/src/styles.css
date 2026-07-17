@@ -31,6 +31,9 @@
   --badge-brand-fg: var(--brand-900);
   --badge-gray-bg: #e5e7eb;
   --badge-gray-fg: #101828;
+  --badge-slate-bg: #dde3ea;
+  --badge-slate-fg: #334155;
+  --slate: #475569;
   /* text-grade in light mode: --ok/--warn also fill the 8px sign-off pips,
      the most decision-critical marks on the board, and must stay legible */
   --ok: #15803d;
@@ -70,6 +73,9 @@
   --badge-brand-fg: #cce7ff;
   --badge-gray-bg: #364153;
   --badge-gray-fg: #e5e7eb;
+  --badge-slate-bg: #334155;
+  --badge-slate-fg: #dde7f2;
+  --slate: #94a3b8;
   --ok: #4ade80;
   --warn: #fbbf24;
   --bad: #f87171;
@@ -138,6 +144,7 @@ a:hover {
   .badge-blocked { background: var(--badge-amber-bg); color: var(--badge-amber-fg); }
   /* deploy hold: deliberate, not alarming — gray, not amber */
   .badge-hold { background: var(--badge-gray-bg); color: var(--badge-gray-fg); }
+  .badge-slate { background: var(--badge-slate-bg); color: var(--badge-slate-fg); }
   .badge-red { background: var(--badge-red-bg); color: var(--badge-red-fg); }
   .badge-draft { background: none; color: var(--ink-3); border: 1px dashed var(--border); }
 
