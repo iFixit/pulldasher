@@ -187,7 +187,10 @@ export const qaDone = (p: { qaHave: number; data: PullData }) => p.qaHave >= p.d
 export function derive(
    pull: PullData,
    spec: RepoSpec | undefined,
-   now: number = Date.now() / 1000
+   now: number = Date.now() / 1000,
+   /** the age at which a CR-incomplete pull counts as starved (the user's
+    * "age turns amber" setting; defaults to the model's own threshold). */
+   warnDays: number = STARVE_DAYS
 ): DerivedPull {
    const st = pull.status;
    const crBy = activeUsers(st.allCR);
@@ -231,7 +234,7 @@ export function derive(
    // Rot is rot whether the pull has zero stamps, one of two, or a stale one
    // waiting on a re-stamp — the old `crHave === 0` cliff hid half-reviewed
    // pulls from the aging lane forever.
-   const starved = ['needs_cr', 'needs_recr'].includes(status) && !crMet && ageDays >= STARVE_DAYS;
+   const starved = ['needs_cr', 'needs_recr'].includes(status) && !crMet && ageDays >= warnDays;
 
    const signedOffAt =
       crMet && qaMet

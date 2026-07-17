@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { backend, type ConnectionState } from './backend/socket';
 import { derive, type DerivedPull } from './model/status';
-import { getSettings } from './settings';
+import { getSettings, subscribeSettings } from './settings';
 import { readStorage, writeStorage } from './storage';
 import type { PullData, RepoSpec } from './types';
 
@@ -108,23 +108,30 @@ let snapshot: Snapshot = {
    acked: new Set(acked),
 };
 
-// derive() is pure per (pull, spec): cache on reference identity so a
-// pullChange for one pull doesn't rebuild 180 DerivedPull objects (and
-// re-render 180 memoized rows).
-const derived = new WeakMap<PullData, { spec: RepoSpec | undefined; value: DerivedPull }>();
-function deriveCached(pull: PullData, spec: RepoSpec | undefined): DerivedPull {
+// derive() is pure per (pull, spec, warnDays): cache on reference identity so
+// a pullChange for one pull doesn't rebuild 180 DerivedPull objects (and
+// re-render 180 memoized rows). warnDays is in the key so changing the aging
+// threshold in Settings actually re-derives (starved gates the aging lane).
+const derived = new WeakMap<
+   PullData,
+   { spec: RepoSpec | undefined; warnDays: number; value: DerivedPull }
+>();
+function deriveCached(pull: PullData, spec: RepoSpec | undefined, warnDays: number): DerivedPull {
    const hit = derived.get(pull);
-   if (hit && hit.spec === spec) return hit.value;
-   const value = derive(pull, spec);
-   derived.set(pull, { spec, value });
+   if (hit && hit.spec === spec && hit.warnDays === warnDays) return hit.value;
+   const value = derive(pull, spec, Date.now() / 1000, warnDays);
+   derived.set(pull, { spec, warnDays, value });
    return value;
 }
 
 function publish() {
    const specByName = new Map(repoSpecs.map(s => [s.name, s]));
+   const warnDays = getSettings().ageWarnDays;
    const all = [...raw.values()];
    snapshot = {
-      pulls: all.filter(p => p.state === 'open').map(p => deriveCached(p, specByName.get(p.repo))),
+      pulls: all
+         .filter(p => p.state === 'open')
+         .map(p => deriveCached(p, specByName.get(p.repo), warnDays)),
       closed: all
          .filter(p => p.state === 'closed')
          .sort(
@@ -185,6 +192,8 @@ function start() {
       connection = state;
       schedulePublish();
    });
+   // the aging threshold feeds derive(): re-derive when the user changes it
+   subscribeSettings(schedulePublish);
    // time-based derivations (iterating, "Nm ago") expire even on a quiet board
    setInterval(schedulePublish, 60_000);
 }

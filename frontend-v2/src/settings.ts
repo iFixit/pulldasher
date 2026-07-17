@@ -70,3 +70,7 @@ export function setRepoPref(repo: string, pref: 'mute' | 'show' | null) {
 export function useSettings(): Settings {
    return store.useValue();
 }
+
+/** Non-React subscription, for the store to re-derive when a setting that
+ * feeds the model (the aging threshold) changes. Returns an unsubscribe. */
+export const subscribeSettings = store.subscribe;
