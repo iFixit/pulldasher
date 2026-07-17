@@ -219,9 +219,19 @@ export function Review({
                dot="var(--ink-3)"
                count={bots.length}
                label="bot PRs"
-               hint="dependency bumps, review in a batch"
+               hint="dependency bumps — security updates first"
             >
-               <FoldRows list={bots} opts={opts} />
+               {/* `security` is this org's most-used label (50 in 3 months),
+                   almost all on bot bumps: they lead the fold */}
+               <FoldRows
+                  list={[...bots].sort(
+                     (a, b) =>
+                        Number(b.data.labels.some(l => /security/i.test(l.title))) -
+                           Number(a.data.labels.some(l => /security/i.test(l.title))) ||
+                        b.ageDays - a.ageDays
+                  )}
+                  opts={opts}
+               />
             </Fold>
             <Fold
                dot="var(--ok)"

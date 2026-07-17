@@ -60,10 +60,10 @@ export function Legend() {
                )}
                {item(
                   <span className="tabular-nums">
-                     <b style={{ color: 'var(--warn)' }}>9d</b>/
-                     <b style={{ color: 'var(--bad)' }}>15d</b>
+                     <b style={{ color: 'var(--warn)' }}>5d</b>/
+                     <b style={{ color: 'var(--bad)' }}>12d</b>
                   </span>,
-                  'age heats up: amber past a week, red past two. Hover for both clocks'
+                  'age: hours under a day, amber past 4 days, red past 10. Hover for both clocks'
                )}
                {item(
                   <span className="chip-w chip-w-M">M</span>,

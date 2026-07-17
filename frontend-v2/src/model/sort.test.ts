@@ -21,7 +21,7 @@ function fake(over: {
          deletions: 0,
          // ancient updated_at so nothing counts as iterating
          updated_at: new Date(0).toISOString(),
-         status: { cr_req: over.crReq ?? 1 },
+         status: { cr_req: over.crReq ?? 1, commit_statuses: [] },
       },
    } as unknown as DerivedPull;
 }

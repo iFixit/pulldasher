@@ -1,4 +1,4 @@
-import type { Status, Weight } from '../model/status';
+import { ROT_DAYS, STARVE_DAYS, type Status, type Weight } from '../model/status';
 import type { Signature } from '../types';
 import { ago, githubUrl, loginHue, shortRepo } from '../format';
 import { usePopover } from './usePopover';
@@ -270,29 +270,41 @@ export function SigPips({
 }
 
 /**
- * The age slot: open-days with an urgency ramp (quiet under a week, amber
- * past STARVE_DAYS, red past two) and both clocks in the tooltip — a 30-day
- * pull pushed an hour ago is hot, and the flat gray number hid that.
+ * The age slot: hours under a day, then days, with an urgency ramp (amber
+ * past STARVE_DAYS, red past ROT_DAYS) and both clocks in the tooltip — a
+ * 30-day pull pushed an hour ago is hot, and the flat gray number hid
+ * that. Hours matter here: in three months of real history, 62% of pulls
+ * merged same-day, so "0d" was a dead signal for most of the live board.
  */
 export function AgeStamp({
    ageDays,
+   createdAt,
    updatedAt,
    quiet,
 }: {
    ageDays: number;
+   /** epoch secs the pull opened */
+   createdAt: number;
    /** epoch secs of the last activity */
    updatedAt: number;
    /** drafts and holds age on purpose: no urgency color */
    quiet?: boolean;
 }) {
-   const hot = quiet ? null : ageDays >= 14 ? 'var(--bad)' : ageDays >= 7 ? 'var(--warn)' : null;
+   const hot = quiet
+      ? null
+      : ageDays >= ROT_DAYS
+        ? 'var(--bad)'
+        : ageDays >= STARVE_DAYS
+          ? 'var(--warn)'
+          : null;
+   const text = ageDays === 0 ? ago(createdAt) : `${ageDays}d`;
    return (
       <span
          className={`w-7 text-right tabular-nums ${hot ? 'font-medium' : ''}`}
          style={hot ? { color: hot } : undefined}
-         title={`opened ${ageDays} ${ageDays === 1 ? 'day' : 'days'} ago · last activity ${ago(updatedAt)} ago`}
+         title={`opened ${ago(createdAt)} ago · last activity ${ago(updatedAt)} ago`}
       >
-         {ageDays}d
+         {text}
       </span>
    );
 }

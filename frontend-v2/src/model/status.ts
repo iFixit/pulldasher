@@ -99,7 +99,15 @@ export interface DerivedPull {
 export type Weight = 'XS' | 'S' | 'M' | 'L' | 'XL';
 const WEIGHT_RANK: Record<Weight, number> = { XS: 0, S: 1, M: 2, L: 3, XL: 4 };
 
-export const STARVE_DAYS = 7;
+/**
+ * Tuned to the shop's real cadence (3 months of history: median first
+ * review under 2 hours, p75 under a day, p90 ~4 days). A pull unreviewed
+ * at 4 days is already past p90 — waiting a week to call it starved meant
+ * intervening after the author lost the context.
+ */
+export const STARVE_DAYS = 4;
+/** the age slot turns red here: past p97 of real first-review latency */
+export const ROT_DAYS = 10;
 
 const activeUsers = (sigs: Signature[]) =>
    unique(sigs.filter(s => s.data.active).map(s => s.data.user.login));
@@ -280,11 +288,14 @@ export function reviewWeight(pull: PullData): Weight {
 export const weightRank = (w: Weight) => WEIGHT_RANK[w];
 
 /**
- * The author pushed or the pull changed in the last 30 minutes with nobody
- * else active since: probably still iterating. The UI demotes (dims and
- * sinks), never hides.
+ * The author pushed in the last 30 minutes: probably still iterating. The
+ * UI demotes (dims and sinks), never hides. Keyed to the PUSH clock, not
+ * updated_at — 62% of this shop's PRs merge same-day, and updated_at moves
+ * on every comment, so the old check sank pulls exactly while reviewers
+ * were engaging with them. Falls back to updated_at when no CI has
+ * reported a push time.
  */
 export function isIterating(pull: PullData, now: number = Date.now() / 1000) {
-   const updated = Date.parse(pull.updated_at) / 1000;
-   return now - updated < 30 * 60;
+   const pushed = headPushedAt(pull) ?? Date.parse(pull.updated_at) / 1000;
+   return now - pushed < 30 * 60;
 }

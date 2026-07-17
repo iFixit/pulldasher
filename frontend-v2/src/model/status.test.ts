@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PullData, Signature, SignatureType } from '../types';
-import { ciVerdict, derive, reviewWeight } from './status';
+import { ciVerdict, derive, isIterating, reviewWeight } from './status';
 
 const NOW = 1_800_000_000;
 
@@ -319,6 +319,25 @@ describe('starvation and weight', () => {
       });
       expect(derive(p, undefined, NOW).signedOffAt).toBe(Date.parse('2026-01-05T00:00:00Z') / 1000);
       expect(derive(pull(), undefined, NOW).signedOffAt).toBeNull();
+   });
+
+   it('iterating keys on the push clock, not comment activity', () => {
+      // pushed 5 minutes ago (head CI started then): iterating
+      const pushed = withStatus({
+         commit_statuses: [{ data: { ...ci('pending').data, started_at: NOW - 300 } }],
+      });
+      expect(isIterating(pushed, NOW)).toBe(true);
+      // pushed 2 days ago but commented on just now: NOT iterating
+      const commented = withStatus(
+         {
+            commit_statuses: [{ data: { ...ci('success').data, started_at: NOW - 2 * 86400 } }],
+         },
+         { updated_at: new Date((NOW - 60) * 1000).toISOString() }
+      );
+      expect(isIterating(commented, NOW)).toBe(false);
+      // no CI reported: falls back to updated_at
+      const bare = pull({ updated_at: new Date((NOW - 60) * 1000).toISOString() });
+      expect(isIterating(bare, NOW)).toBe(true);
    });
 
    it('names the failing CI checks', () => {

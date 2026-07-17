@@ -83,7 +83,12 @@ function WarnFlags({ pull, compact }: { pull: DerivedPull; compact?: boolean }) 
    return (
       <>
          {pull.conflict && pull.status !== 'unmergeable' && (
-            <span className="flag-amber" role="img" aria-label="merge conflicts with the base branch" title="merge conflicts with the base branch">
+            <span
+               className="flag-amber"
+               role="img"
+               aria-label="merge conflicts with the base branch"
+               title="merge conflicts with the base branch"
+            >
                conflicts
             </span>
          )}
@@ -194,6 +199,7 @@ function Ledger({ pull, me }: { pull: DerivedPull; me: string }) {
          />
          <AgeStamp
             ageDays={pull.ageDays}
+            createdAt={Date.parse(d.created_at) / 1000}
             updatedAt={Date.parse(d.updated_at) / 1000}
             quiet={['draft', 'dev_block', 'deploy_block'].includes(pull.status)}
          />

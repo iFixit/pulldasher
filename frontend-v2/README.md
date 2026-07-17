@@ -25,8 +25,11 @@ serves v1 at `/` and v2 at `/v2`, both fed by the same socket protocol
   underline, and clicking a slot lists who signed and when.
 - **A queue that ranks the right thing.** `src/model/sort.ts` scores by
   weight, then boosts pulls one stamp from done and credits age, so an old M
-  outranks a fresh S before the starvation cliff. Ages heat up (amber past a
-  week, red past two) with both clocks in the tooltip.
+  outranks a fresh S before the starvation cliff. Thresholds are tuned to
+  the shop's measured cadence (median first review under 2 hours, p90 ~4
+  days): ages show hours under a day, heat amber past 4 days and red past
+  10, with both clocks in the tooltip. "Iterating" keys on the push clock,
+  not updated_at, so a reviewer's comment can't sink a pull down the queue.
 - **Four lenses, one filter.** Review / My work / People (person or team
   drill-down) / Classic, over the same pool, with a single saved Scope
   (repos + people, with GitHub-team presets). The whole view — lens, query,
