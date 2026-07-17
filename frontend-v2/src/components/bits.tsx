@@ -1,7 +1,7 @@
 import { ROT_DAYS, STARVE_DAYS, type Status, type Weight, weightRank } from '../model/status';
 import type { Signature } from '../types';
 import { ago, githubUrl, loginHue, shortRepo } from '../format';
-import { usePopover } from './usePopover';
+import { Popover } from './Popover';
 
 export const STATUS_LABEL: Record<Status, string> = {
    ready: 'Ready to merge',
@@ -264,7 +264,6 @@ export function SigPips({
    me?: string;
    sigs: Signature[];
 }) {
-   const pop = usePopover<HTMLSpanElement, HTMLButtonElement>({ hover: true });
    const pips = <Pips label={label} have={have} req={req} by={by} staleBy={staleBy} me={me} />;
    if (!sigs.length) return pips;
 
@@ -281,51 +280,47 @@ export function SigPips({
    );
 
    return (
-      <span className="relative inline-flex" ref={pop.rootRef} {...pop.hoverProps}>
-         <button
-            ref={pop.triggerRef}
-            type="button"
-            aria-haspopup="dialog"
-            aria-expanded={pop.open}
-            title={`who ${label}’d this`}
-            onClick={pop.toggle}
-            className="cursor-pointer rounded border-0 bg-transparent p-0 text-left hover:bg-secondary/60"
-         >
-            {pips}
-         </button>
-         {pop.open && (
-            <span
-               ref={pop.panelRef}
-               tabIndex={-1}
-               role="dialog"
-               aria-label={`${label} signatures`}
-               className="popover popover-right absolute top-full right-0 z-50 mt-1 block w-max min-w-[190px] rounded-lg border border-line bg-surface p-2 text-xs whitespace-nowrap shadow-md outline-none"
+      <Popover
+         label={`${label} signatures`}
+         side="right"
+         hover
+         rootClass="relative inline-flex"
+         width="w-max min-w-[190px]"
+         panelClass="p-2 text-xs whitespace-nowrap"
+         trigger={t => (
+            <button
+               {...t}
+               type="button"
+               title={`who ${label}’d this`}
+               className="cursor-pointer rounded border-0 bg-transparent p-0 text-left hover:bg-secondary/60"
             >
-               <span className="block px-1 pb-1 font-semibold text-ink">{label} stamps</span>
-               {rows.map(s => (
-                  <span
-                     key={s.data.user.login}
-                     className="flex items-center gap-1.5 px-1 py-[3px] text-ink-2"
-                  >
-                     <Avatar login={s.data.user.login} size={16} />
-                     <b className="font-medium text-ink">{s.data.user.login}</b>
-                     {s.data.user.login === me && <span className="text-ink-3">(you)</span>}
-                     <span className="ml-auto pl-3 text-ink-3 tabular-nums">
-                        {ago(Date.parse(s.data.created_at) / 1000)} ago
-                     </span>
-                     {s.data.active ? (
-                        <span className="pip pip-on" title="active stamp" />
-                     ) : (
-                        <span
-                           className="pip pip-stale"
-                           title="invalidated by a later push — a re-stamp is owed"
-                        />
-                     )}
-                  </span>
-               ))}
-            </span>
+               {pips}
+            </button>
          )}
-      </span>
+      >
+         <span className="block px-1 pb-1 font-semibold text-ink">{label} stamps</span>
+         {rows.map(s => (
+            <span
+               key={s.data.user.login}
+               className="flex items-center gap-1.5 px-1 py-[3px] text-ink-2"
+            >
+               <Avatar login={s.data.user.login} size={16} />
+               <b className="font-medium text-ink">{s.data.user.login}</b>
+               {s.data.user.login === me && <span className="text-ink-3">(you)</span>}
+               <span className="ml-auto pl-3 text-ink-3 tabular-nums">
+                  {ago(Date.parse(s.data.created_at) / 1000)} ago
+               </span>
+               {s.data.active ? (
+                  <span className="pip pip-on" title="active stamp" />
+               ) : (
+                  <span
+                     className="pip pip-stale"
+                     title="invalidated by a later push — a re-stamp is owed"
+                  />
+               )}
+            </span>
+         ))}
+      </Popover>
    );
 }
 
