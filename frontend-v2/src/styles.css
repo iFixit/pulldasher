@@ -231,6 +231,15 @@ details[open] > .fold-body {
   animation: fresh-flash 1.4s var(--ease-quart) 300ms backwards;
 }
 
+/* the "changed since your last look" marker at the row's entry point */
+.dot-fresh {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--brand);
+}
+
 /* press feedback: house scale-97 */
 .pressable {
   transition:

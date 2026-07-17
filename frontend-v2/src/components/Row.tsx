@@ -123,15 +123,74 @@ function RowActions({ pull }: { pull: DerivedPull }) {
    );
 }
 
+/**
+ * Column card (Board/Classic): two zones instead of one fought-over line.
+ * Zone 1 is identity — avatar plus the title at full text width, so a long
+ * title wraps twice instead of five times against a dead metadata column.
+ * Zone 2 is one fact line — repo#number, pips, age pushed to the right edge
+ * so ages scan as a vertical column down the board.
+ */
+function CompactCard({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
+   const d = pull.data;
+   const fresh = Date.parse(d.updated_at) / 1000 > opts.lastSeen;
+   const pips = opts.pips ?? 'both';
+   const staleCr = pull.recrBy.length > 0;
+   return (
+      <div
+         className={`pd-row flex items-start gap-2.5 border-t border-secondary px-4 py-2.5 first:border-t-0 hover:bg-muted ${fresh ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
+      >
+         {fresh && <span className="dot-fresh mt-1.5" title="changed since your last look" />}
+         <span className="mt-px flex-none">
+            <Avatar login={d.user.login} onClick={opts.onPerson} />
+         </span>
+         <span className="min-w-0 flex-1">
+            <span className="block text-sm leading-snug break-words">
+               <a
+                  className="font-medium hover:underline hover:underline-offset-2"
+                  href={githubUrl(d.repo, d.number)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+               >
+                  {d.title}
+               </a>
+            </span>
+            <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-ink-3">
+               <span className="whitespace-nowrap">
+                  {shortRepo(d.repo)}#{d.number}
+               </span>
+               {(pips === 'cr' || pips === 'both') && (
+                  <Pips label="CR" have={pull.crHave} req={d.status.cr_req} stale={staleCr} />
+               )}
+               {(pips === 'qa' || pips === 'both') && (
+                  <Pips label="QA" have={pull.qaHave} req={d.status.qa_req} />
+               )}
+               {pull.qaingBy && pull.status === 'needs_qa' && (
+                  <span className="flag-qaing" title={`${pull.qaingBy} is already testing this`}>
+                     ◉
+                  </span>
+               )}
+               <span
+                  className="ml-auto tabular-nums"
+                  title={`opened ${pull.ageDays} ${pull.ageDays === 1 ? 'day' : 'days'} ago`}
+               >
+                  {pull.ageDays}d
+               </span>
+            </span>
+         </span>
+      </div>
+   );
+}
+
 function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const d = pull.data;
    const compact = opts.compact === true;
    const fresh = Date.parse(d.updated_at) / 1000 > opts.lastSeen;
    const pips = opts.pips ?? 'both';
-   const showWeight =
-      !compact && pull.sizeKnown && ['needs_cr', 'needs_recr'].includes(pull.status);
+   if (compact) return <CompactCard pull={pull} opts={opts} />;
+
+   const showWeight = pull.sizeKnown && ['needs_cr', 'needs_recr'].includes(pull.status);
    const staleCr = pull.recrBy.length > 0;
-   const line = compact || opts.cue === false ? null : cue(pull, opts.me);
+   const line = opts.cue === false ? null : cue(pull, opts.me);
 
    return (
       <div
@@ -151,8 +210,8 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
                {d.title}
             </a>
          </span>
-         {!compact && <RowActions pull={pull} />}
-         {!compact && isIterating(d) && (
+         <RowActions pull={pull} />
+         {isIterating(d) && (
             <span className="flag-amber" title="changed in the last 30 min, may still be moving">
                iterating
             </span>
@@ -162,12 +221,7 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
                open {pull.ageDays}d
             </span>
          )}
-         {!compact && <WarnFlags pull={pull} />}
-         {compact && pull.qaingBy && pull.status === 'needs_qa' && (
-            <span className="flag-qaing" title={`${pull.qaingBy} is already testing this`}>
-               ◉
-            </span>
-         )}
+         <WarnFlags pull={pull} />
          {line && (
             <span className="hidden max-w-[300px] flex-none truncate text-xs text-ink-2 min-[860px]:inline">
                {line}
