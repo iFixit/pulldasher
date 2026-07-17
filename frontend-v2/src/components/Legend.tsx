@@ -99,7 +99,19 @@ export function Legend() {
                   </span>,
                   'changed since your last visit: solid = new PR, ring = updated (tracked while you’re away). Opening one clears it'
                )}
-               {item(<span>❄</span>, 'Cryogenic Storage PRs and quiet repos, hidden by default')}
+               {item(
+                  <svg viewBox="0 0 16 16" aria-hidden className="h-4 w-4 fill-ink-3">
+                     <path d="M8 3.5C4.4 3.5 1.7 5.8.6 8c1.1 2.2 3.8 4.5 7.4 4.5s6.3-2.3 7.4-4.5C14.3 5.8 11.6 3.5 8 3.5Zm0 7.5a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.6a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8Z" />
+                     <path
+                        d="M2.4 2.1l11.5 11.5"
+                        stroke="var(--ink-3)"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        fill="none"
+                     />
+                  </svg>,
+                  'the eye selector reveals off-by-default PRs: Cryogenic Storage and quiet repos'
+               )}
                {item(
                   <b className="font-semibold tabular-nums">/ j k c</b>,
                   'keys: / filter · j/k walk rows · Enter opens · c copies the branch'

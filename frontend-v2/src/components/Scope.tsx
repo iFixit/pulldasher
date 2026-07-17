@@ -9,7 +9,16 @@ import { usePopover } from './usePopover';
  * A full selection commits as empty ("everything") so new repos and new
  * teammates never get silently excluded by a stale saved list.
  */
-export function ScopeControl({ pulls, teams }: { pulls: DerivedPull[]; teams: Team[] }) {
+export function ScopeControl({
+   pulls,
+   teams,
+   hiddenRepos,
+}: {
+   pulls: DerivedPull[];
+   teams: Team[];
+   /** hide-by-default repos: shown here too, marked, so you can scope one in */
+   hiddenRepos?: ReadonlySet<string>;
+}) {
    const [scope, setScope] = useScope();
    const {
       open,
@@ -34,6 +43,10 @@ export function ScopeControl({ pulls, teams }: { pulls: DerivedPull[]; teams: Te
    for (const name of scope.repos) {
       if (!repoCounts.has(name)) repoCounts.set(name, 0);
    }
+   // hide-by-default repos belong here too, so a hidden repo can be scoped in
+   // even when it has no open PRs today
+   if (hiddenRepos)
+      for (const name of hiddenRepos) if (!repoCounts.has(name)) repoCounts.set(name, 0);
    const repos = [...repoCounts.entries()].sort((a, b) => b[1] - a[1]);
    const authors = [...authorCounts.entries()].sort((a, b) => b[1] - a[1]);
 
@@ -81,6 +94,15 @@ export function ScopeControl({ pulls, teams }: { pulls: DerivedPull[]; teams: Te
             <span className={count === 0 ? 'text-ink-3' : ''}>
                {strip ? shortRepo(name) : name}
             </span>
+            {hiddenRepos?.has(name) && (
+               <span
+                  className="text-[11px] text-ink-3"
+                  title="hidden by default; check to include it on the board"
+                  aria-label="hidden by default"
+               >
+                  hidden
+               </span>
+            )}
             <button
                type="button"
                className="only border-0 bg-transparent p-0 text-[11px] text-brand opacity-0 focus-visible:opacity-100"

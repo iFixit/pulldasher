@@ -52,6 +52,12 @@ serves v1 at `/` and v2 at `/v2`, both fed by the same socket protocol
   scope, toggles — lives in the URL hash: any board is pasteable and a
   bookmark is a saved view. The filter understands `#number`, `label:x`,
   `status:x`, `older:5`, `repo:x`, and `author:x`.
+- **An eye, not a snowflake.** Two kinds of PR hide by default —
+  Cryogenic-Storage (deliberately parked) and hide-by-default repos (quiet
+  noise). The visibility control is a selector, not an all-or-nothing toggle:
+  reveal everything, or one group at a time (`#show=cryo,someRepo`). Hidden
+  repos are listed and marked in the Scope control too, so you can scope one
+  onto the board directly.
 - **Classic is v1, faithfully.** The same six overlapping columns
   (CI Blocked / Deploy Blocked / Ready / Dev Block / CR / QA), predicates
   and sorts ported line-for-line from v1, for anyone whose muscle memory

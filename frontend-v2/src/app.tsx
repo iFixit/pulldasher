@@ -8,6 +8,7 @@ import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy
 import { loadSiteConfig, primeScope, useScope } from './prefs';
 import { matchesQuery } from './model/query';
 import { Legend } from './components/Legend';
+import { CRYO_KEY, HiddenSelector } from './components/HiddenSelector';
 import { ScopeControl } from './components/Scope';
 import { STATUS_LABEL } from './components/bits';
 import type { RowOptions } from './components/Row';
@@ -33,7 +34,10 @@ interface HashState {
    q: string;
    repos: string[];
    authors: string[];
+   /** master reveal: show every off-by-default PR */
    hidden: boolean;
+   /** individually revealed hidden groups: repo names and the cryo sentinel */
+   reveal: string[];
    changed: boolean;
 }
 
@@ -51,6 +55,7 @@ function readHash(): HashState {
       repos: p.get('repos')?.split(',').filter(Boolean) ?? [],
       authors: p.get('authors')?.split(',').filter(Boolean) ?? [],
       hidden: p.get('hidden') === '1',
+      reveal: p.get('show')?.split(',').filter(Boolean) ?? [],
       changed: p.get('changed') === '1',
    };
 }
@@ -64,6 +69,7 @@ function buildHash(s: HashState): string {
    if (s.repos.length) p.set('repos', s.repos.join(','));
    if (s.authors.length) p.set('authors', s.authors.join(','));
    if (s.hidden) p.set('hidden', '1');
+   if (s.reveal.length) p.set('show', s.reveal.join(','));
    if (s.changed) p.set('changed', '1');
    return p.toString();
 }
@@ -156,8 +162,16 @@ export function App() {
    const [team, setTeam] = useState<string | null>(() => urlState.team);
    const [query, setQuery] = useState(() => urlState.q);
    const [onlyChanged, setOnlyChanged] = useState(() => urlState.changed);
-   const [showHidden, setShowHidden] = useState(
+   // "hidden" is two off-by-default groups (Cryogenic-Storage PRs, quiet
+   // repos). showAll reveals both; reveal names individual groups to show.
+   const [showAll, setShowAll] = useState(
       () => urlState.hidden || (!!legacy && (legacy.cryo || legacy.showAllRepos))
+   );
+   const [reveal, setReveal] = useState<string[]>(() => urlState.reveal);
+   const toggleReveal = useCallback(
+      (key: string) =>
+         setReveal(cur => (cur.includes(key) ? cur.filter(k => k !== key) : [...cur, key])),
+      []
    );
    const [teams, setTeams] = useState<Team[]>([]);
    const [extraBots, setExtraBots] = useState<ReadonlySet<string>>(new Set());
@@ -195,7 +209,8 @@ export function App() {
          q: query,
          repos: scope.repos,
          authors: scope.authors,
-         hidden: showHidden,
+         hidden: showAll,
+         reveal,
          changed: onlyChanged,
       });
       if (next === location.hash.slice(1)) return;
@@ -207,7 +222,7 @@ export function App() {
       } else {
          history.replaceState(null, '', next ? `#${next}` : location.pathname + location.search);
       }
-   }, [lens, person, team, query, scope, showHidden, onlyChanged]);
+   }, [lens, person, team, query, scope, showAll, reveal, onlyChanged]);
    useEffect(() => {
       const onHash = () => {
          const h = readHash();
@@ -215,7 +230,8 @@ export function App() {
          setPerson(h.person);
          setTeam(h.team);
          setQuery(h.q);
-         setShowHidden(h.hidden);
+         setShowAll(h.hidden);
+         setReveal(h.reveal);
          setOnlyChanged(h.changed);
       };
       window.addEventListener('hashchange', onHash);
@@ -292,16 +308,19 @@ export function App() {
       let out = pulls;
       if (legacy) out = applyLegacyFilters(out, legacy, me);
       // v1 conventions: Cryogenic-Storage pulls and hideByDefault repos stay
-      // off the board unless asked for (or the scope names the repo).
-      if (!showHidden)
-         out = out.filter(
-            p =>
-               !p.cryo &&
-               (!hiddenRepos.has(p.data.repo) ||
-                  scope.repos.includes(p.data.repo) ||
-                  // a legacy URL naming the repo means "show it", hidden or not
-                  legacy?.repos.includes(shortRepo(p.data.repo)))
-         );
+      // off the board unless revealed (all at once, per-group, or by scoping
+      // the repo).
+      if (!showAll)
+         out = out.filter(p => {
+            const cryoHidden = p.cryo && !reveal.includes(CRYO_KEY);
+            const repoHidden =
+               hiddenRepos.has(p.data.repo) &&
+               !reveal.includes(p.data.repo) &&
+               !scope.repos.includes(p.data.repo) &&
+               // a legacy URL naming the repo means "show it", hidden or not
+               !legacy?.repos.includes(shortRepo(p.data.repo));
+            return !cryoHidden && !repoHidden;
+         });
       if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.data.repo));
       // bots bypass the people filter on purpose: dependency bumps need review
       // no matter whose work you follow (they land in the bots fold, not lanes)
@@ -309,7 +328,7 @@ export function App() {
          out = out.filter(p => isBot(p) || scope.authors.includes(p.data.user.login));
       if (query) out = out.filter(p => matchesQuery(p, query));
       return out;
-   }, [pulls, scope, query, showHidden, hiddenRepos, legacy, me, isBot]);
+   }, [pulls, scope, query, showAll, reveal, hiddenRepos, legacy, me, isBot]);
 
    // changed-only and the banner count share one predicate (bots excluded,
    // acked rows drop out) so the toggle always shows exactly what the banner
@@ -328,9 +347,26 @@ export function App() {
    const mergedCount = closed.filter(
       p => (Date.parse(p.closed_at ?? '') / 1000 || 0) > lastSeen
    ).length;
-   const hiddenCount = pulls.filter(
-      p => p.cryo || (hiddenRepos.has(p.data.repo) && !scope.repos.includes(p.data.repo))
-   ).length;
+   // the two hidden groups, and how many PRs each holds, for the selector.
+   // hiddenCount is how many are hidden *right now* given the reveal state.
+   const cryoCount = pulls.filter(p => p.cryo).length;
+   const hiddenRepoCounts = useMemo(() => {
+      const m = new Map<string, number>();
+      for (const name of hiddenRepos) m.set(name, 0);
+      for (const p of pulls)
+         if (hiddenRepos.has(p.data.repo)) m.set(p.data.repo, (m.get(p.data.repo) ?? 0) + 1);
+      return [...m.entries()].sort((a, b) => b[1] - a[1]);
+   }, [pulls, hiddenRepos]);
+   const hiddenCount = showAll
+      ? 0
+      : pulls.filter(p => {
+           const cryoHidden = p.cryo && !reveal.includes(CRYO_KEY);
+           const repoHidden =
+              hiddenRepos.has(p.data.repo) &&
+              !reveal.includes(p.data.repo) &&
+              !scope.repos.includes(p.data.repo);
+           return cryoHidden || repoHidden;
+        }).length;
 
    const statusCounts = new Map<string, number>();
    for (const p of humans) statusCounts.set(p.status, (statusCounts.get(p.status) ?? 0) + 1);
@@ -420,7 +456,7 @@ export function App() {
                   {tab('people', 'People')}
                   {tab('classic', 'Classic')}
                </nav>
-               <ScopeControl pulls={pulls} teams={teams} />
+               <ScopeControl pulls={pulls} teams={teams} hiddenRepos={hiddenRepos} />
                <input
                   ref={searchRef}
                   type="search"
@@ -454,14 +490,16 @@ export function App() {
                      <span aria-hidden>✕</span>
                   </ToggleChip>
                )}
-               {hiddenCount > 0 && (
-                  <ToggleChip
-                     active={showHidden}
-                     onClick={() => setShowHidden(v => !v)}
-                     title="Cryogenic-Storage PRs and hide-by-default repos"
-                  >
-                     ❄ {hiddenCount} hidden
-                  </ToggleChip>
+               {(cryoCount > 0 || hiddenRepoCounts.length > 0) && (
+                  <HiddenSelector
+                     count={hiddenCount}
+                     cryo={cryoCount}
+                     repos={hiddenRepoCounts}
+                     showAll={showAll}
+                     reveal={reveal}
+                     onShowAll={setShowAll}
+                     onToggle={toggleReveal}
+                  />
                )}
                <span className="flex-1" />
                {bots.length > 0 && (
