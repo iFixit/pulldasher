@@ -210,6 +210,22 @@ export function Settings({
                            />
                         </Field>
                         <Field
+                           label="Lane length"
+                           hint="How many rows a lane shows before folding into “+N more”."
+                        >
+                           <Segmented
+                              ariaLabel="lane length"
+                              value={String(s.laneCap)}
+                              options={[
+                                 ['10', '10'],
+                                 ['25', '25'],
+                                 ['50', '50'],
+                                 ['0', 'No cap'],
+                              ]}
+                              onChange={v => set({ laneCap: Number(v) })}
+                           />
+                        </Field>
+                        <Field
                            label="Age turns amber"
                            hint="When a PR's age reads as getting old (color only; the aging lane is unchanged)."
                         >

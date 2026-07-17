@@ -12,6 +12,9 @@ export interface RowOptions {
    aging?: boolean;
    /** compact density: one-line rows, smaller avatar, tighter spacing */
    compact?: boolean;
+   /** rows a lane shows before folding; 0 = no cap. Falls back to the lane's
+    * own default when unset (old saved settings). */
+   laneCap?: number;
    me: string;
    lastSeen: number;
    /** pull keys opened this session (their fresh dots are cleared) */

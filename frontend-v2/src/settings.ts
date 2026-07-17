@@ -32,6 +32,8 @@ export interface Settings {
    notify: boolean;
    /** play a chime alongside those notifications */
    notifySound: boolean;
+   /** rows a lane shows before folding into "+N more"; 0 = no cap (show all) */
+   laneCap: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -46,6 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
    showCryo: false,
    notify: false,
    notifySound: false,
+   laneCap: 10,
 };
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);

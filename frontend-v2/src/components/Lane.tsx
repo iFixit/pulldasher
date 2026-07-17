@@ -57,8 +57,11 @@ export function Lane({
    children?: ReactNode;
 }) {
    if (!pulls.length && !children) return null;
-   // compact packs ~40% more rows per screen, so show more before folding
-   const shown = opts.compact ? Math.ceil(cap * 1.5) : cap;
+   // the user's lane-length setting (0 = no cap) overrides the lane's default;
+   // compact packs ~50% more rows per screen, so show more before folding
+   const base = opts.laneCap ?? cap;
+   const shown =
+      base === 0 ? Number.POSITIVE_INFINITY : opts.compact ? Math.ceil(base * 1.5) : base;
    return (
       <section className={opts.compact ? 'mb-4' : 'mb-7'}>
          <GroupHeader
