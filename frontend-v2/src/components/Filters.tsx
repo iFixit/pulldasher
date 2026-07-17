@@ -5,7 +5,7 @@ import { shortRepo } from '../format';
 import { useScope, type Scope } from '../prefs';
 import { setRepoPref, useSettings } from '../settings';
 import type { Team } from '../types';
-import { Avatar } from './bits';
+import { Avatar, Segmented } from './bits';
 import { Popover } from './Popover';
 
 type Tab = 'repos' | 'people' | 'drafts';
@@ -317,31 +317,16 @@ export function Filters({
 
          {tab === 'drafts' && (
             <div className="px-1 py-1">
-               <div className="mb-2 inline-flex gap-0.5 rounded-lg border border-line bg-muted p-0.5">
-                  <button
-                     type="button"
-                     aria-pressed={draftsMode === 'mine'}
-                     onClick={() => setDraftsMode('mine')}
-                     className={`pressable rounded-md px-2.5 py-1 text-xs font-medium ${
-                        draftsMode === 'mine'
-                           ? 'bg-surface text-ink shadow-sm'
-                           : 'text-ink-2 hover:text-brand'
-                     }`}
-                  >
-                     Mine
-                  </button>
-                  <button
-                     type="button"
-                     aria-pressed={draftsMode === 'all'}
-                     onClick={() => setDraftsMode('all')}
-                     className={`pressable rounded-md px-2.5 py-1 text-xs font-medium ${
-                        draftsMode === 'all'
-                           ? 'bg-surface text-ink shadow-sm'
-                           : 'text-ink-2 hover:text-brand'
-                     }`}
-                  >
-                     All
-                  </button>
+               <div className="mb-2">
+                  <Segmented
+                     value={draftsMode}
+                     options={[
+                        ['mine', 'Mine'],
+                        ['all', 'All'],
+                     ]}
+                     onChange={setDraftsMode}
+                     ariaLabel="which drafts to show"
+                  />
                </div>
                <p className="m-0 text-xs text-ink-3">
                   {draftsMode === 'mine'

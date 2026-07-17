@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { markAllSeen } from '../store';
 import { type Settings as SettingsShape, setRepoPref, setSettings, useSettings } from '../settings';
+import { Segmented } from './bits';
 import { RepoManagerGroup } from './RepoManager';
 
 const LENS_OPTIONS: [string, string][] = [
@@ -33,42 +34,6 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
             {children}
          </div>
          {hint && <span className="text-xs text-ink-3">{hint}</span>}
-      </div>
-   );
-}
-
-/** A pill segmented control — the house pattern for a small closed choice. */
-function Segmented<T extends string>({
-   value,
-   options,
-   onChange,
-   ariaLabel,
-}: {
-   value: T;
-   options: [T, string][];
-   onChange: (next: T) => void;
-   ariaLabel: string;
-}) {
-   return (
-      <div
-         role="radiogroup"
-         aria-label={ariaLabel}
-         className="inline-flex flex-wrap gap-0.5 rounded-lg border border-line bg-muted p-0.5"
-      >
-         {options.map(([val, label]) => (
-            <button
-               key={val}
-               type="button"
-               role="radio"
-               aria-checked={value === val}
-               onClick={() => onChange(val)}
-               className={`pressable rounded-md px-2.5 py-1 text-xs font-medium ${
-                  value === val ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-brand'
-               }`}
-            >
-               {label}
-            </button>
-         ))}
       </div>
    );
 }

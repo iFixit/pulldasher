@@ -419,6 +419,46 @@ export function RepoRef({ repo, number }: { repo: string; number: number }) {
    );
 }
 
+/**
+ * A pill segmented control — the house pattern for a small closed choice
+ * (default view, density, Mine/All drafts). One radiogroup, so it reads as
+ * "pick exactly one" to a screen reader instead of a row of toggle buttons.
+ */
+export function Segmented<T extends string>({
+   value,
+   options,
+   onChange,
+   ariaLabel,
+}: {
+   value: T;
+   options: [T, string][];
+   onChange: (next: T) => void;
+   ariaLabel: string;
+}) {
+   return (
+      <div
+         role="radiogroup"
+         aria-label={ariaLabel}
+         className="inline-flex flex-wrap gap-0.5 rounded-lg border border-line bg-muted p-0.5"
+      >
+         {options.map(([val, label]) => (
+            <button
+               key={val}
+               type="button"
+               role="radio"
+               aria-checked={value === val}
+               onClick={() => onChange(val)}
+               className={`pressable rounded-md px-2.5 py-1 text-xs font-medium ${
+                  value === val ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-brand'
+               }`}
+            >
+               {label}
+            </button>
+         ))}
+      </div>
+   );
+}
+
 export function EmptyState({ title, sub }: { title: string; sub: string }) {
    return (
       <div className="flex flex-col items-center gap-2.5 px-6 py-10 text-center text-[13px] text-ink-3">
