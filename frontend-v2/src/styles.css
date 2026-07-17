@@ -71,7 +71,6 @@
   --warn: #fbbf24;
   --bad: #f87171;
   --violet: #c084fc;
-  --heat0: #364153;
 }
 
 @theme inline {
@@ -137,24 +136,6 @@ a:hover {
     flex: none;
   }
 
-  /* signature pips */
-  .pip { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--ring); }
-  .pip-full { background: var(--ok); border-color: var(--ok); }
-  .pip-stale { border-color: var(--warn); position: relative; }
-  .pip-stale::after {
-    content: "";
-    position: absolute;
-    left: -2px;
-    right: -2px;
-    top: 3px;
-    border-top: 1.5px solid var(--warn);
-    transform: rotate(-30deg);
-  }
-
-  /* age heat bars */
-  .heat-bar { width: 4px; height: 10px; border-radius: 2px; background: var(--heat0); }
-  .heat-warm { background: var(--heat1); }
-  .heat-hot { background: var(--heat2); }
 }
 
 /* hover-reveal row actions (copy branch, refresh) */

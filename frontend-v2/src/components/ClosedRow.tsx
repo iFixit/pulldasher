@@ -1,6 +1,6 @@
 import type { PullData } from '../types';
-import { ago, githubUrl, shortRepo } from '../format';
-import { Avatar } from './bits';
+import { ago, githubUrl } from '../format';
+import { Avatar, RepoRef } from './bits';
 
 export function ClosedRow({ pull }: { pull: PullData }) {
    const merged = !!pull.merged_at;
@@ -24,8 +24,9 @@ export function ClosedRow({ pull }: { pull: PullData }) {
                {pull.title}
             </a>
          </span>
-         <span className="flex-none text-xs whitespace-nowrap text-ink-3">
-            {shortRepo(pull.repo)}#{pull.number} · {ago(closedAt)} ago
+         <span className="flex flex-none items-center gap-2.5 text-xs whitespace-nowrap text-ink-3">
+            <RepoRef repo={pull.repo} number={pull.number} />
+            <span>{ago(closedAt)} ago</span>
          </span>
       </div>
    );

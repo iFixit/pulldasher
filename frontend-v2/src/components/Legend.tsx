@@ -61,13 +61,13 @@ export function Legend() {
                   'a CR or QA sign-off, left as a comment on the PR'
                )}
                {item(
-                  <>
-                     <i className="pip" /> <i className="pip pip-full" />
-                  </>,
-                  'sign-offs: empty = still needed, filled = given'
+                  <span className="tabular-nums">
+                     CR 1/2 <b style={{ color: 'var(--ok)' }}>✓</b>
+                  </span>,
+                  'sign-offs given / required; a check means done'
                )}
                {item(
-                  <i className="pip pip-stale" />,
+                  <b style={{ color: 'var(--warn)' }}>⊘</b>,
                   'a push invalidated the stamp: it needs re-CR'
                )}
                {item(

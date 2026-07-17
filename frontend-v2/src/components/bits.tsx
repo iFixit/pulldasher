@@ -1,5 +1,5 @@
 import type { Status, Weight } from '../model/status';
-import { loginHue } from '../format';
+import { loginHue, shortRepo } from '../format';
 
 export const STATUS_LABEL: Record<Status, string> = {
    ready: 'Ready to merge',
@@ -85,6 +85,11 @@ export function WeightChip({ weight }: { weight: Weight }) {
    );
 }
 
+/**
+ * Sign-off state readable at a glance, no dot-counting: a green check when
+ * satisfied, a fraction while outstanding, an amber slash when a push
+ * invalidated the stamp. Nothing required and nothing given renders nothing.
+ */
 export function Pips({
    label,
    have,
@@ -96,23 +101,48 @@ export function Pips({
    req: number;
    stale?: boolean;
 }) {
-   const total = Math.max(req, have);
+   if (!req && !have) return null;
    const staleNote = stale && have === 0;
+   const met = have >= req;
    return (
       <span
-         className="inline-flex items-center gap-[3px]"
-         aria-label={`${label} ${have} of ${req}${staleNote ? ', earlier stamp invalidated by a push' : ''}`}
+         className="inline-flex items-baseline gap-1"
+         aria-label={`${label} ${have} of ${req}${staleNote ? ', earlier stamp invalidated by a push' : met ? ', done' : ''}`}
       >
          <span aria-hidden className="text-[11px] font-medium text-ink-3">
             {label}
          </span>
          {staleNote ? (
-            <i aria-hidden className="pip pip-stale" title="stamp invalidated by a push" />
+            <span
+               aria-hidden
+               className="text-[11px] font-semibold"
+               style={{ color: 'var(--warn)' }}
+               title="stamp invalidated by a push"
+            >
+               ⊘
+            </span>
+         ) : met ? (
+            <span aria-hidden className="text-[11px] font-semibold" style={{ color: 'var(--ok)' }}>
+               ✓
+            </span>
          ) : (
-            Array.from({ length: total }, (_, i) => (
-               <i aria-hidden key={i} className={`pip ${i < have ? 'pip-full' : ''}`} />
-            ))
+            <span aria-hidden className="text-[11px] text-ink-2 tabular-nums">
+               {have}/{req}
+            </span>
          )}
+      </span>
+   );
+}
+
+/**
+ * The number is what you say out loud; the repo is ambient context. Split
+ * them typographically so the identifier steps forward and the repo whispers.
+ */
+export function RepoRef({ repo, number }: { repo: string; number: number }) {
+   return (
+      <span className="whitespace-nowrap">
+         <span className="text-ink-3">{shortRepo(repo)}</span>{' '}
+         <span className="font-medium text-ink-2 tabular-nums">#{number}</span>
       </span>
    );
 }

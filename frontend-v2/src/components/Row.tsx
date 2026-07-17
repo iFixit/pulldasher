@@ -1,9 +1,9 @@
 import { memo, useState } from 'react';
 import type { DerivedPull } from '../model/status';
 import { isIterating } from '../model/status';
-import { ago, githubUrl, shortRepo } from '../format';
+import { ago, githubUrl } from '../format';
 import { refreshPull } from '../store';
-import { Avatar, Pips, StatusBadge, WeightChip } from './bits';
+import { Avatar, Pips, RepoRef, StatusBadge, WeightChip } from './bits';
 
 export interface RowOptions {
    /** hide the status badge when the lane already says it */
@@ -155,9 +155,7 @@ function CompactCard({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
                </a>
             </span>
             <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-ink-3">
-               <span className="whitespace-nowrap">
-                  {shortRepo(d.repo)}#{d.number}
-               </span>
+               <RepoRef repo={d.repo} number={d.number} />
                {(pips === 'cr' || pips === 'both') && (
                   <Pips label="CR" have={pull.crHave} req={d.status.cr_req} stale={staleCr} />
                )}
@@ -228,9 +226,7 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
             </span>
          )}
          <span className="flex flex-none items-center gap-2.5 text-xs text-ink-3">
-            <span className="whitespace-nowrap">
-               {shortRepo(d.repo)}#{d.number}
-            </span>
+            <RepoRef repo={d.repo} number={d.number} />
             {showWeight && <WeightChip weight={pull.weight} />}
             {(pips === 'cr' || pips === 'both') && (
                <Pips label="CR" have={pull.crHave} req={d.status.cr_req} stale={staleCr} />
