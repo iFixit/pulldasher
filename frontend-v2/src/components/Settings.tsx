@@ -5,6 +5,8 @@ import {
    notificationsSupported,
    notifyPermission,
    requestNotifyPermission,
+   testNotification,
+   unlockSound,
 } from '../notifications';
 import { markAllSeen, refreshAll } from '../store';
 import { type Settings as SettingsShape, setRepoPref, setSettings, useSettings } from '../settings';
@@ -101,6 +103,9 @@ export function Settings({
       let p = notifyPermission();
       if (p === 'default') p = await requestNotifyPermission();
       setPerm(p);
+      // this handler runs from the toggle click, so unlock audio now while we
+      // still have the gesture, in case Sound is already on
+      if (p === 'granted') unlockSound();
       setSettings({ notify: p === 'granted' });
    };
 
@@ -257,7 +262,7 @@ export function Settings({
                            <>
                               <Field
                                  label="Desktop notifications"
-                                 hint="Alert when one of your PRs is ready to merge, or a re-review falls to you."
+                                 hint="Nudge you when a PR needs you — yours going mergeable, breaking CI or getting feedback, or a re-review falling to you. Only while this tab isn’t focused."
                               >
                                  <Segmented
                                     ariaLabel="desktop notifications"
@@ -286,9 +291,22 @@ export function Settings({
                                        ['off', 'Off'],
                                        ['on', 'On'],
                                     ]}
-                                    onChange={v => set({ notifySound: v === 'on' })}
+                                    onChange={v => {
+                                       // a toggle click is the gesture that unlocks audio
+                                       if (v === 'on') unlockSound();
+                                       set({ notifySound: v === 'on' });
+                                    }}
                                  />
                               </Field>
+                              {s.notify && perm === 'granted' && (
+                                 <button
+                                    type="button"
+                                    onClick={() => testNotification()}
+                                    className="pressable inline-flex h-8 w-fit items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink-2 hover:text-brand"
+                                 >
+                                    Send a test notification
+                                 </button>
+                              )}
                            </>
                         ) : (
                            <span className="text-xs text-ink-3">

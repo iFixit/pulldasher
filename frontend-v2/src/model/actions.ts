@@ -29,6 +29,22 @@ export function reviewerMove(p: DerivedPull, me: string): string | null {
    return null;
 }
 
+/**
+ * The subset of moves worth a desktop nudge: a real transition that just
+ * landed on you — your PR is mergeable / broke CI / got feedback / needs a
+ * rebase, or a re-CR/re-QA fell to you. Excludes self-initiated states
+ * (claiming QA, still drafting) and "go find someone" states, which aren't
+ * events so much as standing conditions. Returns the action label, or null.
+ */
+export function alertMove(p: DerivedPull, me: string): string | null {
+   if (p.data.user.login === me) {
+      const v = authorMove(p);
+      return v && v !== 'Find a QA-er' && v !== 'Finish the draft' ? v : null;
+   }
+   const v = reviewerMove(p, me);
+   return v === 'Re-stamp' || v === 'Re-QA' ? v : null;
+}
+
 /** 'do' = your move (brand, bold imperative); 'wait' = context on someone else's move. */
 export interface RowNote {
    text: string;

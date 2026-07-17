@@ -92,11 +92,17 @@ serves v1 at `/` and v2 at `/v2`, both fed by the same socket protocol
   Review (newest first), not a bar toggle — it collects the delta at the top
   the way "Yours to do" collects your actions, rather than filtering the board.
   A slim banner still counts the PRs merged or closed while you were away.
-- **Desktop notifications.** Opt-in from Settings: a browser notification when
-  one of your PRs becomes ready to merge or a re-review (re-CR/re-QA) falls to
-  you, with an optional chime. It watches the whole board (not the current
-  filter) and only fires on new transitions — the first payload after load just
-  primes the baseline, so it never alerts for the backlog already there.
+- **Desktop notifications.** Opt-in from Settings: a browser notification for
+  every real transition that lands on you — your PR going mergeable, breaking
+  CI, getting feedback or needing a rebase, and re-CRs/re-QAs falling to you
+  (`model/actions.ts` `alertMove`). Each alert is clickable (focuses the tab and
+  opens the PR), replaces any older one for the same PR (`tag`), and carries an
+  optional two-note chime whose AudioContext is unlocked by the toggle's own
+  click so it isn't muted by autoplay policy when the tab is backgrounded. It
+  watches the whole board (not the current filter) and fires only while the tab
+  is unfocused — when you're looking, the board already shows the change. The
+  first payload after load just primes the baseline, so it never alerts for the
+  backlog already there, and a "send a test" button confirms the setup.
   `src/notifications.ts`.
 - **Keyboard:** `/` filter, `j`/`k` walk rows, `Enter` opens, `c` copies the
   focused row's branch.

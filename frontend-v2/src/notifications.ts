@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { pullKey } from './format';
+import { githubUrl, pullKey, shortRepo } from './format';
+import { alertMove } from './model/actions';
 import type { DerivedPull } from './model/status';
 import { getSettings } from './settings';
 
@@ -14,98 +15,152 @@ export async function requestNotifyPermission(): Promise<NotificationPermission>
    return Notification.requestPermission();
 }
 
-/**
- * A short synthesized chime — no audio asset to ship or path to couple to the
- * server layout, and CSP-safe. Best-effort: browsers block audio until the
- * user has interacted with the page, in which case the notification still
- * shows silently.
- */
-function chime() {
+// ── Sound ──────────────────────────────────────────────────────────────────
+// Autoplay policy blocks audio until the page has had a user gesture, and a
+// notification fires when the tab is in the background — exactly when a
+// fresh, never-unlocked AudioContext would be muted. So keep one context,
+// unlocked by the Settings toggle's click (a gesture), and reuse it.
+let audioCtx: AudioContext | null = null;
+function ctor(): typeof AudioContext | undefined {
+   return (
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+   );
+}
+
+/** Call from a user gesture (the Sound toggle) so later chimes aren't muted. */
+export function unlockSound() {
    try {
-      const Ctor =
-         window.AudioContext ??
-         (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!Ctor) return;
-      const ctx = new Ctor();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = 880;
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.4);
-      osc.onended = () => void ctx.close();
+      const C = ctor();
+      if (!C) return;
+      audioCtx ??= new C();
+      void audioCtx.resume();
    } catch {
-      // audio blocked: the desktop notification still fires, just silent
+      // audio unavailable: notifications still fire silently
    }
 }
 
-interface Watch {
-   key: string;
-   match: (p: DerivedPull, me: string) => boolean;
-   message: (titles: string[]) => string;
+function chime() {
+   try {
+      const C = ctor();
+      if (!C) return;
+      audioCtx ??= new C();
+      const ctx = audioCtx;
+      void ctx.resume();
+      const t0 = ctx.currentTime;
+      const note = (freq: number, start: number, dur: number) => {
+         const osc = ctx.createOscillator();
+         const gain = ctx.createGain();
+         osc.type = 'sine';
+         osc.frequency.value = freq;
+         gain.gain.setValueAtTime(0.0001, t0 + start);
+         gain.gain.exponentialRampToValueAtTime(0.18, t0 + start + 0.01);
+         gain.gain.exponentialRampToValueAtTime(0.0001, t0 + start + dur);
+         osc.connect(gain).connect(ctx.destination);
+         osc.start(t0 + start);
+         osc.stop(t0 + start + dur);
+      };
+      note(660, 0, 0.18);
+      note(990, 0.13, 0.26);
+   } catch {
+      // best-effort: a blocked chime never blocks the notification
+   }
 }
 
-// The two transitions v1 alerted on, ported to v2's model.
-const WATCHES: Watch[] = [
-   {
-      key: 'ready',
-      match: (p, me) => p.data.user.login === me && p.status === 'ready',
-      message: t =>
-         t.length === 1 ? `Ready to merge: ${t[0]}` : `${t.length} of your PRs are ready to merge`,
-   },
-   {
-      key: 'rereview',
-      match: (p, me) => p.recrBy.includes(me) || p.reqaBy.includes(me),
-      message: t =>
-         t.length === 1 ? `Re-review owed: ${t[0]}` : `${t.length} re-reviews are waiting on you`,
-   },
-];
+// ── Notifications ────────────────────────────────────────────────────────────
+// Friendlier titles than the terse in-board verbs.
+const TITLE: Record<string, string> = {
+   'Merge it': 'Ready to merge',
+   'Fix CI': 'CI failed',
+   'Address feedback': 'Changes requested',
+   Rebase: 'Needs a rebase',
+   'Re-stamp': 'Re-review owed',
+   'Re-QA': 'Re-QA owed',
+};
+
+function fire(p: DerivedPull, action: string) {
+   try {
+      const notification = new Notification(TITLE[action] ?? action, {
+         body: `${p.data.title} · ${shortRepo(p.data.repo)} #${p.data.number}`,
+         // one live notification per PR: a newer state replaces the old one
+         tag: pullKey(p.data),
+      });
+      notification.onclick = () => {
+         window.focus();
+         window.open(githubUrl(p.data.repo, p.data.number), '_blank', 'noopener');
+         notification.close();
+      };
+   } catch {
+      // construction can throw on some platforms; a failed alert is not fatal
+   }
+}
+
+/** Fire a sample notification so the user can confirm the setup works. */
+export function testNotification() {
+   if (!notificationsSupported || Notification.permission !== 'granted') return;
+   try {
+      const notification = new Notification('Pulldasher notifications are on', {
+         body: 'You’ll get a nudge here when a PR needs you.',
+      });
+      notification.onclick = () => {
+         window.focus();
+         notification.close();
+      };
+   } catch {
+      // ignore
+   }
+   if (getSettings().notifySound) chime();
+}
+
+/** At most this many individual alerts per update; a rare bigger burst collapses. */
+const MAX_PER_TICK = 5;
 
 /**
- * Desktop notifications for your PRs becoming ready to merge and re-reviews
- * falling to you. Fires only for items that newly match since the last update,
- * so a steady board stays quiet — and the first payload after load only
- * primes the baseline, it never alerts for the backlog already sitting there.
+ * Desktop notifications for every real transition that lands on you — your PR
+ * going mergeable, breaking CI, getting feedback or needing a rebase, and
+ * re-CRs / re-QAs falling to you (model/actions alertMove). Watches the whole
+ * board, not the current filter.
+ *
+ * Only fires while the window is unfocused: when you're looking, the board
+ * already surfaces the change, so a desktop alert would just be noise. The
+ * baseline is recorded on every update regardless, so returning to the tab and
+ * leaving again never replays what already happened, and the first payload
+ * after load only primes the baseline instead of alerting for the backlog.
  */
 export function useNotifications(pulls: DerivedPull[], me: string) {
-   const seen = useRef<Record<string, Set<string>>>({});
+   // pull key → the action last seen for it, so a changed action re-alerts
+   const seen = useRef<Map<string, string>>(new Map());
    const primed = useRef(false);
 
    useEffect(() => {
-      const record = () => {
-         for (const w of WATCHES)
-            seen.current[w.key] = new Set(
-               pulls.filter(p => w.match(p, me)).map(p => pullKey(p.data))
-            );
-      };
+      const current = new Map<string, string>();
+      for (const p of pulls) {
+         const action = alertMove(p, me);
+         if (action) current.set(pullKey(p.data), action);
+      }
 
       const s = getSettings();
       const active =
          notificationsSupported && s.notify && Notification.permission === 'granted' && !!me;
-      // keep the baseline current even while off, so toggling on doesn't flood
-      if (!active || !primed.current) {
-         record();
+
+      // record the baseline but stay silent while off, unprimed, or focused
+      if (!active || !primed.current || document.hasFocus()) {
+         seen.current = current;
          primed.current = true;
          return;
       }
 
-      for (const w of WATCHES) {
-         const now = pulls.filter(p => w.match(p, me));
-         const prev = seen.current[w.key] ?? new Set<string>();
-         const fresh = now.filter(p => !prev.has(pullKey(p.data)));
-         if (fresh.length) {
-            try {
-               new Notification(w.message(fresh.map(p => p.data.title)));
-            } catch {
-               // notification construction can throw on some platforms; ignore
-            }
-            if (s.notifySound) chime();
+      const byKey = new Map(pulls.map(p => [pullKey(p.data), p]));
+      let fired = 0;
+      for (const [key, action] of current) {
+         if (seen.current.get(key) === action) continue; // unchanged
+         const p = byKey.get(key);
+         if (p && fired < MAX_PER_TICK) {
+            fire(p, action);
+            fired++;
          }
-         seen.current[w.key] = new Set(now.map(p => pullKey(p.data)));
       }
+      if (fired > 0 && s.notifySound) chime();
+      seen.current = current;
    }, [pulls, me]);
 }
