@@ -1,6 +1,6 @@
 import { ROT_DAYS, STARVE_DAYS, type Status, type Weight, weightRank } from '../model/status';
 import type { Signature } from '../types';
-import { ago, githubUrl, loginHue, shortRepo } from '../format';
+import { ago, githubUrl, loginHue, shortRepo, signatureUrl } from '../format';
 import { Popover } from './Popover';
 
 export const STATUS_LABEL: Record<Status, string> = {
@@ -300,9 +300,13 @@ export function SigPips({
       >
          <span className="block px-1 pb-1 font-semibold text-ink">{label} stamps</span>
          {rows.map(s => (
-            <span
+            <a
                key={s.data.user.login}
-               className="flex items-center gap-1.5 px-1 py-[3px] text-ink-2"
+               href={signatureUrl(s)}
+               target="_blank"
+               rel="noopener noreferrer"
+               title="open this stamp’s comment on GitHub"
+               className="flex items-center gap-1.5 rounded px-1 py-[3px] text-ink-2 hover:bg-muted"
             >
                <Avatar login={s.data.user.login} size={16} />
                <b className="font-medium text-ink">{s.data.user.login}</b>
@@ -318,7 +322,7 @@ export function SigPips({
                      title="invalidated by a later push — a re-stamp is owed"
                   />
                )}
-            </span>
+            </a>
          ))}
       </Popover>
    );

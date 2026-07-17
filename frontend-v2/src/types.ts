@@ -36,6 +36,10 @@ export interface Signature {
       created_at: DateString;
       active: number;
       comment_id: number;
+      /** which GitHub object the stamp came from, picking the permalink anchor
+       * (#issuecomment- vs #pullrequestreview-). Absent on the old dummy
+       * fixture; treat missing as a plain comment. */
+      source_type?: 'comment' | 'review';
    };
 }
 

@@ -1,4 +1,4 @@
-import type { PullData } from './types';
+import type { PullData, Signature } from './types';
 
 /** "34m" / "5h" / "3d" — matches the terseness of the board rows. */
 export function ago(epochSecs: number, now: number = Date.now() / 1000) {
@@ -17,6 +17,17 @@ export function loginHue(login: string) {
 
 export function githubUrl(repo: string, number: number) {
    return `https://github.com/${repo}/pull/${number}`;
+}
+
+/**
+ * A permalink to the comment or review a stamp came from. The comment_id is
+ * two different GitHub id spaces, so the anchor depends on source_type; a
+ * review needs #pullrequestreview-, a plain comment #issuecomment-. Mirrors
+ * v1's Pull.linkToSignature.
+ */
+export function signatureUrl(sig: Signature) {
+   const anchor = sig.data.source_type === 'review' ? 'pullrequestreview' : 'issuecomment';
+   return `${githubUrl(sig.data.repo, sig.data.number)}#${anchor}-${sig.data.comment_id}`;
 }
 
 /** Owner stripped whoever it is — v1's getRepoName() did the same, and the
