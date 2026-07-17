@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import type { DerivedPull } from '../model/status';
 import { isIterating } from '../model/status';
 import { ago, githubUrl, shortRepo } from '../format';
@@ -115,7 +115,7 @@ function RowActions({ pull }: { pull: DerivedPull }) {
    );
 }
 
-export function Row({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
+function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const d = pull.data;
    const fresh = Date.parse(d.updated_at) / 1000 > opts.lastSeen;
    const pips = opts.pips ?? 'both';
@@ -178,3 +178,20 @@ export function Row({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
       </div>
    );
 }
+
+/**
+ * Rows re-render only when their pull is re-derived (the store caches
+ * derive() per PullData reference) or an option actually changes — a burst
+ * of pullChange events must not reconcile 180 untouched rows.
+ */
+export const Row = memo(
+   RowImpl,
+   (a, b) =>
+      a.pull === b.pull &&
+      a.opts.badge === b.opts.badge &&
+      a.opts.pips === b.opts.pips &&
+      a.opts.aging === b.opts.aging &&
+      a.opts.me === b.opts.me &&
+      a.opts.lastSeen === b.opts.lastSeen &&
+      a.opts.onPerson === b.opts.onPerson
+);

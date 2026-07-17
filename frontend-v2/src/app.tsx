@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ago, n } from './format';
 import { readStorage, writeStorage } from './storage';
 import { STATUS_ORDER, type DerivedPull } from './model/status';
@@ -15,6 +15,28 @@ import { People } from './views/People';
 import { Board } from './views/Board';
 
 type Lens = 'review' | 'mine' | 'people' | 'board';
+
+const LENSES: Lens[] = ['review', 'mine', 'people', 'board'];
+
+/** Lens and drill-down selections live in the hash: shareable, bookmarkable. */
+function readHash() {
+   const p = new URLSearchParams(location.hash.slice(1));
+   const lens = p.get('lens') as Lens | null;
+   return {
+      lens: lens && LENSES.includes(lens) ? lens : ('review' as Lens),
+      person: p.get('person'),
+      team: p.get('team'),
+   };
+}
+
+function writeHash(lens: Lens, person: string | null, team: string | null) {
+   const p = new URLSearchParams();
+   if (lens !== 'review') p.set('lens', lens);
+   if (person) p.set('person', person);
+   if (team) p.set('team', team);
+   const next = p.toString();
+   history.replaceState(null, '', next ? `#${next}` : location.pathname + location.search);
+}
 
 const THEME_KEY = 'pd2.theme';
 const BOT_LOGINS = new Set(['ifixit-systems']);
@@ -34,9 +56,9 @@ export function App() {
       lastSeen,
    } = usePulldasher();
    const [scope] = useScope();
-   const [lens, setLens] = useState<Lens>('review');
-   const [person, setPerson] = useState<string | null>(null);
-   const [team, setTeam] = useState<string | null>(null);
+   const [lens, setLens] = useState<Lens>(() => readHash().lens);
+   const [person, setPerson] = useState<string | null>(() => readHash().person);
+   const [team, setTeam] = useState<string | null>(() => readHash().team);
    const [query, setQuery] = useState('');
    const [onlyChanged, setOnlyChanged] = useState(false);
    const [showHidden, setShowHidden] = useState(false);
@@ -55,6 +77,25 @@ export function App() {
 
    useEffect(() => {
       void loadTeams().then(setTeams);
+   }, []);
+   useEffect(() => {
+      writeHash(lens, person, team);
+   }, [lens, person, team]);
+   useEffect(() => {
+      const onHash = () => {
+         const h = readHash();
+         setLens(h.lens);
+         setPerson(h.person);
+         setTeam(h.team);
+      };
+      window.addEventListener('hashchange', onHash);
+      return () => window.removeEventListener('hashchange', onHash);
+   }, []);
+   // the entrance settle runs once per visit, not on every tab switch
+   const [entrance, setEntrance] = useState(true);
+   useEffect(() => {
+      const t = setTimeout(() => setEntrance(false), 700);
+      return () => clearTimeout(t);
    }, []);
    useEffect(() => {
       document.documentElement.classList.toggle('dark', dark === 'dark');
@@ -136,15 +177,16 @@ export function App() {
    for (const p of humans) statusCounts.set(p.status, (statusCounts.get(p.status) ?? 0) + 1);
    const isScoped = scope.repos.length || scope.authors.length || query || onlyChanged;
 
-   const rowOpts: RowOptions = {
-      me,
-      lastSeen,
-      onPerson: login => {
-         setPerson(login);
-         setTeam(null);
-         setLens('people');
-      },
-   };
+   const onPerson = useCallback((login: string) => {
+      setPerson(login);
+      setTeam(null);
+      setLens('people');
+   }, []);
+   // stable identity so memo(Row) can skip untouched rows on socket bursts
+   const rowOpts: RowOptions = useMemo(
+      () => ({ me, lastSeen, onPerson }),
+      [me, lastSeen, onPerson]
+   );
 
    const mineCount = humans.filter(p => p.data.user.login === me).length;
    const tab = (id: Lens, label: string, count?: number) => (
@@ -309,7 +351,9 @@ export function App() {
             </div>
          )}
 
-         <main key={lens} className="mx-auto mt-4 max-w-[1240px] px-5 pb-16">
+         <main
+            className={`mx-auto mt-4 max-w-[1240px] px-5 pb-16 ${entrance ? 'settle-once' : ''}`}
+         >
             {!initialized && !authFailed && (
                <div className="flex flex-col items-center gap-2 py-20 text-ink-3" role="status">
                   <span className="conn-live inline-block h-2.5 w-2.5 rounded-full bg-brand" />

@@ -13,10 +13,13 @@ serves v1 at `/` and v2 at `/v2`, both fed by the same socket protocol
 - **The re-stamp lane.** Inactive CR signatures (invalidated by a push) are
   already on the wire; a pull that was reviewed and fixed but lacks a fresh
   stamp is the cheapest review on the board, so it leads.
-- **Three lenses, one filter.** For you / People / Teams over the same pool,
-  with a single saved Scope (repos + people, with GitHub-team presets).
-- **Changed since your last look.** A last-seen marker in localStorage; rows
-  updated after it get a tick, and a banner offers "show only changes".
+- **Four lenses, one filter.** Review / My work / People (person or team
+  drill-down) / Board, over the same pool, with a single saved Scope
+  (repos + people, with GitHub-team presets). Lens and drill-down live in
+  the URL hash, so views are shareable.
+- **Changed since your last look.** A last-seen marker in localStorage,
+  stamped when you leave (pagehide), not when you arrive; rows updated after
+  it get a dot, and a banner offers "show only changes".
 
 ## Running it
 
@@ -32,8 +35,8 @@ npm test             # vitest: status-derivation and CI-verdict unit tests
 ## Teams config
 
 Copy `public/teams.example.json` to `public/teams.json` (gitignored) and list
-GitHub team slugs with member logins. It powers the Teams lens and the scope
-presets; without it those features quietly disappear. Long-term this belongs
+GitHub team slugs with member logins. It powers the team chips on the People
+lens and the scope presets; without it those features quietly disappear. Long-term this belongs
 in the backend (fetch org teams via the existing Octokit client and ship them
 with the socket handshake).
 
