@@ -455,7 +455,6 @@ export function App() {
                   open
                </span>
                <span className="flex-1" />
-               <span className="text-xs text-ink-3">{me ? `signed in as ${me}` : '…'}</span>
                <a
                   href="/"
                   className="text-xs text-ink-3 hover:text-brand"
