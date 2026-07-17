@@ -34,6 +34,10 @@ export interface Settings {
    notifySound: boolean;
    /** rows a lane shows before folding into "+N more"; 0 = no cap (show all) */
    laneCap: number;
+   /** teams that self-review (iFixit) don't gate on CR, so lining up QA is the
+    * real stall: surface "Find a QA-er" on your own PR as a home to-do, not a
+    * My-work afterthought. Off leaves getting QA in My work only. */
+   selfReview: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -49,6 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
    notify: false,
    notifySound: false,
    laneCap: 10,
+   selfReview: true,
 };
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);

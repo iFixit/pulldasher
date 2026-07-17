@@ -2,6 +2,7 @@ import type { DerivedPull, Status } from '../model/status';
 import { pullKey } from '../format';
 import { crSort } from '../model/sort';
 import { authorMove, reviewerMove } from '../model/actions';
+import { useSettings } from '../settings';
 import { isFresh } from '../store';
 import type { PullData } from '../types';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
@@ -28,6 +29,7 @@ export function Review({
    opts: RowOptions;
 }) {
    const me = opts.me;
+   const { selfReview } = useSettings();
    const others = pulls.filter(p => p.data.user.login !== me);
 
    // 1. Yours to do: strictly your verbs. The earlier "Act now" lesson still
@@ -41,11 +43,12 @@ export function Review({
       'Fix CI',
       'Address feedback',
       'Rebase',
+      'Find a QA-er',
    ];
    const todo = pulls
       .map(p => ({
          p,
-         verb: p.data.user.login === me ? ownVerb(p) : reviewerMove(p, me),
+         verb: p.data.user.login === me ? ownVerb(p, selfReview) : reviewerMove(p, me),
       }))
       .filter((x): x is { p: DerivedPull; verb: string } => x.verb !== null)
       .sort(
@@ -235,10 +238,14 @@ export function Review({
    );
 }
 
-// Your own pulls contribute only their do-it-now verbs to the home lane;
-// "Find a QA-er" and "Finish the draft" stay in My work — they're planning,
-// not minutes.
-function ownVerb(p: DerivedPull): string | null {
+// Your own pulls contribute only their do-it-now verbs to the home lane.
+// "Finish the draft" always stays in My work (planning, not minutes). Getting
+// QA is different: when the team self-reviews, CR isn't the gate and lining up
+// QA is the daily stall, so "Find a QA-er" graduates to a home to-do.
+function ownVerb(p: DerivedPull, selfReview: boolean): string | null {
    const verb = authorMove(p);
-   return verb && ['Merge it', 'Fix CI', 'Address feedback', 'Rebase'].includes(verb) ? verb : null;
+   if (!verb) return null;
+   const doNow = ['Merge it', 'Fix CI', 'Address feedback', 'Rebase'];
+   if (selfReview) doNow.push('Find a QA-er');
+   return doNow.includes(verb) ? verb : null;
 }

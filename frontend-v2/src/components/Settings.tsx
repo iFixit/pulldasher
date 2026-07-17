@@ -201,6 +201,20 @@ export function Settings({
                      </Group>
 
                      <Group title="Board">
+                        <Field
+                           label="Getting QA is a to-do"
+                           hint="For teams that self-review, no separate CR gate means lining up QA is the real stall, so “Find a QA-er” on your own PRs shows in Yours to do. Off keeps it in My work only."
+                        >
+                           <Segmented
+                              ariaLabel="getting QA is a to-do"
+                              value={s.selfReview ? 'on' : 'off'}
+                              options={[
+                                 ['off', 'Off'],
+                                 ['on', 'On'],
+                              ]}
+                              onChange={v => set({ selfReview: v === 'on' })}
+                           />
+                        </Field>
                         <Field label="Default view" hint="The lens a bare pulldasher link opens.">
                            <Segmented
                               ariaLabel="default view"
