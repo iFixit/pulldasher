@@ -38,7 +38,8 @@ serves v1 at `/` and v2 at `/v2`, both fed by the same socket protocol
 - **Review effort, always shown.** A five-segment meter (light to heavy,
   color-ramped) rides the rightmost rail of every row, so "can I fit this in
   the time I have" reads without opening the diff. A cheap prior from diff
-  size; humans override by reading.
+  size; humans override by reading. The concrete `+added −deleted` sits beside
+  the repo for when the gauge isn't precise enough.
 - **A queue that ranks the right thing.** `src/model/sort.ts` scores by
   weight, then boosts pulls one stamp from done and credits age, so an old M
   outranks a fresh S before the starvation cliff. Thresholds are tuned to

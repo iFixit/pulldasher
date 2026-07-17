@@ -468,6 +468,7 @@ export function App() {
                >
                   v1 board
                </a>
+               <Legend />
                <Settings repos={repoCounts} orgHidden={hiddenRepos} />
             </div>
             <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-2 px-5 pb-2.5">
@@ -491,25 +492,6 @@ export function App() {
                   draftsMode={draftsMode}
                   setDraftsMode={setDraftsMode}
                />
-               <span className="relative inline-flex max-w-full grow items-center sm:grow-0">
-                  <svg
-                     viewBox="0 0 16 16"
-                     aria-hidden
-                     className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 fill-ink-3"
-                  >
-                     <path d="M7 2a5 5 0 1 0 3.02 8.98l2.5 2.5a.75.75 0 1 0 1.06-1.06l-2.5-2.5A5 5 0 0 0 7 2Zm0 1.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Z" />
-                  </svg>
-                  <input
-                     ref={searchRef}
-                     type="search"
-                     aria-label="Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x"
-                     placeholder="filter (press /)"
-                     title="text, #number, label:x, status:x, older:5, repo:x, author:x"
-                     value={query}
-                     onChange={e => setQuery(e.target.value)}
-                     className="h-8 w-[190px] max-w-full grow rounded-lg border border-line bg-surface pr-2.5 pl-8 text-[13px] sm:grow-0"
-                  />
-               </span>
                {legacy && (
                   <ToggleChip
                      active
@@ -529,7 +511,25 @@ export function App() {
                      {n(bots.length, 'bot PR')}
                   </span>
                )}
-               <Legend />
+               <span className="relative ml-auto inline-flex max-w-full grow items-center sm:grow-0">
+                  <svg
+                     viewBox="0 0 16 16"
+                     aria-hidden
+                     className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 fill-ink-3"
+                  >
+                     <path d="M7 2a5 5 0 1 0 3.02 8.98l2.5 2.5a.75.75 0 1 0 1.06-1.06l-2.5-2.5A5 5 0 0 0 7 2Zm0 1.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Z" />
+                  </svg>
+                  <input
+                     ref={searchRef}
+                     type="search"
+                     aria-label="Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x"
+                     placeholder="filter (press /)"
+                     title="text, #number, label:x, status:x, older:5, repo:x, author:x"
+                     value={query}
+                     onChange={e => setQuery(e.target.value)}
+                     className="h-8 w-[210px] max-w-full grow rounded-lg border border-line bg-surface pr-2.5 pl-8 text-[13px] sm:grow-0"
+                  />
+               </span>
             </div>
          </header>
 

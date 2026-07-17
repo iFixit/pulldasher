@@ -75,6 +75,13 @@ export function Legend() {
                )}
                {item(<WeightMeter weight="M" />, 'review effort, light to heavy, from diff size')}
                {item(
+                  <span className="tabular-nums">
+                     <span style={{ color: 'var(--ok)' }}>+120</span>{' '}
+                     <span style={{ color: 'var(--bad)' }}>−30</span>
+                  </span>,
+                  'lines added and removed'
+               )}
+               {item(
                   <span className="flag-qaing">QAing</span>,
                   'someone claimed QA by adding the QAing label on GitHub (◉ in columns)'
                )}

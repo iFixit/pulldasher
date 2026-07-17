@@ -130,6 +130,20 @@ export function WeightMeter({ weight, known = true }: { weight: Weight; known?: 
 }
 
 /**
+ * The concrete diff size beside the abstract weight meter: +added −deleted,
+ * GitHub's green/red, so the exact number is there when the five-segment
+ * gauge isn't precise enough. Hidden when the wire didn't send a size.
+ */
+export function DiffSize({ additions, deletions }: { additions: number; deletions: number }) {
+   return (
+      <span className="whitespace-nowrap tabular-nums" title={`+${additions} −${deletions} lines`}>
+         <span style={{ color: 'var(--ok)' }}>+{additions}</span>{' '}
+         <span style={{ color: 'var(--bad)' }}>−{deletions}</span>
+      </span>
+   );
+}
+
+/**
  * Sign-off state as a pip meter: one square per required stamp, in a
  * fixed-width slot so CR, QA, and age land at the same x down a board. Filled
  * green = a live stamp; amber = a stamp a push invalidated, so a re-stamp is

@@ -3,7 +3,7 @@ import type { DerivedPull } from '../model/status';
 import { isIterating } from '../model/status';
 import { ago, pullKey } from '../format';
 import { ackPull, isFresh, refreshPull } from '../store';
-import { AgeStamp, RepoRef, SigPips, StatusBadge, WeightMeter } from './bits';
+import { AgeStamp, DiffSize, RepoRef, SigPips, StatusBadge, WeightMeter } from './bits';
 import { CardShell } from './Card';
 
 export interface RowOptions {
@@ -254,6 +254,9 @@ function RowImpl({
             <>
                {opts.badge === false ? null : <StatusBadge status={pull.status} inline />}
                <RepoRef repo={d.repo} number={d.number} />
+               {pull.sizeKnown && (
+                  <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
+               )}
                {context != null && (
                   <span
                      className={`max-w-[38ch] truncate ${
