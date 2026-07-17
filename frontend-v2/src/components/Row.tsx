@@ -3,7 +3,7 @@ import type { DerivedPull } from '../model/status';
 import { isIterating } from '../model/status';
 import { ago } from '../format';
 import { refreshPull } from '../store';
-import { Avatar, Pips, PullTitleLink, RepoRef, StatusBadge, WeightChip } from './bits';
+import { AgeStamp, Avatar, PullTitleLink, RepoRef, SigPips, StatusBadge, WeightChip } from './bits';
 import { CardShell } from './Card';
 
 export interface RowOptions {
@@ -12,9 +12,10 @@ export interface RowOptions {
    /** show the open-Nd flag on starved pulls */
    aging?: boolean;
    /**
-    * Column mode (Board/Classic): the title owns the space. Drops the cue
-    * line, warning flags, weight chip, and hover actions — a full row's
-    * anatomy crushes titles to two letters inside a 340px column.
+    * Column mode (Classic): the title owns the space. Drops the cue line,
+    * weight chip, and hover actions — a full row's anatomy crushes titles
+    * to two letters inside a 340px column. Warning flags stay: conflicts
+    * and holds change who acts, and columns are where deployers look.
     */
    compact?: boolean;
    /** suppress the cue line when the view says the same thing beside the row */
@@ -31,30 +32,54 @@ function cue(p: DerivedPull, me: string): string | null {
       const wait = p.headPushedAt ? ` · fix pushed ${ago(p.headPushedAt)} ago` : '';
       return `CR’d by ${who}${wait}`;
    }
-   if (p.status === 'ready')
-      return `signed off and green, ${d.user.login === me ? 'you' : d.user.login} can merge`;
-   if (p.status === 'needs_qa')
-      return p.qaingBy ? `${p.qaingBy} is QAing` : 'CR done, needs a QA stamp';
+   if (p.status === 'ready') {
+      const idle = p.signedOffAt ? `signed off ${ago(p.signedOffAt)} ago, ` : '';
+      return `${idle}${d.user.login === me ? 'you' : d.user.login} can merge`;
+   }
+   if (p.status === 'needs_qa') {
+      if (p.qaingBy) return `${p.qaingBy} is QAing`;
+      if (p.reqaBy.length) {
+         const who = p.reqaBy.includes(me) ? 'your QA stamp' : `${p.reqaBy.join(', ')}’s QA stamp`;
+         return `${who} was invalidated by a push`;
+      }
+      return 'CR done, needs a QA stamp';
+   }
    if (p.status === 'ci_pending') return 'signed off, only CI left';
-   if (p.status === 'blocked' && p.blockedBy.length) return `blocked by ${p.blockedBy.join(', ')}`;
+   if (p.status === 'ci_red' && p.ciFailing.length) return `red: ${p.ciFailing.join(', ')}`;
+   if (p.status === 'dev_block' && p.devBlockedBy.length)
+      return `changes requested by ${p.devBlockedBy.join(', ')}`;
+   if (p.status === 'deploy_block' && p.deployBlockedBy.length)
+      return `held from deploy by ${p.deployBlockedBy.join(', ')}`;
+   if (p.status === 'unmergeable')
+      return p.conflict
+         ? 'signed off, but conflicts — the author rebases'
+         : `based on ${d.base.ref}, lands with its parent`;
    return null;
 }
 
 /** Small warning flags that ride along regardless of lane. */
-function WarnFlags({ pull }: { pull: DerivedPull }) {
+function WarnFlags({ pull, compact }: { pull: DerivedPull; compact?: boolean }) {
    return (
       <>
-         {pull.conflict && (
+         {pull.conflict && pull.status !== 'unmergeable' && (
             <span className="flag-amber" title="merge conflicts with the base branch">
                conflicts
             </span>
          )}
-         {pull.dependent && (
+         {pull.dependent && pull.status !== 'unmergeable' && (
             <span
                className="flag-amber"
                title={`based on ${pull.data.base.ref}, lands with its parent`}
             >
-               dependent
+               {compact ? 'dep' : 'dependent'}
+            </span>
+         )}
+         {pull.deployBlockedBy.length > 0 && pull.status !== 'deploy_block' && (
+            <span
+               className="flag-amber"
+               title={`deploy hold by ${pull.deployBlockedBy.join(', ')}: don't ship without asking`}
+            >
+               hold
             </span>
          )}
          {pull.mergeUnknown && pull.status === 'ready' && (
@@ -62,14 +87,14 @@ function WarnFlags({ pull }: { pull: DerivedPull }) {
                mergeable?
             </span>
          )}
-         {pull.ci === 'pending' && pull.status !== 'ci_pending' && (
+         {!compact && pull.ci === 'pending' && pull.status !== 'ci_pending' && (
             <span className="text-xs text-ink-3" title="CI is still running">
                CI…
             </span>
          )}
          {pull.externalBlock && (
             <span className="flag-amber" title="blocked on something outside the repo">
-               external
+               {compact ? 'ext' : 'external'}
             </span>
          )}
          {pull.qaingBy && pull.status === 'needs_qa' && (
@@ -77,7 +102,7 @@ function WarnFlags({ pull }: { pull: DerivedPull }) {
                className="flag-qaing"
                title={`${pull.qaingBy} is already testing this (the QAing label)`}
             >
-               QAing: {pull.qaingBy}
+               {compact ? `◉ ${pull.qaingBy}` : `QAing: ${pull.qaingBy}`}
             </span>
          )}
       </>
@@ -123,17 +148,48 @@ function RowActions({ pull }: { pull: DerivedPull }) {
    );
 }
 
+/** The CR/QA/age cluster both row variants render, in identical geometry. */
+function Ledger({ pull, me }: { pull: DerivedPull; me: string }) {
+   const d = pull.data;
+   return (
+      <>
+         <SigPips
+            label="CR"
+            have={pull.crHave}
+            req={d.status.cr_req}
+            by={pull.crBy}
+            staleBy={pull.recrBy}
+            me={me}
+            sigs={d.status.allCR}
+         />
+         <SigPips
+            label="QA"
+            have={pull.qaHave}
+            req={d.status.qa_req}
+            by={pull.qaBy}
+            staleBy={pull.reqaBy}
+            me={me}
+            sigs={d.status.allQA}
+         />
+         <AgeStamp
+            ageDays={pull.ageDays}
+            updatedAt={Date.parse(d.updated_at) / 1000}
+            quiet={['draft', 'dev_block', 'deploy_block'].includes(pull.status)}
+         />
+      </>
+   );
+}
+
 /**
- * Column card (Board/Classic): two zones instead of one fought-over line.
+ * Column card (Classic): two zones instead of one fought-over line.
  * Zone 1 is identity — avatar plus the title at full text width, so a long
  * title wraps twice instead of five times against a dead metadata column.
- * Zone 2 is one fact line — repo#number, pips, age pushed to the right edge
- * so ages scan as a vertical column down the board.
+ * Zone 2 is one fact line — repo#number, flags, pips, age pushed to the
+ * right edge so ages scan as a vertical column down the board.
  */
 function CompactCard({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const d = pull.data;
    const fresh = Date.parse(d.updated_at) / 1000 > opts.lastSeen;
-   const staleCr = pull.recrBy.length > 0;
    return (
       <CardShell
          login={d.user.login}
@@ -145,19 +201,8 @@ function CompactCard({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          className={`pd-row ${fresh ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
          right={
             <>
-               {pull.qaingBy && pull.status === 'needs_qa' && (
-                  <span className="flag-qaing" title={`${pull.qaingBy} is already testing this`}>
-                     ◉
-                  </span>
-               )}
-               <Pips label="CR" have={pull.crHave} req={d.status.cr_req} stale={staleCr} />
-               <Pips label="QA" have={pull.qaHave} req={d.status.qa_req} />
-               <span
-                  className="w-7 text-right tabular-nums"
-                  title={`opened ${pull.ageDays} ${pull.ageDays === 1 ? 'day' : 'days'} ago`}
-               >
-                  {pull.ageDays}d
-               </span>
+               <WarnFlags pull={pull} compact />
+               <Ledger pull={pull} me={opts.me} />
             </>
          }
       />
@@ -171,7 +216,6 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    if (compact) return <CompactCard pull={pull} opts={opts} />;
 
    const showWeight = pull.sizeKnown && ['needs_cr', 'needs_recr'].includes(pull.status);
-   const staleCr = pull.recrBy.length > 0;
    const line = opts.cue === false ? null : cue(pull, opts.me);
 
    return (
@@ -182,6 +226,8 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          {fresh && (
             <span
                className="dot-fresh absolute top-1/2 left-[3px] -translate-y-1/2"
+               role="img"
+               aria-label="changed since your last look"
                title="changed since your last look"
             />
          )}
@@ -198,27 +244,26 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
             </span>
          )}
          {opts.aging && pull.starved && (
-            <span className="flag-amber" title={`open ${pull.ageDays} days with no CR stamp yet`}>
+            <span
+               className="flag-amber"
+               title={`open ${pull.ageDays} days without full CR (${pull.crHave} of ${d.status.cr_req})`}
+            >
                open {pull.ageDays}d
             </span>
          )}
          <WarnFlags pull={pull} />
          {line && (
-            <span className="hidden max-w-[300px] flex-none truncate text-xs text-ink-2 min-[860px]:inline">
+            <span
+               className="hidden max-w-[300px] flex-none truncate text-xs text-ink-2 min-[860px]:inline"
+               title={line}
+            >
                {line}
             </span>
          )}
          <span className="flex flex-none items-center gap-2.5 text-xs text-ink-3">
             <RepoRef repo={d.repo} number={d.number} />
             {showWeight && <WeightChip weight={pull.weight} />}
-            <Pips label="CR" have={pull.crHave} req={d.status.cr_req} stale={staleCr} />
-            <Pips label="QA" have={pull.qaHave} req={d.status.qa_req} />
-            <span
-               className="w-7 text-right tabular-nums"
-               title={`opened ${pull.ageDays} ${pull.ageDays === 1 ? 'day' : 'days'} ago`}
-            >
-               {pull.ageDays}d
-            </span>
+            <Ledger pull={pull} me={opts.me} />
          </span>
       </div>
    );

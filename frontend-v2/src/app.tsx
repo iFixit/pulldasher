@@ -13,17 +13,19 @@ import type { RowOptions } from './components/Row';
 import { Review } from './views/Review';
 import { MyWork } from './views/MyWork';
 import { People } from './views/People';
-import { Board } from './views/Board';
 import { Classic } from './views/Classic';
 
-type Lens = 'review' | 'mine' | 'people' | 'board' | 'classic';
+type Lens = 'review' | 'mine' | 'people' | 'classic';
 
-const LENSES: Lens[] = ['review', 'mine', 'people', 'board', 'classic'];
+const LENSES: Lens[] = ['review', 'mine', 'people', 'classic'];
 
 /** Lens and drill-down selections live in the hash: shareable, bookmarkable. */
 function readHash() {
    const p = new URLSearchParams(location.hash.slice(1));
-   const lens = p.get('lens') as Lens | null;
+   let lens = p.get('lens') as Lens | null;
+   // the Board lens merged into Classic (same columns, real justification);
+   // old #lens=board links keep working
+   if ((lens as string) === 'board') lens = 'classic';
    return {
       lens: lens && LENSES.includes(lens) ? lens : ('review' as Lens),
       person: p.get('person'),
@@ -334,7 +336,6 @@ export function App() {
                   {tab('review', 'Review')}
                   {tab('mine', 'My work', mineCount)}
                   {tab('people', 'People')}
-                  {tab('board', 'Board')}
                   {tab('classic', 'Classic')}
                </nav>
                <ScopeControl pulls={pulls} teams={teams} />
@@ -413,8 +414,8 @@ export function App() {
             <Banner tone="brand">
                <span>●</span>
                <span className="tabular-nums">
-                  <b className="font-semibold">{n(changedCount, 'PR')}</b> changed since your
-                  last look
+                  <b className="font-semibold">{n(changedCount, 'PR')}</b> changed since your last
+                  look
                </span>
                <button
                   type="button"
@@ -459,7 +460,6 @@ export function App() {
                   opts={rowOpts}
                />
             )}
-            {initialized && lens === 'board' && <Board pulls={humans} bots={bots} opts={rowOpts} />}
             {initialized && lens === 'classic' && (
                <Classic
                   pulls={scoped}

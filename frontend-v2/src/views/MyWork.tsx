@@ -1,10 +1,10 @@
-import type { ReactNode } from 'react';
 import type { DerivedPull } from '../model/status';
+import { authorMove } from '../model/actions';
 import type { PullData } from '../types';
 import { ago, pullKey } from '../format';
 import { EmptyState } from '../components/bits';
-import { Fold, Lane, RestGroup, Truncated } from '../components/Lane';
-import { Row, type RowOptions } from '../components/Row';
+import { AnnotatedRow, Fold, Lane, RestGroup, Truncated } from '../components/Lane';
+import type { RowOptions } from '../components/Row';
 import { ClosedRow } from '../components/ClosedRow';
 
 /**
@@ -13,76 +13,24 @@ import { ClosedRow } from '../components/ClosedRow';
  * person" never share a section.
  */
 
-/** Your-move verb per state; null = waiting on someone else. */
-function yourMove(p: DerivedPull): string | null {
-   if (p.status === 'ready') return 'Merge it';
-   if (p.status === 'ci_red') return 'Fix CI';
-   if (p.conflict) return 'Resolve conflicts';
-   if (p.status === 'needs_qa' && !p.qaingBy) return 'Find a QA-er';
-   if (p.status === 'draft') return 'Finish the draft';
-   return null;
-}
-
 function waitingOn(p: DerivedPull): string {
-   if (p.status === 'blocked' && p.blockedBy.length)
-      return `blocked by ${p.blockedBy.join(', ')}, ask them to lift the block`;
+   if (p.status === 'deploy_block' && p.deployBlockedBy.length)
+      return `held from deploy by ${p.deployBlockedBy.join(', ')}, ask before shipping`;
    if (p.status === 'needs_recr' && p.recrBy.length) {
       const wait = p.headPushedAt ? ` (fix pushed ${ago(p.headPushedAt)} ago)` : '';
       return `waiting on ${p.recrBy.join(', ')}’s re-stamp${wait}`;
    }
-   if (p.status === 'needs_cr')
-      return p.crHave > 0
-         ? `${p.crHave} of ${p.data.status.cr_req} CRs, open ${p.ageDays}d`
+   if (p.status === 'needs_cr') {
+      if (p.crHave > 0) return `${p.crHave} of ${p.data.status.cr_req} CRs, open ${p.ageDays}d`;
+      return p.starved
+         ? `no CR for ${p.ageDays}d — go ask in channel`
          : `no CR yet, open ${p.ageDays}d`;
+   }
    if (p.status === 'needs_qa' && p.qaingBy) return `${p.qaingBy} is QAing now`;
+   if (p.status === 'needs_qa' && p.reqaBy.length)
+      return `waiting on ${p.reqaBy.join(', ')}’s re-QA`;
    if (p.status === 'ci_pending') return 'waiting on CI';
    return 'waiting';
-}
-
-/**
- * A row with the lane's explanation column beside it: the action label on
- * the left in "Your move", the who-to-nudge note on the right in "Waiting
- * on others". The row itself drops its cue — the annotation carries it.
- */
-function AnnotatedRow({
-   pull,
-   opts,
-   side,
-   children,
-}: {
-   pull: DerivedPull;
-   opts: RowOptions;
-   side: 'left' | 'right';
-   children: ReactNode;
-}) {
-   const row = (
-      <span className="min-w-0 flex-1">
-         <Row pull={pull} opts={{ ...opts, cue: false }} />
-      </span>
-   );
-   return (
-      <div
-         className={`flex border-t border-secondary first:border-t-0 ${
-            side === 'left' ? 'items-stretch' : 'items-center'
-         }`}
-      >
-         {side === 'left' ? (
-            <>
-               <span className="flex w-[130px] flex-none items-center pl-3.5 text-xs font-semibold text-brand-700">
-                  {children}
-               </span>
-               {row}
-            </>
-         ) : (
-            <>
-               {row}
-               <span className="w-[280px] flex-none truncate pr-3.5 pl-2 text-right text-xs text-ink-2">
-                  {children}
-               </span>
-            </>
-         )}
-      </div>
-   );
 }
 
 export function MyWork({
@@ -97,8 +45,8 @@ export function MyWork({
    const me = opts.me;
    const mine = pulls.filter(p => p.data.user.login === me);
    const byUrgency = (a: DerivedPull, b: DerivedPull) => b.ageDays - a.ageDays;
-   const move = mine.filter(p => yourMove(p) !== null).sort(byUrgency);
-   const waiting = mine.filter(p => yourMove(p) === null).sort(byUrgency);
+   const move = mine.filter(p => authorMove(p) !== null).sort(byUrgency);
+   const waiting = mine.filter(p => authorMove(p) === null).sort(byUrgency);
    const shipped = closed.filter(p => p.user.login === me);
 
    if (!mine.length && !shipped.length) {
@@ -121,7 +69,7 @@ export function MyWork({
          >
             {move.map(p => (
                <AnnotatedRow key={pullKey(p.data)} pull={p} opts={opts} side="left">
-                  {yourMove(p)}
+                  {authorMove(p)}
                </AnnotatedRow>
             ))}
             {!move.length && (

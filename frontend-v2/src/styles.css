@@ -31,9 +31,11 @@
   --badge-brand-fg: var(--brand-900);
   --badge-gray-bg: #e5e7eb;
   --badge-gray-fg: #101828;
-  --ok: #16a34a;
-  --warn: #d97706;
-  --bad: #dc2626;
+  /* text-grade in light mode: the 12px ledger ✓ and ⊘ are the two most
+     decision-critical glyphs on the board and must clear 4.5:1 on white */
+  --ok: #15803d;
+  --warn: #b45309;
+  --bad: #b91c1c;
   --violet: #9333ea;
   --ease-quint: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-quart: cubic-bezier(0.25, 1, 0.5, 1);
@@ -121,6 +123,8 @@ a:hover {
   .badge-qa { background: var(--badge-purple-bg); color: var(--badge-purple-fg); }
   .badge-cr { background: var(--badge-gray-bg); color: var(--badge-gray-fg); }
   .badge-blocked { background: var(--badge-amber-bg); color: var(--badge-amber-fg); }
+  /* deploy hold: deliberate, not alarming — gray, not amber */
+  .badge-hold { background: var(--badge-gray-bg); color: var(--badge-gray-fg); }
   .badge-red { background: var(--badge-red-bg); color: var(--badge-red-fg); }
   .badge-draft { background: none; color: var(--ink-3); border: 1px dashed var(--border); }
 
@@ -173,10 +177,6 @@ a:hover {
 .settle-once > *:nth-child(3) { animation-delay: 80ms; }
 .settle-once > *:nth-child(4) { animation-delay: 120ms; }
 .settle-once > *:nth-child(n + 5) { animation-delay: 160ms; }
-
-details[open] > .fold-body {
-  animation: settle 220ms var(--ease-quint);
-}
 
 @keyframes pop {
   from {

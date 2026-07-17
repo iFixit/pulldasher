@@ -1,15 +1,19 @@
 import type { DerivedPull, Status } from '../model/status';
 import { pullKey } from '../format';
 import { crSort } from '../model/sort';
+import { authorMove, reviewerMove } from '../model/actions';
 import type { PullData } from '../types';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
-import { Fold, FoldRows, Lane, RestGroup, Truncated } from '../components/Lane';
+import { AnnotatedRow, Fold, FoldRows, Lane, RestGroup, Truncated } from '../components/Lane';
 import type { RowOptions } from '../components/Row';
 import { ClosedRow } from '../components/ClosedRow';
 
 /**
- * The reviewer's tab: other people's work only. Your own PRs live in
- * My work — the two jobs never share a lane.
+ * The home tab. It opens with the one lane the whole app used to lack: every
+ * action that is yours — re-stamps you owe, your own merge buttons, your CI
+ * fixes — regardless of who authored the pull. The daily loop must not
+ * require flipping between Review and My work. Below that, other people's
+ * work to pick from.
  */
 export function Review({
    pulls,
@@ -25,15 +29,32 @@ export function Review({
    const me = opts.me;
    const others = pulls.filter(p => p.data.user.login !== me);
 
-   // 1. Act now: ONLY re-stamps you personally owe. The review pass found the
-   //    old version padded with other people's jobs (their re-stamps, other
-   //    authors' merge buttons) — three mornings of that and the lane reads
-   //    as noise. Now it's always truthfully "minutes, and yours".
-   const actNow = others.filter(p => p.status === 'needs_recr' && p.recrBy.includes(me));
+   // 1. Yours to do: strictly your verbs. The earlier "Act now" lesson still
+   //    binds — padding this with other people's jobs made it noise — but
+   //    your own merge button is your job, whichever tab you're on.
+   const MOVE_RANK = [
+      'Re-stamp',
+      'Re-QA',
+      'Finish QA',
+      'Merge it',
+      'Fix CI',
+      'Address feedback',
+      'Rebase',
+   ];
+   const todo = pulls
+      .map(p => ({
+         p,
+         verb: p.data.user.login === me ? ownVerb(p) : reviewerMove(p, me),
+      }))
+      .filter((x): x is { p: DerivedPull; verb: string } => x.verb !== null)
+      .sort(
+         (a, b) =>
+            MOVE_RANK.indexOf(a.verb) - MOVE_RANK.indexOf(b.verb) || b.p.ageDays - a.p.ageDays
+      );
 
-   // 2. Review queue: lightest first. Includes pulls waiting on someone
-   //    else's re-stamp — a fresh CR from you counts there too (the stale
-   //    pip marks them).
+   // 2. Review queue: best next review first (leverage + age + weight).
+   //    Includes pulls waiting on someone else's re-stamp — a fresh CR from
+   //    you counts there too (the stale pip marks them).
    const crPool = others.filter(
       p =>
          (p.status === 'needs_cr' && !p.crBy.includes(me)) ||
@@ -46,21 +67,40 @@ export function Review({
    // in the rest group, not a lane at the top.
    const ready = others.filter(p => p.status === 'ready');
 
-   // 4. Needs QA: a real lane again (v1's QA column earned it); QAing-label
-   //    rows sort last since someone is already on them.
-   const needsQa = [...others.filter(p => p.status === 'needs_qa')].sort(
-      (a, b) => Number(!!a.qaingBy) - Number(!!b.qaingBy)
-   );
+   // 4. Needs QA is a query, not the status bucket: QA runs in parallel with
+   //    CR here (v1's QA column predicate), so anything QA-incomplete with
+   //    green CI belongs — not just pulls whose CR is already done. Your own
+   //    in-flight QA is pinned first (v1 qaCompare), unclaimed next, claimed
+   //    by someone else last.
+   const needsQa = others
+      .filter(
+         p =>
+            p.qaHave < p.data.status.qa_req &&
+            ['success', 'none'].includes(p.ci) &&
+            !p.conflict &&
+            !['draft', 'dev_block'].includes(p.status) &&
+            // your in-flight QA and owed re-QAs live in "Yours to do"
+            p.qaingBy !== me &&
+            !(p.status === 'needs_qa' && p.reqaBy.includes(me))
+      )
+      .sort(
+         (a, b) =>
+            Number(b.qaingBy === me) - Number(a.qaingBy === me) ||
+            Number(!!a.qaingBy && a.qaingBy !== me) - Number(!!b.qaingBy && b.qaingBy !== me) ||
+            b.ageDays - a.ageDays
+      );
 
    const stamped = others.filter(p => p.status === 'needs_cr' && p.crBy.includes(me));
    const byStatus = (s: Status) => others.filter(p => p.status === s);
-   const blocked = byStatus('blocked');
+   const devBlocked = byStatus('dev_block');
+   const deployHeld = byStatus('deploy_block');
+   const unmergeable = byStatus('unmergeable');
    const ciPending = byStatus('ci_pending');
    const ciRed = byStatus('ci_red');
    const drafts = byStatus('draft');
 
    // bots/shipped stay reachable even when no human PRs need review
-   const empty = !others.length && !bots.length && !closed.length;
+   const empty = !pulls.length && !bots.length && !closed.length;
    if (empty) {
       return (
          <EmptyState
@@ -72,35 +112,45 @@ export function Review({
 
    return (
       <>
-         <Lane
-            title="Act now"
-            sub="re-stamps you owe, minutes each"
-            pulls={actNow}
-            cap={8}
-            opts={opts}
-         />
+         {todo.length > 0 && (
+            <Lane
+               title="Yours to do"
+               sub="every action that's yours, oldest first"
+               pulls={[]}
+               count={todo.length}
+               opts={opts}
+            >
+               <Truncated cap={10} id="lane:Yours to do">
+                  {todo.map(({ p, verb }) => (
+                     <AnnotatedRow key={pullKey(p.data)} pull={p} opts={opts} side="left">
+                        {verb}
+                     </AnnotatedRow>
+                  ))}
+               </Truncated>
+            </Lane>
+         )}
          <Lane
             title="Review queue"
-            sub="lightest first"
+            sub="best next review first"
             pulls={queue}
             cap={9}
             opts={{ ...opts, badge: false }}
          />
          <Lane
-            title="Aging without review"
+            title="Aging without full review"
             sub="biggest debt first. Take one."
             pulls={aged}
-            cap={3}
+            cap={8}
             opts={{ ...opts, badge: false, aging: true }}
          />
          <Lane
             title="Needs QA"
-            sub="CR done, grab one or nudge the author"
+            sub="green CI, grab one — QA runs in parallel with CR"
             pulls={needsQa}
             cap={6}
             opts={opts}
          />
-         <RestGroup title="The rest of the board" sub="blocked, red, drafts, bots, shipped">
+         <RestGroup title="The rest of the board" sub="blocked, held, red, drafts, bots, shipped">
             <Fold
                dot={STATUS_DOT.ready}
                count={ready.length}
@@ -117,8 +167,29 @@ export function Review({
             >
                <FoldRows list={stamped} opts={opts} extra={{ badge: false }} />
             </Fold>
-            <Fold dot={STATUS_DOT.blocked} count={blocked.length} label="blocked" hint="each row names the holder">
-               <FoldRows list={blocked} opts={opts} />
+            <Fold
+               dot={STATUS_DOT.dev_block}
+               count={devBlocked.length}
+               label="dev blocked"
+               hint="the author owes changes"
+            >
+               <FoldRows list={devBlocked} opts={opts} />
+            </Fold>
+            <Fold
+               dot={STATUS_DOT.deploy_block}
+               count={deployHeld.length}
+               label="deploy hold"
+               hint="done, deliberately not shipped — each row names the holder"
+            >
+               <FoldRows list={deployHeld} opts={opts} />
+            </Fold>
+            <Fold
+               dot={STATUS_DOT.unmergeable}
+               count={unmergeable.length}
+               label="can't merge"
+               hint="signed off but conflicted or dependent — the author rebases"
+            >
+               <FoldRows list={unmergeable} opts={opts} />
             </Fold>
             <Fold
                dot={STATUS_DOT.ci_pending}
@@ -128,7 +199,12 @@ export function Review({
             >
                <FoldRows list={ciPending} opts={opts} />
             </Fold>
-            <Fold dot={STATUS_DOT.ci_red} count={ciRed.length} label="CI red" hint="usually the author's fix">
+            <Fold
+               dot={STATUS_DOT.ci_red}
+               count={ciRed.length}
+               label="CI red"
+               hint="usually the author's fix"
+            >
                <FoldRows list={ciRed} opts={opts} />
             </Fold>
             <Fold
@@ -162,4 +238,12 @@ export function Review({
          </RestGroup>
       </>
    );
+}
+
+// Your own pulls contribute only their do-it-now verbs to the home lane;
+// "Find a QA-er" and "Finish the draft" stay in My work — they're planning,
+// not minutes.
+function ownVerb(p: DerivedPull): string | null {
+   const verb = authorMove(p);
+   return verb && ['Merge it', 'Fix CI', 'Address feedback', 'Rebase'].includes(verb) ? verb : null;
 }

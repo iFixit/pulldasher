@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
 import type { DerivedPull } from '../model/status';
 import type { Team } from '../types';
 import { shortRepo } from '../format';
 import { useScope, type Scope } from '../prefs';
+import { usePopover } from './usePopover';
 
 /**
  * The one filter control: a popover with team presets, people, and repos.
@@ -11,27 +11,13 @@ import { useScope, type Scope } from '../prefs';
  */
 export function ScopeControl({ pulls, teams }: { pulls: DerivedPull[]; teams: Team[] }) {
    const [scope, setScope] = useScope();
-   const [open, setOpen] = useState(false);
-   const ref = useRef<HTMLSpanElement>(null);
-   const triggerRef = useRef<HTMLButtonElement>(null);
-
-   useEffect(() => {
-      if (!open) return;
-      const clickAway = (e: MouseEvent) => {
-         if (!ref.current?.contains(e.target as Node)) setOpen(false);
-      };
-      const onKey = (e: KeyboardEvent) => {
-         if (e.key !== 'Escape') return;
-         setOpen(false);
-         triggerRef.current?.focus();
-      };
-      document.addEventListener('click', clickAway);
-      document.addEventListener('keydown', onKey);
-      return () => {
-         document.removeEventListener('click', clickAway);
-         document.removeEventListener('keydown', onKey);
-      };
-   }, [open]);
+   const {
+      open,
+      setOpen,
+      rootRef: ref,
+      panelRef,
+      triggerRef,
+   } = usePopover<HTMLSpanElement, HTMLButtonElement>();
 
    const repoCounts = new Map<string, number>();
    const authorCounts = new Map<string, number>();
@@ -140,9 +126,11 @@ export function ScopeControl({ pulls, teams }: { pulls: DerivedPull[]; teams: Te
          )}
          {open && (
             <span
+               ref={panelRef}
+               tabIndex={-1}
                role="dialog"
                aria-label="Scope filter"
-               className="popover absolute top-full left-0 z-50 mt-1 block max-h-[420px] w-[296px] overflow-auto rounded-lg border border-line bg-surface p-2 shadow-md"
+               className="popover absolute top-full left-0 z-50 mt-1 block max-h-[420px] w-[296px] overflow-auto rounded-lg border border-line bg-surface p-2 shadow-md outline-none"
             >
                <span className="flex gap-3 px-1.5 pt-0.5 pb-1">
                   <button

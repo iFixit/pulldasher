@@ -1,9 +1,10 @@
-import type { DerivedPull } from '../model/status';
+import { crDone, qaDone, type DerivedPull } from '../model/status';
 import type { PullData } from '../types';
 import { ago, pullKey } from '../format';
 import { EmptyState } from '../components/bits';
 import { CardShell } from '../components/Card';
 import { BoardColumn } from '../components/Column';
+import { Truncated } from '../components/Lane';
 import { Row, type RowOptions } from '../components/Row';
 
 /**
@@ -23,8 +24,6 @@ const isDraft = (p: DerivedPull) => p.data.draft;
 // v1 hasPassedCI(): every required status successful; no statuses and no
 // required list counts as passed. ciVerdict encodes exactly that split.
 const passedCI = (p: DerivedPull) => p.ci === 'success' || p.ci === 'none';
-const crDone = (p: DerivedPull) => p.crHave >= p.data.status.cr_req;
-const qaDone = (p: DerivedPull) => p.qaHave >= p.data.status.qa_req;
 const metDeployReqs = (p: DerivedPull) => crDone(p) && qaDone(p) && passedCI(p);
 
 const hasOutdatedSig = (p: DerivedPull, me: string) =>
@@ -65,9 +64,12 @@ function Column({
 }) {
    return (
       <BoardColumn count={pulls.length} header={title} defaultOpen={defaultOpen} empty="none">
-         {pulls.map(p => (
-            <Row key={pullKey(p.data)} pull={p} opts={{ ...opts, compact: true }} />
-         ))}
+         {/* a 60-row CR column is a 3600px scroll: cap it, keep the count honest */}
+         <Truncated cap={15} id={`classic:${title}`}>
+            {pulls.map(p => (
+               <Row key={pullKey(p.data)} pull={p} opts={{ ...opts, compact: true }} />
+            ))}
+         </Truncated>
       </BoardColumn>
    );
 }

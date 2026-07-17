@@ -3,18 +3,26 @@ import type { CommitStatus, PullData, RepoSpec, Signature } from '../types';
 /**
  * One pull, one status. Mutually exclusive by precedence — the fix for v1's
  * six overlapping column predicates (a pull could sit in CR and QA at once).
- * Precedence mirrors the what-to-review skill's derivation:
- *   draft > blocked > ci_red > needs_recr > needs_cr > needs_qa >
- *   ci_pending > ready
+ *
+ *   draft > dev_block > ci_red > needs_recr > needs_cr > needs_qa >
+ *   deploy_block > ci_pending > unmergeable > ready
+ *
+ * The old single "blocked" bucket conflated three opposite situations, so it
+ * split: dev_block means the author owes changes (it hides the pull from the
+ * review lanes — feedback is pending); deploy_block means the work is done
+ * but deliberately held from shipping (review proceeds as normal, so it only
+ * outranks the ready gate); unmergeable means signed off and green but
+ * conflicted or based on an unmerged parent (the author rebases).
  *
  * ci_pending exists only at the ready gate: pending CI never hides a pull
  * from the review lanes (reviews don't need green), but a fully-signed-off
- * pull isn't "ready" until CI agrees. Merge conflicts and a dependent base
- * gate the same way: reviewable as usual, but never "ready".
+ * pull isn't "ready" until CI agrees.
  */
 export type Status =
    | 'draft'
-   | 'blocked'
+   | 'dev_block'
+   | 'deploy_block'
+   | 'unmergeable'
    | 'ci_red'
    | 'needs_recr'
    | 'needs_cr'
@@ -28,7 +36,9 @@ export const STATUS_ORDER: Status[] = [
    'needs_qa',
    'needs_cr',
    'ci_pending',
-   'blocked',
+   'deploy_block',
+   'unmergeable',
+   'dev_block',
    'ci_red',
    'draft',
 ];
@@ -46,6 +56,8 @@ export interface DerivedPull {
    data: PullData;
    status: Status;
    ci: CiVerdict;
+   /** contexts of the failing required checks, so "CI red" can say which */
+   ciFailing: string[];
    /** users whose CR stamp counts on the current head */
    crBy: string[];
    qaBy: string[];
@@ -53,10 +65,16 @@ export interface DerivedPull {
    qaHave: number;
    /** users whose CR a later push invalidated and who haven't re-stamped */
    recrBy: string[];
+   /** users whose QA stamp a later push invalidated (symmetric with recrBy) */
+   reqaBy: string[];
    /** epoch secs of the invalidating push (head CI start proxy); null if unknown */
    headPushedAt: number | null;
    ageDays: number;
-   /** still waiting on its first CR after STARVE_DAYS */
+   /** days since updated_at — the activity clock, vs ageDays' open clock */
+   idleDays: number;
+   /** epoch secs the last required sign-off landed; null until fully signed off */
+   signedOffAt: number | null;
+   /** CR-incomplete past STARVE_DAYS — including half-reviewed and stale-CR rot */
    starved: boolean;
    starveScore: number;
    weight: Weight;
@@ -68,8 +86,10 @@ export interface DerivedPull {
    dependent: boolean;
    /** additions/deletions absent from the wire: weight and size sorts are guesses */
    sizeKnown: boolean;
-   /** everyone holding an active dev/deploy block, oldest first */
-   blockedBy: string[];
+   /** everyone holding an active dev block: the author owes them changes */
+   devBlockedBy: string[];
+   /** everyone holding an active deploy block: done, deliberately not shipped */
+   deployBlockedBy: string[];
    /** login from the QAing label: someone is already testing this */
    qaingBy: string | null;
    externalBlock: boolean;
@@ -84,40 +104,62 @@ export const STARVE_DAYS = 7;
 const activeUsers = (sigs: Signature[]) =>
    unique(sigs.filter(s => s.data.active).map(s => s.data.user.login));
 
+/** users with only invalidated stamps (no active one), excluding the author */
+const staleUsers = (sigs: Signature[], author: string) => {
+   const active = activeUsers(sigs);
+   return unique(
+      sigs
+         .filter(s => !s.data.active)
+         .map(s => s.data.user.login)
+         .filter(u => !active.includes(u) && u !== author)
+   );
+};
+
 function unique<T>(xs: T[]): T[] {
    return [...new Set(xs)];
 }
 
 /**
- * CI verdict, computed client-side (the server ships raw statuses plus the
- * per-repo required/ignored lists and leaves the reduction to the frontend).
+ * The statuses a repo's verdict depends on (the server ships raw statuses
+ * plus per-repo required/ignored lists and leaves the reduction to us).
  * Required = repoSpec.requiredStatuses when configured, else every reported
  * status minus repoSpec.ignoredStatuses.
  */
+function requiredStatuses(pull: PullData, spec?: RepoSpec): CommitStatus[] {
+   const onHead = pull.status.commit_statuses.filter(s => s.data.sha === pull.head.sha);
+   const statuses = onHead.length ? onHead : pull.status.commit_statuses;
+   if (spec?.requiredStatuses?.length) {
+      return statuses.filter(s => spec.requiredStatuses!.includes(s.data.context));
+   }
+   const ignored = new Set(spec?.ignoredStatuses ?? []);
+   return statuses.filter(s => !ignored.has(s.data.context));
+}
+
+/** CI verdict, computed client-side. */
 export function ciVerdict(pull: PullData, spec?: RepoSpec): CiVerdict {
    const onHead = pull.status.commit_statuses.filter(s => s.data.sha === pull.head.sha);
    const statuses = onHead.length ? onHead : pull.status.commit_statuses;
    if (!statuses.length && !spec?.requiredStatuses?.length) return 'none';
 
-   let required: CommitStatus[];
-   if (spec?.requiredStatuses?.length) {
-      required = statuses.filter(s => spec.requiredStatuses!.includes(s.data.context));
+   const required = requiredStatuses(pull, spec);
+   if (spec?.requiredStatuses?.length && required.length < spec.requiredStatuses.length) {
       // a configured-required status that hasn't reported yet counts as pending
-      if (required.length < spec.requiredStatuses.length) {
-         const reported = new Set(required.map(s => s.data.context));
-         if (spec.requiredStatuses.some(c => !reported.has(c))) {
-            if (required.some(s => isFailing(s))) return 'failing';
-            return 'pending';
-         }
-      }
-   } else {
-      const ignored = new Set(spec?.ignoredStatuses ?? []);
-      required = statuses.filter(s => !ignored.has(s.data.context));
+      if (required.some(isFailing)) return 'failing';
+      return 'pending';
    }
    if (!required.length) return 'none';
    if (required.some(isFailing)) return 'failing';
    if (required.some(s => s.data.state === 'pending')) return 'pending';
    return 'success';
+}
+
+/** Which required checks are red — so the UI can say "CI red: playwright". */
+export function ciFailing(pull: PullData, spec?: RepoSpec): string[] {
+   return unique(
+      requiredStatuses(pull, spec)
+         .filter(isFailing)
+         .map(s => s.data.context)
+   );
 }
 
 const isFailing = (s: CommitStatus) => s.data.state === 'failure' || s.data.state === 'error';
@@ -131,6 +173,9 @@ export function headPushedAt(pull: PullData): number | null {
    return starts.length ? Math.min(...starts) : null;
 }
 
+export const crDone = (p: { crHave: number; data: PullData }) => p.crHave >= p.data.status.cr_req;
+export const qaDone = (p: { qaHave: number; data: PullData }) => p.qaHave >= p.data.status.qa_req;
+
 export function derive(
    pull: PullData,
    spec: RepoSpec | undefined,
@@ -143,19 +188,14 @@ export function derive(
    const qaHave = qaBy.length;
    const ci = ciVerdict(pull, spec);
 
-   const staleCr = unique(
-      st.allCR
-         .filter(s => !s.data.active)
-         .map(s => s.data.user.login)
-         .filter(u => !crBy.includes(u) && u !== pull.user.login)
-   );
+   const staleCr = staleUsers(st.allCR, pull.user.login);
+   const staleQa = staleUsers(st.allQA, pull.user.login);
 
    // a lifted block deactivates its signature, same as a stale CR stamp
-   const blockHolders = unique(
-      [...st.dev_block, ...st.deploy_block].filter(s => s.data.active).map(s => s.data.user.login)
-   );
-   const crDone = crHave >= st.cr_req;
-   const qaDone = qaHave >= st.qa_req;
+   const devBlockedBy = activeUsers(st.dev_block);
+   const deployBlockedBy = activeUsers(st.deploy_block);
+   const crMet = crHave >= st.cr_req;
+   const qaMet = qaHave >= st.qa_req;
 
    const conflict = pull.mergeable === false;
    const dependent = !['main', 'master'].includes(pull.base.ref);
@@ -163,33 +203,53 @@ export function derive(
 
    let status: Status;
    if (pull.draft) status = 'draft';
-   else if (blockHolders.length) status = 'blocked';
+   else if (devBlockedBy.length) status = 'dev_block';
    else if (ci === 'failing') status = 'ci_red';
-   else if (!crDone && staleCr.length) status = 'needs_recr';
-   else if (!crDone) status = 'needs_cr';
-   else if (!qaDone) status = 'needs_qa';
+   else if (!crMet && staleCr.length) status = 'needs_recr';
+   else if (!crMet) status = 'needs_cr';
+   else if (!qaMet) status = 'needs_qa';
+   else if (deployBlockedBy.length) status = 'deploy_block';
    else if (ci === 'pending') status = 'ci_pending';
-   // signed off and green, but unmergeable as-is: that's a block, not ready
-   else if (conflict || dependent) status = 'blocked';
+   // signed off and green, but unmergeable as-is: the author rebases
+   else if (conflict || dependent) status = 'unmergeable';
    else status = 'ready';
 
    const created = Date.parse(pull.created_at) / 1000;
+   const updated = Date.parse(pull.updated_at) / 1000;
    const ageDays = Math.max(0, Math.floor((now - created) / 86400));
+   const idleDays = Math.max(0, Math.floor((now - updated) / 86400));
    const sizeKnown = pull.additions != null || pull.deletions != null;
    const size = (pull.additions ?? 0) + (pull.deletions ?? 0);
-   const starved = status === 'needs_cr' && crHave === 0 && ageDays >= STARVE_DAYS;
+   // Rot is rot whether the pull has zero stamps, one of two, or a stale one
+   // waiting on a re-stamp — the old `crHave === 0` cliff hid half-reviewed
+   // pulls from the aging lane forever.
+   const starved = ['needs_cr', 'needs_recr'].includes(status) && !crMet && ageDays >= STARVE_DAYS;
+
+   const signedOffAt =
+      crMet && qaMet
+         ? Math.max(
+              0,
+              ...[...st.allCR, ...st.allQA]
+                 .filter(s => s.data.active)
+                 .map(s => Date.parse(s.data.created_at) / 1000)
+           ) || null
+         : null;
 
    return {
       data: pull,
       status,
       ci,
+      ciFailing: ci === 'failing' ? ciFailing(pull, spec) : [],
       crBy,
       qaBy,
       crHave,
       qaHave,
       recrBy: staleCr,
+      reqaBy: staleQa,
       headPushedAt: headPushedAt(pull),
       ageDays,
+      idleDays,
+      signedOffAt,
       starved,
       starveScore: starved ? ageDays * Math.max(size, 1) : 0,
       weight: reviewWeight(pull),
@@ -197,7 +257,8 @@ export function derive(
       mergeUnknown: pull.mergeable == null,
       dependent,
       sizeKnown,
-      blockedBy: blockHolders,
+      devBlockedBy,
+      deployBlockedBy,
       qaingBy: label(LABELS.qaing)?.user ?? null,
       externalBlock: !!label(LABELS.externalBlock),
       cryo: !!label(LABELS.cryo),

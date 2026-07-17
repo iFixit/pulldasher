@@ -128,6 +128,19 @@ export function People({
                      <span className="text-[11px] text-ink-3 tabular-nums">
                         {counts.get(login) ?? 0}
                      </span>
+                     {/* the lead roll-up: who owes re-stamps, without clicking
+                         through 30 people */}
+                     {(owes.get(login)?.length ?? 0) > 0 && (
+                        <span
+                           className="text-[11px] font-semibold tabular-nums"
+                           style={{ color: 'var(--warn)' }}
+                           title={`owes ${owes.get(login)!.length} re-stamp${
+                              owes.get(login)!.length === 1 ? '' : 's'
+                           }`}
+                        >
+                           ⊘{owes.get(login)!.length}
+                        </span>
+                     )}
                   </>,
                   login === selectedPerson,
                   () => onPerson(login)
