@@ -6,6 +6,7 @@ import { pullKey } from '../format';
 import { ackPull, isFresh, refreshPull } from '../store';
 import { AgeStamp, DiffSize, FreshTag, RepoRef, SigPips, StatusBadge, WeightMeter } from './bits';
 import { CardShell } from './Card';
+import { Popover } from './Popover';
 
 export interface RowOptions {
    /** show the open-Nd flag on starved pulls */
@@ -44,52 +45,122 @@ function flashOnce(key: string, fresh: boolean): boolean {
    return true;
 }
 
-/** Small warning flags that ride along regardless of lane. */
-function WarnFlags({ pull }: { pull: DerivedPull }) {
+interface Flag {
+   key: string;
+   /** 'warn' = act on it (amber); 'note' = a neutral fact (muted) */
+   tone: 'warn' | 'note';
+   label: string;
+   detail: string;
+}
+
+/**
+ * The row's secondary annotations, gathered in one place: conflicts, stacked,
+ * holds, in-flight CI, iterating, aging. They're not the status (the badge is)
+ * and not your action (the note is), so they read as quiet colored labels,
+ * not badges — amber only for the ones you act on, muted gray for plain facts.
+ */
+function rowFlags(pull: DerivedPull, showIterating: boolean, aging: boolean): Flag[] {
+   const p = pull;
+   const flags: Flag[] = [];
+   if (p.conflict && p.status !== 'unmergeable')
+      flags.push({
+         key: 'conflicts',
+         tone: 'warn',
+         label: 'conflicts',
+         detail: 'Merge conflicts with the base branch — the author needs to rebase.',
+      });
+   if (p.deployBlockedBy.length > 0 && p.status !== 'deploy_block')
+      flags.push({
+         key: 'hold',
+         tone: 'warn',
+         label: 'hold',
+         detail: `On deploy hold by ${p.deployBlockedBy.join(', ')}; don’t ship without asking.`,
+      });
+   if (p.externalBlock)
+      flags.push({
+         key: 'external',
+         tone: 'warn',
+         label: 'external',
+         detail: 'Blocked on something outside this repo.',
+      });
+   if (aging)
+      flags.push({
+         key: 'aging',
+         tone: 'warn',
+         label: `open ${p.ageDays}d`,
+         detail: `Open ${p.ageDays} days without full CR (${p.crHave} of ${p.data.status.cr_req}).`,
+      });
+   if (p.dependent && p.status !== 'unmergeable')
+      flags.push({
+         key: 'stacked',
+         tone: 'note',
+         label: 'stacked',
+         detail: `Based on ${p.data.base.ref}, not the main branch; it lands with its parent.`,
+      });
+   if (p.mergeUnknown && p.status === 'ready')
+      flags.push({
+         key: 'merge',
+         tone: 'note',
+         label: 'merge?',
+         detail: 'GitHub hasn’t confirmed this merges cleanly yet.',
+      });
+   if (p.ci === 'pending' && p.status !== 'ci_pending')
+      flags.push({ key: 'ci', tone: 'note', label: 'CI…', detail: 'CI is still running.' });
+   if (showIterating)
+      flags.push({
+         key: 'iterating',
+         tone: 'note',
+         label: 'iterating',
+         detail: 'Changed in the last 30 minutes; it may still be moving, so hold off.',
+      });
+   return flags;
+}
+
+/**
+ * The flag cluster: the short labels inline for scanning, the plain-English
+ * meaning one hover away — the same drill-down the CR/QA pips use, so nothing
+ * on the row hides its meaning behind a native tooltip.
+ */
+function RowFlags({ flags }: { flags: Flag[] }) {
+   if (!flags.length) return null;
    return (
-      <>
-         {pull.conflict && pull.status !== 'unmergeable' && (
-            <span
-               className="flag-amber"
-               role="img"
-               aria-label="merge conflicts with the base branch"
-               title="merge conflicts with the base branch"
+      <Popover
+         label="What these flags mean"
+         side="right"
+         hover
+         rootClass="relative inline-flex"
+         width="w-max max-w-[280px]"
+         panelClass="p-1.5 text-xs"
+         trigger={t => (
+            <button
+               {...t}
+               type="button"
+               className="pd-raise inline-flex cursor-default items-center gap-2 rounded px-0.5 hover:bg-secondary/60"
             >
-               conflicts
-            </span>
+               {flags.map(f => (
+                  <span
+                     key={f.key}
+                     className={`whitespace-nowrap ${f.tone === 'warn' ? 'flag-warn' : 'flag-note'}`}
+                  >
+                     {f.label}
+                  </span>
+               ))}
+            </button>
          )}
-         {pull.dependent && pull.status !== 'unmergeable' && (
-            <span
-               className="flag-amber"
-               title={`based on ${pull.data.base.ref}, lands with its parent`}
-            >
-               dependent
+      >
+         {flags.map(f => (
+            <span key={f.key} className="flex items-start gap-1.5 px-1 py-[3px]">
+               <span
+                  aria-hidden
+                  className="mt-[5px] h-1.5 w-1.5 flex-none rounded-full"
+                  style={{ background: f.tone === 'warn' ? 'var(--warn)' : 'var(--ink-3)' }}
+               />
+               <span className="text-ink-2">
+                  <b className="font-medium text-ink">{f.label}</b> {f.detail}
+               </span>
             </span>
-         )}
-         {pull.deployBlockedBy.length > 0 && pull.status !== 'deploy_block' && (
-            <span
-               className="flag-amber"
-               title={`deploy hold by ${pull.deployBlockedBy.join(', ')}: don't ship without asking`}
-            >
-               hold
-            </span>
-         )}
-         {pull.mergeUnknown && pull.status === 'ready' && (
-            <span className="flag-amber" title="GitHub hasn't confirmed this merges cleanly yet">
-               mergeable?
-            </span>
-         )}
-         {pull.ci === 'pending' && pull.status !== 'ci_pending' && (
-            <span className="text-ink-3" title="CI is still running">
-               CI…
-            </span>
-         )}
-         {pull.externalBlock && (
-            <span className="flag-amber" title="blocked on something outside the repo">
-               external
-            </span>
-         )}
-      </>
+         ))}
+      </Popover>
    );
 }
 
@@ -216,23 +287,7 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
                      {note.text}
                   </span>
                )}
-               {showIterating && (
-                  <span
-                     className="flag-amber"
-                     title="changed in the last 30 min, may still be moving"
-                  >
-                     iterating
-                  </span>
-               )}
-               {opts.aging && pull.starved && (
-                  <span
-                     className="flag-amber"
-                     title={`open ${pull.ageDays} days without full CR (${pull.crHave} of ${d.status.cr_req})`}
-                  >
-                     open {pull.ageDays}d
-                  </span>
-               )}
-               <WarnFlags pull={pull} />
+               <RowFlags flags={rowFlags(pull, showIterating, !!opts.aging && pull.starved)} />
                <MetricRail pull={pull} opts={opts} />
             </>
          }

@@ -169,10 +169,16 @@ a:hover {
   /* the slot you personally stamped: a dotted rule under the pips */
   .pip-mine { border-bottom: 1px dotted var(--ink-3); padding-bottom: 2px; }
 
-  .flag-amber {
-    @apply rounded-lg px-1.5 py-0.5 text-[11px] font-medium;
-    background: var(--badge-amber-bg);
-    color: var(--badge-amber-fg);
+  /* row flags: quiet colored labels, not badges — amber for act-on-it,
+     muted ink for neutral facts. The cluster's hover popover carries meaning. */
+  .flag-warn {
+    @apply text-[11px] font-medium;
+    color: var(--warn);
+    flex: none;
+  }
+  .flag-note {
+    @apply text-[11px] font-medium;
+    color: var(--ink-3);
     flex: none;
   }
 
