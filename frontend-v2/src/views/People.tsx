@@ -44,9 +44,11 @@ export function People({
    );
 
    // an explicit pick always wins, even with zero open PRs — silently
-   // showing someone else's board mid-conversation is worse than an empty one
+   // showing someone else's board mid-conversation is worse than an empty one.
+   // The default skips yourself: you can't review your own PRs.
+   const defaultPerson = logins.find(l => l !== opts.me) ?? logins[0];
    const selectedTeam = team && teams.some(t => t.team === team) ? team : null;
-   const selectedPerson = selectedTeam ? null : (person ?? logins[0]);
+   const selectedPerson = selectedTeam ? null : (person ?? defaultPerson);
    if (!selectedPerson && !selectedTeam) return null;
 
    const members = selectedTeam

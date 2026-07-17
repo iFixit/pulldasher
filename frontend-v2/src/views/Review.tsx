@@ -146,7 +146,7 @@ export function Review({
             <Fold
                dot={STATUS_DOT.draft}
                count={others.filter(p => p.status === 'draft').length}
-               label="drafts"
+               label={others.filter(p => p.status === 'draft').length === 1 ? 'draft' : 'drafts'}
                hint="not reviewable yet"
             >
                {foldRows(others.filter(p => p.status === 'draft'))}
