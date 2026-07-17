@@ -132,6 +132,22 @@ export function useNotifications(pulls: DerivedPull[], me: string) {
    const seen = useRef<Map<string, string>>(new Map());
    const primed = useRef(false);
 
+   // Sound is normally unlocked by the Settings toggle's click, but if `notify`
+   // was persisted on from a previous session that toggle is never touched.
+   // Unlock on the first gesture of the session as a backstop.
+   useEffect(() => {
+      if (!notificationsSupported) return;
+      const unlock = () => {
+         if (getSettings().notifySound) unlockSound();
+      };
+      window.addEventListener('pointerdown', unlock, { once: true });
+      window.addEventListener('keydown', unlock, { once: true });
+      return () => {
+         window.removeEventListener('pointerdown', unlock);
+         window.removeEventListener('keydown', unlock);
+      };
+   }, []);
+
    useEffect(() => {
       const current = new Map<string, string>();
       for (const p of pulls) {
