@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { DerivedPull } from '../model/status';
-import { EmptyState } from '../components/bits';
+import type { PullData } from '../types';
+import { ago, githubUrl } from '../format';
+import { Avatar, EmptyState, RepoRef } from '../components/bits';
 import { Row, type RowOptions } from '../components/Row';
 
 /**
@@ -49,8 +51,18 @@ const qaCompare = (me: string) => (a: DerivedPull, b: DerivedPull) =>
 
 const deployCompare = (a: DerivedPull, b: DerivedPull) => cmp(!a.conflict, !b.conflict);
 
-function Column({ title, pulls, opts }: { title: string; pulls: DerivedPull[]; opts: RowOptions }) {
-   const [open, setOpen] = useState(true);
+function Column({
+   title,
+   pulls,
+   opts,
+   defaultOpen = true,
+}: {
+   title: string;
+   pulls: DerivedPull[];
+   opts: RowOptions;
+   defaultOpen?: boolean;
+}) {
+   const [open, setOpen] = useState(defaultOpen);
    return (
       <section className="min-w-0">
          <h2 className="m-0">
@@ -84,9 +96,81 @@ function Column({ title, pulls, opts }: { title: string; pulls: DerivedPull[]; o
    );
 }
 
-export function Classic({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) {
+/** The closed card shares the column card's two-zone anatomy. */
+function ClosedCard({ pull }: { pull: PullData }) {
+   const merged = !!pull.merged_at;
+   const closedAt = Date.parse(pull.closed_at ?? pull.updated_at) / 1000;
+   return (
+      <div className="flex items-start gap-2.5 border-t border-secondary px-4 py-2.5 first:border-t-0 hover:bg-muted">
+         <span className="mt-px flex-none">
+            <Avatar login={pull.user.login} />
+         </span>
+         <span className="min-w-0 flex-1">
+            <span className="block text-sm leading-snug break-words">
+               <a
+                  className="font-medium hover:underline hover:underline-offset-2"
+                  href={githubUrl(pull.repo, pull.number)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+               >
+                  {pull.title}
+               </a>
+            </span>
+            <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-ink-3">
+               <RepoRef repo={pull.repo} number={pull.number} />
+               <span className="ml-auto inline-flex items-center gap-2.5">
+                  <span
+                     className="font-medium"
+                     style={{ color: merged ? 'var(--ok)' : undefined }}
+                     title={merged ? 'merged' : 'closed without merging'}
+                  >
+                     {merged ? 'Merged' : 'Closed'}
+                  </span>
+                  <span className="w-16 text-right tabular-nums">{ago(closedAt)} ago</span>
+               </span>
+            </span>
+         </span>
+      </div>
+   );
+}
+
+/** v1's Recently Closed panel, honored for ?closed=1 bookmarks. */
+function ClosedColumn({ pulls }: { pulls: PullData[] }) {
+   const ordered = [...pulls].sort(
+      (a, b) => Date.parse(b.closed_at ?? b.updated_at) - Date.parse(a.closed_at ?? a.updated_at)
+   );
+   return (
+      <section className="min-w-0">
+         <h2 className="m-0 flex w-full items-center gap-2 rounded-t-2xl border border-line bg-muted px-4 py-2.5 text-sm font-semibold">
+            Recently Closed
+            <span className="flex-1" />
+            <span className="text-xs font-normal text-ink-3 tabular-nums">{pulls.length}</span>
+         </h2>
+         <div className="overflow-hidden rounded-b-2xl border border-t-0 border-line bg-surface">
+            {ordered.map(p => (
+               <ClosedCard key={`${p.repo}#${p.number}`} pull={p} />
+            ))}
+            {!pulls.length && <div className="px-4 py-3 text-[13px] text-ink-3">none</div>}
+         </div>
+      </section>
+   );
+}
+
+export function Classic({
+   pulls,
+   opts,
+   collapsed,
+   closed,
+}: {
+   pulls: DerivedPull[];
+   opts: RowOptions;
+   /** v1 ?cr=0-style column collapse flags from a legacy URL */
+   collapsed?: Set<string>;
+   /** closed pulls to show when a legacy URL asked for ?closed=1 */
+   closed?: PullData[] | null;
+}) {
    const me = opts.me;
-   if (!pulls.length) {
+   if (!pulls.length && !closed?.length) {
       return <EmptyState title="Workbench clear" sub="No open PRs in this scope." />;
    }
    const base = [...pulls].sort(defaultCompare(me));
@@ -112,20 +196,28 @@ export function Classic({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOption
       .filter(p => !qaDone(p) && !devBlock(p) && !isDraft(p) && !p.conflict && passedCI(p))
       .sort(qaCompare(me));
 
-   const columns: [string, DerivedPull[]][] = [
-      ['CI Blocked', ciBlocked],
-      ['Deploy Blocked', deployBlocked],
-      ['Ready', ready],
-      ['Dev Block', devBlocked],
-      ['CR', needsCr],
-      ['QA', needsQa],
+   // ids match v1's column collapse params (?ci=0&cr=0…) so old URLs map 1:1
+   const columns: [string, string, DerivedPull[]][] = [
+      ['ci', 'CI Blocked', ciBlocked],
+      ['dep', 'Deploy Blocked', deployBlocked],
+      ['ready', 'Ready', ready],
+      ['dev', 'Dev Block', devBlocked],
+      ['cr', 'CR', needsCr],
+      ['qa', 'QA', needsQa],
    ];
 
    return (
       <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(300px,1fr))]">
-         {columns.map(([title, list]) => (
-            <Column key={title} title={title} pulls={list} opts={opts} />
+         {columns.map(([id, title, list]) => (
+            <Column
+               key={id}
+               title={title}
+               pulls={list}
+               opts={opts}
+               defaultOpen={!collapsed?.has(id)}
+            />
          ))}
+         {closed && <ClosedColumn pulls={closed} />}
       </div>
    );
 }

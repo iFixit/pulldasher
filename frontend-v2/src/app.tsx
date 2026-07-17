@@ -4,6 +4,7 @@ import { readStorage, writeStorage } from './storage';
 import { STATUS_ORDER, type DerivedPull } from './model/status';
 import type { Team } from './types';
 import { usePulldasher } from './store';
+import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
 import { loadTeams, useScope } from './prefs';
 import { Legend } from './components/Legend';
 import { ScopeControl } from './components/Scope';
@@ -57,12 +58,21 @@ export function App() {
       lastSeen,
    } = usePulldasher();
    const [scope] = useScope();
-   const [lens, setLens] = useState<Lens>(() => readHash().lens);
+   // a v1 bookmark (?repo=…&author=…&cryo=1…) opens Classic configured the
+   // same way; the chip below shows what it applied and dismisses it
+   const [legacy, setLegacy] = useState(() => readLegacyView(location.search));
+   const [lens, setLens] = useState<Lens>(() => {
+      const h = readHash();
+      if (legacy && !location.hash.includes('lens=')) return 'classic';
+      return h.lens;
+   });
    const [person, setPerson] = useState<string | null>(() => readHash().person);
    const [team, setTeam] = useState<string | null>(() => readHash().team);
    const [query, setQuery] = useState('');
    const [onlyChanged, setOnlyChanged] = useState(false);
-   const [showHidden, setShowHidden] = useState(false);
+   const [showHidden, setShowHidden] = useState(
+      () => !!legacy && (legacy.cryo || legacy.showAllRepos)
+   );
    const [teams, setTeams] = useState<Team[]>([]);
    // explicit choice persists; otherwise follow the OS, live
    const [dark, setDarkState] = useState(
@@ -132,11 +142,17 @@ export function App() {
    // rows the click doesn't deliver
    const inScope = useMemo(() => {
       let out = pulls;
+      if (legacy) out = applyLegacyFilters(out, legacy, me);
       // v1 conventions: Cryogenic-Storage pulls and hideByDefault repos stay
       // off the board unless asked for (or the scope names the repo).
       if (!showHidden)
          out = out.filter(
-            p => !p.cryo && (!hiddenRepos.has(p.data.repo) || scope.repos.includes(p.data.repo))
+            p =>
+               !p.cryo &&
+               (!hiddenRepos.has(p.data.repo) ||
+                  scope.repos.includes(p.data.repo) ||
+                  // a legacy URL naming the repo means "show it", hidden or not
+                  legacy?.repos.includes(p.data.repo.replace(/.*\//, '')))
          );
       if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.data.repo));
       // bots bypass the people filter on purpose: dependency bumps need review
@@ -155,7 +171,7 @@ export function App() {
          );
       }
       return out;
-   }, [pulls, scope, query, showHidden, hiddenRepos]);
+   }, [pulls, scope, query, showHidden, hiddenRepos, legacy, me]);
 
    const scoped = useMemo(
       () =>
@@ -273,6 +289,19 @@ export function App() {
                   onChange={e => setQuery(e.target.value)}
                   className="h-8 w-[170px] rounded-lg border border-line bg-surface px-2.5 text-[13px]"
                />
+               {legacy && (
+                  <button
+                     type="button"
+                     onClick={() => setLegacy(null)}
+                     title={`filters from your v1 bookmark: ${describeLegacyView(legacy) || 'defaults'}. Click to drop them`}
+                     className="pressable inline-flex h-8 max-w-[260px] items-center gap-1.5 rounded-lg border border-brand bg-brand-50 px-2.5 text-xs font-medium text-brand-700"
+                  >
+                     <span className="truncate">
+                        v1 view: {describeLegacyView(legacy) || 'defaults'}
+                     </span>
+                     <span aria-hidden>✕</span>
+                  </button>
+               )}
                {onlyChanged && (
                   <button
                      type="button"
@@ -391,7 +420,14 @@ export function App() {
                />
             )}
             {initialized && lens === 'board' && <Board pulls={humans} bots={bots} opts={rowOpts} />}
-            {initialized && lens === 'classic' && <Classic pulls={scoped} opts={rowOpts} />}
+            {initialized && lens === 'classic' && (
+               <Classic
+                  pulls={scoped}
+                  opts={rowOpts}
+                  collapsed={legacy?.collapsed}
+                  closed={legacy?.closed ? closed : null}
+               />
+            )}
          </main>
       </>
    );

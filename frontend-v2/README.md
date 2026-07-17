@@ -45,6 +45,16 @@ lens and the scope presets; without it those features quietly disappear. Long-te
 in the backend (fetch org teams via the existing Octokit client and ship them
 with the socket handshake).
 
+## v1 bookmark compatibility
+
+v1 saved its settings in the query string, and years of bookmarks encode
+them. A URL with any v1 param (`repo`, `author`, `cryo`, `drafts`,
+`external_block`, `personal`, `closed`, or the `ci`/`dep`/`ready`/`dev`/
+`cr`/`qa` column-collapse flags) opens the Classic lens configured the same
+way, v1 defaults included (other people's drafts hidden unless `drafts=1`,
+`closed=1` shows the Recently Closed column). A dismissible chip names what
+the bookmark applied. `src/legacy.ts` owns the translation.
+
 ## Known gaps (backend additions v2 could use)
 
 - **Comment/review activity isn't on the wire** — cues like "X commented 2h
@@ -52,3 +62,7 @@ with the socket handshake).
 - **Teams over the handshake** instead of a static file (see above).
 - **`changed_files`** is stored in the DB but not sent; the review-weight
   chip falls back to size-only until it is.
+- **CR leaderboard** (v1's leader-list) and **desktop notifications** aren't
+  ported yet.
+- **Repo/author filter UI** — legacy URLs apply these filters, but v2 has no
+  menu to build them; the scope control covers people, not repos.
