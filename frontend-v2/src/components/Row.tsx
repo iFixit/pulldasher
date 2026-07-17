@@ -71,10 +71,10 @@ function rowFlags(pull: DerivedPull, showIterating: boolean, aging: boolean): Fl
       });
    if (p.deployBlockedBy.length > 0 && p.status !== 'deploy_block')
       flags.push({
-         key: 'hold',
+         key: 'deploy-block',
          tone: 'warn',
-         label: 'hold',
-         detail: `On deploy hold by ${p.deployBlockedBy.join(', ')}; don’t ship without asking.`,
+         label: 'deploy block',
+         detail: `${p.deployBlockedBy.join(', ')} put a deploy block on it; don’t ship without asking.`,
       });
    if (p.externalBlock)
       flags.push({

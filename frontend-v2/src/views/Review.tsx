@@ -174,8 +174,8 @@ export function Review({
             <Fold
                dot={STATUS_DOT.deploy_block}
                count={deployHeld.length}
-               label="deploy hold"
-               hint="each row names the holder"
+               label="deploy blocked"
+               hint="each row names who blocked it"
             >
                <FoldRows list={deployHeld} opts={opts} />
             </Fold>

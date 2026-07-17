@@ -85,15 +85,15 @@ export function Legend() {
                <span className="flag-warn">conflicts</span>
                <span className="flag-note">recent changes</span>
             </span>,
-            'row flags: amber = act on it (conflicts, hold, external, aging), gray = a neutral fact (stacked, CI, recent changes). Hover them for the full meaning'
+            'row flags: amber = act on it (conflicts, deploy block, external, aging), gray = a neutral fact (stacked, CI, recent changes). Hover them for the full meaning'
          )}
          {item(
             <span className="badge badge-blocked">Dev blocked</span>,
             'a reviewer requested changes: the author’s move'
          )}
          {item(
-            <span className="badge badge-hold">Deploy hold</span>,
-            'done, deliberately held from shipping: ask the holder'
+            <span className="badge badge-hold">Deploy block</span>,
+            'done, deliberately kept from shipping: ask who blocked it'
          )}
          {item(
             <span className="badge badge-blocked">Can't merge</span>,
