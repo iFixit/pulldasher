@@ -22,6 +22,21 @@ export function writeStorage(key: string, value: string): void {
 }
 
 /**
+ * Wipe every persisted preference — all of our `pd2.` localStorage keys
+ * (settings, scope, last-seen marker). The caller reloads so the in-memory
+ * stores re-initialize from their defaults.
+ */
+export function clearStoredPrefs(): void {
+   try {
+      for (const key of Object.keys(localStorage)) {
+         if (key.startsWith('pd2.')) localStorage.removeItem(key);
+      }
+   } catch {
+      // storage blocked: nothing was persisted to clear
+   }
+}
+
+/**
  * A per-browser store for one JSON blob (settings, scope): load-with-defaults,
  * a listener set, and a useSyncExternalStore hook — the boilerplate settings
  * and scope each hand-rolled. `set` persists; `prime` updates the live value

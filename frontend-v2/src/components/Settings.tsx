@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { clearStoredPrefs } from '../storage';
 import { markAllSeen, refreshAll } from '../store';
 import { type Settings as SettingsShape, setRepoPref, setSettings, useSettings } from '../settings';
 import { Segmented } from './bits';
@@ -84,6 +85,7 @@ export function Settings({
    const triggerRef = useRef<HTMLButtonElement>(null);
    const [seenNote, setSeenNote] = useState(false);
    const [refreshNote, setRefreshNote] = useState('');
+   const [armReset, setArmReset] = useState(false);
 
    useEffect(() => {
       if (!open) return;
@@ -264,6 +266,32 @@ export function Settings({
                            {refreshNote && (
                               <span className="text-xs text-ink-3">{refreshNote}</span>
                            )}
+                        </div>
+
+                        <span className="mt-1 text-xs text-ink-3">
+                           Reset every preference on this browser (theme, filters, muted repos,
+                           last-seen marker) back to defaults. This can’t be undone.
+                        </span>
+                        <div className="flex items-center gap-3">
+                           <button
+                              type="button"
+                              onClick={() => {
+                                 if (!armReset) {
+                                    setArmReset(true);
+                                    setTimeout(() => setArmReset(false), 4000);
+                                    return;
+                                 }
+                                 clearStoredPrefs();
+                                 window.location.reload();
+                              }}
+                              className={`pressable inline-flex h-8 items-center rounded-lg border px-3 text-[13px] font-medium ${
+                                 armReset
+                                    ? 'border-bad bg-bad/10 text-bad'
+                                    : 'border-line bg-surface text-ink-2 hover:text-bad'
+                              }`}
+                           >
+                              {armReset ? 'Click again to confirm' : 'Clear settings'}
+                           </button>
                         </div>
                      </Group>
 
