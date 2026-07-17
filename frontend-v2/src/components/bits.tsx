@@ -302,10 +302,13 @@ export function PullTitleLink({
    repo,
    number,
    title,
+   onOpen,
 }: {
    repo: string;
    number: number;
    title: string;
+   /** fired when the user opens the PR — the row's natural "seen" ack */
+   onOpen?: () => void;
 }) {
    return (
       <a
@@ -313,6 +316,8 @@ export function PullTitleLink({
          href={githubUrl(repo, number)}
          target="_blank"
          rel="noopener noreferrer"
+         onClick={onOpen}
+         onAuxClick={onOpen}
       >
          {title}
       </a>

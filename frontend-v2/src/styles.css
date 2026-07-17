@@ -213,13 +213,22 @@ a:hover {
   animation: fresh-flash 1.4s var(--ease-quart) 300ms backwards;
 }
 
-/* the "changed since your last look" marker at the row's entry point */
+/* the since-your-last-look markers at the row's entry point:
+   solid = a brand-new PR, ring = an existing PR that changed */
 .dot-fresh {
   flex: none;
   width: 7px;
   height: 7px;
   border-radius: 9999px;
   background: var(--brand);
+}
+.dot-updated {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  border: 2px solid var(--brand);
+  background: transparent;
 }
 
 /* press feedback: house scale-97 */

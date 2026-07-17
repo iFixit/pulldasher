@@ -25,6 +25,8 @@ export interface Snapshot {
    lastPayloadAt: number;
    /** epoch secs of the last-seen marker (previous visit's departure) */
    lastSeen: number;
+   /** pull keys opened this session: their fresh dots are cleared */
+   acked: ReadonlySet<string>;
 }
 
 const LAST_SEEN_KEY = 'pd2.lastSeen';
@@ -40,12 +42,48 @@ const listeners = new Set<() => void>();
 
 // The marker advances when you LEAVE (pagehide / tab hidden), not when you
 // arrive — an accidental reload must not erase "changed since yesterday".
+// And only after the page has actually been LOOKED AT: a two-second Monday
+// glance on the way to Slack must not mark the weekend's forty changes as
+// seen. "Looked at" = 45 cumulative visible seconds since the last stamp.
+const MIN_ATTENDED_SECS = 45;
 const lastSeen = Number(readStorage(LAST_SEEN_KEY)) || Date.now() / 1000 - 6 * 3600;
-const stampSeen = () => writeStorage(LAST_SEEN_KEY, String(Date.now() / 1000));
+let attendedSecs = 0;
+let visibleSince: number | null = document.visibilityState === 'visible' ? Date.now() / 1000 : null;
+const settleAttention = () => {
+   if (visibleSince != null) {
+      attendedSecs += Date.now() / 1000 - visibleSince;
+      visibleSince = null;
+   }
+};
+const stampSeen = () => {
+   settleAttention();
+   if (attendedSecs < MIN_ATTENDED_SECS) return;
+   writeStorage(LAST_SEEN_KEY, String(Date.now() / 1000));
+   attendedSecs = 0;
+};
 window.addEventListener('pagehide', stampSeen);
 document.addEventListener('visibilitychange', () => {
    if (document.visibilityState === 'hidden') stampSeen();
+   else visibleSince = Date.now() / 1000;
 });
+
+// Per-row acknowledgment: opening a PR clears its fresh dot for this session
+// without waiting for departure to stamp the whole board.
+const acked = new Set<string>();
+export function ackPull(key: string) {
+   if (acked.has(key)) return;
+   acked.add(key);
+   schedulePublish();
+}
+
+/** The one fresh predicate: changed since your last look and not yet opened. */
+export function isFresh(
+   d: Pick<PullData, 'repo' | 'number' | 'updated_at'>,
+   lastSeenAt: number,
+   ackedKeys: ReadonlySet<string>
+) {
+   return Date.parse(d.updated_at) / 1000 > lastSeenAt && !ackedKeys.has(`${d.repo}#${d.number}`);
+}
 
 let snapshot: Snapshot = {
    pulls: [],
@@ -57,6 +95,7 @@ let snapshot: Snapshot = {
    authFailed,
    lastPayloadAt,
    lastSeen,
+   acked: new Set(acked),
 };
 
 // derive() is pure per (pull, spec): cache on reference identity so a
@@ -88,6 +127,7 @@ function publish() {
       authFailed,
       lastPayloadAt,
       lastSeen,
+      acked: new Set(acked),
    };
    for (const fn of listeners) fn();
 }

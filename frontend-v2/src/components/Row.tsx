@@ -1,8 +1,8 @@
 import { memo, useState } from 'react';
 import type { DerivedPull } from '../model/status';
 import { isIterating } from '../model/status';
-import { ago } from '../format';
-import { refreshPull } from '../store';
+import { ago, pullKey } from '../format';
+import { ackPull, isFresh, refreshPull } from '../store';
 import { AgeStamp, Avatar, PullTitleLink, RepoRef, SigPips, StatusBadge, WeightChip } from './bits';
 import { CardShell } from './Card';
 
@@ -22,7 +22,28 @@ export interface RowOptions {
    cue?: boolean;
    me: string;
    lastSeen: number;
+   /** pull keys opened this session (their fresh dots are cleared) */
+   acked: ReadonlySet<string>;
    onPerson?: (login: string) => void;
+}
+
+/**
+ * A fresh row is a brand-new PR (solid dot) or an updated one (ring), and
+ * opening it clears the mark for the session.
+ */
+function freshKind(p: DerivedPull, opts: RowOptions): 'new' | 'updated' | null {
+   if (!isFresh(p.data, opts.lastSeen, opts.acked)) return null;
+   return Date.parse(p.data.created_at) / 1000 > opts.lastSeen ? 'new' : 'updated';
+}
+
+// The background flash runs once per pull per session, not on every lens
+// switch that remounts the row. Recording during render is deliberate: memo
+// keeps re-renders rare, and a double-record is harmless.
+const flashed = new Set<string>();
+function flashOnce(key: string, fresh: boolean): boolean {
+   if (!fresh || flashed.has(key)) return false;
+   flashed.add(key);
+   return true;
 }
 
 function cue(p: DerivedPull, me: string): string | null {
@@ -189,7 +210,8 @@ function Ledger({ pull, me }: { pull: DerivedPull; me: string }) {
  */
 function CompactCard({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const d = pull.data;
-   const fresh = Date.parse(d.updated_at) / 1000 > opts.lastSeen;
+   const key = pullKey(d);
+   const fresh = freshKind(pull, opts);
    return (
       <CardShell
          login={d.user.login}
@@ -198,7 +220,8 @@ function CompactCard({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          number={d.number}
          title={d.title}
          fresh={fresh}
-         className={`pd-row ${fresh ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
+         onOpen={() => ackPull(key)}
+         className={`pd-row ${flashOnce(key, !!fresh) ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
          right={
             <>
                <WarnFlags pull={pull} compact />
@@ -212,30 +235,38 @@ function CompactCard({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
 function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const d = pull.data;
    const compact = opts.compact === true;
-   const fresh = Date.parse(d.updated_at) / 1000 > opts.lastSeen;
    if (compact) return <CompactCard pull={pull} opts={opts} />;
+   const key = pullKey(d);
+   const fresh = freshKind(pull, opts);
 
    const showWeight = pull.sizeKnown && ['needs_cr', 'needs_recr'].includes(pull.status);
    const line = opts.cue === false ? null : cue(pull, opts.me);
 
    return (
       <div
-         className={`pd-row relative flex items-center gap-2.5 border-t border-secondary py-2 pr-3.5 pl-3.5 first:border-t-0 hover:bg-muted ${fresh ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
+         className={`pd-row relative flex items-center gap-2.5 border-t border-secondary py-2 pr-3.5 pl-3.5 first:border-t-0 hover:bg-muted ${flashOnce(key, !!fresh) ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
       >
          {/* lives in the padding gutter: a changed row must not indent its content */}
          {fresh && (
             <span
-               className="dot-fresh absolute top-1/2 left-[3px] -translate-y-1/2"
+               className={`${fresh === 'new' ? 'dot-fresh' : 'dot-updated'} absolute top-1/2 left-[3px] -translate-y-1/2`}
                role="img"
-               aria-label="changed since your last look"
-               title="changed since your last look"
+               aria-label={
+                  fresh === 'new' ? 'new since your last look' : 'changed since your last look'
+               }
+               title={fresh === 'new' ? 'new since your last look' : 'changed since your last look'}
             />
          )}
          {opts.badge === false ? null : <StatusBadge status={pull.status} />}
          <Avatar login={d.user.login} onClick={opts.onPerson} />
          {/* the title is how a reviewer decides: never truncate it, wrap instead */}
          <span className="min-w-0 flex-1 text-sm break-words">
-            <PullTitleLink repo={d.repo} number={d.number} title={d.title} />
+            <PullTitleLink
+               repo={d.repo}
+               number={d.number}
+               title={d.title}
+               onOpen={() => ackPull(key)}
+            />
          </span>
          <RowActions pull={pull} />
          {isIterating(d) && (
@@ -284,5 +315,6 @@ export const Row = memo(
       a.opts.cue === b.opts.cue &&
       a.opts.me === b.opts.me &&
       a.opts.lastSeen === b.opts.lastSeen &&
+      a.opts.acked === b.opts.acked &&
       a.opts.onPerson === b.opts.onPerson
 );

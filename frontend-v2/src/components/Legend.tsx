@@ -89,7 +89,13 @@ export function Legend() {
                   <span className="badge badge-blocked">Can't merge</span>,
                   'signed off but conflicted or on an unmerged parent: author rebases'
                )}
-               {item(<span className="dot-fresh" />, 'changed since your last look')}
+               {item(
+                  <span className="flex items-center gap-1.5">
+                     <span className="dot-fresh" />
+                     <span className="dot-updated" />
+                  </span>,
+                  'since your last look: solid = new PR, ring = updated. Opening one clears it'
+               )}
                {item(<span>❄</span>, 'Cryogenic Storage PRs and quiet repos, hidden by default')}
             </span>
          )}

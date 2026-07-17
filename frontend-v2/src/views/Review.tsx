@@ -231,7 +231,7 @@ export function Review({
             >
                <Truncated>
                   {closed.map(p => (
-                     <ClosedRow key={pullKey(p)} pull={p} />
+                     <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />
                   ))}
                </Truncated>
             </Fold>

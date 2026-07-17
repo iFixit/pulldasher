@@ -14,6 +14,7 @@ export function CardShell({
    number,
    title,
    fresh,
+   onOpen,
    className = '',
    right,
 }: {
@@ -22,7 +23,9 @@ export function CardShell({
    repo: string;
    number: number;
    title: string;
-   fresh?: boolean;
+   /** 'new' = opened since your last look (solid dot); 'updated' = changed (ring) */
+   fresh?: 'new' | 'updated' | null;
+   onOpen?: () => void;
    className?: string;
    right: ReactNode;
 }) {
@@ -33,8 +36,12 @@ export function CardShell({
          {/* lives in the padding gutter: a changed card must not indent its content */}
          {fresh && (
             <span
-               className="dot-fresh absolute top-4 left-[5px]"
-               title="changed since your last look"
+               className={`${fresh === 'new' ? 'dot-fresh' : 'dot-updated'} absolute top-4 left-[5px]`}
+               role="img"
+               aria-label={
+                  fresh === 'new' ? 'new since your last look' : 'changed since your last look'
+               }
+               title={fresh === 'new' ? 'new since your last look' : 'changed since your last look'}
             />
          )}
          <span className="mt-px flex-none">
@@ -42,7 +49,7 @@ export function CardShell({
          </span>
          <span className="min-w-0 flex-1">
             <span className="block text-sm leading-snug break-words">
-               <PullTitleLink repo={repo} number={number} title={title} />
+               <PullTitleLink repo={repo} number={number} title={title} onOpen={onOpen} />
             </span>
             <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-ink-3">
                <RepoRef repo={repo} number={number} />

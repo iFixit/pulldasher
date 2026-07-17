@@ -3,7 +3,7 @@ import { ago, n, shortRepo } from './format';
 import { readStorage, writeStorage } from './storage';
 import { STATUS_ORDER, type DerivedPull } from './model/status';
 import type { Team } from './types';
-import { usePulldasher } from './store';
+import { isFresh, usePulldasher } from './store';
 import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
 import { loadSiteConfig, useScope } from './prefs';
 import { Legend } from './components/Legend';
@@ -108,6 +108,7 @@ export function App() {
       authFailed,
       lastPayloadAt,
       lastSeen,
+      acked,
    } = usePulldasher();
    const [scope] = useScope();
    // a v1 bookmark (?repo=…&author=…&cryo=1…) opens Classic configured the
@@ -233,18 +234,22 @@ export function App() {
       return out;
    }, [pulls, scope, query, showHidden, hiddenRepos, legacy, me, isBot]);
 
+   // changed-only and the banner count share one predicate (bots excluded,
+   // acked rows drop out) so the toggle always shows exactly what the banner
+   // promised
    const scoped = useMemo(
       () =>
-         onlyChanged
-            ? inScope.filter(p => Date.parse(p.data.updated_at) / 1000 > lastSeen)
-            : inScope,
-      [inScope, onlyChanged, lastSeen]
+         onlyChanged ? inScope.filter(p => !isBot(p) && isFresh(p.data, lastSeen, acked)) : inScope,
+      [inScope, onlyChanged, lastSeen, acked, isBot]
    );
 
    const humans = scoped.filter(p => !isBot(p));
    const bots = scoped.filter(isBot);
-   const changedCount = inScope.filter(
-      p => !isBot(p) && Date.parse(p.data.updated_at) / 1000 > lastSeen
+   const changedCount = inScope.filter(p => !isBot(p) && isFresh(p.data, lastSeen, acked)).length;
+   // "did my PR merge over the weekend" is the cheapest answer the board can
+   // give — it belongs in the banner, not buried in a fold
+   const mergedCount = closed.filter(
+      p => (Date.parse(p.closed_at ?? '') / 1000 || 0) > lastSeen
    ).length;
    const hiddenCount = pulls.filter(
       p => p.cryo || (hiddenRepos.has(p.data.repo) && !scope.repos.includes(p.data.repo))
@@ -261,8 +266,8 @@ export function App() {
    }, []);
    // stable identity so memo(Row) can skip untouched rows on socket bursts
    const rowOpts: RowOptions = useMemo(
-      () => ({ me, lastSeen, onPerson }),
-      [me, lastSeen, onPerson]
+      () => ({ me, lastSeen, acked, onPerson }),
+      [me, lastSeen, acked, onPerson]
    );
 
    const mineCount = humans.filter(p => p.data.user.login === me).length;
@@ -410,20 +415,32 @@ export function App() {
                </span>
             </Banner>
          )}
-         {changedCount > 0 && !query && (
+         {(changedCount > 0 || mergedCount > 0) && !query && (
             <Banner tone="brand">
                <span>●</span>
                <span className="tabular-nums">
-                  <b className="font-semibold">{n(changedCount, 'PR')}</b> changed since your last
-                  look
+                  {changedCount > 0 && (
+                     <>
+                        <b className="font-semibold">{n(changedCount, 'PR')}</b> changed
+                     </>
+                  )}
+                  {changedCount > 0 && mergedCount > 0 && ' · '}
+                  {mergedCount > 0 && (
+                     <>
+                        <b className="font-semibold">{mergedCount}</b> merged or closed
+                     </>
+                  )}{' '}
+                  since your last look
                </span>
-               <button
-                  type="button"
-                  onClick={() => setOnlyChanged(v => !v)}
-                  className="border-0 bg-transparent p-0 text-[13px] font-semibold underline"
-               >
-                  {onlyChanged ? 'show everything' : 'show only changes'}
-               </button>
+               {changedCount > 0 && (
+                  <button
+                     type="button"
+                     onClick={() => setOnlyChanged(v => !v)}
+                     className="border-0 bg-transparent p-0 text-[13px] font-semibold underline"
+                  >
+                     {onlyChanged ? 'show everything' : 'show only changes'}
+                  </button>
+               )}
             </Banner>
          )}
 

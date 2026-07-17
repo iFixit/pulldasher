@@ -106,7 +106,7 @@ export function MyWork({
                >
                   <Truncated>
                      {shipped.map(p => (
-                        <ClosedRow key={pullKey(p)} pull={p} />
+                        <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />
                      ))}
                   </Truncated>
                </Fold>

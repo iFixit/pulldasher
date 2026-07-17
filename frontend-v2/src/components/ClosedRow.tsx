@@ -8,11 +8,20 @@ import { Avatar, PullTitleLink, RepoRef } from './bits';
  * line. Columns must use a compact two-zone card instead (Classic's
  * ClosedCard).
  */
-export function ClosedRow({ pull }: { pull: PullData }) {
+export function ClosedRow({ pull, lastSeen }: { pull: PullData; lastSeen?: number }) {
    const merged = !!pull.merged_at;
    const closedAt = Date.parse(pull.closed_at ?? pull.updated_at) / 1000;
+   const fresh = lastSeen != null && closedAt > lastSeen;
    return (
-      <div className="flex items-center gap-2.5 border-t border-secondary py-2 pr-3.5 pl-[11px] first:border-t-0 hover:bg-muted">
+      <div className="relative flex items-center gap-2.5 border-t border-secondary py-2 pr-3.5 pl-[11px] first:border-t-0 hover:bg-muted">
+         {fresh && (
+            <span
+               className="dot-fresh absolute top-1/2 left-[3px] -translate-y-1/2"
+               role="img"
+               aria-label={`${merged ? 'merged' : 'closed'} since your last look`}
+               title={`${merged ? 'merged' : 'closed'} since your last look`}
+            />
+         )}
          <span
             className={`badge ${merged ? 'badge-ready' : 'badge-cr'}`}
             title={merged ? 'merged' : 'closed without merging'}
