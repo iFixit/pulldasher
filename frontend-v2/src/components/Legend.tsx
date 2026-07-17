@@ -1,5 +1,5 @@
 import { useSettings } from '../settings';
-import { WeightMeter } from './bits';
+import { FreshTag, WeightMeter } from './bits';
 import { Popover } from './Popover';
 
 /**
@@ -97,11 +97,11 @@ export function Legend() {
             'signed off but conflicted or on an unmerged parent: author rebases'
          )}
          {item(
-            <span className="flex items-center gap-1.5">
-               <span className="dot-fresh" />
-               <span className="dot-updated" />
+            <span className="flex items-center gap-1">
+               <FreshTag kind="new" />
+               <FreshTag kind="updated" />
             </span>,
-            'changed since your last visit: solid = new PR, ring = updated (tracked while you’re away). Opening one clears it'
+            'changed since your last visit: “new” is a brand-new PR, “updated” an existing one that changed (tracked while you’re away). Opening one clears it'
          )}
          {item(
             <svg viewBox="0 0 16 16" aria-hidden className="h-4 w-4 fill-ink-3">

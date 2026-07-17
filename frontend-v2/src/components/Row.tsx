@@ -3,7 +3,7 @@ import type { DerivedPull } from '../model/status';
 import { isIterating } from '../model/status';
 import { ago, pullKey } from '../format';
 import { ackPull, isFresh, refreshPull } from '../store';
-import { AgeStamp, DiffSize, RepoRef, SigPips, StatusBadge, WeightMeter } from './bits';
+import { AgeStamp, DiffSize, FreshTag, RepoRef, SigPips, StatusBadge, WeightMeter } from './bits';
 import { CardShell } from './Card';
 
 export interface RowOptions {
@@ -247,11 +247,11 @@ function RowImpl({
          repo={d.repo}
          number={d.number}
          title={d.title}
-         fresh={fresh}
          onOpen={() => ackPull(key)}
          className={`${flashOnce(key, !!fresh) ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
          meta={
             <>
+               {fresh && <FreshTag kind={fresh} />}
                {opts.badge === false ? null : <StatusBadge status={pull.status} inline />}
                <RepoRef repo={d.repo} number={d.number} />
                {pull.sizeKnown && (

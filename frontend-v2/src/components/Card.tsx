@@ -20,7 +20,6 @@ export function CardShell({
    repo,
    number,
    title,
-   fresh,
    onOpen,
    className = '',
    meta,
@@ -31,8 +30,6 @@ export function CardShell({
    repo: string;
    number: number;
    title: string;
-   /** 'new' = opened since your last look (solid dot); 'updated' = changed (ring) */
-   fresh?: 'new' | 'updated' | null;
    onOpen?: () => void;
    className?: string;
    /** the whole meta line: badge, repo#number, context, flags, metric rail */
@@ -43,17 +40,6 @@ export function CardShell({
       <div
          className={`pd-row relative flex items-start gap-2.5 border-t border-secondary px-3.5 py-2 first:border-t-0 hover:bg-muted ${className}`}
       >
-         {/* lives in the padding gutter: a changed card must not indent its content */}
-         {fresh && (
-            <span
-               className={`${fresh === 'new' ? 'dot-fresh' : 'dot-updated'} absolute top-3.5 left-[5px]`}
-               role="img"
-               aria-label={
-                  fresh === 'new' ? 'new since your last look' : 'changed since your last look'
-               }
-               title={fresh === 'new' ? 'new since your last look' : 'changed since your last look'}
-            />
-         )}
          <span className="pd-raise mt-px flex-none">
             <Avatar login={login} onClick={onPerson} />
          </span>
