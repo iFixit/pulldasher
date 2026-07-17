@@ -7,9 +7,9 @@ import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy
 import { loadSiteConfig, primeScope, useScope } from './prefs';
 import { getSettings, useSettings } from './settings';
 import { matchesQuery } from './model/query';
+import { CRYO_KEY, repoHidden } from './model/visibility';
 import { Legend } from './components/Legend';
-import { CRYO_KEY, HiddenSelector } from './components/HiddenSelector';
-import { ScopeControl } from './components/Scope';
+import { Filters } from './components/Filters';
 import type { RowOptions } from './components/Row';
 import { Review } from './views/Review';
 import { MyWork } from './views/MyWork';
@@ -39,6 +39,8 @@ interface HashState {
    hidden: boolean;
    /** individually revealed hidden groups: repo names and the cryo sentinel */
    reveal: string[];
+   /** session override of the drafts default (null = use the durable default) */
+   drafts: 'mine' | 'all' | null;
    changed: boolean;
 }
 
@@ -60,6 +62,7 @@ function readHash(): HashState {
       authors: p.get('authors')?.split(',').filter(Boolean) ?? [],
       hidden: p.get('hidden') === '1',
       reveal: p.get('show')?.split(',').filter(Boolean) ?? [],
+      drafts: p.get('drafts') === 'all' ? 'all' : p.get('drafts') === 'mine' ? 'mine' : null,
       changed: p.get('changed') === '1',
    };
 }
@@ -74,6 +77,7 @@ function buildHash(s: HashState): string {
    if (s.authors.length) p.set('authors', s.authors.join(','));
    if (s.hidden) p.set('hidden', '1');
    if (s.reveal.length) p.set('show', s.reveal.join(','));
+   if (s.drafts) p.set('drafts', s.drafts);
    if (s.changed) p.set('changed', '1');
    return p.toString();
 }
@@ -176,6 +180,10 @@ export function App() {
          setReveal(cur => (cur.includes(key) ? cur.filter(k => k !== key) : [...cur, key])),
       []
    );
+   // drafts is a session override of the durable default; null-in-URL uses it
+   const [draftsMode, setDraftsMode] = useState<'mine' | 'all'>(
+      () => urlState.drafts ?? getSettings().draftsMode
+   );
    const [teams, setTeams] = useState<Team[]>([]);
    const [extraBots, setExtraBots] = useState<ReadonlySet<string>>(new Set());
    const isBot = useCallback(
@@ -211,6 +219,7 @@ export function App() {
          authors: scope.authors,
          hidden: showAll,
          reveal,
+         drafts: draftsMode !== settings.draftsMode ? draftsMode : null,
          changed: onlyChanged,
       });
       if (next === location.hash.slice(1)) return;
@@ -222,7 +231,18 @@ export function App() {
       } else {
          history.replaceState(null, '', next ? `#${next}` : location.pathname + location.search);
       }
-   }, [lens, person, team, query, scope, showAll, reveal, onlyChanged]);
+   }, [
+      lens,
+      person,
+      team,
+      query,
+      scope,
+      showAll,
+      reveal,
+      draftsMode,
+      settings.draftsMode,
+      onlyChanged,
+   ]);
    useEffect(() => {
       const onHash = () => {
          const h = readHash();
@@ -232,6 +252,7 @@ export function App() {
          setQuery(h.q);
          setShowAll(h.hidden);
          setReveal(h.reveal);
+         setDraftsMode(h.drafts ?? getSettings().draftsMode);
          setOnlyChanged(h.changed);
       };
       window.addEventListener('hashchange', onHash);
@@ -307,31 +328,61 @@ export function App() {
    // scope/query applied, but NOT the changed-only toggle: the changed count
    // must describe the pool the toggle would narrow, or the banner promises
    // rows the click doesn't deliver
+   // repos named in the query (repo:x) reveal a muted repo for this session —
+   // an explicit filter is an explicit "I want it now"
+   const queryRepos = useMemo(
+      () => (query ? [...query.matchAll(/repo:(\S+)/gi)].map(m => m[1].toLowerCase()) : []),
+      [query]
+   );
+   const revealedRepo = useCallback(
+      (repo: string) =>
+         reveal.includes(repo) ||
+         scope.repos.includes(repo) ||
+         !!legacy?.repos.includes(shortRepo(repo)) ||
+         queryRepos.some(q => shortRepo(repo).toLowerCase().includes(q)),
+      [reveal, scope.repos, legacy, queryRepos]
+   );
+
    const inScope = useMemo(() => {
       let out = pulls;
       if (legacy) out = applyLegacyFilters(out, legacy, me);
-      // v1 conventions: Cryogenic-Storage pulls and hideByDefault repos stay
-      // off the board unless revealed (all at once, per-group, or by scoping
-      // the repo).
+      // Muted (user) and org-hidden repos, and cryo PRs, stay off the board
+      // unless a session act reveals them: an explicit reveal, a scope, or a
+      // repo: query term. Session-explicit beats the durable mute.
       if (!showAll)
          out = out.filter(p => {
-            const cryoHidden = p.cryo && !reveal.includes(CRYO_KEY);
-            const repoHidden =
-               hiddenRepos.has(p.data.repo) &&
-               !reveal.includes(p.data.repo) &&
-               !scope.repos.includes(p.data.repo) &&
-               // a legacy URL naming the repo means "show it", hidden or not
-               !legacy?.repos.includes(shortRepo(p.data.repo));
-            return !cryoHidden && !repoHidden;
+            const hiddenRepo =
+               repoHidden(p.data.repo, hiddenRepos, settings.repoPrefs) &&
+               !revealedRepo(p.data.repo);
+            const cryoHidden = p.cryo && !settings.showCryo && !reveal.includes(CRYO_KEY);
+            return !hiddenRepo && !cryoHidden;
          });
       if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.data.repo));
       // bots bypass the people filter on purpose: dependency bumps need review
       // no matter whose work you follow (they land in the bots fold, not lanes)
       if (scope.authors.length)
          out = out.filter(p => isBot(p) || scope.authors.includes(p.data.user.login));
+      // drafts: 'mine' hides other people's drafts, your own always show.
+      // The legacy path owns its own draft rule, so don't double-apply.
+      if (!legacy && draftsMode === 'mine')
+         out = out.filter(p => !p.data.draft || p.data.user.login === me);
       if (query) out = out.filter(p => matchesQuery(p, query));
       return out;
-   }, [pulls, scope, query, showAll, reveal, hiddenRepos, legacy, me, isBot]);
+   }, [
+      pulls,
+      scope,
+      query,
+      showAll,
+      reveal,
+      revealedRepo,
+      hiddenRepos,
+      legacy,
+      me,
+      isBot,
+      settings.repoPrefs,
+      settings.showCryo,
+      draftsMode,
+   ]);
 
    // changed-only and the banner count share one predicate (bots excluded,
    // acked rows drop out) so the toggle always shows exactly what the banner
@@ -350,25 +401,28 @@ export function App() {
    const mergedCount = closed.filter(
       p => (Date.parse(p.closed_at ?? '') / 1000 || 0) > lastSeen
    ).length;
-   // the two hidden groups, and how many PRs each holds, for the selector.
-   // hiddenCount is how many are hidden *right now* given the reveal state.
-   const cryoCount = pulls.filter(p => p.cryo).length;
-   const hiddenRepoCounts = useMemo(() => {
+   // every known repo with its open-PR count — feeds the Filters popover and
+   // the Settings repo manager. Includes org-hidden and pref'd repos at 0.
+   const repoCounts = useMemo(() => {
       const m = new Map<string, number>();
       for (const name of hiddenRepos) m.set(name, 0);
-      for (const p of pulls)
-         if (hiddenRepos.has(p.data.repo)) m.set(p.data.repo, (m.get(p.data.repo) ?? 0) + 1);
-      return [...m.entries()].sort((a, b) => b[1] - a[1]);
-   }, [pulls, hiddenRepos]);
+      for (const name of Object.keys(settings.repoPrefs)) if (!m.has(name)) m.set(name, 0);
+      for (const p of pulls) m.set(p.data.repo, (m.get(p.data.repo) ?? 0) + 1);
+      return [...m.entries()]
+         .map(([name, count]) => ({ name, count }))
+         .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+   }, [pulls, hiddenRepos, settings.repoPrefs]);
+
+   const cryoCount = pulls.filter(p => p.cryo).length;
+   // how many PRs are hidden *right now*, given mutes/org-hides and reveals
    const hiddenCount = showAll
       ? 0
       : pulls.filter(p => {
-           const cryoHidden = p.cryo && !reveal.includes(CRYO_KEY);
-           const repoHidden =
-              hiddenRepos.has(p.data.repo) &&
-              !reveal.includes(p.data.repo) &&
-              !scope.repos.includes(p.data.repo);
-           return cryoHidden || repoHidden;
+           const hiddenRepo =
+              repoHidden(p.data.repo, hiddenRepos, settings.repoPrefs) &&
+              !revealedRepo(p.data.repo);
+           const cryoHidden = p.cryo && !settings.showCryo && !reveal.includes(CRYO_KEY);
+           return hiddenRepo || cryoHidden;
         }).length;
 
    const isScoped = scope.repos.length || scope.authors.length || query || onlyChanged;
@@ -448,7 +502,7 @@ export function App() {
                >
                   v1 board
                </a>
-               <Settings />
+               <Settings repos={repoCounts} orgHidden={hiddenRepos} />
             </div>
             <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-2 px-5 pb-2.5">
                <nav className="mr-1 flex gap-1">
@@ -458,7 +512,20 @@ export function App() {
                   {tab('classic', 'Classic')}
                   {tab('stats', 'Stats')}
                </nav>
-               <ScopeControl pulls={pulls} teams={teams} hiddenRepos={hiddenRepos} />
+               <Filters
+                  pulls={pulls}
+                  repos={repoCounts}
+                  teams={teams}
+                  orgHidden={hiddenRepos}
+                  reveal={reveal}
+                  toggleReveal={toggleReveal}
+                  showAll={showAll}
+                  setShowAll={setShowAll}
+                  cryoCount={cryoCount}
+                  draftsMode={draftsMode}
+                  setDraftsMode={setDraftsMode}
+                  hiddenCount={hiddenCount}
+               />
                <input
                   ref={searchRef}
                   type="search"
@@ -491,17 +558,6 @@ export function App() {
                      </span>
                      <span aria-hidden>✕</span>
                   </ToggleChip>
-               )}
-               {(cryoCount > 0 || hiddenRepoCounts.length > 0) && (
-                  <HiddenSelector
-                     count={hiddenCount}
-                     cryo={cryoCount}
-                     repos={hiddenRepoCounts}
-                     showAll={showAll}
-                     reveal={reveal}
-                     onShowAll={setShowAll}
-                     onToggle={toggleReveal}
-                  />
                )}
                <span className="flex-1" />
                {bots.length > 0 && (

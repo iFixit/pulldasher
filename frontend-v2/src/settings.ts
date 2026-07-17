@@ -21,6 +21,14 @@ export interface Settings {
    ageRotDays: number;
    /** seconds of attention before leaving stamps "last seen" (the glance guard) */
    seenAfterSecs: number;
+   /** per-repo override of the org baseline: 'mute' hides a shown repo,
+    * 'show' reveals an org-hidden one. Absent = follow the org default. */
+   repoPrefs: Record<string, 'mute' | 'show'>;
+   /** your default for other people's drafts: 'mine' hides them (your own
+    * always show), 'all' shows everyone's */
+   draftsMode: 'mine' | 'all';
+   /** your default for Cryogenic-Storage (parked) PRs */
+   showCryo: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -30,6 +38,9 @@ export const DEFAULT_SETTINGS: Settings = {
    ageWarnDays: STARVE_DAYS,
    ageRotDays: ROT_DAYS,
    seenAfterSecs: 45,
+   repoPrefs: {},
+   draftsMode: 'mine',
+   showCryo: false,
 };
 
 const KEY = 'pd2.settings';
@@ -57,6 +68,14 @@ export function setSettings(patch: Partial<Settings>) {
    settings = { ...settings, ...patch };
    writeStorage(KEY, JSON.stringify(settings));
    for (const fn of listeners) fn();
+}
+
+/** Set or clear one repo's visibility override. null follows the org default. */
+export function setRepoPref(repo: string, pref: 'mute' | 'show' | null) {
+   const next = { ...settings.repoPrefs };
+   if (pref == null) delete next[repo];
+   else next[repo] = pref;
+   setSettings({ repoPrefs: next });
 }
 
 export function useSettings(): Settings {

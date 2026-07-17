@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { markAllSeen } from '../store';
-import { type Settings as SettingsShape, setSettings, useSettings } from '../settings';
+import { type Settings as SettingsShape, setRepoPref, setSettings, useSettings } from '../settings';
+import { RepoManagerGroup } from './RepoManager';
 
 const LENS_OPTIONS: [string, string][] = [
    ['review', 'Review'],
@@ -104,7 +105,14 @@ function NumberField({
    );
 }
 
-export function Settings() {
+export function Settings({
+   repos,
+   orgHidden,
+}: {
+   /** every known repo with its open-PR count, for the repo manager */
+   repos: { name: string; count: number }[];
+   orgHidden: ReadonlySet<string>;
+}) {
    const [open, setOpen] = useState(false);
    const s = useSettings();
    const panelRef = useRef<HTMLDivElement>(null);
@@ -232,7 +240,39 @@ export function Settings() {
                               onChange={ageRotDays => set({ ageRotDays })}
                            />
                         </Field>
+                        <Field
+                           label="Other people's drafts"
+                           hint="Your own drafts always show. This is the default; a session can override it."
+                        >
+                           <Segmented
+                              ariaLabel="drafts default"
+                              value={s.draftsMode}
+                              options={[
+                                 ['mine', 'Hide'],
+                                 ['all', 'Show'],
+                              ]}
+                              onChange={draftsMode => set({ draftsMode })}
+                           />
+                        </Field>
+                        <Field label="Parked (Cryogenic) PRs">
+                           <Segmented
+                              ariaLabel="cryo default"
+                              value={s.showCryo ? 'show' : 'hide'}
+                              options={[
+                                 ['hide', 'Hide'],
+                                 ['show', 'Show'],
+                              ]}
+                              onChange={v => set({ showCryo: v === 'show' })}
+                           />
+                        </Field>
                      </Group>
+
+                     <RepoManagerGroup
+                        repos={repos}
+                        orgHidden={orgHidden}
+                        prefs={s.repoPrefs}
+                        onRepoPref={setRepoPref}
+                     />
 
                      <Group title="Changed since your last look">
                         <Field
