@@ -14,7 +14,7 @@ export function ClosedRow({ pull }: { pull: PullData }) {
             {merged ? 'Merged' : 'Closed'}
          </span>
          <Avatar login={pull.user.login} />
-         <span className="min-w-0 flex-1 truncate text-sm">
+         <span className="min-w-0 flex-1 text-sm break-words">
             <span className="mr-1.5 text-xs text-ink-3">
                {shortRepo(pull.repo)}#{pull.number}
             </span>

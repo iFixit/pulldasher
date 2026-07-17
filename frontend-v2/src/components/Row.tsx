@@ -140,8 +140,9 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          {fresh && <span className="dot-fresh" title="changed since your last look" />}
          {opts.badge === false ? null : <StatusBadge status={pull.status} />}
          <Avatar login={d.user.login} onClick={opts.onPerson} />
-         <span className="min-w-0 flex-1 truncate text-sm">
-            <span className="mr-1.5 text-xs text-ink-3">
+         {/* the title is how a reviewer decides: never truncate it, wrap instead */}
+         <span className="min-w-0 flex-1 text-sm break-words">
+            <span className="mr-1.5 text-xs whitespace-nowrap text-ink-3">
                {shortRepo(d.repo)}#{d.number}
             </span>
             <a
