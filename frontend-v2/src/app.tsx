@@ -298,7 +298,11 @@ export function App() {
                   </button>
                )}
                <span className="flex-1" />
-               <span className="text-xs text-ink-3 tabular-nums">{bots.length} bot PRs</span>
+               {bots.length > 0 && (
+                  <span className="text-xs text-ink-3 tabular-nums">
+                     {n(bots.length, 'bot PR')}
+                  </span>
+               )}
                <Legend />
             </div>
          </header>

@@ -77,14 +77,10 @@ export function Avatar({
    );
 }
 
-export function WeightChip({ weight, known = true }: { weight: Weight; known?: boolean }) {
-   return known ? (
+export function WeightChip({ weight }: { weight: Weight }) {
+   return (
       <span className={`chip-w chip-w-${weight}`} title="estimated review effort, from diff size">
          {weight}
-      </span>
-   ) : (
-      <span className="chip-w chip-w-XS" title="diff size unknown, effort not estimated">
-         ?
       </span>
    );
 }

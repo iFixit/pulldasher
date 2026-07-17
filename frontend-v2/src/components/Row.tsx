@@ -11,6 +11,14 @@ export interface RowOptions {
    pips?: 'cr' | 'qa' | 'both' | 'none';
    /** show the open-Nd flag on starved pulls */
    aging?: boolean;
+   /**
+    * Column mode (Board/Classic): the title owns the space. Drops the cue
+    * line, warning flags, weight chip, and hover actions — a full row's
+    * anatomy crushes titles to two letters inside a 340px column.
+    */
+   compact?: boolean;
+   /** suppress the cue line when the view says the same thing beside the row */
+   cue?: boolean;
    me: string;
    lastSeen: number;
    onPerson?: (login: string) => void;
@@ -117,11 +125,13 @@ function RowActions({ pull }: { pull: DerivedPull }) {
 
 function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const d = pull.data;
+   const compact = opts.compact === true;
    const fresh = Date.parse(d.updated_at) / 1000 > opts.lastSeen;
    const pips = opts.pips ?? 'both';
-   const showWeight = ['needs_cr', 'needs_recr'].includes(pull.status);
+   const showWeight =
+      !compact && pull.sizeKnown && ['needs_cr', 'needs_recr'].includes(pull.status);
    const staleCr = pull.recrBy.length > 0;
-   const line = cue(pull, opts.me);
+   const line = compact || opts.cue === false ? null : cue(pull, opts.me);
 
    return (
       <div
@@ -143,8 +153,8 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
                {d.title}
             </a>
          </span>
-         <RowActions pull={pull} />
-         {isIterating(d) && (
+         {!compact && <RowActions pull={pull} />}
+         {!compact && isIterating(d) && (
             <span className="flag-amber" title="changed in the last 30 min, may still be moving">
                iterating
             </span>
@@ -154,14 +164,19 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
                open {pull.ageDays}d
             </span>
          )}
-         <WarnFlags pull={pull} />
+         {!compact && <WarnFlags pull={pull} />}
+         {compact && pull.qaingBy && pull.status === 'needs_qa' && (
+            <span className="flag-qaing" title={`${pull.qaingBy} is already testing this`}>
+               ◉
+            </span>
+         )}
          {line && (
             <span className="hidden max-w-[300px] flex-none truncate text-xs text-ink-2 min-[860px]:inline">
                {line}
             </span>
          )}
          <span className="flex flex-none items-center gap-2.5 text-xs text-ink-3">
-            {showWeight && <WeightChip weight={pull.weight} known={pull.sizeKnown} />}
+            {showWeight && <WeightChip weight={pull.weight} />}
             {(pips === 'cr' || pips === 'both') && (
                <Pips label="CR" have={pull.crHave} req={d.status.cr_req} stale={staleCr} />
             )}
@@ -191,6 +206,8 @@ export const Row = memo(
       a.opts.badge === b.opts.badge &&
       a.opts.pips === b.opts.pips &&
       a.opts.aging === b.opts.aging &&
+      a.opts.compact === b.opts.compact &&
+      a.opts.cue === b.opts.cue &&
       a.opts.me === b.opts.me &&
       a.opts.lastSeen === b.opts.lastSeen &&
       a.opts.onPerson === b.opts.onPerson

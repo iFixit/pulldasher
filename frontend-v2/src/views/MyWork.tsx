@@ -65,14 +65,23 @@ export function MyWork({
 
    return (
       <>
-         <Lane title="Your move" sub="each of these is waiting on you" pulls={[]} opts={opts}>
+         <Lane
+            title="Your move"
+            sub="each of these is waiting on you"
+            pulls={[]}
+            count={move.length}
+            opts={opts}
+         >
             {move.map(p => (
-               <div key={`${p.data.repo}#${p.data.number}`} className="flex items-stretch">
-                  <span className="flex w-[130px] flex-none items-center border-t border-secondary pl-3.5 text-xs font-semibold text-brand-700">
+               <div
+                  key={`${p.data.repo}#${p.data.number}`}
+                  className="flex items-stretch border-t border-secondary first:border-t-0"
+               >
+                  <span className="flex w-[130px] flex-none items-center pl-3.5 text-xs font-semibold text-brand-700">
                      {yourMove(p)}
                   </span>
                   <span className="min-w-0 flex-1">
-                     <Row pull={p} opts={{ ...opts }} />
+                     <Row pull={p} opts={{ ...opts, cue: false }} />
                   </span>
                </div>
             ))}
@@ -86,15 +95,19 @@ export function MyWork({
             title="Waiting on others"
             sub="who to nudge, and how long it’s been"
             pulls={[]}
+            count={waiting.length}
             opts={opts}
          >
             {waiting.map(p => (
-               <div key={`${p.data.repo}#${p.data.number}`} className="flex items-stretch">
+               <div
+                  key={`${p.data.repo}#${p.data.number}`}
+                  className="flex items-center border-t border-secondary first:border-t-0"
+               >
                   <span className="min-w-0 flex-1">
-                     <Row pull={p} opts={{ ...opts }} />
+                     <Row pull={p} opts={{ ...opts, cue: false }} />
                   </span>
-                  <span className="flex max-w-[280px] flex-none items-center border-t border-secondary pr-3.5 pl-2 text-right text-xs text-ink-2">
-                     {waitingOn(p)}
+                  <span className="w-[280px] flex-none truncate pr-3.5 pl-2 text-right text-xs text-ink-2">
+                     <span title={waitingOn(p)}>{waitingOn(p)}</span>
                   </span>
                </div>
             ))}

@@ -39,31 +39,33 @@ function Column({
    const ordered = ['needs_cr', 'needs_recr'].includes(status) ? crSort(pulls) : pulls;
    return (
       <section className="min-w-0">
-         <h2 className="m-0 mb-2">
+         <h2 className="m-0">
             <button
                type="button"
                aria-expanded={open}
                onClick={() => setOpen(o => !o)}
-               className="flex w-full items-baseline gap-2 border-0 bg-transparent px-0 text-left"
+               className={`flex w-full items-center gap-2 border border-line bg-muted px-4 py-2.5 text-left text-sm font-semibold ${
+                  open ? 'rounded-t-2xl' : 'rounded-2xl'
+               }`}
                title={open ? 'collapse column' : 'expand column'}
             >
                <span
-                  className="h-2 w-2 flex-none self-center rounded-[3px]"
+                  className="h-2 w-2 flex-none rounded-[3px]"
                   style={{ background: STATUS_DOT[status] }}
                />
-               <span className="text-base leading-snug font-semibold">{STATUS_LABEL[status]}</span>
-               <span className="text-xs font-normal text-ink-3">{hint}</span>
+               {STATUS_LABEL[status]}
+               <span className="min-w-0 truncate text-xs font-normal text-ink-3">{hint}</span>
                <span className="flex-1" />
                <span className="text-xs font-normal text-ink-3 tabular-nums">{pulls.length}</span>
             </button>
          </h2>
          {open && (
-            <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+            <div className="overflow-hidden rounded-b-2xl border border-t-0 border-line bg-surface">
                {ordered.map(p => (
                   <Row
                      key={`${p.data.repo}#${p.data.number}`}
                      pull={p}
-                     opts={{ ...opts, badge: false }}
+                     opts={{ ...opts, badge: false, compact: true }}
                   />
                ))}
             </div>

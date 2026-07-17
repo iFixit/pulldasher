@@ -12,6 +12,7 @@ export function Lane({
    title,
    sub,
    pulls,
+   count,
    cap = 10,
    opts,
    children,
@@ -19,6 +20,8 @@ export function Lane({
    title: string;
    sub: string;
    pulls: DerivedPull[];
+   /** header count when rows come in via children instead of pulls */
+   count?: number;
    cap?: number;
    opts: RowOptions;
    /** extra rows rendered inside the container, before the more-line */
@@ -34,7 +37,7 @@ export function Lane({
             <h2 className="m-0 text-base leading-snug font-semibold">{title}</h2>
             <span className="text-xs text-ink-3">{sub}</span>
             <span className="flex-1" />
-            <span className="text-xs text-ink-3 tabular-nums">{pulls.length}</span>
+            <span className="text-xs text-ink-3 tabular-nums">{count ?? pulls.length}</span>
          </div>
          <Rows>
             {children}

@@ -58,7 +58,9 @@ function Column({ title, pulls, opts }: { title: string; pulls: DerivedPull[]; o
                type="button"
                aria-expanded={open}
                onClick={() => setOpen(o => !o)}
-               className="flex w-full items-center gap-2 rounded-t-2xl border border-line bg-muted px-4 py-2.5 text-left text-sm font-semibold"
+               className={`flex w-full items-center gap-2 border border-line bg-muted px-4 py-2.5 text-left text-sm font-semibold ${
+                  open ? 'rounded-t-2xl' : 'rounded-2xl'
+               }`}
                title={open ? 'collapse column' : 'expand column'}
             >
                {title}
@@ -72,7 +74,7 @@ function Column({ title, pulls, opts }: { title: string; pulls: DerivedPull[]; o
                   <Row
                      key={`${p.data.repo}#${p.data.number}`}
                      pull={p}
-                     opts={{ ...opts, badge: false }}
+                     opts={{ ...opts, badge: false, compact: true }}
                   />
                ))}
                {!pulls.length && <div className="px-4 py-3 text-[13px] text-ink-3">none</div>}
