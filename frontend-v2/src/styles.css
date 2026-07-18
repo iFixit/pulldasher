@@ -359,6 +359,26 @@ a:hover {
   animation: draw-check 500ms var(--ease-quint) 200ms backwards;
 }
 
+/* one-shot micro-interactions: a chip popping in, an icon spinning once */
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+.chip-in {
+  animation: chip-in 160ms var(--ease-quint);
+}
+
+@keyframes spin-once {
+  to {
+    rotate: 360deg;
+  }
+}
+.spin-once {
+  animation: spin-once 600ms var(--ease-quart);
+}
+
 @keyframes nod {
   50% {
     scale: 1.25;

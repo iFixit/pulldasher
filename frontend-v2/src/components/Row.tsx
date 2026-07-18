@@ -169,13 +169,14 @@ function RowFlags({ flags }: { flags: Flag[] }) {
 /** Hover/focus actions: copy the branch name, re-fetch from GitHub. */
 function RowActions({ pull }: { pull: DerivedPull }) {
    const [copied, setCopied] = useState(false);
+   const [spinning, setSpinning] = useState(false);
    return (
       <span className="row-actions hidden flex-none items-center gap-1 min-[720px]:inline-flex">
          <button
             type="button"
             aria-label={`copy branch name ${pull.data.head.ref}`}
             title={`copy branch: ${pull.data.head.ref}`}
-            className="rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
+            className="pressable rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
             onClick={() => {
                void navigator.clipboard.writeText(pull.data.head.ref);
                setCopied(true);
@@ -183,7 +184,9 @@ function RowActions({ pull }: { pull: DerivedPull }) {
             }}
          >
             {copied ? (
-               <span style={{ color: 'var(--ok)' }}>copied</span>
+               <span className="chip-in" style={{ color: 'var(--ok)' }}>
+                  copied
+               </span>
             ) : (
                <svg viewBox="0 0 16 16" aria-hidden className="h-3.5 w-3.5 fill-current">
                   <path d="M5 1a1 1 0 0 0-1 1v1H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1a1 1 0 0 0 1-1V4.4L11.6 1H5Zm6 11v1H3V4h1v7a1 1 0 0 0 1 1h6Zm2-2H5V2h5v3h3v5Z" />
@@ -194,10 +197,18 @@ function RowActions({ pull }: { pull: DerivedPull }) {
             type="button"
             aria-label="re-fetch this PR from GitHub"
             title="re-fetch this PR from GitHub"
-            className="rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
-            onClick={() => refreshPull(pull.data.repo, pull.data.number)}
+            className="pressable rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
+            onClick={() => {
+               refreshPull(pull.data.repo, pull.data.number);
+               setSpinning(true);
+               setTimeout(() => setSpinning(false), 600);
+            }}
          >
-            <svg viewBox="0 0 16 16" aria-hidden className="h-3.5 w-3.5 fill-current">
+            <svg
+               viewBox="0 0 16 16"
+               aria-hidden
+               className={`h-3.5 w-3.5 fill-current ${spinning ? 'spin-once' : ''}`}
+            >
                <path d="M8 3a5 5 0 1 0 4.9 6h-1.55A3.5 3.5 0 1 1 8 4.5c.97 0 1.85.4 2.48 1.02L8.5 7.5H13V3l-1.46 1.46A4.98 4.98 0 0 0 8 3Z" />
             </svg>
          </button>
