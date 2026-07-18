@@ -1,3 +1,4 @@
+import type { ButtonHTMLAttributes } from 'react';
 import { ROT_DAYS, STARVE_DAYS, type Status, type Weight, weightRank } from '../model/status';
 import type { Signature } from '../types';
 import { ago, epoch, githubUrl, loginHue, shortRepo, signatureUrl } from '../format';
@@ -49,6 +50,34 @@ export const STATUS_DOT: Record<Status, string> = {
    ci_red: 'var(--bad)',
    draft: 'var(--border)',
 };
+
+/**
+ * The quiet outlined button the settings surfaces share — one definition so a
+ * radius or hover tweak lands everywhere. sm = inline row actions (mute,
+ * unmute), md = standalone panel actions. tone='brand' for the affirmative
+ * variant ("Show for me").
+ */
+export function QuietButton({
+   size = 'sm',
+   tone = 'default',
+   ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+   size?: 'sm' | 'md';
+   tone?: 'default' | 'brand';
+}) {
+   const shape =
+      size === 'sm'
+         ? 'rounded-md px-2 py-0.5 text-xs'
+         : 'inline-flex h-8 items-center rounded-lg px-3 text-[13px]';
+   const text = tone === 'brand' ? 'text-brand' : 'text-ink-2';
+   return (
+      <button
+         type="button"
+         className={`pressable border border-line bg-surface font-medium ${shape} ${text} hover:text-brand`}
+         {...props}
+      />
+   );
+}
 
 export function StatusBadge({ status, inline }: { status: Status; inline?: boolean }) {
    return (

@@ -16,7 +16,7 @@ import {
    togglePrimaryRepo,
    useSettings,
 } from '../settings';
-import { Segmented } from './bits';
+import { QuietButton, Segmented } from './bits';
 import { RepoManagerGroup } from './RepoManager';
 
 const LENS_OPTIONS: [string, string][] = [
@@ -335,13 +335,9 @@ export function Settings({
                                  />
                               </Field>
                               {s.notify && perm === 'granted' && (
-                                 <button
-                                    type="button"
-                                    onClick={() => testNotification()}
-                                    className="pressable inline-flex h-8 w-fit items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink-2 hover:text-brand"
-                                 >
+                                 <QuietButton size="md" onClick={() => testNotification()}>
                                     Send a test notification
-                                 </button>
+                                 </QuietButton>
                               )}
                            </>
                         ) : (
@@ -366,8 +362,8 @@ export function Settings({
                            webhook. The board updates as each one comes back.
                         </span>
                         <div className="flex items-center gap-3">
-                           <button
-                              type="button"
+                           <QuietButton
+                              size="md"
                               onClick={() => {
                                  const n = refreshAll();
                                  setRefreshNote(
@@ -377,10 +373,9 @@ export function Settings({
                                  );
                                  setTimeout(() => setRefreshNote(''), 2500);
                               }}
-                              className="pressable inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink-2 hover:text-brand"
                            >
                               Refresh all
-                           </button>
+                           </QuietButton>
                            {refreshNote && (
                               <span className="text-xs text-ink-3">{refreshNote}</span>
                            )}
@@ -427,17 +422,16 @@ export function Settings({
                            />
                         </Field>
                         <div className="flex items-center gap-3">
-                           <button
-                              type="button"
+                           <QuietButton
+                              size="md"
                               onClick={() => {
                                  markAllSeen();
                                  setSeenNote(true);
                                  setTimeout(() => setSeenNote(false), 1600);
                               }}
-                              className="pressable inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink-2 hover:text-brand"
                            >
                               Mark everything as seen
-                           </button>
+                           </QuietButton>
                            {seenNote && (
                               <span className="text-xs" style={{ color: 'var(--ok)' }}>
                                  done

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { repoState } from '../model/visibility';
+import { QuietButton } from './bits';
 
 export function RepoManagerGroup({
    repos,
@@ -62,13 +63,7 @@ export function RepoManagerGroup({
                   <div className="flex items-center gap-2 text-[13px]" key={repo.name}>
                      <span className="min-w-0 flex-1 truncate">{repo.name}</span>
                      <span className="text-ink-3 tabular-nums">{repo.count}</span>
-                     <button
-                        className="pressable rounded-md border border-line bg-surface px-2 py-0.5 text-xs font-medium text-ink-2 hover:text-brand"
-                        onClick={() => onRepoPref(repo.name, null)}
-                        type="button"
-                     >
-                        Unmute
-                     </button>
+                     <QuietButton onClick={() => onRepoPref(repo.name, null)}>Unmute</QuietButton>
                   </div>
                ))}
             </div>
@@ -83,13 +78,9 @@ export function RepoManagerGroup({
                   <div className="flex items-center gap-2 text-[13px]" key={repo.name}>
                      <span className="min-w-0 flex-1 truncate">{repo.name}</span>
                      <span className="text-ink-3 tabular-nums">{repo.count}</span>
-                     <button
-                        className="pressable rounded-md border border-line bg-surface px-2 py-0.5 text-xs font-medium text-brand hover:text-brand"
-                        onClick={() => onRepoPref(repo.name, 'show')}
-                        type="button"
-                     >
+                     <QuietButton tone="brand" onClick={() => onRepoPref(repo.name, 'show')}>
                         Show for me
-                     </button>
+                     </QuietButton>
                   </div>
                ))}
             </div>
@@ -132,21 +123,13 @@ export function RepoManagerGroup({
                         )}
                         <span className="text-ink-3 tabular-nums">{repo.count}</span>
                         {isUserRevealed && (
-                           <button
-                              className="pressable rounded-md border border-line bg-surface px-2 py-0.5 text-xs font-medium text-ink-2 hover:text-brand"
-                              onClick={() => onRepoPref(repo.name, null)}
-                              type="button"
-                           >
+                           <QuietButton onClick={() => onRepoPref(repo.name, null)}>
                               Reset
-                           </button>
+                           </QuietButton>
                         )}
-                        <button
-                           className="pressable rounded-md border border-line bg-surface px-2 py-0.5 text-xs font-medium text-ink-2 hover:text-brand"
-                           onClick={() => onRepoPref(repo.name, 'mute')}
-                           type="button"
-                        >
+                        <QuietButton onClick={() => onRepoPref(repo.name, 'mute')}>
                            Mute
-                        </button>
+                        </QuietButton>
                      </div>
                   );
                })}
