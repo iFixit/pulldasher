@@ -38,6 +38,11 @@ export interface Settings {
     * real stall: surface "Find a QA-er" on your own PR as a home to-do, not a
     * My-work afterthought. Off leaves getting QA in My work only. */
    selfReview: boolean;
+   /** the repos you actually review, so the review queue leads with them and
+    * folds the rest away. Repo relevance is per-person (a web dev and a
+    * firmware dev share a monorepo but little else). Empty = infer from the
+    * repos where you've authored or stamped on the current board. */
+   primaryRepos: string[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -54,6 +59,7 @@ export const DEFAULT_SETTINGS: Settings = {
    notifySound: false,
    laneCap: 10,
    selfReview: true,
+   primaryRepos: [],
 };
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
@@ -73,6 +79,13 @@ export function setRepoPref(repo: string, pref: 'mute' | 'show' | null) {
    if (pref == null) delete next[repo];
    else next[repo] = pref;
    setSettings({ repoPrefs: next });
+}
+
+/** Add or remove a repo from your primary (actively-reviewed) set. */
+export function togglePrimaryRepo(repo: string, primary: boolean) {
+   const cur = store.get().primaryRepos;
+   const next = primary ? [...new Set([...cur, repo])] : cur.filter(r => r !== repo);
+   setSettings({ primaryRepos: next });
 }
 
 export function useSettings(): Settings {

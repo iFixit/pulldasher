@@ -29,8 +29,22 @@ export function Review({
    opts: RowOptions;
 }) {
    const me = opts.me;
-   const { selfReview } = useSettings();
+   const { selfReview, primaryRepos } = useSettings();
    const others = pulls.filter(p => p.data.user.login !== me);
+
+   // Repo relevance is per-person: a web dev and a firmware dev share the
+   // monorepo but little else. Your primary repos are the ones you set, or —
+   // until you set any — the ones you're demonstrably in (authored or stamped
+   // on the current board). An empty set means we can't tell, so treat every
+   // repo as primary and fall back to one flat queue.
+   const primarySet = primaryRepos.length
+      ? new Set(primaryRepos)
+      : new Set(
+           pulls
+              .filter(p => p.data.user.login === me || p.crBy.includes(me) || p.qaBy.includes(me))
+              .map(p => p.data.repo)
+        );
+   const isPrimaryRepo = (repo: string) => primarySet.size === 0 || primarySet.has(repo);
 
    // 1. Yours to do: strictly your verbs. The earlier "Act now" lesson still
    //    binds — padding this with other people's jobs made it noise — but
@@ -69,7 +83,12 @@ export function Review({
          (p.status === 'needs_cr' || (p.status === 'needs_recr' && !p.recrBy.includes(me)))
    );
    const aged = crPool.filter(p => p.starved).sort((a, b) => b.starveScore - a.starveScore);
-   const queue = crSort(crPool.filter(p => !p.starved));
+   // your review queue leads with your repos; everything else folds into "other
+   // repos" so it's reachable but not in the way. Starvation stays cross-repo
+   // (below) — the fairness backstop is deliberately everyone's job.
+   const reviewable = crSort(crPool.filter(p => !p.starved));
+   const queue = reviewable.filter(p => isPrimaryRepo(p.data.repo));
+   const queueOther = reviewable.filter(p => !isPrimaryRepo(p.data.repo));
 
    // Ready-to-merge is the author's button, not the reviewer's job: a count
    // in the rest group, not a lane at the top.
@@ -157,7 +176,13 @@ export function Review({
             cap={8}
             opts={opts}
          />
-         <Lane title="Review queue" pulls={queue} cap={9} opts={opts} />
+         <Lane
+            title="Review queue"
+            sub={queueOther.length ? 'in your repos' : undefined}
+            pulls={queue}
+            cap={9}
+            opts={opts}
+         />
          <Lane
             title="Aging without full review"
             pulls={aged}
@@ -172,6 +197,14 @@ export function Review({
             opts={opts}
          />
          <RestGroup title="The rest of the board">
+            <Fold
+               dot={STATUS_DOT.needs_cr}
+               count={queueOther.length}
+               label="to review in other repos"
+               hint="outside your primary repos"
+            >
+               <FoldRows list={queueOther} opts={opts} />
+            </Fold>
             <Fold
                dot={STATUS_DOT.ready}
                count={ready.length}
