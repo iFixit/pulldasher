@@ -70,8 +70,6 @@ export interface DerivedPull {
    /** epoch secs of the invalidating push (head CI start proxy); null if unknown */
    headPushedAt: number | null;
    ageDays: number;
-   /** days since updated_at — the activity clock, vs ageDays' open clock */
-   idleDays: number;
    /** epoch secs the last required sign-off landed; null until fully signed off */
    signedOffAt: number | null;
    /** CR-incomplete past STARVE_DAYS — including half-reviewed and stale-CR rot */
@@ -230,9 +228,7 @@ export function derive(
    else status = 'ready';
 
    const created = Date.parse(pull.created_at) / 1000;
-   const updated = Date.parse(pull.updated_at) / 1000;
    const ageDays = Math.max(0, Math.floor((now - created) / 86400));
-   const idleDays = Math.max(0, Math.floor((now - updated) / 86400));
    // an org weight label is authoritative (deterministic, per-file-weighted,
    // versioned with the labeller) and overrides the diff-size guess. It also
    // counts as a known size for the sort, even when adds/dels are off the wire.
@@ -267,7 +263,6 @@ export function derive(
       reqaBy: staleQa,
       headPushedAt: headPushedAt(pull),
       ageDays,
-      idleDays,
       signedOffAt,
       starved,
       starveScore: starved ? ageDays * Math.max(size, 1) : 0,

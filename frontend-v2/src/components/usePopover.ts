@@ -82,5 +82,5 @@ export function usePopover<Panel extends HTMLElement, Trigger extends HTMLElemen
    useEffect(() => clearClose, []);
 
    const hoverProps = opts?.hover ? { onMouseEnter, onMouseLeave } : {};
-   return { open, setOpen, toggle, rootRef, panelRef, triggerRef, hoverProps };
+   return { open, toggle, rootRef, panelRef, triggerRef, hoverProps };
 }

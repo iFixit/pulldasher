@@ -75,8 +75,9 @@ export interface PullData {
    head: { ref: string; sha: string; repo: { owner: { login: string } } };
    base: { ref: string };
    user: { login: string };
-   cr_req: number;
-   qa_req: number;
+   // the wire also sends top-level cr_req/qa_req twins, but status.cr_req/
+   // qa_req are the ones every consumer reads — typing one copy prevents
+   // reading the wrong one
    status: {
       cr_req: number;
       qa_req: number;

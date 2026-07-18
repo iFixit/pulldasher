@@ -52,8 +52,6 @@ function pull(overrides: Partial<PullData> = {}): PullData {
       head: { ref: 'branch', sha: 'abc', repo: { owner: { login: 'iFixit' } } },
       base: { ref: 'master' },
       user: { login: 'author' },
-      cr_req: 1,
-      qa_req: 1,
       status: {
          cr_req: 1,
          qa_req: 1,
