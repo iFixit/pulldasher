@@ -1,4 +1,4 @@
-import type { DerivedPull, Status } from '../model/status';
+import { type DerivedPull, qaDone, type Status } from '../model/status';
 import { pullKey } from '../format';
 import { crSort } from '../model/sort';
 import { authorMove, reviewerMove } from '../model/actions';
@@ -6,7 +6,7 @@ import { useSettings } from '../settings';
 import { isFresh } from '../store';
 import type { PullData } from '../types';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
-import { Fold, FoldRows, Lane, RestGroup, Truncated } from '../components/Lane';
+import { Fold, FoldRows, Lane, laneShown, RestGroup, Truncated } from '../components/Lane';
 import { Row, type RowOptions } from '../components/Row';
 import { ClosedRow } from '../components/ClosedRow';
 
@@ -102,7 +102,7 @@ export function Review({
    const needsQa = others
       .filter(
          p =>
-            p.qaHave < p.data.status.qa_req &&
+            !qaDone(p) &&
             ['success', 'none'].includes(p.ci) &&
             !p.conflict &&
             !['draft', 'dev_block'].includes(p.status) &&
@@ -127,7 +127,7 @@ export function Review({
    );
    // QA's symmetric case: you gave a QA stamp but qa_req wants more. Without
    // this the PR sits in "Needs QA" as if you never touched it.
-   const qaStamped = others.filter(p => p.qaHave < p.data.status.qa_req && p.qaBy.includes(me));
+   const qaStamped = others.filter(p => !qaDone(p) && p.qaBy.includes(me));
    const byStatus = (s: Status) => others.filter(p => p.status === s);
    const devBlocked = byStatus('dev_block');
    const deployHeld = byStatus('deploy_block');
@@ -159,10 +159,7 @@ export function Review({
       <>
          {todo.length > 0 && (
             <Lane title="Yours to do" pulls={[]} count={todo.length} opts={opts}>
-               <Truncated
-                  cap={opts.laneCap === 0 ? Number.POSITIVE_INFINITY : (opts.laneCap ?? 10)}
-                  id="lane:Yours to do"
-               >
+               <Truncated cap={laneShown(10, opts)} id="lane:Yours to do">
                   {todo.map(({ p }) => (
                      <Row key={pullKey(p.data)} pull={p} opts={opts} />
                   ))}

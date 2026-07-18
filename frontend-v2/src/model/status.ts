@@ -207,8 +207,8 @@ export function derive(
    // a lifted block deactivates its signature, same as a stale CR stamp
    const devBlockedBy = activeUsers(st.dev_block);
    const deployBlockedBy = activeUsers(st.deploy_block);
-   const crMet = crHave >= st.cr_req;
-   const qaMet = qaHave >= st.qa_req;
+   const crMet = crDone({ crHave, data: pull });
+   const qaMet = qaDone({ qaHave, data: pull });
 
    const conflict = pull.mergeable === false;
    const dependent = !['main', 'master'].includes(pull.base.ref);

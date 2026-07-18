@@ -37,6 +37,17 @@ function GroupHeader({
    );
 }
 
+/**
+ * Rows a lane shows before folding into "+N more": the user's lane-length
+ * setting (0 = no cap) over the lane's default, with compact density packing
+ * ~50% more rows per fold. The one cap convention — any lane that can't use
+ * <Lane pulls> (custom children) must still cap through this.
+ */
+export function laneShown(defaultCap: number, opts: RowOptions): number {
+   const base = opts.laneCap ?? defaultCap;
+   return base === 0 ? Number.POSITIVE_INFINITY : opts.compact ? Math.ceil(base * 1.5) : base;
+}
+
 export function Lane({
    title,
    sub,
@@ -57,11 +68,7 @@ export function Lane({
    children?: ReactNode;
 }) {
    if (!pulls.length && !children) return null;
-   // the user's lane-length setting (0 = no cap) overrides the lane's default;
-   // compact packs ~50% more rows per screen, so show more before folding
-   const base = opts.laneCap ?? cap;
-   const shown =
-      base === 0 ? Number.POSITIVE_INFINITY : opts.compact ? Math.ceil(base * 1.5) : base;
+   const shown = laneShown(cap, opts);
    return (
       <section className={opts.compact ? 'mb-4' : 'mb-7'}>
          <GroupHeader
