@@ -140,7 +140,10 @@ export function Review({
       <>
          {todo.length > 0 && (
             <Lane title="Yours to do" pulls={[]} count={todo.length} opts={opts}>
-               <Truncated cap={10} id="lane:Yours to do">
+               <Truncated
+                  cap={opts.laneCap === 0 ? Number.POSITIVE_INFINITY : (opts.laneCap ?? 10)}
+                  id="lane:Yours to do"
+               >
                   {todo.map(({ p }) => (
                      <Row key={pullKey(p.data)} pull={p} opts={opts} />
                   ))}

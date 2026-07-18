@@ -392,6 +392,21 @@ export function App() {
          .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
    }, [pulls, hiddenRepos, settings.repoPrefs]);
 
+   // "recently shipped" must follow the same scope as the open lanes above it —
+   // narrowing to one repo or author shouldn't still show the whole org's
+   // merges. Closed PRs are PullData (no derived cryo/reveal), so apply the
+   // durable repo visibility plus the active repo/author scope.
+   const scopedClosed = useMemo(() => {
+      let out = closed;
+      if (!showAll)
+         out = out.filter(
+            p => !(repoHidden(p.repo, hiddenRepos, settings.repoPrefs) && !revealedRepo(p.repo))
+         );
+      if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.repo));
+      if (scope.authors.length) out = out.filter(p => scope.authors.includes(p.user.login));
+      return out;
+   }, [closed, showAll, hiddenRepos, settings.repoPrefs, revealedRepo, scope]);
+
    const cryoCount = pulls.filter(p => p.cryo).length;
 
    const isScoped = scope.repos.length || scope.authors.length || query;
@@ -582,7 +597,7 @@ export function App() {
                </div>
             )}
             {initialized && lens === 'review' && (
-               <Review pulls={humans} bots={bots} closed={closed} opts={rowOpts} />
+               <Review pulls={humans} bots={bots} closed={scopedClosed} opts={rowOpts} />
             )}
             {initialized && lens === 'mine' && (
                <MyWork pulls={humans} closed={closed} opts={rowOpts} />
