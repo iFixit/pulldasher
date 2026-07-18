@@ -59,10 +59,14 @@ export function Review({
    // 2. Review queue: best next review first (leverage + age + weight).
    //    Includes pulls waiting on someone else's re-stamp — a fresh CR from
    //    you counts there too (the stale pip marks them).
+   // exclude PRs you already hold a live CR stamp on — including a needs_recr
+   // whose re-stamp is owed by someone else, not you. You reviewed this head;
+   // being asked to review it again because a different reviewer's stamp went
+   // stale is the re-review gap that put already-done work back in your queue.
    const crPool = others.filter(
       p =>
-         (p.status === 'needs_cr' && !p.crBy.includes(me)) ||
-         (p.status === 'needs_recr' && !p.recrBy.includes(me))
+         !p.crBy.includes(me) &&
+         (p.status === 'needs_cr' || (p.status === 'needs_recr' && !p.recrBy.includes(me)))
    );
    const aged = crPool.filter(p => p.starved).sort((a, b) => b.starveScore - a.starveScore);
    const queue = crSort(crPool.filter(p => !p.starved));
@@ -83,8 +87,10 @@ export function Review({
             ['success', 'none'].includes(p.ci) &&
             !p.conflict &&
             !['draft', 'dev_block'].includes(p.status) &&
-            // your in-flight QA and owed re-QAs live in "Yours to do"
+            // your in-flight QA and owed re-QAs live in "Yours to do"; a QA
+            // stamp you already gave lives in the "QA'd by you" fold
             p.qaingBy !== me &&
+            !p.qaBy.includes(me) &&
             !(p.status === 'needs_qa' && p.reqaBy.includes(me))
       )
       .sort(
@@ -94,7 +100,15 @@ export function Review({
             b.ageDays - a.ageDays
       );
 
-   const stamped = others.filter(p => p.status === 'needs_cr' && p.crBy.includes(me));
+   // your live CR stamp is in, the PR just isn't fully signed off yet (another
+   // reviewer owes a stamp, or a re-CR). Covers needs_recr too, so a PR you
+   // reviewed doesn't vanish once someone else's stamp goes stale.
+   const stamped = others.filter(
+      p => (p.status === 'needs_cr' || p.status === 'needs_recr') && p.crBy.includes(me)
+   );
+   // QA's symmetric case: you gave a QA stamp but qa_req wants more. Without
+   // this the PR sits in "Needs QA" as if you never touched it.
+   const qaStamped = others.filter(p => p.qaHave < p.data.status.qa_req && p.qaBy.includes(me));
    const byStatus = (s: Status) => others.filter(p => p.status === s);
    const devBlocked = byStatus('dev_block');
    const deployHeld = byStatus('deploy_block');
@@ -170,6 +184,14 @@ export function Review({
                hint="waiting on another reviewer"
             >
                <FoldRows list={stamped} opts={opts} />
+            </Fold>
+            <Fold
+               dot="var(--ok)"
+               count={qaStamped.length}
+               label="QA'd by you"
+               hint="waiting on another tester"
+            >
+               <FoldRows list={qaStamped} opts={opts} />
             </Fold>
             <Fold dot={STATUS_DOT.dev_block} count={devBlocked.length} label="dev blocked">
                <FoldRows list={devBlocked} opts={opts} />
