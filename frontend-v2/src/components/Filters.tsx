@@ -139,6 +139,7 @@ export function Filters({
             />
          )}
          <span
+            title={name}
             className={`min-w-0 flex-1 truncate text-[13px] ${state === 'shown' ? '' : 'text-ink-3'}`}
          >
             {shortRepo(name)}
@@ -196,7 +197,8 @@ export function Filters({
                      ? 'border-brand bg-brand-50 text-brand-700'
                      : 'border-line bg-surface text-ink-2 hover:text-brand'
                }`}
-               title="filter and hide repos, people, and drafts"
+               title={summary}
+               aria-label="filter and hide repos, people, and drafts"
             >
                <svg viewBox="0 0 16 16" aria-hidden className="h-3.5 w-3.5 flex-none fill-current">
                   <path d="M1.5 3h13a.5.5 0 0 1 .4.8l-4.9 6v3.7a.5.5 0 0 1-.7.45l-2-1a.5.5 0 0 1-.3-.45V9.8l-4.9-6a.5.5 0 0 1 .4-.8Z" />
@@ -301,7 +303,7 @@ export function Filters({
                            }
                         />
                         <Avatar login={login} size={18} />
-                        <span className="min-w-0 flex-1 truncate">{login}</span>
+                        <span title={login} className="min-w-0 flex-1 truncate">{login}</span>
                         <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
                      </label>
                   ))}

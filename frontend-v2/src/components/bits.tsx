@@ -339,8 +339,10 @@ export function SigPips({
          side="right"
          hover
          rootClass="relative inline-flex"
-         width="w-max min-w-[190px]"
-         panelClass="p-2 text-xs whitespace-nowrap"
+         // bounded: an unbounded w-max panel + a long login could grow past
+         // the viewport's left edge (side=right anchors the right edge)
+         width="w-max min-w-[190px] max-w-[300px]"
+         panelClass="p-2 text-xs"
          trigger={t => (
             <button
                {...t}
@@ -365,9 +367,9 @@ export function SigPips({
                className="flex items-center gap-1.5 rounded px-1 py-[3px] text-ink-2 hover:bg-muted"
             >
                <Avatar login={s.data.user.login} size={16} />
-               <b className="font-medium text-ink">{s.data.user.login}</b>
+               <b className="min-w-0 font-medium break-all text-ink">{s.data.user.login}</b>
                {s.data.user.login === me && <span className="text-ink-3">(you)</span>}
-               <span className="ml-auto pl-3 text-ink-3 tabular-nums">
+               <span className="ml-auto pl-3 whitespace-nowrap text-ink-3 tabular-nums">
                   {ago(epoch(s.data.created_at))} ago
                </span>
                {s.data.active ? (
