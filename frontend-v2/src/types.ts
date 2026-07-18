@@ -86,6 +86,9 @@ export interface PullData {
       dev_block: Signature[];
       deploy_block: Signature[];
       commit_statuses: CommitStatus[];
+      /** discussion aggregates; absent on servers older than the field */
+      comment_count?: number;
+      last_comment_at?: DateString | null;
    };
    labels: Label[];
    participants: string[];

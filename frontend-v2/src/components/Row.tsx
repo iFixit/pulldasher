@@ -84,13 +84,27 @@ function rowFlags(pull: DerivedPull, showIterating: boolean, aging: boolean): Fl
          label: 'external',
          detail: 'Blocked on something outside this repo.',
       });
-   if (aging)
+   if (aging) {
+      // the server ships discussion aggregates (newer servers only): an aging
+      // PR nobody has even discussed is a different neglect than one debated
+      // for a week — say which this is
+      const commentCount = p.data.status.comment_count;
+      const lastCommentAt = p.data.status.last_comment_at;
+      const quiet =
+         commentCount == null
+            ? ''
+            : commentCount === 0
+              ? ' No discussion yet.'
+              : lastCommentAt
+                ? ` Last comment ${ago(epoch(lastCommentAt))} ago.`
+                : '';
       flags.push({
          key: 'aging',
          tone: 'warn',
          label: `open ${p.ageDays}d`,
-         detail: `Open ${p.ageDays} days without full CR (${p.crHave} of ${p.data.status.cr_req}).`,
+         detail: `Open ${p.ageDays} days without full CR (${p.crHave} of ${p.data.status.cr_req}).${quiet}`,
       });
+   }
    if (p.dependent && p.status !== 'unmergeable')
       flags.push({
          key: 'stacked',
