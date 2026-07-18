@@ -162,7 +162,8 @@ a:hover {
   /* sign-off pips: one square per required stamp. Filled = a live stamp,
      amber = a stamp a push invalidated (a re-stamp is owed), hollow = still
      needed. This is the whole ledger vocabulary — no ✓, no ⊘. */
-  .pip { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+  .pip { width: 8px; height: 8px; border-radius: 2px; flex: none;
+    transition: background-color 240ms var(--ease-quint), box-shadow 240ms var(--ease-quint); }
   .pip-on { background: var(--ok); }
   .pip-stale { background: var(--warn); }
   .pip-off { background: transparent; box-shadow: inset 0 0 0 1.5px var(--border); }

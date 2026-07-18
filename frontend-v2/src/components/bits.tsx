@@ -251,14 +251,15 @@ export function Pips({
                   mine || owedByMe ? 'pip-mine' : ''
                }`}
             >
-               {Array.from({ length: on }, (_, i) => (
-                  <span key={`on${i}`} className="pip pip-on" />
-               ))}
-               {Array.from({ length: stale }, (_, i) => (
-                  <span key={`st${i}`} className="pip pip-stale" />
-               ))}
-               {Array.from({ length: off }, (_, i) => (
-                  <span key={`off${i}`} className="pip pip-off" />
+               {/* keyed by fixed slot, not by fill kind, so a pip that flips
+                   off→on (stamp lands) or on→stale (a push invalidates it) is
+                   the same node easing its color, not a fresh mount */}
+               {[
+                  ...Array.from({ length: on }, () => 'on'),
+                  ...Array.from({ length: stale }, () => 'stale'),
+                  ...Array.from({ length: off }, () => 'off'),
+               ].map((kind, i) => (
+                  <span key={i} className={`pip pip-${kind}`} />
                ))}
             </span>
          )}
