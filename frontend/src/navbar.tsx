@@ -215,6 +215,16 @@ export function Navbar(props: NavBarProps) {
                 </Text>
               </HStack>
             </Box>
+            <Box
+              as="a"
+              href="/v2/"
+              title="Try the new board"
+              fontSize="sm"
+              opacity={0.7}
+              _hover={{ opacity: 1, textDecoration: "underline" }}
+            >
+              v2
+            </Box>
           </HStack>
           <SearchInput />
         </Box>
