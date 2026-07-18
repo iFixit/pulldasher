@@ -9,7 +9,13 @@ import {
    unlockSound,
 } from '../notifications';
 import { markAllSeen, refreshAll } from '../store';
-import { type Settings as SettingsShape, setRepoPref, setSettings, useSettings } from '../settings';
+import {
+   type Settings as SettingsShape,
+   setRepoPref,
+   setSettings,
+   togglePrimaryRepo,
+   useSettings,
+} from '../settings';
 import { Segmented } from './bits';
 import { RepoManagerGroup } from './RepoManager';
 
@@ -350,6 +356,8 @@ export function Settings({
                         orgHidden={orgHidden}
                         prefs={s.repoPrefs}
                         onRepoPref={setRepoPref}
+                        primaryRepos={s.primaryRepos}
+                        onPrimary={togglePrimaryRepo}
                      />
 
                      <Group title="Data">

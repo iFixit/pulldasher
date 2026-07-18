@@ -6,6 +6,8 @@ export function RepoManagerGroup({
    orgHidden,
    prefs,
    onRepoPref,
+   primaryRepos,
+   onPrimary,
 }: {
    /** every known repo with its open-PR count, sorted however the caller likes */
    repos: { name: string; count: number }[];
@@ -15,7 +17,12 @@ export function RepoManagerGroup({
    prefs: Record<string, 'mute' | 'show'>;
    /** set or clear one repo's override; null follows the org default */
    onRepoPref: (repo: string, pref: 'mute' | 'show' | null) => void;
+   /** the repos you actively review (lead your review queue); empty = inferred */
+   primaryRepos: string[];
+   /** add/remove a repo from your primary set */
+   onPrimary: (repo: string, primary: boolean) => void;
 }) {
+   const primary = new Set(primaryRepos);
    const [query, setQuery] = useState('');
 
    const needle = query.trim().toLowerCase();
@@ -93,10 +100,32 @@ export function RepoManagerGroup({
                <div className="mt-2 mb-1 text-[11px] font-semibold text-ink-3">
                   On your board <span className="tabular-nums">({shown.length})</span>
                </div>
+               <div className="mb-1.5 text-[11px] text-ink-3">
+                  {primary.size > 0
+                     ? 'Starred repos lead your review queue; the rest fold into “other repos.”'
+                     : 'Star the repos you review to lead your queue with them. Until you do, they’re inferred from where you’ve authored or stamped.'}
+               </div>
                {shown.map(repo => {
                   const isUserRevealed = orgHidden.has(repo.name) && prefs[repo.name] === 'show';
+                  const isPrimary = primary.has(repo.name);
                   return (
                      <div className="flex items-center gap-2 text-[13px]" key={repo.name}>
+                        <button
+                           className={`pressable rounded-md px-1 text-sm leading-none ${
+                              isPrimary ? 'text-brand' : 'text-ink-3 hover:text-brand'
+                           }`}
+                           onClick={() => onPrimary(repo.name, !isPrimary)}
+                           type="button"
+                           aria-pressed={isPrimary}
+                           aria-label={
+                              isPrimary
+                                 ? `remove ${repo.name} from your primary repos`
+                                 : `mark ${repo.name} a primary repo`
+                           }
+                           title={isPrimary ? 'a repo you review' : 'mark a repo you review'}
+                        >
+                           {isPrimary ? '★' : '☆'}
+                        </button>
                         <span className="min-w-0 flex-1 truncate">{repo.name}</span>
                         {isUserRevealed && (
                            <span className="text-[11px] text-ink-3">org-hidden · showing</span>
