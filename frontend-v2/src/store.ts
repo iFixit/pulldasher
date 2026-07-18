@@ -27,8 +27,9 @@ export interface Snapshot {
    lastPayloadAt: number;
    /** epoch secs of the last-seen marker (previous visit's departure) */
    lastSeen: number;
-   /** pull keys opened this session: their fresh dots are cleared */
-   acked: ReadonlySet<string>;
+   /** pull key → epoch secs it was opened: clears the fresh dot until the
+    * pull changes again. Persisted per-browser. */
+   acked: Readonly<Record<string, number>>;
 }
 
 const LAST_SEEN_KEY = 'pd2.lastSeen';
@@ -81,22 +82,39 @@ export function markAllSeen() {
    schedulePublish();
 }
 
-// Per-row acknowledgment: opening a PR clears its fresh dot for this session
-// without waiting for departure to stamp the whole board.
-const acked = new Set<string>();
+// Per-row acknowledgment: opening a PR clears its fresh dot. Persisted with
+// the TIME of the ack, not just the key, so a reload doesn't resurrect dots
+// you already cleared — while a pull that changes again after the ack earns
+// its dot back (the session-Set version hid later changes too).
+const ACKED_KEY = 'pd2.acked';
+let acked: Record<string, number> = {};
+try {
+   acked = JSON.parse(readStorage(ACKED_KEY) ?? '{}') ?? {};
+} catch {
+   acked = {};
+}
+const saveAcked = () => {
+   // an ack older than the board's last-seen stamp can never affect a dot
+   // (updated_at > lastSeen implies updated_at > that ack) — prune, so the
+   // blob doesn't grow forever
+   for (const [k, at] of Object.entries(acked)) if (at < lastSeen) delete acked[k];
+   writeStorage(ACKED_KEY, JSON.stringify(acked));
+};
 export function ackPull(key: string) {
-   if (acked.has(key)) return;
-   acked.add(key);
+   acked[key] = Date.now() / 1000;
+   saveAcked();
    schedulePublish();
 }
 
-/** The one fresh predicate: changed since your last look and not yet opened. */
+/** The one fresh predicate: changed since your last look AND since you last
+ * opened it. */
 export function isFresh(
    d: Pick<PullData, 'repo' | 'number' | 'updated_at'>,
    lastSeenAt: number,
-   ackedKeys: ReadonlySet<string>
+   ackedAt: Readonly<Record<string, number>>
 ) {
-   return epoch(d.updated_at) > lastSeenAt && !ackedKeys.has(`${d.repo}#${d.number}`);
+   const updated = epoch(d.updated_at);
+   return updated > lastSeenAt && updated > (ackedAt[`${d.repo}#${d.number}`] ?? 0);
 }
 
 let snapshot: Snapshot = {
@@ -109,7 +127,7 @@ let snapshot: Snapshot = {
    authFailed,
    lastPayloadAt,
    lastSeen,
-   acked: new Set(acked),
+   acked: { ...acked },
 };
 
 // derive() is pure per (pull, spec, warnDays): cache on reference identity so
@@ -164,7 +182,7 @@ function publish() {
       authFailed,
       lastPayloadAt,
       lastSeen,
-      acked: new Set(acked),
+      acked: { ...acked },
    };
    for (const fn of listeners) fn();
 }

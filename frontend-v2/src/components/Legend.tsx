@@ -104,7 +104,7 @@ export function Legend() {
                <FreshTag kind="new" />
                <FreshTag kind="updated" />
             </span>,
-            'changed since your last visit: “new” is a brand-new PR, “updated” an existing one that changed (tracked while you’re away). Opening one clears it'
+            'changed since your last visit: “new” is a brand-new PR, “updated” an existing one that changed (tracked while you’re away). Opening one clears it until it changes again'
          )}
          {item(
             <svg viewBox="0 0 16 16" aria-hidden className="h-4 w-4 fill-ink-3">

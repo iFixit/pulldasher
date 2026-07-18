@@ -18,8 +18,9 @@ export interface RowOptions {
    laneCap?: number;
    me: string;
    lastSeen: number;
-   /** pull keys opened this session (their fresh dots are cleared) */
-   acked: ReadonlySet<string>;
+   /** pull key → epoch secs it was opened (clears the fresh dot until the
+    * pull changes again; persisted per-browser) */
+   acked: Readonly<Record<string, number>>;
    onPerson?: (login: string) => void;
    /** age-color thresholds from user settings (fall back to the model's) */
    ageWarnDays?: number;
