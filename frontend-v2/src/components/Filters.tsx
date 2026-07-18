@@ -151,7 +151,7 @@ export function Filters({
                onClick={() => setRepoPref(name, null)}
                className="rounded border-0 bg-transparent px-1 text-[11px] text-ink-3 hover:text-brand"
             >
-               unmute
+               Unmute
             </button>
          ) : state === 'org-hidden' ? (
             <button
@@ -159,7 +159,7 @@ export function Filters({
                onClick={() => setRepoPref(name, 'show')}
                className="rounded border-0 bg-transparent px-1 text-[11px] text-brand hover:underline"
             >
-               show
+               Show
             </button>
          ) : (
             <button
@@ -168,7 +168,7 @@ export function Filters({
                title={`mute ${shortRepo(name)} — hide it on your board`}
                className="rounded border-0 bg-transparent px-1 text-[11px] text-ink-3 hover:text-brand"
             >
-               mute
+               Mute
             </button>
          )}
       </div>

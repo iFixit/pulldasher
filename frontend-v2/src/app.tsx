@@ -544,7 +544,7 @@ export function App() {
                      ref={searchRef}
                      type="search"
                      aria-label="Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x"
-                     placeholder="filter (press /)"
+                     placeholder="Filter (press /)"
                      title="text, #number, label:x, status:x, older:5, repo:x, author:x"
                      value={query}
                      onChange={e => setQuery(e.target.value)}

@@ -16,7 +16,7 @@ export const STATUS_LABEL: Record<Status, string> = {
    // now says whose move it is
    dev_block: 'Dev blocked',
    deploy_block: 'Deploy block',
-   unmergeable: "Can't merge",
+   unmergeable: 'Can’t merge',
    ci_red: 'CI red',
    draft: 'Draft',
 };

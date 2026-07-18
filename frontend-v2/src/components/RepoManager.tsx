@@ -56,7 +56,7 @@ export function RepoManagerGroup({
 
          {muted.length > 0 && (
             <div>
-               <div className="mt-0 mb-1 text-[11px] font-semibold text-ink-3">
+               <div className="mt-0 mb-1 text-xs font-semibold text-ink-3">
                   Muted by you <span className="tabular-nums">({muted.length})</span>
                </div>
                {muted.map(repo => (
@@ -71,7 +71,7 @@ export function RepoManagerGroup({
 
          {orgHiddenRepos.length > 0 && (
             <div>
-               <div className="mt-2 mb-1 text-[11px] font-semibold text-ink-3">
+               <div className="mt-2 mb-1 text-xs font-semibold text-ink-3">
                   Hidden by the org <span className="tabular-nums">({orgHiddenRepos.length})</span>
                </div>
                {orgHiddenRepos.map(repo => (
@@ -88,7 +88,7 @@ export function RepoManagerGroup({
 
          {shown.length > 0 && (
             <div>
-               <div className="mt-2 mb-1 text-[11px] font-semibold text-ink-3">
+               <div className="mt-2 mb-1 text-xs font-semibold text-ink-3">
                   On your board <span className="tabular-nums">({shown.length})</span>
                </div>
                <div className="mb-1.5 text-[11px] text-ink-3">

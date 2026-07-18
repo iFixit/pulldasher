@@ -151,7 +151,7 @@ export function Truncated({
             <button
                type="button"
                onClick={expand}
-               className="block w-full border-t border-secondary bg-muted/50 px-3.5 py-[7px] text-left text-xs font-medium text-ink-2 hover:text-brand"
+               className="block w-full border-t border-secondary bg-muted/50 px-3.5 py-[9px] text-left text-xs font-medium text-ink-2 hover:text-brand"
             >
                + {more} {label}
             </button>

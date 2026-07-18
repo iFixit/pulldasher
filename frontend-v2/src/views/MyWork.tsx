@@ -63,7 +63,12 @@ export function MyWork({
          </Lane>
          {shipped.length > 0 && (
             <RestGroup>
-               <Fold dot="var(--ok)" count={shipped.length} label="shipped in the last 14 days">
+               <Fold
+                  dot="var(--ok)"
+                  count={shipped.length}
+                  label="recently shipped"
+                  hint="merged or closed in the last 14 days"
+               >
                   <Truncated>
                      {shipped.map(p => (
                         <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />

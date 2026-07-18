@@ -96,7 +96,7 @@ export function Legend() {
             'done, deliberately kept from shipping: ask who blocked it'
          )}
          {item(
-            <span className="badge badge-blocked">Can't merge</span>,
+            <span className="badge badge-hold">Can’t merge</span>,
             'signed off but conflicted or on an unmerged parent: author rebases'
          )}
          {item(

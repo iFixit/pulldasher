@@ -63,7 +63,7 @@ function Column({
    defaultOpen?: boolean;
 }) {
    return (
-      <BoardColumn count={pulls.length} header={title} defaultOpen={defaultOpen} empty="none">
+      <BoardColumn count={pulls.length} header={title} defaultOpen={defaultOpen} empty="None">
          {/* a 60-row CR column is a 3600px scroll: cap it, keep the count honest */}
          <Truncated cap={15} id={`classic:${title}`}>
             {pulls.map(p => (
@@ -100,7 +100,7 @@ function ClosedCard({ pull }: { pull: PullData }) {
 function ClosedColumn({ pulls }: { pulls: PullData[] }) {
    const ordered = [...pulls].sort((a, b) => closedEpoch(b) - closedEpoch(a));
    return (
-      <BoardColumn count={pulls.length} header="Recently Closed" empty="none">
+      <BoardColumn count={pulls.length} header="Recently Closed" empty="None">
          {ordered.map(p => (
             <ClosedCard key={pullKey(p)} pull={p} />
          ))}
@@ -153,7 +153,7 @@ export function Classic({
       ['ci', 'CI Blocked', ciBlocked],
       ['dep', 'Deploy Blocked', deployBlocked],
       ['ready', 'Ready', ready],
-      ['dev', 'Dev Block', devBlocked],
+      ['dev', 'Dev Blocked', devBlocked],
       ['cr', 'CR', needsCr],
       ['qa', 'QA', needsQa],
    ];

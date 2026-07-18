@@ -221,7 +221,7 @@ export function Review({
             <Fold
                dot="var(--ok)"
                count={qaStamped.length}
-               label="QA'd by you"
+               label="QA’d by you"
                hint="waiting on another tester"
             >
                <FoldRows list={qaStamped} opts={opts} />
@@ -240,7 +240,7 @@ export function Review({
             <Fold
                dot={STATUS_DOT.unmergeable}
                count={unmergeable.length}
-               label="can't merge"
+               label="can’t merge"
                hint="the author rebases"
             >
                <FoldRows list={unmergeable} opts={opts} />

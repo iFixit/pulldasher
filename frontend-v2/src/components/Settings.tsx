@@ -272,7 +272,7 @@ export function Settings({
                         </Field>
                         <Field
                            label="Age turns amber"
-                           hint="When a PR's age reads as getting old (color only; the aging lane is unchanged)."
+                           hint="When a PR’s age reads as getting old (color only; the aging lane is unchanged)."
                         >
                            <NumberField
                               value={s.ageWarnDays}
@@ -292,7 +292,7 @@ export function Settings({
                            />
                         </Field>
                         <Field
-                           label="Other people's drafts"
+                           label="Other people’s drafts"
                            hint="Your own drafts always show. This is the default; a session can override it."
                         >
                            <Segmented
@@ -439,7 +439,7 @@ export function Settings({
                      <Group title="Changed since your last look">
                         <Field
                            label="Mark the board seen after"
-                           hint="How long it must stay open, in view, before leaving counts as a look. A quick glance won't clear the delta."
+                           hint="How long it must stay open, in view, before leaving counts as a look. A quick glance won’t clear the delta."
                         >
                            <NumberField
                               value={s.seenAfterSecs}

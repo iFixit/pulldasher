@@ -54,7 +54,7 @@ export function Stats({
          <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
             <Leaderboard
                title="CR leaderboard"
-               sub="PRs sign-off, on the board"
+               sub="PRs CR’d, on the board"
                accent="var(--brand)"
                rows={crLeaders}
                me={me}
@@ -62,7 +62,7 @@ export function Stats({
             />
             <Leaderboard
                title="QA leaderboard"
-               sub="PRs QA'd, on the board"
+               sub="PRs QA’d, on the board"
                accent="var(--violet)"
                rows={qaLeaders}
                me={me}

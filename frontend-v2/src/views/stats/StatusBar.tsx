@@ -35,7 +35,7 @@ export function StatusBar({
                   {items.map(it => (
                      <span key={it.status} className="inline-flex items-center gap-1.5">
                         <span
-                           className="h-2.5 w-2.5 flex-none rounded-[3px]"
+                           className="h-2 w-2 flex-none rounded-[3px]"
                            style={{ background: it.color }}
                         />
                         <span className="text-ink-2">{it.label}</span>
