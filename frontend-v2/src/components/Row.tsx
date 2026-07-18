@@ -1,6 +1,6 @@
 import { memo, useState } from 'react';
 import type { DerivedPull } from '../model/status';
-import { isIterating } from '../model/status';
+import { isIterating, lastPushEpoch } from '../model/status';
 import { rowNote } from '../model/actions';
 import { ago, pullKey } from '../format';
 import { ackPull, isFresh, refreshPull } from '../store';
@@ -107,7 +107,7 @@ function rowFlags(pull: DerivedPull, showIterating: boolean, aging: boolean): Fl
    if (p.ci === 'pending' && p.status !== 'ci_pending')
       flags.push({ key: 'ci', tone: 'note', label: 'CI…', detail: 'CI is still running.' });
    if (showIterating) {
-      const pushedAt = p.headPushedAt ?? Date.parse(p.data.updated_at) / 1000;
+      const pushedAt = lastPushEpoch(p);
       flags.push({
          key: 'iterating',
          tone: 'note',
@@ -266,7 +266,7 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    // the one action/context line, the same in every lens (model/actions.ts)
    const note = rowNote(pull, opts.me);
    // "iterating" and a "fix pushed …" note say the same thing — don't say it twice
-   const showIterating = isIterating(d) && !note?.text.includes('pushed');
+   const showIterating = isIterating(pull) && !note?.text.includes('pushed');
 
    return (
       <CardShell

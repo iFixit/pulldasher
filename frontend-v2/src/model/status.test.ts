@@ -332,7 +332,7 @@ describe('starvation and weight', () => {
       const pushed = withStatus({
          commit_statuses: [{ data: { ...ci('pending').data, started_at: NOW - 300 } }],
       });
-      expect(isIterating(pushed, NOW)).toBe(true);
+      expect(isIterating(derive(pushed, undefined, NOW), NOW)).toBe(true);
       // pushed 2 days ago but commented on just now: NOT iterating
       const commented = withStatus(
          {
@@ -340,10 +340,10 @@ describe('starvation and weight', () => {
          },
          { updated_at: new Date((NOW - 60) * 1000).toISOString() }
       );
-      expect(isIterating(commented, NOW)).toBe(false);
+      expect(isIterating(derive(commented, undefined, NOW), NOW)).toBe(false);
       // no CI reported: falls back to updated_at
       const bare = pull({ updated_at: new Date((NOW - 60) * 1000).toISOString() });
-      expect(isIterating(bare, NOW)).toBe(true);
+      expect(isIterating(derive(bare, undefined, NOW), NOW)).toBe(true);
    });
 
    it('names the failing CI checks', () => {

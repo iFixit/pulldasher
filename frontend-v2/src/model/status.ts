@@ -313,15 +313,23 @@ export function reviewWeight(pull: PullData): Weight {
 
 export const weightRank = (w: Weight) => WEIGHT_RANK[w];
 
+/** Epoch secs of the last push, from the derived pull's cached headPushedAt,
+ * falling back to updated_at when no CI has reported a push time. */
+export const lastPushEpoch = (p: Pick<DerivedPull, 'headPushedAt' | 'data'>): number =>
+   p.headPushedAt ?? Date.parse(p.data.updated_at) / 1000;
+
 /**
  * The author pushed in the last 30 minutes: probably still iterating. The
  * UI demotes (dims and sinks), never hides. Keyed to the PUSH clock, not
  * updated_at — 62% of this shop's PRs merge same-day, and updated_at moves
  * on every comment, so the old check sank pulls exactly while reviewers
- * were engaging with them. Falls back to updated_at when no CI has
- * reported a push time.
+ * were engaging with them. Takes the derived pull so callers (including the
+ * crSort comparator) reuse the cached push time instead of rescanning
+ * commit statuses.
  */
-export function isIterating(pull: PullData, now: number = Date.now() / 1000) {
-   const pushed = headPushedAt(pull) ?? Date.parse(pull.updated_at) / 1000;
-   return now - pushed < 30 * 60;
+export function isIterating(
+   p: Pick<DerivedPull, 'headPushedAt' | 'data'>,
+   now: number = Date.now() / 1000
+) {
+   return now - lastPushEpoch(p) < 30 * 60;
 }

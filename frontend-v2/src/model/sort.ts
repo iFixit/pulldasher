@@ -26,7 +26,7 @@ export function crScore(p: DerivedPull): number {
 export function crSort(pulls: DerivedPull[]): DerivedPull[] {
    return [...pulls].sort(
       (a, b) =>
-         Number(isIterating(a.data)) - Number(isIterating(b.data)) ||
+         Number(isIterating(a)) - Number(isIterating(b)) ||
          crScore(a) - crScore(b) ||
          b.ageDays - a.ageDays ||
          (a.data.additions ?? 0) +
