@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { backend, type ConnectionState } from './backend/socket';
-import { derive, type DerivedPull } from './model/status';
+import { derive, type DerivedPull, type Weight } from './model/status';
 import { getSettings, subscribeSettings } from './settings';
 import { readStorage, writeStorage } from './storage';
 import type { PullData, RepoSpec } from './types';
@@ -34,6 +34,9 @@ const LAST_SEEN_KEY = 'pd2.lastSeen';
 
 const raw = new Map<string, PullData>();
 let repoSpecs: RepoSpec[] = [];
+// label title → weight bucket, from config.json. Set once when config loads;
+// a fresh Map reference invalidates the derive cache so weights re-resolve.
+let weightLabels: ReadonlyMap<string, Weight> = new Map();
 let me = '';
 let connection: ConnectionState = 'connecting';
 let initialized = false;
@@ -114,14 +117,30 @@ let snapshot: Snapshot = {
 // threshold in Settings actually re-derives (starved gates the aging lane).
 const derived = new WeakMap<
    PullData,
-   { spec: RepoSpec | undefined; warnDays: number; value: DerivedPull }
+   {
+      spec: RepoSpec | undefined;
+      warnDays: number;
+      weightLabels: ReadonlyMap<string, Weight>;
+      value: DerivedPull;
+   }
 >();
 function deriveCached(pull: PullData, spec: RepoSpec | undefined, warnDays: number): DerivedPull {
    const hit = derived.get(pull);
-   if (hit && hit.spec === spec && hit.warnDays === warnDays) return hit.value;
-   const value = derive(pull, spec, Date.now() / 1000, warnDays);
-   derived.set(pull, { spec, warnDays, value });
+   if (hit && hit.spec === spec && hit.warnDays === warnDays && hit.weightLabels === weightLabels)
+      return hit.value;
+   const value = derive(pull, spec, Date.now() / 1000, warnDays, weightLabels);
+   derived.set(pull, { spec, warnDays, weightLabels, value });
    return value;
+}
+
+/**
+ * Install the weight-label config (from config.json) and re-derive. Rebuilding
+ * the Map gives a new reference, which misses the derive cache so every pull's
+ * weight re-resolves against the labels. Call once after the config loads.
+ */
+export function setWeightLabels(map: Record<string, Weight>) {
+   weightLabels = new Map(Object.entries(map));
+   schedulePublish();
 }
 
 function publish() {

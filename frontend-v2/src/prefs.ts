@@ -1,5 +1,8 @@
+import type { Weight } from './model/status';
 import { createPersistentStore } from './storage';
 import type { Team } from './types';
+
+const WEIGHTS: ReadonlySet<string> = new Set(['XS', 'S', 'M', 'L', 'XL']);
 
 /**
  * Scope is the one saved customization: which repos and people are "my
@@ -35,6 +38,10 @@ export interface SiteConfig {
    teams: Team[];
    /** bot logins beyond the `[bot]` suffix GitHub Apps carry */
    bots: string[];
+   /** label title → weight bucket. A PR carrying one of these labels takes
+    * that weight instead of the diff-size guess, so an auto weight label (and
+    * any manual override of it) drives the board. Empty = heuristic only. */
+   weightLabels: Record<string, Weight>;
 }
 
 /**
@@ -43,11 +50,15 @@ export interface SiteConfig {
  * bot detection; everything else still works.
  */
 export async function loadSiteConfig(): Promise<SiteConfig> {
-   const none: SiteConfig = { teams: [], bots: [] };
+   const none: SiteConfig = { teams: [], bots: [], weightLabels: {} };
    try {
       const res = await fetch(`${import.meta.env.BASE_URL}config.json`);
       if (!res.ok) return none;
-      const raw = (await res.json()) as { teams?: unknown; bots?: unknown };
+      const raw = (await res.json()) as {
+         teams?: unknown;
+         bots?: unknown;
+         weightLabels?: unknown;
+      };
       const teams = Array.isArray(raw.teams) ? raw.teams : [];
       const bots = Array.isArray(raw.bots) ? raw.bots : [];
       return {
@@ -60,8 +71,20 @@ export async function loadSiteConfig(): Promise<SiteConfig> {
                (t as Team).members.every(m => typeof m === 'string')
          ),
          bots: bots.filter((b): b is string => typeof b === 'string'),
+         weightLabels: parseWeightLabels(raw.weightLabels),
       };
    } catch {
       return none;
    }
+}
+
+/** Keep only entries that map a label title to a real weight bucket, so a typo
+ * in config can't inject a bogus weight (the model would sort it as unknown). */
+function parseWeightLabels(raw: unknown): Record<string, Weight> {
+   if (!raw || typeof raw !== 'object') return {};
+   const out: Record<string, Weight> = {};
+   for (const [title, w] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof w === 'string' && WEIGHTS.has(w)) out[title] = w as Weight;
+   }
+   return out;
 }

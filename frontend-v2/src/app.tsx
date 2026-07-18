@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { ago, n, shortRepo } from './format';
 import type { DerivedPull } from './model/status';
 import type { Team } from './types';
-import { usePulldasher } from './store';
+import { setWeightLabels, usePulldasher } from './store';
 import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
 import { loadSiteConfig, primeScope, useScope } from './prefs';
 import { getSettings, useSettings } from './settings';
@@ -202,6 +202,7 @@ export function App() {
       void loadSiteConfig().then(c => {
          setExtraBots(new Set(c.bots));
          setTeams(c.teams);
+         setWeightLabels(c.weightLabels);
       });
    }, []);
    // View changes (lens, person, team) earn a history entry so the back

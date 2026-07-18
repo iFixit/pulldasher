@@ -1,4 +1,4 @@
-import type { CommitStatus, PullData, RepoSpec, Signature } from '../types';
+import type { CommitStatus, Label, PullData, RepoSpec, Signature } from '../types';
 
 /**
  * One pull, one status. Mutually exclusive by precedence — the fix for v1's
@@ -190,7 +190,11 @@ export function derive(
    now: number = Date.now() / 1000,
    /** the age at which a CR-incomplete pull counts as starved (the user's
     * "age turns amber" setting; defaults to the model's own threshold). */
-   warnDays: number = STARVE_DAYS
+   warnDays: number = STARVE_DAYS,
+   /** label title → weight bucket, from config.json's `weightLabels`. A
+    * matching label is the authoritative review-effort signal and overrides
+    * the diff-size heuristic; empty map keeps the heuristic. */
+   weightLabels: ReadonlyMap<string, Weight> = new Map()
 ): DerivedPull {
    const st = pull.status;
    const crBy = activeUsers(st.allCR);
@@ -229,7 +233,11 @@ export function derive(
    const updated = Date.parse(pull.updated_at) / 1000;
    const ageDays = Math.max(0, Math.floor((now - created) / 86400));
    const idleDays = Math.max(0, Math.floor((now - updated) / 86400));
-   const sizeKnown = pull.additions != null || pull.deletions != null;
+   // an org weight label is authoritative (deterministic, per-file-weighted,
+   // versioned with the labeller) and overrides the diff-size guess. It also
+   // counts as a known size for the sort, even when adds/dels are off the wire.
+   const labeledWeight = weightFromLabels(pull.labels, weightLabels);
+   const sizeKnown = labeledWeight != null || pull.additions != null || pull.deletions != null;
    const size = (pull.additions ?? 0) + (pull.deletions ?? 0);
    // Rot is rot whether the pull has zero stamps, one of two, or a stale one
    // waiting on a re-stamp — the old `crHave === 0` cliff hid half-reviewed
@@ -263,7 +271,7 @@ export function derive(
       signedOffAt,
       starved,
       starveScore: starved ? ageDays * Math.max(size, 1) : 0,
-      weight: reviewWeight(pull),
+      weight: labeledWeight ?? reviewWeight(pull),
       conflict,
       mergeUnknown: pull.mergeable == null,
       dependent,
@@ -277,8 +285,28 @@ export function derive(
 }
 
 /**
+ * The org's stamped weight label mapped to its bucket, or null if the PR
+ * carries none we recognize. The mapping is config (config.json's
+ * `weightLabels`), so the label strings live in one place and a maintainer's
+ * manual override of the auto label is honored the same as the auto one — the
+ * board never re-derives weight for a PR that has an authoritative label.
+ */
+export function weightFromLabels(
+   labels: Label[],
+   weightLabels: ReadonlyMap<string, Weight>
+): Weight | null {
+   if (weightLabels.size === 0) return null;
+   for (const l of labels) {
+      const w = weightLabels.get(l.title);
+      if (w) return w;
+   }
+   return null;
+}
+
+/**
  * Expected review effort from size and sprawl. A cheap prior, not a verdict:
- * the UI sorts by it and shows it as a chip; humans override by reading.
+ * the UI sorts by it and shows it as a chip; humans override by reading. Used
+ * only when no authoritative weight label is present (see weightFromLabels).
  */
 export function reviewWeight(pull: PullData): Weight {
    const size = (pull.additions ?? 0) + (pull.deletions ?? 0);

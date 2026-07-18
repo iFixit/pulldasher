@@ -3,5 +3,12 @@
     { "team": "frontend", "members": ["alice", "bob"] },
     { "team": "backend", "members": ["carol"] }
   ],
-  "bots": ["renovate-bot"]
+  "bots": ["renovate-bot"],
+  "weightLabels": {
+    "size: XS": "XS",
+    "size: S": "S",
+    "size: M": "M",
+    "size: L": "L",
+    "size: XL": "XL"
+  }
 }

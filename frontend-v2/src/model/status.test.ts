@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { PullData, Signature, SignatureType } from '../types';
-import { ciVerdict, derive, isIterating, reviewWeight } from './status';
+import {
+   ciVerdict,
+   derive,
+   isIterating,
+   reviewWeight,
+   STARVE_DAYS,
+   type Weight,
+   weightFromLabels,
+} from './status';
 
 const NOW = 1_800_000_000;
 
@@ -352,5 +360,51 @@ describe('starvation and weight', () => {
       expect(reviewWeight(pull({ additions: 400, deletions: 100 }))).toBe('M');
       expect(reviewWeight(pull({ additions: 400, deletions: 100, changed_files: 40 }))).toBe('L');
       expect(reviewWeight(pull({ additions: 5000, deletions: 0 }))).toBe('XL');
+   });
+});
+
+describe('weight labels override the diff-size heuristic', () => {
+   const wl = (title: string) => ({
+      title,
+      number: 1,
+      repo: 'iFixit/ifixit',
+      user: 'pr-weight-bot',
+      created_at: '2026-01-01T00:00:00Z',
+   });
+   const MAP = new Map<string, Weight>([
+      ['size: XS', 'XS'],
+      ['size: S', 'S'],
+      ['size: M', 'M'],
+      ['size: L', 'L'],
+      ['size: XL', 'XL'],
+   ]);
+
+   it('a matching label wins over the diff-size guess', () => {
+      const p = pull({ additions: 3, deletions: 1, labels: [wl('size: L')] });
+      expect(reviewWeight(p)).toBe('XS'); // heuristic alone
+      expect(derive(p, undefined, NOW, STARVE_DAYS, MAP).weight).toBe('L');
+   });
+
+   it('falls back to the heuristic when no label matches', () => {
+      const p = pull({ additions: 3, deletions: 1, labels: [wl('some-other-label')] });
+      expect(derive(p, undefined, NOW, STARVE_DAYS, MAP).weight).toBe('XS');
+   });
+
+   it('an empty config ignores the label (heuristic only)', () => {
+      const p = pull({ additions: 2000, deletions: 0, labels: [wl('size: XS')] });
+      expect(derive(p, undefined, NOW).weight).toBe(reviewWeight(p));
+   });
+
+   it('a label counts as a known size even with adds/dels off the wire', () => {
+      const p = pull({ additions: null, deletions: null, labels: [wl('size: M')] });
+      const d = derive(p, undefined, NOW, STARVE_DAYS, MAP);
+      expect(d.weight).toBe('M');
+      expect(d.sizeKnown).toBe(true);
+   });
+
+   it('weightFromLabels only matches configured titles', () => {
+      expect(weightFromLabels([wl('nope')], MAP)).toBeNull();
+      expect(weightFromLabels([wl('size: XL')], MAP)).toBe('XL');
+      expect(weightFromLabels([wl('size: L')], new Map())).toBeNull();
    });
 });
