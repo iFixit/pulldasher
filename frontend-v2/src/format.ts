@@ -41,13 +41,18 @@ export function pullKey(d: { repo: string; number: number }) {
    return `${d.repo}#${d.number}`;
 }
 
+/** ISO date string → epoch seconds, the clock unit everything else here uses. */
+export function epoch(iso: string): number {
+   return Date.parse(iso) / 1000;
+}
+
 /**
  * When a pull actually stopped moving, in epoch seconds: its close time, or
  * last activity as a fallback for the rare pull with no `closed_at`. The one
  * definition of the "closed at" rule the closed-row card and its sort share.
  */
 export function closedEpoch(pull: Pick<PullData, 'closed_at' | 'updated_at'>) {
-   return Date.parse(pull.closed_at ?? pull.updated_at) / 1000;
+   return epoch(pull.closed_at ?? pull.updated_at);
 }
 
 /** "1 PR" / "3 PRs" — counts read as grammar, not as a template. */

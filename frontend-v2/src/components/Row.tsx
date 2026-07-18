@@ -2,7 +2,7 @@ import { memo, useState } from 'react';
 import type { DerivedPull } from '../model/status';
 import { isIterating, lastPushEpoch } from '../model/status';
 import { rowNote } from '../model/actions';
-import { ago, pullKey } from '../format';
+import { ago, epoch, pullKey } from '../format';
 import { ackPull, isFresh, refreshPull } from '../store';
 import { AgeStamp, DiffSize, FreshTag, RepoRef, SigPips, StatusBadge, WeightMeter } from './bits';
 import { CardShell } from './Card';
@@ -32,7 +32,7 @@ export interface RowOptions {
  */
 function freshKind(p: DerivedPull, opts: RowOptions): 'new' | 'updated' | null {
    if (!isFresh(p.data, opts.lastSeen, opts.acked)) return null;
-   return Date.parse(p.data.created_at) / 1000 > opts.lastSeen ? 'new' : 'updated';
+   return epoch(p.data.created_at) > opts.lastSeen ? 'new' : 'updated';
 }
 
 // The background flash runs once per pull per session, not on every lens
@@ -249,8 +249,8 @@ function MetricRail({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          />
          <AgeStamp
             ageDays={pull.ageDays}
-            createdAt={Date.parse(d.created_at) / 1000}
-            updatedAt={Date.parse(d.updated_at) / 1000}
+            createdAt={epoch(d.created_at)}
+            updatedAt={epoch(d.updated_at)}
             quiet={['draft', 'dev_block', 'deploy_block'].includes(pull.status)}
             warnDays={opts.ageWarnDays}
             rotDays={opts.ageRotDays}

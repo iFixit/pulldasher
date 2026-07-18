@@ -1,3 +1,4 @@
+import { epoch } from '../format';
 import type { CommitStatus, Label, PullData, RepoSpec, Signature } from '../types';
 
 /**
@@ -227,7 +228,7 @@ export function derive(
    else if (conflict || dependent) status = 'unmergeable';
    else status = 'ready';
 
-   const created = Date.parse(pull.created_at) / 1000;
+   const created = epoch(pull.created_at);
    const ageDays = Math.max(0, Math.floor((now - created) / 86400));
    // an org weight label is authoritative (deterministic, per-file-weighted,
    // versioned with the labeller) and overrides the diff-size guess. It also
@@ -246,7 +247,7 @@ export function derive(
               0,
               ...[...st.allCR, ...st.allQA]
                  .filter(s => s.data.active)
-                 .map(s => Date.parse(s.data.created_at) / 1000)
+                 .map(s => epoch(s.data.created_at))
            ) || null
          : null;
 
@@ -316,7 +317,7 @@ export const weightRank = (w: Weight) => WEIGHT_RANK[w];
 /** Epoch secs of the last push, from the derived pull's cached headPushedAt,
  * falling back to updated_at when no CI has reported a push time. */
 export const lastPushEpoch = (p: Pick<DerivedPull, 'headPushedAt' | 'data'>): number =>
-   p.headPushedAt ?? Date.parse(p.data.updated_at) / 1000;
+   p.headPushedAt ?? epoch(p.data.updated_at);
 
 /**
  * The author pushed in the last 30 minutes: probably still iterating. The

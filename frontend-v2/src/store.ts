@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { backend, type ConnectionState } from './backend/socket';
 import { derive, type DerivedPull, type Weight } from './model/status';
 import { getSettings, subscribeSettings } from './settings';
+import { epoch } from './format';
 import { readStorage, writeStorage } from './storage';
 import type { PullData, RepoSpec } from './types';
 
@@ -95,7 +96,7 @@ export function isFresh(
    lastSeenAt: number,
    ackedKeys: ReadonlySet<string>
 ) {
-   return Date.parse(d.updated_at) / 1000 > lastSeenAt && !ackedKeys.has(`${d.repo}#${d.number}`);
+   return epoch(d.updated_at) > lastSeenAt && !ackedKeys.has(`${d.repo}#${d.number}`);
 }
 
 let snapshot: Snapshot = {

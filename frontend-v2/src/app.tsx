@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ago, n, shortRepo } from './format';
+import { ago, epoch, n, shortRepo } from './format';
 import type { DerivedPull } from './model/status';
 import type { Team } from './types';
 import { setWeightLabels, usePulldasher } from './store';
@@ -376,7 +376,7 @@ export function App() {
    // "did my PR merge over the weekend" is the cheapest answer the board can
    // give — a slim banner, since the open-PR changes live in the lane
    const mergedCount = closed.filter(
-      p => (Date.parse(p.closed_at ?? '') / 1000 || 0) > lastSeen
+      p => (epoch(p.closed_at ?? '') || 0) > lastSeen
    ).length;
    // every known repo with its open-PR count — feeds the Filters popover and
    // the Settings repo manager. Includes org-hidden and pref'd repos at 0.

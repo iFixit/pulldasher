@@ -1,6 +1,6 @@
 import { ROT_DAYS, STARVE_DAYS, type Status, type Weight, weightRank } from '../model/status';
 import type { Signature } from '../types';
-import { ago, githubUrl, loginHue, shortRepo, signatureUrl } from '../format';
+import { ago, epoch, githubUrl, loginHue, shortRepo, signatureUrl } from '../format';
 import { Popover } from './Popover';
 
 export const STATUS_LABEL: Record<Status, string> = {
@@ -337,7 +337,7 @@ export function SigPips({
                <b className="font-medium text-ink">{s.data.user.login}</b>
                {s.data.user.login === me && <span className="text-ink-3">(you)</span>}
                <span className="ml-auto pl-3 text-ink-3 tabular-nums">
-                  {ago(Date.parse(s.data.created_at) / 1000)} ago
+                  {ago(epoch(s.data.created_at))} ago
                </span>
                {s.data.active ? (
                   <span className="pip pip-on" title="active stamp" />
