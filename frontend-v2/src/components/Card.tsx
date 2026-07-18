@@ -27,6 +27,7 @@ export function CardShell({
    onOpen,
    className = '',
    meta,
+   rail,
    stretch = true,
    compact = false,
 }: {
@@ -37,8 +38,13 @@ export function CardShell({
    title: string;
    onOpen?: () => void;
    className?: string;
-   /** the whole meta line: badge, repo#number, context, flags, metric rail */
+   /** the meta line: badge, repo#number, context, flags */
    meta: ReactNode;
+   /** the fixed metric rail (weight, pips, age). A separate slot on purpose:
+    * in compact it renders OUTSIDE the squeezing content column, so a crowded
+    * row can never clip the sign-off pips — the content clips, the rail
+    * doesn't. Comfortable keeps it on the wrapping meta line. */
+   rail?: ReactNode;
    stretch?: boolean;
    compact?: boolean;
 }) {
@@ -54,12 +60,13 @@ export function CardShell({
             <span className="pd-raise flex-none">
                <Avatar login={login} onClick={onPerson} size={16} />
             </span>
-            <span className="flex min-w-0 flex-1 items-center gap-x-2 text-xs text-ink-3">
-               <span className="min-w-[8ch] shrink truncate text-[13px] leading-none">
+            <span className="flex min-w-0 flex-1 items-center gap-x-2 overflow-hidden text-xs text-ink-3">
+               <span title={title} className="min-w-[8ch] shrink truncate text-[13px] leading-none">
                   {titleLink}
                </span>
                {meta}
             </span>
+            {rail}
          </div>
       );
    }
@@ -75,6 +82,7 @@ export function CardShell({
             <span className="block text-sm leading-snug break-words">{titleLink}</span>
             <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-3">
                {meta}
+               {rail}
             </span>
          </span>
       </div>

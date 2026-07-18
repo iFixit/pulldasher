@@ -134,15 +134,30 @@ function rowFlags(pull: DerivedPull, showIterating: boolean, aging: boolean): Fl
 }
 
 /**
- * The flag cluster: the short labels inline for scanning, the plain-English
- * meaning one hover away — the same drill-down the CR/QA pips use, so nothing
- * on the row hides its meaning behind a native tooltip.
+ * The row's drill-down: flag labels inline for scanning, the plain-English
+ * meaning one hover away — the same pattern the CR/QA pips use, so nothing on
+ * the row hides its meaning behind a native tooltip. In compact density the
+ * panel also carries the full title and action/context line (the one-line
+ * layout truncates both), and a flagless row still gets an ellipsis trigger:
+ * every compact row keeps exactly one recovery point for whatever it clipped.
  */
-function RowFlags({ flags }: { flags: Flag[] }) {
-   if (!flags.length) return null;
+function RowDetails({
+   flags,
+   title,
+   note,
+   compact,
+}: {
+   flags: Flag[];
+   title: string;
+   note: { text: string; tone: 'do' | 'wait' } | null;
+   compact?: boolean;
+}) {
+   // comfortable rows wrap instead of clipping, so with no flags there's
+   // nothing to recover and no trigger to show
+   if (!flags.length && !compact) return null;
    return (
       <Popover
-         label="What these flags mean"
+         label={compact ? 'Row details' : 'What these flags mean'}
          side="right"
          hover
          rootClass="relative inline-flex"
@@ -152,20 +167,36 @@ function RowFlags({ flags }: { flags: Flag[] }) {
             <button
                {...t}
                type="button"
-               aria-label={`row flags: ${flags.map(f => f.label).join(', ')}`}
+               aria-label={
+                  flags.length
+                     ? `row details: ${flags.map(f => f.label).join(', ')}`
+                     : 'row details'
+               }
                className="pd-raise -my-2 inline-flex cursor-default items-center gap-2 rounded px-0.5 py-2 hover:bg-secondary/60"
             >
-               {flags.map(f => (
-                  <span
-                     key={f.key}
-                     className={`whitespace-nowrap ${f.tone === 'warn' ? 'flag-warn' : 'flag-note'}`}
-                  >
-                     {f.label}
+               {flags.length ? (
+                  flags.map(f => (
+                     <span
+                        key={f.key}
+                        className={`whitespace-nowrap ${f.tone === 'warn' ? 'flag-warn' : 'flag-note'}`}
+                     >
+                        {f.label}
+                     </span>
+                  ))
+               ) : (
+                  <span aria-hidden className="text-ink-3">
+                     …
                   </span>
-               ))}
+               )}
             </button>
          )}
       >
+         {compact && (
+            <span className="mb-1 block border-b border-secondary px-1 pb-1.5">
+               <b className="block font-medium break-words text-ink">{title}</b>
+               {note && <span className="mt-0.5 block text-ink-2">{note.text}</span>}
+            </span>
+         )}
          {flags.map(f => (
             <span key={f.key} className="flex items-start gap-1.5 px-1 py-[3px]">
                <span
@@ -327,10 +358,15 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
                      {note.text}
                   </span>
                )}
-               <RowFlags flags={rowFlags(pull, showIterating, !!opts.aging && pull.starved)} />
-               <MetricRail pull={pull} opts={opts} />
+               <RowDetails
+                  flags={rowFlags(pull, showIterating, !!opts.aging && pull.starved)}
+                  title={d.title}
+                  note={note}
+                  compact={opts.compact}
+               />
             </>
          }
+         rail={<MetricRail pull={pull} opts={opts} />}
       />
    );
 }
