@@ -1,4 +1,4 @@
-import { type DerivedPull, qaDone, type Status } from '../model/status';
+import { type DerivedPull, qaDone, type Status, weightRank } from '../model/status';
 import { pullKey } from '../format';
 import { crSort } from '../model/sort';
 import { authorMove, reviewerMove } from '../model/actions';
@@ -96,28 +96,33 @@ export function Review({
 
    // 4. Needs QA is a query, not the status bucket: QA runs in parallel with
    //    CR here (v1's QA column predicate), so anything QA-incomplete with
-   //    green CI belongs — not just pulls whose CR is already done. Your own
-   //    in-flight QA is pinned first (v1 qaCompare), unclaimed next, claimed
-   //    by someone else last.
-   const needsQa = others
-      .filter(
-         p =>
-            !qaDone(p) &&
-            ['success', 'none'].includes(p.ci) &&
-            !p.conflict &&
-            !['draft', 'dev_block'].includes(p.status) &&
-            // your in-flight QA and owed re-QAs live in "Yours to do"; a QA
-            // stamp you already gave lives in the "QA'd by you" fold
-            p.qaingLogin !== me &&
-            !p.qaBy.includes(me) &&
-            !(p.status === 'needs_qa' && p.reqaBy.includes(me))
-      )
-      .sort(
+   //    green CI belongs — not just pulls whose CR is already done. Unclaimed
+   //    QA leads (it needs a volunteer), someone-else's claim sinks; within a
+   //    claim state, lighter tests first, then oldest. Split by your primary
+   //    repos, same as the review queue — QA is the bottleneck on a
+   //    self-review team, so it deserves the same relevance cut.
+   const qaPool = others.filter(
+      p =>
+         !qaDone(p) &&
+         ['success', 'none'].includes(p.ci) &&
+         !p.conflict &&
+         !['draft', 'dev_block'].includes(p.status) &&
+         // your in-flight QA and owed re-QAs live in "Yours to do"; a QA
+         // stamp you already gave lives in the "QA'd by you" fold
+         p.qaingLogin !== me &&
+         !p.qaBy.includes(me) &&
+         !(p.status === 'needs_qa' && p.reqaBy.includes(me))
+   );
+   const qaSort = (list: DerivedPull[]) =>
+      [...list].sort(
          (a, b) =>
-            Number(b.qaingLogin === me) - Number(a.qaingLogin === me) ||
-            Number(!!a.qaingLogin && a.qaingLogin !== me) - Number(!!b.qaingLogin && b.qaingLogin !== me) ||
+            Number(!!a.qaingLogin) - Number(!!b.qaingLogin) ||
+            (a.sizeKnown ? weightRank(a.weight) : 2.5) -
+               (b.sizeKnown ? weightRank(b.weight) : 2.5) ||
             b.ageDays - a.ageDays
       );
+   const needsQa = qaSort(qaPool.filter(p => isPrimaryRepo(p.data.repo)));
+   const needsQaOther = qaSort(qaPool.filter(p => !isPrimaryRepo(p.data.repo)));
 
    // your live CR stamp is in, the PR just isn't fully signed off yet (another
    // reviewer owes a stamp, or a re-CR). Covers needs_recr too, so a PR you
@@ -188,7 +193,11 @@ export function Review({
          />
          <Lane
             title="Needs QA"
-            sub="CR and QA run in parallel"
+            sub={
+               needsQaOther.length
+                  ? 'in your repos · CR and QA run in parallel'
+                  : 'CR and QA run in parallel'
+            }
             pulls={needsQa}
             cap={6}
             opts={opts}
@@ -201,6 +210,14 @@ export function Review({
                hint="outside your primary repos"
             >
                <FoldRows list={queueOther} opts={opts} />
+            </Fold>
+            <Fold
+               dot={STATUS_DOT.needs_qa}
+               count={needsQaOther.length}
+               label="to QA in other repos"
+               hint="outside your primary repos"
+            >
+               <FoldRows list={needsQaOther} opts={opts} />
             </Fold>
             <Fold
                dot={STATUS_DOT.ready}
