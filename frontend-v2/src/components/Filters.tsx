@@ -102,20 +102,6 @@ export function Filters({
       for (const k of reveal) toggleReveal(k);
    };
 
-   const tabBtn = (id: Tab, label: string) => (
-      <button
-         type="button"
-         role="tab"
-         aria-selected={tab === id}
-         onClick={() => setTab(id)}
-         className={`pressable rounded-md px-2.5 py-1 text-xs font-medium ${
-            tab === id ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-brand'
-         }`}
-      >
-         {label}
-      </button>
-   );
-
    const search = (value: string, set: (v: string) => void, label: string) => (
       <input
          value={value}
@@ -222,10 +208,17 @@ export function Filters({
             </button>
          )}
       >
-         <div className="mb-2 inline-flex gap-0.5 rounded-lg border border-line bg-muted p-0.5">
-            {tabBtn('repos', 'Repos')}
-            {tabBtn('people', 'People')}
-            {tabBtn('drafts', 'Drafts')}
+         <div className="mb-2">
+            <Segmented
+               ariaLabel="filter category"
+               value={tab}
+               options={[
+                  ['repos', 'Repos'],
+                  ['people', 'People'],
+                  ['drafts', 'Drafts'],
+               ]}
+               onChange={setTab}
+            />
          </div>
 
          {tab === 'repos' && (

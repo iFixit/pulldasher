@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from 'react';
+import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { ROT_DAYS, STARVE_DAYS, type Status, type Weight, weightRank } from '../model/status';
 import type { Signature } from '../types';
 import { ago, epoch, githubUrl, loginHue, shortRepo, signatureUrl } from '../format';
@@ -490,19 +490,45 @@ export function Segmented<T extends string>({
    onChange: (next: T) => void;
    ariaLabel: string;
 }) {
+   // role=radio sets the APG expectation: one Tab stop for the group, arrows
+   // move the selection. Without this the role announces a contract ("radio
+   // 1 of 3, use arrows") the control doesn't honor.
+   const hasSelection = options.some(([v]) => v === value);
+   const moveSelection = (e: ReactKeyboardEvent<HTMLButtonElement>, from: number) => {
+      const delta =
+         e.key === 'ArrowRight' || e.key === 'ArrowDown'
+            ? 1
+            : e.key === 'ArrowLeft' || e.key === 'ArrowUp'
+              ? -1
+              : 0;
+      const next =
+         e.key === 'Home'
+            ? 0
+            : e.key === 'End'
+              ? options.length - 1
+              : delta
+                ? (from + delta + options.length) % options.length
+                : null;
+      if (next == null) return;
+      e.preventDefault();
+      onChange(options[next][0]);
+      (e.currentTarget.parentElement?.children[next] as HTMLElement | undefined)?.focus();
+   };
    return (
       <div
          role="radiogroup"
          aria-label={ariaLabel}
          className="inline-flex flex-wrap gap-0.5 rounded-lg border border-line bg-muted p-0.5"
       >
-         {options.map(([val, label]) => (
+         {options.map(([val, label], i) => (
             <button
                key={val}
                type="button"
                role="radio"
                aria-checked={value === val}
+               tabIndex={value === val || (!hasSelection && i === 0) ? 0 : -1}
                onClick={() => onChange(val)}
+               onKeyDown={e => moveSelection(e, i)}
                className={`pressable rounded-md px-2.5 py-1 text-xs font-medium ${
                   value === val ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-brand'
                }`}

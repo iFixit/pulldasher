@@ -119,11 +119,36 @@ export function Settings({
       if (!open) return;
       const onKey = (e: KeyboardEvent) => {
          if (e.key === 'Escape') setOpen(false);
+         // aria-modal promises a focus trap; without this, Tab walks out of
+         // the dialog into the live board behind the scrim
+         if (e.key === 'Tab' && panelRef.current) {
+            const focusables = panelRef.current.querySelectorAll<HTMLElement>(
+               'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])'
+            );
+            if (!focusables.length) return;
+            const first = focusables[0];
+            const last = focusables[focusables.length - 1];
+            const active = document.activeElement;
+            if (e.shiftKey && (active === first || active === panelRef.current)) {
+               e.preventDefault();
+               last.focus();
+            } else if (!e.shiftKey && active === last) {
+               e.preventDefault();
+               first.focus();
+            }
+         }
       };
       document.addEventListener('keydown', onKey);
+      // a modal locks the page behind it: the scrim already blocks clicks,
+      // this blocks scroll
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
       // focus the panel so Escape and tabbing land inside it
       panelRef.current?.focus();
-      return () => document.removeEventListener('keydown', onKey);
+      return () => {
+         document.removeEventListener('keydown', onKey);
+         document.body.style.overflow = prevOverflow;
+      };
    }, [open]);
 
    // return focus to the cog when the panel closes

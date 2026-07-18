@@ -375,9 +375,7 @@ export function App() {
    const bots = scoped.filter(isBot);
    // "did my PR merge over the weekend" is the cheapest answer the board can
    // give — a slim banner, since the open-PR changes live in the lane
-   const mergedCount = closed.filter(
-      p => (epoch(p.closed_at ?? '') || 0) > lastSeen
-   ).length;
+   const mergedCount = closed.filter(p => (epoch(p.closed_at ?? '') || 0) > lastSeen).length;
    // every known repo with its open-PR count — feeds the Filters popover and
    // the Settings repo manager. Includes org-hidden and pref'd repos at 0.
    const repoCounts = useMemo(() => {
@@ -459,9 +457,11 @@ export function App() {
       <>
          <header className="sticky top-0 z-10 border-b border-line bg-surface">
             <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-x-3.5 gap-y-1 px-5 py-2.5">
-               <span className="text-base font-semibold tracking-tight">
+               {/* the page's one h1 — heading navigation needs a root, and
+                   every lane h2 needs a parent level */}
+               <h1 className="m-0 text-base font-semibold tracking-tight">
                   pull<em className="text-brand not-italic">dasher</em>
-               </span>
+               </h1>
                <span
                   role="status"
                   className={`h-[7px] w-[7px] rounded-full ${
