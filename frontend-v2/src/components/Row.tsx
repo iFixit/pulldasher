@@ -137,6 +137,7 @@ function RowFlags({ flags }: { flags: Flag[] }) {
             <button
                {...t}
                type="button"
+               aria-label={`row flags: ${flags.map(f => f.label).join(', ')}`}
                className="pd-raise -my-2 inline-flex cursor-default items-center gap-2 rounded px-0.5 py-2 hover:bg-secondary/60"
             >
                {flags.map(f => (
