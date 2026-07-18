@@ -84,7 +84,7 @@ export function FreshTag({ kind }: { kind: 'new' | 'updated' }) {
    const isNew = kind === 'new';
    return (
       <span
-         className={`flex-none rounded-lg px-[7px] py-[2px] text-[11px] font-semibold ${
+         className={`chip-in flex-none rounded-lg px-[7px] py-[2px] text-[11px] font-semibold ${
             isNew ? 'bg-brand text-white' : 'text-brand-700 shadow-[inset_0_0_0_1px_var(--brand)]'
          }`}
          title={isNew ? 'new since your last look' : 'updated since your last look'}

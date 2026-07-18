@@ -224,6 +224,16 @@ a:hover {
 .settle-once > *:nth-child(4) { animation-delay: 120ms; }
 .settle-once > *:nth-child(n + 5) { animation-delay: 160ms; }
 
+/* rows revealed by "+N more": the same settle, so opening a fold reads as
+   the list growing, not a hard jump. display:contents on the wrapper keeps
+   the rows in the container's flow (borders, hover) unchanged. */
+.reveal-stagger > * {
+  animation: settle 300ms var(--ease-quint) backwards;
+}
+.reveal-stagger > *:nth-child(2) { animation-delay: 40ms; }
+.reveal-stagger > *:nth-child(3) { animation-delay: 80ms; }
+.reveal-stagger > *:nth-child(n + 4) { animation-delay: 120ms; }
+
 @keyframes pop {
   from {
     opacity: 0;

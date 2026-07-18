@@ -116,15 +116,30 @@ export function Truncated({
    id?: string;
 }) {
    const [expanded, setExpanded] = useState(id ? expandedIds.has(id) : false);
+   // don't stagger a fold that was already open on mount (a lens revisit this
+   // session): the reveal animation is earned only on the click that opens it
+   const [justExpanded, setJustExpanded] = useState(false);
    const expand = () => {
       setExpanded(true);
+      setJustExpanded(true);
       if (id) expandedIds.add(id);
    };
-   const shown = expanded ? children : children.slice(0, cap);
-   const more = children.length - shown.length;
+   const base = children.slice(0, cap);
+   const extra = expanded ? children.slice(cap) : [];
+   const more = children.length - base.length - extra.length;
    return (
       <>
-         {shown}
+         {base}
+         {extra.length > 0 &&
+            (justExpanded ? (
+               // display:contents keeps the rows in the container's flow while
+               // the wrapper only carries the stagger
+               <div className="reveal-stagger" style={{ display: 'contents' }}>
+                  {extra}
+               </div>
+            ) : (
+               extra
+            ))}
          {more > 0 && (
             <button
                type="button"
