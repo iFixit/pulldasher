@@ -401,9 +401,12 @@ export function Settings({
                            >
                               Refresh all
                            </QuietButton>
-                           {refreshNote && (
-                              <span className="text-xs text-ink-3">{refreshNote}</span>
-                           )}
+                           {/* role=status stays mounted so the announcement fires
+                               when the text lands — a screen reader hears the
+                               confirmation, not just sighted users */}
+                           <span role="status" className="text-xs text-ink-3">
+                              {refreshNote}
+                           </span>
                         </div>
 
                         <span className="mt-1 text-xs text-ink-3">
@@ -457,11 +460,9 @@ export function Settings({
                            >
                               Mark everything as seen
                            </QuietButton>
-                           {seenNote && (
-                              <span className="text-xs" style={{ color: 'var(--ok)' }}>
-                                 done
-                              </span>
-                           )}
+                           <span role="status" className="text-xs" style={{ color: 'var(--ok)' }}>
+                              {seenNote ? 'done' : ''}
+                           </span>
                         </div>
                      </Group>
                   </div>

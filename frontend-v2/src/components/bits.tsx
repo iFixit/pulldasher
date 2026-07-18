@@ -346,7 +346,9 @@ export function SigPips({
                {...t}
                type="button"
                title={`who ${label}’d this`}
-               className="cursor-pointer rounded border-0 bg-transparent p-0 text-left hover:bg-secondary/60"
+               // py+negative-my: a real tap target (the pips are 8px squares)
+               // without moving anything in the rail's layout
+               className="-my-2 cursor-pointer rounded border-0 bg-transparent px-0 py-2 text-left hover:bg-secondary/60"
             >
                {pips}
             </button>

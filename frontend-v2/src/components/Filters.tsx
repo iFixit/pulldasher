@@ -131,7 +131,7 @@ export function Filters({
          ) : (
             <input
                type="checkbox"
-               className="m-0"
+               className="m-0 disabled:opacity-40"
                checked={showAll || reveal.includes(name)}
                disabled={showAll}
                onChange={() => toggleReveal(name)}
@@ -252,7 +252,7 @@ export function Filters({
                   <label className="mt-1.5 flex items-center gap-2 border-t border-secondary px-1.5 pt-2 text-[13px]">
                      <input
                         type="checkbox"
-                        className="m-0"
+                        className="m-0 disabled:opacity-40"
                         checked={settings.showCryo || reveal.includes(CRYO_KEY) || showAll}
                         disabled={settings.showCryo || showAll}
                         onChange={() => toggleReveal(CRYO_KEY)}

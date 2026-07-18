@@ -102,7 +102,7 @@ export function RepoManagerGroup({
                   return (
                      <div className="flex items-center gap-2 text-[13px]" key={repo.name}>
                         <button
-                           className={`pressable rounded-md px-1 text-sm leading-none ${
+                           className={`pressable -my-1.5 rounded-md px-1 py-1.5 text-sm leading-none ${
                               isPrimary ? 'text-brand' : 'text-ink-3 hover:text-brand'
                            }`}
                            onClick={() => onPrimary(repo.name, !isPrimary)}
