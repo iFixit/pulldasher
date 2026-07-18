@@ -89,7 +89,7 @@ export interface DerivedPull {
    /** everyone holding an active deploy block: done, deliberately not shipped */
    deployBlockedBy: string[];
    /** login from the QAing label: someone is already testing this */
-   qaingBy: string | null;
+   qaingLogin: string | null;
    externalBlock: boolean;
    cryo: boolean;
 }
@@ -273,7 +273,7 @@ export function derive(
       sizeKnown,
       devBlockedBy,
       deployBlockedBy,
-      qaingBy: label(LABELS.qaing)?.user ?? null,
+      qaingLogin: label(LABELS.qaing)?.user ?? null,
       externalBlock: !!label(LABELS.externalBlock),
       cryo: !!label(LABELS.cryo),
    };

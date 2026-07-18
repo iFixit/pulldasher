@@ -108,14 +108,14 @@ export function Review({
             !['draft', 'dev_block'].includes(p.status) &&
             // your in-flight QA and owed re-QAs live in "Yours to do"; a QA
             // stamp you already gave lives in the "QA'd by you" fold
-            p.qaingBy !== me &&
+            p.qaingLogin !== me &&
             !p.qaBy.includes(me) &&
             !(p.status === 'needs_qa' && p.reqaBy.includes(me))
       )
       .sort(
          (a, b) =>
-            Number(b.qaingBy === me) - Number(a.qaingBy === me) ||
-            Number(!!a.qaingBy && a.qaingBy !== me) - Number(!!b.qaingBy && b.qaingBy !== me) ||
+            Number(b.qaingLogin === me) - Number(a.qaingLogin === me) ||
+            Number(!!a.qaingLogin && a.qaingLogin !== me) - Number(!!b.qaingLogin && b.qaingLogin !== me) ||
             b.ageDays - a.ageDays
       );
 

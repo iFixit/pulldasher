@@ -204,7 +204,7 @@ describe('status derivation precedence', () => {
          ],
       });
       const d = derive(labeled, undefined, NOW);
-      expect(d.qaingBy).toBe('tester');
+      expect(d.qaingLogin).toBe('tester');
       expect(d.cryo).toBe(true);
       expect(d.externalBlock).toBe(false);
    });

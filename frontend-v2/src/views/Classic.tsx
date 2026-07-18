@@ -18,8 +18,8 @@ import { Row, type RowOptions } from '../components/Row';
 
 // v1 predicate ports. Where v1 read raw wire fields (dev_block[0] with no
 // active check), so does this — near-unchanged beats more-correct here.
-const devBlock = (p: DerivedPull) => !!p.data.status.dev_block[0];
-const deployBlock = (p: DerivedPull) => !!p.data.status.deploy_block[0];
+const isDevBlocked = (p: DerivedPull) => !!p.data.status.dev_block[0];
+const isDeployBlocked = (p: DerivedPull) => !!p.data.status.deploy_block[0];
 const isDraft = (p: DerivedPull) => p.data.draft;
 // v1 hasPassedCI(): every required status successful; no statuses and no
 // required list counts as passed. ciVerdict encodes exactly that split.
@@ -42,10 +42,10 @@ const defaultCompare = (me: string) => (a: DerivedPull, b: DerivedPull) =>
    b.data.created_at.localeCompare(a.data.created_at);
 
 const qaCompare = (me: string) => (a: DerivedPull, b: DerivedPull) =>
-   cmp(a.qaingBy === me, b.qaingBy === me) ||
+   cmp(a.qaingLogin === me, b.qaingLogin === me) ||
    cmp(!a.externalBlock, !b.externalBlock) ||
    cmp(!a.conflict, !b.conflict) ||
-   cmp(!a.qaingBy, !b.qaingBy) ||
+   cmp(!a.qaingLogin, !b.qaingLogin) ||
    cmp(crDone(a), crDone(b)) ||
    b.data.created_at.localeCompare(a.data.created_at);
 
@@ -127,25 +127,25 @@ export function Classic({
    }
    const base = [...pulls].sort(defaultCompare(me));
 
-   const ciBlocked = base.filter(p => !devBlock(p) && !passedCI(p) && !isDraft(p));
+   const ciBlocked = base.filter(p => !isDevBlocked(p) && !passedCI(p) && !isDraft(p));
    const deployBlocked = base
       .filter(
-         p => metDeployReqs(p) && !devBlock(p) && (deployBlock(p) || p.conflict || p.dependent)
+         p => metDeployReqs(p) && !isDevBlocked(p) && (isDeployBlocked(p) || p.conflict || p.dependent)
       )
       .sort(deployCompare);
    const ready = base.filter(
       p =>
          metDeployReqs(p) &&
          !isDraft(p) &&
-         !devBlock(p) &&
-         !deployBlock(p) &&
+         !isDevBlocked(p) &&
+         !isDeployBlocked(p) &&
          !p.conflict &&
          !p.dependent
    );
-   const devBlocked = base.filter(p => devBlock(p) || isDraft(p));
-   const needsCr = base.filter(p => !crDone(p) && !devBlock(p) && !isDraft(p));
+   const devBlocked = base.filter(p => isDevBlocked(p) || isDraft(p));
+   const needsCr = base.filter(p => !crDone(p) && !isDevBlocked(p) && !isDraft(p));
    const needsQa = base
-      .filter(p => !qaDone(p) && !devBlock(p) && !isDraft(p) && !p.conflict && passedCI(p))
+      .filter(p => !qaDone(p) && !isDevBlocked(p) && !isDraft(p) && !p.conflict && passedCI(p))
       .sort(qaCompare(me));
 
    // ids match v1's column collapse params (?ci=0&cr=0…) so old URLs map 1:1

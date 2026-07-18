@@ -15,7 +15,7 @@ export function authorMove(p: DerivedPull): string | null {
    // it", which misroutes the most common author action
    if (p.status === 'dev_block') return 'Address feedback';
    if (p.status === 'unmergeable' || p.conflict) return 'Rebase';
-   if (p.status === 'needs_qa' && !p.qaingBy && !p.reqaBy.length) return 'Find a QA-er';
+   if (p.status === 'needs_qa' && !p.qaingLogin && !p.reqaBy.length) return 'Find a QA-er';
    if (p.status === 'draft') return 'Finish the draft';
    return null;
 }
@@ -24,7 +24,7 @@ export function authorMove(p: DerivedPull): string | null {
 export function reviewerMove(p: DerivedPull, me: string): string | null {
    if (p.data.user.login === me) return null;
    if (p.status === 'needs_recr' && p.recrBy.includes(me)) return 'Re-stamp';
-   if (p.status === 'needs_qa' && p.qaingBy === me) return 'Finish QA';
+   if (p.status === 'needs_qa' && p.qaingLogin === me) return 'Finish QA';
    if (p.status === 'needs_qa' && p.reqaBy.includes(me)) return 'Re-QA';
    return null;
 }
@@ -82,7 +82,7 @@ export function rowNote(p: DerivedPull, me: string): RowNote | null {
       case 'needs_recr':
          return p.recrBy.length ? wait(`waiting on ${who(p.recrBy)}${pushed}`) : null;
       case 'needs_qa':
-         if (p.qaingBy) return wait(`${who([p.qaingBy])} is testing it`);
+         if (p.qaingLogin) return wait(`${who([p.qaingLogin])} is testing it`);
          if (p.reqaBy.length) return wait(`${who(p.reqaBy)}’s QA fell to a push`);
          return null;
       case 'needs_cr':

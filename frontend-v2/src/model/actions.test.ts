@@ -7,7 +7,7 @@ function dp(o: {
    author?: string;
    status: Status;
    conflict?: boolean;
-   qaingBy?: string | null;
+   qaingLogin?: string | null;
    reqaBy?: string[];
    recrBy?: string[];
 }): DerivedPull {
@@ -15,7 +15,7 @@ function dp(o: {
       data: { user: { login: o.author ?? 'author' } },
       status: o.status,
       conflict: o.conflict ?? false,
-      qaingBy: o.qaingBy ?? null,
+      qaingLogin: o.qaingLogin ?? null,
       reqaBy: o.reqaBy ?? [],
       recrBy: o.recrBy ?? [],
    } as unknown as DerivedPull;
@@ -43,7 +43,7 @@ describe('alertMove — which transitions earn a desktop nudge', () => {
          'Re-QA'
       );
       // claiming QA yourself is not an incoming event
-      expect(alertMove(dp({ author: 'a', status: 'needs_qa', qaingBy: 'me' }), 'me')).toBeNull();
+      expect(alertMove(dp({ author: 'a', status: 'needs_qa', qaingLogin: 'me' }), 'me')).toBeNull();
       // a fresh needs-CR isn't owed by anyone in particular
       expect(alertMove(dp({ author: 'a', status: 'needs_cr' }), 'me')).toBeNull();
    });

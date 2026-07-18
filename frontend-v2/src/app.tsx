@@ -330,7 +330,7 @@ export function App() {
       [reveal, scope.repos, legacy, queryRepos]
    );
 
-   const inScope = useMemo(() => {
+   const scoped = useMemo(() => {
       let out = pulls;
       if (legacy) out = applyLegacyFilters(out, legacy, me);
       // Muted (user) and org-hidden repos, and cryo PRs, stay off the board
@@ -371,9 +371,6 @@ export function App() {
       draftsMode,
    ]);
 
-   // "what changed since your last look" is now a lane in Review, not a bar
-   // toggle, so the pool is just the scoped board
-   const scoped = inScope;
    const humans = scoped.filter(p => !isBot(p));
    const bots = scoped.filter(isBot);
    // "did my PR merge over the weekend" is the cheapest answer the board can
