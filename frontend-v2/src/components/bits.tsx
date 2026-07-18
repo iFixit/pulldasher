@@ -73,7 +73,7 @@ export function QuietButton({
    return (
       <button
          type="button"
-         className={`pressable border border-line bg-surface font-medium ${shape} ${text} hover:text-brand`}
+         className={`pressable border border-line bg-surface font-medium disabled:opacity-40 ${shape} ${text} hover:text-brand`}
          {...props}
       />
    );

@@ -3,7 +3,7 @@ import type { DerivedPull } from '../model/status';
 import { isIterating, lastPushEpoch } from '../model/status';
 import { rowNote } from '../model/actions';
 import { ago, epoch, pullKey } from '../format';
-import { ackPull, isFresh, refreshPull } from '../store';
+import { ackPull, isFresh, refreshPull, snoozePull } from '../store';
 import { AgeStamp, DiffSize, FreshTag, RepoRef, SigPips, StatusBadge, WeightMeter } from './bits';
 import { CardShell } from './Card';
 import { Popover } from './Popover';
@@ -194,6 +194,17 @@ function RowActions({ pull }: { pull: DerivedPull }) {
                   <path d="M5 1a1 1 0 0 0-1 1v1H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1a1 1 0 0 0 1-1V4.4L11.6 1H5Zm6 11v1H3V4h1v7a1 1 0 0 0 1 1h6Zm2-2H5V2h5v3h3v5Z" />
                </svg>
             )}
+         </button>
+         <button
+            type="button"
+            aria-label="snooze: hide until tomorrow or until it changes"
+            title="snooze: hide until tomorrow or until it changes"
+            className="pressable rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
+            onClick={() => snoozePull(pullKey(pull.data))}
+         >
+            <svg viewBox="0 0 16 16" aria-hidden className="h-3.5 w-3.5 fill-current">
+               <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Zm-.75 2v4.06l3.1 1.86.77-1.28-2.37-1.42V4.5h-1.5Z" />
+            </svg>
          </button>
          <button
             type="button"

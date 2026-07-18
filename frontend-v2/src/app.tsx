@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { ago, epoch, n, shortRepo } from './format';
 import type { DerivedPull } from './model/status';
 import type { Team } from './types';
-import { setWeightLabels, usePulldasher } from './store';
+import { isSnoozed, setWeightLabels, usePulldasher } from './store';
 import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
 import { loadSiteConfig, primeScope, useScope } from './prefs';
 import { getSettings, useSettings } from './settings';
@@ -153,6 +153,7 @@ export function App() {
       lastPayloadAt,
       lastSeen,
       acked,
+      snoozed,
    } = usePulldasher();
    // desktop notifications watch the whole board, not the current filter
    useNotifications(pulls, me);
@@ -342,7 +343,9 @@ export function App() {
                repoHidden(p.data.repo, hiddenRepos, settings.repoPrefs) &&
                !revealedRepo(p.data.repo);
             const cryoHidden = p.cryo && !settings.showCryo && !reveal.includes(CRYO_KEY);
-            return !hiddenRepo && !cryoHidden;
+            // a snoozed pull stays off the board until tomorrow or its next
+            // change; the master reveal shows it like every other hidden group
+            return !hiddenRepo && !cryoHidden && !isSnoozed(p.data, snoozed);
          });
       if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.data.repo));
       // bots bypass the people filter on purpose: dependency bumps need review
@@ -369,6 +372,7 @@ export function App() {
       settings.repoPrefs,
       settings.showCryo,
       draftsMode,
+      snoozed,
    ]);
 
    const humans = scoped.filter(p => !isBot(p));
@@ -404,6 +408,8 @@ export function App() {
    }, [closed, showAll, hiddenRepos, settings.repoPrefs, revealedRepo, scope]);
 
    const cryoCount = pulls.filter(p => p.cryo).length;
+   // counts every open pull a snooze currently hides, for the Settings surface
+   const snoozedCount = pulls.filter(p => isSnoozed(p.data, snoozed)).length;
 
    const isScoped = scope.repos.length || scope.authors.length || query;
 
@@ -490,7 +496,7 @@ export function App() {
                   v1 board
                </a>
                <Legend />
-               <Settings repos={repoCounts} orgHidden={hiddenRepos} />
+               <Settings repos={repoCounts} orgHidden={hiddenRepos} snoozedCount={snoozedCount} />
             </div>
             <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-2 px-5 pb-2.5">
                <nav className="mr-1 flex gap-1">

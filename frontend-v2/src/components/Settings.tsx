@@ -8,7 +8,7 @@ import {
    testNotification,
    unlockSound,
 } from '../notifications';
-import { markAllSeen, refreshAll } from '../store';
+import { clearSnoozes, markAllSeen, refreshAll } from '../store';
 import {
    type Settings as SettingsShape,
    setRepoPref,
@@ -87,10 +87,13 @@ function NumberField({
 export function Settings({
    repos,
    orgHidden,
+   snoozedCount,
 }: {
    /** every known repo with its open-PR count, for the repo manager */
    repos: { name: string; count: number }[];
    orgHidden: ReadonlySet<string>;
+   /** pulls currently hidden by a row snooze */
+   snoozedCount: number;
 }) {
    const [open, setOpen] = useState(false);
    const s = useSettings();
@@ -406,6 +409,22 @@ export function Settings({
                                confirmation, not just sighted users */}
                            <span role="status" className="text-xs text-ink-3">
                               {refreshNote}
+                           </span>
+                        </div>
+
+                        <span className="mt-1 text-xs text-ink-3">
+                           A snoozed row hides for a day, or until the PR changes.
+                        </span>
+                        <div className="flex items-center gap-3">
+                           <QuietButton
+                              size="md"
+                              disabled={!snoozedCount}
+                              onClick={() => clearSnoozes()}
+                           >
+                              Bring back snoozed
+                           </QuietButton>
+                           <span className="text-xs text-ink-3 tabular-nums">
+                              {snoozedCount} hidden now
                            </span>
                         </div>
 

@@ -30,6 +30,9 @@ export interface Snapshot {
    /** pull key → epoch secs it was opened: clears the fresh dot until the
     * pull changes again. Persisted per-browser. */
    acked: Readonly<Record<string, number>>;
+   /** pull key → epoch secs it was snoozed: hidden for a day or until it
+    * changes. Persisted per-browser. */
+   snoozed: Readonly<Record<string, number>>;
 }
 
 const LAST_SEEN_KEY = 'pd2.lastSeen';
@@ -117,6 +120,44 @@ export function isFresh(
    return updated > lastSeenAt && updated > (ackedAt[`${d.repo}#${d.number}`] ?? 0);
 }
 
+// Snooze: "not today" for one PR. A snooze lasts a day, and any change to
+// the pull (a push, a comment — anything that moves updated_at) voids it
+// early: punting a PR must never hide what happens to it next.
+const SNOOZED_KEY = 'pd2.snoozed';
+const SNOOZE_SECS = 24 * 3600;
+let snoozed: Record<string, number> = {};
+try {
+   snoozed = JSON.parse(readStorage(SNOOZED_KEY) ?? '{}') ?? {};
+} catch {
+   snoozed = {};
+}
+const saveSnoozed = () => {
+   const now = Date.now() / 1000;
+   for (const [k, at] of Object.entries(snoozed)) if (now > at + SNOOZE_SECS) delete snoozed[k];
+   writeStorage(SNOOZED_KEY, JSON.stringify(snoozed));
+};
+export function snoozePull(key: string) {
+   snoozed[key] = Date.now() / 1000;
+   saveSnoozed();
+   schedulePublish();
+}
+export function clearSnoozes() {
+   snoozed = {};
+   writeStorage(SNOOZED_KEY, '{}');
+   schedulePublish();
+}
+
+/** Snoozed and nothing has happened since: still hidden. */
+export function isSnoozed(
+   d: Pick<PullData, 'repo' | 'number' | 'updated_at'>,
+   snoozedAt: Readonly<Record<string, number>>,
+   now: number = Date.now() / 1000
+) {
+   const at = snoozedAt[`${d.repo}#${d.number}`];
+   if (at == null) return false;
+   return now < at + SNOOZE_SECS && epoch(d.updated_at) <= at;
+}
+
 let snapshot: Snapshot = {
    pulls: [],
    repoSpecs,
@@ -128,6 +169,7 @@ let snapshot: Snapshot = {
    lastPayloadAt,
    lastSeen,
    acked: { ...acked },
+   snoozed: { ...snoozed },
 };
 
 // derive() is pure per (pull, spec, warnDays): cache on reference identity so
@@ -183,6 +225,7 @@ function publish() {
       lastPayloadAt,
       lastSeen,
       acked: { ...acked },
+      snoozed: { ...snoozed },
    };
    for (const fn of listeners) fn();
 }
