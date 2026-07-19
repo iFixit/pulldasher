@@ -151,7 +151,7 @@ export function Truncated({
             <button
                type="button"
                onClick={expand}
-               className="block w-full border-t border-secondary bg-muted/50 px-3.5 py-[9px] text-left text-xs font-medium text-ink-2 hover:text-brand"
+               className="pressable block w-full border-t border-secondary bg-muted/50 px-3.5 py-[9px] text-left text-xs font-medium text-ink-2 hover:text-brand"
             >
                + {more} {label}
             </button>
@@ -177,8 +177,8 @@ export function Fold({
    if (!count) return null;
    return (
       <details className="group border-t border-secondary first:border-t-0">
-         <summary className="flex cursor-pointer list-none items-center gap-2.5 px-3.5 py-[9px] text-[13px] text-ink-2 hover:bg-muted [&::-webkit-details-marker]:hidden">
-            <span className="text-ink-3 transition-[rotate] duration-150 group-open:rotate-90 motion-reduce:transition-none">
+         <summary className="flex cursor-pointer list-none items-center gap-2.5 px-3.5 py-[9px] text-[13px] text-ink-2 transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
+            <span className="text-ink-3 transition-[rotate] duration-150 ease-out group-open:rotate-90 motion-reduce:transition-none">
                ▸
             </span>
             <span className="h-2 w-2 flex-none rounded-[3px]" style={{ background: dot }} />

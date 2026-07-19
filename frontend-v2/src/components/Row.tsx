@@ -155,7 +155,7 @@ function RowDetails({ flags }: { flags: Flag[] }) {
                {...t}
                type="button"
                aria-label={`row details: ${flags.map(f => f.label).join(', ')}`}
-               className="pd-raise -my-2 inline-flex cursor-default flex-wrap items-center gap-x-2 gap-y-1 rounded px-0.5 py-2 hover:bg-secondary/60"
+               className="pd-raise pressable -my-2 inline-flex cursor-default flex-wrap items-center gap-x-2 gap-y-1 rounded px-0.5 py-2 hover:bg-secondary/60"
             >
                {flags.map(f => (
                   <span
@@ -321,7 +321,7 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          title={d.title}
          onOpen={() => ackPull(key)}
          compact={opts.compact}
-         className={`${flashOnce(key, !!fresh) ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
+         className={`${flashOnce(key, !!fresh) ? 'row-fresh' : ''} transition-[background-color] duration-150 ease-out motion-reduce:transition-none`}
          meta={
             // the same untruncated meta in both densities — the shell wraps
             // instead of clipping, so no chip ever costs the title its text

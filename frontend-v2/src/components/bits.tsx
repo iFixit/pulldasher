@@ -141,7 +141,7 @@ export function Avatar({
       fontSize: Math.round(size * 0.42),
    };
    const cls =
-      'inline-flex flex-none items-center justify-center rounded-full font-semibold uppercase text-white transition-[scale] duration-150 motion-reduce:transition-none';
+      'inline-flex flex-none items-center justify-center rounded-full font-semibold uppercase text-white transition-[scale] duration-150 ease-out motion-reduce:transition-none';
    return onClick ? (
       <button
          type="button"
@@ -350,7 +350,7 @@ export function SigPips({
                title={`who ${label}’d this`}
                // py+negative-my: a real tap target (the pips are 8px squares)
                // without moving anything in the rail's layout
-               className="-my-2 cursor-pointer rounded border-0 bg-transparent px-0 py-2 text-left hover:bg-secondary/60"
+               className="pressable -my-2 cursor-pointer rounded border-0 bg-transparent px-0 py-2 text-left hover:bg-secondary/60"
             >
                {pips}
             </button>
@@ -364,7 +364,7 @@ export function SigPips({
                target="_blank"
                rel="noopener noreferrer"
                title="open this stamp’s comment on GitHub"
-               className="flex items-center gap-1.5 rounded px-1 py-[3px] text-ink-2 hover:bg-muted"
+               className="flex items-center gap-1.5 rounded px-1 py-[3px] text-ink-2 transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none"
             >
                <Avatar login={s.data.user.login} size={16} />
                <b className="min-w-0 font-medium break-all text-ink">{s.data.user.login}</b>

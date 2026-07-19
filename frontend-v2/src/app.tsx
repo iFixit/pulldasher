@@ -375,8 +375,10 @@ export function App() {
       snoozed,
    ]);
 
-   const humans = scoped.filter(p => !isBot(p));
-   const bots = scoped.filter(isBot);
+   // memoized so the arrays keep their identity across unrelated re-renders
+   // (each keystroke, settings toggle, and heartbeat re-runs App)
+   const humans = useMemo(() => scoped.filter(p => !isBot(p)), [scoped, isBot]);
+   const bots = useMemo(() => scoped.filter(isBot), [scoped, isBot]);
    // "did my PR merge over the weekend" is the cheapest answer the board can
    // give — a slim banner, since the open-PR changes live in the lane
    const mergedCount = closed.filter(p => (epoch(p.closed_at ?? '') || 0) > lastSeen).length;
@@ -490,7 +492,7 @@ export function App() {
                <span className="flex-1" />
                <a
                   href="/"
-                  className="text-xs text-ink-3 hover:text-brand"
+                  className="text-xs text-ink-3 transition-colors duration-150 ease-out hover:text-brand motion-reduce:transition-none"
                   title="the classic board"
                >
                   v1 board

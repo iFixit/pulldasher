@@ -113,7 +113,10 @@ export function Filters({
    );
 
    const repoRow = (name: string, count: number, state: ReturnType<typeof repoState>) => (
-      <div key={name} className="flex items-center gap-2 rounded-md px-1.5 py-[5px] hover:bg-muted">
+      <div
+         key={name}
+         className="flex items-center gap-2 rounded-md px-1.5 py-[5px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none"
+      >
          {state === 'shown' ? (
             <input
                type="checkbox"
@@ -150,7 +153,7 @@ export function Filters({
             <button
                type="button"
                onClick={() => setRepoPref(name, null)}
-               className="rounded border-0 bg-transparent px-1 text-[11px] text-ink-3 hover:text-brand"
+               className="pressable rounded border-0 bg-transparent px-1 text-[11px] text-ink-3 hover:text-brand"
             >
                Unmute
             </button>
@@ -167,7 +170,7 @@ export function Filters({
                type="button"
                onClick={() => setRepoPref(name, 'mute')}
                title={`mute ${shortRepo(name)} — hide it on your board`}
-               className="rounded border-0 bg-transparent px-1 text-[11px] text-ink-3 hover:text-brand"
+               className="pressable rounded border-0 bg-transparent px-1 text-[11px] text-ink-3 hover:text-brand"
             >
                Mute
             </button>
@@ -275,7 +278,7 @@ export function Filters({
                            key={t.team}
                            type="button"
                            onClick={() => setScope({ ...scope, authors: [...t.members] })}
-                           className="rounded-lg border border-line bg-surface px-2 py-[3px] text-xs font-medium text-ink-2 hover:border-brand hover:text-brand"
+                           className="pressable rounded-lg border border-line bg-surface px-2 py-[3px] text-xs font-medium text-ink-2 hover:border-brand hover:text-brand"
                         >
                            {t.team}
                         </button>
@@ -288,7 +291,7 @@ export function Filters({
                   .map(([login, count]) => (
                      <label
                         key={login}
-                        className="flex items-center gap-2 rounded-md px-1.5 py-[5px] text-[13px] hover:bg-muted"
+                        className="flex items-center gap-2 rounded-md px-1.5 py-[5px] text-[13px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none"
                      >
                         <input
                            type="checkbox"
@@ -303,7 +306,9 @@ export function Filters({
                            }
                         />
                         <Avatar login={login} size={18} />
-                        <span title={login} className="min-w-0 flex-1 truncate">{login}</span>
+                        <span title={login} className="min-w-0 flex-1 truncate">
+                           {login}
+                        </span>
                         <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
                      </label>
                   ))}

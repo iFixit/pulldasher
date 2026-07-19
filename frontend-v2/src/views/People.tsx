@@ -74,8 +74,9 @@ export function People({
          p.data.user.login !== opts.me &&
          (p.crBy.includes(opts.me) || p.recrBy.includes(opts.me))
    );
+   const inLane = new Set([...reviewable, ...mine]);
    const rest = theirs
-      .filter(p => !reviewable.includes(p) && !mine.includes(p))
+      .filter(p => !inLane.has(p))
       .sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status));
    const memberTeam = selectedPerson
       ? teams.find(t => t.members.includes(selectedPerson))?.team

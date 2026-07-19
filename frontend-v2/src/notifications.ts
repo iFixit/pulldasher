@@ -149,18 +149,25 @@ export function useNotifications(pulls: DerivedPull[], me: string) {
    }, []);
 
    useEffect(() => {
+      const s = getSettings();
+      const active =
+         notificationsSupported && s.notify && Notification.permission === 'granted' && !!me;
+      // while off, skip the per-pull scan entirely; dropping primed means the
+      // first pass after enabling records a baseline silently instead of
+      // firing a backlog of "new" moves
+      if (!active) {
+         primed.current = false;
+         return;
+      }
+
       const current = new Map<string, string>();
       for (const p of pulls) {
          const action = alertMove(p, me);
          if (action) current.set(pullKey(p.data), action);
       }
 
-      const s = getSettings();
-      const active =
-         notificationsSupported && s.notify && Notification.permission === 'granted' && !!me;
-
-      // record the baseline but stay silent while off, unprimed, or focused
-      if (!active || !primed.current || document.hasFocus()) {
+      // record the baseline but stay silent while unprimed or focused
+      if (!primed.current || document.hasFocus()) {
          seen.current = current;
          primed.current = true;
          return;

@@ -172,25 +172,36 @@ let snapshot: Snapshot = {
    snoozed: { ...snoozed },
 };
 
-// derive() is pure per (pull, spec, warnDays): cache on reference identity so
-// a pullChange for one pull doesn't rebuild 180 DerivedPull objects (and
-// re-render 180 memoized rows). warnDays is in the key so changing the aging
-// threshold in Settings actually re-derives (starved gates the aging lane).
+// derive() is pure per (pull, spec, warnDays, minute): cache on reference
+// identity so a pullChange for one pull doesn't rebuild 180 DerivedPull
+// objects (and re-render 180 memoized rows). warnDays is in the key so
+// changing the aging threshold in Settings actually re-derives (starved gates
+// the aging lane). The minute bucket keeps the 60s heartbeat honest: without
+// it, a quiet pull returns the same cached object forever, Row's memo bails,
+// and ageDays/starved/"Nm ago" freeze at whenever the pull last changed.
 const derived = new WeakMap<
    PullData,
    {
       spec: RepoSpec | undefined;
       warnDays: number;
       weightLabels: ReadonlyMap<string, Weight>;
+      minute: number;
       value: DerivedPull;
    }
 >();
 function deriveCached(pull: PullData, spec: RepoSpec | undefined, warnDays: number): DerivedPull {
+   const minute = Math.floor(Date.now() / 60_000);
    const hit = derived.get(pull);
-   if (hit && hit.spec === spec && hit.warnDays === warnDays && hit.weightLabels === weightLabels)
+   if (
+      hit &&
+      hit.spec === spec &&
+      hit.warnDays === warnDays &&
+      hit.weightLabels === weightLabels &&
+      hit.minute === minute
+   )
       return hit.value;
    const value = derive(pull, spec, Date.now() / 1000, warnDays, weightLabels);
-   derived.set(pull, { spec, warnDays, weightLabels, value });
+   derived.set(pull, { spec, warnDays, weightLabels, minute, value });
    return value;
 }
 

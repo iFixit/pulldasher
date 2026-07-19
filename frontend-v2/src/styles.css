@@ -227,16 +227,22 @@ a:hover {
    the container's flow — borders, hover — unchanged) */
 .settle-once > *,
 .reveal-stagger > * {
-  animation: settle 300ms var(--ease-quint) backwards;
+  animation: settle 240ms var(--ease-quint) backwards;
 }
 .settle-once > *:nth-child(2),
-.reveal-stagger > *:nth-child(2) { animation-delay: 40ms; }
+.reveal-stagger > *:nth-child(2) { animation-delay: 30ms; }
 .settle-once > *:nth-child(3),
-.reveal-stagger > *:nth-child(3) { animation-delay: 80ms; }
+.reveal-stagger > *:nth-child(3) { animation-delay: 60ms; }
 .settle-once > *:nth-child(4),
-.reveal-stagger > *:nth-child(4) { animation-delay: 120ms; }
+.reveal-stagger > *:nth-child(4) { animation-delay: 90ms; }
 .settle-once > *:nth-child(n + 5),
-.reveal-stagger > *:nth-child(n + 5) { animation-delay: 160ms; }
+.reveal-stagger > *:nth-child(n + 5) { animation-delay: 120ms; }
+/* a big "+N more" can reveal 50+ rows at once; starting that many animation
+   instances in one frame is real main-thread work for zero perceptible gain —
+   past the first two dozen the rows just appear */
+.reveal-stagger > *:nth-child(n + 25) {
+  animation: none;
+}
 
 @keyframes pop {
   from {
@@ -261,20 +267,22 @@ a:hover {
   }
 }
 .notice-inner {
-  animation: slide-down 250ms var(--ease-quint);
+  animation: slide-down 200ms var(--ease-quint);
 }
 
-/* changed rows: the tick flashes once, then rests */
+/* changed rows: the tick flashes once, then rests. background-color (not the
+   background shorthand) so the browser interpolates one paint property; kept
+   under a second so a socket burst that flashes many rows settles fast */
 @keyframes fresh-flash {
   0% {
-    background: color-mix(in srgb, var(--brand) 12%, transparent);
+    background-color: color-mix(in srgb, var(--brand) 12%, transparent);
   }
   100% {
-    background: transparent;
+    background-color: transparent;
   }
 }
 .row-fresh {
-  animation: fresh-flash 1.4s var(--ease-quart) 300ms backwards;
+  animation: fresh-flash 800ms var(--ease-quart) 200ms backwards;
 }
 
 /* the since-your-last-look marker on a closed row (open rows use FreshTag) */
@@ -381,7 +389,7 @@ a:hover {
   }
 }
 .spin-once {
-  animation: spin-once 600ms var(--ease-quart);
+  animation: spin-once 400ms var(--ease-quart);
 }
 
 @keyframes nod {
