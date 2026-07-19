@@ -92,5 +92,16 @@ export default {
       directory: "public",
       publicPath: "/public",
     },
+    // Mirror production's single-app shape in dev: the real server mounts the
+    // v2 build at /v2, so forward /v2 to frontend-v2's Vite dev server (vite
+    // already serves at base /v2/; ws carries its HMR socket). If Vite isn't
+    // running, /v2 just 502s -- v1 is unaffected.
+    proxy: [
+      {
+        context: ["/v2"],
+        target: "http://localhost:5173",
+        ws: true,
+      },
+    ],
   },
 };
