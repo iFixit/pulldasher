@@ -18,10 +18,12 @@ import {
 } from '../settings';
 import { QuietButton, Segmented } from './bits';
 import { RepoManagerGroup } from './RepoManager';
+import { TeamPickerGroup } from './TeamPicker';
 
 const LENS_OPTIONS: [string, string][] = [
    ['review', 'Review'],
    ['mine', 'My work'],
+   ['team', 'Team'],
    ['people', 'People'],
    ['classic', 'Classic'],
    ['stats', 'Stats'],
@@ -88,12 +90,15 @@ export function Settings({
    repos,
    orgHidden,
    snoozedCount,
+   extraBots,
 }: {
    /** every known repo with its open-PR count, for the repo manager */
    repos: { name: string; count: number }[];
    orgHidden: ReadonlySet<string>;
    /** pulls currently hidden by a row snooze */
    snoozedCount: number;
+   /** config.json's named bots, so the team picker's suggestions leave them out */
+   extraBots: ReadonlySet<string>;
 }) {
    const [open, setOpen] = useState(false);
    const s = useSettings();
@@ -320,6 +325,8 @@ export function Settings({
                            />
                         </Field>
                      </Group>
+
+                     <TeamPickerGroup extraBots={extraBots} />
 
                      <Group title="Notifications">
                         {notificationsSupported ? (
