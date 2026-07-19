@@ -184,16 +184,63 @@ function RowDetails({ flags }: { flags: Flag[] }) {
    );
 }
 
+const ICON_COPY =
+   'M5 1a1 1 0 0 0-1 1v1H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1a1 1 0 0 0 1-1V4.4L11.6 1H5Zm6 11v1H3V4h1v7a1 1 0 0 0 1 1h6Zm2-2H5V2h5v3h3v5Z';
+const ICON_SNOOZE =
+   'M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Zm-.75 2v4.06l3.1 1.86.77-1.28-2.37-1.42V4.5h-1.5Z';
+const ICON_REFRESH =
+   'M8 3a5 5 0 1 0 4.9 6h-1.55A3.5 3.5 0 1 1 8 4.5c.97 0 1.85.4 2.48 1.02L8.5 7.5H13V3l-1.46 1.46A4.98 4.98 0 0 0 8 3Z';
+const ICON_KEBAB =
+   'M8 4.4a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Zm0 5a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Zm0 5a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Z';
+
+function ActionIcon({ d, spin }: { d: string; spin?: boolean }) {
+   return (
+      <svg
+         viewBox="0 0 16 16"
+         aria-hidden
+         className={`h-3.5 w-3.5 flex-none fill-current ${spin ? 'spin-once' : ''}`}
+      >
+         <path d={d} />
+      </svg>
+   );
+}
+
+/**
+ * The three per-row actions, shared by the desktop hover cluster and the
+ * mobile kebab menu so the two surfaces can never disagree on behavior.
+ */
+function useRowActions(pull: DerivedPull) {
+   const [copied, setCopied] = useState(false);
+   const [spinning, setSpinning] = useState(false);
+   return {
+      copied,
+      spinning,
+      copy: () => {
+         void navigator.clipboard.writeText(pull.data.head.ref);
+         setCopied(true);
+         setTimeout(() => setCopied(false), 1200);
+      },
+      snooze: () => snoozePull(pullKey(pull.data)),
+      refresh: () => {
+         refreshPull(pull.data.repo, pull.data.number);
+         setSpinning(true);
+         setTimeout(() => setSpinning(false), 600);
+      },
+   };
+}
+
 /**
  * Hover/focus actions: copy the branch name, snooze, re-fetch from GitHub.
  * `overlay` (compact) floats them over the row's tail instead of reserving
  * rail width — .row-actions hides them with visibility, which still takes
  * layout space, and in a narrow column that standing ~70px tax comes straight
- * out of the title.
+ * out of the title. Hidden below 720px, where RowActionsKebab takes over
+ * (hover-reveal has no phone story).
  */
 function RowActions({ pull, overlay }: { pull: DerivedPull; overlay?: boolean }) {
-   const [copied, setCopied] = useState(false);
-   const [spinning, setSpinning] = useState(false);
+   const a = useRowActions(pull);
+   const btn =
+      'hit pressable rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand';
    return (
       <span
          className={`row-actions hidden items-center gap-1 min-[720px]:inline-flex ${
@@ -206,54 +253,91 @@ function RowActions({ pull, overlay }: { pull: DerivedPull; overlay?: boolean })
             type="button"
             aria-label={`copy branch name ${pull.data.head.ref}`}
             title={`copy branch: ${pull.data.head.ref}`}
-            className="hit pressable rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
-            onClick={() => {
-               void navigator.clipboard.writeText(pull.data.head.ref);
-               setCopied(true);
-               setTimeout(() => setCopied(false), 1200);
-            }}
+            className={btn}
+            onClick={a.copy}
          >
-            {copied ? (
+            {a.copied ? (
                <span className="chip-in" style={{ color: 'var(--ok)' }}>
                   copied
                </span>
             ) : (
-               <svg viewBox="0 0 16 16" aria-hidden className="h-3.5 w-3.5 fill-current">
-                  <path d="M5 1a1 1 0 0 0-1 1v1H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1a1 1 0 0 0 1-1V4.4L11.6 1H5Zm6 11v1H3V4h1v7a1 1 0 0 0 1 1h6Zm2-2H5V2h5v3h3v5Z" />
-               </svg>
+               <ActionIcon d={ICON_COPY} />
             )}
          </button>
          <button
             type="button"
             aria-label="snooze: hide until tomorrow or until it changes"
             title="snooze: hide until tomorrow or until it changes"
-            className="hit pressable rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
-            onClick={() => snoozePull(pullKey(pull.data))}
+            className={btn}
+            onClick={a.snooze}
          >
-            <svg viewBox="0 0 16 16" aria-hidden className="h-3.5 w-3.5 fill-current">
-               <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Zm-.75 2v4.06l3.1 1.86.77-1.28-2.37-1.42V4.5h-1.5Z" />
-            </svg>
+            <ActionIcon d={ICON_SNOOZE} />
          </button>
          <button
             type="button"
             aria-label="re-fetch this PR from GitHub"
             title="re-fetch this PR from GitHub"
-            className="hit pressable rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
-            onClick={() => {
-               refreshPull(pull.data.repo, pull.data.number);
-               setSpinning(true);
-               setTimeout(() => setSpinning(false), 600);
-            }}
+            className={btn}
+            onClick={a.refresh}
          >
-            <svg
-               viewBox="0 0 16 16"
-               aria-hidden
-               className={`h-3.5 w-3.5 fill-current ${spinning ? 'spin-once' : ''}`}
-            >
-               <path d="M8 3a5 5 0 1 0 4.9 6h-1.55A3.5 3.5 0 1 1 8 4.5c.97 0 1.85.4 2.48 1.02L8.5 7.5H13V3l-1.46 1.46A4.98 4.98 0 0 0 8 3Z" />
-            </svg>
+            <ActionIcon d={ICON_REFRESH} spin={a.spinning} />
          </button>
       </span>
+   );
+}
+
+/**
+ * The same three actions for pointers that can't hover: below 720px the
+ * desktop cluster simply doesn't exist, so every row keeps a quiet,
+ * always-visible kebab that opens a tap-friendly labeled menu (the house
+ * click-to-open popover — no hover in the path).
+ */
+function RowActionsKebab({ pull }: { pull: DerivedPull }) {
+   const a = useRowActions(pull);
+   const item =
+      'flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2 text-left text-xs text-ink-2 hover:bg-muted';
+   return (
+      <Popover
+         label="Row actions"
+         side="right"
+         rootClass="relative inline-flex min-[720px]:hidden"
+         // capped to the viewport: w-max would size to the branch name and
+         // push the panel off a phone screen — the branch truncates instead
+         width="w-max min-w-[190px] max-w-[min(280px,calc(100vw-16px))]"
+         panelClass="p-1 text-xs"
+         trigger={t => (
+            <button
+               {...t}
+               type="button"
+               aria-label="row actions"
+               className="hit pressable -my-2 rounded border-0 bg-transparent px-0.5 py-2 text-ink-3 hover:text-brand"
+            >
+               <ActionIcon d={ICON_KEBAB} />
+            </button>
+         )}
+      >
+         <button type="button" className={item} onClick={a.copy}>
+            <ActionIcon d={ICON_COPY} />
+            {a.copied ? (
+               <span style={{ color: 'var(--ok)' }}>Copied!</span>
+            ) : (
+               <>
+                  Copy branch name
+                  <span className="min-w-0 flex-1 truncate text-right text-ink-3">
+                     {pull.data.head.ref}
+                  </span>
+               </>
+            )}
+         </button>
+         <button type="button" className={item} onClick={a.snooze}>
+            <ActionIcon d={ICON_SNOOZE} />
+            Snooze until tomorrow
+         </button>
+         <button type="button" className={item} onClick={a.refresh}>
+            <ActionIcon d={ICON_REFRESH} spin={a.spinning} />
+            Re-fetch from GitHub
+         </button>
+      </Popover>
    );
 }
 
@@ -273,6 +357,7 @@ function MetricRail({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          }`}
       >
          <RowActions pull={pull} overlay={!!opts.compact} />
+         <RowActionsKebab pull={pull} />
          <WeightMeter weight={pull.weight} known={pull.sizeKnown} />
          <SigPips
             label="CR"

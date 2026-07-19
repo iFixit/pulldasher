@@ -59,15 +59,26 @@ export function Popover({
          if (!el) return;
          const r = el.getBoundingClientRect();
          const top = r.bottom + 4;
+         // clamp into the viewport (8px gutters): a right-anchored panel wider
+         // than the space left of its trigger would otherwise hang off-screen
+         // — the phone kebab menu found this the hard way
+         const panelW = pop.panelRef.current?.offsetWidth ?? 0;
+         const max = window.innerWidth - panelW - 8;
          setPos(
-            side === 'right' ? { top, right: window.innerWidth - r.right } : { top, left: r.left }
+            side === 'right'
+               ? { top, right: Math.max(Math.min(window.innerWidth - r.right, max), 8) }
+               : { top, left: Math.max(Math.min(r.left, max), 8) }
          );
       };
       place();
+      // second pass once the panel exists: the first ran before it rendered,
+      // so the clamp had no width to measure
+      const t = setTimeout(place, 0);
       // capture-phase catches scrolls on any ancestor, not just window
       window.addEventListener('scroll', place, true);
       window.addEventListener('resize', place);
       return () => {
+         clearTimeout(t);
          window.removeEventListener('scroll', place, true);
          window.removeEventListener('resize', place);
       };
