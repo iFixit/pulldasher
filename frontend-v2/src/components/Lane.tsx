@@ -92,7 +92,7 @@ export function Lane({
 /** The standard fold body: capped, expandable rows for a list of pulls. */
 export function FoldRows({ list, opts }: { list: DerivedPull[]; opts: RowOptions }) {
    return (
-      <Truncated>
+      <Truncated cap={laneShown(30, opts)}>
          {list.map(p => (
             <Row key={pullKey(p.data)} pull={p} opts={opts} />
          ))}

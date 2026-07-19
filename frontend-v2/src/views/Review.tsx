@@ -299,7 +299,7 @@ export function Review({
                label="recently shipped"
                hint="merged or closed in the last 14 days"
             >
-               <Truncated>
+               <Truncated cap={laneShown(30, opts)}>
                   {closed.map(p => (
                      <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />
                   ))}

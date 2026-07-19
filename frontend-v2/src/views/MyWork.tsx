@@ -3,7 +3,7 @@ import { authorMove } from '../model/actions';
 import type { PullData } from '../types';
 import { pullKey } from '../format';
 import { EmptyState } from '../components/bits';
-import { Fold, Lane, RestGroup, Truncated } from '../components/Lane';
+import { Fold, Lane, laneShown, RestGroup, Truncated } from '../components/Lane';
 import { Row, type RowOptions } from '../components/Row';
 import { ClosedRow } from '../components/ClosedRow';
 
@@ -69,7 +69,7 @@ export function MyWork({
                   label="recently shipped"
                   hint="merged or closed in the last 14 days"
                >
-                  <Truncated>
+                  <Truncated cap={laneShown(30, opts)}>
                      {shipped.map(p => (
                         <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />
                      ))}

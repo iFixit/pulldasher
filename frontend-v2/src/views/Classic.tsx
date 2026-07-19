@@ -4,7 +4,7 @@ import { ago, closedEpoch, pullKey } from '../format';
 import { ClosedBadge, EmptyState, RepoRef } from '../components/bits';
 import { CardShell } from '../components/Card';
 import { BoardColumn } from '../components/Column';
-import { Truncated } from '../components/Lane';
+import { laneShown, Truncated } from '../components/Lane';
 import { Row, type RowOptions } from '../components/Row';
 
 /**
@@ -65,7 +65,7 @@ function Column({
    return (
       <BoardColumn count={pulls.length} header={title} defaultOpen={defaultOpen} empty="None">
          {/* a 60-row CR column is a 3600px scroll: cap it, keep the count honest */}
-         <Truncated cap={15} id={`classic:${title}`}>
+         <Truncated cap={laneShown(15, opts)} id={`classic:${title}`}>
             {pulls.map(p => (
                <Row key={pullKey(p.data)} pull={p} opts={opts} />
             ))}
@@ -130,7 +130,10 @@ export function Classic({
    const ciBlocked = base.filter(p => !isDevBlocked(p) && !passedCI(p) && !isDraft(p));
    const deployBlocked = base
       .filter(
-         p => metDeployReqs(p) && !isDevBlocked(p) && (isDeployBlocked(p) || p.conflict || p.dependent)
+         p =>
+            metDeployReqs(p) &&
+            !isDevBlocked(p) &&
+            (isDeployBlocked(p) || p.conflict || p.dependent)
       )
       .sort(deployCompare);
    const ready = base.filter(
