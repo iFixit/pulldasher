@@ -4,17 +4,7 @@ import { isIterating, lastPushEpoch } from '../model/status';
 import { rowNote } from '../model/actions';
 import { ago, epoch, pullKey } from '../format';
 import { ackPull, isFresh, refreshPull, snoozePull } from '../store';
-import {
-   AgeStamp,
-   DiffSize,
-   FreshTag,
-   RepoRef,
-   SigPips,
-   STATUS_DOT,
-   STATUS_LABEL,
-   StatusBadge,
-   WeightMeter,
-} from './bits';
+import { AgeStamp, DiffSize, FreshTag, RepoRef, SigPips, StatusBadge, WeightMeter } from './bits';
 import { CardShell } from './Card';
 import { Popover } from './Popover';
 
@@ -144,36 +134,17 @@ function rowFlags(pull: DerivedPull, showIterating: boolean, aging: boolean): Fl
 }
 
 /**
- * The row's drill-down: flag labels inline for scanning, the plain-English
- * meaning one hover away — the same pattern the CR/QA pips use, so nothing on
- * the row hides its meaning behind a native tooltip. In compact density the
- * panel is the row's full recovery surface: title, status, repo#, diff size,
- * fresh state, and the action/context line all reappear here, because any of
- * them can be squeezed out of the one-line layout. Compact's trigger renders
- * outside the row's clipping column (beside the rail), so the recovery point
- * itself can never be the thing that gets clipped — and it collapses to the
- * leading flag plus a count so it stays narrow.
+ * The flag cluster's drill-down: labels inline for scanning, the plain-
+ * English meaning one hover away — the same pattern the CR/QA pips use, so
+ * no flag hides its meaning behind a native tooltip. Both densities show the
+ * full label list (compact wraps rather than abbreviating); with no flags
+ * there's nothing to explain and no trigger to show.
  */
-function RowDetails({
-   flags,
-   pull,
-   note,
-   fresh,
-   compact,
-}: {
-   flags: Flag[];
-   pull: DerivedPull;
-   note: { text: string; tone: 'do' | 'wait' } | null;
-   fresh: 'new' | 'updated' | null;
-   compact?: boolean;
-}) {
-   // comfortable rows wrap instead of clipping, so with no flags there's
-   // nothing to recover and no trigger to show
-   if (!flags.length && !compact) return null;
-   const d = pull.data;
+function RowDetails({ flags }: { flags: Flag[] }) {
+   if (!flags.length) return null;
    return (
       <Popover
-         label={compact ? 'Row details' : 'What these flags mean'}
+         label="What these flags mean"
          side="right"
          hover
          rootClass="relative inline-flex"
@@ -183,57 +154,20 @@ function RowDetails({
             <button
                {...t}
                type="button"
-               aria-label={
-                  flags.length
-                     ? `row details: ${flags.map(f => f.label).join(', ')}`
-                     : 'row details'
-               }
-               className="pd-raise -my-2 inline-flex cursor-default items-center gap-1.5 rounded px-0.5 py-2 hover:bg-secondary/60"
+               aria-label={`row details: ${flags.map(f => f.label).join(', ')}`}
+               className="pd-raise -my-2 inline-flex cursor-default flex-wrap items-center gap-x-2 gap-y-1 rounded px-0.5 py-2 hover:bg-secondary/60"
             >
-               {!flags.length ? (
-                  <span aria-hidden className="text-ink-3">
-                     …
+               {flags.map(f => (
+                  <span
+                     key={f.key}
+                     className={`whitespace-nowrap ${f.tone === 'warn' ? 'flag-warn' : 'flag-note'}`}
+                  >
+                     {f.label}
                   </span>
-               ) : compact ? (
-                  <>
-                     <span
-                        className={`max-w-[9ch] truncate ${flags[0].tone === 'warn' ? 'flag-warn' : 'flag-note'}`}
-                     >
-                        {flags[0].label}
-                     </span>
-                     {flags.length > 1 && (
-                        <span aria-hidden className="text-[11px] text-ink-3">
-                           +{flags.length - 1}
-                        </span>
-                     )}
-                  </>
-               ) : (
-                  flags.map(f => (
-                     <span
-                        key={f.key}
-                        className={`whitespace-nowrap ${f.tone === 'warn' ? 'flag-warn' : 'flag-note'}`}
-                     >
-                        {f.label}
-                     </span>
-                  ))
-               )}
+               ))}
             </button>
          )}
       >
-         {compact && (
-            <span className="mb-1 block border-b border-secondary px-1 pb-1.5">
-               <b className="block font-medium break-words text-ink">{d.title}</b>
-               <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                  {fresh && <FreshTag kind={fresh} />}
-                  <StatusBadge status={pull.status} inline />
-                  <RepoRef repo={d.repo} number={d.number} />
-                  {pull.sizeKnown && (
-                     <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
-                  )}
-               </span>
-               {note && <span className="mt-1 block text-ink-2">{note.text}</span>}
-            </span>
-         )}
          {flags.map(f => (
             <span key={f.key} className="flex items-start gap-1.5 px-1 py-[3px]">
                <span
@@ -378,34 +312,6 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const note = rowNote(pull, opts.me);
    // "iterating" and a "fix pushed …" note say the same thing — don't say it twice
    const showIterating = isIterating(pull) && !note?.text.includes('pushed');
-   const details = (
-      <RowDetails
-         flags={rowFlags(pull, showIterating, !!opts.aging && pull.starved)}
-         pull={pull}
-         note={note}
-         fresh={fresh}
-         compact={opts.compact}
-      />
-   );
-
-   // your move: the imperative IS the signal, so it leads and the badge (which
-   // would only echo it) steps aside. Otherwise the badge names the state and
-   // any note just adds who/when.
-   const lead =
-      note?.tone === 'do' ? (
-         <span
-            className="badge-do min-w-[8ch] max-w-[40ch] truncate"
-            // .badge-do sets flex:none; in compact the note must be allowed to
-            // shrink (to its 8ch floor) so the title keeps its guaranteed width
-            style={opts.compact ? { flex: '0 1 auto' } : undefined}
-            title={note.text}
-         >
-            {note.text}
-         </span>
-      ) : (
-         <StatusBadge status={pull.status} inline />
-      );
-
    return (
       <CardShell
          login={d.user.login}
@@ -417,51 +323,27 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          compact={opts.compact}
          className={`${flashOnce(key, !!fresh) ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
          meta={
-            opts.compact ? (
-               // one line, title-first: the status collapses to a dot (the
-               // badge, repo#, wait-note, diff size, and full flag list all
-               // live in the details popover, whose trigger sits beside the
-               // rail — outside this clipping column — so the recovery point
-               // survives any squeeze). Only a fresh tag and your imperative
-               // stay as text: everything else is title.
-               <>
-                  {fresh && <FreshTag kind={fresh} />}
-                  <span
-                     role="img"
-                     aria-label={STATUS_LABEL[pull.status]}
-                     title={STATUS_LABEL[pull.status]}
-                     className="h-2 w-2 flex-none rounded-full"
-                     style={{ background: STATUS_DOT[pull.status] }}
-                  />
-                  {note?.tone === 'do' && lead}
-               </>
-            ) : (
-               <>
-                  {fresh && <FreshTag kind={fresh} />}
-                  {lead}
-                  <RepoRef repo={d.repo} number={d.number} />
-                  {pull.sizeKnown && (
-                     <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
-                  )}
-                  {note?.tone === 'wait' && (
-                     <span className="max-w-[38ch] truncate text-ink-2" title={note.text}>
-                        {note.text}
-                     </span>
-                  )}
-                  {details}
-               </>
-            )
+            // the same untruncated meta in both densities — the shell wraps
+            // instead of clipping, so no chip ever costs the title its text
+            <>
+               {fresh && <FreshTag kind={fresh} />}
+               {/* your move: the imperative IS the signal, so it leads and the
+                   badge (which would only echo it) steps aside. Otherwise the
+                   badge names the state and any note just adds who/when. */}
+               {note?.tone === 'do' ? (
+                  <span className="badge-do">{note.text}</span>
+               ) : (
+                  <StatusBadge status={pull.status} inline />
+               )}
+               <RepoRef repo={d.repo} number={d.number} />
+               {pull.sizeKnown && (
+                  <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
+               )}
+               {note?.tone === 'wait' && <span className="text-ink-2">{note.text}</span>}
+               <RowDetails flags={rowFlags(pull, showIterating, !!opts.aging && pull.starved)} />
+            </>
          }
-         rail={
-            opts.compact ? (
-               <>
-                  {details}
-                  <MetricRail pull={pull} opts={opts} />
-               </>
-            ) : (
-               <MetricRail pull={pull} opts={opts} />
-            )
-         }
+         rail={<MetricRail pull={pull} opts={opts} />}
       />
    );
 }

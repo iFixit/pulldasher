@@ -8,10 +8,11 @@ import { Avatar, PullTitleLink } from './bits';
  *   below. Giving the title its own line lets a long title wrap cleanly
  *   instead of fighting a dozen metadata chips, and lets the card reflow to a
  *   phone.
- * - compact: everything on a single line — avatar, a truncating title, then
- *   the meta chips and the right-anchored rail — with a smaller avatar and
- *   tighter padding, so ~40% more rows fit on screen. The title gives up
- *   wrapping (it ellipsizes) in exchange for the density.
+ * - compact: everything on one flowing line — avatar, title, meta chips, the
+ *   right-anchored rail — with a smaller avatar and tighter padding. When the
+ *   column is narrower than the content, the line wraps; nothing ever
+ *   ellipsizes. Density comes from the tighter geometry, never from hiding
+ *   text.
  *
  * The meta content is the caller's; only the shell (and its geometry) is
  * shared, so the rail lands at the same x down the board in every lens. The
@@ -41,9 +42,9 @@ export function CardShell({
    /** the meta line: badge, repo#number, context, flags */
    meta: ReactNode;
    /** the fixed metric rail (weight, pips, age). A separate slot on purpose:
-    * in compact it renders OUTSIDE the squeezing content column, so a crowded
-    * row can never clip the sign-off pips — the content clips, the rail
-    * doesn't. Comfortable keeps it on the wrapping meta line. */
+    * in compact it renders outside the wrapping content column, so the
+    * metrics hold a stable right rail while the text flows. Comfortable
+    * keeps it on the wrapping meta line. */
    rail?: ReactNode;
    stretch?: boolean;
    compact?: boolean;
@@ -60,19 +61,16 @@ export function CardShell({
             <span className="pd-raise flex-none">
                <Avatar login={login} onClick={onPerson} size={16} />
             </span>
-            <span className="flex min-w-0 flex-1 items-center gap-x-2 overflow-hidden text-xs text-ink-3">
-               {/* the title wins the squeeze: it keeps ~3 words minimum while the
-                   meta chips shrink or clip (each recoverable in the details
-                   popover, whose trigger lives outside this clipping column) */}
-               <span
-                  title={title}
-                  className="min-w-[16ch] shrink truncate text-[13px] leading-none"
-               >
-                  {titleLink}
-               </span>
+            {/* nothing here truncates: the row flows as one tight line and
+                wraps when the column is narrower than the content — density
+                comes from geometry, never from hiding text. The rail rides
+                the same flow (its ml-auto keeps it right-aligned), so in a
+                narrow column it drops below the text instead of starving it */}
+            <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-ink-3">
+               <span className="min-w-0 text-[13px] leading-snug break-words">{titleLink}</span>
                {meta}
+               {rail}
             </span>
-            {rail}
          </div>
       );
    }
