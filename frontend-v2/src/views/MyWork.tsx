@@ -68,8 +68,13 @@ export function MyWork({
                   count={shipped.length}
                   label="recently shipped"
                   hint="merged or closed in the last 14 days"
+                  id="mine:shipped"
+                  // both lanes above are clear and shipped has something to
+                  // show: "look what got done" is exactly the content the
+                  // all-clear day deserves, not another closed triangle
+                  defaultOpen={!move.length && !waiting.length}
                >
-                  <Truncated cap={laneShown(30, opts)}>
+                  <Truncated cap={laneShown(30, opts)} id="mine:shipped-rows">
                      {shipped.map(p => (
                         <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />
                      ))}

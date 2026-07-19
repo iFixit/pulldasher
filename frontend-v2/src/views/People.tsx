@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { STATUS_ORDER, type DerivedPull } from '../model/status';
 import type { Team } from '../types';
-import { Avatar } from '../components/bits';
+import { Avatar, EmptyState } from '../components/bits';
 import { Fold, FoldRows, Lane, RestGroup } from '../components/Lane';
 import type { RowOptions } from '../components/Row';
 import { crSort } from '../model/sort';
@@ -49,7 +49,9 @@ export function People({
    const defaultPerson = logins.find(l => l !== opts.me) ?? logins[0];
    const selectedTeam = team && teams.some(t => t.team === team) ? team : null;
    const selectedPerson = selectedTeam ? null : (person ?? defaultPerson);
-   if (!selectedPerson && !selectedTeam) return null;
+   if (!selectedPerson && !selectedTeam) {
+      return <EmptyState title="Nobody to show" sub="No open PRs from any person in this scope." />;
+   }
 
    const members = selectedTeam
       ? (teams.find(t => t.team === selectedTeam)?.members ?? [])
@@ -179,7 +181,9 @@ export function People({
                <span className="text-xs text-ink-3">
                   {memberTeam ? `${memberTeam} · ` : ''}
                   {selectedTeam ? `${members.length} members · ` : ''}
-                  {theirs.length} open {theirs.length === 1 ? 'PR' : 'PRs'}
+                  {theirs.length === 0
+                     ? 'nothing open right now'
+                     : `${theirs.length} open ${theirs.length === 1 ? 'PR' : 'PRs'}`}
                   {scopeHides > 0 && (
                      <span className="text-warn"> · scope hides {scopeHides} more</span>
                   )}
@@ -215,19 +219,26 @@ export function People({
                   count={mine.length}
                   label="stamped by you"
                   hint="waiting on another reviewer"
+                  id="people:mine"
                >
-                  <FoldRows list={mine} opts={opts} />
+                  <FoldRows list={mine} opts={opts} id="people:mine" />
                </Fold>
                <Fold
                   dot="var(--ink-3)"
                   count={rest.length}
                   label={selectedTeam ? 'their other team PRs' : 'their other PRs'}
+                  id="people:rest"
                >
-                  <FoldRows list={rest} opts={opts} />
+                  <FoldRows list={rest} opts={opts} id="people:rest" />
                </Fold>
                {selectedPerson && (
-                  <Fold dot="var(--brand)" count={owed.length} label="re-stamps they owe others">
-                     <FoldRows list={owed} opts={opts} />
+                  <Fold
+                     dot="var(--brand)"
+                     count={owed.length}
+                     label="re-stamps they owe others"
+                     id="people:owed"
+                  >
+                     <FoldRows list={owed} opts={opts} id="people:owed" />
                   </Fold>
                )}
             </RestGroup>

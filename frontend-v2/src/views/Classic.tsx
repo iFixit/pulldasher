@@ -63,7 +63,7 @@ function Column({
    defaultOpen?: boolean;
 }) {
    return (
-      <BoardColumn count={pulls.length} header={title} defaultOpen={defaultOpen} empty="None">
+      <BoardColumn count={pulls.length} header={title} defaultOpen={defaultOpen}>
          {/* a 60-row CR column is a 3600px scroll: cap it, keep the count honest */}
          <Truncated cap={laneShown(15, opts)} id={`classic:${title}`}>
             {pulls.map(p => (
@@ -100,7 +100,7 @@ function ClosedCard({ pull }: { pull: PullData }) {
 function ClosedColumn({ pulls }: { pulls: PullData[] }) {
    const ordered = [...pulls].sort((a, b) => closedEpoch(b) - closedEpoch(a));
    return (
-      <BoardColumn count={pulls.length} header="Recently Closed" empty="None">
+      <BoardColumn count={pulls.length} header="Recently Closed">
          {ordered.map(p => (
             <ClosedCard key={pullKey(p)} pull={p} />
          ))}

@@ -130,6 +130,10 @@ export function Team({
             <div className="mb-3 text-xs text-warn">scope hides {scopeHides} more</div>
          )}
 
+         {reviewable.length === 0 && stamped.length === 0 && rest.length === 0 && (
+            <p className="text-[13px] text-ink-3">Nothing open from your team right now.</p>
+         )}
+
          <Lane title="Review your team's work" pulls={reviewable} cap={9} opts={opts} />
          {(stamped.length > 0 || rest.length > 0) && (
             <RestGroup>
@@ -138,11 +142,12 @@ export function Team({
                   count={stamped.length}
                   label="You've stamped — in flight"
                   hint="waiting on another reviewer"
+                  id="team:stamped"
                >
-                  <FoldRows list={stamped} opts={opts} />
+                  <FoldRows list={stamped} opts={opts} id="team:stamped" />
                </Fold>
-               <Fold dot="var(--ink-3)" count={rest.length} label="their other PRs">
-                  <FoldRows list={rest} opts={opts} />
+               <Fold dot="var(--ink-3)" count={rest.length} label="their other PRs" id="team:rest">
+                  <FoldRows list={rest} opts={opts} id="team:rest" />
                </Fold>
             </RestGroup>
          )}

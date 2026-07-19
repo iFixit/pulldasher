@@ -149,6 +149,29 @@ export function Review({
       .filter(p => isFresh(p.data, opts.lastSeen, opts.acked))
       .sort((a, b) => Date.parse(b.data.updated_at) - Date.parse(a.data.updated_at));
 
+   // a quiet board (nothing in any primary lane) is exactly when the rest
+   // group's folds become the main event — they should greet you open, not
+   // as a wall of closed triangles
+   const boardIsQuiet =
+      !todo.length && !changed.length && !queue.length && !aged.length && !needsQa.length;
+
+   // the rest group itself earns a title only when it has something inside —
+   // an empty "rest of the board" with 11 closed folds under it is still noise
+   const restTotal =
+      queueOther.length +
+      needsQaOther.length +
+      ready.length +
+      stamped.length +
+      qaStamped.length +
+      devBlocked.length +
+      deployHeld.length +
+      unmergeable.length +
+      ciPending.length +
+      ciRed.length +
+      drafts.length +
+      bots.length +
+      closed.length;
+
    // bots/shipped stay reachable even when no human PRs need review
    const empty = !pulls.length && !bots.length && !closed.length;
    if (empty) {
@@ -178,13 +201,7 @@ export function Review({
             cap={8}
             opts={opts}
          />
-         <Lane
-            title="Review queue"
-            sub={queueOther.length ? 'in your repos' : undefined}
-            pulls={queue}
-            cap={9}
-            opts={opts}
-         />
+         <Lane title="Review queue" pulls={queue} cap={9} opts={opts} />
          <Lane
             title="Aging without full review"
             pulls={aged}
@@ -193,119 +210,137 @@ export function Review({
          />
          <Lane
             title="Needs QA"
-            sub={
-               needsQaOther.length
-                  ? 'in your repos · CR and QA run in parallel'
-                  : 'CR and QA run in parallel'
-            }
+            sub="CR and QA run in parallel"
             pulls={needsQa}
             cap={6}
             opts={opts}
          />
-         <RestGroup title="The rest of the board">
-            <Fold
-               dot={STATUS_DOT.needs_cr}
-               count={queueOther.length}
-               label="to review in other repos"
-               hint="outside your primary repos"
-            >
-               <FoldRows list={queueOther} opts={opts} />
-            </Fold>
-            <Fold
-               dot={STATUS_DOT.needs_qa}
-               count={needsQaOther.length}
-               label="to QA in other repos"
-               hint="outside your primary repos"
-            >
-               <FoldRows list={needsQaOther} opts={opts} />
-            </Fold>
-            <Fold
-               dot={STATUS_DOT.ready}
-               count={ready.length}
-               label="ready to merge"
-               hint="nudge if idle"
-            >
-               <FoldRows list={ready} opts={opts} />
-            </Fold>
-            <Fold
-               dot="var(--ok)"
-               count={stamped.length}
-               label="stamped by you"
-               hint="waiting on another reviewer"
-            >
-               <FoldRows list={stamped} opts={opts} />
-            </Fold>
-            <Fold
-               dot="var(--ok)"
-               count={qaStamped.length}
-               label="QA’d by you"
-               hint="waiting on another tester"
-            >
-               <FoldRows list={qaStamped} opts={opts} />
-            </Fold>
-            <Fold dot={STATUS_DOT.dev_block} count={devBlocked.length} label="dev blocked">
-               <FoldRows list={devBlocked} opts={opts} />
-            </Fold>
-            <Fold
-               dot={STATUS_DOT.deploy_block}
-               count={deployHeld.length}
-               label="deploy blocked"
-               hint="each row names who blocked it"
-            >
-               <FoldRows list={deployHeld} opts={opts} />
-            </Fold>
-            <Fold
-               dot={STATUS_DOT.unmergeable}
-               count={unmergeable.length}
-               label="can’t merge"
-               hint="the author rebases"
-            >
-               <FoldRows list={unmergeable} opts={opts} />
-            </Fold>
-            <Fold
-               dot={STATUS_DOT.ci_pending}
-               count={ciPending.length}
-               label={STATUS_LABEL.ci_pending.toLowerCase()}
-               hint="waiting on green"
-            >
-               <FoldRows list={ciPending} opts={opts} />
-            </Fold>
-            <Fold dot={STATUS_DOT.ci_red} count={ciRed.length} label="CI red">
-               <FoldRows list={ciRed} opts={opts} />
-            </Fold>
-            <Fold
-               dot={STATUS_DOT.draft}
-               count={drafts.length}
-               label={drafts.length === 1 ? 'draft' : 'drafts'}
-            >
-               <FoldRows list={drafts} opts={opts} />
-            </Fold>
-            <Fold dot="var(--ink-3)" count={bots.length} label="bot PRs" hint="security first">
-               {/* `security` is this org's most-used label (50 in 3 months),
-                   almost all on bot bumps: they lead the fold */}
-               <FoldRows
-                  list={[...bots].sort(
-                     (a, b) =>
-                        Number(b.data.labels.some(l => /security/i.test(l.title))) -
-                           Number(a.data.labels.some(l => /security/i.test(l.title))) ||
-                        b.ageDays - a.ageDays
-                  )}
-                  opts={opts}
-               />
-            </Fold>
-            <Fold
-               dot="var(--ok)"
-               count={closed.length}
-               label="recently shipped"
-               hint="merged or closed in the last 14 days"
-            >
-               <Truncated cap={laneShown(30, opts)}>
-                  {closed.map(p => (
-                     <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />
-                  ))}
-               </Truncated>
-            </Fold>
-         </RestGroup>
+         {restTotal > 0 && (
+            <RestGroup title="The rest of the board">
+               <Fold
+                  dot={STATUS_DOT.needs_cr}
+                  count={queueOther.length}
+                  label="to review in other repos"
+                  hint="outside your primary repos"
+                  id="review:other-repos"
+                  defaultOpen={boardIsQuiet}
+               >
+                  <FoldRows list={queueOther} opts={opts} id="review:other-repos" />
+               </Fold>
+               <Fold
+                  dot={STATUS_DOT.needs_qa}
+                  count={needsQaOther.length}
+                  label="to QA in other repos"
+                  hint="outside your primary repos"
+                  id="review:qa-other-repos"
+                  defaultOpen={boardIsQuiet}
+               >
+                  <FoldRows list={needsQaOther} opts={opts} id="review:qa-other-repos" />
+               </Fold>
+               <Fold
+                  dot={STATUS_DOT.ready}
+                  count={ready.length}
+                  label="ready to merge"
+                  hint="nudge if idle"
+               >
+                  <FoldRows list={ready} opts={opts} />
+               </Fold>
+               <Fold
+                  dot="var(--ok)"
+                  count={stamped.length}
+                  label="stamped by you"
+                  hint="waiting on another reviewer"
+               >
+                  <FoldRows list={stamped} opts={opts} />
+               </Fold>
+               <Fold
+                  dot="var(--ok)"
+                  count={qaStamped.length}
+                  label="QA’d by you"
+                  hint="waiting on another tester"
+               >
+                  <FoldRows list={qaStamped} opts={opts} />
+               </Fold>
+               <Fold dot={STATUS_DOT.dev_block} count={devBlocked.length} label="dev blocked">
+                  <FoldRows list={devBlocked} opts={opts} />
+               </Fold>
+               <Fold
+                  dot={STATUS_DOT.deploy_block}
+                  count={deployHeld.length}
+                  label="deploy blocked"
+                  hint="each row names who blocked it"
+               >
+                  <FoldRows list={deployHeld} opts={opts} />
+               </Fold>
+               <Fold
+                  dot={STATUS_DOT.unmergeable}
+                  count={unmergeable.length}
+                  label="can’t merge"
+                  hint="the author rebases"
+               >
+                  <FoldRows list={unmergeable} opts={opts} />
+               </Fold>
+               <Fold
+                  dot={STATUS_DOT.ci_pending}
+                  count={ciPending.length}
+                  label={STATUS_LABEL.ci_pending.toLowerCase()}
+                  hint="waiting on green"
+               >
+                  <FoldRows list={ciPending} opts={opts} />
+               </Fold>
+               <Fold
+                  dot={STATUS_DOT.ci_red}
+                  count={ciRed.length}
+                  label="CI red"
+                  id="review:ci-red"
+                  defaultOpen={boardIsQuiet}
+               >
+                  <FoldRows list={ciRed} opts={opts} id="review:ci-red" />
+               </Fold>
+               <Fold
+                  dot={STATUS_DOT.draft}
+                  count={drafts.length}
+                  label={drafts.length === 1 ? 'draft' : 'drafts'}
+               >
+                  <FoldRows list={drafts} opts={opts} />
+               </Fold>
+               {/* deliberately never auto-opened, even on a quiet board — bots stay deprioritized */}
+               <Fold
+                  dot="var(--ink-3)"
+                  count={bots.length}
+                  label="bot PRs"
+                  hint="security first"
+                  id="review:bots"
+               >
+                  {/* `security` is this org's most-used label (50 in 3 months),
+                      almost all on bot bumps: they lead the fold */}
+                  <FoldRows
+                     list={[...bots].sort(
+                        (a, b) =>
+                           Number(b.data.labels.some(l => /security/i.test(l.title))) -
+                              Number(a.data.labels.some(l => /security/i.test(l.title))) ||
+                           b.ageDays - a.ageDays
+                     )}
+                     opts={opts}
+                     id="review:bots"
+                  />
+               </Fold>
+               <Fold
+                  dot="var(--ok)"
+                  count={closed.length}
+                  label="recently shipped"
+                  hint="merged or closed in the last 14 days"
+                  id="review:shipped"
+                  defaultOpen={boardIsQuiet}
+               >
+                  <Truncated cap={laneShown(30, opts)} id="review:shipped-rows">
+                     {closed.map(p => (
+                        <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />
+                     ))}
+                  </Truncated>
+               </Fold>
+            </RestGroup>
+         )}
       </>
    );
 }

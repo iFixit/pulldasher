@@ -1,7 +1,16 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type ReactNode, type SyntheticEvent } from 'react';
 import { pullKey } from '../format';
 import type { DerivedPull } from '../model/status';
+import { createPersistentStore } from '../storage';
 import { Row, type RowOptions } from './Row';
+
+/**
+ * Explicitly-chosen fold open/closed state, one entry per fold `id`. A fold
+ * with no entry here falls back to its `defaultOpen` — this only remembers a
+ * choice the user actually made, so a later `defaultOpen` change (e.g. the
+ * lonely-board auto-open) still applies to folds nobody has touched yet.
+ */
+const foldOpenStore = createPersistentStore<Record<string, boolean>>('pd2.folds', {});
 
 export function Rows({ children }: { children: ReactNode }) {
    return (
@@ -35,7 +44,9 @@ function GroupHeader({
             {title}
          </h2>
          {sub && <span className="text-xs text-ink-3">{sub}</span>}
-         {count != null && (
+         {/* an empty section earns a title, never a "0" — the count only
+             appears once there's something to count */}
+         {!!count && (
             <>
                <span className="flex-1" />
                <span className="text-xs text-ink-3 tabular-nums">{count}</span>
@@ -98,9 +109,18 @@ export function Lane({
 }
 
 /** The standard fold body: capped, expandable rows for a list of pulls. */
-export function FoldRows({ list, opts }: { list: DerivedPull[]; opts: RowOptions }) {
+export function FoldRows({
+   list,
+   opts,
+   id,
+}: {
+   list: DerivedPull[];
+   opts: RowOptions;
+   /** stable identity: remembers "+N more" expansion across unmounts this session */
+   id?: string;
+}) {
    return (
-      <Truncated cap={laneShown(30, opts)}>
+      <Truncated cap={laneShown(30, opts)} id={id}>
          {list.map(p => (
             <Row key={pullKey(p.data)} pull={p} opts={opts} />
          ))}
@@ -174,17 +194,41 @@ export function Fold({
    count,
    label,
    hint,
+   id,
+   defaultOpen = false,
    children,
 }: {
    dot: string;
    count: number;
    label: string;
    hint?: string;
+   /** stable identity: remembers this fold's open/closed choice across sessions */
+   id?: string;
+   /** initial state when nothing is stored yet — e.g. auto-open the one fold
+    * that's the only content on an otherwise-quiet board */
+   defaultOpen?: boolean;
    children: ReactNode;
 }) {
    if (!count) return null;
+   const stored = foldOpenStore.useValue();
+   const explicit = id ? stored[id] : undefined;
+   const open = explicit ?? defaultOpen;
+   // native <details> owns its own open/closed state on click; we only need to
+   // hear about it so the store matches, not to drive every toggle ourselves —
+   // writing back only on an actual change keeps stored-value re-renders from
+   // re-triggering this handler
+   const onToggle = (e: SyntheticEvent<HTMLDetailsElement>) => {
+      if (!id) return;
+      const next = e.currentTarget.open;
+      if (foldOpenStore.get()[id] !== next)
+         foldOpenStore.set({ ...foldOpenStore.get(), [id]: next });
+   };
    return (
-      <details className="group border-t border-secondary first:border-t-0">
+      <details
+         className="group border-t border-secondary first:border-t-0"
+         open={id ? open : undefined}
+         onToggle={id ? onToggle : undefined}
+      >
          <summary className="flex cursor-pointer list-none items-center gap-2.5 px-3.5 py-[9px] text-[13px] text-ink-2 transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
             <span className="text-ink-3 transition-[rotate] duration-150 ease-out group-open:rotate-90 motion-reduce:transition-none">
                ▸
