@@ -39,7 +39,7 @@ const WINDOW_DAYS = 14;
 function Group({ title, children }: { title: string; children: ReactNode }) {
    return (
       <section>
-         <h2 className="m-0 mb-2.5 text-xs font-semibold tracking-wide text-ink-3 uppercase">
+         <h2 className="sticky top-[var(--header-h,0px)] z-[5] m-0 bg-[var(--canvas)] pb-2.5 text-xs font-semibold tracking-wide text-ink-3 uppercase">
             {title}
          </h2>
          <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">

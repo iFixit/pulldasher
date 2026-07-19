@@ -22,7 +22,15 @@ function GroupHeader({
    compact?: boolean;
 }) {
    return (
-      <div className={`flex items-baseline gap-2.5 ${compact ? 'mb-1' : 'mb-2'}`}>
+      // sticky just under the app header (top from the measured --header-h),
+      // opaque over the canvas so long lanes keep their context while rows
+      // scroll beneath; the old margin-below became padding so the spacing
+      // itself is part of the opaque surface
+      <div
+         className={`sticky top-[var(--header-h,0px)] z-[5] flex items-baseline gap-2.5 bg-[var(--canvas)] ${
+            compact ? 'pb-1' : 'pb-2'
+         }`}
+      >
          <h2 className={`m-0 font-semibold leading-snug ${compact ? 'text-sm' : 'text-base'}`}>
             {title}
          </h2>

@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+   useCallback,
+   useEffect,
+   useLayoutEffect,
+   useMemo,
+   useRef,
+   useState,
+   type ReactNode,
+} from 'react';
 import { ago, epoch, n, shortRepo } from './format';
 import type { DerivedPull } from './model/status';
 import type { Team } from './types';
@@ -252,6 +260,20 @@ export function App() {
       const t = setTimeout(() => setEntrance(false), 700);
       return () => clearTimeout(t);
    }, []);
+   // lane/section headers stick just below the app header; its height varies
+   // (the toolbar wraps on narrow screens), so publish the measured height as
+   // --header-h for their sticky offset
+   const headerRef = useRef<HTMLElement>(null);
+   useLayoutEffect(() => {
+      const el = headerRef.current;
+      if (!el) return;
+      const publish = () =>
+         document.documentElement.style.setProperty('--header-h', `${el.offsetHeight}px`);
+      publish();
+      const ro = new ResizeObserver(publish);
+      ro.observe(el);
+      return () => ro.disconnect();
+   }, []);
    useEffect(() => {
       document.documentElement.classList.toggle('dark', dark);
    }, [dark]);
@@ -463,7 +485,7 @@ export function App() {
 
    return (
       <>
-         <header className="sticky top-0 z-10 border-b border-line bg-surface">
+         <header ref={headerRef} className="sticky top-0 z-10 border-b border-line bg-surface">
             <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-x-3.5 gap-y-1 px-5 py-2.5">
                {/* the page's one h1 — heading navigation needs a root, and
                    every lane h2 needs a parent level */}

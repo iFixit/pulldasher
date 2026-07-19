@@ -23,7 +23,9 @@ export function BoardColumn({
    const [open, setOpen] = useState(defaultOpen);
    return (
       <section className="min-w-0">
-         <h2 className="m-0">
+         {/* sticks below the app header while its column scrolls; the canvas
+             backing fills the gap outside the button's rounded corners */}
+         <h2 className="sticky top-[var(--header-h,0px)] z-[5] m-0 bg-[var(--canvas)]">
             <button
                type="button"
                aria-expanded={open}
