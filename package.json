@@ -65,13 +65,13 @@
     "lint": "eslint ./",
     "frontend:start": "DUMMY_USER=danielbeardsley DUMMY_PULLS=./frontend/dummy-pulls.json webpack-dev-server --config ./frontend/webpack.dev.config.js",
     "frontend:watch": "webpack --watch --config ./frontend/webpack.dev.config.js",
-    "postinstall": "npm run build",
+    "postinstall": "npm run build && npm run build:v2",
     "build": "webpack --config ./frontend/webpack.prod.config.js",
     "test": "CONFIG_PATH=../test/fixtures/config.js node --test test/*.test.js",
     "precommit": "lint-staged",
     "frontend2:dev": "cd frontend-v2 && npm run dev",
     "frontend2:dummy": "cd frontend-v2 && npm run dev:dummy",
-    "build:v2": "cd frontend-v2 && npm install && npm run build"
+    "build:v2": "cd frontend-v2 && npm ci && npm run build"
   },
   "lint-staged": {
     "*.(js|jsx|ts|tsx)": [
