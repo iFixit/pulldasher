@@ -43,6 +43,9 @@ export interface Settings {
     * firmware dev share a monorepo but little else). Empty = infer from the
     * repos where you've authored or stamped on the current board. */
    primaryRepos: string[];
+   /** logins of your teammates (you are implicit; not GitHub teams — a
+    * per-browser list powering the Team lens and the "Your team" filter). */
+   myTeam: string[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -60,6 +63,7 @@ export const DEFAULT_SETTINGS: Settings = {
    laneCap: 10,
    selfReview: true,
    primaryRepos: [],
+   myTeam: [],
 };
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
@@ -86,6 +90,14 @@ export function togglePrimaryRepo(repo: string, primary: boolean) {
    const cur = store.get().primaryRepos;
    const next = primary ? [...new Set([...cur, repo])] : cur.filter(r => r !== repo);
    setSettings({ primaryRepos: next });
+}
+
+/** Add or remove a teammate. Deduped and sorted so the Team view and picker
+ * render in a stable order regardless of insertion order. */
+export function toggleTeammate(login: string, add: boolean) {
+   const cur = store.get().myTeam;
+   const next = add ? [...new Set([...cur, login])].sort() : cur.filter(l => l !== login);
+   setSettings({ myTeam: next });
 }
 
 export function useSettings(): Settings {

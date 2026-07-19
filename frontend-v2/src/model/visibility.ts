@@ -37,3 +37,10 @@ export function repoHidden(
 ): boolean {
    return repoState(repo, orgHidden, prefs) !== 'shown';
 }
+
+/** GitHub Apps carry a [bot] suffix; other machine accounts are named in
+ * config.json's `bots` list. Shared by the board's bot fold and anywhere
+ * else a login list must leave bots out (e.g. the team picker). */
+export function isBotLogin(login: string, extra: ReadonlySet<string>): boolean {
+   return login.endsWith('[bot]') || extra.has(login);
+}
