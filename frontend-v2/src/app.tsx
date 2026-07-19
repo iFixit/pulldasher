@@ -9,27 +9,28 @@ import {
 } from 'react';
 import { ago, epoch, n, shortRepo } from './format';
 import type { DerivedPull } from './model/status';
-import type { Team } from './types';
+import type { Team as TeamGroup } from './types';
 import { isSnoozed, setWeightLabels, usePulldasher } from './store';
 import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
 import { loadSiteConfig, primeScope, useScope } from './prefs';
 import { getSettings, useSettings } from './settings';
 import { useNotifications } from './notifications';
 import { matchesQuery } from './model/query';
-import { CRYO_KEY, repoHidden } from './model/visibility';
+import { CRYO_KEY, isBotLogin, repoHidden } from './model/visibility';
 import { Legend } from './components/Legend';
 import { Filters } from './components/Filters';
 import type { RowOptions } from './components/Row';
 import { Review } from './views/Review';
 import { MyWork } from './views/MyWork';
 import { People } from './views/People';
+import { Team } from './views/Team';
 import { Classic } from './views/Classic';
 import { Stats } from './views/Stats';
 import { Settings } from './components/Settings';
 
-type Lens = 'review' | 'mine' | 'people' | 'classic' | 'stats';
+type Lens = 'review' | 'mine' | 'team' | 'people' | 'classic' | 'stats';
 
-const LENSES: Lens[] = ['review', 'mine', 'people', 'classic', 'stats'];
+const LENSES: Lens[] = ['review', 'mine', 'team', 'people', 'classic', 'stats'];
 
 /**
  * The whole view lives in the hash — lens, drill-downs, query, scope,
@@ -94,11 +95,6 @@ const urlState = readHash();
 if (urlState.repos.length || urlState.authors.length) {
    primeScope({ repos: urlState.repos, authors: urlState.authors });
 }
-
-// GitHub Apps carry a [bot] suffix; other machine accounts are named in
-// config.json's `bots` list.
-const isBotLogin = (login: string, extra: ReadonlySet<string>) =>
-   login.endsWith('[bot]') || extra.has(login);
 
 /** Full-width notice under the header: bad = red alert, warn = amber, brand = informational. */
 function Banner({ tone, children }: { tone: 'bad' | 'warn' | 'brand'; children: ReactNode }) {
@@ -192,7 +188,7 @@ export function App() {
    const [draftsMode, setDraftsMode] = useState<'mine' | 'all'>(
       () => urlState.drafts ?? getSettings().draftsMode
    );
-   const [teams, setTeams] = useState<Team[]>([]);
+   const [teams, setTeams] = useState<TeamGroup[]>([]);
    const [extraBots, setExtraBots] = useState<ReadonlySet<string>>(new Set());
    const isBot = useCallback(
       (p: DerivedPull) => isBotLogin(p.data.user.login, extraBots),
@@ -201,6 +197,15 @@ export function App() {
    // theme, density, default view, age colors, glance guard — all live in
    // settings now (the cog panel), persisted per-browser
    const settings = useSettings();
+   // your personal team merges into the org's config.json teams, leading the
+   // list — it's the one a viewer actually picked, not a standing org fixture
+   const allTeams = useMemo(
+      () =>
+         settings.myTeam.length
+            ? [{ team: 'Your team', members: settings.myTeam }, ...teams]
+            : teams,
+      [teams, settings.myTeam]
+   );
    const [systemDark, setSystemDark] = useState(
       () => matchMedia('(prefers-color-scheme: dark)').matches
    );
@@ -520,12 +525,18 @@ export function App() {
                   v1 board
                </a>
                <Legend />
-               <Settings repos={repoCounts} orgHidden={hiddenRepos} snoozedCount={snoozedCount} />
+               <Settings
+                  repos={repoCounts}
+                  orgHidden={hiddenRepos}
+                  snoozedCount={snoozedCount}
+                  extraBots={extraBots}
+               />
             </div>
             <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-2 px-5 pb-2.5">
                <nav className="mr-1 flex gap-1">
                   {tab('review', 'Review')}
                   {tab('mine', 'My work', mineCount)}
+                  {tab('team', 'Team')}
                   {tab('people', 'People')}
                   {tab('classic', 'Classic')}
                   {tab('stats', 'Stats')}
@@ -533,7 +544,7 @@ export function App() {
                <Filters
                   pulls={pulls}
                   repos={repoCounts}
-                  teams={teams}
+                  teams={allTeams}
                   orgHidden={hiddenRepos}
                   reveal={reveal}
                   toggleReveal={toggleReveal}
@@ -630,11 +641,21 @@ export function App() {
             {initialized && lens === 'mine' && (
                <MyWork pulls={humans} closed={closed} opts={rowOpts} />
             )}
+            {initialized && lens === 'team' && (
+               <Team
+                  pulls={humans}
+                  allPulls={pulls.filter(p => !isBot(p))}
+                  me={me}
+                  opts={rowOpts}
+                  onPerson={onPerson}
+                  extraBots={extraBots}
+               />
+            )}
             {initialized && lens === 'people' && (
                <People
                   pulls={humans}
                   allPulls={pulls.filter(p => !isBot(p))}
-                  teams={teams}
+                  teams={allTeams}
                   person={person}
                   team={team}
                   onPerson={login => {
