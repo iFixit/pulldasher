@@ -4,7 +4,17 @@ import { isIterating, lastPushEpoch } from '../model/status';
 import { rowNote } from '../model/actions';
 import { ago, epoch, pullKey } from '../format';
 import { ackPull, isFresh, refreshPull, snoozePull } from '../store';
-import { AgeStamp, DiffSize, FreshTag, RepoRef, SigPips, StatusBadge, WeightMeter } from './bits';
+import {
+   AgeStamp,
+   DiffSize,
+   FreshTag,
+   RepoRef,
+   SigPips,
+   STATUS_DOT,
+   STATUS_LABEL,
+   StatusBadge,
+   WeightMeter,
+} from './bits';
 import { CardShell } from './Card';
 import { Popover } from './Popover';
 
@@ -187,7 +197,7 @@ function RowDetails({
                ) : compact ? (
                   <>
                      <span
-                        className={`max-w-[12ch] truncate ${flags[0].tone === 'warn' ? 'flag-warn' : 'flag-note'}`}
+                        className={`max-w-[9ch] truncate ${flags[0].tone === 'warn' ? 'flag-warn' : 'flag-note'}`}
                      >
                         {flags[0].label}
                      </span>
@@ -240,12 +250,24 @@ function RowDetails({
    );
 }
 
-/** Hover/focus actions: copy the branch name, re-fetch from GitHub. */
-function RowActions({ pull }: { pull: DerivedPull }) {
+/**
+ * Hover/focus actions: copy the branch name, snooze, re-fetch from GitHub.
+ * `overlay` (compact) floats them over the row's tail instead of reserving
+ * rail width — .row-actions hides them with visibility, which still takes
+ * layout space, and in a narrow column that standing ~70px tax comes straight
+ * out of the title.
+ */
+function RowActions({ pull, overlay }: { pull: DerivedPull; overlay?: boolean }) {
    const [copied, setCopied] = useState(false);
    const [spinning, setSpinning] = useState(false);
    return (
-      <span className="row-actions hidden flex-none items-center gap-1 min-[720px]:inline-flex">
+      <span
+         className={`row-actions hidden items-center gap-1 min-[720px]:inline-flex ${
+            overlay
+               ? 'absolute right-full top-1/2 z-10 mr-1 -translate-y-1/2 rounded-md bg-muted px-1'
+               : 'flex-none'
+         }`}
+      >
          <button
             type="button"
             aria-label={`copy branch name ${pull.data.head.ref}`}
@@ -311,8 +333,12 @@ function MetricRail({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const d = pull.data;
    const me = opts.me;
    return (
-      <span className="pd-rail pd-raise ml-auto flex flex-none items-center gap-2.5">
-         <RowActions pull={pull} />
+      <span
+         className={`pd-rail pd-raise ml-auto flex flex-none items-center gap-2.5 ${
+            opts.compact ? 'relative' : ''
+         }`}
+      >
+         <RowActions pull={pull} overlay={!!opts.compact} />
          <WeightMeter weight={pull.weight} known={pull.sizeKnown} />
          <SigPips
             label="CR"
@@ -392,15 +418,22 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          className={`${flashOnce(key, !!fresh) ? 'row-fresh' : ''} transition-[background-color] duration-150 motion-reduce:transition-none`}
          meta={
             opts.compact ? (
-               // one line: only the short chips stay inline (fresh, lead,
-               // repo#). The wait-note, diff size, and full flag list live in
-               // the details popover, whose trigger sits beside the rail —
-               // outside this clipping column — so the recovery point survives
-               // any squeeze.
+               // one line, title-first: the status collapses to a dot (the
+               // badge, repo#, wait-note, diff size, and full flag list all
+               // live in the details popover, whose trigger sits beside the
+               // rail — outside this clipping column — so the recovery point
+               // survives any squeeze). Only a fresh tag and your imperative
+               // stay as text: everything else is title.
                <>
                   {fresh && <FreshTag kind={fresh} />}
-                  {lead}
-                  <RepoRef repo={d.repo} number={d.number} />
+                  <span
+                     role="img"
+                     aria-label={STATUS_LABEL[pull.status]}
+                     title={STATUS_LABEL[pull.status]}
+                     className="h-2 w-2 flex-none rounded-full"
+                     style={{ background: STATUS_DOT[pull.status] }}
+                  />
+                  {note?.tone === 'do' && lead}
                </>
             ) : (
                <>
