@@ -61,7 +61,13 @@ export function CardShell({
                <Avatar login={login} onClick={onPerson} size={16} />
             </span>
             <span className="flex min-w-0 flex-1 items-center gap-x-2 overflow-hidden text-xs text-ink-3">
-               <span title={title} className="min-w-[8ch] shrink truncate text-[13px] leading-none">
+               {/* the title wins the squeeze: it keeps ~3 words minimum while the
+                   meta chips shrink or clip (each recoverable in the details
+                   popover, whose trigger lives outside this clipping column) */}
+               <span
+                  title={title}
+                  className="min-w-[16ch] shrink truncate text-[13px] leading-none"
+               >
                   {titleLink}
                </span>
                {meta}
