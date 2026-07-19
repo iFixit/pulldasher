@@ -117,43 +117,47 @@ export function Filters({
          key={name}
          className="flex items-center gap-2 rounded-md px-1.5 py-[5px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none"
       >
-         {state === 'shown' ? (
-            <input
-               type="checkbox"
-               className="m-0"
-               checked={included('repos', name)}
-               onChange={() =>
-                  toggle(
-                     'repos',
-                     name,
-                     shownRepos.map(r => r.name)
-                  )
-               }
-               aria-label={`scope to ${shortRepo(name)}`}
-            />
-         ) : (
-            <input
-               type="checkbox"
-               className="m-0 disabled:opacity-40"
-               checked={showAll || reveal.includes(name)}
-               disabled={showAll}
-               onChange={() => toggleReveal(name)}
-               aria-label={`reveal ${shortRepo(name)} for now`}
-            />
-         )}
-         <span
-            title={name}
-            className={`min-w-0 flex-1 truncate text-[13px] ${state === 'shown' ? '' : 'text-ink-3'}`}
-         >
-            {shortRepo(name)}
-            {state === 'org-hidden' && <span className="ml-1 text-[11px] text-ink-3">org</span>}
-         </span>
-         <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
+         {/* the label makes the row's hover honest: name, count, and empty
+             space all toggle the checkbox, like the people rows already do */}
+         <label className="flex min-w-0 flex-1 items-center gap-2">
+            {state === 'shown' ? (
+               <input
+                  type="checkbox"
+                  className="m-0"
+                  checked={included('repos', name)}
+                  onChange={() =>
+                     toggle(
+                        'repos',
+                        name,
+                        shownRepos.map(r => r.name)
+                     )
+                  }
+                  aria-label={`scope to ${shortRepo(name)}`}
+               />
+            ) : (
+               <input
+                  type="checkbox"
+                  className="m-0 disabled:opacity-40"
+                  checked={showAll || reveal.includes(name)}
+                  disabled={showAll}
+                  onChange={() => toggleReveal(name)}
+                  aria-label={`reveal ${shortRepo(name)} for now`}
+               />
+            )}
+            <span
+               title={name}
+               className={`min-w-0 flex-1 truncate text-[13px] ${state === 'shown' ? '' : 'text-ink-3'}`}
+            >
+               {shortRepo(name)}
+               {state === 'org-hidden' && <span className="ml-1 text-[11px] text-ink-3">org</span>}
+            </span>
+            <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
+         </label>
          {state === 'muted' ? (
             <button
                type="button"
                onClick={() => setRepoPref(name, null)}
-               className="pressable rounded border-0 bg-transparent px-1 text-[11px] text-ink-3 hover:text-brand"
+               className="hit pressable rounded border-0 bg-transparent px-1 text-[11px] text-ink-3 hover:text-brand"
             >
                Unmute
             </button>
@@ -161,7 +165,7 @@ export function Filters({
             <button
                type="button"
                onClick={() => setRepoPref(name, 'show')}
-               className="rounded border-0 bg-transparent px-1 text-[11px] text-brand hover:underline"
+               className="hit rounded border-0 bg-transparent px-1 text-[11px] text-brand hover:underline"
             >
                Show
             </button>
@@ -170,7 +174,7 @@ export function Filters({
                type="button"
                onClick={() => setRepoPref(name, 'mute')}
                title={`mute ${shortRepo(name)} — hide it on your board`}
-               className="pressable rounded border-0 bg-transparent px-1 text-[11px] text-ink-3 hover:text-brand"
+               className="hit pressable rounded border-0 bg-transparent px-1 text-[11px] text-ink-3 hover:text-brand"
             >
                Mute
             </button>
@@ -197,7 +201,7 @@ export function Filters({
                type="button"
                className={`pressable inline-flex h-8 max-w-[280px] items-center gap-1.5 rounded-lg border px-2.5 text-[13px] font-medium ${
                   active
-                     ? 'border-brand bg-brand-50 text-brand-700'
+                     ? 'border-brand bg-brand-50 text-brand-700 hover:border-brand-700'
                      : 'border-line bg-surface text-ink-2 hover:text-brand'
                }`}
                title={summary}
@@ -243,7 +247,7 @@ export function Filters({
                               e.preventDefault();
                               setShowAll(!showAll);
                            }}
-                           className="ml-auto font-medium text-brand hover:underline"
+                           className="hit ml-auto font-medium text-brand hover:underline"
                         >
                            {showAll ? 'stop showing all' : 'show all'}
                         </button>
@@ -341,7 +345,7 @@ export function Filters({
                <button
                   type="button"
                   onClick={reset}
-                  className="text-xs font-medium text-brand hover:underline"
+                  className="hit text-xs font-medium text-brand hover:underline"
                >
                   Clear filters
                </button>

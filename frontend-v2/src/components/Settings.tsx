@@ -446,7 +446,7 @@ export function Settings({
                               }}
                               className={`pressable inline-flex h-8 items-center rounded-lg border px-3 text-[13px] font-medium ${
                                  armReset
-                                    ? 'border-bad bg-bad/10 text-bad'
+                                    ? 'border-bad bg-bad/10 text-bad hover:bg-bad/20'
                                     : 'border-line bg-surface text-ink-2 hover:text-bad'
                               }`}
                            >

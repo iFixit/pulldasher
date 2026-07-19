@@ -106,8 +106,32 @@ body {
   font: 400 14px/1.5 ui-sans-serif, system-ui, sans-serif;
 }
 
-a:hover {
-  color: var(--brand);
+/* gate hand-authored hovers the way Tailwind v4 gates its hover: variants —
+   touch taps must not leave a sticky highlight */
+@media (hover: hover) {
+  a:hover {
+    color: var(--brand);
+  }
+}
+
+/* Tailwind v4 ships no button cursor at all (native arrow); the app's
+   convention is the hand on everything clickable, declared once instead of
+   remembered 27 times. Disabled buttons keep the arrow. */
+button:not(:disabled),
+summary,
+label:has(> input:not(:disabled)) {
+  cursor: pointer;
+}
+
+/* extend a small control's tap target past 24px without moving any layout —
+   the pseudo-element takes the hits, the visual box stays put */
+.hit {
+  position: relative;
+}
+.hit::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
 }
 
 /* shared focus ring (house: border-ring + ring/50 at 3px) */
@@ -206,7 +230,11 @@ a:hover {
    :focus-within matters: a visibility:hidden element can never take focus,
    so the buttons must become visible when ANY part of the row is focused
    (tabbing to the title), or the keyboard could never reach them. */
-.pd-row:hover .row-actions,
+@media (hover: hover) {
+  .pd-row:hover .row-actions {
+    visibility: visible;
+  }
+}
 .pd-row:focus-within .row-actions {
   visibility: visible;
 }

@@ -155,7 +155,7 @@ function RowDetails({ flags }: { flags: Flag[] }) {
                {...t}
                type="button"
                aria-label={`row details: ${flags.map(f => f.label).join(', ')}`}
-               className="pd-raise pressable -my-2 inline-flex cursor-default flex-wrap items-center gap-x-2 gap-y-1 rounded px-0.5 py-2 hover:bg-secondary/60"
+               className="pd-raise pressable -my-2 inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded px-0.5 py-2 hover:bg-secondary/60"
             >
                {flags.map(f => (
                   <span
@@ -206,7 +206,7 @@ function RowActions({ pull, overlay }: { pull: DerivedPull; overlay?: boolean })
             type="button"
             aria-label={`copy branch name ${pull.data.head.ref}`}
             title={`copy branch: ${pull.data.head.ref}`}
-            className="pressable rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
+            className="hit pressable rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
             onClick={() => {
                void navigator.clipboard.writeText(pull.data.head.ref);
                setCopied(true);
@@ -227,7 +227,7 @@ function RowActions({ pull, overlay }: { pull: DerivedPull; overlay?: boolean })
             type="button"
             aria-label="snooze: hide until tomorrow or until it changes"
             title="snooze: hide until tomorrow or until it changes"
-            className="pressable rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
+            className="hit pressable rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
             onClick={() => snoozePull(pullKey(pull.data))}
          >
             <svg viewBox="0 0 16 16" aria-hidden className="h-3.5 w-3.5 fill-current">
@@ -238,7 +238,7 @@ function RowActions({ pull, overlay }: { pull: DerivedPull; overlay?: boolean })
             type="button"
             aria-label="re-fetch this PR from GitHub"
             title="re-fetch this PR from GitHub"
-            className="pressable rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
+            className="hit pressable rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand"
             onClick={() => {
                refreshPull(pull.data.repo, pull.data.number);
                setSpinning(true);

@@ -91,7 +91,9 @@ export function People({
          onClick={onPick}
          aria-pressed={active}
          className={`pressable inline-flex items-center gap-1.5 rounded-lg border bg-surface py-[5px] pr-2.5 pl-1.5 text-[13px] font-medium text-ink-2 ${
-            active ? 'border-brand shadow-[0_0_0_1px_var(--brand)]' : 'border-line hover:bg-muted'
+            active
+               ? 'border-brand shadow-[0_0_0_1px_var(--brand)] hover:bg-muted'
+               : 'border-line hover:bg-muted'
          }`}
       >
          {label}

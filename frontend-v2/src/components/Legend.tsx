@@ -119,7 +119,7 @@ export function Legend() {
                      <b style={{ color: 'var(--bad)' }}>{s.ageRotDays}d</b>
                   </span>
                }
-               def={`age: hours under a day, amber past ${s.ageWarnDays} days, red past ${s.ageRotDays}. Hover for both clocks`}
+               def={`age: hours under a day, amber past ${s.ageWarnDays} days, red past ${s.ageRotDays}. Hover or tap it for both clocks`}
             />
             <Item
                term={<WeightMeter weight="M" />}

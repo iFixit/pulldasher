@@ -58,7 +58,9 @@ export function CardShell({
          <div
             className={`pd-row relative flex items-center gap-2 border-t border-secondary px-3 py-1 first:border-t-0 hover:bg-muted ${className}`}
          >
-            <span className="pd-raise flex-none">
+            {/* raise only when the avatar is a real button — a raised inert
+                span punches a dead zone into the whole-row click target */}
+            <span className={`flex-none ${onPerson ? 'pd-raise' : ''}`}>
                <Avatar login={login} onClick={onPerson} size={16} />
             </span>
             {/* nothing here truncates: the row flows as one tight line and
@@ -79,7 +81,7 @@ export function CardShell({
       <div
          className={`pd-row relative flex items-start gap-2.5 border-t border-secondary px-3.5 py-2 first:border-t-0 hover:bg-muted ${className}`}
       >
-         <span className="pd-raise mt-px flex-none">
+         <span className={`mt-px flex-none ${onPerson ? 'pd-raise' : ''}`}>
             <Avatar login={login} onClick={onPerson} />
          </span>
          <span className="min-w-0 flex-1">

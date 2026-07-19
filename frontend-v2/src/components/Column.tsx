@@ -30,11 +30,21 @@ export function BoardColumn({
                type="button"
                aria-expanded={open}
                onClick={() => setOpen(o => !o)}
-               className={`flex w-full items-center gap-2 border border-line bg-muted px-4 py-2.5 text-left text-sm font-semibold ${
+               className={`flex w-full items-center gap-2 border border-line bg-muted px-4 py-2.5 text-left text-sm font-semibold transition-[background-color] duration-150 ease-out hover:bg-secondary motion-reduce:transition-none ${
                   open ? 'rounded-t-2xl' : 'rounded-2xl'
                }`}
                title={open ? 'collapse column' : 'expand column'}
             >
+               {/* the disclosure cue the header lacked: without it the only
+                   hint this collapses was a native tooltip */}
+               <span
+                  aria-hidden
+                  className={`text-xs text-ink-3 transition-[rotate] duration-150 ease-out motion-reduce:transition-none ${
+                     open ? 'rotate-90' : ''
+                  }`}
+               >
+                  ▸
+               </span>
                {header}
                <span className="flex-1" />
                <span className="text-xs font-normal text-ink-3 tabular-nums">{count}</span>

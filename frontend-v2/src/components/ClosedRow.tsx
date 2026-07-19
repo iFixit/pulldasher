@@ -31,13 +31,15 @@ export const ClosedRow = memo(function ClosedRow({
             />
          )}
          <ClosedBadge merged={merged} />
-         <span className="pd-raise flex-none">
+         {/* nothing here is interactive, so nothing is raised: the whole row
+             stays one uninterrupted click target for the stretched title link */}
+         <span className="flex-none">
             <Avatar login={pull.user.login} />
          </span>
          <span className="min-w-0 flex-1 text-sm break-words">
             <PullTitleLink repo={pull.repo} number={pull.number} title={pull.title} stretch />
          </span>
-         <span className="pd-raise flex flex-none items-center gap-2.5 text-xs whitespace-nowrap text-ink-3">
+         <span className="flex flex-none items-center gap-2.5 text-xs whitespace-nowrap text-ink-3">
             <RepoRef repo={pull.repo} number={pull.number} />
             <span className="w-16 text-right tabular-nums">{ago(closedAt)} ago</span>
          </span>

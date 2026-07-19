@@ -73,7 +73,7 @@ export function QuietButton({
    return (
       <button
          type="button"
-         className={`pressable border border-line bg-surface font-medium disabled:opacity-40 ${shape} ${text} hover:text-brand`}
+         className={`hit pressable border border-line bg-surface font-medium disabled:opacity-40 ${shape} ${text} hover:text-brand`}
          {...props}
       />
    );
@@ -145,7 +145,8 @@ export function Avatar({
    return onClick ? (
       <button
          type="button"
-         className={`${cls} cursor-pointer border-0 p-0 hover:scale-115`}
+         // .hit: the circle is 16-22px, under the 24px target floor everywhere
+         className={`${cls} hit cursor-pointer border-0 p-0 hover:scale-115`}
          style={style}
          aria-label={`${login}: view their PRs`}
          title={`${login} · view their PRs`}
@@ -356,7 +357,16 @@ export function SigPips({
             </button>
          )}
       >
-         <span className="block px-1 pb-1 font-semibold text-ink">{label} stamps</span>
+         {/* restate the fraction: the trigger's hover title is mouse-only,
+             and a tap-opened panel must carry the "how many still needed" */}
+         <span className="block px-1 pb-1 font-semibold text-ink">
+            {label} stamps
+            {req > 0 && (
+               <span className="ml-1 font-normal text-ink-3 tabular-nums">
+                  · {have} of {req}
+               </span>
+            )}
+         </span>
          {rows.map(s => (
             <a
                key={s.data.user.login}
@@ -418,14 +428,41 @@ export function AgeStamp({
           ? 'var(--warn)'
           : null;
    const text = ageDays === 0 ? ago(createdAt) : `${ageDays}d`;
+   // a popover, not a title: the second clock (last activity) exists nowhere
+   // else on the row, and a native tooltip is mouse-only — this way touch
+   // taps it and keyboard reads it from the aria-label
    return (
-      <span
-         className={`w-7 text-right tabular-nums ${hot ? 'font-medium' : ''}`}
-         style={hot ? { color: hot } : undefined}
-         title={`opened ${ago(createdAt)} ago · last activity ${ago(updatedAt)} ago`}
+      <Popover
+         label="Age"
+         side="right"
+         hover
+         rootClass="relative inline-flex"
+         width="w-max"
+         panelClass="p-2 text-xs whitespace-nowrap"
+         trigger={t => (
+            <button
+               {...t}
+               type="button"
+               aria-label={`opened ${ago(createdAt)} ago, last activity ${ago(updatedAt)} ago`}
+               className="hit -my-2 rounded border-0 bg-transparent px-0 py-2 text-inherit hover:bg-secondary/60"
+            >
+               <span
+                  aria-hidden
+                  className={`block w-7 text-right tabular-nums ${hot ? 'font-medium' : ''}`}
+                  style={hot ? { color: hot } : undefined}
+               >
+                  {text}
+               </span>
+            </button>
+         )}
       >
-         {text}
-      </span>
+         <span className="block px-1 text-ink-2">
+            opened <b className="font-medium text-ink">{ago(createdAt)} ago</b>
+         </span>
+         <span className="mt-0.5 block px-1 text-ink-2">
+            last activity <b className="font-medium text-ink">{ago(updatedAt)} ago</b>
+         </span>
+      </Popover>
    );
 }
 
