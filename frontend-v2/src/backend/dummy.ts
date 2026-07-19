@@ -30,6 +30,28 @@ export async function loadDummy(): Promise<InitializePayload> {
    };
 }
 
+// The fixture's signature timestamps are as frozen as its pulls; spread them
+// across the given window so stamp-timeline stats (review pulse, first-CR
+// latency) exercise realistically instead of reading a decade-old wall.
+function redateSigs(
+   status: PullData['status'],
+   startMs: number,
+   endMs: number
+): PullData['status'] {
+   const span = Math.max(endMs - startMs, 3_600_000);
+   const shift = <S extends { data: { created_at: string } }>(sigs: S[], salt: number): S[] =>
+      sigs.map((s, j) => ({
+         ...s,
+         data: {
+            ...s.data,
+            created_at: new Date(
+               startMs + ((j + 1) * span) / (sigs.length + 1) + salt
+            ).toISOString(),
+         },
+      }));
+   return { ...status, allCR: shift(status.allCR, 0), allQA: shift(status.allQA, 600_000) };
+}
+
 function redate(pull: PullData, i: number): PullData {
    const now = Date.now();
    const ageDays = (i * 7919) % 45; // deterministic spread, 0-45 days
@@ -43,6 +65,7 @@ function redate(pull: PullData, i: number): PullData {
       ...pull,
       created_at: created.toISOString(),
       updated_at: updated.toISOString(),
+      status: redateSigs(pull.status, created.getTime(), now),
       additions,
       deletions,
    };
@@ -67,6 +90,7 @@ function synthMerged(pulls: PullData[]): PullData[] {
          updated_at: new Date(merged).toISOString(),
          closed_at: new Date(merged).toISOString(),
          merged_at: new Date(merged).toISOString(),
+         status: redateSigs(p.status, created, merged),
       };
    });
 }

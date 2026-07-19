@@ -1,14 +1,5 @@
-import type { Weight } from '../../model/status';
 import { humanHours, type MergeBucket } from '../../model/stats';
-import { BarRow, StatsCard } from './parts';
-
-const RAMP: Record<Weight, string> = {
-   XS: 'var(--ok)',
-   S: 'var(--ok)',
-   M: 'var(--ink-3)',
-   L: 'var(--warn)',
-   XL: 'var(--bad)',
-};
+import { BarRow, StatsCard, WEIGHT_RAMP as RAMP } from './parts';
 
 export function MergeSizeCard({
    buckets,

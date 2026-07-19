@@ -1,5 +1,16 @@
 import type { ReactNode } from 'react';
 import { Avatar } from '../../components/bits';
+import type { Weight } from '../../model/status';
+import type { DayCount } from '../../model/stats';
+
+/** the light→heavy color read every weight surface shares */
+export const WEIGHT_RAMP: Record<Weight, string> = {
+   XS: 'var(--ok)',
+   S: 'var(--ok)',
+   M: 'var(--ink-3)',
+   L: 'var(--warn)',
+   XL: 'var(--bad)',
+};
 
 /**
  * The shared chrome every Stats card wore by hand: a rounded surface panel
@@ -54,6 +65,38 @@ export function BarRow({
             <div className="h-full rounded" style={{ width: `${pct}%`, background: color }} />
          </div>
          {trail}
+      </div>
+   );
+}
+
+/**
+ * A day-per-column mini chart: one rounded bar per day, height proportional
+ * to the column max, today rightmost. Each column carries its date + count as
+ * a tooltip; zero days keep a 2px stub so the timeline reads continuous.
+ */
+export function MiniColumns({
+   days,
+   color,
+   unit,
+}: {
+   days: DayCount[];
+   color: string;
+   unit: string;
+}) {
+   const max = Math.max(...days.map(d => d.count), 1);
+   return (
+      <div className="flex h-16 items-end gap-1" role="img" aria-label={`${unit} per day`}>
+         {days.map(d => (
+            <div
+               key={d.day}
+               className="min-w-0 flex-1 rounded-t-[3px]"
+               title={`${new Date(d.day).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}: ${d.count} ${unit}`}
+               style={{
+                  height: d.count ? `${Math.max((d.count / max) * 100, 8)}%` : '2px',
+                  background: d.count ? color : 'var(--secondary)',
+               }}
+            />
+         ))}
       </div>
    );
 }
