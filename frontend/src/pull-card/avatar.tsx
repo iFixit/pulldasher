@@ -4,9 +4,11 @@ import { userProfileUrl } from "../utils";
 export function Avatar({
   user,
   linkToProfile,
+  title,
 }: {
   user: string;
   linkToProfile?: boolean;
+  title?: string;
 }) {
   const cleanUsername = user.replace(/\[bot\]$/, "");
   return (
@@ -20,7 +22,7 @@ export function Avatar({
       display="inline-block"
       borderRadius="full"
       verticalAlign="bottom"
-      title={user}
+      title={title ?? user}
       src={`https://github.com/${cleanUsername}.png?size=20`}
     />
   );

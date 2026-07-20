@@ -18,13 +18,16 @@ import {
 } from "@chakra-ui/react";
 import { memo } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCheckCircle } from "@fortawesome/free-solid-svg-icons";
+import { faCheckCircle, faStar } from "@fortawesome/free-solid-svg-icons";
 
 interface SignaturesProps {
   pull: Pull;
   title: string;
   signatures: SignatureGroup;
   required: number;
+  // When set (the CR block), show a blue star before the title if a review
+  // is requested from the current user.
+  showReviewRequest?: boolean;
 }
 
 const SigSectionTitle = Box;
@@ -34,6 +37,7 @@ function SignaturesFlag({
   title,
   signatures,
   required,
+  showReviewRequest,
 }: SignaturesProps) {
   const statusVariant =
     signatures.current.length >= required
@@ -59,6 +63,13 @@ function SignaturesFlag({
       sx={styles}
       title={noneToShow ? `No ${title} Required` : ""}
     >
+      {showReviewRequest && pull.reviewRequestedFromMe() && (
+        <FontAwesomeIcon
+          icon={faStar}
+          color="var(--user-icon)"
+          title={`Review requested from ${pull.requested_reviewers.join(", ")}`}
+        />
+      )}
       <Box m="2px" mr={noneToShow ? "2px" : 2}>
         {title}
       </Box>

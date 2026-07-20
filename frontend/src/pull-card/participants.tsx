@@ -34,4 +34,3 @@ function tooltip(pull: Pull) {
          `${pull.participants.length} participants`;
    }
 }
-

@@ -45,7 +45,8 @@ export class Pull extends PullData {
 
   isMineViaAffiliation(): boolean {
     return (
-      this.isMine() ||
+      this.authoredByMe() ||
+      this.reviewRequestedFromMe() ||
       this.hasCurrentSig(getUser()) ||
       this.hasOutdatedSig(getUser()) ||
       this.hasMyDevBlock() ||
@@ -82,6 +83,21 @@ export class Pull extends PullData {
 
   participating(): boolean {
     return this.participants && this.participants.includes(getUser());
+  }
+
+  // The pull author plus its assignees, treated as a combined author list.
+  authors(): string[] {
+    return [this.user.login, ...(this.assignees ?? [])].filter(
+      (login, i, all) => all.indexOf(login) === i
+    );
+  }
+
+  authoredByMe(): boolean {
+    return this.authors().includes(getUser());
+  }
+
+  reviewRequestedFromMe(): boolean {
+    return this.requested_reviewers?.includes(getUser()) ?? false;
   }
 
   hasMyDevBlock(): boolean {

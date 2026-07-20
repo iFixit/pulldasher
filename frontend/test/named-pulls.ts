@@ -423,6 +423,70 @@ export const Participants = <PullData[]>[
   }),
 ];
 
+export const Authors = <PullData[]>[
+  pullData({
+    number: 1,
+    title: "Single author (not me)",
+    cr_req: 0,
+    user: { login: "author1" },
+  }),
+  pullData({
+    number: 2,
+    title: "Author plus two assignees (none is me) — hover lists all",
+    cr_req: 0,
+    user: { login: "author1" },
+    assignees: ["assignee1", "assignee2"],
+  }),
+  pullData({
+    number: 3,
+    title: "Authored by me",
+    cr_req: 0,
+    user: { login: getUser() },
+  }),
+  pullData({
+    number: 4,
+    title: "Assigned to me (I'm an assignee, not the author)",
+    cr_req: 0,
+    user: { login: "author1" },
+    assignees: [getUser()],
+  }),
+];
+
+export const ReviewRequests = <PullData[]>[
+  pullData({
+    number: 1,
+    title: "Review requested from me",
+    cr_req: 1,
+    requested_reviewers: [getUser()],
+  }),
+  pullData({
+    number: 1,
+    title: "Review requested from me",
+    cr_req: 1,
+    requested_reviewers: [getUser()],
+    status: {
+      allQA: [],
+      allCR: [sig(SignatureType.CR, true, getUser())],
+    },
+  }),
+  pullData({
+    number: 2,
+    title: "Review requested from me and another",
+    cr_req: 1,
+    requested_reviewers: [getUser(), "User 2"],
+    status: {
+      allQA: [],
+      allCR: [sig(SignatureType.CR, true, "User 2")],
+    },
+  }),
+  pullData({
+    number: 3,
+    title: "Review requested from someone else",
+    cr_req: 1,
+    requested_reviewers: ["User2"],
+  }),
+];
+
 export const KitchenSink = <PullData[]>[
   pullData({
     title: "Pull With Lots of flags and such and a really long title",
@@ -462,5 +526,7 @@ export const KitchenSink = <PullData[]>[
       }),
     ],
     participants: ["other person", getUser()],
+    assignees: ["coAuthor"],
+    requested_reviewers: [getUser()],
   }),
 ];

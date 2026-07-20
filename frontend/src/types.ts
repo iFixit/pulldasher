@@ -125,4 +125,6 @@ export class PullData {
   };
   labels: Label[];
   participants: string[];
+  assignees: string[];
+  requested_reviewers: string[];
 }

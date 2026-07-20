@@ -79,14 +79,18 @@ export const PullCard = memo(function PullCard({
           isExternal
           color="var(--pull-title)"
         >
-          {pull.isMine() ? (
+          {pull.authoredByMe() ? (
             <FontAwesomeIcon
               icon={faStar}
               className="star"
               color="var(--user-icon)"
             />
           ) : (
-            <Avatar user={pull.user.login} linkToProfile />
+            <Avatar
+              user={pull.authors()[0]}
+              linkToProfile
+              title={pull.authors().join(", ")}
+            />
           )}
           <chakra.span fontWeight="bold">
             {pull.getRepoName()} #{pull.number}:{" "}
@@ -120,6 +124,7 @@ export const PullCard = memo(function PullCard({
             signatures={pull.cr_signatures}
             required={pull.status.cr_req}
             title="CR"
+            showReviewRequest
           />
           <Signatures
             pull={pull}
@@ -170,14 +175,18 @@ export const ClosedPullCard = memo(function ClosedPullCard({
           textDecoration={wasMerged ? "none" : "line-through"}
           color="var(--pull-title)"
         >
-          {pull.isMine() ? (
+          {pull.authoredByMe() ? (
             <FontAwesomeIcon
               icon={faStar}
               className="star"
               color="var(--user-icon)"
             />
           ) : (
-            <Avatar user={pull.user.login} linkToProfile />
+            <Avatar
+              user={pull.authors()[0]}
+              linkToProfile
+              title={pull.authors().join(", ")}
+            />
           )}
           <chakra.span fontWeight="bold">
             {pull.getRepoName()} #{pull.number}:{" "}

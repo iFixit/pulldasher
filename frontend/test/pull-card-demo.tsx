@@ -17,6 +17,8 @@ import {
   Labels,
   Draft,
   MyOwn,
+  Authors,
+  ReviewRequests,
   Participants,
   KitchenSink,
 } from "./named-pulls";
@@ -51,6 +53,8 @@ function PullCardDemo() {
       <Row title="Labels" pullDatas={Labels} />
       <Row title="Draft" pullDatas={Draft} />
       <Row title="My Own" pullDatas={MyOwn} />
+      <Row title="Authors (author + assignees)" pullDatas={Authors} />
+      <Row title="Review Requests" pullDatas={ReviewRequests} />
       <Row title="Participants" pullDatas={Participants} />
       <Row title="Kitchen Sink (all the things)" pullDatas={KitchenSink} linesChanged={true}/>
     </ChakraProvider>

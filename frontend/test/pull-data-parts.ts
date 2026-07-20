@@ -114,6 +114,8 @@ export function pullData(p: DeepPartial<PullData>): PullData {
     },
     labels: p.labels || [],
     participants: p.participants || [],
+    assignees: p.assignees || [],
+    requested_reviewers: p.requested_reviewers || [],
   };
 }
 

@@ -29,6 +29,8 @@
     "user": {
       "login": "BaseInfinity"
     },
+    "assignees": ["danielbeardsley"],
+    "requested_reviewers": ["ianrohde", "danielbeardsley"],
     "cr_req": 2,
     "qa_req": 1,
     "status": {
@@ -171,6 +173,8 @@
     "user": {
       "login": "ianrohde"
     },
+    "assignees": ["danielbeardsley", "ianrohde"],
+    "requested_reviewers": ["rjmccluskey"],
     "cr_req": 2,
     "qa_req": 1,
     "status": {
@@ -481,6 +485,7 @@
     "user": {
       "login": "hackalot805"
     },
+    "assignees": ["ardelato"],
     "cr_req": 2,
     "qa_req": 1,
     "status": {
@@ -609,6 +614,7 @@
       "login": "ardelato"
     },
     "cr_req": 2,
+    "requested_reviewers": ["danielbeardsley", "hackalot805"],
     "qa_req": 1,
     "status": {
       "qa_req": 1,
@@ -697,6 +703,7 @@
     "user": {
       "login": "rjmccluskey"
     },
+    "assignees": ["hackalot805", "ardelato"],
     "cr_req": 2,
     "qa_req": 1,
     "status": {
