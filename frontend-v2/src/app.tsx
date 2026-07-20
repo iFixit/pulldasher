@@ -20,6 +20,7 @@ import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy
 import { loadSiteConfig, primeScope, useScope } from './prefs';
 import { getSettings, useSettings } from './settings';
 import { useNotifications } from './notifications';
+import { ToastStack, useToasts } from './toasts';
 import { matchesQuery } from './model/query';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from './model/visibility';
 import { foldDomId, openFold } from './components/Lane';
@@ -224,6 +225,7 @@ export function App() {
    } = usePulldasher();
    // desktop notifications watch the whole board, not the current filter
    useNotifications(pulls, me, claims);
+   const { toasts, dismiss: dismissToast } = useToasts(pulls, me, claims);
    const [scope, setScope] = useScope();
    // a v1 bookmark (?repo=…&author=…&cryo=1…) opens Classic configured the
    // same way; the chip below shows what it applied and dismisses it
@@ -735,6 +737,7 @@ export function App() {
 
    return (
       <>
+         <ToastStack toasts={toasts} onDismiss={dismissToast} />
          <header ref={headerRef} className="sticky top-0 z-10 border-b border-line bg-surface">
             <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-x-3.5 gap-y-1 px-5 py-2.5">
                {/* the page's one h1 — heading navigation needs a root, and

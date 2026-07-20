@@ -330,6 +330,20 @@ export function Settings({
                      <TeamPickerGroup extraBots={extraBots} />
 
                      <Group title="Notifications">
+                        <Field
+                           label="Cheers & nudges"
+                           hint="Playful in-app rewards when your reviews land, and gentle nudges when they pile up. Fires while you’re on the board."
+                        >
+                           <Segmented
+                              ariaLabel="cheers and nudges"
+                              value={s.cheers ? 'on' : 'off'}
+                              options={[
+                                 ['off', 'Off'],
+                                 ['on', 'On'],
+                              ]}
+                              onChange={v => set({ cheers: v === 'on' })}
+                           />
+                        </Field>
                         {notificationsSupported ? (
                            <>
                               <Field

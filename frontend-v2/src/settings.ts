@@ -32,6 +32,9 @@ export interface Settings {
    notify: boolean;
    /** play a chime alongside those notifications */
    notifySound: boolean;
+   /** in-app "cheers": playful rewards when your reviews land and gentle nags
+    * when they pile up. Session-only, fires while you're on the board. */
+   cheers: boolean;
    /** rows a lane shows before folding into "+N more"; 0 = no cap (show all) */
    laneCap: number;
    /** teams that self-review (iFixit) don't gate on CR, so lining up QA is the
@@ -69,6 +72,7 @@ export const DEFAULT_SETTINGS: Settings = {
    showCryo: false,
    notify: false,
    notifySound: false,
+   cheers: true,
    laneCap: 10,
    selfReview: true,
    primaryRepos: [],

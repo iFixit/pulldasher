@@ -450,6 +450,72 @@ input[type="checkbox"] {
   accent-color: var(--brand);
 }
 
+/* ── Cheers toasts: rewards and nags rise from the corner. The card springs up
+   on enter and drops away on dismiss; a reward's medallion pops, a nag's
+   settles in a touch heavier, wistful. ── */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    translate: 0 16px;
+    scale: 0.96;
+  }
+}
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    translate: 0 10px;
+    scale: 0.96;
+  }
+}
+.toast-enter {
+  animation: toast-in 260ms var(--ease-quint) backwards;
+}
+.toast-leave {
+  animation: toast-out 200ms var(--ease-quart) forwards;
+}
+@keyframes medallion-pop {
+  0% {
+    opacity: 0;
+    scale: 0.4;
+  }
+  60% {
+    scale: 1.18;
+  }
+  100% {
+    opacity: 1;
+    scale: 1;
+  }
+}
+.medallion-pop {
+  animation: medallion-pop 400ms var(--ease-quint) 90ms backwards;
+}
+@keyframes medallion-slump {
+  from {
+    opacity: 0;
+    translate: 0 -5px;
+    rotate: -8deg;
+  }
+}
+.medallion-slump {
+  animation: medallion-slump 440ms var(--ease-quint) 70ms backwards;
+}
+/* the hero rewards get three sparks that drift up and out, then fade */
+@keyframes spark {
+  from {
+    opacity: 1;
+    translate: 0 0;
+    scale: 0.4;
+  }
+  to {
+    opacity: 0;
+    translate: var(--dx, 0) -15px;
+    scale: 1;
+  }
+}
+.spark {
+  animation: spark 720ms var(--ease-quart) forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
