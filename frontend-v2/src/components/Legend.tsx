@@ -143,6 +143,29 @@ export function Legend() {
                }
                def="row flags: amber = act on it (conflicts, deploy block, external, aging), gray = a neutral fact (stacked, CI, recent changes). Hover them for the full meaning"
             />
+            <Item
+               term={
+                  <span className="inline-flex items-center gap-1 rounded bg-brand-50 px-1.5 py-0.5 text-[11px] leading-none font-medium text-brand-700">
+                     <span aria-hidden>◆</span>region
+                  </span>
+               }
+               def="matches a code region you set in Settings — these gather in the “In your code regions” section on Review and Team"
+            />
+         </Group>
+
+         <Group title="Coordination">
+            <Item
+               term={
+                  <span aria-hidden className="text-brand">
+                     ✋
+                  </span>
+               }
+               def="claim a review so teammates know you’re on it — the hand stays lit on your row, and claimed PRs collect in “You’re reviewing”. A stale claim (2h) nudges you to finish or release it; it clears on its own at 4h"
+            />
+            <Item
+               term={<span className="text-ink-2 italic">X is reading it</span>}
+               def="someone else has claimed this review"
+            />
          </Group>
 
          <Group title="Badges">
