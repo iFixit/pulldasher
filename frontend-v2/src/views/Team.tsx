@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 import type { DerivedPull } from '../model/status';
+import { matchesRegion } from '../model/regions';
+import { crSort } from '../model/sort';
 import { teamBuckets } from '../model/team';
 import { useSettings } from '../settings';
 import { Avatar } from '../components/bits';
@@ -32,7 +34,7 @@ export function Team({
    onPerson: (login: string) => void;
    extraBots?: ReadonlySet<string>;
 }) {
-   const { myTeam } = useSettings();
+   const { myTeam, codeRegions } = useSettings();
 
    // authored/owed counts read the UNSCOPED pool, same as People.tsx — a
    // narrowed scope shouldn't make the member strip lie about the team's
@@ -62,6 +64,7 @@ export function Team({
       () => teamBuckets(pulls, myTeam, me),
       [pulls, myTeam, me]
    );
+   const regionMatches = crSort(reviewable.filter(p => matchesRegion(p, codeRegions)));
 
    if (myTeam.length === 0) {
       return (
@@ -134,6 +137,15 @@ export function Team({
             <p className="text-[13px] text-ink-3">Nothing open from your team right now.</p>
          )}
 
+         {codeRegions.length > 0 && regionMatches.length > 0 && (
+            <Lane
+               title="In your code regions"
+               sub="areas you flagged in Settings"
+               pulls={regionMatches}
+               cap={8}
+               opts={opts}
+            />
+         )}
          <Lane title="Review your team's work" pulls={reviewable} cap={9} opts={opts} />
          {(stamped.length > 0 || rest.length > 0) && (
             <RestGroup>

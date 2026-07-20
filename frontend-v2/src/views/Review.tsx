@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { type DerivedPull, qaDone, type Status, weightRank } from '../model/status';
 import { pullKey, rowDomId, shortRepo } from '../format';
 import { crSort, starFirst } from '../model/sort';
-import { regionFirst } from '../model/regions';
+import { matchesRegion } from '../model/regions';
 import { groupIntoTree } from '../model/stack';
 import { authorMove, reviewerMove } from '../model/actions';
 import { dealOne } from '../model/deal';
@@ -166,22 +166,14 @@ export function Review({
          !p.crBy.includes(me) &&
          (p.status === 'needs_cr' || (p.status === 'needs_recr' && !p.recrBy.includes(me)))
    );
-   const aged = regionFirst(
-      crPool.filter(p => p.starved).sort((a, b) => b.starveScore - a.starveScore),
-      codeRegions
-   );
+   const aged = crPool.filter(p => p.starved).sort((a, b) => b.starveScore - a.starveScore);
    // your review queue leads with your repos; everything else folds into "other
    // repos" so it's reachable but not in the way. Starvation stays cross-repo
    // (below) — the fairness backstop is deliberately everyone's job.
    const reviewable = crSort(crPool.filter(p => !p.starved));
-   // region matches float above even starred authors — a code region is the
-   // most explicit "this is my area" signal, so it wins the top of the queue
-   const queue = regionFirst(
-      starFirst(
-         reviewable.filter(p => isPrimaryRepo(p.data.repo)),
-         starred
-      ),
-      codeRegions
+   const queue = starFirst(
+      reviewable.filter(p => isPrimaryRepo(p.data.repo)),
+      starred
    );
    const queueOther = reviewable.filter(p => !isPrimaryRepo(p.data.repo));
 
@@ -216,10 +208,7 @@ export function Review({
                (b.sizeKnown ? weightRank(b.weight) : 2.5) ||
             b.ageDays - a.ageDays
       );
-   const needsQa = regionFirst(
-      starFirst(qaSort(qaPool.filter(p => isPrimaryRepo(p.data.repo))), starred),
-      codeRegions
-   );
+   const needsQa = starFirst(qaSort(qaPool.filter(p => isPrimaryRepo(p.data.repo))), starred);
    const needsQaOther = qaSort(qaPool.filter(p => !isPrimaryRepo(p.data.repo)));
 
    // your live CR stamp is in, the PR just isn't fully signed off yet (another
@@ -246,6 +235,24 @@ export function Review({
    const changed = pulls
       .filter(p => isFresh(p.data, opts.lastSeen, opts.acked))
       .sort((a, b) => Date.parse(b.data.updated_at) - Date.parse(a.data.updated_at));
+
+   // PRs you've claimed — the coordination lane so a claim isn't just a hand
+   // icon buried in a lower lane; it's your commitment, surfaced up top.
+   const claimed = crSort(pulls.filter(p => opts.claims?.[pullKey(p.data)]?.login === me));
+
+   // In your code regions: reviewable pulls (CR or QA pool) matching a region
+   // you set in Settings, deduped across the two pools and pulled out of the
+   // queue/QA lanes below into their own section — the most explicit "this is
+   // my area" signal earns its own spot instead of a float within the queue.
+   const regionSeen = new Set<string>();
+   const regionMatches = crSort(
+      [...crPool, ...qaPool].filter(p => {
+         const k = pullKey(p.data);
+         if (regionSeen.has(k) || !matchesRegion(p, codeRegions)) return false;
+         regionSeen.add(k);
+         return true;
+      })
+   );
 
    // a quiet board (nothing in any primary lane) is exactly when the rest
    // group's folds become the main event — they should greet you open, not
@@ -299,6 +306,24 @@ export function Review({
             cap={8}
             opts={opts}
          />
+         {claimed.length > 0 && (
+            <Lane
+               title="You're reviewing"
+               sub="you claimed these — finish them or release"
+               pulls={claimed}
+               cap={6}
+               opts={opts}
+            />
+         )}
+         {codeRegions.length > 0 && regionMatches.length > 0 && (
+            <Lane
+               title="In your code regions"
+               sub="areas you flagged in Settings"
+               pulls={regionMatches}
+               cap={8}
+               opts={opts}
+            />
+         )}
          <Lane
             title="Review queue"
             pulls={queue}
