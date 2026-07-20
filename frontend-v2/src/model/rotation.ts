@@ -1,3 +1,4 @@
+import { hasReviewRequest } from './reviewers';
 import type { DerivedPull, Status } from './status';
 import { isBotLogin } from './visibility';
 
@@ -58,6 +59,10 @@ const TURN_STATUSES: Status[] = ['needs_cr', 'needs_recr'];
  */
 export function turnFor(p: DerivedPull, pools: ReadonlyMap<string, string[]>): string | null {
    if (!p.starved || !TURN_STATUSES.includes(p.status)) return null;
+   // An explicit GitHub review request answers "whose turn" authoritatively —
+   // don't also rotate a name onto the pull, or the board would tell someone
+   // it's their turn on a PR GitHub already routed to a specific reviewer.
+   if (hasReviewRequest(p)) return null;
    const pool = pools.get(p.data.repo);
    if (!pool || !pool.length) return null;
    const author = p.data.user.login;

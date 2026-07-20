@@ -3,6 +3,7 @@ import type { DerivedPull } from '../model/status';
 import { isIterating, lastPushEpoch } from '../model/status';
 import { rowNote } from '../model/actions';
 import { turnFor } from '../model/rotation';
+import { requestedReviewers, reviewRequestedFrom } from '../model/reviewers';
 import { matchedRegions } from '../model/regions';
 import type { ParentRef } from '../model/stack';
 import { ago, epoch, pullKey, rowDomId, shortRepo } from '../format';
@@ -709,6 +710,14 @@ function RowImpl({
    const starredAuthor = settings.starredPeople.includes(d.user.login);
    // which of your code regions this pull matched (why it floated to the top)
    const regions = matchedRegions(pull, settings.codeRegions);
+   // GitHub explicitly asked you to review this — the strongest "review this"
+   // signal there is. Shown only while it's still your move: not once you've
+   // stamped, and not when it's already your claim (the lit hand says that).
+   const requestedOfMe =
+      (pull.status === 'needs_cr' || pull.status === 'needs_recr') &&
+      reviewRequestedFrom(pull, opts.me) &&
+      !pull.crBy.includes(opts.me) &&
+      claim?.login !== opts.me;
    // only worth asking the whole-board lookup when this row is stacked but
    // rendering flat (its parent isn't visible right above it already)
    const orphanParent = pull.dependent && depth === 0 ? (opts.parentOf?.(pull) ?? null) : null;
@@ -752,6 +761,21 @@ function RowImpl({
                   poolSize={poolSize}
                />
                {note.action && <span className="badge-do">{note.action}</span>}
+               {requestedOfMe && (
+                  <span
+                     title={`GitHub requested your review${
+                        requestedReviewers(pull).length > 1
+                           ? ` (also ${requestedReviewers(pull)
+                                .filter(l => l !== opts.me)
+                                .join(', ')})`
+                           : ''
+                     }`}
+                     className="chip-in inline-flex flex-none items-center gap-1 rounded bg-brand px-1.5 py-0.5 text-[11px] leading-none font-medium text-surface"
+                  >
+                     <span aria-hidden>✦</span>
+                     review requested
+                  </span>
+               )}
                <RepoRef repo={d.repo} number={d.number} />
                {regions.length > 0 && (
                   <span

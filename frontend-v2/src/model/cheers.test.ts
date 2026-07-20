@@ -72,6 +72,7 @@ function sig(o: Partial<Signals> & { queue?: number; pulls?: DerivedPull[] } = {
       myCount: o.myCount ?? 0,
       peerBelow: o.peerBelow ?? null,
       staleClaims: o.staleClaims ?? new Map(),
+      requestedOfMe: o.requestedOfMe ?? new Map(),
    };
 }
 
@@ -500,6 +501,36 @@ describe('diffCheers — stale claim', () => {
       );
       expect(toasts.some(t => t.dedupeKey?.startsWith('claimstale:'))).toBe(false);
       expect(next.staleClaimsSeen.has(pullKey(p.data))).toBe(true);
+   });
+});
+
+describe('diffCheers — review requested', () => {
+   it('fires once when GitHub newly requests your review, then stays quiet', () => {
+      const p = pull('org/a', 7, { author: 'alice' });
+      const req = new Map([[pullKey(p.data), p]]);
+      const base = primed(sig()); // primed with no requests
+      const first = diffCheers(sig({ requestedOfMe: req, pulls: [p] }), 'me', base);
+      expect(first.toasts.some(t => t.dedupeKey === `req:${pullKey(p.data)}`)).toBe(true);
+      expect(first.toasts.some(t => t.title === 'Review requested')).toBe(true);
+      // same request next tick: silent
+      const second = diffCheers(sig({ requestedOfMe: req, pulls: [p] }), 'me', first.next);
+      expect(second.toasts.some(t => t.dedupeKey === `req:${pullKey(p.data)}`)).toBe(false);
+      // request dropped then re-added: nags again
+      const cleared = diffCheers(sig({ pulls: [p] }), 'me', second.next);
+      const again = diffCheers(sig({ requestedOfMe: req, pulls: [p] }), 'me', cleared.next);
+      expect(again.toasts.some(t => t.dedupeKey === `req:${pullKey(p.data)}`)).toBe(true);
+   });
+
+   it('primes an existing request silently on the first tick', () => {
+      const p = pull('org/a', 7, { author: 'alice' });
+      const req = new Map([[pullKey(p.data), p]]);
+      const { toasts, next } = diffCheers(
+         sig({ requestedOfMe: req, pulls: [p] }),
+         'me',
+         EMPTY_BASELINE
+      );
+      expect(toasts.some(t => t.dedupeKey?.startsWith('req:'))).toBe(false);
+      expect(next.requestedSeen.has(pullKey(p.data))).toBe(true);
    });
 });
 

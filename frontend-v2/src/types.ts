@@ -75,6 +75,13 @@ export interface PullData {
    head: { ref: string; sha: string; repo: { owner: { login: string } } };
    base: { ref: string };
    user: { login: string };
+   /** GitHub assignees (logins). Added in the assignee/reviewer merge; servers
+    * older than that field omit it, so treat a missing value as []. */
+   assignees?: string[];
+   /** logins GitHub has an open review request from. The authoritative "review
+    * this" signal — stronger than our heuristic turn rotation, which defers to
+    * it. Omitted by servers older than the field, so read as [] when absent. */
+   requested_reviewers?: string[];
    // the wire also sends top-level cr_req/qa_req twins, but status.cr_req/
    // qa_req are the ones every consumer reads — typing one copy prevents
    // reading the wrong one

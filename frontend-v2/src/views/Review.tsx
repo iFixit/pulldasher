@@ -5,6 +5,7 @@ import { crSort, starFirst } from '../model/sort';
 import { matchesRegion } from '../model/regions';
 import { groupIntoTree } from '../model/stack';
 import { authorMove, reviewerMove } from '../model/actions';
+import { reviewRequestedFrom } from '../model/reviewers';
 import { dealOne } from '../model/deal';
 import { useSettings } from '../settings';
 import { claimReview, isFresh, usePulldasher } from '../store';
@@ -236,6 +237,17 @@ export function Review({
       .filter(p => isFresh(p.data, opts.lastSeen, opts.acked))
       .sort((a, b) => Date.parse(b.data.updated_at) - Date.parse(a.data.updated_at));
 
+   // GitHub asked you directly — the most concrete "review this" on the board,
+   // so it leads. Only while it's still your move (unstamped, review-stage).
+   const requestedOfYou = crSort(
+      others.filter(
+         p =>
+            (p.status === 'needs_cr' || p.status === 'needs_recr') &&
+            reviewRequestedFrom(p, me) &&
+            !p.crBy.includes(me)
+      )
+   );
+
    // PRs you've claimed — the coordination lane so a claim isn't just a hand
    // icon buried in a lower lane; it's your commitment, surfaced up top.
    const claimed = crSort(pulls.filter(p => opts.claims?.[pullKey(p.data)]?.login === me));
@@ -299,13 +311,15 @@ export function Review({
                </Truncated>
             </Lane>
          )}
-         <Lane
-            title="Changed since your last look"
-            sub="new or updated while you were away"
-            pulls={changed}
-            cap={8}
-            opts={opts}
-         />
+         {requestedOfYou.length > 0 && (
+            <Lane
+               title="Requested of you"
+               sub="GitHub asked you to review these"
+               pulls={requestedOfYou}
+               cap={8}
+               opts={opts}
+            />
+         )}
          {claimed.length > 0 && (
             <Lane
                title="You're reviewing"
@@ -315,6 +329,13 @@ export function Review({
                opts={opts}
             />
          )}
+         <Lane
+            title="Changed since your last look"
+            sub="new or updated while you were away"
+            pulls={changed}
+            cap={8}
+            opts={opts}
+         />
          {codeRegions.length > 0 && regionMatches.length > 0 && (
             <Lane
                title="In your code regions"
@@ -325,17 +346,17 @@ export function Review({
             />
          )}
          <Lane
+            title="Aging without full review"
+            pulls={aged}
+            cap={8}
+            opts={{ ...opts, aging: true }}
+         />
+         <Lane
             title="Review queue"
             pulls={queue}
             cap={9}
             opts={opts}
             headerExtra={<DealButton queue={queue} opts={opts} />}
-         />
-         <Lane
-            title="Aging without full review"
-            pulls={aged}
-            cap={8}
-            opts={{ ...opts, aging: true }}
          />
          <Lane
             title="Needs QA"

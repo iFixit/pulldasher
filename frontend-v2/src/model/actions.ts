@@ -1,4 +1,5 @@
 import { ago } from '../format';
+import { requestedReviewers } from './reviewers';
 import type { DerivedPull } from './status';
 
 /**
@@ -163,7 +164,8 @@ function withCoordination(
    base: RowNote,
    me: string,
    claim?: Claim | null,
-   turn?: string | null
+   turn?: string | null,
+   requestedFromMe?: boolean
 ): RowNote {
    if (claim) {
       const claimAgo = ago(claim.at / 1000);
@@ -177,6 +179,14 @@ function withCoordination(
          };
       return { action: null, context: `${claim.login} is reading it` };
    }
+   // An explicit GitHub review request beats the rotation guess: it's a direct
+   // ask, so it always earns the "Review it" pill (and turnFor already stays
+   // silent on requested pulls, so `turn` is null here anyway).
+   if (requestedFromMe)
+      return {
+         action: 'Review it',
+         context: base.context ? `requested from you · ${base.context}` : 'requested from you',
+      };
    if (turn === me)
       return {
          action: 'Review it',
@@ -202,6 +212,12 @@ function reviewerNote(
    const pushed = p.headPushedAt ? ` · fix pushed ${ago(p.headPushedAt)} ago` : '';
    const crReq = d.status.cr_req;
    const qaReq = d.status.qa_req;
+   // GitHub review requests: an ask aimed at you drives the note (via
+   // withCoordination below); one aimed at someone else is still worth naming
+   // as context, so an uninvolved reader sees who owns it.
+   const requested = requestedReviewers(p);
+   const requestedFromMe = requested.includes(me);
+   const requestedOthers = requested.filter(l => l !== me);
 
    if (p.recrBy.includes(me))
       return {
@@ -232,17 +248,26 @@ function reviewerNote(
          waitOnly(`waiting on ${who(p.recrBy)}${pushed}`),
          me,
          extra?.claim,
-         extra?.turn
+         extra?.turn,
+         requestedFromMe
       );
    if (p.status === 'needs_cr') {
       const context = p.starved
          ? `unreviewed ${p.ageDays}d`
          : p.crHave > 0
            ? `${p.crHave} of ${crReq} in`
-           : p.engagedNoStamp.length
-             ? `${who(p.engagedNoStamp)} looking`
-             : null;
-      return withCoordination({ action: 'Review it', context }, me, extra?.claim, extra?.turn);
+           : requestedOthers.length
+             ? `requested from ${who(requestedOthers)}`
+             : p.engagedNoStamp.length
+               ? `${who(p.engagedNoStamp)} looking`
+               : null;
+      return withCoordination(
+         { action: 'Review it', context },
+         me,
+         extra?.claim,
+         extra?.turn,
+         requestedFromMe
+      );
    }
    if (p.status === 'needs_qa') {
       if (p.qaBy.includes(me)) return waitOnly(`you've QA'd · ${p.qaHave} of ${qaReq}`);

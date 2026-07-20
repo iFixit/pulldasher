@@ -3,6 +3,7 @@ import type { PullData } from '../types';
 import { actionState } from './actions';
 import { dealOne } from './deal';
 import { reviewerRanks } from './leaderboard';
+import { reviewRequestedFrom } from './reviewers';
 import { buildReviewerPools, turnFor } from './rotation';
 import { crSort } from './sort';
 import type { DerivedPull } from './status';
@@ -57,6 +58,9 @@ export interface CheerBaseline {
    myRank: number;
    /** you were the #1 reviewer on the board last tick */
    wasTop: boolean;
+   /** review requests already toasted, so each fires once per pull; rebuilt
+    * from the current tick so a dropped-then-re-requested review nags again */
+   requestedSeen: ReadonlySet<string>;
    /** you had at least one reviewable pull last tick */
    hadBacklog: boolean;
    /** per your-own open PR, last tick's state, for author-side edges */
@@ -84,6 +88,7 @@ export const EMPTY_BASELINE: CheerBaseline = {
    favorsSeen: new Set(),
    myRank: 0,
    wasTop: false,
+   requestedSeen: new Set(),
    hadBacklog: false,
    authorPrs: new Map(),
    boardQueue: 0,
@@ -222,6 +227,9 @@ export interface Signals {
    peerBelow: string | null;
    /** pulls you hold a stale (2h+), still-unreviewed claim on */
    staleClaims: Map<string, DerivedPull>;
+   /** pulls GitHub has asked YOU to review (and you haven't yet), for the
+    * review-requested toast — the most direct "review this" the board carries */
+   requestedOfMe: Map<string, DerivedPull>;
 }
 
 export function readSignals(input: CheerInput): Signals {
@@ -309,6 +317,22 @@ export function readSignals(input: CheerInput): Signals {
       }
    }
 
+   // GitHub asked you to review these and you haven't stamped or claimed them —
+   // a direct request, distinct from the rotation's guess (which stays silent
+   // on requested pulls). Drives the review-requested toast.
+   const requestedOfMe = new Map<string, DerivedPull>();
+   for (const p of pulls) {
+      const key = pullKey(p.data);
+      if (
+         (p.status === 'needs_cr' || p.status === 'needs_recr') &&
+         reviewRequestedFrom(p, me) &&
+         !p.crBy.includes(me) &&
+         claims[key]?.login !== me
+      ) {
+         requestedOfMe.set(key, p);
+      }
+   }
+
    const ranks = reviewerRanks(pulls, closed);
    const mine = ranks.get(me);
    const myRank = mine?.rank ?? 0;
@@ -342,6 +366,7 @@ export function readSignals(input: CheerInput): Signals {
       myCount,
       peerBelow,
       staleClaims,
+      requestedOfMe,
    };
 }
 
@@ -369,6 +394,7 @@ const PRIORITY_ORDER = [
    'climbing',
    'stamp-landed',
    'pr-first-review',
+   'review-requested',
    'your-turn',
    're-stamp-owed',
    'claim-stale',
@@ -420,6 +446,7 @@ export function diffCheers(
             favorsSeen: new Set(),
             myRank: sig.myRank,
             wasTop: sig.myRank === 1,
+            requestedSeen: new Set(sig.requestedOfMe.keys()),
             hadBacklog: sig.backlog > 0,
             authorPrs: sig.authorPrs,
             boardQueue: sig.boardReviewable,
@@ -500,6 +527,23 @@ export function diffCheers(
       });
    }
    const seenTurns = new Set(sig.turns.keys());
+
+   // review requested: GitHub asked you directly. Fires once per pull (rebuilt
+   // from the current tick, seenTurns-style, so a dropped-then-re-added request
+   // can nag again). Distinct from your-turn: this is an explicit ask, not the
+   // rotation's guess — which is why turnFor stays silent on requested pulls.
+   for (const [key, p] of sig.requestedOfMe) {
+      if (base.requestedSeen.has(key)) continue;
+      push('review-requested', {
+         tone: 'info',
+         icon: '✦',
+         title: 'Review requested',
+         body: `${p.data.user.login} asked you to review this.`,
+         pull: pullRef(p),
+         dedupeKey: `req:${key}`,
+      });
+   }
+   const requestedSeen = new Set(sig.requestedOfMe.keys());
 
    // start-here: the backlog re-arms after hitting zero (the prime-tick fire
    // is handled above, before this function's main body ever runs).
@@ -691,6 +735,7 @@ export function diffCheers(
          favorsSeen,
          myRank: sig.myRank,
          wasTop: sig.myRank === 1,
+         requestedSeen,
          hadBacklog: sig.backlog > 0,
          authorPrs: sig.authorPrs,
          boardQueue: sig.boardReviewable,
