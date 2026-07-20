@@ -123,8 +123,35 @@ export function Legend() {
             />
             <Item
                term={<WeightMeter weight="M" />}
-               def="review effort, light to heavy, from diff size"
+               def="how much review it needs, light (XS) to heavy (XL)"
             />
+            <details className="group/weight mt-0.5 px-1">
+               <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
+                  <span aria-hidden className="transition-transform group-open/weight:rotate-90">
+                     ›
+                  </span>
+                  How weight is decided
+               </summary>
+               <div className="space-y-1.5 pt-0.5 pb-1 pl-3 text-ink-2">
+                  <p>
+                     XS through XL is roughly how much review a PR will take, lightest to heaviest.
+                     The board sorts by it, and you can filter on it (
+                     <code className="font-mono text-[11px]">weight:xs,s</code>).
+                  </p>
+                  <p>
+                     If the PR carries one of the org’s size labels, that wins: it’s deterministic,
+                     per-file-weighted, and versioned with the labeller. With no label it’s a guess
+                     from the diff — under 50 lines changed reads XS, under 150 S, under 600 M,
+                     under 1500 L, and 1500+ XL, bumped up a class when the PR spans more than 15
+                     files.
+                  </p>
+                  <p>
+                     It’s only a prior, never a verdict: a tiny diff can hide a subtle change and a
+                     big one can be a rename sweep, so the meter points you at what to read, it
+                     doesn’t decide for you.
+                  </p>
+               </div>
+            </details>
             <Item
                term={
                   <span className="tabular-nums">
@@ -151,6 +178,26 @@ export function Legend() {
                }
                def="matches a code region you set in Settings — these gather in the “In your code regions” section on Review and Team"
             />
+            <details className="group/region mt-0.5 px-1">
+               <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
+                  <span aria-hidden className="transition-transform group-open/region:rotate-90">
+                     ›
+                  </span>
+                  How regions work
+               </summary>
+               <div className="space-y-1.5 pt-0.5 pb-1 pl-3 text-ink-2">
+                  <p>
+                     Code regions are free text you set in Settings — the areas you own or follow,
+                     like “Growthbook” or “Shopify”. They’re a plain text match, not a regex.
+                  </p>
+                  <p>
+                     A PR matches when a region appears, case-insensitively, anywhere in the text
+                     already on the board: its title, description, repo, branch name, or labels.
+                     Changed file paths aren’t checked (the board never fetches them). A match earns
+                     the ◆ chip, floats up your queue, and collects in “In your code regions”.
+                  </p>
+               </div>
+            </details>
             <Item
                term={
                   <span className="inline-flex items-center gap-1 rounded bg-brand px-1.5 py-0.5 text-[11px] leading-none font-medium text-surface">
@@ -196,6 +243,31 @@ export function Legend() {
                      (it stops holding others off, and you’re nudged to finish or release it), and
                      is dropped entirely when its length runs out. Both are set in Settings,
                      defaulting to 2h and 4h. Releasing clears it for everyone right away.
+                  </p>
+               </div>
+            </details>
+            <Item
+               term={<span className="text-ink-2 italic">your turn</span>}
+               def="a starved review nobody’s on gets pointed at one person so it doesn’t sit forever — you can still pass it to anyone"
+            />
+            <details className="group/turn mt-0.5 px-1">
+               <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
+                  <span aria-hidden className="transition-transform group-open/turn:rotate-90">
+                     ›
+                  </span>
+                  How your turn is picked
+               </summary>
+               <div className="space-y-1.5 pt-0.5 pb-1 pl-3 text-ink-2">
+                  <p>
+                     When a PR has gone too long without enough CR and nobody has claimed it, the
+                     board assigns it to one reviewer so it stops falling through the cracks. Every
+                     client picks the same name with no coordination: it hashes the PR’s repo and
+                     number onto one person from the pool who’ve CR’d that repo before, skipping the
+                     author and anyone who already stamped this one.
+                  </p>
+                  <p>
+                     It’s a nudge, not a lock — anyone can take it, and an explicit GitHub review
+                     request overrides the guess entirely.
                   </p>
                </div>
             </details>
