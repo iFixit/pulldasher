@@ -1,25 +1,31 @@
 import { pullKey, shortRepo } from '../format';
+import type { PullData } from '../types';
 import { actionState } from './actions';
+import { dealOne } from './deal';
+import { reviewerRanks } from './leaderboard';
 import { buildReviewerPools, turnFor } from './rotation';
+import { crSort } from './sort';
 import type { DerivedPull } from './status';
 import type { Toast } from './toast';
 
 /**
  * "Cheers": the gamification layer. A pure, edge-triggered evaluator that turns
  * two board snapshots (last seen vs now) into transient toast messages —
- * rewards when your review work lands, nags when it piles up. Kept in model/
- * and side-effect-free so the trigger logic is unit-testable without a
- * renderer; toasts.tsx owns the React hook, timers, and DOM.
+ * rewards when your review work lands, nags when it piles up, and a steady
+ * "here's the one thing to do next" nudge so a reviewer never has to browse.
+ * Kept in model/ and side-effect-free so the trigger logic is unit-testable
+ * without a renderer; toasts.tsx owns the React hook, timers, and DOM.
  *
  * The whole thing is viewer-relative and session-only: there's no per-user
  * history on the server (stats-history is org-wide aggregate), so "3 this
  * sitting" resets on reload — honestly, since a reload has no memory of what
- * you cleared. The first pass after load only primes the baseline: we never
- * dump a backlog of "new" stamps or a stale-since-forever nag the moment you
- * open the board, same discipline as desktop notifications.
+ * you cleared. The first pass after load only primes the baseline, with one
+ * deliberate exception: start-here still fires once, because "here's your
+ * next pull" is the whole point of opening the board, not a backlog dump.
+ * Every other signal is silent until it changes.
  */
 
-export type CheerTone = 'reward' | 'nag';
+export type CheerTone = 'reward' | 'nag' | 'info';
 
 export type CheerToast = Toast;
 
@@ -31,8 +37,9 @@ export interface CheerBaseline {
    stamped: ReadonlySet<string>;
    /** your open review/qa/restamp count last tick */
    queue: number;
-   /** highest queue threshold already nagged, so a growing pile nags once per
-    * step up, not every tick; reset to 0 when the queue drains */
+   /** highest queue threshold already crossed — no toast reads this anymore
+    * (the old "N reviews waiting" nag is gone), but it's carried forward
+    * as standing state for the next pass to reuse or retire outright. */
    nagLevel: number;
    /** stamps you've landed this session (drives milestones) */
    sessionStamps: number;
@@ -40,8 +47,25 @@ export interface CheerBaseline {
    firedMilestones: ReadonlySet<number>;
    /** turn-rotation pulls already nagged, so "your turn" fires once per pull */
    seenTurns: ReadonlySet<string>;
-   /** your restamp-owed count last tick (aggregate 0→>0 transition) */
-   restamp: number;
+   /** pull keys where you currently owe a re-stamp (recrBy/reqaBy has you) */
+   restampKeys: ReadonlySet<string>;
+   /** you've already been told about the current batch of quick wins */
+   quickWinsNagged: boolean;
+   /** debtor logins already nudged for reciprocity this session */
+   favorsSeen: ReadonlySet<string>;
+   /** your leaderboard rank last tick (0 = unranked / no stamps in view) */
+   myRank: number;
+   /** you were the #1 reviewer on the board last tick */
+   wasTop: boolean;
+   /** you had at least one reviewable pull last tick */
+   hadBacklog: boolean;
+   /** per your-own open PR, last tick's state, for author-side edges */
+   authorPrs: ReadonlyMap<
+      string,
+      { green: boolean; reviewed: boolean; conflict: boolean; starved: boolean }
+   >;
+   /** the whole board's viewer-reviewable count last tick (board-cleared) */
+   boardQueue: number;
 }
 
 export const EMPTY_BASELINE: CheerBaseline = {
@@ -52,30 +76,38 @@ export const EMPTY_BASELINE: CheerBaseline = {
    sessionStamps: 0,
    firedMilestones: new Set(),
    seenTurns: new Set(),
-   restamp: 0,
+   restampKeys: new Set(),
+   quickWinsNagged: false,
+   favorsSeen: new Set(),
+   myRank: 0,
+   wasTop: false,
+   hadBacklog: false,
+   authorPrs: new Map(),
+   boardQueue: 0,
 };
 
 export interface CheerInput {
    pulls: DerivedPull[];
+   /** closed pulls in the loaded window, for the leaderboard's tally — optional
+    * so older callers still typecheck; an absent window just ranks off the
+    * open board. */
+   closed?: PullData[];
    me: string;
    claims: Readonly<Record<string, { login: string; at: number }>>;
 }
 
-/** Queue sizes that earn a nag as you cross them going up. */
+/** Queue sizes that used to earn the retired count nag as you crossed them. */
 const NAG_STEPS = [3, 5, 8];
 /** Session stamp counts worth celebrating. */
 const MILESTONES = [3, 5, 10];
 /** No single tick fires more than this — a socket burst that flips many pulls
  * at once shouldn't bury the screen in toasts. */
 const MAX_PER_TICK = 3;
+/** Quick-win pile size that's worth a heads-up. */
+const QUICK_WIN_THRESHOLD = 3;
 
 const STAMP_PRAISE = ['Nice one.', 'The team thanks you.', "Keep 'em coming.", 'Clean.'];
 const MILESTONE_PRAISE = ["Somebody's on a roll.", 'The queue fears you.', 'Unstoppable.'];
-const NAG_LINES = [
-   "They're getting lonely.",
-   "The board's holding its breath.",
-   'No rush. (There is a little rush.)',
-];
 
 /** Deterministic rotation through a copy list — seeded, not random, so tests
  * are stable and two clients narrate the same board the same way. */
@@ -90,44 +122,195 @@ function nagStepFor(queue: number): number {
    return step;
 }
 
+/** Has `login` landed an active CR or QA stamp on this pull? Mirrors
+ * deal.ts's private helper — duplicated rather than imported so this stays a
+ * small, self-contained pure check like the rest of model/. */
+function hasStamp(p: DerivedPull, login: string): boolean {
+   return p.crBy.includes(login) || p.qaBy.includes(login);
+}
+
+/**
+ * The one-line "why this pull" for start-here, in the priority order the spec
+ * calls for: reciprocity beats familiarity beats a quick win beats plain
+ * urgency. `pulls` is the whole board (not just the queue) — familiarity and
+ * reciprocity look across every repo/author the viewer touches, matching
+ * deal.ts's own scoring.
+ */
+export function startHereReason(p: DerivedPull, pulls: DerivedPull[], me: string): string {
+   const repo = p.data.repo;
+   const author = p.data.user.login;
+   const owedByAuthor = pulls.some(o => o.data.user.login === me && hasStamp(o, author));
+   if (owedByAuthor) return `${author} reviewed yours — return the favor`;
+   const familiar = pulls.some(o => o.data.repo === repo && hasStamp(o, me));
+   if (familiar) return `You know ${shortRepo(repo)} — less to load in`;
+   const quickWin = p.sizeKnown && (p.weight === 'XS' || p.weight === 'S');
+   if (quickWin) return `Small one (${p.weight}) — 5-minute job`;
+   return `Waiting ${Math.max(1, Math.round(p.ageDays))}d, the oldest on your plate`;
+}
+
+function startHereToast(p: DerivedPull, reason: string): CheerToast {
+   return {
+      tone: 'info',
+      icon: '🎯',
+      title: `Start with ${shortRepo(p.data.repo)}#${p.data.number}`,
+      body: reason,
+      pull: { repo: p.data.repo, number: p.data.number },
+      dedupeKey: `start:${pullKey(p.data)}`,
+   };
+}
+
+/** A your-own-PR's state, watched for author-side toast transitions. */
+export interface AuthorPrState {
+   green: boolean;
+   reviewed: boolean;
+   conflict: boolean;
+   starved: boolean;
+}
+
 export interface Signals {
    stamped: Set<string>;
+   /** your open review/qa/restamp count, any claim state */
    queue: number;
    review: number;
    qa: number;
-   restamp: number;
+   /** board-wide count of pulls still awaiting a review from anyone — drives
+    * board-cleared, so clearing your OWN queue doesn't misfire "nice work team" */
+   boardReviewable: number;
+   /** pull keys where you currently owe a re-stamp */
+   restampKeys: Set<string>;
    /** pull keys the rotation currently names the viewer for, unclaimed */
    turns: Map<string, DerivedPull>;
-   /** the pull behind each freshly-stamped key, for the toast's body/link */
+   /** the pull behind each key, for a toast's body/link */
    byKey: Map<string, DerivedPull>;
+   /** unclaimed XS/S reviewable pulls on the board right now */
+   quickWinCount: number;
+   quickWinPull: DerivedPull | null;
+   /** the single best pull to review next, or null with an empty backlog */
+   bestStart: DerivedPull | null;
+   startReason: string;
+   /** unclaimed reviewable count (excludes claimed pulls, unlike `review`) */
+   backlog: number;
+   /** authors who owe you a favor and have an open reviewable PR, in a
+    * deterministic order; one entry per debtor */
+   debtors: { login: string; pull: DerivedPull; count: number }[];
+   authorPrs: Map<string, AuthorPrState>;
+   myRank: number;
+   myCount: number;
+   /** the login one rank behind you, for the "climbing" toast */
+   peerBelow: string | null;
 }
 
 export function readSignals(input: CheerInput): Signals {
    const { pulls, me, claims } = input;
+   const closed = input.closed ?? [];
    const pools = buildReviewerPools(pulls);
    const stamped = new Set<string>();
    const turns = new Map<string, DerivedPull>();
    const byKey = new Map<string, DerivedPull>();
+   const restampKeys = new Set<string>();
    let review = 0;
    let qa = 0;
-   let restamp = 0;
+
    for (const p of pulls) {
       const key = pullKey(p.data);
       byKey.set(key, p);
-      const mine = p.crBy.includes(me) || p.qaBy.includes(me);
+      const mine = hasStamp(p, me);
       if (mine) stamped.add(key);
       const st = actionState(p, me);
       if (st === 'review') review++;
       else if (st === 'qa') qa++;
-      else if (st === 'restamp') restamp++;
+      else if (st === 'restamp') restampKeys.add(key);
       if (!mine && !claims[key] && turnFor(p, pools) === me) turns.set(key, p);
    }
-   return { stamped, queue: review + qa + restamp, review, qa, restamp, turns, byKey };
+
+   const reviewableUnclaimed = pulls.filter(
+      p => actionState(p, me) === 'review' && !claims[pullKey(p.data)]
+   );
+
+   const quickWinCandidates = crSort(
+      reviewableUnclaimed.filter(p => p.sizeKnown && (p.weight === 'XS' || p.weight === 'S'))
+   );
+   const quickWinPull = quickWinCandidates[0] ?? null;
+
+   const bestStart = dealOne(reviewableUnclaimed, { me, pulls, claims, passed: new Set() });
+   const startReason = bestStart ? startHereReason(bestStart, pulls, me) : '';
+
+   // reciprocity: who has stamped one of your own pulls, and do they have an
+   // open reviewable pull of their own right now?
+   const myPulls = pulls.filter(p => p.data.user.login === me);
+   const debtorPullKeys = new Map<string, Set<string>>();
+   for (const p of myPulls) {
+      const key = pullKey(p.data);
+      for (const login of new Set([...p.crBy, ...p.qaBy])) {
+         const keys = debtorPullKeys.get(login) ?? new Set<string>();
+         keys.add(key);
+         debtorPullKeys.set(login, keys);
+      }
+   }
+   const debtors: { login: string; pull: DerivedPull; count: number }[] = [];
+   const seenDebtor = new Set<string>();
+   for (const p of crSort(reviewableUnclaimed)) {
+      const author = p.data.user.login;
+      const count = debtorPullKeys.get(author)?.size ?? 0;
+      if (count > 0 && !seenDebtor.has(author)) {
+         seenDebtor.add(author);
+         debtors.push({ login: author, pull: p, count });
+      }
+   }
+
+   const authorPrs = new Map<string, AuthorPrState>();
+   for (const p of myPulls) {
+      authorPrs.set(pullKey(p.data), {
+         green: p.status === 'ready',
+         reviewed: p.crBy.length > 0,
+         conflict: p.conflict,
+         starved: p.starved,
+      });
+   }
+
+   const boardReviewable = pulls.filter(
+      p => p.status === 'needs_cr' || p.status === 'needs_recr' || p.status === 'needs_qa'
+   ).length;
+
+   const ranks = reviewerRanks(pulls, closed);
+   const mine = ranks.get(me);
+   const myRank = mine?.rank ?? 0;
+   const myCount = mine?.count ?? 0;
+   let peerBelow: string | null = null;
+   if (myRank > 0) {
+      const candidates = [...ranks.entries()]
+         .filter(([login, r]) => login !== me && r.rank === myRank + 1)
+         .map(([login]) => login)
+         .sort();
+      peerBelow = candidates[0] ?? null;
+   }
+
+   return {
+      stamped,
+      queue: review + qa + restampKeys.size,
+      review,
+      qa,
+      boardReviewable,
+      restampKeys,
+      turns,
+      byKey,
+      quickWinCount: quickWinCandidates.length,
+      quickWinPull,
+      bestStart,
+      startReason,
+      backlog: reviewableUnclaimed.length,
+      debtors,
+      authorPrs,
+      myRank,
+      myCount,
+      peerBelow,
+   };
 }
 
 /**
  * Read the board and diff it into toasts — the top-level entry the React hook
- * calls. readSignals does the model-touching read; diffCheers is the pure
+ * calls. readSignals does the model-touching read (including the leaderboard,
+ * via reviewerRanks(input.pulls, input.closed)); diffCheers is the pure
  * transition logic (tested directly against synthetic Signals).
  */
 export function evaluateCheers(
@@ -137,11 +320,41 @@ export function evaluateCheers(
    return diffCheers(readSignals(input), input.me, base);
 }
 
+/** Toast categories, highest priority first — what survives when a tick
+ * overflows MAX_PER_TICK. */
+const PRIORITY_ORDER = [
+   'board-cleared',
+   'inbox-zero',
+   'pr-green',
+   'milestone',
+   'top-of-board',
+   'climbing',
+   'stamp-landed',
+   'pr-first-review',
+   'your-turn',
+   're-stamp-owed',
+   'return-the-favor',
+   'start-here',
+   'quick-wins',
+   'pr-conflicts',
+   'pr-starving',
+] as const;
+type ToastKind = (typeof PRIORITY_ORDER)[number];
+const PRIORITY: Record<ToastKind, number> = Object.fromEntries(
+   PRIORITY_ORDER.map((kind, i) => [kind, PRIORITY_ORDER.length - i])
+) as Record<ToastKind, number>;
+
 /**
  * Diff two board snapshots into the toasts worth firing right now, plus the
  * baseline to carry into the next tick. Pure: everything it needs is in `sig`,
- * `me`, and `base`. The first call (an unprimed baseline) fires nothing: it
- * records where you started so only what changes afterward speaks up.
+ * `me`, and `base`.
+ *
+ * The first call (an unprimed baseline) fires only start-here, if there's a
+ * backlog — the one load-time toast, so opening the board hands you exactly
+ * one good next pull instead of dumping everything that's "new" since a
+ * reload has no memory of what came before. Every other signal primes
+ * silently: it records where you started so only what changes afterward
+ * speaks up.
  */
 export function diffCheers(
    sig: Signals,
@@ -149,10 +362,12 @@ export function diffCheers(
    base: CheerBaseline
 ): { toasts: CheerToast[]; next: CheerBaseline } {
    if (!base.primed || !me) {
-      // prime silently: adopt the current world as the baseline, including the
-      // turns and nag level already standing, so a reload never dumps a backlog
+      const toasts: CheerToast[] = [];
+      if (me && sig.bestStart && sig.backlog > 0) {
+         toasts.push(startHereToast(sig.bestStart, sig.startReason));
+      }
       return {
-         toasts: [],
+         toasts,
          next: {
             primed: !!me,
             stamped: sig.stamped,
@@ -161,12 +376,21 @@ export function diffCheers(
             sessionStamps: 0,
             firedMilestones: new Set(),
             seenTurns: new Set(sig.turns.keys()),
-            restamp: sig.restamp,
+            restampKeys: sig.restampKeys,
+            quickWinsNagged: sig.quickWinCount >= QUICK_WIN_THRESHOLD,
+            favorsSeen: new Set(),
+            myRank: sig.myRank,
+            wasTop: sig.myRank === 1,
+            hadBacklog: sig.backlog > 0,
+            authorPrs: sig.authorPrs,
+            boardQueue: sig.review,
          },
       };
    }
 
-   const toasts: CheerToast[] = [];
+   const entries: { toast: CheerToast; kind: ToastKind }[] = [];
+   const push = (kind: ToastKind, toast: CheerToast) => entries.push({ toast, kind });
+
    let sessionStamps = base.sessionStamps;
    const firedMilestones = new Set(base.firedMilestones);
 
@@ -182,12 +406,13 @@ export function diffCheers(
    for (const p of landed.slice(0, 2)) {
       sessionStamps++;
       const isQa = p.qaBy.includes(me) && !p.crBy.includes(me);
-      toasts.push({
+      push('stamp-landed', {
          tone: 'reward',
          icon: isQa ? '🧪' : '✅',
          title: pick(STAMP_PRAISE, sessionStamps),
          body: `${shortRepo(p.data.repo)}#${p.data.number} ${isQa ? 'QA' : 'CR'} landed`,
          pull: { repo: p.data.repo, number: p.data.number },
+         dedupeKey: `stamp:${pullKey(p.data)}`,
       });
    }
    // any leftover landed stamps past the cap still count toward milestones
@@ -197,46 +422,27 @@ export function diffCheers(
    for (const m of MILESTONES) {
       if (sessionStamps >= m && !firedMilestones.has(m)) {
          firedMilestones.add(m);
-         toasts.push({
+         push('milestone', {
             tone: 'reward',
             icon: '🔥',
             title: `${sessionStamps} reviews this sitting`,
             body: pick(MILESTONE_PRAISE, sessionStamps),
             celebrate: true,
+            dedupeKey: `milestone:${m}`,
          });
       }
    }
 
    // queue cleared: the hero moment
-   let nagLevel = base.nagLevel;
    if (base.queue > 0 && sig.queue === 0) {
-      toasts.push({
+      push('inbox-zero', {
          tone: 'reward',
          icon: '🎉',
          title: 'Inbox zero',
          body: "Nothing's waiting on you. Go build something.",
          celebrate: true,
+         dedupeKey: 'inbox:zero',
       });
-      nagLevel = 0;
-   }
-
-   // ── Nags ─────────────────────────────────────────────────────────────────
-   // your pile crossed a new threshold going up
-   const step = nagStepFor(sig.queue);
-   if (sig.queue === 0) {
-      nagLevel = 0;
-   } else if (step > nagLevel) {
-      nagLevel = step;
-      toasts.push({
-         tone: 'nag',
-         icon: sig.queue >= 8 ? '😰' : sig.queue >= 5 ? '😔' : '🥱',
-         title: `${sig.queue} reviews are waiting on you`,
-         body: pick(NAG_LINES, sig.queue),
-      });
-   } else if (step < nagLevel) {
-      // pile shrank below the last nagged step: lower the bar so a later climb
-      // back up nags again, but don't celebrate here (that's the cleared branch)
-      nagLevel = step;
    }
 
    // the rotation newly named you on a starved pull. Next tick's seenTurns is
@@ -244,28 +450,180 @@ export function diffCheers(
    // so if it later comes back around it can nag again.
    for (const [key, p] of sig.turns) {
       if (base.seenTurns.has(key)) continue;
-      toasts.push({
+      push('your-turn', {
          tone: 'nag',
          icon: '⏳',
          title: `${shortRepo(p.data.repo)}#${p.data.number} has your name on it`,
          body: `Waiting ${Math.max(1, Math.round(p.ageDays))}d — the rotation picked you.`,
          pull: { repo: p.data.repo, number: p.data.number },
+         dedupeKey: `turn:${key}`,
       });
    }
    const seenTurns = new Set(sig.turns.keys());
 
-   // a stamp of yours went stale (aggregate, so a re-QA storm is one toast)
-   if (base.restamp === 0 && sig.restamp > 0) {
-      toasts.push({
+   // start-here: the backlog re-arms after hitting zero (the prime-tick fire
+   // is handled above, before this function's main body ever runs).
+   if (!base.hadBacklog && sig.backlog > 0 && sig.bestStart) {
+      push('start-here', startHereToast(sig.bestStart, sig.startReason));
+   }
+
+   // re-stamp owed: one toast per pull newly needing another look, replacing
+   // the old aggregate "a stamp went stale" nag with something you can act on.
+   const newRestamps: DerivedPull[] = [];
+   for (const key of sig.restampKeys) {
+      if (base.restampKeys.has(key)) continue;
+      const p = sig.byKey.get(key);
+      if (p) newRestamps.push(p);
+   }
+   for (const p of newRestamps.slice(0, MAX_PER_TICK)) {
+      push('re-stamp-owed', {
          tone: 'nag',
-         icon: '🥀',
-         title: 'A stamp of yours went stale',
-         body: `${sig.restamp} need${sig.restamp > 1 ? '' : 's'} another look.`,
+         icon: '🔁',
+         title: `${shortRepo(p.data.repo)}#${p.data.number} changed since your ✓`,
+         body: 'Give it another look?',
+         pull: { repo: p.data.repo, number: p.data.number },
+         dedupeKey: `recr:${pullKey(p.data)}`,
       });
    }
 
+   // quick wins: the pile crossed the threshold going up
+   let quickWinsNagged = base.quickWinsNagged;
+   if (sig.quickWinCount >= QUICK_WIN_THRESHOLD && !quickWinsNagged) {
+      quickWinsNagged = true;
+      push('quick-wins', {
+         tone: 'info',
+         icon: '⚡',
+         title: `${sig.quickWinCount} quick reviews on the board`,
+         body: 'XS/S — clear them in a coffee break.',
+         pull: sig.quickWinPull
+            ? { repo: sig.quickWinPull.data.repo, number: sig.quickWinPull.data.number }
+            : undefined,
+         dedupeKey: `quick:${sig.quickWinCount}`,
+      });
+   } else if (sig.quickWinCount < QUICK_WIN_THRESHOLD) {
+      quickWinsNagged = false;
+   }
+
+   // return the favor: a debtor's open reviewable pull, nudged once per debtor
+   const favorsSeen = new Set(base.favorsSeen);
+   for (const { login, pull: p, count } of sig.debtors) {
+      if (favorsSeen.has(login)) continue;
+      favorsSeen.add(login);
+      push('return-the-favor', {
+         tone: 'info',
+         icon: '🤝',
+         title: `${login} has one up`,
+         body: `They reviewed ${count} of yours — ${shortRepo(p.data.repo)}#${p.data.number}.`,
+         pull: { repo: p.data.repo, number: p.data.number },
+         dedupeKey: `favor:${login}`,
+      });
+   }
+
+   // leaderboard: top and climbing
+   if (sig.myRank === 1 && !base.wasTop && sig.myCount > 0) {
+      push('top-of-board', {
+         tone: 'reward',
+         icon: '🏆',
+         title: 'Top reviewer on the board',
+         body: `${sig.myCount} stamps in view — nobody's ahead of you.`,
+         celebrate: true,
+         dedupeKey: 'top:1',
+      });
+   }
+   if (
+      base.myRank > 0 &&
+      sig.myRank > 0 &&
+      sig.myRank < base.myRank &&
+      sig.myRank > 1 &&
+      sig.myCount >= 2 &&
+      sig.peerBelow
+   ) {
+      push('climbing', {
+         tone: 'reward',
+         icon: '📈',
+         title: `You passed ${sig.peerBelow}`,
+         body: `#${sig.myRank} reviewer on the board.`,
+         dedupeKey: `rank:${sig.myRank}`,
+      });
+   }
+
+   // author-side: your own open PRs, watched for edge transitions only — a
+   // brand-new key (a PR you just opened) has no baseline entry yet, so it
+   // primes silently here rather than firing on however it first appears.
+   for (const [key, now] of sig.authorPrs) {
+      const was = base.authorPrs.get(key);
+      if (!was) continue;
+      const p = sig.byKey.get(key);
+      if (!p) continue;
+      if (!was.green && now.green) {
+         push('pr-green', {
+            tone: 'reward',
+            icon: '🚀',
+            title: `${shortRepo(p.data.repo)}#${p.data.number} is green`,
+            body: 'CR + QA both cleared — ship it.',
+            pull: { repo: p.data.repo, number: p.data.number },
+            dedupeKey: `green:${key}`,
+         });
+      }
+      if (!was.reviewed && now.reviewed) {
+         push('pr-first-review', {
+            tone: 'info',
+            icon: '👀',
+            title: `Someone picked up your #${p.data.number}`,
+            body: `${p.crBy[0] ?? 'A reviewer'} is on ${shortRepo(p.data.repo)}#${p.data.number}.`,
+            pull: { repo: p.data.repo, number: p.data.number },
+            dedupeKey: `firstrev:${key}`,
+         });
+      }
+      if (!was.conflict && now.conflict) {
+         push('pr-conflicts', {
+            tone: 'nag',
+            icon: '⚠️',
+            title: `${shortRepo(p.data.repo)}#${p.data.number} has conflicts`,
+            body: 'Your PR needs a rebase.',
+            pull: { repo: p.data.repo, number: p.data.number },
+            dedupeKey: `conflict:${key}`,
+         });
+      }
+      if (!was.starved && now.starved) {
+         push('pr-starving', {
+            tone: 'nag',
+            icon: '🕰️',
+            title: `Your #${p.data.number} has waited ${p.ageDays}d`,
+            body: `${shortRepo(p.data.repo)} — worth a nudge?`,
+            pull: { repo: p.data.repo, number: p.data.number },
+            dedupeKey: `starve:${key}`,
+         });
+      }
+   }
+
+   // board cleared: the whole board's awaiting-review count dropped to zero —
+   // board-wide, so this is a rare all-hands moment, not just your queue
+   if (base.boardQueue > 0 && sig.boardReviewable === 0) {
+      push('board-cleared', {
+         tone: 'reward',
+         icon: '🎊',
+         title: "Board's clear",
+         body: 'Nothing waiting on anyone. Nice work, team.',
+         celebrate: true,
+         dedupeKey: 'board:clear',
+      });
+   }
+
+   // ── nagLevel bookkeeping only (no toast fires from this anymore — the old
+   // count nag is retired in favor of start-here) ──────────────────────────
+   let nagLevel = base.nagLevel;
+   const step = nagStepFor(sig.queue);
+   if (sig.queue === 0) nagLevel = 0;
+   else nagLevel = step;
+
+   const toasts = entries
+      .sort((a, b) => PRIORITY[b.kind] - PRIORITY[a.kind])
+      .slice(0, MAX_PER_TICK)
+      .map(e => e.toast);
+
    return {
-      toasts: toasts.slice(0, MAX_PER_TICK),
+      toasts,
       next: {
          primed: true,
          stamped: sig.stamped,
@@ -274,7 +632,14 @@ export function diffCheers(
          sessionStamps,
          firedMilestones,
          seenTurns,
-         restamp: sig.restamp,
+         restampKeys: sig.restampKeys,
+         quickWinsNagged,
+         favorsSeen,
+         myRank: sig.myRank,
+         wasTop: sig.myRank === 1,
+         hadBacklog: sig.backlog > 0,
+         authorPrs: sig.authorPrs,
+         boardQueue: sig.boardReviewable,
       },
    };
 }
