@@ -10,6 +10,7 @@ import dbManager from "./lib/db-manager.js";
 import pullQueue from "./lib/pull-queue.js";
 import mainController from "./controllers/main.js";
 import hooksController from "./controllers/githubHooks.js";
+import statsController from "./controllers/stats.js";
 import Debug from "./lib/debug.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -56,6 +57,7 @@ authManager.setupRoutes(app);
 app.use("/v2", express.static(__dirname + "/frontend-v2/dist"));
 app.use("/", express.static(__dirname + "/frontend/dist"));
 app.get("/token", mainController.getToken);
+app.get("/v2/stats-history", statsController.getHistory);
 app.post("/hooks/main", hooksController.main);
 
 debug("Loading all recent pulls from the DB");
