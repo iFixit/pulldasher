@@ -134,13 +134,13 @@ function participantsFor(pull: PullData, i: number): string[] {
 const CHAIN_INDEXES = [10, 11, 12] as const; // parent, child, grandchild
 const FORK_INDEXES = [13, 14, 15] as const; // parent, child, child
 
-// `requested_reviewers`/`assignees` postdate this fixture, so a few fixed pulls
-// carry a review request aimed at the dummy viewer (so the "Requested of you"
-// lane and the row's "review requested" chip demo) and a couple of assignees.
-// Deterministic indexes, no randomness — same spirit as the rest of this file.
-// The model drops a request aimed at a PR's own author, so an index that lands
-// on the viewer's own pull just shows nothing, harmlessly.
-const REVIEW_REQUEST_INDEXES = new Set([1, 3, 4, 7, 9]);
+// `requested_reviewers`/`assignees` postdate this fixture, so some pulls carry a
+// review request aimed at the dummy viewer (so the "Requested of you" lane and
+// the row's "review requested" chip demo) and a couple of assignees. Keyed off
+// the pull's own author, not a raw index, since a request only surfaces on
+// someone else's PR — every third non-viewer pull gets one, deterministically.
+const wantsReviewRequest = (pull: PullData, i: number): boolean =>
+   pull.user.login !== dummyUser() && i % 3 === 1;
 const ASSIGNEE_INDEXES = new Set([6, 12]);
 
 function withSyntheticStacks(pulls: PullData[]): PullData[] {
@@ -176,7 +176,7 @@ function redate(pull: PullData, i: number): PullData {
       participants: participantsFor(pull, i),
       additions,
       deletions,
-      requested_reviewers: REVIEW_REQUEST_INDEXES.has(i)
+      requested_reviewers: wantsReviewRequest(pull, i)
          ? [dummyUser()]
          : (pull.requested_reviewers ?? []),
       assignees: ASSIGNEE_INDEXES.has(i) ? [dummyUser()] : (pull.assignees ?? []),
