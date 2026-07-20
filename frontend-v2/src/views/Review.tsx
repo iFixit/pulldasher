@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { type DerivedPull, qaDone, type Status, weightRank } from '../model/status';
-import { pullKey, rowDomId } from '../format';
+import { pullKey, rowDomId, shortRepo } from '../format';
 import { crSort, starFirst } from '../model/sort';
 import { regionFirst } from '../model/regions';
 import { groupIntoTree } from '../model/stack';
 import { authorMove, reviewerMove } from '../model/actions';
 import { dealOne } from '../model/deal';
 import { useSettings } from '../settings';
-import { claimReview, isFresh, releaseReview, usePulldasher } from '../store';
+import { claimReview, isFresh, usePulldasher } from '../store';
 import type { PullData } from '../types';
 import { EmptyState, QuietButton, STATUS_DOT, STATUS_LABEL } from '../components/bits';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, Truncated } from '../components/Lane';
@@ -15,11 +15,13 @@ import { markDealtFlash, Row, type RowOptions } from '../components/Row';
 import { ClosedRow } from '../components/ClosedRow';
 
 /**
- * "Deal me one": for a reviewer who'd rather click than browse, pick the
- * single best pull from the review queue, claim it, and scroll to it. A
- * "Pass" button appears alongside once something's dealt — passing releases
- * the claim and deals the next one, so cycling through the queue this way
- * never requires opening the lane at all.
+ * "Deal me one": for a reviewer who'd rather click than browse, pick the single
+ * best pull from the review queue and scroll to it — but stop short of
+ * claiming. Claiming now also puts you on the PR as a GitHub reviewer, so it's
+ * a real commitment: the dealt pull waits behind a "Claim it" confirmation.
+ * "Pass" skips it (nothing to release, since a deal no longer claims) and deals
+ * the next, so you can flip through the queue a card at a time without opening
+ * the lane.
  */
 function DealButton({ queue, opts }: { queue: DerivedPull[]; opts: RowOptions }) {
    const { pulls } = usePulldasher();
@@ -43,11 +45,6 @@ function DealButton({ queue, opts }: { queue: DerivedPull[]; opts: RowOptions })
          return;
       }
       setDealtKey(pullKey(picked.data));
-      claimReview(picked.data);
-      // the flash needs the row to actually re-render (see markDealtFlash) —
-      // claiming does that on its own a beat later, once the store's debounced
-      // publish lands with the new claims map
-      markDealtFlash(pullKey(picked.data));
       const id = rowDomId(picked.data);
       requestAnimationFrame(() => {
          document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -56,22 +53,38 @@ function DealButton({ queue, opts }: { queue: DerivedPull[]; opts: RowOptions })
 
    const dealt = dealtKey ? queue.find(p => pullKey(p.data) === dealtKey) : null;
 
+   const claim = () => {
+      if (!dealt) return;
+      // flash first, then claim: the claim's store publish re-renders the row a
+      // beat later (the only thing that makes markDealtFlash's flash paint), so
+      // the card lights up exactly as its claim badge appears — the confirmation
+      markDealtFlash(dealtKey!);
+      claimReview(dealt.data);
+      setDealtKey(null);
+      setPassed(new Set());
+   };
+
+   const pass = () => {
+      if (!dealtKey) return;
+      const next = new Set(passed);
+      next.add(dealtKey);
+      setPassed(next);
+      deal(next);
+   };
+
    return (
       <span className="flex items-center gap-2">
          {note && <span className="text-xs text-ink-3">{note}</span>}
-         <QuietButton onClick={() => deal(passed)}>Deal me one</QuietButton>
-         {dealt && (
-            <QuietButton
-               onClick={() => {
-                  releaseReview(dealt.data);
-                  const next = new Set(passed);
-                  next.add(dealtKey!);
-                  setPassed(next);
-                  deal(next);
-               }}
-            >
-               Pass
-            </QuietButton>
+         {dealt ? (
+            <>
+               <span className="text-xs text-ink-3">
+                  Dealt {shortRepo(dealt.data.repo)}#{dealt.data.number}
+               </span>
+               <QuietButton onClick={claim}>Claim it</QuietButton>
+               <QuietButton onClick={pass}>Pass</QuietButton>
+            </>
+         ) : (
+            <QuietButton onClick={() => deal(passed)}>Deal me one</QuietButton>
          )}
       </span>
    );
