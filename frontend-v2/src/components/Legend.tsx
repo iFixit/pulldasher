@@ -166,6 +166,30 @@ export function Legend() {
                term={<span className="text-ink-2 italic">X is reading it</span>}
                def="someone else has claimed this review"
             />
+            <details className="group/claim mt-0.5 px-1">
+               <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
+                  <span aria-hidden className="transition-transform group-open/claim:rotate-90">
+                     ›
+                  </span>
+                  How claims work
+               </summary>
+               <div className="space-y-1.5 pt-0.5 pb-1 pl-3 text-ink-2">
+                  <p>
+                     Claims live in the server’s memory, never the database. Claiming sends a
+                     message over the live websocket; the server records it and broadcasts the
+                     updated list to everyone on the board, so others see “X is reading it” at once.
+                  </p>
+                  <p>
+                     Because it’s only in memory, a server restart clears every claim, and nothing
+                     you claim is ever written to disk.
+                  </p>
+                  <p>
+                     Claims expire on their own: stale at 2h (it stops holding others off, and
+                     you’re nudged to finish or release it), dropped entirely at 4h. Releasing
+                     clears it for everyone right away.
+                  </p>
+               </div>
+            </details>
          </Group>
 
          <Group title="Badges">
