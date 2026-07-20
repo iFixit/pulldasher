@@ -192,6 +192,14 @@ export function Settings({
       setSettings({ notify: p === 'granted' });
    };
 
+   // open on demand — the code-regions tip's "Set them up" action dispatches
+   // this so a reader can jump straight here from the board
+   useEffect(() => {
+      const openIt = () => setOpen(true);
+      window.addEventListener('pd2:open-settings', openIt);
+      return () => window.removeEventListener('pd2:open-settings', openIt);
+   }, []);
+
    useEffect(() => {
       if (!open) return;
       const onKey = (e: KeyboardEvent) => {

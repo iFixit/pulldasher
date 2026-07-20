@@ -26,6 +26,7 @@ import {
 } from '../components/bits';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, Truncated } from '../components/Lane';
 import { onOpen, Popover } from '../components/Popover';
+import { RegionHint } from '../components/RegionHint';
 import { markDealtFlash, Row, type RowOptions } from '../components/Row';
 import { ClosedRow } from '../components/ClosedRow';
 
@@ -389,6 +390,7 @@ export function Review({
 
    return (
       <>
+         {codeRegions.length === 0 && <RegionHint />}
          {todo.length > 0 && (
             <Lane title="Yours to do" pulls={[]} count={todo.length} opts={opts}>
                <Truncated cap={laneShown(10, opts)} id="lane:Yours to do">
