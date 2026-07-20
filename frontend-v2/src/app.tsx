@@ -15,12 +15,13 @@ import { matchesWeightFilter } from './model/status';
 import { buildParentLookup } from './model/stack';
 import { buildReviewerPools } from './model/rotation';
 import type { Team as TeamGroup } from './types';
-import { isSnoozed, setWeightLabels, usePulldasher } from './store';
+import { isSnoozed, markAllSeen, setWeightLabels, usePulldasher } from './store';
 import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
 import { loadSiteConfig, primeScope, useScope } from './prefs';
 import { getSettings, useSettings } from './settings';
 import { useNotifications } from './notifications';
 import { ToastStack, useToasts } from './toasts';
+import { RecentlyShipped } from './components/RecentlyShipped';
 import { matchesQuery } from './model/query';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from './model/visibility';
 import { foldDomId, openFold } from './components/Lane';
@@ -537,9 +538,11 @@ export function App() {
    // (each keystroke, settings toggle, and heartbeat re-runs App)
    const humans = useMemo(() => scoped.filter(p => !isBot(p)), [scoped, isBot]);
    const bots = useMemo(() => scoped.filter(isBot), [scoped, isBot]);
-   // "did my PR merge over the weekend" is the cheapest answer the board can
-   // give — a slim banner, since the open-PR changes live in the lane
-   const mergedCount = closed.filter(p => (epoch(p.closed_at ?? '') || 0) > lastSeen).length;
+   // "what shipped while I was away" — a relevance-ranked catch-up (yours, then
+   // ones you reviewed), each linking to the PR, since the open-PR changes live
+   // in the lanes below
+   const shipped = closed.filter(p => (epoch(p.closed_at ?? '') || 0) > lastSeen);
+   const mergedCount = shipped.length;
    // every known repo with its open-PR count — feeds the Filters popover and
    // the Settings repo manager. Includes org-hidden and pref'd repos at 0.
    const repoCounts = useMemo(() => {
@@ -899,17 +902,12 @@ export function App() {
             </Banner>
          )}
          {mergedCount > 0 && !query && (
-            <Banner
-               tone="brand"
-               onClick={shippedFoldCount > 0 ? jumpToShipped : undefined}
-               ariaLabel="jump to recently shipped"
-            >
-               <span>●</span>
-               <span className="tabular-nums">
-                  <b className="font-semibold">{mergedCount}</b> merged or closed since your last
-                  look
-               </span>
-            </Banner>
+            <RecentlyShipped
+               shipped={shipped}
+               me={me}
+               onSeeAll={shippedFoldCount > 0 ? jumpToShipped : undefined}
+               onDismiss={markAllSeen}
+            />
          )}
 
          <main
