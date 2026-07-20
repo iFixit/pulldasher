@@ -64,10 +64,7 @@ export interface CheerBaseline {
    /** you had at least one reviewable pull last tick */
    hadBacklog: boolean;
    /** per your-own open PR, last tick's state, for author-side edges */
-   authorPrs: ReadonlyMap<
-      string,
-      { green: boolean; reviewed: boolean; conflict: boolean; starved: boolean }
-   >;
+   authorPrs: ReadonlyMap<string, AuthorPrState>;
    /** the whole board's viewer-reviewable count last tick (board-cleared) */
    boardQueue: number;
    /** pull keys you hold a stale, unreviewed claim on that were already nagged,
@@ -192,6 +189,11 @@ export interface AuthorPrState {
    reviewed: boolean;
    conflict: boolean;
    starved: boolean;
+   /** a required check went red — the author's build to fix */
+   ciRed: boolean;
+   /** a reviewer requested changes or holds a dev block — the author owes a
+    * response (mirrors the desktop-notification "Changes requested" alert) */
+   needsAnswer: boolean;
 }
 
 export interface Signals {
@@ -298,6 +300,8 @@ export function readSignals(input: CheerInput): Signals {
          reviewed: p.crBy.length > 0,
          conflict: p.conflict,
          starved: p.starved,
+         ciRed: p.status === 'ci_red',
+         needsAnswer: p.status === 'dev_block' || p.changesRequestedBy.length > 0,
       });
    }
 
@@ -401,6 +405,8 @@ const PRIORITY_ORDER = [
    'return-the-favor',
    'start-here',
    'quick-wins',
+   'pr-ci-red',
+   'pr-changes',
    'pr-conflicts',
    'pr-starving',
 ] as const;
@@ -684,6 +690,26 @@ export function diffCheers(
             body: 'Needs a rebase.',
             pull: pullRef(p),
             dedupeKey: `conflict:${key}`,
+         });
+      }
+      if (!was.ciRed && now.ciRed) {
+         push('pr-ci-red', {
+            tone: 'nag',
+            icon: '🔴',
+            title: 'CI broke on your PR',
+            body: p.ciFailing?.length ? `Fix ${p.ciFailing.join(', ')}.` : 'Fix the build.',
+            pull: pullRef(p),
+            dedupeKey: `cired:${key}`,
+         });
+      }
+      if (!was.needsAnswer && now.needsAnswer) {
+         push('pr-changes', {
+            tone: 'nag',
+            icon: '💬',
+            title: 'Changes requested on your PR',
+            body: 'A reviewer wants edits — answer the feedback.',
+            pull: pullRef(p),
+            dedupeKey: `changes:${key}`,
          });
       }
       if (!was.starved && now.starved) {

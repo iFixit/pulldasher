@@ -87,6 +87,8 @@ const prState = (o: Partial<AuthorPrState> = {}): AuthorPrState => ({
    reviewed: false,
    conflict: false,
    starved: false,
+   ciRed: false,
+   needsAnswer: false,
    ...o,
 });
 
@@ -435,6 +437,30 @@ describe('diffCheers — author-side toasts', () => {
          base
       );
       expect(toasts.some(t => t.dedupeKey === `conflict:${key}`)).toBe(true);
+   });
+
+   it('fires pr-ci-red when your PR breaks CI', () => {
+      const key = 'org/a#31';
+      const p = pull('org/a', 31, { author: 'me', status: 'ci_red' });
+      const base = primed(sig({ authorPrs: new Map([[key, prState()]]) }));
+      const { toasts } = diffCheers(
+         sig({ authorPrs: new Map([[key, prState({ ciRed: true })]]), pulls: [p] }),
+         'me',
+         base
+      );
+      expect(toasts.some(t => t.dedupeKey === `cired:${key}`)).toBe(true);
+   });
+
+   it('fires pr-changes when a reviewer requests changes on your PR', () => {
+      const key = 'org/a#32';
+      const p = pull('org/a', 32, { author: 'me', status: 'dev_block' });
+      const base = primed(sig({ authorPrs: new Map([[key, prState()]]) }));
+      const { toasts } = diffCheers(
+         sig({ authorPrs: new Map([[key, prState({ needsAnswer: true })]]), pulls: [p] }),
+         'me',
+         base
+      );
+      expect(toasts.some(t => t.dedupeKey === `changes:${key}`)).toBe(true);
    });
 
    it('fires pr-starving on the starved transition', () => {
