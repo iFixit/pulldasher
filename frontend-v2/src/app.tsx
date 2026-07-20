@@ -214,17 +214,6 @@ export function App() {
    );
    const dark = settings.theme === 'dark' || (settings.theme === 'system' && systemDark);
    const searchRef = useRef<HTMLInputElement>(null);
-   // FilterChips' durable "muted repos"/"muted people" pills have no state of
-   // their own to toggle — they open the matching filter popover instead, by
-   // clicking its (otherwise-internal) trigger button through this ref
-   const repoFilterRef = useRef<HTMLDivElement>(null);
-   const peopleFilterRef = useRef<HTMLDivElement>(null);
-   const openRepoFilter = useCallback(() => {
-      repoFilterRef.current?.querySelector('button')?.click();
-   }, []);
-   const openPeopleFilter = useCallback(() => {
-      peopleFilterRef.current?.querySelector('button')?.click();
-   }, []);
 
    useEffect(() => {
       void loadSiteConfig().then(c => {
@@ -612,7 +601,6 @@ export function App() {
                   {tab('stats', 'Stats')}
                </nav>
                <RepoFilter
-                  containerRef={repoFilterRef}
                   repos={repoCounts}
                   orgHidden={hiddenRepos}
                   reveal={reveal}
@@ -626,15 +614,12 @@ export function App() {
                   setScope={setScope}
                />
                <PeopleFilter
-                  containerRef={peopleFilterRef}
                   pulls={pulls}
                   teams={allTeams}
                   scope={scope}
                   setScope={setScope}
                />
                <FilterChips
-                  repos={repoCounts}
-                  orgHidden={hiddenRepos}
                   reveal={reveal}
                   toggleReveal={toggleReveal}
                   showAll={showAll}
@@ -643,8 +628,6 @@ export function App() {
                   setDraftsMode={setDraftsMode}
                   scope={scope}
                   setScope={setScope}
-                  onOpenRepoFilter={openRepoFilter}
-                  onOpenPeopleFilter={openPeopleFilter}
                />
                {legacy && (
                   <ToggleChip

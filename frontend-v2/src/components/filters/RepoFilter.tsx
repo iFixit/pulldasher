@@ -1,4 +1,4 @@
-import { type Ref, useState } from 'react';
+import { useState } from 'react';
 import { CRYO_KEY, repoState } from '../../model/visibility';
 import { shortRepo } from '../../format';
 import { setRepoPref, togglePrimaryRepo, useSettings } from '../../settings';
@@ -18,7 +18,6 @@ import { FilterSearch } from './shared';
  * they read as visibly less durable than the rows above them.
  */
 export function RepoFilter({
-   containerRef,
    repos,
    orgHidden,
    reveal,
@@ -32,7 +31,6 @@ export function RepoFilter({
    setScope,
 }: {
    /** exposes the trigger button to FilterChips' durable "muted repos" pill */
-   containerRef?: Ref<HTMLDivElement>;
    /** all repos with open-PR counts (org-hidden and muted included) */
    repos: { name: string; count: number }[];
    orgHidden: ReadonlySet<string>;
@@ -159,7 +157,7 @@ export function RepoFilter({
    );
 
    return (
-      <div ref={containerRef}>
+      <div>
          <Popover
             label="Repos filter"
             width="w-[300px]"

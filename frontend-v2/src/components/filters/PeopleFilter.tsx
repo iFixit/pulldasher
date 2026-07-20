@@ -1,4 +1,4 @@
-import { type Ref, useState } from 'react';
+import { useState } from 'react';
 import type { DerivedPull } from '../../model/status';
 import { toggleMutedPerson, toggleStarredPerson, useSettings } from '../../settings';
 import { usePulldasher } from '../../store';
@@ -18,13 +18,11 @@ import { FilterRow, FilterSearch } from './shared';
  * decoration on the team chip would read as "this team is starred."
  */
 export function PeopleFilter({
-   containerRef,
    pulls,
    teams,
    scope,
    setScope,
 }: {
-   containerRef?: Ref<HTMLDivElement>;
    pulls: DerivedPull[];
    teams: Team[];
    scope: { repos: string[]; authors: string[] };
@@ -74,7 +72,7 @@ export function PeopleFilter({
    );
 
    return (
-      <div ref={containerRef}>
+      <div>
          <Popover
             label="People filter"
             width="w-[300px]"
