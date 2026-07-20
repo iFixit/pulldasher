@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ago, githubUrl } from '../format';
 import type { ToastRecord } from '../toasts';
-import { Popover } from './Popover';
+import { onOpen, Popover } from './Popover';
 
 // A plain outline bell (16-unit viewBox) — the clapper is a second subpath.
 const BELL =
@@ -39,13 +39,8 @@ export function NotificationPanel({ records }: { records: ToastRecord[] }) {
                type="button"
                aria-label={unseen > 0 ? `recent nudges, ${unseen} new` : 'recent nudges'}
                title="recent nudges"
-               // opening marks everything seen; aria-expanded says which way
-               // this click goes (the toggle itself is the house Popover's)
-               onClick={() => {
-                  const wasOpen = t['aria-expanded'];
-                  t.onClick();
-                  if (!wasOpen) setLastSeen(Date.now());
-               }}
+               // opening marks everything seen
+               onClick={onOpen(t, () => setLastSeen(Date.now()))}
                className="pressable relative inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-surface text-ink-3 hover:text-brand"
             >
                <svg viewBox="0 0 16 16" aria-hidden className="h-4 w-4 fill-current">

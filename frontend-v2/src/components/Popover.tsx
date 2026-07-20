@@ -10,6 +10,20 @@ export interface PopoverTriggerProps {
 }
 
 /**
+ * Wraps a trigger's onClick so `fn` runs once, only on the transition from
+ * closed to open — not on every toggle. DealButton (deal a fresh pull) and
+ * NotificationPanel (mark notifications seen) both only care about the open
+ * edge; the toggle itself stays the house Popover's.
+ */
+export function onOpen(t: PopoverTriggerProps, fn: () => void): () => void {
+   return () => {
+      const wasOpen = t['aria-expanded'];
+      t.onClick();
+      if (!wasOpen) fn();
+   };
+}
+
+/**
  * The house popover: a trigger button plus a role=dialog panel, sharing the
  * click-away / Escape / focus discipline in usePopover. Legend, the sign-off
  * ledger, and Filters all render through this, so the panel chrome and ARIA

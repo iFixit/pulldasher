@@ -25,7 +25,7 @@ import {
    WeightMeter,
 } from '../components/bits';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, Truncated } from '../components/Lane';
-import { Popover } from '../components/Popover';
+import { onOpen, Popover } from '../components/Popover';
 import { markDealtFlash, Row, type RowOptions } from '../components/Row';
 import { ClosedRow } from '../components/ClosedRow';
 
@@ -158,16 +158,11 @@ function DealButton({ queue, opts }: { queue: DerivedPull[]; opts: RowOptions })
             <button
                {...t}
                type="button"
-               // opening deals a fresh pull; the toggle itself is the house
-               // Popover's (aria-expanded tells us which way this click goes)
-               onClick={() => {
-                  const wasOpen = t['aria-expanded'];
-                  t.onClick();
-                  if (!wasOpen) {
-                     setPassed(new Set());
-                     deal(new Set());
-                  }
-               }}
+               // opening always deals a fresh pull
+               onClick={onOpen(t, () => {
+                  setPassed(new Set());
+                  deal(new Set());
+               })}
                className="hit pressable rounded-md border border-line bg-surface px-2 py-0.5 text-xs font-medium text-ink-2 hover:text-brand"
             >
                Deal me one

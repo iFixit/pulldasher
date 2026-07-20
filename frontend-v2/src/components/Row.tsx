@@ -718,6 +718,9 @@ function RowImpl({
       reviewRequestedFrom(pull, opts.me) &&
       !pull.crBy.includes(opts.me) &&
       claim?.login !== opts.me;
+   // who else GitHub also asked, alongside opts.me — only matters for the
+   // chip's title below, so skip the filter when the chip won't render
+   const otherRequested = requestedOfMe ? requestedReviewers(pull).filter(l => l !== opts.me) : [];
    // only worth asking the whole-board lookup when this row is stacked but
    // rendering flat (its parent isn't visible right above it already)
    const orphanParent = pull.dependent && depth === 0 ? (opts.parentOf?.(pull) ?? null) : null;
@@ -764,11 +767,7 @@ function RowImpl({
                {requestedOfMe && (
                   <span
                      title={`GitHub requested your review${
-                        requestedReviewers(pull).length > 1
-                           ? ` (also ${requestedReviewers(pull)
-                                .filter(l => l !== opts.me)
-                                .join(', ')})`
-                           : ''
+                        otherRequested.length > 0 ? ` (also ${otherRequested.join(', ')})` : ''
                      }`}
                      className="chip-in inline-flex flex-none items-center gap-1 rounded bg-brand px-1.5 py-0.5 text-[11px] leading-none font-medium text-surface"
                   >
