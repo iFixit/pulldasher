@@ -13,6 +13,22 @@ import { Row, type RowOptions } from './Row';
  */
 const foldOpenStore = createPersistentStore<Record<string, boolean>>('pd2.folds', {});
 
+/** The DOM id a fold with this store `id` renders under — colons aren't
+ * valid in a CSS selector, so callers that need to query the element (a
+ * banner jumping to "recently shipped") go through this instead of
+ * reconstructing the prefix by hand. */
+export function foldDomId(id: string): string {
+   return `fold-${id.replace(/:/g, '-')}`;
+}
+
+/** Open a fold from outside Lane.tsx — e.g. the "N merged since your last
+ * look" banner jumping straight to the shipped fold — by writing the same
+ * store its own toggle reads. A no-op if it's already open. */
+export function openFold(id: string): void {
+   const cur = foldOpenStore.get();
+   if (cur[id] !== true) foldOpenStore.set({ ...cur, [id]: true });
+}
+
 export function Rows({ children }: { children: ReactNode }) {
    return (
       <div className="overflow-hidden rounded-2xl border border-line bg-surface">{children}</div>
@@ -228,6 +244,7 @@ export function Fold({
    };
    return (
       <details
+         id={id ? foldDomId(id) : undefined}
          className="group border-t border-secondary first:border-t-0"
          open={id ? open : undefined}
          onToggle={id ? onToggle : undefined}

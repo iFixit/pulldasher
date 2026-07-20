@@ -21,6 +21,7 @@ import { getSettings, useSettings } from './settings';
 import { useNotifications } from './notifications';
 import { matchesQuery } from './model/query';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from './model/visibility';
+import { foldDomId, openFold } from './components/Lane';
 import { Legend } from './components/Legend';
 import { RepoFilter } from './components/filters/RepoFilter';
 import { PeopleFilter } from './components/filters/PeopleFilter';
@@ -75,6 +76,19 @@ interface HashState {
    drafts: 'mine' | 'all' | null;
 }
 
+/**
+ * The lens a bare hash (no `lens=` param) resolves to — the single source of
+ * truth both readHash's fallback and buildHash's omission rule must agree on.
+ * buildHash used to compare against a hardcoded 'review' while this fallback
+ * tracked the user's configured default: with any other default, clicking
+ * Review wrote a lens-less hash, the hashchange listener re-read it via this
+ * same fallback, and the board snapped back to the configured default.
+ */
+function defaultLensFallback(): Lens {
+   const preferred = getSettings().defaultLens as Lens;
+   return LENSES.includes(preferred) ? preferred : ('review' as Lens);
+}
+
 function readHash(): HashState {
    const p = new URLSearchParams(location.hash.slice(1));
    let lens = p.get('lens') as Lens | null;
@@ -82,8 +96,7 @@ function readHash(): HashState {
    // old #lens=board links keep working
    if ((lens as string) === 'board') lens = 'classic';
    // a bare URL (no lens param) opens the user's configured default view
-   const preferred = getSettings().defaultLens as Lens;
-   const fallback = LENSES.includes(preferred) ? preferred : ('review' as Lens);
+   const fallback = defaultLensFallback();
    return {
       lens: lens && LENSES.includes(lens) ? lens : fallback,
       person: p.get('person'),
@@ -103,7 +116,7 @@ function readHash(): HashState {
 
 function buildHash(s: HashState): string {
    const p = new URLSearchParams();
-   if (s.lens !== 'review') p.set('lens', s.lens);
+   if (s.lens !== defaultLensFallback()) p.set('lens', s.lens);
    if (s.person) p.set('person', s.person);
    if (s.team) p.set('team', s.team);
    if (s.q) p.set('q', s.q);
@@ -125,20 +138,38 @@ if (urlState.repos.length || urlState.authors.length) {
 }
 
 /** Full-width notice under the header: bad = red alert, warn = amber, brand = informational. */
-function Banner({ tone, children }: { tone: 'bad' | 'warn' | 'brand'; children: ReactNode }) {
+function Banner({
+   tone,
+   onClick,
+   ariaLabel,
+   children,
+}: {
+   tone: 'bad' | 'warn' | 'brand';
+   /** present only when the banner has somewhere useful to send the click —
+    * renders it as a real button instead of a static strip */
+   onClick?: () => void;
+   ariaLabel?: string;
+   children: ReactNode;
+}) {
    const inner: Record<typeof tone, string> = {
       bad: 'border-bad bg-surface text-bad',
       warn: 'border-warn bg-surface',
       brand: 'notice-inner border-brand bg-brand-50 text-brand-700',
    };
+   const surface = `flex w-full items-center gap-2 rounded-lg border px-3 py-[7px] text-left ${inner[tone]} ${
+      onClick ? 'pressable hover:bg-brand-100' : ''
+   }`;
    return (
       <div className="mx-auto mt-3 max-w-[1240px] px-5 text-[13px]">
-         <div
-            className={`flex items-center gap-2 rounded-lg border px-3 py-[7px] ${inner[tone]}`}
-            role={tone === 'brand' ? undefined : 'alert'}
-         >
-            {children}
-         </div>
+         {onClick ? (
+            <button type="button" onClick={onClick} aria-label={ariaLabel} className={surface}>
+               {children}
+            </button>
+         ) : (
+            <div className={surface} role={tone === 'brand' ? undefined : 'alert'}>
+               {children}
+            </div>
+         )}
       </div>
    );
 }
@@ -292,6 +323,7 @@ export function App() {
       reveal,
       draftsMode,
       settings.draftsMode,
+      settings.defaultLens,
    ]);
    useEffect(() => {
       const onHash = () => {
@@ -602,7 +634,7 @@ export function App() {
          type="button"
          aria-current={lens === id ? 'page' : undefined}
          onClick={() => setLens(id)}
-         className={`pressable rounded-lg border-0 px-3 py-2 text-sm font-medium ${
+         className={`pressable shrink-0 rounded-lg border-0 px-3 py-2 text-sm font-medium whitespace-nowrap ${
             lens === id ? 'bg-secondary text-ink' : 'bg-transparent text-ink-2 hover:text-brand'
          }`}
       >
@@ -612,6 +644,38 @@ export function App() {
          )}
       </button>
    );
+
+   // The "recently shipped" fold only exists on Review and My work — the
+   // other four lenses have nowhere for the merged-count banner to jump to.
+   // Its count must match what that fold will actually render (scopedClosed
+   // for Review, self-authored closed for My work), not the raw org-wide
+   // mergedCount above, or the banner could promise a jump the fold can't
+   // deliver (count 0, fold not rendered at all).
+   const shippedFoldId =
+      lens === 'review' ? 'review:shipped' : lens === 'mine' ? 'mine:shipped' : null;
+   const shippedFoldCount =
+      lens === 'review'
+         ? scopedClosed.length
+         : lens === 'mine'
+           ? closed.filter(p => p.user.login === me).length
+           : 0;
+   const jumpToShipped = shippedFoldId
+      ? () => {
+           const id = shippedFoldId;
+           openFold(id);
+           // openFold's write lands via useSyncExternalStore, so the fold's
+           // `open` attribute (and the height its rows add) commits on the
+           // next paint, not synchronously in this handler — wait a frame so
+           // the scroll lands on the expanded fold, not the collapsed one.
+           requestAnimationFrame(() => {
+              const el = document.getElementById(foldDomId(id));
+              if (!el) return;
+              el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              el.classList.add('fold-flash');
+              setTimeout(() => el.classList.remove('fold-flash'), 900);
+           });
+        }
+      : undefined;
 
    return (
       <>
@@ -666,8 +730,15 @@ export function App() {
                   extraBots={extraBots}
                />
             </div>
-            <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-2 px-5 pb-2.5">
-               <nav className="mr-1 flex gap-1">
+            <div className="mx-auto flex max-w-[1240px] min-w-0 flex-wrap items-center gap-2 px-5 pb-2.5">
+               {/* min-w-0 lets this flex item shrink below its tabs' combined
+                   min-content width; without it, the six-tab row would force
+                   the whole page wider than the viewport instead of scrolling
+                   internally. overflow-x-auto + no-scrollbar (styles.css)
+                   turns the overflow into a swipeable tab strip rather than
+                   letting it wrap ("My work 5" splitting across two lines) or
+                   push the page sideways. */}
+               <nav className="no-scrollbar mr-1 flex min-w-0 shrink gap-1 overflow-x-auto">
                   {tab('review', 'Review')}
                   {tab('mine', 'My work', mineCount)}
                   {tab('team', 'Team')}
@@ -772,7 +843,11 @@ export function App() {
             </Banner>
          )}
          {mergedCount > 0 && !query && (
-            <Banner tone="brand">
+            <Banner
+               tone="brand"
+               onClick={shippedFoldCount > 0 ? jumpToShipped : undefined}
+               ariaLabel="jump to recently shipped"
+            >
                <span>●</span>
                <span className="tabular-nums">
                   <b className="font-semibold">{mergedCount}</b> merged or closed since your last

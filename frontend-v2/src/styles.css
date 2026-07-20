@@ -134,6 +134,16 @@ label:has(> input:not(:disabled)) {
   inset: -5px;
 }
 
+/* an internally-scrollable strip (the mobile lens nav) reads as a swipeable
+   tab bar, not a mini scrollpane, once the scrollbar chrome is gone */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* shared focus ring (house: border-ring + ring/50 at 3px) */
 :is(select, input, button, summary, a):focus-visible {
   outline: none;
@@ -311,6 +321,14 @@ label:has(> input:not(:disabled)) {
 }
 .row-fresh {
   animation: fresh-flash 800ms var(--ease-quart) 200ms backwards;
+}
+
+/* the "N merged since your last look" banner jumps to the shipped fold and
+   flashes it once — ClosedRow has no per-row flash of its own (its dot-fresh
+   marker is a standing mark, not a one-shot cue), so the fold container
+   itself carries the same fresh-flash pulse instead. */
+.fold-flash {
+  animation: fresh-flash 800ms var(--ease-quart);
 }
 
 /* the since-your-last-look marker on a closed row (open rows use FreshTag) */
