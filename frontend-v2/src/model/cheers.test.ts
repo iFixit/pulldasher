@@ -71,6 +71,7 @@ function sig(o: Partial<Signals> & { queue?: number; pulls?: DerivedPull[] } = {
       myRank: o.myRank ?? 0,
       myCount: o.myCount ?? 0,
       peerBelow: o.peerBelow ?? null,
+      staleClaims: o.staleClaims ?? new Map(),
    };
 }
 
@@ -469,6 +470,36 @@ describe('diffCheers — board-cleared', () => {
       expect(first.toasts.some(t => t.dedupeKey === 'board:clear')).toBe(true);
       const second = diffCheers(sig({ review: 0 }), 'me', first.next);
       expect(second.toasts.some(t => t.dedupeKey === 'board:clear')).toBe(false);
+   });
+});
+
+describe('diffCheers — stale claim', () => {
+   it('nags once per stale claim, then stays silent, and re-nags after a re-claim', () => {
+      const p = pull('org/a', 9);
+      const stale = new Map([[pullKey(p.data), p]]);
+      const base = primed(sig()); // primed with no stale claims
+      const first = diffCheers(sig({ staleClaims: stale, pulls: [p] }), 'me', base);
+      expect(first.toasts.some(t => t.dedupeKey === `claimstale:${pullKey(p.data)}`)).toBe(true);
+      expect(first.toasts.some(t => t.icon === '✋')).toBe(true);
+      // repeat tick with the same stale claim: silent
+      const second = diffCheers(sig({ staleClaims: stale, pulls: [p] }), 'me', first.next);
+      expect(second.toasts.some(t => t.dedupeKey === `claimstale:${pullKey(p.data)}`)).toBe(false);
+      // released (no longer stale), then re-claimed-and-stale: nags again
+      const cleared = diffCheers(sig({ pulls: [p] }), 'me', second.next);
+      const again = diffCheers(sig({ staleClaims: stale, pulls: [p] }), 'me', cleared.next);
+      expect(again.toasts.some(t => t.dedupeKey === `claimstale:${pullKey(p.data)}`)).toBe(true);
+   });
+
+   it('primes an already-stale claim silently on the first tick', () => {
+      const p = pull('org/a', 9);
+      const stale = new Map([[pullKey(p.data), p]]);
+      const { toasts, next } = diffCheers(
+         sig({ staleClaims: stale, pulls: [p] }),
+         'me',
+         EMPTY_BASELINE
+      );
+      expect(toasts.some(t => t.dedupeKey?.startsWith('claimstale:'))).toBe(false);
+      expect(next.staleClaimsSeen.has(pullKey(p.data))).toBe(true);
    });
 });
 

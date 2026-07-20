@@ -66,6 +66,9 @@ export interface CheerBaseline {
    >;
    /** the whole board's viewer-reviewable count last tick (board-cleared) */
    boardQueue: number;
+   /** pull keys you hold a stale, unreviewed claim on that were already nagged,
+    * rebuilt from the current tick so a release-then-reclaim can nag again */
+   staleClaimsSeen: ReadonlySet<string>;
 }
 
 export const EMPTY_BASELINE: CheerBaseline = {
@@ -84,6 +87,7 @@ export const EMPTY_BASELINE: CheerBaseline = {
    hadBacklog: false,
    authorPrs: new Map(),
    boardQueue: 0,
+   staleClaimsSeen: new Set(),
 };
 
 export interface CheerInput {
@@ -94,7 +98,16 @@ export interface CheerInput {
    closed?: PullData[];
    me: string;
    claims: Readonly<Record<string, { login: string; at: number }>>;
+   /** current time (ms epoch), for aging claims into a stale-claim nag —
+    * injected so the model stays pure and testable; the hook passes Date.now() */
+   now?: number;
 }
+
+/** A claim you're sitting on stops absolving other reviewers at 2h (see
+ * model/actions STALE_CLAIM_SECS); that's the moment worth a nudge to either
+ * finish it or hand it back. Kept here as a self-contained duplicate, same as
+ * hasStamp, so the evaluator doesn't couple to the actions module. */
+const STALE_CLAIM_MS = 2 * 60 * 60 * 1000;
 
 /** Queue sizes that used to earn the retired count nag as you crossed them. */
 const NAG_STEPS = [3, 5, 8];
@@ -204,11 +217,14 @@ export interface Signals {
    myCount: number;
    /** the login one rank behind you, for the "climbing" toast */
    peerBelow: string | null;
+   /** pulls you hold a stale (2h+), still-unreviewed claim on */
+   staleClaims: Map<string, DerivedPull>;
 }
 
 export function readSignals(input: CheerInput): Signals {
    const { pulls, me, claims } = input;
    const closed = input.closed ?? [];
+   const now = input.now ?? Date.now();
    const pools = buildReviewerPools(pulls);
    const stamped = new Set<string>();
    const turns = new Map<string, DerivedPull>();
@@ -278,6 +294,17 @@ export function readSignals(input: CheerInput): Signals {
       p => p.status === 'needs_cr' || p.status === 'needs_recr' || p.status === 'needs_qa'
    ).length;
 
+   // claims of yours gone stale (past 2h) that you still haven't stamped — the
+   // nudge to either finish the review or release it back to the pool
+   const staleClaims = new Map<string, DerivedPull>();
+   for (const p of pulls) {
+      const key = pullKey(p.data);
+      const c = claims[key];
+      if (c && c.login === me && !hasStamp(p, me) && now - c.at > STALE_CLAIM_MS) {
+         staleClaims.set(key, p);
+      }
+   }
+
    const ranks = reviewerRanks(pulls, closed);
    const mine = ranks.get(me);
    const myRank = mine?.rank ?? 0;
@@ -310,6 +337,7 @@ export function readSignals(input: CheerInput): Signals {
       myRank,
       myCount,
       peerBelow,
+      staleClaims,
    };
 }
 
@@ -339,6 +367,7 @@ const PRIORITY_ORDER = [
    'pr-first-review',
    'your-turn',
    're-stamp-owed',
+   'claim-stale',
    'return-the-favor',
    'start-here',
    'quick-wins',
@@ -389,7 +418,8 @@ export function diffCheers(
             wasTop: sig.myRank === 1,
             hadBacklog: sig.backlog > 0,
             authorPrs: sig.authorPrs,
-            boardQueue: sig.review,
+            boardQueue: sig.boardReviewable,
+            staleClaimsSeen: new Set(sig.staleClaims.keys()),
          },
       };
    }
@@ -491,6 +521,22 @@ export function diffCheers(
          dedupeKey: `recr:${pullKey(p.data)}`,
       });
    }
+
+   // a claim of yours went stale (2h+) and you still haven't stamped it —
+   // nudge once per pull to finish it or hand it back. seenTurns-style rebuild
+   // from the current tick, so releasing then re-claiming can nag again.
+   for (const [key, p] of sig.staleClaims) {
+      if (base.staleClaimsSeen.has(key)) continue;
+      push('claim-stale', {
+         tone: 'nag',
+         icon: '✋',
+         title: 'You claimed this — still unreviewed',
+         body: "It's been a couple hours. Review it, or release it for someone else.",
+         pull: pullRef(p),
+         dedupeKey: `claimstale:${key}`,
+      });
+   }
+   const staleClaimsSeen = new Set(sig.staleClaims.keys());
 
    // quick wins: the pile crossed the threshold going up
    let quickWinsNagged = base.quickWinsNagged;
@@ -644,6 +690,7 @@ export function diffCheers(
          hadBacklog: sig.backlog > 0,
          authorPrs: sig.authorPrs,
          boardQueue: sig.boardReviewable,
+         staleClaimsSeen,
       },
    };
 }
