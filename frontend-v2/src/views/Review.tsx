@@ -1,68 +1,143 @@
 import { useState } from 'react';
 import { type DerivedPull, qaDone, type Status, weightRank } from '../model/status';
-import { pullKey, rowDomId, shortRepo } from '../format';
+import { epoch, pullKey } from '../format';
 import { crSort, starFirst } from '../model/sort';
 import { matchesRegion } from '../model/regions';
 import { groupIntoTree } from '../model/stack';
 import { authorMove, reviewerMove } from '../model/actions';
 import { reviewRequestedFrom } from '../model/reviewers';
+import { startHereReason } from '../model/cheers';
 import { dealOne } from '../model/deal';
 import { useSettings } from '../settings';
 import { claimReview, isFresh, usePulldasher } from '../store';
 import type { PullData } from '../types';
-import { EmptyState, QuietButton, STATUS_DOT, STATUS_LABEL } from '../components/bits';
+import {
+   AgeStamp,
+   Avatar,
+   DiffSize,
+   EmptyState,
+   PullTitleLink,
+   QuietButton,
+   RepoRef,
+   SigPips,
+   STATUS_DOT,
+   STATUS_LABEL,
+   WeightMeter,
+} from '../components/bits';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, Truncated } from '../components/Lane';
+import { Popover } from '../components/Popover';
 import { markDealtFlash, Row, type RowOptions } from '../components/Row';
 import { ClosedRow } from '../components/ClosedRow';
 
 /**
- * "Deal me one": for a reviewer who'd rather click than browse, pick the single
- * best pull from the review queue and scroll to it — but stop short of
- * claiming. Claiming now also puts you on the PR as a GitHub reviewer, so it's
- * a real commitment: the dealt pull waits behind a "Claim it" confirmation.
- * "Pass" skips it (nothing to release, since a deal no longer claims) and deals
- * the next, so you can flip through the queue a card at a time without opening
- * the lane.
+ * The dealt pull, shown as a real card inside the Deal-me-one popover: avatar
+ * and author, the title as a GitHub link, the same weight / size / age / state
+ * metrics a row carries, the CR-QA pips, and one line on why this one came up.
+ * Claiming it is a commitment (it also adds you as a GitHub reviewer), so it's
+ * an explicit button, not a side effect of dealing.
+ */
+function DealtCard({
+   pull,
+   me,
+   pulls,
+   onClaim,
+   onPass,
+}: {
+   pull: DerivedPull;
+   me: string;
+   pulls: DerivedPull[];
+   onClaim: () => void;
+   onPass: () => void;
+}) {
+   const d = pull.data;
+   return (
+      <div className="flex flex-col gap-2.5 p-3">
+         <div className="flex items-center gap-2">
+            <Avatar login={d.user.login} size={18} />
+            <span className="min-w-0 flex-1 truncate text-xs text-ink-3">{d.user.login}</span>
+            <RepoRef repo={d.repo} number={d.number} />
+         </div>
+         <div className="text-sm leading-snug break-words">
+            <PullTitleLink repo={d.repo} number={d.number} title={d.title} />
+         </div>
+         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-ink-3">
+            <WeightMeter weight={pull.weight} known={pull.sizeKnown} />
+            {pull.sizeKnown && (
+               <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
+            )}
+            <span className="text-ink-2">{STATUS_LABEL[pull.status]}</span>
+            <AgeStamp
+               ageDays={pull.ageDays}
+               createdAt={epoch(d.created_at)}
+               updatedAt={epoch(d.updated_at)}
+            />
+         </div>
+         <div className="flex items-center gap-2.5">
+            <SigPips
+               label="CR"
+               have={pull.crHave}
+               req={d.status.cr_req}
+               by={pull.crBy}
+               staleBy={pull.recrBy}
+               me={me}
+               sigs={d.status.allCR}
+            />
+            <SigPips
+               label="QA"
+               have={pull.qaHave}
+               req={d.status.qa_req}
+               by={pull.qaBy}
+               staleBy={pull.reqaBy}
+               me={me}
+               sigs={d.status.allQA}
+            />
+         </div>
+         <div className="flex items-center gap-1.5 rounded-md bg-brand-50 px-2 py-1 text-[11px] text-brand-700">
+            <span aria-hidden>🎯</span>
+            <span>{startHereReason(pull, pulls, me)}</span>
+         </div>
+         <div className="mt-0.5 flex items-center gap-2">
+            <QuietButton tone="brand" onClick={onClaim}>
+               Claim it
+            </QuietButton>
+            <QuietButton onClick={onPass}>Pass</QuietButton>
+         </div>
+      </div>
+   );
+}
+
+/**
+ * "Deal me one": for a reviewer who'd rather be handed the next pull than
+ * browse, pick the single best one out of the review queue and show it as a
+ * card in a popover anchored to the button. "Claim it" takes it (and adds you
+ * as a GitHub reviewer) then immediately deals the next, so a run of triage
+ * doesn't mean reopening; "Pass" skips to the next without claiming. Clicking
+ * away or Escape ends the session. Opening always deals a fresh pull.
  */
 function DealButton({ queue, opts }: { queue: DerivedPull[]; opts: RowOptions }) {
    const { pulls } = usePulldasher();
+   const me = opts.me;
    const [dealtKey, setDealtKey] = useState<string | null>(null);
    const [passed, setPassed] = useState<ReadonlySet<string>>(new Set());
-   // self-clearing, same pattern as Settings' refreshNote — a transient
-   // "nothing to deal" note, not a standing empty state
-   const [note, setNote] = useState('');
 
    const deal = (passedNow: ReadonlySet<string>) => {
-      const picked = dealOne(queue, {
-         me: opts.me,
-         pulls,
-         claims: opts.claims ?? {},
-         passed: passedNow,
-      });
-      if (!picked) {
-         setDealtKey(null);
-         setNote('nothing to deal');
-         setTimeout(() => setNote(''), 2500);
-         return;
-      }
-      setDealtKey(pullKey(picked.data));
-      const id = rowDomId(picked.data);
-      requestAnimationFrame(() => {
-         document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      });
+      const picked = dealOne(queue, { me, pulls, claims: opts.claims ?? {}, passed: passedNow });
+      setDealtKey(picked ? pullKey(picked.data) : null);
    };
 
    const dealt = dealtKey ? queue.find(p => pullKey(p.data) === dealtKey) : null;
 
    const claim = () => {
-      if (!dealt) return;
-      // flash first, then claim: the claim's store publish re-renders the row a
-      // beat later (the only thing that makes markDealtFlash's flash paint), so
-      // the card lights up exactly as its claim badge appears — the confirmation
-      markDealtFlash(dealtKey!);
+      if (!dealtKey || !dealt) return;
+      // flash the row as its claim badge appears (the store publish re-renders
+      // it a beat later, which is what paints markDealtFlash's highlight), then
+      // deal the next straight away for an uninterrupted run of triage
+      markDealtFlash(dealtKey);
       claimReview(dealt.data);
-      setDealtKey(null);
-      setPassed(new Set());
+      const next = new Set(passed);
+      next.add(dealtKey);
+      setPassed(next);
+      deal(next);
    };
 
    const pass = () => {
@@ -74,20 +149,37 @@ function DealButton({ queue, opts }: { queue: DerivedPull[]; opts: RowOptions })
    };
 
    return (
-      <span className="flex items-center gap-2">
-         {note && <span className="text-xs text-ink-3">{note}</span>}
-         {dealt ? (
-            <>
-               <span className="text-xs text-ink-3">
-                  Dealt {shortRepo(dealt.data.repo)}#{dealt.data.number}
-               </span>
-               <QuietButton onClick={claim}>Claim it</QuietButton>
-               <QuietButton onClick={pass}>Pass</QuietButton>
-            </>
-         ) : (
-            <QuietButton onClick={() => deal(passed)}>Deal me one</QuietButton>
+      <Popover
+         label="A pull to review"
+         side="right"
+         width="w-[320px]"
+         panelClass="text-xs"
+         trigger={t => (
+            <button
+               {...t}
+               type="button"
+               // opening deals a fresh pull; the toggle itself is the house
+               // Popover's (aria-expanded tells us which way this click goes)
+               onClick={() => {
+                  const wasOpen = t['aria-expanded'];
+                  t.onClick();
+                  if (!wasOpen) {
+                     setPassed(new Set());
+                     deal(new Set());
+                  }
+               }}
+               className="hit pressable rounded-md border border-line bg-surface px-2 py-0.5 text-xs font-medium text-ink-2 hover:text-brand"
+            >
+               Deal me one
+            </button>
          )}
-      </span>
+      >
+         {dealt ? (
+            <DealtCard pull={dealt} me={me} pulls={pulls} onClaim={claim} onPass={pass} />
+         ) : (
+            <div className="p-3 text-xs text-ink-3">Nothing left to deal in this queue.</div>
+         )}
+      </Popover>
    );
 }
 
