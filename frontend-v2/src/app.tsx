@@ -16,9 +16,11 @@ import { loadSiteConfig, primeScope, useScope } from './prefs';
 import { getSettings, useSettings } from './settings';
 import { useNotifications } from './notifications';
 import { matchesQuery } from './model/query';
-import { CRYO_KEY, isBotLogin, repoHidden } from './model/visibility';
+import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from './model/visibility';
 import { Legend } from './components/Legend';
-import { Filters } from './components/Filters';
+import { RepoFilter } from './components/filters/RepoFilter';
+import { PeopleFilter } from './components/filters/PeopleFilter';
+import { FilterChips } from './components/filters/FilterChips';
 import type { RowOptions } from './components/Row';
 import { Review } from './views/Review';
 import { MyWork } from './views/MyWork';
@@ -162,7 +164,7 @@ export function App() {
    } = usePulldasher();
    // desktop notifications watch the whole board, not the current filter
    useNotifications(pulls, me);
-   const [scope] = useScope();
+   const [scope, setScope] = useScope();
    // a v1 bookmark (?repo=…&author=…&cryo=1…) opens Classic configured the
    // same way; the chip below shows what it applied and dismisses it
    const [legacy, setLegacy] = useState(() => readLegacyView(location.search));
@@ -212,6 +214,17 @@ export function App() {
    );
    const dark = settings.theme === 'dark' || (settings.theme === 'system' && systemDark);
    const searchRef = useRef<HTMLInputElement>(null);
+   // FilterChips' durable "muted repos"/"muted people" pills have no state of
+   // their own to toggle — they open the matching filter popover instead, by
+   // clicking its (otherwise-internal) trigger button through this ref
+   const repoFilterRef = useRef<HTMLDivElement>(null);
+   const peopleFilterRef = useRef<HTMLDivElement>(null);
+   const openRepoFilter = useCallback(() => {
+      repoFilterRef.current?.querySelector('button')?.click();
+   }, []);
+   const openPeopleFilter = useCallback(() => {
+      peopleFilterRef.current?.querySelector('button')?.click();
+   }, []);
 
    useEffect(() => {
       void loadSiteConfig().then(c => {
@@ -358,22 +371,41 @@ export function App() {
          queryRepos.some(q => shortRepo(repo).toLowerCase().includes(q)),
       [reveal, scope.repos, legacy, queryRepos]
    );
+   // same idea as queryRepos/revealedRepo, but people have no reveal= list of
+   // their own — muting is a plain two-state toggle, so a scope pick or an
+   // author: query term is the whole reveal story
+   const queryAuthors = useMemo(
+      () => (query ? [...query.matchAll(/author:(\S+)/gi)].map(m => m[1].toLowerCase()) : []),
+      [query]
+   );
+   const revealedAuthor = useCallback(
+      (login: string) =>
+         scope.authors.includes(login) || queryAuthors.some(q => login.toLowerCase().includes(q)),
+      [scope.authors, queryAuthors]
+   );
 
    const scoped = useMemo(() => {
       let out = pulls;
       if (legacy) out = applyLegacyFilters(out, legacy, me);
-      // Muted (user) and org-hidden repos, and cryo PRs, stay off the board
-      // unless a session act reveals them: an explicit reveal, a scope, or a
-      // repo: query term. Session-explicit beats the durable mute.
+      // Muted (user) and org-hidden repos, muted people, and cryo PRs stay off
+      // the board unless a session act reveals them: an explicit reveal, a
+      // scope, or a repo:/author: query term. Session-explicit beats the
+      // durable mute. Never hide your own pulls or bots — bots have their own
+      // fold, and a person can't mute themselves off their own board.
       if (!showAll)
          out = out.filter(p => {
             const hiddenRepo =
                repoHidden(p.data.repo, hiddenRepos, settings.repoPrefs) &&
                !revealedRepo(p.data.repo);
+            const hiddenPerson =
+               p.data.user.login !== me &&
+               !isBot(p) &&
+               personHidden(p.data.user.login, settings.mutedPeople) &&
+               !revealedAuthor(p.data.user.login);
             const cryoHidden = p.cryo && !settings.showCryo && !reveal.includes(CRYO_KEY);
             // a snoozed pull stays off the board until tomorrow or its next
             // change; the master reveal shows it like every other hidden group
-            return !hiddenRepo && !cryoHidden && !isSnoozed(p.data, snoozed);
+            return !hiddenRepo && !hiddenPerson && !cryoHidden && !isSnoozed(p.data, snoozed);
          });
       if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.data.repo));
       // bots bypass the people filter on purpose: dependency bumps need review
@@ -393,12 +425,14 @@ export function App() {
       showAll,
       reveal,
       revealedRepo,
+      revealedAuthor,
       hiddenRepos,
       legacy,
       me,
       isBot,
       settings.repoPrefs,
       settings.showCryo,
+      settings.mutedPeople,
       draftsMode,
       snoozed,
    ]);
@@ -429,13 +463,31 @@ export function App() {
    const scopedClosed = useMemo(() => {
       let out = closed;
       if (!showAll)
-         out = out.filter(
-            p => !(repoHidden(p.repo, hiddenRepos, settings.repoPrefs) && !revealedRepo(p.repo))
-         );
+         out = out.filter(p => {
+            const hiddenRepo =
+               repoHidden(p.repo, hiddenRepos, settings.repoPrefs) && !revealedRepo(p.repo);
+            const hiddenPerson =
+               p.user.login !== me &&
+               !isBotLogin(p.user.login, extraBots) &&
+               personHidden(p.user.login, settings.mutedPeople) &&
+               !revealedAuthor(p.user.login);
+            return !hiddenRepo && !hiddenPerson;
+         });
       if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.repo));
       if (scope.authors.length) out = out.filter(p => scope.authors.includes(p.user.login));
       return out;
-   }, [closed, showAll, hiddenRepos, settings.repoPrefs, revealedRepo, scope]);
+   }, [
+      closed,
+      showAll,
+      hiddenRepos,
+      settings.repoPrefs,
+      settings.mutedPeople,
+      revealedRepo,
+      revealedAuthor,
+      scope,
+      me,
+      extraBots,
+   ]);
 
    const cryoCount = pulls.filter(p => p.cryo).length;
    // counts every open pull a snooze currently hides, for the Settings surface
@@ -551,10 +603,9 @@ export function App() {
                   {tab('classic', 'Classic')}
                   {tab('stats', 'Stats')}
                </nav>
-               <Filters
-                  pulls={pulls}
+               <RepoFilter
+                  containerRef={repoFilterRef}
                   repos={repoCounts}
-                  teams={allTeams}
                   orgHidden={hiddenRepos}
                   reveal={reveal}
                   toggleReveal={toggleReveal}
@@ -563,6 +614,29 @@ export function App() {
                   cryoCount={cryoCount}
                   draftsMode={draftsMode}
                   setDraftsMode={setDraftsMode}
+                  scope={scope}
+                  setScope={setScope}
+               />
+               <PeopleFilter
+                  containerRef={peopleFilterRef}
+                  pulls={pulls}
+                  teams={allTeams}
+                  scope={scope}
+                  setScope={setScope}
+               />
+               <FilterChips
+                  repos={repoCounts}
+                  orgHidden={hiddenRepos}
+                  reveal={reveal}
+                  toggleReveal={toggleReveal}
+                  showAll={showAll}
+                  setShowAll={setShowAll}
+                  draftsMode={draftsMode}
+                  setDraftsMode={setDraftsMode}
+                  scope={scope}
+                  setScope={setScope}
+                  onOpenRepoFilter={openRepoFilter}
+                  onOpenPeopleFilter={openPeopleFilter}
                />
                {legacy && (
                   <ToggleChip

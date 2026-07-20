@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { repoState } from '../model/visibility';
 import { QuietButton } from './bits';
+import { FilterSearch } from './filters/shared';
 
 export function RepoManagerGroup({
    repos,
@@ -43,14 +44,10 @@ export function RepoManagerGroup({
          <h3 className="m-0 mb-2.5 text-xs font-semibold tracking-wide text-ink-3 uppercase">
             Repos
          </h3>
-         <input
-            aria-label="Filter repos"
-            className="mb-2 h-8 w-full rounded-lg border border-line bg-surface px-2.5 text-[13px]"
-            onChange={event => setQuery(event.target.value)}
-            placeholder="Filter repos"
-            type="text"
-            value={query}
-         />
+         <div className="mb-2 text-[11px] text-ink-3">
+            Also editable from the Repos filter in the header.
+         </div>
+         <FilterSearch value={query} onChange={setQuery} label="Filter repos" />
 
          {noMatches && <div className="text-[13px] text-ink-3">No repos match.</div>}
 

@@ -3,6 +3,7 @@ import { isBotLogin } from '../model/visibility';
 import { toggleTeammate, useSettings } from '../settings';
 import { usePulldasher } from '../store';
 import { Avatar } from './bits';
+import { FilterSearch } from './filters/shared';
 
 const SUGGESTION_CAP = 12;
 const EMPTY_BOTS: ReadonlySet<string> = new Set();
@@ -99,13 +100,11 @@ export function TeamPicker({ extraBots = EMPTY_BOTS }: { extraBots?: ReadonlySet
             />
          ))}
 
-         <input
-            aria-label="Search or add a teammate"
-            className="mt-1 mb-1 h-8 w-full rounded-lg border border-line bg-surface px-2.5 text-[13px]"
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search or add a login"
-            type="text"
+         <FilterSearch
             value={query}
+            onChange={setQuery}
+            label="Search or add a login"
+            className="mt-1"
          />
 
          {filtered.map(c => (
