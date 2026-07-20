@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PullData } from '../types';
-import { rankShipped, shipRelevance } from './shipped';
+import { rankShipped, shipRelevance, shippedToast } from './shipped';
 
 /** A closed PullData carrying only the fields shipped ranking reads. */
 function dp(o: {
@@ -57,5 +57,48 @@ describe('rankShipped', () => {
       const before = list.map(p => p.number);
       rankShipped(list, 'me');
       expect(list.map(p => p.number)).toEqual(before);
+   });
+});
+
+describe('shippedToast', () => {
+   it('returns null when nothing shipped is relevant', () => {
+      const other = dp({ number: 1, author: 'alice', cr: ['bob'] });
+      expect(shippedToast([other], 'me')).toBeNull();
+   });
+
+   it('names the pull and yours/reviewed for a single relevant pull', () => {
+      const mine = dp({ number: 42, author: 'me' });
+      const toast = shippedToast([mine], 'me');
+      expect(toast?.tone).toBe('info');
+      expect(toast?.title).toContain('repo#42');
+      expect(toast?.title).toContain('shipped');
+      expect(toast?.body).toContain('Your PR landed');
+
+      const reviewed = dp({ number: 7, author: 'alice', qa: ['me'] });
+      const reviewedToast = shippedToast([reviewed], 'me');
+      expect(reviewedToast?.body).toMatch(/reviewed/i);
+   });
+
+   it('summarizes counts for multiple relevant pulls', () => {
+      const mine = dp({ number: 1, author: 'me' });
+      const reviewedA = dp({ number: 2, author: 'alice', cr: ['me'] });
+      const reviewedB = dp({ number: 3, author: 'bob', qa: ['me'] });
+      const irrelevant = dp({ number: 4, author: 'carol', cr: ['dave'] });
+      const toast = shippedToast([mine, reviewedA, reviewedB, irrelevant], 'me');
+      expect(toast?.title).toBe('3 shipped while you were away');
+      expect(toast?.body).toContain('1 yours');
+      expect(toast?.body).toContain('2 you reviewed');
+   });
+
+   it('re-fires on a newer merge but is stable for the same backlog', () => {
+      const a = dp({ number: 1, author: 'me', closedAt: '2026-01-01T00:00:00Z' });
+      const b = dp({ number: 2, author: 'me', closedAt: '2026-01-02T00:00:00Z' });
+
+      const key1 = shippedToast([a], 'me')?.dedupeKey;
+      const key1Again = shippedToast([a], 'me')?.dedupeKey;
+      expect(key1).toBe(key1Again);
+
+      const key2 = shippedToast([a, b], 'me')?.dedupeKey;
+      expect(key2).not.toBe(key1);
    });
 });

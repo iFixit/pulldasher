@@ -1,10 +1,11 @@
-import { closedEpoch } from '../format';
+import { closedEpoch, shortRepo } from '../format';
 import type { PullData } from '../types';
+import type { Toast } from './toast';
 
 /**
  * The "shipped while you were away" catch-up: rank merged/closed pulls by how
- * much they're yours to care about. Pure and testable, separate from the
- * RecentlyShipped view that renders it.
+ * much they're yours to care about, and build the single toast that surfaces
+ * it. Pure and testable, separate from toasts.tsx which renders it.
  */
 
 export type ShipRelevance = 'yours' | 'reviewed' | null;
@@ -32,4 +33,43 @@ export function rankShipped(pulls: PullData[], me: string): PullData[] {
       const tb = TIER[shipRelevance(b, me) ?? 'other'];
       return ta - tb || closedEpoch(b) - closedEpoch(a);
    });
+}
+
+/**
+ * Build the "shipped while you were away" toast from an already scope-filtered
+ * list of closed pulls. Only pulls that are yours or that you reviewed count —
+ * an org merge you never touched isn't worth a nudge. Returns the toast content
+ * (tone/title/body/dedupeKey); the caller attaches onAct/onGone since only it
+ * knows how to jump to the fold and mark the catch-up seen. Null when nothing
+ * relevant shipped, so the caller fires no toast at all.
+ */
+export function shippedToast(shipped: PullData[], me: string): Toast | null {
+   const relevant = shipped.filter(p => shipRelevance(p, me) !== null);
+   if (relevant.length === 0) return null;
+   const ranked = rankShipped(relevant, me);
+   const top = ranked[0];
+   const yours = relevant.filter(p => shipRelevance(p, me) === 'yours').length;
+   const reviewed = relevant.length - yours;
+   const n = relevant.length;
+   // a stable-per-backlog key: the newest close time plus the count, so a fresh
+   // merge (later epoch) fires again but the same standing backlog fires once
+   const latest = relevant.reduce((mx, p) => Math.max(mx, closedEpoch(p)), 0);
+   const breakdown = [yours > 0 && `${yours} yours`, reviewed > 0 && `${reviewed} you reviewed`]
+      .filter(Boolean)
+      .join(' · ');
+   return {
+      tone: 'info',
+      icon: '📦',
+      title:
+         n === 1
+            ? `${shortRepo(top.repo)}#${top.number} shipped`
+            : `${n} shipped while you were away`,
+      body:
+         n === 1
+            ? shipRelevance(top, me) === 'yours'
+               ? 'Your PR landed.'
+               : 'One you reviewed landed.'
+            : breakdown,
+      dedupeKey: `shipped:${latest}:${n}`,
+   };
 }
