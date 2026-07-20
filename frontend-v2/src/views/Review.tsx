@@ -484,51 +484,62 @@ export function Review({
                   count={ready.length}
                   label="ready to merge"
                   hint="nudge if idle"
+                  id="review:ready"
                >
-                  <FoldRows list={ready} opts={opts} />
+                  <FoldRows list={ready} opts={opts} id="review:ready" />
                </Fold>
                <Fold
                   dot="var(--ok)"
                   count={stamped.length}
                   label="stamped by you"
                   hint="waiting on another reviewer"
+                  id="review:stamped"
                >
-                  <FoldRows list={stamped} opts={opts} />
+                  <FoldRows list={stamped} opts={opts} id="review:stamped" />
                </Fold>
                <Fold
                   dot="var(--ok)"
                   count={qaStamped.length}
                   label="QA’d by you"
                   hint="waiting on another tester"
+                  id="review:qa-stamped"
                >
-                  <FoldRows list={qaStamped} opts={opts} />
+                  <FoldRows list={qaStamped} opts={opts} id="review:qa-stamped" />
                </Fold>
-               <Fold dot={STATUS_DOT.dev_block} count={devBlocked.length} label="dev blocked">
-                  <FoldRows list={devBlocked} opts={opts} />
+               <Fold
+                  dot={STATUS_DOT.dev_block}
+                  count={devBlocked.length}
+                  label="dev blocked"
+                  id="review:dev-blocked"
+               >
+                  <FoldRows list={devBlocked} opts={opts} id="review:dev-blocked" />
                </Fold>
                <Fold
                   dot={STATUS_DOT.deploy_block}
                   count={deployHeld.length}
                   label="deploy blocked"
                   hint="each row names who blocked it"
+                  id="review:deploy-blocked"
                >
-                  <FoldRows list={deployHeld} opts={opts} />
+                  <FoldRows list={deployHeld} opts={opts} id="review:deploy-blocked" />
                </Fold>
                <Fold
                   dot={STATUS_DOT.unmergeable}
                   count={unmergeable.length}
                   label="can’t merge"
                   hint="the author rebases"
+                  id="review:unmergeable"
                >
-                  <FoldRows list={unmergeable} opts={opts} />
+                  <FoldRows list={unmergeable} opts={opts} id="review:unmergeable" />
                </Fold>
                <Fold
                   dot={STATUS_DOT.ci_pending}
                   count={ciPending.length}
                   label={STATUS_LABEL.ci_pending.toLowerCase()}
                   hint="waiting on green"
+                  id="review:ci-pending"
                >
-                  <FoldRows list={ciPending} opts={opts} />
+                  <FoldRows list={ciPending} opts={opts} id="review:ci-pending" />
                </Fold>
                <Fold
                   dot={STATUS_DOT.ci_red}
@@ -543,8 +554,9 @@ export function Review({
                   dot={STATUS_DOT.draft}
                   count={drafts.length}
                   label={drafts.length === 1 ? 'draft' : 'drafts'}
+                  id="review:drafts"
                >
-                  <FoldRows list={drafts} opts={opts} />
+                  <FoldRows list={drafts} opts={opts} id="review:drafts" />
                </Fold>
                {/* deliberately never auto-opened, even on a quiet board — bots stay deprioritized */}
                <Fold
