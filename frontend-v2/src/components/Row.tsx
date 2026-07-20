@@ -3,6 +3,7 @@ import type { DerivedPull } from '../model/status';
 import { isIterating, lastPushEpoch } from '../model/status';
 import { rowNote } from '../model/actions';
 import { turnFor } from '../model/rotation';
+import { matchedRegions } from '../model/regions';
 import type { ParentRef } from '../model/stack';
 import { ago, epoch, pullKey, rowDomId, shortRepo } from '../format';
 import {
@@ -685,7 +686,10 @@ function RowImpl({
    // the smallest clean marker for a starred author: a tiny ★ over their
    // avatar, so the row itself says "you follow this person" without a
    // trip to the kebab menu
-   const starredAuthor = useSettings().starredPeople.includes(d.user.login);
+   const settings = useSettings();
+   const starredAuthor = settings.starredPeople.includes(d.user.login);
+   // which of your code regions this pull matched (why it floated to the top)
+   const regions = matchedRegions(pull, settings.codeRegions);
    // only worth asking the whole-board lookup when this row is stacked but
    // rendering flat (its parent isn't visible right above it already)
    const orphanParent = pull.dependent && depth === 0 ? (opts.parentOf?.(pull) ?? null) : null;
@@ -730,6 +734,16 @@ function RowImpl({
                />
                {note.action && <span className="badge-do">{note.action}</span>}
                <RepoRef repo={d.repo} number={d.number} />
+               {regions.length > 0 && (
+                  <span
+                     title={`in your code ${regions.length > 1 ? 'regions' : 'region'}: ${regions.join(', ')}`}
+                     className="chip-in inline-flex flex-none items-center gap-1 rounded bg-brand-50 px-1.5 py-0.5 text-[11px] leading-none font-medium text-brand-700"
+                  >
+                     <span aria-hidden>◆</span>
+                     {regions.slice(0, 2).join(', ')}
+                     {regions.length > 2 && ` +${regions.length - 2}`}
+                  </span>
+               )}
                {pull.sizeKnown && (
                   <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
                )}

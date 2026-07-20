@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { type DerivedPull, qaDone, type Status, weightRank } from '../model/status';
 import { pullKey, rowDomId } from '../format';
 import { crSort, starFirst } from '../model/sort';
+import { regionFirst } from '../model/regions';
 import { groupIntoTree } from '../model/stack';
 import { authorMove, reviewerMove } from '../model/actions';
 import { dealOne } from '../model/deal';
@@ -95,7 +96,7 @@ export function Review({
    opts: RowOptions;
 }) {
    const me = opts.me;
-   const { selfReview, primaryRepos, starredPeople } = useSettings();
+   const { selfReview, primaryRepos, starredPeople, codeRegions } = useSettings();
    const starred = new Set(starredPeople);
    const others = pulls.filter(p => p.data.user.login !== me);
 
@@ -152,14 +153,22 @@ export function Review({
          !p.crBy.includes(me) &&
          (p.status === 'needs_cr' || (p.status === 'needs_recr' && !p.recrBy.includes(me)))
    );
-   const aged = crPool.filter(p => p.starved).sort((a, b) => b.starveScore - a.starveScore);
+   const aged = regionFirst(
+      crPool.filter(p => p.starved).sort((a, b) => b.starveScore - a.starveScore),
+      codeRegions
+   );
    // your review queue leads with your repos; everything else folds into "other
    // repos" so it's reachable but not in the way. Starvation stays cross-repo
    // (below) — the fairness backstop is deliberately everyone's job.
    const reviewable = crSort(crPool.filter(p => !p.starved));
-   const queue = starFirst(
-      reviewable.filter(p => isPrimaryRepo(p.data.repo)),
-      starred
+   // region matches float above even starred authors — a code region is the
+   // most explicit "this is my area" signal, so it wins the top of the queue
+   const queue = regionFirst(
+      starFirst(
+         reviewable.filter(p => isPrimaryRepo(p.data.repo)),
+         starred
+      ),
+      codeRegions
    );
    const queueOther = reviewable.filter(p => !isPrimaryRepo(p.data.repo));
 
@@ -194,7 +203,10 @@ export function Review({
                (b.sizeKnown ? weightRank(b.weight) : 2.5) ||
             b.ageDays - a.ageDays
       );
-   const needsQa = starFirst(qaSort(qaPool.filter(p => isPrimaryRepo(p.data.repo))), starred);
+   const needsQa = regionFirst(
+      starFirst(qaSort(qaPool.filter(p => isPrimaryRepo(p.data.repo))), starred),
+      codeRegions
+   );
    const needsQaOther = qaSort(qaPool.filter(p => !isPrimaryRepo(p.data.repo)));
 
    // your live CR stamp is in, the PR just isn't fully signed off yet (another

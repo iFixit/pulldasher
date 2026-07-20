@@ -58,6 +58,11 @@ export interface Settings {
     * Mirrors repoPrefs' mute, but people have no org baseline to fall back
     * to — muting is the whole state. */
    mutedPeople: string[];
+   /** free-text areas you own or care about (e.g. "Growthbook", "Shopify").
+    * A PR whose title, body, labels, branch, or repo partial-matches any of
+    * these floats to the top of the review queue. Arbitrary strings, not a
+    * known set — unlike repos/logins. */
+   codeRegions: string[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -79,6 +84,7 @@ export const DEFAULT_SETTINGS: Settings = {
    myTeam: [],
    starredPeople: [],
    mutedPeople: [],
+   codeRegions: [],
 };
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
@@ -127,6 +133,22 @@ export function toggleMutedPerson(login: string, on: boolean) {
    const cur = store.get().mutedPeople;
    const next = on ? [...new Set([...cur, login])].sort() : cur.filter(l => l !== login);
    setSettings({ mutedPeople: next });
+}
+
+/** Add a code region (trimmed). Deduped case-insensitively so "Shopify" and
+ * "shopify" don't both land; stored as first typed, newest last so the editor
+ * reads in the order you added them. */
+export function addCodeRegion(region: string) {
+   const trimmed = region.trim();
+   if (!trimmed) return;
+   const cur = store.get().codeRegions;
+   if (cur.some(r => r.toLowerCase() === trimmed.toLowerCase())) return;
+   setSettings({ codeRegions: [...cur, trimmed] });
+}
+
+/** Remove a code region (exact match). */
+export function removeCodeRegion(region: string) {
+   setSettings({ codeRegions: store.get().codeRegions.filter(r => r !== region) });
 }
 
 export function useSettings(): Settings {

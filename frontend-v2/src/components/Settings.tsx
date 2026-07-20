@@ -10,6 +10,8 @@ import {
 } from '../notifications';
 import { clearSnoozes, markAllSeen, refreshAll, usePulldasher } from '../store';
 import {
+   addCodeRegion,
+   removeCodeRegion,
    type Settings as SettingsShape,
    setRepoPref,
    setSettings,
@@ -51,6 +53,72 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
          </div>
          {hint && <span className="text-xs text-ink-3">{hint}</span>}
       </div>
+   );
+}
+
+/** Free-text editor for the code regions that float matching PRs to the top of
+ * the review queue. Arbitrary strings (not a known set), so it's a plain input
+ * plus removable chips, not a candidate picker. */
+function CodeRegionsGroup() {
+   const regions = useSettings().codeRegions;
+   const [draft, setDraft] = useState('');
+   const add = () => {
+      addCodeRegion(draft);
+      setDraft('');
+   };
+   return (
+      <Group title="Code regions">
+         <span className="text-xs text-ink-3">
+            Areas you own or care about. A PR whose title, description, labels, branch, or repo
+            contains one floats to the top of your review queue.
+         </span>
+         <div className="flex gap-2">
+            <input
+               value={draft}
+               onChange={e => setDraft(e.target.value)}
+               onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                     e.preventDefault();
+                     add();
+                  }
+               }}
+               placeholder="e.g. Growthbook, Shopify, Diagrams"
+               aria-label="add a code region"
+               className="min-w-0 flex-1 rounded-md border border-line bg-surface px-2 py-1 text-sm outline-none focus-visible:border-brand"
+            />
+            <QuietButton size="md" onClick={add}>
+               Add
+            </QuietButton>
+         </div>
+         {regions.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5">
+               {regions.map(r => (
+                  <li key={r}>
+                     <span className="chip-in inline-flex items-center gap-1 rounded bg-brand-50 py-0.5 pr-1 pl-2 text-[13px] font-medium text-brand-700">
+                        {r}
+                        <button
+                           type="button"
+                           aria-label={`remove code region ${r}`}
+                           title="remove"
+                           onClick={() => removeCodeRegion(r)}
+                           className="hit pressable rounded p-0.5 text-brand-700/60 hover:text-brand-700"
+                        >
+                           <svg
+                              viewBox="0 0 16 16"
+                              className="h-3 w-3"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                           >
+                              <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
+                           </svg>
+                        </button>
+                     </span>
+                  </li>
+               ))}
+            </ul>
+         )}
+      </Group>
    );
 }
 
@@ -328,6 +396,8 @@ export function Settings({
                      </Group>
 
                      <TeamPickerGroup extraBots={extraBots} />
+
+                     <CodeRegionsGroup />
 
                      <Group title="Notifications">
                         <Field
