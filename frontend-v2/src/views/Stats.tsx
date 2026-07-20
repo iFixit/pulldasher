@@ -16,6 +16,13 @@ import {
    stampsPerDay,
    statusBreakdown,
 } from '../model/stats';
+import {
+   fillDayGaps,
+   fillFirstCrMonthGaps,
+   fillMonthGaps,
+   fillWeekGaps,
+   useStatsHistory,
+} from '../model/statsHistory';
 import { useSettings } from '../settings';
 import type { PullData } from '../types';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
@@ -23,15 +30,19 @@ import { AgeMixCard } from './stats/AgeMixCard';
 import { AuthorLoadCard } from './stats/AuthorLoadCard';
 import { DebtCard } from './stats/DebtCard';
 import { EffortMixCard } from './stats/EffortMixCard';
+import { FirstCrTrendCard } from './stats/FirstCrTrendCard';
 import { FrictionCard } from './stats/FrictionCard';
 import { Leaderboard } from './stats/Leaderboard';
+import { MergeAgeByDayCard } from './stats/MergeAgeByDayCard';
 import { MergeSizeCard } from './stats/MergeSizeCard';
+import { MonthlyThroughputCard } from './stats/MonthlyThroughputCard';
 import { PulseCard } from './stats/PulseCard';
 import { ReciprocityCard } from './stats/ReciprocityCard';
 import { RepoLoadCard } from './stats/RepoLoadCard';
 import { StarvationCard } from './stats/StarvationCard';
 import { StatusBar } from './stats/StatusBar';
 import { ThroughputCard } from './stats/ThroughputCard';
+import { WeeklyDurationCard } from './stats/WeeklyDurationCard';
 
 const WINDOW_DAYS = 14;
 
@@ -50,12 +61,14 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /**
- * The Stats lens: the board's shape and its review economics at a glance,
- * in three bands — Flow (what the last two weeks produced), the board right
- * now (what's open and what it's owed), and People (who's carrying it).
- * Everything is a snapshot of the current pool (open PRs plus the 14-day
- * closed window the server keeps), so it moves with the scope and filter —
- * scope to a team and these become that team's numbers.
+ * The Stats lens: the board's shape and its review economics at a glance, in
+ * bands — Flow (what the last two weeks produced), Trends (the same shape
+ * over months, from a separate history endpoint — hidden if that fetch
+ * hasn't landed), the board right now (what's open and what it's owed), and
+ * People (who's carrying it). Everything but Trends is a snapshot of the
+ * current pool (open PRs plus the 14-day closed window the server keeps), so
+ * it moves with the scope and filter — scope to a team and these become that
+ * team's numbers.
  */
 export function Stats({
    pulls,
@@ -99,6 +112,23 @@ export function Stats({
    const giveTake = useMemo(() => reciprocity(pulls, closed), [pulls, closed]);
    const starved = useMemo(() => crStarvation(pulls), [pulls]);
    const settings = useSettings();
+   // trends — server-side history the live socket payload doesn't carry (it
+   // only ships open pulls + 14 days of closed ones); null while loading or on
+   // any fetch failure, which hides the whole band below.
+   const history = useStatsHistory();
+   const monthly = useMemo(() => (history ? fillMonthGaps(history.monthly) : []), [history]);
+   const mergeAgeDays = useMemo(
+      () => (history ? fillDayGaps(history.mergeAgeByDay, 60) : []),
+      [history]
+   );
+   const firstCrMonths = useMemo(
+      () => (history ? fillFirstCrMonthGaps(history.firstCrByMonth) : []),
+      [history]
+   );
+   const durationWeeks = useMemo(
+      () => (history ? fillWeekGaps(history.durationByWeek, 26) : []),
+      [history]
+   );
 
    if (!pulls.length && !closed.length) {
       return (
@@ -114,6 +144,14 @@ export function Stats({
             <PulseCard perDay={pulse} />
             <MergeSizeCard buckets={merge.buckets} sampled={merge.sampled} merged={merge.merged} />
          </Group>
+         {history && (
+            <Group title="Trends">
+               <MonthlyThroughputCard monthly={monthly} />
+               <MergeAgeByDayCard days={mergeAgeDays} />
+               <FirstCrTrendCard months={firstCrMonths} />
+               <WeeklyDurationCard weeks={durationWeeks} />
+            </Group>
+         )}
          <Group title="The board right now">
             <DebtCard debt={debt} />
             <AgeMixCard

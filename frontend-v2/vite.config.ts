@@ -11,6 +11,7 @@ export default defineConfig({
       proxy: {
          '/token': 'http://localhost:3000',
          '/socket.io': { target: 'http://localhost:3000', ws: true },
+         '/v2/stats-history': 'http://localhost:3000',
       },
    },
 });
