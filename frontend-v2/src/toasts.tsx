@@ -29,16 +29,16 @@ const SAMPLE_CHEERS: CheerToast[] = [
    {
       tone: 'info',
       icon: '🎯',
-      title: 'Start with org/repo#88',
+      title: 'Start here',
       body: 'alice reviewed yours — return the favor',
-      pull: { repo: 'org/repo', number: 88 },
+      pull: { repo: 'org/repo', number: 88, title: 'Cache device images at the edge' },
    },
    {
       tone: 'info',
       icon: '🤝',
       title: 'alice has one up',
-      body: 'They reviewed 3 of yours — org/repo#90.',
-      pull: { repo: 'org/repo', number: 90 },
+      body: 'They reviewed 3 of yours — return the favor.',
+      pull: { repo: 'org/repo', number: 90, title: 'Add a retry to the webhook sender' },
    },
    {
       tone: 'info',
@@ -63,23 +63,23 @@ const SAMPLE_CHEERS: CheerToast[] = [
    {
       tone: 'reward',
       icon: '🚀',
-      title: 'org/repo#77 is green',
-      body: 'CR + QA both cleared — ship it.',
-      pull: { repo: 'org/repo', number: 77 },
+      title: 'Green — ship it',
+      body: 'CR + QA both cleared.',
+      pull: { repo: 'org/repo', number: 77, title: 'Migrate the cart to the new checkout' },
    },
    {
       tone: 'nag',
       icon: '🔁',
-      title: 'org/repo#7 changed since your ✓',
+      title: 'Changed since your ✓',
       body: 'Give it another look?',
-      pull: { repo: 'org/repo', number: 7 },
+      pull: { repo: 'org/repo', number: 7, title: 'Fix the flaky device-picker test' },
    },
    {
       tone: 'reward',
       icon: '✅',
       title: 'Nice one.',
-      body: 'org/repo#412 CR landed',
-      pull: { repo: 'org/repo', number: 412 },
+      body: 'CR landed',
+      pull: { repo: 'org/repo', number: 412, title: 'Regulate the type of Response' },
    },
    {
       tone: 'reward',
@@ -91,8 +91,9 @@ const SAMPLE_CHEERS: CheerToast[] = [
    {
       tone: 'nag',
       icon: '⏳',
-      title: 'org/repo#5 has your name on it',
-      body: "They're getting lonely.",
+      title: 'Your turn on this',
+      body: 'Waiting 6d — the rotation picked you.',
+      pull: { repo: 'org/repo', number: 5, title: 'Discourage new files in Exec/ dir' },
    },
 ];
 
@@ -380,6 +381,18 @@ function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: num
          </span>
          <span className="min-w-0 flex-1">
             <span className="block text-sm leading-snug font-semibold text-ink">{toast.title}</span>
+            {toast.pull && (
+               <a
+                  href={githubUrl(toast.pull.repo, toast.pull.number)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="mt-0.5 block truncate text-xs font-medium text-brand hover:underline"
+               >
+                  #{toast.pull.number}
+                  {toast.pull.title ? ` ${toast.pull.title}` : ''}
+               </a>
+            )}
             {toast.body && (
                <span className="mt-0.5 line-clamp-2 block text-xs text-ink-2">{toast.body}</span>
             )}

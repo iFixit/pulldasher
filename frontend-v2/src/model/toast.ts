@@ -15,8 +15,10 @@ export interface Toast {
    body?: string;
    /** hero rewards (queue cleared, a milestone) get a spark flourish */
    celebrate?: boolean;
-   /** clicking a pull-bound toast scrolls its row into view */
-   pull?: { repo: string; number: number };
+   /** the PR a toast is about: clicking scrolls its row into view (or opens it
+    * on GitHub if off-screen), and the card renders its number + title as a
+    * link, so a toast says WHICH pull, not just a bare #number */
+   pull?: { repo: string; number: number; title?: string };
    /** stable id so the same logical toast isn't re-fired every board tick */
    dedupeKey?: string;
    /** per-toast lifetime override (ms); falls back to the tone default */

@@ -1,4 +1,4 @@
-import { closedEpoch, shortRepo } from '../format';
+import { closedEpoch } from '../format';
 import type { PullData } from '../types';
 import type { Toast } from './toast';
 
@@ -60,16 +60,15 @@ export function shippedToast(shipped: PullData[], me: string): Toast | null {
    return {
       tone: 'info',
       icon: '📦',
-      title:
-         n === 1
-            ? `${shortRepo(top.repo)}#${top.number} shipped`
-            : `${n} shipped while you were away`,
+      title: n === 1 ? 'Shipped while you were away' : `${n} shipped while you were away`,
       body:
          n === 1
             ? shipRelevance(top, me) === 'yours'
                ? 'Your PR landed.'
                : 'One you reviewed landed.'
             : breakdown,
+      // a single relevant merge gets a link to it; a batch stays a summary
+      pull: n === 1 ? { repo: top.repo, number: top.number, title: top.title } : undefined,
       dedupeKey: `shipped:${latest}:${n}`,
    };
 }

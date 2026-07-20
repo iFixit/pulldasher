@@ -70,8 +70,8 @@ describe('shippedToast', () => {
       const mine = dp({ number: 42, author: 'me' });
       const toast = shippedToast([mine], 'me');
       expect(toast?.tone).toBe('info');
-      expect(toast?.title).toContain('repo#42');
-      expect(toast?.title).toContain('shipped');
+      expect(toast?.title.toLowerCase()).toContain('shipped');
+      expect(toast?.pull?.number).toBe(42);
       expect(toast?.body).toContain('Your PR landed');
 
       const reviewed = dp({ number: 7, author: 'alice', qa: ['me'] });

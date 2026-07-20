@@ -148,13 +148,19 @@ export function startHereReason(p: DerivedPull, pulls: DerivedPull[], me: string
    return `Waiting ${Math.max(1, Math.round(p.ageDays))}d, the oldest on your plate`;
 }
 
+/** The PR a toast points at — repo, number, and human title, so the card can
+ * render "#123 Fix the thing" as a link instead of a bare number. */
+function pullRef(p: DerivedPull): { repo: string; number: number; title: string } {
+   return { repo: p.data.repo, number: p.data.number, title: p.data.title };
+}
+
 function startHereToast(p: DerivedPull, reason: string): CheerToast {
    return {
       tone: 'info',
       icon: '🎯',
-      title: `Start with ${shortRepo(p.data.repo)}#${p.data.number}`,
+      title: 'Start here',
       body: reason,
-      pull: { repo: p.data.repo, number: p.data.number },
+      pull: pullRef(p),
       dedupeKey: `start:${pullKey(p.data)}`,
    };
 }
@@ -410,8 +416,8 @@ export function diffCheers(
          tone: 'reward',
          icon: isQa ? '🧪' : '✅',
          title: pick(STAMP_PRAISE, sessionStamps),
-         body: `${shortRepo(p.data.repo)}#${p.data.number} ${isQa ? 'QA' : 'CR'} landed`,
-         pull: { repo: p.data.repo, number: p.data.number },
+         body: `${isQa ? 'QA' : 'CR'} landed`,
+         pull: pullRef(p),
          dedupeKey: `stamp:${pullKey(p.data)}`,
       });
    }
@@ -453,9 +459,9 @@ export function diffCheers(
       push('your-turn', {
          tone: 'nag',
          icon: '⏳',
-         title: `${shortRepo(p.data.repo)}#${p.data.number} has your name on it`,
+         title: 'Your turn on this',
          body: `Waiting ${Math.max(1, Math.round(p.ageDays))}d — the rotation picked you.`,
-         pull: { repo: p.data.repo, number: p.data.number },
+         pull: pullRef(p),
          dedupeKey: `turn:${key}`,
       });
    }
@@ -479,9 +485,9 @@ export function diffCheers(
       push('re-stamp-owed', {
          tone: 'nag',
          icon: '🔁',
-         title: `${shortRepo(p.data.repo)}#${p.data.number} changed since your ✓`,
+         title: 'Changed since your ✓',
          body: 'Give it another look?',
-         pull: { repo: p.data.repo, number: p.data.number },
+         pull: pullRef(p),
          dedupeKey: `recr:${pullKey(p.data)}`,
       });
    }
@@ -495,9 +501,7 @@ export function diffCheers(
          icon: '⚡',
          title: `${sig.quickWinCount} quick reviews on the board`,
          body: 'XS/S — clear them in a coffee break.',
-         pull: sig.quickWinPull
-            ? { repo: sig.quickWinPull.data.repo, number: sig.quickWinPull.data.number }
-            : undefined,
+         pull: sig.quickWinPull ? pullRef(sig.quickWinPull) : undefined,
          dedupeKey: `quick:${sig.quickWinCount}`,
       });
    } else if (sig.quickWinCount < QUICK_WIN_THRESHOLD) {
@@ -513,8 +517,8 @@ export function diffCheers(
          tone: 'info',
          icon: '🤝',
          title: `${login} has one up`,
-         body: `They reviewed ${count} of yours — ${shortRepo(p.data.repo)}#${p.data.number}.`,
-         pull: { repo: p.data.repo, number: p.data.number },
+         body: `They reviewed ${count} of yours — return the favor.`,
+         pull: pullRef(p),
          dedupeKey: `favor:${login}`,
       });
    }
@@ -559,9 +563,9 @@ export function diffCheers(
          push('pr-green', {
             tone: 'reward',
             icon: '🚀',
-            title: `${shortRepo(p.data.repo)}#${p.data.number} is green`,
-            body: 'CR + QA both cleared — ship it.',
-            pull: { repo: p.data.repo, number: p.data.number },
+            title: 'Green — ship it',
+            body: 'CR + QA both cleared.',
+            pull: pullRef(p),
             dedupeKey: `green:${key}`,
          });
       }
@@ -569,9 +573,9 @@ export function diffCheers(
          push('pr-first-review', {
             tone: 'info',
             icon: '👀',
-            title: `Someone picked up your #${p.data.number}`,
-            body: `${p.crBy[0] ?? 'A reviewer'} is on ${shortRepo(p.data.repo)}#${p.data.number}.`,
-            pull: { repo: p.data.repo, number: p.data.number },
+            title: 'Someone picked up your PR',
+            body: `${p.crBy[0] ?? 'A reviewer'} is on it.`,
+            pull: pullRef(p),
             dedupeKey: `firstrev:${key}`,
          });
       }
@@ -579,9 +583,9 @@ export function diffCheers(
          push('pr-conflicts', {
             tone: 'nag',
             icon: '⚠️',
-            title: `${shortRepo(p.data.repo)}#${p.data.number} has conflicts`,
-            body: 'Your PR needs a rebase.',
-            pull: { repo: p.data.repo, number: p.data.number },
+            title: 'Conflicts on your PR',
+            body: 'Needs a rebase.',
+            pull: pullRef(p),
             dedupeKey: `conflict:${key}`,
          });
       }
@@ -589,9 +593,9 @@ export function diffCheers(
          push('pr-starving', {
             tone: 'nag',
             icon: '🕰️',
-            title: `Your #${p.data.number} has waited ${p.ageDays}d`,
-            body: `${shortRepo(p.data.repo)} — worth a nudge?`,
-            pull: { repo: p.data.repo, number: p.data.number },
+            title: `Waiting ${p.ageDays}d for review`,
+            body: 'Your PR — worth a nudge?',
+            pull: pullRef(p),
             dedupeKey: `starve:${key}`,
          });
       }
