@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { rowDomId } from './format';
+import { githubUrl, rowDomId } from './format';
 import {
    type CheerBaseline,
    type CheerToast,
@@ -160,7 +160,10 @@ export function useToasts(
    me: string,
    claims: Readonly<Record<string, { login: string; at: number }>> = {},
    extras: Toast[] = [],
-   closed: PullData[] = []
+   closed: PullData[] = [],
+   /** clicking the quick-wins toast filters the board to the small ones rather
+    * than scrolling to a single pull — a batch nudge wants a batch view */
+   onQuickWins?: () => void
 ) {
    const [toasts, setToasts] = useState<LiveToast[]>([]);
    const baseline = useRef<CheerBaseline>(EMPTY_BASELINE);
@@ -243,8 +246,15 @@ export function useToasts(
       }
       prevStamps.current = next.sessionStamps;
       baseline.current = next;
-      if (on) push([...fresh, ...streakToasts]);
-   }, [pulls, closed, me, claims, push]);
+      // quick-wins is a batch, not one pull: swap its scroll-to-pull for the
+      // filter action so clicking shows every small review, not just the first
+      const bound = fresh.map(t =>
+         t.dedupeKey?.startsWith('quick:') && onQuickWins
+            ? { ...t, pull: undefined, onAct: onQuickWins }
+            : t
+      );
+      if (on) push([...bound, ...streakToasts]);
+   }, [pulls, closed, me, claims, push, onQuickWins]);
 
    // pre-built one-shot toasts from the caller (e.g. the shipped catch-up),
    // deduped by dedupeKey so the same logical toast never re-fires on a later
@@ -301,6 +311,22 @@ function Sparks() {
    );
 }
 
+/** Take the viewer to a toast's pull: scroll its row in and flash it, matching
+ * how deal-me-one lands you on a dealt pull. If the row isn't currently on
+ * screen — filtered out, in a collapsed fold, or on another lens — open the PR
+ * on GitHub instead, the one destination that always works, rather than
+ * scrolling to nothing. */
+function revealPull(pull: { repo: string; number: number }) {
+   const el = document.getElementById(rowDomId(pull));
+   if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('fold-flash');
+      setTimeout(() => el.classList.remove('fold-flash'), 900);
+   } else {
+      window.open(githubUrl(pull.repo, pull.number), '_blank', 'noopener');
+   }
+}
+
 function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: number) => void }) {
    const reward = toast.tone === 'reward';
    const info = toast.tone === 'info';
@@ -310,9 +336,7 @@ function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: num
       if (toast.onAct) {
          toast.onAct();
       } else if (toast.pull) {
-         document
-            .getElementById(rowDomId(toast.pull))
-            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+         revealPull(toast.pull);
       }
       onDismiss(toast.id);
    };

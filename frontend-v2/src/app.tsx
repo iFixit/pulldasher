@@ -758,7 +758,20 @@ export function App() {
       ];
    }, [query, scopedClosed, lastSeen, me, jumpToShipped, shippedFoldCount]);
 
-   const { toasts, dismiss: dismissToast } = useToasts(pulls, me, claims, shippedExtras, closed);
+   // the quick-wins toast filters the board to the small reviewable ones on the
+   // review lens, instead of scrolling to just the first of the batch
+   const onQuickWins = useCallback(() => {
+      setLens('review');
+      setWeightSel(['XS', 'S']);
+   }, []);
+   const { toasts, dismiss: dismissToast } = useToasts(
+      pulls,
+      me,
+      claims,
+      shippedExtras,
+      closed,
+      onQuickWins
+   );
 
    return (
       <>
