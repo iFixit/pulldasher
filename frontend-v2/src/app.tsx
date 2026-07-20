@@ -758,7 +758,7 @@ export function App() {
       ];
    }, [query, scopedClosed, lastSeen, me, jumpToShipped, shippedFoldCount]);
 
-   const { toasts, dismiss: dismissToast } = useToasts(pulls, me, claims, shippedExtras);
+   const { toasts, dismiss: dismissToast } = useToasts(pulls, me, claims, shippedExtras, closed);
 
    return (
       <>
