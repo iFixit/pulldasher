@@ -7,13 +7,15 @@ import {
    useState,
    type ReactNode,
 } from 'react';
-import { ago, epoch, n, shortRepo } from './format';
+import { ago, closedEpoch, n, shortRepo } from './format';
 import type { ActionStateKey } from './model/actions';
 import { actionState } from './model/actions';
 import type { DerivedPull } from './model/status';
 import { matchesWeightFilter } from './model/status';
 import { buildParentLookup } from './model/stack';
 import { buildReviewerPools } from './model/rotation';
+import { shipRelevance, shippedToast } from './model/shipped';
+import type { Toast } from './model/toast';
 import type { Team as TeamGroup } from './types';
 import { isSnoozed, markAllSeen, setWeightLabels, usePulldasher } from './store';
 import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
@@ -21,7 +23,6 @@ import { loadSiteConfig, primeScope, useScope } from './prefs';
 import { getSettings, useSettings } from './settings';
 import { useNotifications } from './notifications';
 import { ToastStack, useToasts } from './toasts';
-import { RecentlyShipped } from './components/RecentlyShipped';
 import { matchesQuery } from './model/query';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from './model/visibility';
 import { foldDomId, openFold } from './components/Lane';
@@ -226,7 +227,6 @@ export function App() {
    } = usePulldasher();
    // desktop notifications watch the whole board, not the current filter
    useNotifications(pulls, me, claims);
-   const { toasts, dismiss: dismissToast } = useToasts(pulls, me, claims);
    const [scope, setScope] = useScope();
    // a v1 bookmark (?repo=…&author=…&cryo=1…) opens Classic configured the
    // same way; the chip below shows what it applied and dismisses it
@@ -538,11 +538,6 @@ export function App() {
    // (each keystroke, settings toggle, and heartbeat re-runs App)
    const humans = useMemo(() => scoped.filter(p => !isBot(p)), [scoped, isBot]);
    const bots = useMemo(() => scoped.filter(isBot), [scoped, isBot]);
-   // "what shipped while I was away" — a relevance-ranked catch-up (yours, then
-   // ones you reviewed), each linking to the PR, since the open-PR changes live
-   // in the lanes below
-   const shipped = closed.filter(p => (epoch(p.closed_at ?? '') || 0) > lastSeen);
-   const mergedCount = shipped.length;
    // every known repo with its open-PR count — feeds the Filters popover and
    // the Settings repo manager. Includes org-hidden and pref'd repos at 0.
    const repoCounts = useMemo(() => {
@@ -707,11 +702,11 @@ export function App() {
    );
 
    // The "recently shipped" fold only exists on Review and My work — the
-   // other four lenses have nowhere for the merged-count banner to jump to.
+   // other four lenses have nowhere for the shipped-catch-up toast to jump to.
    // Its count must match what that fold will actually render (scopedClosed
    // for Review, self-authored closed for My work), not the raw org-wide
-   // mergedCount above, or the banner could promise a jump the fold can't
-   // deliver (count 0, fold not rendered at all).
+   // closed count, or the toast could promise a jump the fold can't deliver
+   // (count 0, fold not rendered at all).
    const shippedFoldId =
       lens === 'review' ? 'review:shipped' : lens === 'mine' ? 'mine:shipped' : null;
    const shippedFoldCount =
@@ -737,6 +732,33 @@ export function App() {
            });
         }
       : undefined;
+
+   // the "shipped while you were away" catch-up, now a single info toast instead
+   // of a standing banner. Scope-filtered (respects the active repo/author/hidden
+   // filters via scopedClosed) and relevance-gated inside shippedToast (yours or
+   // reviewed only) so an org merge you never touched never interrupts. Suppressed
+   // entirely while a text query is active — you're searching, don't distract.
+   const shippedExtras = useMemo<Toast[]>(() => {
+      if (query) return [];
+      const backlog = scopedClosed.filter(
+         p => (closedEpoch(p) || 0) > lastSeen && shipRelevance(p, me) !== null
+      );
+      const base = shippedToast(backlog, me);
+      if (!base) return [];
+      const jump = shippedFoldCount > 0 ? jumpToShipped : undefined;
+      return [
+         {
+            ...base,
+            onAct: () => {
+               jump?.();
+               markAllSeen();
+            },
+            onGone: markAllSeen,
+         },
+      ];
+   }, [query, scopedClosed, lastSeen, me, jumpToShipped, shippedFoldCount]);
+
+   const { toasts, dismiss: dismissToast } = useToasts(pulls, me, claims, shippedExtras);
 
    return (
       <>
@@ -901,15 +923,6 @@ export function App() {
                </span>
             </Banner>
          )}
-         {mergedCount > 0 && !query && (
-            <RecentlyShipped
-               shipped={shipped}
-               me={me}
-               onSeeAll={shippedFoldCount > 0 ? jumpToShipped : undefined}
-               onDismiss={markAllSeen}
-            />
-         )}
-
          <main
             className={`mx-auto mt-4 max-w-[1240px] px-5 pb-16 ${entrance ? 'settle-once' : ''}`}
          >
