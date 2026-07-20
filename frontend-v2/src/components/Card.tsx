@@ -20,20 +20,26 @@ import { Avatar, PullTitleLink } from './bits';
  * opens the PR; genuinely interactive children opt back out with `.pd-raise`.
  */
 /** Per-depth left inset for a stacked (nested) row: enough to read as a
- * child without eating too much width at deep nesting. */
-const STACK_INDENT_PX = 22;
+ * child without starving narrow columns (Classic's are the tight case). */
+const STACK_INDENT_PX = 16;
 
-/** The elbow before a nested row's avatar — the one hairline that says
- * "child of the row above", quiet enough to disappear when there's nothing
- * to connect (depth 0 renders nothing). */
-function StackConnector({ compact }: { compact?: boolean }) {
+/** The elbow before a nested row's avatar — one CSS hairline that says
+ * "child of the row above". Absolutely positioned inside the indent gutter
+ * so it costs the row zero flex width (a glyph in the flow both rendered as
+ * a literal "L" and squeezed the rail into overflow in narrow columns). */
+function StackConnector({ compact, depth }: { compact: boolean; depth: number }) {
+   const basePad = compact ? 12 : 14;
    return (
       <span
          aria-hidden
-         className={`flex-none select-none leading-none text-ink-3 ${compact ? 'text-xs' : 'text-sm'}`}
-      >
-         └
-      </span>
+         className="absolute w-[9px] rounded-bl-[5px] border-b border-l border-line"
+         style={{
+            left: basePad + (depth - 1) * STACK_INDENT_PX + 2,
+            top: 0,
+            // the horizontal arm lands on the avatar's vertical center
+            height: compact ? 13 : 19,
+         }}
+      />
    );
 }
 
@@ -81,7 +87,7 @@ export function CardShell({
    const titleLink = (
       <PullTitleLink repo={repo} number={number} title={title} onOpen={onOpen} stretch={stretch} />
    );
-   const connector = depth > 0 && <StackConnector compact={compact} />;
+   const connector = depth > 0 && <StackConnector compact={compact} depth={depth} />;
 
    if (compact) {
       return (
@@ -115,7 +121,7 @@ export function CardShell({
          className={`pd-row relative flex items-start gap-2.5 border-t border-secondary py-2 pr-3.5 first:border-t-0 hover:bg-muted ${className}`}
          style={{ paddingLeft: 14 + depth * STACK_INDENT_PX }}
       >
-         {connector && <span className="mt-px">{connector}</span>}
+         {connector}
          <span className={`relative mt-px flex-none ${onPerson ? 'pd-raise' : ''}`}>
             <Avatar login={login} onClick={onPerson} />
             {avatarBadge}
