@@ -151,6 +151,14 @@ export function Legend() {
                }
                def="matches a code region you set in Settings — these gather in the “In your code regions” section on Review and Team"
             />
+            <Item
+               term={
+                  <span className="inline-flex items-center gap-1 rounded bg-brand px-1.5 py-0.5 text-[11px] leading-none font-medium text-surface">
+                     <span aria-hidden>✦</span>review requested
+                  </span>
+               }
+               def="GitHub asked you to review this PR — the board leads with these in the “Requested of you” section on Review, and quiets its own turn rotation for them"
+            />
          </Group>
 
          <Group title="Coordination">
