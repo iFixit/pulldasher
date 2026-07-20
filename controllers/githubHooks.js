@@ -8,6 +8,7 @@ import Review from "../models/review.js";
 import Status from "../models/status.js";
 import Label from "../models/label.js";
 import refresh from "../lib/refresh.js";
+import queue from "../lib/pull-queue.js";
 import getLogin from "../lib/get-user-login.js";
 import utils from "../lib/utils.js";
 import dbManager from "../lib/db-manager.js";
@@ -242,23 +243,37 @@ function handleLabelEvents(body) {
   switch (body.action) {
     case "labeled":
       hooksDebug("Added label: %s", body.label.name);
-      return dbManager.insertLabel(
-        new Label(
-          body.label,
-          object.number,
-          body.repository.full_name,
-          getLogin(body.sender),
-          object.updated_at
+      return dbManager
+        .insertLabel(
+          new Label(
+            body.label,
+            object.number,
+            body.repository.full_name,
+            getLogin(body.sender),
+            object.updated_at
+          )
         )
-      );
+        .then(markDirtyIfPull);
 
     case "unlabeled":
       hooksDebug("Removed label: %s", body.label.name);
-      return dbManager.deleteLabel(
-        new Label(body.label, object.number, body.repository.full_name)
-      );
+      return dbManager
+        .deleteLabel(
+          new Label(body.label, object.number, body.repository.full_name)
+        )
+        .then(markDirtyIfPull);
   }
   return Promise.resolve();
+
+  // A label change must broadcast on its own: the weight labels drive the
+  // frontend's CR-weight display, and the only other thing that notifies
+  // clients after a label event is an incidental updatePull call in the
+  // pull_request handler — an easy thing for a refactor to scope away.
+  function markDirtyIfPull() {
+    if (body.pull_request) {
+      queue.markPullAsDirty(body.repository.full_name, object.number);
+    }
+  }
 }
 
 function refreshPullOrIssue(responseBody) {
