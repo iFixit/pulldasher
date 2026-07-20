@@ -71,20 +71,23 @@ export function People({
    const theirs = pulls.filter(isSubject);
    const theirsUnscoped = allPulls.filter(isSubject);
    const owed = selectedPerson ? (owes.get(selectedPerson) ?? []) : [];
+   // Live vs stale stamp split (same rule as teamBuckets): a stale stamp of
+   // yours (recrBy) leaves the PR at 0-of-1, still reviewable by you or anyone
+   // else, so it stays in `reviewable`. Only a live stamp (crBy) is "stamped,
+   // waiting on another reviewer".
    const reviewable = crSort(
       theirs.filter(
          p =>
             ['needs_cr', 'needs_recr'].includes(p.status) &&
             p.data.user.login !== opts.me &&
-            !p.crBy.includes(opts.me) &&
-            !p.recrBy.includes(opts.me)
+            !p.crBy.includes(opts.me)
       )
    );
    const mine = theirs.filter(
       p =>
          ['needs_cr', 'needs_recr'].includes(p.status) &&
          p.data.user.login !== opts.me &&
-         (p.crBy.includes(opts.me) || p.recrBy.includes(opts.me))
+         p.crBy.includes(opts.me)
    );
    const inLane = new Set([...reviewable, ...mine]);
    const rest = theirs

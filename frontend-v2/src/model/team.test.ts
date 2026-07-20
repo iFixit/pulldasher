@@ -51,11 +51,20 @@ describe('teamBuckets — what a team-authored pull sorts into', () => {
       expect(stamped).toEqual([p]);
    });
 
-   it('moves a needs_recr pull to stamped when the stale stamp owed is mine', () => {
-      // recrBy naming you means YOUR earlier stamp went stale — that's a
-      // personal to-do (Review's "Yours to do"), not a fresh pick for the
-      // review queue, so it lands in stamped, same as People.tsx's mine.
+   it('keeps a needs_recr pull reviewable when the stale stamp owed is mine', () => {
+      // recrBy naming you means YOUR earlier stamp went stale: the PR is back
+      // to 0-of-1 and still needs a CR — reviewable by you (a re-stamp) or by
+      // anyone else, NOT "stamped, waiting on another reviewer".
       const p = dp({ author: 'alice', status: 'needs_recr', recrBy: ['me'] });
+      const { reviewable, stamped } = teamBuckets([p], ['alice'], 'me');
+      expect(reviewable).toEqual([p]);
+      expect(stamped).toEqual([]);
+   });
+
+   it('keeps a needs_recr pull stamped when my CR is still live (someone else went stale)', () => {
+      // my stamp is active (crBy), another reviewer's went stale — genuinely
+      // in flight, waiting on that other reviewer to re-stamp
+      const p = dp({ author: 'alice', status: 'needs_recr', crBy: ['me'], recrBy: ['bob'] });
       const { reviewable, stamped } = teamBuckets([p], ['alice'], 'me');
       expect(reviewable).toEqual([]);
       expect(stamped).toEqual([p]);

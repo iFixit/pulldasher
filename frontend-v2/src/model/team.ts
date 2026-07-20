@@ -10,12 +10,17 @@ export interface TeamBuckets {
 /**
  * The Team view's three buckets, pulled out of the view so the rules are
  * unit-testable without mounting React. Mirrors People.tsx's per-person split
- * (reviewable / mine / rest) generalized to a set of members: a needs_recr
- * pull naming you in `recrBy` means YOUR stamp went stale, which is a
- * personal to-do surfaced elsewhere (Review's "Yours to do"), not an open
- * item for the review queue — so it lands in `stamped`, same as People.tsx.
- * The author being you is excluded everywhere, even if `me` ends up in
- * `members` by mistake — you can't review your own PR.
+ * (reviewable / mine / rest) generalized to a set of members.
+ *
+ * The stamp split is by *live* vs *stale*: only a currently-active CR stamp of
+ * yours (`crBy`) is genuinely "stamped, in flight, waiting on another
+ * reviewer." A needs_recr pull naming you in `recrBy` means your earlier stamp
+ * went stale — the PR is back to 0-of-1 and still needs a CR, reviewable by
+ * you (a re-stamp) or by anyone else — so it belongs in `reviewable`, not
+ * `stamped`. (The row's own note still reads "your move: Re-stamp"; the lane
+ * just must not claim it's waiting on someone else.) The author being you is
+ * excluded everywhere, even if `me` ends up in `members` by mistake — you
+ * can't review your own PR.
  */
 export function teamBuckets(
    pulls: DerivedPull[],
@@ -27,16 +32,11 @@ export function teamBuckets(
 
    const reviewable = crSort(
       theirs.filter(
-         p =>
-            ['needs_cr', 'needs_recr'].includes(p.status) &&
-            !p.crBy.includes(me ?? '') &&
-            !p.recrBy.includes(me ?? '')
+         p => ['needs_cr', 'needs_recr'].includes(p.status) && !p.crBy.includes(me ?? '')
       )
    );
    const stamped = theirs.filter(
-      p =>
-         ['needs_cr', 'needs_recr'].includes(p.status) &&
-         (p.crBy.includes(me ?? '') || p.recrBy.includes(me ?? ''))
+      p => ['needs_cr', 'needs_recr'].includes(p.status) && p.crBy.includes(me ?? '')
    );
    const inLane = new Set([...reviewable, ...stamped]);
    const rest = theirs
