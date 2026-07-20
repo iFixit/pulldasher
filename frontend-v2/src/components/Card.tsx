@@ -19,6 +19,24 @@ import { Avatar, PullTitleLink } from './bits';
  * title link stretches over the whole card (`stretch`), so a click anywhere
  * opens the PR; genuinely interactive children opt back out with `.pd-raise`.
  */
+/** Per-depth left inset for a stacked (nested) row: enough to read as a
+ * child without eating too much width at deep nesting. */
+const STACK_INDENT_PX = 22;
+
+/** The elbow before a nested row's avatar — the one hairline that says
+ * "child of the row above", quiet enough to disappear when there's nothing
+ * to connect (depth 0 renders nothing). */
+function StackConnector({ compact }: { compact?: boolean }) {
+   return (
+      <span
+         aria-hidden
+         className={`flex-none select-none leading-none text-ink-3 ${compact ? 'text-xs' : 'text-sm'}`}
+      >
+         └
+      </span>
+   );
+}
+
 export function CardShell({
    login,
    onPerson,
@@ -32,6 +50,7 @@ export function CardShell({
    stretch = true,
    compact = false,
    avatarBadge,
+   depth = 0,
 }: {
    login: string;
    onPerson?: (login: string) => void;
@@ -53,16 +72,24 @@ export function CardShell({
     * author ★) — a slot rather than an Avatar prop, so this stays a one-
     * caller concern instead of touching every Avatar call site. */
    avatarBadge?: ReactNode;
+   /** stack-nesting depth (0 = top-level): indents the row and shows a
+    * connector elbow before the avatar — model/stack.ts's groupIntoTree
+    * supplies it. Capped at 2 by the model; the geometry doesn't need its
+    * own cap on top of that. */
+   depth?: number;
 }) {
    const titleLink = (
       <PullTitleLink repo={repo} number={number} title={title} onOpen={onOpen} stretch={stretch} />
    );
+   const connector = depth > 0 && <StackConnector compact={compact} />;
 
    if (compact) {
       return (
          <div
-            className={`pd-row relative flex items-center gap-2 border-t border-secondary px-3 py-1 first:border-t-0 hover:bg-muted ${className}`}
+            className={`pd-row relative flex items-center gap-2 border-t border-secondary py-1 pr-3 first:border-t-0 hover:bg-muted ${className}`}
+            style={{ paddingLeft: 12 + depth * STACK_INDENT_PX }}
          >
+            {connector}
             {/* raise only when the avatar is a real button — a raised inert
                 span punches a dead zone into the whole-row click target */}
             <span className={`relative flex-none ${onPerson ? 'pd-raise' : ''}`}>
@@ -85,8 +112,10 @@ export function CardShell({
 
    return (
       <div
-         className={`pd-row relative flex items-start gap-2.5 border-t border-secondary px-3.5 py-2 first:border-t-0 hover:bg-muted ${className}`}
+         className={`pd-row relative flex items-start gap-2.5 border-t border-secondary py-2 pr-3.5 first:border-t-0 hover:bg-muted ${className}`}
+         style={{ paddingLeft: 14 + depth * STACK_INDENT_PX }}
       >
+         {connector && <span className="mt-px">{connector}</span>}
          <span className={`relative mt-px flex-none ${onPerson ? 'pd-raise' : ''}`}>
             <Avatar login={login} onClick={onPerson} />
             {avatarBadge}

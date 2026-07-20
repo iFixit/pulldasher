@@ -1,5 +1,6 @@
 import type { DerivedPull } from '../model/status';
 import { authorMove } from '../model/actions';
+import { groupIntoTree } from '../model/stack';
 import type { PullData } from '../types';
 import { pullKey } from '../format';
 import { EmptyState } from '../components/bits';
@@ -29,6 +30,8 @@ export function MyWork({
    const move = mine.filter(p => authorMove(p) !== null).sort(byUrgency);
    const waiting = mine.filter(p => authorMove(p) === null).sort(byUrgency);
    const shipped = closed.filter(p => p.user.login === me);
+   const moveTree = groupIntoTree(move);
+   const waitingTree = groupIntoTree(waiting);
 
    if (!mine.length && !shipped.length) {
       return (
@@ -42,8 +45,8 @@ export function MyWork({
    return (
       <>
          <Lane title="Your move" pulls={[]} count={move.length} opts={opts}>
-            {move.map(p => (
-               <Row key={pullKey(p.data)} pull={p} opts={opts} />
+            {moveTree.map(({ pull: p, depth }) => (
+               <Row key={pullKey(p.data)} pull={p} opts={opts} depth={depth} />
             ))}
             {!move.length && (
                <div className="px-3.5 py-3 text-[13px] text-ink-3">
@@ -52,8 +55,8 @@ export function MyWork({
             )}
          </Lane>
          <Lane title="Waiting on others" pulls={[]} count={waiting.length} opts={opts}>
-            {waiting.map(p => (
-               <Row key={pullKey(p.data)} pull={p} opts={opts} />
+            {waitingTree.map(({ pull: p, depth }) => (
+               <Row key={pullKey(p.data)} pull={p} opts={opts} depth={depth} />
             ))}
             {!waiting.length && (
                <div className="px-3.5 py-3 text-[13px] text-ink-3">

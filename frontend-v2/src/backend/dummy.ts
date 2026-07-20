@@ -19,7 +19,7 @@ export async function loadDummy(): Promise<InitializePayload> {
       .default as unknown as PullData[];
    // The fixture is a decade of frozen pulls; re-date them so age-derived
    // signals (heat, starvation, freshness) exercise realistically.
-   const pulls = raw.map((p, i) => redate(p, i));
+   const pulls = withSyntheticStacks(raw).map((p, i) => redate(p, i));
    return {
       repos: [{ name: 'iFixit/ifixit' }],
       // The fixture carries almost no closed/merged pulls and no diff sizes, so
@@ -56,7 +56,8 @@ function redateSigs(
 // and `status.unstamped_reviewers` to say "answer their review" / "in
 // discussion with" — both postdate this fixture, so a few fixed pulls carry
 // them here (deterministic indexes, no randomness) to keep those nudges
-// QA-able in dummy mode. review_id/body let the FeedbackPopover trigger too.
+// QA-able in dummy mode. review_id/body let the state popover's feedback
+// section trigger too.
 const CHANGES_REQUESTED_INDEX = 2;
 const COMMENTED_INDEX = 8;
 const EXTRA_PARTICIPANT_INDEXES = new Set([2, 5, 6, 8]);
@@ -91,10 +92,10 @@ function unstampedReviewerFor(
 }
 
 /**
- * A dev-blocked dummy pull's block signature needs a comment_id so the
- * FeedbackPopover can build a GitHub permalink for it (signatureUrl). The
- * fixture's dev_block signatures already carry one, but this keeps the demo
- * honest if that ever stops being true.
+ * A dev-blocked dummy pull's block signature needs a comment_id so the state
+ * popover can build a GitHub permalink for it (signatureUrl). The fixture's
+ * dev_block signatures already carry one, but this keeps the demo honest if
+ * that ever stops being true.
  */
 function withDevBlockCommentId(status: PullData['status']): PullData['status'] {
    if (!status.dev_block.some(s => !s.data.comment_id)) return status;
@@ -120,6 +121,31 @@ function participantsFor(pull: PullData, i: number): string[] {
            ? ['curious-commenter']
            : ['silent-lurker'];
    return [...new Set([...(pull.participants ?? []), ...stampers, ...extra])];
+}
+
+// Fixed raw-fixture indices rewritten into two stacked-PR demos for
+// model/stack.ts's groupIntoTree (deterministic, same spirit as the rest of
+// this file's index-keyed synthesis): a 3-deep chain (#35168 -> #35177 ->
+// #35194) and one parent with two children (#35207 -> #35236, #35249). Left
+// untouched: indices 5-7, where the fixture already carries the ambiguous-
+// parent case unassisted — #35103 and #351011 share a head ref, and #35059
+// (index 5) already bases off it, so groupIntoTree's flat fallback is
+// QA-able without any synthesis here.
+const CHAIN_INDEXES = [10, 11, 12] as const; // parent, child, grandchild
+const FORK_INDEXES = [13, 14, 15] as const; // parent, child, child
+
+function withSyntheticStacks(pulls: PullData[]): PullData[] {
+   const out = [...pulls];
+   const rebase = (i: number, baseRef: string) => {
+      out[i] = { ...out[i], base: { ...out[i].base, ref: baseRef } };
+   };
+   const [chainParent, chainChild, chainGrandchild] = CHAIN_INDEXES;
+   rebase(chainChild, out[chainParent].head.ref);
+   rebase(chainGrandchild, out[chainChild].head.ref);
+   const [forkParent, forkChild1, forkChild2] = FORK_INDEXES;
+   rebase(forkChild1, out[forkParent].head.ref);
+   rebase(forkChild2, out[forkParent].head.ref);
+   return out;
 }
 
 function redate(pull: PullData, i: number): PullData {

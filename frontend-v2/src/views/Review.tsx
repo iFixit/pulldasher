@@ -1,6 +1,7 @@
 import { type DerivedPull, qaDone, type Status, weightRank } from '../model/status';
 import { pullKey } from '../format';
 import { crSort, starFirst } from '../model/sort';
+import { groupIntoTree } from '../model/stack';
 import { authorMove, reviewerMove } from '../model/actions';
 import { useSettings } from '../settings';
 import { isFresh } from '../store';
@@ -70,6 +71,9 @@ export function Review({
          (a, b) =>
             MOVE_RANK.indexOf(a.verb) - MOVE_RANK.indexOf(b.verb) || b.p.ageDays - a.p.ageDays
       );
+   // Row recomputes its own verb via rowNote, so reordering by stack (and
+   // dropping the { p, verb } wrapper) loses nothing the row needs.
+   const todoTree = groupIntoTree(todo.map(({ p }) => p));
 
    // 2. Review queue: best next review first (leverage + age + weight).
    //    Includes pulls waiting on someone else's re-stamp — a fresh CR from
@@ -192,8 +196,8 @@ export function Review({
          {todo.length > 0 && (
             <Lane title="Yours to do" pulls={[]} count={todo.length} opts={opts}>
                <Truncated cap={laneShown(10, opts)} id="lane:Yours to do">
-                  {todo.map(({ p }) => (
-                     <Row key={pullKey(p.data)} pull={p} opts={opts} />
+                  {todoTree.map(({ pull: p, depth }) => (
+                     <Row key={pullKey(p.data)} pull={p} opts={opts} depth={depth} />
                   ))}
                </Truncated>
             </Lane>

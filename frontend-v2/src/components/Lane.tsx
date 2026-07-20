@@ -1,6 +1,7 @@
 import { useState, type ReactNode, type SyntheticEvent } from 'react';
 import { pullKey } from '../format';
 import type { DerivedPull } from '../model/status';
+import { groupIntoTree } from '../model/stack';
 import { createPersistentStore } from '../storage';
 import { Row, type RowOptions } from './Row';
 
@@ -88,6 +89,7 @@ export function Lane({
 }) {
    if (!pulls.length && !children) return null;
    const shown = laneShown(cap, opts);
+   const tree = groupIntoTree(pulls);
    return (
       <section className={opts.compact ? 'mb-4' : 'mb-7'}>
          <GroupHeader
@@ -99,8 +101,8 @@ export function Lane({
          <Rows>
             {children}
             <Truncated cap={shown} id={`lane:${title}`}>
-               {pulls.map(p => (
-                  <Row key={pullKey(p.data)} pull={p} opts={opts} />
+               {tree.map(({ pull: p, depth }) => (
+                  <Row key={pullKey(p.data)} pull={p} opts={opts} depth={depth} />
                ))}
             </Truncated>
          </Rows>
@@ -119,10 +121,11 @@ export function FoldRows({
    /** stable identity: remembers "+N more" expansion across unmounts this session */
    id?: string;
 }) {
+   const tree = groupIntoTree(list);
    return (
       <Truncated cap={laneShown(30, opts)} id={id}>
-         {list.map(p => (
-            <Row key={pullKey(p.data)} pull={p} opts={opts} />
+         {tree.map(({ pull: p, depth }) => (
+            <Row key={pullKey(p.data)} pull={p} opts={opts} depth={depth} />
          ))}
       </Truncated>
    );

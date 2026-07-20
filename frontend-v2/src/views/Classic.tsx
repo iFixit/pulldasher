@@ -1,4 +1,5 @@
 import { crDone, qaDone, type DerivedPull } from '../model/status';
+import { groupIntoTree } from '../model/stack';
 import type { PullData } from '../types';
 import { ago, closedEpoch, pullKey } from '../format';
 import { ClosedBadge, EmptyState, RepoRef } from '../components/bits';
@@ -62,12 +63,13 @@ function Column({
    opts: RowOptions;
    defaultOpen?: boolean;
 }) {
+   const tree = groupIntoTree(pulls);
    return (
       <BoardColumn count={pulls.length} header={title} defaultOpen={defaultOpen}>
          {/* a 60-row CR column is a 3600px scroll: cap it, keep the count honest */}
          <Truncated cap={laneShown(15, opts)} id={`classic:${title}`}>
-            {pulls.map(p => (
-               <Row key={pullKey(p.data)} pull={p} opts={opts} />
+            {tree.map(({ pull: p, depth }) => (
+               <Row key={pullKey(p.data)} pull={p} opts={opts} depth={depth} />
             ))}
          </Truncated>
       </BoardColumn>
