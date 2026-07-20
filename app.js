@@ -6,6 +6,7 @@ import authManager from "./lib/authentication.js";
 import socketAuthenticator from "./lib/socket-auth.js";
 import refresh from "./lib/refresh.js";
 import pullManager from "./lib/pull-manager.js";
+import claims, { SWEEP_INTERVAL_MS } from "./lib/claims.js";
 import dbManager from "./lib/db-manager.js";
 import pullQueue from "./lib/pull-queue.js";
 import mainController from "./controllers/main.js";
@@ -101,7 +102,9 @@ io.on("connection", function (socket) {
 
     var user = socketAuthenticator.retrieveUser(token);
     if (user) {
+      socket.user = user;
       socket.emit("authenticated");
+      socket.emit("reviewClaims", claims.all());
       pullManager.addSocket(socket);
     } else {
       socket.emit("unauthenticated");
@@ -112,7 +115,37 @@ io.on("connection", function (socket) {
   socket.on("refresh", function (repo, number) {
     refresh.pull(repo, number);
   });
+
+  socket.on("claimReview", function (repo, number) {
+    if (!socket.user) {
+      return;
+    }
+    claims.claim(repo, number, socket.user.username);
+    io.emit("reviewClaims", claims.all());
+  });
+
+  socket.on("releaseReview", function (repo, number) {
+    if (!socket.user) {
+      return;
+    }
+    if (claims.release(repo, number, socket.user.username)) {
+      io.emit("reviewClaims", claims.all());
+    }
+  });
 });
+
+// Sweep expired review claims and re-broadcast the whole map on an interval,
+// so a stale claim disappears from every client within one sweep even if
+// nobody claims/releases/reads anything in the meantime. unref() so this
+// timer never keeps the process (or a test run importing this module) alive
+// on its own.
+const claimsSweepTimer = setInterval(function () {
+  claims.prune();
+  io.emit("reviewClaims", claims.all());
+}, SWEEP_INTERVAL_MS);
+if (typeof claimsSweepTimer.unref === "function") {
+  claimsSweepTimer.unref();
+}
 
 debug("Listening on port %s", config.port);
 httpServer.listen(config.port);
