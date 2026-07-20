@@ -286,15 +286,17 @@ const ICON_REFRESH =
    'M8 3a5 5 0 1 0 4.9 6h-1.55A3.5 3.5 0 1 1 8 4.5c.97 0 1.85.4 2.48 1.02L8.5 7.5H13V3l-1.46 1.46A4.98 4.98 0 0 0 8 3Z';
 const ICON_KEBAB =
    'M8 4.4a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Zm0 5a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Zm0 5a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Z';
-// An open eye: "I'm reading this one" — the claim toggle. Filled when the
-// claim is yours (below), outlined otherwise, same glyph either way.
-const ICON_EYE =
-   'M8 3.5C4.5 3.5 1.7 5.8.5 8c1.2 2.2 4 4.5 7.5 4.5S14.8 10.2 16 8C14.8 5.8 12 3.5 8 3.5Zm0 7.5A3 3 0 1 1 8 5a3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z';
+// A raised hand: "I've got this one" — the claim toggle, like putting your
+// hand up to take the review. Heroicons' solid hand-raised (24-unit viewBox,
+// so this icon renders with box={24}). Brand-tinted when the claim is yours
+// (below), muted otherwise, same glyph either way.
+const ICON_HAND =
+   'M10.5 1.875a1.125 1.125 0 0 1 2.25 0v8.219c.517.162 1.02.382 1.5.659V3.375a1.125 1.125 0 0 1 2.25 0v10.937a4.505 4.505 0 0 0-3.25 2.373 8.963 8.963 0 0 1 4-.935A.75.75 0 0 0 18 15v-2.266a3.368 3.368 0 0 1 .988-2.37 1.125 1.125 0 0 1 1.591 1.59 1.118 1.118 0 0 0-.329.79v3.006h.005a6 6 0 0 1-1.752 4.007l-1.736 1.736a6 6 0 0 1-4.242 1.757H10.5a7.5 7.5 0 0 1-7.5-7.5V6.375a1.125 1.125 0 0 1 2.25 0v5.519c.46-.452.965-.832 1.5-1.141V3.375a1.125 1.125 0 0 1 2.25 0v6.526c.495-.1.997-.151 1.5-.151V1.875Z';
 
-function ActionIcon({ d, spin }: { d: string; spin?: boolean }) {
+function ActionIcon({ d, spin, box = 16 }: { d: string; spin?: boolean; box?: number }) {
    return (
       <svg
-         viewBox="0 0 16 16"
+         viewBox={`0 0 ${box} ${box}`}
          aria-hidden
          className={`h-3.5 w-3.5 flex-none fill-current ${spin ? 'spin-once' : ''}`}
       >
@@ -408,7 +410,7 @@ function RowActions({
                className={`${btn} ${mine ? 'text-brand' : ''}`}
                onClick={mine ? a.release : a.claim}
             >
-               <ActionIcon d={ICON_EYE} />
+               <ActionIcon d={ICON_HAND} box={24} />
             </button>
          )}
       </span>
@@ -512,7 +514,7 @@ function RowActionsKebab({
                        : "claim this review — flags that you're reading it"
                }
             >
-               <ActionIcon d={ICON_EYE} />
+               <ActionIcon d={ICON_HAND} box={24} />
                {claimedByMe ? 'Release claim' : 'Claim review'}
             </button>
          )}
