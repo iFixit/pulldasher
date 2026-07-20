@@ -31,6 +31,7 @@ export function CardShell({
    rail,
    stretch = true,
    compact = false,
+   avatarBadge,
 }: {
    login: string;
    onPerson?: (login: string) => void;
@@ -48,6 +49,10 @@ export function CardShell({
    rail?: ReactNode;
    stretch?: boolean;
    compact?: boolean;
+   /** a tiny marker absolutely-positioned over the avatar (the row's starred-
+    * author ★) — a slot rather than an Avatar prop, so this stays a one-
+    * caller concern instead of touching every Avatar call site. */
+   avatarBadge?: ReactNode;
 }) {
    const titleLink = (
       <PullTitleLink repo={repo} number={number} title={title} onOpen={onOpen} stretch={stretch} />
@@ -60,8 +65,9 @@ export function CardShell({
          >
             {/* raise only when the avatar is a real button — a raised inert
                 span punches a dead zone into the whole-row click target */}
-            <span className={`flex-none ${onPerson ? 'pd-raise' : ''}`}>
+            <span className={`relative flex-none ${onPerson ? 'pd-raise' : ''}`}>
                <Avatar login={login} onClick={onPerson} size={16} />
+               {avatarBadge}
             </span>
             {/* nothing here truncates: the row flows as one tight line and
                 wraps when the column is narrower than the content — density
@@ -81,8 +87,9 @@ export function CardShell({
       <div
          className={`pd-row relative flex items-start gap-2.5 border-t border-secondary px-3.5 py-2 first:border-t-0 hover:bg-muted ${className}`}
       >
-         <span className={`mt-px flex-none ${onPerson ? 'pd-raise' : ''}`}>
+         <span className={`relative mt-px flex-none ${onPerson ? 'pd-raise' : ''}`}>
             <Avatar login={login} onClick={onPerson} />
+            {avatarBadge}
          </span>
          <span className="min-w-0 flex-1">
             <span className="block text-sm leading-snug break-words">{titleLink}</span>

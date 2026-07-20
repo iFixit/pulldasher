@@ -2,8 +2,15 @@ import { memo, useState } from 'react';
 import type { DerivedPull } from '../model/status';
 import { isIterating, lastPushEpoch } from '../model/status';
 import { rowNote } from '../model/actions';
-import { ago, epoch, pullKey } from '../format';
-import { ackPull, isFresh, refreshPull, snoozePull } from '../store';
+import { ago, epoch, pullKey, shortRepo } from '../format';
+import {
+   setRepoPref,
+   toggleMutedPerson,
+   togglePrimaryRepo,
+   toggleStarredPerson,
+   useSettings,
+} from '../settings';
+import { ackPull, isFresh, refreshPull, snoozePull, usePulldasher } from '../store';
 import { AgeStamp, DiffSize, FreshTag, RepoRef, SigPips, StatusBadge, WeightMeter } from './bits';
 import { CardShell } from './Card';
 import { FeedbackPopover } from './FeedbackPopover';
@@ -288,20 +295,44 @@ function RowActions({ pull, overlay }: { pull: DerivedPull; overlay?: boolean })
 }
 
 /**
- * The same three actions for pointers that can't hover: below 720px the
- * desktop cluster simply doesn't exist, so every row keeps a quiet,
- * always-visible kebab that opens a tap-friendly labeled menu (the house
- * click-to-open popover — no hover in the path).
+ * The star/mute glyph every kebab star item shares: a fixed-width slot the
+ * same size as the SVG action icons, so the menu's leading column still
+ * lines up even though these two rows use a text glyph instead of a path.
+ */
+function StarGlyph({ on }: { on: boolean }) {
+   return (
+      <span aria-hidden className="inline-block h-3.5 w-3.5 flex-none text-center leading-[14px]">
+         {on ? '★' : '☆'}
+      </span>
+   );
+}
+
+/**
+ * The same three actions for pointers that can't hover, plus the star/mute
+ * board actions that only live here (never on the desktop icon cluster —
+ * see RowActions). Below 720px the desktop cluster doesn't exist at all, so
+ * every row keeps a quiet, always-visible kebab that opens a tap-friendly
+ * labeled menu (the house click-to-open popover — no hover in the path); at
+ * and above 720px it now rides at the end of the hover cluster too, since
+ * star/mute have no other home there.
  */
 function RowActionsKebab({ pull }: { pull: DerivedPull }) {
    const a = useRowActions(pull);
+   const settings = useSettings();
+   const { me } = usePulldasher();
+   const repo = pull.data.repo;
+   const author = pull.data.user.login;
+   const repoLabel = shortRepo(repo);
+   const isPrimaryRepo = settings.primaryRepos.includes(repo);
+   const isMutedRepo = settings.repoPrefs[repo] === 'mute';
+   const isStarredAuthor = settings.starredPeople.includes(author);
    const item =
       'flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2 text-left text-xs text-ink-2 hover:bg-muted';
    return (
       <Popover
          label="Row actions"
          side="right"
-         rootClass="relative inline-flex min-[720px]:hidden"
+         rootClass="relative inline-flex"
          // capped to the viewport: w-max would size to the branch name and
          // push the panel off a phone screen — the branch truncates instead
          width="w-max min-w-[190px] max-w-[min(280px,calc(100vw-16px))]"
@@ -338,6 +369,60 @@ function RowActionsKebab({ pull }: { pull: DerivedPull }) {
             <ActionIcon d={ICON_REFRESH} spin={a.spinning} />
             Re-fetch from GitHub
          </button>
+         <div aria-hidden className="my-1 border-t border-secondary" />
+         <button
+            type="button"
+            className={item}
+            onClick={() => togglePrimaryRepo(repo, !isPrimaryRepo)}
+            aria-pressed={isPrimaryRepo}
+            title={
+               isPrimaryRepo
+                  ? `remove ${repoLabel} from your primary repos`
+                  : `mark ${repoLabel} a primary repo — leads your review queue`
+            }
+         >
+            <StarGlyph on={isPrimaryRepo} />
+            {isPrimaryRepo ? `Unstar ${repoLabel}` : `Star ${repoLabel}`}
+         </button>
+         <button
+            type="button"
+            className={item}
+            onClick={() => setRepoPref(repo, isMutedRepo ? null : 'mute')}
+            aria-pressed={isMutedRepo}
+            title={
+               isMutedRepo
+                  ? `unmute ${repoLabel} — show it on your board again`
+                  : `mute ${repoLabel} — hide it on your board`
+            }
+         >
+            {isMutedRepo ? `Unmute ${repoLabel}` : `Mute ${repoLabel}`}
+         </button>
+         <button
+            type="button"
+            className={item}
+            onClick={() => toggleStarredPerson(author, !isStarredAuthor)}
+            aria-pressed={isStarredAuthor}
+            title={
+               isStarredAuthor
+                  ? `unstar ${author}`
+                  : `star ${author} — floats their pulls to the front of your queues`
+            }
+         >
+            <StarGlyph on={isStarredAuthor} />
+            {isStarredAuthor ? `Unstar ${author}` : `Star ${author}`}
+         </button>
+         {/* never offered for your own pulls — you can't mute yourself off
+             your own board */}
+         {author !== me && (
+            <button
+               type="button"
+               className={item}
+               onClick={() => toggleMutedPerson(author, true)}
+               title={`mute ${author} — hide their pulls on your board`}
+            >
+               Mute {author}
+            </button>
+         )}
       </Popover>
    );
 }
@@ -399,6 +484,10 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const note = rowNote(pull, opts.me);
    // "iterating" and a "fix pushed …" note say the same thing — don't say it twice
    const showIterating = isIterating(pull) && !(note.context ?? '').includes('pushed');
+   // the smallest clean marker for a starred author: a tiny ★ over their
+   // avatar, so the row itself says "you follow this person" without a
+   // trip to the kebab menu
+   const starredAuthor = useSettings().starredPeople.includes(d.user.login);
    return (
       <CardShell
          login={d.user.login}
@@ -409,6 +498,17 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          onOpen={() => ackPull(key)}
          compact={opts.compact}
          className={`${flashOnce(key, !!fresh) ? 'row-fresh' : ''} transition-[background-color] duration-150 ease-out motion-reduce:transition-none`}
+         avatarBadge={
+            starredAuthor && (
+               <span
+                  aria-hidden
+                  title={`${d.user.login} is starred`}
+                  className="absolute -right-0.5 -bottom-0.5 text-[9px] leading-none text-brand"
+               >
+                  ★
+               </span>
+            )
+         }
          meta={
             // the same untruncated meta in both densities — the shell wraps
             // instead of clipping, so no chip ever costs the title its text
