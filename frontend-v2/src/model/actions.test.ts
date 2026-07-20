@@ -119,6 +119,20 @@ describe('rowNote — the author matrix', () => {
       });
    });
 
+   it('dev_block: blocking your own PR is a lift, not an "address feedback from you"', () => {
+      expect(note({ status: 'dev_block', devBlockedBy: [me] }, me)).toEqual({
+         action: 'Lift your block',
+         context: null,
+      });
+   });
+
+   it('dev_block: your own block plus another blocker still names only the other', () => {
+      expect(note({ status: 'dev_block', devBlockedBy: [me, 'carol'] }, me)).toEqual({
+         action: 'Address feedback',
+         context: 'from carol',
+      });
+   });
+
    it('changesRequestedBy beats the plain needs_recr wait', () => {
       expect(
          note({ status: 'needs_recr', changesRequestedBy: ['carol'], recrBy: ['dave'] }, me)

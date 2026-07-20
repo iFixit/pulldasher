@@ -91,9 +91,17 @@ function authorNote(p: DerivedPull, me: string): RowNote {
    if (p.status === 'ci_red')
       return { action: 'Fix CI', context: p.ciFailing.length ? p.ciFailing.join(', ') : null };
    // a dev block is feedback waiting on YOU — v1 lore said "ask them to lift
-   // it", which misroutes the most common author action
-   if (p.status === 'dev_block')
-      return { action: 'Address feedback', context: `from ${who(p.devBlockedBy)}` };
+   // it", which misroutes the most common author action. But when you're the
+   // only blocker, "from you" reads as nonsense ("Address feedback · from
+   // you") — the real move is lifting your own block, not answering it, so
+   // that case gets its own action. A mix of you and others still owes an
+   // answer to the others; who() drops you from that list so the context
+   // doesn't also claim you're waiting on yourself.
+   if (p.status === 'dev_block') {
+      const otherBlockers = p.devBlockedBy.filter(l => l !== me);
+      if (!otherBlockers.length) return doOnly('Lift your block');
+      return { action: 'Address feedback', context: `from ${who(otherBlockers)}` };
+   }
    if ((p.status === 'needs_cr' || p.status === 'needs_recr') && p.changesRequestedBy.length)
       return {
          action: 'Address feedback',
