@@ -27,6 +27,7 @@ import { matchesQuery } from './model/query';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from './model/visibility';
 import { foldDomId, openFold } from './components/Lane';
 import { Legend } from './components/Legend';
+import { Logo } from './components/Logo';
 import { NotificationPanel } from './components/NotificationPanel';
 import { RepoFilter } from './components/filters/RepoFilter';
 import { PeopleFilter } from './components/filters/PeopleFilter';
@@ -778,7 +779,8 @@ export function App() {
             <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-x-3.5 gap-y-1 px-5 py-2.5">
                {/* the page's one h1 — heading navigation needs a root, and
                    every lane h2 needs a parent level */}
-               <h1 className="m-0 text-base font-semibold tracking-tight">
+               <h1 className="m-0 flex items-center gap-1.5 text-base font-semibold tracking-tight">
+                  <Logo size={22} className="text-brand" />
                   pull<em className="text-brand not-italic">dasher</em>
                </h1>
                <span

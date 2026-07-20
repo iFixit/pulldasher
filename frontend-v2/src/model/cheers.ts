@@ -611,7 +611,10 @@ export function diffCheers(
          tone: 'info',
          icon: '🤝',
          title: `Return the favor to ${login}`,
-         body: `They've reviewed ${count} of your ${count === 1 ? 'PR' : 'PRs'}.`,
+         body:
+            count === 1
+               ? 'They reviewed one of your PRs.'
+               : `They've reviewed ${count} of your PRs.`,
          pull: pullRef(p),
          dedupeKey: `favor:${login}`,
       });
