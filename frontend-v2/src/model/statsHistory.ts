@@ -142,6 +142,147 @@ function round1(n: number): number {
    return Math.round(n * 10) / 10;
 }
 
+function parseIsoDate(day: string): number {
+   const [y, m, d] = day.split('-').map(Number);
+   return new Date(y, m - 1, d).getTime();
+}
+
+/**
+ * The inverse of {@link isoWeekLabel}'s Thursday-of-week rule: the epoch ms
+ * of the Thursday that owns the given ISO week, so a week-native row (e.g.
+ * `durationByWeek`) can be dropped into {@link resampleWeekly} alongside
+ * finer-grained series.
+ */
+function isoWeekThursday(isoWeek: string): number {
+   const [yearStr, weekStr] = isoWeek.split('-W');
+   const year = Number(yearStr);
+   const week = Number(weekStr);
+   const jan4 = new Date(year, 0, 4);
+   const jan4Thursday = new Date(jan4);
+   jan4Thursday.setDate(jan4.getDate() + 3 - ((jan4.getDay() + 6) % 7));
+   const thursday = new Date(jan4Thursday);
+   thursday.setDate(jan4Thursday.getDate() + (week - 1) * 7);
+   return thursday.getTime();
+}
+
+/**
+ * A timestamped, weighted sample feeding {@link resampleWeekly}: a value with
+ * its originating instant and how many real observations back it (a day's
+ * average of 5 merges outweighs a quiet day of 1 in the weekly blend).
+ */
+export interface WeightedSample {
+   at: number;
+   value: number;
+   weight: number;
+}
+
+export interface WeeklyResample {
+   isoWeek: string;
+   value: number;
+   /** total sample weight landing in this week — 0 means no signal, not "zero" */
+   sampled: number;
+}
+
+/**
+ * Buckets timestamped, weighted samples into ISO weeks and returns exactly
+ * one point per week in `weeks` (weight-averaging any samples landing in the
+ * same week) — so a day-grain series, a week-grain series (one sample per
+ * week, already at the target grain), and a month-grain series (exploded via
+ * {@link explodeMonthToWeeklySamples} into one sample per week it spans) can
+ * all share a single weekly x-axis without each caller hand-rolling its own
+ * aggregation.
+ */
+export function resampleWeekly(samples: WeightedSample[], weeks: string[]): WeeklyResample[] {
+   const by = new Map<string, { sum: number; weight: number }>();
+   for (const s of samples) {
+      const key = isoWeekLabel(s.at);
+      const cur = by.get(key) ?? { sum: 0, weight: 0 };
+      cur.sum += s.value * s.weight;
+      cur.weight += s.weight;
+      by.set(key, cur);
+   }
+   return weeks.map(isoWeek => {
+      const cur = by.get(isoWeek);
+      return {
+         isoWeek,
+         value: cur && cur.weight > 0 ? cur.sum / cur.weight : 0,
+         sampled: cur?.weight ?? 0,
+      };
+   });
+}
+
+/**
+ * Spreads a calendar-month row into one weighted sample per day of that
+ * month, each carrying the month's value and an even share of its weight —
+ * so {@link resampleWeekly} can fold a monthly series into the weekly grain
+ * proportional to how many of that month's days fall in each week, instead
+ * of dumping the whole month onto a single arbitrary week.
+ */
+export function explodeMonthToWeeklySamples(
+   month: string,
+   value: number,
+   weight: number
+): WeightedSample[] {
+   const [y, m] = month.split('-').map(Number);
+   const daysInMonth = new Date(y, m, 0).getDate();
+   const perDayWeight = weight / daysInMonth;
+   return Array.from({ length: daysInMonth }, (_, i) => ({
+      at: new Date(y, m - 1, i + 1).getTime(),
+      value,
+      weight: perDayWeight,
+   }));
+}
+
+export interface TimeInReviewWeek {
+   isoWeek: string;
+   /** median hours to first CR, resampled from the monthly series */
+   firstCrMedianHours: number;
+   /** avg hours to first CR, resampled from the monthly series */
+   firstCrAvgHours: number;
+   /** avg hours open→merge, blended from the week- and day-grain series */
+   mergeAvgHours: number;
+}
+
+/**
+ * The Time in review card's data: the three trend cards it replaced
+ * (FirstCrTrendCard's monthly median/avg, WeeklyDurationCard's weekly avg,
+ * MergeAgeByDayCard's daily avg — the latter two both measure open→merge
+ * duration, so they blend into one "time to merge" series) resampled onto a
+ * shared weekly x-axis.
+ */
+export function weeklyTimeInReview(
+   firstCrByMonth: FirstCrMonthRow[],
+   durationByWeek: DurationWeekRow[],
+   mergeAgeByDay: MergeAgeDayRow[],
+   weeks = 26,
+   now = Date.now()
+): TimeInReviewWeek[] {
+   const weekKeys = fillWeekGaps([], weeks, now).map(w => w.isoWeek);
+   const medianSamples = firstCrByMonth.flatMap(m =>
+      explodeMonthToWeeklySamples(m.month, m.medianHours, m.sampled)
+   );
+   const avgCrSamples = firstCrByMonth.flatMap(m =>
+      explodeMonthToWeeklySamples(m.month, m.avgHours, m.sampled)
+   );
+   const mergeSamples: WeightedSample[] = [
+      ...durationByWeek.map(w => ({
+         at: isoWeekThursday(w.isoWeek),
+         value: w.avgHours,
+         weight: w.merged,
+      })),
+      ...mergeAgeByDay.map(d => ({ at: parseIsoDate(d.day), value: d.avgHours, weight: d.merged })),
+   ];
+   const median = resampleWeekly(medianSamples, weekKeys);
+   const avgCr = resampleWeekly(avgCrSamples, weekKeys);
+   const merge = resampleWeekly(mergeSamples, weekKeys);
+   return weekKeys.map((isoWeek, i) => ({
+      isoWeek,
+      firstCrMedianHours: median[i].value,
+      firstCrAvgHours: avgCr[i].value,
+      mergeAvgHours: merge[i].value,
+   }));
+}
+
 // Dummy mode has no backend to hit: synthesize a plausible year of history so
 // the Trends cards have something to render in `npm run dev:dummy`. Seeded
 // with simple modular formulas (no Math.random) so a run is reproducible.

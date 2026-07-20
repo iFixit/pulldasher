@@ -336,15 +336,18 @@ export function reciprocity(pulls: DerivedPull[], closed: PullData[]): Reciproci
 export interface AuthorLoad {
    login: string;
    count: number;
+   /** how many of those still need CR (the reviewer-facing share) */
+   awaitingCr: number;
    oldestDays: number;
 }
 
 /** who has the most open PRs on the board (work-in-progress load). */
 export function authorLoad(pulls: DerivedPull[]): AuthorLoad[] {
-   const by = new Map<string, { count: number; oldestDays: number }>();
+   const by = new Map<string, { count: number; awaitingCr: number; oldestDays: number }>();
    for (const p of pulls) {
-      const cur = by.get(p.data.user.login) ?? { count: 0, oldestDays: 0 };
+      const cur = by.get(p.data.user.login) ?? { count: 0, awaitingCr: 0, oldestDays: 0 };
       cur.count += 1;
+      if (['needs_cr', 'needs_recr'].includes(p.status)) cur.awaitingCr += 1;
       cur.oldestDays = Math.max(cur.oldestDays, p.ageDays);
       by.set(p.data.user.login, cur);
    }

@@ -1,5 +1,5 @@
 import type { MonthlyRow } from '../../model/statsHistory';
-import { type AxisTick, type PairedPeriod, PairedPeriodColumns, StatsCard } from './parts';
+import { type AxisTick, LineChart, StatsCard } from './parts';
 
 function monthLabel(month: string): string {
    const [y, m] = month.split('-').map(Number);
@@ -9,28 +9,27 @@ function monthLabel(month: string): string {
 /**
  * Opened vs merged per month, last 12 months — the Shipping card's window
  * stretched from a fortnight to a year, so a seasonal slowdown or a sustained
- * ramp shows up instead of getting lost in the 14-day frame.
+ * ramp shows up instead of getting lost in the 14-day frame. The shaded area
+ * between the two lines is the delta itself: opened above merged means the
+ * backlog grew that stretch, merged above opened means it shrank.
  */
 export function MonthlyThroughputCard({ monthly }: { monthly: MonthlyRow[] }) {
    const totalOpened = monthly.reduce((a, m) => a + m.opened, 0);
    const totalMerged = monthly.reduce((a, m) => a + m.merged, 0);
-   const periods: PairedPeriod[] = monthly.map(m => ({
-      key: m.month,
-      title: `${monthLabel(m.month)}: ${m.opened} opened · ${m.merged} merged`,
-      a: m.opened,
-      b: m.merged,
-   }));
    const axisTicks: AxisTick[] = monthly
       .map((m, i) => (i % 3 === 0 ? { index: i, label: monthLabel(m.month) } : null))
       .filter((t): t is AxisTick => t !== null);
 
    return (
-      <StatsCard title="Monthly throughput" sub="opened vs merged, last 12 months">
+      <StatsCard title="Monthly volume" sub="opened vs merged, last 12 months">
          <div className="mt-3">
-            <PairedPeriodColumns
-               periods={periods}
-               colorA="var(--ink-3)"
-               colorB="var(--ok)"
+            <LineChart
+               ariaLabel="Pull requests opened and merged per month, last 12 months, with the gap between them shaded"
+               series={[
+                  { label: 'opened', color: 'var(--ink-3)', values: monthly.map(m => m.opened) },
+                  { label: 'merged', color: 'var(--ok)', values: monthly.map(m => m.merged) },
+               ]}
+               band={{ a: 0, b: 1, color: 'var(--brand)' }}
                axisTicks={axisTicks}
             />
          </div>

@@ -101,16 +101,6 @@ export function MiniColumns({
    );
 }
 
-export interface Period {
-   /** stable React key, e.g. "2026-07" or "2026-W29" */
-   key: string;
-   /** tooltip text */
-   title: string;
-   value: number;
-   /** an optional secondary value (e.g. that period's max) drawn as a thin mark */
-   marker?: number;
-}
-
 /** where to print an axis label, e.g. one per quarter on a 12-month chart */
 export interface AxisTick {
    index: number;
@@ -135,99 +125,441 @@ function AxisLabels({ ticks, count }: { ticks?: AxisTick[]; count: number }) {
 }
 
 /**
- * A month/week/day-per-column chart, like MiniColumns but for longer history
- * windows: each column carries a title tooltip and an optional thin marker
- * line (e.g. that period's max, above an avg bar) so an outlier doesn't
- * vanish inside a tame-looking average. Optional axis ticks label a subset of
- * columns (e.g. every quarter) since 12+ columns is too dense to label all of.
+ * A {@link BarRow} whose fill carries a highlighted inner segment — a
+ * subset's share of the row's OWN total (e.g. how much of a repo's pile is
+ * still awaiting CR) — instead of trailing it as text the reader has to
+ * cross-reference against the bar.
  */
-export function PeriodColumns({
-   periods,
+export function SplitBarRow({
+   lead,
+   pct,
+   splitPct,
    color,
-   axisTicks,
+   splitColor,
+   trail,
+   title,
 }: {
-   periods: Period[];
+   lead: ReactNode;
+   /** 0–100, the row's total as a share of the column max */
+   pct: number;
+   /** 0–100, the highlighted subset as a share of THIS row's own total */
+   splitPct: number;
    color: string;
-   axisTicks?: AxisTick[];
+   splitColor: string;
+   trail?: ReactNode;
+   title?: string;
 }) {
-   // scale to the value series only — a marker (outlier callout) clamps to the
-   // top edge instead of dragging every bar down into an unreadable stub
-   const max = Math.max(...periods.map(p => p.value), 1);
    return (
-      <div>
-         <div className="flex h-16 gap-1">
-            {periods.map(p => (
-               <div key={p.key} className="relative min-w-0 flex-1" title={p.title}>
+      <div className="flex items-center gap-2 text-[13px]" title={title}>
+         {lead}
+         <div className="h-2 flex-1 overflow-hidden rounded bg-secondary">
+            <div
+               className="relative h-full rounded"
+               style={{ width: `${pct}%`, background: color }}
+            >
+               {splitPct > 0 && (
                   <div
-                     className="absolute inset-x-0 bottom-0 rounded-t-[3px]"
-                     style={{
-                        height: p.value ? `${Math.max((p.value / max) * 100, 8)}%` : '2px',
-                        background: p.value ? color : 'var(--secondary)',
-                     }}
+                     className="absolute inset-y-0 right-0"
+                     style={{ width: `${splitPct}%`, background: splitColor }}
                   />
-                  {p.marker != null && p.marker > 0 && (
-                     <div
-                        className="absolute inset-x-0 h-[2px] rounded-full"
-                        style={{
-                           bottom: `${Math.min((p.marker / max) * 100, 100)}%`,
-                           background: 'var(--ink-3)',
-                        }}
-                     />
-                  )}
-               </div>
-            ))}
+               )}
+            </div>
          </div>
-         <AxisLabels ticks={axisTicks} count={periods.length} />
+         {trail}
       </div>
    );
 }
 
-export interface PairedPeriod {
-   key: string;
-   title: string;
-   a: number;
-   b: number;
+/**
+ * Two thin bars stacked in one row, sharing one scale — a person's "given"
+ * over their "received" (or any other two-series-per-entity comparison)
+ * where both numbers need to read as comparably sized, not one bar plus
+ * trailing text.
+ */
+export function PairedBarRow({
+   lead,
+   aPct,
+   bPct,
+   colorA,
+   colorB,
+   aTrail,
+   bTrail,
+   title,
+}: {
+   lead: ReactNode;
+   aPct: number;
+   bPct: number;
+   colorA: string;
+   colorB: string;
+   aTrail?: ReactNode;
+   bTrail?: ReactNode;
+   title?: string;
+}) {
+   return (
+      <div className="flex items-center gap-2 text-[13px]" title={title}>
+         {lead}
+         <div className="flex flex-1 flex-col gap-[3px]">
+            <div className="flex h-[7px] items-center gap-1.5">
+               <div className="h-full flex-1 overflow-hidden rounded bg-secondary">
+                  <div
+                     className="h-full rounded"
+                     style={{ width: `${aPct}%`, background: colorA }}
+                  />
+               </div>
+               {aTrail}
+            </div>
+            <div className="flex h-[7px] items-center gap-1.5">
+               <div className="h-full flex-1 overflow-hidden rounded bg-secondary">
+                  <div
+                     className="h-full rounded"
+                     style={{ width: `${bPct}%`, background: colorB }}
+                  />
+               </div>
+               {bTrail}
+            </div>
+         </div>
+      </div>
+   );
 }
 
 /**
- * Two-series twin of {@link PeriodColumns} — a pair of adjacent bars per
- * column (e.g. opened vs merged per month) sharing one scale.
+ * A single thin fill bar with no label — the shared-max glyph under a
+ * standalone number tile (Debt's 2×2 grid) where a full {@link BarRow}'s
+ * lead/trail row layout doesn't fit.
  */
-export function PairedPeriodColumns({
-   periods,
-   colorA,
-   colorB,
+export function MiniMeter({ pct, color }: { pct: number; color: string }) {
+   return (
+      <div className="mt-2 h-1 overflow-hidden rounded-full bg-secondary">
+         <div
+            className="h-full rounded-full"
+            style={{ width: `${Math.max(pct, 0)}%`, background: color }}
+         />
+      </div>
+   );
+}
+
+export interface LineSeries {
+   label: string;
+   color: string;
+   values: number[];
+   /** which y-axis this series scales against; default 'left' */
+   axis?: 'left' | 'right';
+   dashed?: boolean;
+   /** low-opacity fill from the line down to the zero baseline — reserve for one primary series */
+   area?: boolean;
+}
+
+export interface BarSeries {
+   label: string;
+   color: string;
+   values: number[];
+   axis?: 'left' | 'right';
+}
+
+export interface LineChartBand {
+   /** index into `series` for the two lines to shade the area between */
+   a: number;
+   b: number;
+   color?: string;
+}
+
+const CHART_W = 600;
+
+function axisExtent(values: number[]): { min: number; max: number } {
+   const min = Math.min(0, ...values, 0);
+   const max = Math.max(...values, 1);
+   return { min, max: max <= min ? min + 1 : max };
+}
+
+function scaleY(v: number, min: number, max: number, top: number, bottom: number): number {
+   if (max === min) return bottom;
+   return bottom - ((v - min) / (max - min)) * (bottom - top);
+}
+
+/**
+ * An inline multi-series SVG line chart — hand-rolled to the same "component
+ * with hard-coded scale math" style as {@link PeriodColumns}, since no
+ * charting library is a dependency here. Supports an optional bar series
+ * underlay (for a bars-vs-line "volume vs speed" panel), a dual left/right
+ * axis, a low-opacity area fill under one primary line, and a shaded band
+ * between two lines (e.g. opened vs merged, so backlog growth/shrink reads
+ * at a glance). Handles zero, one, or short series without throwing — an
+ * empty chart just renders its gridlines.
+ */
+export function LineChart({
+   series,
+   bars,
    axisTicks,
+   band,
+   height = 120,
+   ariaLabel,
 }: {
-   periods: PairedPeriod[];
-   colorA: string;
-   colorB: string;
+   series: LineSeries[];
+   bars?: BarSeries[];
    axisTicks?: AxisTick[];
+   band?: LineChartBand;
+   /** chart height in px; width always fills the container */
+   height?: number;
+   ariaLabel: string;
 }) {
-   const max = Math.max(...periods.map(p => Math.max(p.a, p.b)), 1);
+   const n = Math.max(
+      0,
+      ...series.map(s => s.values.length),
+      ...(bars ?? []).map(b => b.values.length)
+   );
+   const pad = 6;
+   const top = 8;
+   const bottom = height - 8;
+   const leftValues = [
+      ...series.filter(s => s.axis !== 'right').flatMap(s => s.values),
+      ...(bars ?? []).filter(b => b.axis !== 'right').flatMap(b => b.values),
+   ];
+   const rightValues = [
+      ...series.filter(s => s.axis === 'right').flatMap(s => s.values),
+      ...(bars ?? []).filter(b => b.axis === 'right').flatMap(b => b.values),
+   ];
+   const left = axisExtent(leftValues);
+   const right = axisExtent(rightValues);
+   const x = (i: number) => (n <= 1 ? CHART_W / 2 : pad + (i * (CHART_W - 2 * pad)) / (n - 1));
+   const yFor = (v: number, axis?: 'left' | 'right') =>
+      axis === 'right'
+         ? scaleY(v, right.min, right.max, top, bottom)
+         : scaleY(v, left.min, left.max, top, bottom);
+   const gridLines = [0, 0.25, 0.5, 0.75, 1].map(f => top + f * (bottom - top));
+   const slot = n > 0 ? (CHART_W - 2 * pad) / n : 0;
+   const hasLegend = series.length > 0 || (bars?.length ?? 0) > 0;
+
    return (
       <div>
-         <div className="flex h-16 gap-1">
-            {periods.map(p => (
-               <div key={p.key} className="flex min-w-0 flex-1 items-end gap-[2px]" title={p.title}>
-                  <div
-                     className="min-w-0 flex-1 rounded-t-[2px]"
-                     style={{
-                        height: p.a ? `${Math.max((p.a / max) * 100, 8)}%` : '2px',
-                        background: p.a ? colorA : 'var(--secondary)',
-                     }}
-                  />
-                  <div
-                     className="min-w-0 flex-1 rounded-t-[2px]"
-                     style={{
-                        height: p.b ? `${Math.max((p.b / max) * 100, 8)}%` : '2px',
-                        background: p.b ? colorB : 'var(--secondary)',
-                     }}
-                  />
-               </div>
+         <svg
+            viewBox={`0 0 ${CHART_W} ${height}`}
+            preserveAspectRatio="none"
+            className="w-full"
+            style={{ height }}
+            role="img"
+            aria-label={ariaLabel}
+         >
+            <title>{ariaLabel}</title>
+            {gridLines.map(y => (
+               <line
+                  key={y}
+                  x1={0}
+                  x2={CHART_W}
+                  y1={y}
+                  y2={y}
+                  stroke="var(--line)"
+                  strokeWidth={1}
+               />
             ))}
-         </div>
-         <AxisLabels ticks={axisTicks} count={periods.length} />
+            {bars?.map(b => {
+               const barW = Math.max(slot * 0.55, 1.5);
+               return (
+                  <g key={b.label}>
+                     {b.values.map((v, i) => {
+                        const y0 = yFor(0, b.axis);
+                        const y1 = yFor(v, b.axis);
+                        return (
+                           <rect
+                              // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length positional series, order never changes
+                              key={i}
+                              x={x(i) - barW / 2}
+                              y={Math.min(y0, y1)}
+                              width={barW}
+                              height={Math.max(Math.abs(y0 - y1), v !== 0 ? 1 : 0)}
+                              fill={b.color}
+                              opacity={0.85}
+                              rx={1}
+                           />
+                        );
+                     })}
+                  </g>
+               );
+            })}
+            {band && series[band.a] && series[band.b] && n > 1 && (
+               <polygon
+                  points={[
+                     ...series[band.a].values.map(
+                        (v, i) => `${x(i)},${yFor(v, series[band.a].axis)}`
+                     ),
+                     ...[...series[band.b].values]
+                        .map((v, i) => `${x(i)},${yFor(v, series[band.b].axis)}`)
+                        .reverse(),
+                  ].join(' ')}
+                  fill={band.color ?? series[band.a].color}
+                  opacity={0.12}
+               />
+            )}
+            {series.map(s => {
+               if (s.values.length === 0) return null;
+               const pts = s.values.map((v, i) => [x(i), yFor(v, s.axis)] as const);
+               const path = pts.map(([px, py], i) => `${i === 0 ? 'M' : 'L'}${px},${py}`).join(' ');
+               const [lastX, lastY] = pts[pts.length - 1];
+               const baseline = yFor(0, s.axis);
+               return (
+                  <g key={s.label}>
+                     {s.area && pts.length > 1 && (
+                        <polygon
+                           points={`${pts.map(([px, py]) => `${px},${py}`).join(' ')} ${lastX},${baseline} ${pts[0][0]},${baseline}`}
+                           fill={s.color}
+                           opacity={0.12}
+                        />
+                     )}
+                     {pts.length > 1 && (
+                        <path
+                           d={path}
+                           fill="none"
+                           stroke={s.color}
+                           strokeWidth={2}
+                           strokeDasharray={s.dashed ? '4 3' : undefined}
+                           strokeLinecap="round"
+                           strokeLinejoin="round"
+                        />
+                     )}
+                     <circle cx={lastX} cy={lastY} r={3} fill={s.color} />
+                  </g>
+               );
+            })}
+         </svg>
+         <AxisLabels ticks={axisTicks} count={n} />
+         {hasLegend && (
+            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-ink-3">
+               {series.map(s => (
+                  <span key={s.label} className="inline-flex items-center gap-1.5">
+                     <span
+                        aria-hidden
+                        className="inline-block h-[2px] w-3"
+                        style={{ background: s.color, opacity: s.dashed ? 0.6 : 1 }}
+                     />
+                     {s.label}
+                  </span>
+               ))}
+               {bars?.map(b => (
+                  <span key={b.label} className="inline-flex items-center gap-1.5">
+                     <span
+                        aria-hidden
+                        className="inline-block h-2 w-2 rounded-[2px]"
+                        style={{ background: b.color }}
+                     />
+                     {b.label}
+                  </span>
+               ))}
+            </div>
+         )}
+      </div>
+   );
+}
+
+export interface DonutSlice {
+   label: string;
+   value: number;
+   color: string;
+}
+
+/**
+ * A compact part-to-whole donut for a mutually-exclusive set (e.g. the five
+ * weight buckets summing to the open total) — a center total plus a compact
+ * legend. Not for categories that can overlap (friction, debt): those stay
+ * bars, since a donut implies the slices sum to the whole.
+ */
+export function Donut({
+   slices,
+   size = 84,
+   thickness = 12,
+   centerSub,
+   ariaLabel,
+}: {
+   slices: DonutSlice[];
+   size?: number;
+   thickness?: number;
+   /** small caption under the center total, e.g. "open" */
+   centerSub?: string;
+   ariaLabel: string;
+}) {
+   const total = slices.reduce((a, s) => a + s.value, 0);
+   const r = (size - thickness) / 2;
+   const c = 2 * Math.PI * r;
+   const cx = size / 2;
+   const cy = size / 2;
+   let offset = 0;
+
+   return (
+      <div className="flex items-center gap-3">
+         <svg
+            width={size}
+            height={size}
+            viewBox={`0 0 ${size} ${size}`}
+            role="img"
+            aria-label={ariaLabel}
+            className="flex-none"
+         >
+            <title>{ariaLabel}</title>
+            <circle
+               cx={cx}
+               cy={cy}
+               r={r}
+               fill="none"
+               stroke="var(--secondary)"
+               strokeWidth={thickness}
+            />
+            {total > 0 &&
+               slices
+                  .filter(s => s.value > 0)
+                  .map(s => {
+                     const frac = s.value / total;
+                     const dash = frac * c;
+                     const el = (
+                        <circle
+                           key={s.label}
+                           cx={cx}
+                           cy={cy}
+                           r={r}
+                           fill="none"
+                           stroke={s.color}
+                           strokeWidth={thickness}
+                           strokeDasharray={`${dash} ${c - dash}`}
+                           strokeDashoffset={-offset}
+                           transform={`rotate(-90 ${cx} ${cy})`}
+                        />
+                     );
+                     offset += dash;
+                     return el;
+                  })}
+            <text
+               x={cx}
+               y={cy - (centerSub ? 4 : 0)}
+               textAnchor="middle"
+               dominantBaseline="middle"
+               style={{ fill: 'var(--ink)' }}
+               className="text-[15px] font-semibold tabular-nums"
+            >
+               {total}
+            </text>
+            {centerSub && (
+               <text
+                  x={cx}
+                  y={cy + 12}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  style={{ fill: 'var(--ink-3)' }}
+                  className="text-[8px]"
+               >
+                  {centerSub}
+               </text>
+            )}
+         </svg>
+         <ul className="flex flex-col gap-1 text-[11px] text-ink-2">
+            {slices.map(s => (
+               <li key={s.label} className="flex items-center gap-1.5">
+                  <span
+                     aria-hidden
+                     className="h-2 w-2 flex-none rounded-[2px]"
+                     style={{ background: s.color }}
+                  />
+                  <span className="flex-1 whitespace-nowrap">{s.label}</span>
+                  <span className="font-medium text-ink tabular-nums">{s.value}</span>
+               </li>
+            ))}
+         </ul>
       </div>
    );
 }

@@ -314,14 +314,14 @@ describe('reciprocity', () => {
 });
 
 describe('authorLoad', () => {
-   it('counts open PRs per author with their oldest', () => {
+   it('counts open PRs per author with their oldest and awaiting-CR share', () => {
       const rows = authorLoad([
-         full({ author: 'alice', n: 1, ageDays: 3 }),
-         full({ author: 'alice', n: 2, ageDays: 9 }),
-         full({ author: 'bob', n: 3, ageDays: 1 }),
+         full({ author: 'alice', n: 1, ageDays: 3, status: 'needs_cr' }),
+         full({ author: 'alice', n: 2, ageDays: 9, status: 'ready' }),
+         full({ author: 'bob', n: 3, ageDays: 1, status: 'needs_recr' }),
       ]);
-      expect(rows[0]).toEqual({ login: 'alice', count: 2, oldestDays: 9 });
-      expect(rows[1]).toEqual({ login: 'bob', count: 1, oldestDays: 1 });
+      expect(rows[0]).toEqual({ login: 'alice', count: 2, awaitingCr: 1, oldestDays: 9 });
+      expect(rows[1]).toEqual({ login: 'bob', count: 1, awaitingCr: 1, oldestDays: 1 });
    });
 });
 

@@ -1,11 +1,11 @@
 import { shortRepo } from '../../format';
 import type { RepoLoad } from '../../model/stats';
-import { BarRow, StatsCard } from './parts';
+import { SplitBarRow, StatsCard } from './parts';
 
 /**
- * Where the open PRs live. The bar is the repo's whole pile; the trailing
- * numbers split out how much of it is still review work and how old the
- * oldest is, so a big-but-moving repo reads differently from a stuck one.
+ * Where the open PRs live. The bar splits into the repo's whole pile and the
+ * amber share of it still awaiting CR — the reviewer-facing debt, not just
+ * the total count — plus the oldest age trailing.
  */
 export function RepoLoadCard({ rows, cap = 10 }: { rows: RepoLoad[]; cap?: number }) {
    const shown = rows.slice(0, cap);
@@ -15,10 +15,12 @@ export function RepoLoadCard({ rows, cap = 10 }: { rows: RepoLoad[]; cap?: numbe
       <StatsCard title="Open PRs by repo" sub="count · awaiting CR · oldest">
          <div className="mt-3 flex flex-col gap-2">
             {shown.map(r => (
-               <BarRow
+               <SplitBarRow
                   key={r.repo}
                   pct={(r.count / max) * 100}
+                  splitPct={r.count > 0 ? (r.awaitingCr / r.count) * 100 : 0}
                   color="var(--ink-3)"
+                  splitColor="var(--warn)"
                   title={r.repo}
                   lead={
                      <span className="w-28 flex-none truncate font-medium text-ink" title={r.repo}>

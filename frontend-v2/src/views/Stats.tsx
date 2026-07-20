@@ -16,13 +16,7 @@ import {
    stampsPerDay,
    statusBreakdown,
 } from '../model/stats';
-import {
-   fillDayGaps,
-   fillFirstCrMonthGaps,
-   fillMonthGaps,
-   fillWeekGaps,
-   useStatsHistory,
-} from '../model/statsHistory';
+import { fillMonthGaps, useStatsHistory, weeklyTimeInReview } from '../model/statsHistory';
 import { useSettings } from '../settings';
 import type { PullData } from '../types';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
@@ -30,19 +24,16 @@ import { AgeMixCard } from './stats/AgeMixCard';
 import { AuthorLoadCard } from './stats/AuthorLoadCard';
 import { DebtCard } from './stats/DebtCard';
 import { EffortMixCard } from './stats/EffortMixCard';
-import { FirstCrTrendCard } from './stats/FirstCrTrendCard';
 import { FrictionCard } from './stats/FrictionCard';
 import { Leaderboard } from './stats/Leaderboard';
-import { MergeAgeByDayCard } from './stats/MergeAgeByDayCard';
 import { MergeSizeCard } from './stats/MergeSizeCard';
 import { MonthlyThroughputCard } from './stats/MonthlyThroughputCard';
-import { PulseCard } from './stats/PulseCard';
 import { ReciprocityCard } from './stats/ReciprocityCard';
 import { RepoLoadCard } from './stats/RepoLoadCard';
+import { ShippingPulseCard } from './stats/ShippingPulseCard';
 import { StarvationCard } from './stats/StarvationCard';
 import { StatusBar } from './stats/StatusBar';
-import { ThroughputCard } from './stats/ThroughputCard';
-import { WeeklyDurationCard } from './stats/WeeklyDurationCard';
+import { TimeInReviewCard } from './stats/TimeInReviewCard';
 
 const WINDOW_DAYS = 14;
 
@@ -62,13 +53,14 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 
 /**
  * The Stats lens: the board's shape and its review economics at a glance, in
- * bands — Flow (what the last two weeks produced), Trends (the same shape
- * over months, from a separate history endpoint — hidden if that fetch
- * hasn't landed), the board right now (what's open and what it's owed), and
- * People (who's carrying it). Everything but Trends is a snapshot of the
- * current pool (open PRs plus the 14-day closed window the server keeps), so
- * it moves with the scope and filter — scope to a team and these become that
- * team's numbers.
+ * bands ordered most-actionable first — the board right now (what's open and
+ * what it's owed), Flow (what the last two weeks produced), People (who's
+ * carrying it), then Trends (the same shape over months, from a separate
+ * history endpoint — hidden if that fetch hasn't landed, and last because a
+ * multi-month retrospective is the least time-critical read). Everything but
+ * Trends is a snapshot of the current pool (open PRs plus the 14-day closed
+ * window the server keeps), so it moves with the scope and filter — scope to a
+ * team and these become that team's numbers.
  */
 export function Stats({
    pulls,
@@ -117,16 +109,15 @@ export function Stats({
    // any fetch failure, which hides the whole band below.
    const history = useStatsHistory();
    const monthly = useMemo(() => (history ? fillMonthGaps(history.monthly) : []), [history]);
-   const mergeAgeDays = useMemo(
-      () => (history ? fillDayGaps(history.mergeAgeByDay, 60) : []),
-      [history]
-   );
-   const firstCrMonths = useMemo(
-      () => (history ? fillFirstCrMonthGaps(history.firstCrByMonth) : []),
-      [history]
-   );
-   const durationWeeks = useMemo(
-      () => (history ? fillWeekGaps(history.durationByWeek, 26) : []),
+   const timeInReview = useMemo(
+      () =>
+         history
+            ? weeklyTimeInReview(
+                 history.firstCrByMonth,
+                 history.durationByWeek,
+                 history.mergeAgeByDay
+              )
+            : [],
       [history]
    );
 
@@ -139,32 +130,31 @@ export function Stats({
    return (
       <div className="flex flex-col gap-6">
          <StatusBar items={breakdown} total={pulls.length} />
-         <Group title="Flow · last 14 days">
-            <ThroughputCard perDay={perDay} firstCr={firstCr} />
-            <PulseCard perDay={pulse} />
-            <MergeSizeCard buckets={merge.buckets} sampled={merge.sampled} merged={merge.merged} />
-         </Group>
-         {history && (
-            <Group title="Trends">
-               <MonthlyThroughputCard monthly={monthly} />
-               <MergeAgeByDayCard days={mergeAgeDays} />
-               <FirstCrTrendCard months={firstCrMonths} />
-               <WeeklyDurationCard weeks={durationWeeks} />
-            </Group>
-         )}
          <Group title="The board right now">
             <DebtCard debt={debt} />
+            <FrictionCard friction={stuck} />
             <AgeMixCard
                buckets={ages}
                warnDays={settings.ageWarnDays}
                rotDays={settings.ageRotDays}
             />
             <EffortMixCard mix={effort} />
-            <FrictionCard friction={stuck} />
             <AuthorLoadCard rows={authors} me={me} onPerson={onPerson} />
             <RepoLoadCard rows={repos} />
          </Group>
+         <Group title="Flow · last 14 days">
+            <ShippingPulseCard perDay={perDay} pulse={pulse} firstCr={firstCr} />
+            <MergeSizeCard buckets={merge.buckets} sampled={merge.sampled} merged={merge.merged} />
+         </Group>
          <Group title="People">
+            <StarvationCard
+               rows={starved}
+               me={me}
+               onPerson={onPerson}
+               warnDays={settings.ageWarnDays}
+               rotDays={settings.ageRotDays}
+            />
+            <ReciprocityCard rows={giveTake} me={me} onPerson={onPerson} />
             <Leaderboard
                title="CR leaderboard"
                sub="PRs CR’d, on the board"
@@ -181,15 +171,13 @@ export function Stats({
                me={me}
                onPerson={onPerson}
             />
-            <ReciprocityCard rows={giveTake} me={me} onPerson={onPerson} />
-            <StarvationCard
-               rows={starved}
-               me={me}
-               onPerson={onPerson}
-               warnDays={settings.ageWarnDays}
-               rotDays={settings.ageRotDays}
-            />
          </Group>
+         {history && (
+            <Group title="Trends">
+               <TimeInReviewCard weeks={timeInReview} />
+               <MonthlyThroughputCard monthly={monthly} />
+            </Group>
+         )}
       </div>
    );
 }
