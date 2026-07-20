@@ -355,65 +355,82 @@ function RowActions({
       'hit pressable rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand';
    const mine = claim?.login === me;
    return (
-      <span
-         className={`row-actions hidden items-center gap-1 min-[720px]:inline-flex ${
-            overlay
-               ? 'absolute right-full top-1/2 z-10 mr-1 -translate-y-1/2 rounded-md bg-muted px-1'
-               : 'flex-none'
-         }`}
-      >
-         <button
-            type="button"
-            aria-label={`copy branch name ${pull.data.head.ref}`}
-            title={`copy branch: ${pull.data.head.ref}`}
-            className={btn}
-            onClick={a.copy}
-         >
-            {a.copied ? (
-               <span className="chip-in" style={{ color: 'var(--ok)' }}>
-                  copied
-               </span>
-            ) : (
-               <ActionIcon d={ICON_COPY} />
-            )}
-         </button>
-         <button
-            type="button"
-            aria-label="snooze: hide until tomorrow or until it changes"
-            title="snooze: hide until tomorrow or until it changes"
-            className={btn}
-            onClick={a.snooze}
-         >
-            <ActionIcon d={ICON_SNOOZE} />
-         </button>
-         <button
-            type="button"
-            aria-label="re-fetch this PR from GitHub"
-            title="re-fetch this PR from GitHub"
-            className={btn}
-            onClick={a.refresh}
-         >
-            <ActionIcon d={ICON_REFRESH} spin={a.spinning} />
-         </button>
-         {/* never offered on your own pull — you don't review yourself */}
-         {pull.data.user.login !== me && (
+      <>
+         {/* always visible — not .row-actions — so a claim you hold doesn't
+             vanish when the row loses hover; it's your commitment, not a
+             hover affordance. */}
+         {mine && (
             <button
                type="button"
-               aria-label={mine ? 'release your claim on this review' : 'claim this review'}
-               title={
-                  mine
-                     ? 'release your claim'
-                     : claim
-                       ? `claim review — currently ${claim.login}'s`
-                       : "claim this review — flags that you're reading it"
-               }
-               className={`${btn} ${mine ? 'text-brand' : ''}`}
-               onClick={mine ? a.release : a.claim}
+               aria-label="release your claim"
+               title="release your claim"
+               className="hit pressable rounded border-0 bg-transparent px-1 text-xs text-brand"
+               onClick={a.release}
             >
                <ActionIcon d={ICON_HAND} box={24} />
             </button>
          )}
-      </span>
+         <span
+            className={`row-actions hidden items-center gap-1 min-[720px]:inline-flex ${
+               overlay
+                  ? 'absolute right-full top-1/2 z-10 mr-1 -translate-y-1/2 rounded-md bg-muted px-1'
+                  : 'flex-none'
+            }`}
+         >
+            <button
+               type="button"
+               aria-label={`copy branch name ${pull.data.head.ref}`}
+               title={`copy branch: ${pull.data.head.ref}`}
+               className={btn}
+               onClick={a.copy}
+            >
+               {a.copied ? (
+                  <span className="chip-in" style={{ color: 'var(--ok)' }}>
+                     copied
+                  </span>
+               ) : (
+                  <ActionIcon d={ICON_COPY} />
+               )}
+            </button>
+            <button
+               type="button"
+               aria-label="snooze: hide until tomorrow or until it changes"
+               title="snooze: hide until tomorrow or until it changes"
+               className={btn}
+               onClick={a.snooze}
+            >
+               <ActionIcon d={ICON_SNOOZE} />
+            </button>
+            <button
+               type="button"
+               aria-label="re-fetch this PR from GitHub"
+               title="re-fetch this PR from GitHub"
+               className={btn}
+               onClick={a.refresh}
+            >
+               <ActionIcon d={ICON_REFRESH} spin={a.spinning} />
+            </button>
+            {/* never offered on your own pull — you don't review yourself.
+                Once it's yours, the always-visible hand above (outside
+                .row-actions) takes over so the claim doesn't disappear on
+                hover-out. */}
+            {pull.data.user.login !== me && !mine && (
+               <button
+                  type="button"
+                  aria-label="claim this review"
+                  title={
+                     claim
+                        ? `claim review — currently ${claim.login}'s`
+                        : "claim this review — flags that you're reading it"
+                  }
+                  className={btn}
+                  onClick={a.claim}
+               >
+                  <ActionIcon d={ICON_HAND} box={24} />
+               </button>
+            )}
+         </span>
+      </>
    );
 }
 
