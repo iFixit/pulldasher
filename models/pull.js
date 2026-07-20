@@ -82,6 +82,43 @@ class Pull {
      return Array.from(participants);
   }
 
+  /**
+   * Reviewers whose latest review verdict isn't otherwise visible on the
+   * board. An APPROVED review already surfaces as an active CR signature
+   * (Signature.parseReview synthesizes one), so this only needs to carry the
+   * verdicts that vanish today: CHANGES_REQUESTED, COMMENTED, DISMISSED, etc.
+   * One entry per distinct reviewer login (their most recent review by date),
+   * excluding the pull author and anyone who already holds an active CR
+   * signature (they're already counted there).
+   */
+  collectUnstampedReviewers() {
+    const authorLogin = this.data.user && this.data.user.login;
+    const activeCrLogins = new Set(
+      this.getSignatures("CR").map((sig) => sig.data.user.login)
+    );
+
+    const latestByLogin = new Map();
+    (this.reviews || []).forEach((review) => {
+      const login = review.data.user.login;
+      if (!login || login === authorLogin) return;
+      const existing = latestByLogin.get(login);
+      if (!existing || review.data.submitted_at > existing.data.submitted_at) {
+        latestByLogin.set(login, review);
+      }
+    });
+
+    const unstamped = [];
+    latestByLogin.forEach((review, login) => {
+      if (activeCrLogins.has(login)) return;
+      unstamped.push({
+        login,
+        state: review.data.state,
+        date: Math.floor(review.data.submitted_at.getTime() / 1000),
+      });
+    });
+    return unstamped;
+  }
+
   syncToIssue() {
     return Promise.resolve(this);
     /* The below needs to be rethought a bit and possibly the causal direction
@@ -169,6 +206,11 @@ class Pull {
             Math.max(...this.comments.map((c) => c.data.created_at.getTime()))
           )
         : null,
+      // Additive, unstamped review verdicts (CHANGES_REQUESTED/COMMENTED/
+      // DISMISSED) that today have no other visibility on the board. Older
+      // frontends ignore unknown status fields, so this is safe to ship
+      // unconditionally.
+      unstamped_reviewers: this.collectUnstampedReviewers(),
     };
 
     return status;
