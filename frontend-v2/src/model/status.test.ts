@@ -249,6 +249,61 @@ describe('status derivation precedence', () => {
    });
 });
 
+describe('changesRequestedBy / engagedNoStamp', () => {
+   it('changesRequestedBy carries only CHANGES_REQUESTED unstamped verdicts', () => {
+      const p = withStatus({
+         unstamped_reviewers: [
+            { login: 'grumpy', state: 'CHANGES_REQUESTED', date: 1 },
+            { login: 'chatty', state: 'COMMENTED', date: 2 },
+         ],
+      });
+      const d = derive(p, undefined, NOW);
+      expect(d.changesRequestedBy).toEqual(['grumpy']);
+   });
+
+   it('engagedNoStamp includes unstamped reviewers of any verdict', () => {
+      const p = withStatus({
+         unstamped_reviewers: [
+            { login: 'grumpy', state: 'CHANGES_REQUESTED', date: 1 },
+            { login: 'chatty', state: 'COMMENTED', date: 2 },
+         ],
+      });
+      const d = derive(p, undefined, NOW);
+      expect(d.engagedNoStamp).toEqual(expect.arrayContaining(['grumpy', 'chatty']));
+   });
+
+   it('engagedNoStamp adds comment-only participants, excluding the author', () => {
+      const p = pull({ participants: ['author', 'lurker', 'commenter'] });
+      const d = derive(p, undefined, NOW);
+      expect(d.engagedNoStamp).toEqual(expect.arrayContaining(['lurker', 'commenter']));
+      expect(d.engagedNoStamp).not.toContain('author');
+   });
+
+   it('engagedNoStamp excludes anyone who already holds a CR/QA signature, active or stale', () => {
+      const p = withStatus(
+         { allCR: [sig('CR', 'reviewer', true)], allQA: [sig('QA', 'stale-qa', false)] },
+         { participants: ['reviewer', 'stale-qa', 'lurker'] }
+      );
+      const d = derive(p, undefined, NOW);
+      expect(d.engagedNoStamp).toEqual(['lurker']);
+   });
+
+   it('engagedNoStamp excludes bots', () => {
+      const p = withStatus(
+         { unstamped_reviewers: [{ login: 'dependabot[bot]', state: 'COMMENTED', date: 1 }] },
+         { participants: ['dependabot[bot]', 'human'] }
+      );
+      const d = derive(p, undefined, NOW);
+      expect(d.engagedNoStamp).toEqual(['human']);
+   });
+
+   it('both derivations default to empty when the server omits unstamped_reviewers', () => {
+      const d = derive(pull(), undefined, NOW);
+      expect(d.changesRequestedBy).toEqual([]);
+      expect(d.engagedNoStamp).toEqual([]);
+   });
+});
+
 function ci(state: 'success' | 'failure' | 'pending' | 'error', context = 'build', sha = 'abc') {
    return {
       data: {

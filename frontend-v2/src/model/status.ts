@@ -1,5 +1,6 @@
 import { epoch } from '../format';
 import type { CommitStatus, Label, PullData, RepoSpec, Signature } from '../types';
+import { isBotLogin } from './visibility';
 
 /**
  * One pull, one status. Mutually exclusive by precedence — the fix for v1's
@@ -93,6 +94,14 @@ export interface DerivedPull {
    qaingLogin: string | null;
    externalBlock: boolean;
    cryo: boolean;
+   /** logins with an open (unstamped) CHANGES_REQUESTED verdict on the
+    * current head — absent on older servers, so always []. */
+   changesRequestedBy: string[];
+   /** logins who reviewed (any verdict) or commented without ever landing a
+    * CR/QA signature of their own (active or stale) — the "someone's engaged
+    * but it left no stamp" signal, e.g. for "answer their review" / "in
+    * discussion with" nudges. Bots excluded. */
+   engagedNoStamp: string[];
 }
 
 export type Weight = 'XS' | 'S' | 'M' | 'L' | 'XL';
@@ -211,6 +220,30 @@ export function derive(
    const crMet = crDone({ crHave, data: pull });
    const qaMet = qaDone({ qaHave, data: pull });
 
+   // Unstamped review verdicts (CHANGES_REQUESTED/COMMENTED/DISMISSED — an
+   // APPROVED review already lands as a CR signature server-side) plus
+   // comment-only participants: the "engaged but no stamp to show for it"
+   // pool rowNote draws "answer their review" / "in discussion with" from.
+   // isBotLogin's suffix check is enough here (an empty extra set): this
+   // model module has no reason to depend on config.json's `bots` list, and
+   // a missed non-suffixed bot just shows up as a harmless extra name.
+   const unstampedReviewers = st.unstamped_reviewers ?? [];
+   const changesRequestedBy = unique(
+      unstampedReviewers.filter(r => r.state === 'CHANGES_REQUESTED').map(r => r.login)
+   );
+   const everStamped = new Set([
+      ...st.allCR.map(s => s.data.user.login),
+      ...st.allQA.map(s => s.data.user.login),
+   ]);
+   const engagedNoStamp = unique(
+      [
+         ...unstampedReviewers.map(r => r.login),
+         ...(pull.participants ?? []).filter(
+            login => login !== pull.user.login && !everStamped.has(login)
+         ),
+      ].filter(login => !isBotLogin(login, new Set()))
+   );
+
    const conflict = pull.mergeable === false;
    const dependent = !['main', 'master'].includes(pull.base.ref);
    const label = (title: string) => pull.labels.find(l => l.title === title);
@@ -277,6 +310,8 @@ export function derive(
       qaingLogin: label(LABELS.qaing)?.user ?? null,
       externalBlock: !!label(LABELS.externalBlock),
       cryo: !!label(LABELS.cryo),
+      changesRequestedBy,
+      engagedNoStamp,
    };
 }
 

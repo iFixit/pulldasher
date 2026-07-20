@@ -52,6 +52,43 @@ function redateSigs(
    return { ...status, allCR: shift(status.allCR, 0), allQA: shift(status.allQA, 600_000) };
 }
 
+// The imperative-nudge system (model/actions.ts rowNote) reads `participants`
+// and `status.unstamped_reviewers` to say "answer their review" / "in
+// discussion with" — both postdate this fixture, so a few fixed pulls carry
+// them here (deterministic indexes, no randomness) to keep those nudges
+// QA-able in dummy mode.
+const CHANGES_REQUESTED_INDEX = 2;
+const COMMENTED_INDEX = 8;
+const EXTRA_PARTICIPANT_INDEXES = new Set([2, 5, 6, 8]);
+
+function unstampedReviewerFor(
+   i: number,
+   atEpochSecs: number
+): PullData['status']['unstamped_reviewers'] {
+   if (i === CHANGES_REQUESTED_INDEX) {
+      return [{ login: 'grumpy-reviewer', state: 'CHANGES_REQUESTED', date: atEpochSecs }];
+   }
+   if (i === COMMENTED_INDEX) {
+      return [{ login: 'curious-commenter', state: 'COMMENTED', date: atEpochSecs }];
+   }
+   return undefined;
+}
+
+// Participants beyond the CR/QA stampers already on the pull, so
+// engagedNoStamp (a review with no stamp, or a comment-only bystander) has
+// something to derive.
+function participantsFor(pull: PullData, i: number): string[] {
+   if (!EXTRA_PARTICIPANT_INDEXES.has(i)) return pull.participants ?? [];
+   const stampers = [...pull.status.allCR, ...pull.status.allQA].map(s => s.data.user.login);
+   const extra =
+      i === CHANGES_REQUESTED_INDEX
+         ? ['grumpy-reviewer']
+         : i === COMMENTED_INDEX
+           ? ['curious-commenter']
+           : ['silent-lurker'];
+   return [...new Set([...(pull.participants ?? []), ...stampers, ...extra])];
+}
+
 function redate(pull: PullData, i: number): PullData {
    const now = Date.now();
    const ageDays = (i * 7919) % 45; // deterministic spread, 0-45 days
@@ -61,11 +98,14 @@ function redate(pull: PullData, i: number): PullData {
    // and size-derived stats aren't all flat XS in dummy mode
    const additions = pull.additions ?? 17 + ((i * 4099) % 1600);
    const deletions = pull.deletions ?? (i * 1237) % 400;
+   const status = redateSigs(pull.status, created.getTime(), now);
+   const unstamped_reviewers = unstampedReviewerFor(i, Math.floor(created.getTime() / 1000) + 3600);
    return {
       ...pull,
       created_at: created.toISOString(),
       updated_at: updated.toISOString(),
-      status: redateSigs(pull.status, created.getTime(), now),
+      status: unstamped_reviewers ? { ...status, unstamped_reviewers } : status,
+      participants: participantsFor(pull, i),
       additions,
       deletions,
    };

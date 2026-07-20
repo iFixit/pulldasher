@@ -89,6 +89,10 @@ export interface PullData {
       /** discussion aggregates; absent on servers older than the field */
       comment_count?: number;
       last_comment_at?: DateString | null;
+      /** reviewers whose latest verdict has no signature of its own (CHANGES_
+       * REQUESTED/COMMENTED/DISMISSED — an APPROVED review already shows up
+       * as a CR signature); optional — older servers won't send it. */
+      unstamped_reviewers?: { login: string; state: string; date: number }[];
    };
    labels: Label[];
    participants: string[];

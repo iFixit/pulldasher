@@ -393,10 +393,11 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const d = pull.data;
    const key = pullKey(d);
    const fresh = freshKind(pull, opts);
-   // the one action/context line, the same in every lens (model/actions.ts)
+   // the one action/context line, the same in every lens (model/actions.ts) —
+   // never null for an open pull, so the wait text always renders
    const note = rowNote(pull, opts.me);
    // "iterating" and a "fix pushed …" note say the same thing — don't say it twice
-   const showIterating = isIterating(pull) && !note?.text.includes('pushed');
+   const showIterating = isIterating(pull) && !note.text.includes('pushed');
    return (
       <CardShell
          login={d.user.login}
@@ -415,7 +416,7 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
                {/* your move: the imperative IS the signal, so it leads and the
                    badge (which would only echo it) steps aside. Otherwise the
                    badge names the state and any note just adds who/when. */}
-               {note?.tone === 'do' ? (
+               {note.tone === 'do' ? (
                   <span className="badge-do">{note.text}</span>
                ) : (
                   <StatusBadge status={pull.status} inline />
@@ -424,7 +425,7 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
                {pull.sizeKnown && (
                   <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
                )}
-               {note?.tone === 'wait' && <span className="text-ink-2">{note.text}</span>}
+               {note.tone === 'wait' && <span className="text-ink-2">{note.text}</span>}
                <RowDetails flags={rowFlags(pull, showIterating, !!opts.aging && pull.starved)} />
             </>
          }
