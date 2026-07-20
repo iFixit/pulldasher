@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { STATUS_ORDER, type DerivedPull } from '../model/status';
+import { useSettings } from '../settings';
 import type { Team } from '../types';
 import { Avatar, EmptyState } from '../components/bits';
 import { Fold, FoldRows, Lane, RestGroup } from '../components/Lane';
@@ -33,15 +34,24 @@ export function People({
    opts: RowOptions;
 }) {
    const [allPeople, setAllPeople] = useState(false);
+   const { starredPeople, mutedPeople } = useSettings();
+   const starredSet = new Set(starredPeople);
+   const mutedSet = new Set(mutedPeople);
    const counts = new Map<string, number>();
    for (const p of allPulls)
       counts.set(p.data.user.login, (counts.get(p.data.user.login) ?? 0) + 1);
    const owes = new Map<string, DerivedPull[]>();
    for (const p of allPulls) for (const u of p.recrBy) owes.set(u, [...(owes.get(u) ?? []), p]);
 
-   const logins = [...new Set([...counts.keys(), ...owes.keys()])].sort(
-      (a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0)
-   );
+   // starred people lead the directory; muted ones drop out entirely unless
+   // they're the person an explicit pick (a URL or a click) already landed on
+   const logins = [...new Set([...counts.keys(), ...owes.keys()])]
+      .filter(l => !mutedSet.has(l) || l === person)
+      .sort(
+         (a, b) =>
+            Number(starredSet.has(b)) - Number(starredSet.has(a)) ||
+            (counts.get(b) ?? 0) - (counts.get(a) ?? 0)
+      );
 
    // an explicit pick always wins, even with zero open PRs — silently
    // showing someone else's board mid-conversation is worse than an empty one.

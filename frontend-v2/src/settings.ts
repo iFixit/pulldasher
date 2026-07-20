@@ -46,6 +46,15 @@ export interface Settings {
    /** logins of your teammates (you are implicit; not GitHub teams — a
     * per-browser list powering the Team lens and the "Your team" filter). */
    myTeam: string[];
+   /** logins you star — their pulls float to the front of the review queue,
+    * Needs QA, and the People chip list. No org baseline (unlike repos): a
+    * simple two-state per-person toggle. */
+   starredPeople: string[];
+   /** logins whose pulls stay off your board until an explicit reveal (a
+    * scope pick or an author: query term) brings them back for the session.
+    * Mirrors repoPrefs' mute, but people have no org baseline to fall back
+    * to — muting is the whole state. */
+   mutedPeople: string[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -64,6 +73,8 @@ export const DEFAULT_SETTINGS: Settings = {
    selfReview: true,
    primaryRepos: [],
    myTeam: [],
+   starredPeople: [],
+   mutedPeople: [],
 };
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
@@ -98,6 +109,20 @@ export function toggleTeammate(login: string, add: boolean) {
    const cur = store.get().myTeam;
    const next = add ? [...new Set([...cur, login])].sort() : cur.filter(l => l !== login);
    setSettings({ myTeam: next });
+}
+
+/** Star or unstar a person. Deduped and sorted for a stable render order. */
+export function toggleStarredPerson(login: string, on: boolean) {
+   const cur = store.get().starredPeople;
+   const next = on ? [...new Set([...cur, login])].sort() : cur.filter(l => l !== login);
+   setSettings({ starredPeople: next });
+}
+
+/** Mute or unmute a person. Deduped and sorted for a stable render order. */
+export function toggleMutedPerson(login: string, on: boolean) {
+   const cur = store.get().mutedPeople;
+   const next = on ? [...new Set([...cur, login])].sort() : cur.filter(l => l !== login);
+   setSettings({ mutedPeople: next });
 }
 
 export function useSettings(): Settings {

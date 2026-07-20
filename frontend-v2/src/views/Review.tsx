@@ -1,6 +1,6 @@
 import { type DerivedPull, qaDone, type Status, weightRank } from '../model/status';
 import { pullKey } from '../format';
-import { crSort } from '../model/sort';
+import { crSort, starFirst } from '../model/sort';
 import { authorMove, reviewerMove } from '../model/actions';
 import { useSettings } from '../settings';
 import { isFresh } from '../store';
@@ -29,7 +29,8 @@ export function Review({
    opts: RowOptions;
 }) {
    const me = opts.me;
-   const { selfReview, primaryRepos } = useSettings();
+   const { selfReview, primaryRepos, starredPeople } = useSettings();
+   const starred = new Set(starredPeople);
    const others = pulls.filter(p => p.data.user.login !== me);
 
    // Repo relevance is per-person: a web dev and a firmware dev share the
@@ -87,7 +88,10 @@ export function Review({
    // repos" so it's reachable but not in the way. Starvation stays cross-repo
    // (below) — the fairness backstop is deliberately everyone's job.
    const reviewable = crSort(crPool.filter(p => !p.starved));
-   const queue = reviewable.filter(p => isPrimaryRepo(p.data.repo));
+   const queue = starFirst(
+      reviewable.filter(p => isPrimaryRepo(p.data.repo)),
+      starred
+   );
    const queueOther = reviewable.filter(p => !isPrimaryRepo(p.data.repo));
 
    // Ready-to-merge is the author's button, not the reviewer's job: a count
@@ -121,7 +125,7 @@ export function Review({
                (b.sizeKnown ? weightRank(b.weight) : 2.5) ||
             b.ageDays - a.ageDays
       );
-   const needsQa = qaSort(qaPool.filter(p => isPrimaryRepo(p.data.repo)));
+   const needsQa = starFirst(qaSort(qaPool.filter(p => isPrimaryRepo(p.data.repo))), starred);
    const needsQaOther = qaSort(qaPool.filter(p => !isPrimaryRepo(p.data.repo)));
 
    // your live CR stamp is in, the PR just isn't fully signed off yet (another

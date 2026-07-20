@@ -1,9 +1,11 @@
 /**
- * The one place "is this repo on my board by default" is decided, shared by
- * the filter pipeline and the Filters UI so they can never disagree. Three
- * parties vote in a fixed order of authority — a per-user override beats the
- * org baseline — and a session reveal (scope, query, the show= set) can still
- * override the result for right now (that lives in app.tsx, not here).
+ * The one place "is this repo (or person) on my board by default" is
+ * decided, shared by the filter pipeline and the filter controls so they can
+ * never disagree. For repos, three parties vote in a fixed order of
+ * authority — a per-user override beats the org baseline — and a session
+ * reveal (scope, query, the show= set) can still override the result for
+ * right now (that lives in app.tsx, not here). People have no org baseline:
+ * muting is a plain two-state toggle.
  */
 
 /** the reveal-set sentinel for Cryogenic-Storage PRs (repo names fill the rest) */
@@ -43,4 +45,10 @@ export function repoHidden(
  * else a login list must leave bots out (e.g. the team picker). */
 export function isBotLogin(login: string, extra: ReadonlySet<string>): boolean {
    return login.endsWith('[bot]') || extra.has(login);
+}
+
+/** A person has no org baseline the way a repo does — muting is a plain
+ * two-state toggle, not a three-way state like repoState. */
+export function personHidden(login: string, muted: string[]): boolean {
+   return muted.includes(login);
 }

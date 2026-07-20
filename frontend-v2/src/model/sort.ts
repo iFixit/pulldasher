@@ -34,3 +34,17 @@ export function crSort(pulls: DerivedPull[]): DerivedPull[] {
             ((b.data.additions ?? 0) + (b.data.deletions ?? 0))
    );
 }
+
+/**
+ * Stable-partition a sorted list so starred authors' pulls float to the
+ * front, preserving each group's existing relative order — a starred
+ * teammate's pull outranks everyone else's regardless of weight or age, but
+ * the queue's own sort still decides order within "starred" and within
+ * "everyone else."
+ */
+export function starFirst(pulls: DerivedPull[], starred: ReadonlySet<string>): DerivedPull[] {
+   return [
+      ...pulls.filter(p => starred.has(p.data.user.login)),
+      ...pulls.filter(p => !starred.has(p.data.user.login)),
+   ];
+}
