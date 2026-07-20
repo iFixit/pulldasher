@@ -158,6 +158,7 @@ export function App() {
       lastSeen,
       acked,
       snoozed,
+      refreshProgress,
    } = usePulldasher();
    // desktop notifications watch the whole board, not the current filter
    useNotifications(pulls, me);
@@ -510,6 +511,15 @@ export function App() {
                >
                   <span className="sr-only">live updates {connection}</span>
                </span>
+               {refreshProgress && (
+                  // no spinner, no color — the changing number is the motion,
+                  // same wording Settings' Data group shows for the same state
+                  <span className="text-xs text-ink-3 tabular-nums">
+                     {refreshProgress.done === refreshProgress.total
+                        ? `refreshed ${refreshProgress.total}`
+                        : `refreshing ${refreshProgress.done} of ${refreshProgress.total}`}
+                  </span>
+               )}
                <span className="text-xs text-ink-3 tabular-nums">
                   <b className="text-ink">
                      {isScoped ? `${scoped.length} of ${pulls.length}` : pulls.length}

@@ -33,6 +33,9 @@ export interface Snapshot {
    /** pull key → epoch secs it was snoozed: hidden for a day or until it
     * changes. Persisted per-browser. */
    snoozed: Readonly<Record<string, number>>;
+   /** "Refresh all" in progress (or just finished): how many of the pulls
+    * queued at kickoff have reported back. Null when no refresh is running. */
+   refreshProgress: { done: number; total: number } | null;
 }
 
 const LAST_SEEN_KEY = 'pd2.lastSeen';
@@ -48,6 +51,36 @@ let initialized = false;
 let authFailed = false;
 let lastPayloadAt = 0;
 const listeners = new Set<() => void>();
+
+// "Refresh all" progress: the set of pull keys still awaiting a pullChange
+// since the last refreshAll() kickoff. total is fixed at kickoff so the
+// header/Settings chip reads "N of TOTAL" even as pending shrinks. Null
+// means no refresh is in flight (or its grace window has elapsed).
+let refreshTracking: { pending: Set<string>; total: number } | null = null;
+let refreshCompleteTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** A reconnect resends everything as one 'initialize' payload, which isn't
+ * the per-pull pullChange this tracking is counting — treat it as "the
+ * refresh's work is moot", not "N more arrived", or the counter would stall
+ * short of total forever. */
+function clearRefreshTracking() {
+   if (refreshCompleteTimer != null) clearTimeout(refreshCompleteTimer);
+   refreshCompleteTimer = null;
+   refreshTracking = null;
+}
+
+/** Count a pullChange toward the in-flight refresh, if one is running. On
+ * the last arrival, hold the finished "N of N" on screen briefly — a fast
+ * board would otherwise flash the count and clear it before anyone reads it. */
+function noteRefreshArrival(key: string) {
+   if (!refreshTracking || !refreshTracking.pending.delete(key)) return;
+   if (refreshTracking.pending.size > 0) return;
+   refreshCompleteTimer = setTimeout(() => {
+      refreshTracking = null;
+      refreshCompleteTimer = null;
+      schedulePublish();
+   }, 4000);
+}
 
 // The marker advances when you LEAVE (pagehide / tab hidden), not when you
 // arrive — an accidental reload must not erase "changed since yesterday".
@@ -170,6 +203,7 @@ let snapshot: Snapshot = {
    lastSeen,
    acked: { ...acked },
    snoozed: { ...snoozed },
+   refreshProgress: null,
 };
 
 // derive() is pure per (pull, spec, warnDays, minute): cache on reference
@@ -237,6 +271,12 @@ function publish() {
       lastSeen,
       acked: { ...acked },
       snoozed: { ...snoozed },
+      refreshProgress: refreshTracking
+         ? {
+              done: refreshTracking.total - refreshTracking.pending.size,
+              total: refreshTracking.total,
+           }
+         : null,
    };
    for (const fn of listeners) fn();
 }
@@ -274,8 +314,13 @@ function start() {
          repoSpecs = payload.repos;
          for (const p of payload.pulls) raw.set(`${p.repo}#${p.number}`, p);
          initialized = true;
+         // a reconnect resends everything; counting it as refresh progress
+         // would either double-count or strand the tracker short of total
+         clearRefreshTracking();
       } else {
-         raw.set(`${payload.repo}#${payload.number}`, payload);
+         const key = `${payload.repo}#${payload.number}`;
+         raw.set(key, payload);
+         noteRefreshArrival(key);
       }
       lastPayloadAt = Date.now() / 1000;
       schedulePublish();
@@ -311,12 +356,16 @@ export const refreshPull = backend.refreshPull;
  * UI can say so. Closed pulls are historical, so they're left out.
  */
 export function refreshAll(): number {
-   let n = 0;
-   for (const p of raw.values()) {
-      if (p.state === 'open') {
-         backend.refreshPull(p.repo, p.number);
-         n++;
-      }
-   }
-   return n;
+   const opens = [...raw.values()].filter(p => p.state === 'open');
+   if (opens.length === 0) return 0;
+   // a re-click mid-refresh restarts the count from this batch, not a merge
+   // with the last one's leftovers
+   clearRefreshTracking();
+   refreshTracking = {
+      pending: new Set(opens.map(p => `${p.repo}#${p.number}`)),
+      total: opens.length,
+   };
+   for (const p of opens) backend.refreshPull(p.repo, p.number);
+   schedulePublish();
+   return opens.length;
 }

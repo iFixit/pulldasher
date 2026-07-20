@@ -8,7 +8,7 @@ import {
    testNotification,
    unlockSound,
 } from '../notifications';
-import { clearSnoozes, markAllSeen, refreshAll } from '../store';
+import { clearSnoozes, markAllSeen, refreshAll, usePulldasher } from '../store';
 import {
    type Settings as SettingsShape,
    setRepoPref,
@@ -102,6 +102,7 @@ export function Settings({
 }) {
    const [open, setOpen] = useState(false);
    const s = useSettings();
+   const { refreshProgress } = usePulldasher();
    const panelRef = useRef<HTMLDivElement>(null);
    const triggerRef = useRef<HTMLButtonElement>(null);
    const [seenNote, setSeenNote] = useState(false);
@@ -399,14 +400,14 @@ export function Settings({
                         <div className="flex items-center gap-3">
                            <QuietButton
                               size="md"
+                              disabled={!!refreshProgress}
                               onClick={() => {
-                                 const n = refreshAll();
-                                 setRefreshNote(
-                                    n
-                                       ? `refreshing ${n} PR${n === 1 ? '' : 's'}…`
-                                       : 'nothing to refresh'
-                                 );
-                                 setTimeout(() => setRefreshNote(''), 2500);
+                                 // live progress (store.refreshProgress) takes over
+                                 // from here; the local note only covers the no-op
+                                 if (refreshAll() === 0) {
+                                    setRefreshNote('nothing to refresh');
+                                    setTimeout(() => setRefreshNote(''), 2500);
+                                 }
                               }}
                            >
                               Refresh all
@@ -414,8 +415,12 @@ export function Settings({
                            {/* role=status stays mounted so the announcement fires
                                when the text lands — a screen reader hears the
                                confirmation, not just sighted users */}
-                           <span role="status" className="text-xs text-ink-3">
-                              {refreshNote}
+                           <span role="status" className="text-xs text-ink-3 tabular-nums">
+                              {refreshProgress
+                                 ? refreshProgress.done === refreshProgress.total
+                                    ? `refreshed ${refreshProgress.total}`
+                                    : `refreshing ${refreshProgress.done} of ${refreshProgress.total}…`
+                                 : refreshNote}
                            </span>
                         </div>
 

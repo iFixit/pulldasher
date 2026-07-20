@@ -77,17 +77,36 @@ function liveBackend(): Backend {
 }
 
 function dummyBackend(): Backend {
+   let emit: ((payload: InitializePayload | PullData) => void) | null = null;
+   let loaded: InitializePayload | null = null;
+   let staggered = 0;
    return {
       whoami: () => Promise.resolve(dummyUser()),
       onPulls(handler) {
-         void loadDummy().then(payload => handler(payload));
+         emit = handler;
+         void loadDummy().then(payload => {
+            loaded = payload;
+            handler(payload);
+         });
       },
       onConnection(handler) {
          handler('connected');
          return () => {};
       },
-      refreshPull() {
-         // Nothing to refresh against; the dummy data is static.
+      refreshPull(repo, number) {
+         // The dummy data is static, but the refresh-progress UI still needs
+         // arrivals to count — re-emit the same pull on a stagger so the
+         // "X of N" counter animates to completion like a real refresh would.
+         const pull = loaded?.pulls.find(p => p.repo === repo && p.number === number);
+         if (!pull || !emit) return;
+         staggered += 1;
+         setTimeout(
+            () => {
+               staggered -= 1;
+               emit?.(pull);
+            },
+            300 + staggered * 15
+         );
       },
    };
 }
