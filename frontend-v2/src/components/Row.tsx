@@ -639,7 +639,7 @@ function MetricRail({
    const me = opts.me;
    return (
       <span
-         className={`pd-rail pd-raise ml-auto flex flex-none items-center gap-2.5 ${
+         className={`pd-rail pd-raise ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2.5 ${
             opts.compact ? 'relative' : ''
          }`}
       >
