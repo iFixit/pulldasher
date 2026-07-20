@@ -27,6 +27,7 @@ import { matchesQuery } from './model/query';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from './model/visibility';
 import { foldDomId, openFold } from './components/Lane';
 import { Legend } from './components/Legend';
+import { NotificationPanel } from './components/NotificationPanel';
 import { RepoFilter } from './components/filters/RepoFilter';
 import { PeopleFilter } from './components/filters/PeopleFilter';
 import { WeightFilter } from './components/filters/WeightFilter';
@@ -764,14 +765,11 @@ export function App() {
       setLens('review');
       setWeightSel(['XS', 'S']);
    }, []);
-   const { toasts, dismiss: dismissToast } = useToasts(
-      pulls,
-      me,
-      claims,
-      shippedExtras,
-      closed,
-      onQuickWins
-   );
+   const {
+      toasts,
+      dismiss: dismissToast,
+      history: toastHistory,
+   } = useToasts(pulls, me, claims, shippedExtras, closed, onQuickWins);
 
    return (
       <>
@@ -819,6 +817,7 @@ export function App() {
                >
                   v1 board
                </a>
+               <NotificationPanel records={toastHistory} />
                <Legend />
                <Settings
                   repos={repoCounts}

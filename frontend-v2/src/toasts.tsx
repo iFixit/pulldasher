@@ -19,6 +19,17 @@ const TTL_MS: Record<ToastTone, number> = { reward: 5000, nag: 7000, info: 9000 
 const LEAVE_MS = 200;
 /** Most toasts on screen at once; a fourth pushes the oldest out early. */
 const MAX_VISIBLE = 3;
+/** How many past nudges the notification panel keeps — toasts are non-sticky
+ * and session-only, but they shouldn't vanish for good the moment they fade. */
+const HISTORY_CAP = 40;
+
+/** A fired toast kept for the notification panel: the toast itself plus when it
+ * fired (ms epoch), so a dismissed nudge stays recoverable. */
+export interface ToastRecord {
+   id: number;
+   toast: Toast;
+   at: number;
+}
 
 /** Dev-only samples for previewing the toast visuals (see the __pdCheers hook
  * below) — one of every tone/kind, so the whole catalog is QA-able against the
@@ -121,8 +132,10 @@ export function useToasts(
    onQuickWins?: () => void
 ) {
    const [toasts, setToasts] = useState<LiveToast[]>([]);
+   const [history, setHistory] = useState<ToastRecord[]>([]);
    const baseline = useRef<CheerBaseline>(EMPTY_BASELINE);
    const nextId = useRef(0);
+   const histId = useRef(0);
    const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
    const toastsRef = useRef<LiveToast[]>([]);
    const firedKeys = useRef<Set<string>>(new Set());
@@ -159,6 +172,11 @@ export function useToasts(
    const push = useCallback(
       (fresh: Toast[]) => {
          if (fresh.length === 0) return;
+         // keep every fired nudge for the panel, newest first — separate id
+         // space from the live stack, since the panel outlives the toast
+         const firedAt = Date.now();
+         const records = fresh.map(t => ({ id: histId.current++, toast: t, at: firedAt }));
+         setHistory(h => [...records, ...h].slice(0, HISTORY_CAP));
          setToasts(list => {
             const added = fresh.map(t => ({ ...t, id: nextId.current++ }));
             let merged = [...list, ...added];
@@ -238,7 +256,7 @@ export function useToasts(
       };
    }, []);
 
-   return { toasts, dismiss };
+   return { toasts, dismiss, history };
 }
 
 function Sparks() {
