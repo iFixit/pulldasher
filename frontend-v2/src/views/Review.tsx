@@ -1,15 +1,80 @@
+import { useState } from 'react';
 import { type DerivedPull, qaDone, type Status, weightRank } from '../model/status';
-import { pullKey } from '../format';
+import { pullKey, rowDomId } from '../format';
 import { crSort, starFirst } from '../model/sort';
 import { groupIntoTree } from '../model/stack';
 import { authorMove, reviewerMove } from '../model/actions';
+import { dealOne } from '../model/deal';
 import { useSettings } from '../settings';
-import { isFresh } from '../store';
+import { claimReview, isFresh, releaseReview, usePulldasher } from '../store';
 import type { PullData } from '../types';
-import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
+import { EmptyState, QuietButton, STATUS_DOT, STATUS_LABEL } from '../components/bits';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, Truncated } from '../components/Lane';
-import { Row, type RowOptions } from '../components/Row';
+import { markDealtFlash, Row, type RowOptions } from '../components/Row';
 import { ClosedRow } from '../components/ClosedRow';
+
+/**
+ * "Deal me one": for a reviewer who'd rather click than browse, pick the
+ * single best pull from the review queue, claim it, and scroll to it. A
+ * "Pass" button appears alongside once something's dealt — passing releases
+ * the claim and deals the next one, so cycling through the queue this way
+ * never requires opening the lane at all.
+ */
+function DealButton({ queue, opts }: { queue: DerivedPull[]; opts: RowOptions }) {
+   const { pulls } = usePulldasher();
+   const [dealtKey, setDealtKey] = useState<string | null>(null);
+   const [passed, setPassed] = useState<ReadonlySet<string>>(new Set());
+   // self-clearing, same pattern as Settings' refreshNote — a transient
+   // "nothing to deal" note, not a standing empty state
+   const [note, setNote] = useState('');
+
+   const deal = (passedNow: ReadonlySet<string>) => {
+      const picked = dealOne(queue, {
+         me: opts.me,
+         pulls,
+         claims: opts.claims ?? {},
+         passed: passedNow,
+      });
+      if (!picked) {
+         setDealtKey(null);
+         setNote('nothing to deal');
+         setTimeout(() => setNote(''), 2500);
+         return;
+      }
+      setDealtKey(pullKey(picked.data));
+      claimReview(picked.data);
+      // the flash needs the row to actually re-render (see markDealtFlash) —
+      // claiming does that on its own a beat later, once the store's debounced
+      // publish lands with the new claims map
+      markDealtFlash(pullKey(picked.data));
+      const id = rowDomId(picked.data);
+      requestAnimationFrame(() => {
+         document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+   };
+
+   const dealt = dealtKey ? queue.find(p => pullKey(p.data) === dealtKey) : null;
+
+   return (
+      <span className="flex items-center gap-2">
+         {note && <span className="text-xs text-ink-3">{note}</span>}
+         <QuietButton onClick={() => deal(passed)}>Deal me one</QuietButton>
+         {dealt && (
+            <QuietButton
+               onClick={() => {
+                  releaseReview(dealt.data);
+                  const next = new Set(passed);
+                  next.add(dealtKey!);
+                  setPassed(next);
+                  deal(next);
+               }}
+            >
+               Pass
+            </QuietButton>
+         )}
+      </span>
+   );
+}
 
 /**
  * The home tab. It opens with the one lane the whole app used to lack: every
@@ -209,7 +274,13 @@ export function Review({
             cap={8}
             opts={opts}
          />
-         <Lane title="Review queue" pulls={queue} cap={9} opts={opts} />
+         <Lane
+            title="Review queue"
+            pulls={queue}
+            cap={9}
+            opts={opts}
+            headerExtra={<DealButton queue={queue} opts={opts} />}
+         />
          <Lane
             title="Aging without full review"
             pulls={aged}

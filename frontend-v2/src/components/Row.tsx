@@ -2,8 +2,9 @@ import { memo, useState, type ReactNode } from 'react';
 import type { DerivedPull } from '../model/status';
 import { isIterating, lastPushEpoch } from '../model/status';
 import { rowNote } from '../model/actions';
+import { turnFor } from '../model/rotation';
 import type { ParentRef } from '../model/stack';
-import { ago, epoch, pullKey, shortRepo } from '../format';
+import { ago, epoch, pullKey, rowDomId, shortRepo } from '../format';
 import {
    setRepoPref,
    toggleMutedPerson,
@@ -11,7 +12,16 @@ import {
    toggleStarredPerson,
    useSettings,
 } from '../settings';
-import { ackPull, isFresh, refreshPull, snoozePull, usePulldasher } from '../store';
+import {
+   ackPull,
+   claimFor,
+   claimReview,
+   isFresh,
+   refreshPull,
+   releaseReview,
+   snoozePull,
+   usePulldasher,
+} from '../store';
 import { AgeStamp, DiffSize, FreshTag, RepoRef, SigPips, WeightMeter } from './bits';
 import { CardShell } from './Card';
 import { ContextPopover, StatusBadgeTrigger } from './StatePopover';
@@ -43,6 +53,12 @@ export interface RowOptions {
     * lens' scope), so the 'stacked' flag can name it instead of just saying
     * "based on <ref>". */
    parentOf?: (p: DerivedPull) => ParentRef | null;
+   /** pull key → who's claimed to review it (store.ts's Snapshot.claims):
+    * absolves/redirects the row's note ahead of the turn rotation below. */
+   claims?: Readonly<Record<string, { login: string; at: number }>>;
+   /** per-repo reviewer pool for the deterministic turn rotation
+    * (model/rotation.ts), memoized once in app.tsx over the whole board. */
+   pools?: ReadonlyMap<string, string[]>;
 }
 
 /**
@@ -63,6 +79,30 @@ function flashOnce(key: string, fresh: boolean): boolean {
    flashed.add(key);
    return true;
 }
+
+/**
+ * The same one-shot `.row-fresh` highlight a brand-new/updated row gets,
+ * requested on demand for a row that ISN'T fresh — Review's "Deal me one"
+ * flashing the pull it just claimed. Recorded in a Set exactly like flashOnce
+ * above (and consumed the same one-shot way below) rather than mutated
+ * directly on the DOM: a claim always changes opts.claims's reference, which
+ * forces this memoized row to re-render on its own shortly after (see Row's
+ * memo comparator) — direct className mutation would just get clobbered by
+ * that re-render, since Row doesn't otherwise know to keep the class.
+ */
+const dealtFlash = new Set<string>();
+export function markDealtFlash(key: string): void {
+   dealtFlash.add(key);
+}
+function consumeDealtFlash(key: string): boolean {
+   if (!dealtFlash.has(key)) return false;
+   dealtFlash.delete(key);
+   return true;
+}
+
+// stable reference for lenses that haven't threaded RowOptions.pools yet, so
+// turnFor's .get() always has a Map to call
+const EMPTY_POOLS = new Map<string, string[]>();
 
 interface Flag {
    key: string;
@@ -245,6 +285,10 @@ const ICON_REFRESH =
    'M8 3a5 5 0 1 0 4.9 6h-1.55A3.5 3.5 0 1 1 8 4.5c.97 0 1.85.4 2.48 1.02L8.5 7.5H13V3l-1.46 1.46A4.98 4.98 0 0 0 8 3Z';
 const ICON_KEBAB =
    'M8 4.4a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Zm0 5a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Zm0 5a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Z';
+// An open eye: "I'm reading this one" — the claim toggle. Filled when the
+// claim is yours (below), outlined otherwise, same glyph either way.
+const ICON_EYE =
+   'M8 3.5C4.5 3.5 1.7 5.8.5 8c1.2 2.2 4 4.5 7.5 4.5S14.8 10.2 16 8C14.8 5.8 12 3.5 8 3.5Zm0 7.5A3 3 0 1 1 8 5a3 3 0 0 1 0 6Zm0-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z';
 
 function ActionIcon({ d, spin }: { d: string; spin?: boolean }) {
    return (
@@ -259,8 +303,8 @@ function ActionIcon({ d, spin }: { d: string; spin?: boolean }) {
 }
 
 /**
- * The three per-row actions, shared by the desktop hover cluster and the
- * mobile kebab menu so the two surfaces can never disagree on behavior.
+ * The per-row actions, shared by the desktop hover cluster and the mobile
+ * kebab menu so the two surfaces can never disagree on behavior.
  */
 function useRowActions(pull: DerivedPull) {
    const [copied, setCopied] = useState(false);
@@ -279,6 +323,8 @@ function useRowActions(pull: DerivedPull) {
          setSpinning(true);
          setTimeout(() => setSpinning(false), 600);
       },
+      claim: () => claimReview(pull.data),
+      release: () => releaseReview(pull.data),
    };
 }
 
@@ -290,10 +336,21 @@ function useRowActions(pull: DerivedPull) {
  * out of the title. Hidden below 720px, where RowActionsKebab takes over
  * (hover-reveal has no phone story).
  */
-function RowActions({ pull, overlay }: { pull: DerivedPull; overlay?: boolean }) {
+function RowActions({
+   pull,
+   overlay,
+   me,
+   claim,
+}: {
+   pull: DerivedPull;
+   overlay?: boolean;
+   me: string;
+   claim: { login: string; at: number } | null;
+}) {
    const a = useRowActions(pull);
    const btn =
       'hit pressable rounded border-0 bg-transparent px-1 text-xs text-ink-3 hover:text-brand';
+   const mine = claim?.login === me;
    return (
       <span
          className={`row-actions hidden items-center gap-1 min-[720px]:inline-flex ${
@@ -335,6 +392,24 @@ function RowActions({ pull, overlay }: { pull: DerivedPull; overlay?: boolean })
          >
             <ActionIcon d={ICON_REFRESH} spin={a.spinning} />
          </button>
+         {/* never offered on your own pull — you don't review yourself */}
+         {pull.data.user.login !== me && (
+            <button
+               type="button"
+               aria-label={mine ? 'release your claim on this review' : 'claim this review'}
+               title={
+                  mine
+                     ? 'release your claim'
+                     : claim
+                       ? `claim review — currently ${claim.login}'s`
+                       : "claim this review — flags that you're reading it"
+               }
+               className={`${btn} ${mine ? 'text-brand' : ''}`}
+               onClick={mine ? a.release : a.claim}
+            >
+               <ActionIcon d={ICON_EYE} />
+            </button>
+         )}
       </span>
    );
 }
@@ -361,7 +436,13 @@ function StarGlyph({ on }: { on: boolean }) {
  * and above 720px it now rides at the end of the hover cluster too, since
  * star/mute have no other home there.
  */
-function RowActionsKebab({ pull }: { pull: DerivedPull }) {
+function RowActionsKebab({
+   pull,
+   claim,
+}: {
+   pull: DerivedPull;
+   claim: { login: string; at: number } | null;
+}) {
    const a = useRowActions(pull);
    const settings = useSettings();
    const { me } = usePulldasher();
@@ -371,6 +452,7 @@ function RowActionsKebab({ pull }: { pull: DerivedPull }) {
    const isPrimaryRepo = settings.primaryRepos.includes(repo);
    const isMutedRepo = settings.repoPrefs[repo] === 'mute';
    const isStarredAuthor = settings.starredPeople.includes(author);
+   const claimedByMe = claim?.login === me;
    const item =
       'flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2 text-left text-xs text-ink-2 hover:bg-muted';
    return (
@@ -414,6 +496,25 @@ function RowActionsKebab({ pull }: { pull: DerivedPull }) {
             <ActionIcon d={ICON_REFRESH} spin={a.spinning} />
             Re-fetch from GitHub
          </button>
+         {/* never offered on your own pull — you don't review yourself */}
+         {author !== me && (
+            <button
+               type="button"
+               className={item}
+               onClick={claimedByMe ? a.release : a.claim}
+               aria-pressed={claimedByMe}
+               title={
+                  claimedByMe
+                     ? 'release your claim'
+                     : claim
+                       ? `claim review — currently ${claim.login}'s`
+                       : "claim this review — flags that you're reading it"
+               }
+            >
+               <ActionIcon d={ICON_EYE} />
+               {claimedByMe ? 'Release claim' : 'Claim review'}
+            </button>
+         )}
          <div aria-hidden className="my-1 border-t border-secondary" />
          <button
             type="button"
@@ -505,7 +606,15 @@ function WeightChip({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
  * fixed-geometry, so it reads as vertical columns down any lens. Raised above
  * the card's click layer so the sign-off popovers still open.
  */
-function MetricRail({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
+function MetricRail({
+   pull,
+   opts,
+   claim,
+}: {
+   pull: DerivedPull;
+   opts: RowOptions;
+   claim: { login: string; at: number } | null;
+}) {
    const d = pull.data;
    const me = opts.me;
    return (
@@ -514,8 +623,8 @@ function MetricRail({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
             opts.compact ? 'relative' : ''
          }`}
       >
-         <RowActions pull={pull} overlay={!!opts.compact} />
-         <RowActionsKebab pull={pull} />
+         <RowActions pull={pull} overlay={!!opts.compact} me={me} claim={claim} />
+         <RowActionsKebab pull={pull} claim={claim} />
          <WeightChip pull={pull} opts={opts} />
          <SigPips
             label="CR"
@@ -562,9 +671,15 @@ function RowImpl({
    const d = pull.data;
    const key = pullKey(d);
    const fresh = freshKind(pull, opts);
+   // who's claimed to review this pull, and whose turn the rotation names —
+   // both optional, so a lens that hasn't threaded them (yet) just sees null
+   // and rowNote falls back to its base (pre-coordination) note
+   const claim = claimFor(d, opts.claims ?? {});
+   const turn = turnFor(pull, opts.pools ?? EMPTY_POOLS);
+   const poolSize = opts.pools?.get(d.repo)?.length ?? 0;
    // the two-slot action/context note, the same in every lens (model/actions.ts)
    // — never both-null for an open pull, so the context text always renders
-   const note = rowNote(pull, opts.me);
+   const note = rowNote(pull, opts.me, { claim, turn });
    // "iterating" and a "fix pushed …" note say the same thing — don't say it twice
    const showIterating = isIterating(pull) && !(note.context ?? '').includes('pushed');
    // the smallest clean marker for a starred author: a tiny ★ over their
@@ -582,9 +697,10 @@ function RowImpl({
          number={d.number}
          title={d.title}
          onOpen={() => ackPull(key)}
+         id={rowDomId(d)}
          compact={opts.compact}
          depth={depth}
-         className={`${flashOnce(key, !!fresh) ? 'row-fresh' : ''} transition-[background-color] duration-150 ease-out motion-reduce:transition-none`}
+         className={`${flashOnce(key, !!fresh) || consumeDealtFlash(key) ? 'row-fresh' : ''} transition-[background-color] duration-150 ease-out motion-reduce:transition-none`}
          avatarBadge={
             starredAuthor && (
                <span
@@ -605,13 +721,28 @@ function RowImpl({
                    the state popover's trigger; when there's also a viewer
                    move, the do-pill rides right after it, so "what's
                    happening" and "what to do" both stay visible at once */}
-               <StatusBadgeTrigger pull={pull} me={opts.me} />
+               <StatusBadgeTrigger
+                  pull={pull}
+                  me={opts.me}
+                  claim={claim}
+                  turn={turn}
+                  poolSize={poolSize}
+               />
                {note.action && <span className="badge-do">{note.action}</span>}
                <RepoRef repo={d.repo} number={d.number} />
                {pull.sizeKnown && (
                   <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
                )}
-               {note.context && <ContextPopover pull={pull} me={opts.me} text={note.context} />}
+               {note.context && (
+                  <ContextPopover
+                     pull={pull}
+                     me={opts.me}
+                     text={note.context}
+                     claim={claim}
+                     turn={turn}
+                     poolSize={poolSize}
+                  />
+               )}
                <RowDetails
                   flags={rowFlags(
                      pull,
@@ -623,7 +754,7 @@ function RowImpl({
                />
             </>
          }
-         rail={<MetricRail pull={pull} opts={opts} />}
+         rail={<MetricRail pull={pull} opts={opts} claim={claim} />}
       />
    );
 }
@@ -647,5 +778,7 @@ export const Row = memo(
       a.opts.ageWarnDays === b.opts.ageWarnDays &&
       a.opts.ageRotDays === b.opts.ageRotDays &&
       a.opts.onWeightToggle === b.opts.onWeightToggle &&
-      a.opts.parentOf === b.opts.parentOf
+      a.opts.parentOf === b.opts.parentOf &&
+      a.opts.claims === b.opts.claims &&
+      a.opts.pools === b.opts.pools
 );

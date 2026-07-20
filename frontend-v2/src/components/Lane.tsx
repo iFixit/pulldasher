@@ -35,17 +35,20 @@ export function Rows({ children }: { children: ReactNode }) {
    );
 }
 
-/** The shared lane/group header: title, optional subtitle, optional right-aligned count. */
+/** The shared lane/group header: title, optional subtitle, optional
+ * right-aligned count and/or an extra control (e.g. Review's "Deal me one"). */
 function GroupHeader({
    title,
    sub,
    count,
    compact,
+   headerExtra,
 }: {
    title: string;
    sub?: string;
    count?: number;
    compact?: boolean;
+   headerExtra?: ReactNode;
 }) {
    return (
       // sticky just under the app header (top from the measured --header-h),
@@ -62,11 +65,13 @@ function GroupHeader({
          </h2>
          {sub && <span className="text-xs text-ink-3">{sub}</span>}
          {/* an empty section earns a title, never a "0" — the count only
-             appears once there's something to count */}
-         {!!count && (
+             appears once there's something to count; headerExtra alone can
+             still earn the right-aligned slot on an otherwise count-less lane */}
+         {(!!count || headerExtra) && (
             <>
                <span className="flex-1" />
-               <span className="text-xs text-ink-3 tabular-nums">{count}</span>
+               {!!count && <span className="text-xs text-ink-3 tabular-nums">{count}</span>}
+               {headerExtra}
             </>
          )}
       </div>
@@ -92,6 +97,7 @@ export function Lane({
    cap = 10,
    opts,
    children,
+   headerExtra,
 }: {
    title: string;
    sub?: string;
@@ -102,6 +108,8 @@ export function Lane({
    opts: RowOptions;
    /** extra rows rendered inside the container, before the more-line */
    children?: ReactNode;
+   /** an extra control right-aligned in the header, e.g. Review's "Deal me one" */
+   headerExtra?: ReactNode;
 }) {
    if (!pulls.length && !children) return null;
    const shown = laneShown(cap, opts);
@@ -113,6 +121,7 @@ export function Lane({
             sub={sub}
             count={count ?? pulls.length}
             compact={opts.compact}
+            headerExtra={headerExtra}
          />
          <Rows>
             {children}

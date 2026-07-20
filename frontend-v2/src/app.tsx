@@ -13,6 +13,7 @@ import { actionState } from './model/actions';
 import type { DerivedPull } from './model/status';
 import { matchesWeightFilter } from './model/status';
 import { buildParentLookup } from './model/stack';
+import { buildReviewerPools } from './model/rotation';
 import type { Team as TeamGroup } from './types';
 import { isSnoozed, setWeightLabels, usePulldasher } from './store';
 import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
@@ -219,9 +220,10 @@ export function App() {
       acked,
       snoozed,
       refreshProgress,
+      claims,
    } = usePulldasher();
    // desktop notifications watch the whole board, not the current filter
-   useNotifications(pulls, me);
+   useNotifications(pulls, me, claims);
    const [scope, setScope] = useScope();
    // a v1 bookmark (?repo=…&author=…&cryo=1…) opens Classic configured the
    // same way; the chip below shows what it applied and dismisses it
@@ -647,6 +649,9 @@ export function App() {
    // pull (not the scoped/filtered view a given lane renders), so a row whose
    // parent got filtered out of ITS list can still name it (see model/stack.ts)
    const parentOf = useMemo(() => buildParentLookup(pulls), [pulls]);
+   // per-repo reviewer pool for the turn rotation (model/rotation.ts): built
+   // once over the whole board's open pulls, same reasoning as parentOf above
+   const pools = useMemo(() => buildReviewerPools(pulls), [pulls]);
    // stable identity so memo(Row) can skip untouched rows on socket bursts
    const rowOpts: RowOptions = useMemo(
       () => ({
@@ -660,6 +665,8 @@ export function App() {
          compact: settings.density === 'compact',
          laneCap: settings.laneCap,
          parentOf,
+         claims,
+         pools,
       }),
       [
          me,
@@ -672,6 +679,8 @@ export function App() {
          settings.density,
          settings.laneCap,
          parentOf,
+         claims,
+         pools,
       ]
    );
 

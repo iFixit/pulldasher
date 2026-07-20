@@ -1,8 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { githubUrl, pullKey, shortRepo } from './format';
 import { alertMove } from './model/actions';
+import { buildReviewerPools, turnFor } from './model/rotation';
 import type { DerivedPull } from './model/status';
 import { getSettings } from './settings';
+
+/** A pull key → this sentinel action means "the rotation just named you" —
+ * distinct from alertMove's real verbs so fire() can give it its own title
+ * (repo/number baked in, since "your turn" alone says nothing about which PR). */
+const TURN_ACTION = '__your-turn__';
 
 export const notificationsSupported = typeof window !== 'undefined' && 'Notification' in window;
 
@@ -80,7 +86,11 @@ const TITLE: Record<string, string> = {
 
 function fire(p: DerivedPull, action: string) {
    try {
-      const notification = new Notification(TITLE[action] ?? action, {
+      const title =
+         action === TURN_ACTION
+            ? `Your turn: review ${shortRepo(p.data.repo)}#${p.data.number}`
+            : (TITLE[action] ?? action);
+      const notification = new Notification(title, {
          body: `${p.data.title} · ${shortRepo(p.data.repo)} #${p.data.number}`,
          // one live notification per PR: a newer state replaces the old one
          tag: pullKey(p.data),
@@ -126,8 +136,17 @@ const MAX_PER_TICK = 5;
  * baseline is recorded on every update regardless, so returning to the tab and
  * leaving again never replays what already happened, and the first payload
  * after load only primes the baseline instead of alerting for the backlog.
+ *
+ * Also covers the turn rotation (model/rotation.ts): a starved, unclaimed
+ * pull whose rotation names YOU gets the same one-shot treatment as a real
+ * alertMove transition. A claim by someone else must never notify — it's
+ * their move now, not an event that landed on you.
  */
-export function useNotifications(pulls: DerivedPull[], me: string) {
+export function useNotifications(
+   pulls: DerivedPull[],
+   me: string,
+   claims: Readonly<Record<string, { login: string; at: number }>> = {}
+) {
    // pull key → the action last seen for it, so a changed action re-alerts
    const seen = useRef<Map<string, string>>(new Map());
    const primed = useRef(false);
@@ -160,10 +179,17 @@ export function useNotifications(pulls: DerivedPull[], me: string) {
          return;
       }
 
+      const pools = buildReviewerPools(pulls);
       const current = new Map<string, string>();
       for (const p of pulls) {
          const action = alertMove(p, me);
-         if (action) current.set(pullKey(p.data), action);
+         if (action) {
+            current.set(pullKey(p.data), action);
+            continue;
+         }
+         const key = pullKey(p.data);
+         const turn = turnFor(p, pools);
+         if (turn === me && !claims[key]) current.set(key, TURN_ACTION);
       }
 
       // record the baseline but stay silent while unprimed or focused
@@ -185,5 +211,5 @@ export function useNotifications(pulls: DerivedPull[], me: string) {
       }
       if (fired > 0 && s.notifySound) chime();
       seen.current = current;
-   }, [pulls, me]);
+   }, [pulls, me, claims]);
 }

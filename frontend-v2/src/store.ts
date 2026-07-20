@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react';
-import { backend, type ConnectionState } from './backend/socket';
+import { backend, type ConnectionState, type ReviewClaims } from './backend/socket';
 import { derive, type DerivedPull, type Weight } from './model/status';
 import { getSettings, subscribeSettings } from './settings';
-import { epoch } from './format';
+import { epoch, pullKey } from './format';
 import { readStorage, writeStorage } from './storage';
 import type { PullData, RepoSpec } from './types';
 
@@ -36,6 +36,10 @@ export interface Snapshot {
    /** "Refresh all" in progress (or just finished): how many of the pulls
     * queued at kickoff have reported back. Null when no refresh is running. */
    refreshProgress: { done: number; total: number } | null;
+   /** pull key → who's claimed to review it and when (server-owned: 4h
+    * expiry, last-writer-wins). The whole map, replaced on every server
+    * update — see backend/socket.ts's onReviewClaims. */
+   claims: Readonly<ReviewClaims>;
 }
 
 const LAST_SEEN_KEY = 'pd2.lastSeen';
@@ -50,6 +54,7 @@ let connection: ConnectionState = 'connecting';
 let initialized = false;
 let authFailed = false;
 let lastPayloadAt = 0;
+let claims: ReviewClaims = {};
 const listeners = new Set<() => void>();
 
 // "Refresh all" progress: the set of pull keys still awaiting a pullChange
@@ -204,6 +209,7 @@ let snapshot: Snapshot = {
    acked: { ...acked },
    snoozed: { ...snoozed },
    refreshProgress: null,
+   claims: {},
 };
 
 // derive() is pure per (pull, spec, warnDays, minute): cache on reference
@@ -277,6 +283,7 @@ function publish() {
               total: refreshTracking.total,
            }
          : null,
+      claims: { ...claims },
    };
    for (const fn of listeners) fn();
 }
@@ -329,6 +336,10 @@ function start() {
       connection = state;
       schedulePublish();
    });
+   backend.onReviewClaims(map => {
+      claims = map;
+      schedulePublish();
+   });
    // the aging threshold feeds derive(): re-derive when the user changes it
    subscribeSettings(schedulePublish);
    // time-based derivations (iterating, "Nm ago") expire even on a quiet board
@@ -347,6 +358,26 @@ export function usePulldasher(): Snapshot {
 }
 
 export const refreshPull = backend.refreshPull;
+
+/** Whoever's claimed to review this pull right now, or null. Pure — reads
+ * whatever claims map the caller hands it (usually the snapshot's), so a Row
+ * and a test fixture agree on the same key convention. */
+export function claimFor(
+   pull: PullData,
+   claims: Readonly<ReviewClaims>
+): { login: string; at: number } | null {
+   return claims[pullKey(pull)] ?? null;
+}
+
+/** Claim/release actions: thin wrappers so callers (Row, "Deal me one") go
+ * through the store like every other mutation instead of reaching into the
+ * backend directly. */
+export function claimReview(pull: Pick<PullData, 'repo' | 'number'>): void {
+   backend.claimReview(pull.repo, pull.number);
+}
+export function releaseReview(pull: Pick<PullData, 'repo' | 'number'>): void {
+   backend.releaseReview(pull.repo, pull.number);
+}
 
 /**
  * Settings action: ask the server to re-fetch every open pull from GitHub.

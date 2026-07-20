@@ -4,6 +4,9 @@ import { isDummy, loadDummy, dummyUser } from './dummy';
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'error';
 
+/** login → { login, at } for the pull that logged the claim; at is ms epoch. */
+export type ReviewClaims = Record<string, { login: string; at: number }>;
+
 export interface Backend {
    /** Resolves once we know who the viewer is (the /token user). */
    whoami: () => Promise<string>;
@@ -11,6 +14,14 @@ export interface Backend {
    onPulls: (handler: (payload: InitializePayload | PullData) => void) => void;
    onConnection: (handler: (state: ConnectionState) => void) => () => void;
    refreshPull: (repo: string, number: number) => void;
+   /** The whole claims map, resent on connect and on every change — the
+    * server owns expiry (4h) and last-writer-wins, so the client never
+    * reconciles a diff, just replaces its copy. */
+   onReviewClaims: (handler: (claims: ReviewClaims) => void) => void;
+   /** Ask to review a pull. The server derives the login from the socket's
+    * own auth — no login argument here. */
+   claimReview: (repo: string, number: number) => void;
+   releaseReview: (repo: string, number: number) => void;
 }
 
 function liveBackend(): Backend {
@@ -73,6 +84,15 @@ function liveBackend(): Backend {
       refreshPull(repo, number) {
          getSocket().emit('refresh', repo, number);
       },
+      onReviewClaims(handler) {
+         getSocket().on('reviewClaims', (claims: ReviewClaims) => handler(claims));
+      },
+      claimReview(repo, number) {
+         getSocket().emit('claimReview', repo, number);
+      },
+      releaseReview(repo, number) {
+         getSocket().emit('releaseReview', repo, number);
+      },
    };
 }
 
@@ -80,6 +100,13 @@ function dummyBackend(): Backend {
    let emit: ((payload: InitializePayload | PullData) => void) | null = null;
    let loaded: InitializePayload | null = null;
    let staggered = 0;
+   // The dummy stand-in for the server's claims map: mutated locally by
+   // claimReview/releaseReview and re-emitted, same shape a real socket
+   // 'reviewClaims' broadcast would carry.
+   let claims: ReviewClaims = {};
+   let onClaims: ((claims: ReviewClaims) => void) | null = null;
+   const publishClaims = () => onClaims?.({ ...claims });
+
    return {
       whoami: () => Promise.resolve(dummyUser()),
       onPulls(handler) {
@@ -87,6 +114,26 @@ function dummyBackend(): Backend {
          void loadDummy().then(payload => {
             loaded = payload;
             handler(payload);
+            // Seed one pre-existing claim by a fixture teammate on a
+            // deterministic reviewable pull, so "X is reading it" is
+            // QA-able without a second client — a beat after load so it
+            // reads as someone already at their desk, not a race with the
+            // initial render.
+            setTimeout(() => {
+               const target = payload.pulls.find(
+                  p =>
+                     p.state === 'open' &&
+                     !p.draft &&
+                     p.user.login !== dummyUser() &&
+                     p.status.allCR.filter(s => s.data.active).length < p.status.cr_req
+               );
+               if (!target) return;
+               claims[`${target.repo}#${target.number}`] = {
+                  login: 'dummy-teammate',
+                  at: Date.now(),
+               };
+               publishClaims();
+            }, 500);
          });
       },
       onConnection(handler) {
@@ -107,6 +154,18 @@ function dummyBackend(): Backend {
             },
             300 + staggered * 15
          );
+      },
+      onReviewClaims(handler) {
+         onClaims = handler;
+         publishClaims();
+      },
+      claimReview(repo, number) {
+         claims[`${repo}#${number}`] = { login: dummyUser(), at: Date.now() };
+         publishClaims();
+      },
+      releaseReview(repo, number) {
+         delete claims[`${repo}#${number}`];
+         publishClaims();
       },
    };
 }

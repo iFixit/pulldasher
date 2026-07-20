@@ -139,8 +139,63 @@ function authorNote(p: DerivedPull, me: string): RowNote {
    return waitOnly(FALLBACK_STATUS_LABEL[p.status]);
 }
 
+/** A reviewer's claim on a pull: who, and when (ms epoch — see
+ * backend/socket.ts's ReviewClaims). */
+export interface Claim {
+   login: string;
+   at: number;
+}
+
+/** A claim older than this no longer absolves anyone else — the reader may
+ * have wandered off, so the pull goes back on the market. */
+const STALE_CLAIM_SECS = 2 * 3600;
+
+/**
+ * Layers claim/turn coordination onto a base needs_cr/needs_recr note — the
+ * note an uninvolved reviewer would see (no stamp of their own, nothing
+ * specifically owed by them). A claim always wins over a turn: someone
+ * actively reading it is a stronger signal than the rotation's guess, and a
+ * fresh claim by someone else absolves the viewer entirely (action null) —
+ * but a claim past STALE_CLAIM_SECS stops absolving, since the reader may
+ * have moved on, and the pull's "Review it" action comes back.
+ */
+function withCoordination(
+   base: RowNote,
+   me: string,
+   claim?: Claim | null,
+   turn?: string | null
+): RowNote {
+   if (claim) {
+      const claimAgo = ago(claim.at / 1000);
+      if (claim.login === me)
+         return { action: 'Finish your review', context: `you claimed it · ${claimAgo} ago` };
+      const staleSecs = Date.now() / 1000 - claim.at / 1000;
+      if (staleSecs > STALE_CLAIM_SECS)
+         return {
+            action: 'Review it',
+            context: `${claim.login} claimed it ${claimAgo} ago — pick it up?`,
+         };
+      return { action: null, context: `${claim.login} is reading it` };
+   }
+   if (turn === me)
+      return {
+         action: 'Review it',
+         context: base.context ? `your turn · ${base.context}` : 'your turn',
+      };
+   if (turn)
+      return {
+         action: base.action,
+         context: base.context ? `${base.context} · ${turn}'s turn` : `${turn}'s turn`,
+      };
+   return base;
+}
+
 /** The viewer did not author this pull: what they owe, or why they're waiting. */
-function reviewerNote(p: DerivedPull, me: string): RowNote {
+function reviewerNote(
+   p: DerivedPull,
+   me: string,
+   extra?: { claim?: Claim | null; turn?: string | null }
+): RowNote {
    const d = p.data;
    const author = d.user.login;
    const who = (logins: string[]) => logins.map(l => (l === me ? 'you' : l)).join(', ');
@@ -172,7 +227,13 @@ function reviewerNote(p: DerivedPull, me: string): RowNote {
    // plain needs_recr branch below, not after it.
    if ((p.status === 'needs_cr' || p.status === 'needs_recr') && p.crBy.includes(me))
       return waitOnly(`you've stamped · ${p.crHave} of ${crReq}`);
-   if (p.status === 'needs_recr') return waitOnly(`waiting on ${who(p.recrBy)}${pushed}`);
+   if (p.status === 'needs_recr')
+      return withCoordination(
+         waitOnly(`waiting on ${who(p.recrBy)}${pushed}`),
+         me,
+         extra?.claim,
+         extra?.turn
+      );
    if (p.status === 'needs_cr') {
       const context = p.starved
          ? `unreviewed ${p.ageDays}d`
@@ -181,7 +242,7 @@ function reviewerNote(p: DerivedPull, me: string): RowNote {
            : p.engagedNoStamp.length
              ? `${who(p.engagedNoStamp)} looking`
              : null;
-      return { action: 'Review it', context };
+      return withCoordination({ action: 'Review it', context }, me, extra?.claim, extra?.turn);
    }
    if (p.status === 'needs_qa') {
       if (p.qaBy.includes(me)) return waitOnly(`you've QA'd · ${p.qaHave} of ${qaReq}`);
@@ -237,9 +298,20 @@ export function actionState(p: DerivedPull, me: string): ActionStateKey {
  * alertMove's narrow desktop-notification filter and must keep behaving
  * exactly as before, so this rewrite duplicates rather than reuses their
  * (much narrower) checks.
+ *
+ * `extra` is optional and reviewer-side only (see withCoordination): a claim
+ * or a rotation turn on a needs_cr/needs_recr pull layers on top of the base
+ * note for anyone not already specifically implicated (no stamp, nothing
+ * owed). Existing two-arg callers (query.ts's `has:action`, the popover)
+ * keep reading the base note, unaware of claims/turns — that's fine, they
+ * don't need the coordination detail.
  */
-export function rowNote(p: DerivedPull, me: string): RowNote {
-   const note = p.data.user.login === me ? authorNote(p, me) : reviewerNote(p, me);
+export function rowNote(
+   p: DerivedPull,
+   me: string,
+   extra?: { claim?: Claim | null; turn?: string | null }
+): RowNote {
+   const note = p.data.user.login === me ? authorNote(p, me) : reviewerNote(p, me, extra);
    // An external blocker is worth surfacing over a generic wait, but never
    // hides an actual move — a real action always wins.
    if (p.externalBlock && !note.action) return waitOnly('on hold — external blocker');

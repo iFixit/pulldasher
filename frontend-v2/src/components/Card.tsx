@@ -50,6 +50,7 @@ export function CardShell({
    number,
    title,
    onOpen,
+   id,
    className = '',
    meta,
    rail,
@@ -64,6 +65,9 @@ export function CardShell({
    number: number;
    title: string;
    onOpen?: () => void;
+   /** stable DOM id (format.ts's rowDomId) — lets "Deal me one" scroll to and
+    * flash the row it just claimed. */
+   id?: string;
    className?: string;
    /** the meta line: badge, repo#number, context, flags */
    meta: ReactNode;
@@ -92,6 +96,7 @@ export function CardShell({
    if (compact) {
       return (
          <div
+            id={id}
             className={`pd-row relative flex items-center gap-2 border-t border-secondary py-1 pr-3 first:border-t-0 hover:bg-muted ${className}`}
             style={{ paddingLeft: 12 + depth * STACK_INDENT_PX }}
          >
@@ -118,6 +123,7 @@ export function CardShell({
 
    return (
       <div
+         id={id}
          className={`pd-row relative flex items-start gap-2.5 border-t border-secondary py-2 pr-3.5 first:border-t-0 hover:bg-muted ${className}`}
          style={{ paddingLeft: 14 + depth * STACK_INDENT_PX }}
       >

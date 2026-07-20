@@ -92,8 +92,20 @@ function StateSection({ pull, me }: { pull: DerivedPull; me: string }) {
    );
 }
 
-/** Section 2: the sign-off/CI facts every row's rail hints at, spelled out. */
-function FactsSection({ pull }: { pull: DerivedPull }) {
+/** Section 2: the sign-off/CI facts every row's rail hints at, spelled out —
+ * plus, when review coordination applies, who's claimed it or whose turn the
+ * rotation names (see model/rotation.ts, model/actions.ts's withCoordination). */
+function FactsSection({
+   pull,
+   claim,
+   turn,
+   poolSize,
+}: {
+   pull: DerivedPull;
+   claim?: { login: string; at: number } | null;
+   turn?: string | null;
+   poolSize?: number;
+}) {
    const d = pull.data;
    const crReq = d.status.cr_req;
    const qaReq = d.status.qa_req;
@@ -133,6 +145,21 @@ function FactsSection({ pull }: { pull: DerivedPull }) {
                <> · {pull.ciFailing.join(', ')}</>
             )}
          </p>
+         {/* a claim always trumps the rotation guess — same precedence as
+             model/actions.ts's withCoordination */}
+         {claim ? (
+            <p>
+               claimed by <b className="font-medium text-ink">{claim.login}</b> ·{' '}
+               {ago(claim.at / 1000)} ago
+            </p>
+         ) : (
+            turn && (
+               <p>
+                  rotation: <b className="font-medium text-ink">{turn}</b>’s turn · pool of{' '}
+                  {poolSize ?? 0}
+               </p>
+            )
+         )}
       </div>
    );
 }
@@ -169,11 +196,23 @@ function FeedbackSection({ pull }: { pull: DerivedPull }) {
    );
 }
 
-function StatePopoverBody({ pull, me }: { pull: DerivedPull; me: string }) {
+function StatePopoverBody({
+   pull,
+   me,
+   claim,
+   turn,
+   poolSize,
+}: {
+   pull: DerivedPull;
+   me: string;
+   claim?: { login: string; at: number } | null;
+   turn?: string | null;
+   poolSize?: number;
+}) {
    return (
       <>
          <StateSection pull={pull} me={me} />
-         <FactsSection pull={pull} />
+         <FactsSection pull={pull} claim={claim} turn={turn} poolSize={poolSize} />
          <FeedbackSection pull={pull} />
          <a
             href={githubUrl(pull.data.repo, pull.data.number)}
@@ -199,7 +238,19 @@ const TRIGGER_HINT =
  * and (when present) the feedback behind it. One entry point every card
  * gets, badge or no other context text.
  */
-export function StatusBadgeTrigger({ pull, me }: { pull: DerivedPull; me: string }) {
+export function StatusBadgeTrigger({
+   pull,
+   me,
+   claim,
+   turn,
+   poolSize,
+}: {
+   pull: DerivedPull;
+   me: string;
+   claim?: { login: string; at: number } | null;
+   turn?: string | null;
+   poolSize?: number;
+}) {
    return (
       <Popover
          label="Pull state"
@@ -214,7 +265,7 @@ export function StatusBadgeTrigger({ pull, me }: { pull: DerivedPull; me: string
             </button>
          )}
       >
-         <StatePopoverBody pull={pull} me={me} />
+         <StatePopoverBody pull={pull} me={me} claim={claim} turn={turn} poolSize={poolSize} />
       </Popover>
    );
 }
@@ -231,10 +282,16 @@ export function ContextPopover({
    pull,
    me,
    text,
+   claim,
+   turn,
+   poolSize,
 }: {
    pull: DerivedPull;
    me: string;
    text: string;
+   claim?: { login: string; at: number } | null;
+   turn?: string | null;
+   poolSize?: number;
 }) {
    const hasFeedback = feedbackSources(pull).length > 0;
    if (!hasFeedback) return <span className="text-ink-2">{text}</span>;
@@ -258,7 +315,7 @@ export function ContextPopover({
             </button>
          )}
       >
-         <StatePopoverBody pull={pull} me={me} />
+         <StatePopoverBody pull={pull} me={me} claim={claim} turn={turn} poolSize={poolSize} />
       </Popover>
    );
 }

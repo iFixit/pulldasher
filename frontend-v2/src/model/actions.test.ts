@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ago } from '../format';
 import type { DerivedPull, Status } from './status';
 import { STATUS_ORDER } from './status';
 import { actionState, alertMove, rowNote } from './actions';
@@ -517,5 +518,85 @@ describe('actionState — one bucket per (pull, viewer)', () => {
       expect(actionState(dp({ author: 'auth', status: 'needs_cr', recrBy: ['me'] }), 'me')).toBe(
          'restamp'
       );
+   });
+});
+
+describe('rowNote — claim/turn coordination (reviewer path only)', () => {
+   const p = (o: Partial<Parameters<typeof dp>[0]> = {}) =>
+      dp({ author: 'auth', status: 'needs_cr', starved: true, ageDays: 29, ...o });
+
+   it('a claim by me: "Finish your review", with when I claimed it', () => {
+      const at = Date.now() - 5 * 60_000; // 5 minutes ago, in ms (the wire unit)
+      const note = rowNote(p(), 'me', { claim: { login: 'me', at } });
+      expect(note.action).toBe('Finish your review');
+      expect(note.context).toBe(`you claimed it · ${ago(at / 1000)} ago`);
+   });
+
+   it('a fresh claim by someone else absolves me: no action, who is reading it', () => {
+      const at = Date.now() - 10 * 60_000; // well under the 2h stale window
+      const note = rowNote(p(), 'me', { claim: { login: 'alice', at } });
+      expect(note.action).toBeNull();
+      expect(note.context).toBe('alice is reading it');
+   });
+
+   it('a stale claim (>2h) stops absolving: "Review it" comes back', () => {
+      const at = Date.now() - 3 * 3600_000; // 3h ago
+      const note = rowNote(p(), 'me', { claim: { login: 'alice', at } });
+      expect(note.action).toBe('Review it');
+      expect(note.context).toBe(`alice claimed it ${ago(at / 1000)} ago — pick it up?`);
+   });
+
+   it('claim beats turn — a claim by someone else wins even when it is also my turn', () => {
+      const at = Date.now() - 10 * 60_000;
+      const note = rowNote(p(), 'me', { claim: { login: 'alice', at }, turn: 'me' });
+      expect(note.action).toBeNull();
+      expect(note.context).toBe('alice is reading it');
+   });
+
+   it('my turn, no claim: keeps "Review it", context leads with "your turn"', () => {
+      const note = rowNote(p(), 'me', { turn: 'me' });
+      expect(note.action).toBe('Review it');
+      expect(note.context).toBe('your turn · unreviewed 29d');
+   });
+
+   it("someone else's turn, no claim: appends whose turn to the existing context", () => {
+      const note = rowNote(p(), 'me', { turn: 'bob' });
+      expect(note.action).toBe('Review it');
+      expect(note.context).toBe("unreviewed 29d · bob's turn");
+   });
+
+   it('needs_recr: my turn upgrades the plain wait into a "Review it" nudge', () => {
+      const note = rowNote(
+         dp({ author: 'auth', status: 'needs_recr', starved: true, recrBy: ['someone-else'] }),
+         'me',
+         { turn: 'me' }
+      );
+      expect(note.action).toBe('Review it');
+      expect(note.context).toBe('your turn · waiting on someone-else');
+   });
+
+   it('needs_recr: a claim by me still reads "Finish your review"', () => {
+      const at = Date.now() - 60_000;
+      const note = rowNote(
+         dp({ author: 'auth', status: 'needs_recr', starved: true, recrBy: ['someone-else'] }),
+         'me',
+         { claim: { login: 'me', at } }
+      );
+      expect(note.action).toBe('Finish your review');
+      expect(note.context).toBe(`you claimed it · ${ago(at / 1000)} ago`);
+   });
+
+   it('the author path is unaffected by claim/turn extras', () => {
+      const at = Date.now();
+      const note = rowNote(dp({ author: 'me', status: 'ready' }), 'me', {
+         claim: { login: 'someone', at },
+         turn: 'someone',
+      });
+      expect(note.action).toBe('Merge it');
+   });
+
+   it('no claim, no turn: behaves exactly like the two-arg call', () => {
+      expect(rowNote(p(), 'me', {})).toEqual(rowNote(p(), 'me'));
+      expect(rowNote(p(), 'me', { claim: null, turn: null })).toEqual(rowNote(p(), 'me'));
    });
 });
