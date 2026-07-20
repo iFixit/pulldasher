@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DerivedPull, Status } from './status';
 import { STATUS_ORDER } from './status';
-import { alertMove, rowNote } from './actions';
+import { actionState, alertMove, rowNote } from './actions';
 
 /** A DerivedPull with only the fields the move functions read. */
 function dp(o: {
@@ -441,5 +441,67 @@ describe('rowNote — never blank for an open pull', () => {
          const result = rowNote(dp(c), 'me');
          expect(result.action || result.context).toBeTruthy();
       }
+   });
+});
+
+describe('actionState — one bucket per (pull, viewer)', () => {
+   it('restamp: a re-CR fallen to the viewer', () => {
+      expect(actionState(dp({ author: 'auth', status: 'needs_recr', recrBy: ['me'] }), 'me')).toBe(
+         'restamp'
+      );
+   });
+
+   it('restamp: a re-QA fallen to the viewer', () => {
+      expect(actionState(dp({ author: 'auth', status: 'needs_qa', reqaBy: ['me'] }), 'me')).toBe(
+         'restamp'
+      );
+   });
+
+   it('review: an unreviewed pull, viewer not the author', () => {
+      expect(actionState(dp({ author: 'auth', status: 'needs_cr' }), 'me')).toBe('review');
+   });
+
+   it('qa: an unclaimed QA slot, viewer not the author', () => {
+      expect(actionState(dp({ author: 'auth', status: 'needs_qa' }), 'me')).toBe('qa');
+   });
+
+   it('mine: an action that is neither "Review it" nor "QA it"', () => {
+      // the author's own ready-to-merge pull: rowNote gives "Merge it"
+      expect(actionState(dp({ author: 'me', status: 'ready' }), 'me')).toBe('mine');
+   });
+
+   it("blocked: dev_block or deploy_block with no move of the viewer's own", () => {
+      expect(
+         actionState(dp({ author: 'auth', status: 'dev_block', devBlockedBy: ['bob'] }), 'me')
+      ).toBe('blocked');
+      expect(
+         actionState(dp({ author: 'auth', status: 'deploy_block', deployBlockedBy: ['bob'] }), 'me')
+      ).toBe('blocked');
+   });
+
+   it('waiting: no action, not blocked', () => {
+      expect(
+         actionState(dp({ author: 'auth', status: 'needs_recr', recrBy: ['other'] }), 'me')
+      ).toBe('waiting');
+   });
+
+   it('dev-block-as-author lands in mine, not blocked — viewer-relative, unlike is:blocked', () => {
+      expect(
+         actionState(dp({ author: 'me', status: 'dev_block', devBlockedBy: ['bob'] }), 'me')
+      ).toBe('mine');
+   });
+
+   it('a bystander on the same dev-blocked pull reads blocked', () => {
+      expect(
+         actionState(dp({ author: 'auth', status: 'dev_block', devBlockedBy: ['bob'] }), 'me')
+      ).toBe('blocked');
+   });
+
+   it('restamp beats review: an outstanding re-stamp wins even on a pull that would', () => {
+      // otherwise read as a plain "Review it" — recrBy is checked before
+      // rowNote is ever computed, so it can't be shadowed by the note text
+      expect(actionState(dp({ author: 'auth', status: 'needs_cr', recrBy: ['me'] }), 'me')).toBe(
+         'restamp'
+      );
    });
 });

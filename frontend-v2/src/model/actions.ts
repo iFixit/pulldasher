@@ -190,6 +190,29 @@ function reviewerNote(p: DerivedPull, me: string): RowNote {
 }
 
 /**
+ * The viewer-relative bucket a pull sits in right now: the same six-way split
+ * the State filter dropdown and its live counts are built from. One bucket
+ * per (pull, viewer) — mutually exclusive, checked in priority order so a
+ * pull never counts toward two buckets at once.
+ *
+ * Blocked here is viewer-relative — a dev-block YOU authored carries action
+ * "Address feedback" so it lands in `mine`, deliberately diverging from the
+ * viewer-agnostic `is:blocked` query token (which matches dev_block/
+ * deploy_block for anyone, author included).
+ */
+export type ActionStateKey = 'restamp' | 'review' | 'qa' | 'mine' | 'blocked' | 'waiting';
+
+export function actionState(p: DerivedPull, me: string): ActionStateKey {
+   if (p.recrBy.includes(me) || p.reqaBy.includes(me)) return 'restamp';
+   const note = rowNote(p, me);
+   if (note.action === 'Review it') return 'review';
+   if (note.action === 'QA it') return 'qa';
+   if (note.action != null) return 'mine';
+   if (p.status === 'dev_block' || p.status === 'deploy_block') return 'blocked';
+   return 'waiting';
+}
+
+/**
  * The two-slot note every row renders, in every lens: `action` is the
  * imperative when it's your move (a `.badge-do` pill next to the status
  * badge); `context` is the terse who/when/why detail the badge can't carry,

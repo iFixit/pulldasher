@@ -349,6 +349,28 @@ export function reviewWeight(pull: PullData): Weight {
 
 export const weightRank = (w: Weight) => WEIGHT_RANK[w];
 
+/**
+ * The session Weight filter's bucket for a pull: its weight letter
+ * (lowercase) when the size is known, else `'unknown'` — never the diff-size
+ * guess `reviewWeight()` falls back to for a missing size (additions/
+ * deletions default to 0, which always reads XS, not a real class). Shared
+ * by the scoped-pull filter pass in app.tsx and WeightFilter's live
+ * per-option counts, so the two can't disagree about which bucket a pull
+ * lands in.
+ */
+export function weightFilterKey(p: Pick<DerivedPull, 'weight' | 'sizeKnown'>): string {
+   return p.sizeKnown ? p.weight.toLowerCase() : 'unknown';
+}
+
+/** Does this pull match any of the given Weight-filter selections? An empty
+ * selection means no filter is applied. */
+export function matchesWeightFilter(
+   p: Pick<DerivedPull, 'weight' | 'sizeKnown'>,
+   sel: readonly string[]
+): boolean {
+   return sel.length === 0 || sel.includes(weightFilterKey(p));
+}
+
 /** Epoch secs of the last push, from the derived pull's cached headPushedAt,
  * falling back to updated_at when no CI has reported a push time. */
 export const lastPushEpoch = (p: Pick<DerivedPull, 'headPushedAt' | 'data'>): number =>
