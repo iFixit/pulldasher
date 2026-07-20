@@ -1,3 +1,4 @@
+import type { ActionStateKey } from '../../model/actions';
 import { CRYO_KEY } from '../../model/visibility';
 import { useSettings } from '../../settings';
 
@@ -24,6 +25,10 @@ export function FilterChips({
    setDraftsMode,
    scope,
    setScope,
+   weightSel,
+   setWeightSel,
+   stateSel,
+   setStateSel,
 }: {
    reveal: string[];
    toggleReveal: (key: string) => void;
@@ -33,6 +38,10 @@ export function FilterChips({
    setDraftsMode: (m: 'mine' | 'all') => void;
    scope: { repos: string[]; authors: string[] };
    setScope: (next: { repos: string[]; authors: string[] }) => void;
+   weightSel: string[];
+   setWeightSel: (next: string[]) => void;
+   stateSel: ActionStateKey[];
+   setStateSel: (next: ActionStateKey[]) => void;
 }) {
    const settings = useSettings();
    // an individually-revealed repo/cryo, outside full showAll — "hidden shown"
@@ -53,6 +62,24 @@ export function FilterChips({
          key: 'people',
          label: `${scope.authors.length} ${scope.authors.length > 1 ? 'people' : 'person'}`,
          onClear: () => setScope({ ...scope, authors: [] }),
+      });
+   if (weightSel.length)
+      pills.push({
+         key: 'weight',
+         label: `weight: ${weightSel.join(', ')}`,
+         onClear: () => setWeightSel([]),
+      });
+   // a single selection spells itself out (matches StateFilter's own trigger
+   // label); more than one collapses to "first +N" so the pill can't grow as
+   // long as the option labels themselves
+   if (stateSel.length)
+      pills.push({
+         key: 'state',
+         label:
+            stateSel.length === 1
+               ? `state: ${stateSel[0]}`
+               : `state: ${stateSel[0]} +${stateSel.length - 1}`,
+         onClear: () => setStateSel([]),
       });
    if (draftsMode === 'all' && draftsMode !== settings.draftsMode)
       pills.push({
@@ -77,12 +104,16 @@ export function FilterChips({
    const clearable =
       scope.repos.length > 0 ||
       scope.authors.length > 0 ||
+      weightSel.length > 0 ||
+      stateSel.length > 0 ||
       reveal.length > 0 ||
       showAll ||
       draftsMode !== settings.draftsMode;
 
    const clearAll = () => {
       setScope({ repos: [], authors: [] });
+      setWeightSel([]);
+      setStateSel([]);
       setShowAll(false);
       setDraftsMode(settings.draftsMode);
       for (const k of reveal) toggleReveal(k);

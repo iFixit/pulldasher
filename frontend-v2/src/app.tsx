@@ -8,7 +8,10 @@ import {
    type ReactNode,
 } from 'react';
 import { ago, epoch, n, shortRepo } from './format';
+import type { ActionStateKey } from './model/actions';
+import { actionState } from './model/actions';
 import type { DerivedPull } from './model/status';
+import { matchesWeightFilter } from './model/status';
 import type { Team as TeamGroup } from './types';
 import { isSnoozed, setWeightLabels, usePulldasher } from './store';
 import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
@@ -20,6 +23,8 @@ import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from './model/visibili
 import { Legend } from './components/Legend';
 import { RepoFilter } from './components/filters/RepoFilter';
 import { PeopleFilter } from './components/filters/PeopleFilter';
+import { WeightFilter } from './components/filters/WeightFilter';
+import { StateFilter } from './components/filters/StateFilter';
 import { FilterChips } from './components/filters/FilterChips';
 import type { RowOptions } from './components/Row';
 import { Review } from './views/Review';
@@ -34,6 +39,16 @@ type Lens = 'review' | 'mine' | 'team' | 'people' | 'classic' | 'stats';
 
 const LENSES: Lens[] = ['review', 'mine', 'team', 'people', 'classic', 'stats'];
 
+/** every actionState bucket, for validating the `state=` hash param against */
+const ACTION_STATE_KEYS: ActionStateKey[] = [
+   'restamp',
+   'review',
+   'qa',
+   'mine',
+   'blocked',
+   'waiting',
+];
+
 /**
  * The whole view lives in the hash — lens, drill-downs, query, scope,
  * toggles — so any board is pasteable and a bookmark is a saved view
@@ -47,6 +62,10 @@ interface HashState {
    q: string;
    repos: string[];
    authors: string[];
+   /** review-effort classes to narrow to: 'xs'..'xl' or 'unknown' */
+   weight: string[];
+   /** actionState buckets to narrow to (model/actions.ts) */
+   state: ActionStateKey[];
    /** master reveal: show every off-by-default PR */
    hidden: boolean;
    /** individually revealed hidden groups: repo names and the cryo sentinel */
@@ -71,6 +90,10 @@ function readHash(): HashState {
       q: p.get('q') ?? '',
       repos: p.get('repos')?.split(',').filter(Boolean) ?? [],
       authors: p.get('authors')?.split(',').filter(Boolean) ?? [],
+      weight: p.get('weight')?.split(',').filter(Boolean) ?? [],
+      state: (p.get('state')?.split(',').filter(Boolean) ?? []).filter((s): s is ActionStateKey =>
+         ACTION_STATE_KEYS.includes(s as ActionStateKey)
+      ),
       hidden: p.get('hidden') === '1',
       reveal: p.get('show')?.split(',').filter(Boolean) ?? [],
       drafts: p.get('drafts') === 'all' ? 'all' : p.get('drafts') === 'mine' ? 'mine' : null,
@@ -85,6 +108,8 @@ function buildHash(s: HashState): string {
    if (s.q) p.set('q', s.q);
    if (s.repos.length) p.set('repos', s.repos.join(','));
    if (s.authors.length) p.set('authors', s.authors.join(','));
+   if (s.weight.length) p.set('weight', s.weight.join(','));
+   if (s.state.length) p.set('state', s.state.join(','));
    if (s.hidden) p.set('hidden', '1');
    if (s.reveal.length) p.set('show', s.reveal.join(','));
    if (s.drafts) p.set('drafts', s.drafts);
@@ -176,6 +201,11 @@ export function App() {
    const [person, setPerson] = useState<string | null>(() => urlState.person);
    const [team, setTeam] = useState<string | null>(() => urlState.team);
    const [query, setQuery] = useState(() => urlState.q);
+   // narrows the board to one or more review-effort classes ('xs'..'xl',
+   // 'unknown'); empty = no filter
+   const [weightSel, setWeightSel] = useState<string[]>(() => urlState.weight);
+   // narrows the board to one or more actionState buckets; empty = no filter
+   const [stateSel, setStateSel] = useState<ActionStateKey[]>(() => urlState.state);
    // "hidden" is two off-by-default groups (Cryogenic-Storage PRs, quiet
    // repos). showAll reveals both; reveal names individual groups to show.
    const [showAll, setShowAll] = useState(
@@ -234,6 +264,8 @@ export function App() {
          q: query,
          repos: scope.repos,
          authors: scope.authors,
+         weight: weightSel,
+         state: stateSel,
          hidden: showAll,
          reveal,
          drafts: draftsMode !== settings.draftsMode ? draftsMode : null,
@@ -247,7 +279,19 @@ export function App() {
       } else {
          history.replaceState(null, '', next ? `#${next}` : location.pathname + location.search);
       }
-   }, [lens, person, team, query, scope, showAll, reveal, draftsMode, settings.draftsMode]);
+   }, [
+      lens,
+      person,
+      team,
+      query,
+      scope,
+      weightSel,
+      stateSel,
+      showAll,
+      reveal,
+      draftsMode,
+      settings.draftsMode,
+   ]);
    useEffect(() => {
       const onHash = () => {
          const h = readHash();
@@ -255,6 +299,8 @@ export function App() {
          setPerson(h.person);
          setTeam(h.team);
          setQuery(h.q);
+         setWeightSel(h.weight);
+         setStateSel(h.state);
          setShowAll(h.hidden);
          setReveal(h.reveal);
          setDraftsMode(h.drafts ?? getSettings().draftsMode);
@@ -373,7 +419,11 @@ export function App() {
       [scope.authors, queryAuthors]
    );
 
-   const scoped = useMemo(() => {
+   // every existing scope/query pass, but not yet the Weight/State filters —
+   // WeightFilter's live per-option counts read this pool, so narrowing to
+   // one weight class doesn't make the other classes' counts vanish (the
+   // same reasoning PeopleFilter's authorCounts follows for its own pool)
+   const preWeightScoped = useMemo(() => {
       let out = pulls;
       if (legacy) out = applyLegacyFilters(out, legacy, me);
       // Muted (user) and org-hidden repos, muted people, and cryo PRs stay off
@@ -425,6 +475,25 @@ export function App() {
       draftsMode,
       snoozed,
    ]);
+
+   // preWeightScoped narrowed by the Weight filter, but not yet State —
+   // StateFilter's own live counts read this pool for the same
+   // self-vanishing-count reason preWeightScoped exists for WeightFilter
+   const preStateScoped = useMemo(
+      () =>
+         weightSel.length
+            ? preWeightScoped.filter(p => matchesWeightFilter(p, weightSel))
+            : preWeightScoped,
+      [preWeightScoped, weightSel]
+   );
+
+   const scoped = useMemo(
+      () =>
+         stateSel.length
+            ? preStateScoped.filter(p => stateSel.includes(actionState(p, me)))
+            : preStateScoped,
+      [preStateScoped, stateSel, me]
+   );
 
    // memoized so the arrays keep their identity across unrelated re-renders
    // (each keystroke, settings toggle, and heartbeat re-runs App)
@@ -489,11 +558,10 @@ export function App() {
       setTeam(null);
       setLens('people');
    }, []);
-   // a row's weight chip sets the query to that token; clicking the same
-   // chip again (query already exactly that token) clears it instead of
-   // re-applying it, so the chip doubles as its own toggle
-   const onQueryToken = useCallback((token: string) => {
-      setQuery(prev => (prev === token ? '' : token));
+   // a row's weight chip toggles that bucket in the session Weight filter —
+   // the same array WeightFilter's own checkboxes drive
+   const onWeightToggle = useCallback((w: string) => {
+      setWeightSel(cur => (cur.includes(w) ? cur.filter(k => k !== w) : [...cur, w]));
    }, []);
    // stable identity so memo(Row) can skip untouched rows on socket bursts
    const rowOpts: RowOptions = useMemo(
@@ -502,7 +570,7 @@ export function App() {
          lastSeen,
          acked,
          onPerson,
-         onQueryToken,
+         onWeightToggle,
          ageWarnDays: settings.ageWarnDays,
          ageRotDays: settings.ageRotDays,
          compact: settings.density === 'compact',
@@ -513,7 +581,7 @@ export function App() {
          lastSeen,
          acked,
          onPerson,
-         onQueryToken,
+         onWeightToggle,
          settings.ageWarnDays,
          settings.ageRotDays,
          settings.density,
@@ -613,12 +681,13 @@ export function App() {
                   scope={scope}
                   setScope={setScope}
                />
-               <PeopleFilter
-                  pulls={pulls}
-                  teams={allTeams}
-                  scope={scope}
-                  setScope={setScope}
+               <PeopleFilter pulls={pulls} teams={allTeams} scope={scope} setScope={setScope} />
+               <WeightFilter
+                  pulls={preWeightScoped}
+                  weightSel={weightSel}
+                  setWeightSel={setWeightSel}
                />
+               <StateFilter pulls={preStateScoped} stateSel={stateSel} setStateSel={setStateSel} />
                <FilterChips
                   reveal={reveal}
                   toggleReveal={toggleReveal}
@@ -628,6 +697,10 @@ export function App() {
                   setDraftsMode={setDraftsMode}
                   scope={scope}
                   setScope={setScope}
+                  weightSel={weightSel}
+                  setWeightSel={setWeightSel}
+                  stateSel={stateSel}
+                  setStateSel={setStateSel}
                />
                {legacy && (
                   <ToggleChip

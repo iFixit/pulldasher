@@ -33,9 +33,9 @@ export interface RowOptions {
    /** age-color thresholds from user settings (fall back to the model's) */
    ageWarnDays?: number;
    ageRotDays?: number;
-   /** set the filter query to a token (e.g. from a clicked weight chip);
-    * clicking the same token again is the caller's job to clear */
-   onQueryToken?: (token: string) => void;
+   /** toggle a weight bucket ('xs'..'xl' or 'unknown') in the session Weight
+    * filter — the row-initiated twin of WeightFilter's own checkboxes */
+   onWeightToggle?: (w: string) => void;
 }
 
 /**
@@ -431,24 +431,24 @@ function RowActionsKebab({ pull }: { pull: DerivedPull }) {
 }
 
 /**
- * The weight meter as a filter toggle: click it to narrow the board to that
- * size class (`weight:xs`, …), click again to clear — the same channel the
- * repo:/author: query terms already reveal through, just row-initiated. Falls
- * back to the plain, non-interactive meter when no callback is wired up
- * (e.g. a lens that hasn't threaded RowOptions.onQueryToken).
+ * The weight meter as a filter toggle: click it to add/remove that size class
+ * from the session Weight filter — the same bucket WeightFilter's own
+ * checkboxes drive, just row-initiated. Falls back to the plain,
+ * non-interactive meter when no callback is wired up (e.g. a lens that
+ * hasn't threaded RowOptions.onWeightToggle).
  */
 function WeightChip({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const meter = <WeightMeter weight={pull.weight} known={pull.sizeKnown} />;
-   const onQueryToken = opts.onQueryToken;
-   if (!onQueryToken) return meter;
-   const token = `weight:${pull.weight.toLowerCase()}`;
+   const onWeightToggle = opts.onWeightToggle;
+   if (!onWeightToggle) return meter;
+   const key = pull.sizeKnown ? pull.weight.toLowerCase() : 'unknown';
    return (
       <button
          type="button"
          aria-label={`filter to ${pull.weight} PRs`}
          title={`filter to ${pull.weight} PRs`}
          className="pressable hit -my-2 rounded border-0 bg-transparent px-0 py-2 hover:bg-secondary/60"
-         onClick={() => onQueryToken(token)}
+         onClick={() => onWeightToggle(key)}
       >
          <span aria-hidden className="contents">
             {meter}
@@ -579,5 +579,5 @@ export const Row = memo(
       a.opts.onPerson === b.opts.onPerson &&
       a.opts.ageWarnDays === b.opts.ageWarnDays &&
       a.opts.ageRotDays === b.opts.ageRotDays &&
-      a.opts.onQueryToken === b.opts.onQueryToken
+      a.opts.onWeightToggle === b.opts.onWeightToggle
 );

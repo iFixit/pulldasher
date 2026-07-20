@@ -182,7 +182,7 @@ export function RepoFilter({
                   >
                      <path d="M1.5 3h13a.5.5 0 0 1 .4.8l-4.9 6v3.7a.5.5 0 0 1-.7.45l-2-1a.5.5 0 0 1-.3-.45V9.8l-4.9-6a.5.5 0 0 1 .4-.8Z" />
                   </svg>
-                  <span className="truncate">{summary}</span>
+                  <span className="hidden truncate sm:inline">{summary}</span>
                   <span aria-hidden className="ml-auto text-ink-3">
                      ▾
                   </span>

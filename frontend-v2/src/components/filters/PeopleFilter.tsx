@@ -97,7 +97,7 @@ export function PeopleFilter({
                   >
                      <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 1.5c-2.7 0-6 1.35-6 3.9V14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-.6c0-2.55-3.3-3.9-6-3.9Z" />
                   </svg>
-                  <span className="truncate">{summary}</span>
+                  <span className="hidden truncate sm:inline">{summary}</span>
                   <span aria-hidden className="ml-auto text-ink-3">
                      ▾
                   </span>

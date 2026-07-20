@@ -204,6 +204,10 @@ export function Legend() {
                term={<code className="font-mono text-[11px] text-ink-2">is:blocked</code>}
                def="cards under a dev or deploy block"
             />
+            <Item
+               term="Weight / State"
+               def="the point-and-click version of weight:/has:/is: — pick from a dropdown instead of typing. State's Blocked is viewer-relative (a dev block you authored counts as your move), unlike is:blocked, which matches for anyone"
+            />
          </Group>
 
          <Group title="Keys">
