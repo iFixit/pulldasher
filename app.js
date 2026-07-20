@@ -7,6 +7,7 @@ import socketAuthenticator from "./lib/socket-auth.js";
 import refresh from "./lib/refresh.js";
 import pullManager from "./lib/pull-manager.js";
 import claims, { SWEEP_INTERVAL_MS } from "./lib/claims.js";
+import git from "./lib/git-manager.js";
 import dbManager from "./lib/db-manager.js";
 import pullQueue from "./lib/pull-queue.js";
 import mainController from "./controllers/main.js";
@@ -122,6 +123,11 @@ io.on("connection", function (socket) {
     }
     claims.claim(repo, number, socket.user.username);
     io.emit("reviewClaims", claims.all());
+    // Mirror the claim onto the PR itself: put the claimer in GitHub's
+    // Reviewers list so the claim is visible to anyone not on the dashboard.
+    // Best-effort and fire-and-forget — the local claim already succeeded, and
+    // GitHub legitimately refuses this when the claimer authored the PR.
+    git.requestReviewer(repo, number, socket.user.username);
   });
 
   socket.on("releaseReview", function (repo, number) {
@@ -130,6 +136,7 @@ io.on("connection", function (socket) {
     }
     if (claims.release(repo, number, socket.user.username)) {
       io.emit("reviewClaims", claims.all());
+      git.removeReviewer(repo, number, socket.user.username);
     }
   });
 });
