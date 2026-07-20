@@ -3,8 +3,9 @@ import type { InitializePayload, PullData } from '../types';
 /**
  * Dummy mode: run the whole UI without a backend.
  *   npm run dev:dummy
- * Reuses v1's fixture (frontend/dummy-pulls.json) so both frontends stay
- * honest against the same wire shape.
+ * The fixture is a frozen snapshot of the wire shape (it moved here when the
+ * legacy v1 frontend was retired), lazy-imported so it never lands in the
+ * production bundle.
  */
 export function isDummy(): boolean {
    return import.meta.env.VITE_DUMMY === '1';
@@ -15,8 +16,7 @@ export function dummyUser(): string {
 }
 
 export async function loadDummy(): Promise<InitializePayload> {
-   const raw = (await import('../../../frontend/dummy-pulls.json'))
-      .default as unknown as PullData[];
+   const raw = (await import('./dummy-pulls.json')).default as unknown as PullData[];
    // The fixture is a decade of frozen pulls; re-date them so age-derived
    // signals (heat, starvation, freshness) exercise realistically.
    const pulls = withSyntheticStacks(raw).map((p, i) => redate(p, i));

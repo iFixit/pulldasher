@@ -810,13 +810,6 @@ export function App() {
                   open
                </span>
                <span className="flex-1" />
-               <a
-                  href="/"
-                  className="text-xs text-ink-3 transition-colors duration-150 ease-out hover:text-brand motion-reduce:transition-none"
-                  title="the classic board"
-               >
-                  v1 board
-               </a>
                <NotificationPanel records={toastHistory} />
                <Legend />
                <Settings
@@ -919,7 +912,7 @@ export function App() {
                <span className="font-semibold">Sign-in failed.</span>
                <span className="text-ink-2">
                   Your session may have expired.{' '}
-                  <a href="/v2/" className="font-semibold underline">
+                  <a href="/" className="font-semibold underline">
                      Reload to sign in again
                   </a>
                   .

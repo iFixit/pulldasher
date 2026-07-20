@@ -1,9 +1,11 @@
 # Pulldasher frontend v2
 
 A reviewer-centric frontend that answers "what should I act on next?" instead
-of rendering seven flat columns. It runs beside the classic board: the server
-serves v1 at `/` and v2 at `/v2`, both fed by the same socket protocol
-(`initialize` + `pullChange`), so nothing about the backend or DB changes.
+of rendering seven flat columns. It is the only Pulldasher frontend — the
+server serves it at `/`, fed by the socket protocol (`initialize` +
+`pullChange`), so nothing about the backend or DB changes. (The legacy v1
+board it replaced lives on only as the Classic lens, a faithful port of its
+seven-column layout.)
 
 ## Ideas
 
@@ -114,7 +116,7 @@ cd frontend-v2
 npm install
 npm run dev          # against a local backend on :3000 (proxies /token + socket)
 npm run dev:dummy    # no backend: v1's dummy-pulls.json fixture
-npm run build        # type-check + bundle to frontend-v2/dist (served at /v2)
+npm run build        # type-check + bundle to frontend-v2/dist (served at /)
 npm test             # vitest: status, sort, query, and legacy-URL unit tests
 ```
 

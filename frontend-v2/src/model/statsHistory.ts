@@ -4,7 +4,7 @@ import { isDummy } from '../backend/dummy';
 /**
  * The Stats lens's history layer: months/weeks of PR history the live socket
  * payload doesn't carry (it only ships open pulls + 14 days of closed ones).
- * Backed by GET /v2/stats-history, a read-only DB aggregate the server
+ * Backed by GET /stats-history, a read-only DB aggregate the server
  * memoizes for 10 minutes since this data moves slowly. Fetched once per
  * session (module-level cache) and hidden entirely — never a loading spinner
  * or error banner — on any failure, so a stale or unreachable endpoint just
@@ -317,7 +317,7 @@ let cache: Promise<StatsHistory | null> | null = null;
 
 function load(): Promise<StatsHistory | null> {
    if (isDummy()) return Promise.resolve(dummyHistory());
-   return fetch('/v2/stats-history')
+   return fetch('/stats-history')
       .then(r => (r.ok ? (r.json() as Promise<StatsHistory>) : null))
       .catch(() => null);
 }

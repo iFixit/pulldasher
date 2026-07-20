@@ -146,8 +146,9 @@ Pulldasher is released under the [MIT License](LICENSE/).
 
 ### React Frontend
 
-- Hack on the just the UI (no DB needed): `npm frontend:start`
-  - Then open http://localhost:8080/
-  - Or the demo page at http://localhost:8080/pull-card-demo.html
-- Hack on both the frontend + backend: `npm frontend:watch` + `npm start`
-  - Then open http://localhost:{port} where port is from your config.js
+The frontend lives in `frontend-v2/` (see its README). From the repo root:
+
+- Hack on just the UI, no DB needed: `npm run frontend:dummy`, then open the
+  Vite dev server it prints (a synthetic board, no backend).
+- Hack on the frontend against a live backend: `npm run frontend:dev` (proxies
+  `/token`, the socket, and `/stats-history` to a local `npm start`).

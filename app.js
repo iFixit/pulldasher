@@ -56,10 +56,9 @@ app.use(function (req, res, next) {
  * Routes
  */
 authManager.setupRoutes(app);
-app.use('/v2', express.static(__dirname + '/frontend-v2/dist'));
-app.use('/', express.static(__dirname + '/frontend/dist'));
+app.use('/', express.static(__dirname + '/frontend-v2/dist'));
 app.get('/token', mainController.getToken);
-app.get('/v2/stats-history', statsController.getHistory);
+app.get('/stats-history', statsController.getHistory);
 app.post('/hooks/main', hooksController.main);
 
 debug('Loading all recent pulls from the DB');

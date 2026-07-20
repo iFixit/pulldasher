@@ -12,7 +12,7 @@ export interface Settings {
    theme: 'system' | 'light' | 'dark';
    /** row height: comfortable is the default, compact packs more on screen */
    density: 'comfortable' | 'compact';
-   /** which lens a bare /v2/ URL opens */
+   /** which lens a bare / URL opens */
    defaultLens: string;
    /** a PR's age turns amber at this many days (display only) */
    ageWarnDays: number;
