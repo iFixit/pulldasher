@@ -1,3 +1,4 @@
+import { rowNote } from './actions';
 import type { DerivedPull } from './status';
 
 /**
@@ -10,13 +11,20 @@ import type { DerivedPull } from './status';
  *   older:5       open at least 5 days (older:5d also accepted)
  *   repo:ifixit   repo name contains
  *   author:al     author login contains
+ *   weight:xs,s   review-effort class, comma list ORs (weight:xs,s = XS or S)
+ *   has:action    the viewer (`me`) has an imperative move on this card
+ *   is:restamp    `me` owes a re-CR or re-QA (in recrBy/reqaBy)
+ *   is:blocked    status is dev_block or deploy_block
+ *
+ * `me` is the viewer's login, needed only for has:/is: — every other token
+ * ignores it.
  */
-export function matchesQuery(p: DerivedPull, query: string): boolean {
+export function matchesQuery(p: DerivedPull, query: string, me: string): boolean {
    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-   return terms.every(t => matchTerm(p, t));
+   return terms.every(t => matchTerm(p, t, me));
 }
 
-function matchTerm(p: DerivedPull, term: string): boolean {
+function matchTerm(p: DerivedPull, term: string, me: string): boolean {
    const d = p.data;
    const i = term.indexOf(':');
    if (i > 0) {
@@ -31,6 +39,14 @@ function matchTerm(p: DerivedPull, term: string): boolean {
          }
          if (key === 'repo') return d.repo.toLowerCase().includes(val);
          if (key === 'author') return d.user.login.toLowerCase().includes(val);
+         if (key === 'weight')
+            return val.split(',').filter(Boolean).includes(p.weight.toLowerCase());
+         if (key === 'has') return val === 'action' && rowNote(p, me).action != null;
+         if (key === 'is') {
+            if (val === 'restamp') return p.recrBy.includes(me) || p.reqaBy.includes(me);
+            if (val === 'blocked') return p.status === 'dev_block' || p.status === 'deploy_block';
+            return false;
+         }
          // unknown key: treat the whole term as a plain substring below
       }
    }

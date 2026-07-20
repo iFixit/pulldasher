@@ -33,6 +33,9 @@ export interface RowOptions {
    /** age-color thresholds from user settings (fall back to the model's) */
    ageWarnDays?: number;
    ageRotDays?: number;
+   /** set the filter query to a token (e.g. from a clicked weight chip);
+    * clicking the same token again is the caller's job to clear */
+   onQueryToken?: (token: string) => void;
 }
 
 /**
@@ -428,6 +431,33 @@ function RowActionsKebab({ pull }: { pull: DerivedPull }) {
 }
 
 /**
+ * The weight meter as a filter toggle: click it to narrow the board to that
+ * size class (`weight:xs`, …), click again to clear — the same channel the
+ * repo:/author: query terms already reveal through, just row-initiated. Falls
+ * back to the plain, non-interactive meter when no callback is wired up
+ * (e.g. a lens that hasn't threaded RowOptions.onQueryToken).
+ */
+function WeightChip({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
+   const meter = <WeightMeter weight={pull.weight} known={pull.sizeKnown} />;
+   const onQueryToken = opts.onQueryToken;
+   if (!onQueryToken) return meter;
+   const token = `weight:${pull.weight.toLowerCase()}`;
+   return (
+      <button
+         type="button"
+         aria-label={`filter to ${pull.weight} PRs`}
+         title={`filter to ${pull.weight} PRs`}
+         className="pressable hit -my-2 rounded border-0 bg-transparent px-0 py-2 hover:bg-secondary/60"
+         onClick={() => onQueryToken(token)}
+      >
+         <span aria-hidden className="contents">
+            {meter}
+         </span>
+      </button>
+   );
+}
+
+/**
  * The metric rail every row ends on, in one order everywhere: how heavy to
  * review, then the CR and QA sign-off pips, then age. Right-anchored and
  * fixed-geometry, so it reads as vertical columns down any lens. Raised above
@@ -444,7 +474,7 @@ function MetricRail({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
       >
          <RowActions pull={pull} overlay={!!opts.compact} />
          <RowActionsKebab pull={pull} />
-         <WeightMeter weight={pull.weight} known={pull.sizeKnown} />
+         <WeightChip pull={pull} opts={opts} />
          <SigPips
             label="CR"
             have={pull.crHave}
@@ -548,5 +578,6 @@ export const Row = memo(
       a.opts.acked === b.opts.acked &&
       a.opts.onPerson === b.opts.onPerson &&
       a.opts.ageWarnDays === b.opts.ageWarnDays &&
-      a.opts.ageRotDays === b.opts.ageRotDays
+      a.opts.ageRotDays === b.opts.ageRotDays &&
+      a.opts.onQueryToken === b.opts.onQueryToken
 );

@@ -416,7 +416,7 @@ export function App() {
       // The legacy path owns its own draft rule, so don't double-apply.
       if (!legacy && draftsMode === 'mine')
          out = out.filter(p => !p.data.draft || p.data.user.login === me);
-      if (query) out = out.filter(p => matchesQuery(p, query));
+      if (query) out = out.filter(p => matchesQuery(p, query, me));
       return out;
    }, [
       pulls,
@@ -500,6 +500,12 @@ export function App() {
       setTeam(null);
       setLens('people');
    }, []);
+   // a row's weight chip sets the query to that token; clicking the same
+   // chip again (query already exactly that token) clears it instead of
+   // re-applying it, so the chip doubles as its own toggle
+   const onQueryToken = useCallback((token: string) => {
+      setQuery(prev => (prev === token ? '' : token));
+   }, []);
    // stable identity so memo(Row) can skip untouched rows on socket bursts
    const rowOpts: RowOptions = useMemo(
       () => ({
@@ -507,6 +513,7 @@ export function App() {
          lastSeen,
          acked,
          onPerson,
+         onQueryToken,
          ageWarnDays: settings.ageWarnDays,
          ageRotDays: settings.ageRotDays,
          compact: settings.density === 'compact',
@@ -517,6 +524,7 @@ export function App() {
          lastSeen,
          acked,
          onPerson,
+         onQueryToken,
          settings.ageWarnDays,
          settings.ageRotDays,
          settings.density,
@@ -668,9 +676,9 @@ export function App() {
                   <input
                      ref={searchRef}
                      type="search"
-                     aria-label="Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x"
+                     aria-label="Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:restamp, is:blocked"
                      placeholder="Filter (press /)"
-                     title="text, #number, label:x, status:x, older:5, repo:x, author:x"
+                     title="text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:restamp, is:blocked"
                      value={query}
                      onChange={e => setQuery(e.target.value)}
                      className="h-8 w-[210px] max-w-full grow rounded-lg border border-line bg-surface pr-2.5 pl-8 text-[13px] sm:grow-0"

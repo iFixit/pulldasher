@@ -187,6 +187,25 @@ export function Legend() {
             />
          </Group>
 
+         <Group title="Query">
+            <Item
+               term={<code className="font-mono text-[11px] text-ink-2">weight:xs,s</code>}
+               def="review-effort class(es), comma list ORs — click a row’s weight meter to toggle it"
+            />
+            <Item
+               term={<code className="font-mono text-[11px] text-ink-2">has:action</code>}
+               def="cards where you personally have a move to make"
+            />
+            <Item
+               term={<code className="font-mono text-[11px] text-ink-2">is:restamp</code>}
+               def="cards where a push owes you a re-CR or re-QA"
+            />
+            <Item
+               term={<code className="font-mono text-[11px] text-ink-2">is:blocked</code>}
+               def="cards under a dev or deploy block"
+            />
+         </Group>
+
          <Group title="Keys">
             <Item term={<Kbd>/</Kbd>} def="focus the filter" />
             <Item
