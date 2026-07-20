@@ -2,6 +2,7 @@ import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent } from '
 import { ROT_DAYS, STARVE_DAYS, type Status, type Weight, weightRank } from '../model/status';
 import type { Signature } from '../types';
 import { ago, epoch, githubUrl, loginHue, shortRepo, signatureUrl } from '../format';
+import { getSettings } from '../settings';
 import { Popover } from './Popover';
 
 export const STATUS_LABEL: Record<Status, string> = {
@@ -488,12 +489,16 @@ export function PullTitleLink({
    /** cover the whole row as one click target */
    stretch?: boolean;
 }) {
+   // The whole-card click honors your "open PRs in a new tab" setting so the
+   // hub stays put behind you (the default) or navigates in place if you'd
+   // rather. Read non-reactively: the row that renders this already subscribes
+   // to settings, so a toggle re-renders it and this picks up the new value.
+   const newTab = getSettings().openPrsNewTab;
    return (
       <a
          className={`font-medium hover:underline hover:underline-offset-2 ${stretch ? 'pd-link' : ''}`}
          href={githubUrl(repo, number)}
-         target="_blank"
-         rel="noopener noreferrer"
+         {...(newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
          onClick={onOpen}
          onAuxClick={onOpen}
       >

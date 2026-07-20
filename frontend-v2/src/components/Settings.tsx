@@ -425,6 +425,20 @@ export function Settings({
                               onChange={v => set({ showCryo: v === 'show' })}
                            />
                         </Field>
+                        <Field
+                           label="Open a PR in"
+                           hint="Clicking a card opens the PR. A new tab keeps the board here behind you."
+                        >
+                           <Segmented
+                              ariaLabel="open a PR in"
+                              value={s.openPrsNewTab ? 'new' : 'same'}
+                              options={[
+                                 ['same', 'This tab'],
+                                 ['new', 'New tab'],
+                              ]}
+                              onChange={v => set({ openPrsNewTab: v === 'new' })}
+                           />
+                        </Field>
                      </Group>
 
                      <TeamPickerGroup extraBots={extraBots} />

@@ -69,6 +69,9 @@ export interface Settings {
    /** when an unfinished claim of yours starts nagging you to finish or
     * release it */
    claimWarnMins: number;
+   /** open a PR in a new tab when you click its card, so the board stays put
+    * behind you — this is a hub. Off opens it in the same tab. */
+   openPrsNewTab: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -93,6 +96,7 @@ export const DEFAULT_SETTINGS: Settings = {
    codeRegions: [],
    claimLengthMins: 240,
    claimWarnMins: 120,
+   openPrsNewTab: true,
 };
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
