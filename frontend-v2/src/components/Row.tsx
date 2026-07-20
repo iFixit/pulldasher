@@ -449,13 +449,13 @@ function StarGlyph({ on }: { on: boolean }) {
 }
 
 /**
- * The same three actions for pointers that can't hover, plus the star/mute
- * board actions that only live here (never on the desktop icon cluster —
- * see RowActions). Below 720px the desktop cluster doesn't exist at all, so
- * every row keeps a quiet, always-visible kebab that opens a tap-friendly
- * labeled menu (the house click-to-open popover — no hover in the path); at
- * and above 720px it now rides at the end of the hover cluster too, since
- * star/mute have no other home there.
+ * The touch-only row menu: below 720px the hover cluster (RowActions) doesn't
+ * exist, so every row keeps a quiet, always-visible kebab that opens a
+ * tap-friendly labeled menu (the house click-to-open popover — no hover in the
+ * path). It's hidden at and above 720px: everything it offers has a desktop
+ * home already — copy/snooze/re-fetch/claim in the hover cluster, and repo/
+ * person star/mute in Settings' repo manager and the People lens — so on a
+ * pointer device the kebab was pure redundancy.
  */
 function RowActionsKebab({
    pull,
@@ -480,7 +480,7 @@ function RowActionsKebab({
       <Popover
          label="Row actions"
          side="right"
-         rootClass="relative inline-flex"
+         rootClass="relative inline-flex min-[720px]:hidden"
          // capped to the viewport: w-max would size to the branch name and
          // push the panel off a phone screen — the branch truncates instead
          width="w-max min-w-[190px] max-w-[min(280px,calc(100vw-16px))]"
