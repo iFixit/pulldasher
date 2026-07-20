@@ -7,11 +7,13 @@ import {
    evaluateCheers,
 } from './model/cheers';
 import type { DerivedPull } from './model/status';
+import type { Toast, ToastTone } from './model/toast';
 import { getSettings } from './settings';
 
 /** How long a toast lingers before it auto-dismisses, by tone. Nags sit a beat
- * longer than rewards so the guilt lands; neither overstays its welcome. */
-const TTL_MS: Record<CheerToast['tone'], number> = { reward: 5000, nag: 7000 };
+ * longer than rewards so the guilt lands; info lingers a touch longer still —
+ * it's a catch-up, not a jab; neither overstays its welcome. */
+const TTL_MS: Record<ToastTone, number> = { reward: 5000, nag: 7000, info: 9000 };
 /** Time for the leave animation before the node is removed. */
 const LEAVE_MS = 200;
 /** Most toasts on screen at once; a fourth pushes the oldest out early. */
@@ -42,7 +44,7 @@ const SAMPLE_CHEERS: CheerToast[] = [
    },
 ];
 
-interface LiveToast extends CheerToast {
+interface LiveToast extends Toast {
    id: number;
    leaving?: boolean;
 }
@@ -59,14 +61,23 @@ interface LiveToast extends CheerToast {
 export function useToasts(
    pulls: DerivedPull[],
    me: string,
-   claims: Readonly<Record<string, { login: string; at: number }>> = {}
+   claims: Readonly<Record<string, { login: string; at: number }>> = {},
+   extras: Toast[] = []
 ) {
    const [toasts, setToasts] = useState<LiveToast[]>([]);
    const baseline = useRef<CheerBaseline>(EMPTY_BASELINE);
    const nextId = useRef(0);
    const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+   const toastsRef = useRef<LiveToast[]>([]);
+   const firedKeys = useRef<Set<string>>(new Set());
+
+   useEffect(() => {
+      toastsRef.current = toasts;
+   }, [toasts]);
 
    const remove = useCallback((id: number) => {
+      const gone = toastsRef.current.find(t => t.id === id);
+      gone?.onGone?.();
       setToasts(list => list.filter(t => t.id !== id));
       const t = timers.current.get(id);
       if (t) {
@@ -90,7 +101,7 @@ export function useToasts(
    );
 
    const push = useCallback(
-      (fresh: CheerToast[]) => {
+      (fresh: Toast[]) => {
          if (fresh.length === 0) return;
          setToasts(list => {
             const added = fresh.map(t => ({ ...t, id: nextId.current++ }));
@@ -106,7 +117,7 @@ export function useToasts(
             for (const t of added) {
                timers.current.set(
                   t.id,
-                  setTimeout(() => dismiss(t.id), TTL_MS[t.tone])
+                  setTimeout(() => dismiss(t.id), t.ttlMs ?? TTL_MS[t.tone])
                );
             }
             return merged;
@@ -121,6 +132,16 @@ export function useToasts(
       baseline.current = next;
       if (on) push(fresh);
    }, [pulls, me, claims, push]);
+
+   // pre-built one-shot toasts from the caller (e.g. the shipped catch-up),
+   // deduped by dedupeKey so the same logical toast never re-fires on a later
+   // tick — not gated by the cheers setting, since this is informational, not
+   // gamification.
+   useEffect(() => {
+      const fresh = extras.filter(t => t.dedupeKey && !firedKeys.current.has(t.dedupeKey));
+      for (const t of fresh) firedKeys.current.add(t.dedupeKey as string);
+      if (fresh.length) push(fresh);
+   }, [extras, push]);
 
    // Dev-only preview handle: with the dummy backend the board is static, so
    // there are no live transitions to fire cheers off. Expose a way to conjure
@@ -169,10 +190,13 @@ function Sparks() {
 
 function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: number) => void }) {
    const reward = toast.tone === 'reward';
-   const clickable = !!toast.pull;
+   const info = toast.tone === 'info';
+   const clickable = !!toast.pull || !!toast.onAct;
 
    const act = () => {
-      if (toast.pull) {
+      if (toast.onAct) {
+         toast.onAct();
+      } else if (toast.pull) {
          document
             .getElementById(rowDomId(toast.pull))
             ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -182,10 +206,14 @@ function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: num
 
    const tone = reward
       ? 'border-brand-100 bg-surface ring-1 ring-brand/15'
-      : 'border-line bg-muted';
+      : info
+        ? 'border-brand-100 bg-surface'
+        : 'border-line bg-muted';
    const medallion = reward
       ? 'bg-brand-50 text-brand medallion-pop'
-      : 'bg-secondary text-ink-2 medallion-slump';
+      : info
+        ? 'bg-brand-50 text-brand'
+        : 'bg-secondary text-ink-2 medallion-slump';
 
    return (
       <div

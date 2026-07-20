@@ -2,6 +2,7 @@ import { pullKey, shortRepo } from '../format';
 import { actionState } from './actions';
 import { buildReviewerPools, turnFor } from './rotation';
 import type { DerivedPull } from './status';
+import type { Toast } from './toast';
 
 /**
  * "Cheers": the gamification layer. A pure, edge-triggered evaluator that turns
@@ -20,17 +21,7 @@ import type { DerivedPull } from './status';
 
 export type CheerTone = 'reward' | 'nag';
 
-export interface CheerToast {
-   tone: CheerTone;
-   /** a single emoji, the toast's face */
-   icon: string;
-   title: string;
-   body?: string;
-   /** the hero rewards (queue cleared, a milestone) get a spark flourish */
-   celebrate?: boolean;
-   /** clicking a pull-bound toast scrolls its row into view */
-   pull?: { repo: string; number: number };
-}
+export type CheerToast = Toast;
 
 /** Everything the evaluator must remember between ticks. Plain data (Sets and
  * numbers) so a caller can hold it in a ref and a test can assert on it. */
