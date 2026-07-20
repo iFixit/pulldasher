@@ -114,6 +114,8 @@ class Pull {
         login,
         state: review.data.state,
         date: Math.floor(review.data.submitted_at.getTime() / 1000),
+        review_id: review.data.review_id,
+        body: review.data.body ? review.data.body.slice(0, 400) : undefined,
       });
     });
     return unstamped;
