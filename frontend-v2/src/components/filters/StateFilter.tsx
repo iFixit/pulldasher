@@ -3,7 +3,7 @@ import { actionState } from '../../model/actions';
 import type { DerivedPull } from '../../model/status';
 import { usePulldasher } from '../../store';
 import { Popover } from '../Popover';
-import { FilterRow } from './shared';
+import { FilterRow, OnlyButton } from './shared';
 
 /**
  * State filter option order: your own move first (the thing you're most
@@ -104,6 +104,7 @@ export function StateFilter({
                         {counts.get(key) || ''}
                      </span>
                   </label>
+                  <OnlyButton onClick={() => setStateSel([key])} />
                </FilterRow>
             ))}
          </Popover>

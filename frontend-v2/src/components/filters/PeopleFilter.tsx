@@ -5,7 +5,7 @@ import { usePulldasher } from '../../store';
 import type { Team } from '../../types';
 import { Avatar, QuietButton } from '../bits';
 import { Popover } from '../Popover';
-import { FilterRow, FilterSearch } from './shared';
+import { FilterRow, FilterSearch, OnlyButton } from './shared';
 
 /**
  * The people filter: team preset chips, then a searchable author list where
@@ -148,6 +148,7 @@ export function PeopleFilter({
                         </span>
                         <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
                      </label>
+                     <OnlyButton onClick={() => setScope({ ...scope, authors: [login] })} />
                      <button
                         type="button"
                         className={`hit pressable -my-1.5 rounded-md px-1 py-1.5 text-sm leading-none ${

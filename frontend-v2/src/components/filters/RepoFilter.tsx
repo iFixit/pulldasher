@@ -4,7 +4,7 @@ import { shortRepo } from '../../format';
 import { setRepoPref, togglePrimaryRepo, useSettings } from '../../settings';
 import { QuietButton, Segmented } from '../bits';
 import { Popover } from '../Popover';
-import { FilterSearch } from './shared';
+import { FilterSearch, OnlyButton } from './shared';
 
 /**
  * The repos filter: opens straight into the repo list (no tabs — the old
@@ -78,7 +78,7 @@ export function RepoFilter({
       return (
          <div
             key={name}
-            className="flex items-center gap-2 rounded-md px-1.5 py-[5px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none"
+            className="group flex items-center gap-2 rounded-md px-1.5 py-[5px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none"
          >
             <label className="flex min-w-0 flex-1 items-center gap-2">
                <input
@@ -98,6 +98,7 @@ export function RepoFilter({
                </span>
                <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
             </label>
+            <OnlyButton onClick={() => setScope({ ...scope, repos: [name] })} />
             <button
                type="button"
                className={`hit pressable -my-1.5 rounded-md px-1 py-1.5 text-sm leading-none ${

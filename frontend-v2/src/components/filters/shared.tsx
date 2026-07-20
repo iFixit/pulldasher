@@ -35,8 +35,30 @@ export function FilterSearch({
  */
 export function FilterRow({ children }: { children: ReactNode }) {
    return (
-      <div className="flex items-center gap-2 rounded-md px-1.5 py-[5px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none">
+      <div className="group flex items-center gap-2 rounded-md px-1.5 py-[5px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none">
          {children}
       </div>
+   );
+}
+
+/**
+ * The "only" quick-action: narrows a filter-picker's selection to exactly
+ * this one row's item, deselecting everything else. Hidden until the row is
+ * hovered or the button itself is keyboard-focused, so it never crowds the
+ * row's existing checkbox/star/mute buttons while still being reachable
+ * without a mouse. Mirrors v1's filter "only" feature.
+ */
+export function OnlyButton({ onClick }: { onClick: () => void }) {
+   return (
+      <button
+         type="button"
+         className="hit pressable rounded px-1 text-xs leading-none text-ink-3 opacity-0 transition-opacity duration-150 hover:text-brand focus-visible:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
+         onClick={e => {
+            e.stopPropagation();
+            onClick();
+         }}
+      >
+         only
+      </button>
    );
 }

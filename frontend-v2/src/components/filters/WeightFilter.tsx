@@ -1,7 +1,7 @@
 import type { DerivedPull } from '../../model/status';
 import { weightFilterKey } from '../../model/status';
 import { Popover } from '../Popover';
-import { FilterRow } from './shared';
+import { FilterRow, OnlyButton } from './shared';
 
 /** Weight filter option order: lightest to heaviest, then the unknown-size
  * catch-all — mirrors the WeightMeter's own light-to-heavy read. */
@@ -91,6 +91,7 @@ export function WeightFilter({
                         {counts.get(key) || ''}
                      </span>
                   </label>
+                  <OnlyButton onClick={() => setWeightSel([key])} />
                </FilterRow>
             ))}
          </Popover>
