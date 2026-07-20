@@ -19,8 +19,10 @@ export interface Backend {
     * reconciles a diff, just replaces its copy. */
    onReviewClaims: (handler: (claims: ReviewClaims) => void) => void;
    /** Ask to review a pull. The server derives the login from the socket's
-    * own auth — no login argument here. */
-   claimReview: (repo: string, number: number) => void;
+    * own auth — no login argument here. ttlMs is how long the claim should
+    * last before the server expires it; the server clamps it to [5min, 24h]
+    * and defaults to 4h if omitted. */
+   claimReview: (repo: string, number: number, ttlMs?: number) => void;
    releaseReview: (repo: string, number: number) => void;
 }
 
@@ -87,8 +89,8 @@ function liveBackend(): Backend {
       onReviewClaims(handler) {
          getSocket().on('reviewClaims', (claims: ReviewClaims) => handler(claims));
       },
-      claimReview(repo, number) {
-         getSocket().emit('claimReview', repo, number);
+      claimReview(repo, number, ttlMs) {
+         getSocket().emit('claimReview', repo, number, ttlMs);
       },
       releaseReview(repo, number) {
          getSocket().emit('releaseReview', repo, number);
@@ -159,7 +161,7 @@ function dummyBackend(): Backend {
          onClaims = handler;
          publishClaims();
       },
-      claimReview(repo, number) {
+      claimReview(repo, number, _ttlMs) {
          claims[`${repo}#${number}`] = { login: dummyUser(), at: Date.now() };
          publishClaims();
       },

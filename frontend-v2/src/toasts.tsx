@@ -233,7 +233,14 @@ export function useToasts(
    useEffect(() => {
       const on = getSettings().cheers;
       const { toasts: fresh, next } = evaluateCheers(
-         { pulls, closed, me, claims, now: Date.now() },
+         {
+            pulls,
+            closed,
+            me,
+            claims,
+            now: Date.now(),
+            claimWarnMs: getSettings().claimWarnMins * 60_000,
+         },
          baseline.current
       );
       // a streak toast on the session's first review — bumped against the

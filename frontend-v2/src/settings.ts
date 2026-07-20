@@ -63,6 +63,12 @@ export interface Settings {
     * these floats to the top of the review queue. Arbitrary strings, not a
     * known set — unlike repos/logins. */
    codeRegions: string[];
+   /** how long your review claims last before the server expires them, sent
+    * to the server as the ttlMs on claimReview */
+   claimLengthMins: number;
+   /** when an unfinished claim of yours starts nagging you to finish or
+    * release it */
+   claimWarnMins: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -85,6 +91,8 @@ export const DEFAULT_SETTINGS: Settings = {
    starredPeople: [],
    mutedPeople: [],
    codeRegions: [],
+   claimLengthMins: 240,
+   claimWarnMins: 120,
 };
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);

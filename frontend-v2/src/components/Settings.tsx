@@ -369,6 +369,38 @@ export function Settings({
                            />
                         </Field>
                         <Field
+                           label="Claim length"
+                           hint="How long your review claims hold before they expire on their own."
+                        >
+                           <Segmented
+                              ariaLabel="claim length"
+                              value={String(s.claimLengthMins)}
+                              options={[
+                                 ['60', '1h'],
+                                 ['120', '2h'],
+                                 ['240', '4h'],
+                                 ['480', '8h'],
+                              ]}
+                              onChange={v => set({ claimLengthMins: Number(v) })}
+                           />
+                        </Field>
+                        <Field
+                           label="Nudge me about a claim"
+                           hint="When an unfinished claim of yours starts nagging you to finish it or hand it back."
+                        >
+                           <Segmented
+                              ariaLabel="claim warning time"
+                              value={String(s.claimWarnMins)}
+                              options={[
+                                 ['30', '30m'],
+                                 ['60', '1h'],
+                                 ['120', '2h'],
+                                 ['240', '4h'],
+                              ]}
+                              onChange={v => set({ claimWarnMins: Number(v) })}
+                           />
+                        </Field>
+                        <Field
                            label="Other people’s drafts"
                            hint="Your own drafts always show. This is the default; a session can override it."
                         >

@@ -160,7 +160,7 @@ export function Legend() {
                      ✋
                   </span>
                }
-               def="claim a review so teammates know you’re on it — the hand stays lit on your row, and claimed PRs collect in “You’re reviewing”. A stale claim (2h) nudges you to finish or release it; it clears on its own at 4h"
+               def="claim a review so teammates know you’re on it — the hand stays lit on your row, and claimed PRs collect in “You’re reviewing”. It nudges you when it goes stale and clears itself when it expires, both set in Settings (defaults: 2h and 4h)"
             />
             <Item
                term={<span className="text-ink-2 italic">X is reading it</span>}
@@ -184,9 +184,10 @@ export function Legend() {
                      you claim is ever written to disk.
                   </p>
                   <p>
-                     Claims expire on their own: stale at 2h (it stops holding others off, and
-                     you’re nudged to finish or release it), dropped entirely at 4h. Releasing
-                     clears it for everyone right away.
+                     Claims expire on their own: a claim goes stale when your warning time passes
+                     (it stops holding others off, and you’re nudged to finish or release it), and
+                     is dropped entirely when its length runs out. Both are set in Settings,
+                     defaulting to 2h and 4h. Releasing clears it for everyone right away.
                   </p>
                </div>
             </details>

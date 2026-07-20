@@ -373,7 +373,7 @@ export function claimFor(
  * through the store like every other mutation instead of reaching into the
  * backend directly. */
 export function claimReview(pull: Pick<PullData, 'repo' | 'number'>): void {
-   backend.claimReview(pull.repo, pull.number);
+   backend.claimReview(pull.repo, pull.number, getSettings().claimLengthMins * 60_000);
 }
 export function releaseReview(pull: Pick<PullData, 'repo' | 'number'>): void {
    backend.releaseReview(pull.repo, pull.number);

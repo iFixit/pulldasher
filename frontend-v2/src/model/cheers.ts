@@ -101,6 +101,9 @@ export interface CheerInput {
    /** current time (ms epoch), for aging claims into a stale-claim nag —
     * injected so the model stays pure and testable; the hook passes Date.now() */
    now?: number;
+   /** how long a claim of yours may sit before the stale-claim nag fires (ms);
+    * the viewer's claim-warning setting, falling back to STALE_CLAIM_MS */
+   claimWarnMs?: number;
 }
 
 /** A claim you're sitting on stops absolving other reviewers at 2h (see
@@ -296,11 +299,12 @@ export function readSignals(input: CheerInput): Signals {
 
    // claims of yours gone stale (past 2h) that you still haven't stamped — the
    // nudge to either finish the review or release it back to the pool
+   const warnMs = input.claimWarnMs ?? STALE_CLAIM_MS;
    const staleClaims = new Map<string, DerivedPull>();
    for (const p of pulls) {
       const key = pullKey(p.data);
       const c = claims[key];
-      if (c && c.login === me && !hasStamp(p, me) && now - c.at > STALE_CLAIM_MS) {
+      if (c && c.login === me && !hasStamp(p, me) && now - c.at > warnMs) {
          staleClaims.set(key, p);
       }
    }
