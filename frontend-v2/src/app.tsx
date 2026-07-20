@@ -12,6 +12,7 @@ import type { ActionStateKey } from './model/actions';
 import { actionState } from './model/actions';
 import type { DerivedPull } from './model/status';
 import { matchesWeightFilter } from './model/status';
+import { buildParentLookup } from './model/stack';
 import type { Team as TeamGroup } from './types';
 import { isSnoozed, setWeightLabels, usePulldasher } from './store';
 import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
@@ -563,6 +564,10 @@ export function App() {
    const onWeightToggle = useCallback((w: string) => {
       setWeightSel(cur => (cur.includes(w) ? cur.filter(k => k !== w) : [...cur, w]));
    }, []);
+   // the whole-board parent lookup for stacked pulls: built once over every
+   // pull (not the scoped/filtered view a given lane renders), so a row whose
+   // parent got filtered out of ITS list can still name it (see model/stack.ts)
+   const parentOf = useMemo(() => buildParentLookup(pulls), [pulls]);
    // stable identity so memo(Row) can skip untouched rows on socket bursts
    const rowOpts: RowOptions = useMemo(
       () => ({
@@ -575,6 +580,7 @@ export function App() {
          ageRotDays: settings.ageRotDays,
          compact: settings.density === 'compact',
          laneCap: settings.laneCap,
+         parentOf,
       }),
       [
          me,
@@ -586,6 +592,7 @@ export function App() {
          settings.ageRotDays,
          settings.density,
          settings.laneCap,
+         parentOf,
       ]
    );
 

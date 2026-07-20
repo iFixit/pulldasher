@@ -1,7 +1,8 @@
-import { memo, useState } from 'react';
+import { memo, useState, type ReactNode } from 'react';
 import type { DerivedPull } from '../model/status';
 import { isIterating, lastPushEpoch } from '../model/status';
 import { rowNote } from '../model/actions';
+import type { ParentRef } from '../model/stack';
 import { ago, epoch, pullKey, shortRepo } from '../format';
 import {
    setRepoPref,
@@ -11,9 +12,9 @@ import {
    useSettings,
 } from '../settings';
 import { ackPull, isFresh, refreshPull, snoozePull, usePulldasher } from '../store';
-import { AgeStamp, DiffSize, FreshTag, RepoRef, SigPips, StatusBadge, WeightMeter } from './bits';
+import { AgeStamp, DiffSize, FreshTag, RepoRef, SigPips, WeightMeter } from './bits';
 import { CardShell } from './Card';
-import { FeedbackPopover } from './FeedbackPopover';
+import { ContextPopover, StatusBadgeTrigger } from './StatePopover';
 import { Popover } from './Popover';
 
 export interface RowOptions {
@@ -36,6 +37,12 @@ export interface RowOptions {
    /** toggle a weight bucket ('xs'..'xl' or 'unknown') in the session Weight
     * filter — the row-initiated twin of WeightFilter's own checkboxes */
    onWeightToggle?: (w: string) => void;
+   /** whole-board parent lookup (model/stack.ts's buildParentLookup, memoized
+    * once in app.tsx): resolves a dependent pull's parent even when it's
+    * absent from the CURRENT list (a different lane, a muted repo, another
+    * lens' scope), so the 'stacked' flag can name it instead of just saying
+    * "based on <ref>". */
+   parentOf?: (p: DerivedPull) => ParentRef | null;
 }
 
 /**
@@ -62,7 +69,7 @@ interface Flag {
    /** 'warn' = act on it (amber); 'note' = a neutral fact (muted) */
    tone: 'warn' | 'note';
    label: string;
-   detail: string;
+   detail: ReactNode;
 }
 
 /**
@@ -70,8 +77,20 @@ interface Flag {
  * holds, in-flight CI, iterating, aging. They're not the status (the badge is)
  * and not your action (the note is), so they read as quiet colored labels,
  * not badges — amber only for the ones you act on, muted gray for plain facts.
+ *
+ * `depth` is the row's stack-nesting depth (model/stack.ts's groupIntoTree):
+ * depth > 0 means the parent is already visible right above this row, so the
+ * 'stacked' flag would be redundant — geometry already says it. At depth 0,
+ * `orphanParent` (the whole-board lookup, when it resolves) upgrades the
+ * flag to name the parent instead of only describing the base ref.
  */
-function rowFlags(pull: DerivedPull, showIterating: boolean, aging: boolean): Flag[] {
+function rowFlags(
+   pull: DerivedPull,
+   showIterating: boolean,
+   aging: boolean,
+   depth: number,
+   orphanParent: ParentRef | null
+): Flag[] {
    const p = pull;
    const flags: Flag[] = [];
    if (p.conflict && p.status !== 'unmergeable')
@@ -116,13 +135,36 @@ function rowFlags(pull: DerivedPull, showIterating: boolean, aging: boolean): Fl
          detail: `Open ${p.ageDays} days without full CR (${p.crHave} of ${p.data.status.cr_req}).${quiet}`,
       });
    }
-   if (p.dependent && p.status !== 'unmergeable')
-      flags.push({
-         key: 'stacked',
-         tone: 'note',
-         label: 'stacked',
-         detail: `Based on ${p.data.base.ref}, not the main branch; it lands with its parent.`,
-      });
+   if (p.dependent && p.status !== 'unmergeable' && depth === 0) {
+      flags.push(
+         orphanParent
+            ? {
+                 key: 'stacked',
+                 tone: 'note',
+                 label: `stacked on #${orphanParent.number}`,
+                 detail: (
+                    <>
+                       Based on {p.data.base.ref}; lands with its parent,{' '}
+                       <a
+                          href={orphanParent.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-brand hover:underline"
+                       >
+                          “{orphanParent.title}” #{orphanParent.number}
+                       </a>
+                       .
+                    </>
+                 ),
+              }
+            : {
+                 key: 'stacked',
+                 tone: 'note',
+                 label: 'stacked',
+                 detail: `Based on ${p.data.base.ref}, not the main branch; it lands with its parent.`,
+              }
+      );
+   }
    if (p.mergeUnknown && p.status === 'ready')
       flags.push({
          key: 'merge',
@@ -505,7 +547,18 @@ function MetricRail({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    );
 }
 
-function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
+function RowImpl({
+   pull,
+   opts,
+   depth = 0,
+}: {
+   pull: DerivedPull;
+   opts: RowOptions;
+   /** stack-nesting depth from model/stack.ts's groupIntoTree (0 = top-level
+    * or not rendered through a stack-aware list). Per-row data, not an
+    * option — it varies row to row within the same list. */
+   depth?: number;
+}) {
    const d = pull.data;
    const key = pullKey(d);
    const fresh = freshKind(pull, opts);
@@ -518,6 +571,9 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    // avatar, so the row itself says "you follow this person" without a
    // trip to the kebab menu
    const starredAuthor = useSettings().starredPeople.includes(d.user.login);
+   // only worth asking the whole-board lookup when this row is stacked but
+   // rendering flat (its parent isn't visible right above it already)
+   const orphanParent = pull.dependent && depth === 0 ? (opts.parentOf?.(pull) ?? null) : null;
    return (
       <CardShell
          login={d.user.login}
@@ -527,6 +583,7 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          title={d.title}
          onOpen={() => ackPull(key)}
          compact={opts.compact}
+         depth={depth}
          className={`${flashOnce(key, !!fresh) ? 'row-fresh' : ''} transition-[background-color] duration-150 ease-out motion-reduce:transition-none`}
          avatarBadge={
             starredAuthor && (
@@ -544,17 +601,26 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
             // instead of clipping, so no chip ever costs the title its text
             <>
                {fresh && <FreshTag kind={fresh} />}
-               {/* the status badge always shows the state; when there's also a
-                   viewer move, the do-pill rides right after it, so "what's
+               {/* the status badge always shows the state, and now doubles as
+                   the state popover's trigger; when there's also a viewer
+                   move, the do-pill rides right after it, so "what's
                    happening" and "what to do" both stay visible at once */}
-               <StatusBadge status={pull.status} inline />
+               <StatusBadgeTrigger pull={pull} me={opts.me} />
                {note.action && <span className="badge-do">{note.action}</span>}
                <RepoRef repo={d.repo} number={d.number} />
                {pull.sizeKnown && (
                   <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
                )}
-               {note.context && <FeedbackPopover pull={pull} text={note.context} />}
-               <RowDetails flags={rowFlags(pull, showIterating, !!opts.aging && pull.starved)} />
+               {note.context && <ContextPopover pull={pull} me={opts.me} text={note.context} />}
+               <RowDetails
+                  flags={rowFlags(
+                     pull,
+                     showIterating,
+                     !!opts.aging && pull.starved,
+                     depth,
+                     orphanParent
+                  )}
+               />
             </>
          }
          rail={<MetricRail pull={pull} opts={opts} />}
@@ -571,6 +637,7 @@ export const Row = memo(
    RowImpl,
    (a, b) =>
       a.pull === b.pull &&
+      a.depth === b.depth &&
       a.opts.aging === b.opts.aging &&
       a.opts.compact === b.opts.compact &&
       a.opts.me === b.opts.me &&
@@ -579,5 +646,6 @@ export const Row = memo(
       a.opts.onPerson === b.opts.onPerson &&
       a.opts.ageWarnDays === b.opts.ageWarnDays &&
       a.opts.ageRotDays === b.opts.ageRotDays &&
-      a.opts.onWeightToggle === b.opts.onWeightToggle
+      a.opts.onWeightToggle === b.opts.onWeightToggle &&
+      a.opts.parentOf === b.opts.parentOf
 );

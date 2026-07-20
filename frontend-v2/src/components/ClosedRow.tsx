@@ -1,7 +1,8 @@
 import { memo } from 'react';
 import type { PullData } from '../types';
 import { ago, closedEpoch } from '../format';
-import { Avatar, ClosedBadge, PullTitleLink, RepoRef } from './bits';
+import { Avatar, PullTitleLink, RepoRef } from './bits';
+import { ClosedBadgeTrigger } from './StatePopover';
 
 /**
  * Full-width row: the badge, avatar, and right cluster are all flex-none, so
@@ -30,9 +31,9 @@ export const ClosedRow = memo(function ClosedRow({
                title={`${merged ? 'merged' : 'closed'} since your last look`}
             />
          )}
-         <ClosedBadge merged={merged} />
-         {/* nothing here is interactive, so nothing is raised: the whole row
-             stays one uninterrupted click target for the stretched title link */}
+         <span className="flex-none">
+            <ClosedBadgeTrigger pull={pull} />
+         </span>
          <span className="flex-none">
             <Avatar login={pull.user.login} />
          </span>
