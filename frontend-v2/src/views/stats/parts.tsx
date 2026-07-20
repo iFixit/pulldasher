@@ -150,7 +150,9 @@ export function PeriodColumns({
    color: string;
    axisTicks?: AxisTick[];
 }) {
-   const max = Math.max(...periods.map(p => Math.max(p.value, p.marker ?? 0)), 1);
+   // scale to the value series only — a marker (outlier callout) clamps to the
+   // top edge instead of dragging every bar down into an unreadable stub
+   const max = Math.max(...periods.map(p => p.value), 1);
    return (
       <div>
          <div className="flex h-16 gap-1">
