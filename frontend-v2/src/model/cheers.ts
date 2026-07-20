@@ -127,8 +127,8 @@ const MAX_PER_TICK = 3;
 /** Quick-win pile size that's worth a heads-up. */
 const QUICK_WIN_THRESHOLD = 3;
 
-const STAMP_PRAISE = ['Nice one.', 'The team thanks you.', "Keep 'em coming.", 'Clean.'];
-const MILESTONE_PRAISE = ["Somebody's on a roll.", 'The queue fears you.', 'Unstoppable.'];
+const STAMP_PRAISE = ['Nice one.', "Keep 'em coming.", 'Clean.'];
+const MILESTONE_PRAISE = ['Good pace.'];
 
 /** Deterministic rotation through a copy list — seeded, not random, so tests
  * are stable and two clients narrate the same board the same way. */
@@ -165,7 +165,7 @@ export function startHereReason(p: DerivedPull, pulls: DerivedPull[], me: string
    const familiar = pulls.some(o => o.data.repo === repo && hasStamp(o, me));
    if (familiar) return `You know ${shortRepo(repo)} — less to load in`;
    const quickWin = p.sizeKnown && (p.weight === 'XS' || p.weight === 'S');
-   if (quickWin) return `Small one (${p.weight}) — 5-minute job`;
+   if (quickWin) return `Small one (${p.weight}) — quick`;
    return `Waiting ${Math.max(1, Math.round(p.ageDays))}d, the oldest on your plate`;
 }
 
@@ -506,7 +506,7 @@ export function diffCheers(
          tone: 'reward',
          icon: '🎉',
          title: 'Inbox zero',
-         body: "Nothing's waiting on you. Go build something.",
+         body: "Nothing's waiting on you.",
          celebrate: true,
          dedupeKey: 'inbox:zero',
       });
@@ -594,7 +594,7 @@ export function diffCheers(
          tone: 'info',
          icon: '⚡',
          title: `${sig.quickWinCount} quick reviews on the board`,
-         body: 'XS/S — clear them in a coffee break.',
+         body: 'XS/S — small ones, unclaimed.',
          pull: sig.quickWinPull ? pullRef(sig.quickWinPull) : undefined,
          dedupeKey: `quick:${sig.quickWinCount}`,
       });
@@ -610,8 +610,8 @@ export function diffCheers(
       push('return-the-favor', {
          tone: 'info',
          icon: '🤝',
-         title: `${login} has one up`,
-         body: `They reviewed ${count} of yours — return the favor.`,
+         title: `Return the favor to ${login}`,
+         body: `They've reviewed ${count} of your ${count === 1 ? 'PR' : 'PRs'}.`,
          pull: pullRef(p),
          dedupeKey: `favor:${login}`,
       });
@@ -702,7 +702,7 @@ export function diffCheers(
          tone: 'reward',
          icon: '🎊',
          title: "Board's clear",
-         body: 'Nothing waiting on anyone. Nice work, team.',
+         body: 'Nothing waiting on anyone.',
          celebrate: true,
          dedupeKey: 'board:clear',
       });

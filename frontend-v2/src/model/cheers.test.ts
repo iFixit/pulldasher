@@ -274,7 +274,7 @@ describe('startHereReason — priority order', () => {
 
    it('falls back to a quick-win when unfamiliar and no reciprocity', () => {
       const target = pull('org/b', 1, { author: 'alice', weight: 'XS', sizeKnown: true });
-      expect(startHereReason(target, [target], 'me')).toBe('Small one (XS) — 5-minute job');
+      expect(startHereReason(target, [target], 'me')).toBe('Small one (XS) — quick');
    });
 
    it('falls back to urgency when nothing else applies', () => {
@@ -335,7 +335,7 @@ describe('diffCheers — return-the-favor', () => {
       const debtors = [{ login: 'alice', pull: p, count: 2 }];
       const first = diffCheers(sig({ debtors }), 'me', base);
       expect(first.toasts.some(t => t.dedupeKey === 'favor:alice')).toBe(true);
-      expect(first.toasts.some(t => t.body?.includes('2 of yours'))).toBe(true);
+      expect(first.toasts.some(t => t.body?.includes('2 of your PRs'))).toBe(true);
       const second = diffCheers(sig({ debtors }), 'me', first.next);
       expect(second.toasts.some(t => t.dedupeKey === 'favor:alice')).toBe(false);
    });

@@ -7,7 +7,6 @@ import {
    evaluateCheers,
 } from './model/cheers';
 import type { DerivedPull } from './model/status';
-import { bumpStreak, NO_STREAK, type StreakState } from './model/streak';
 import type { Toast, ToastTone } from './model/toast';
 import { getSettings } from './settings';
 import type { PullData } from './types';
@@ -36,22 +35,22 @@ const SAMPLE_CHEERS: CheerToast[] = [
    {
       tone: 'info',
       icon: '🤝',
-      title: 'alice has one up',
-      body: 'They reviewed 3 of yours — return the favor.',
+      title: 'Return the favor to alice',
+      body: "They've reviewed 3 of your PRs.",
       pull: { repo: 'org/repo', number: 90, title: 'Add a retry to the webhook sender' },
    },
    {
       tone: 'info',
       icon: '⚡',
       title: '4 quick reviews on the board',
-      body: 'XS/S — clear them in a coffee break.',
+      body: 'XS/S — small ones, unclaimed.',
    },
    {
-      tone: 'reward',
-      icon: '🔥',
-      title: '5-day review streak',
-      body: 'Chain unbroken. Respect.',
-      celebrate: true,
+      tone: 'info',
+      icon: '✦',
+      title: 'Review requested',
+      body: 'alice asked you to review this.',
+      pull: { repo: 'org/repo', number: 91, title: 'Rework the offer-sync batch loop' },
    },
    {
       tone: 'reward',
@@ -85,7 +84,7 @@ const SAMPLE_CHEERS: CheerToast[] = [
       tone: 'reward',
       icon: '🎊',
       title: "Board's clear",
-      body: 'Nothing waiting on anyone. Nice work, team.',
+      body: 'Nothing waiting on anyone.',
       celebrate: true,
    },
    {
@@ -100,51 +99,6 @@ const SAMPLE_CHEERS: CheerToast[] = [
 interface LiveToast extends Toast {
    id: number;
    leaving?: boolean;
-}
-
-/** The review streak persists across reloads so it counts calendar days, not
- * sittings — the one piece of per-user history we keep, and only client-side
- * (the server has no per-user memory). Key mirrors the other pd2.* prefs. */
-const STREAK_KEY = 'pd2.streak';
-
-function loadStreak(): StreakState {
-   try {
-      const raw = localStorage.getItem(STREAK_KEY);
-      if (!raw) return NO_STREAK;
-      const p = JSON.parse(raw);
-      return typeof p?.lastDay === 'string' && typeof p?.count === 'number' ? p : NO_STREAK;
-   } catch {
-      return NO_STREAK;
-   }
-}
-
-function saveStreak(s: StreakState) {
-   try {
-      localStorage.setItem(STREAK_KEY, JSON.stringify(s));
-   } catch {
-      // storage disabled — the streak just won't survive the reload
-   }
-}
-
-/** Today as YYYY-MM-DD (local), the grain bumpStreak compares on. */
-function isoToday(): string {
-   const d = new Date();
-   const m = String(d.getMonth() + 1).padStart(2, '0');
-   const day = String(d.getDate()).padStart(2, '0');
-   return `${d.getFullYear()}-${m}-${day}`;
-}
-
-const STREAK_LINES = ["Don't break the chain.", 'Keep it alive.', 'Nice rhythm.'];
-
-function streakToast(count: number, milestone: boolean): Toast {
-   return {
-      tone: 'reward',
-      icon: '🔥',
-      title: `${count}-day review streak`,
-      body: milestone ? 'Chain unbroken. Respect.' : STREAK_LINES[count % STREAK_LINES.length],
-      celebrate: milestone,
-      dedupeKey: `streak:${count}`,
-   };
 }
 
 /**
@@ -172,8 +126,6 @@ export function useToasts(
    const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
    const toastsRef = useRef<LiveToast[]>([]);
    const firedKeys = useRef<Set<string>>(new Set());
-   // your stamp count last tick, to catch the session's first review (0 → >0)
-   const prevStamps = useRef(0);
 
    useEffect(() => {
       toastsRef.current = toasts;
@@ -243,16 +195,6 @@ export function useToasts(
          },
          baseline.current
       );
-      // a streak toast on the session's first review — bumped against the
-      // persisted last-review day so it tracks calendar days across reloads,
-      // and only celebrated at ≥2 (a 1-day "streak" isn't one yet)
-      const streakToasts: Toast[] = [];
-      if (prevStamps.current === 0 && next.sessionStamps > 0) {
-         const { state, toasted, milestone } = bumpStreak(loadStreak(), isoToday());
-         saveStreak(state);
-         if (toasted && state.count > 1) streakToasts.push(streakToast(state.count, milestone));
-      }
-      prevStamps.current = next.sessionStamps;
       baseline.current = next;
       // quick-wins is a batch, not one pull: swap its scroll-to-pull for the
       // filter action so clicking shows every small review, not just the first
@@ -261,7 +203,7 @@ export function useToasts(
             ? { ...t, pull: undefined, onAct: onQuickWins }
             : t
       );
-      if (on) push([...bound, ...streakToasts]);
+      if (on) push(bound);
    }, [pulls, closed, me, claims, push, onQuickWins]);
 
    // pre-built one-shot toasts from the caller (e.g. the shipped catch-up),

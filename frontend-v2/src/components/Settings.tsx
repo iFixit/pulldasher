@@ -434,7 +434,7 @@ export function Settings({
                      <Group title="Notifications">
                         <Field
                            label="Cheers & nudges"
-                           hint="Playful in-app rewards when your reviews land, and gentle nudges when they pile up. Fires while you’re on the board."
+                           hint="Rewards when your reviews land, nudges when they pile up. Fires while you’re on the board."
                         >
                            <Segmented
                               ariaLabel="cheers and nudges"
