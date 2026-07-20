@@ -45,14 +45,20 @@ export function alertMove(p: DerivedPull, me: string): string | null {
    return v === 'Re-stamp' || v === 'Re-QA' ? v : null;
 }
 
-/** 'do' = your move (brand, bold imperative); 'wait' = context on someone else's move. */
+/**
+ * action = the viewer's imperative move, rendered as a `.badge-do` pill right
+ * after the status badge ("what to do"). context = the state detail anyone
+ * can read, rendered muted after the diff chip ("who/when/why") — sometimes
+ * behind a feedback popover. Either slot may be null, but for an open pull at
+ * least one is always non-null (see the fallback in rowNote below).
+ */
 export interface RowNote {
-   text: string;
-   tone: 'do' | 'wait';
+   action: string | null;
+   context: string | null;
 }
 
-const doNote = (text: string): RowNote => ({ text, tone: 'do' });
-const waitNote = (text: string): RowNote => ({ text, tone: 'wait' });
+const doOnly = (action: string): RowNote => ({ action, context: null });
+const waitOnly = (context: string): RowNote => ({ action: null, context });
 const unique = (xs: string[]): string[] => [...new Set(xs)];
 
 /**
@@ -81,42 +87,48 @@ function authorNote(p: DerivedPull, me: string): RowNote {
    const pushed = p.headPushedAt ? ` · fix pushed ${ago(p.headPushedAt)} ago` : '';
    const crReq = d.status.cr_req;
 
-   if (p.status === 'draft') return doNote('Finish the draft');
+   if (p.status === 'draft') return doOnly('Finish the draft');
    if (p.status === 'ci_red')
-      return doNote(p.ciFailing.length ? `Fix CI · ${p.ciFailing.join(', ')}` : 'Fix CI');
+      return { action: 'Fix CI', context: p.ciFailing.length ? p.ciFailing.join(', ') : null };
    // a dev block is feedback waiting on YOU — v1 lore said "ask them to lift
    // it", which misroutes the most common author action
-   if (p.status === 'dev_block') return doNote(`Address ${who(p.devBlockedBy)}'s feedback`);
+   if (p.status === 'dev_block')
+      return { action: 'Address feedback', context: `from ${who(p.devBlockedBy)}` };
    if ((p.status === 'needs_cr' || p.status === 'needs_recr') && p.changesRequestedBy.length)
-      return doNote(`Address ${who(p.changesRequestedBy)}'s feedback`);
+      return {
+         action: 'Address feedback',
+         context: `changes requested by ${who(p.changesRequestedBy)}`,
+      };
    // A conflict masks whatever CR/QA state the pull is otherwise in — the
    // author's real next move is always the rebase, checked before (and
    // independent of) the status-driven branches below.
-   if (p.conflict) return doNote(`Rebase${p.crHave < crReq ? ' · CR still needed' : ''}`);
-   if (p.status === 'unmergeable' && p.dependent) return waitNote('lands with its parent');
-   if (p.status === 'ready') return doNote('Merge it');
+   if (p.conflict)
+      return { action: 'Rebase', context: p.crHave < crReq ? 'CR still needed' : null };
+   if (p.status === 'unmergeable' && p.dependent) return waitOnly('lands with its parent');
+   if (p.status === 'ready') return doOnly('Merge it');
    if (p.status === 'needs_qa') {
-      if (!p.qaingLogin && !p.reqaBy.length) return doNote('Find a QA-er');
-      if (p.qaingLogin) return waitNote(`${who([p.qaingLogin])} is testing it`);
-      if (p.reqaBy.length) return waitNote(`${who(p.reqaBy)}'s QA fell to a push`);
+      if (!p.qaingLogin && !p.reqaBy.length) return doOnly('Find a QA-er');
+      if (p.qaingLogin) return waitOnly(`${who([p.qaingLogin])} is testing it`);
+      if (p.reqaBy.length) return waitOnly(`${who(p.reqaBy)}'s QA fell to a push`);
    }
    if (p.status === 'needs_recr')
-      return waitNote(`waiting on ${who(p.recrBy)} to re-stamp${pushed}`);
+      return waitOnly(`waiting on ${who(p.recrBy)} to re-stamp${pushed}`);
    if (p.status === 'needs_cr') {
       // any reviewer with an unstamped verdict (CHANGES_REQUESTED already
       // handled above) has left something the author owes an answer to
       const reviewerLogins = unique((d.status.unstamped_reviewers ?? []).map(r => r.login));
-      if (reviewerLogins.length) return doNote(`Answer ${who(reviewerLogins)}'s review`);
-      if (p.engagedNoStamp.length) return waitNote(`in discussion with ${who(p.engagedNoStamp)}`);
-      if (p.starved) return doNote(`Chase a review · unreviewed ${p.ageDays}d`);
-      return waitNote(
+      if (reviewerLogins.length)
+         return { action: 'Answer the review', context: `from ${who(reviewerLogins)}` };
+      if (p.engagedNoStamp.length) return waitOnly(`in discussion with ${who(p.engagedNoStamp)}`);
+      if (p.starved) return { action: 'Chase a review', context: `unreviewed ${p.ageDays}d` };
+      return waitOnly(
          p.crHave > 0 ? `in the CR queue · ${p.crHave} of ${crReq}` : 'in the CR queue'
       );
    }
-   if (p.status === 'ci_pending') return waitNote('CI running — then merge');
-   if (p.status === 'deploy_block') return waitNote(`ask ${who(p.deployBlockedBy)} before deploy`);
+   if (p.status === 'ci_pending') return waitOnly('CI running — then merge');
+   if (p.status === 'deploy_block') return waitOnly(`ask ${who(p.deployBlockedBy)} before deploy`);
 
-   return waitNote(FALLBACK_STATUS_LABEL[p.status]);
+   return waitOnly(FALLBACK_STATUS_LABEL[p.status]);
 }
 
 /** The viewer did not author this pull: what they owe, or why they're waiting. */
@@ -128,55 +140,63 @@ function reviewerNote(p: DerivedPull, me: string): RowNote {
    const crReq = d.status.cr_req;
    const qaReq = d.status.qa_req;
 
-   if (p.recrBy.includes(me)) return doNote(`Re-stamp${pushed}`);
-   if (p.qaingLogin === me) return doNote('Finish QA');
-   if (p.reqaBy.includes(me)) return doNote('Re-QA');
+   if (p.recrBy.includes(me))
+      return {
+         action: 'Re-stamp',
+         context: p.headPushedAt ? `fix pushed ${ago(p.headPushedAt)} ago` : null,
+      };
+   if (p.qaingLogin === me) return doOnly('Finish QA');
+   if (p.reqaBy.includes(me)) return doOnly('Re-QA');
 
-   if (p.status === 'draft') return waitNote('draft — not reviewable yet');
-   if (p.status === 'ci_red') return waitNote('CI red · author fixes');
+   if (p.status === 'draft') return waitOnly('draft — not reviewable yet');
+   if (p.status === 'ci_red') return waitOnly('CI red · author fixes');
    if (p.status === 'dev_block')
-      return waitNote(
+      return waitOnly(
          p.devBlockedBy.includes(me)
             ? 'your block stands — lift when happy'
             : `feedback from ${who(p.devBlockedBy)}`
       );
    if ((p.status === 'needs_cr' || p.status === 'needs_recr') && p.changesRequestedBy.length)
-      return waitNote(`changes requested by ${who(p.changesRequestedBy)}`);
+      return waitOnly(`changes requested by ${who(p.changesRequestedBy)}`);
    // Adapted from the spec's literal order (see PR/report): an already-active
    // CR stamp earns the reassuring "you've stamped" count instead of the
    // generic "waiting on a re-stamp" line, so this check runs before the
    // plain needs_recr branch below, not after it.
    if ((p.status === 'needs_cr' || p.status === 'needs_recr') && p.crBy.includes(me))
-      return waitNote(`you've stamped · ${p.crHave} of ${crReq}`);
-   if (p.status === 'needs_recr') return waitNote(`waiting on ${who(p.recrBy)}${pushed}`);
+      return waitOnly(`you've stamped · ${p.crHave} of ${crReq}`);
+   if (p.status === 'needs_recr') return waitOnly(`waiting on ${who(p.recrBy)}${pushed}`);
    if (p.status === 'needs_cr') {
-      let qualifier = '';
-      if (p.starved) qualifier = ` · unreviewed ${p.ageDays}d`;
-      else if (p.crHave > 0) qualifier = ` · ${p.crHave} of ${crReq} in`;
-      else if (p.engagedNoStamp.length) qualifier = ` · ${who(p.engagedNoStamp)} looking`;
-      return doNote(`Review it${qualifier}`);
+      const context = p.starved
+         ? `unreviewed ${p.ageDays}d`
+         : p.crHave > 0
+           ? `${p.crHave} of ${crReq} in`
+           : p.engagedNoStamp.length
+             ? `${who(p.engagedNoStamp)} looking`
+             : null;
+      return { action: 'Review it', context };
    }
    if (p.status === 'needs_qa') {
-      if (p.qaBy.includes(me)) return waitNote(`you've QA'd · ${p.qaHave} of ${qaReq}`);
-      if (p.qaingLogin) return waitNote(`${who([p.qaingLogin])} is testing it`);
-      return doNote(`QA it${p.qaHave > 0 ? ` · ${p.qaHave} of ${qaReq} in` : ''}`);
+      if (p.qaBy.includes(me)) return waitOnly(`you've QA'd · ${p.qaHave} of ${qaReq}`);
+      if (p.qaingLogin) return waitOnly(`${who([p.qaingLogin])} is testing it`);
+      return { action: 'QA it', context: p.qaHave > 0 ? `${p.qaHave} of ${qaReq} in` : null };
    }
-   if (p.status === 'deploy_block') return waitNote(`ask ${who(p.deployBlockedBy)} first`);
+   if (p.status === 'deploy_block') return waitOnly(`ask ${who(p.deployBlockedBy)} first`);
    if (p.status === 'unmergeable')
-      return waitNote(p.conflict ? 'conflicts · author rebases' : 'lands with its parent');
-   if (p.status === 'ci_pending') return waitNote('only CI left');
-   if (p.status === 'ready') return waitNote(`ready · nudge ${author} if it sits`);
+      return waitOnly(p.conflict ? 'conflicts · author rebases' : 'lands with its parent');
+   if (p.status === 'ci_pending') return waitOnly('only CI left');
+   if (p.status === 'ready') return waitOnly(`ready · nudge ${author} if it sits`);
 
-   return waitNote(FALLBACK_STATUS_LABEL[p.status]);
+   return waitOnly(FALLBACK_STATUS_LABEL[p.status]);
 }
 
 /**
- * The one context line every row renders, in every lens: the imperative when
- * it's your move, enriched with the when/which detail the badge can't carry;
- * otherwise a terse who/when/why for whoever's move it is. Never blank for an
- * open pull — closed/merged rows are receipts and don't call this. It never
- * restates the status badge — "Needs QA" the badge already says; this line
- * adds "alice is QAing", not "needs a QA stamp".
+ * The two-slot note every row renders, in every lens: `action` is the
+ * imperative when it's your move (a `.badge-do` pill next to the status
+ * badge); `context` is the terse who/when/why detail the badge can't carry,
+ * shown for anyone regardless of whose move it is. Never both-null for an
+ * open pull — closed/merged rows are receipts and don't call this. `context`
+ * never restates the status badge — "Needs QA" the badge already says;
+ * context adds "alice is QAing", not "needs a QA stamp".
  *
  * Source-agnostic on purpose: a CR, a re-stamp, or a dev block is the same
  * whether it came from a `CR`/`dev_block` comment tag or a GitHub review, so
@@ -190,7 +210,7 @@ function reviewerNote(p: DerivedPull, me: string): RowNote {
 export function rowNote(p: DerivedPull, me: string): RowNote {
    const note = p.data.user.login === me ? authorNote(p, me) : reviewerNote(p, me);
    // An external blocker is worth surfacing over a generic wait, but never
-   // hides an actual move — a 'do' nudge always wins.
-   if (p.externalBlock && note.tone !== 'do') return waitNote('on hold — external blocker');
+   // hides an actual move — a real action always wins.
+   if (p.externalBlock && !note.action) return waitOnly('on hold — external blocker');
    return note;
 }

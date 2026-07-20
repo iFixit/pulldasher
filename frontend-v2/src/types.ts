@@ -92,7 +92,17 @@ export interface PullData {
       /** reviewers whose latest verdict has no signature of its own (CHANGES_
        * REQUESTED/COMMENTED/DISMISSED — an APPROVED review already shows up
        * as a CR signature); optional — older servers won't send it. */
-      unstamped_reviewers?: { login: string; state: string; date: number }[];
+      unstamped_reviewers?: {
+         login: string;
+         state: string;
+         date: number;
+         /** the GitHub review id, for a #pullrequestreview- permalink; absent
+          * on servers older than this field. */
+         review_id?: number;
+         /** the review body, truncated server-side to 400 chars; absent when
+          * the review carried no body. */
+         body?: string;
+      }[];
    };
    labels: Label[];
    participants: string[];

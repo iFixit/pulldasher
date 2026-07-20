@@ -56,7 +56,7 @@ function redateSigs(
 // and `status.unstamped_reviewers` to say "answer their review" / "in
 // discussion with" — both postdate this fixture, so a few fixed pulls carry
 // them here (deterministic indexes, no randomness) to keep those nudges
-// QA-able in dummy mode.
+// QA-able in dummy mode. review_id/body let the FeedbackPopover trigger too.
 const CHANGES_REQUESTED_INDEX = 2;
 const COMMENTED_INDEX = 8;
 const EXTRA_PARTICIPANT_INDEXES = new Set([2, 5, 6, 8]);
@@ -66,12 +66,45 @@ function unstampedReviewerFor(
    atEpochSecs: number
 ): PullData['status']['unstamped_reviewers'] {
    if (i === CHANGES_REQUESTED_INDEX) {
-      return [{ login: 'grumpy-reviewer', state: 'CHANGES_REQUESTED', date: atEpochSecs }];
+      return [
+         {
+            login: 'grumpy-reviewer',
+            state: 'CHANGES_REQUESTED',
+            date: atEpochSecs,
+            review_id: 800000001,
+            body: 'This needs another pass on the error handling before I can sign off — see the inline comments.',
+         },
+      ];
    }
    if (i === COMMENTED_INDEX) {
-      return [{ login: 'curious-commenter', state: 'COMMENTED', date: atEpochSecs }];
+      return [
+         {
+            login: 'curious-commenter',
+            state: 'COMMENTED',
+            date: atEpochSecs,
+            review_id: 800000002,
+            body: 'Nice cleanup overall — one question about the retry logic, otherwise this looks good to me.',
+         },
+      ];
    }
    return undefined;
+}
+
+/**
+ * A dev-blocked dummy pull's block signature needs a comment_id so the
+ * FeedbackPopover can build a GitHub permalink for it (signatureUrl). The
+ * fixture's dev_block signatures already carry one, but this keeps the demo
+ * honest if that ever stops being true.
+ */
+function withDevBlockCommentId(status: PullData['status']): PullData['status'] {
+   if (!status.dev_block.some(s => !s.data.comment_id)) return status;
+   return {
+      ...status,
+      dev_block: status.dev_block.map((s, j) => ({
+         ...s,
+         data: { ...s.data, comment_id: s.data.comment_id || 900_000_000 + j },
+      })),
+   };
 }
 
 // Participants beyond the CR/QA stampers already on the pull, so
@@ -98,7 +131,7 @@ function redate(pull: PullData, i: number): PullData {
    // and size-derived stats aren't all flat XS in dummy mode
    const additions = pull.additions ?? 17 + ((i * 4099) % 1600);
    const deletions = pull.deletions ?? (i * 1237) % 400;
-   const status = redateSigs(pull.status, created.getTime(), now);
+   const status = withDevBlockCommentId(redateSigs(pull.status, created.getTime(), now));
    const unstamped_reviewers = unstampedReviewerFor(i, Math.floor(created.getTime() / 1000) + 3600);
    return {
       ...pull,

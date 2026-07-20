@@ -101,77 +101,79 @@ describe('rowNote — the author matrix', () => {
    const me = 'author';
 
    it('draft', () => {
-      expect(note({ status: 'draft' }, me)).toEqual({ text: 'Finish the draft', tone: 'do' });
+      expect(note({ status: 'draft' }, me)).toEqual({ action: 'Finish the draft', context: null });
    });
 
    it('ci_red names the failing checks when known', () => {
       expect(note({ status: 'ci_red', ciFailing: ['playwright'] }, me)).toEqual({
-         text: 'Fix CI · playwright',
-         tone: 'do',
+         action: 'Fix CI',
+         context: 'playwright',
       });
-      expect(note({ status: 'ci_red' }, me)).toEqual({ text: 'Fix CI', tone: 'do' });
+      expect(note({ status: 'ci_red' }, me)).toEqual({ action: 'Fix CI', context: null });
    });
 
    it('dev_block names the blocker', () => {
       expect(note({ status: 'dev_block', devBlockedBy: ['bob'] }, me)).toEqual({
-         text: "Address bob's feedback",
-         tone: 'do',
+         action: 'Address feedback',
+         context: 'from bob',
       });
    });
 
    it('changesRequestedBy beats the plain needs_recr wait', () => {
       expect(
          note({ status: 'needs_recr', changesRequestedBy: ['carol'], recrBy: ['dave'] }, me)
-      ).toEqual({ text: "Address carol's feedback", tone: 'do' });
+      ).toEqual({ action: 'Address feedback', context: 'changes requested by carol' });
    });
 
    it('a conflict masks the CR-incomplete state (regardless of status)', () => {
       expect(note({ status: 'needs_cr', conflict: true, crHave: 0, crReq: 2 }, me)).toEqual({
-         text: 'Rebase · CR still needed',
-         tone: 'do',
+         action: 'Rebase',
+         context: 'CR still needed',
       });
       // CR already met: no qualifier
       expect(note({ status: 'needs_qa', conflict: true, crHave: 2, crReq: 2 }, me)).toEqual({
-         text: 'Rebase',
-         tone: 'do',
+         action: 'Rebase',
+         context: null,
       });
    });
 
    it('dependent-only unmergeable (no conflict) waits on the parent', () => {
       expect(note({ status: 'unmergeable', dependent: true, conflict: false }, me)).toEqual({
-         text: 'lands with its parent',
-         tone: 'wait',
+         action: null,
+         context: 'lands with its parent',
       });
    });
 
    it('ready', () => {
-      expect(note({ status: 'ready' }, me)).toEqual({ text: 'Merge it', tone: 'do' });
+      expect(note({ status: 'ready' }, me)).toEqual({ action: 'Merge it', context: null });
    });
 
    it('needs_qa: unclaimed, testing, and re-QA-fell-through', () => {
-      expect(note({ status: 'needs_qa' }, me)).toEqual({ text: 'Find a QA-er', tone: 'do' });
+      expect(note({ status: 'needs_qa' }, me)).toEqual({ action: 'Find a QA-er', context: null });
       expect(note({ status: 'needs_qa', qaingLogin: 'eve' }, me)).toEqual({
-         text: 'eve is testing it',
-         tone: 'wait',
+         action: null,
+         context: 'eve is testing it',
       });
       expect(note({ status: 'needs_qa', reqaBy: ['frank'] }, me)).toEqual({
-         text: "frank's QA fell to a push",
-         tone: 'wait',
+         action: null,
+         context: "frank's QA fell to a push",
       });
    });
 
    it('needs_recr names who owes the re-stamp, with the push detail', () => {
       expect(note({ status: 'needs_recr', recrBy: ['gina'] }, me)).toEqual({
-         text: 'waiting on gina to re-stamp',
-         tone: 'wait',
+         action: null,
+         context: 'waiting on gina to re-stamp',
       });
       const pushedAgo = Date.now() / 1000 - 3600;
       const withPush = note(
          { status: 'needs_recr', recrBy: ['gina'], headPushedAt: pushedAgo },
          me
       );
-      expect(withPush.text).toBe('waiting on gina to re-stamp · fix pushed 1h ago');
-      expect(withPush.tone).toBe('wait');
+      expect(withPush).toEqual({
+         action: null,
+         context: 'waiting on gina to re-stamp · fix pushed 1h ago',
+      });
    });
 
    it('needs_cr: an unstamped reviewer of any verdict outranks a comment-only one', () => {
@@ -184,56 +186,56 @@ describe('rowNote — the author matrix', () => {
             },
             me
          )
-      ).toEqual({ text: "Answer holly's review", tone: 'do' });
+      ).toEqual({ action: 'Answer the review', context: 'from holly' });
    });
 
    it('needs_cr: comment-only engagement (no reviewer) is a discussion wait', () => {
       expect(note({ status: 'needs_cr', engagedNoStamp: ['iris'] }, me)).toEqual({
-         text: 'in discussion with iris',
-         tone: 'wait',
+         action: null,
+         context: 'in discussion with iris',
       });
    });
 
    it('needs_cr: untouched and starved chases a review', () => {
       expect(note({ status: 'needs_cr', starved: true, ageDays: 12 }, me)).toEqual({
-         text: 'Chase a review · unreviewed 12d',
-         tone: 'do',
+         action: 'Chase a review',
+         context: 'unreviewed 12d',
       });
    });
 
    it('needs_cr: fresh and untouched sits in the queue', () => {
       expect(note({ status: 'needs_cr' }, me)).toEqual({
-         text: 'in the CR queue',
-         tone: 'wait',
+         action: null,
+         context: 'in the CR queue',
       });
       expect(note({ status: 'needs_cr', crHave: 1, crReq: 2 }, me)).toEqual({
-         text: 'in the CR queue · 1 of 2',
-         tone: 'wait',
+         action: null,
+         context: 'in the CR queue · 1 of 2',
       });
    });
 
    it('ci_pending', () => {
       expect(note({ status: 'ci_pending' }, me)).toEqual({
-         text: 'CI running — then merge',
-         tone: 'wait',
+         action: null,
+         context: 'CI running — then merge',
       });
    });
 
    it('deploy_block', () => {
       expect(note({ status: 'deploy_block', deployBlockedBy: ['jack'] }, me)).toEqual({
-         text: 'ask jack before deploy',
-         tone: 'wait',
+         action: null,
+         context: 'ask jack before deploy',
       });
    });
 
    it('an external block only overrides a wait, never a do', () => {
       expect(note({ status: 'ci_pending', externalBlock: true }, me)).toEqual({
-         text: 'on hold — external blocker',
-         tone: 'wait',
+         action: null,
+         context: 'on hold — external blocker',
       });
       expect(note({ status: 'ready', externalBlock: true }, me)).toEqual({
-         text: 'Merge it',
-         tone: 'do',
+         action: 'Merge it',
+         context: null,
       });
    });
 });
@@ -244,59 +246,59 @@ describe('rowNote — the non-author matrix', () => {
 
    it('a stale stamp that fell to you is a re-stamp move, with the push detail', () => {
       expect(note({ author, status: 'needs_recr', recrBy: ['me'] }, me)).toEqual({
-         text: 'Re-stamp',
-         tone: 'do',
+         action: 'Re-stamp',
+         context: null,
       });
       const pushedAgo = Date.now() / 1000 - 7200;
       expect(
          note({ author, status: 'needs_recr', recrBy: ['me'], headPushedAt: pushedAgo }, me)
-      ).toEqual({ text: 'Re-stamp · fix pushed 2h ago', tone: 'do' });
+      ).toEqual({ action: 'Re-stamp', context: 'fix pushed 2h ago' });
    });
 
    it('claimed QA is a finish move; QA that fell to you is a re-QA move', () => {
       expect(note({ author, status: 'needs_qa', qaingLogin: 'me' }, me)).toEqual({
-         text: 'Finish QA',
-         tone: 'do',
+         action: 'Finish QA',
+         context: null,
       });
       expect(note({ author, status: 'needs_qa', reqaBy: ['me'] }, me)).toEqual({
-         text: 'Re-QA',
-         tone: 'do',
+         action: 'Re-QA',
+         context: null,
       });
    });
 
    it('draft', () => {
       expect(note({ author, status: 'draft' }, me)).toEqual({
-         text: 'draft — not reviewable yet',
-         tone: 'wait',
+         action: null,
+         context: 'draft — not reviewable yet',
       });
    });
 
    it('ci_red', () => {
       expect(note({ author, status: 'ci_red' }, me)).toEqual({
-         text: 'CI red · author fixes',
-         tone: 'wait',
+         action: null,
+         context: 'CI red · author fixes',
       });
    });
 
    it('dev_block: your own block reads differently than someone else’s', () => {
       expect(note({ author, status: 'dev_block', devBlockedBy: ['me'] }, me)).toEqual({
-         text: 'your block stands — lift when happy',
-         tone: 'wait',
+         action: null,
+         context: 'your block stands — lift when happy',
       });
       expect(note({ author, status: 'dev_block', devBlockedBy: ['bob'] }, me)).toEqual({
-         text: 'feedback from bob',
-         tone: 'wait',
+         action: null,
+         context: 'feedback from bob',
       });
    });
 
    it('changes requested beats a plain "Review it" for a non-author', () => {
       expect(note({ author, status: 'needs_cr', changesRequestedBy: ['carol'] }, me)).toEqual({
-         text: 'changes requested by carol',
-         tone: 'wait',
+         action: null,
+         context: 'changes requested by carol',
       });
       expect(
          note({ author, status: 'needs_recr', changesRequestedBy: ['carol'], recrBy: ['dave'] }, me)
-      ).toEqual({ text: 'changes requested by carol', tone: 'wait' });
+      ).toEqual({ action: null, context: 'changes requested by carol' });
    });
 
    it('adapted: an already-active CR stamp outranks the generic needs_recr wait', () => {
@@ -315,98 +317,98 @@ describe('rowNote — the non-author matrix', () => {
             },
             me
          )
-      ).toEqual({ text: "you've stamped · 1 of 2", tone: 'wait' });
+      ).toEqual({ action: null, context: "you've stamped · 1 of 2" });
    });
 
    it('needs_recr with no stake of your own is a generic wait', () => {
       expect(note({ author, status: 'needs_recr', recrBy: ['gina'] }, me)).toEqual({
-         text: 'waiting on gina',
-         tone: 'wait',
+         action: null,
+         context: 'waiting on gina',
       });
    });
 
    it('needs_cr: you already stamped', () => {
       expect(note({ author, status: 'needs_cr', crBy: ['me'], crHave: 1, crReq: 2 }, me)).toEqual({
-         text: "you've stamped · 1 of 2",
-         tone: 'wait',
+         action: null,
+         context: "you've stamped · 1 of 2",
       });
    });
 
    it('needs_cr: qualifiers are mutually exclusive, in priority order', () => {
       expect(note({ author, status: 'needs_cr', starved: true, ageDays: 9 }, me)).toEqual({
-         text: 'Review it · unreviewed 9d',
-         tone: 'do',
+         action: 'Review it',
+         context: 'unreviewed 9d',
       });
       expect(note({ author, status: 'needs_cr', crHave: 1, crReq: 2 }, me)).toEqual({
-         text: 'Review it · 1 of 2 in',
-         tone: 'do',
+         action: 'Review it',
+         context: '1 of 2 in',
       });
       expect(note({ author, status: 'needs_cr', engagedNoStamp: ['kate'] }, me)).toEqual({
-         text: 'Review it · kate looking',
-         tone: 'do',
+         action: 'Review it',
+         context: 'kate looking',
       });
       expect(note({ author, status: 'needs_cr' }, me)).toEqual({
-         text: 'Review it',
-         tone: 'do',
+         action: 'Review it',
+         context: null,
       });
    });
 
    it('needs_qa: partial QA counts for the viewer, someone else testing, unclaimed', () => {
       expect(note({ author, status: 'needs_qa', qaBy: ['me'], qaHave: 1, qaReq: 2 }, me)).toEqual({
-         text: "you've QA'd · 1 of 2",
-         tone: 'wait',
+         action: null,
+         context: "you've QA'd · 1 of 2",
       });
       expect(note({ author, status: 'needs_qa', qaingLogin: 'leo' }, me)).toEqual({
-         text: 'leo is testing it',
-         tone: 'wait',
+         action: null,
+         context: 'leo is testing it',
       });
-      expect(note({ author, status: 'needs_qa' }, me)).toEqual({ text: 'QA it', tone: 'do' });
+      expect(note({ author, status: 'needs_qa' }, me)).toEqual({ action: 'QA it', context: null });
       expect(note({ author, status: 'needs_qa', qaHave: 1, qaReq: 2 }, me)).toEqual({
-         text: 'QA it · 1 of 2 in',
-         tone: 'do',
+         action: 'QA it',
+         context: '1 of 2 in',
       });
    });
 
    it('deploy_block', () => {
       expect(note({ author, status: 'deploy_block', deployBlockedBy: ['jack'] }, me)).toEqual({
-         text: 'ask jack first',
-         tone: 'wait',
+         action: null,
+         context: 'ask jack first',
       });
    });
 
    it('unmergeable: conflict vs a dependent-only base', () => {
       expect(note({ author, status: 'unmergeable', conflict: true }, me)).toEqual({
-         text: 'conflicts · author rebases',
-         tone: 'wait',
+         action: null,
+         context: 'conflicts · author rebases',
       });
       expect(note({ author, status: 'unmergeable', conflict: false, dependent: true }, me)).toEqual(
-         { text: 'lands with its parent', tone: 'wait' }
+         { action: null, context: 'lands with its parent' }
       );
    });
 
    it('ci_pending', () => {
       expect(note({ author, status: 'ci_pending' }, me)).toEqual({
-         text: 'only CI left',
-         tone: 'wait',
+         action: null,
+         context: 'only CI left',
       });
    });
 
    it('ready nudges the author by name', () => {
       expect(note({ author, status: 'ready' }, me)).toEqual({
-         text: 'ready · nudge auth if it sits',
-         tone: 'wait',
+         action: null,
+         context: 'ready · nudge auth if it sits',
       });
    });
 
    it('an external block overrides a wait note, same as for the author', () => {
       expect(note({ author, status: 'ready', externalBlock: true }, me)).toEqual({
-         text: 'on hold — external blocker',
-         tone: 'wait',
+         action: null,
+         context: 'on hold — external blocker',
       });
       // but never a do
       expect(
          note({ author, status: 'needs_qa', qaingLogin: 'me', externalBlock: true }, me)
-      ).toEqual({ text: 'Finish QA', tone: 'do' });
+      ).toEqual({ action: 'Finish QA', context: null });
    });
 });
 
@@ -421,9 +423,9 @@ describe('rowNote — never blank for an open pull', () => {
          it(`${status} ${label}`, () => {
             const p = dp({ author, status });
             const result = rowNote(p, me);
-            expect(typeof result.text).toBe('string');
-            expect(result.text.length).toBeGreaterThan(0);
-            expect(['do', 'wait']).toContain(result.tone);
+            expect(result.action || result.context).toBeTruthy();
+            expect(result.action === null || typeof result.action === 'string').toBe(true);
+            expect(result.context === null || typeof result.context === 'string').toBe(true);
          });
       }
    }
@@ -437,7 +439,7 @@ describe('rowNote — never blank for an open pull', () => {
       ];
       for (const c of cases) {
          const result = rowNote(dp(c), 'me');
-         expect(result.text.length).toBeGreaterThan(0);
+         expect(result.action || result.context).toBeTruthy();
       }
    });
 });

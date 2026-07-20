@@ -6,6 +6,7 @@ import { ago, epoch, pullKey } from '../format';
 import { ackPull, isFresh, refreshPull, snoozePull } from '../store';
 import { AgeStamp, DiffSize, FreshTag, RepoRef, SigPips, StatusBadge, WeightMeter } from './bits';
 import { CardShell } from './Card';
+import { FeedbackPopover } from './FeedbackPopover';
 import { Popover } from './Popover';
 
 export interface RowOptions {
@@ -393,11 +394,11 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const d = pull.data;
    const key = pullKey(d);
    const fresh = freshKind(pull, opts);
-   // the one action/context line, the same in every lens (model/actions.ts) —
-   // never null for an open pull, so the wait text always renders
+   // the two-slot action/context note, the same in every lens (model/actions.ts)
+   // — never both-null for an open pull, so the context text always renders
    const note = rowNote(pull, opts.me);
    // "iterating" and a "fix pushed …" note say the same thing — don't say it twice
-   const showIterating = isIterating(pull) && !note.text.includes('pushed');
+   const showIterating = isIterating(pull) && !(note.context ?? '').includes('pushed');
    return (
       <CardShell
          login={d.user.login}
@@ -413,19 +414,16 @@ function RowImpl({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
             // instead of clipping, so no chip ever costs the title its text
             <>
                {fresh && <FreshTag kind={fresh} />}
-               {/* your move: the imperative IS the signal, so it leads and the
-                   badge (which would only echo it) steps aside. Otherwise the
-                   badge names the state and any note just adds who/when. */}
-               {note.tone === 'do' ? (
-                  <span className="badge-do">{note.text}</span>
-               ) : (
-                  <StatusBadge status={pull.status} inline />
-               )}
+               {/* the status badge always shows the state; when there's also a
+                   viewer move, the do-pill rides right after it, so "what's
+                   happening" and "what to do" both stay visible at once */}
+               <StatusBadge status={pull.status} inline />
+               {note.action && <span className="badge-do">{note.action}</span>}
                <RepoRef repo={d.repo} number={d.number} />
                {pull.sizeKnown && (
                   <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
                )}
-               {note.tone === 'wait' && <span className="text-ink-2">{note.text}</span>}
+               {note.context && <FeedbackPopover pull={pull} text={note.context} />}
                <RowDetails flags={rowFlags(pull, showIterating, !!opts.aging && pull.starved)} />
             </>
          }
