@@ -208,6 +208,7 @@ export function Legend() {
                term="Weight / State"
                def="the point-and-click version of weight:/has:/is: — pick from a dropdown instead of typing. State's Blocked is viewer-relative (a dev block you authored counts as your move), unlike is:blocked, which matches for anyone"
             />
+            <Item term="Saved" def="save filter combos from the search box; reapply from Saved" />
          </Group>
 
          <Group title="Keys">

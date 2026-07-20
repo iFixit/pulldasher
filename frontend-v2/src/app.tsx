@@ -27,7 +27,8 @@ import { RepoFilter } from './components/filters/RepoFilter';
 import { PeopleFilter } from './components/filters/PeopleFilter';
 import { WeightFilter } from './components/filters/WeightFilter';
 import { StateFilter } from './components/filters/StateFilter';
-import { FilterChips } from './components/filters/FilterChips';
+import { FilterChips, hasActiveFilters } from './components/filters/FilterChips';
+import { SavedFiltersInput, SavedFiltersMenu } from './components/SavedFiltersPanel';
 import type { RowOptions } from './components/Row';
 import { Review } from './views/Review';
 import { MyWork } from './views/MyWork';
@@ -586,6 +587,52 @@ export function App() {
 
    const isScoped = scope.repos.length || scope.authors.length || query;
 
+   // what a "Save current filter…" click right now would capture — the same
+   // object the hash-writing effect above builds, so a saved filter's hash
+   // always matches what location.hash would read at this moment
+   const currentHash = useMemo(
+      () =>
+         buildHash({
+            lens,
+            person,
+            team,
+            q: query,
+            repos: scope.repos,
+            authors: scope.authors,
+            weight: weightSel,
+            state: stateSel,
+            hidden: showAll,
+            reveal,
+            drafts: draftsMode !== settings.draftsMode ? draftsMode : null,
+         }),
+      [
+         lens,
+         person,
+         team,
+         query,
+         scope,
+         weightSel,
+         stateSel,
+         showAll,
+         reveal,
+         draftsMode,
+         settings.draftsMode,
+      ]
+   );
+   // gates the saved-filters panel's "Save current filter…" row (query box)
+   // and its muted hint row (the header "Saved" menu) — one definition
+   // (FilterChips.tsx) so the two surfaces can't disagree with FilterChips'
+   // own "Clear filters" about what counts as active
+   const sessionActive = hasActiveFilters({
+      reveal,
+      showAll,
+      draftsMode,
+      defaultDraftsMode: settings.draftsMode,
+      scope,
+      weightSel,
+      stateSel,
+   });
+
    const onPerson = useCallback((login: string) => {
       setPerson(login);
       setTeam(null);
@@ -766,6 +813,7 @@ export function App() {
                   setWeightSel={setWeightSel}
                />
                <StateFilter pulls={preStateScoped} stateSel={stateSel} setStateSel={setStateSel} />
+               <SavedFiltersMenu sessionActive={sessionActive} />
                <FilterChips
                   reveal={reveal}
                   toggleReveal={toggleReveal}
@@ -799,25 +847,21 @@ export function App() {
                      {n(bots.length, 'bot PR')}
                   </span>
                )}
-               <span className="relative ml-auto inline-flex max-w-full grow items-center sm:grow-0">
-                  <svg
-                     viewBox="0 0 16 16"
-                     aria-hidden
-                     className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 fill-ink-3"
-                  >
-                     <path d="M7 2a5 5 0 1 0 3.02 8.98l2.5 2.5a.75.75 0 1 0 1.06-1.06l-2.5-2.5A5 5 0 0 0 7 2Zm0 1.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Z" />
-                  </svg>
-                  <input
-                     ref={searchRef}
-                     type="search"
-                     aria-label="Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:restamp, is:blocked"
-                     placeholder="Filter (press /)"
-                     title="text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:restamp, is:blocked"
-                     value={query}
-                     onChange={e => setQuery(e.target.value)}
-                     className="h-8 w-[210px] max-w-full grow rounded-lg border border-line bg-surface pr-2.5 pl-8 text-[13px] sm:grow-0"
-                  />
-               </span>
+               <SavedFiltersInput
+                  query={query}
+                  setQuery={setQuery}
+                  inputRef={searchRef}
+                  currentHash={currentHash}
+                  sessionActive={sessionActive}
+                  inputProps={{
+                     'aria-label':
+                        'Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:restamp, is:blocked',
+                     placeholder: 'Filter (press /)',
+                     title: 'text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:restamp, is:blocked',
+                     className:
+                        'h-8 w-[210px] max-w-full grow rounded-lg border border-line bg-surface pr-2.5 pl-8 text-[13px] sm:grow-0',
+                  }}
+               />
             </div>
          </header>
 

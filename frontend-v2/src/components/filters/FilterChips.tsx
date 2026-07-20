@@ -9,6 +9,43 @@ interface Pill {
    onClear: () => void;
 }
 
+interface ActiveFilterArgs {
+   reveal: string[];
+   showAll: boolean;
+   draftsMode: 'mine' | 'all';
+   defaultDraftsMode: 'mine' | 'all';
+   scope: { repos: string[]; authors: string[] };
+   weightSel: string[];
+   stateSel: ActionStateKey[];
+}
+
+/**
+ * Whether any TRANSIENT session filter is narrowing the board right now —
+ * what "Clear filters" below would reset, and what the saved-filters panel
+ * (SavedFiltersPanel.tsx) reads to decide whether there's anything worth
+ * bookmarking. One definition so the two surfaces can't disagree about what
+ * counts as "active".
+ */
+export function hasActiveFilters({
+   reveal,
+   showAll,
+   draftsMode,
+   defaultDraftsMode,
+   scope,
+   weightSel,
+   stateSel,
+}: ActiveFilterArgs): boolean {
+   return (
+      scope.repos.length > 0 ||
+      scope.authors.length > 0 ||
+      weightSel.length > 0 ||
+      stateSel.length > 0 ||
+      reveal.length > 0 ||
+      showAll ||
+      draftsMode !== defaultDraftsMode
+   );
+}
+
 /**
  * The header's chip row: one dismissible pill per ACTIVE session filter
  * dimension, not per item — "3 people" reads at a glance where three separate
@@ -101,14 +138,15 @@ export function FilterChips({
 
    // what "Clear" would change — the transient filters, not your durable
    // mutes and stars (those are your board; unmute/unstar them in the list)
-   const clearable =
-      scope.repos.length > 0 ||
-      scope.authors.length > 0 ||
-      weightSel.length > 0 ||
-      stateSel.length > 0 ||
-      reveal.length > 0 ||
-      showAll ||
-      draftsMode !== settings.draftsMode;
+   const clearable = hasActiveFilters({
+      reveal,
+      showAll,
+      draftsMode,
+      defaultDraftsMode: settings.draftsMode,
+      scope,
+      weightSel,
+      stateSel,
+   });
 
    const clearAll = () => {
       setScope({ repos: [], authors: [] });
