@@ -21,7 +21,17 @@ const MEDALLION: Record<ToastRecord['toast']['tone'], string> = {
  * the toast stack fired, newest first, each still linking its PR. A brand dot
  * on the bell counts what's landed since you last opened it.
  */
-export function NotificationPanel({ records }: { records: ToastRecord[] }) {
+export function NotificationPanel({
+   records,
+   onClear,
+   onDismiss,
+}: {
+   records: ToastRecord[];
+   /** wipe the whole log */
+   onClear: () => void;
+   /** drop a single entry */
+   onDismiss: (id: number) => void;
+}) {
    // session-only "last opened" — toasts are session-only too, so there's
    // nothing to persist. Everything fired after this counts as unseen.
    const [lastSeen, setLastSeen] = useState(0);
@@ -54,9 +64,18 @@ export function NotificationPanel({ records }: { records: ToastRecord[] }) {
             </button>
          )}
       >
-         <span className="block border-b border-secondary px-3 py-2 text-[13px] font-semibold text-ink">
-            Recent nudges
-         </span>
+         <div className="flex items-center gap-2 border-b border-secondary px-3 py-2">
+            <span className="flex-1 text-[13px] font-semibold text-ink">Recent nudges</span>
+            {records.length > 0 && (
+               <button
+                  type="button"
+                  onClick={onClear}
+                  className="pressable rounded px-1 text-[11px] font-medium text-ink-3 hover:text-brand"
+               >
+                  Clear
+               </button>
+            )}
+         </div>
          {records.length === 0 ? (
             <div className="p-3 text-ink-3">No nudges yet.</div>
          ) : (
@@ -64,7 +83,7 @@ export function NotificationPanel({ records }: { records: ToastRecord[] }) {
                {records.map(r => (
                   <li
                      key={r.id}
-                     className="flex items-start gap-2.5 rounded-md px-2 py-2 hover:bg-muted"
+                     className="group/n flex items-start gap-2.5 rounded-md px-2 py-2 hover:bg-muted"
                   >
                      <span
                         aria-hidden
@@ -94,6 +113,23 @@ export function NotificationPanel({ records }: { records: ToastRecord[] }) {
                            <span className="mt-0.5 block text-ink-2">{r.toast.body}</span>
                         )}
                      </span>
+                     <button
+                        type="button"
+                        aria-label="dismiss this nudge"
+                        onClick={() => onDismiss(r.id)}
+                        className="hit pressable -m-1 flex-none rounded p-1 text-ink-3 opacity-0 transition-opacity hover:text-ink group-hover/n:opacity-100 focus-visible:opacity-100"
+                     >
+                        <svg
+                           viewBox="0 0 16 16"
+                           aria-hidden
+                           className="h-3 w-3"
+                           fill="none"
+                           stroke="currentColor"
+                           strokeWidth="1.75"
+                        >
+                           <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
+                        </svg>
+                     </button>
                   </li>
                ))}
             </ul>

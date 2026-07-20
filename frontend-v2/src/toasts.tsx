@@ -169,6 +169,13 @@ export function useToasts(
       [remove]
    );
 
+   // panel controls: wipe the whole log, or drop one entry
+   const clearHistory = useCallback(() => setHistory([]), []);
+   const dismissHistoryItem = useCallback(
+      (id: number) => setHistory(h => h.filter(r => r.id !== id)),
+      []
+   );
+
    const push = useCallback(
       (fresh: Toast[]) => {
          if (fresh.length === 0) return;
@@ -256,7 +263,7 @@ export function useToasts(
       };
    }, []);
 
-   return { toasts, dismiss, history };
+   return { toasts, dismiss, history, clearHistory, dismissHistoryItem };
 }
 
 function Sparks() {

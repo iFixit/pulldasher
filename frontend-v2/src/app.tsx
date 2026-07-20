@@ -770,6 +770,8 @@ export function App() {
       toasts,
       dismiss: dismissToast,
       history: toastHistory,
+      clearHistory,
+      dismissHistoryItem,
    } = useToasts(pulls, me, claims, shippedExtras, closed, onQuickWins);
 
    return (
@@ -812,7 +814,11 @@ export function App() {
                   open
                </span>
                <span className="flex-1" />
-               <NotificationPanel records={toastHistory} />
+               <NotificationPanel
+                  records={toastHistory}
+                  onClear={clearHistory}
+                  onDismiss={dismissHistoryItem}
+               />
                <Legend />
                <Settings
                   repos={repoCounts}
