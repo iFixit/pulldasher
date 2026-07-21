@@ -115,14 +115,29 @@ function DealtCard({
  * doesn't mean reopening; "Pass" skips to the next without claiming. Clicking
  * away or Escape ends the session. Opening always deals a fresh pull.
  */
-function DealButton({ queue, opts }: { queue: DerivedPull[]; opts: RowOptions }) {
+function DealButton({
+   queue,
+   opts,
+   deprioritize,
+}: {
+   queue: DerivedPull[];
+   opts: RowOptions;
+   /** bots (etc.) the pick should hand out only once human work is clear */
+   deprioritize?: (p: DerivedPull) => boolean;
+}) {
    const { pulls } = usePulldasher();
    const me = opts.me;
    const [dealtKey, setDealtKey] = useState<string | null>(null);
    const [passed, setPassed] = useState<ReadonlySet<string>>(new Set());
 
    const deal = (passedNow: ReadonlySet<string>) => {
-      const picked = dealOne(queue, { me, pulls, claims: opts.claims ?? {}, passed: passedNow });
+      const picked = dealOne(queue, {
+         me,
+         pulls,
+         claims: opts.claims ?? {},
+         passed: passedNow,
+         deprioritize,
+      });
       setDealtKey(picked ? pullKey(picked.data) : null);
    };
 
@@ -256,15 +271,41 @@ export function Review({
          (p.status === 'needs_cr' || (p.status === 'needs_recr' && !p.recrBy.includes(me)))
    );
    const aged = crPool.filter(p => p.starved).sort((a, b) => b.starveScore - a.starveScore);
-   // your review queue leads with your repos; everything else folds into "other
-   // repos" so it's reachable but not in the way. Starvation stays cross-repo
-   // (below) — the fairness backstop is deliberately everyone's job.
    const reviewable = crSort(crPool.filter(p => !p.starved));
-   const queue = starFirst(
+
+   // Bot PRs (dependency bumps, mostly) are review work too — someone has to
+   // move the daily ones along — just low priority. The reviewable ones join
+   // the queue tail and the deal, demoted so they're only handed out once human
+   // work is clear; the rest (already merge-ready, in CI, or draft) stay folded.
+   const bySecurityThenAge = (a: DerivedPull, b: DerivedPull) =>
+      Number(b.data.labels.some(l => /security/i.test(l.title))) -
+         Number(a.data.labels.some(l => /security/i.test(l.title))) || b.ageDays - a.ageDays;
+   const botReviewable = bots
+      .filter(
+         p =>
+            !p.crBy.includes(me) &&
+            (p.status === 'needs_cr' || (p.status === 'needs_recr' && !p.recrBy.includes(me)))
+      )
+      .sort(bySecurityThenAge);
+   const botKeys = new Set(botReviewable.map(p => pullKey(p.data)));
+   const botRest = bots.filter(p => !botKeys.has(pullKey(p.data))).sort(bySecurityThenAge);
+   const isDemoted = (p: DerivedPull) => botKeys.has(pullKey(p.data));
+
+   // your review queue leads with your repos, then the day's bot bumps at the
+   // tail; everything else folds into "other repos" so it's reachable but not in
+   // the way. Starvation stays cross-repo (the Aging lane) — the fairness
+   // backstop is deliberately everyone's job.
+   const queueHumans = starFirst(
       reviewable.filter(p => isPrimaryRepo(p.data.repo)),
       starred
    );
+   const queue = [...queueHumans, ...botReviewable];
    const queueOther = reviewable.filter(p => !isPrimaryRepo(p.data.repo));
+
+   // Deal me one draws from the whole reviewable pool — your primary repos, the
+   // aging cross-repo backstop, and bots — so a triage run doesn't skip the
+   // stuff that quietly needs moving. Bots sink to the end of the pick.
+   const dealPool = [...queueHumans, ...aged, ...botReviewable];
 
    // Ready-to-merge is the author's button, not the reviewer's job: a count
    // in the rest group, not a lane at the top.
@@ -374,7 +415,7 @@ export function Review({
       ciPending.length +
       ciRed.length +
       drafts.length +
-      bots.length +
+      botRest.length +
       closed.length;
 
    // bots/shipped stay reachable even when no human PRs need review
@@ -445,7 +486,7 @@ export function Review({
             pulls={queue}
             cap={9}
             opts={opts}
-            headerExtra={<DealButton queue={queue} opts={opts} />}
+            headerExtra={<DealButton queue={dealPool} opts={opts} deprioritize={isDemoted} />}
          />
          <Lane
             title="Needs QA"
@@ -555,26 +596,17 @@ export function Review({
                >
                   <FoldRows list={drafts} opts={opts} id="review:drafts" />
                </Fold>
-               {/* deliberately never auto-opened, even on a quiet board — bots stay deprioritized */}
+               {/* the reviewable bots moved up into the queue and the deal;
+                   what's left here isn't up for review (merge-ready, in CI, or
+                   draft), so it stays folded and never auto-opens */}
                <Fold
                   dot="var(--ink-3)"
-                  count={bots.length}
-                  label="bot PRs"
-                  hint="security first"
+                  count={botRest.length}
+                  label="other bot PRs"
+                  hint="not up for review"
                   id="review:bots"
                >
-                  {/* `security` is this org's most-used label (50 in 3 months),
-                      almost all on bot bumps: they lead the fold */}
-                  <FoldRows
-                     list={[...bots].sort(
-                        (a, b) =>
-                           Number(b.data.labels.some(l => /security/i.test(l.title))) -
-                              Number(a.data.labels.some(l => /security/i.test(l.title))) ||
-                           b.ageDays - a.ageDays
-                     )}
-                     opts={opts}
-                     id="review:bots"
-                  />
+                  <FoldRows list={botRest} opts={opts} id="review:bots" />
                </Fold>
                <Fold
                   dot="var(--ok)"

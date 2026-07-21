@@ -21,6 +21,10 @@ export interface DealOptions {
    claims: Readonly<Record<string, { login: string; at: number }>>;
    /** session-only: keys the viewer has already passed on this sitting. */
    passed: ReadonlySet<string>;
+   /** pulls to hand out only once everything else is gone (bot PRs): they still
+    * need a reviewer, but shouldn't jump ahead of human work however old they
+    * get. Ranked among themselves by the same signals. */
+   deprioritize?: (p: DerivedPull) => boolean;
 }
 
 /** Has `login` landed an active CR or QA stamp on this pull? */
@@ -49,7 +53,10 @@ function score(p: DerivedPull, opts: DealOptions): number {
       other => other.data.user.login === opts.me && hasStamp(other, author)
    );
    const quickWin = p.sizeKnown && (p.weight === 'XS' || p.weight === 'S');
-   return urgency + (familiar ? 2 : 0) + (owedByAuthor ? 2 : 0) + (quickWin ? 1 : 0);
+   const base = urgency + (familiar ? 2 : 0) + (owedByAuthor ? 2 : 0) + (quickWin ? 1 : 0);
+   // a demoted pull (a bot's) sinks below every non-demoted one no matter how
+   // old, but keeps its relative order among the other demoted ones
+   return opts.deprioritize?.(p) ? base - 1000 : base;
 }
 
 /**

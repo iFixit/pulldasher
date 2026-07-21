@@ -113,6 +113,37 @@ describe('dealOne — scoring bumps', () => {
    });
 });
 
+describe('dealOne — deprioritize', () => {
+   it('hands out a demoted pull only once every non-demoted one is gone', () => {
+      // the bot is far older (would win on urgency) but must sink below a fresh
+      // human pull; passing the human then leaves only the bot to deal
+      const bot = dp({
+         number: 1,
+         author: 'dependabot',
+         ageDays: 30,
+         starved: true,
+         starveScore: 900,
+      });
+      const human = dp({ number: 2, author: 'alice', ageDays: 1 });
+      const opts = baseOpts({ deprioritize: p => p.data.user.login === 'dependabot' });
+      expect(dealOne([bot, human], opts)).toBe(human);
+      expect(dealOne([bot, human], { ...opts, passed: new Set(['org/repo#2']) })).toBe(bot);
+   });
+
+   it('still orders demoted pulls among themselves', () => {
+      const olderBot = dp({
+         number: 1,
+         author: 'bot',
+         ageDays: 20,
+         starved: true,
+         starveScore: 800,
+      });
+      const newerBot = dp({ number: 2, author: 'bot', ageDays: 2 });
+      const opts = baseOpts({ deprioritize: () => true });
+      expect(dealOne([olderBot, newerBot], opts)).toBe(olderBot);
+   });
+});
+
 describe('dealOne — determinism', () => {
    it('picks the same pull every time for the same inputs', () => {
       const queue = [dp({ number: 1 }), dp({ number: 2 }), dp({ number: 3 })];
