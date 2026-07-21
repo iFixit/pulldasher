@@ -241,6 +241,7 @@ export function Review({
       'Merge it',
       'Fix CI',
       'Address feedback',
+      'Lift your block',
       'Rebase',
       'Find a QA-er',
    ];
@@ -325,10 +326,12 @@ export function Review({
          !p.conflict &&
          !['draft', 'dev_block'].includes(p.status) &&
          // your in-flight QA and owed re-QAs live in "Yours to do"; a QA
-         // stamp you already gave lives in the "QA'd by you" fold
+         // stamp you already gave lives in the "QA'd by you" fold. The re-QA
+         // exclusion is status-agnostic to match reviewerMove — a re-QA owed
+         // on a needs_recr pull is still yours to do, not a generic lane slot
          p.qaingLogin !== me &&
          !p.qaBy.includes(me) &&
-         !(p.status === 'needs_qa' && p.reqaBy.includes(me))
+         !p.reqaBy.includes(me)
    );
    const qaSort = (list: DerivedPull[]) =>
       [...list].sort(
@@ -611,7 +614,7 @@ export function Review({
                <Fold
                   dot="var(--ok)"
                   count={closed.length}
-                  label="recently shipped"
+                  label="recently closed"
                   hint="merged or closed in the last 14 days"
                   id="review:shipped"
                   defaultOpen={boardIsQuiet}
@@ -635,7 +638,7 @@ export function Review({
 function ownVerb(p: DerivedPull, selfReview: boolean): string | null {
    const verb = authorMove(p);
    if (!verb) return null;
-   const doNow = ['Merge it', 'Fix CI', 'Address feedback', 'Rebase'];
+   const doNow = ['Merge it', 'Fix CI', 'Address feedback', 'Lift your block', 'Rebase'];
    if (selfReview) doNow.push('Find a QA-er');
    return doNow.includes(verb) ? verb : null;
 }

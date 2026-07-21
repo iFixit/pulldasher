@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ago } from '../format';
 import type { DerivedPull, Status } from './status';
 import { STATUS_ORDER } from './status';
-import { actionState, alertMove, rowNote } from './actions';
+import { actionState, alertMove, authorMove, reviewerMove, rowNote } from './actions';
 
 /** A DerivedPull with only the fields the move functions read. */
 function dp(o: {
@@ -65,8 +65,19 @@ describe('alertMove — which transitions earn a desktop nudge', () => {
    it('alerts the author on real transitions to their own PR', () => {
       expect(alertMove(dp({ author: 'me', status: 'ready' }), 'me')).toBe('Merge it');
       expect(alertMove(dp({ author: 'me', status: 'ci_red' }), 'me')).toBe('Fix CI');
-      expect(alertMove(dp({ author: 'me', status: 'dev_block' }), 'me')).toBe('Address feedback');
+      // a dev block held by someone else is feedback that landed on you
+      expect(
+         alertMove(dp({ author: 'me', status: 'dev_block', devBlockedBy: ['reviewer'] }), 'me')
+      ).toBe('Address feedback');
       expect(alertMove(dp({ author: 'me', status: 'unmergeable' }), 'me')).toBe('Rebase');
+   });
+
+   it('does not nudge you about a block you put on your own PR', () => {
+      // self-only blocker → authorMove is 'Lift your block', a standing choice,
+      // not an event, so no desktop nudge fires
+      expect(
+         alertMove(dp({ author: 'me', status: 'dev_block', devBlockedBy: ['me'] }), 'me')
+      ).toBeNull();
    });
 
    it('does not alert on self-initiated / standing states', () => {
@@ -93,6 +104,32 @@ describe('alertMove — which transitions earn a desktop nudge', () => {
       expect(
          alertMove(dp({ author: 'other', status: 'needs_recr', recrBy: ['x'] }), 'me')
       ).toBeNull();
+   });
+});
+
+describe('authorMove — a dev block you hold yourself', () => {
+   it('says lift-your-block when you are the only blocker, not address-feedback', () => {
+      expect(authorMove(dp({ author: 'me', status: 'dev_block', devBlockedBy: ['me'] }))).toBe(
+         'Lift your block'
+      );
+   });
+   it('still says address-feedback when someone else holds the block', () => {
+      expect(
+         authorMove(dp({ author: 'me', status: 'dev_block', devBlockedBy: ['me', 'reviewer'] }))
+      ).toBe('Address feedback');
+   });
+});
+
+describe('reviewerMove — re-stamp/re-QA are not gated on the current status', () => {
+   it('surfaces an owed Re-QA even when the pull sits at needs_recr', () => {
+      // a push invalidated both your QA and someone else's CR at once: status
+      // lands at needs_recr (CR precedes QA), but the re-QA is still yours to do
+      const p = dp({ author: 'a', status: 'needs_recr', recrBy: ['alice'], reqaBy: ['me'] });
+      expect(reviewerMove(p, 'me')).toBe('Re-QA');
+   });
+   it('surfaces an owed Re-stamp whatever higher-precedence state masks it', () => {
+      const p = dp({ author: 'a', status: 'ci_red', recrBy: ['me'] });
+      expect(reviewerMove(p, 'me')).toBe('Re-stamp');
    });
 });
 

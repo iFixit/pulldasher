@@ -8,25 +8,37 @@ import type { DerivedPull } from './status';
  * two tabs can never disagree about what you owe.
  */
 
-/** Your move on a pull you authored; null = waiting on someone else. */
+/** Your move on a pull you authored; null = waiting on someone else. Only ever
+ * called for the viewer's own pulls, so the author IS the viewer here. */
 export function authorMove(p: DerivedPull): string | null {
    if (p.status === 'ready') return 'Merge it';
    if (p.status === 'ci_red') return 'Fix CI';
    // a dev block is feedback waiting on YOU — v1 lore said "ask them to lift
-   // it", which misroutes the most common author action
-   if (p.status === 'dev_block') return 'Address feedback';
+   // it", which misroutes the most common author action. But a block you put
+   // on your own PR (self-flagged "hold off") isn't feedback to answer — the
+   // move is lifting it, so mirror authorNote's self-only-blocker case rather
+   // than telling you to "Address feedback" from yourself.
+   if (p.status === 'dev_block') {
+      const others = p.devBlockedBy.filter(l => l !== p.data.user.login);
+      return others.length ? 'Address feedback' : 'Lift your block';
+   }
    if (p.status === 'unmergeable' || p.conflict) return 'Rebase';
    if (p.status === 'needs_qa' && !p.qaingLogin && !p.reqaBy.length) return 'Find a QA-er';
    if (p.status === 'draft') return 'Finish the draft';
    return null;
 }
 
-/** Your move on someone else's pull; null = not your job right now. */
+/** Your move on someone else's pull; null = not your job right now. The QA
+ * obligations are NOT gated on status === 'needs_qa': QA runs in parallel with
+ * CR on this board (see Review.tsx's qaPool), so a push that invalidates both
+ * your QA and someone's CR at once lands the pull at needs_recr while still
+ * owing you a re-QA — and rowNote/actionState already surface it, so "Yours to
+ * do" must too, or the card shows "Re-QA" while the lane silently drops it. */
 export function reviewerMove(p: DerivedPull, me: string): string | null {
    if (p.data.user.login === me) return null;
-   if (p.status === 'needs_recr' && p.recrBy.includes(me)) return 'Re-stamp';
-   if (p.status === 'needs_qa' && p.qaingLogin === me) return 'Finish QA';
-   if (p.status === 'needs_qa' && p.reqaBy.includes(me)) return 'Re-QA';
+   if (p.recrBy.includes(me)) return 'Re-stamp';
+   if (p.qaingLogin === me) return 'Finish QA';
+   if (p.reqaBy.includes(me)) return 'Re-QA';
    return null;
 }
 
@@ -40,7 +52,11 @@ export function reviewerMove(p: DerivedPull, me: string): string | null {
 export function alertMove(p: DerivedPull, me: string): string | null {
    if (p.data.user.login === me) {
       const v = authorMove(p);
-      return v && v !== 'Find a QA-er' && v !== 'Finish the draft' ? v : null;
+      // 'Lift your block' is a block you put on yourself — a standing choice,
+      // not an event that landed on you, so it earns no desktop nudge (same as
+      // 'Find a QA-er' / 'Finish the draft')
+      const standing = v === 'Find a QA-er' || v === 'Finish the draft' || v === 'Lift your block';
+      return v && !standing ? v : null;
    }
    const v = reviewerMove(p, me);
    return v === 'Re-stamp' || v === 'Re-QA' ? v : null;
