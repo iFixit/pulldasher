@@ -92,6 +92,66 @@ export const EMPTY_BASELINE: CheerBaseline = {
    staleClaimsSeen: new Set(),
 };
 
+/**
+ * Flatten a baseline to a JSON-safe shape (Sets → arrays, the Map → entries)
+ * so it can ride in sessionStorage. Persisting the baseline is what stops a
+ * page reload from re-priming off EMPTY_BASELINE and replaying every load-time
+ * greeting (start-here, return-the-favor, the shipped catch-up); a reload
+ * instead resumes the diff, so only what genuinely changed while away speaks.
+ */
+export function serializeBaseline(b: CheerBaseline): unknown {
+   return {
+      primed: b.primed,
+      stamped: [...b.stamped],
+      queue: b.queue,
+      nagLevel: b.nagLevel,
+      sessionStamps: b.sessionStamps,
+      firedMilestones: [...b.firedMilestones],
+      seenTurns: [...b.seenTurns],
+      restampKeys: [...b.restampKeys],
+      quickWinsNagged: b.quickWinsNagged,
+      favorsSeen: [...b.favorsSeen],
+      myRank: b.myRank,
+      wasTop: b.wasTop,
+      requestedSeen: [...b.requestedSeen],
+      hadBacklog: b.hadBacklog,
+      authorPrs: [...b.authorPrs.entries()],
+      boardQueue: b.boardQueue,
+      staleClaimsSeen: [...b.staleClaimsSeen],
+   };
+}
+
+/** Rebuild a baseline from serializeBaseline's output. Returns null on anything
+ * malformed, so a corrupt or stale-shaped blob just falls back to priming. */
+export function reviveBaseline(raw: unknown): CheerBaseline | null {
+   if (!raw || typeof raw !== 'object') return null;
+   const o = raw as Record<string, unknown>;
+   const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+   try {
+      return {
+         primed: !!o.primed,
+         stamped: new Set(arr(o.stamped) as string[]),
+         queue: Number(o.queue) || 0,
+         nagLevel: Number(o.nagLevel) || 0,
+         sessionStamps: Number(o.sessionStamps) || 0,
+         firedMilestones: new Set(arr(o.firedMilestones) as number[]),
+         seenTurns: new Set(arr(o.seenTurns) as string[]),
+         restampKeys: new Set(arr(o.restampKeys) as string[]),
+         quickWinsNagged: !!o.quickWinsNagged,
+         favorsSeen: new Set(arr(o.favorsSeen) as string[]),
+         myRank: Number(o.myRank) || 0,
+         wasTop: !!o.wasTop,
+         requestedSeen: new Set(arr(o.requestedSeen) as string[]),
+         hadBacklog: !!o.hadBacklog,
+         authorPrs: new Map(arr(o.authorPrs) as [string, AuthorPrState][]),
+         boardQueue: Number(o.boardQueue) || 0,
+         staleClaimsSeen: new Set(arr(o.staleClaimsSeen) as string[]),
+      };
+   } catch {
+      return null;
+   }
+}
+
 export interface CheerInput {
    pulls: DerivedPull[];
    /** closed pulls in the loaded window, for the leaderboard's tally — optional

@@ -7,6 +7,8 @@ import {
    diffCheers,
    EMPTY_BASELINE,
    PRIORITY_ORDER,
+   reviveBaseline,
+   serializeBaseline,
    type Signals,
    startHereReason,
    type ToastKind,
@@ -587,6 +589,22 @@ describe('diffCheers — MAX_PER_TICK', () => {
       expect(toasts.some(t => t.icon === '⏳')).toBe(true);
       expect(toasts.some(t => t.icon === '🔁')).toBe(true);
       expect(toasts.some(t => t.icon === '⚡')).toBe(false);
+   });
+});
+
+describe('baseline persistence', () => {
+   it('round-trips through JSON serialize/revive', () => {
+      const p = pull('org/a', 1, { author: 'alice' });
+      const base = primed(sig({ stamped: new Set(['org/a#1']), queue: 3, pulls: [p], backlog: 2 }));
+      const round = reviveBaseline(JSON.parse(JSON.stringify(serializeBaseline(base))));
+      // deep-equal covers the Sets and the authorPrs Map structurally
+      expect(round).toEqual(base);
+   });
+
+   it('returns null on a malformed blob so the caller falls back to priming', () => {
+      expect(reviveBaseline(null)).toBeNull();
+      expect(reviveBaseline('nope')).toBeNull();
+      expect(reviveBaseline(42)).toBeNull();
    });
 });
 

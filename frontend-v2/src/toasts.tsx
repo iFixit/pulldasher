@@ -5,6 +5,8 @@ import {
    type CheerToast,
    EMPTY_BASELINE,
    evaluateCheers,
+   reviveBaseline,
+   serializeBaseline,
    type ToastKind,
 } from './model/cheers';
 import type { DerivedPull } from './model/status';
@@ -14,6 +16,51 @@ import type { PullData } from './types';
 
 /** Time for the leave animation before the node is removed. */
 const LEAVE_MS = 200;
+
+/**
+ * Per-tab memory of what's already been shown, so reloading the page doesn't
+ * re-prime from scratch and replay every load-time greeting. sessionStorage
+ * (not localStorage) on purpose: it survives a reload but not a brand-new tab,
+ * so a genuinely fresh session still gets its one catch-up. Keyed by viewer so
+ * switching accounts in the same tab starts clean.
+ */
+const SESSION_KEY = 'pd2.cheers.session';
+
+interface CheerSession {
+   baseline: CheerBaseline;
+   /** dedupeKeys of one-shot `extras` (e.g. the shipped catch-up) already fired */
+   fired: string[];
+}
+
+function loadCheerSession(me: string): CheerSession | null {
+   try {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (!raw) return null;
+      const saved = JSON.parse(raw) as { me?: string; baseline?: unknown; fired?: unknown };
+      if (saved.me !== me) return null;
+      const baseline = reviveBaseline(saved.baseline);
+      if (!baseline) return null;
+      return { baseline, fired: Array.isArray(saved.fired) ? (saved.fired as string[]) : [] };
+   } catch {
+      return null;
+   }
+}
+
+function saveCheerSession(me: string, baseline: CheerBaseline, fired: Set<string>) {
+   // never persist under an empty viewer: whoami resolves a tick after the
+   // first render, and a me='' save would clobber the real session so the
+   // hydrate that follows can't find it (and re-primes, replaying greetings).
+   if (!me) return;
+   try {
+      sessionStorage.setItem(
+         SESSION_KEY,
+         JSON.stringify({ me, baseline: serializeBaseline(baseline), fired: [...fired] })
+      );
+   } catch {
+      // sessionStorage can be unavailable (private mode, quota); losing the
+      // replay guard is a soft failure, not worth interrupting the board.
+   }
+}
 /** Most toasts on screen at once; a fourth pushes the oldest out early. */
 const MAX_VISIBLE = 3;
 /** How many past nudges the notification panel keeps — toasts are non-sticky
@@ -136,10 +183,25 @@ export function useToasts(
    const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
    const toastsRef = useRef<LiveToast[]>([]);
    const firedKeys = useRef<Set<string>>(new Set());
+   const hydrated = useRef(false);
 
    useEffect(() => {
       toastsRef.current = toasts;
    }, [toasts]);
+
+   // Rehydrate per-tab memory before any firing effect runs (this is declared
+   // above them, so on mount it runs first). A reload then resumes the diff
+   // against where the last tick left off, instead of re-priming from
+   // EMPTY_BASELINE and replaying every load-time greeting.
+   useEffect(() => {
+      if (hydrated.current || !me) return;
+      const saved = loadCheerSession(me);
+      if (saved) {
+         baseline.current = saved.baseline;
+         firedKeys.current = new Set(saved.fired);
+      }
+      hydrated.current = true;
+   }, [me]);
 
    const remove = useCallback((id: number) => {
       const gone = toastsRef.current.find(t => t.id === id);
@@ -228,6 +290,7 @@ export function useToasts(
          baseline.current
       );
       baseline.current = next;
+      saveCheerSession(me, next, firedKeys.current);
       // quick-wins is a batch, not one pull: swap its scroll-to-pull for the
       // filter action so clicking shows every small review, not just the first
       const bound = fresh.map(t =>
@@ -245,8 +308,11 @@ export function useToasts(
    useEffect(() => {
       const fresh = extras.filter(t => t.dedupeKey && !firedKeys.current.has(t.dedupeKey));
       for (const t of fresh) firedKeys.current.add(t.dedupeKey as string);
-      if (fresh.length) push(fresh);
-   }, [extras, push]);
+      if (fresh.length) {
+         push(fresh);
+         saveCheerSession(me, baseline.current, firedKeys.current);
+      }
+   }, [extras, push, me]);
 
    // Dev-only preview handle: with the dummy backend the board is static, so
    // there are no live transitions to fire cheers off. Expose a way to conjure
