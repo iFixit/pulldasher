@@ -237,6 +237,30 @@ describe('status derivation precedence', () => {
       expect(d.reqaBy).toEqual(['tester']);
    });
 
+   it('a stale stamp owes nothing once others meet the requirement', () => {
+      // carol's CR went stale, but alice + bob re-approved: the pull is ready
+      // and carol must NOT still be told "Re-stamp" (or counted in the
+      // re-stamp debt / is:restamp query) for a fully signed-off pull
+      const p = withStatus({
+         cr_req: 2,
+         allCR: [sig('CR', 'alice', true), sig('CR', 'bob', true), sig('CR', 'carol', false)],
+         allQA: [sig('QA', 'q', true)],
+      });
+      const d = derive(p, undefined, NOW);
+      expect(d.status).toBe('ready');
+      expect(d.recrBy).toEqual([]);
+   });
+
+   it('a stale QA owes nothing once another QA stamp lands', () => {
+      const p = withStatus({
+         allCR: [sig('CR', 'r', true)],
+         allQA: [sig('QA', 'tester', false), sig('QA', 'other', true)],
+      });
+      const d = derive(p, undefined, NOW);
+      expect(d.status).toBe('ready');
+      expect(d.reqaBy).toEqual([]);
+   });
+
    it('unknown mergeability is flagged, not asserted', () => {
       const p = withStatus(
          { allCR: [sig('CR', 'r', true)], allQA: [sig('QA', 'q', true)] },

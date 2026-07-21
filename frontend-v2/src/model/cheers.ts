@@ -34,6 +34,10 @@ export type CheerToast = Toast;
  * numbers) so a caller can hold it in a ref and a test can assert on it. */
 export interface CheerBaseline {
    primed: boolean;
+   /** whose history this is — a baseline primed for one viewer must never be
+    * diffed against another's signals (every pre-existing stamp would read as
+    * freshly landed), so a login mismatch re-primes. '' = legacy/unprimed. */
+   login: string;
    /** pull keys you currently hold a CR/QA stamp on */
    stamped: ReadonlySet<string>;
    /** your open review/qa/restamp count last tick */
@@ -74,6 +78,7 @@ export interface CheerBaseline {
 
 export const EMPTY_BASELINE: CheerBaseline = {
    primed: false,
+   login: '',
    stamped: new Set(),
    queue: 0,
    nagLevel: 0,
@@ -102,6 +107,7 @@ export const EMPTY_BASELINE: CheerBaseline = {
 export function serializeBaseline(b: CheerBaseline): unknown {
    return {
       primed: b.primed,
+      login: b.login,
       stamped: [...b.stamped],
       queue: b.queue,
       nagLevel: b.nagLevel,
@@ -130,6 +136,9 @@ export function reviveBaseline(raw: unknown): CheerBaseline | null {
    try {
       return {
          primed: !!o.primed,
+         // pre-login-field blobs revive as '' — treated as "unknown, keep",
+         // not as a mismatch, so a deploy doesn't re-prime every open tab
+         login: typeof o.login === 'string' ? o.login : '',
          stamped: new Set(arr(o.stamped) as string[]),
          queue: Number(o.queue) || 0,
          nagLevel: Number(o.nagLevel) || 0,
@@ -639,7 +648,7 @@ export function diffCheers(
    base: CheerBaseline,
    muted: ReadonlySet<ToastKind> = NO_MUTED
 ): { toasts: CheerToast[]; next: CheerBaseline } {
-   if (!base.primed || !me) {
+   if (!base.primed || !me || (base.login !== '' && base.login !== me)) {
       const toasts: CheerToast[] = [];
       if (me && sig.bestStart && sig.backlog > 0 && !muted.has('start-here')) {
          toasts.push(startHereToast(sig.bestStart, sig.startReason));
@@ -648,6 +657,7 @@ export function diffCheers(
          toasts,
          next: {
             primed: !!me,
+            login: me,
             stamped: sig.stamped,
             queue: sig.queue,
             nagLevel: nagStepFor(sig.queue),
@@ -668,12 +678,14 @@ export function diffCheers(
       };
    }
 
-   const entries: { toast: CheerToast; kind: ToastKind }[] = [];
+   const entries: { toast: CheerToast; kind: ToastKind; undo?: () => void }[] = [];
    // a muted kind is dropped here, before the priority sort and cap — the
    // bookkeeping around each push (session tallies, "already seen" sets) still
-   // runs, so unmuting later never replays a backlog.
-   const push = (kind: ToastKind, toast: CheerToast) => {
-      if (!muted.has(kind)) entries.push({ toast, kind });
+   // runs, so unmuting later never replays a backlog. `undo` reverts that
+   // bookkeeping when the per-tick cap evicts the toast: an evicted toast is
+   // deferred (the same edge re-fires next tick), never silently lost.
+   const push = (kind: ToastKind, toast: CheerToast, undo?: () => void) => {
+      if (!muted.has(kind)) entries.push({ toast, kind, undo });
    };
 
    let sessionStamps = base.sessionStamps;
@@ -707,73 +719,97 @@ export function diffCheers(
    for (const m of MILESTONES) {
       if (sessionStamps >= m && !firedMilestones.has(m)) {
          firedMilestones.add(m);
-         push('milestone', {
-            tone: 'reward',
-            icon: '🔥',
-            title: 'reviews this sitting',
-            count: sessionStamps,
-            body: pick(MILESTONE_PRAISE, sessionStamps),
-            celebrate: true,
-            dedupeKey: `milestone:${m}`,
-         });
+         push(
+            'milestone',
+            {
+               tone: 'reward',
+               icon: '🔥',
+               title: 'reviews this sitting',
+               count: sessionStamps,
+               body: pick(MILESTONE_PRAISE, sessionStamps),
+               celebrate: true,
+               dedupeKey: `milestone:${m}`,
+            },
+            () => firedMilestones.delete(m)
+         );
       }
    }
 
-   // queue cleared: the hero moment
+   // queue cleared: the hero moment. On eviction the baseline keeps the old
+   // queue count, so the >0 → 0 edge is still there to fire next tick.
+   let nextQueue = sig.queue;
    if (base.queue > 0 && sig.queue === 0) {
-      push('inbox-zero', {
-         tone: 'reward',
-         icon: '🎉',
-         title: 'Inbox zero',
-         body: "Nothing's waiting on you.",
-         celebrate: true,
-         shimmer: true,
-         dedupeKey: 'inbox:zero',
-      });
+      push(
+         'inbox-zero',
+         {
+            tone: 'reward',
+            icon: '🎉',
+            title: 'Inbox zero',
+            body: "Nothing's waiting on you.",
+            celebrate: true,
+            shimmer: true,
+            dedupeKey: 'inbox:zero',
+         },
+         () => {
+            nextQueue = base.queue;
+         }
+      );
    }
 
    // the rotation newly named you on a starved pull. Next tick's seenTurns is
    // just the current turn keys — a pull that stops being yours is forgotten,
    // so if it later comes back around it can nag again.
+   const seenTurns = new Set(sig.turns.keys());
    for (const [key, p] of sig.turns) {
       if (base.seenTurns.has(key)) continue;
-      push('your-turn', {
-         tone: 'nag',
-         icon: '⏳',
-         title: 'Your turn to review',
-         body: `Waiting ${Math.max(1, Math.round(p.ageDays))}d with nobody on it — you're the best fit. Claim it?`,
-         pull: pullRef(p),
-         actionLabel: 'Claim it',
-         dedupeKey: `turn:${key}`,
-      });
+      push(
+         'your-turn',
+         {
+            tone: 'nag',
+            icon: '⏳',
+            title: 'Your turn to review',
+            body: `Waiting ${Math.max(1, Math.round(p.ageDays))}d with nobody on it — you're the best fit. Claim it?`,
+            pull: pullRef(p),
+            actionLabel: 'Claim it',
+            dedupeKey: `turn:${key}`,
+         },
+         () => seenTurns.delete(key)
+      );
    }
-   const seenTurns = new Set(sig.turns.keys());
 
    // review requested: GitHub asked you directly. Fires once per pull (rebuilt
    // from the current tick, seenTurns-style, so a dropped-then-re-added request
    // can nag again). Distinct from your-turn: this is an explicit ask, not the
    // rotation's guess — which is why turnFor stays silent on requested pulls.
+   const requestedSeen = new Set(sig.requestedOfMe.keys());
    for (const [key, p] of sig.requestedOfMe) {
       if (base.requestedSeen.has(key)) continue;
-      push('review-requested', {
-         tone: 'info',
-         icon: '✦',
-         title: 'Review requested',
-         body: `${p.data.user.login} asked you to review this.`,
-         pull: pullRef(p),
-         dedupeKey: `req:${key}`,
-      });
+      push(
+         'review-requested',
+         {
+            tone: 'info',
+            icon: '✦',
+            title: 'Review requested',
+            body: `${p.data.user.login} asked you to review this.`,
+            pull: pullRef(p),
+            dedupeKey: `req:${key}`,
+         },
+         () => requestedSeen.delete(key)
+      );
    }
-   const requestedSeen = new Set(sig.requestedOfMe.keys());
 
    // start-here: the backlog re-arms after hitting zero (the prime-tick fire
    // is handled above, before this function's main body ever runs).
+   let nextHadBacklog = sig.backlog > 0;
    if (!base.hadBacklog && sig.backlog > 0 && sig.bestStart) {
-      push('start-here', startHereToast(sig.bestStart, sig.startReason));
+      push('start-here', startHereToast(sig.bestStart, sig.startReason), () => {
+         nextHadBacklog = false;
+      });
    }
 
    // re-stamp owed: one toast per pull newly needing another look, replacing
    // the old aggregate "a stamp went stale" nag with something you can act on.
+   const restampKeys = new Set(sig.restampKeys);
    const newRestamps: DerivedPull[] = [];
    for (const key of sig.restampKeys) {
       if (base.restampKeys.has(key)) continue;
@@ -781,44 +817,62 @@ export function diffCheers(
       if (p) newRestamps.push(p);
    }
    for (const p of newRestamps.slice(0, MAX_PER_TICK)) {
-      push('re-stamp-owed', {
-         tone: 'nag',
-         icon: '🔁',
-         title: 'Changed since your ✓',
-         body: 'Give it another look?',
-         pull: pullRef(p),
-         dedupeKey: `recr:${pullKey(p.data)}`,
-      });
+      const key = pullKey(p.data);
+      push(
+         're-stamp-owed',
+         {
+            tone: 'nag',
+            icon: '🔁',
+            title: 'Changed since your ✓',
+            body: 'Give it another look?',
+            pull: pullRef(p),
+            dedupeKey: `recr:${key}`,
+         },
+         () => restampKeys.delete(key)
+      );
    }
+   // restamps past this loop's own slice were never offered at all — leave
+   // them unmarked so they get their turn on a later tick
+   for (const p of newRestamps.slice(MAX_PER_TICK)) restampKeys.delete(pullKey(p.data));
 
    // a claim of yours went stale (2h+) and you still haven't stamped it —
    // nudge once per pull to finish it or hand it back. seenTurns-style rebuild
    // from the current tick, so releasing then re-claiming can nag again.
+   const staleClaimsSeen = new Set(sig.staleClaims.keys());
    for (const [key, p] of sig.staleClaims) {
       if (base.staleClaimsSeen.has(key)) continue;
-      push('claim-stale', {
-         tone: 'nag',
-         icon: '✋',
-         title: 'You claimed this — still unreviewed',
-         body: "It's been a couple hours. Review it, or release it for someone else.",
-         pull: pullRef(p),
-         dedupeKey: `claimstale:${key}`,
-      });
+      push(
+         'claim-stale',
+         {
+            tone: 'nag',
+            icon: '✋',
+            title: 'You claimed this — still unreviewed',
+            body: "It's been a couple hours. Review it, or release it for someone else.",
+            pull: pullRef(p),
+            dedupeKey: `claimstale:${key}`,
+         },
+         () => staleClaimsSeen.delete(key)
+      );
    }
-   const staleClaimsSeen = new Set(sig.staleClaims.keys());
 
    // quick wins: the pile crossed the threshold going up
    let quickWinsNagged = base.quickWinsNagged;
    if (sig.quickWinCount >= QUICK_WIN_THRESHOLD && !quickWinsNagged) {
       quickWinsNagged = true;
-      push('quick-wins', {
-         tone: 'info',
-         icon: '⚡',
-         title: `${sig.quickWinCount} quick reviews on the board`,
-         body: 'XS/S — small ones, unclaimed.',
-         pull: sig.quickWinPull ? pullRef(sig.quickWinPull) : undefined,
-         dedupeKey: `quick:${sig.quickWinCount}`,
-      });
+      push(
+         'quick-wins',
+         {
+            tone: 'info',
+            icon: '⚡',
+            title: `${sig.quickWinCount} quick reviews on the board`,
+            body: 'XS/S — small ones, unclaimed.',
+            pull: sig.quickWinPull ? pullRef(sig.quickWinPull) : undefined,
+            dedupeKey: `quick:${sig.quickWinCount}`,
+         },
+         () => {
+            quickWinsNagged = false;
+         }
+      );
    } else if (sig.quickWinCount < QUICK_WIN_THRESHOLD) {
       quickWinsNagged = false;
    }
@@ -828,31 +882,44 @@ export function diffCheers(
    for (const { login, pull: p, count } of sig.debtors) {
       if (favorsSeen.has(login)) continue;
       favorsSeen.add(login);
-      push('return-the-favor', {
-         tone: 'info',
-         icon: '🤝',
-         title: `Return the favor to ${login}`,
-         body:
-            count === 1
-               ? 'They reviewed one of your PRs.'
-               : `They've reviewed ${count} of your PRs.`,
-         pull: pullRef(p),
-         dedupeKey: `favor:${login}`,
-      });
+      push(
+         'return-the-favor',
+         {
+            tone: 'info',
+            icon: '🤝',
+            title: `Return the favor to ${login}`,
+            body:
+               count === 1
+                  ? 'They reviewed one of your PRs.'
+                  : `They've reviewed ${count} of your PRs.`,
+            pull: pullRef(p),
+            dedupeKey: `favor:${login}`,
+         },
+         () => favorsSeen.delete(login)
+      );
    }
 
-   // leaderboard: top and climbing
+   // leaderboard: top and climbing. Evicted edges hold last tick's rank/top
+   // state in the baseline so they re-fire while the standing persists.
+   let nextWasTop = sig.myRank === 1;
+   let nextMyRank = sig.myRank;
    if (sig.myRank === 1 && !base.wasTop && sig.myCount > 0) {
-      push('top-of-board', {
-         tone: 'reward',
-         icon: '🏆',
-         title: 'stamps in view',
-         count: sig.myCount,
-         body: "Top of the board — nobody's ahead of you.",
-         celebrate: true,
-         shimmer: true,
-         dedupeKey: 'top:1',
-      });
+      push(
+         'top-of-board',
+         {
+            tone: 'reward',
+            icon: '🏆',
+            title: 'stamps in view',
+            count: sig.myCount,
+            body: "Top of the board — nobody's ahead of you.",
+            celebrate: true,
+            shimmer: true,
+            dedupeKey: 'top:1',
+         },
+         () => {
+            nextWasTop = false;
+         }
+      );
    }
    if (
       base.myRank > 0 &&
@@ -862,100 +929,144 @@ export function diffCheers(
       sig.myCount >= 2 &&
       sig.peerBelow
    ) {
-      push('climbing', {
-         tone: 'reward',
-         icon: '📈',
-         title: `You passed ${sig.peerBelow}`,
-         body: `#${sig.myRank} reviewer on the board.`,
-         celebrate: true,
-         dedupeKey: `rank:${sig.myRank}`,
-      });
+      push(
+         'climbing',
+         {
+            tone: 'reward',
+            icon: '📈',
+            title: `You passed ${sig.peerBelow}`,
+            body: `#${sig.myRank} reviewer on the board.`,
+            celebrate: true,
+            dedupeKey: `rank:${sig.myRank}`,
+         },
+         () => {
+            nextMyRank = base.myRank;
+         }
+      );
    }
 
    // author-side: your own open PRs, watched for edge transitions only — a
    // brand-new key (a PR you just opened) has no baseline entry yet, so it
    // primes silently here rather than firing on however it first appears.
+   const nextAuthorPrs = new Map(sig.authorPrs);
+   // an evicted author edge writes the OLD flag back into the carried state
+   // (reading the map entry fresh, so two undone edges on one pull compose)
+   const keepEdge = (key: string, patch: Partial<AuthorPrState>) => {
+      const cur = nextAuthorPrs.get(key);
+      if (cur) nextAuthorPrs.set(key, { ...cur, ...patch });
+   };
    for (const [key, now] of sig.authorPrs) {
       const was = base.authorPrs.get(key);
       if (!was) continue;
       const p = sig.byKey.get(key);
       if (!p) continue;
       if (!was.green && now.green) {
-         push('pr-green', {
-            tone: 'reward',
-            icon: '🚀',
-            title: 'Green — ship it',
-            body: 'CR + QA both cleared.',
-            pull: pullRef(p),
-            celebrate: true,
-            shimmer: true,
-            dedupeKey: `green:${key}`,
-         });
+         push(
+            'pr-green',
+            {
+               tone: 'reward',
+               icon: '🚀',
+               title: 'Green — ship it',
+               body: 'CR + QA both cleared.',
+               pull: pullRef(p),
+               celebrate: true,
+               shimmer: true,
+               dedupeKey: `green:${key}`,
+            },
+            () => keepEdge(key, { green: false })
+         );
       }
       if (!was.reviewed && now.reviewed) {
-         push('pr-first-review', {
-            tone: 'info',
-            icon: '👀',
-            title: 'Someone picked up your PR',
-            body: `${p.crBy[0] ?? 'A reviewer'} is on it.`,
-            pull: pullRef(p),
-            dedupeKey: `firstrev:${key}`,
-         });
+         push(
+            'pr-first-review',
+            {
+               tone: 'info',
+               icon: '👀',
+               title: 'Someone picked up your PR',
+               body: `${p.crBy[0] ?? 'A reviewer'} is on it.`,
+               pull: pullRef(p),
+               dedupeKey: `firstrev:${key}`,
+            },
+            () => keepEdge(key, { reviewed: false })
+         );
       }
       if (!was.conflict && now.conflict) {
-         push('pr-conflicts', {
-            tone: 'nag',
-            icon: '⚠️',
-            title: 'Conflicts on your PR',
-            body: 'Needs a rebase.',
-            pull: pullRef(p),
-            dedupeKey: `conflict:${key}`,
-         });
+         push(
+            'pr-conflicts',
+            {
+               tone: 'nag',
+               icon: '⚠️',
+               title: 'Conflicts on your PR',
+               body: 'Needs a rebase.',
+               pull: pullRef(p),
+               dedupeKey: `conflict:${key}`,
+            },
+            () => keepEdge(key, { conflict: false })
+         );
       }
       if (!was.ciRed && now.ciRed) {
-         push('pr-ci-red', {
-            tone: 'nag',
-            icon: '🔴',
-            title: 'CI broke on your PR',
-            body: p.ciFailing?.length ? `Fix ${p.ciFailing.join(', ')}.` : 'Fix the build.',
-            pull: pullRef(p),
-            dedupeKey: `cired:${key}`,
-         });
+         push(
+            'pr-ci-red',
+            {
+               tone: 'nag',
+               icon: '🔴',
+               title: 'CI broke on your PR',
+               body: p.ciFailing?.length ? `Fix ${p.ciFailing.join(', ')}.` : 'Fix the build.',
+               pull: pullRef(p),
+               dedupeKey: `cired:${key}`,
+            },
+            () => keepEdge(key, { ciRed: false })
+         );
       }
       if (!was.needsAnswer && now.needsAnswer) {
-         push('pr-changes', {
-            tone: 'nag',
-            icon: '💬',
-            title: 'Changes requested on your PR',
-            body: 'A reviewer wants edits — answer the feedback.',
-            pull: pullRef(p),
-            dedupeKey: `changes:${key}`,
-         });
+         push(
+            'pr-changes',
+            {
+               tone: 'nag',
+               icon: '💬',
+               title: 'Changes requested on your PR',
+               body: 'A reviewer wants edits — answer the feedback.',
+               pull: pullRef(p),
+               dedupeKey: `changes:${key}`,
+            },
+            () => keepEdge(key, { needsAnswer: false })
+         );
       }
       if (!was.starved && now.starved) {
-         push('pr-starving', {
-            tone: 'nag',
-            icon: '🕰️',
-            title: `Waiting ${p.ageDays}d for review`,
-            body: 'Your PR — worth a nudge?',
-            pull: pullRef(p),
-            dedupeKey: `starve:${key}`,
-         });
+         push(
+            'pr-starving',
+            {
+               tone: 'nag',
+               icon: '🕰️',
+               title: `Waiting ${p.ageDays}d for review`,
+               body: 'Your PR — worth a nudge?',
+               pull: pullRef(p),
+               dedupeKey: `starve:${key}`,
+            },
+            () => keepEdge(key, { starved: false })
+         );
       }
    }
 
    // board cleared: the whole board's awaiting-review count dropped to zero —
    // board-wide, so this is a rare all-hands moment, not just your queue
+   let nextBoardQueue = sig.boardReviewable;
    if (base.boardQueue > 0 && sig.boardReviewable === 0) {
-      push('board-cleared', {
-         tone: 'reward',
-         icon: '🎊',
-         title: "Board's clear",
-         body: 'Nothing waiting on anyone.',
-         celebrate: true,
-         shimmer: true,
-         dedupeKey: 'board:clear',
-      });
+      push(
+         'board-cleared',
+         {
+            tone: 'reward',
+            icon: '🎊',
+            title: "Board's clear",
+            body: 'Nothing waiting on anyone.',
+            celebrate: true,
+            shimmer: true,
+            dedupeKey: 'board:clear',
+         },
+         () => {
+            nextBoardQueue = base.boardQueue;
+         }
+      );
    }
 
    // ── nagLevel bookkeeping only (no toast fires from this anymore — the old
@@ -965,30 +1076,32 @@ export function diffCheers(
    if (sig.queue === 0) nagLevel = 0;
    else nagLevel = step;
 
-   const toasts = entries
-      .sort((a, b) => PRIORITY[b.kind] - PRIORITY[a.kind])
-      .slice(0, MAX_PER_TICK)
-      .map(e => e.toast);
+   const ranked = entries.sort((a, b) => PRIORITY[b.kind] - PRIORITY[a.kind]);
+   // the cap defers, it doesn't discard: whatever it evicts gets its "already
+   // seen" bookkeeping undone, so the same edge is still live next tick
+   for (const evicted of ranked.slice(MAX_PER_TICK)) evicted.undo?.();
+   const toasts = ranked.slice(0, MAX_PER_TICK).map(e => e.toast);
 
    return {
       toasts,
       next: {
          primed: true,
+         login: me,
          stamped: sig.stamped,
-         queue: sig.queue,
+         queue: nextQueue,
          nagLevel,
          sessionStamps,
          firedMilestones,
          seenTurns,
-         restampKeys: sig.restampKeys,
+         restampKeys,
          quickWinsNagged,
          favorsSeen,
-         myRank: sig.myRank,
-         wasTop: sig.myRank === 1,
+         myRank: nextMyRank,
+         wasTop: nextWasTop,
          requestedSeen,
-         hadBacklog: sig.backlog > 0,
-         authorPrs: sig.authorPrs,
-         boardQueue: sig.boardReviewable,
+         hadBacklog: nextHadBacklog,
+         authorPrs: nextAuthorPrs,
+         boardQueue: nextBoardQueue,
          staleClaimsSeen,
       },
    };

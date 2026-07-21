@@ -65,7 +65,9 @@ export interface DerivedPull {
    qaBy: string[];
    crHave: number;
    qaHave: number;
-   /** users whose CR a later push invalidated and who haven't re-stamped */
+   /** users whose CR a later push invalidated and whose re-stamp is still
+    * needed — empty once other active stamps satisfy cr_req, so nobody gets
+    * nagged to re-review a pull that's already fully signed off */
    recrBy: string[];
    /** users whose QA stamp a later push invalidated (symmetric with recrBy) */
    reqaBy: string[];
@@ -293,8 +295,10 @@ export function derive(
       qaBy,
       crHave,
       qaHave,
-      recrBy: staleCr,
-      reqaBy: staleQa,
+      // a stale stamp only owes a re-stamp while the requirement is unmet —
+      // once others satisfy it, nothing is asked of the stale signer
+      recrBy: crMet ? [] : staleCr,
+      reqaBy: qaMet ? [] : staleQa,
       headPushedAt: headPushedAt(pull),
       ageDays,
       signedOffAt,

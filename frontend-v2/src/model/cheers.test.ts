@@ -591,6 +591,61 @@ describe('diffCheers — MAX_PER_TICK', () => {
       expect(toasts.some(t => t.icon === '🔁')).toBe(true);
       expect(toasts.some(t => t.icon === '⚡')).toBe(false);
    });
+
+   it('defers an evicted toast to the next tick instead of losing it', () => {
+      // same overflow as above: quick-wins (lowest priority) is evicted
+      const base = primed(sig({ review: 5, restampKeys: new Set(), quickWinCount: 0 }));
+      const p1 = pull('org/a', 1);
+      const p2 = pull('org/a', 2, { ageDays: 4 });
+      const turns = new Map([[pullKey(p2.data), p2]]);
+      const overflow = () =>
+         sig({
+            review: 0,
+            restampKeys: new Set([pullKey(p1.data)]),
+            pulls: [p1, p2],
+            turns,
+            quickWinCount: 3,
+         });
+      const first = diffCheers(overflow(), 'me', base);
+      expect(first.toasts.some(t => t.icon === '⚡')).toBe(false);
+      // the eviction must NOT bake "already nagged" into the baseline —
+      // with nothing else newly firing, the quick-wins nag gets its slot now
+      expect(first.next.quickWinsNagged).toBe(false);
+      const second = diffCheers(overflow(), 'me', first.next);
+      expect(second.toasts.some(t => t.icon === '⚡')).toBe(true);
+      // and the survivors from tick one stay quiet (their marks stood)
+      expect(second.toasts.some(t => t.dedupeKey === 'board:clear')).toBe(false);
+      expect(second.toasts.some(t => t.icon === '⏳')).toBe(false);
+      expect(second.toasts.some(t => t.icon === '🔁')).toBe(false);
+   });
+});
+
+describe('diffCheers — viewer identity', () => {
+   it('re-primes silently when the baseline belongs to someone else', () => {
+      // alice's primed baseline has no stamps; bob's board shows one of his.
+      // Diffing bob against alice's history must not read bob's pre-existing
+      // stamp as freshly landed — a login mismatch re-primes instead.
+      const aliceBase = primed(sig(), 'alice');
+      const { toasts, next } = diffCheers(sig({ stamped: new Set(['org/a#1']) }), 'bob', aliceBase);
+      expect(toasts.filter(t => t.dedupeKey?.startsWith('stamp:'))).toHaveLength(0);
+      expect(next.login).toBe('bob');
+      expect(next.stamped.has('org/a#1')).toBe(true);
+   });
+
+   it('treats a legacy baseline with no login as the current viewer', () => {
+      // pre-login-field session blobs revive with login '' — carrying on
+      // (not re-priming) keeps a deploy from replaying start-here everywhere
+      const legacy: CheerBaseline = { ...primed(sig(), 'me'), login: '' };
+      const p = pull('org/a', 3, { author: 'alice' });
+      const { toasts, next } = diffCheers(
+         sig({ stamped: new Set([pullKey(p.data)]), pulls: [p] }),
+         'me',
+         legacy
+      );
+      // still diffs: the new stamp lands as a cheer rather than re-priming
+      expect(toasts.some(t => t.dedupeKey?.startsWith('stamp:'))).toBe(true);
+      expect(next.login).toBe('me');
+   });
 });
 
 describe('baseline persistence', () => {
