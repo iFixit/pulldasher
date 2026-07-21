@@ -4,12 +4,14 @@ import {
    type AuthorPrState,
    CHEER_CATALOG,
    type CheerBaseline,
+   CONFIGURABLE_TOASTS,
    diffCheers,
    EMPTY_BASELINE,
    evaluateCheers,
    PRIORITY_ORDER,
    reviveBaseline,
    serializeBaseline,
+   SHIPPED_TOAST_KIND,
    type Signals,
    startHereReason,
    type ToastKind,
@@ -719,6 +721,21 @@ describe('cheer catalog', () => {
       // a new kind can't ship without a switch and a blurb in the catalog
       expect(new Set(catalogKinds).size).toBe(catalogKinds.length);
       expect(new Set(catalogKinds)).toEqual(new Set(PRIORITY_ORDER));
+   });
+
+   it('makes every user-facing toast configurable, including the extras', () => {
+      const kinds = CONFIGURABLE_TOASTS.map(c => c.kind);
+      // no dupes across the diff cheers + the extra load-time toasts
+      expect(new Set(kinds).size).toBe(kinds.length);
+      // every diff kind, plus the shipped catch-up that fires off the extras
+      // path (so it's not in PRIORITY_ORDER but still gets a Settings switch)
+      expect(kinds).toEqual(expect.arrayContaining([...PRIORITY_ORDER]));
+      expect(kinds).toContain(SHIPPED_TOAST_KIND);
+      // and every configurable toast carries the label + hint Settings renders
+      for (const c of CONFIGURABLE_TOASTS) {
+         expect(c.label.length).toBeGreaterThan(0);
+         expect(c.hint.length).toBeGreaterThan(0);
+      }
    });
 });
 

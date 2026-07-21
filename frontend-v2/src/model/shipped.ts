@@ -1,5 +1,6 @@
 import { closedEpoch } from '../format';
 import type { PullData } from '../types';
+import { SHIPPED_TOAST_KIND } from './cheers';
 import type { Toast } from './toast';
 
 /**
@@ -65,6 +66,7 @@ export function shippedToast(shipped: PullData[], me: string): Toast | null {
       .join(' · ');
    return {
       tone: 'info',
+      kind: SHIPPED_TOAST_KIND,
       icon: '📦',
       title: n === 1 ? 'Shipped while you were away' : `${n} shipped while you were away`,
       body:

@@ -670,6 +670,29 @@ export const CHEER_CATALOG: {
    },
 ];
 
+/** Kinds that don't come from diffCheers (so they're outside PRIORITY_ORDER),
+ * but are still user-facing toasts that deserve a switch in Settings. The
+ * shipped catch-up is fired from the app's `extras` path on load, not the
+ * board diff, so it's catalogued here rather than in CHEER_CATALOG. */
+export const SHIPPED_TOAST_KIND = 'shipped';
+export const EXTRA_TOASTS: {
+   kind: string;
+   group: CheerGroup;
+   label: string;
+   hint: string;
+}[] = [
+   {
+      kind: SHIPPED_TOAST_KIND,
+      group: 'nudge',
+      label: 'Shipped while away',
+      hint: 'A recap of PRs that merged since your last visit.',
+   },
+];
+
+/** Everything Settings shows a per-kind toggle for: the board-diff cheers plus
+ * the extra load-time toasts. mutedCheers stores whichever of these are off. */
+export const CONFIGURABLE_TOASTS = [...CHEER_CATALOG, ...EXTRA_TOASTS];
+
 const NO_MUTED: ReadonlySet<ToastKind> = new Set();
 
 /**

@@ -9,6 +9,10 @@ export type ToastTone = 'reward' | 'nag' | 'info';
  */
 export interface Toast {
    tone: ToastTone;
+   /** which configurable kind this is, for the Settings mute check. Board-diff
+    * cheers set it from their catalog entry; extras (the shipped catch-up) set
+    * it too so they can be toggled off like any other toast. */
+   kind?: string;
    /** a single emoji, the toast's face */
    icon: string;
    title: string;

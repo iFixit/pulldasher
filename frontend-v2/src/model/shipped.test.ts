@@ -87,6 +87,11 @@ describe('shippedToast', () => {
       expect(toast?.pull?.number).toBe(2);
    });
 
+   it('tags the toast with its kind so Settings can mute it', () => {
+      const toast = shippedToast([dp({ number: 1, author: 'me' })], 'me');
+      expect(toast?.kind).toBe('shipped');
+   });
+
    it('names the pull and yours/reviewed for a single relevant pull', () => {
       const mine = dp({ number: 42, author: 'me' });
       const toast = shippedToast([mine], 'me');

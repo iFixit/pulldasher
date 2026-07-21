@@ -8,7 +8,7 @@ import {
    testNotification,
    unlockSound,
 } from '../notifications';
-import { CHEER_CATALOG, type CheerGroup } from '../model/cheers';
+import { type CheerGroup, CONFIGURABLE_TOASTS } from '../model/cheers';
 import { clearSnoozes, markAllSeen, refreshAll, usePulldasher } from '../store';
 import {
    addCodeRegion,
@@ -81,7 +81,7 @@ function CheerToggles({ disabled }: { disabled: boolean }) {
                <span className="text-[11px] font-semibold tracking-wide text-ink-3 uppercase">
                   {title}
                </span>
-               {CHEER_CATALOG.filter(c => c.group === group).map(c => (
+               {CONFIGURABLE_TOASTS.filter(c => c.group === group).map(c => (
                   <div key={c.kind} className="flex items-start gap-2.5">
                      <span className="min-w-0 flex-1">
                         <span className="block text-[13px] font-medium text-ink">{c.label}</span>

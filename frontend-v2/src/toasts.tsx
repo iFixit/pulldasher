@@ -363,16 +363,18 @@ export function useToasts(
 
    // pre-built one-shot toasts from the caller (e.g. the shipped catch-up),
    // deduped by dedupeKey so the same logical toast never re-fires on a later
-   // tick — not gated by the cheers setting, since this is informational, not
-   // gamification.
+   // tick. Gated by the master cheers switch and each toast's own per-kind mute
+   // (Settings), same as the board-diff cheers — a muted extra is still marked
+   // fired so it can't replay a stale catch-up if unmuted later this session.
    useEffect(() => {
-      if (!ready) return;
+      if (!ready || !getSettings().cheers) return;
       const fresh = extras.filter(t => t.dedupeKey && !firedKeys.current.has(t.dedupeKey));
+      if (!fresh.length) return;
       for (const t of fresh) firedKeys.current.add(t.dedupeKey as string);
-      if (fresh.length) {
-         push(fresh);
-         saveCheerSession(me, baseline.current, firedKeys.current);
-      }
+      const muted = new Set(getSettings().mutedCheers);
+      const show = fresh.filter(t => !(t.kind && muted.has(t.kind)));
+      if (show.length) push(show);
+      saveCheerSession(me, baseline.current, firedKeys.current);
    }, [ready, extras, push, me]);
 
    // Dev-only preview handle: with the dummy backend the board is static, so
