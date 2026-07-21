@@ -32,14 +32,20 @@ export function reviewerRanks(open: DerivedPull[], closed: PullData[]): Map<stri
       stampedKeysByLogin.set(login, keys);
    };
 
+   // an author self-tagging their own PR "CR"/"QA" is not review work — the
+   // backend counts the stamp, but crediting it here would rank you for
+   // reviewing yourself, so the pull's own author never earns leaderboard credit
    for (const p of open) {
       const key = pullKey(p.data);
-      for (const login of p.crBy) credit(login, key);
-      for (const login of p.qaBy) credit(login, key);
+      const author = p.data.user.login;
+      for (const login of p.crBy) if (login !== author) credit(login, key);
+      for (const login of p.qaBy) if (login !== author) credit(login, key);
    }
    for (const p of closed) {
       const key = pullKey(p);
-      for (const s of [...p.status.allCR, ...p.status.allQA]) credit(s.data.user.login, key);
+      const author = p.user.login;
+      for (const s of [...p.status.allCR, ...p.status.allQA])
+         if (s.data.user.login !== author) credit(s.data.user.login, key);
    }
 
    const counts = [...stampedKeysByLogin.entries()]

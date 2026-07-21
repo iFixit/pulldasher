@@ -8,6 +8,14 @@ import { buildReviewerPools, turnFor } from './rotation';
 import { crSort } from './sort';
 import type { DerivedPull } from './status';
 import type { Toast } from './toast';
+import { isBotLogin } from './visibility';
+
+/** The suffix bot check ('…[bot]') is enough in the cheers layer — like
+ * status.ts's engagedNoStamp, this module has no reason to depend on
+ * config.json's bots list, and a non-suffixed bot slipping through just costs
+ * one soft nudge, never a wrong review decision. */
+const NO_EXTRA_BOTS: ReadonlySet<string> = new Set();
+const isBot = (p: DerivedPull) => isBotLogin(p.data.user.login, NO_EXTRA_BOTS);
 
 /**
  * "Cheers": the gamification layer. A pure, edge-triggered evaluator that turns
@@ -187,6 +195,16 @@ export interface CheerInput {
    ready?: boolean;
 }
 
+/** A duration in ms as the loose phrase the claim-stale nudge shows: "30
+ * minutes", "an hour", "2 hours" — matching whatever the viewer set claimWarn
+ * to, so the copy never says "a couple hours" for a 30-minute threshold. */
+function durationPhrase(ms: number): string {
+   const mins = Math.round(ms / 60_000);
+   if (mins < 60) return `${mins} minutes`;
+   const hours = Math.round(mins / 60);
+   return hours === 1 ? 'an hour' : `${hours} hours`;
+}
+
 /** A claim you're sitting on stops absolving other reviewers at 2h (see
  * model/actions STALE_CLAIM_SECS); that's the moment worth a nudge to either
  * finish it or hand it back. Kept here as a self-contained duplicate, same as
@@ -306,8 +324,11 @@ export interface Signals {
    myCount: number;
    /** the login one rank behind you, for the "climbing" toast */
    peerBelow: string | null;
-   /** pulls you hold a stale (2h+), still-unreviewed claim on */
+   /** pulls you hold a stale (past the claim-warn threshold), still-unreviewed
+    * claim on */
    staleClaims: Map<string, DerivedPull>;
+   /** the claim-warn threshold as loose words ("an hour"), for the nudge copy */
+   staleClaimAfter: string;
    /** pulls GitHub has asked YOU to review (and you haven't yet), for the
     * review-requested toast — the most direct "review this" the board carries */
    requestedOfMe: Map<string, DerivedPull>;
@@ -328,13 +349,17 @@ export function readSignals(input: CheerInput): Signals {
    for (const p of pulls) {
       const key = pullKey(p.data);
       byKey.set(key, p);
-      const mine = hasStamp(p, me);
+      // a stamp on your OWN pull isn't review work you did — don't let a
+      // self-tag fire "you reviewed this" (stamp-landed / milestone)
+      const mine = hasStamp(p, me) && p.data.user.login !== me;
       if (mine) stamped.add(key);
       const st = actionState(p, me);
       if (st === 'review') review++;
       else if (st === 'qa') qa++;
       else if (st === 'restamp') restampKeys.add(key);
-      if (!mine && !claims[key] && turnFor(p, pools, pulls) === me) turns.set(key, p);
+      // a starved BOT pull shouldn't tap you with "your turn — you're the best
+      // fit"; bots are handled on their own low-priority cadence, not the rotation
+      if (!mine && !isBot(p) && !claims[key] && turnFor(p, pools, pulls) === me) turns.set(key, p);
    }
 
    const reviewableUnclaimed = pulls.filter(
@@ -342,11 +367,22 @@ export function readSignals(input: CheerInput): Signals {
    );
 
    const quickWinCandidates = crSort(
-      reviewableUnclaimed.filter(p => p.sizeKnown && (p.weight === 'XS' || p.weight === 'S'))
+      reviewableUnclaimed.filter(
+         p => !isBot(p) && p.sizeKnown && (p.weight === 'XS' || p.weight === 'S')
+      )
    );
    const quickWinPull = quickWinCandidates[0] ?? null;
 
-   const bestStart = dealOne(reviewableUnclaimed, { me, pulls, claims, passed: new Set() });
+   // deprioritize bots exactly as Review's Deal-me-one does, so start-here never
+   // calls a dependabot bump "the single best pull to review next" — it's only
+   // the best when nothing human is left
+   const bestStart = dealOne(reviewableUnclaimed, {
+      me,
+      pulls,
+      claims,
+      passed: new Set(),
+      deprioritize: isBot,
+   });
    const startReason = bestStart ? startHereReason(bestStart, pulls, me) : '';
 
    // reciprocity: who has stamped one of your own pulls, and do they have an
@@ -376,7 +412,9 @@ export function readSignals(input: CheerInput): Signals {
    for (const p of myPulls) {
       authorPrs.set(pullKey(p.data), {
          green: p.status === 'ready',
-         reviewed: p.crBy.length > 0,
+         // "someone picked up your PR" means someone ELSE — a self-CR stamp
+         // isn't a reviewer showing up
+         reviewed: p.crBy.some(l => l !== me),
          conflict: p.conflict,
          starved: p.starved,
          ciRed: p.status === 'ci_red',
@@ -388,9 +426,12 @@ export function readSignals(input: CheerInput): Signals {
       p => p.status === 'needs_cr' || p.status === 'needs_recr' || p.status === 'needs_qa'
    ).length;
 
-   // claims of yours gone stale (past 2h) that you still haven't stamped — the
-   // nudge to either finish the review or release it back to the pool
+   // claims of yours gone stale that you still haven't stamped — the nudge to
+   // either finish the review or release it back to the pool. The threshold is
+   // the viewer's claim-warn setting (30m–4h), so the copy has to say the real
+   // number, not a hardcoded "a couple hours"
    const warnMs = input.claimWarnMs ?? STALE_CLAIM_MS;
+   const staleClaimAfter = durationPhrase(warnMs);
    const staleClaims = new Map<string, DerivedPull>();
    for (const p of pulls) {
       const key = pullKey(p.data);
@@ -449,6 +490,7 @@ export function readSignals(input: CheerInput): Signals {
       myCount,
       peerBelow,
       staleClaims,
+      staleClaimAfter,
       requestedOfMe,
    };
 }
@@ -847,7 +889,7 @@ export function diffCheers(
             tone: 'nag',
             icon: '✋',
             title: 'You claimed this — still unreviewed',
-            body: "It's been a couple hours. Review it, or release it for someone else.",
+            body: `It's been ${sig.staleClaimAfter}. Review it, or release it for someone else.`,
             pull: pullRef(p),
             dedupeKey: `claimstale:${key}`,
          },
@@ -934,8 +976,12 @@ export function diffCheers(
          {
             tone: 'reward',
             icon: '📈',
-            title: `You passed ${sig.peerBelow}`,
-            body: `#${sig.myRank} reviewer on the board.`,
+            // don't name who you "passed": with dense-rank ties the login one
+            // rank below you now may be someone you were already ahead of, not
+            // the one you actually overtook this tick — and the baseline
+            // doesn't carry the prior full ranking to tell them apart
+            title: "You're climbing",
+            body: `Now #${sig.myRank} reviewer on the board.`,
             celebrate: true,
             dedupeKey: `rank:${sig.myRank}`,
          },
@@ -983,7 +1029,7 @@ export function diffCheers(
                tone: 'info',
                icon: '👀',
                title: 'Someone picked up your PR',
-               body: `${p.crBy[0] ?? 'A reviewer'} is on it.`,
+               body: `${p.crBy.find(l => l !== p.data.user.login) ?? 'A reviewer'} is on it.`,
                pull: pullRef(p),
                dedupeKey: `firstrev:${key}`,
             },

@@ -3,10 +3,16 @@ import type { PullData } from '../types';
 import { reviewerRanks } from './leaderboard';
 import type { DerivedPull } from './status';
 
-/** An open DerivedPull carrying only the fields reviewerRanks reads. */
-function open(repo: string, number: number, o: { crBy?: string[]; qaBy?: string[] } = {}) {
+/** An open DerivedPull carrying only the fields reviewerRanks reads. author
+ * defaults to a sentinel that never appears in crBy/qaBy, so existing cases are
+ * unaffected by the self-stamp exclusion. */
+function open(
+   repo: string,
+   number: number,
+   o: { crBy?: string[]; qaBy?: string[]; author?: string } = {}
+) {
    return {
-      data: { repo, number },
+      data: { repo, number, user: { login: o.author ?? '__author__' } },
       crBy: o.crBy ?? [],
       qaBy: o.qaBy ?? [],
    } as unknown as DerivedPull;
@@ -14,11 +20,16 @@ function open(repo: string, number: number, o: { crBy?: string[]; qaBy?: string[
 
 /** A closed PullData carrying only the fields reviewerRanks reads — allCR/
  * allQA logins count whether active or stale. */
-function closed(repo: string, number: number, o: { cr?: string[]; qa?: string[] } = {}): PullData {
+function closed(
+   repo: string,
+   number: number,
+   o: { cr?: string[]; qa?: string[]; author?: string } = {}
+): PullData {
    const sig = (login: string) => ({ data: { user: { login } } });
    return {
       repo,
       number,
+      user: { login: o.author ?? '__author__' },
       status: { allCR: (o.cr ?? []).map(sig), allQA: (o.qa ?? []).map(sig) },
    } as unknown as PullData;
 }
@@ -64,5 +75,16 @@ describe('reviewerRanks', () => {
    it('excludes empty logins', () => {
       const p = open('org/a', 1, { crBy: [''] });
       expect(reviewerRanks([p], []).size).toBe(0);
+   });
+
+   it('never credits a pull author for stamping their own PR', () => {
+      // a self-tagged CR/QA is not review work — open and closed alike
+      const openSelf = open('org/a', 1, { author: 'alice', crBy: ['alice', 'bob'] });
+      const closedSelf = closed('org/a', 2, { author: 'alice', qa: ['alice'] });
+      const ranks = reviewerRanks([openSelf], [closedSelf]);
+      // alice authored both and only self-stamped → no credit at all
+      expect(ranks.get('alice')).toBeUndefined();
+      // bob's real review of alice's PR still counts
+      expect(ranks.get('bob')).toEqual({ count: 1, rank: 1 });
    });
 });

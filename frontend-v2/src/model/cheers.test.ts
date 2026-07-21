@@ -78,6 +78,7 @@ function sig(o: Partial<Signals> & { queue?: number; pulls?: DerivedPull[] } = {
       myCount: o.myCount ?? 0,
       peerBelow: o.peerBelow ?? null,
       staleClaims: o.staleClaims ?? new Map(),
+      staleClaimAfter: o.staleClaimAfter ?? 'a couple hours',
       requestedOfMe: o.requestedOfMe ?? new Map(),
    };
 }
@@ -379,10 +380,12 @@ describe('diffCheers — leaderboard', () => {
       expect(toasts.some(t => t.icon === '🏆')).toBe(false);
    });
 
-   it('fires climbing when your rank improves, naming the peer now behind you', () => {
+   it('fires climbing when your rank improves', () => {
       const base = primed(sig({ myRank: 3, myCount: 2 }));
       const { toasts } = diffCheers(sig({ myRank: 2, myCount: 3, peerBelow: 'bob' }), 'me', base);
-      expect(toasts.some(t => t.icon === '📈' && t.title === 'You passed bob')).toBe(true);
+      // no named peer: dense-rank ties make "who you passed" unreliable, so the
+      // copy celebrates the climb without asserting a specific person
+      expect(toasts.some(t => t.icon === '📈' && t.title === "You're climbing")).toBe(true);
    });
 
    it('does not fire climbing without an identifiable peer', () => {
@@ -535,6 +538,21 @@ describe('diffCheers — stale claim', () => {
       );
       expect(toasts.some(t => t.dedupeKey?.startsWith('claimstale:'))).toBe(false);
       expect(next.staleClaimsSeen.has(pullKey(p.data))).toBe(true);
+   });
+
+   it('says the real threshold, not a hardcoded "a couple hours"', () => {
+      const p = pull('org/a', 9);
+      const stale = new Map([[pullKey(p.data), p]]);
+      const base = primed(sig());
+      // viewer set claim-warn to 30 minutes → the copy must not say "hours"
+      const { toasts } = diffCheers(
+         sig({ staleClaims: stale, pulls: [p], staleClaimAfter: '30 minutes' }),
+         'me',
+         base
+      );
+      const body = toasts.find(t => t.icon === '✋')?.body ?? '';
+      expect(body).toContain('30 minutes');
+      expect(body).not.toContain('hours');
    });
 });
 
