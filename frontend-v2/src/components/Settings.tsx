@@ -531,17 +531,21 @@ export function Settings({
                         </Explainer>
                         <Field
                            label="How long they stay"
-                           hint="How long a cheer or nudge lingers before it slides away. A nag always outsits a reward; this scales both."
+                           hint="How long a cheer or nudge lingers before it slides away. Sticky keeps it until you dismiss it."
                         >
                            <Segmented
                               ariaLabel="how long nudges stay"
-                              value={s.cheerDwell}
+                              value={String(s.cheerDwell)}
                               options={[
-                                 ['brief', 'Brief'],
-                                 ['normal', 'Normal'],
-                                 ['relaxed', 'Relaxed'],
+                                 ['3000', '3s'],
+                                 ['5000', '5s'],
+                                 ['8000', '8s'],
+                                 ['12000', '12s'],
+                                 ['sticky', 'Sticky'],
                               ]}
-                              onChange={cheerDwell => set({ cheerDwell })}
+                              onChange={v =>
+                                 set({ cheerDwell: v === 'sticky' ? 'sticky' : Number(v) })
+                              }
                            />
                         </Field>
                         <Field

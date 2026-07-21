@@ -8,22 +8,10 @@ import {
    type ToastKind,
 } from './model/cheers';
 import type { DerivedPull } from './model/status';
-import type { Toast, ToastTone } from './model/toast';
+import type { Toast } from './model/toast';
 import { getSettings } from './settings';
 import type { PullData } from './types';
 
-/** How long a toast lingers before it auto-dismisses, by tone. Nags sit a beat
- * longer than rewards so the guilt lands; info lingers a touch longer still —
- * it's a catch-up, not a jab; neither overstays its welcome. */
-const TTL_MS: Record<ToastTone, number> = { reward: 5000, nag: 7000, info: 9000 };
-/** Multiplier on the base TTLs, set by the "How long they stay" preference —
- * keeps the tone ratios intact while letting someone speed them up or let them
- * breathe. */
-const DWELL: Record<'brief' | 'normal' | 'relaxed', number> = {
-   brief: 0.6,
-   normal: 1,
-   relaxed: 1.6,
-};
 /** Time for the leave animation before the node is removed. */
 const LEAVE_MS = 200;
 /** Most toasts on screen at once; a fourth pushes the oldest out early. */
@@ -204,12 +192,20 @@ export function useToasts(
                timers.current.delete(oldest.id);
                merged = rest;
             }
-            const dwell = DWELL[getSettings().cheerDwell];
+            // 'sticky' means no auto-dismiss timer: the toast waits for a
+            // manual dismiss (or eviction once the stack overflows the cap).
+            const dwell = getSettings().cheerDwell;
+            // a number auto-dismisses after that many ms; 'sticky' (or any
+            // unexpected legacy value) means no timer at all
+            const auto = typeof dwell === 'number' ? dwell : null;
             for (const t of added) {
-               timers.current.set(
-                  t.id,
-                  setTimeout(() => dismiss(t.id), t.ttlMs ?? TTL_MS[t.tone] * dwell)
-               );
+               const ttl = t.ttlMs ?? auto;
+               if (ttl != null) {
+                  timers.current.set(
+                     t.id,
+                     setTimeout(() => dismiss(t.id), ttl)
+                  );
+               }
             }
             return merged;
          });
