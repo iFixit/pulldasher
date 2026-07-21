@@ -170,7 +170,7 @@ const SAMPLE_CHEERS: CheerToast[] = [
       body: "Waiting 6d with nobody on it — you're the best fit. Claim it?",
       pull: { repo: 'org/repo', number: 5, title: 'Discourage new files in Exec/ dir' },
       actionLabel: 'Claim it',
-      onAction: () => {},
+      onAction: () => undefined,
    },
 ];
 

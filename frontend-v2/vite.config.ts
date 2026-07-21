@@ -1,5 +1,8 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+// eslint-import-resolver-node can't follow exports-only packages (no
+// "main"/"module" fallback); tsc and vite both resolve this fine.
+// eslint-disable-next-line import/no-unresolved
 import tailwindcss from '@tailwindcss/vite';
 
 // Served by the express app at / (see app.js); the dev server proxies

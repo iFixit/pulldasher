@@ -105,7 +105,7 @@ function dummyBackend(): Backend {
    // The dummy stand-in for the server's claims map: mutated locally by
    // claimReview/releaseReview and re-emitted, same shape a real socket
    // 'reviewClaims' broadcast would carry.
-   let claims: ReviewClaims = {};
+   const claims: ReviewClaims = {};
    let onClaims: ((claims: ReviewClaims) => void) | null = null;
    const publishClaims = () => onClaims?.({ ...claims });
 
@@ -140,7 +140,7 @@ function dummyBackend(): Backend {
       },
       onConnection(handler) {
          handler('connected');
-         return () => {};
+         return () => undefined;
       },
       refreshPull(repo, number) {
          // The dummy data is static, but the refresh-progress UI still needs

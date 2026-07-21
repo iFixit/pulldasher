@@ -185,7 +185,7 @@ function FeedbackSection({ pull }: { pull: DerivedPull }) {
                <a
                   href={s.url}
                   target="_blank"
-                  rel="noopener"
+                  rel="noopener noreferrer"
                   className="self-start text-brand hover:underline"
                >
                   View on GitHub →

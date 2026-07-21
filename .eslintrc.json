@@ -12,7 +12,7 @@
    "globals": {
       "App": true
    },
-   "ignorePatterns": ["dist/*"],
+   "ignorePatterns": ["**/dist/**"],
    "overrides": [
       {
          "files": ["**/*.ts", "**/*.tsx"],
