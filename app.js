@@ -56,6 +56,11 @@ app.use(function (req, res, next) {
  * Routes
  */
 authManager.setupRoutes(app);
+// v2 is the primary board at the root; the legacy v1 board runs side-by-side
+// under /v1 (its assets are built with a matching /v1/ publicPath). Both share
+// the same /token + socket.io API below. The /v1 mount is more specific, so it
+// must precede the '/' catch-all static mount.
+app.use('/v1', express.static(__dirname + '/frontend/dist'));
 app.use('/', express.static(__dirname + '/frontend-v2/dist'));
 app.get('/token', mainController.getToken);
 app.get('/stats-history', statsController.getHistory);

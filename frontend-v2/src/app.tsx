@@ -843,6 +843,13 @@ export function App() {
                   open
                </span>
                <span className="flex-1" />
+               <a
+                  href="/v1"
+                  className="text-xs text-ink-3 transition-colors duration-150 ease-out hover:text-brand motion-reduce:transition-none"
+                  title="the classic board"
+               >
+                  v1 board
+               </a>
                <NotificationPanel
                   records={toastHistory}
                   onClear={clearHistory}
