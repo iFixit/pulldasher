@@ -43,6 +43,23 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
    );
 }
 
+/** A collapsible "how it works" note, mirroring the legend's disclosures so the
+ * explanation reads the same wherever it appears. Closed by default: it's there
+ * when you go looking, not in the way when you aren't. */
+function Explainer({ summary, children }: { summary: string; children: ReactNode }) {
+   return (
+      <details className="group/exp -mt-1">
+         <summary className="flex cursor-pointer list-none items-center gap-1 py-0.5 text-xs font-medium text-ink-3 hover:text-ink-2">
+            <span aria-hidden className="transition-transform group-open/exp:rotate-90">
+               ›
+            </span>
+            {summary}
+         </summary>
+         <div className="space-y-1.5 pt-1 pb-0.5 pl-3 text-xs text-ink-2">{children}</div>
+      </details>
+   );
+}
+
 /** One setting: a label (+ optional hint) over its control. */
 function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
    return (
@@ -466,6 +483,53 @@ export function Settings({
                                  ['on', 'On'],
                               ]}
                               onChange={v => set({ cheers: v === 'on' })}
+                           />
+                        </Field>
+                        <Explainer summary="What fires a cheer or a nudge">
+                           <p>
+                              <b className="font-semibold text-ink-2">Cheers</b> are the rewards: a
+                              CR of yours lands, a PR you touched goes green, you top the board, or
+                              the whole board goes clear. A hero cheer throws a few sparks.
+                           </p>
+                           <p>
+                              <b className="font-semibold text-ink-2">Nudges</b> point you at work:
+                              the quick wins waiting, a review someone requested of you, a favor to
+                              return, your turn in the rotation, a PR that changed since your ✓, or
+                              a claim of yours going stale.
+                           </p>
+                           <p>
+                              They flash in the corner while you’re on the board and fade on their
+                              own — nothing sticks. The bell keeps the recent ones if you miss one.
+                           </p>
+                        </Explainer>
+                        <Field
+                           label="How long they stay"
+                           hint="How long a cheer or nudge lingers before it slides away. A nag always outsits a reward; this scales both."
+                        >
+                           <Segmented
+                              ariaLabel="how long nudges stay"
+                              value={s.cheerDwell}
+                              options={[
+                                 ['brief', 'Brief'],
+                                 ['normal', 'Normal'],
+                                 ['relaxed', 'Relaxed'],
+                              ]}
+                              onChange={cheerDwell => set({ cheerDwell })}
+                           />
+                        </Field>
+                        <Field
+                           label="Bell badge"
+                           hint="What the bell shows for nudges that landed since you last opened it: the count, a plain dot, or nothing."
+                        >
+                           <Segmented
+                              ariaLabel="bell badge"
+                              value={s.notifyBadge}
+                              options={[
+                                 ['count', 'Count'],
+                                 ['dot', 'Dot'],
+                                 ['none', 'Off'],
+                              ]}
+                              onChange={notifyBadge => set({ notifyBadge })}
                            />
                         </Field>
                         {notificationsSupported ? (

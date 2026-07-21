@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ago, githubUrl } from '../format';
+import { useSettings } from '../settings';
 import type { ToastRecord } from '../toasts';
 import { onOpen, Popover } from './Popover';
 
@@ -36,6 +37,8 @@ export function NotificationPanel({
    // nothing to persist. Everything fired after this counts as unseen.
    const [lastSeen, setLastSeen] = useState(0);
    const unseen = records.filter(r => r.at > lastSeen).length;
+   const badge = useSettings().notifyBadge;
+   const flag = unseen > 0 && badge !== 'none';
 
    return (
       <Popover
@@ -56,11 +59,14 @@ export function NotificationPanel({
                <svg viewBox="0 0 16 16" aria-hidden className="h-4 w-4 fill-current">
                   <path d={BELL} />
                </svg>
-               {unseen > 0 && (
-                  <span className="absolute -top-1 -right-1 grid h-4 min-w-[16px] place-items-center rounded-full bg-brand px-1 text-[10px] leading-none font-semibold text-surface">
-                     {unseen > 9 ? '9+' : unseen}
-                  </span>
-               )}
+               {flag &&
+                  (badge === 'dot' ? (
+                     <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-surface" />
+                  ) : (
+                     <span className="absolute -top-1 -right-1 grid h-4 min-w-[16px] place-items-center rounded-full bg-brand px-1 text-[10px] leading-none font-semibold text-surface">
+                        {unseen > 9 ? '9+' : unseen}
+                     </span>
+                  ))}
             </button>
          )}
       >

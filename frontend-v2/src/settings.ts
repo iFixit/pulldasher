@@ -35,6 +35,12 @@ export interface Settings {
    /** in-app "cheers": playful rewards when your reviews land and gentle nags
     * when they pile up. Session-only, fires while you're on the board. */
    cheers: boolean;
+   /** how long a cheer/nudge toast lingers before it slides away on its own —
+    * scales the per-tone base times (a nag always outsits a reward). */
+   cheerDwell: 'brief' | 'normal' | 'relaxed';
+   /** how the recent-nudges bell flags what landed since you last opened it:
+    * the running count, a bare dot, or nothing. */
+   notifyBadge: 'count' | 'dot' | 'none';
    /** rows a lane shows before folding into "+N more"; 0 = no cap (show all) */
    laneCap: number;
    /** teams that self-review (iFixit) don't gate on CR, so lining up QA is the
@@ -87,6 +93,8 @@ export const DEFAULT_SETTINGS: Settings = {
    notify: false,
    notifySound: false,
    cheers: true,
+   cheerDwell: 'normal',
+   notifyBadge: 'count',
    laneCap: 10,
    selfReview: true,
    primaryRepos: [],
