@@ -269,15 +269,17 @@ describe('startHereReason — priority order', () => {
       );
    });
 
-   it('falls back to familiarity when there is no reciprocity', () => {
-      const target = pull('org/a', 1, { author: 'alice', weight: 'XS' });
-      const familiarPull = pull('org/a', 2, { crBy: ['me'] });
-      expect(startHereReason(target, [target, familiarPull], 'me')).toBe(
-         'You know a — less to load in'
+   it('does not treat a shared repo as a reason — falls through it', () => {
+      // an M-weight pull in a repo the viewer has stamped before: no "you know
+      // this repo" reason, so with no reciprocity or quick win it hits urgency
+      const target = pull('org/a', 1, { author: 'alice', weight: 'M', ageDays: 3 });
+      const sameRepoStamped = pull('org/a', 2, { crBy: ['me'] });
+      expect(startHereReason(target, [target, sameRepoStamped], 'me')).toBe(
+         'Waiting 3d, the oldest on your plate'
       );
    });
 
-   it('falls back to a quick-win when unfamiliar and no reciprocity', () => {
+   it('falls back to a quick-win when there is no reciprocity', () => {
       const target = pull('org/b', 1, { author: 'alice', weight: 'XS', sizeKnown: true });
       expect(startHereReason(target, [target], 'me')).toBe('Small one (XS) — quick');
    });

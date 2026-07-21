@@ -1,4 +1,4 @@
-import { pullKey, shortRepo } from '../format';
+import { pullKey } from '../format';
 import type { PullData } from '../types';
 import { actionState } from './actions';
 import { dealOne } from './deal';
@@ -152,19 +152,19 @@ function hasStamp(p: DerivedPull, login: string): boolean {
 }
 
 /**
- * The one-line "why this pull" for start-here, in the priority order the spec
- * calls for: reciprocity beats familiarity beats a quick win beats plain
- * urgency. `pulls` is the whole board (not just the queue) — familiarity and
- * reciprocity look across every repo/author the viewer touches, matching
- * deal.ts's own scoring.
+ * The one-line "why this pull" for start-here, in priority order: returning a
+ * favor beats a quick win beats plain urgency. `pulls` is the whole board (not
+ * just the queue) so reciprocity can look across every author the viewer has
+ * reviewed, matching deal.ts's own scoring.
+ *
+ * There's deliberately no "you know this repo" reason: in a monorepo everyone
+ * has stamped something in it, so it's both always true and no motivation at
+ * all — the reason has to be something specific to *this* pull.
  */
 export function startHereReason(p: DerivedPull, pulls: DerivedPull[], me: string): string {
-   const repo = p.data.repo;
    const author = p.data.user.login;
    const owedByAuthor = pulls.some(o => o.data.user.login === me && hasStamp(o, author));
    if (owedByAuthor) return `${author} reviewed yours — return the favor`;
-   const familiar = pulls.some(o => o.data.repo === repo && hasStamp(o, me));
-   if (familiar) return `You know ${shortRepo(repo)} — less to load in`;
    const quickWin = p.sizeKnown && (p.weight === 'XS' || p.weight === 'S');
    if (quickWin) return `Small one (${p.weight}) — quick`;
    return `Waiting ${Math.max(1, Math.round(p.ageDays))}d, the oldest on your plate`;
