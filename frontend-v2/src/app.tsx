@@ -730,23 +730,30 @@ export function App() {
          : lens === 'mine'
            ? closed.filter(p => p.user.login === me).length
            : 0;
-   const jumpToShipped = shippedFoldId
-      ? () => {
-           const id = shippedFoldId;
-           openFold(id);
-           // openFold's write lands via useSyncExternalStore, so the fold's
-           // `open` attribute (and the height its rows add) commits on the
-           // next paint, not synchronously in this handler — wait a frame so
-           // the scroll lands on the expanded fold, not the collapsed one.
-           requestAnimationFrame(() => {
-              const el = document.getElementById(foldDomId(id));
-              if (!el) return;
-              el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              el.classList.add('fold-flash');
-              setTimeout(() => el.classList.remove('fold-flash'), 900);
-           });
-        }
-      : undefined;
+   // memoized: this feeds the shippedExtras useMemo below, which feeds
+   // useToasts' extras effect — a fresh identity every render would re-run
+   // that chain on every unrelated keystroke/toggle while on these lenses
+   const jumpToShipped = useMemo(
+      () =>
+         shippedFoldId
+            ? () => {
+                 const id = shippedFoldId;
+                 openFold(id);
+                 // openFold's write lands via useSyncExternalStore, so the fold's
+                 // `open` attribute (and the height its rows add) commits on the
+                 // next paint, not synchronously in this handler — wait a frame so
+                 // the scroll lands on the expanded fold, not the collapsed one.
+                 requestAnimationFrame(() => {
+                    const el = document.getElementById(foldDomId(id));
+                    if (!el) return;
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    el.classList.add('fold-flash');
+                    setTimeout(() => el.classList.remove('fold-flash'), 900);
+                 });
+              }
+            : undefined,
+      [shippedFoldId]
+   );
 
    // the "shipped while you were away" catch-up, now a single info toast instead
    // of a standing banner. Scope-filtered (respects the active repo/author/hidden

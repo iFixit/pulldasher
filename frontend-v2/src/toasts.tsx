@@ -234,16 +234,29 @@ export function useToasts(
       hydrated.current = true;
    }, [me]);
 
-   const remove = useCallback((id: number) => {
-      const gone = toastsRef.current.find(t => t.id === id);
-      gone?.onGone?.();
-      setToasts(list => list.filter(t => t.id !== id));
-      const t = timers.current.get(id);
-      if (t) {
-         clearTimeout(t);
-         timers.current.delete(id);
-      }
+   // onGone must fire exactly once however a toast leaves — remove() covers
+   // dismissal, push()'s cap eviction covers overflow; the set keeps the two
+   // paths (and StrictMode's double-invoked updaters) from firing it twice
+   const goneFired = useRef(new Set<number>());
+   const fireOnGone = useCallback((t: Toast & { id: number }) => {
+      if (goneFired.current.has(t.id)) return;
+      goneFired.current.add(t.id);
+      t.onGone?.();
    }, []);
+
+   const remove = useCallback(
+      (id: number) => {
+         const gone = toastsRef.current.find(t => t.id === id);
+         if (gone) fireOnGone(gone);
+         setToasts(list => list.filter(t => t.id !== id));
+         const t = timers.current.get(id);
+         if (t) {
+            clearTimeout(t);
+            timers.current.delete(id);
+         }
+      },
+      [fireOnGone]
+   );
 
    const dismiss = useCallback(
       (id: number) => {
@@ -277,12 +290,16 @@ export function useToasts(
          setToasts(list => {
             const added = fresh.map(t => ({ ...t, id: nextId.current++ }));
             let merged = [...list, ...added];
-            // drop the oldest beyond the cap (dismiss them so their timers clear)
+            // drop the oldest beyond the cap — clearing its timer AND firing
+            // its onGone, exactly like a dismissal would ("shipped while you
+            // were away" wires onGone to advance the read-state; a silent
+            // eviction must not strand it unread forever)
             while (merged.length > MAX_VISIBLE) {
                const [oldest, ...rest] = merged;
                const t = timers.current.get(oldest.id);
                if (t) clearTimeout(t);
                timers.current.delete(oldest.id);
+               fireOnGone(oldest);
                merged = rest;
             }
             // 'sticky' means no auto-dismiss timer: the toast waits for a
@@ -491,10 +508,12 @@ function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: num
 
    return (
       <div
-         className={`toast-card group pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-xl border px-3.5 py-3 shadow-lg ${tone} ${
+         className={`group pointer-events-auto relative flex items-start gap-3 rounded-xl border px-3.5 py-3 shadow-lg ${tone} ${
             toast.leaving ? 'toast-leave' : 'toast-enter'
          } ${clickable ? 'cursor-pointer transition-[background-color] hover:brightness-[0.98]' : ''}`}
-         role="status"
+         // a clickable card is a button to the keyboard/screen reader; the
+         // polite live region still announces either way
+         role={clickable ? 'button' : 'status'}
          aria-live="polite"
          {...(clickable
             ? {
@@ -573,14 +592,21 @@ function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: num
             </svg>
          </button>
          {toast.shimmer && (
+            // the sweep gets its own clipping layer instead of overflow-hidden
+            // on the whole card, so the sparkle burst (which flies past the
+            // card edge by design) never gets cropped mid-celebration
             <span
                aria-hidden
-               className="toast-shine pointer-events-none absolute inset-y-0 left-0 w-2/3"
-               style={{
-                  background:
-                     'linear-gradient(105deg, transparent 42%, rgba(255,255,255,0.4) 50%, transparent 58%)',
-               }}
-            />
+               className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
+            >
+               <span
+                  className="toast-shine absolute inset-y-0 left-0 w-2/3"
+                  style={{
+                     background:
+                        'linear-gradient(105deg, transparent 42%, rgba(255,255,255,0.4) 50%, transparent 58%)',
+                  }}
+               />
+            </span>
          )}
       </div>
    );

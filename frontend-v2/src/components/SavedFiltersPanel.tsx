@@ -41,6 +41,17 @@ function SavedFilterRow({
    onApply: () => void;
    onRemove?: () => void;
 }) {
+   // arm-then-confirm, same pattern as Settings' "Clear settings": a saved
+   // filter can be a hand-tuned query, so a single misclick on the ✕ must not
+   // erase it — first click arms for 4s, the second actually removes
+   const [armed, setArmed] = useState(false);
+   const disarm = useRef<ReturnType<typeof setTimeout> | null>(null);
+   useEffect(
+      () => () => {
+         if (disarm.current) clearTimeout(disarm.current);
+      },
+      []
+   );
    return (
       <div
          id={id}
@@ -66,16 +77,34 @@ function SavedFilterRow({
             <span className="truncate text-xs text-ink-3">{describeHash(filter.hash)}</span>
          </button>
          {onRemove && (
-            <span className="flex-none opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none">
+            <span
+               className={`flex-none transition-opacity duration-150 ease-out group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none ${
+                  armed ? 'opacity-100' : 'opacity-0'
+               }`}
+            >
                <QuietButton
                   onClick={e => {
                      e.stopPropagation();
+                     if (!armed) {
+                        setArmed(true);
+                        disarm.current = setTimeout(() => setArmed(false), 4000);
+                        return;
+                     }
+                     if (disarm.current) clearTimeout(disarm.current);
                      onRemove();
                   }}
-                  aria-label={`remove saved filter ${filter.name}`}
-                  title="remove this saved filter"
+                  aria-label={
+                     armed
+                        ? `confirm removing saved filter ${filter.name}`
+                        : `remove saved filter ${filter.name}`
+                  }
+                  title={armed ? 'click again to remove' : 'remove this saved filter'}
                >
-                  ✕
+                  {armed ? (
+                     <span className="font-medium whitespace-nowrap text-bad">sure?</span>
+                  ) : (
+                     '✕'
+                  )}
                </QuietButton>
             </span>
          )}

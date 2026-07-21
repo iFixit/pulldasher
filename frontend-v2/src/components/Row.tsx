@@ -171,7 +171,9 @@ function rowFlags(
       flags.push({
          key: 'aging',
          tone: 'warn',
-         label: `open ${p.ageDays}d`,
+         // the rail's AgeStamp already shows the day count on this same card —
+         // the chip names WHY it's in the aging lane, the hover has the numbers
+         label: 'aging',
          detail: `Open ${p.ageDays} days without full CR (${p.crHave} of ${p.data.status.cr_req}).${quiet}`,
       });
    }
@@ -722,6 +724,11 @@ function RowImpl({
    // only worth asking the whole-board lookup when this row is stacked but
    // rendering flat (its parent isn't visible right above it already)
    const orphanParent = pull.dependent && depth === 0 ? (opts.parentOf?.(pull) ?? null) : null;
+   // the "review requested" chip already states this — strip it from the
+   // context line so one card doesn't carry the same fact as chip AND text
+   const contextText = requestedOfMe
+      ? note.context?.replace(/^requested from you( · )?/, '') || null
+      : note.context;
    return (
       <CardShell
          login={d.user.login}
@@ -787,11 +794,11 @@ function RowImpl({
                {pull.sizeKnown && (
                   <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
                )}
-               {note.context && (
+               {contextText && (
                   <ContextPopover
                      pull={pull}
                      me={opts.me}
-                     text={note.context}
+                     text={contextText}
                      claim={claim}
                      turn={turn}
                      poolSize={poolSize}

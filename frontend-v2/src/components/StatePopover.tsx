@@ -80,9 +80,22 @@ function stateExplanation(pull: DerivedPull, note: RowNote): string {
 }
 
 /** Section 1: what this pull's badge means, restated in a sentence, plus the
- * viewer's own move when they have one. */
-function StateSection({ pull, me }: { pull: DerivedPull; me: string }) {
-   const note = rowNote(pull, me);
+ * viewer's own move when they have one. Claim/turn must flow into rowNote
+ * here exactly as they do on the row itself — otherwise the popover asserts
+ * "your move: Review it" on a pull someone else has already claimed, flatly
+ * contradicting the row's own (rightly silent) do-pill. */
+function StateSection({
+   pull,
+   me,
+   claim,
+   turn,
+}: {
+   pull: DerivedPull;
+   me: string;
+   claim?: { login: string; at: number } | null;
+   turn?: string | null;
+}) {
+   const note = rowNote(pull, me, { claim, turn });
    return (
       <div className="border-b border-secondary px-1 pb-2">
          <p className="font-semibold text-ink">{STATUS_LABEL[pull.status]}</p>
@@ -211,7 +224,7 @@ function StatePopoverBody({
 }) {
    return (
       <>
-         <StateSection pull={pull} me={me} />
+         <StateSection pull={pull} me={me} claim={claim} turn={turn} />
          <FactsSection pull={pull} claim={claim} turn={turn} poolSize={poolSize} />
          <FeedbackSection pull={pull} />
          <a

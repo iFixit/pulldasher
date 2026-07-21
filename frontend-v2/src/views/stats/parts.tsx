@@ -347,7 +347,7 @@ export function LineChart({
                   x2={CHART_W}
                   y1={y}
                   y2={y}
-                  stroke="var(--line)"
+                  stroke="var(--border)"
                   strokeWidth={1}
                />
             ))}

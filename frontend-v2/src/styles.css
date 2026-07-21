@@ -499,22 +499,6 @@ input[type="checkbox"] {
 .medallion-slump {
   animation: medallion-slump 440ms var(--ease-quint) 70ms backwards;
 }
-/* the hero rewards get three sparks that drift up and out, then fade */
-@keyframes spark {
-  from {
-    opacity: 1;
-    translate: 0 0;
-    scale: 0.4;
-  }
-  to {
-    opacity: 0;
-    translate: var(--dx, 0) -15px;
-    scale: 1;
-  }
-}
-.spark {
-  animation: spark 720ms var(--ease-quart) forwards;
-}
 /* a richer reward flourish: glints fly out radially from the medallion, then
    fade — driven by per-spark --dx/--dy set inline */
 @keyframes sparkle-burst {

@@ -230,6 +230,7 @@ export function Pips({
    by = [],
    staleBy = [],
    me,
+   titled = true,
 }: {
    label: string;
    have: number;
@@ -239,6 +240,11 @@ export function Pips({
    /** users whose stamp a push invalidated */
    staleBy?: string[];
    me?: string;
+   /** false when a hover popover wraps these pips (SigPips): the popover
+    * carries the same facts, and a native title would stack the browser
+    * tooltip under it — the same double-tooltip AgeStamp solved by switching
+    * to aria-label. The bare-pips fallback keeps its title. */
+   titled?: boolean;
 }) {
    const none = !req && !have && !staleBy.length;
    const met = !none && have >= req;
@@ -267,7 +273,11 @@ export function Pips({
              : `${label} done`
           : `${label}: ${have} of ${req}`;
    return (
-      <span className="inline-flex items-center gap-1" aria-label={aria} title={title}>
+      <span
+         className="inline-flex items-center gap-1"
+         aria-label={aria}
+         title={titled ? title : undefined}
+      >
          <span aria-hidden className="w-[18px] text-[11px] font-medium text-ink-3">
             {label}
          </span>
@@ -320,8 +330,13 @@ export function SigPips({
    me?: string;
    sigs: Signature[];
 }) {
-   const pips = <Pips label={label} have={have} req={req} by={by} staleBy={staleBy} me={me} />;
-   if (!sigs.length) return pips;
+   // bare pips (the no-signatures fallback) keep their native title; inside
+   // the hover popover below it would just stack a browser tooltip on top
+   if (!sigs.length)
+      return <Pips label={label} have={have} req={req} by={by} staleBy={staleBy} me={me} />;
+   const pips = (
+      <Pips label={label} have={have} req={req} by={by} staleBy={staleBy} me={me} titled={false} />
+   );
 
    // latest signature per user, live stamps first, then invalidated ones
    const latest = new Map<string, Signature>();
@@ -349,7 +364,7 @@ export function SigPips({
             <button
                {...t}
                type="button"
-               title={`who ${label}’d this`}
+               // no native title: the popover itself opens on this same hover
                // py+negative-my: a real tap target (the pips are 8px squares)
                // without moving anything in the rail's layout
                className="pressable -my-2 cursor-pointer rounded border-0 bg-transparent px-0 py-2 text-left hover:bg-secondary/60"
