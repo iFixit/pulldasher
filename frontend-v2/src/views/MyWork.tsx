@@ -69,7 +69,7 @@ export function MyWork({
                <Fold
                   dot="var(--ok)"
                   count={shipped.length}
-                  label="recently shipped"
+                  label="recently closed"
                   hint="merged or closed in the last 14 days"
                   id="mine:shipped"
                   // both lanes above are clear and shipped has something to

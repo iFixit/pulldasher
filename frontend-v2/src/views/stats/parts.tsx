@@ -581,7 +581,10 @@ export function PersonCell({
    return (
       <>
          <Avatar login={login} size={20} onClick={onPerson} />
-         <span className="flex-none font-semibold text-ink">
+         {/* min-w-0 + truncate, not flex-none: a long GitHub login (up to 39
+             chars) must yield to the bar/trail instead of overflowing the card
+             into page-level horizontal scroll on a phone */}
+         <span className="min-w-0 flex-1 truncate font-semibold text-ink" title={login}>
             {mine ? <span className="text-brand">{login}</span> : login}
             {mine && <span className="ml-1 text-ink-3">you</span>}
          </span>
