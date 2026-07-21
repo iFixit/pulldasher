@@ -586,6 +586,40 @@ export function Segmented<T extends string>({
    );
 }
 
+/** A compact on/off switch — a track with a sliding knob. Used where a full
+ * Segmented (On/Off) would be too heavy, e.g. a long list of per-item toggles. */
+export function Switch({
+   checked,
+   onChange,
+   ariaLabel,
+   disabled,
+}: {
+   checked: boolean;
+   onChange: (next: boolean) => void;
+   ariaLabel: string;
+   disabled?: boolean;
+}) {
+   return (
+      <button
+         type="button"
+         role="switch"
+         aria-checked={checked}
+         aria-label={ariaLabel}
+         disabled={disabled}
+         onClick={() => onChange(!checked)}
+         className={`pressable inline-flex h-[18px] w-8 flex-none items-center rounded-full transition-colors disabled:opacity-40 ${
+            checked ? 'bg-brand' : 'bg-secondary'
+         }`}
+      >
+         <span
+            className={`h-3.5 w-3.5 rounded-full bg-surface shadow-sm transition-transform ${
+               checked ? 'translate-x-[16px]' : 'translate-x-[2px]'
+            }`}
+         />
+      </button>
+   );
+}
+
 export function EmptyState({ title, sub }: { title: string; sub: string }) {
    return (
       <div className="flex flex-col items-center gap-2.5 px-6 py-10 text-center text-[13px] text-ink-3">

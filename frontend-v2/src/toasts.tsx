@@ -5,6 +5,7 @@ import {
    type CheerToast,
    EMPTY_BASELINE,
    evaluateCheers,
+   type ToastKind,
 } from './model/cheers';
 import type { DerivedPull } from './model/status';
 import type { Toast, ToastTone } from './model/toast';
@@ -226,6 +227,7 @@ export function useToasts(
             claims,
             now: Date.now(),
             claimWarnMs: getSettings().claimWarnMins * 60_000,
+            muted: new Set(getSettings().mutedCheers as ToastKind[]),
          },
          baseline.current
       );

@@ -106,6 +106,10 @@ export interface CheerInput {
    /** how long a claim of yours may sit before the stale-claim nag fires (ms);
     * the viewer's claim-warning setting, falling back to STALE_CLAIM_MS */
    claimWarnMs?: number;
+   /** cheer kinds the viewer has switched off — filtered before the per-tick
+    * cap, so muting a high-priority kind frees its slot for a shown one rather
+    * than firing then hiding it. */
+   muted?: ReadonlySet<ToastKind>;
 }
 
 /** A claim you're sitting on stops absolving other reviewers at 2h (see
@@ -384,12 +388,12 @@ export function evaluateCheers(
    input: CheerInput,
    base: CheerBaseline
 ): { toasts: CheerToast[]; next: CheerBaseline } {
-   return diffCheers(readSignals(input), input.me, base);
+   return diffCheers(readSignals(input), input.me, base, input.muted);
 }
 
 /** Toast categories, highest priority first — what survives when a tick
  * overflows MAX_PER_TICK. */
-const PRIORITY_ORDER = [
+export const PRIORITY_ORDER = [
    'board-cleared',
    'inbox-zero',
    'pr-green',
@@ -410,10 +414,143 @@ const PRIORITY_ORDER = [
    'pr-conflicts',
    'pr-starving',
 ] as const;
-type ToastKind = (typeof PRIORITY_ORDER)[number];
+export type ToastKind = (typeof PRIORITY_ORDER)[number];
 const PRIORITY: Record<ToastKind, number> = Object.fromEntries(
    PRIORITY_ORDER.map((kind, i) => [kind, PRIORITY_ORDER.length - i])
 ) as Record<ToastKind, number>;
+
+/** The three families a cheer/nudge falls into, for grouping the Settings
+ * toggle list: rewards you earn, nudges toward review work, and alerts about
+ * your own PRs. */
+export type CheerGroup = 'reward' | 'nudge' | 'author';
+
+/**
+ * User-facing catalog of every cheer/nudge kind — the group it belongs to, plus
+ * a one-line label and explanation for the per-kind toggle list in Settings.
+ * Kept exactly 1:1 with PRIORITY_ORDER (a test asserts the two never drift), so
+ * a new toast kind can't be added without also giving it a switch and a blurb.
+ */
+export const CHEER_CATALOG: {
+   kind: ToastKind;
+   group: CheerGroup;
+   label: string;
+   hint: string;
+}[] = [
+   // Rewards — the good news
+   {
+      kind: 'stamp-landed',
+      group: 'reward',
+      label: 'Review landed',
+      hint: 'A CR or QA stamp of yours lands.',
+   },
+   {
+      kind: 'milestone',
+      group: 'reward',
+      label: 'Review streak',
+      hint: 'You pass a round number of reviews this sitting.',
+   },
+   {
+      kind: 'inbox-zero',
+      group: 'reward',
+      label: 'Inbox zero',
+      hint: 'Your own review queue drops to nothing.',
+   },
+   {
+      kind: 'board-cleared',
+      group: 'reward',
+      label: 'Board’s clear',
+      hint: 'Nothing on the whole board is waiting on anyone.',
+   },
+   {
+      kind: 'top-of-board',
+      group: 'reward',
+      label: 'Top reviewer',
+      hint: 'You reach the top of the board’s leaderboard.',
+   },
+   {
+      kind: 'climbing',
+      group: 'reward',
+      label: 'Climbing the ranks',
+      hint: 'You pass someone on the leaderboard.',
+   },
+   {
+      kind: 'pr-green',
+      group: 'reward',
+      label: 'Your PR is green',
+      hint: 'A PR of yours clears CR and QA — ready to ship.',
+   },
+   // Nudges — what to review next
+   {
+      kind: 'start-here',
+      group: 'nudge',
+      label: 'Start here',
+      hint: 'The single best pull to pick up next.',
+   },
+   {
+      kind: 'quick-wins',
+      group: 'nudge',
+      label: 'Quick wins',
+      hint: 'A pile of small, unclaimed reviews worth a pass.',
+   },
+   {
+      kind: 'review-requested',
+      group: 'nudge',
+      label: 'Review requested',
+      hint: 'Someone asked for your review on GitHub.',
+   },
+   {
+      kind: 'your-turn',
+      group: 'nudge',
+      label: 'Your turn',
+      hint: 'The rotation named you on a starved review.',
+   },
+   {
+      kind: 're-stamp-owed',
+      group: 'nudge',
+      label: 'Changed since your ✓',
+      hint: 'A PR you approved changed and wants another look.',
+   },
+   {
+      kind: 'return-the-favor',
+      group: 'nudge',
+      label: 'Return the favor',
+      hint: 'Someone who reviewed your PRs has one open.',
+   },
+   {
+      kind: 'claim-stale',
+      group: 'nudge',
+      label: 'Stale claim',
+      hint: 'A review you claimed has sat unreviewed too long.',
+   },
+   // Your PRs — author-side alerts
+   {
+      kind: 'pr-first-review',
+      group: 'author',
+      label: 'Picked up',
+      hint: 'A reviewer started on your PR.',
+   },
+   { kind: 'pr-conflicts', group: 'author', label: 'Conflicts', hint: 'Your PR needs a rebase.' },
+   {
+      kind: 'pr-ci-red',
+      group: 'author',
+      label: 'CI broke',
+      hint: 'A required check went red on your PR.',
+   },
+   {
+      kind: 'pr-changes',
+      group: 'author',
+      label: 'Changes requested',
+      hint: 'A reviewer wants edits on your PR.',
+   },
+   {
+      kind: 'pr-starving',
+      group: 'author',
+      label: 'Waiting too long',
+      hint: 'Your PR has gone a while with no review.',
+   },
+];
+
+const NO_MUTED: ReadonlySet<ToastKind> = new Set();
 
 /**
  * Diff two board snapshots into the toasts worth firing right now, plus the
@@ -430,11 +567,12 @@ const PRIORITY: Record<ToastKind, number> = Object.fromEntries(
 export function diffCheers(
    sig: Signals,
    me: string,
-   base: CheerBaseline
+   base: CheerBaseline,
+   muted: ReadonlySet<ToastKind> = NO_MUTED
 ): { toasts: CheerToast[]; next: CheerBaseline } {
    if (!base.primed || !me) {
       const toasts: CheerToast[] = [];
-      if (me && sig.bestStart && sig.backlog > 0) {
+      if (me && sig.bestStart && sig.backlog > 0 && !muted.has('start-here')) {
          toasts.push(startHereToast(sig.bestStart, sig.startReason));
       }
       return {
@@ -462,7 +600,12 @@ export function diffCheers(
    }
 
    const entries: { toast: CheerToast; kind: ToastKind }[] = [];
-   const push = (kind: ToastKind, toast: CheerToast) => entries.push({ toast, kind });
+   // a muted kind is dropped here, before the priority sort and cap — the
+   // bookkeeping around each push (session tallies, "already seen" sets) still
+   // runs, so unmuting later never replays a backlog.
+   const push = (kind: ToastKind, toast: CheerToast) => {
+      if (!muted.has(kind)) entries.push({ toast, kind });
+   };
 
    let sessionStamps = base.sessionStamps;
    const firedMilestones = new Set(base.firedMilestones);

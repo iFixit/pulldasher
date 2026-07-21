@@ -8,6 +8,7 @@ import {
    testNotification,
    unlockSound,
 } from '../notifications';
+import { CHEER_CATALOG, type CheerGroup } from '../model/cheers';
 import { clearSnoozes, markAllSeen, refreshAll, usePulldasher } from '../store';
 import {
    addCodeRegion,
@@ -15,10 +16,11 @@ import {
    type Settings as SettingsShape,
    setRepoPref,
    setSettings,
+   toggleCheerKind,
    togglePrimaryRepo,
    useSettings,
 } from '../settings';
-import { QuietButton, Segmented } from './bits';
+import { QuietButton, Segmented, Switch } from './bits';
 import { RepoManagerGroup } from './RepoManager';
 import { TeamPickerGroup } from './TeamPicker';
 
@@ -57,6 +59,45 @@ function Explainer({ summary, children }: { summary: string; children: ReactNode
          </summary>
          <div className="space-y-1.5 pt-1 pb-0.5 pl-3 text-xs text-ink-2">{children}</div>
       </details>
+   );
+}
+
+const CHEER_GROUPS: { group: CheerGroup; title: string }[] = [
+   { group: 'reward', title: 'Rewards' },
+   { group: 'nudge', title: 'Nudges' },
+   { group: 'author', title: 'Your PRs' },
+];
+
+/** The per-kind list: every cheer/nudge, grouped, each a one-line explanation
+ * with its own switch. The master "Cheers & nudges" toggle still gates the
+ * whole system; these pick which kinds fire when it's on, so they read as
+ * disabled while it's off. */
+function CheerToggles({ disabled }: { disabled: boolean }) {
+   const muted = new Set(useSettings().mutedCheers);
+   return (
+      <div className="flex flex-col gap-3">
+         {CHEER_GROUPS.map(({ group, title }) => (
+            <div key={group} className="flex flex-col gap-2">
+               <span className="text-[11px] font-semibold tracking-wide text-ink-3 uppercase">
+                  {title}
+               </span>
+               {CHEER_CATALOG.filter(c => c.group === group).map(c => (
+                  <div key={c.kind} className="flex items-start gap-2.5">
+                     <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] font-medium text-ink">{c.label}</span>
+                        <span className="block text-xs text-ink-3">{c.hint}</span>
+                     </span>
+                     <Switch
+                        checked={!muted.has(c.kind)}
+                        disabled={disabled}
+                        ariaLabel={c.label}
+                        onChange={next => toggleCheerKind(c.kind, next)}
+                     />
+                  </div>
+               ))}
+            </div>
+         ))}
+      </div>
    );
 }
 
@@ -485,22 +526,8 @@ export function Settings({
                               onChange={v => set({ cheers: v === 'on' })}
                            />
                         </Field>
-                        <Explainer summary="What fires a cheer or a nudge">
-                           <p>
-                              <b className="font-semibold text-ink-2">Cheers</b> are the rewards: a
-                              CR of yours lands, a PR you touched goes green, you top the board, or
-                              the whole board goes clear. A hero cheer throws a few sparks.
-                           </p>
-                           <p>
-                              <b className="font-semibold text-ink-2">Nudges</b> point you at work:
-                              the quick wins waiting, a review someone requested of you, a favor to
-                              return, your turn in the rotation, a PR that changed since your ✓, or
-                              a claim of yours going stale.
-                           </p>
-                           <p>
-                              They flash in the corner while you’re on the board and fade on their
-                              own — nothing sticks. The bell keeps the recent ones if you miss one.
-                           </p>
+                        <Explainer summary="Choose which cheers & nudges fire">
+                           <CheerToggles disabled={!s.cheers} />
                         </Explainer>
                         <Field
                            label="How long they stay"

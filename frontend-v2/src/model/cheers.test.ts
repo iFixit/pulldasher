@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { pullKey } from '../format';
 import {
    type AuthorPrState,
+   CHEER_CATALOG,
    type CheerBaseline,
    diffCheers,
    EMPTY_BASELINE,
+   PRIORITY_ORDER,
    type Signals,
    startHereReason,
+   type ToastKind,
 } from './cheers';
 import type { DerivedPull, Weight } from './status';
 
@@ -582,5 +585,56 @@ describe('diffCheers — MAX_PER_TICK', () => {
       expect(toasts.some(t => t.icon === '⏳')).toBe(true);
       expect(toasts.some(t => t.icon === '🔁')).toBe(true);
       expect(toasts.some(t => t.icon === '⚡')).toBe(false);
+   });
+});
+
+describe('cheer catalog', () => {
+   it('documents exactly every toast kind, once each', () => {
+      const catalogKinds = CHEER_CATALOG.map(c => c.kind);
+      // no dupes, and 1:1 with the priority list the evaluator fires from — so
+      // a new kind can't ship without a switch and a blurb in the catalog
+      expect(new Set(catalogKinds).size).toBe(catalogKinds.length);
+      expect(new Set(catalogKinds)).toEqual(new Set(PRIORITY_ORDER));
+   });
+});
+
+describe('diffCheers — muting', () => {
+   it('drops a muted kind, but fires it when not muted', () => {
+      const base = primed(sig());
+      const snap = () => sig({ quickWinCount: 4, quickWinPull: pull('org/a', 1) });
+
+      const shown = diffCheers(snap(), 'me', base);
+      expect(shown.toasts.some(t => t.dedupeKey?.startsWith('quick:'))).toBe(true);
+
+      const hidden = diffCheers(snap(), 'me', base, new Set<ToastKind>(['quick-wins']));
+      expect(hidden.toasts.some(t => t.dedupeKey?.startsWith('quick:'))).toBe(false);
+   });
+
+   it('muting frees a per-tick slot for a lower-priority kind', () => {
+      // four fresh nudges compete for three slots; quick-wins (lowest) loses.
+      // mute the top one (review-requested) and quick-wins gets through.
+      const base = primed(sig());
+      const p1 = pull('org/a', 1, { ageDays: 3 });
+      const p2 = pull('org/a', 2, { ageDays: 4 });
+      const p3 = pull('org/a', 3, { ageDays: 5 });
+      const build = (muted?: ReadonlySet<ToastKind>) =>
+         diffCheers(
+            sig({
+               restampKeys: new Set([pullKey(p1.data)]), // re-stamp-owed
+               turns: new Map([[pullKey(p2.data), p2]]), // your-turn
+               requestedOfMe: new Map([[pullKey(p3.data), p3]]), // review-requested (top)
+               quickWinCount: 4, // quick-wins (lowest)
+               pulls: [p1, p2, p3],
+            }),
+            'me',
+            base,
+            muted
+         );
+      const shown = build();
+      expect(shown.toasts).toHaveLength(3);
+      expect(shown.toasts.some(t => t.icon === '⚡')).toBe(false);
+      const freed = build(new Set<ToastKind>(['review-requested']));
+      expect(freed.toasts.some(t => t.dedupeKey?.startsWith('req:'))).toBe(false);
+      expect(freed.toasts.some(t => t.icon === '⚡')).toBe(true);
    });
 });

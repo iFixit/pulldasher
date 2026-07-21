@@ -41,6 +41,10 @@ export interface Settings {
    /** how the recent-nudges bell flags what landed since you last opened it:
     * the running count, a bare dot, or nothing. */
    notifyBadge: 'count' | 'dot' | 'none';
+   /** cheer/nudge kinds switched off individually (CHEER_CATALOG keys). A
+    * mute-list, not an allow-list, so a newly added kind defaults to on. Only
+    * bites when `cheers` is on — the master switch still gates the whole lot. */
+   mutedCheers: string[];
    /** rows a lane shows before folding into "+N more"; 0 = no cap (show all) */
    laneCap: number;
    /** teams that self-review (iFixit) don't gate on CR, so lining up QA is the
@@ -95,6 +99,7 @@ export const DEFAULT_SETTINGS: Settings = {
    cheers: true,
    cheerDwell: 'normal',
    notifyBadge: 'count',
+   mutedCheers: [],
    laneCap: 10,
    selfReview: true,
    primaryRepos: [],
@@ -169,6 +174,14 @@ export function addCodeRegion(region: string) {
 /** Remove a code region (exact match). */
 export function removeCodeRegion(region: string) {
    setSettings({ codeRegions: store.get().codeRegions.filter(r => r !== region) });
+}
+
+/** Switch one cheer/nudge kind on or off. `on` adds it back (drops it from the
+ * mute-list); off mutes it. */
+export function toggleCheerKind(kind: string, on: boolean) {
+   const cur = store.get().mutedCheers;
+   const next = on ? cur.filter(k => k !== kind) : [...new Set([...cur, kind])];
+   setSettings({ mutedCheers: next });
 }
 
 export function useSettings(): Settings {
