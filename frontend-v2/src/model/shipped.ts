@@ -11,9 +11,15 @@ import type { Toast } from './toast';
 export type ShipRelevance = 'yours' | 'reviewed' | null;
 
 /** Why a shipped pull matters to you: you authored it, you stamped it (CR or
- * QA, live or since gone stale — you still touched it), or neither. */
+ * QA, live or since gone stale — you still touched it), or neither.
+ *
+ * "Shipped" means MERGED. The store's `closed` list carries every pull with
+ * state 'closed', which on GitHub is merged AND closed-without-merge alike —
+ * but a PR you closed unmerged never landed, so it earns no "shipped … your PR
+ * landed" nudge. Gate on merged_at up front: an unmerged close is never
+ * relevant, whoever authored or reviewed it. */
 export function shipRelevance(p: PullData, me: string): ShipRelevance {
-   if (!me) return null;
+   if (!me || !p.merged_at) return null;
    if (p.user.login === me) return 'yours';
    const reviewed =
       p.status.allCR.some(s => s.data.user.login === me) ||

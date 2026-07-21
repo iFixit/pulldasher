@@ -9,15 +9,20 @@ function dp(o: {
    cr?: string[];
    qa?: string[];
    closedAt?: string;
+   /** false = closed without merging; defaults to merged, since these tests
+    * are about shipped (i.e. merged) pulls */
+   merged?: boolean;
 }): PullData {
    const sig = (login: string) => ({ data: { user: { login } } });
+   const closedAt = o.closedAt ?? '2026-01-01T00:00:00Z';
    return {
       repo: 'org/repo',
       number: o.number ?? 1,
       title: `pull ${o.number ?? 1}`,
       user: { login: o.author ?? 'author' },
-      closed_at: o.closedAt ?? '2026-01-01T00:00:00Z',
-      updated_at: o.closedAt ?? '2026-01-01T00:00:00Z',
+      closed_at: closedAt,
+      updated_at: closedAt,
+      merged_at: o.merged === false ? null : closedAt,
       status: { allCR: (o.cr ?? []).map(sig), allQA: (o.qa ?? []).map(sig) },
    } as unknown as PullData;
 }
@@ -32,6 +37,12 @@ describe('shipRelevance', () => {
    });
    it('is null when you neither authored nor reviewed it', () => {
       expect(shipRelevance(dp({ author: 'alice', cr: ['bob'] }), 'me')).toBeNull();
+   });
+   it('is null for a PR closed without merging, even one you authored', () => {
+      // the reported bug: closing your own PR fired "shipped — your PR landed"
+      expect(shipRelevance(dp({ author: 'me', merged: false }), 'me')).toBeNull();
+      // and one you reviewed but that was closed unmerged never landed either
+      expect(shipRelevance(dp({ author: 'alice', qa: ['me'], merged: false }), 'me')).toBeNull();
    });
    it('prefers yours over reviewed (you can not review your own PR, but be safe)', () => {
       expect(shipRelevance(dp({ author: 'me', cr: ['me'] }), 'me')).toBe('yours');
@@ -64,6 +75,16 @@ describe('shippedToast', () => {
    it('returns null when nothing shipped is relevant', () => {
       const other = dp({ number: 1, author: 'alice', cr: ['bob'] });
       expect(shippedToast([other], 'me')).toBeNull();
+   });
+
+   it('ignores your own unmerged close and counts only merged pulls', () => {
+      const closedUnmerged = dp({ number: 1, author: 'me', merged: false });
+      expect(shippedToast([closedUnmerged], 'me')).toBeNull();
+      // a mixed batch counts only the merged one
+      const merged = dp({ number: 2, author: 'me' });
+      const toast = shippedToast([closedUnmerged, merged], 'me');
+      expect(toast?.title).toBe('Shipped while you were away');
+      expect(toast?.pull?.number).toBe(2);
    });
 
    it('names the pull and yours/reviewed for a single relevant pull', () => {
