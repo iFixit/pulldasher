@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { burstEmoji } from './confetti';
 import { githubUrl, rowDomId } from './format';
 import {
    type CheerBaseline,
@@ -109,10 +110,29 @@ const SAMPLE_CHEERS: CheerToast[] = [
    },
    {
       tone: 'reward',
-      icon: '🏆',
-      title: 'Top reviewer on the board',
-      body: "9 stamps in view — nobody's ahead of you.",
+      icon: '🔥',
+      title: 'reviews this sitting',
+      count: 5,
+      body: 'Good pace.',
       celebrate: true,
+   },
+   {
+      tone: 'reward',
+      icon: '🏆',
+      title: 'stamps in view',
+      count: 9,
+      body: "Top of the board — nobody's ahead of you.",
+      celebrate: true,
+      shimmer: true,
+   },
+   {
+      tone: 'reward',
+      icon: '🎉',
+      title: 'Inbox zero',
+      body: "Nothing's waiting on you.",
+      celebrate: true,
+      confettiEmoji: '🎉',
+      shimmer: true,
    },
    {
       tone: 'reward',
@@ -120,6 +140,8 @@ const SAMPLE_CHEERS: CheerToast[] = [
       title: 'Green — ship it',
       body: 'CR + QA both cleared.',
       pull: { repo: 'org/repo', number: 77, title: 'Migrate the cart to the new checkout' },
+      confettiEmoji: '🚀',
+      shimmer: true,
    },
    {
       tone: 'nag',
@@ -141,6 +163,8 @@ const SAMPLE_CHEERS: CheerToast[] = [
       title: "Board's clear",
       body: 'Nothing waiting on anyone.',
       celebrate: true,
+      confettiEmoji: '🎊',
+      shimmer: true,
    },
    {
       tone: 'nag',
@@ -349,24 +373,69 @@ export function useToasts(
    return { toasts, dismiss, history, clearHistory, dismissHistoryItem };
 }
 
-function Sparks() {
-   // three sparks drift up and out from behind the medallion on a hero reward
+const SPARK_TINTS = ['bg-brand', 'bg-brand-700', 'bg-warn'];
+/** A ring of glints that fly out from the medallion and fade — the hero
+ * reward's flourish. Angles/distances are picked once so the burst is stable
+ * across the card's re-renders. */
+function SparkleBurst() {
+   const sparks = useMemo(
+      () =>
+         Array.from({ length: 11 }, (_, i) => {
+            const angle = (i / 11) * Math.PI * 2 + Math.random() * 0.4;
+            const dist = 20 + Math.random() * 16;
+            return {
+               dx: Math.round(Math.cos(angle) * dist),
+               dy: Math.round(Math.sin(angle) * dist),
+               delay: Math.round(Math.random() * 90),
+               big: Math.random() < 0.4,
+               tint: SPARK_TINTS[i % SPARK_TINTS.length],
+            };
+         }),
+      []
+   );
    return (
-      <span aria-hidden className="pointer-events-none absolute -top-1 left-2 h-0 w-0">
-         <span
-            className="spark absolute block h-1 w-1 rounded-full bg-brand"
-            style={{ '--dx': '-10px' } as React.CSSProperties}
-         />
-         <span
-            className="spark absolute block h-1 w-1 rounded-full bg-brand-700"
-            style={{ '--dx': '8px', animationDelay: '80ms' } as React.CSSProperties}
-         />
-         <span
-            className="spark absolute block h-1.5 w-1.5 rounded-full bg-brand"
-            style={{ '--dx': '-2px', animationDelay: '160ms' } as React.CSSProperties}
-         />
+      <span aria-hidden className="pointer-events-none absolute inset-0 grid place-items-center">
+         {sparks.map((s, i) => (
+            <span
+               // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length decorative burst
+               key={i}
+               className={`sparkle absolute block rounded-full ${s.tint} ${s.big ? 'h-1.5 w-1.5' : 'h-1 w-1'}`}
+               style={
+                  {
+                     '--dx': `${s.dx}px`,
+                     '--dy': `${s.dy}px`,
+                     animationDelay: `${s.delay}ms`,
+                  } as React.CSSProperties
+               }
+            />
+         ))}
       </span>
    );
+}
+
+const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
+/** Rolls a number up from 0 to `value` once, ~600ms. Jumps straight to the
+ * value under reduced motion. */
+function Odometer({ value }: { value: number }) {
+   const reduced =
+      typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+   const [shown, setShown] = useState(reduced ? value : 0);
+   useEffect(() => {
+      if (reduced) {
+         setShown(value);
+         return;
+      }
+      let raf = 0;
+      const start = performance.now();
+      const step = (now: number) => {
+         const p = Math.min(1, (now - start) / 600);
+         setShown(Math.round(value * easeOutCubic(p)));
+         if (p < 1) raf = requestAnimationFrame(step);
+      };
+      raf = requestAnimationFrame(step);
+      return () => cancelAnimationFrame(raf);
+   }, [value, reduced]);
+   return <span className="tabular-nums">{shown}</span>;
 }
 
 /** Take the viewer to a toast's pull: scroll its row in and flash it, matching
@@ -398,6 +467,16 @@ function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: num
       }
       onDismiss(toast.id);
    };
+
+   // fire the emoji-confetti burst once, from the medallion's spot on screen,
+   // as the card lands. Deps are the burst identity, which never changes for a
+   // given card (keyed by id), so this runs exactly on mount.
+   const medallionRef = useRef<HTMLSpanElement>(null);
+   useEffect(() => {
+      if (!toast.confettiEmoji) return;
+      const r = medallionRef.current?.getBoundingClientRect();
+      if (r) burstEmoji(r.left + r.width / 2, r.top + r.height / 2, [toast.confettiEmoji]);
+   }, [toast.confettiEmoji]);
 
    const tone = reward
       ? 'border-brand-100 bg-surface ring-1 ring-brand/15'
@@ -431,13 +510,21 @@ function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: num
             : {})}
       >
          <span
+            ref={medallionRef}
             className={`relative grid h-8 w-8 flex-none place-items-center rounded-full text-base ${medallion}`}
          >
-            {toast.celebrate && <Sparks />}
+            {toast.celebrate && <SparkleBurst />}
             <span aria-hidden>{toast.icon}</span>
          </span>
          <span className="min-w-0 flex-1">
-            <span className="block text-sm leading-snug font-semibold text-ink">{toast.title}</span>
+            <span className="block text-sm leading-snug font-semibold text-ink">
+               {toast.count != null && (
+                  <>
+                     <Odometer value={toast.count} />{' '}
+                  </>
+               )}
+               {toast.title}
+            </span>
             {toast.pull && (
                <a
                   href={githubUrl(toast.pull.repo, toast.pull.number)}
@@ -486,6 +573,16 @@ function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: num
                <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
             </svg>
          </button>
+         {toast.shimmer && (
+            <span
+               aria-hidden
+               className="toast-shine pointer-events-none absolute inset-y-0 left-0 w-2/3"
+               style={{
+                  background:
+                     'linear-gradient(105deg, transparent 42%, rgba(255,255,255,0.4) 50%, transparent 58%)',
+               }}
+            />
+         )}
       </div>
    );
 }

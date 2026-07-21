@@ -515,6 +515,38 @@ input[type="checkbox"] {
 .spark {
   animation: spark 720ms var(--ease-quart) forwards;
 }
+/* a richer reward flourish: glints fly out radially from the medallion, then
+   fade — driven by per-spark --dx/--dy set inline */
+@keyframes sparkle-burst {
+  0% {
+    opacity: 0;
+    translate: 0 0;
+    scale: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: var(--dx, 0) var(--dy, 0);
+    scale: 1;
+  }
+}
+.sparkle {
+  animation: sparkle-burst 820ms var(--ease-quart) forwards;
+}
+/* one-shot light glint sweeping across a reward card */
+@keyframes toast-shine {
+  from {
+    transform: translateX(-140%) skewX(-18deg);
+  }
+  to {
+    transform: translateX(260%) skewX(-18deg);
+  }
+}
+.toast-shine {
+  animation: toast-shine 900ms var(--ease-quint) 140ms both;
+}
 
 @media (prefers-reduced-motion: reduce) {
   *,

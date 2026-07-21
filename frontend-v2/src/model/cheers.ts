@@ -701,7 +701,8 @@ export function diffCheers(
          push('milestone', {
             tone: 'reward',
             icon: '🔥',
-            title: `${sessionStamps} reviews this sitting`,
+            title: 'reviews this sitting',
+            count: sessionStamps,
             body: pick(MILESTONE_PRAISE, sessionStamps),
             celebrate: true,
             dedupeKey: `milestone:${m}`,
@@ -717,6 +718,8 @@ export function diffCheers(
          title: 'Inbox zero',
          body: "Nothing's waiting on you.",
          celebrate: true,
+         confettiEmoji: '🎉',
+         shimmer: true,
          dedupeKey: 'inbox:zero',
       });
    }
@@ -835,9 +838,11 @@ export function diffCheers(
       push('top-of-board', {
          tone: 'reward',
          icon: '🏆',
-         title: 'Top reviewer on the board',
-         body: `${sig.myCount} stamps in view — nobody's ahead of you.`,
+         title: 'stamps in view',
+         count: sig.myCount,
+         body: "Top of the board — nobody's ahead of you.",
          celebrate: true,
+         shimmer: true,
          dedupeKey: 'top:1',
       });
    }
@@ -854,6 +859,7 @@ export function diffCheers(
          icon: '📈',
          title: `You passed ${sig.peerBelow}`,
          body: `#${sig.myRank} reviewer on the board.`,
+         celebrate: true,
          dedupeKey: `rank:${sig.myRank}`,
       });
    }
@@ -873,6 +879,8 @@ export function diffCheers(
             title: 'Green — ship it',
             body: 'CR + QA both cleared.',
             pull: pullRef(p),
+            confettiEmoji: '🚀',
+            shimmer: true,
             dedupeKey: `green:${key}`,
          });
       }
@@ -937,6 +945,8 @@ export function diffCheers(
          title: "Board's clear",
          body: 'Nothing waiting on anyone.',
          celebrate: true,
+         confettiEmoji: '🎊',
+         shimmer: true,
          dedupeKey: 'board:clear',
       });
    }

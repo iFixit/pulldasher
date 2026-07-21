@@ -13,8 +13,19 @@ export interface Toast {
    icon: string;
    title: string;
    body?: string;
-   /** hero rewards (queue cleared, a milestone) get a spark flourish */
+   /** hero rewards (queue cleared, a milestone) get a sparkle burst off the
+    * medallion */
    celebrate?: boolean;
+   /** fire an emoji-confetti burst from the medallion when this toast lands,
+    * using this glyph (plus colored confetti). Reserved for the bigger wins;
+    * never the everyday "review landed". */
+   confettiEmoji?: string;
+   /** sweep a one-shot light glint across the card — a premium sheen for a
+    * reward, not the nags */
+   shimmer?: boolean;
+   /** a number to roll up (odometer) at the head of the title, e.g. a streak
+    * count or your stamp tally */
+   count?: number;
    /** the PR a toast is about: clicking scrolls its row into view (or opens it
     * on GitHub if off-screen), and the card renders its number + title as a
     * link, so a toast says WHICH pull, not just a bare #number */
