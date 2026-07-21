@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { burstEmoji } from './confetti';
 import { githubUrl, rowDomId } from './format';
 import {
    type CheerBaseline,
@@ -131,7 +130,6 @@ const SAMPLE_CHEERS: CheerToast[] = [
       title: 'Inbox zero',
       body: "Nothing's waiting on you.",
       celebrate: true,
-      confettiEmoji: '🎉',
       shimmer: true,
    },
    {
@@ -140,7 +138,7 @@ const SAMPLE_CHEERS: CheerToast[] = [
       title: 'Green — ship it',
       body: 'CR + QA both cleared.',
       pull: { repo: 'org/repo', number: 77, title: 'Migrate the cart to the new checkout' },
-      confettiEmoji: '🚀',
+      celebrate: true,
       shimmer: true,
    },
    {
@@ -163,7 +161,6 @@ const SAMPLE_CHEERS: CheerToast[] = [
       title: "Board's clear",
       body: 'Nothing waiting on anyone.',
       celebrate: true,
-      confettiEmoji: '🎊',
       shimmer: true,
    },
    {
@@ -202,7 +199,12 @@ export function useToasts(
    onQuickWins?: () => void,
    /** the your-turn toast's "Claim it" button claims that review (which also
     * adds you as a GitHub reviewer) — bound here since claiming is impure */
-   onClaimTurn?: (repo: string, number: number) => void
+   onClaimTurn?: (repo: string, number: number) => void,
+   /** the board's first data has arrived. While false the board is still
+    * loading (an empty snapshot), and diffing that against a primed baseline
+    * would fire phantom "Board's clear" / "Inbox zero" and count every stamp
+    * as newly landed — so hold every evaluation until it's true. */
+   ready = true
 ) {
    const [toasts, setToasts] = useState<LiveToast[]>([]);
    const [history, setHistory] = useState<ToastRecord[]>([]);
@@ -306,6 +308,10 @@ export function useToasts(
 
    useEffect(() => {
       const on = getSettings().cheers;
+      // `ready` gates the evaluation inside the model: while the board is still
+      // loading (an empty snapshot) it no-ops and carries the baseline, so a
+      // primed baseline never fires phantom cleared/inbox-zero or miscounts
+      // stamps against empty data.
       const { toasts: fresh, next } = evaluateCheers(
          {
             pulls,
@@ -315,11 +321,14 @@ export function useToasts(
             now: Date.now(),
             claimWarnMs: getSettings().claimWarnMins * 60_000,
             muted: new Set(getSettings().mutedCheers as ToastKind[]),
+            ready,
          },
          baseline.current
       );
       baseline.current = next;
-      saveCheerSession(me, next, firedKeys.current);
+      // only persist once loaded, so a load-time tick can't overwrite the saved
+      // session with a not-yet-hydrated baseline
+      if (ready) saveCheerSession(me, next, firedKeys.current);
       // bind the impure actions the pure evaluator can't: quick-wins filters
       // the board to the small ones (a batch nudge wants a batch view), and the
       // your-turn nudge's "Claim it" button claims that review in place.
@@ -333,20 +342,21 @@ export function useToasts(
          return t;
       });
       if (on) push(bound);
-   }, [pulls, closed, me, claims, push, onQuickWins, onClaimTurn]);
+   }, [ready, pulls, closed, me, claims, push, onQuickWins, onClaimTurn]);
 
    // pre-built one-shot toasts from the caller (e.g. the shipped catch-up),
    // deduped by dedupeKey so the same logical toast never re-fires on a later
    // tick — not gated by the cheers setting, since this is informational, not
    // gamification.
    useEffect(() => {
+      if (!ready) return;
       const fresh = extras.filter(t => t.dedupeKey && !firedKeys.current.has(t.dedupeKey));
       for (const t of fresh) firedKeys.current.add(t.dedupeKey as string);
       if (fresh.length) {
          push(fresh);
          saveCheerSession(me, baseline.current, firedKeys.current);
       }
-   }, [extras, push, me]);
+   }, [ready, extras, push, me]);
 
    // Dev-only preview handle: with the dummy backend the board is static, so
    // there are no live transitions to fire cheers off. Expose a way to conjure
@@ -468,16 +478,6 @@ function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: num
       onDismiss(toast.id);
    };
 
-   // fire the emoji-confetti burst once, from the medallion's spot on screen,
-   // as the card lands. Deps are the burst identity, which never changes for a
-   // given card (keyed by id), so this runs exactly on mount.
-   const medallionRef = useRef<HTMLSpanElement>(null);
-   useEffect(() => {
-      if (!toast.confettiEmoji) return;
-      const r = medallionRef.current?.getBoundingClientRect();
-      if (r) burstEmoji(r.left + r.width / 2, r.top + r.height / 2, [toast.confettiEmoji]);
-   }, [toast.confettiEmoji]);
-
    const tone = reward
       ? 'border-brand-100 bg-surface ring-1 ring-brand/15'
       : info
@@ -510,7 +510,6 @@ function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: num
             : {})}
       >
          <span
-            ref={medallionRef}
             className={`relative grid h-8 w-8 flex-none place-items-center rounded-full text-base ${medallion}`}
          >
             {toast.celebrate && <SparkleBurst />}

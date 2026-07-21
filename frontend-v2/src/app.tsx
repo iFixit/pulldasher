@@ -228,7 +228,7 @@ export function App() {
       claims,
    } = usePulldasher();
    // desktop notifications watch the whole board, not the current filter
-   useNotifications(pulls, me, claims);
+   useNotifications(pulls, me, claims, initialized);
    const [scope, setScope] = useScope();
    // a v1 bookmark (?repo=…&author=…&cryo=1…) opens Classic configured the
    // same way; the chip below shows what it applied and dismisses it
@@ -794,7 +794,7 @@ export function App() {
       history: toastHistory,
       clearHistory,
       dismissHistoryItem,
-   } = useToasts(pulls, me, claims, shippedExtras, closed, onQuickWins, onClaimTurn);
+   } = useToasts(pulls, me, claims, shippedExtras, closed, onQuickWins, onClaimTurn, initialized);
 
    return (
       <>

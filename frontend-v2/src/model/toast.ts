@@ -16,10 +16,6 @@ export interface Toast {
    /** hero rewards (queue cleared, a milestone) get a sparkle burst off the
     * medallion */
    celebrate?: boolean;
-   /** fire an emoji-confetti burst from the medallion when this toast lands,
-    * using this glyph (plus colored confetti). Reserved for the bigger wins;
-    * never the everyday "review landed". */
-   confettiEmoji?: string;
    /** sweep a one-shot light glint across the card — a premium sheen for a
     * reward, not the nags */
    shimmer?: boolean;

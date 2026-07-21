@@ -6,6 +6,7 @@ import {
    type CheerBaseline,
    diffCheers,
    EMPTY_BASELINE,
+   evaluateCheers,
    PRIORITY_ORDER,
    reviveBaseline,
    serializeBaseline,
@@ -605,6 +606,36 @@ describe('baseline persistence', () => {
       expect(reviveBaseline(null)).toBeNull();
       expect(reviveBaseline('nope')).toBeNull();
       expect(reviveBaseline(42)).toBeNull();
+   });
+});
+
+describe('evaluateCheers — loading guard', () => {
+   // a baseline primed from a prior session: a real queue and board behind it
+   const primedBase: CheerBaseline = {
+      ...EMPTY_BASELINE,
+      primed: true,
+      queue: 8,
+      boardQueue: 15,
+   };
+
+   it('no-ops and carries the baseline while the board is still loading', () => {
+      // the empty snapshot the store publishes before the first payload lands
+      const { toasts, next } = evaluateCheers(
+         { pulls: [], me: 'me', claims: {}, ready: false },
+         primedBase
+      );
+      expect(toasts).toEqual([]);
+      expect(next).toBe(primedBase);
+   });
+
+   it('WOULD fire phantom clears against that empty board once ready — the bug the guard prevents', () => {
+      const { toasts } = evaluateCheers(
+         { pulls: [], me: 'me', claims: {}, ready: true },
+         primedBase
+      );
+      const keys = toasts.map(t => t.dedupeKey);
+      expect(keys).toContain('inbox:zero');
+      expect(keys).toContain('board:clear');
    });
 });
 

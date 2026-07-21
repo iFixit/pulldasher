@@ -145,7 +145,11 @@ const MAX_PER_TICK = 5;
 export function useNotifications(
    pulls: DerivedPull[],
    me: string,
-   claims: Readonly<Record<string, { login: string; at: number }>> = {}
+   claims: Readonly<Record<string, { login: string; at: number }>> = {},
+   /** the board's first payload has arrived. While false the board is still
+    * loading (an empty snapshot); recording that as the baseline would make
+    * every real pull look "new" and fire a backlog of alerts once data lands. */
+   ready = true
 ) {
    // pull key → the action last seen for it, so a changed action re-alerts
    const seen = useRef<Map<string, string>>(new Map());
@@ -168,6 +172,9 @@ export function useNotifications(
    }, []);
 
    useEffect(() => {
+      // the board is still loading — don't record an empty snapshot as the
+      // baseline, or every real pull looks "new" once data lands
+      if (!ready) return;
       const s = getSettings();
       const active =
          notificationsSupported && s.notify && Notification.permission === 'granted' && !!me;
@@ -211,5 +218,5 @@ export function useNotifications(
       }
       if (fired > 0 && s.notifySound) chime();
       seen.current = current;
-   }, [pulls, me, claims]);
+   }, [ready, pulls, me, claims]);
 }

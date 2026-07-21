@@ -170,6 +170,12 @@ export interface CheerInput {
     * cap, so muting a high-priority kind frees its slot for a shown one rather
     * than firing then hiding it. */
    muted?: ReadonlySet<ToastKind>;
+   /** the board's first payload has arrived. `false` means it's still loading
+    * (an empty snapshot), and diffing that against a primed baseline would fire
+    * a phantom "Board's clear" / "Inbox zero" and count every stamp as newly
+    * landed — so evaluateCheers no-ops and carries the baseline until it's true.
+    * Defaults to true so tests and older callers evaluate as before. */
+   ready?: boolean;
 }
 
 /** A claim you're sitting on stops absolving other reviewers at 2h (see
@@ -448,6 +454,9 @@ export function evaluateCheers(
    input: CheerInput,
    base: CheerBaseline
 ): { toasts: CheerToast[]; next: CheerBaseline } {
+   // still loading — fire nothing and carry the baseline forward, so a primed
+   // baseline never diffs against an empty board (the phantom-clear bug)
+   if (input.ready === false) return { toasts: [], next: base };
    return diffCheers(readSignals(input), input.me, base, input.muted);
 }
 
@@ -718,7 +727,6 @@ export function diffCheers(
          title: 'Inbox zero',
          body: "Nothing's waiting on you.",
          celebrate: true,
-         confettiEmoji: '🎉',
          shimmer: true,
          dedupeKey: 'inbox:zero',
       });
@@ -879,7 +887,7 @@ export function diffCheers(
             title: 'Green — ship it',
             body: 'CR + QA both cleared.',
             pull: pullRef(p),
-            confettiEmoji: '🚀',
+            celebrate: true,
             shimmer: true,
             dedupeKey: `green:${key}`,
          });
@@ -945,7 +953,6 @@ export function diffCheers(
          title: "Board's clear",
          body: 'Nothing waiting on anyone.',
          celebrate: true,
-         confettiEmoji: '🎊',
          shimmer: true,
          dedupeKey: 'board:clear',
       });
