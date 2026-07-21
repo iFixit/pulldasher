@@ -188,7 +188,7 @@ export function useNotifications(
             continue;
          }
          const key = pullKey(p.data);
-         const turn = turnFor(p, pools);
+         const turn = turnFor(p, pools, pulls);
          if (turn === me && !claims[key]) current.set(key, TURN_ACTION);
       }
 

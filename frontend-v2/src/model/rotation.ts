@@ -5,10 +5,16 @@ import { isBotLogin } from './visibility';
 /**
  * Turn rotation: a starved, CR-incomplete pull with no claim still needs
  * someone to pick it up. Rather than a server-assigned queue, every client
- * computes the same "whose turn" answer independently — a pure hash of the
- * pull's key over its repo's reviewer pool. Same inputs (the board's CR
- * signatures, the pull's repo/number) → same name on every client, with no
- * round trip and nothing to keep in sync.
+ * computes the same "whose turn" answer independently, so there's no round
+ * trip and nothing to keep in sync.
+ *
+ * Who gets named is the best-fit reviewer, not just a hash: the pick leans on
+ * the same reciprocity signal deal.ts ranks pulls by — someone the pull's
+ * author has reviewed before is owed a look back, so they lead. (Repo
+ * familiarity can't separate candidates here: the pool IS everyone who CR's
+ * this repo, so they're all familiar.) When nobody's specifically owed, or
+ * several are, a deterministic djb2 hash of the pull's key spreads the pick
+ * across pulls so it isn't always the same name.
  */
 
 /** djb2: a tiny, deterministic string hash — good enough for picking an
@@ -47,17 +53,20 @@ const TURN_STATUSES: Status[] = ['needs_cr', 'needs_recr'];
 
 /**
  * Whose turn it is on this pull, or null when there's no rotation to name:
- * not starved, not CR-incomplete, or an empty pool once the author and
- * anyone already carrying an active CR stamp are excluded. Deterministic —
- * hash(`${repo}#${number}`) modulo the (already-excluded) pool picks the
- * same login on every client for the same pull, every time, with no state to
- * agree on.
+ * not starved, not CR-incomplete, or an empty pool once the author and anyone
+ * already carrying an active CR stamp are excluded. Deterministic — the same
+ * board picks the same login on every client, with no state to agree on.
  *
- * A claim on the pull supersedes this at the CALLER's level (Row, rowNote's
- * withCoordination, notifications) — turnFor itself knows nothing about
- * claims.
+ * `pulls` is the whole board, read for the reciprocity signal (who the author
+ * has reviewed before). A claim on the pull supersedes this at the CALLER's
+ * level (Row, rowNote's withCoordination, notifications) — turnFor itself
+ * knows nothing about claims.
  */
-export function turnFor(p: DerivedPull, pools: ReadonlyMap<string, string[]>): string | null {
+export function turnFor(
+   p: DerivedPull,
+   pools: ReadonlyMap<string, string[]>,
+   pulls: readonly DerivedPull[]
+): string | null {
    if (!p.starved || !TURN_STATUSES.includes(p.status)) return null;
    // An explicit GitHub review request answers "whose turn" authoritatively —
    // don't also rotate a name onto the pull, or the board would tell someone
@@ -68,6 +77,21 @@ export function turnFor(p: DerivedPull, pools: ReadonlyMap<string, string[]>): s
    const author = p.data.user.login;
    const candidates = pool.filter(login => login !== author && !p.crBy.includes(login));
    if (!candidates.length) return null;
-   const idx = djb2(`${p.data.repo}#${p.data.number}`) % candidates.length;
-   return candidates[idx];
+
+   // Reciprocity: tag every candidate the author has already reviewed (an
+   // active CR or QA stamp on a PR that candidate authored). One board pass,
+   // not one per candidate. Those are owed a look back, so they form the
+   // preferred tier; if none qualify, everyone's fair game.
+   const candSet = new Set(candidates);
+   const owed = new Set<string>();
+   for (const o of pulls) {
+      const a = o.data.user.login;
+      if (candSet.has(a) && (o.crBy.includes(author) || o.qaBy.includes(author))) owed.add(a);
+   }
+   const tier = candidates.filter(c => owed.has(c));
+   const pick = tier.length ? tier : candidates;
+
+   // deterministic spread across pulls so equally-good candidates share the load
+   const idx = djb2(`${p.data.repo}#${p.data.number}`) % pick.length;
+   return pick[idx];
 }

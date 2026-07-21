@@ -145,9 +145,11 @@ const SAMPLE_CHEERS: CheerToast[] = [
    {
       tone: 'nag',
       icon: '⏳',
-      title: 'Your turn on this',
-      body: 'Waiting 6d — the rotation picked you.',
+      title: 'Your turn to review',
+      body: "Waiting 6d with nobody on it — you're the best fit. Claim it?",
       pull: { repo: 'org/repo', number: 5, title: 'Discourage new files in Exec/ dir' },
+      actionLabel: 'Claim it',
+      onAction: () => {},
    },
 ];
 
@@ -173,7 +175,10 @@ export function useToasts(
    closed: PullData[] = [],
    /** clicking the quick-wins toast filters the board to the small ones rather
     * than scrolling to a single pull — a batch nudge wants a batch view */
-   onQuickWins?: () => void
+   onQuickWins?: () => void,
+   /** the your-turn toast's "Claim it" button claims that review (which also
+    * adds you as a GitHub reviewer) — bound here since claiming is impure */
+   onClaimTurn?: (repo: string, number: number) => void
 ) {
    const [toasts, setToasts] = useState<LiveToast[]>([]);
    const [history, setHistory] = useState<ToastRecord[]>([]);
@@ -291,15 +296,20 @@ export function useToasts(
       );
       baseline.current = next;
       saveCheerSession(me, next, firedKeys.current);
-      // quick-wins is a batch, not one pull: swap its scroll-to-pull for the
-      // filter action so clicking shows every small review, not just the first
-      const bound = fresh.map(t =>
-         t.dedupeKey?.startsWith('quick:') && onQuickWins
-            ? { ...t, pull: undefined, onAct: onQuickWins }
-            : t
-      );
+      // bind the impure actions the pure evaluator can't: quick-wins filters
+      // the board to the small ones (a batch nudge wants a batch view), and the
+      // your-turn nudge's "Claim it" button claims that review in place.
+      const bound = fresh.map(t => {
+         if (t.dedupeKey?.startsWith('quick:') && onQuickWins)
+            return { ...t, pull: undefined, onAct: onQuickWins };
+         if (t.dedupeKey?.startsWith('turn:') && onClaimTurn && t.pull) {
+            const { repo, number } = t.pull;
+            return { ...t, onAction: () => onClaimTurn(repo, number) };
+         }
+         return t;
+      });
       if (on) push(bound);
-   }, [pulls, closed, me, claims, push, onQuickWins]);
+   }, [pulls, closed, me, claims, push, onQuickWins, onClaimTurn]);
 
    // pre-built one-shot toasts from the caller (e.g. the shipped catch-up),
    // deduped by dedupeKey so the same logical toast never re-fires on a later
@@ -442,6 +452,19 @@ function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: num
             )}
             {toast.body && (
                <span className="mt-0.5 line-clamp-2 block text-xs text-ink-2">{toast.body}</span>
+            )}
+            {toast.actionLabel && toast.onAction && (
+               <button
+                  type="button"
+                  onClick={e => {
+                     e.stopPropagation();
+                     toast.onAction?.();
+                     onDismiss(toast.id);
+                  }}
+                  className="pressable mt-2 inline-flex items-center rounded-md bg-brand px-2.5 py-1 text-[11px] font-semibold text-surface hover:bg-brand-700"
+               >
+                  {toast.actionLabel}
+               </button>
             )}
          </span>
          <button

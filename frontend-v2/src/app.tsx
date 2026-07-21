@@ -7,17 +7,17 @@ import {
    useState,
    type ReactNode,
 } from 'react';
-import { ago, closedEpoch, n, shortRepo } from './format';
+import { ago, closedEpoch, n, pullKey, shortRepo } from './format';
 import type { ActionStateKey } from './model/actions';
 import { actionState } from './model/actions';
 import type { DerivedPull } from './model/status';
 import { matchesWeightFilter } from './model/status';
 import { buildParentLookup } from './model/stack';
-import { buildReviewerPools } from './model/rotation';
+import { buildReviewerPools, turnFor } from './model/rotation';
 import { shipRelevance, shippedToast } from './model/shipped';
 import type { Toast } from './model/toast';
 import type { Team as TeamGroup } from './types';
-import { isSnoozed, markAllSeen, setWeightLabels, usePulldasher } from './store';
+import { claimReview, isSnoozed, markAllSeen, setWeightLabels, usePulldasher } from './store';
 import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
 import { loadSiteConfig, primeScope, useScope } from './prefs';
 import { getSettings, useSettings } from './settings';
@@ -654,6 +654,17 @@ export function App() {
    // per-repo reviewer pool for the turn rotation (model/rotation.ts): built
    // once over the whole board's open pulls, same reasoning as parentOf above
    const pools = useMemo(() => buildReviewerPools(pulls), [pulls]);
+   // whose turn each starved, unclaimed pull is — computed once over the whole
+   // board (turnFor reads it for the reciprocity signal) so a Row just looks
+   // its answer up instead of re-scanning the board per row
+   const turns = useMemo(() => {
+      const m = new Map<string, string>();
+      for (const p of pulls) {
+         const who = turnFor(p, pools, pulls);
+         if (who) m.set(pullKey(p.data), who);
+      }
+      return m;
+   }, [pulls, pools]);
    // stable identity so memo(Row) can skip untouched rows on socket bursts
    const rowOpts: RowOptions = useMemo(
       () => ({
@@ -669,6 +680,7 @@ export function App() {
          parentOf,
          claims,
          pools,
+         turns,
       }),
       [
          me,
@@ -683,6 +695,7 @@ export function App() {
          parentOf,
          claims,
          pools,
+         turns,
       ]
    );
 
@@ -766,13 +779,22 @@ export function App() {
       setLens('review');
       setWeightSel(['XS', 'S']);
    }, []);
+   // the "your turn" toast's Claim button: claim the review straight from the
+   // nudge (which also adds you as a GitHub reviewer, same as any claim)
+   const onClaimTurn = useCallback(
+      (repo: string, number: number) => {
+         const p = pulls.find(x => x.data.repo === repo && x.data.number === number);
+         if (p) claimReview(p.data);
+      },
+      [pulls]
+   );
    const {
       toasts,
       dismiss: dismissToast,
       history: toastHistory,
       clearHistory,
       dismissHistoryItem,
-   } = useToasts(pulls, me, claims, shippedExtras, closed, onQuickWins);
+   } = useToasts(pulls, me, claims, shippedExtras, closed, onQuickWins, onClaimTurn);
 
    return (
       <>

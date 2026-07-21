@@ -248,7 +248,7 @@ export function Legend() {
             </details>
             <Item
                term={<span className="text-ink-2 italic">your turn</span>}
-               def="a starved review nobody’s on gets pointed at one person so it doesn’t sit forever — you can still pass it to anyone"
+               def="a starved review nobody’s on gets pointed at the best-matched person so it doesn’t sit forever — a toast asks them to claim it, and anyone can still take it"
             />
             <details className="group/turn mt-0.5 px-1">
                <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
@@ -260,14 +260,18 @@ export function Legend() {
                <div className="space-y-1.5 pt-0.5 pb-1 pl-3 text-ink-2">
                   <p>
                      When a PR has gone too long without enough CR and nobody has claimed it, the
-                     board assigns it to one reviewer so it stops falling through the cracks. Every
-                     client picks the same name with no coordination: it hashes the PR’s repo and
-                     number onto one person from the pool who’ve CR’d that repo before, skipping the
-                     author and anyone who already stamped this one.
+                     board points it at one reviewer so it stops falling through the cracks. The
+                     candidates are everyone who’s CR’d that repo before (minus the author and
+                     anyone who already stamped this one), so they all know the code; the pick then
+                     favors whoever the author has reviewed before — a good turn owed back, the same
+                     signal “Deal me one” leans on.
                   </p>
                   <p>
-                     It’s a nudge, not a lock — anyone can take it, and an explicit GitHub review
-                     request overrides the guess entirely.
+                     If you’re the pick, a toast asks you to claim it right there (which also adds
+                     you as a GitHub reviewer). Every client lands on the same name with no
+                     coordination, and ties spread across PRs so it isn’t always one person. It’s a
+                     nudge, not a lock — anyone can take it, and an explicit GitHub review request
+                     overrides the guess entirely.
                   </p>
                </div>
             </details>

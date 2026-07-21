@@ -2,7 +2,6 @@ import { memo, useState, type ReactNode } from 'react';
 import type { DerivedPull } from '../model/status';
 import { isIterating, lastPushEpoch } from '../model/status';
 import { rowNote } from '../model/actions';
-import { turnFor } from '../model/rotation';
 import { requestedReviewers, reviewRequestedFrom } from '../model/reviewers';
 import { matchedRegions } from '../model/regions';
 import type { ParentRef } from '../model/stack';
@@ -61,6 +60,9 @@ export interface RowOptions {
    /** per-repo reviewer pool for the deterministic turn rotation
     * (model/rotation.ts), memoized once in app.tsx over the whole board. */
    pools?: ReadonlyMap<string, string[]>;
+   /** pull key → whose turn it is (the best-fit reviewer for a starved,
+    * unclaimed PR), computed once in app.tsx so the row just looks it up. */
+   turns?: ReadonlyMap<string, string>;
 }
 
 /**
@@ -101,10 +103,6 @@ function consumeDealtFlash(key: string): boolean {
    dealtFlash.delete(key);
    return true;
 }
-
-// stable reference for lenses that haven't threaded RowOptions.pools yet, so
-// turnFor's .get() always has a Map to call
-const EMPTY_POOLS = new Map<string, string[]>();
 
 interface Flag {
    key: string;
@@ -696,7 +694,7 @@ function RowImpl({
    // both optional, so a lens that hasn't threaded them (yet) just sees null
    // and rowNote falls back to its base (pre-coordination) note
    const claim = claimFor(d, opts.claims ?? {});
-   const turn = turnFor(pull, opts.pools ?? EMPTY_POOLS);
+   const turn = opts.turns?.get(key) ?? null;
    const poolSize = opts.pools?.get(d.repo)?.length ?? 0;
    // the two-slot action/context note, the same in every lens (model/actions.ts)
    // — never both-null for an open pull, so the context text always renders
@@ -836,5 +834,6 @@ export const Row = memo(
       a.opts.onWeightToggle === b.opts.onWeightToggle &&
       a.opts.parentOf === b.opts.parentOf &&
       a.opts.claims === b.opts.claims &&
-      a.opts.pools === b.opts.pools
+      a.opts.pools === b.opts.pools &&
+      a.opts.turns === b.opts.turns
 );

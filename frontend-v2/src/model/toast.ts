@@ -25,6 +25,12 @@ export interface Toast {
    ttlMs?: number;
    /** custom click action; when set, it replaces the default scroll-to-pull */
    onAct?: () => void;
+   /** an explicit action button in the card (e.g. "Claim it" on a your-turn
+    * nudge). The label is declarative; the caller attaches onAction, since it's
+    * impure. Distinct from onAct (the whole-card click), so the card can still
+    * reveal the pull while the button does something committal. */
+   actionLabel?: string;
+   onAction?: () => void;
    /** run once when the toast leaves for any reason (dismiss/timeout/evicted) */
    onGone?: () => void;
 }

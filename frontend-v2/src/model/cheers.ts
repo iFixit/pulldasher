@@ -319,7 +319,7 @@ export function readSignals(input: CheerInput): Signals {
       if (st === 'review') review++;
       else if (st === 'qa') qa++;
       else if (st === 'restamp') restampKeys.add(key);
-      if (!mine && !claims[key] && turnFor(p, pools) === me) turns.set(key, p);
+      if (!mine && !claims[key] && turnFor(p, pools, pulls) === me) turns.set(key, p);
    }
 
    const reviewableUnclaimed = pulls.filter(
@@ -562,7 +562,7 @@ export const CHEER_CATALOG: {
       kind: 'your-turn',
       group: 'nudge',
       label: 'Your turn',
-      hint: 'The rotation named you on a starved review.',
+      hint: 'You’re the best-matched reviewer for a starved, unclaimed PR.',
    },
    {
       kind: 're-stamp-owed',
@@ -729,9 +729,10 @@ export function diffCheers(
       push('your-turn', {
          tone: 'nag',
          icon: '⏳',
-         title: 'Your turn on this',
-         body: `Waiting ${Math.max(1, Math.round(p.ageDays))}d — the rotation picked you.`,
+         title: 'Your turn to review',
+         body: `Waiting ${Math.max(1, Math.round(p.ageDays))}d with nobody on it — you're the best fit. Claim it?`,
          pull: pullRef(p),
+         actionLabel: 'Claim it',
          dedupeKey: `turn:${key}`,
       });
    }
