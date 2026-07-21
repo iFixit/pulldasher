@@ -556,17 +556,23 @@ export const CHEER_CATALOG: {
    label: string;
    hint: string;
 }[] = [
+   // Each label matches the toast's own headline so a toast you see maps to
+   // an obvious switch — no guessing. Where the headline leads with a count or
+   // a name ("5 stamps in view", "Return the favor to alice"), the label is
+   // its stable phrase. stamp-landed is the one exception: its headline rotates
+   // ("Nice one." / "Keep 'em coming." / "Clean."), so the label names the
+   // event and the hint quotes the phrases.
    // Rewards — the good news
    {
       kind: 'stamp-landed',
       group: 'reward',
       label: 'Review landed',
-      hint: 'A CR or QA stamp of yours lands.',
+      hint: 'The “Nice one.” / “Keep ’em coming.” cheer when a CR or QA stamp of yours lands.',
    },
    {
       kind: 'milestone',
       group: 'reward',
-      label: 'Review streak',
+      label: 'Reviews this sitting',
       hint: 'You pass a round number of reviews this sitting.',
    },
    {
@@ -584,19 +590,19 @@ export const CHEER_CATALOG: {
    {
       kind: 'top-of-board',
       group: 'reward',
-      label: 'Top reviewer',
+      label: 'Top of the board',
       hint: 'You reach the top of the board’s leaderboard.',
    },
    {
       kind: 'climbing',
       group: 'reward',
-      label: 'Climbing the ranks',
-      hint: 'You pass someone on the leaderboard.',
+      label: 'You’re climbing',
+      hint: 'You move up the leaderboard.',
    },
    {
       kind: 'pr-green',
       group: 'reward',
-      label: 'Your PR is green',
+      label: 'Green — ship it',
       hint: 'A PR of yours clears CR and QA — ready to ship.',
    },
    // Nudges — what to review next
@@ -609,7 +615,7 @@ export const CHEER_CATALOG: {
    {
       kind: 'quick-wins',
       group: 'nudge',
-      label: 'Quick wins',
+      label: 'Quick reviews on the board',
       hint: 'A pile of small, unclaimed reviews worth a pass.',
    },
    {
@@ -621,7 +627,7 @@ export const CHEER_CATALOG: {
    {
       kind: 'your-turn',
       group: 'nudge',
-      label: 'Your turn',
+      label: 'Your turn to review',
       hint: 'You’re the best-matched reviewer for a starved, unclaimed PR.',
    },
    {
@@ -639,33 +645,38 @@ export const CHEER_CATALOG: {
    {
       kind: 'claim-stale',
       group: 'nudge',
-      label: 'Stale claim',
+      label: 'Claimed but still unreviewed',
       hint: 'A review you claimed has sat unreviewed too long.',
    },
    // Your PRs — author-side alerts
    {
       kind: 'pr-first-review',
       group: 'author',
-      label: 'Picked up',
+      label: 'Someone picked up your PR',
       hint: 'A reviewer started on your PR.',
    },
-   { kind: 'pr-conflicts', group: 'author', label: 'Conflicts', hint: 'Your PR needs a rebase.' },
+   {
+      kind: 'pr-conflicts',
+      group: 'author',
+      label: 'Conflicts on your PR',
+      hint: 'Your PR needs a rebase.',
+   },
    {
       kind: 'pr-ci-red',
       group: 'author',
-      label: 'CI broke',
+      label: 'CI broke on your PR',
       hint: 'A required check went red on your PR.',
    },
    {
       kind: 'pr-changes',
       group: 'author',
-      label: 'Changes requested',
+      label: 'Changes requested on your PR',
       hint: 'A reviewer wants edits on your PR.',
    },
    {
       kind: 'pr-starving',
       group: 'author',
-      label: 'Waiting too long',
+      label: 'Waiting for review',
       hint: 'Your PR has gone a while with no review.',
    },
 ];
@@ -684,7 +695,7 @@ export const EXTRA_TOASTS: {
    {
       kind: SHIPPED_TOAST_KIND,
       group: 'nudge',
-      label: 'Shipped while away',
+      label: 'Shipped while you were away',
       hint: 'A recap of PRs that merged since your last visit.',
    },
 ];
