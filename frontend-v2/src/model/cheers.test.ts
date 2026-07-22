@@ -281,7 +281,7 @@ describe('startHereReason — priority order', () => {
       const target = pull('org/a', 1, { author: 'alice', weight: 'M', ageDays: 3 });
       const sameRepoStamped = pull('org/a', 2, { crBy: ['me'] });
       expect(startHereReason(target, [target, sameRepoStamped], 'me')).toBe(
-         'Waiting 3d, the oldest on your plate'
+         'Waiting 3d without a full CR'
       );
    });
 
@@ -297,7 +297,7 @@ describe('startHereReason — priority order', () => {
          sizeKnown: true,
          ageDays: 7,
       });
-      expect(startHereReason(target, [target], 'me')).toBe('Waiting 7d, the oldest on your plate');
+      expect(startHereReason(target, [target], 'me')).toBe('Waiting 7d without a full CR');
    });
 });
 

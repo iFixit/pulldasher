@@ -28,7 +28,7 @@ export function RegionHint() {
          </span>
          <span className="min-w-0 flex-1">
             Review a particular area? Add <b className="font-semibold">code regions</b> in Settings
-            — PRs touching them lead your queue and gather in their own section.
+            — PRs touching them gather in their own section above the queue.
          </span>
          <button
             type="button"

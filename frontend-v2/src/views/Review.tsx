@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { type DerivedPull, qaDone, type Status, weightRank } from '../model/status';
 import { epoch, pullKey } from '../format';
 import { crSort, starFirst } from '../model/sort';
-import { matchesRegion } from '../model/regions';
+import { matchedRegions, matchesRegion } from '../model/regions';
 import {
    authorMove,
    DO_WORD_RANK,
@@ -109,7 +109,7 @@ function DealtCard({
             </span>
          </div>
          <div className="border-t border-secondary pt-2 text-[11px] leading-snug text-ink-3">
-            {startHereReason(pull, pulls, me)}
+            {startHereReason(pull, pulls, me, true)}
          </div>
          <div className="mt-0.5 flex items-center gap-2">
             <QuietButton tone="brand" onClick={onClaim}>
@@ -287,31 +287,6 @@ export function Review({
    const botRest = bots.filter(p => !botKeys.has(pullKey(p.data))).sort(bySecurityThenAge);
    const isDemoted = (p: DerivedPull) => botKeys.has(pullKey(p.data));
 
-   // ONE review queue: your primary repos' reviewables, every starved pull
-   // regardless of repo (the fairness backstop rides in the ranking now, not
-   // a separate Aging lane — starveScore's uncapped age × size term floats
-   // them to the top numerically instead of positionally), and the day's bot
-   // bumps sinking to the tail. Ranked by the exact score Deal me one uses,
-   // so the button always deals the top visible card — the list and the
-   // button can't disagree. Non-starved work outside your primary repos still
-   // folds into "other repos" below, reachable but not in the way.
-   const queue = starFirst(
-      dealRank(
-         [
-            ...nonStarved.filter(p => isPrimaryRepo(p.data.repo)),
-            ...crPool.filter(p => p.starved),
-            ...botReviewable,
-         ],
-         { me, pulls, deprioritize: isDemoted, warnDays: opts.ageWarnDays }
-      ),
-      starred
-   );
-   const queueOther = crSort(nonStarved.filter(p => !isPrimaryRepo(p.data.repo)));
-
-   // Ready-to-merge is the author's button, not the reviewer's job: a count
-   // in the rest group, not a lane at the top.
-   const ready = others.filter(p => p.status === 'ready');
-
    // 4. Needs QA is a query, not the status bucket: QA runs in parallel with
    //    CR here (v1's QA column predicate), so anything QA-incomplete with
    //    green CI belongs — not just pulls whose CR is already done. Unclaimed
@@ -319,6 +294,8 @@ export function Review({
    //    claim state, lighter tests first, then oldest. Split by your primary
    //    repos, same as the review queue — QA is the bottleneck on a
    //    self-review team, so it deserves the same relevance cut.
+   // (moved above the queue/needsQa construction so regionMatches below can
+   // read both pools before either lane's pool is filtered)
    const qaPool = others.filter(
       p =>
          !qaDone(p) &&
@@ -341,8 +318,61 @@ export function Review({
                (b.sizeKnown ? weightRank(b.weight) : 2.5) ||
             b.ageDays - a.ageDays
       );
-   const needsQa = starFirst(qaSort(qaPool.filter(p => isPrimaryRepo(p.data.repo))), starred);
-   const needsQaOther = qaSort(qaPool.filter(p => !isPrimaryRepo(p.data.repo)));
+
+   // In your code regions: reviewable pulls (CR or QA pool) matching a region
+   // you set in Settings, deduped across the two pools and genuinely pulled
+   // out of the queue/QA lanes below (including their "other repos" folds)
+   // into their own section — the most explicit "this is my area" signal
+   // earns its own spot instead of a float within the queue.
+   const regionSeen = new Set<string>();
+   const regionMatches = crSort(
+      [...crPool, ...qaPool].filter(p => {
+         const k = pullKey(p.data);
+         if (regionSeen.has(k) || !matchesRegion(p, codeRegions)) return false;
+         regionSeen.add(k);
+         return true;
+      })
+   );
+   const regionKeys = new Set(regionMatches.map(p => pullKey(p.data)));
+
+   // ONE review queue: your primary repos' reviewables, every starved pull
+   // regardless of repo (the fairness backstop rides in the ranking now, not
+   // a separate Aging lane — starveScore's uncapped age × size term floats
+   // them to the top numerically instead of positionally), and the day's bot
+   // bumps sinking to the tail. Ranked by the exact score Deal me one uses,
+   // so the button always deals the top visible card — the list and the
+   // button can't disagree. Non-starved work outside your primary repos still
+   // folds into "other repos" below, reachable but not in the way. Region
+   // matches are excluded here too (same Set-filter pattern as botKeys) — they
+   // live in their own lane above, not doubled up in the queue.
+   const queue = starFirst(
+      dealRank(
+         [
+            ...nonStarved.filter(
+               p => isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data))
+            ),
+            ...crPool.filter(p => p.starved && !regionKeys.has(pullKey(p.data))),
+            ...botReviewable,
+         ],
+         { me, pulls, deprioritize: isDemoted, warnDays: opts.ageWarnDays }
+      ),
+      starred
+   );
+   const queueOther = crSort(
+      nonStarved.filter(p => !isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data)))
+   );
+
+   // Ready-to-merge is the author's button, not the reviewer's job: a count
+   // in the rest group, not a lane at the top.
+   const ready = others.filter(p => p.status === 'ready');
+
+   const needsQa = starFirst(
+      qaSort(qaPool.filter(p => isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data)))),
+      starred
+   );
+   const needsQaOther = qaSort(
+      qaPool.filter(p => !isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data)))
+   );
 
    // your live CR stamp is in, the PR just isn't fully signed off yet (another
    // reviewer owes a stamp, or a re-CR). Covers needs_recr too, so a PR you
@@ -430,20 +460,6 @@ export function Review({
    };
    yoursWaiting.sort((a, b) => waitRankOf(a) - waitRankOf(b) || b.ageDays - a.ageDays);
 
-   // In your code regions: reviewable pulls (CR or QA pool) matching a region
-   // you set in Settings, deduped across the two pools and pulled out of the
-   // queue/QA lanes below into their own section — the most explicit "this is
-   // my area" signal earns its own spot instead of a float within the queue.
-   const regionSeen = new Set<string>();
-   const regionMatches = crSort(
-      [...crPool, ...qaPool].filter(p => {
-         const k = pullKey(p.data);
-         if (regionSeen.has(k) || !matchesRegion(p, codeRegions)) return false;
-         regionSeen.add(k);
-         return true;
-      })
-   );
-
    // a quiet board (nothing in any primary lane) is exactly when the rest
    // group's folds become the main event — they should greet you open, not
    // as a wall of closed triangles
@@ -451,6 +467,17 @@ export function Review({
    // reason strings the dealt card's footnote and the Start-here toast use,
    // so every surface explains a pick in the same words
    const whyUpNext = (p: DerivedPull) => startHereReason(p, pulls, me);
+
+   // Needs QA's own "why" line: that lane isn't ranked by deal-score, it's
+   // sorted by qaSort (unclaimed-first, then lightest, then oldest) — reusing
+   // whyUpNext's reciprocity/quick-win/urgency reasons here would describe a
+   // ranking this lane doesn't use.
+   const whyQaNext = (p: DerivedPull) =>
+      p.qaingLogin
+         ? `${p.qaingLogin} is already testing it — it sinks below unclaimed QA`
+         : p.sizeKnown && (p.weight === 'XS' || p.weight === 'S')
+           ? `Nobody's testing it yet — a light one (${p.weight})`
+           : `Nobody's testing it yet — waiting ${Math.max(1, Math.round(p.ageDays))}d`;
 
    const boardIsQuiet =
       !yourMove.length &&
@@ -529,20 +556,28 @@ export function Review({
             cap={8}
             opts={opts}
          />
+         {/* below here is offered work, not owed work — the board's suggestion
+             for what to pick up next, as distinct from "Your move" above. The
+             label only earns its place when something is actually on offer. */}
+         {(queue.length > 0 || needsQa.length > 0 || regionMatches.length > 0) && (
+            <div className={`mb-2 text-ink-3 ${eyebrowText}`}>Pick up next</div>
+         )}
          {codeRegions.length > 0 && regionMatches.length > 0 && (
             <Lane
                title="In your code regions"
                sub="areas you flagged in Settings"
                pulls={regionMatches}
                cap={8}
-               opts={opts}
+               opts={{
+                  ...opts,
+                  rankReason: p => {
+                     const r = matchedRegions(p, codeRegions);
+                     return r.length
+                        ? `It touches ${r.join(', ')} — a code region you flagged`
+                        : null;
+                  },
+               }}
             />
-         )}
-         {/* below here is offered work, not owed work — the board's suggestion
-             for what to pick up next, as distinct from "Your move" above. The
-             label only earns its place when something is actually on offer. */}
-         {(queue.length > 0 || needsQa.length > 0) && (
-            <div className={`mb-2 text-ink-3 ${eyebrowText}`}>Pick up next</div>
          )}
          <Lane
             title="Review queue"
@@ -560,9 +595,9 @@ export function Review({
                      <button
                         {...t}
                         type="button"
-                        className="hit rounded border-0 bg-transparent p-0 text-left text-xs text-ink-3 decoration-dotted underline-offset-2 hover:underline"
+                        className="hit rounded border-0 bg-transparent p-0 text-left text-xs text-ink-3 underline decoration-dotted underline-offset-2 hover:text-ink-2"
                      >
-                        one queue, best next review first — hover for how
+                        one queue, best next review first
                      </button>
                   )}
                >
@@ -575,8 +610,8 @@ export function Review({
                      </p>
                      <p>
                         Then: repos you’ve stamped before, authors who’ve reviewed yours, and small
-                        quick wins, lightest first. Starred repos pin to the top; bot bumps sink to
-                        the tail.
+                        quick wins, lightest first. Pulls from people you’ve starred always lead,
+                        ahead of everything above; bot bumps sink to the tail.
                      </p>
                      <p>“Deal me one” deals the top card that isn’t claimed or passed.</p>
                   </div>
@@ -592,7 +627,7 @@ export function Review({
             sub="CR and QA run in parallel — a pull can sit here and in the queue"
             pulls={needsQa}
             cap={6}
-            opts={{ ...opts, rankReason: whyUpNext }}
+            opts={{ ...opts, rankReason: whyQaNext }}
          />
          {restTotal > 0 && (
             <RestGroup title="The rest of the board">

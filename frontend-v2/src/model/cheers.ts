@@ -254,13 +254,21 @@ function hasStamp(p: DerivedPull, login: string): boolean {
  * has stamped something in it, so it's both always true and no motivation at
  * all — the reason has to be something specific to *this* pull.
  */
-export function startHereReason(p: DerivedPull, pulls: DerivedPull[], me: string): string {
+export function startHereReason(
+   p: DerivedPull,
+   pulls: DerivedPull[],
+   me: string,
+   superlative = false
+): string {
    const author = p.data.user.login;
    const owedByAuthor = pulls.some(o => o.data.user.login === me && hasStamp(o, author));
    if (owedByAuthor) return `${author} reviewed yours — return the favor`;
    const quickWin = p.sizeKnown && (p.weight === 'XS' || p.weight === 'S');
    if (quickWin) return `Small one (${p.weight}) — quick`;
-   return `Waiting ${Math.max(1, Math.round(p.ageDays))}d, the oldest on your plate`;
+   const days = Math.max(1, Math.round(p.ageDays));
+   return superlative
+      ? `Waiting ${days}d, the oldest on your plate`
+      : `Waiting ${days}d without a full CR`;
 }
 
 /** The PR a toast points at — repo, number, and human title, so the card can
@@ -376,11 +384,11 @@ export function readSignals(input: CheerInput): Signals {
    // deprioritize bots exactly as Review's Deal-me-one does, so start-here never
    // calls a dependabot bump "the single best pull to review next" — it's only
    // the best when nothing human is left
-   const bestStart = dealFrom(
-      dealRank(reviewableUnclaimed, { me, pulls, deprioritize: isBot }),
-      { claims, passed: new Set() }
-   );
-   const startReason = bestStart ? startHereReason(bestStart, pulls, me) : '';
+   const bestStart = dealFrom(dealRank(reviewableUnclaimed, { me, pulls, deprioritize: isBot }), {
+      claims,
+      passed: new Set(),
+   });
+   const startReason = bestStart ? startHereReason(bestStart, pulls, me, true) : '';
 
    // reciprocity: who has stamped one of your own pulls, and do they have an
    // open reviewable pull of their own right now?
