@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useSettings } from '../settings';
-import { DiffSize, WeightMeter } from './bits';
+import { DiffSize } from './bits';
 import { Popover } from './Popover';
 import { eyebrowText } from './WordGroups';
 
@@ -119,17 +119,17 @@ export function Legend() {
                      />
                   </span>
                }
-               def={`age: a grey hairline along a row's bottom edge appears once it's ${s.ageWarnDays}+ days without full review; its length and depth are relative to the board's longest-open pull, so the oldest runs full width in full grey. The quiet day count at the row's right edge caps it and just gets bolder; hover it for both clocks`}
+               def={`age: a grey hairline along a row's bottom edge appears once it's ${s.ageWarnDays}+ days without full review; its length and depth are relative to the board's longest-open pull, so the oldest runs full width in full grey. Hover the line itself (it widens) or the quiet day count at the row's right edge for both clocks`}
             />
             <Item
                term={
-                  <span className="inline-flex items-center gap-1">
-                     <WeightMeter weight="XS" />
-                     <WeightMeter weight="M" />
-                     <WeightMeter weight="XL" />
+                  <span className="inline-flex items-center gap-2 text-[11px] font-medium tabular-nums text-ink-3">
+                     <span>XS</span>
+                     <span>M</span>
+                     <span>XL</span>
                   </span>
                }
-               def="review effort: the strip under the CR/QA marks fills with the review’s weight, doubling per class: a sliver = a quick pickup, full = very heavy. Hover for the exact +/− lines, click to filter"
+               def="review effort: the letter beside the CR marks, lightest to heaviest (a “?” means the wire sent no size). Hover for the word and the exact +/− lines, click to filter"
             />
             <details className="group/weight mt-0.5 px-1">
                <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">

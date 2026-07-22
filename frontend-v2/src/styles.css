@@ -241,13 +241,41 @@ label:has(> input:not(:disabled)) {
      edge — a deepened stretch of the divider the row already has. Length
      and tint are both relative to the board's longest-open pull (see
      bits.tsx AgeBaseline). The quiet day count floats right in the meta
-     line, capping the track. */
+     line, capping the track. width:100% fills its immediate parent, the
+     hoverable .pd-age-hit button below — not the row — so the line's own
+     extent stays exactly what it was before the hover door was added. */
   .pd-age-line {
     position: absolute;
     left: 0;
     bottom: 0;
+    width: 100%;
     height: 1px;
     pointer-events: none;
+    /* only the height animates open; the global prefers-reduced-motion
+       rule at the bottom of this file already zeroes this out */
+    transition: height 150ms var(--ease-quart);
+  }
+
+  /* the line's own door: .pd-age-track is the row-relative track (bits.tsx
+     sets its width inline to the SAME fraction the line draws, the row's
+     age relative to the board's oldest, not the full row) — a taller (10px)
+     box so a 1px line doesn't need pixel-hunting. z-index:1 matches
+     .pd-raise's tier: enough to sit above the row's stretched-link click
+     layer (.pd-link::after, z-index 0) inside this one strip, without
+     stealing a click anywhere else on the row. .pd-age-hit is the button
+     that fills it; hovering or focusing it grows .pd-age-line to an 8px
+     band and opens the same age popover the numeral shows (bits.tsx's
+     AgePopoverBody — one copy, two doors). */
+  .pd-age-track {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    z-index: 1;
+    height: 10px;
+  }
+  .pd-age-hit:hover .pd-age-line,
+  .pd-age-hit:focus-visible .pd-age-line {
+    height: 8px;
   }
 
   /* row flags: quiet colored labels, not badges — amber for act-on-it,

@@ -7,7 +7,6 @@ import {
    STARVE_DAYS,
    type Status,
    type Weight,
-   weightRank,
 } from '../model/status';
 import type { CommitStatus, Signature } from '../types';
 import {
@@ -245,51 +244,6 @@ export const WEIGHT_WORD: Record<Weight, string> = {
 };
 
 /**
- * Review effort as a horizontal RATIO strip under the whole sign-off
- * section (CR and QA — weight is how heavy the REVIEW is, both halves), not
- * its own rail slot. The long shared extent gives the exponential fill real
- * resolution, and the fill doubles per class — 6/13/25/50/100% — because review
- * effort roughly doubles per class, so the lengths separate honestly without
- * color carrying anything. Faded whole when the wire didn't send a size; the
- * hover popover has the word and exact +/− lines.
- */
-export function WeightMeter({
-   weight,
-   known = true,
-   wide = false,
-}: {
-   weight: Weight;
-   known?: boolean;
-   /** the rail's full-size track: a FIXED 112px ruler, right-anchored under
-    * the marks — the sign-off cell's width varies (one CR slot vs two, a
-    * failing count), and a track that stretched with it made identical
-    * weights render different lengths row to row. Same ruler on every row,
-    * or the fractions lie. Default is the 36px mini track (legend, samples).
-    */
-   wide?: boolean;
-}) {
-   const rank = weightRank(weight);
-   const word = WEIGHT_WORD[weight];
-   const label = known ? `review effort: ${word}` : `review effort: ${word} (size estimated)`;
-   const ratio = [6, 13, 25, 50, 100][rank];
-   return (
-      <span
-         role="img"
-         aria-label={label}
-         title={`${label}, from diff size`}
-         className={`flex h-[4px] overflow-hidden rounded-full ${wide ? 'ml-auto w-28' : 'w-9'}`}
-         style={{ background: 'var(--secondary)', opacity: known ? 1 : 0.5 }}
-      >
-         <span
-            aria-hidden
-            className="rounded-full"
-            style={{ width: `${ratio}%`, background: 'var(--ink-3)', opacity: 0.55 }}
-         />
-      </span>
-   );
-}
-
-/**
  * The concrete diff size beside the abstract weight letter: +added −deleted,
  * so the exact number is there when the letter chip isn't precise enough.
  * Neutral ink, not GitHub's green/red: a line count is a routine metric on
@@ -464,16 +418,22 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
 
 /**
  * Sign-off state as a circle-check meter: one mark per required stamp, in a
- * fixed-width slot so CR, QA, and weight land at the same x down a board.
- * One mark, three standings (see styles.css .pip): a solid disc = an
- * approval that stands, the same mark drained to an outline = it stood once
- * but a push lapsed it (the most actionable state on the board), an empty
- * ring = still needed, a muted dash = nothing required. A dotted underline
- * marks a slot you personally stamped. No enclosing chip at all: the marks
- * are confident enough to stand bare beside their label — every box, wash,
- * and hairline this slot has worn turned out to be scaffolding (the earlier
- * colored squares and tinted backgrounds were a private code that sent eyes
- * to the rail instead of the titles).
+ * fixed-width slot so CR, QA, CI, and the weight letter land at the same x
+ * down a board. One mark, three standings (see styles.css .pip): a solid disc
+ * = an approval that stands, the same mark drained to an outline = it stood
+ * once but a push lapsed it (the most actionable state on the board), an
+ * empty ring = still needed, a muted dash = nothing required. A dotted
+ * underline marks a slot you personally stamped. No enclosing chip at all:
+ * the marks are confident enough to stand bare beside their label — every
+ * box, wash, and hairline this slot has worn turned out to be scaffolding
+ * (the earlier colored squares and tinted backgrounds were a private code
+ * that sent eyes to the rail instead of the titles).
+ *
+ * `label` only feeds the aria/title strings ("CR 2 of 2…") — it renders
+ * nothing here. The visible "CR"/"QA" glyph is the caller's (Row.tsx), the
+ * same fixed-width slot the CI label and weight letter use, so a caller can
+ * slot something else (the weight letter) between the label and these marks
+ * without it ending up inside this component's own hover/click surface.
  */
 export function Pips({
    label,
@@ -536,9 +496,6 @@ export function Pips({
          aria-label={aria}
          title={titled ? title : undefined}
       >
-         <span aria-hidden className="w-[18px] text-[11px] font-medium text-ink-3">
-            {label}
-         </span>
          {none ? (
             <span
                aria-hidden
@@ -678,6 +635,44 @@ export function SigPips({
 }
 
 /**
+ * The age popover's body: "opened X ago", "last activity Y ago", and (only
+ * when the row's age line is actually drawn) the line's own relative-to-
+ * the-oldest explanation. Shared by AgeStamp (the numeral, every row) and
+ * AgeBaseline (the hoverable band, only aging rows) so the two doors into
+ * the same fact can never drift apart — one copy, two triggers.
+ */
+function AgePopoverBody({
+   createdAt,
+   updatedAt,
+   explainLine,
+}: {
+   /** epoch secs the pull opened */
+   createdAt: number;
+   /** epoch secs of the last activity */
+   updatedAt: number;
+   /** the caller decides: the numeral shows on every row and only adds this
+    * once its own age crosses warnDays, the band only ever renders once
+    * that's already true, so it always passes it. */
+   explainLine: boolean;
+}) {
+   return (
+      <>
+         <span className="block px-1 text-ink-2">
+            opened <b className="font-medium text-ink">{ago(createdAt)} ago</b>
+         </span>
+         <span className="mt-0.5 block px-1 text-ink-2">
+            last activity <b className="font-medium text-ink">{ago(updatedAt)} ago</b>
+         </span>
+         {explainLine && (
+            <span className="mt-0.5 block max-w-[220px] px-1 whitespace-normal text-ink-3">
+               the grey line under this row is its age, relative to the board’s oldest open pull
+            </span>
+         )}
+      </>
+   );
+}
+
+/**
  * Age as the row's own baseline: a 1px hairline along the bottom edge — a
  * tinted stretch of the divider the row already has, not a drawn bar.
  * RELATIVE, not thresholded: the board's longest-open pull sets the full
@@ -688,16 +683,28 @@ export function SigPips({
  * a colored alarm (an amber version shipped for an hour and was the
  * loudest thing on the board; urgency belongs to the queue's ranking and
  * the numeral's weight). Silent below the aging threshold — a healthy
- * young row draws nothing. aria-hidden: the numeral's popover carries the
- * clocks; this line is pure geometry.
+ * young row draws nothing.
+ *
+ * The line is also a door now, not pure geometry: a 10px invisible hit strip
+ * (`.pd-age-track`/`.pd-age-hit` in styles.css), sized to the SAME fraction
+ * as the visible line so a 1px target doesn't need pixel-hunting, opens the
+ * same age popover the numeral shows on hover or focus and grows the line to
+ * an 8px band while it's open. At rest it's pixel-identical to the old
+ * static hairline.
  */
 export function AgeBaseline({
    ageDays,
+   createdAt,
+   updatedAt,
    warnDays = STARVE_DAYS,
    maxAgeDays = 1,
    quiet,
 }: {
    ageDays: number;
+   /** epoch secs the pull opened — feeds the shared age popover body */
+   createdAt: number;
+   /** epoch secs of the last activity — feeds the shared age popover body */
+   updatedAt: number;
    warnDays?: number;
    /** the board's longest-open pull — the 100% mark of the track */
    maxAgeDays?: number;
@@ -710,14 +717,41 @@ export function AgeBaseline({
    // ink-3 on the board's oldest
    const inkPct = Math.round(30 + 70 * t);
    return (
-      <span
-         aria-hidden
-         className="pd-age-line"
-         style={{
-            width: `${(t * 100).toFixed(1)}%`,
-            background: `color-mix(in oklab, var(--ink-3) ${inkPct}%, transparent)`,
-         }}
-      />
+      // the percentage width lives on this outer track (not the line itself,
+      // see styles.css): the line and its taller hit area both fill 100% of
+      // it, so hovering anywhere along the row's actual age fraction — never
+      // past it — opens the door.
+      <span className="pd-age-track" style={{ width: `${(t * 100).toFixed(1)}%` }}>
+         <Popover
+            label="Age"
+            side="left"
+            hover
+            rootClass="block h-full w-full"
+            width="w-max"
+            panelClass="p-2 text-xs whitespace-nowrap"
+            trigger={t2 => (
+               <button
+                  {...t2}
+                  type="button"
+                  aria-label={`age: opened ${ago(createdAt)} ago`}
+                  // pd-age-hit: the hover/focus hook that grows .pd-age-line
+                  // (styles.css) — border/bg reset only, no positioning of its
+                  // own, since the track above already placed this box.
+                  className="pd-age-hit block h-full w-full border-0 bg-transparent p-0"
+               >
+                  <span
+                     aria-hidden
+                     className="pd-age-line"
+                     style={{
+                        background: `color-mix(in oklab, var(--ink-3) ${inkPct}%, transparent)`,
+                     }}
+                  />
+               </button>
+            )}
+         >
+            <AgePopoverBody createdAt={createdAt} updatedAt={updatedAt} explainLine />
+         </Popover>
+      </span>
    );
 }
 
@@ -790,20 +824,11 @@ export function AgeStamp({
             </button>
          )}
       >
-         <span className="block px-1 text-ink-2">
-            opened <b className="font-medium text-ink">{ago(createdAt)} ago</b>
-         </span>
-         <span className="mt-0.5 block px-1 text-ink-2">
-            last activity <b className="font-medium text-ink">{ago(updatedAt)} ago</b>
-         </span>
-         {/* the hairline can't take a hover itself (1px, aria-hidden), so its
-             explanation lives here, on the numeral that caps it — only when
-             the line is actually drawn for this row */}
-         {!quiet && ageDays >= warnDays && (
-            <span className="mt-0.5 block max-w-[220px] px-1 whitespace-normal text-ink-3">
-               the grey line under this row is its age, relative to the board’s oldest open pull
-            </span>
-         )}
+         <AgePopoverBody
+            createdAt={createdAt}
+            updatedAt={updatedAt}
+            explainLine={!quiet && ageDays >= warnDays}
+         />
       </Popover>
    );
 }

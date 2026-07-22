@@ -54,9 +54,10 @@ in the section header, not on the card.
 
 **Topical doors, not one mega-popover.** Each rail mark opens its own
 detail popover scoped to that mark: the CI bar → the per-check list, the
-CR/QA pips → per-signer names and times, the weight strip → the exact +/−
-diff. Detail lives one hover from the mark that hints at it; the repo# door
-summarizes all of it in prose. This split is deliberate — merging every
+CR/QA pips → per-signer names and times, the weight letter → the exact +/−
+diff, the age line → opened/last-activity. Detail lives one hover from the
+mark that hints at it; the repo# door summarizes all of it in prose. This
+split is deliberate — merging every
 fact into one popover would bury the answer to the question the user's
 cursor is already pointing at.
 
@@ -115,14 +116,15 @@ member of the sign-off family (it did, when weight was a dot):
 | Shape | Metric | Behavior |
 |---|---|---|
 | circle marks (14px SVG masks, `.pip`) | CI/CR/QA sign-off | ONE family for all three reviewers — the machine is a reviewer too. The label names the reviewer, the glyph names the verdict (✓ approved, ✗ failed, ring = needed/running), the treatment names the standing (solid stands, outlined lapsed). CI is invisible at rest unless failing — its quiet states render in a reserved slot at opacity 0, revealed on row hover, so the reveal can never reflow the line. **The alarm exception**: a failing CI's X disc is the ONE mark drawn larger than the pips (18px, `.pip-alarm`), its label and count in red — broken is the board's rarest and most consequential state, so it escalates by form, never by fill (a filled red chip was prototyped and rejected as badge regression) |
-| horizontal ratio strip (4px, under the marks) | review weight | one quiet ink fill on a fixed-extent track; fill **doubles per class** (6/13/25/50/100%) because effort doubles per class — exponential honesty beats linear prettiness |
-| the row's baseline (1px hairline, bottom edge) | age / starvation | **gated, not always-on**: nothing below the aging threshold, then a grey hairline — a deepened stretch of the divider the row already has, never a drawn bar. **Relative, not thresholded**: the board's longest-open pull sets the full track and the deepest tint (ultra-light ink → full ink-3); every other row is a fraction of the oldest. **Grey only** — the amber version was disruptive and a red plateau before it read as "broken" everywhere; age is a quiet fact, urgency lives in the queue's ranking and the numeral's font weight. The quiet day count floats right in the meta line, capping the track |
+| quiet text letter (11px, same fixed slot as the CI/CR/QA label) | review weight | XS/S/M/L/XL, or "?" when the wire sent no size — not its own shape at all, deliberately: it rides inside the CR cluster (`CR` label · weight letter · pips) instead of inventing a fourth family or drawing a ratio strip. A prior 4px fill-doubles-per-class strip under the whole sign-off row was retired (2026-07): the owner found it visually loud and it only ever said what a letter already says. Same popover survives the move — the effort word, the exact +/− diff, and the "Filter to X PRs" action |
+| the row's baseline (1px hairline, bottom edge) | age / starvation | **gated, not always-on**: nothing below the aging threshold, then a grey hairline — a deepened stretch of the divider the row already has, never a drawn bar. **Relative, not thresholded**: the board's longest-open pull sets the full track and the deepest tint (ultra-light ink → full ink-3); every other row is a fraction of the oldest. **Grey only** — the amber version was disruptive and a red plateau before it read as "broken" everywhere; age is a quiet fact, urgency lives in the queue's ranking and the numeral's font weight. The quiet day count floats right in the meta line, capping the track. **The line is also a door** (2026-07): a taller invisible hit strip (10px, sized to the line's own drawn fraction, not the full row) makes a 1px target hoverable without pixel-hunting; hover or focus grows the line to an 8px band and opens the same age popover the numeral shows (opened X ago, last activity Y ago, the relative-to-the-oldest line) — one popover body, two doors, so they can't drift apart |
 
-The rail is one instrument: `CI · CR · QA` marks in a row, the weight
-strip beneath them. Age lives on the row's own bottom edge, not in the
-rail — the track is a line the row already had. When a signal moves onto
-a better mark, remove it from the old one in the same change, or the card
-gets louder instead of clearer.
+The rail is one instrument, one line: `CI` then the `CR` cluster (label,
+weight letter, sign-off pips) then the `QA` cluster (label, pips). Age
+lives on the row's own bottom edge, not in the rail — the track is a line
+the row already had, now a hover door in its own right. When a signal moves
+onto a better mark, remove it from the old one in the same change, or the
+card gets louder instead of clearer.
 
 Marks are drawn as SVG masks / CSS geometry, never font glyphs — a text ✓
 at 10px is at the mercy of the platform rasterizer (a struck-through ✓ was

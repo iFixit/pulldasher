@@ -85,7 +85,8 @@ export function CardShell({
    avatarBadge?: ReactNode;
    /** a row-edge overlay (the age baseline): absolutely positioned against
     * the pd-row (already relative), rendered last so it paints over the
-    * divider without entering the flex flow. */
+    * divider without entering the flex flow. Hoverable/focusable now (its
+    * own popover door), not pure decoration. */
    edge?: ReactNode;
    /** stack-nesting depth (0 = top-level): indents the row and shows a
     * connector elbow before the avatar — model/stack.ts's groupIntoTree

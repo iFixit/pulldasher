@@ -1,6 +1,6 @@
 import { memo, useState, type ReactNode } from 'react';
 import type { DerivedPull } from '../model/status';
-import { isIterating, lastPushEpoch } from '../model/status';
+import { isIterating, lastPushEpoch, weightFilterKey } from '../model/status';
 import { type Claim, rowNote } from '../model/actions';
 import { matchedRegions } from '../model/regions';
 import type { ParentRef } from '../model/stack';
@@ -31,7 +31,6 @@ import {
    RepoRef,
    SigPips,
    WEIGHT_WORD,
-   WeightMeter,
 } from './bits';
 import { CardShell } from './Card';
 import { StatePopover } from './StatePopover';
@@ -562,25 +561,44 @@ function RowActionsKebab({ pull, claim }: { pull: DerivedPull; claim: Claim | nu
 }
 
 /**
- * The weight chip as both a filter toggle and a hover preview: click adds/
- * removes that size class from the session Weight filter — the same bucket
- * WeightFilter's own checkboxes drive, just row-initiated — while hovering
- * previews the exact +/− diff size the letter is standing in for. Falls back
- * to a plain, non-interactive trigger (still inside the same popover) when no
- * callback is wired up (e.g. a lens that hasn't threaded
- * RowOptions.onWeightToggle).
+ * The fixed-width label a rail slot leads with — CI, CR, QA, and the weight
+ * letter all share this exact 18px/11px/font-medium slot, so whichever ones
+ * a row shows still land at the same x down a board. aria-hidden: the
+ * interactive mark beside it (a pip cluster or a popover trigger) carries
+ * the accessible name.
  */
-function WeightChip({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
-   const meter = <WeightMeter weight={pull.weight} known={pull.sizeKnown} wide />;
+function RailLabel({ children }: { children: ReactNode }) {
+   return (
+      <span aria-hidden className="w-[18px] text-left text-[11px] font-medium text-ink-3">
+         {children}
+      </span>
+   );
+}
+
+/**
+ * Review weight as a letter in the CR cluster — XS/S/M/L/XL, or "?" when the
+ * wire sent no size — not the strip that used to run under the whole
+ * sign-off row (the owner found the bar visually loud and it only ever said
+ * what a letter already can). Same fixed 18px slot as the CI/CR/QA labels:
+ * "XS" and "XL" are the widest cases this ever renders, exactly as wide as
+ * those two-letter labels, so the letter never nudges the pips beside it.
+ * Click/hover opens the same popover the old strip did: the effort word, the
+ * exact +/− diff, and a "Filter to X PRs" toggle into the session Weight
+ * filter (falls back to a plain trigger when no lens has wired
+ * RowOptions.onWeightToggle up).
+ */
+function WeightLetter({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
+   const { weight, sizeKnown } = pull;
+   const word = WEIGHT_WORD[weight];
+   const letter = sizeKnown ? weight : '?';
    const onWeightToggle = opts.onWeightToggle;
-   const key = pull.sizeKnown ? pull.weight.toLowerCase() : 'unknown';
    const d = pull.data;
    return (
       <Popover
          label="review effort"
          hover
          side="right"
-         rootClass="relative flex"
+         rootClass="relative inline-flex"
          width="w-max"
          panelClass="p-2 text-xs"
          // the trigger keeps the shared pin contract ({...t}'s own click) so
@@ -592,30 +610,31 @@ function WeightChip({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
             <button
                {...t}
                type="button"
-               aria-label={`review effort: ${WEIGHT_WORD[pull.weight]}`}
-               className="pressable hit block w-full rounded border-0 bg-transparent p-0"
+               aria-label={`review effort: ${word}${sizeKnown ? '' : ' (size estimated)'}`}
+               // -my-2/py-2: the rail's shared tap-target trick, no layout
+               // change. Faded when the size is a guess, same tell the old
+               // strip used.
+               className={`pressable -my-2 inline-block w-[18px] rounded border-0 bg-transparent px-0 py-2 text-left text-[11px] font-medium tabular-nums text-ink-3 hover:bg-secondary/60 ${
+                  sizeKnown ? '' : 'opacity-60'
+               }`}
             >
-               <span aria-hidden className="contents">
-                  {meter}
-               </span>
+               {letter}
             </button>
          )}
       >
-         <span className="block font-medium text-ink">
-            review effort: {WEIGHT_WORD[pull.weight]}
-         </span>
-         {pull.sizeKnown && (
+         <span className="block font-medium text-ink">review effort: {word}</span>
+         {sizeKnown && (
             <span className="mt-1 block">
                <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
             </span>
          )}
          <span className="mt-1 block text-ink-3">
-            {pull.sizeKnown ? 'from diff size' : 'size estimated'}
+            {sizeKnown ? 'from diff size' : 'size estimated'}
          </span>
          {onWeightToggle && (
             <span className="mt-1.5 block">
-               <QuietButton onClick={() => onWeightToggle(key)}>
-                  Filter to {pull.sizeKnown ? pull.weight : 'unknown-size'} PRs
+               <QuietButton onClick={() => onWeightToggle(weightFilterKey(pull))}>
+                  Filter to {sizeKnown ? weight : 'unknown-size'} PRs
                </QuietButton>
             </span>
          )}
@@ -624,13 +643,14 @@ function WeightChip({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
 }
 
 /**
- * The metric rail every row ends on, in one order everywhere: CI, then the CR
- * and QA sign-off pips, then how heavy to review — weight is the rightmost
- * anchor now, the "can I fit this in" scan column reviewers hunt first. Age
- * moved to the meta line (see RowImpl): it's a fact about the pull, not a
- * per-row action like the rest of this rail. Right-anchored and
- * fixed-geometry, so it reads as vertical columns down any lens. Raised above
- * the card's click layer so the sign-off popovers still open.
+ * The metric rail every row ends on, in one order everywhere: CI, then CR
+ * (label, weight letter, sign-off pips), then QA (label, pips). One line,
+ * vertically centered — the weight ruler that used to run underneath is
+ * gone; the letter says the same thing inside the CR cluster instead.
+ * Age lives on the row's own baseline, not in the rail (see RowImpl). Right-
+ * anchored and fixed-geometry, so it reads as vertical columns down any
+ * lens. Raised above the card's click layer so the sign-off popovers still
+ * open.
  */
 function MetricRail({
    pull,
@@ -652,33 +672,39 @@ function MetricRail({
          <RowActions pull={pull} overlay={!!opts.compact} me={me} claim={claim} />
          <RowActionsKebab pull={pull} claim={claim} />
          {/* one instrument: the three reviewers' marks in a row — machine
-             first, then the humans — with the weight strip underneath. CI is
-             invisible at rest unless failing (revealed on row hover), in a
-             reserved slot so nothing shifts. Age lives on the row's
-             baseline, not in the rail. */}
-         <span className="flex flex-col items-stretch gap-[3px]">
-            <span className="flex items-center gap-2">
-               <CiStatus pull={pull} />
-               <SigPips
-                  label="CR"
-                  have={pull.crHave}
-                  req={d.status.cr_req}
-                  by={pull.crBy}
-                  staleBy={pull.recrBy}
-                  me={me}
-                  sigs={d.status.allCR}
-               />
-               <SigPips
-                  label="QA"
-                  have={pull.qaHave}
-                  req={d.status.qa_req}
-                  by={pull.qaBy}
-                  staleBy={pull.reqaBy}
-                  me={me}
-                  sigs={d.status.allQA}
-               />
+             first, then the humans, weight riding along inside the CR
+             cluster. CI is invisible at rest unless failing (revealed on row
+             hover), in a reserved slot so nothing shifts. */}
+         <CiStatus pull={pull} />
+         <span className="inline-flex items-center gap-1">
+            <RailLabel>CR</RailLabel>
+            {/* the owner's sketch was "CR · S ✓✓": the middot keeps the
+                label and the size letter from fusing into one token at 11px */}
+            <span aria-hidden className="flex-none text-[11px] text-ink-3">
+               ·
             </span>
-            <WeightChip pull={pull} opts={opts} />
+            <WeightLetter pull={pull} opts={opts} />
+            <SigPips
+               label="CR"
+               have={pull.crHave}
+               req={d.status.cr_req}
+               by={pull.crBy}
+               staleBy={pull.recrBy}
+               me={me}
+               sigs={d.status.allCR}
+            />
+         </span>
+         <span className="inline-flex items-center gap-1">
+            <RailLabel>QA</RailLabel>
+            <SigPips
+               label="QA"
+               have={pull.qaHave}
+               req={d.status.qa_req}
+               by={pull.qaBy}
+               staleBy={pull.reqaBy}
+               me={me}
+               sigs={d.status.allQA}
+            />
          </span>
       </span>
    );
@@ -801,6 +827,8 @@ function RowImpl({
          edge={
             <AgeBaseline
                ageDays={pull.ageDays}
+               createdAt={epoch(d.created_at)}
+               updatedAt={epoch(d.updated_at)}
                warnDays={opts.ageWarnDays}
                maxAgeDays={opts.maxAgeDays}
                quiet={['draft', 'dev_block', 'deploy_block'].includes(pull.status)}

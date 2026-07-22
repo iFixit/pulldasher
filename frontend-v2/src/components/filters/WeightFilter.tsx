@@ -4,7 +4,7 @@ import { Popover } from '../Popover';
 import { FilterRow, OnlyButton } from './shared';
 
 /** Weight filter option order: lightest to heaviest, then the unknown-size
- * catch-all — mirrors the WeightMeter's own light-to-heavy read. */
+ * catch-all — mirrors the rail's own weight-letter read (XS through XL). */
 const WEIGHT_OPTIONS: { key: string; label: string }[] = [
    { key: 'xs', label: 'XS · very light' },
    { key: 's', label: 'S · light' },
