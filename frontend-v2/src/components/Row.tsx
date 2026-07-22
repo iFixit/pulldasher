@@ -110,8 +110,10 @@ function flashOnce(key: string, fresh: boolean): boolean {
 
 interface Flag {
    key: string;
-   /** 'warn' = act on it (amber); 'note' = a neutral fact (muted) */
-   tone: 'warn' | 'note';
+   /** 'warn' = act on it (amber); 'note' = a neutral fact (muted);
+    * 'brand' = a standing state YOU chose (claimed, snoozed) — brand is the
+    * yours color, and a choice you made never hides behind a hover */
+   tone: 'warn' | 'note' | 'brand';
    label: string;
    detail: ReactNode;
 }
@@ -133,10 +135,28 @@ function rowFlags(
    pull: DerivedPull,
    showIterating: boolean,
    depth: number,
-   orphanParent: ParentRef | null
+   orphanParent: ParentRef | null,
+   claimedByMe = false,
+   snoozedNow = false
 ): Flag[] {
    const p = pull;
    const flags: Flag[] = [];
+   if (claimedByMe)
+      flags.push({
+         key: 'claimed',
+         tone: 'brand',
+         label: 'claimed',
+         detail:
+            'You claimed this review — GitHub and the board both show you’re on it. Hover the row for Release.',
+      });
+   if (snoozedNow)
+      flags.push({
+         key: 'snoozed',
+         tone: 'brand',
+         label: 'snoozed',
+         detail:
+            'Off your Review lens until tomorrow or its next change. Hover the row for Unsnooze.',
+      });
    if (p.conflict && p.status !== 'unmergeable')
       flags.push({
          key: 'conflicts',
@@ -236,7 +256,13 @@ function RowDetails({ flags }: { flags: Flag[] }) {
                {flags.map(f => (
                   <span
                      key={f.key}
-                     className={`whitespace-nowrap ${f.tone === 'warn' ? 'flag-warn' : 'flag-note'}`}
+                     className={`whitespace-nowrap ${
+                        f.tone === 'warn'
+                           ? 'flag-warn'
+                           : f.tone === 'brand'
+                             ? 'flag-brand'
+                             : 'flag-note'
+                     }`}
                   >
                      {f.label}
                   </span>
@@ -249,7 +275,14 @@ function RowDetails({ flags }: { flags: Flag[] }) {
                <span
                   aria-hidden
                   className="mt-[5px] h-1.5 w-1.5 flex-none rounded-full"
-                  style={{ background: f.tone === 'warn' ? 'var(--warn)' : 'var(--ink-3)' }}
+                  style={{
+                     background:
+                        f.tone === 'warn'
+                           ? 'var(--warn)'
+                           : f.tone === 'brand'
+                             ? 'var(--brand)'
+                             : 'var(--ink-3)',
+                  }}
                />
                <span className="text-ink-2">
                   <b className="font-medium text-ink">{f.label}</b> {f.detail}
@@ -680,6 +713,7 @@ function RowImpl({
    // both optional, so a lens that hasn't threaded them (yet) just sees null
    // and rowNote falls back to its base (pre-coordination) note
    const claim = claimFor(d);
+   const { snoozed: snoozedMap } = usePulldasher();
    const turn = opts.turns?.get(key) ?? null;
    const poolSize = opts.pools?.get(d.repo)?.length ?? 0;
    // the viewer-relative note (model/actions.ts): never both-null for an open
@@ -775,7 +809,16 @@ function RowImpl({
                      </span>
                   </Popover>
                )}
-               <RowDetails flags={rowFlags(pull, showIterating, depth, orphanParent)} />
+               <RowDetails
+                  flags={rowFlags(
+                     pull,
+                     showIterating,
+                     depth,
+                     orphanParent,
+                     claim?.login === opts.me,
+                     isSnoozed(d, snoozedMap)
+                  )}
+               />
             </>
          }
          rail={<MetricRail pull={pull} opts={opts} claim={claim} />}

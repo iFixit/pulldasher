@@ -121,7 +121,7 @@ export function Legend() {
                      <span className="flag-note">stacked</span>
                   </>
                }
-               def="amber flag: act on it. Gray flag: a plain fact"
+               def="amber flag: act on it. Gray flag: a plain fact. Brand flag (claimed, snoozed): a standing state you chose"
             />
          </Group>
 

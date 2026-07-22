@@ -95,9 +95,11 @@ word can never steal a click. Claim and Release wear brand (the
 invitation and its undo); Snooze, ink. The verbs are TOGGLES that name
 the exit: a claimed row's verb reads Release, a snoozed row's reads
 Unsnooze — the same slot, the opposite word, no state glyph (the hand
-icon was retired outright; a claimed row already reads through position,
-grouping under Finish CR in Waiting on you, so a second mark restated
-what structure says). Touch has no hover: the kebab is the verbs'
+icon was retired outright). The STANDING record of the choice is a brand
+FLAG in the meta line — "claimed" / "snoozed" beside conflicts and
+stacked — because flags are the board's channel for standing row facts,
+and brand is the yours color: a state you chose stays visible on every
+lens, in blue, with no hover required. Touch has no hover: the kebab is the verbs'
 labeled home there, and its items carry the same toggled words. A verb renders only where it acts (Snooze on
 Review alone); utilities stay in the kebab at every width, verbs atop
 its menu. Failure modes this design retires, in order tried: four

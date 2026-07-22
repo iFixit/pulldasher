@@ -365,6 +365,10 @@ label:has(> input:not(:disabled)) {
 
   /* row flags: quiet colored labels, not badges — amber for act-on-it,
      muted ink for neutral facts. The cluster's hover popover carries meaning. */
+  .flag-brand {
+    @apply text-[11px] font-medium;
+    color: var(--brand);
+  }
   .flag-warn {
     @apply text-[11px] font-medium;
     color: var(--warn);
