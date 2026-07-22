@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { type DerivedPull, qaDone, type Status, weightRank } from '../model/status';
-import { epoch, pullKey } from '../format';
+import { pullKey } from '../format';
 import { crSort, starFirst } from '../model/sort';
 import { matchedRegions, matchesRegion } from '../model/regions';
 import {
@@ -17,35 +17,22 @@ import { dealFrom, dealRank } from '../model/deal';
 import { useSettings } from '../settings';
 import { claimFor, claimReview, isFresh, usePulldasher } from '../store';
 import type { PullData } from '../types';
-import {
-   AgeStamp,
-   Avatar,
-   CiStatus,
-   EmptyState,
-   PullTitleLink,
-   QuietButton,
-   RepoRef,
-   SigPips,
-   STATUS_DOT,
-   STATUS_LABEL,
-   WeightMeter,
-} from '../components/bits';
-import { StatePopover } from '../components/StatePopover';
+import { EmptyState, QuietButton, STATUS_DOT, STATUS_LABEL } from '../components/bits';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, Truncated } from '../components/Lane';
 import { onOpen, Popover } from '../components/Popover';
 import { RegionHint } from '../components/RegionHint';
-import { markDealtFlash, type RowOptions } from '../components/Row';
+import { markDealtFlash, Row, type RowOptions } from '../components/Row';
 import { eyebrowText, WordGroupRows } from '../components/WordGroups';
 import { ClosedRow } from '../components/ClosedRow';
 
 /**
- * The dealt pull, shown as a real card inside the Deal-me-one popover, in the
- * board row's exact anatomy: author line with the repo# state-popover door and
- * age, the title as a GitHub link, then the rail's marks in the rail's order
- * (CI → CR/QA pips → weight strip). The "why this one" line is a quiet
- * footnote, not a chip — reasons are context, not state. Claiming it is a
- * commitment (it also adds you as a GitHub reviewer), so it's an explicit
- * button, not a side effect of dealing.
+ * The dealt pull IS a board row — the real Row component, not a re-drawn
+ * card, so the popover shows exactly what the queue shows (alarm CI, pips,
+ * weight strip, age baseline, the repo# state door, flags, hover actions)
+ * and can never drift from it. Below the row: the "why this one" line as a
+ * quiet footnote — reasons are context, not state — and the two verbs.
+ * Claiming is a commitment (it also adds you as a GitHub reviewer), so it's
+ * an explicit button, not a side effect of dealing.
  */
 function DealtCard({
    pull,
@@ -60,58 +47,13 @@ function DealtCard({
    onClaim: () => void;
    onPass: () => void;
 }) {
-   const d = pull.data;
-   const me = opts.me;
    return (
-      <div className="flex flex-col gap-2.5 p-3">
-         <div className="flex items-center gap-2">
-            <Avatar login={d.user.login} size={18} />
-            <span className="min-w-0 flex-1 truncate text-xs text-ink-3">{d.user.login}</span>
-            <StatePopover pull={pull} me={me} title="see the full state">
-               <RepoRef repo={d.repo} number={d.number} />
-            </StatePopover>
-            <AgeStamp
-               ageDays={pull.ageDays}
-               createdAt={epoch(d.created_at)}
-               updatedAt={epoch(d.updated_at)}
-               warnDays={opts.ageWarnDays}
-               rotDays={opts.ageRotDays}
-               inline
-            />
+      <div className="flex flex-col">
+         <Row pull={pull} opts={opts} />
+         <div className="border-t border-secondary px-3.5 pt-2 text-[11px] leading-snug text-ink-3">
+            {startHereReason(pull, pulls, opts.me, true)}
          </div>
-         <div className="text-sm leading-snug break-words">
-            <PullTitleLink repo={d.repo} number={d.number} title={d.title} />
-         </div>
-         <div className="flex items-center gap-2">
-            <span className="flex flex-col items-stretch gap-[3px]">
-               <span className="flex items-center gap-2">
-                  <CiStatus pull={pull} />
-                  <SigPips
-                     label="CR"
-                     have={pull.crHave}
-                     req={d.status.cr_req}
-                     by={pull.crBy}
-                     staleBy={pull.recrBy}
-                     me={me}
-                     sigs={d.status.allCR}
-                  />
-                  <SigPips
-                     label="QA"
-                     have={pull.qaHave}
-                     req={d.status.qa_req}
-                     by={pull.qaBy}
-                     staleBy={pull.reqaBy}
-                     me={me}
-                     sigs={d.status.allQA}
-                  />
-               </span>
-               <WeightMeter weight={pull.weight} known={pull.sizeKnown} wide />
-            </span>
-         </div>
-         <div className="border-t border-secondary pt-2 text-[11px] leading-snug text-ink-3">
-            {startHereReason(pull, pulls, me, true)}
-         </div>
-         <div className="mt-0.5 flex items-center gap-2">
+         <div className="flex items-center gap-2 px-3.5 pt-2 pb-3">
             <QuietButton tone="brand" onClick={onClaim}>
                Claim it
             </QuietButton>
