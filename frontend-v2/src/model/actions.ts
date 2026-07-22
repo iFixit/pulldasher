@@ -101,7 +101,7 @@ const FALLBACK_STATUS_LABEL: Record<DerivedPull['status'], string> = {
 function authorNote(p: DerivedPull, me: string): RowNote {
    const d = p.data;
    const who = (logins: string[]) => logins.map(l => (l === me ? 'you' : l)).join(', ');
-   const pushed = p.headPushedAt ? ` · fix pushed ${ago(p.headPushedAt)} ago` : '';
+   const pushed = p.headPushedAt ? ` · last commit ${ago(p.headPushedAt)} ago` : '';
    const crReq = d.status.cr_req;
 
    if (p.status === 'draft') return doOnly('Finish the draft');
@@ -119,11 +119,15 @@ function authorNote(p: DerivedPull, me: string): RowNote {
       if (!otherBlockers.length) return doOnly('Lift your block');
       return { action: 'Address feedback', context: `from ${who(otherBlockers)}` };
    }
-   if ((p.status === 'needs_cr' || p.status === 'needs_recr') && p.changesRequestedBy.length)
+   if ((p.status === 'needs_cr' || p.status === 'needs_recr') && p.changesRequestedBy.length) {
+      // ball-tracking: once you've pushed past the review, the move is theirs
+      if (feedbackAnswered(p))
+         return waitOnly(`waiting on ${who(p.changesRequestedBy)} to re-review${pushed}`);
       return {
          action: 'Address feedback',
          context: `changes requested by ${who(p.changesRequestedBy)}`,
       };
+   }
    // A conflict masks whatever CR/QA state the pull is otherwise in — the
    // author's real next move is always the rebase, checked before (and
    // independent of) the status-driven branches below.
@@ -154,6 +158,28 @@ function authorNote(p: DerivedPull, me: string): RowNote {
    if (p.status === 'deploy_block') return waitOnly(`ask ${who(p.deployBlockedBy)} before deploy`);
 
    return waitOnly(FALLBACK_STATUS_LABEL[p.status]);
+}
+
+/** Epoch secs of the newest still-standing changes-requested review, or null
+ * when none of the unstamped reviews carries that verdict (or the wire didn't
+ * send them). */
+function lastChangesRequestedAt(p: DerivedPull): number | null {
+   const dates = (p.data.status.unstamped_reviewers ?? [])
+      .filter(r => r.state === 'CHANGES_REQUESTED')
+      .map(r => r.date);
+   return dates.length ? Math.max(...dates) : null;
+}
+
+/**
+ * The author pushed AFTER the newest changes-requested review: the ball is
+ * back with the reviewer, so "Address feedback" would nag the author about
+ * work they already did — the truthful note is "waiting on X to re-review"
+ * (and, for the reviewer who asked, an actionable "Re-review"). False when
+ * the review can't be dated: nagging beats wrongly absolving.
+ */
+function feedbackAnswered(p: DerivedPull): boolean {
+   const at = lastChangesRequestedAt(p);
+   return at != null && p.headPushedAt != null && p.headPushedAt > at;
 }
 
 /** A reviewer's claim on a pull: who, and when (ms epoch — see
@@ -225,7 +251,7 @@ function reviewerNote(
    const d = p.data;
    const author = d.user.login;
    const who = (logins: string[]) => logins.map(l => (l === me ? 'you' : l)).join(', ');
-   const pushed = p.headPushedAt ? ` · fix pushed ${ago(p.headPushedAt)} ago` : '';
+   const pushed = p.headPushedAt ? ` · last commit ${ago(p.headPushedAt)} ago` : '';
    const crReq = d.status.cr_req;
    const qaReq = d.status.qa_req;
    // GitHub review requests: an ask aimed at you drives the note (via
@@ -238,7 +264,7 @@ function reviewerNote(
    if (p.recrBy.includes(me))
       return {
          action: 'Re-stamp',
-         context: p.headPushedAt ? `fix pushed ${ago(p.headPushedAt)} ago` : null,
+         context: p.headPushedAt ? `last commit ${ago(p.headPushedAt)} ago` : null,
       };
    if (p.qaingLogin === me) return doOnly('Finish QA');
    if (p.reqaBy.includes(me)) return doOnly('Re-QA');
@@ -251,8 +277,16 @@ function reviewerNote(
             ? 'your block stands — lift when happy'
             : `feedback from ${who(p.devBlockedBy)}`
       );
-   if ((p.status === 'needs_cr' || p.status === 'needs_recr') && p.changesRequestedBy.length)
+   if ((p.status === 'needs_cr' || p.status === 'needs_recr') && p.changesRequestedBy.length) {
+      // the author has pushed past the review: the requester's move now is to
+      // re-review (an action for them, a wait for everyone else)
+      if (feedbackAnswered(p)) {
+         if (p.changesRequestedBy.includes(me))
+            return { action: 'Re-review', context: `you asked for changes${pushed}` };
+         return waitOnly(`waiting on ${who(p.changesRequestedBy)} to re-review${pushed}`);
+      }
       return waitOnly(`changes requested by ${who(p.changesRequestedBy)}`);
+   }
    // Adapted from the spec's literal order (see PR/report): an already-active
    // CR stamp earns the reassuring "you've stamped" count instead of the
    // generic "waiting on a re-stamp" line, so this check runs before the
@@ -315,7 +349,7 @@ export type ActionStateKey = 'restamp' | 'review' | 'qa' | 'mine' | 'blocked' | 
 export function actionState(p: DerivedPull, me: string): ActionStateKey {
    if (p.recrBy.includes(me) || p.reqaBy.includes(me)) return 'restamp';
    const note = rowNote(p, me);
-   if (note.action === 'Review it') return 'review';
+   if (note.action === 'Review it' || note.action === 'Re-review') return 'review';
    if (note.action === 'QA it') return 'qa';
    if (note.action != null) return 'mine';
    if (p.status === 'dev_block' || p.status === 'deploy_block') return 'blocked';
@@ -354,7 +388,153 @@ export function rowNote(
 ): RowNote {
    const note = p.data.user.login === me ? authorNote(p, me) : reviewerNote(p, me, extra);
    // An external blocker is worth surfacing over a generic wait, but never
-   // hides an actual move — a real action always wins.
-   if (p.externalBlock && !note.action) return waitOnly('on hold — external blocker');
+   // hides an actual move — a real action always wins. On your OWN pull the
+   // hold itself is the thing to unstick (chase the dependency, lift the tag),
+   // so it reads as a move, not a shrug.
+   if (p.externalBlock && !note.action) {
+      if (p.data.user.login === me)
+         return { action: 'Unblock', context: 'on hold — external blocker' };
+      return waitOnly('on hold — external blocker');
+   }
    return note;
 }
+
+/** The one-word grouping key a card sorts under. */
+export type RowWord = { kind: 'do' | 'wait'; word: string };
+
+/** rowNote's action string → the one-word label its section header shows.
+ * Falls back to the action string itself so a future action never renders
+ * blank — but every string rowNote can produce today is listed here. */
+const DO_WORD: Record<string, string> = {
+   'Re-stamp': 'Re-stamp',
+   'Re-QA': 'Re-QA',
+   'Finish QA': 'Finish QA',
+   'Finish your review': 'Finish CR',
+   'Re-review': 'Re-review',
+   'Merge it': 'Merge',
+   'Fix CI': 'Fix CI',
+   'Address feedback': 'Respond',
+   'Answer the review': 'Respond',
+   'Lift your block': 'Unblock',
+   Unblock: 'Unblock',
+   Rebase: 'Rebase',
+   'Chase a review': 'Chase CR',
+   'Find a QA-er': 'Find QA-er',
+   'Review it': 'Review',
+   'QA it': 'QA',
+   'Finish the draft': 'Finish draft',
+};
+
+/** Same freshness rule withCoordination uses for a claim by someone else — but
+ * here it decides a single word (claimed vs. still-owed), not the fuller
+ * action/context pair, so it's reimplemented rather than shared. */
+function freshOtherClaim(me: string, claim?: Claim | null): boolean {
+   if (!claim || claim.login === me) return false;
+   return Date.now() / 1000 - claim.at / 1000 <= STALE_CLAIM_SECS;
+}
+
+/**
+ * The wait-side word, computed straight from the pull's own facts rather than
+ * parsed from rowNote's context — free text is for a human to read, not for a
+ * grouping decision to key off. The branch order deliberately mirrors
+ * reviewerNote/authorNote: changes-requested outranks your own stamp, and a
+ * claim only absolves a viewer with no stake of their own in the pull.
+ */
+function waitWord(p: DerivedPull, me: string, extra?: { claim?: Claim | null }): string {
+   if (p.externalBlock) return 'on hold';
+   const isAuthor = p.data.user.login === me;
+   switch (p.status) {
+      case 'draft':
+         return 'draft';
+      case 'ci_red':
+         return 'CI red';
+      case 'dev_block':
+         return 'blocked';
+      case 'deploy_block':
+         return 'deploy hold';
+      case 'unmergeable':
+         return p.conflict ? 'conflicts' : 'stacked';
+      case 'ci_pending':
+         return 'CI running';
+      case 'ready':
+         return 'ready';
+      case 'needs_qa':
+         if (p.qaBy.includes(me)) return 'stamped';
+         if (p.qaingLogin) return 'in QA';
+         if (isAuthor && p.reqaBy.length) return 'awaiting re-QA';
+         return 'awaiting QA';
+      case 'needs_recr':
+         if (p.crBy.includes(me)) return 'stamped';
+         if (freshOtherClaim(me, extra?.claim)) return 'claimed';
+         return 'awaiting re-CR';
+      case 'needs_cr':
+         if (p.changesRequestedBy.length)
+            return feedbackAnswered(p) ? 'awaiting re-CR' : 'with author';
+         if (p.crBy.includes(me)) return 'stamped';
+         if (freshOtherClaim(me, extra?.claim)) return 'claimed';
+         return 'awaiting CR';
+      default:
+         return 'waiting';
+   }
+}
+
+/**
+ * The one word a card is grouped under — a section header, coarse on
+ * purpose. Names, ages, and counts stay in the state popover; this only
+ * answers "which pile does this card belong in?" Built on top of rowNote:
+ * a non-null action is always the viewer's move (kind 'do'), mapped through
+ * DO_WORD; otherwise the pull is waiting on someone else, and the word comes
+ * from a case analysis on the pull's own facts (see waitWord) rather than
+ * from parsing rowNote's context string, which is free text meant for a
+ * human, not a stable key to group on.
+ */
+export function rowWord(
+   p: DerivedPull,
+   me: string,
+   extra?: { claim?: Claim | null; turn?: string | null }
+): RowWord {
+   const note = rowNote(p, me, extra);
+   if (note.action != null) return { kind: 'do', word: DO_WORD[note.action] ?? note.action };
+   return { kind: 'wait', word: waitWord(p, me, extra) };
+}
+
+/** Most-urgent-first order for the 'do' word groups. */
+export const DO_WORD_RANK: readonly string[] = [
+   'Re-stamp',
+   'Re-QA',
+   'Finish QA',
+   'Finish CR',
+   'Re-review',
+   'Merge',
+   'Fix CI',
+   'Respond',
+   'Unblock',
+   'Rebase',
+   'Chase CR',
+   'Find QA-er',
+   'Review',
+   'QA',
+   'Finish draft',
+];
+
+/** Most-urgent-first order for the 'wait' word groups. */
+export const WAIT_WORD_RANK: readonly string[] = [
+   'awaiting re-CR',
+   'awaiting CR',
+   'with author',
+   'awaiting re-QA',
+   'awaiting QA',
+   'in QA',
+   'claimed',
+   'stamped',
+   'CI running',
+   'CI red',
+   'blocked',
+   'deploy hold',
+   'conflicts',
+   'stacked',
+   'on hold',
+   'ready',
+   'draft',
+   'waiting',
+];

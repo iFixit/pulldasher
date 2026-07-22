@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ago } from '../format';
 import type { DerivedPull, Status } from './status';
 import { STATUS_ORDER } from './status';
-import { actionState, alertMove, authorMove, reviewerMove, rowNote } from './actions';
+import { actionState, alertMove, authorMove, reviewerMove, rowNote, rowWord } from './actions';
 
 /** A DerivedPull with only the fields the move functions read. */
 function dp(o: {
@@ -224,7 +224,7 @@ describe('rowNote — the author matrix', () => {
       );
       expect(withPush).toEqual({
          action: null,
-         context: 'waiting on gina to re-stamp · fix pushed 1h ago',
+         context: 'waiting on gina to re-stamp · last commit 1h ago',
       });
    });
 
@@ -280,15 +280,51 @@ describe('rowNote — the author matrix', () => {
       });
    });
 
-   it('an external block only overrides a wait, never a do', () => {
+   it('an external block on your own waiting pull is yours to unstick', () => {
       expect(note({ status: 'ci_pending', externalBlock: true }, me)).toEqual({
-         action: null,
+         action: 'Unblock',
          context: 'on hold — external blocker',
       });
+      // but it never overrides a real move
       expect(note({ status: 'ready', externalBlock: true }, me)).toEqual({
          action: 'Merge it',
          context: null,
       });
+   });
+
+   it('feedback you already pushed past flips to waiting on the reviewer', () => {
+      // carol requested changes at t=100, the author pushed at t=200: the ball
+      // is back with carol — "Address feedback" would nag about done work
+      expect(
+         note(
+            {
+               status: 'needs_cr',
+               changesRequestedBy: ['carol'],
+               unstampedReviewers: [{ login: 'carol', state: 'CHANGES_REQUESTED', date: 100 }],
+               headPushedAt: 200,
+            },
+            me
+         )
+      ).toEqual({
+         action: null,
+         context: `waiting on carol to re-review · last commit ${ago(200)} ago`,
+      });
+      // pushed BEFORE the review (or never): still the author's move
+      expect(
+         note(
+            {
+               status: 'needs_cr',
+               changesRequestedBy: ['carol'],
+               unstampedReviewers: [{ login: 'carol', state: 'CHANGES_REQUESTED', date: 300 }],
+               headPushedAt: 200,
+            },
+            me
+         )
+      ).toEqual({ action: 'Address feedback', context: 'changes requested by carol' });
+      // an undatable review never absolves: nagging beats wrongly absolving
+      expect(
+         note({ status: 'needs_cr', changesRequestedBy: ['carol'], headPushedAt: 200 }, me)
+      ).toEqual({ action: 'Address feedback', context: 'changes requested by carol' });
    });
 });
 
@@ -304,7 +340,7 @@ describe('rowNote — the non-author matrix', () => {
       const pushedAgo = Date.now() / 1000 - 7200;
       expect(
          note({ author, status: 'needs_recr', recrBy: ['me'], headPushedAt: pushedAgo }, me)
-      ).toEqual({ action: 'Re-stamp', context: 'fix pushed 2h ago' });
+      ).toEqual({ action: 'Re-stamp', context: 'last commit 2h ago' });
    });
 
    it('claimed QA is a finish move; QA that fell to you is a re-QA move', () => {
@@ -351,6 +387,40 @@ describe('rowNote — the non-author matrix', () => {
       expect(
          note({ author, status: 'needs_recr', changesRequestedBy: ['carol'], recrBy: ['dave'] }, me)
       ).toEqual({ action: null, context: 'changes requested by carol' });
+   });
+
+   it('once the author pushes past your requested changes, re-reviewing is YOUR move', () => {
+      expect(
+         note(
+            {
+               author,
+               status: 'needs_cr',
+               changesRequestedBy: ['me'],
+               unstampedReviewers: [{ login: 'me', state: 'CHANGES_REQUESTED', date: 100 }],
+               headPushedAt: 200,
+            },
+            me
+         )
+      ).toEqual({
+         action: 'Re-review',
+         context: `you asked for changes · last commit ${ago(200)} ago`,
+      });
+      // for an uninvolved viewer the same pull reads as a wait on the requester
+      expect(
+         note(
+            {
+               author,
+               status: 'needs_cr',
+               changesRequestedBy: ['carol'],
+               unstampedReviewers: [{ login: 'carol', state: 'CHANGES_REQUESTED', date: 100 }],
+               headPushedAt: 200,
+            },
+            me
+         )
+      ).toEqual({
+         action: null,
+         context: `waiting on carol to re-review · last commit ${ago(200)} ago`,
+      });
    });
 
    it('adapted: an already-active CR stamp outranks the generic needs_recr wait', () => {
@@ -635,5 +705,136 @@ describe('rowNote — claim/turn coordination (reviewer path only)', () => {
    it('no claim, no turn: behaves exactly like the two-arg call', () => {
       expect(rowNote(p(), 'me', {})).toEqual(rowNote(p(), 'me'));
       expect(rowNote(p(), 'me', { claim: null, turn: null })).toEqual(rowNote(p(), 'me'));
+   });
+});
+
+describe('rowWord — the one-word section-header key', () => {
+   const word = (o: Parameters<typeof dp>[0], me: string, extra?: Parameters<typeof rowWord>[2]) =>
+      rowWord(dp(o), me, extra);
+
+   describe('do words', () => {
+      it('author ready → Merge', () => {
+         expect(word({ author: 'me', status: 'ready' }, 'me')).toEqual({
+            kind: 'do',
+            word: 'Merge',
+         });
+      });
+
+      it('author externalBlock on ci_pending → Unblock', () => {
+         expect(word({ author: 'me', status: 'ci_pending', externalBlock: true }, 'me')).toEqual({
+            kind: 'do',
+            word: 'Unblock',
+         });
+      });
+
+      it('author dev_block self-only → Unblock', () => {
+         expect(word({ author: 'me', status: 'dev_block', devBlockedBy: ['me'] }, 'me')).toEqual({
+            kind: 'do',
+            word: 'Unblock',
+         });
+      });
+
+      it('author dev_block by other → Respond', () => {
+         expect(word({ author: 'me', status: 'dev_block', devBlockedBy: ['other'] }, 'me')).toEqual(
+            { kind: 'do', word: 'Respond' }
+         );
+      });
+
+      it('reviewer recrBy me → Re-stamp', () => {
+         expect(word({ author: 'auth', status: 'needs_recr', recrBy: ['me'] }, 'me')).toEqual({
+            kind: 'do',
+            word: 'Re-stamp',
+         });
+      });
+
+      it('reviewer needs_cr plain → Review', () => {
+         expect(word({ author: 'auth', status: 'needs_cr' }, 'me')).toEqual({
+            kind: 'do',
+            word: 'Review',
+         });
+      });
+
+      it('requester whose feedback was pushed past → Re-review', () => {
+         expect(
+            word(
+               {
+                  author: 'auth',
+                  status: 'needs_cr',
+                  changesRequestedBy: ['me'],
+                  unstampedReviewers: [{ login: 'me', state: 'CHANGES_REQUESTED', date: 100 }],
+                  headPushedAt: 200,
+               },
+               'me'
+            )
+         ).toEqual({ kind: 'do', word: 'Re-review' });
+      });
+   });
+
+   describe('wait words', () => {
+      it('author needs_recr, someone else owes the re-stamp → awaiting re-CR', () => {
+         expect(word({ author: 'me', status: 'needs_recr', recrBy: ['dave'] }, 'me')).toEqual({
+            kind: 'wait',
+            word: 'awaiting re-CR',
+         });
+      });
+
+      it('author needs_cr, untouched queue → awaiting CR', () => {
+         expect(word({ author: 'me', status: 'needs_cr' }, 'me')).toEqual({
+            kind: 'wait',
+            word: 'awaiting CR',
+         });
+      });
+
+      it('reviewer who already stamped needs_cr → stamped', () => {
+         expect(
+            word({ author: 'auth', status: 'needs_cr', crBy: ['me'], crHave: 1, crReq: 2 }, 'me')
+         ).toEqual({ kind: 'wait', word: 'stamped' });
+      });
+
+      it('reviewer view of changes requested, not yet answered → with author', () => {
+         expect(
+            word({ author: 'auth', status: 'needs_cr', changesRequestedBy: ['carol'] }, 'me')
+         ).toEqual({ kind: 'wait', word: 'with author' });
+      });
+
+      it('reviewer sees a fresh claim by someone else → claimed', () => {
+         const at = Date.now();
+         expect(
+            word({ author: 'auth', status: 'needs_cr' }, 'me', { claim: { login: 'bob', at } })
+         ).toEqual({ kind: 'wait', word: 'claimed' });
+      });
+
+      it('a stale claim does not read claimed — it falls back to the "Review it" do', () => {
+         const at = Date.now() - 3 * 3600_000; // 3h ago, past STALE_CLAIM_SECS
+         expect(
+            word({ author: 'auth', status: 'needs_cr' }, 'me', { claim: { login: 'bob', at } })
+         ).toEqual({ kind: 'do', word: 'Review' });
+      });
+
+      it('deploy_block reviewer → deploy hold', () => {
+         expect(
+            word({ author: 'auth', status: 'deploy_block', deployBlockedBy: ['jack'] }, 'me')
+         ).toEqual({ kind: 'wait', word: 'deploy hold' });
+      });
+
+      it('unmergeable with a conflict → conflicts', () => {
+         expect(word({ author: 'auth', status: 'unmergeable', conflict: true }, 'me')).toEqual({
+            kind: 'wait',
+            word: 'conflicts',
+         });
+      });
+
+      it('unmergeable dependent-only (no conflict) → stacked', () => {
+         expect(
+            word({ author: 'auth', status: 'unmergeable', conflict: false, dependent: true }, 'me')
+         ).toEqual({ kind: 'wait', word: 'stacked' });
+      });
+
+      it('externalBlock as an uninvolved reviewer → on hold', () => {
+         expect(word({ author: 'auth', status: 'ready', externalBlock: true }, 'me')).toEqual({
+            kind: 'wait',
+            word: 'on hold',
+         });
+      });
    });
 });
