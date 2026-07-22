@@ -105,6 +105,18 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
 
    return (
       <>
+         {/* the dashboard first: every check's failing/running share on the
+             fixed ruler — the lens's own summary card, before any pull list */}
+         {ledgers.length > 0 && (
+            <section className={opts.compact ? 'mb-4' : 'mb-7'}>
+               <div className={`mb-2 text-ink-3 ${eyebrowText}`}>Check health</div>
+               <Rows>
+                  {ledgers.map(l => (
+                     <HealthRow key={l.context} ledger={l} />
+                  ))}
+               </Rows>
+            </section>
+         )}
          <Lane
             title="Your broken builds"
             sub="nobody can review these until the build is green"
@@ -154,16 +166,6 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
                title="All green"
                sub="Every check on the board passed. Go review something."
             />
-         )}
-         {ledgers.length > 0 && (
-            <section className={opts.compact ? 'mb-4' : 'mb-7'}>
-               <div className={`mb-2 text-ink-3 ${eyebrowText}`}>Check health</div>
-               <Rows>
-                  {ledgers.map(l => (
-                     <HealthRow key={l.context} ledger={l} />
-                  ))}
-               </Rows>
-            </section>
          )}
          {(green.length > 0 || noChecks.length > 0) && (
             <RestGroup title="The rest of the board">
