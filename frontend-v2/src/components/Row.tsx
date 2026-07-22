@@ -732,6 +732,7 @@ function RowImpl({
          id={rowDomId(d)}
          compact={opts.compact}
          depth={depth}
+         stackStub={pull.dependent && depth === 0}
          className={`${flashOnce(key, !!fresh) ? 'row-fresh' : ''} transition-[background-color] duration-150 ease-out motion-reduce:transition-none`}
          avatarBadge={
             starredAuthor && (

@@ -43,6 +43,34 @@ function StackConnector({ compact, depth }: { compact: boolean; depth: number })
    );
 }
 
+/**
+ * The connector's other standing: a stacked row whose parent ISN'T the row
+ * above (it lives in another lane, a fold, or another lens' scope) can't
+ * nest, so it wears the same elbow truncated to a stub — a few quiet pixels
+ * of the same line, rising to the row's top edge where the parent would
+ * have been. One vocabulary, two states: the full elbow means "child of
+ * the row above", the stub means "child of something that isn't here". The
+ * row's "stacked on #N" flag stays the door that names and links the
+ * parent; this is pure geometry, so the split-stack case reads at a glance
+ * instead of only in words.
+ */
+function StackStub({ compact }: { compact: boolean }) {
+   const basePad = compact ? 12 : 14;
+   return (
+      <span
+         aria-hidden
+         className="absolute w-[9px] rounded-bl-[5px] border-b border-l border-line"
+         style={{
+            left: basePad + 2,
+            top: 0,
+            // the same elbow shape, cut short: it points up and out of the
+            // row instead of reaching a parent's vertical center
+            height: compact ? 6 : 8,
+         }}
+      />
+   );
+}
+
 export function CardShell({
    login,
    onPerson,
@@ -59,6 +87,7 @@ export function CardShell({
    avatarBadge,
    edge,
    depth = 0,
+   stackStub = false,
 }: {
    login: string;
    onPerson?: (login: string) => void;
@@ -93,11 +122,19 @@ export function CardShell({
     * supplies it. Capped at 2 by the model; the geometry doesn't need its
     * own cap on top of that. */
    depth?: number;
+   /** a stacked pull rendering flat (its parent isn't the row above): wears
+    * the connector's stub form — see StackStub. Ignored when depth > 0. */
+   stackStub?: boolean;
 }) {
    const titleLink = (
       <PullTitleLink repo={repo} number={number} title={title} onOpen={onOpen} stretch={stretch} />
    );
-   const connector = depth > 0 && <StackConnector compact={compact} depth={depth} />;
+   const connector =
+      depth > 0 ? (
+         <StackConnector compact={compact} depth={depth} />
+      ) : stackStub ? (
+         <StackStub compact={compact} />
+      ) : null;
 
    if (compact) {
       return (
