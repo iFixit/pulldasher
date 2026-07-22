@@ -425,16 +425,6 @@ label:has(> input:not(:disabled)) {
   .row-actions {
     display: none;
   }
-  @media (hover: hover) and (min-width: 720px) {
-    .pd-kebab {
-      display: inline-flex;
-      opacity: 0;
-    }
-    .pd-row:hover .pd-kebab,
-    .pd-kebab:focus-within {
-      opacity: 1;
-    }
-  }
   .pd-rail {
     flex-basis: 100%;
     margin-left: 0;
@@ -443,19 +433,6 @@ label:has(> input:not(:disabled)) {
        right-anchoring into ragged centered-looking lines */
     justify-content: flex-start;
     position: relative;
-  }
-  /* the hover action cluster floats over the rail's right end instead of
-     reserving ~70px of a 200px-wide rail line (visibility:hidden still takes
-     layout space; in a narrow column that reservation shoved the chips) */
-  .pd-rail .row-actions {
-    position: absolute;
-    right: 0;
-    top: 50%;
-    translate: 0 -50%;
-    z-index: 10;
-    background: var(--muted);
-    border-radius: 6px;
-    padding-inline: 4px;
   }
 }
 /* whole-card click target: the title link stretches an invisible layer over
@@ -472,10 +449,10 @@ label:has(> input:not(:disabled)) {
   z-index: 1;
 }
 
-/* hover-reveal row actions (copy branch, refresh). The row-level
-   :focus-within matters: a visibility:hidden element can never take focus,
-   so the buttons must become visible when ANY part of the row is focused
-   (tabbing to the title), or the keyboard could never reach them. */
+/* hover-reveal row verbs (Snooze / Claim). The row-level :focus-within
+   matters: a visibility:hidden element can never take focus, so the buttons
+   must become visible when ANY part of the row is focused (tabbing to the
+   title), or the keyboard could never reach them. */
 @media (hover: hover) {
   .pd-row:hover .row-actions {
     visibility: visible;
@@ -486,6 +463,20 @@ label:has(> input:not(:disabled)) {
 }
 .row-actions {
   visibility: hidden;
+}
+
+/* the kebab (utilities + management) reveals on row hover at every desktop
+   width — one overflow pattern board-wide; below 720px it's always visible
+   (hover has no phone story). Opacity, not display, so the slot never
+   jumps. */
+@media (hover: hover) and (min-width: 720px) {
+  .pd-kebab {
+    opacity: 0;
+  }
+  .pd-row:hover .pd-kebab,
+  .pd-kebab:focus-within {
+    opacity: 1;
+  }
 }
 
 /* ── Motion: state feedback only, exponential ease-out, one settle entrance ── */

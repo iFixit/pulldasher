@@ -1050,7 +1050,12 @@ export function App() {
                </div>
             )}
             {initialized && lens === 'review' && (
-               <Review pulls={humans} bots={bots} closed={scopedClosed} opts={rowOpts} />
+               <Review
+               pulls={humans}
+               bots={bots}
+               closed={scopedClosed}
+               opts={{ ...rowOpts, showSnooze: true }}
+            />
             )}
             {initialized && lens === 'mine' && (
                <MyWork pulls={humans} closed={closed} opts={rowOpts} />

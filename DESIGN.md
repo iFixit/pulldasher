@@ -83,6 +83,16 @@ remains: a ranked lane IS the recommendation — put pick logic in the
 lane's ordering and explain it behind the sub-line, never inside a control
 with its own private order.
 
+**Workflow verbs are words; plumbing is an overflow.** A row action that
+decides something about the work (Claim, Snooze) reads as a worded
+invitation on hover — the word is the affordance, Claim in brand because
+committing to a review is the board's core gesture. A utility (copy the
+branch, re-fetch) is plumbing: it lives in the kebab at every width, one
+overflow pattern board-wide, verbs at the top of its menu. And a verb only
+renders where it acts: Snooze appears on the Review lens alone, because
+that is the only lens a snooze quiets. Four identical icon buttons was the
+failure mode this replaces — equal salience for unequal decisions.
+
 **Work-in-progress lives inline, not in a popover.** A popover is for
 glancing (state detail, signatures, rankings) and rightly dies on any
 outside click. Anything the user is mid-way through renders in the board's
