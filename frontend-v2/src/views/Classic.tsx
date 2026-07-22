@@ -1,12 +1,13 @@
 import { crDone, qaDone, type DerivedPull } from '../model/status';
-import { groupIntoTree } from '../model/stack';
 import type { PullData } from '../types';
 import { ago, closedEpoch, pullKey } from '../format';
 import { ClosedBadge, EmptyState, RepoRef } from '../components/bits';
 import { CardShell } from '../components/Card';
 import { BoardColumn } from '../components/Column';
 import { laneShown, Truncated } from '../components/Lane';
-import { Row, type RowOptions } from '../components/Row';
+import { WordGroupRows } from '../components/WordGroups';
+import { ClosedRow } from '../components/ClosedRow';
+import type { RowOptions } from '../components/Row';
 
 /**
  * The v1 board, faithfully: the same six overlapping columns, the same
@@ -63,15 +64,18 @@ function Column({
    opts: RowOptions;
    defaultOpen?: boolean;
 }) {
-   const tree = groupIntoTree(pulls);
+   // v1's sort already floats the viewer's own concerns to the top (your PRs,
+   // an owed re-stamp, a QA you're running), so within each rowWord group the
+   // order stays v1-faithful — WordGroupRows only re-buckets by word, it
+   // doesn't re-sort.
    return (
       <BoardColumn count={pulls.length} header={title} defaultOpen={defaultOpen}>
-         {/* a 60-row CR column is a 3600px scroll: cap it, keep the count honest */}
-         <Truncated cap={laneShown(15, opts)} id={`classic:${title}`}>
-            {tree.map(({ pull: p, depth }) => (
-               <Row key={pullKey(p.data)} pull={p} opts={opts} depth={depth} />
-            ))}
-         </Truncated>
+         <WordGroupRows
+            pulls={pulls}
+            opts={opts}
+            id={`classic:${title}`}
+            cap={laneShown(15, opts)}
+         />
       </BoardColumn>
    );
 }

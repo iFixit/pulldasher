@@ -628,6 +628,7 @@ export function AgeStamp({
    quiet,
    warnDays = STARVE_DAYS,
    rotDays = ROT_DAYS,
+   inline,
 }: {
    ageDays: number;
    /** epoch secs the pull opened */
@@ -640,6 +641,10 @@ export function AgeStamp({
    warnDays?: number;
    /** red at/after this many days */
    rotDays?: number;
+   /** true when it's embedded in a flowing meta line rather than the rail's
+    * fixed-width column — drops the w-7/text-right slot in favor of plain
+    * inline text. */
+   inline?: boolean;
 }) {
    const hot = quiet
       ? null
@@ -669,7 +674,7 @@ export function AgeStamp({
             >
                <span
                   aria-hidden
-                  className={`block w-7 text-right tabular-nums ${hot ? 'font-medium' : ''}`}
+                  className={`tabular-nums ${inline ? '' : 'block w-7 text-right'} ${hot ? 'font-medium' : ''}`}
                   style={hot ? { color: hot } : undefined}
                >
                   {text}

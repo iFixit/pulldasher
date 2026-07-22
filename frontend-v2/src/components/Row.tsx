@@ -2,7 +2,6 @@ import { memo, useState, type ReactNode } from 'react';
 import type { DerivedPull } from '../model/status';
 import { isIterating, lastPushEpoch } from '../model/status';
 import { rowNote } from '../model/actions';
-import { requestedReviewers, reviewRequestedFrom } from '../model/reviewers';
 import { matchedRegions } from '../model/regions';
 import type { ParentRef } from '../model/stack';
 import { ago, epoch, pullKey, rowDomId, shortRepo } from '../format';
@@ -23,9 +22,9 @@ import {
    snoozePull,
    usePulldasher,
 } from '../store';
-import { AgeStamp, DiffSize, FreshTag, RepoRef, SigPips, WeightMeter } from './bits';
+import { AgeStamp, CiStatus, DiffSize, RepoRef, SigPips, WEIGHT_WORD, WeightMeter } from './bits';
 import { CardShell } from './Card';
-import { ContextPopover, StatusBadgeTrigger } from './StatePopover';
+import { StatePopover } from './StatePopover';
 import { Popover } from './Popover';
 
 export interface RowOptions {
@@ -731,11 +730,11 @@ function RowImpl({
    const claim = claimFor(d, opts.claims ?? {});
    const turn = opts.turns?.get(key) ?? null;
    const poolSize = opts.pools?.get(d.repo)?.length ?? 0;
-   // the two-slot action/context note, the same in every lens (model/actions.ts)
-   // — never both-null for an open pull, so the context text always renders
+   // the viewer-relative note (model/actions.ts): never both-null for an open
+   // pull, so the one badge below always has something to say
    const note = rowNote(pull, opts.me, { claim, turn });
-   // "iterating" and a "fix pushed …" note say the same thing — don't say it twice
-   const showIterating = isIterating(pull) && !(note.context ?? '').includes('pushed');
+   // the wait badge may itself carry a "last commit …" — don't say it twice
+   const showIterating = isIterating(pull) && !(note.context ?? '').includes('last commit');
    // the smallest clean marker for a starred author: a tiny ★ over their
    // avatar, so the row itself says "you follow this person" without a
    // trip to the kebab menu
@@ -743,25 +742,9 @@ function RowImpl({
    const starredAuthor = settings.starredPeople.includes(d.user.login);
    // which of your code regions this pull matched (why it floated to the top)
    const regions = matchedRegions(pull, settings.codeRegions);
-   // GitHub explicitly asked you to review this — the strongest "review this"
-   // signal there is. Shown only while it's still your move: not once you've
-   // stamped, and not when it's already your claim (the lit hand says that).
-   const requestedOfMe =
-      (pull.status === 'needs_cr' || pull.status === 'needs_recr') &&
-      reviewRequestedFrom(pull, opts.me) &&
-      !pull.crBy.includes(opts.me) &&
-      claim?.login !== opts.me;
-   // who else GitHub also asked, alongside opts.me — only matters for the
-   // chip's title below, so skip the filter when the chip won't render
-   const otherRequested = requestedOfMe ? requestedReviewers(pull).filter(l => l !== opts.me) : [];
    // only worth asking the whole-board lookup when this row is stacked but
    // rendering flat (its parent isn't visible right above it already)
    const orphanParent = pull.dependent && depth === 0 ? (opts.parentOf?.(pull) ?? null) : null;
-   // the "review requested" chip already states this — strip it from the
-   // context line so one card doesn't carry the same fact as chip AND text
-   const contextText = requestedOfMe
-      ? note.context?.replace(/^requested from you( · )?/, '') || null
-      : note.context;
    return (
       <CardShell
          login={d.user.login}
@@ -786,56 +769,50 @@ function RowImpl({
             )
          }
          meta={
-            // the same untruncated meta in both densities — the shell wraps
-            // instead of clipping, so no chip ever costs the title its text
+            // ONE badge per card: your move (brand pill) when you have one, the
+            // wait-reason (muted pill) when you don't — never both, never a
+            // separate status badge. Everything the old chips said (status,
+            // fresh/updated, "review requested", the context sentence) lives one
+            // hover away in the state popover the badge opens. The goal is a
+            // one-glance "can I act on this?" scan down any column.
             <>
-               {fresh && <FreshTag kind={fresh} />}
-               {/* the status badge always shows the state, and now doubles as
-                   the state popover's trigger; when there's also a viewer
-                   move, the do-pill rides right after it, so "what's
-                   happening" and "what to do" both stay visible at once */}
-               <StatusBadgeTrigger
+               {/* the badge is gone — lists group by rowWord instead — so the
+                   repo#number ref is now the card's one door into the full
+                   state popover: a stable position, always present, unlike a
+                   badge that could be either color or absent. */}
+               <StatePopover
                   pull={pull}
                   me={opts.me}
                   claim={claim}
                   turn={turn}
                   poolSize={poolSize}
+                  title="see the full state"
+               >
+                  <RepoRef repo={d.repo} number={d.number} />
+               </StatePopover>
+               <AgeStamp
+                  ageDays={pull.ageDays}
+                  createdAt={epoch(d.created_at)}
+                  updatedAt={epoch(d.updated_at)}
+                  quiet={['draft', 'dev_block', 'deploy_block'].includes(pull.status)}
+                  warnDays={opts.ageWarnDays}
+                  rotDays={opts.ageRotDays}
+                  inline
                />
-               {note.action && <span className="badge-do">{note.action}</span>}
-               {requestedOfMe && (
-                  <span
-                     title={`GitHub requested your review${
-                        otherRequested.length > 0 ? ` (also ${otherRequested.join(', ')})` : ''
-                     }`}
-                     className="chip-in inline-flex flex-none items-center gap-1 rounded bg-brand px-1.5 py-0.5 text-[11px] leading-none font-medium text-surface"
-                  >
-                     <span aria-hidden>✦</span>
-                     review requested
-                  </span>
-               )}
-               <RepoRef repo={d.repo} number={d.number} />
                {regions.length > 0 && (
+                  // a neutral chip, only the ◆ in brand: region-match is soft
+                  // personalization, not urgency — a filled brand chip diluted
+                  // "blue = your move" (color audit)
                   <span
                      title={`in your code ${regions.length > 1 ? 'regions' : 'region'}: ${regions.join(', ')}`}
-                     className="chip-in inline-flex flex-none items-center gap-1 rounded bg-brand-50 px-1.5 py-0.5 text-[11px] leading-none font-medium text-brand-700"
+                     className="pd-chip-optional chip-in inline-flex flex-none items-center gap-1 rounded border border-line px-1.5 py-0.5 text-[11px] leading-none font-medium text-ink-2"
                   >
-                     <span aria-hidden>◆</span>
+                     <span aria-hidden className="text-brand">
+                        ◆
+                     </span>
                      {regions.slice(0, 2).join(', ')}
                      {regions.length > 2 && ` +${regions.length - 2}`}
                   </span>
-               )}
-               {pull.sizeKnown && (
-                  <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
-               )}
-               {contextText && (
-                  <ContextPopover
-                     pull={pull}
-                     me={opts.me}
-                     text={contextText}
-                     claim={claim}
-                     turn={turn}
-                     poolSize={poolSize}
-                  />
                )}
                <RowDetails
                   flags={rowFlags(

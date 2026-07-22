@@ -3,18 +3,24 @@ import { type DerivedPull, qaDone, type Status, weightRank } from '../model/stat
 import { epoch, pullKey } from '../format';
 import { crSort, starFirst } from '../model/sort';
 import { matchesRegion } from '../model/regions';
-import { groupIntoTree } from '../model/stack';
-import { authorMove, reviewerMove } from '../model/actions';
+import {
+   authorMove,
+   DO_WORD_RANK,
+   reviewerMove,
+   rowNote,
+   rowWord,
+   WAIT_WORD_RANK,
+} from '../model/actions';
 import { reviewRequestedFrom } from '../model/reviewers';
 import { startHereReason } from '../model/cheers';
 import { dealOne } from '../model/deal';
 import { useSettings } from '../settings';
-import { claimReview, isFresh, usePulldasher } from '../store';
+import { claimFor, claimReview, isFresh, usePulldasher } from '../store';
 import type { PullData } from '../types';
 import {
    AgeStamp,
    Avatar,
-   DiffSize,
+   CiStatus,
    EmptyState,
    PullTitleLink,
    QuietButton,
@@ -24,78 +30,86 @@ import {
    STATUS_LABEL,
    WeightMeter,
 } from '../components/bits';
+import { StatePopover } from '../components/StatePopover';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, Truncated } from '../components/Lane';
 import { onOpen, Popover } from '../components/Popover';
 import { RegionHint } from '../components/RegionHint';
-import { markDealtFlash, Row, type RowOptions } from '../components/Row';
+import { markDealtFlash, type RowOptions } from '../components/Row';
+import { eyebrowText, WordGroupRows } from '../components/WordGroups';
 import { ClosedRow } from '../components/ClosedRow';
 
 /**
- * The dealt pull, shown as a real card inside the Deal-me-one popover: avatar
- * and author, the title as a GitHub link, the same weight / size / age / state
- * metrics a row carries, the CR-QA pips, and one line on why this one came up.
- * Claiming it is a commitment (it also adds you as a GitHub reviewer), so it's
- * an explicit button, not a side effect of dealing.
+ * The dealt pull, shown as a real card inside the Deal-me-one popover, in the
+ * board row's exact anatomy: author line with the repo# state-popover door and
+ * age, the title as a GitHub link, then the rail's marks in the rail's order
+ * (CI → CR/QA pips → weight strip). The "why this one" line is a quiet
+ * footnote, not a chip — reasons are context, not state. Claiming it is a
+ * commitment (it also adds you as a GitHub reviewer), so it's an explicit
+ * button, not a side effect of dealing.
  */
 function DealtCard({
    pull,
-   me,
+   opts,
    pulls,
    onClaim,
    onPass,
 }: {
    pull: DerivedPull;
-   me: string;
+   opts: RowOptions;
    pulls: DerivedPull[];
    onClaim: () => void;
    onPass: () => void;
 }) {
    const d = pull.data;
+   const me = opts.me;
    return (
       <div className="flex flex-col gap-2.5 p-3">
          <div className="flex items-center gap-2">
             <Avatar login={d.user.login} size={18} />
             <span className="min-w-0 flex-1 truncate text-xs text-ink-3">{d.user.login}</span>
-            <RepoRef repo={d.repo} number={d.number} />
-         </div>
-         <div className="text-sm leading-snug break-words">
-            <PullTitleLink repo={d.repo} number={d.number} title={d.title} />
-         </div>
-         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-ink-3">
-            <WeightMeter weight={pull.weight} known={pull.sizeKnown} />
-            {pull.sizeKnown && (
-               <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
-            )}
-            <span className="text-ink-2">{STATUS_LABEL[pull.status]}</span>
+            <StatePopover pull={pull} me={me} title="see the full state">
+               <RepoRef repo={d.repo} number={d.number} />
+            </StatePopover>
             <AgeStamp
                ageDays={pull.ageDays}
                createdAt={epoch(d.created_at)}
                updatedAt={epoch(d.updated_at)}
+               warnDays={opts.ageWarnDays}
+               rotDays={opts.ageRotDays}
+               inline
             />
          </div>
-         <div className="flex items-center gap-2.5">
-            <SigPips
-               label="CR"
-               have={pull.crHave}
-               req={d.status.cr_req}
-               by={pull.crBy}
-               staleBy={pull.recrBy}
-               me={me}
-               sigs={d.status.allCR}
-            />
-            <SigPips
-               label="QA"
-               have={pull.qaHave}
-               req={d.status.qa_req}
-               by={pull.qaBy}
-               staleBy={pull.reqaBy}
-               me={me}
-               sigs={d.status.allQA}
-            />
+         <div className="text-sm leading-snug break-words">
+            <PullTitleLink repo={d.repo} number={d.number} title={d.title} />
          </div>
-         <div className="flex items-center gap-1.5 rounded-md bg-brand-50 px-2 py-1 text-[11px] text-brand-700">
-            <span aria-hidden>🎯</span>
-            <span>{startHereReason(pull, pulls, me)}</span>
+         <div className="flex items-center gap-2">
+            <CiStatus pull={pull} />
+            <span className="flex flex-col items-stretch gap-[3px]">
+               <span className="flex items-center gap-2">
+                  <SigPips
+                     label="CR"
+                     have={pull.crHave}
+                     req={d.status.cr_req}
+                     by={pull.crBy}
+                     staleBy={pull.recrBy}
+                     me={me}
+                     sigs={d.status.allCR}
+                  />
+                  <SigPips
+                     label="QA"
+                     have={pull.qaHave}
+                     req={d.status.qa_req}
+                     by={pull.qaBy}
+                     staleBy={pull.reqaBy}
+                     me={me}
+                     sigs={d.status.allQA}
+                  />
+               </span>
+               <WeightMeter weight={pull.weight} known={pull.sizeKnown} wide />
+            </span>
+         </div>
+         <div className="border-t border-secondary pt-2 text-[11px] leading-snug text-ink-3">
+            {startHereReason(pull, pulls, me)}
          </div>
          <div className="mt-0.5 flex items-center gap-2">
             <QuietButton tone="brand" onClick={onClaim}>
@@ -186,7 +200,7 @@ function DealButton({
          )}
       >
          {dealt ? (
-            <DealtCard pull={dealt} me={me} pulls={pulls} onClaim={claim} onPass={pass} />
+            <DealtCard pull={dealt} opts={opts} pulls={pulls} onClaim={claim} onPass={pass} />
          ) : (
             <div className="p-3 text-xs text-ink-3">Nothing left to deal in this queue.</div>
          )}
@@ -255,9 +269,6 @@ export function Review({
          (a, b) =>
             MOVE_RANK.indexOf(a.verb) - MOVE_RANK.indexOf(b.verb) || b.p.ageDays - a.p.ageDays
       );
-   // Row recomputes its own verb via rowNote, so reordering by stack (and
-   // dropping the { p, verb } wrapper) loses nothing the row needs.
-   const todoTree = groupIntoTree(todo.map(({ p }) => p));
 
    // 2. Review queue: best next review first (leverage + age + weight).
    //    Includes pulls waiting on someone else's re-stamp — a fresh CR from
@@ -384,6 +395,52 @@ export function Review({
    // icon buried in a lower lane; it's your commitment, surfaced up top.
    const claimed = crSort(pulls.filter(p => opts.claims?.[pullKey(p.data)]?.login === me));
 
+   // A push answered the feedback, so the ball is back with whoever asked for
+   // changes — their move now is to re-review, not to wait some more.
+   const reReview = others.filter(p => rowNote(p, me).action === 'Re-review');
+
+   // "Your move": every lane above that's owed by you, folded into one flat
+   // list and re-bucketed by rowWord (Requested of you / You're reviewing no
+   // longer stand alone — their members show up here, grouped by verb instead
+   // of by where they came from).
+   const yourMoveKeys = new Set<string>();
+   const yourMove: DerivedPull[] = [];
+   for (const p of [...todo.map(({ p }) => p), ...requestedOfYou, ...claimed, ...reReview]) {
+      const k = pullKey(p.data);
+      if (yourMoveKeys.has(k)) continue;
+      yourMoveKeys.add(k);
+      yourMove.push(p);
+   }
+   const doRankOf = (p: DerivedPull) => {
+      const word = rowWord(p, me, { claim: claimFor(p.data, opts.claims ?? {}) }).word;
+      const idx = DO_WORD_RANK.indexOf(word);
+      return idx === -1 ? Number.POSITIVE_INFINITY : idx;
+   };
+   yourMove.sort((a, b) => doRankOf(a) - doRankOf(b) || b.ageDays - a.ageDays);
+
+   // "Yours, waiting": your stake that's sitting on someone else right now —
+   // your own PRs waiting on a review/QA, plus a stamp you've already given
+   // that isn't fully signed off yet (stamped/qaStamped, formerly their own
+   // rest-group folds — redundant once this lane exists).
+   const yoursWaitingKeys = new Set<string>();
+   const yoursWaiting: DerivedPull[] = [];
+   for (const p of [
+      ...pulls.filter(p => p.data.user.login === me && rowWord(p, me).kind === 'wait'),
+      ...stamped,
+      ...qaStamped,
+   ]) {
+      const k = pullKey(p.data);
+      if (yoursWaitingKeys.has(k)) continue;
+      yoursWaitingKeys.add(k);
+      yoursWaiting.push(p);
+   }
+   const waitRankOf = (p: DerivedPull) => {
+      const word = rowWord(p, me, { claim: claimFor(p.data, opts.claims ?? {}) }).word;
+      const idx = WAIT_WORD_RANK.indexOf(word);
+      return idx === -1 ? Number.POSITIVE_INFINITY : idx;
+   };
+   yoursWaiting.sort((a, b) => waitRankOf(a) - waitRankOf(b) || b.ageDays - a.ageDays);
+
    // In your code regions: reviewable pulls (CR or QA pool) matching a region
    // you set in Settings, deduped across the two pools and pulled out of the
    // queue/QA lanes below into their own section — the most explicit "this is
@@ -402,16 +459,21 @@ export function Review({
    // group's folds become the main event — they should greet you open, not
    // as a wall of closed triangles
    const boardIsQuiet =
-      !todo.length && !changed.length && !queue.length && !aged.length && !needsQa.length;
+      !yourMove.length &&
+      !yoursWaiting.length &&
+      !changed.length &&
+      !queue.length &&
+      !aged.length &&
+      !needsQa.length;
 
    // the rest group itself earns a title only when it has something inside —
-   // an empty "rest of the board" with 11 closed folds under it is still noise
+   // an empty "rest of the board" with 11 closed folds under it is still noise.
+   // stamped/qaStamped moved into "Yours, waiting" above, so they no longer
+   // count here.
    const restTotal =
       queueOther.length +
       needsQaOther.length +
       ready.length +
-      stamped.length +
-      qaStamped.length +
       devBlocked.length +
       deployHeld.length +
       unmergeable.length +
@@ -435,32 +497,37 @@ export function Review({
    return (
       <>
          {codeRegions.length === 0 && <RegionHint />}
-         {todo.length > 0 && (
-            <Lane title="Yours to do" pulls={[]} count={todo.length} opts={opts}>
-               <Truncated cap={laneShown(10, opts)} id="lane:Yours to do">
-                  {todoTree.map(({ pull: p, depth }) => (
-                     <Row key={pullKey(p.data)} pull={p} opts={opts} depth={depth} />
-                  ))}
-               </Truncated>
+         {yourMove.length > 0 && (
+            <Lane
+               title="Your move"
+               sub="owed by you — most urgent first"
+               pulls={[]}
+               count={yourMove.length}
+               opts={opts}
+            >
+               <WordGroupRows
+                  pulls={yourMove}
+                  opts={opts}
+                  id="lane:Your move"
+                  cap={laneShown(12, opts)}
+               />
             </Lane>
          )}
-         {requestedOfYou.length > 0 && (
+         {yoursWaiting.length > 0 && (
             <Lane
-               title="Requested of you"
-               sub="GitHub asked you to review these"
-               pulls={requestedOfYou}
-               cap={8}
+               title="Yours, waiting"
+               sub="your stake — nothing owed by you right now"
+               pulls={[]}
+               count={yoursWaiting.length}
                opts={opts}
-            />
-         )}
-         {claimed.length > 0 && (
-            <Lane
-               title="You're reviewing"
-               sub="you claimed these — finish them or release"
-               pulls={claimed}
-               cap={6}
-               opts={opts}
-            />
+            >
+               <WordGroupRows
+                  pulls={yoursWaiting}
+                  opts={opts}
+                  id="lane:Yours, waiting"
+                  cap={laneShown(8, opts)}
+               />
+            </Lane>
          )}
          <Lane
             title="Changed since your last look"
@@ -478,14 +545,22 @@ export function Review({
                opts={opts}
             />
          )}
+         {/* below here is offered work, not owed work — the board's suggestion
+             for what to pick up next, as distinct from "Your move" above. The
+             label only earns its place when something is actually on offer. */}
+         {(aged.length > 0 || queue.length > 0 || needsQa.length > 0) && (
+            <div className={`mb-2 text-ink-3 ${eyebrowText}`}>Pick up next</div>
+         )}
          <Lane
             title="Aging without full review"
+            sub={`open ${opts.ageWarnDays}+ days without a complete CR — most starved first (age × size)`}
             pulls={aged}
             cap={8}
             opts={{ ...opts, aging: true }}
          />
          <Lane
             title="Review queue"
+            sub="the best next review first — your repos lead, then leverage, age and weight"
             pulls={queue}
             cap={9}
             opts={opts}
@@ -528,24 +603,6 @@ export function Review({
                   id="review:ready"
                >
                   <FoldRows list={ready} opts={opts} id="review:ready" />
-               </Fold>
-               <Fold
-                  dot="var(--ok)"
-                  count={stamped.length}
-                  label="stamped by you"
-                  hint="waiting on another reviewer"
-                  id="review:stamped"
-               >
-                  <FoldRows list={stamped} opts={opts} id="review:stamped" />
-               </Fold>
-               <Fold
-                  dot="var(--ok)"
-                  count={qaStamped.length}
-                  label="QA’d by you"
-                  hint="waiting on another tester"
-                  id="review:qa-stamped"
-               >
-                  <FoldRows list={qaStamped} opts={opts} id="review:qa-stamped" />
                </Fold>
                <Fold
                   dot={STATUS_DOT.dev_block}

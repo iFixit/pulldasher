@@ -51,7 +51,11 @@ export function BoardColumn({
             </button>
          </h2>
          {open && (
-            <div className="overflow-hidden rounded-b-2xl border border-t-0 border-line bg-surface">
+            // min-h keeps the rounded-b corners from collapsing to square when
+            // the body is empty (Classic keeps empty columns visible): a ~1px
+            // box has no room to draw a 16px radius. Any populated column far
+            // exceeds this, so it only shows on the empty case.
+            <div className="min-h-6 overflow-hidden rounded-b-2xl border border-t-0 border-line bg-surface">
                {children}
             </div>
          )}

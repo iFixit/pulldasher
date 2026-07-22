@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useSettings } from '../settings';
-import { FreshTag, WeightMeter } from './bits';
+import { WeightMeter } from './bits';
 import { Popover } from './Popover';
 
 /** a bare CI bar for the legend, without the popover/button chrome the real
@@ -311,31 +311,26 @@ export function Legend() {
             </details>
          </Group>
 
-         <Group title="Badges">
+         <Group title="Groups">
             <Item
-               term={<span className="badge badge-blocked badge-inline">Dev blocked</span>}
-               def="a reviewer requested changes: the author’s move"
+               term={
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-brand-700">
+                     Re-stamp · 3
+                  </span>
+               }
+               def="brand group header: cards under it are your move — the verb to do"
             />
             <Item
-               term={<span className="badge badge-hold badge-inline">Deploy block</span>}
-               def="done, deliberately kept from shipping: ask who blocked it"
-            />
-            <Item
-               term={<span className="badge badge-hold badge-inline">Can’t merge</span>}
-               def="signed off but conflicted or on an unmerged parent: author rebases"
+               term={
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
+                     awaiting CR · 2
+                  </span>
+               }
+               def="gray group header: why those cards wait. Hover a card’s repo #number for the full state — status, names, dates, CI, feedback"
             />
          </Group>
 
          <Group title="Catching up">
-            <Item
-               term={
-                  <>
-                     <FreshTag kind="new" />
-                     <FreshTag kind="updated" />
-                  </>
-               }
-               def="changed since your last visit: “new” is a brand-new PR, “updated” an existing one that changed. Opening one clears it until it changes again"
-            />
             <Item
                term={
                   <svg viewBox="0 0 16 16" aria-hidden className="h-4 w-4 fill-ink-3">

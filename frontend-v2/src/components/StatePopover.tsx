@@ -1,9 +1,10 @@
+import type { ReactNode } from 'react';
 import type { DerivedPull } from '../model/status';
 import type { RowNote } from '../model/actions';
 import { rowNote } from '../model/actions';
 import type { PullData } from '../types';
 import { ago, closedEpoch, epoch, githubUrl, signatureUrl } from '../format';
-import { Avatar, ClosedBadge, STATUS_LABEL, StatusBadge } from './bits';
+import { Avatar, ClosedBadge, STATUS_LABEL } from './bits';
 import { Popover } from './Popover';
 
 interface FeedbackSource {
@@ -246,23 +247,30 @@ const TRIGGER_HINT =
    'pd-raise border-0 bg-transparent p-0 hover:underline hover:decoration-dotted hover:underline-offset-2';
 
 /**
- * Every open row's badge doubles as a hover-pin popover for the pull's full
- * state: the status restated, the sign-off/CI facts the rail only hints at,
- * and (when present) the feedback behind it. One entry point every card
- * gets, badge or no other context text.
+ * The reusable door into the full-state popover: wrap any inline trigger
+ * content (the status badge, a do-pill, the repo#number ref) and it opens the
+ * same hover-pin panel — status restated, the sign-off/CI facts the rail only
+ * hints at, and (when present) the feedback behind it. Extracted so that when
+ * the status badge is suppressed as redundant with its container (see Row.tsx),
+ * the drill-down entry point can move onto whatever the card DOES still show,
+ * instead of vanishing with the badge.
  */
-export function StatusBadgeTrigger({
+export function StatePopover({
    pull,
    me,
    claim,
    turn,
    poolSize,
+   title = 'see the full state',
+   children,
 }: {
    pull: DerivedPull;
    me: string;
    claim?: { login: string; at: number } | null;
    turn?: string | null;
    poolSize?: number;
+   title?: string;
+   children: ReactNode;
 }) {
    return (
       <Popover
@@ -273,58 +281,8 @@ export function StatusBadgeTrigger({
          width="w-max min-w-[240px] max-w-[340px]"
          panelClass="p-2 text-xs"
          trigger={t => (
-            <button {...t} type="button" title="see the full state" className={TRIGGER_HINT}>
-               <StatusBadge status={pull.status} inline />
-            </button>
-         )}
-      >
-         <StatePopoverBody pull={pull} me={me} claim={claim} turn={turn} poolSize={poolSize} />
-      </Popover>
-   );
-}
-
-/**
- * The context line's own door into the same popover: when a pull's context
- * text has feedback behind it (an active dev/deploy block, an unstamped
- * review), the text becomes a second trigger for the same full-state content
- * — instead of a screenful of clicking through to GitHub. Falls back to
- * plain text when there's nothing to show, same as SigPips falls back to
- * plain pips with no signatures.
- */
-export function ContextPopover({
-   pull,
-   me,
-   text,
-   claim,
-   turn,
-   poolSize,
-}: {
-   pull: DerivedPull;
-   me: string;
-   text: string;
-   claim?: { login: string; at: number } | null;
-   turn?: string | null;
-   poolSize?: number;
-}) {
-   const hasFeedback = feedbackSources(pull).length > 0;
-   if (!hasFeedback) return <span className="text-ink-2">{text}</span>;
-
-   return (
-      <Popover
-         label="Pull state"
-         side="right"
-         hover
-         rootClass="relative inline-flex"
-         width="w-max min-w-[240px] max-w-[340px]"
-         panelClass="p-2 text-xs"
-         trigger={t => (
-            <button
-               {...t}
-               type="button"
-               title="see the feedback behind this"
-               className={`text-left text-ink-2 ${TRIGGER_HINT}`}
-            >
-               {text}
+            <button {...t} type="button" title={title} className={TRIGGER_HINT}>
+               {children}
             </button>
          )}
       >
