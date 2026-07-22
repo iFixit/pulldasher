@@ -439,24 +439,8 @@ export function Settings({
                            />
                         </Field>
                         <Field
-                           label="Claim length"
-                           hint="How long your review claims hold before they expire on their own."
-                        >
-                           <Segmented
-                              ariaLabel="claim length"
-                              value={String(s.claimLengthMins)}
-                              options={[
-                                 ['60', '1h'],
-                                 ['120', '2h'],
-                                 ['240', '4h'],
-                                 ['480', '8h'],
-                              ]}
-                              onChange={v => set({ claimLengthMins: Number(v) })}
-                           />
-                        </Field>
-                        <Field
                            label="Nudge me about a claim"
-                           hint="When an unfinished claim of yours starts nagging you to finish it or hand it back."
+                           hint="When an unfinished claim of yours starts nagging you to finish it or hand it back. Claims themselves don't expire on a timer; they clear when the review is submitted, released, or removed on GitHub."
                         >
                            <Segmented
                               ariaLabel="claim warning time"

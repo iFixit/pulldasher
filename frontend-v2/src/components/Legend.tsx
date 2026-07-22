@@ -221,7 +221,7 @@ export function Legend() {
                      ✋
                   </span>
                }
-               def="claim a review so teammates know you’re on it; the hand stays lit on your row, and claimed PRs collect in “You’re reviewing”. It nudges you when it goes stale and clears itself when it expires, both set in Settings (defaults: 2h and 4h)"
+               def="claim a review so teammates know you’re on it; the hand stays lit on your row, and claimed PRs collect in “You’re reviewing”. It nudges you if it sits too long (set in Settings) and clears once you submit, release it, or GitHub removes you as a reviewer"
             />
             <Item
                term={<span className="text-ink-2 italic">X is reading it</span>}
@@ -236,19 +236,21 @@ export function Legend() {
                </summary>
                <div className="space-y-1.5 pt-0.5 pb-1 pl-3 text-ink-2">
                   <p>
-                     Claims live in the server’s memory, never the database. Claiming sends a
-                     message over the live websocket; the server records it and broadcasts the
-                     updated list to everyone on the board, so others see “X is reading it” at once.
+                     Claiming a review adds you as a requested reviewer on the PR, through
+                     pulldasher’s own bot account. It’s the same kind of GitHub review request as
+                     anyone else asking you to review, so everyone sees it: on the board, as your
+                     row’s raised hand, and on the PR itself on GitHub.
                   </p>
                   <p>
-                     Because it’s only in memory, a server restart clears every claim, and nothing
-                     you claim is ever written to disk.
+                     It clears the same way any GitHub review request does: you submit your review,
+                     you release it from Pulldasher, or anyone removes you as a reviewer on GitHub.
+                     There’s no timer counting it down.
                   </p>
                   <p>
-                     Claims expire on their own: a claim goes stale when your warning time passes
-                     (it stops holding others off, and you’re nudged to finish or release it), and
-                     is dropped entirely when its length runs out. Both are set in Settings,
-                     defaulting to 2h and 4h. Releasing clears it for everyone right away.
+                     Because GitHub holds the claim, not the server, it survives a server restart.
+                     The one thing that doesn’t always survive is the “X ago” timestamp: right after
+                     a restart the server hasn’t caught up on exactly when the request was made, so
+                     a claim can briefly show with no age attached.
                   </p>
                </div>
             </details>

@@ -74,11 +74,9 @@ export interface Settings {
     * these floats to the top of the review queue. Arbitrary strings, not a
     * known set — unlike repos/logins. */
    codeRegions: string[];
-   /** how long your review claims last before the server expires them, sent
-    * to the server as the ttlMs on claimReview */
-   claimLengthMins: number;
    /** when an unfinished claim of yours starts nagging you to finish or
-    * release it */
+    * release it. Claims themselves don't expire on a timer — they clear when
+    * the review is submitted, released, or removed on GitHub. */
    claimWarnMins: number;
    /** open a PR in a new tab when you click its card, so the board stays put
     * behind you — this is a hub. Off opens it in the same tab. */
@@ -112,7 +110,6 @@ export const DEFAULT_SETTINGS: Settings = {
    starredPeople: [],
    mutedPeople: [],
    codeRegions: [],
-   claimLengthMins: 240,
    claimWarnMins: 120,
    openPrsNewTab: true,
    hoverDelayMs: 250,

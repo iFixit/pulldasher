@@ -33,6 +33,15 @@ function hasStamp(p: DerivedPull, login: string): boolean {
    return p.crBy.includes(login) || p.qaBy.includes(login);
 }
 
+/** Whether anyone has claimed this pull — a self-requested review, read
+ * straight off the wire (pull.review_requests). Mirrors store.ts's claimFor;
+ * duplicated rather than imported so this stays a pure model function
+ * independent of the (browser-coupled) store module, like every other file
+ * in model/. */
+function isClaimed(p: DerivedPull): boolean {
+   return (p.data.review_requests ?? []).some(r => r.self && r.login !== p.data.user.login);
+}
+
 /**
  * The score a candidate earns, higher is better:
  *  - urgency: a starved pull's starveScore (already age × size weighted), or
@@ -83,17 +92,13 @@ export function dealRank(pool: DerivedPull[], opts: DealRankOptions): DerivedPul
 export function dealFrom(
    ranked: DerivedPull[],
    opts: {
-      // store.ts's claimFor does the same lookup; duplicated rather than
-      // imported so this stays a pure model function independent of the
-      // (browser-coupled) store module, like every other file in model/.
-      claims: Readonly<Record<string, { login: string; at: number }>>;
       /** session-only: keys the viewer has already passed on this sitting. */
       passed: ReadonlySet<string>;
    }
 ): DerivedPull | null {
    for (const p of ranked) {
       const key = pullKey(p.data);
-      if (opts.passed.has(key) || opts.claims[key]) continue;
+      if (opts.passed.has(key) || isClaimed(p)) continue;
       return p;
    }
    return null;

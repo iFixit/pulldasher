@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { DerivedPull } from '../model/status';
-import type { RowNote } from '../model/actions';
+import type { Claim, RowNote } from '../model/actions';
 import { rowNote } from '../model/actions';
 import type { PullData } from '../types';
 import { ago, closedEpoch, epoch, githubUrl, signatureUrl } from '../format';
@@ -93,7 +93,7 @@ function StateSection({
 }: {
    pull: DerivedPull;
    me: string;
-   claim?: { login: string; at: number } | null;
+   claim?: Claim | null;
    turn?: string | null;
 }) {
    const note = rowNote(pull, me, { claim, turn });
@@ -118,7 +118,7 @@ function FactsSection({
    poolSize,
 }: {
    pull: DerivedPull;
-   claim?: { login: string; at: number } | null;
+   claim?: Claim | null;
    turn?: string | null;
    poolSize?: number;
 }) {
@@ -172,8 +172,8 @@ function FactsSection({
              model/actions.ts's withCoordination */}
          {claim ? (
             <p>
-               claimed by <b className="font-medium text-ink">{claim.login}</b> ·{' '}
-               {ago(claim.at / 1000)} ago
+               claimed by <b className="font-medium text-ink">{claim.login}</b>
+               {claim.at != null && <> · {ago(claim.at)} ago</>}
             </p>
          ) : (
             turn && (
@@ -229,7 +229,7 @@ function StatePopoverBody({
 }: {
    pull: DerivedPull;
    me: string;
-   claim?: { login: string; at: number } | null;
+   claim?: Claim | null;
    turn?: string | null;
    poolSize?: number;
    whyHere?: string | null;
@@ -286,7 +286,7 @@ export function StatePopover({
 }: {
    pull: DerivedPull;
    me: string;
-   claim?: { login: string; at: number } | null;
+   claim?: Claim | null;
    turn?: string | null;
    poolSize?: number;
    /** a ranked lane's one-line reason this pull sits where it does */

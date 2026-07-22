@@ -82,6 +82,15 @@ export interface PullData {
     * this" signal — stronger than our heuristic turn rotation, which defers to
     * it. Omitted by servers older than the field, so read as [] when absent. */
    requested_reviewers?: string[];
+   /** the requested_reviewers entries, with per-request metadata: `at` is when
+    * the request was made (epoch seconds, null when the server can't say —
+    * e.g. it restarted before the webhook backfilled it), and `self` is true
+    * when the reviewer requested themselves (a pulldasher claim or a
+    * GitHub-UI self-request) rather than being asked by someone else. A CLAIM
+    * is any entry with self === true. Best-effort and additive: older servers
+    * omit the field entirely, so read as [] when absent — requested_reviewers
+    * stays the authoritative list of who's requested either way. */
+   review_requests?: Array<{ login: string; at: number | null; self: boolean }>;
    // the wire also sends top-level cr_req/qa_req twins, but status.cr_req/
    // qa_req are the ones every consumer reads — typing one copy prevents
    // reading the wrong one

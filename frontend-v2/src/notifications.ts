@@ -125,6 +125,14 @@ export function testNotification() {
 /** At most this many individual alerts per update; a rare bigger burst collapses. */
 const MAX_PER_TICK = 5;
 
+/** Whether anyone has claimed this pull — a self-requested review, read
+ * straight off the wire (pull.review_requests). Mirrors store.ts's claimFor;
+ * duplicated rather than imported so this file stays independent of the
+ * store's socket/browser plumbing. */
+function isClaimed(p: DerivedPull): boolean {
+   return (p.data.review_requests ?? []).some(r => r.self && r.login !== p.data.user.login);
+}
+
 /**
  * Desktop notifications for every real transition that lands on you — your PR
  * going mergeable, breaking CI, getting feedback or needing a rebase, and
@@ -145,7 +153,6 @@ const MAX_PER_TICK = 5;
 export function useNotifications(
    pulls: DerivedPull[],
    me: string,
-   claims: Readonly<Record<string, { login: string; at: number }>> = {},
    /** the board's first payload has arrived. While false the board is still
     * loading (an empty snapshot); recording that as the baseline would make
     * every real pull look "new" and fire a backlog of alerts once data lands. */
@@ -196,7 +203,7 @@ export function useNotifications(
          }
          const key = pullKey(p.data);
          const turn = turnFor(p, pools, pulls);
-         if (turn === me && !claims[key]) current.set(key, TURN_ACTION);
+         if (turn === me && !isClaimed(p)) current.set(key, TURN_ACTION);
       }
 
       // record the baseline but stay silent while unprimed or focused
@@ -218,5 +225,5 @@ export function useNotifications(
       }
       if (fired > 0 && s.notifySound) chime();
       seen.current = current;
-   }, [ready, pulls, me, claims]);
+   }, [ready, pulls, me]);
 }

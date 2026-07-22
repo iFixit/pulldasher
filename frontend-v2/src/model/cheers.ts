@@ -176,7 +176,6 @@ export interface CheerInput {
     * open board. */
    closed?: PullData[];
    me: string;
-   claims: Readonly<Record<string, { login: string; at: number }>>;
    /** current time (ms epoch), for aging claims into a stale-claim nag —
     * injected so the model stays pure and testable; the hook passes Date.now() */
    now?: number;
@@ -242,6 +241,16 @@ function nagStepFor(queue: number): number {
  * small, self-contained pure check like the rest of model/. */
 function hasStamp(p: DerivedPull, login: string): boolean {
    return p.crBy.includes(login) || p.qaBy.includes(login);
+}
+
+/** Whoever's claimed this pull, read straight off the wire
+ * (pull.review_requests) — a self-requested review. Mirrors store.ts's
+ * claimFor; duplicated rather than imported so this stays a pure model
+ * function independent of the (browser-coupled) store module, like every
+ * other file in model/. `at` is epoch seconds, null when the server can't say. */
+function claimOf(p: DerivedPull): { login: string; at: number | null } | null {
+   const entry = (p.data.review_requests ?? []).find(r => r.self && r.login !== p.data.user.login);
+   return entry ? { login: entry.login, at: entry.at } : null;
 }
 
 /**
@@ -343,7 +352,7 @@ export interface Signals {
 }
 
 export function readSignals(input: CheerInput): Signals {
-   const { pulls, me, claims } = input;
+   const { pulls, me } = input;
    const closed = input.closed ?? [];
    const now = input.now ?? Date.now();
    const pools = buildReviewerPools(pulls);
@@ -367,12 +376,10 @@ export function readSignals(input: CheerInput): Signals {
       else if (st === 'restamp') restampKeys.add(key);
       // a starved BOT pull shouldn't tap you with "your turn — you're the best
       // fit"; bots are handled on their own low-priority cadence, not the rotation
-      if (!mine && !isBot(p) && !claims[key] && turnFor(p, pools, pulls) === me) turns.set(key, p);
+      if (!mine && !isBot(p) && !claimOf(p) && turnFor(p, pools, pulls) === me) turns.set(key, p);
    }
 
-   const reviewableUnclaimed = pulls.filter(
-      p => actionState(p, me) === 'review' && !claims[pullKey(p.data)]
-   );
+   const reviewableUnclaimed = pulls.filter(p => actionState(p, me) === 'review' && !claimOf(p));
 
    const quickWinCandidates = crSort(
       reviewableUnclaimed.filter(
@@ -385,7 +392,6 @@ export function readSignals(input: CheerInput): Signals {
    // calls a dependabot bump "the single best pull to review next" — it's only
    // the best when nothing human is left
    const bestStart = dealFrom(dealRank(reviewableUnclaimed, { me, pulls, deprioritize: isBot }), {
-      claims,
       passed: new Set(),
    });
    const startReason = bestStart ? startHereReason(bestStart, pulls, me, true) : '';
@@ -434,29 +440,32 @@ export function readSignals(input: CheerInput): Signals {
    // claims of yours gone stale that you still haven't stamped — the nudge to
    // either finish the review or release it back to the pool. The threshold is
    // the viewer's claim-warn setting (30m–4h), so the copy has to say the real
-   // number, not a hardcoded "a couple hours"
+   // number, not a hardcoded "a couple hours". A claim with no `at` (metadata
+   // not yet backfilled after a server restart) can't be proven stale, so it
+   // never nags — same rule model/actions.ts's withCoordination applies.
    const warnMs = input.claimWarnMs ?? STALE_CLAIM_MS;
    const staleClaimAfter = durationPhrase(warnMs);
    const staleClaims = new Map<string, DerivedPull>();
    for (const p of pulls) {
       const key = pullKey(p.data);
-      const c = claims[key];
-      if (c && c.login === me && !hasStamp(p, me) && now - c.at > warnMs) {
+      const c = claimOf(p);
+      if (c && c.login === me && c.at != null && !hasStamp(p, me) && now - c.at * 1000 > warnMs) {
          staleClaims.set(key, p);
       }
    }
 
-   // GitHub asked you to review these and you haven't stamped or claimed them —
-   // a direct request, distinct from the rotation's guess (which stays silent
-   // on requested pulls). Drives the review-requested toast.
+   // GitHub asked you to review these and you haven't stamped them — a direct
+   // request, distinct from the rotation's guess (which stays silent on
+   // requested pulls). reviewRequestedFrom already excludes a self-claim (see
+   // model/reviewers.ts), so a pull you've claimed yourself never lands here.
+   // Drives the review-requested toast.
    const requestedOfMe = new Map<string, DerivedPull>();
    for (const p of pulls) {
       const key = pullKey(p.data);
       if (
          (p.status === 'needs_cr' || p.status === 'needs_recr') &&
          reviewRequestedFrom(p, me) &&
-         !p.crBy.includes(me) &&
-         claims[key]?.login !== me
+         !p.crBy.includes(me)
       ) {
          requestedOfMe.set(key, p);
       }

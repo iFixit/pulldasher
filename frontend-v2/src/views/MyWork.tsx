@@ -31,8 +31,7 @@ export function MyWork({
    const me = opts.me;
    const mine = pulls.filter(p => p.data.user.login === me);
    const byUrgency = (a: DerivedPull, b: DerivedPull) => b.ageDays - a.ageDays;
-   const kindOf = (p: DerivedPull) =>
-      rowWord(p, me, { claim: claimFor(p.data, opts.claims ?? {}) }).kind;
+   const kindOf = (p: DerivedPull) => rowWord(p, me, { claim: claimFor(p.data) }).kind;
    const move = mine.filter(p => kindOf(p) === 'do').sort(byUrgency);
    const waiting = mine.filter(p => kindOf(p) !== 'do').sort(byUrgency);
    const shipped = closed.filter(p => p.user.login === me);

@@ -191,7 +191,6 @@ interface LiveToast extends Toast {
 export function useToasts(
    pulls: DerivedPull[],
    me: string,
-   claims: Readonly<Record<string, { login: string; at: number }>> = {},
    extras: Toast[] = [],
    closed: PullData[] = [],
    /** clicking the quick-wins toast filters the board to the small ones rather
@@ -334,7 +333,6 @@ export function useToasts(
             pulls,
             closed,
             me,
-            claims,
             now: Date.now(),
             claimWarnMs: getSettings().claimWarnMins * 60_000,
             muted: new Set(getSettings().mutedCheers as ToastKind[]),
@@ -359,7 +357,7 @@ export function useToasts(
          return t;
       });
       if (on) push(bound);
-   }, [ready, pulls, closed, me, claims, push, onQuickWins, onClaimTurn]);
+   }, [ready, pulls, closed, me, push, onQuickWins, onClaimTurn]);
 
    // pre-built one-shot toasts from the caller (e.g. the shipped catch-up),
    // deduped by dedupeKey so the same logical toast never re-fires on a later

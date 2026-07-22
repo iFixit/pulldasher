@@ -8,23 +8,45 @@ import type { DerivedPull } from './status';
  * rotation: turnFor stays silent whenever a pull carries one, and the note /
  * row highlight speak for the request instead.
  *
+ * A claim (store.ts's claimFor) is ALSO a requested_reviewers entry now — the
+ * server adds the claimant as a GitHub reviewer — so requestedReviewers/
+ * reviewRequestedFrom read the `review_requests` metadata to tell the two
+ * apart: an entry with self === true is you (or whoever) asking to review it
+ * yourself, not GitHub asking on the author's behalf, so it's excluded from
+ * "review this" here. hasReviewRequest stays broader on purpose (see below).
+ *
  * Kept viewer-agnostic and side-effect-free like the rest of model/. The
  * "is it mine to review" question is answered at call sites that know `me`.
  */
 
 /** logins GitHub has an open review request from, minus the author (GitHub
- * never requests a review from the PR's own author, but guard anyway). */
-export function requestedReviewers(p: DerivedPull): string[] {
+ * never requests a review from the PR's own author, but guard anyway). Counts
+ * self-requested (claimed) logins too — this is the raw wire list. */
+function allRequestedReviewers(p: DerivedPull): string[] {
    return (p.data.requested_reviewers ?? []).filter(login => login !== p.data.user.login);
 }
 
-/** GitHub has explicitly asked `me` to review this pull. */
+/** logins GitHub has an open review request from on the AUTHOR's behalf — a
+ * real "please review this", excluding anyone whose request is a claim
+ * (review_requests metadata marks it self === true). Metadata is best-effort:
+ * absent (older server) or no matching entry means "can't prove it was a
+ * claim", so the login still counts here. */
+export function requestedReviewers(p: DerivedPull): string[] {
+   const selfLogins = new Set((p.data.review_requests ?? []).filter(r => r.self).map(r => r.login));
+   return allRequestedReviewers(p).filter(login => !selfLogins.has(login));
+}
+
+/** GitHub (the author's side) has explicitly asked `me` to review this pull —
+ * false when the only request for `me` is their own claim. */
 export function reviewRequestedFrom(p: DerivedPull, me: string): boolean {
    return requestedReviewers(p).includes(me);
 }
 
-/** The pull carries any open GitHub review request at all — the signal
- * turnFor checks to know it should defer to GitHub rather than rotate. */
+/** The pull carries any open GitHub review request at all, claims included —
+ * the signal turnFor checks to know it should defer rather than rotate. A
+ * claimed pull already has someone on it, same as an author-requested one, so
+ * this deliberately does NOT exclude self-requests the way requestedReviewers
+ * does. */
 export function hasReviewRequest(p: DerivedPull): boolean {
-   return requestedReviewers(p).length > 0;
+   return allRequestedReviewers(p).length > 0;
 }

@@ -4,9 +4,6 @@ import { isDummy, loadDummy, dummyUser } from './dummy';
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'error';
 
-/** login → { login, at } for the pull that logged the claim; at is ms epoch. */
-export type ReviewClaims = Record<string, { login: string; at: number }>;
-
 export interface Backend {
    /** Resolves once we know who the viewer is (the /token user). */
    whoami: () => Promise<string>;
@@ -14,15 +11,12 @@ export interface Backend {
    onPulls: (handler: (payload: InitializePayload | PullData) => void) => void;
    onConnection: (handler: (state: ConnectionState) => void) => () => void;
    refreshPull: (repo: string, number: number) => void;
-   /** The whole claims map, resent on connect and on every change — the
-    * server owns expiry (4h) and last-writer-wins, so the client never
-    * reconciles a diff, just replaces its copy. */
-   onReviewClaims: (handler: (claims: ReviewClaims) => void) => void;
    /** Ask to review a pull. The server derives the login from the socket's
-    * own auth — no login argument here. ttlMs is how long the claim should
-    * last before the server expires it; the server clamps it to [5min, 24h]
-    * and defaults to 4h if omitted. */
-   claimReview: (repo: string, number: number, ttlMs?: number) => void;
+    * own auth — no login argument here. A claim is a GitHub review request
+    * the reviewer made on themselves (see types.ts's review_requests), so it
+    * has no client-side TTL: it clears when the review is submitted,
+    * released, or removed on GitHub, same as any other review request. */
+   claimReview: (repo: string, number: number) => void;
    releaseReview: (repo: string, number: number) => void;
 }
 
@@ -86,11 +80,8 @@ function liveBackend(): Backend {
       refreshPull(repo, number) {
          getSocket().emit('refresh', repo, number);
       },
-      onReviewClaims(handler) {
-         getSocket().on('reviewClaims', (claims: ReviewClaims) => handler(claims));
-      },
-      claimReview(repo, number, ttlMs) {
-         getSocket().emit('claimReview', repo, number, ttlMs);
+      claimReview(repo, number) {
+         getSocket().emit('claimReview', repo, number);
       },
       releaseReview(repo, number) {
          getSocket().emit('releaseReview', repo, number);
@@ -102,12 +93,18 @@ function dummyBackend(): Backend {
    let emit: ((payload: InitializePayload | PullData) => void) | null = null;
    let loaded: InitializePayload | null = null;
    let staggered = 0;
-   // The dummy stand-in for the server's claims map: mutated locally by
-   // claimReview/releaseReview and re-emitted, same shape a real socket
-   // 'reviewClaims' broadcast would carry.
-   const claims: ReviewClaims = {};
-   let onClaims: ((claims: ReviewClaims) => void) | null = null;
-   const publishClaims = () => onClaims?.({ ...claims });
+
+   /** Mutate one dummy pull in place and re-emit it through the normal
+    * pullChange path — the dummy board's stand-in for a server round trip
+    * (a claim/release now travels as a pull update, not a separate map). */
+   function updatePull(repo: string, number: number, fn: (pull: PullData) => PullData) {
+      if (!loaded) return;
+      const idx = loaded.pulls.findIndex(p => p.repo === repo && p.number === number);
+      if (idx === -1) return;
+      const next = fn(loaded.pulls[idx]);
+      loaded.pulls[idx] = next;
+      emit?.(next);
+   }
 
    return {
       whoami: () => Promise.resolve(dummyUser()),
@@ -130,11 +127,13 @@ function dummyBackend(): Backend {
                      p.status.allCR.filter(s => s.data.active).length < p.status.cr_req
                );
                if (!target) return;
-               claims[`${target.repo}#${target.number}`] = {
-                  login: 'dummy-teammate',
-                  at: Date.now(),
-               };
-               publishClaims();
+               updatePull(target.repo, target.number, pull => ({
+                  ...pull,
+                  review_requests: [
+                     ...(pull.review_requests ?? []),
+                     { login: 'dummy-teammate', at: Math.floor(Date.now() / 1000), self: true },
+                  ],
+               }));
             }, 500);
          });
       },
@@ -157,17 +156,22 @@ function dummyBackend(): Backend {
             300 + staggered * 15
          );
       },
-      onReviewClaims(handler) {
-         onClaims = handler;
-         publishClaims();
-      },
-      claimReview(repo, number, _ttlMs) {
-         claims[`${repo}#${number}`] = { login: dummyUser(), at: Date.now() };
-         publishClaims();
+      claimReview(repo, number) {
+         updatePull(repo, number, pull => ({
+            ...pull,
+            requested_reviewers: [...new Set([...(pull.requested_reviewers ?? []), dummyUser()])],
+            review_requests: [
+               ...(pull.review_requests ?? []).filter(r => r.login !== dummyUser()),
+               { login: dummyUser(), at: Math.floor(Date.now() / 1000), self: true },
+            ],
+         }));
       },
       releaseReview(repo, number) {
-         delete claims[`${repo}#${number}`];
-         publishClaims();
+         updatePull(repo, number, pull => ({
+            ...pull,
+            requested_reviewers: (pull.requested_reviewers ?? []).filter(l => l !== dummyUser()),
+            review_requests: (pull.review_requests ?? []).filter(r => r.login !== dummyUser()),
+         }));
       },
    };
 }

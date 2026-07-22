@@ -20,6 +20,7 @@ function dp(o: {
    additions?: number;
    deletions?: number;
    headPushedAt?: number | null;
+   reviewRequests?: { login: string; at: number | null; self: boolean }[];
 }): DerivedPull {
    return {
       data: {
@@ -30,6 +31,7 @@ function dp(o: {
          updated_at: new Date(Date.now() - 3600_000).toISOString(),
          additions: o.additions ?? 10,
          deletions: o.deletions ?? 0,
+         review_requests: o.reviewRequests,
       },
       crHave: o.crHave ?? 0,
       crBy: o.crBy ?? [],
@@ -44,13 +46,11 @@ function dp(o: {
 }
 
 type TestOpts = DealRankOptions & {
-   claims: Readonly<Record<string, { login: string; at: number }>>;
    passed: ReadonlySet<string>;
 };
 const baseOpts = (over: Partial<TestOpts> = {}): TestOpts => ({
    me: 'me',
    pulls: [] as DerivedPull[],
-   claims: {},
    passed: new Set<string>(),
    ...over,
 });
@@ -64,9 +64,12 @@ describe('deal rank+from — exclusion', () => {
    });
 
    it('excludes a claimed pull', () => {
-      const claimed = dp({ number: 1 });
+      const claimed = dp({
+         number: 1,
+         reviewRequests: [{ login: 'alice', at: Date.now() / 1000, self: true }],
+      });
       const open = dp({ number: 2 });
-      const opts = baseOpts({ claims: { 'org/repo#1': { login: 'alice', at: Date.now() } } });
+      const opts = baseOpts();
       expect(deal([claimed, open], opts)).toBe(open);
    });
 
@@ -78,10 +81,12 @@ describe('deal rank+from — exclusion', () => {
    });
 
    it('returns null when every candidate is claimed or passed', () => {
-      const a = dp({ number: 1 });
+      const a = dp({
+         number: 1,
+         reviewRequests: [{ login: 'alice', at: Date.now() / 1000, self: true }],
+      });
       const b = dp({ number: 2 });
       const opts = baseOpts({
-         claims: { 'org/repo#1': { login: 'alice', at: Date.now() } },
          passed: new Set(['org/repo#2']),
       });
       expect(deal([a, b], opts)).toBeNull();

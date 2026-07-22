@@ -17,15 +17,7 @@ import { useSettings } from '../settings';
 import { claimFor, isFresh } from '../store';
 import type { PullData } from '../types';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
-import {
-   Fold,
-   FoldRows,
-   Lane,
-   laneShown,
-   RestGroup,
-   SubDoor,
-   Truncated,
-} from '../components/Lane';
+import { Fold, FoldRows, Lane, laneShown, RestGroup, SubDoor, Truncated } from '../components/Lane';
 import { RegionHint } from '../components/RegionHint';
 import type { RowOptions } from '../components/Row';
 import { eyebrowText, WordGroupRows } from '../components/WordGroups';
@@ -250,7 +242,7 @@ export function Review({
 
    // PRs you've claimed — the coordination lane so a claim isn't just a hand
    // icon buried in a lower lane; it's your commitment, surfaced up top.
-   const claimed = crSort(pulls.filter(p => opts.claims?.[pullKey(p.data)]?.login === me));
+   const claimed = crSort(pulls.filter(p => claimFor(p.data)?.login === me));
 
    // A push answered the feedback, so the ball is back with whoever asked for
    // changes — their move now is to re-review, not to wait some more.
@@ -269,7 +261,7 @@ export function Review({
       yourMove.push(p);
    }
    const doRankOf = (p: DerivedPull) => {
-      const word = rowWord(p, me, { claim: claimFor(p.data, opts.claims ?? {}) }).word;
+      const word = rowWord(p, me, { claim: claimFor(p.data) }).word;
       const idx = DO_WORD_RANK.indexOf(word);
       return idx === -1 ? Number.POSITIVE_INFINITY : idx;
    };
@@ -292,7 +284,7 @@ export function Review({
       yoursWaiting.push(p);
    }
    const waitRankOf = (p: DerivedPull) => {
-      const word = rowWord(p, me, { claim: claimFor(p.data, opts.claims ?? {}) }).word;
+      const word = rowWord(p, me, { claim: claimFor(p.data) }).word;
       const idx = WAIT_WORD_RANK.indexOf(word);
       return idx === -1 ? Number.POSITIVE_INFINITY : idx;
    };
@@ -461,14 +453,15 @@ export function Review({
                <SubDoor label="How the queue is ranked" text="one queue, best next review first">
                   <p className="font-medium text-ink">One score ranks every card:</p>
                   <p>
-                     PRs that have waited {opts.ageWarnDays ?? 4}+ days for review jump to the
-                     top, oldest and biggest first, even from repos you don’t usually review.
+                     PRs that have waited {opts.ageWarnDays ?? 4}+ days for review jump to the top,
+                     oldest and biggest first, even from repos you don’t usually review.
                   </p>
                   <p>
                      After those: PRs in repos you’ve reviewed before, PRs from people who review
                      your work, and small quick wins, lightest first. PRs from people you starred
                      always come first; bot PRs (dependency bumps) sink to the bottom.
                   </p>
+                  <p>PRs you claim stay in the queue and also appear in Waiting on you.</p>
                </SubDoor>
             }
             pulls={queue}

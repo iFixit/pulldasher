@@ -633,28 +633,40 @@ describe('rowNote — claim/turn coordination (reviewer path only)', () => {
       dp({ author: 'auth', status: 'needs_cr', starved: true, ageDays: 29, ...o });
 
    it('a claim by me: "Finish your review", with when I claimed it', () => {
-      const at = Date.now() - 5 * 60_000; // 5 minutes ago, in ms (the wire unit)
+      const at = Date.now() / 1000 - 5 * 60; // 5 minutes ago, in epoch secs (the wire unit)
       const note = rowNote(p(), 'me', { claim: { login: 'me', at } });
       expect(note.action).toBe('Finish your review');
-      expect(note.context).toBe(`you claimed it · ${ago(at / 1000)} ago`);
+      expect(note.context).toBe(`you claimed it · ${ago(at)} ago`);
+   });
+
+   it('a claim by me with no timestamp: "you claimed it", no age', () => {
+      const note = rowNote(p(), 'me', { claim: { login: 'me', at: null } });
+      expect(note.action).toBe('Finish your review');
+      expect(note.context).toBe('you claimed it');
    });
 
    it('a fresh claim by someone else absolves me: no action, who is reading it', () => {
-      const at = Date.now() - 10 * 60_000; // well under the 2h stale window
+      const at = Date.now() / 1000 - 10 * 60; // well under the 2h stale window
       const note = rowNote(p(), 'me', { claim: { login: 'alice', at } });
       expect(note.action).toBeNull();
       expect(note.context).toBe('alice is reading it');
    });
 
+   it('a claim by someone else with no timestamp: treated as fresh, absolves me', () => {
+      const note = rowNote(p(), 'me', { claim: { login: 'alice', at: null } });
+      expect(note.action).toBeNull();
+      expect(note.context).toBe('alice is reading it');
+   });
+
    it('a stale claim (>2h) stops absolving: "Review it" comes back', () => {
-      const at = Date.now() - 3 * 3600_000; // 3h ago
+      const at = Date.now() / 1000 - 3 * 3600; // 3h ago
       const note = rowNote(p(), 'me', { claim: { login: 'alice', at } });
       expect(note.action).toBe('Review it');
-      expect(note.context).toBe(`alice claimed it ${ago(at / 1000)} ago, pick it up?`);
+      expect(note.context).toBe(`alice claimed it ${ago(at)} ago, pick it up?`);
    });
 
    it('claim beats turn — a claim by someone else wins even when it is also my turn', () => {
-      const at = Date.now() - 10 * 60_000;
+      const at = Date.now() / 1000 - 10 * 60;
       const note = rowNote(p(), 'me', { claim: { login: 'alice', at }, turn: 'me' });
       expect(note.action).toBeNull();
       expect(note.context).toBe('alice is reading it');
@@ -683,14 +695,14 @@ describe('rowNote — claim/turn coordination (reviewer path only)', () => {
    });
 
    it('needs_recr: a claim by me still reads "Finish your review"', () => {
-      const at = Date.now() - 60_000;
+      const at = Date.now() / 1000 - 60;
       const note = rowNote(
          dp({ author: 'auth', status: 'needs_recr', starved: true, recrBy: ['someone-else'] }),
          'me',
          { claim: { login: 'me', at } }
       );
       expect(note.action).toBe('Finish your review');
-      expect(note.context).toBe(`you claimed it · ${ago(at / 1000)} ago`);
+      expect(note.context).toBe(`you claimed it · ${ago(at)} ago`);
    });
 
    it('the author path is unaffected by claim/turn extras', () => {
@@ -798,14 +810,22 @@ describe('rowWord — the one-word section-header key', () => {
       });
 
       it('reviewer sees a fresh claim by someone else → claimed', () => {
-         const at = Date.now();
+         const at = Date.now() / 1000;
          expect(
             word({ author: 'auth', status: 'needs_cr' }, 'me', { claim: { login: 'bob', at } })
          ).toEqual({ kind: 'wait', word: 'claimed' });
       });
 
+      it('a claim with no timestamp reads claimed — can’t prove it’s stale', () => {
+         expect(
+            word({ author: 'auth', status: 'needs_cr' }, 'me', {
+               claim: { login: 'bob', at: null },
+            })
+         ).toEqual({ kind: 'wait', word: 'claimed' });
+      });
+
       it('a stale claim does not read claimed — it falls back to the "Review it" do', () => {
-         const at = Date.now() - 3 * 3600_000; // 3h ago, past STALE_CLAIM_SECS
+         const at = Date.now() / 1000 - 3 * 3600; // 3h ago, past STALE_CLAIM_SECS
          expect(
             word({ author: 'auth', status: 'needs_cr' }, 'me', { claim: { login: 'bob', at } })
          ).toEqual({ kind: 'do', word: 'Review' });

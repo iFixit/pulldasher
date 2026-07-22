@@ -182,11 +182,14 @@ function feedbackAnswered(p: DerivedPull): boolean {
    return at != null && p.headPushedAt != null && p.headPushedAt > at;
 }
 
-/** A reviewer's claim on a pull: who, and when (ms epoch — see
- * backend/socket.ts's ReviewClaims). */
+/** A reviewer's claim on a pull: who, and when (epoch seconds — see
+ * types.ts's review_requests). `at` is null when the server can't say yet
+ * (e.g. it restarted before the webhook backfilled the timestamp); a claim
+ * with no `at` is treated as fresh everywhere below, since there's nothing to
+ * measure staleness against. */
 export interface Claim {
    login: string;
-   at: number;
+   at: number | null;
 }
 
 /** A claim older than this no longer absolves anyone else — the reader may
@@ -200,7 +203,9 @@ const STALE_CLAIM_SECS = 2 * 3600;
  * actively reading it is a stronger signal than the rotation's guess, and a
  * fresh claim by someone else absolves the viewer entirely (action null) —
  * but a claim past STALE_CLAIM_SECS stops absolving, since the reader may
- * have moved on, and the pull's "Review it" action comes back.
+ * have moved on, and the pull's "Review it" action comes back. A claim with
+ * no timestamp can't be proven stale, so it stays fresh (never degrades to
+ * "pick it up?").
  */
 function withCoordination(
    base: RowNote,
@@ -210,14 +215,17 @@ function withCoordination(
    requestedFromMe?: boolean
 ): RowNote {
    if (claim) {
-      const claimAgo = ago(claim.at / 1000);
+      const claimAgo = claim.at != null ? `${ago(claim.at)} ago` : null;
       if (claim.login === me)
-         return { action: 'Finish your review', context: `you claimed it · ${claimAgo} ago` };
-      const staleSecs = Date.now() / 1000 - claim.at / 1000;
+         return {
+            action: 'Finish your review',
+            context: claimAgo ? `you claimed it · ${claimAgo}` : 'you claimed it',
+         };
+      const staleSecs = claim.at != null ? Date.now() / 1000 - claim.at : 0;
       if (staleSecs > STALE_CLAIM_SECS)
          return {
             action: 'Review it',
-            context: `${claim.login} claimed it ${claimAgo} ago, pick it up?`,
+            context: `${claim.login} claimed it ${claimAgo}, pick it up?`,
          };
       return { action: null, context: `${claim.login} is reading it` };
    }
@@ -427,10 +435,12 @@ const DO_WORD: Record<string, string> = {
 
 /** Same freshness rule withCoordination uses for a claim by someone else — but
  * here it decides a single word (claimed vs. still-owed), not the fuller
- * action/context pair, so it's reimplemented rather than shared. */
+ * action/context pair, so it's reimplemented rather than shared. A claim with
+ * no timestamp can't be proven stale, so it reads as fresh. */
 function freshOtherClaim(me: string, claim?: Claim | null): boolean {
    if (!claim || claim.login === me) return false;
-   return Date.now() / 1000 - claim.at / 1000 <= STALE_CLAIM_SECS;
+   if (claim.at == null) return true;
+   return Date.now() / 1000 - claim.at <= STALE_CLAIM_SECS;
 }
 
 /**

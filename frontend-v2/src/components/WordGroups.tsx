@@ -41,7 +41,8 @@ const WORD_GLOSS: Record<string, string> = {
    QA: 'Open PRs you could test.',
    'Finish draft': 'Your draft. Not up for review until you open it.',
    // wait-words: why the pull sits
-   'waiting on re-CR': 'A reviewer approved it, then new commits landed. Waiting on them to approve again.',
+   'waiting on re-CR':
+      'A reviewer approved it, then new commits landed. Waiting on them to approve again.',
    'waiting on CR': 'Waiting for someone to code review it.',
    'with author': 'Changes were requested; the next push is the author’s.',
    'waiting on re-QA': 'Someone tested it, then new commits landed. Waiting on them to test again.',
@@ -133,16 +134,12 @@ export interface WordGroup {
  * urgent DO_WORD_RANK first), then wait-groups (WAIT_WORD_RANK), unknown
  * words last, ties kept in first-seen order (Array#sort is stable).
  */
-export function groupNodesByWord(
-   tree: StackedPull[],
-   me: string,
-   claims: Readonly<Record<string, { login: string; at: number }>>
-): WordGroup[] {
+export function groupNodesByWord(tree: StackedPull[], me: string): WordGroup[] {
    const buckets = new Map<string, WordGroup>();
    let currentKey: string | null = null;
    for (const node of tree) {
       if (node.depth === 0) {
-         const rw = rowWord(node.pull, me, { claim: claimFor(node.pull.data, claims) });
+         const rw = rowWord(node.pull, me, { claim: claimFor(node.pull.data) });
          currentKey = `${rw.kind}:${rw.word}`;
          if (!buckets.has(currentKey)) {
             buckets.set(currentKey, { word: rw.word, kind: rw.kind, nodes: [] });
@@ -182,7 +179,7 @@ export function WordGroupRows({
    cap: number;
 }) {
    const tree = groupIntoTree(pulls);
-   const groups = groupNodesByWord(tree, opts.me, opts.claims ?? {});
+   const groups = groupNodesByWord(tree, opts.me);
    if (!groups.length) return null;
    const children: ReactNode[] = groups.flatMap(g => [
       <WordSubHeader

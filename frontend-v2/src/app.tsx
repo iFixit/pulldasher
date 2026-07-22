@@ -228,10 +228,9 @@ export function App() {
       acked,
       snoozed,
       refreshProgress,
-      claims,
    } = usePulldasher();
    // desktop notifications watch the whole board, not the current filter
-   useNotifications(pulls, me, claims, initialized);
+   useNotifications(pulls, me, initialized);
    const [scope, setScope] = useScope();
    // a v1 bookmark (?repo=…&author=…&cryo=1…) opens Classic configured the
    // same way; the chip below shows what it applied and dismisses it
@@ -681,10 +680,7 @@ export function App() {
    // the age baseline is RELATIVE: the board's longest-open pull sets the
    // full track, everything else is a fraction of it — "how long has this
    // waited, relative to what waiting looks like here"
-   const maxAgeDays = useMemo(
-      () => pulls.reduce((m, p) => Math.max(m, p.ageDays), 1),
-      [pulls]
-   );
+   const maxAgeDays = useMemo(() => pulls.reduce((m, p) => Math.max(m, p.ageDays), 1), [pulls]);
    // stable identity so memo(Row) can skip untouched rows on socket bursts
    const rowOpts: RowOptions = useMemo(
       () => ({
@@ -699,7 +695,6 @@ export function App() {
          compact: settings.density === 'compact',
          laneCap: settings.laneCap,
          parentOf,
-         claims,
          pools,
          turns,
       }),
@@ -715,7 +710,6 @@ export function App() {
          settings.density,
          settings.laneCap,
          parentOf,
-         claims,
          pools,
          turns,
       ]
@@ -823,7 +817,7 @@ export function App() {
       history: toastHistory,
       clearHistory,
       dismissHistoryItem,
-   } = useToasts(pulls, me, claims, shippedExtras, closed, onQuickWins, onClaimTurn, initialized);
+   } = useToasts(pulls, me, shippedExtras, closed, onQuickWins, onClaimTurn, initialized);
 
    return (
       <>

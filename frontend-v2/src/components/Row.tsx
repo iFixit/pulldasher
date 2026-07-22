@@ -1,7 +1,7 @@
 import { memo, useState, type ReactNode } from 'react';
 import type { DerivedPull } from '../model/status';
 import { isIterating, lastPushEpoch } from '../model/status';
-import { rowNote } from '../model/actions';
+import { type Claim, rowNote } from '../model/actions';
 import { matchedRegions } from '../model/regions';
 import type { ParentRef } from '../model/stack';
 import { ago, epoch, pullKey, rowDomId, shortRepo } from '../format';
@@ -64,9 +64,6 @@ export interface RowOptions {
     * lens' scope), so the 'stacked' flag can name it instead of just saying
     * "based on <ref>". */
    parentOf?: (p: DerivedPull) => ParentRef | null;
-   /** pull key → who's claimed to review it (store.ts's Snapshot.claims):
-    * absolves/redirects the row's note ahead of the turn rotation below. */
-   claims?: Readonly<Record<string, { login: string; at: number }>>;
    /** per-repo reviewer pool for the deterministic turn rotation
     * (model/rotation.ts), memoized once in app.tsx over the whole board. */
    pools?: ReadonlyMap<string, string[]>;
@@ -320,7 +317,7 @@ function RowActions({
    pull: DerivedPull;
    overlay?: boolean;
    me: string;
-   claim: { login: string; at: number } | null;
+   claim: Claim | null;
 }) {
    const a = useRowActions(pull);
    const btn =
@@ -433,13 +430,7 @@ function StarGlyph({ on }: { on: boolean }) {
  * person star/mute in Settings' repo manager and the People lens — so on a
  * pointer device the kebab was pure redundancy.
  */
-function RowActionsKebab({
-   pull,
-   claim,
-}: {
-   pull: DerivedPull;
-   claim: { login: string; at: number } | null;
-}) {
+function RowActionsKebab({ pull, claim }: { pull: DerivedPull; claim: Claim | null }) {
    const a = useRowActions(pull);
    const settings = useSettings();
    const { me } = usePulldasher();
@@ -648,7 +639,7 @@ function MetricRail({
 }: {
    pull: DerivedPull;
    opts: RowOptions;
-   claim: { login: string; at: number } | null;
+   claim: Claim | null;
 }) {
    const d = pull.data;
    const me = opts.me;
@@ -711,7 +702,7 @@ function RowImpl({
    // who's claimed to review this pull, and whose turn the rotation names —
    // both optional, so a lens that hasn't threaded them (yet) just sees null
    // and rowNote falls back to its base (pre-coordination) note
-   const claim = claimFor(d, opts.claims ?? {});
+   const claim = claimFor(d);
    const turn = opts.turns?.get(key) ?? null;
    const poolSize = opts.pools?.get(d.repo)?.length ?? 0;
    // the viewer-relative note (model/actions.ts): never both-null for an open
@@ -822,7 +813,11 @@ function RowImpl({
 /**
  * Rows re-render only when their pull is re-derived (the store caches
  * derive() per PullData reference) or an option actually changes — a burst
- * of pullChange events must not reconcile 180 untouched rows.
+ * of pullChange events must not reconcile 180 untouched rows. There's no
+ * separate opts.claims to check any more: a claim lives on the pull itself
+ * (review_requests), so claiming/releasing arrives as a new pull reference
+ * (a.pull !== b.pull) and the row re-renders through that, same as any other
+ * pull update.
  */
 export const Row = memo(
    RowImpl,
@@ -839,7 +834,6 @@ export const Row = memo(
       a.opts.ageRotDays === b.opts.ageRotDays &&
       a.opts.onWeightToggle === b.opts.onWeightToggle &&
       a.opts.parentOf === b.opts.parentOf &&
-      a.opts.claims === b.opts.claims &&
       a.opts.pools === b.opts.pools &&
       a.opts.turns === b.opts.turns
 );
