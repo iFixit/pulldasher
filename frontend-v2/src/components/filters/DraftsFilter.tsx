@@ -1,5 +1,6 @@
 import { ChevronDown, Pencil } from 'lucide-react';
-import { Segmented } from '../bits';
+import { setSettings } from '../../settings';
+import { QuietButton, Segmented } from '../bits';
 import { Icon } from '../Icon';
 import { Popover } from '../Popover';
 
@@ -60,6 +61,13 @@ export function DraftsFilter({
                   onChange={setDraftsMode}
                />
             </div>
+            {draftsMode !== defaultMode && (
+               <div className="mt-2">
+                  <QuietButton size="sm" onClick={() => setSettings({ draftsMode })}>
+                     Make this my default
+                  </QuietButton>
+               </div>
+            )}
             <p className="mt-2 text-[11px] text-ink-3">
                Your own drafts always show. “All” adds everyone else’s.
             </p>

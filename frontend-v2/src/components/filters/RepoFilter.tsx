@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ChevronDown, Tag } from 'lucide-react';
 import { CRYO_KEY, repoState } from '../../model/visibility';
 import { shortRepo } from '../../format';
-import { setRepoPref, togglePrimaryRepo, useSettings } from '../../settings';
+import { setRepoPref, setSettings, togglePrimaryRepo, useSettings } from '../../settings';
 import { QuietButton, StarMark } from '../bits';
 import { Icon } from '../Icon';
 import { Popover } from '../Popover';
@@ -215,24 +215,38 @@ export function RepoFilter({
                <div className="px-1.5 py-2 text-xs text-ink-3">No repos match.</div>
             )}
 
-            {cryoCount > 0 && (
-               <div className="mt-2 border-t border-secondary pt-2">
-                  <div className="mb-1.5 text-[11px] font-semibold tracking-wide text-ink-3 uppercase">
-                     This session
-                  </div>
-                  <label className="flex items-center gap-2 px-1.5 text-[13px]">
-                     <input
-                        type="checkbox"
-                        className="m-0 disabled:opacity-40"
-                        checked={settings.showCryo || reveal.includes(CRYO_KEY) || showAll}
-                        disabled={settings.showCryo || showAll}
-                        onChange={() => toggleReveal(CRYO_KEY)}
-                     />
-                     <span className="flex-1">Show parked (Cryogenic) PRs</span>
-                     <span className="text-[11px] text-ink-3 tabular-nums">{cryoCount}</span>
-                  </label>
-               </div>
-            )}
+            {cryoCount > 0 &&
+               (() => {
+                  const cryoSessionOn = settings.showCryo || reveal.includes(CRYO_KEY) || showAll;
+                  return (
+                     <div className="mt-2 border-t border-secondary pt-2">
+                        <div className="mb-1.5 text-[11px] font-semibold tracking-wide text-ink-3 uppercase">
+                           This session
+                        </div>
+                        <label className="flex items-center gap-2 px-1.5 text-[13px]">
+                           <input
+                              type="checkbox"
+                              className="m-0 disabled:opacity-40"
+                              checked={cryoSessionOn}
+                              disabled={settings.showCryo || showAll}
+                              onChange={() => toggleReveal(CRYO_KEY)}
+                           />
+                           <span className="flex-1">Show parked (Cryogenic) PRs</span>
+                           <span className="text-[11px] text-ink-3 tabular-nums">{cryoCount}</span>
+                        </label>
+                        {cryoSessionOn !== settings.showCryo && (
+                           <div className="mt-1.5 px-1.5">
+                              <QuietButton
+                                 size="sm"
+                                 onClick={() => setSettings({ showCryo: cryoSessionOn })}
+                              >
+                                 Make this my default
+                              </QuietButton>
+                           </div>
+                        )}
+                     </div>
+                  );
+               })()}
          </Popover>
       </div>
    );

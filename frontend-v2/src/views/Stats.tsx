@@ -104,6 +104,9 @@ export function Stats({
    const giveTake = useMemo(() => reciprocity(pulls, closed), [pulls, closed]);
    const starved = useMemo(() => crStarvation(pulls), [pulls]);
    const settings = useSettings();
+   // the heaviest text tier follows the warn threshold automatically, same
+   // derivation as app.tsx's rowOpts — see ageWarnDays in settings.ts
+   const ageRotDays = Math.round(settings.ageWarnDays * 2.5);
    // trends — server-side history the live socket payload doesn't carry (it
    // only ships open pulls + 14 days of closed ones); null while loading or on
    // any fetch failure, which hides the whole band below.
@@ -136,11 +139,7 @@ export function Stats({
          <Group title="The board right now">
             <DebtCard debt={debt} />
             <FrictionCard friction={stuck} />
-            <AgeMixCard
-               buckets={ages}
-               warnDays={settings.ageWarnDays}
-               rotDays={settings.ageRotDays}
-            />
+            <AgeMixCard buckets={ages} warnDays={settings.ageWarnDays} rotDays={ageRotDays} />
             <EffortMixCard mix={effort} />
             <AuthorLoadCard rows={authors} me={me} onPerson={onPerson} />
             <RepoLoadCard rows={repos} />
@@ -155,7 +154,7 @@ export function Stats({
                me={me}
                onPerson={onPerson}
                warnDays={settings.ageWarnDays}
-               rotDays={settings.ageRotDays}
+               rotDays={ageRotDays}
             />
             <ReciprocityCard rows={giveTake} me={me} onPerson={onPerson} />
             <Leaderboard

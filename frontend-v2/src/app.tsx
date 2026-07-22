@@ -683,7 +683,10 @@ export function App() {
    // full track, everything else is a fraction of it — "how long has this
    // waited, relative to what waiting looks like here"
    const maxAgeDays = useMemo(() => pulls.reduce((m, p) => Math.max(m, p.ageDays), 1), [pulls]);
-   // stable identity so memo(Row) can skip untouched rows on socket bursts
+   // stable identity so memo(Row) can skip untouched rows on socket bursts.
+   // laneCap resolves per-lens (falling back to the global default) — safe to
+   // read the current `lens` here because only one lens's view ever mounts at
+   // a time, so rowOpts never has to carry more than one lens' cap at once.
    const rowOpts: RowOptions = useMemo(
       () => ({
          me,
@@ -693,9 +696,9 @@ export function App() {
          onWeightToggle,
          maxAgeDays,
          ageWarnDays: settings.ageWarnDays,
-         ageRotDays: settings.ageRotDays,
+         ageRotDays: Math.round(settings.ageWarnDays * 2.5),
          compact: settings.density === 'compact',
-         laneCap: settings.laneCap,
+         laneCap: settings.laneCapByLens[lens] ?? settings.laneCap,
          parentOf,
          pools,
          turns,
@@ -708,9 +711,10 @@ export function App() {
          onWeightToggle,
          maxAgeDays,
          settings.ageWarnDays,
-         settings.ageRotDays,
          settings.density,
          settings.laneCap,
+         settings.laneCapByLens,
+         lens,
          parentOf,
          pools,
          turns,

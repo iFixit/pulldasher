@@ -1,4 +1,4 @@
-import { ROT_DAYS, STARVE_DAYS } from './model/status';
+import { STARVE_DAYS } from './model/status';
 import { createPersistentStore } from './storage';
 
 /**
@@ -14,10 +14,11 @@ export interface Settings {
    density: 'comfortable' | 'compact';
    /** which lens a bare / URL opens */
    defaultLens: string;
-   /** a PR's age turns amber at this many days (display only) */
+   /** a PR's age turns amber at this many days (display only). The heaviest
+    * text tier (red) follows automatically at ageWarnDays * 2.5 — callers
+    * derive that rotDays for AgeStamp/AgeBaseline (app.tsx, views/Stats.tsx)
+    * instead of storing it separately. */
    ageWarnDays: number;
-   /** and red at this many (display only) */
-   ageRotDays: number;
    /** seconds of attention before leaving stamps "last seen" (the glance guard) */
    seenAfterSecs: number;
    /** per-repo override of the org baseline: 'mute' hides a shown repo,
@@ -46,8 +47,14 @@ export interface Settings {
     * mute-list, not an allow-list, so a newly added kind defaults to on. Only
     * bites when `cheers` is on — the master switch still gates the whole lot. */
    mutedCheers: string[];
-   /** rows a lane shows before folding into "+N more"; 0 = no cap (show all) */
+   /** rows a lane shows before folding into "+N more"; 0 = no cap (show all).
+    * The global default; a lens absent from laneCapByLens uses this. */
    laneCap: number;
+   /** per-lens override of laneCap, keyed by the lens id (app.tsx's Lens
+    * type minus 'stats', which has no lanes). An absent key means "use the
+    * global laneCap" — old saved settings simply lack this field, so they
+    * fall back to the object default below. */
+   laneCapByLens: Record<string, number>;
    /** teams that self-review (iFixit) don't gate on CR, so lining up QA is the
     * real stall: surface "Find a QA-er" on your own PR as a home to-do, not a
     * My-work afterthought. Off leaves getting QA in My work only. */
@@ -92,7 +99,6 @@ export const DEFAULT_SETTINGS: Settings = {
    density: 'comfortable',
    defaultLens: 'review',
    ageWarnDays: STARVE_DAYS,
-   ageRotDays: ROT_DAYS,
    seenAfterSecs: 45,
    repoPrefs: {},
    draftsMode: 'mine',
@@ -104,6 +110,7 @@ export const DEFAULT_SETTINGS: Settings = {
    notifyBadge: 'count',
    mutedCheers: [],
    laneCap: 10,
+   laneCapByLens: {},
    selfReview: true,
    primaryRepos: [],
    myTeam: [],
@@ -132,6 +139,14 @@ export function setRepoPref(repo: string, pref: 'mute' | 'show' | null) {
    if (pref == null) delete next[repo];
    else next[repo] = pref;
    setSettings({ repoPrefs: next });
+}
+
+/** Set or clear one lens's lane-length override. null follows the global laneCap. */
+export function setLaneCapForLens(lens: string, cap: number | null) {
+   const next = { ...store.get().laneCapByLens };
+   if (cap == null) delete next[lens];
+   else next[lens] = cap;
+   setSettings({ laneCapByLens: next });
 }
 
 /** Add or remove a repo from your primary (actively-reviewed) set. */

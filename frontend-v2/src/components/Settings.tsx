@@ -14,6 +14,7 @@ import { clearSnoozes, markAllSeen, refreshAll, usePulldasher } from '../store';
 import {
    addCodeRegion,
    removeCodeRegion,
+   setLaneCapForLens,
    type Settings as SettingsShape,
    setRepoPref,
    setSettings,
@@ -35,6 +36,43 @@ const LENS_OPTIONS: [string, string][] = [
    ['ci', 'CI'],
    ['stats', 'Stats'],
 ];
+
+// Stats has no lanes, so it's left out of the per-lens lane-length list
+// (unlike LENS_OPTIONS above, which covers every tab including Stats).
+const LANE_CAP_LENS_OPTIONS: [string, string][] = [
+   ['review', 'Review'],
+   ['mine', 'My work'],
+   ['team', 'Team'],
+   ['people', 'People'],
+   ['classic', 'Classic'],
+   ['ci', 'CI'],
+];
+
+const LANE_CAP_OPTIONS: [string, string][] = [
+   ['default', 'Default'],
+   ['10', '10'],
+   ['25', '25'],
+   ['50', '50'],
+   ['0', 'No cap'],
+];
+
+/** One lens' lane-length override row, inside the "Different length per view"
+ * disclosure. "Default" clears the override so the lens falls back to the
+ * global Lane length above. */
+function LaneCapByLensRow({ lensId, label }: { lensId: string; label: string }) {
+   const cap = useSettings().laneCapByLens[lensId];
+   return (
+      <div className="flex items-center justify-between gap-2">
+         <span className="text-[13px] text-ink-2">{label}</span>
+         <Segmented
+            ariaLabel={`lane length for ${label}`}
+            value={cap == null ? 'default' : String(cap)}
+            options={LANE_CAP_OPTIONS}
+            onChange={v => setLaneCapForLens(lensId, v === 'default' ? null : Number(v))}
+         />
+      </div>
+   );
+}
 
 /** A labelled group of controls inside the panel. */
 function Group({ title, children }: { title: string; children: ReactNode }) {
@@ -404,28 +442,26 @@ export function Settings({
                               onChange={v => set({ laneCap: Number(v) })}
                            />
                         </Field>
+                        <Explainer summary="Different length per view">
+                           <span className="block text-ink-2">
+                              Classic can show everything while Review stays short.
+                           </span>
+                           <div className="flex flex-col gap-2 pt-1">
+                              {LANE_CAP_LENS_OPTIONS.map(([id, label]) => (
+                                 <LaneCapByLensRow key={id} lensId={id} label={label} />
+                              ))}
+                           </div>
+                        </Explainer>
                         <Field
                            label="Age line appears"
-                           hint="When the age line appears and waiting starts counting against a pull. This floats it up the review queue, not just draws the line."
+                           hint="When the age line appears and waiting starts counting against a pull. This floats it up the review queue, not just draws the line. The heaviest text tier follows automatically, at about 2.5x this."
                         >
                            <NumberField
                               value={s.ageWarnDays}
                               min={1}
-                              max={s.ageRotDays - 1}
+                              max={48}
                               suffix="days"
                               onChange={ageWarnDays => set({ ageWarnDays })}
-                           />
-                        </Field>
-                        <Field
-                           label="Age counts as rotting"
-                           hint="Bolds the day count at its heaviest and sets the rot tier in stats. The age line itself scales to the board's oldest pull."
-                        >
-                           <NumberField
-                              value={s.ageRotDays}
-                              min={s.ageWarnDays + 1}
-                              max={120}
-                              suffix="days"
-                              onChange={ageRotDays => set({ ageRotDays })}
                            />
                         </Field>
                         <Field
@@ -442,31 +478,6 @@ export function Settings({
                                  ['240', '4h'],
                               ]}
                               onChange={v => set({ claimWarnMins: Number(v) })}
-                           />
-                        </Field>
-                        <Field
-                           label="Other people’s drafts"
-                           hint="Your own drafts always show. This is the default; a session can override it."
-                        >
-                           <Segmented
-                              ariaLabel="drafts default"
-                              value={s.draftsMode}
-                              options={[
-                                 ['mine', 'Hide'],
-                                 ['all', 'Show'],
-                              ]}
-                              onChange={draftsMode => set({ draftsMode })}
-                           />
-                        </Field>
-                        <Field label="Parked (Cryogenic) PRs">
-                           <Segmented
-                              ariaLabel="cryo default"
-                              value={s.showCryo ? 'show' : 'hide'}
-                              options={[
-                                 ['hide', 'Hide'],
-                                 ['show', 'Show'],
-                              ]}
-                              onChange={v => set({ showCryo: v === 'show' })}
                            />
                         </Field>
                         <Field
@@ -695,33 +706,39 @@ export function Settings({
                      </Group>
 
                      <Group title="Changed since your last look">
-                        <Field
-                           label="Mark the board seen after"
-                           hint="How long it must stay open, in view, before leaving counts as a look. A quick glance won’t clear the new-and-updated marks."
-                        >
-                           <NumberField
-                              value={s.seenAfterSecs}
-                              min={0}
-                              max={600}
-                              suffix="sec"
-                              onChange={seenAfterSecs => set({ seenAfterSecs })}
-                           />
-                        </Field>
-                        <div className="flex items-center gap-3">
-                           <QuietButton
-                              size="md"
-                              onClick={() => {
-                                 markAllSeen();
-                                 setSeenNote(true);
-                                 setTimeout(() => setSeenNote(false), 1600);
-                              }}
+                        <Explainer summary="Advanced">
+                           <Field
+                              label="Mark the board seen after"
+                              hint="How long it must stay open, in view, before leaving counts as a look. A quick glance won’t clear the new-and-updated marks."
                            >
-                              Mark everything as seen
-                           </QuietButton>
-                           <span role="status" className="text-xs" style={{ color: 'var(--ok)' }}>
-                              {seenNote ? 'done' : ''}
-                           </span>
-                        </div>
+                              <NumberField
+                                 value={s.seenAfterSecs}
+                                 min={0}
+                                 max={600}
+                                 suffix="sec"
+                                 onChange={seenAfterSecs => set({ seenAfterSecs })}
+                              />
+                           </Field>
+                           <div className="flex items-center gap-3 pt-1">
+                              <QuietButton
+                                 size="md"
+                                 onClick={() => {
+                                    markAllSeen();
+                                    setSeenNote(true);
+                                    setTimeout(() => setSeenNote(false), 1600);
+                                 }}
+                              >
+                                 Mark everything as seen
+                              </QuietButton>
+                              <span
+                                 role="status"
+                                 className="text-xs"
+                                 style={{ color: 'var(--ok)' }}
+                              >
+                                 {seenNote ? 'done' : ''}
+                              </span>
+                           </div>
+                        </Explainer>
                      </Group>
                   </div>
                </div>,
