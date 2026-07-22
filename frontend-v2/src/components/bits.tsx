@@ -365,9 +365,9 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
                <span aria-hidden className="w-[18px] text-left text-[11px] font-medium text-ink-3">
                   CI
                </span>
-               {/* one circle, no glyphs (styles.css .ci-ring/.ci-disc): a
-                   solid red disc = failing (the fraction lives in the
-                   popover; a 1-of-25 failure must read as loudly as
+               {/* one circle, no glyphs (styles.css .ci-ring/.ci-fail): a
+                   red ring with a center dot = failing (the fraction lives
+                   in the popover; a 1-of-25 failure must read as loudly as
                    25-of-25), the slate ring sweeping closed = running (the
                    sweep is the completed share, v1's grey section reborn),
                    and a closed green ring revealed on row hover = passed
@@ -375,7 +375,7 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
                    hovering isn't a change). Check glyphs stay reserved for
                    human stamps. */}
                {failing > 0 ? (
-                  <span aria-hidden className="ci-disc" />
+                  <span aria-hidden className="ci-fail" />
                ) : pending ? (
                   <span
                      aria-hidden

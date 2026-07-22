@@ -235,11 +235,16 @@ label:has(> input:not(:disabled)) {
                                        live run reads as alive; the sweep
                                        GLIDES when the share changes (the
                                        registered --sweep property below)
-       failing  .ci-disc               the same circle as a solid red disc —
-                                       the run closed on a failure. Lands
-                                       once with a small settle, then holds
-                                       still: an alarm that keeps moving is
-                                       a nag, not a mark
+       failing  .ci-fail               the ring with a red dot at its
+                                       center — hollow like the rest of the
+                                       machine family (the solid disc was
+                                       tried and read as a blob), the dot
+                                       the smallest mass that still says
+                                       alarm, and a FORM apart from the
+                                       green passed ring, not just a hue.
+                                       Lands once with a small settle, then
+                                       holds still: an alarm that keeps
+                                       moving is a nag, not a mark
        passed   .ci-ring.ci-ring-pass  a closed green ring, revealed on row
                                        hover / focus — invisible at rest (no
                                        news is good news). It does NOT draw
@@ -263,11 +268,12 @@ label:has(> input:not(:disabled)) {
     --ci-track: transparent;
     --sweep: 360deg;
   }
-  .ci-disc {
+  .ci-fail {
     width: 14px;
     height: 14px;
     flex: none;
-    border-radius: 9999px;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.6' fill='none' stroke='white' stroke-width='2'/%3E%3Ccircle cx='8' cy='8' r='2.6' fill='white'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.6' fill='none' stroke='white' stroke-width='2'/%3E%3Ccircle cx='8' cy='8' r='2.6' fill='white'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
     background: var(--bad);
     animation: ci-land 320ms var(--ease-quint);
   }
@@ -291,7 +297,7 @@ label:has(> input:not(:disabled)) {
       transition: none;
     }
     .ci-ring-run,
-    .ci-disc {
+    .ci-fail {
       animation: none;
     }
   }
