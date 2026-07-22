@@ -1,7 +1,8 @@
 import type { DerivedPull } from '../model/status';
-import { authorMove } from '../model/actions';
+import { rowWord } from '../model/actions';
 import type { PullData } from '../types';
 import { pullKey } from '../format';
+import { claimFor } from '../store';
 import { EmptyState } from '../components/bits';
 import { Fold, Lane, laneShown, RestGroup, Truncated } from '../components/Lane';
 import type { RowOptions } from '../components/Row';
@@ -11,8 +12,11 @@ import { ClosedRow } from '../components/ClosedRow';
 /**
  * The author's tab: only PRs you own, split by whose move it is. The old
  * "Your PRs" lane mixed both answers; here "do this next" and "nudge this
- * person" never share a section. Each row's action/wait line comes from the
- * shared rowNote (model/actions.ts), the same one every other lens renders.
+ * person" never share a section. The split runs on the SAME rowWord the
+ * word-group sub-headers render — lane and header can't disagree (splitting
+ * on authorMove once put a brand "Chase CR" header inside "Waiting on
+ * others", because the two models diverge on edge cases like external
+ * blocks).
  */
 
 export function MyWork({
@@ -27,8 +31,10 @@ export function MyWork({
    const me = opts.me;
    const mine = pulls.filter(p => p.data.user.login === me);
    const byUrgency = (a: DerivedPull, b: DerivedPull) => b.ageDays - a.ageDays;
-   const move = mine.filter(p => authorMove(p) !== null).sort(byUrgency);
-   const waiting = mine.filter(p => authorMove(p) === null).sort(byUrgency);
+   const kindOf = (p: DerivedPull) =>
+      rowWord(p, me, { claim: claimFor(p.data, opts.claims ?? {}) }).kind;
+   const move = mine.filter(p => kindOf(p) === 'do').sort(byUrgency);
+   const waiting = mine.filter(p => kindOf(p) !== 'do').sort(byUrgency);
    const shipped = closed.filter(p => p.user.login === me);
 
    if (!mine.length && !shipped.length) {
