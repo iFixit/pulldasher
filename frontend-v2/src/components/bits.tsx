@@ -370,8 +370,10 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
                    popover; a 1-of-25 failure must read as loudly as
                    25-of-25), the slate ring sweeping closed = running (the
                    sweep is the completed share, v1's grey section reborn),
-                   and a green ring drawing itself shut on row hover =
-                   passed. Check glyphs stay reserved for human stamps. */}
+                   and a closed green ring revealed on row hover = passed
+                   (no draw-on-reveal: animation means a state CHANGED, and
+                   hovering isn't a change). Check glyphs stay reserved for
+                   human stamps. */}
                {failing > 0 ? (
                   <span aria-hidden className="ci-disc" />
                ) : pending ? (

@@ -240,10 +240,12 @@ label:has(> input:not(:disabled)) {
                                        once with a small settle, then holds
                                        still: an alarm that keeps moving is
                                        a nag, not a mark
-       passed   .ci-ring.ci-ring-pass  a green ring that draws itself closed
-                                       on row hover / focus — invisible at
-                                       rest (no news is good news), and the
-                                       reveal is the animation */
+       passed   .ci-ring.ci-ring-pass  a closed green ring, revealed on row
+                                       hover / focus — invisible at rest (no
+                                       news is good news). It does NOT draw
+                                       itself on reveal: animation here means
+                                       "something changed", and hovering
+                                       isn't a change */
   .ci-ring {
     width: 14px;
     height: 14px;
@@ -259,11 +261,6 @@ label:has(> input:not(:disabled)) {
   .ci-ring-pass {
     --ci-ink: var(--ok);
     --ci-track: transparent;
-    --sweep: 0deg;
-  }
-  .pd-row:hover .ci-ring-pass,
-  .pd-ci-slot:hover .ci-ring-pass,
-  .pd-ci-slot:focus-visible .ci-ring-pass {
     --sweep: 360deg;
   }
   .ci-disc {
@@ -296,10 +293,6 @@ label:has(> input:not(:disabled)) {
     .ci-ring-run,
     .ci-disc {
       animation: none;
-    }
-    /* no draw-on-hover either: the pass ring simply appears closed */
-    .ci-ring-pass {
-      --sweep: 360deg;
     }
   }
 
