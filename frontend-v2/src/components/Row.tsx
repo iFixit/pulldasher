@@ -24,7 +24,7 @@ import {
 } from '../store';
 import {
    AgeStamp,
-   AgeStrip,
+   AgeBaseline,
    CiStatus,
    DiffSize,
    RepoRef,
@@ -124,7 +124,7 @@ interface Flag {
 
 /**
  * The row's secondary annotations, gathered in one place: conflicts, stacked,
- * holds, in-flight CI, iterating. (Age lives in the rail's AgeStrip, not a
+ * holds, in-flight CI, iterating. (Age lives on the row's baseline, not a
  * flag — one mark per fact.) They're not the status (the badge is)
  * and not your action (the note is), so they read as quiet colored labels,
  * not badges — amber only for the ones you act on, muted gray for plain facts.
@@ -665,25 +665,14 @@ function MetricRail({
       >
          <RowActions pull={pull} overlay={!!opts.compact} me={me} claim={claim} />
          <RowActionsKebab pull={pull} claim={claim} />
-         {/* the rail's left deck: CI on top, the age strip under it — the
-             same two-deck geometry as the sign-off column beside it. The
-             strip stays invisible until the pull crosses the aging
-             threshold, so a healthy young row shows nothing here. */}
-         <span className="flex flex-col items-center gap-[3px]">
-            <CiStatus pull={pull} />
-            <AgeStrip
-               ageDays={pull.ageDays}
-               warnDays={opts.ageWarnDays}
-               rotDays={opts.ageRotDays}
-               quiet={['draft', 'dev_block', 'deploy_block'].includes(pull.status)}
-            />
-         </span>
-         {/* weight rides UNDER the whole sign-off section (CR + QA) as a
-             ratio strip — it's "how heavy is this review", both halves, not
-             its own rail slot. The shared extent normalizes the track length
-             and gives the doubling fill real resolution. */}
+         {/* one instrument: the three reviewers' marks in a row — machine
+             first, then the humans — with the weight strip underneath. CI is
+             invisible at rest unless failing (revealed on row hover), in a
+             reserved slot so nothing shifts. Age lives on the row's
+             baseline, not in the rail. */}
          <span className="flex flex-col items-stretch gap-[3px]">
             <span className="flex items-center gap-2">
+               <CiStatus pull={pull} />
                <SigPips
                   label="CR"
                   have={pull.crHave}
@@ -791,15 +780,6 @@ function RowImpl({
                >
                   <RepoRef repo={d.repo} number={d.number} />
                </StatePopover>
-               <AgeStamp
-                  ageDays={pull.ageDays}
-                  createdAt={epoch(d.created_at)}
-                  updatedAt={epoch(d.updated_at)}
-                  quiet={['draft', 'dev_block', 'deploy_block'].includes(pull.status)}
-                  warnDays={opts.ageWarnDays}
-                  rotDays={opts.ageRotDays}
-                  inline
-               />
                {regions.length > 0 && (
                   // a neutral chip, only the ◆ in brand: region-match is soft
                   // personalization, not urgency — a filled brand chip diluted
@@ -818,9 +798,30 @@ function RowImpl({
                <RowDetails
                   flags={rowFlags(pull, showIterating, depth, orphanParent)}
                />
+               {/* the age numeral floats right, capping the baseline track —
+                   a quiet timestamp column, mail-client style */}
+               <span className="ml-auto flex-none pr-0.5">
+                  <AgeStamp
+                     ageDays={pull.ageDays}
+                     createdAt={epoch(d.created_at)}
+                     updatedAt={epoch(d.updated_at)}
+                     quiet={['draft', 'dev_block', 'deploy_block'].includes(pull.status)}
+                     warnDays={opts.ageWarnDays}
+                     rotDays={opts.ageRotDays}
+                     inline
+                  />
+               </span>
             </>
          }
          rail={<MetricRail pull={pull} opts={opts} claim={claim} />}
+         edge={
+            <AgeBaseline
+               ageDays={pull.ageDays}
+               warnDays={opts.ageWarnDays}
+               rotDays={opts.ageRotDays}
+               quiet={['draft', 'dev_block', 'deploy_block'].includes(pull.status)}
+            />
+         }
       />
    );
 }

@@ -414,8 +414,8 @@ export function Settings({
                            />
                         </Field>
                         <Field
-                           label="Age turns amber"
-                           hint="When the age strip appears and a pull counts as starved — this floats it up the review queue, not just recolors it."
+                           label="Age line appears"
+                           hint="When the amber age line appears and a pull counts as starved — this floats it up the review queue, not just draws it."
                         >
                            <NumberField
                               value={s.ageWarnDays}
@@ -425,7 +425,7 @@ export function Settings({
                               onChange={ageWarnDays => set({ ageWarnDays })}
                            />
                         </Field>
-                        <Field label="Age turns red">
+                        <Field label="Age line maxes out">
                            <NumberField
                               value={s.ageRotDays}
                               min={s.ageWarnDays + 1}

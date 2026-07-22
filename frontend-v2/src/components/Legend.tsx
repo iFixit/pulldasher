@@ -1,23 +1,7 @@
 import type { ReactNode } from 'react';
 import { useSettings } from '../settings';
-import { AgeStrip, WeightMeter } from './bits';
+import { WeightMeter } from './bits';
 import { Popover } from './Popover';
-
-/** a bare CI bar for the legend, without the popover/button chrome the real
- * CiStatus trigger carries — same segment shape and colors, just static. */
-function CiBarSample({ segments }: { segments: { background: string; opacity?: number }[] }) {
-   return (
-      <span className="flex h-[9px] w-8 gap-px overflow-hidden rounded-[3px]">
-         {segments.map((s, i) => (
-            <span
-               key={i}
-               className="flex-1"
-               style={{ background: s.background, opacity: s.opacity }}
-            />
-         ))}
-      </span>
-   );
-}
 
 /** a keycap, sized to the legend's small type */
 function Kbd({ children }: { children: ReactNode }) {
@@ -129,20 +113,14 @@ export function Legend() {
          <Group title="Reading a row">
             <Item
                term={
-                  <span className="inline-flex items-center gap-1">
-                     <AgeStrip
-                        ageDays={s.ageWarnDays + 1}
-                        warnDays={s.ageWarnDays}
-                        rotDays={s.ageRotDays}
-                     />
-                     <AgeStrip
-                        ageDays={s.ageRotDays}
-                        warnDays={s.ageWarnDays}
-                        rotDays={s.ageRotDays}
+                  <span className="relative inline-block h-3 w-16">
+                     <span
+                        className="absolute bottom-0 left-0 h-[2px] w-2/3 rounded-[1px]"
+                        style={{ background: 'var(--warn)' }}
                      />
                   </span>
                }
-               def={`age — the strip under the CI bar stays invisible until a pull is ${s.ageWarnDays}+ days old without full review, then fills amber toward ${s.ageRotDays} days and turns red past it. The day count next to the repo# just gets bolder, and hovering it shows both clocks`}
+               def={`age — an amber line along a row's bottom edge appears once it's ${s.ageWarnDays}+ days without full review and grows to the right; reaching full width means ${s.ageRotDays}+ days. The quiet day count at the row's right edge caps it and just gets bolder — hover it for both clocks`}
             />
             <Item
                term={
@@ -183,15 +161,13 @@ export function Legend() {
             </details>
             <Item
                term={
-                  <CiBarSample
-                     segments={[
-                        { background: 'var(--bad)' },
-                        { background: 'var(--slate)' },
-                        { background: 'var(--ok)', opacity: 0.3 },
-                     ]}
-                  />
+                  <span className="inline-flex items-center gap-1">
+                     <span className="text-[11px] font-medium text-ink-3">CI</span>
+                     <span className="pip pip-fail" />
+                     <span className="pip pip-run" />
+                  </span>
                }
-               def="CI: a proportional bar, red = failing, gray-blue = still running. Passed checks show nothing at rest — no news is good news; hover to reveal the green and the per-check list"
+               def="CI wears the same marks as CR and QA — the machine is a reviewer too. A red ✗ disc means failing checks (the count beside it says how many); the gray-blue ring means still running. Passing shows nothing at rest — no news is good news; hover a row for its quiet green check and the per-check list"
             />
             <Item
                term={

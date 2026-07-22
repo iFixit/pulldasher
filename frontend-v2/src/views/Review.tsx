@@ -19,7 +19,6 @@ import { claimFor, claimReview, isFresh, usePulldasher } from '../store';
 import type { PullData } from '../types';
 import {
    AgeStamp,
-   AgeStrip,
    Avatar,
    CiStatus,
    EmptyState,
@@ -84,16 +83,9 @@ function DealtCard({
             <PullTitleLink repo={d.repo} number={d.number} title={d.title} />
          </div>
          <div className="flex items-center gap-2">
-            <span className="flex flex-col items-center gap-[3px]">
-               <CiStatus pull={pull} />
-               <AgeStrip
-                  ageDays={pull.ageDays}
-                  warnDays={opts.ageWarnDays}
-                  rotDays={opts.ageRotDays}
-               />
-            </span>
             <span className="flex flex-col items-stretch gap-[3px]">
                <span className="flex items-center gap-2">
+                  <CiStatus pull={pull} />
                   <SigPips
                      label="CR"
                      have={pull.crHave}

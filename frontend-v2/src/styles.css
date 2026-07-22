@@ -215,8 +215,34 @@ label:has(> input:not(:disabled)) {
     --pip-shape: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.6' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E");
     background-color: var(--ink-3);
   }
+  /* CI's marks, same family: the machine is a reviewer too. A solid disc
+     with a knocked-out X = checks failing (red's ONLY meaning on the board);
+     the "still running" ring reuses the needed-ring shape in the pending
+     slate. Passing renders pip-on, revealed only on row hover. */
+  .pip-fail {
+    --pip-shape: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cdefs%3E%3Cmask id='x'%3E%3Crect width='16' height='16' fill='white'/%3E%3Cpath d='M5.4 5.4l5.2 5.2M10.6 5.4l-5.2 5.2' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'/%3E%3C/mask%3E%3C/defs%3E%3Ccircle cx='8' cy='8' r='7.4' fill='white' mask='url(%23x)'/%3E%3C/svg%3E");
+    background-color: var(--bad);
+  }
+  .pip-run {
+    --pip-shape: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.6' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E");
+    background-color: var(--slate);
+  }
+
   /* the slot you personally stamped: a dotted rule under the marks */
   .pip-mine { border-bottom: 1px dotted var(--ink-3); padding-bottom: 2px; }
+
+  /* age as the row's own baseline: an amber line along the bottom edge,
+     left-anchored, growing with time-without-review toward the rot day and
+     plateauing there. Amber only — red belongs to CI alone. The quiet day
+     count floats right in the meta line, capping the track. */
+  .pd-age-line {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--warn);
+    pointer-events: none;
+  }
 
   /* row flags: quiet colored labels, not badges — amber for act-on-it,
      muted ink for neutral facts. The cluster's hover popover carries meaning. */

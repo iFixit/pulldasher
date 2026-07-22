@@ -57,6 +57,7 @@ export function CardShell({
    stretch = true,
    compact = false,
    avatarBadge,
+   edge,
    depth = 0,
 }: {
    login: string;
@@ -82,6 +83,10 @@ export function CardShell({
     * author ★) — a slot rather than an Avatar prop, so this stays a one-
     * caller concern instead of touching every Avatar call site. */
    avatarBadge?: ReactNode;
+   /** a row-edge overlay (the age baseline): absolutely positioned against
+    * the pd-row (already relative), rendered last so it paints over the
+    * divider without entering the flex flow. */
+   edge?: ReactNode;
    /** stack-nesting depth (0 = top-level): indents the row and shows a
     * connector elbow before the avatar — model/stack.ts's groupIntoTree
     * supplies it. Capped at 2 by the model; the geometry doesn't need its
@@ -117,6 +122,7 @@ export function CardShell({
                {meta}
                {rail}
             </span>
+            {edge}
          </div>
       );
    }
@@ -146,6 +152,7 @@ export function CardShell({
              height becomes deliberate space around the marks instead of dead
              air above trailing chips */}
          {rail}
+         {edge}
       </div>
    );
 }

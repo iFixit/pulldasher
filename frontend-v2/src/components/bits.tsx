@@ -326,13 +326,14 @@ function ciDuration(s: CommitStatus): string | null {
 }
 
 /**
- * CI as a rail chip: a small proportional bar (red-failing / slate-pending /
- * quiet-green-passing) opening a per-check list — state, name, how long it
- * took, and a link to each — the panel v1 had and v2 flattened to a single
- * "CI: red" word. All-green stays a whisper (a single pale fill), not a
- * checkmark — v1 users only ever "saw green on hover". A fixed-width
- * placeholder (not null) stands in for a pull with no checks to show (ci
- * 'none' / empty), so the rail's other slots don't shift column-to-column.
+ * CI in the sign-off family: the machine is a reviewer, so it wears the same
+ * label + circle-mark anatomy as CR and QA. Only a failure earns ink at rest
+ * (a red X disc plus the failing count); a passing or still-running check
+ * renders in a reserved, invisible slot and is revealed on row hover — the
+ * same "green only on hover" physics the old segmented bar had, now in one
+ * vocabulary. The trigger opens the per-check list: state, name, duration,
+ * and a link for each. A fixed-width placeholder (not null) stands in for a
+ * pull with no checks, so the rail's other slots don't shift row-to-row.
  */
 export function CiStatus({ pull }: { pull: DerivedPull }) {
    const checks =
@@ -341,7 +342,7 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
          : [...headStatuses(pull.data)].sort(
               (a, b) => ciRank(a) - ciRank(b) || a.data.context.localeCompare(b.data.context)
            );
-   if (!checks.length) return <span aria-hidden className="inline-block w-8" />;
+   if (!checks.length) return <span aria-hidden className="inline-block w-9" />;
 
    const failing = checks.filter(isRedCheck).length;
    const passing = checks.filter(c => c.data.state === 'success').length;
@@ -352,17 +353,6 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
       : pending
         ? `CI running · ${passing} of ${checks.length} passed`
         : `CI passed · ${n(checks.length, 'check')}`;
-   // failing, then pending, then passing. Passed is invisible until you hover
-   // the bar (no news is good news — an all-green board shows NO bar at rest,
-   // and a mixed bar shows only its red/slate trouble); each segment's share
-   // of the bar is its own count, with a 3px floor so one failure among
-   // twenty checks stays visible
-   const segments = [
-      { count: failing, background: 'var(--bad)' },
-      { count: pendingCount, background: 'var(--slate)' },
-      { count: passing, background: 'var(--ok)', quiet: true },
-   ].filter(s => s.count > 0);
-
    return (
       <Popover
          label="CI checks"
@@ -378,22 +368,21 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
                aria-label={summary}
                title={summary}
                // -my-2/py-2: a real tap target without changing the rail's height.
-               // `group`: the passed segments key their hover-reveal off it below
-               className="group pressable -my-2 inline-flex items-center gap-1 rounded border-0 bg-transparent px-0 py-2 hover:bg-secondary/60"
+               // Quiet states keep their full content at opacity 0 so the reveal
+               // can never reflow the line, and CR/QA never shift beside them.
+               className={`pressable -my-2 inline-flex items-center gap-1 rounded border-0 bg-transparent px-0 py-2 hover:bg-secondary/60 ${
+                  failing > 0
+                     ? ''
+                     : 'opacity-0 transition-opacity duration-150 hover:opacity-100 focus-visible:opacity-100 [.pd-row:hover_&]:opacity-100 motion-reduce:transition-none'
+               }`}
             >
-               <span aria-hidden className="flex h-[9px] w-8 gap-px overflow-hidden rounded-[3px]">
-                  {segments.map((s, i) => (
-                     <span
-                        key={i}
-                        className={
-                           s.quiet
-                              ? 'opacity-0 transition-opacity duration-150 group-hover:opacity-30 group-focus-visible:opacity-30 motion-reduce:transition-none'
-                              : undefined
-                        }
-                        style={{ flexGrow: s.count, minWidth: 3, background: s.background }}
-                     />
-                  ))}
+               <span aria-hidden className="w-[18px] text-left text-[11px] font-medium text-ink-3">
+                  CI
                </span>
+               <span
+                  aria-hidden
+                  className={`pip ${failing > 0 ? 'pip-fail' : pending ? 'pip-run' : 'pip-on'}`}
+               />
                {failing > 0 && (
                   <span
                      className="text-[11px] font-medium tabular-nums"
@@ -665,18 +654,17 @@ export function SigPips({
 }
 
 /**
- * Age as the rail's second strip, under the CI bar — the old Aging lane's
- * positional signal relocated onto every card. Silent below `warnDays` (no
- * news is good news: an invisible placeholder holds the slot), then an
- * amber fill growing from a sliver to full across warn→rot, flipping red at
- * `rotDays` and plateauing there — a 30-day pull shouldn't shout louder
- * than a 10-day one. Deliberately distinct from the weight strip on four
- * axes so the two ratio marks can't be confused: left column (paired with
- * CI, not the sign-offs), gated (weight's track is always drawn), only
- * ever amber/red (weight's fill is always neutral ink), square caps
- * (weight is a pill).
+ * Age as the row's own baseline: an amber 2px line along the bottom edge,
+ * left-anchored so every row's fill starts at the same x, growing with
+ * time-without-review and plateauing at the rot day — a 30-day pull doesn't
+ * shout louder than a 10-day one. Amber only: red belongs to CI alone, and
+ * a second red bar in the rail read as "broken" (it shipped that way once).
+ * Silent below the aging threshold — a healthy young row draws nothing.
+ * The quiet day count floats right in the meta line, capping the track;
+ * that numeral's popover carries the exact clocks, so this line is pure
+ * geometry (aria-hidden).
  */
-export function AgeStrip({
+export function AgeBaseline({
    ageDays,
    warnDays = STARVE_DAYS,
    rotDays = ROT_DAYS,
@@ -685,34 +673,19 @@ export function AgeStrip({
    ageDays: number;
    warnDays?: number;
    rotDays?: number;
-   /** drafts and holds age on purpose: keep the strip dark */
+   /** drafts and holds age on purpose: draw nothing */
    quiet?: boolean;
 }) {
-   if (quiet || ageDays < warnDays) return <span aria-hidden className="block h-[4px] w-8" />;
-   const span = Math.max(rotDays - warnDays, 1);
-   const pct = 6 + Math.min((ageDays - warnDays) / span, 1) * 94;
-   const rotted = ageDays >= rotDays;
-   return (
-      <span
-         role="img"
-         aria-label={`open ${ageDays} days without full review`}
-         className="flex h-[4px] w-8 overflow-hidden rounded-[1px]"
-         style={{ background: 'var(--secondary)' }}
-      >
-         <span
-            aria-hidden
-            className="rounded-[1px]"
-            style={{ width: `${pct}%`, background: rotted ? 'var(--bad)' : 'var(--warn)' }}
-         />
-      </span>
-   );
+   if (quiet || ageDays < warnDays) return null;
+   const pct = Math.min((ageDays - warnDays) / Math.max(rotDays - warnDays, 1), 1);
+   return <span aria-hidden className="pd-age-line" style={{ width: `${(pct * 100).toFixed(1)}%` }} />;
 }
 
 /**
  * The age slot: hours under a day, then days, with both clocks in the
  * popover. Hours matter here: in three months of real history, 62% of
  * pulls merged same-day, so "0d" was a dead signal for most of the live
- * board. The urgency *color* lives in the rail's AgeStrip now — this
+ * board. The urgency *color* lives on the row's AgeBaseline now — this
  * numeral stays neutral ink and only gains font weight past the same
  * thresholds, so age's salience is carried once, by the mark built for
  * continuous gradation, not twice.
