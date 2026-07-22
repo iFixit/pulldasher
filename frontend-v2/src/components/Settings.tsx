@@ -378,7 +378,7 @@ export function Settings({
                      <Group title="Board">
                         <Field
                            label="Getting QA is a to-do"
-                           hint="For teams that self-review, no separate CR gate means lining up QA is the real stall, so “Find a QA-er” on your own PRs shows in Yours to do. Off keeps it in My work only."
+                           hint="For teams that self-review, no separate CR gate means lining up QA is the real stall, so “Find a QA-er” on your own PRs shows in Waiting on you. Off keeps it in My work only."
                         >
                            <Segmented
                               ariaLabel="getting QA is a to-do"
@@ -390,7 +390,7 @@ export function Settings({
                               onChange={v => set({ selfReview: v === 'on' })}
                            />
                         </Field>
-                        <Field label="Default view" hint="The lens a bare pulldasher link opens.">
+                        <Field label="Default view" hint="The tab a bare pulldasher link opens.">
                            <Segmented
                               ariaLabel="default view"
                               value={s.defaultLens}
@@ -416,7 +416,7 @@ export function Settings({
                         </Field>
                         <Field
                            label="Age line appears"
-                           hint="When the age hairline appears and a pull counts as starved — this floats it up the review queue, not just draws it."
+                           hint="When the age line appears and waiting starts counting against a pull. This floats it up the review queue, not just draws the line."
                         >
                            <NumberField
                               value={s.ageWarnDays}
@@ -723,7 +723,7 @@ export function Settings({
                      <Group title="Changed since your last look">
                         <Field
                            label="Mark the board seen after"
-                           hint="How long it must stay open, in view, before leaving counts as a look. A quick glance won’t clear the delta."
+                           hint="How long it must stay open, in view, before leaving counts as a look. A quick glance won’t clear the new-and-updated marks."
                         >
                            <NumberField
                               value={s.seenAfterSecs}

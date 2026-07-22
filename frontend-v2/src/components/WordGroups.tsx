@@ -5,6 +5,7 @@ import type { DerivedPull } from '../model/status';
 import { pullKey } from '../format';
 import { claimFor } from '../store';
 import { Truncated } from './Lane';
+import { Popover } from './Popover';
 import { Row, type RowOptions } from './Row';
 
 /**
@@ -15,10 +16,57 @@ import { Row, type RowOptions } from './Row';
 export const eyebrowText = 'text-[11px] font-semibold tracking-wide uppercase';
 
 /**
+ * One plain sentence per group word, shown on hovering the header — the
+ * eyebrow explains itself in place, so the legend stays documentation and is
+ * never required reading. Viewer-relative on purpose: do-words describe your
+ * action, wait-words describe what the pull is waiting on. A word missing
+ * here renders as a plain header (the safe fallback for future vocabulary).
+ */
+const WORD_GLOSS: Record<string, string> = {
+   // do-words: the next step is yours
+   'Re-stamp':
+      'You approved an earlier version and a push invalidated it. Confirm it still looks good.',
+   'Re-QA': 'Your QA stamp fell to a push. Test it again.',
+   'Finish QA': 'You started testing these. Finish and stamp.',
+   'Finish CR': 'You started reviewing; your stamp isn’t in yet.',
+   'Re-review': 'You asked for changes and they pushed. Take another look.',
+   Merge: 'Fully signed off and green. Your merge button.',
+   'Fix CI': 'Your PR with a failing build. Nobody can review it until it’s green.',
+   Respond: 'A reviewer left feedback that waits on your answer.',
+   Unblock: 'A block of yours is what holds it. Lift it when you’re ready.',
+   Rebase: 'Your PR conflicts with its base branch.',
+   'Nudge CR': 'Your PR, and nobody has reviewed it yet. Worth a ping.',
+   'Find QA-er': 'CR isn’t the gate here, QA is. Line someone up to test it.',
+   Review: 'Open PRs you could code review.',
+   QA: 'Open PRs you could test.',
+   'Finish draft': 'Your draft. Not up for review until you open it.',
+   // wait-words: why the pull sits
+   'waiting on re-CR': 'A reviewer’s stamp fell to a push; waiting on them to confirm it again.',
+   'waiting on CR': 'Waiting for someone to code review it.',
+   'with author': 'Changes were requested; the next push is the author’s.',
+   'waiting on re-QA': 'A tester’s stamp fell to a push; waiting on them to re-test.',
+   'waiting on QA': 'Waiting for someone to test it.',
+   'in QA': 'Someone is testing it right now.',
+   claimed: 'Someone flagged they’re reading it.',
+   stamped: 'Your stamp is in; waiting on the rest of the sign-offs.',
+   'CI running': 'Checks are still running.',
+   'CI red': 'A required check is failing; the author fixes that first.',
+   blocked: 'The author paused it with a dev block.',
+   'deploy hold': 'Done, but deliberately not shipped yet.',
+   conflicts: 'Conflicts with its base branch; the author rebases.',
+   stacked: 'Based on another open PR; it merges with its parent.',
+   'on hold': 'Blocked on something outside this repo.',
+   ready: 'Fully signed off and green; waiting on the author to merge.',
+   draft: 'Not up for review yet.',
+   waiting: 'Waiting, and the board can’t say on what.',
+};
+
+/**
  * The quiet in-list label every word-grouped list splits on — the badge's
  * replacement: instead of a per-card pill, the section itself says what's
  * owed (brand) or why it waits (muted). Mirrors Classic's old SubHeader
- * styling so the two lenses still read as one design.
+ * styling so the two lenses still read as one design. The word itself is a
+ * hover door to its one-sentence gloss (WORD_GLOSS above).
  */
 export function WordSubHeader({
    word,
@@ -29,12 +77,42 @@ export function WordSubHeader({
    kind: RowWord['kind'];
    count: number;
 }) {
+   const gloss = WORD_GLOSS[word];
+   const inner = (
+      <>
+         <span className={kind === 'do' ? 'text-brand-700' : 'text-ink-3'}>{word}</span>{' '}
+         <span className="tabular-nums text-ink-3">· {count}</span>
+      </>
+   );
    return (
       <div
          className={`border-t border-secondary bg-muted/40 px-3.5 py-1 first:border-t-0 ${eyebrowText}`}
       >
-         <span className={kind === 'do' ? 'text-brand-700' : 'text-ink-3'}>{word}</span>{' '}
-         <span className="tabular-nums text-ink-3">· {count}</span>
+         {gloss ? (
+            <Popover
+               label={`what “${word}” means`}
+               side="right"
+               hover
+               rootClass="relative inline-flex"
+               width="w-max max-w-[280px]"
+               panelClass="p-2 text-xs"
+               trigger={t => (
+                  <button
+                     {...t}
+                     type="button"
+                     className={`hit rounded border-0 bg-transparent p-0 text-left ${eyebrowText}`}
+                  >
+                     {inner}
+                  </button>
+               )}
+            >
+               {/* the panel sits inside the uppercase eyebrow — undo the
+                   treatment so the gloss reads as a normal sentence */}
+               <p className="px-1 font-normal normal-case tracking-normal text-ink-2">{gloss}</p>
+            </Popover>
+         ) : (
+            inner
+         )}
       </div>
    );
 }

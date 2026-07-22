@@ -3,7 +3,7 @@ import { STATUS_ORDER, type DerivedPull } from '../model/status';
 import { useSettings } from '../settings';
 import type { Team } from '../types';
 import { Avatar, EmptyState } from '../components/bits';
-import { Fold, FoldRows, Lane, RestGroup } from '../components/Lane';
+import { Fold, FoldRows, Lane, RestGroup, SubDoor } from '../components/Lane';
 import type { RowOptions } from '../components/Row';
 import { crSort } from '../model/sort';
 
@@ -60,7 +60,7 @@ export function People({
    const selectedTeam = team && teams.some(t => t.team === team) ? team : null;
    const selectedPerson = selectedTeam ? null : (person ?? defaultPerson);
    if (!selectedPerson && !selectedTeam) {
-      return <EmptyState title="Nobody to show" sub="No open PRs from any person in this scope." />;
+      return <EmptyState title="Nobody to show" sub="No open PRs from any person matching your filters." />;
    }
 
    const members = selectedTeam
@@ -198,7 +198,7 @@ export function People({
                      ? 'nothing open right now'
                      : `${theirs.length} open ${theirs.length === 1 ? 'PR' : 'PRs'}`}
                   {scopeHides > 0 && (
-                     <span className="text-warn"> · scope hides {scopeHides} more</span>
+                     <span className="text-warn"> · filters hide {scopeHides} more</span>
                   )}
                </span>
             </span>
@@ -220,7 +220,21 @@ export function People({
             </span>
          </div>
 
-         <Lane title="Review queue" pulls={reviewable} cap={8} opts={opts} />
+         <Lane
+            title="Review queue"
+            sub={
+               <SubDoor label="How this queue is ordered" text="best next review first">
+                  <p>
+                     Lightest first, so a short gap fits a review. A pull one stamp from done
+                     jumps up (your stamp finishes it), and waiting adds credit as a pull ages.
+                     PRs still being actively pushed to sink, never hide.
+                  </p>
+               </SubDoor>
+            }
+            pulls={reviewable}
+            cap={8}
+            opts={opts}
+         />
          {(rest.length > 0 || owed.length > 0 || mine.length > 0) && (
             <RestGroup>
                <Fold

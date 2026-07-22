@@ -6,11 +6,11 @@ import { FilterRow, OnlyButton } from './shared';
 /** Weight filter option order: lightest to heaviest, then the unknown-size
  * catch-all — mirrors the WeightMeter's own light-to-heavy read. */
 const WEIGHT_OPTIONS: { key: string; label: string }[] = [
-   { key: 'xs', label: 'XS' },
-   { key: 's', label: 'S' },
-   { key: 'm', label: 'M' },
-   { key: 'l', label: 'L' },
-   { key: 'xl', label: 'XL' },
+   { key: 'xs', label: 'XS · very light' },
+   { key: 's', label: 'S · light' },
+   { key: 'm', label: 'M · medium' },
+   { key: 'l', label: 'L · heavy' },
+   { key: 'xl', label: 'XL · very heavy' },
    { key: 'unknown', label: 'Size unknown' },
 ];
 

@@ -104,7 +104,7 @@ export function Legend() {
                def="the dotted underline marks a slot you stamped"
             />
             <Item
-               term={<span className="text-ink-2 italic">is QAing</span>}
+               term={<span className="text-ink-2 italic">is testing it</span>}
                def="someone claimed QA by adding the QAing label on GitHub"
             />
          </Group>
@@ -210,12 +210,8 @@ export function Legend() {
                </div>
             </details>
             <Item
-               term={
-                  <span className="inline-flex items-center gap-1 rounded bg-brand px-1.5 py-0.5 text-[11px] leading-none font-medium text-surface">
-                     <span aria-hidden>✦</span>review requested
-                  </span>
-               }
-               def="GitHub asked you to review this PR — the board leads with these in the “Requested of you” section on Review, and quiets its own turn rotation for them"
+               term={<span aria-hidden>✦</span>}
+               def="review requested: GitHub asked you directly. These PRs land in Waiting on you, and the board quiets its own turn rotation for them"
             />
          </Group>
 
@@ -295,7 +291,7 @@ export function Legend() {
                      Re-stamp · 3
                   </span>
                }
-               def="brand group header: cards under it are your move — the verb to do"
+               def="brand group header: cards under it need an action from you; the word is the action. Hover any header for its one-line meaning"
             />
             <Item
                term={
@@ -344,7 +340,7 @@ export function Legend() {
             />
             <Item
                term="Weight / State"
-               def="the point-and-click version of weight:/has:/is: — pick from a dropdown instead of typing. State's Blocked is viewer-relative (a dev block you authored counts as your move), unlike is:blocked, which matches for anyone"
+               def="the point-and-click version of weight:/has:/is: — pick from a dropdown instead of typing. State's Blocked is viewer-relative (a dev block you authored counts as waiting on you), unlike is:blocked, which matches for anyone"
             />
             <Item term="Saved" def="save filter combos from the search box; reapply from Saved" />
          </Group>

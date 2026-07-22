@@ -158,7 +158,7 @@ export function FilterChips({
          },
       });
    if (cryoRevealedAlone)
-      pills.push({ key: 'cryo', label: 'cryo shown', onClear: () => toggleReveal(CRYO_KEY) });
+      pills.push({ key: 'cryo', label: 'parked PRs shown', onClear: () => toggleReveal(CRYO_KEY) });
 
    // what "Clear" would change — the transient filters, not your durable
    // mutes and stars (those are your board; unmute/unstar them in the list)

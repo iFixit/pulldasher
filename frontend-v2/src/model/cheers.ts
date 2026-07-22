@@ -633,7 +633,7 @@ export const CHEER_CATALOG: {
       kind: 'your-turn',
       group: 'nudge',
       label: 'Your turn to review',
-      hint: 'You’re the best-matched reviewer for a starved, unclaimed PR.',
+      hint: 'You’re the best-matched reviewer for a long-waiting, unclaimed PR.',
    },
    {
       kind: 're-stamp-owed',

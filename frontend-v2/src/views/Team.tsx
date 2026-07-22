@@ -5,7 +5,7 @@ import { crSort } from '../model/sort';
 import { teamBuckets } from '../model/team';
 import { useSettings } from '../settings';
 import { Avatar, EmptyState } from '../components/bits';
-import { Fold, FoldRows, Lane, RestGroup } from '../components/Lane';
+import { Fold, FoldRows, Lane, RestGroup, SubDoor } from '../components/Lane';
 import { Popover } from '../components/Popover';
 import type { RowOptions } from '../components/Row';
 import { TeamPicker } from '../components/TeamPicker';
@@ -130,7 +130,7 @@ export function Team({
          </div>
 
          {scopeHides > 0 && (
-            <div className="mb-3 text-xs text-warn">scope hides {scopeHides} more</div>
+            <div className="mb-3 text-xs text-warn">filters hide {scopeHides} more</div>
          )}
 
          {reviewable.length === 0 && stamped.length === 0 && rest.length === 0 && (
@@ -140,19 +140,40 @@ export function Team({
          {codeRegions.length > 0 && regionMatches.length > 0 && (
             <Lane
                title="In your code regions"
-               sub="areas you flagged in Settings"
+               sub={
+                  <SubDoor label="How code regions match" text="areas you flagged in Settings">
+                     <p>
+                        A PR lands here when its title, description, labels, branch, or repo
+                        contains one of your regions. Plain text, case-insensitive, no regex.
+                     </p>
+                  </SubDoor>
+               }
                pulls={regionMatches}
                cap={8}
                opts={opts}
             />
          )}
-         <Lane title="Review your team's work" pulls={reviewable} cap={9} opts={opts} />
+         <Lane
+            title="Review your team's work"
+            sub={
+               <SubDoor label="How this queue is ordered" text="best next review first">
+                  <p>
+                     Lightest first, so a short gap fits a review. A pull one stamp from done
+                     jumps up (your stamp finishes it), and waiting adds credit as a pull ages.
+                     PRs still being actively pushed to sink, never hide.
+                  </p>
+               </SubDoor>
+            }
+            pulls={reviewable}
+            cap={9}
+            opts={opts}
+         />
          {(stamped.length > 0 || rest.length > 0) && (
             <RestGroup>
                <Fold
                   dot="var(--ok)"
                   count={stamped.length}
-                  label="You've stamped — in flight"
+                  label="you've stamped"
                   hint="waiting on another reviewer"
                   id="team:stamped"
                >

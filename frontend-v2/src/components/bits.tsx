@@ -796,6 +796,14 @@ export function AgeStamp({
          <span className="mt-0.5 block px-1 text-ink-2">
             last activity <b className="font-medium text-ink">{ago(updatedAt)} ago</b>
          </span>
+         {/* the hairline can't take a hover itself (1px, aria-hidden), so its
+             explanation lives here, on the numeral that caps it — only when
+             the line is actually drawn for this row */}
+         {!quiet && ageDays >= warnDays && (
+            <span className="mt-0.5 block max-w-[220px] px-1 whitespace-normal text-ink-3">
+               the grey line under this row is its age, relative to the board’s oldest open pull
+            </span>
+         )}
       </Popover>
    );
 }
