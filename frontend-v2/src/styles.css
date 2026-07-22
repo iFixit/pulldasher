@@ -770,3 +770,112 @@ input[type="checkbox"] {
     scale: 1;
   }
 }
+
+/* ---- .md-prose: the rendered PR description inside the title's hover
+   preview (markdown.ts sanitizes; this only sets the type). Sized a notch
+   under the board's own text so the quoted document reads as an inset. ---- */
+.md-prose {
+  color: var(--ink-2);
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+.md-prose > :first-child {
+  margin-top: 0;
+}
+.md-prose > :last-child {
+  margin-bottom: 0;
+}
+.md-prose h1,
+.md-prose h2,
+.md-prose h3,
+.md-prose h4,
+.md-prose h5,
+.md-prose h6 {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.md-prose h1 {
+  font-size: 14px;
+}
+.md-prose h2 {
+  font-size: 13px;
+}
+.md-prose p {
+  margin: 6px 0;
+}
+.md-prose ul,
+.md-prose ol {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+.md-prose ul {
+  list-style: disc;
+}
+.md-prose ol {
+  list-style: decimal;
+}
+.md-prose li {
+  margin: 2px 0;
+}
+/* gfm task-list items: the checkbox replaces the bullet */
+.md-prose li:has(> input[type='checkbox']) {
+  margin-left: -14px;
+  list-style: none;
+}
+.md-prose input[type='checkbox'] {
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+.md-prose code {
+  border-radius: 4px;
+  background: var(--muted);
+  padding: 1px 4px;
+  font-size: 12px;
+}
+.md-prose pre {
+  margin: 6px 0;
+  border-radius: 8px;
+  background: var(--muted);
+  padding: 8px 10px;
+  overflow-x: auto;
+}
+.md-prose pre code {
+  background: none;
+  padding: 0;
+}
+.md-prose a {
+  color: var(--brand);
+}
+.md-prose a:hover {
+  text-decoration: underline;
+}
+.md-prose img {
+  max-width: 100%;
+  max-height: 260px;
+  border-radius: 8px;
+}
+.md-prose blockquote {
+  margin: 6px 0;
+  border-radius: 8px;
+  background: var(--muted);
+  padding: 6px 10px;
+}
+.md-prose hr {
+  margin: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--secondary);
+}
+.md-prose table {
+  display: block;
+  margin: 6px 0;
+  border-collapse: collapse;
+  overflow-x: auto;
+  font-size: 12px;
+}
+.md-prose th,
+.md-prose td {
+  border: 1px solid var(--secondary);
+  padding: 3px 8px;
+}

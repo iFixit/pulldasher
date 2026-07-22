@@ -7,6 +7,10 @@ export interface PopoverTriggerProps {
    'aria-haspopup': 'dialog';
    'aria-expanded': boolean;
    onClick: () => void;
+   /** present only with `hoverTriggerOnly`: the hover handlers move off the
+    * root and onto the trigger element itself */
+   onMouseEnter?: () => void;
+   onMouseLeave?: () => void;
 }
 
 /**
@@ -45,6 +49,7 @@ export function Popover({
    children,
    side = 'left',
    hover = false,
+   hoverTriggerOnly = false,
    width = '',
    panelClass = '',
    rootClass = 'relative inline-block',
@@ -57,6 +62,10 @@ export function Popover({
    side?: 'left' | 'right';
    /** preview on hover, pin on click (for informational panels) */
    hover?: boolean;
+   /** scope the hover to the trigger element instead of the whole root —
+    * for triggers whose hit area is deliberately larger than their visible
+    * text (the stretched row-covering title link) */
+   hoverTriggerOnly?: boolean;
    /** tailwind width class for the panel, e.g. 'w-[360px]' */
    width?: string;
    /** extra panel classes: padding, overflow, max-height, text size */
@@ -99,12 +108,13 @@ export function Popover({
    }, [pop.open, side]);
 
    return (
-      <span className={rootClass} ref={pop.rootRef} {...pop.hoverProps}>
+      <span className={rootClass} ref={pop.rootRef} {...(hoverTriggerOnly ? {} : pop.hoverProps)}>
          {trigger({
             ref: pop.triggerRef,
             'aria-haspopup': 'dialog',
             'aria-expanded': pop.open,
             onClick: pop.toggle,
+            ...(hoverTriggerOnly ? pop.hoverProps : {}),
          })}
          {pop.open &&
             pos &&

@@ -704,6 +704,7 @@ function RowImpl({
          repo={d.repo}
          number={d.number}
          title={d.title}
+         body={d.body}
          onOpen={() => ackPull(key)}
          id={rowDomId(d)}
          compact={opts.compact}

@@ -42,7 +42,13 @@ export const ClosedRow = memo(function ClosedRow({
          </span>
          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="text-sm leading-snug break-words">
-               <PullTitleLink repo={pull.repo} number={pull.number} title={pull.title} stretch />
+               <PullTitleLink
+                  repo={pull.repo}
+                  number={pull.number}
+                  title={pull.title}
+                  body={pull.body}
+                  stretch
+               />
             </span>
             <span className="flex items-center gap-2 text-xs whitespace-nowrap text-ink-3">
                <RepoRef repo={pull.repo} number={pull.number} />

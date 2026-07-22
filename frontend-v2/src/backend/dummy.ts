@@ -33,7 +33,17 @@ export async function loadDummy(): Promise<InitializePayload> {
               deletions: Math.round(SIZE_SPREAD[i % SIZE_SPREAD.length] * 0.3),
               changed_files: 1 + (i % 22),
            };
-   const pulls = withSyntheticStacks(raw).map((p, i) => withSizes(redate(p, i), i));
+   // the fixture's bodies are one flat placeholder line; rotate realistic
+   // markdown so the title's description preview demos what it renders
+   // (headings, checklists, code, links)
+   const BODIES = [
+      'closes #4821\n\n## Summary\nMoves the cart badge count out of the page render and onto the shared header stream, so cached pages stop showing a stale count.\n\n## QA\n- [x] badge updates after adding to cart\n- [ ] logged-out view shows no badge\n- [ ] works on the checkout pages',
+      'The old query scanned `pull_signatures` per row; this batches it:\n\n```sql\nSELECT number, MAX(date) FROM pull_signatures GROUP BY number\n```\n\nCuts the dashboard load from ~4s to ~300ms on prod data. See [the profile](https://example.com/profile) for before/after.',
+      '## Why\nSupport keeps getting "my order vanished" tickets — the order list dropped rows with a null `shipped_at`.\n\n> Root cause: the join predicate treated NULL as false.\n\nOne-line fix plus a regression test.',
+   ];
+   const withBody = (p: PullData, i: number): PullData =>
+      p.body === 'pull request dummy body' ? { ...p, body: BODIES[i % BODIES.length] } : p;
+   const pulls = withSyntheticStacks(raw).map((p, i) => withBody(withSizes(redate(p, i), i), i));
    return {
       repos: [{ name: 'iFixit/ifixit' }],
       // The fixture carries almost no closed/merged pulls and no diff sizes, so

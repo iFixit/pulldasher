@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type {
    ButtonHTMLAttributes,
    CSSProperties,
@@ -897,12 +897,16 @@ export function PullTitleLink({
    repo,
    number,
    title,
+   body,
    onOpen,
    stretch,
 }: {
    repo: string;
    number: number;
    title: string;
+   /** the PR description; when present, hovering the visible title previews
+    * it rendered — the "can I act on this?" read without leaving the board */
+   body?: string;
    /** fired when the user opens the PR — the row's natural "seen" ack */
    onOpen?: () => void;
    /** cover the whole row as one click target */
@@ -913,6 +917,9 @@ export function PullTitleLink({
    // rather. Read non-reactively: the row that renders this already subscribes
    // to settings, so a toggle re-renders it and this picks up the new value.
    const newTab = getSettings().openPrsNewTab;
+   // no door where there's nothing behind it: an empty description gets no
+   // popover, so the hover promise is always kept
+   const preview = body?.trim() ? body : null;
    return (
       <a
          className={`font-medium hover:underline hover:underline-offset-2 ${stretch ? 'pd-link' : ''}`}
@@ -921,9 +928,48 @@ export function PullTitleLink({
          onClick={onOpen}
          onAuxClick={onOpen}
       >
-         {title}
+         {preview ? (
+            // hoverTriggerOnly scopes the hover door to the visible words: the
+            // anchor's stretched hit layer covers the whole row, and a preview
+            // that opened from anywhere on the card would be a popover storm
+            <Popover
+               label={`description of #${number}`}
+               hover
+               hoverTriggerOnly
+               rootClass="relative inline"
+               width="w-[440px] max-w-[90vw]"
+               panelClass="p-3 max-h-[420px] overflow-auto"
+               // no click-pin: a click on the title means "open the PR", and
+               // pinning a preview behind the tab you just opened is noise
+               trigger={({ onClick: _pin, ...t }) => <span {...t}>{title}</span>}
+            >
+               <DescriptionBody md={preview} />
+            </Popover>
+         ) : (
+            title
+         )}
       </a>
    );
+}
+
+/** The rendered PR description inside the title's hover preview. Markdown
+ * tooling (marked + DOMPurify) loads as its own chunk on the first hover —
+ * board startup never pays for it. */
+function DescriptionBody({ md }: { md: string }) {
+   const [html, setHtml] = useState<string | null>(null);
+   useEffect(() => {
+      let live = true;
+      void import('../markdown').then(m => {
+         if (live) setHtml(m.renderMarkdown(md));
+      });
+      return () => {
+         live = false;
+      };
+   }, [md]);
+   if (html == null) return <div className="px-1 text-xs text-ink-3">Loading…</div>;
+   // sanitized in renderMarkdown; the description is author-authored remote
+   // content and never lands in the DOM unsanitized
+   return <div className="md-prose text-[13px]" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 /**

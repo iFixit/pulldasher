@@ -77,6 +77,7 @@ export function CardShell({
    repo,
    number,
    title,
+   body,
    onOpen,
    id,
    className = '',
@@ -94,6 +95,8 @@ export function CardShell({
    repo: string;
    number: number;
    title: string;
+   /** PR description for the title's hover preview */
+   body?: string;
    onOpen?: () => void;
    /** stable DOM id (format.ts's rowDomId) — lets toasts scroll to and
     * flash the row it just claimed. */
@@ -127,7 +130,14 @@ export function CardShell({
    stackStub?: boolean;
 }) {
    const titleLink = (
-      <PullTitleLink repo={repo} number={number} title={title} onOpen={onOpen} stretch={stretch} />
+      <PullTitleLink
+         repo={repo}
+         number={number}
+         title={title}
+         body={body}
+         onOpen={onOpen}
+         stretch={stretch}
+      />
    );
    const connector =
       depth > 0 ? (

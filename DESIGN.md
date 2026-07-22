@@ -290,7 +290,11 @@ icon with a class bolted on.
 - **Every curated lane's sub-line is a door** (`SubDoor` in Lane.tsx): the
   visible sentence states the ordering, hovering it opens what lands in
   the lane and how it's ranked. Every group eyebrow glosses itself the
-  same way (WORD_GLOSS). A control that sits away from the thing it acts
+  same way (WORD_GLOSS). The PR title is a door too: hovering the
+  visible words previews the description, rendered and sanitized
+  (markdown.ts, lazy chunk) — the "can I act on this?" read without
+  leaving the board. Hover only, never click-pin: the title's click
+  already means "open the PR". An empty description gets no door. A control that sits away from the thing it acts
   on names that thing in its own label, so the connection survives the
   distance. The test for any new mark, header, or lane: a
   developer who has never opened the legend can decode it from the screen
