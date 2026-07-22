@@ -22,7 +22,7 @@ export function MergeSizeCard({
                No merged PRs with size data in this window.
                {merged > 0 && (
                   <div className="text-ink-3/70">
-                     {merged} merged, but no diff sizes on the wire
+                     {merged} merged, but no diff sizes from GitHub
                   </div>
                )}
             </div>

@@ -42,7 +42,7 @@ export function EffortMixCard({ mix }: { mix: EffortMix }) {
          </div>
          {mix.estimated > 0 && (
             <div className="mt-3 text-[13px] text-ink-3">
-               {mix.estimated} without a wire size (weight estimated)
+               {mix.estimated} without a diff size (weight estimated)
             </div>
          )}
       </StatsCard>

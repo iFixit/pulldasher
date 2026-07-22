@@ -25,7 +25,7 @@ export function StarvationCard({
          sub="by author · total open-days their PRs sit unreviewed"
       >
          {shown.length === 0 ? (
-            <div className="mt-3 text-[13px] text-ink-3">No PRs are starving for CR right now.</div>
+            <div className="mt-3 text-[13px] text-ink-3">Nothing has been waiting long for CR.</div>
          ) : (
             <div className="mt-3 flex flex-col gap-2">
                {shown.map(row => {

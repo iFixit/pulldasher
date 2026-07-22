@@ -68,9 +68,9 @@ function feedbackSources(p: DerivedPull): FeedbackSource[] {
  * four never set one, so the popover restates the action in plain words
  * instead of leaving Section 1 blank. */
 const ACTION_EXPLANATION: Record<string, string> = {
-   'Finish the draft': 'still being drafted — not ready for review yet.',
-   'Merge it': 'fully signed off and green — go ahead and merge.',
-   'Finish QA': "you're already testing it — finish up and stamp.",
+   'Finish the draft': 'still being drafted, not ready for review yet.',
+   'Merge it': 'fully signed off and green, go ahead and merge.',
+   'Finish QA': "you're already testing it, finish up and stamp.",
    'Re-QA': 'a push invalidated your QA stamp.',
 };
 
@@ -101,7 +101,9 @@ function StateSection({
       <div className="border-b border-secondary px-1 pb-2">
          <p className="font-semibold text-ink">{STATUS_LABEL[pull.status]}</p>
          <p className="mt-0.5 text-ink-2">{stateExplanation(pull, note)}</p>
-         {note.action && <p className="mt-1 font-medium text-brand">your next step: {note.action}</p>}
+         {note.action && (
+            <p className="mt-1 font-medium text-brand">your next step: {note.action}</p>
+         )}
       </div>
    );
 }
@@ -241,7 +243,7 @@ function StatePopoverBody({
              door as everything else, never inline on the row */}
          {whyHere && (
             <p className="border-b border-secondary px-1 py-2 text-ink-3">
-               <span className="font-medium text-ink-2">why it’s up next — </span>
+               <span className="font-medium text-ink-2">why it’s up next: </span>
                {whyHere}
             </p>
          )}

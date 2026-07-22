@@ -41,7 +41,7 @@ export function DebtCard({ debt }: { debt: ReviewDebt }) {
             {cell(
                debt.restamps,
                're-stamps owed',
-               'stamps a push invalidated — the reviewer already knows the code',
+               'stamps a push invalidated; the reviewer already knows the code',
                true
             )}
             {cell(debt.unclaimedQa, 'QA unclaimed', 'needs-QA PRs nobody has picked up')}

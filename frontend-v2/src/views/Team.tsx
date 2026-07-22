@@ -71,7 +71,7 @@ export function Team({
          <div className="mx-auto flex max-w-[440px] flex-col items-center gap-3 py-16 text-center">
             <h2 className="m-0 text-lg font-semibold text-ink">Build your team</h2>
             <p className="m-0 text-[13px] text-ink-3">
-               Pick the people whose work you review — the Team view and the “Your team” filter
+               Pick the people whose work you review, the Team view and the “Your team” filter
                follow this list.
             </p>
             <div className="w-full rounded-2xl border border-line bg-surface p-3 text-left">
@@ -158,9 +158,9 @@ export function Team({
             sub={
                <SubDoor label="How this queue is ordered" text="best next review first">
                   <p>
-                     Lightest first, so a short gap fits a review. A pull one stamp from done
-                     jumps up (your stamp finishes it), and waiting adds credit as a pull ages.
-                     PRs still being actively pushed to sink, never hide.
+                     Lightest first, so a short gap fits a review. A pull one stamp from done jumps
+                     up (your stamp finishes it), and waiting adds credit as a pull ages. PRs still
+                     being actively pushed to sink, never hide.
                   </p>
                </SubDoor>
             }

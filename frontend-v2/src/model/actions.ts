@@ -154,7 +154,7 @@ function authorNote(p: DerivedPull, me: string): RowNote {
          p.crHave > 0 ? `in the CR queue · ${p.crHave} of ${crReq}` : 'in the CR queue'
       );
    }
-   if (p.status === 'ci_pending') return waitOnly('CI running — then merge');
+   if (p.status === 'ci_pending') return waitOnly('CI running, then merge');
    if (p.status === 'deploy_block') return waitOnly(`ask ${who(p.deployBlockedBy)} before deploy`);
 
    return waitOnly(FALLBACK_STATUS_LABEL[p.status]);
@@ -217,7 +217,7 @@ function withCoordination(
       if (staleSecs > STALE_CLAIM_SECS)
          return {
             action: 'Review it',
-            context: `${claim.login} claimed it ${claimAgo} ago — pick it up?`,
+            context: `${claim.login} claimed it ${claimAgo} ago, pick it up?`,
          };
       return { action: null, context: `${claim.login} is reading it` };
    }
@@ -269,12 +269,12 @@ function reviewerNote(
    if (p.qaingLogin === me) return doOnly('Finish QA');
    if (p.reqaBy.includes(me)) return doOnly('Re-QA');
 
-   if (p.status === 'draft') return waitOnly('draft — not reviewable yet');
+   if (p.status === 'draft') return waitOnly('draft, not reviewable yet');
    if (p.status === 'ci_red') return waitOnly('CI red · author fixes');
    if (p.status === 'dev_block')
       return waitOnly(
          p.devBlockedBy.includes(me)
-            ? 'your block stands — lift when happy'
+            ? 'your block stands; lift it when ready'
             : `feedback from ${who(p.devBlockedBy)}`
       );
    if ((p.status === 'needs_cr' || p.status === 'needs_recr') && p.changesRequestedBy.length) {
@@ -393,8 +393,8 @@ export function rowNote(
    // so it reads as a move, not a shrug.
    if (p.externalBlock && !note.action) {
       if (p.data.user.login === me)
-         return { action: 'Unblock', context: 'on hold — external blocker' };
-      return waitOnly('on hold — external blocker');
+         return { action: 'Unblock', context: 'on hold, external blocker' };
+      return waitOnly('on hold, external blocker');
    }
    return note;
 }

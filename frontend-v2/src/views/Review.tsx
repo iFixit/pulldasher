@@ -171,14 +171,14 @@ function DealStrip({ queue, opts }: { queue: DerivedPull[]; opts: RowOptions }) 
                className="pressable flex w-full items-center gap-2 rounded-2xl border border-line bg-surface px-3.5 py-2.5 text-left text-xs text-ink-2 hover:text-brand"
             >
                <span className="flex-none font-medium whitespace-nowrap">Deal me one</span>
-               <span className="min-w-0 text-ink-3">— takes the top card of your review queue</span>
+               <span className="min-w-0 text-ink-3">takes the top card of your review queue</span>
                <span className="ml-auto flex-none text-ink-3 tabular-nums">{queue.length}</span>
             </button>
          ) : (
             <>
                <GroupHeader
                   title="Dealt to you"
-                  sub="the top card of your review queue — claim it or pass"
+                  sub="the top card of your review queue, claim it or pass"
                   compact={opts.compact}
                   headerExtra={<QuietButton onClick={() => setOpen(false)}>Done</QuietButton>}
                />
@@ -193,7 +193,7 @@ function DealStrip({ queue, opts }: { queue: DerivedPull[]; opts: RowOptions }) 
                      />
                   ) : (
                      <div className="px-3.5 py-3 text-xs text-ink-3">
-                        Nothing left to deal — you’ve claimed or passed everything in the queue.
+                        Nothing left to deal. You’ve claimed or passed everything in the queue.
                      </div>
                   )}
                </Rows>
@@ -484,10 +484,10 @@ export function Review({
    // ranking this lane doesn't use.
    const whyQaNext = (p: DerivedPull) =>
       p.qaingLogin
-         ? `${p.qaingLogin} is already testing it — it sinks below unclaimed QA`
+         ? `${p.qaingLogin} is already testing it; it sinks below unclaimed QA`
          : p.sizeKnown && (p.weight === 'XS' || p.weight === 'S')
-           ? `Nobody's testing it yet — a light one (${p.weight})`
-           : `Nobody's testing it yet — waiting ${Math.max(1, Math.round(p.ageDays))}d`;
+           ? `Nobody's testing it yet, a light one (${p.weight})`
+           : `Nobody's testing it yet, waiting ${Math.max(1, Math.round(p.ageDays))}d`;
 
    const boardIsQuiet =
       !yourMove.length &&
@@ -537,7 +537,7 @@ export function Review({
                      text="every PR whose next step is yours, most urgent first"
                   >
                      <p className="font-medium text-ink">
-                        If it's in this lane, nothing happens until you act:
+                        If it’s in this lane, nothing happens until you act:
                      </p>
                      <p>
                         re-stamps a push owes, feedback waiting on your answer, your own merge
@@ -572,7 +572,7 @@ export function Review({
                   >
                      <p className="font-medium text-ink">Nothing here needs you right now:</p>
                      <p>
-                        your own PRs waiting on a review, QA, or CI, plus PRs you've already stamped
+                        your own PRs waiting on a review, QA, or CI, plus PRs you’ve already stamped
                         that are still waiting on another reviewer.
                      </p>
                      <p>Grouped by what each one waits on.</p>
@@ -706,7 +706,7 @@ export function Review({
                   dot={STATUS_DOT.dev_block}
                   count={devBlocked.length}
                   label="dev blocked"
-                  hint="paused by the author — nothing to review yet"
+                  hint="paused by the author, nothing to review yet"
                   id="review:dev-blocked"
                >
                   <FoldRows list={devBlocked} opts={opts} id="review:dev-blocked" />

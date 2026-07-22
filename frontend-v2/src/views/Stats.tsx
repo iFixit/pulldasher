@@ -123,7 +123,10 @@ export function Stats({
 
    if (!pulls.length && !closed.length) {
       return (
-         <EmptyState title="No data yet" sub="Nothing open or recently shipped in this scope." />
+         <EmptyState
+            title="No data yet"
+            sub="Nothing open or recently closed matching your filters."
+         />
       );
    }
 

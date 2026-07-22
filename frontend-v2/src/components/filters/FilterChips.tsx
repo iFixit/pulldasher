@@ -205,7 +205,7 @@ export function FilterChips({
             <button
                type="button"
                onClick={clearAll}
-               title="clears scope and session toggles — mutes and stars stay"
+               title="clears scope and session toggles; mutes and stars stay"
                className="hit text-xs font-medium text-brand hover:underline"
             >
                Clear filters

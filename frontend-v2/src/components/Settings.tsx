@@ -428,7 +428,7 @@ export function Settings({
                         </Field>
                         <Field
                            label="Age counts as rotting"
-                           hint="Bolds the day count at its heaviest and sets the rot tier in stats — the age line itself scales to the board's oldest pull."
+                           hint="Bolds the day count at its heaviest and sets the rot tier in stats. The age line itself scales to the board's oldest pull."
                         >
                            <NumberField
                               value={s.ageRotDays}
@@ -587,7 +587,7 @@ export function Settings({
                            <>
                               <Field
                                  label="Desktop notifications"
-                                 hint="Nudge you when a PR needs you — yours going mergeable, breaking CI or getting feedback, or a re-review falling to you. Only while this tab isn’t focused."
+                                 hint="Nudge you when a PR needs you: yours going mergeable, breaking CI or getting feedback, or a re-review falling to you. Only while this tab isn’t focused."
                               >
                                  <Segmented
                                     ariaLabel="desktop notifications"
@@ -601,7 +601,7 @@ export function Settings({
                               </Field>
                               {perm === 'denied' && (
                                  <span className="text-xs text-bad">
-                                    Blocked in your browser settings — allow notifications for this
+                                    Blocked in your browser settings; allow notifications for this
                                     site to turn them on.
                                  </span>
                               )}

@@ -163,7 +163,7 @@ export function PeopleFilter({
                         aria-label={isStarred ? `unstar ${login}` : `star ${login}`}
                         title={
                            isStarred
-                              ? `${login} is starred — floats to the front of your queues`
+                              ? `${login} is starred, floats to the front of your queues`
                               : `star ${login} to float their pulls to the front of your queues`
                         }
                      >

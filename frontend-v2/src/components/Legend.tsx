@@ -119,7 +119,7 @@ export function Legend() {
                      />
                   </span>
                }
-               def={`age — a grey hairline along a row's bottom edge appears once it's ${s.ageWarnDays}+ days without full review; its length and depth are relative to the board's longest-open pull, so the oldest runs full width in full grey. The quiet day count at the row's right edge caps it and just gets bolder — hover it for both clocks`}
+               def={`age: a grey hairline along a row's bottom edge appears once it's ${s.ageWarnDays}+ days without full review; its length and depth are relative to the board's longest-open pull, so the oldest runs full width in full grey. The quiet day count at the row's right edge caps it and just gets bolder; hover it for both clocks`}
             />
             <Item
                term={
@@ -129,7 +129,7 @@ export function Legend() {
                      <WeightMeter weight="XL" />
                   </span>
                }
-               def="review effort — the strip under the CR/QA marks fills with the review’s weight, doubling per class: a sliver = a quick pickup, full = very heavy. Hover for the exact +/− lines, click to filter"
+               def="review effort: the strip under the CR/QA marks fills with the review’s weight, doubling per class: a sliver = a quick pickup, full = very heavy. Hover for the exact +/− lines, click to filter"
             />
             <details className="group/weight mt-0.5 px-1">
                <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
@@ -147,9 +147,8 @@ export function Legend() {
                   <p>
                      If the PR carries one of the org’s size labels, that wins: it’s deterministic,
                      per-file-weighted, and versioned with the labeller. With no label it’s a guess
-                     from the diff — under 50 lines changed reads XS, under 150 S, under 600 M,
-                     under 1500 L, and 1500+ XL, bumped up a class when the PR spans more than 15
-                     files.
+                     from the diff: under 50 lines changed reads XS, under 150 S, under 600 M, under
+                     1500 L, and 1500+ XL, bumped up a class when the PR spans more than 15 files.
                   </p>
                   <p>
                      It’s only a prior, never a verdict: a tiny diff can hide a subtle change and a
@@ -166,11 +165,11 @@ export function Legend() {
                      <span className="pip pip-run" />
                   </span>
                }
-               def="CI wears the same marks as CR and QA — the machine is a reviewer too. A red ✗ disc, drawn a size larger than every other mark, means failing checks (the count beside it says how many); the gray-blue ring means still running. Passing shows nothing at rest — no news is good news; hover a row for its quiet green check and the per-check list"
+               def="CI wears the same marks as CR and QA. The machine is a reviewer too. A red ✗ disc, drawn a size larger than every other mark, means failing checks (the count beside it says how many); the gray-blue ring means still running. Passing shows nothing at rest. No news is good news; hover a row for its quiet green check and the per-check list"
             />
             <Item
                term={<DiffSize additions={120} deletions={30} />}
-               def="lines added and removed — neutral on purpose: a line count is a routine fact, not a verdict"
+               def="lines added and removed, neutral on purpose: a line count is a routine fact, not a verdict"
             />
             <Item
                term={
@@ -187,7 +186,7 @@ export function Legend() {
                      <span aria-hidden>◆</span>region
                   </span>
                }
-               def="matches a code region you set in Settings — these gather in the “In your code regions” section on Review and Team"
+               def="matches a code region you set in Settings; these gather in the “In your code regions” section on Review and Team"
             />
             <details className="group/region mt-0.5 px-1">
                <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
@@ -198,7 +197,7 @@ export function Legend() {
                </summary>
                <div className="space-y-1.5 pt-0.5 pb-1 pl-3 text-ink-2">
                   <p>
-                     Code regions are free text you set in Settings — the areas you own or follow,
+                     Code regions are free text you set in Settings, the areas you own or follow,
                      like “Growthbook” or “Shopify”. They’re a plain text match, not a regex.
                   </p>
                   <p>
@@ -222,7 +221,7 @@ export function Legend() {
                      ✋
                   </span>
                }
-               def="claim a review so teammates know you’re on it — the hand stays lit on your row, and claimed PRs collect in “You’re reviewing”. It nudges you when it goes stale and clears itself when it expires, both set in Settings (defaults: 2h and 4h)"
+               def="claim a review so teammates know you’re on it; the hand stays lit on your row, and claimed PRs collect in “You’re reviewing”. It nudges you when it goes stale and clears itself when it expires, both set in Settings (defaults: 2h and 4h)"
             />
             <Item
                term={<span className="text-ink-2 italic">X is reading it</span>}
@@ -255,7 +254,7 @@ export function Legend() {
             </details>
             <Item
                term={<span className="text-ink-2 italic">your turn</span>}
-               def="a starved review nobody’s on gets pointed at the best-matched person so it doesn’t sit forever — a toast asks them to claim it, and anyone can still take it"
+               def="a starved review nobody’s on gets pointed at the best-matched person so it doesn’t sit forever; a toast asks them to claim it, and anyone can still take it"
             />
             <details className="group/turn mt-0.5 px-1">
                <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
@@ -270,14 +269,14 @@ export function Legend() {
                      board points it at one reviewer so it stops falling through the cracks. The
                      candidates are everyone who’s CR’d that repo before (minus the author and
                      anyone who already stamped this one), so they all know the code; the pick then
-                     favors whoever the author has reviewed before — a good turn owed back, the same
+                     favors whoever the author has reviewed before, a good turn owed back, the same
                      signal “Deal me one” leans on.
                   </p>
                   <p>
                      If you’re the pick, a toast asks you to claim it right there (which also adds
                      you as a GitHub reviewer). Every client lands on the same name with no
                      coordination, and ties spread across PRs so it isn’t always one person. It’s a
-                     nudge, not a lock — anyone can take it, and an explicit GitHub review request
+                     nudge, not a lock; anyone can take it, and an explicit GitHub review request
                      overrides the guess entirely.
                   </p>
                </div>
@@ -299,7 +298,7 @@ export function Legend() {
                      waiting on CR · 2
                   </span>
                }
-               def="gray group header: why those cards wait. Hover a card’s repo #number for the full state — status, names, dates, CI, feedback"
+               def="gray group header: why those cards wait. Hover a card’s repo #number for the full state: status, names, dates, CI, feedback"
             />
          </Group>
 
@@ -324,7 +323,7 @@ export function Legend() {
          <Group title="Query">
             <Item
                term={<code className="font-mono text-[11px] text-ink-2">weight:xs,s</code>}
-               def="review-effort class(es), comma list ORs — click a row’s weight meter to toggle it"
+               def="review-effort class(es), comma list ORs; click a row’s weight meter to toggle it"
             />
             <Item
                term={<code className="font-mono text-[11px] text-ink-2">has:action</code>}
@@ -340,7 +339,7 @@ export function Legend() {
             />
             <Item
                term="Weight / State"
-               def="the point-and-click version of weight:/has:/is: — pick from a dropdown instead of typing. State's Blocked is viewer-relative (a dev block you authored counts as waiting on you), unlike is:blocked, which matches for anyone"
+               def="the point-and-click version of weight:/has:/is:, pick from a dropdown instead of typing. State's Blocked is viewer-relative (a dev block you authored counts as waiting on you), unlike is:blocked, which matches for anyone"
             />
             <Item term="Saved" def="save filter combos from the search box; reapply from Saved" />
          </Group>

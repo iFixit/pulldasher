@@ -28,7 +28,7 @@ export function RegionHint() {
          </span>
          <span className="min-w-0 flex-1">
             Review a particular area? Add <b className="font-semibold">code regions</b> in Settings.
-            A region is plain text matched against a PR's title, labels, branch, and repo;
+            A region is plain text matched against a PR’s title, labels, branch, and repo;
             matches gather in their own section above the queue.
          </span>
          <button

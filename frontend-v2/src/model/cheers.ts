@@ -262,9 +262,9 @@ export function startHereReason(
 ): string {
    const author = p.data.user.login;
    const owedByAuthor = pulls.some(o => o.data.user.login === me && hasStamp(o, author));
-   if (owedByAuthor) return `${author} reviewed yours — return the favor`;
+   if (owedByAuthor) return `${author} reviewed yours, return the favor`;
    const quickWin = p.sizeKnown && (p.weight === 'XS' || p.weight === 'S');
-   if (quickWin) return `Small one (${p.weight}) — quick`;
+   if (quickWin) return `Small one (${p.weight}), quick`;
    const days = Math.max(1, Math.round(p.ageDays));
    return superlative
       ? `Waiting ${days}d, the oldest on your plate`
@@ -607,8 +607,8 @@ export const CHEER_CATALOG: {
    {
       kind: 'pr-green',
       group: 'reward',
-      label: 'Green — ship it',
-      hint: 'A PR of yours clears CR and QA — ready to ship.',
+      label: 'Green, ship it',
+      hint: 'A PR of yours clears CR and QA, ready to ship.',
    },
    // Nudges — what to review next
    {
@@ -849,7 +849,7 @@ export function diffCheers(
             tone: 'nag',
             icon: '⏳',
             title: 'Your turn to review',
-            body: `Waiting ${Math.max(1, Math.round(p.ageDays))}d with nobody on it — you're the best fit. Claim it?`,
+            body: `Waiting ${Math.max(1, Math.round(p.ageDays))}d with nobody on it; you're the best fit. Claim it?`,
             pull: pullRef(p),
             actionLabel: 'Claim it',
             dedupeKey: `turn:${key}`,
@@ -927,7 +927,7 @@ export function diffCheers(
          {
             tone: 'nag',
             icon: '✋',
-            title: 'You claimed this — still unreviewed',
+            title: 'You claimed this, still unreviewed',
             body: `It's been ${sig.staleClaimAfter}. Review it, or release it for someone else.`,
             pull: pullRef(p),
             dedupeKey: `claimstale:${key}`,
@@ -946,7 +946,7 @@ export function diffCheers(
             tone: 'info',
             icon: '⚡',
             title: `${sig.quickWinCount} quick reviews on the board`,
-            body: 'XS/S — small ones, unclaimed.',
+            body: 'XS/S: small ones, unclaimed.',
             pull: sig.quickWinPull ? pullRef(sig.quickWinPull) : undefined,
             dedupeKey: `quick:${sig.quickWinCount}`,
          },
@@ -992,7 +992,7 @@ export function diffCheers(
             icon: '🏆',
             title: 'stamps in view',
             count: sig.myCount,
-            body: "Top of the board — nobody's ahead of you.",
+            body: "Top of the board, nobody's ahead of you.",
             celebrate: true,
             shimmer: true,
             dedupeKey: 'top:1',
@@ -1051,7 +1051,7 @@ export function diffCheers(
             {
                tone: 'reward',
                icon: '🚀',
-               title: 'Green — ship it',
+               title: 'Green, ship it',
                body: 'CR + QA both cleared.',
                pull: pullRef(p),
                celebrate: true,
@@ -1110,7 +1110,7 @@ export function diffCheers(
                tone: 'nag',
                icon: '💬',
                title: 'Changes requested on your PR',
-               body: 'A reviewer wants edits — answer the feedback.',
+               body: 'A reviewer wants edits, answer the feedback.',
                pull: pullRef(p),
                dedupeKey: `changes:${key}`,
             },
@@ -1124,7 +1124,7 @@ export function diffCheers(
                tone: 'nag',
                icon: '🕰️',
                title: `Waiting ${p.ageDays}d for review`,
-               body: 'Your PR — worth a nudge?',
+               body: 'Your PR, worth a nudge?',
                pull: pullRef(p),
                dedupeKey: `starve:${key}`,
             },

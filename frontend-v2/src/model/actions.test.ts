@@ -269,7 +269,7 @@ describe('rowNote — the author matrix', () => {
    it('ci_pending', () => {
       expect(note({ status: 'ci_pending' }, me)).toEqual({
          action: null,
-         context: 'CI running — then merge',
+         context: 'CI running, then merge',
       });
    });
 
@@ -283,7 +283,7 @@ describe('rowNote — the author matrix', () => {
    it('an external block on your own waiting pull is yours to unstick', () => {
       expect(note({ status: 'ci_pending', externalBlock: true }, me)).toEqual({
          action: 'Unblock',
-         context: 'on hold — external blocker',
+         context: 'on hold, external blocker',
       });
       // but it never overrides a real move
       expect(note({ status: 'ready', externalBlock: true }, me)).toEqual({
@@ -357,7 +357,7 @@ describe('rowNote — the non-author matrix', () => {
    it('draft', () => {
       expect(note({ author, status: 'draft' }, me)).toEqual({
          action: null,
-         context: 'draft — not reviewable yet',
+         context: 'draft, not reviewable yet',
       });
    });
 
@@ -371,7 +371,7 @@ describe('rowNote — the non-author matrix', () => {
    it('dev_block: your own block reads differently than someone else’s', () => {
       expect(note({ author, status: 'dev_block', devBlockedBy: ['me'] }, me)).toEqual({
          action: null,
-         context: 'your block stands — lift when happy',
+         context: 'your block stands; lift it when ready',
       });
       expect(note({ author, status: 'dev_block', devBlockedBy: ['bob'] }, me)).toEqual({
          action: null,
@@ -525,7 +525,7 @@ describe('rowNote — the non-author matrix', () => {
    it('an external block overrides a wait note, same as for the author', () => {
       expect(note({ author, status: 'ready', externalBlock: true }, me)).toEqual({
          action: null,
-         context: 'on hold — external blocker',
+         context: 'on hold, external blocker',
       });
       // but never a do
       expect(
@@ -650,7 +650,7 @@ describe('rowNote — claim/turn coordination (reviewer path only)', () => {
       const at = Date.now() - 3 * 3600_000; // 3h ago
       const note = rowNote(p(), 'me', { claim: { login: 'alice', at } });
       expect(note.action).toBe('Review it');
-      expect(note.context).toBe(`alice claimed it ${ago(at / 1000)} ago — pick it up?`);
+      expect(note.context).toBe(`alice claimed it ${ago(at / 1000)} ago, pick it up?`);
    });
 
    it('claim beats turn — a claim by someone else wins even when it is also my turn', () => {

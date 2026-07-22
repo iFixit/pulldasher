@@ -113,7 +113,7 @@ export function Classic({
 }) {
    const me = opts.me;
    if (!pulls.length && !closed?.length) {
-      return <EmptyState title="Workbench clear" sub="No open PRs in this scope." />;
+      return <EmptyState title="Workbench clear" sub="No open PRs match your filters." />;
    }
    const base = [...pulls].sort(defaultCompare(me));
 

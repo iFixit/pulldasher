@@ -152,7 +152,7 @@ function rowFlags(
          key: 'conflicts',
          tone: 'warn',
          label: 'conflicts',
-         detail: 'Merge conflicts with the base branch — the author needs to rebase.',
+         detail: 'Merge conflicts with the base branch; the author needs to rebase.',
       });
    if (p.deployBlockedBy.length > 0 && p.status !== 'deploy_block')
       flags.push({
@@ -417,8 +417,8 @@ function RowActions({
                   aria-label="claim this review"
                   title={
                      claim
-                        ? `claim review — currently ${claim.login}'s`
-                        : "claim this review — flags that you're reading it"
+                        ? `claim review, currently ${claim.login}'s`
+                        : "claim this review, flags that you're reading it"
                   }
                   className={btn}
                   onClick={a.claim}
@@ -524,8 +524,8 @@ function RowActionsKebab({
                   claimedByMe
                      ? 'release your claim'
                      : claim
-                       ? `claim review — currently ${claim.login}'s`
-                       : "claim this review — flags that you're reading it"
+                       ? `claim review, currently ${claim.login}'s`
+                       : "claim this review, flags that you're reading it"
                }
             >
                <ActionIcon d={ICON_HAND} box={24} />
@@ -541,7 +541,7 @@ function RowActionsKebab({
             title={
                isPrimaryRepo
                   ? `remove ${repoLabel} from your primary repos`
-                  : `mark ${repoLabel} a primary repo — leads your review queue`
+                  : `mark ${repoLabel} a primary repo, leads your review queue`
             }
          >
             <StarGlyph on={isPrimaryRepo} />
@@ -554,8 +554,8 @@ function RowActionsKebab({
             aria-pressed={isMutedRepo}
             title={
                isMutedRepo
-                  ? `unmute ${repoLabel} — show it on your board again`
-                  : `mute ${repoLabel} — hide it on your board`
+                  ? `unmute ${repoLabel}, show it on your board again`
+                  : `mute ${repoLabel}, hide it on your board`
             }
          >
             {isMutedRepo ? `Unmute ${repoLabel}` : `Mute ${repoLabel}`}
@@ -568,7 +568,7 @@ function RowActionsKebab({
             title={
                isStarredAuthor
                   ? `unstar ${author}`
-                  : `star ${author} — floats their pulls to the front of your queues`
+                  : `star ${author}, floats their pulls to the front of your queues`
             }
          >
             <StarGlyph on={isStarredAuthor} />
@@ -581,7 +581,7 @@ function RowActionsKebab({
                type="button"
                className={item}
                onClick={() => toggleMutedPerson(author, true)}
-               title={`mute ${author} — hide their pulls on your board`}
+               title={`mute ${author}, hide their pulls on your board`}
             >
                Mute {author}
             </button>

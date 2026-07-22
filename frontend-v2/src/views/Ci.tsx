@@ -88,9 +88,7 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
    // first — a pull failing two checks sits under both (the sub-line admits
    // it); yours are excluded here because they already lead the page
    const byCheck = useMemo(() => {
-      const mine = new Set(
-         failing.filter(p => p.data.user.login === me).map(p => pullKey(p.data))
-      );
+      const mine = new Set(failing.filter(p => p.data.user.login === me).map(p => pullKey(p.data)));
       return ledgers
          .map(l => ({
             context: l.context,
@@ -131,7 +129,7 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
             <section className={opts.compact ? 'mb-4' : 'mb-7'}>
                <Lane
                   title="Failing, by check"
-                  sub="worst check first, oldest pull first — a pull failing two checks sits under both; yours lead the page"
+                  sub="worst check first, oldest pull first. A pull failing two checks sits under both; yours lead the page"
                   pulls={[]}
                   count={byCheck.reduce((sum, g) => sum + g.pulls.length, 0)}
                   opts={opts}
@@ -175,27 +173,27 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
          {(green.length > 0 || noChecks.length > 0) && (
             <RestGroup title="The rest of the board">
                {green.length > 0 && (
-               <Fold
-                  dot="var(--ok)"
-                  count={green.length}
-                  label="all green"
-                  hint="every check passed"
-                  id="ci:green"
-                  defaultOpen={allGreen}
-               >
-                  <FoldRows list={green} opts={opts} id="ci:green" />
-               </Fold>
+                  <Fold
+                     dot="var(--ok)"
+                     count={green.length}
+                     label="all green"
+                     hint="every check passed"
+                     id="ci:green"
+                     defaultOpen={allGreen}
+                  >
+                     <FoldRows list={green} opts={opts} id="ci:green" />
+                  </Fold>
                )}
                {noChecks.length > 0 && (
-               <Fold
-                  dot="var(--ink-3)"
-                  count={noChecks.length}
-                  label="no checks"
-                  hint="nothing runs CI on these"
-                  id="ci:no-checks"
-               >
-                  <FoldRows list={noChecks} opts={opts} id="ci:no-checks" />
-               </Fold>
+                  <Fold
+                     dot="var(--ink-3)"
+                     count={noChecks.length}
+                     label="no checks"
+                     hint="nothing runs CI on these"
+                     id="ci:no-checks"
+                  >
+                     <FoldRows list={noChecks} opts={opts} id="ci:no-checks" />
+                  </Fold>
                )}
             </RestGroup>
          )}

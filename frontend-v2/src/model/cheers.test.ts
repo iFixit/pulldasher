@@ -271,7 +271,7 @@ describe('startHereReason — priority order', () => {
       const target = pull('org/a', 1, { author: 'alice', ageDays: 10, weight: 'XS' });
       const mine = pull('org/a', 2, { author: 'me', crBy: ['alice'] });
       expect(startHereReason(target, [target, mine], 'me')).toBe(
-         'alice reviewed yours — return the favor'
+         'alice reviewed yours, return the favor'
       );
    });
 
@@ -287,7 +287,7 @@ describe('startHereReason — priority order', () => {
 
    it('falls back to a quick-win when there is no reciprocity', () => {
       const target = pull('org/b', 1, { author: 'alice', weight: 'XS', sizeKnown: true });
-      expect(startHereReason(target, [target], 'me')).toBe('Small one (XS) — quick');
+      expect(startHereReason(target, [target], 'me')).toBe('Small one (XS), quick');
    });
 
    it('falls back to urgency when nothing else applies', () => {
