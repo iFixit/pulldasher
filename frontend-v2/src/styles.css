@@ -449,22 +449,29 @@ label:has(> input:not(:disabled)) {
   z-index: 1;
 }
 
-/* the verb dock's standing words (Claim / Snooze): whispered at rest —
-   readable cold, so the affordance is discoverable without hover, on touch
-   included — rising to their true colors on row hover or focus. Claim takes
-   brand (the invitation); Snooze takes ink. The same rest-then-rise ramp
-   the age numeral wears: one quiet tier, board-wide. */
+/* the verb dock's words (Claim / Snooze / Release): the SLOT stands (the
+   dock reserves its width, so nothing ever shifts), the WORDS rest
+   invisible and fade in on row hover or focus — opacity only, the board's
+   established reveal (the green CI ring, the kebab); motion stays reserved
+   for state changes. Claim/Release wear brand (the invitation and its
+   undo); Snooze, ink. On touch, where hover doesn't exist, the words stay
+   visible at the whisper tier instead. */
 .pd-verb {
-  color: color-mix(in oklab, var(--ink-3) 60%, transparent);
-  transition: color 150ms ease-out;
+  opacity: 0;
+  color: var(--ink-2);
+  transition: opacity 150ms ease-out;
+}
+.pd-verb-claim {
+  color: var(--brand);
 }
 .pd-row:hover .pd-verb,
-.pd-verb:focus-visible {
-  color: var(--ink-2);
+.pd-row:focus-within .pd-verb {
+  opacity: 1;
 }
-.pd-row:hover .pd-verb-claim,
-.pd-verb-claim:focus-visible {
-  color: var(--brand);
+@media (hover: none) {
+  .pd-verb {
+    opacity: 0.55;
+  }
 }
 
 /* the kebab (utilities + management) reveals on row hover at every desktop

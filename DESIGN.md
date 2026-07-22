@@ -83,20 +83,25 @@ remains: a ranked lane IS the recommendation — put pick logic in the
 lane's ordering and explain it behind the sub-line, never inside a control
 with its own private order.
 
-**Workflow verbs are first-class: standing words in the row's anatomy.**
-Claim and Snooze are the board's two gestures, so they live in the rail's
-last column — the verb dock — like CR and age do, not in anything that
-materializes on hover. At rest they WHISPER (60% ink-3: readable cold, so
-the affordance is discoverable without hover, touch included); on row
-hover each rises to its true color — Claim to brand, the invitation,
-Snooze to ink. A claim you hold turns the slot into "Release" in standing
-brand: a commitment is never hidden. The dock is one column down a lane
-(the Claim slot is reserved even where unclaimable), a verb renders only
-where it acts (Snooze on Review alone), and utilities (copy branch,
-re-fetch) stay in the kebab at every width, verbs atop its menu. Two
-failure modes this replaces: four identical icons gave equal salience to
-unequal decisions, and a hover-revealed pill made the board's core gesture
-undiscoverable at rest.
+**Workflow verbs are first-class: a standing place, a resting quiet.**
+Claim and Snooze are the board's two gestures, so they own the rail's
+last column — the verb dock — like CR and age do. The SLOT stands (its
+width is reserved even when empty, so the dock is one column down a lane
+and nothing ever shifts); the WORDS rest invisible and fade in on row
+hover or focus — opacity only, the board's one reveal mechanism (the
+green CI ring, the kebab); motion stays reserved for state changes, so
+nothing slides or grows because a cursor passed. Claim and Release wear
+brand (the invitation and its undo); Snooze, ink. On touch, where hover
+doesn't exist, the words stay visible at a whisper. A claim you HOLD is a
+commitment, and commitments never hide: its standing mark is the brand
+hand riding with the CR pips — a claim is literally a pending review
+request, so the CR cluster is its semantic home — while "Release"
+reveals in the dock like its sibling verbs. A verb renders only where it
+acts (Snooze on Review alone); utilities (copy branch, re-fetch) stay in
+the kebab at every width, verbs atop its menu. Failure modes this design
+retires: four identical icons (equal salience, unequal decisions), a
+hover pill (core gesture undiscoverable, layout that materializes), and
+sixty standing words down a lane (texture where quiet belongs).
 
 **Work-in-progress lives inline, not in a popover.** A popover is for
 glancing (state detail, signatures, rankings) and rightly dies on any

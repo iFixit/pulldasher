@@ -294,15 +294,19 @@ function useRowActions(pull: DerivedPull) {
 
 /**
  * The verb dock: the rail's last column, where the row's workflow verbs
- * STAND — Claim and Snooze are the board's two first-class gestures, so
- * they live in the row's anatomy like CR and age do, not in a pill that
- * materializes on hover. At rest they whisper (readable, so the affordance
- * is discoverable cold, on touch included); on row hover each rises to its
- * true color — Claim to brand, the invitation, Snooze to ink. A claim you
- * hold turns the slot into "Release" in STANDING brand: a commitment is
- * never hidden behind a hover. Snooze renders only where it acts (the
- * Review lens); the Claim slot is reserved even on unclaimable rows so the
- * dock reads as one column down a lane. Utilities stay in the kebab.
+ * live — Claim and Snooze are the board's two first-class gestures, so
+ * they hold a place in the row's anatomy like CR and age do. The place
+ * STANDS; the words REST INVISIBLE and fade in on row hover/focus
+ * (opacity only — the board's established reveal mechanism; motion stays
+ * reserved for state changes), so a scanned lane is quiet and the verbs
+ * appear exactly when a row has your attention. On touch, where hover
+ * doesn't exist, they stay visible at the whisper tier. Claim wears brand
+ * (the invitation); Snooze, ink. A claim you HOLD is a commitment, and
+ * commitments never hide: its standing mark is the brand hand riding with
+ * the CR pips (a claim is literally a pending review request), while
+ * "Release" reveals here like its sibling verbs. Snooze renders only
+ * where it acts (Review); slots are reserved even when empty so the dock
+ * is one column down a lane. Utilities stay in the kebab.
  */
 function VerbDock({
    pull,
@@ -336,10 +340,9 @@ function VerbDock({
             <button
                type="button"
                title="release your claim"
-               className={`${verb} inline-flex items-center gap-1 font-medium text-brand`}
+               className={`${verb} pd-verb pd-verb-claim font-medium`}
                onClick={a.release}
             >
-               <Icon icon={Hand} size={12} />
                Release
             </button>
          ) : claimable ? (
@@ -621,6 +624,15 @@ function MetricRail({
             }
             panelExtra={<WeightPanelSection pull={pull} opts={opts} />}
          />
+         {claim?.login === me && (
+            <span
+               aria-label="you claimed this review"
+               title="you claimed this review — release it from the row's Release slot"
+               className="-ml-1 flex-none text-brand"
+            >
+               <Icon icon={Hand} size={12} />
+            </span>
+         )}
          <SigPips
             label="QA"
             have={pull.qaHave}
