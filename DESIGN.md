@@ -83,15 +83,20 @@ remains: a ranked lane IS the recommendation — put pick logic in the
 lane's ordering and explain it behind the sub-line, never inside a control
 with its own private order.
 
-**Workflow verbs are words; plumbing is an overflow.** A row action that
-decides something about the work (Claim, Snooze) reads as a worded
-invitation on hover — the word is the affordance, Claim in brand because
-committing to a review is the board's core gesture. A utility (copy the
-branch, re-fetch) is plumbing: it lives in the kebab at every width, one
-overflow pattern board-wide, verbs at the top of its menu. And a verb only
-renders where it acts: Snooze appears on the Review lens alone, because
-that is the only lens a snooze quiets. Four identical icon buttons was the
-failure mode this replaces — equal salience for unequal decisions.
+**Workflow verbs are first-class: standing words in the row's anatomy.**
+Claim and Snooze are the board's two gestures, so they live in the rail's
+last column — the verb dock — like CR and age do, not in anything that
+materializes on hover. At rest they WHISPER (60% ink-3: readable cold, so
+the affordance is discoverable without hover, touch included); on row
+hover each rises to its true color — Claim to brand, the invitation,
+Snooze to ink. A claim you hold turns the slot into "Release" in standing
+brand: a commitment is never hidden. The dock is one column down a lane
+(the Claim slot is reserved even where unclaimable), a verb renders only
+where it acts (Snooze on Review alone), and utilities (copy branch,
+re-fetch) stay in the kebab at every width, verbs atop its menu. Two
+failure modes this replaces: four identical icons gave equal salience to
+unequal decisions, and a hover-revealed pill made the board's core gesture
+undiscoverable at rest.
 
 **Work-in-progress lives inline, not in a popover.** A popover is for
 glancing (state detail, signatures, rankings) and rightly dies on any

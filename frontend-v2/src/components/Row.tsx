@@ -293,16 +293,18 @@ function useRowActions(pull: DerivedPull) {
 }
 
 /**
- * The row's workflow verbs, revealed on hover/focus as WORDS — Snooze and
- * Claim are decisions about the work, so they read as invitations, not
- * anonymous icons. Utilities (copy branch, re-fetch) are plumbing and live
- * in the kebab only. The cluster always floats over the row's tail
- * (absolute, zero standing width), so the words cost nothing at rest.
- * Snooze renders only where it acts (the Review lens: opts.showSnooze);
- * Claim only on another person's claimable pull. Hidden below 720px, where
- * the kebab is the whole story.
+ * The verb dock: the rail's last column, where the row's workflow verbs
+ * STAND — Claim and Snooze are the board's two first-class gestures, so
+ * they live in the row's anatomy like CR and age do, not in a pill that
+ * materializes on hover. At rest they whisper (readable, so the affordance
+ * is discoverable cold, on touch included); on row hover each rises to its
+ * true color — Claim to brand, the invitation, Snooze to ink. A claim you
+ * hold turns the slot into "Release" in STANDING brand: a commitment is
+ * never hidden behind a hover. Snooze renders only where it acts (the
+ * Review lens); the Claim slot is reserved even on unclaimable rows so the
+ * dock reads as one column down a lane. Utilities stay in the kebab.
  */
-function RowActions({
+function VerbDock({
    pull,
    me,
    claim,
@@ -316,53 +318,49 @@ function RowActions({
    const a = useRowActions(pull);
    const mine = claim?.login === me;
    const claimable = pull.data.user.login !== me && !mine;
+   const verb =
+      'hit pressable rounded border-0 bg-transparent px-0.5 text-xs whitespace-nowrap';
    return (
-      <>
-         {/* always visible — not .row-actions — so a claim you hold doesn't
-             vanish when the row loses hover; it's your commitment, not a
-             hover affordance. */}
-         {mine && (
+      <span className="ml-1 inline-flex items-center gap-1.5">
+         {showSnooze && (
             <button
                type="button"
-               aria-label="release your claim"
-               title="release your claim"
-               className="hit pressable rounded border-0 bg-transparent px-1 text-xs text-brand"
-               onClick={a.release}
+               title="off your Review lens until tomorrow or until it changes"
+               className={`${verb} pd-verb`}
+               onClick={a.snooze}
             >
-               <Icon icon={Hand} />
+               Snooze
             </button>
          )}
-         {(showSnooze || claimable) && (
-            <span className="row-actions absolute top-1/2 right-full z-10 mr-1 hidden -translate-y-1/2 items-center gap-2 rounded-md bg-muted px-1.5 py-1 [@media(hover:hover)_and_(min-width:720px)]:inline-flex">
-               {showSnooze && (
-                  <button
-                     type="button"
-                     title="off your Review lens until tomorrow or until it changes"
-                     className="hit pressable inline-flex items-center gap-1 rounded border-0 bg-transparent px-0.5 text-xs whitespace-nowrap text-ink-3 hover:text-ink"
-                     onClick={a.snooze}
-                  >
-                     <Icon icon={AlarmClock} size={12} />
-                     Snooze
-                  </button>
-               )}
-               {claimable && (
-                  <button
-                     type="button"
-                     title={
-                        claim
-                           ? `claim review, currently ${claim.login}'s`
-                           : 'claim this review: adds you as a reviewer on the PR itself, so GitHub and the board both show you’re on it'
-                     }
-                     className="hit pressable inline-flex items-center gap-1 rounded border-0 bg-transparent px-0.5 text-xs font-medium whitespace-nowrap text-brand"
-                     onClick={a.claim}
-                  >
-                     <Icon icon={Hand} size={12} />
-                     Claim
-                  </button>
-               )}
+         {mine ? (
+            <button
+               type="button"
+               title="release your claim"
+               className={`${verb} inline-flex items-center gap-1 font-medium text-brand`}
+               onClick={a.release}
+            >
+               <Icon icon={Hand} size={12} />
+               Release
+            </button>
+         ) : claimable ? (
+            <button
+               type="button"
+               title={
+                  claim
+                     ? `claim review, currently ${claim.login}'s`
+                     : 'claim this review: adds you as a reviewer on the PR itself, so GitHub and the board both show you’re on it'
+               }
+               className={`${verb} pd-verb pd-verb-claim font-medium`}
+               onClick={a.claim}
+            >
+               Claim
+            </button>
+         ) : (
+            <span aria-hidden className="invisible px-0.5 text-xs font-medium">
+               Claim
             </span>
          )}
-      </>
+      </span>
    );
 }
 
@@ -591,7 +589,6 @@ function MetricRail({
             opts.compact ? 'relative' : ''
          }`}
       >
-         <RowActions pull={pull} me={me} claim={claim} showSnooze={opts.showSnooze} />
          <RowActionsKebab pull={pull} claim={claim} showSnooze={opts.showSnooze} />
          {/* one instrument, humans first: CR (label, weight letter, pips —
              one door into one panel), then QA, then the machine's circle at
@@ -648,6 +645,7 @@ function MetricRail({
             rotDays={opts.ageRotDays}
             display={opts.ageDisplay}
          />
+         <VerbDock pull={pull} me={me} claim={claim} showSnooze={opts.showSnooze} />
       </span>
    );
 }

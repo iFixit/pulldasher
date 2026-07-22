@@ -425,9 +425,6 @@ label:has(> input:not(:disabled)) {
      desktop too — revealed on row hover / focus, opacity so the slot never
      jumps. Unlayered on purpose: it must beat the kebab's own
      hidden-at-desktop utility. */
-  .row-actions {
-    display: none;
-  }
   .pd-rail {
     flex-basis: 100%;
     margin-left: 0;
@@ -452,20 +449,22 @@ label:has(> input:not(:disabled)) {
   z-index: 1;
 }
 
-/* hover-reveal row verbs (Snooze / Claim). The row-level :focus-within
-   matters: a visibility:hidden element can never take focus, so the buttons
-   must become visible when ANY part of the row is focused (tabbing to the
-   title), or the keyboard could never reach them. */
-@media (hover: hover) {
-  .pd-row:hover .row-actions {
-    visibility: visible;
-  }
+/* the verb dock's standing words (Claim / Snooze): whispered at rest —
+   readable cold, so the affordance is discoverable without hover, on touch
+   included — rising to their true colors on row hover or focus. Claim takes
+   brand (the invitation); Snooze takes ink. The same rest-then-rise ramp
+   the age numeral wears: one quiet tier, board-wide. */
+.pd-verb {
+  color: color-mix(in oklab, var(--ink-3) 60%, transparent);
+  transition: color 150ms ease-out;
 }
-.pd-row:focus-within .row-actions {
-  visibility: visible;
+.pd-row:hover .pd-verb,
+.pd-verb:focus-visible {
+  color: var(--ink-2);
 }
-.row-actions {
-  visibility: hidden;
+.pd-row:hover .pd-verb-claim,
+.pd-verb-claim:focus-visible {
+  color: var(--brand);
 }
 
 /* the kebab (utilities + management) reveals on row hover at every desktop
