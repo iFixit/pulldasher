@@ -130,6 +130,25 @@ Marks are drawn as SVG masks / CSS geometry, never font glyphs — a text ✓
 at 10px is at the mercy of the platform rasterizer (a struck-through ✓ was
 conceptually perfect and rendered as a blob).
 
+**Salience is relative to its era.** A mark's loudness is set by its
+neighbors, not by its own pixels: the 18px CI alarm was right next to a
+112px ruler and shouting once the ruler died. After removing or quieting
+anything in a region, re-audit what now reads loudest there — escalations
+earned in a crowded layout rarely survive a quiet one.
+
+**A boolean alarm is never a proportion.** Encoding "broken" as a share
+(a red arc sized failing/total) makes one failure out of 25 a 4% sliver —
+invisible for the state that most needs seeing. Alarms are binary at full
+strength; continuous encodings (the CI progress ring's sweep, the age
+line's length) are reserved for facts that are genuinely continuous. The
+counts live in the popover.
+
+**One mark can also carry a relation's two standings.** The stack
+connector's full elbow means "child of the row above"; the same line
+truncated to an 8px stub means "child of something that isn't here." When
+a relationship's other end may be off-screen, truncate the mark rather
+than inventing a second vocabulary — the full form teaches the stub.
+
 ### Icons
 
 One family: every icon on the board renders through `lucide-react` (ISC,
@@ -171,6 +190,39 @@ icon with a class bolted on.
   band labels share the exported constant, never a hand-rolled copy) >
   `Fold` summaries (disclosure rows, not titles).
 
+## Settings & configuration
+
+- **A control lives where its effect is visible.** Notification prefs
+  behind the bell, filter defaults inside their filters ("Make this my
+  default" when the session differs), team and repos edited on the board
+  surfaces that show them. The Settings panel is the home of last resort,
+  not the junk drawer.
+- **Identity data is not a setting.** Your team, repos, and regions are
+  workspace data with their own editors; embedding full pickers in a
+  preferences panel cost 31% of its scroll and made it a "large list"
+  (owner's words, then measured: 2,846px, 20% visible at once).
+- **The panel must be seeable whole.** The test for done: a first-time
+  user can enumerate every setting without scrolling much; verbs (refresh,
+  reset) and rarely-touched timers fold into one Advanced disclosure,
+  destructive action last.
+- **Two knobs on one concept is one too many.** Derived values (rot =
+  2.5 × warn) beat sibling fields nobody tunes independently.
+- **Sticky headers over scrolling interactive content need an explicit
+  z-index and an opaque background** — every `.hit` control is positioned
+  and will paint over an unranked sticky header in DOM order (this
+  shipped as a real mobile bug).
+
+## Feedback & celebrations
+
+- **Only cheer what the user caused.** Board-relative facts improve
+  passively (your rank climbs when someone else's reviewed PRs merge
+  away); a celebration gated only on the fact's transition fires "at
+  random" from the user's seat. Require the user's own action in the
+  gate (climbing demands your own stamp count grew).
+- **Nags are once per subject** with an explicit refire rule (overtaken
+  refires only after you reclaim and lose the spot again); dedupe keys
+  name the subject, not the tick.
+
 ## Copy rules (static text is part of the visual system)
 
 - **Say the thing, don't be clever.** Lane names state their contents
@@ -206,6 +258,12 @@ icon with a class bolted on.
 
 - Judge at **real render px** and zoomed, in-situ beside real neighbors, in
   **both themes** — on the dummy board (`npm run dev:dummy`).
+- **The dummy board is the design bench: every mark's every standing must
+  be permanently visible on it.** Viewer-relative lanes can structurally
+  hide a state (a stack only nests when its members share one list, so no
+  chain ever nested until the fixture was synthesized with uniform state).
+  When a state can't occur naturally in the fixture, synthesize it
+  deterministically and comment why.
 - Prototype candidates with throwaway DOM/JS mutation in the live page;
   let the owner pick from *rendered* candidates, not descriptions.
 - For any salience claim, do the arithmetic (area × contrast) — one
