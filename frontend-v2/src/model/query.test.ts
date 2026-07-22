@@ -115,6 +115,17 @@ describe('matchesQuery', () => {
       expect(matchesQuery(p, 'is:restamp', 'dave')).toBe(false);
    });
 
+   it('is:restamp asks nothing while the author owns the pull', () => {
+      // same gate as reviewerMove: a draft / dev-blocked / red-CI pull owes
+      // no re-stamp until the author's move lands
+      expect(matchesQuery(fake({ status: 'ci_red', recrBy: ['bob'] }), 'is:restamp', 'bob')).toBe(
+         false
+      );
+      expect(matchesQuery(fake({ status: 'draft', reqaBy: ['bob'] }), 'is:restamp', 'bob')).toBe(
+         false
+      );
+   });
+
    it('is:blocked matches dev_block and deploy_block statuses only', () => {
       expect(matchesQuery(fake({ status: 'dev_block' }), 'is:blocked', 'viewer')).toBe(true);
       expect(matchesQuery(fake({ status: 'deploy_block' }), 'is:blocked', 'viewer')).toBe(true);

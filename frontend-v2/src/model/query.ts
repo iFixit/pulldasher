@@ -1,4 +1,4 @@
-import { rowNote } from './actions';
+import { authorOwnsIt, rowNote } from './actions';
 import type { DerivedPull } from './status';
 
 /**
@@ -13,7 +13,7 @@ import type { DerivedPull } from './status';
  *   author:al     author login contains
  *   weight:xs,s   review-effort class, comma list ORs (weight:xs,s = XS or S)
  *   has:action    the viewer (`me`) has an imperative move on this card
- *   is:restamp    `me` owes a re-CR or re-QA (in recrBy/reqaBy)
+ *   is:restamp    `me` owes a re-CR or re-QA on a reviewable pull
  *   is:blocked    status is dev_block or deploy_block
  *
  * `me` is the viewer's login, needed only for has:/is: — every other token
@@ -43,7 +43,10 @@ function matchTerm(p: DerivedPull, term: string, me: string): boolean {
             return val.split(',').filter(Boolean).includes(p.weight.toLowerCase());
          if (key === 'has') return val === 'action' && rowNote(p, me).action != null;
          if (key === 'is') {
-            if (val === 'restamp') return p.recrBy.includes(me) || p.reqaBy.includes(me);
+            // same authorOwnsIt gate as reviewerMove: no re-stamp is owed
+            // while the pull is a draft, dev-blocked, or red-CI
+            if (val === 'restamp')
+               return !authorOwnsIt(p) && (p.recrBy.includes(me) || p.reqaBy.includes(me));
             if (val === 'blocked') return p.status === 'dev_block' || p.status === 'deploy_block';
             return false;
          }

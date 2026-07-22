@@ -106,6 +106,10 @@ export function Legend() {
                def="the dotted underline marks a slot you stamped"
             />
             <Item
+               term={<b className="font-semibold text-ink">Re-stamp</b>}
+               def="a push undid your stamp and the board is asking again — but only once the PR is reviewable: while it's a draft, dev-blocked, or CI is red, the next move is the author's and no re-stamp is asked of you yet"
+            />
+            <Item
                term={<span className="text-ink-2 italic">is testing it</span>}
                def="someone claimed QA by adding the QAing label on GitHub"
             />

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { authorOwnsIt } from '../model/actions';
 import { STATUS_ORDER, type DerivedPull } from '../model/status';
 import { useSettings } from '../settings';
 import type { Team } from '../types';
@@ -41,7 +42,7 @@ export function People({
    for (const p of allPulls)
       counts.set(p.data.user.login, (counts.get(p.data.user.login) ?? 0) + 1);
    const owes = new Map<string, DerivedPull[]>();
-   for (const p of allPulls) for (const u of p.recrBy) owes.set(u, [...(owes.get(u) ?? []), p]);
+   for (const p of allPulls.filter(x => !authorOwnsIt(x))) for (const u of p.recrBy) owes.set(u, [...(owes.get(u) ?? []), p]);
 
    // starred people lead the directory; muted ones drop out entirely unless
    // they're the person an explicit pick (a URL or a click) already landed on

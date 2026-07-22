@@ -1,6 +1,21 @@
 import { ago } from '../format';
 import { requestedReviewers } from './reviewers';
 import type { DerivedPull } from './status';
+import { isBotLogin } from './visibility';
+
+/**
+ * The three statuses that put the ball wholly with the author — while one
+ * holds, the board asks reviewers for NOTHING, not even an owed re-stamp: a
+ * draft isn't reviewable, a dev block means more pushes are coming, and red
+ * CI means the head everyone would re-review is about to change. Gates the
+ * personal-obligation checks (Re-stamp / Finish QA / Re-QA) in reviewerMove,
+ * reviewerNote, and the `is:restamp` query token, so a stale stamp only asks
+ * for its re-stamp once the pull is reviewable again. (QA obligations stay
+ * un-gated across the OTHER statuses on purpose — QA runs in parallel with
+ * CR on this board.)
+ */
+export const authorOwnsIt = (p: DerivedPull): boolean =>
+   p.status === 'draft' || p.status === 'dev_block' || p.status === 'ci_red';
 
 /**
  * The verb column: what moves this pull, and whose move is it? Review's
@@ -22,7 +37,10 @@ export function authorMove(p: DerivedPull): string | null {
       const others = p.devBlockedBy.filter(l => l !== p.data.user.login);
       return others.length ? 'Address feedback' : 'Lift your block';
    }
-   if (p.status === 'unmergeable' || p.conflict) return 'Rebase';
+   // conflict only, NOT status === 'unmergeable': that status also covers a
+   // clean stacked pull (dependent, signed off, waiting on its parent), where
+   // there is nothing to rebase and no move to nudge about
+   if (p.conflict) return 'Rebase';
    if (p.status === 'needs_qa' && !p.qaingLogin && !p.reqaBy.length) return 'Find a QA-er';
    if (p.status === 'draft') return 'Finish the draft';
    return null;
@@ -33,9 +51,12 @@ export function authorMove(p: DerivedPull): string | null {
  * CR on this board (see Review.tsx's qaPool), so a push that invalidates both
  * your QA and someone's CR at once lands the pull at needs_recr while still
  * owing you a re-QA — and rowNote/actionState already surface it, so "Yours to
- * do" must too, or the card shows "Re-QA" while the lane silently drops it. */
+ * do" must too, or the card shows "Re-QA" while the lane silently drops it.
+ * The one gate is authorOwnsIt: a draft / dev-blocked / red-CI pull asks
+ * reviewers for nothing until the author's move lands. */
 export function reviewerMove(p: DerivedPull, me: string): string | null {
    if (p.data.user.login === me) return null;
+   if (authorOwnsIt(p)) return null;
    if (p.recrBy.includes(me)) return 'Re-stamp';
    if (p.qaingLogin === me) return 'Finish QA';
    if (p.reqaBy.includes(me)) return 'Re-QA';
@@ -144,8 +165,17 @@ function authorNote(p: DerivedPull, me: string): RowNote {
       return waitOnly(`waiting on ${who(p.recrBy)} to re-stamp${pushed}`);
    if (p.status === 'needs_cr') {
       // any reviewer with an unstamped verdict (CHANGES_REQUESTED already
-      // handled above) has left something the author owes an answer to
-      const reviewerLogins = unique((d.status.unstamped_reviewers ?? []).map(r => r.login));
+      // handled above) has left something the author owes an answer to.
+      // DISMISSED is excluded — a dismissed review no longer stands, so it
+      // owes no answer. Bots are excluded too: the wire's unstamped_reviewers
+      // carries every reviewer, and the CI review bot COMMENTs on most PRs —
+      // unfiltered, "Answer the review · from claude[bot]" was the note on a
+      // quarter of the live board, burying the real queue-position context.
+      const reviewerLogins = unique(
+         (d.status.unstamped_reviewers ?? [])
+            .filter(r => r.state !== 'DISMISSED' && !isBotLogin(r.login, new Set()))
+            .map(r => r.login)
+      );
       if (reviewerLogins.length)
          return { action: 'Answer the review', context: `from ${who(reviewerLogins)}` };
       if (p.engagedNoStamp.length) return waitOnly(`in discussion with ${who(p.engagedNoStamp)}`);
@@ -269,13 +299,19 @@ function reviewerNote(
    const requestedFromMe = requested.includes(me);
    const requestedOthers = requested.filter(l => l !== me);
 
-   if (p.recrBy.includes(me))
-      return {
-         action: 'Re-stamp',
-         context: p.headPushedAt ? `last commit ${ago(p.headPushedAt)} ago` : null,
-      };
-   if (p.qaingLogin === me) return doOnly('Finish QA');
-   if (p.reqaBy.includes(me)) return doOnly('Re-QA');
+   // your personal obligations — but only once the pull is reviewable: while
+   // the author owns it (draft / dev block / red CI, the statuses below that
+   // return early anyway) a stale stamp asks nothing of you yet, or "Re-stamp"
+   // would nag you about a head the author is still about to replace
+   if (!authorOwnsIt(p)) {
+      if (p.recrBy.includes(me))
+         return {
+            action: 'Re-stamp',
+            context: p.headPushedAt ? `last commit ${ago(p.headPushedAt)} ago` : null,
+         };
+      if (p.qaingLogin === me) return doOnly('Finish QA');
+      if (p.reqaBy.includes(me)) return doOnly('Re-QA');
+   }
 
    if (p.status === 'draft') return waitOnly('draft, not reviewable yet');
    if (p.status === 'ci_red') return waitOnly('CI red · author fixes');
@@ -355,8 +391,12 @@ function reviewerNote(
 export type ActionStateKey = 'restamp' | 'review' | 'qa' | 'mine' | 'blocked' | 'waiting';
 
 export function actionState(p: DerivedPull, me: string): ActionStateKey {
-   if (p.recrBy.includes(me) || p.reqaBy.includes(me)) return 'restamp';
+   // keyed off the note's action, not raw recrBy/reqaBy, so the bucket can
+   // never disagree with the word on the card: a stale stamp on a pull the
+   // author still owns (authorOwnsIt) isn't a re-stamp yet, and a re-tester
+   // who holds the QAing label reads "Finish QA", which is `mine`
    const note = rowNote(p, me);
+   if (note.action === 'Re-stamp' || note.action === 'Re-QA') return 'restamp';
    if (note.action === 'Review it' || note.action === 'Re-review') return 'review';
    if (note.action === 'QA it') return 'qa';
    if (note.action != null) return 'mine';

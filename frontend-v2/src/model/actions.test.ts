@@ -69,7 +69,17 @@ describe('alertMove — which transitions earn a desktop nudge', () => {
       expect(
          alertMove(dp({ author: 'me', status: 'dev_block', devBlockedBy: ['reviewer'] }), 'me')
       ).toBe('Address feedback');
-      expect(alertMove(dp({ author: 'me', status: 'unmergeable' }), 'me')).toBe('Rebase');
+      expect(alertMove(dp({ author: 'me', status: 'unmergeable', conflict: true }), 'me')).toBe(
+         'Rebase'
+      );
+   });
+
+   it('does not tell a clean stacked PR to rebase', () => {
+      // unmergeable also covers dependent-without-conflict: signed off and
+      // waiting on its parent — nothing to rebase, so no nudge
+      expect(
+         alertMove(dp({ author: 'me', status: 'unmergeable', dependent: true }), 'me')
+      ).toBeNull();
    });
 
    it('does not nudge you about a block you put on your own PR', () => {
@@ -120,16 +130,23 @@ describe('authorMove — a dev block you hold yourself', () => {
    });
 });
 
-describe('reviewerMove — re-stamp/re-QA are not gated on the current status', () => {
+describe('reviewerMove — re-stamp/re-QA across statuses, gated on authorOwnsIt', () => {
    it('surfaces an owed Re-QA even when the pull sits at needs_recr', () => {
       // a push invalidated both your QA and someone else's CR at once: status
       // lands at needs_recr (CR precedes QA), but the re-QA is still yours to do
       const p = dp({ author: 'a', status: 'needs_recr', recrBy: ['alice'], reqaBy: ['me'] });
       expect(reviewerMove(p, 'me')).toBe('Re-QA');
    });
-   it('surfaces an owed Re-stamp whatever higher-precedence state masks it', () => {
-      const p = dp({ author: 'a', status: 'ci_red', recrBy: ['me'] });
-      expect(reviewerMove(p, 'me')).toBe('Re-stamp');
+   it('asks for nothing while the author owns the pull', () => {
+      // the push that broke CI is the same push that staled your stamp: the
+      // author fixes first, and the head you would re-review is about to
+      // change. Same for a draft (not reviewable) and a dev block (more
+      // pushes coming) — the re-obligations come back once the mask lifts.
+      for (const status of ['ci_red', 'draft', 'dev_block'] as const) {
+         expect(reviewerMove(dp({ author: 'a', status, recrBy: ['me'] }), 'me')).toBeNull();
+         expect(reviewerMove(dp({ author: 'a', status, reqaBy: ['me'] }), 'me')).toBeNull();
+         expect(reviewerMove(dp({ author: 'a', status, qaingLogin: 'me' }), 'me')).toBeNull();
+      }
    });
 });
 
@@ -239,6 +256,46 @@ describe('rowNote — the author matrix', () => {
             me
          )
       ).toEqual({ action: 'Answer the review', context: 'from holly' });
+   });
+
+   it('needs_cr: bot reviews never demand an answer', () => {
+      // the CI review bot COMMENTs on most PRs; unfiltered, "Answer the
+      // review · from claude[bot]" was the note on a quarter of the live board
+      expect(
+         note(
+            {
+               status: 'needs_cr',
+               unstampedReviewers: [{ login: 'claude[bot]', state: 'COMMENTED', date: 1 }],
+            },
+            me
+         )
+      ).toEqual({ action: null, context: 'in the CR queue' });
+   });
+
+   it('needs_cr: a dismissed review no longer stands, so it owes no answer', () => {
+      expect(
+         note(
+            {
+               status: 'needs_cr',
+               unstampedReviewers: [{ login: 'holly', state: 'DISMISSED', date: 1 }],
+            },
+            me
+         )
+      ).toEqual({ action: null, context: 'in the CR queue' });
+      // a human verdict beside them still asks
+      expect(
+         note(
+            {
+               status: 'needs_cr',
+               unstampedReviewers: [
+                  { login: 'claude[bot]', state: 'COMMENTED', date: 1 },
+                  { login: 'holly', state: 'DISMISSED', date: 2 },
+                  { login: 'iris', state: 'COMMENTED', date: 3 },
+               ],
+            },
+            me
+         )
+      ).toEqual({ action: 'Answer the review', context: 'from iris' });
    });
 
    it('needs_cr: comment-only engagement (no reviewer) is a discussion wait', () => {
@@ -351,6 +408,26 @@ describe('rowNote — the non-author matrix', () => {
       expect(note({ author, status: 'needs_qa', reqaBy: ['me'] }, me)).toEqual({
          action: 'Re-QA',
          context: null,
+      });
+   });
+
+   it('your stale stamp asks nothing while the author owns the pull', () => {
+      // the same push that staled your stamp also broke CI / the pull went
+      // back to draft / a dev block landed: the head you would re-review is
+      // about to change, so the note is the wait, not "Re-stamp"
+      expect(note({ author, status: 'ci_red', recrBy: ['me'] }, me)).toEqual({
+         action: null,
+         context: 'CI red · author fixes',
+      });
+      expect(note({ author, status: 'draft', recrBy: ['me'] }, me)).toEqual({
+         action: null,
+         context: 'draft, not reviewable yet',
+      });
+      expect(
+         note({ author, status: 'dev_block', devBlockedBy: ['bob'], reqaBy: ['me'] }, me)
+      ).toEqual({
+         action: null,
+         context: 'feedback from bob',
       });
    });
 
@@ -577,6 +654,27 @@ describe('actionState — one bucket per (pull, viewer)', () => {
       expect(actionState(dp({ author: 'auth', status: 'needs_qa', reqaBy: ['me'] }), 'me')).toBe(
          'restamp'
       );
+   });
+
+   it('restamp follows the note, not raw recrBy/reqaBy', () => {
+      // author owns it: the stale stamp asks nothing yet, so the bucket is
+      // the wait/blocked one the card actually shows
+      expect(actionState(dp({ author: 'auth', status: 'ci_red', recrBy: ['me'] }), 'me')).toBe(
+         'waiting'
+      );
+      expect(
+         actionState(
+            dp({ author: 'auth', status: 'dev_block', devBlockedBy: ['bob'], recrBy: ['me'] }),
+            'me'
+         )
+      ).toBe('blocked');
+      // a re-tester holding the QAing label reads "Finish QA" → mine
+      expect(
+         actionState(
+            dp({ author: 'auth', status: 'needs_qa', qaingLogin: 'me', reqaBy: ['me'] }),
+            'me'
+         )
+      ).toBe('mine');
    });
 
    it('review: an unreviewed pull, viewer not the author', () => {
