@@ -25,6 +25,7 @@ import { useNotifications } from './notifications';
 import { ToastStack, useToasts } from './toasts';
 import { matchesQuery } from './model/query';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from './model/visibility';
+import { reviewRequestedFrom } from './model/reviewers';
 import { foldDomId, openFold } from './components/Lane';
 import { Legend } from './components/Legend';
 import { Logo } from './components/Logo';
@@ -33,6 +34,7 @@ import { RepoFilter } from './components/filters/RepoFilter';
 import { PeopleFilter } from './components/filters/PeopleFilter';
 import { WeightFilter } from './components/filters/WeightFilter';
 import { StateFilter } from './components/filters/StateFilter';
+import { DraftsFilter } from './components/filters/DraftsFilter';
 import { FilterChips, hasActiveFilters } from './components/filters/FilterChips';
 import { SavedFiltersInput, SavedFiltersMenu } from './components/SavedFiltersPanel';
 import type { RowOptions } from './components/Row';
@@ -492,10 +494,20 @@ export function App() {
       // no matter whose work you follow (they land in the bots fold, not lanes)
       if (scope.authors.length)
          out = out.filter(p => isBot(p) || scope.authors.includes(p.data.user.login));
-      // drafts: 'mine' hides other people's drafts, your own always show.
-      // The legacy path owns its own draft rule, so don't double-apply.
+      // drafts: 'mine' keeps other people's drafts quiet on the general board,
+      // but not when you've deliberately looked (scoped/`author:`d that person)
+      // or when GitHub explicitly requested your review — a review-requested
+      // draft was vanishing even from the reviewer it was requested from, the
+      // reported bug. Your own drafts always show. The legacy path owns its own
+      // draft rule, so don't double-apply.
       if (!legacy && draftsMode === 'mine')
-         out = out.filter(p => !p.data.draft || p.data.user.login === me);
+         out = out.filter(
+            p =>
+               !p.data.draft ||
+               p.data.user.login === me ||
+               revealedAuthor(p.data.user.login) ||
+               reviewRequestedFrom(p, me)
+         );
       if (query) out = out.filter(p => matchesQuery(p, query, me));
       return out;
    }, [
@@ -887,8 +899,6 @@ export function App() {
                   showAll={showAll}
                   setShowAll={setShowAll}
                   cryoCount={cryoCount}
-                  draftsMode={draftsMode}
-                  setDraftsMode={setDraftsMode}
                   scope={scope}
                   setScope={setScope}
                />
@@ -899,6 +909,11 @@ export function App() {
                   setWeightSel={setWeightSel}
                />
                <StateFilter pulls={preStateScoped} stateSel={stateSel} setStateSel={setStateSel} />
+               <DraftsFilter
+                  draftsMode={draftsMode}
+                  setDraftsMode={setDraftsMode}
+                  defaultMode={settings.draftsMode}
+               />
                <SavedFiltersMenu sessionActive={sessionActive} />
                <FilterChips
                   reveal={reveal}

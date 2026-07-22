@@ -1,4 +1,5 @@
 import type { DerivedPull } from './model/status';
+import { reviewRequestedFrom } from './model/reviewers';
 import { shortRepo } from './format';
 
 /**
@@ -83,7 +84,12 @@ export function applyLegacyFilters(
    me: string
 ): DerivedPull[] {
    let out = pulls;
-   if (!view.drafts) out = out.filter(p => !p.data.draft || p.data.user.login === me);
+   // your own drafts, and any draft GitHub explicitly requested you review,
+   // stay visible even without ?drafts=1 (mirrors the modern board's rule)
+   if (!view.drafts)
+      out = out.filter(
+         p => !p.data.draft || p.data.user.login === me || reviewRequestedFrom(p, me)
+      );
    if (!view.externalBlock) out = out.filter(p => !p.externalBlock);
    if (view.personal) out = out.filter(p => isAffiliated(p, me));
    if (view.repos.length) out = out.filter(p => view.repos.includes(shortRepo(p.data.repo)));

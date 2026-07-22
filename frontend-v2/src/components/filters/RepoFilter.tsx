@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { CRYO_KEY, repoState } from '../../model/visibility';
 import { shortRepo } from '../../format';
 import { setRepoPref, togglePrimaryRepo, useSettings } from '../../settings';
-import { QuietButton, Segmented } from '../bits';
+import { QuietButton } from '../bits';
 import { Popover } from '../Popover';
 import { FilterSearch, OnlyButton } from './shared';
 
@@ -12,10 +12,10 @@ import { FilterSearch, OnlyButton } from './shared';
  * you had to make before you could even search). Scope (which repos are on
  * your board right now) and mute (which repos are off your board, period)
  * live side by side on each row, plus the ★ star that marks a repo you
- * actively review (drives the review queue's primary/other split). The two
- * session-only toggles that used to be their own "Drafts" tab — cryo and
- * drafts mode — ride along at the bottom under a "This session" label, so
- * they read as visibly less durable than the rows above them.
+ * actively review (drives the review queue's primary/other split). The cryo
+ * session toggle rides along at the bottom under a "This session" label, so it
+ * reads as visibly less durable than the rows above it. (Drafts used to sit
+ * here too; it's now its own control on the filter row — see DraftsFilter.)
  */
 export function RepoFilter({
    repos,
@@ -25,8 +25,6 @@ export function RepoFilter({
    showAll,
    setShowAll,
    cryoCount,
-   draftsMode,
-   setDraftsMode,
    scope,
    setScope,
 }: {
@@ -39,8 +37,6 @@ export function RepoFilter({
    showAll: boolean;
    setShowAll: (next: boolean) => void;
    cryoCount: number;
-   draftsMode: 'mine' | 'all';
-   setDraftsMode: (m: 'mine' | 'all') => void;
    scope: { repos: string[]; authors: string[] };
    setScope: (next: { repos: string[]; authors: string[] }) => void;
 }) {
@@ -191,12 +187,11 @@ export function RepoFilter({
             )}
          >
             <FilterSearch value={repoQuery} onChange={setRepoQuery} label="Filter repos" />
-            {filteredShown.map(r => shownRow(r.name, r.count))}
-            {filteredShown.length === 0 && (
-               <div className="px-1.5 py-2 text-xs text-ink-3">No repos match.</div>
-            )}
+            {/* muted & org-hidden ("drafts") ride at the top, collapsed, so the
+                one-click reveal is the first thing you reach — matching the
+                Settings repo manager's muted→hidden→shown order */}
             {filteredHidden.length > 0 && (
-               <details className="mt-1.5 border-t border-secondary pt-1.5">
+               <details className="mb-1.5 border-b border-secondary pb-1.5">
                   <summary className="flex cursor-pointer items-center gap-2 px-1.5 py-1 text-xs font-semibold text-ink-3">
                      Muted &amp; org-hidden ({filteredHidden.length})
                      <button
@@ -219,13 +214,17 @@ export function RepoFilter({
                   )}
                </details>
             )}
+            {filteredShown.map(r => shownRow(r.name, r.count))}
+            {filteredShown.length === 0 && (
+               <div className="px-1.5 py-2 text-xs text-ink-3">No repos match.</div>
+            )}
 
-            <div className="mt-2 border-t border-secondary pt-2">
-               <div className="mb-1.5 text-[11px] font-semibold tracking-wide text-ink-3 uppercase">
-                  This session
-               </div>
-               {cryoCount > 0 && (
-                  <label className="flex items-center gap-2 px-1.5 pb-1.5 text-[13px]">
+            {cryoCount > 0 && (
+               <div className="mt-2 border-t border-secondary pt-2">
+                  <div className="mb-1.5 text-[11px] font-semibold tracking-wide text-ink-3 uppercase">
+                     This session
+                  </div>
+                  <label className="flex items-center gap-2 px-1.5 text-[13px]">
                      <input
                         type="checkbox"
                         className="m-0 disabled:opacity-40"
@@ -236,20 +235,8 @@ export function RepoFilter({
                      <span className="flex-1">Show parked (Cryogenic) PRs</span>
                      <span className="text-[11px] text-ink-3 tabular-nums">{cryoCount}</span>
                   </label>
-               )}
-               <div className="flex items-center gap-2 px-1.5">
-                  <span className="text-[13px] text-ink-2">Drafts</span>
-                  <Segmented
-                     ariaLabel="which drafts to show"
-                     value={draftsMode}
-                     options={[
-                        ['mine', 'Mine'],
-                        ['all', 'All'],
-                     ]}
-                     onChange={setDraftsMode}
-                  />
                </div>
-            </div>
+            )}
          </Popover>
       </div>
    );
