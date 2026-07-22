@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { DerivedPull, Weight } from './status';
-import { dealOne } from './deal';
+import { dealFrom, dealRank, type DealRankOptions } from './deal';
 
-/** A DerivedPull with only the fields dealOne (and the crSort it delegates
- * tie-breaking to) reads. */
+/** A DerivedPull with only the fields the deal ranking (and the crSort it
+ * delegates tie-breaking to) reads. */
 function dp(o: {
    repo?: string;
    number?: number;
@@ -43,7 +43,11 @@ function dp(o: {
    } as unknown as DerivedPull;
 }
 
-const baseOpts = (over: Partial<Parameters<typeof dealOne>[1]> = {}) => ({
+type TestOpts = DealRankOptions & {
+   claims: Readonly<Record<string, { login: string; at: number }>>;
+   passed: ReadonlySet<string>;
+};
+const baseOpts = (over: Partial<TestOpts> = {}): TestOpts => ({
    me: 'me',
    pulls: [] as DerivedPull[],
    claims: {},
@@ -51,23 +55,26 @@ const baseOpts = (over: Partial<Parameters<typeof dealOne>[1]> = {}) => ({
    ...over,
 });
 
-describe('dealOne — exclusion', () => {
+/** rank-then-deal, the exact pipeline Review's lane + button run. */
+const deal = (queue: DerivedPull[], opts: TestOpts) => dealFrom(dealRank(queue, opts), opts);
+
+describe('deal rank+from — exclusion', () => {
    it('returns null on an empty queue', () => {
-      expect(dealOne([], baseOpts())).toBeNull();
+      expect(deal([], baseOpts())).toBeNull();
    });
 
    it('excludes a claimed pull', () => {
       const claimed = dp({ number: 1 });
       const open = dp({ number: 2 });
       const opts = baseOpts({ claims: { 'org/repo#1': { login: 'alice', at: Date.now() } } });
-      expect(dealOne([claimed, open], opts)).toBe(open);
+      expect(deal([claimed, open], opts)).toBe(open);
    });
 
    it('excludes a pull the viewer already passed on this sitting', () => {
       const passed = dp({ number: 1 });
       const open = dp({ number: 2 });
       const opts = baseOpts({ passed: new Set(['org/repo#1']) });
-      expect(dealOne([passed, open], opts)).toBe(open);
+      expect(deal([passed, open], opts)).toBe(open);
    });
 
    it('returns null when every candidate is claimed or passed', () => {
@@ -77,18 +84,18 @@ describe('dealOne — exclusion', () => {
          claims: { 'org/repo#1': { login: 'alice', at: Date.now() } },
          passed: new Set(['org/repo#2']),
       });
-      expect(dealOne([a, b], opts)).toBeNull();
+      expect(deal([a, b], opts)).toBeNull();
    });
 });
 
-describe('dealOne — scoring bumps', () => {
+describe('deal rank+from — scoring bumps', () => {
    it('familiarity: a repo the viewer has stamped before outranks an identical pull in an unfamiliar repo', () => {
       const familiarRepoPull = dp({ repo: 'org/familiar', number: 1 });
       const unfamiliarRepoPull = dp({ repo: 'org/unfamiliar', number: 2 });
       // the viewer's own stamp elsewhere in org/familiar is the familiarity signal
       const myStampElsewhere = dp({ repo: 'org/familiar', number: 99, crBy: ['me'] });
       const opts = baseOpts({ pulls: [familiarRepoPull, unfamiliarRepoPull, myStampElsewhere] });
-      expect(dealOne([familiarRepoPull, unfamiliarRepoPull], opts)).toBe(familiarRepoPull);
+      expect(deal([familiarRepoPull, unfamiliarRepoPull], opts)).toBe(familiarRepoPull);
    });
 
    it("reciprocity: an author who has stamped one of my pulls outranks one who hasn't", () => {
@@ -97,23 +104,23 @@ describe('dealOne — scoring bumps', () => {
       // alice stamped one of my own authored pulls elsewhere on the board
       const myPullAliceStamped = dp({ author: 'me', number: 99, crBy: ['alice'] });
       const opts = baseOpts({ pulls: [reciprocalAuthorPull, strangerPull, myPullAliceStamped] });
-      expect(dealOne([reciprocalAuthorPull, strangerPull], opts)).toBe(reciprocalAuthorPull);
+      expect(deal([reciprocalAuthorPull, strangerPull], opts)).toBe(reciprocalAuthorPull);
    });
 
    it('quick win: a known XS pull outranks an otherwise-identical unknown-size pull', () => {
       const xsPull = dp({ number: 1, weight: 'XS', sizeKnown: true });
       const unknownSizePull = dp({ number: 2, weight: 'M', sizeKnown: false });
-      expect(dealOne([xsPull, unknownSizePull], baseOpts())).toBe(xsPull);
+      expect(deal([xsPull, unknownSizePull], baseOpts())).toBe(xsPull);
    });
 
    it('urgency: a starved pull with a high starveScore outranks a fresh one', () => {
       const starvedPull = dp({ number: 1, starved: true, starveScore: 500, ageDays: 20 });
       const freshPull = dp({ number: 2, ageDays: 1 });
-      expect(dealOne([starvedPull, freshPull], baseOpts())).toBe(starvedPull);
+      expect(deal([starvedPull, freshPull], baseOpts())).toBe(starvedPull);
    });
 });
 
-describe('dealOne — deprioritize', () => {
+describe('deal rank+from — deprioritize', () => {
    it('hands out a demoted pull only once every non-demoted one is gone', () => {
       // the bot is far older (would win on urgency) but must sink below a fresh
       // human pull; passing the human then leaves only the bot to deal
@@ -126,8 +133,8 @@ describe('dealOne — deprioritize', () => {
       });
       const human = dp({ number: 2, author: 'alice', ageDays: 1 });
       const opts = baseOpts({ deprioritize: p => p.data.user.login === 'dependabot' });
-      expect(dealOne([bot, human], opts)).toBe(human);
-      expect(dealOne([bot, human], { ...opts, passed: new Set(['org/repo#2']) })).toBe(bot);
+      expect(deal([bot, human], opts)).toBe(human);
+      expect(deal([bot, human], { ...opts, passed: new Set(['org/repo#2']) })).toBe(bot);
    });
 
    it('still orders demoted pulls among themselves', () => {
@@ -140,16 +147,16 @@ describe('dealOne — deprioritize', () => {
       });
       const newerBot = dp({ number: 2, author: 'bot', ageDays: 2 });
       const opts = baseOpts({ deprioritize: () => true });
-      expect(dealOne([olderBot, newerBot], opts)).toBe(olderBot);
+      expect(deal([olderBot, newerBot], opts)).toBe(olderBot);
    });
 });
 
-describe('dealOne — determinism', () => {
+describe('deal rank+from — determinism', () => {
    it('picks the same pull every time for the same inputs', () => {
       const queue = [dp({ number: 1 }), dp({ number: 2 }), dp({ number: 3 })];
       const opts = baseOpts();
-      const first = dealOne(queue, opts);
-      for (let i = 0; i < 5; i++) expect(dealOne(queue, opts)).toBe(first);
+      const first = deal(queue, opts);
+      for (let i = 0; i < 5; i++) expect(deal(queue, opts)).toBe(first);
    });
 
    it('breaks a genuine score tie by crSort order, not queue order', () => {
@@ -159,8 +166,36 @@ describe('dealOne — determinism', () => {
       const a = dp({ number: 1, ageDays: 5 });
       const b = dp({ number: 2, ageDays: 2 });
       const opts = baseOpts();
-      const forward = dealOne([a, b], opts);
-      const reversed = dealOne([b, a], opts);
+      const forward = deal([a, b], opts);
+      const reversed = deal([b, a], opts);
       expect(forward).toBe(reversed);
+   });
+});
+
+describe('dealRank — the lane order', () => {
+   it('renders starved work first, fresh work next, demoted bots last', () => {
+      const starved = dp({ number: 1, starved: true, starveScore: 500, ageDays: 20 });
+      const fresh = dp({ number: 2, ageDays: 1 });
+      const bot = dp({
+         number: 3,
+         author: 'dependabot',
+         ageDays: 40,
+         starved: true,
+         starveScore: 900,
+      });
+      const opts = baseOpts({ deprioritize: p => p.data.user.login === 'dependabot' });
+      expect(dealRank([fresh, bot, starved], opts).map(p => p.data.number)).toEqual([1, 2, 3]);
+   });
+
+   it('normalizes the fresh-pull urgency ramp against the configured warnDays', () => {
+      // same pulls, different threshold: with a 20-day threshold a 10-day-old
+      // M is only halfway to starving (urgency 0.5) and the XS quick win
+      // (+1) takes the top; with a 2-day threshold the same pull is 5x past
+      // it (urgency 5.0) and outranks the quick win — the setting must move
+      // the ramp, not stay pinned to the model default
+      const aging = dp({ number: 1, ageDays: 10 });
+      const quick = dp({ number: 2, weight: 'XS', ageDays: 0 });
+      expect(dealRank([aging, quick], baseOpts({ warnDays: 20 }))[0].data.number).toBe(2);
+      expect(dealRank([aging, quick], baseOpts({ warnDays: 2 }))[0].data.number).toBe(1);
    });
 });

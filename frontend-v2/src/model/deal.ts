@@ -3,28 +3,29 @@ import { crSort } from './sort';
 import { STARVE_DAYS, type DerivedPull } from './status';
 
 /**
- * "Deal me one": pick the single best pull to review right now out of an
- * already-scoped queue, so a reviewer who doesn't want to browse can just hit
- * a button. Not a replacement for crSort's ordering — it layers two social
- * signals crSort doesn't know about (have I reviewed this repo before; does
- * this author owe me one) on top of it, then breaks ties by crSort's own
- * order so two reviewers with an identical board always land on the same
- * pull.
+ * The review queue's one ranking. dealRank orders a pool by the same score
+ * "Deal me one" uses — crSort's deterministic base re-ranked by urgency plus
+ * two social signals crSort doesn't know about (have I reviewed this repo
+ * before; does this author owe me one) — and dealFrom hands out the first
+ * still-available entry of that order. The lane renders dealRank's output
+ * verbatim, so the button always deals the top visible card that's still up
+ * for grabs: the list and the button can't disagree.
  */
 
-export interface DealOptions {
+export interface DealRankOptions {
    me: string;
    /** the whole board's derived pulls (not just the queue) — familiarity and
     * reciprocity look across every repo/author the viewer touches, not only
     * the pulls up for grabs right now. */
    pulls: DerivedPull[];
-   claims: Readonly<Record<string, { login: string; at: number }>>;
-   /** session-only: keys the viewer has already passed on this sitting. */
-   passed: ReadonlySet<string>;
    /** pulls to hand out only once everything else is gone (bot PRs): they still
     * need a reviewer, but shouldn't jump ahead of human work however old they
     * get. Ranked among themselves by the same signals. */
    deprioritize?: (p: DerivedPull) => boolean;
+   /** the user's aging threshold (settings.ageWarnDays) — the urgency ramp for
+    * not-yet-starved pulls normalizes against it, so raising the threshold
+    * slows the ramp instead of leaving it pinned to the model default. */
+   warnDays?: number;
 }
 
 /** Has `login` landed an active CR or QA stamp on this pull? */
@@ -44,8 +45,8 @@ function hasStamp(p: DerivedPull, login: string): boolean {
  *    pulls — a nudge toward returning the favor.
  *  - +1 quick win: a known XS/S pull, a small bias toward clearing easy ones.
  */
-function score(p: DerivedPull, opts: DealOptions): number {
-   const urgency = p.starved ? p.starveScore : p.ageDays / STARVE_DAYS;
+function score(p: DerivedPull, opts: DealRankOptions): number {
+   const urgency = p.starved ? p.starveScore : p.ageDays / (opts.warnDays ?? STARVE_DAYS);
    const repo = p.data.repo;
    const author = p.data.user.login;
    const familiar = opts.pulls.some(other => other.data.repo === repo && hasStamp(other, opts.me));
@@ -60,34 +61,40 @@ function score(p: DerivedPull, opts: DealOptions): number {
 }
 
 /**
- * Best next pull from `queue` (Review's already-filtered reviewable list),
- * excluding anything claimed or already passed this sitting. Ties broken by
- * crSort's own order, so the same board always deals the same pull first —
- * "best" is a real, reproducible answer, not a coin flip.
+ * The whole pool in deal order: crSort establishes the deterministic base, a
+ * stable re-sort by score (higher first) lifts the urgent/social picks, so a
+ * scoring tie falls back to crSort's order and the same board always ranks
+ * the same way — "best" is a real, reproducible answer, not a coin flip.
  */
-export function dealOne(queue: DerivedPull[], opts: DealOptions): DerivedPull | null {
-   // store.ts's claimFor does the same lookup; duplicated rather than
-   // imported so this stays a pure model function independent of the
-   // (browser-coupled) store module, like every other file in model/.
-   const candidates = queue.filter(p => {
-      const key = pullKey(p.data);
-      if (opts.passed.has(key)) return false;
-      if (opts.claims[key]) return false;
-      return true;
-   });
-   if (!candidates.length) return null;
+export function dealRank(pool: DerivedPull[], opts: DealRankOptions): DerivedPull[] {
+   const base = crSort(pool);
+   return base
+      .map((p, i) => ({ p, s: score(p, opts), i }))
+      .sort((a, b) => b.s - a.s || a.i - b.i)
+      .map(x => x.p);
+}
 
-   // crSort first: establishes the deterministic base order a scoring tie
-   // falls back to (only a strictly higher score displaces the current best).
-   const ordered = crSort(candidates);
-   let best = ordered[0];
-   let bestScore = score(best, opts);
-   for (const p of ordered.slice(1)) {
-      const s = score(p, opts);
-      if (s > bestScore) {
-         best = p;
-         bestScore = s;
-      }
+/**
+ * Deal the first still-available entry of an already-ranked list — skipping
+ * anything claimed or already passed this sitting. Takes the *rendered* queue
+ * (dealRank order, star-pinning and all) rather than re-ranking, so the card
+ * dealt is by construction the top visible one still up for grabs.
+ */
+export function dealFrom(
+   ranked: DerivedPull[],
+   opts: {
+      // store.ts's claimFor does the same lookup; duplicated rather than
+      // imported so this stays a pure model function independent of the
+      // (browser-coupled) store module, like every other file in model/.
+      claims: Readonly<Record<string, { login: string; at: number }>>;
+      /** session-only: keys the viewer has already passed on this sitting. */
+      passed: ReadonlySet<string>;
    }
-   return best;
+): DerivedPull | null {
+   for (const p of ranked) {
+      const key = pullKey(p.data);
+      if (opts.passed.has(key) || opts.claims[key]) continue;
+      return p;
+   }
+   return null;
 }

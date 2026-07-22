@@ -1,7 +1,7 @@
 import { pullKey } from '../format';
 import type { PullData } from '../types';
 import { actionState } from './actions';
-import { dealOne } from './deal';
+import { dealFrom, dealRank } from './deal';
 import { reviewerRanks } from './leaderboard';
 import { reviewRequestedFrom } from './reviewers';
 import { buildReviewerPools, turnFor } from './rotation';
@@ -376,13 +376,10 @@ export function readSignals(input: CheerInput): Signals {
    // deprioritize bots exactly as Review's Deal-me-one does, so start-here never
    // calls a dependabot bump "the single best pull to review next" — it's only
    // the best when nothing human is left
-   const bestStart = dealOne(reviewableUnclaimed, {
-      me,
-      pulls,
-      claims,
-      passed: new Set(),
-      deprioritize: isBot,
-   });
+   const bestStart = dealFrom(
+      dealRank(reviewableUnclaimed, { me, pulls, deprioritize: isBot }),
+      { claims, passed: new Set() }
+   );
    const startReason = bestStart ? startHereReason(bestStart, pulls, me) : '';
 
    // reciprocity: who has stamped one of your own pulls, and do they have an
