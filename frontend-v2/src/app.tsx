@@ -43,12 +43,13 @@ import { MyWork } from './views/MyWork';
 import { People } from './views/People';
 import { Team } from './views/Team';
 import { Classic } from './views/Classic';
+import { Ci } from './views/Ci';
 import { Stats } from './views/Stats';
 import { Settings } from './components/Settings';
 
-type Lens = 'review' | 'mine' | 'team' | 'people' | 'classic' | 'stats';
+type Lens = 'review' | 'mine' | 'team' | 'people' | 'classic' | 'ci' | 'stats';
 
-const LENSES: Lens[] = ['review', 'mine', 'team', 'people', 'classic', 'stats'];
+const LENSES: Lens[] = ['review', 'mine', 'team', 'people', 'classic', 'ci', 'stats'];
 
 /** every actionState bucket, for validating the `state=` hash param against */
 const ACTION_STATE_KEYS: ActionStateKey[] = [
@@ -913,6 +914,7 @@ export function App() {
                      {tab('team', 'Team')}
                      {tab('people', 'People')}
                      {tab('classic', 'Classic')}
+                     {tab('ci', 'CI')}
                      {tab('stats', 'Stats')}
                   </nav>
                </div>
@@ -1067,6 +1069,7 @@ export function App() {
                   closed={legacy?.closed ? closed : null}
                />
             )}
+            {initialized && lens === 'ci' && <Ci pulls={scoped} opts={rowOpts} />}
             {initialized && lens === 'stats' && (
                <Stats pulls={humans} closed={closed} me={me} onPerson={onPerson} />
             )}

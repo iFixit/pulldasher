@@ -30,6 +30,7 @@ const LENS_OPTIONS: [string, string][] = [
    ['team', 'Team'],
    ['people', 'People'],
    ['classic', 'Classic'],
+   ['ci', 'CI'],
    ['stats', 'Stats'],
 ];
 
