@@ -74,7 +74,7 @@ function useCandidates(extraBots: ReadonlySet<string>) {
  * searchable, capped list of everyone else on the board. Typing a login with
  * no match on the board still lets you add it — a teammate can have nothing
  * open right now. Standalone so the Team view's empty state can embed it
- * without the Settings drawer's Group chrome (see TeamPickerGroup below).
+ * without any drawer chrome around it.
  */
 export function TeamPicker({ extraBots = EMPTY_BOTS }: { extraBots?: ReadonlySet<string> }) {
    const { myTeam } = useSettings();
@@ -139,20 +139,5 @@ export function TeamPicker({ extraBots = EMPTY_BOTS }: { extraBots?: ReadonlySet
             </button>
          )}
       </div>
-   );
-}
-
-/** The Settings-drawer wrapper: same Group chrome RepoManagerGroup uses. */
-export function TeamPickerGroup({ extraBots }: { extraBots?: ReadonlySet<string> }) {
-   return (
-      <section className="border-t border-secondary px-4 py-3.5">
-         <h3 className="m-0 mb-2.5 text-xs font-semibold tracking-wide text-ink-3 uppercase">
-            Your team
-         </h3>
-         <div className="mb-2 text-[11px] text-ink-3">
-            Teammates power the Team view and the “Your team” filter.
-         </div>
-         <TeamPicker extraBots={extraBots} />
-      </section>
    );
 }
