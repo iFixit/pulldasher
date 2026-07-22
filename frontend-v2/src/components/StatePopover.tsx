@@ -83,7 +83,7 @@ function stateExplanation(pull: DerivedPull, note: RowNote): string {
 /** Section 1: what this pull's badge means, restated in a sentence, plus the
  * viewer's own move when they have one. Claim/turn must flow into rowNote
  * here exactly as they do on the row itself — otherwise the popover asserts
- * "your move: Review it" on a pull someone else has already claimed, flatly
+ * "your next step: Review it" on a pull someone else has already claimed, flatly
  * contradicting the row's own (rightly silent) do-pill. */
 function StateSection({
    pull,
@@ -101,7 +101,7 @@ function StateSection({
       <div className="border-b border-secondary px-1 pb-2">
          <p className="font-semibold text-ink">{STATUS_LABEL[pull.status]}</p>
          <p className="mt-0.5 text-ink-2">{stateExplanation(pull, note)}</p>
-         {note.action && <p className="mt-1 font-medium text-brand">your move: {note.action}</p>}
+         {note.action && <p className="mt-1 font-medium text-brand">your next step: {note.action}</p>}
       </div>
    );
 }

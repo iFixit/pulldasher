@@ -6,12 +6,12 @@ import { Popover } from '../Popover';
 import { FilterRow, OnlyButton } from './shared';
 
 /**
- * State filter option order: your own move first (the thing you're most
- * likely to be hunting for), then the two reviewer verbs, then the re-stamp
- * lane, then the two states with no move of your own.
+ * State filter option order: what's waiting on you first (the thing you're
+ * most likely to be hunting for), then the two reviewer verbs, then the
+ * re-stamp lane, then the two states with no action of your own.
  */
 export const STATE_OPTIONS: { key: ActionStateKey; label: string }[] = [
-   { key: 'mine', label: 'My move' },
+   { key: 'mine', label: 'Waiting on me' },
    { key: 'review', label: 'Review it' },
    { key: 'qa', label: 'QA it' },
    { key: 'restamp', label: 'Re-stamp owed' },

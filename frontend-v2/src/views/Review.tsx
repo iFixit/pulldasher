@@ -26,9 +26,9 @@ import {
    laneShown,
    RestGroup,
    Rows,
+   SubDoor,
    Truncated,
 } from '../components/Lane';
-import { Popover } from '../components/Popover';
 import { RegionHint } from '../components/RegionHint';
 import { markDealtFlash, Row, type RowOptions } from '../components/Row';
 import { eyebrowText, WordGroupRows } from '../components/WordGroups';
@@ -86,7 +86,7 @@ function DealtCard({
  *
  * "Claim it" takes the pull (and adds you as a GitHub reviewer), then deals
  * the next for an uninterrupted run of triage — and once the claim lands in
- * the store, scrolls to the row in its new lane ("Your move", right below)
+ * the store, scrolls to the row in its new lane ("Waiting on you", right below)
  * and flashes it, so the commitment visibly arrives somewhere. "Pass" skips
  * without claiming. "Done" or Escape folds the banner back to the strip.
  */
@@ -131,7 +131,7 @@ function DealStrip({ queue, opts }: { queue: DerivedPull[]; opts: RowOptions }) 
    };
 
    // scroll to the claimed row once the store's claims include it — that's
-   // the same publish that re-buckets it into "Your move" and paints the
+   // the same publish that re-buckets it into "Waiting on you" and paints the
    // markDealtFlash highlight, so the scroll lands on its settled position.
    // A frame's wait lets the re-render commit first.
    useEffect(() => {
@@ -240,7 +240,7 @@ export function Review({
         );
    const isPrimaryRepo = (repo: string) => primarySet.size === 0 || primarySet.has(repo);
 
-   // 1. Yours to do: strictly your verbs. The earlier "Act now" lesson still
+   // 1. Waiting on you: strictly your verbs. The earlier "Act now" lesson still
    //    binds — padding this with other people's jobs made it noise — but
    //    your own merge button is your job, whichever tab you're on.
    const MOVE_RANK = [
@@ -312,7 +312,7 @@ export function Review({
          ['success', 'none'].includes(p.ci) &&
          !p.conflict &&
          !['draft', 'dev_block'].includes(p.status) &&
-         // your in-flight QA and owed re-QAs live in "Yours to do"; a QA
+         // your in-flight QA and owed re-QAs live in "Waiting on you"; a QA
          // stamp you already gave lives in the "QA'd by you" fold. The re-QA
          // exclusion is status-agnostic to match reviewerMove — a re-QA owed
          // on a needs_recr pull is still yours to do, not a generic lane slot
@@ -428,7 +428,7 @@ export function Review({
    // changes — their move now is to re-review, not to wait some more.
    const reReview = others.filter(p => rowNote(p, me).action === 'Re-review');
 
-   // "Your move": every lane above that's owed by you, folded into one flat
+   // "Waiting on you": every lane above whose next step is yours, folded into one flat
    // list and re-bucketed by rowWord (Requested of you / You're reviewing no
    // longer stand alone — their members show up here, grouped by verb instead
    // of by where they came from).
@@ -447,7 +447,7 @@ export function Review({
    };
    yourMove.sort((a, b) => doRankOf(a) - doRankOf(b) || b.ageDays - a.ageDays);
 
-   // "Yours, waiting": your stake that's sitting on someone else right now —
+   // "Waiting on others": your PRs and stamps sitting with someone else right now —
    // your own PRs waiting on a review/QA, plus a stamp you've already given
    // that isn't fully signed off yet (stamped/qaStamped, formerly their own
    // rest-group folds — redundant once this lane exists).
@@ -498,7 +498,7 @@ export function Review({
 
    // the rest group itself earns a title only when it has something inside —
    // an empty "rest of the board" with 11 closed folds under it is still noise.
-   // stamped/qaStamped moved into "Yours, waiting" above, so they no longer
+   // stamped/qaStamped moved into "Waiting on others" above, so they no longer
    // count here.
    const restTotal =
       queueOther.length +
@@ -519,7 +519,7 @@ export function Review({
       return (
          <EmptyState
             title="Workbench clear"
-            sub="Nothing to review in this scope. Widen the scope to see more."
+            sub="Nothing to review with these filters. Clear some to see more."
          />
       );
    }
@@ -530,8 +530,26 @@ export function Review({
          {codeRegions.length === 0 && <RegionHint />}
          {yourMove.length > 0 && (
             <Lane
-               title="Your move"
-               sub="owed by you — most urgent first"
+               title="Waiting on you"
+               sub={
+                  <SubDoor
+                     label="What lands in Waiting on you"
+                     text="every PR whose next step is yours, most urgent first"
+                  >
+                     <p className="font-medium text-ink">
+                        If it's in this lane, nothing happens until you act:
+                     </p>
+                     <p>
+                        re-stamps a push owes, feedback waiting on your answer, your own merge
+                        buttons, CI fixes and rebases on your PRs, reviews requested of you, and
+                        claims you hold.
+                     </p>
+                     <p>
+                        Grouped by the action, most urgent action first, oldest first inside a
+                        group.
+                     </p>
+                  </SubDoor>
+               }
                pulls={[]}
                count={yourMove.length}
                opts={opts}
@@ -539,15 +557,27 @@ export function Review({
                <WordGroupRows
                   pulls={yourMove}
                   opts={opts}
-                  id="lane:Your move"
+                  id="lane:Waiting on you"
                   cap={laneShown(12, opts)}
                />
             </Lane>
          )}
          {yoursWaiting.length > 0 && (
             <Lane
-               title="Yours, waiting"
-               sub="your stake — nothing owed by you right now"
+               title="Waiting on others"
+               sub={
+                  <SubDoor
+                     label="What lands in Waiting on others"
+                     text="your PRs and stamps, in someone else's hands"
+                  >
+                     <p className="font-medium text-ink">Nothing here needs you right now:</p>
+                     <p>
+                        your own PRs waiting on a review, QA, or CI, plus PRs you've already stamped
+                        that are still waiting on another reviewer.
+                     </p>
+                     <p>Grouped by what each one waits on.</p>
+                  </SubDoor>
+               }
                pulls={[]}
                count={yoursWaiting.length}
                opts={opts}
@@ -555,7 +585,7 @@ export function Review({
                <WordGroupRows
                   pulls={yoursWaiting}
                   opts={opts}
-                  id="lane:Yours, waiting"
+                  id="lane:Waiting on others"
                   cap={laneShown(8, opts)}
                />
             </Lane>
@@ -568,7 +598,7 @@ export function Review({
             opts={opts}
          />
          {/* below here is offered work, not owed work — the board's suggestion
-             for what to pick up next, as distinct from "Your move" above. The
+             for what to pick up next, as distinct from "Waiting on you" above. The
              label only earns its place when something is actually on offer. */}
          {(queue.length > 0 || needsQa.length > 0 || regionMatches.length > 0) && (
             <div className={`mb-2 text-ink-3 ${eyebrowText}`}>Pick up next</div>
@@ -576,7 +606,14 @@ export function Review({
          {codeRegions.length > 0 && regionMatches.length > 0 && (
             <Lane
                title="In your code regions"
-               sub="areas you flagged in Settings"
+               sub={
+                  <SubDoor label="How code regions match" text="areas you flagged in Settings">
+                     <p>
+                        A PR lands here when its title, description, labels, branch, or repo
+                        contains one of your regions. Plain text, case-insensitive, no regex.
+                     </p>
+                  </SubDoor>
+               }
                pulls={regionMatches}
                cap={8}
                opts={{
@@ -584,7 +621,7 @@ export function Review({
                   rankReason: p => {
                      const r = matchedRegions(p, codeRegions);
                      return r.length
-                        ? `It touches ${r.join(', ')} — a code region you flagged`
+                        ? `It touches ${r.join(', ')}, a code region you flagged`
                         : null;
                   },
                }}
@@ -593,40 +630,20 @@ export function Review({
          <Lane
             title="Review queue"
             sub={
-               // the sub-line itself is the door to the full ranking story —
-               // existing text becomes interactive, zero new chrome at rest
-               <Popover
-                  label="How the queue is ranked"
-                  side="right"
-                  hover
-                  rootClass="relative inline-flex"
-                  width="w-[300px]"
-                  panelClass="p-3 text-xs"
-                  trigger={t => (
-                     <button
-                        {...t}
-                        type="button"
-                        className="hit rounded border-0 bg-transparent p-0 text-left text-xs text-ink-3 underline decoration-dotted underline-offset-2 hover:text-ink-2"
-                     >
-                        one queue, best next review first
-                     </button>
-                  )}
-               >
-                  <div className="flex flex-col gap-1.5 px-1 text-ink-2">
-                     <p className="font-medium text-ink">One score ranks every card:</p>
-                     <p>
-                        pulls open {opts.ageWarnDays ?? 4}+ days without a full CR float to the top,
-                        hardest-starved first (age × size) — even heavy ones, even outside your
-                        primary repos.
-                     </p>
-                     <p>
-                        Then: repos you’ve stamped before, authors who’ve reviewed yours, and small
-                        quick wins, lightest first. Pulls from people you’ve starred always lead,
-                        ahead of everything above; bot bumps sink to the tail.
-                     </p>
-                     <p>“Deal me one” deals the top card that isn’t claimed or passed.</p>
-                  </div>
-               </Popover>
+               <SubDoor label="How the queue is ranked" text="one queue, best next review first">
+                  <p className="font-medium text-ink">One score ranks every card:</p>
+                  <p>
+                     pulls open {opts.ageWarnDays ?? 4}+ days without a full CR float to the top,
+                     longest-and-heaviest waiters first (age × size), even outside your primary
+                     repos.
+                  </p>
+                  <p>
+                     Then: repos you’ve stamped before, authors who’ve reviewed yours, and small
+                     quick wins, lightest first. Pulls from people you’ve starred always lead, ahead
+                     of everything above; bot bumps sink to the tail.
+                  </p>
+                  <p>“Deal me one” deals the top card that isn’t claimed or passed.</p>
+               </SubDoor>
             }
             pulls={queue}
             cap={12}
@@ -634,7 +651,22 @@ export function Review({
          />
          <Lane
             title="Needs QA"
-            sub="CR and QA run in parallel — a pull can sit here and in the queue"
+            sub={
+               <SubDoor
+                  label="How Needs QA is ordered"
+                  text="nobody-testing-it first, lightest first, oldest first"
+               >
+                  <p>
+                     QA runs in parallel with CR, so a pull can sit here and in the review queue at
+                     once.
+                  </p>
+                  <p>
+                     Anything QA-incomplete with green CI lands here, unless it’s a draft, blocked,
+                     or conflicted. PRs nobody is testing yet lead; within that, lighter tests
+                     first, then oldest.
+                  </p>
+               </SubDoor>
+            }
             pulls={needsQa}
             cap={6}
             opts={{ ...opts, rankReason: whyQaNext }}

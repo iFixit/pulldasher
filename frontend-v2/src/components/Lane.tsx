@@ -3,6 +3,7 @@ import { pullKey } from '../format';
 import type { DerivedPull } from '../model/status';
 import { groupIntoTree } from '../model/stack';
 import { createPersistentStore } from '../storage';
+import { Popover } from './Popover';
 import { Row, type RowOptions } from './Row';
 
 /**
@@ -27,6 +28,47 @@ export function foldDomId(id: string): string {
 export function openFold(id: string): void {
    const cur = foldOpenStore.get();
    if (cur[id] !== true) foldOpenStore.set({ ...cur, [id]: true });
+}
+
+/**
+ * A lane sub-line that is itself the door to the full story: the one-sentence
+ * ordering statement stays in the header (dotted underline, zero chrome at
+ * rest), and hovering it opens what lands in the lane and how it's ranked.
+ * This is the house pattern for every curated lane — if a user has to ask
+ * why a card is here, the lane's own sub-line should have answered it.
+ */
+export function SubDoor({
+   label,
+   text,
+   children,
+}: {
+   /** the popover's accessible name, e.g. "How the queue is ranked" */
+   label: string;
+   /** the visible sub-line sentence */
+   text: string;
+   children: ReactNode;
+}) {
+   return (
+      <Popover
+         label={label}
+         side="right"
+         hover
+         rootClass="relative inline-flex"
+         width="w-[300px]"
+         panelClass="p-3 text-xs"
+         trigger={t => (
+            <button
+               {...t}
+               type="button"
+               className="hit rounded border-0 bg-transparent p-0 text-left text-xs text-ink-3 underline decoration-dotted underline-offset-2 hover:text-ink-2"
+            >
+               {text}
+            </button>
+         )}
+      >
+         <div className="flex flex-col gap-1.5 px-1 text-ink-2">{children}</div>
+      </Popover>
+   );
 }
 
 export function Rows({ children }: { children: ReactNode }) {

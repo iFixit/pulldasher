@@ -110,10 +110,10 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
    const noChecks = useMemo(() => pulls.filter(p => p.ci === 'none'), [pulls]);
 
    if (!pulls.length) {
-      return <EmptyState title="Workbench clear" sub="No open PRs in this scope." />;
+      return <EmptyState title="Workbench clear" sub="No open PRs match your filters." />;
    }
    if (!withChecks.length) {
-      return <EmptyState title="No checks in this scope" sub="Nothing here runs CI on its head." />;
+      return <EmptyState title="No checks to show" sub="None of these PRs run CI checks." />;
    }
 
    const allGreen = !failing.length && !running.length;
@@ -122,7 +122,7 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
       <>
          <Lane
             title="Your broken builds"
-            sub="fixing CI is your move before anyone can review"
+            sub="nobody can review these until the build is green"
             pulls={mineBroken}
             cap={8}
             opts={opts}

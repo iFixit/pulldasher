@@ -29,7 +29,7 @@ const store = createPersistentStore<SavedFiltersData>('pd2.savedFilters', { item
  * not persisted, so they can't be "removed" (they just stop being offered).
  */
 export const SUGGESTED_FILTERS: SavedFilter[] = [
-   { name: 'Your move', hash: 'state=review,qa,restamp,mine' },
+   { name: 'Waiting on you', hash: 'state=review,qa,restamp,mine' },
    { name: 'Quick wins', hash: 'weight=xs,s&state=review,qa' },
 ];
 

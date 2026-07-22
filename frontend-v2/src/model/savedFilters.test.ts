@@ -28,7 +28,7 @@ describe('describeHash', () => {
       expect(describeHash('weight=xs,s&state=qa')).toBe('state: qa · weight: xs, s');
    });
 
-   it('matches the "Your move" suggested filter', () => {
+   it('matches the "Waiting on you" suggested filter', () => {
       expect(describeHash(SUGGESTED_FILTERS[0].hash)).toBe('state: review, qa, restamp, mine');
    });
 
