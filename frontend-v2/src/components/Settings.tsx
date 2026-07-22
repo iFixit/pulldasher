@@ -1,31 +1,19 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronRight, Settings as SettingsIcon, X } from 'lucide-react';
+import { Settings as SettingsIcon, X } from 'lucide-react';
 import { clearStoredPrefs } from '../storage';
-import {
-   notificationsSupported,
-   notifyPermission,
-   requestNotifyPermission,
-   testNotification,
-   unlockSound,
-} from '../notifications';
-import { type CheerGroup, CONFIGURABLE_TOASTS } from '../model/cheers';
 import { clearSnoozes, markAllSeen, refreshAll, usePulldasher } from '../store';
 import {
    addCodeRegion,
    removeCodeRegion,
    setLaneCapForLens,
    type Settings as SettingsShape,
-   setRepoPref,
    setSettings,
-   toggleCheerKind,
-   togglePrimaryRepo,
    useSettings,
 } from '../settings';
-import { QuietButton, Segmented, Switch } from './bits';
+import { QuietButton, Segmented } from './bits';
 import { Icon } from './Icon';
-import { RepoManagerGroup } from './RepoManager';
-import { TeamPickerGroup } from './TeamPicker';
+import { Explainer, Field, Group, NumberField } from './SettingsBits';
 
 const LENS_OPTIONS: [string, string][] = [
    ['review', 'Review'],
@@ -70,85 +58,6 @@ function LaneCapByLensRow({ lensId, label }: { lensId: string; label: string }) 
             options={LANE_CAP_OPTIONS}
             onChange={v => setLaneCapForLens(lensId, v === 'default' ? null : Number(v))}
          />
-      </div>
-   );
-}
-
-/** A labelled group of controls inside the panel. */
-function Group({ title, children }: { title: string; children: ReactNode }) {
-   return (
-      <section className="border-t border-secondary px-4 py-3.5 first:border-t-0">
-         <h3 className="m-0 mb-2.5 text-xs font-semibold tracking-wide text-ink-3 uppercase">
-            {title}
-         </h3>
-         <div className="flex flex-col gap-3.5">{children}</div>
-      </section>
-   );
-}
-
-/** A collapsible "how it works" note, mirroring the legend's disclosures so the
- * explanation reads the same wherever it appears. Closed by default: it's there
- * when you go looking, not in the way when you aren't. */
-function Explainer({ summary, children }: { summary: string; children: ReactNode }) {
-   return (
-      <details className="group/exp -mt-1">
-         <summary className="flex cursor-pointer list-none items-center gap-1 py-0.5 text-xs font-medium text-ink-3 hover:text-ink-2">
-            <Icon icon={ChevronRight} className="transition-transform group-open/exp:rotate-90" />
-            {summary}
-         </summary>
-         <div className="space-y-1.5 pt-1 pb-0.5 pl-3 text-xs text-ink-2">{children}</div>
-      </details>
-   );
-}
-
-const CHEER_GROUPS: { group: CheerGroup; title: string }[] = [
-   { group: 'reward', title: 'Rewards' },
-   { group: 'nudge', title: 'Nudges' },
-   { group: 'author', title: 'Your PRs' },
-];
-
-/** The per-kind list: every cheer/nudge, grouped, each a one-line explanation
- * with its own switch. The master "Cheers & nudges" toggle still gates the
- * whole system; these pick which kinds fire when it's on, so they read as
- * disabled while it's off. */
-function CheerToggles({ disabled }: { disabled: boolean }) {
-   const muted = new Set(useSettings().mutedCheers);
-   return (
-      <div className="flex flex-col gap-3">
-         {CHEER_GROUPS.map(({ group, title }) => (
-            <div key={group} className="flex flex-col gap-2">
-               <span className="text-[11px] font-semibold tracking-wide text-ink-3 uppercase">
-                  {title}
-               </span>
-               {CONFIGURABLE_TOASTS.filter(c => c.group === group).map(c => (
-                  <div key={c.kind} className="flex items-start gap-2.5">
-                     <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] font-medium text-ink">{c.label}</span>
-                        <span className="block text-xs text-ink-3">{c.hint}</span>
-                     </span>
-                     <Switch
-                        checked={!muted.has(c.kind)}
-                        disabled={disabled}
-                        ariaLabel={c.label}
-                        onChange={next => toggleCheerKind(c.kind, next)}
-                     />
-                  </div>
-               ))}
-            </div>
-         ))}
-      </div>
-   );
-}
-
-/** One setting: a label (+ optional hint) over its control. */
-function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
-   return (
-      <div className="flex flex-col gap-1.5">
-         <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[13px] font-medium text-ink">{label}</span>
-            {children}
-         </div>
-         {hint && <span className="text-xs text-ink-3">{hint}</span>}
       </div>
    );
 }
@@ -211,51 +120,17 @@ function CodeRegionsGroup() {
    );
 }
 
-/** A small bounded number stepper (days, seconds). */
-function NumberField({
-   value,
-   min,
-   max,
-   suffix,
-   onChange,
-}: {
-   value: number;
-   min: number;
-   max: number;
-   suffix: string;
-   onChange: (next: number) => void;
-}) {
-   return (
-      <span className="inline-flex items-center gap-1.5">
-         <input
-            type="number"
-            min={min}
-            max={max}
-            value={value}
-            onChange={e => {
-               const n = Number(e.target.value);
-               if (Number.isFinite(n)) onChange(Math.min(max, Math.max(min, Math.round(n))));
-            }}
-            className="h-8 w-16 rounded-lg border border-line bg-surface px-2 text-right text-[13px] tabular-nums"
-         />
-         <span className="text-xs text-ink-3">{suffix}</span>
-      </span>
-   );
-}
-
 export function Settings({
-   repos,
-   orgHidden,
    snoozedCount,
-   extraBots,
+   onGoToTeam,
 }: {
-   /** every known repo with its open-PR count, for the repo manager */
-   repos: { name: string; count: number }[];
-   orgHidden: ReadonlySet<string>;
    /** pulls currently hidden by a row snooze */
    snoozedCount: number;
-   /** config.json's named bots, so the team picker's suggestions leave them out */
-   extraBots: ReadonlySet<string>;
+   /** switch the board to the Team lens and close this panel — the "Edited
+    * on the board" pointer line's action. The team picker and repo manager
+    * embeds are gone (Team view and the header's Repos filter own those
+    * now), so this is the only cross-surface wiring this panel needs. */
+   onGoToTeam: () => void;
 }) {
    const [open, setOpen] = useState(false);
    const s = useSettings();
@@ -265,21 +140,6 @@ export function Settings({
    const [seenNote, setSeenNote] = useState(false);
    const [refreshNote, setRefreshNote] = useState('');
    const [armReset, setArmReset] = useState(false);
-   const [perm, setPerm] = useState(notifyPermission());
-
-   const toggleNotify = async (on: boolean) => {
-      if (!on) {
-         setSettings({ notify: false });
-         return;
-      }
-      let p = notifyPermission();
-      if (p === 'default') p = await requestNotifyPermission();
-      setPerm(p);
-      // this handler runs from the toggle click, so unlock audio now while we
-      // still have the gesture, in case Sound is already on
-      if (p === 'granted') unlockSound();
-      setSettings({ notify: p === 'granted' });
-   };
 
    // open on demand — the code-regions tip's "Set them up" action dispatches
    // this so a reader can jump straight here from the board
@@ -362,7 +222,14 @@ export function Settings({
                      tabIndex={-1}
                      className="settings-panel absolute top-0 right-0 flex h-full w-[min(360px,100vw)] flex-col overflow-y-auto border-l border-line bg-surface shadow-xl outline-none"
                   >
-                     <div className="sticky top-0 flex items-center justify-between border-b border-line bg-surface px-4 py-3">
+                     {/* z-10: children further down the panel (avatars, star
+                         buttons, the code-regions Add button — anything
+                         position:relative via .hit/.pressable) paint above a
+                         sticky header with no z-index of its own once they
+                         scroll under it. The overlay above is already
+                         z-[100], so z-10 in here only has to beat panel
+                         content. */}
+                     <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-surface px-4 py-3">
                         <span className="text-sm font-semibold text-ink">Settings</span>
                         <button
                            type="button"
@@ -374,7 +241,7 @@ export function Settings({
                         </button>
                      </div>
 
-                     <Group title="Appearance">
+                     <Group title="Look">
                         <Field label="Theme">
                            <Segmented
                               ariaLabel="theme"
@@ -401,23 +268,6 @@ export function Settings({
                               onChange={density => set({ density })}
                            />
                         </Field>
-                     </Group>
-
-                     <Group title="Board">
-                        <Field
-                           label="Getting QA is a to-do"
-                           hint="For teams that self-review, no separate CR gate means lining up QA is the real stall, so “Find a QA-er” on your own PRs shows in Waiting on you. Off keeps it in My work only."
-                        >
-                           <Segmented
-                              ariaLabel="getting QA is a to-do"
-                              value={s.selfReview ? 'on' : 'off'}
-                              options={[
-                                 ['off', 'Off'],
-                                 ['on', 'On'],
-                              ]}
-                              onChange={v => set({ selfReview: v === 'on' })}
-                           />
-                        </Field>
                         <Field label="Default view" hint="The tab a bare pulldasher link opens.">
                            <Segmented
                               ariaLabel="default view"
@@ -426,6 +276,9 @@ export function Settings({
                               onChange={defaultLens => set({ defaultLens })}
                            />
                         </Field>
+                     </Group>
+
+                     <Group title="Board">
                         <Field
                            label="Lane length"
                            hint="How many rows a lane shows before folding into “+N more”."
@@ -462,6 +315,20 @@ export function Settings({
                               max={48}
                               suffix="days"
                               onChange={ageWarnDays => set({ ageWarnDays })}
+                           />
+                        </Field>
+                        <Field
+                           label="Getting QA is a to-do"
+                           hint="For teams that self-review, no separate CR gate means lining up QA is the real stall, so “Find a QA-er” on your own PRs shows in Waiting on you. Off keeps it in My work only."
+                        >
+                           <Segmented
+                              ariaLabel="getting QA is a to-do"
+                              value={s.selfReview ? 'on' : 'off'}
+                              options={[
+                                 ['off', 'Off'],
+                                 ['on', 'On'],
+                              ]}
+                              onChange={v => set({ selfReview: v === 'on' })}
                            />
                         </Field>
                         <Field
@@ -512,213 +379,91 @@ export function Settings({
                         </Field>
                      </Group>
 
-                     <TeamPickerGroup extraBots={extraBots} />
-
                      <CodeRegionsGroup />
 
-                     <Group title="Notifications">
-                        <Field
-                           label="Cheers & nudges"
-                           hint="Rewards when your reviews land, nudges when they pile up. Fires while you’re on the board."
-                        >
-                           <Segmented
-                              ariaLabel="cheers and nudges"
-                              value={s.cheers ? 'on' : 'off'}
-                              options={[
-                                 ['off', 'Off'],
-                                 ['on', 'On'],
-                              ]}
-                              onChange={v => set({ cheers: v === 'on' })}
-                           />
-                        </Field>
-                        <Explainer summary="Choose which cheers & nudges fire">
-                           <CheerToggles disabled={!s.cheers} />
-                        </Explainer>
-                        <Field
-                           label="How long they stay"
-                           hint="How long a cheer or nudge lingers before it slides away. Sticky keeps it until you dismiss it."
-                        >
-                           <Segmented
-                              ariaLabel="how long nudges stay"
-                              value={String(s.cheerDwell)}
-                              options={[
-                                 ['3000', '3s'],
-                                 ['5000', '5s'],
-                                 ['8000', '8s'],
-                                 ['12000', '12s'],
-                                 ['sticky', 'Sticky'],
-                              ]}
-                              onChange={v =>
-                                 set({ cheerDwell: v === 'sticky' ? 'sticky' : Number(v) })
-                              }
-                           />
-                        </Field>
-                        <Field
-                           label="Bell badge"
-                           hint="What the bell shows for nudges that landed since you last opened it: the count, a plain dot, or nothing."
-                        >
-                           <Segmented
-                              ariaLabel="bell badge"
-                              value={s.notifyBadge}
-                              options={[
-                                 ['count', 'Count'],
-                                 ['dot', 'Dot'],
-                                 ['none', 'Off'],
-                              ]}
-                              onChange={notifyBadge => set({ notifyBadge })}
-                           />
-                        </Field>
-                        {notificationsSupported ? (
-                           <>
-                              <Field
-                                 label="Desktop notifications"
-                                 hint="Nudge you when a PR needs you: yours going mergeable, breaking CI or getting feedback, or a re-review falling to you. Only while this tab isn’t focused."
-                              >
-                                 <Segmented
-                                    ariaLabel="desktop notifications"
-                                    value={s.notify && perm === 'granted' ? 'on' : 'off'}
-                                    options={[
-                                       ['off', 'Off'],
-                                       ['on', 'On'],
-                                    ]}
-                                    onChange={v => void toggleNotify(v === 'on')}
-                                 />
-                              </Field>
-                              {perm === 'denied' && (
-                                 <span className="text-xs text-bad">
-                                    Blocked in your browser settings; allow notifications for this
-                                    site to turn them on.
-                                 </span>
-                              )}
-                              <Field
-                                 label="Sound"
-                                 hint="Play a short chime with each notification."
-                              >
-                                 <Segmented
-                                    ariaLabel="notification sound"
-                                    value={s.notifySound ? 'on' : 'off'}
-                                    options={[
-                                       ['off', 'Off'],
-                                       ['on', 'On'],
-                                    ]}
-                                    onChange={v => {
-                                       // a toggle click is the gesture that unlocks audio
-                                       if (v === 'on') unlockSound();
-                                       set({ notifySound: v === 'on' });
-                                    }}
-                                 />
-                              </Field>
-                              {s.notify && perm === 'granted' && (
-                                 <QuietButton size="md" onClick={() => testNotification()}>
-                                    Send a test notification
-                                 </QuietButton>
-                              )}
-                           </>
-                        ) : (
-                           <span className="text-xs text-ink-3">
-                              This browser doesn’t support desktop notifications.
+                     <Group title="Edited on the board">
+                        <div className="flex items-center justify-between gap-3">
+                           <span className="text-[13px] text-ink-2">
+                              Your team: edit it on the Team view.
                            </span>
-                        )}
-                     </Group>
-
-                     <RepoManagerGroup
-                        repos={repos}
-                        orgHidden={orgHidden}
-                        prefs={s.repoPrefs}
-                        onRepoPref={setRepoPref}
-                        primaryRepos={s.primaryRepos}
-                        onPrimary={togglePrimaryRepo}
-                     />
-
-                     <Group title="Data">
-                        <span className="text-xs text-ink-3">
-                           Re-fetch every open PR from GitHub now, instead of waiting for the next
-                           webhook. The board updates as each one comes back.
-                        </span>
-                        <div className="flex items-center gap-3">
                            <QuietButton
                               size="md"
-                              disabled={!!refreshProgress}
                               onClick={() => {
-                                 // live progress (store.refreshProgress) takes over
-                                 // from here; the local note only covers the no-op
-                                 if (refreshAll() === 0) {
-                                    setRefreshNote('nothing to refresh');
-                                    setTimeout(() => setRefreshNote(''), 2500);
-                                 }
+                                 onGoToTeam();
+                                 setOpen(false);
                               }}
                            >
-                              Refresh all
+                              Open Team view
                            </QuietButton>
-                           {/* role=status stays mounted so the announcement fires
-                               when the text lands — a screen reader hears the
-                               confirmation, not just sighted users */}
-                           <span role="status" className="text-xs text-ink-3 tabular-nums">
-                              {refreshProgress
-                                 ? refreshProgress.done === refreshProgress.total
-                                    ? `refreshed ${refreshProgress.total}`
-                                    : `refreshing ${refreshProgress.done} of ${refreshProgress.total}…`
-                                 : refreshNote}
-                           </span>
                         </div>
-
-                        <span className="mt-1 text-xs text-ink-3">
-                           A snoozed row hides for a day, or until the PR changes.
+                        <span className="text-[13px] text-ink-2">
+                           Repos: star and mute from the Repos filter in the header.
                         </span>
-                        <div className="flex items-center gap-3">
-                           <QuietButton
-                              size="md"
-                              disabled={!snoozedCount}
-                              onClick={() => clearSnoozes()}
-                           >
-                              Bring back snoozed
-                           </QuietButton>
-                           <span className="text-xs text-ink-3 tabular-nums">
-                              {snoozedCount} hidden now
-                           </span>
-                        </div>
-
-                        <span className="mt-1 text-xs text-ink-3">
-                           Reset every preference on this browser (theme, filters, muted repos,
-                           last-seen marker) back to defaults. This can’t be undone.
-                        </span>
-                        <div className="flex items-center gap-3">
-                           <button
-                              type="button"
-                              onClick={() => {
-                                 if (!armReset) {
-                                    setArmReset(true);
-                                    setTimeout(() => setArmReset(false), 4000);
-                                    return;
-                                 }
-                                 clearStoredPrefs();
-                                 window.location.reload();
-                              }}
-                              className={`pressable inline-flex h-8 items-center rounded-lg border px-3 text-[13px] font-medium ${
-                                 armReset
-                                    ? 'border-bad bg-bad/10 text-bad hover:bg-bad/20'
-                                    : 'border-line bg-surface text-ink-2 hover:text-bad'
-                              }`}
-                           >
-                              {armReset ? 'Click again to confirm' : 'Clear settings'}
-                           </button>
-                        </div>
                      </Group>
 
-                     <Group title="Changed since your last look">
+                     <section className="border-t border-secondary px-4 py-3.5">
                         <Explainer summary="Advanced">
-                           <Field
-                              label="Mark the board seen after"
-                              hint="How long it must stay open, in view, before leaving counts as a look. A quick glance won’t clear the new-and-updated marks."
-                           >
-                              <NumberField
-                                 value={s.seenAfterSecs}
-                                 min={0}
-                                 max={600}
-                                 suffix="sec"
-                                 onChange={seenAfterSecs => set({ seenAfterSecs })}
-                              />
-                           </Field>
+                           <span className="block text-ink-2">
+                              Re-fetch every open PR from GitHub now, instead of waiting for the
+                              next webhook. The board updates as each one comes back.
+                           </span>
+                           <div className="flex items-center gap-3 pt-1">
+                              <QuietButton
+                                 size="md"
+                                 disabled={!!refreshProgress}
+                                 onClick={() => {
+                                    // live progress (store.refreshProgress) takes over
+                                    // from here; the local note only covers the no-op
+                                    if (refreshAll() === 0) {
+                                       setRefreshNote('nothing to refresh');
+                                       setTimeout(() => setRefreshNote(''), 2500);
+                                    }
+                                 }}
+                              >
+                                 Refresh all
+                              </QuietButton>
+                              {/* role=status stays mounted so the announcement fires
+                                  when the text lands — a screen reader hears the
+                                  confirmation, not just sighted users */}
+                              <span role="status" className="text-xs text-ink-3 tabular-nums">
+                                 {refreshProgress
+                                    ? refreshProgress.done === refreshProgress.total
+                                       ? `refreshed ${refreshProgress.total}`
+                                       : `refreshing ${refreshProgress.done} of ${refreshProgress.total}…`
+                                    : refreshNote}
+                              </span>
+                           </div>
+
+                           <span className="mt-2 block text-ink-2">
+                              A snoozed row hides for a day, or until the PR changes.
+                           </span>
+                           <div className="flex items-center gap-3 pt-1">
+                              <QuietButton
+                                 size="md"
+                                 disabled={!snoozedCount}
+                                 onClick={() => clearSnoozes()}
+                              >
+                                 Bring back snoozed
+                              </QuietButton>
+                              <span className="text-xs text-ink-3 tabular-nums">
+                                 {snoozedCount} hidden now
+                              </span>
+                           </div>
+
+                           <div className="pt-2">
+                              <Field
+                                 label="Mark the board seen after"
+                                 hint="How long it must stay open, in view, before leaving counts as a look. A quick glance won’t clear the new-and-updated marks."
+                              >
+                                 <NumberField
+                                    value={s.seenAfterSecs}
+                                    min={0}
+                                    max={600}
+                                    suffix="sec"
+                                    onChange={seenAfterSecs => set({ seenAfterSecs })}
+                                 />
+                              </Field>
+                           </div>
                            <div className="flex items-center gap-3 pt-1">
                               <QuietButton
                                  size="md"
@@ -738,8 +483,34 @@ export function Settings({
                                  {seenNote ? 'done' : ''}
                               </span>
                            </div>
+
+                           <span className="mt-2 block text-ink-2">
+                              Reset every preference on this browser (theme, filters, muted repos,
+                              last-seen marker) back to defaults. This can’t be undone.
+                           </span>
+                           <div className="flex items-center gap-3 pt-1">
+                              <button
+                                 type="button"
+                                 onClick={() => {
+                                    if (!armReset) {
+                                       setArmReset(true);
+                                       setTimeout(() => setArmReset(false), 4000);
+                                       return;
+                                    }
+                                    clearStoredPrefs();
+                                    window.location.reload();
+                                 }}
+                                 className={`pressable inline-flex h-8 items-center rounded-lg border px-3 text-[13px] font-medium ${
+                                    armReset
+                                       ? 'border-bad bg-bad/10 text-bad hover:bg-bad/20'
+                                       : 'border-line bg-surface text-ink-2 hover:text-bad'
+                                 }`}
+                              >
+                                 {armReset ? 'Click again to confirm' : 'Clear settings'}
+                              </button>
+                           </div>
                         </Explainer>
-                     </Group>
+                     </section>
                   </div>
                </div>,
                document.body

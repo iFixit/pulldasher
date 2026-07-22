@@ -900,12 +900,7 @@ export function App() {
                   <span className="hidden sm:flex">
                      <Legend />
                   </span>
-                  <Settings
-                     repos={repoCounts}
-                     orgHidden={hiddenRepos}
-                     snoozedCount={snoozedCount}
-                     extraBots={extraBots}
-                  />
+                  <Settings snoozedCount={snoozedCount} onGoToTeam={() => setLens('team')} />
                </div>
                <div className="mx-auto flex max-w-[1240px] min-w-0 items-center px-5 py-2.5 pl-11 pr-32 sm:pr-40 2xl:px-5">
                   {/* min-w-0 + overflow-x-auto (no-scrollbar in styles.css)
