@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { ChevronDown, Tag } from 'lucide-react';
-import { CRYO_KEY, repoState } from '../../model/visibility';
+import { repoState } from '../../model/visibility';
 import { shortRepo } from '../../format';
-import { setRepoPref, setSettings, togglePrimaryRepo, useSettings } from '../../settings';
+import { setRepoPref, togglePrimaryRepo, useSettings } from '../../settings';
 import { QuietButton, StarMark } from '../bits';
-import { Icon } from '../Icon';
 import { Popover } from '../Popover';
-import { FilterSearch, OnlyButton } from './shared';
+import { FilterSearch, FilterTrigger, OnlyButton } from './shared';
 
 /**
  * The repos filter: opens straight into the repo list (no tabs — the old
@@ -14,10 +12,10 @@ import { FilterSearch, OnlyButton } from './shared';
  * you had to make before you could even search). Scope (which repos are on
  * your board right now) and mute (which repos are off your board, period)
  * live side by side on each row, plus the ★ star that marks a repo you
- * actively review (drives the review queue's primary/other split). The cryo
- * session toggle rides along at the bottom under a "This session" label, so it
- * reads as visibly less durable than the rows above it. (Drafts used to sit
- * here too; it's now its own control on the filter row — see DraftsFilter.)
+ * actively review (drives the review queue's primary/other split). (Parked
+ * PRs and drafts used to ride along here as session toggles; they're
+ * board-level hiding, so they live in the filter bar's hidden-PR ledger now —
+ * see HiddenPanel.)
  */
 export function RepoFilter({
    repos,
@@ -26,11 +24,9 @@ export function RepoFilter({
    toggleReveal,
    showAll,
    setShowAll,
-   cryoCount,
    scope,
    setScope,
 }: {
-   /** exposes the trigger button to FilterChips' durable "muted repos" pill */
    /** all repos with open-PR counts (org-hidden and muted included) */
    repos: { name: string; count: number }[];
    orgHidden: ReadonlySet<string>;
@@ -38,7 +34,6 @@ export function RepoFilter({
    toggleReveal: (key: string) => void;
    showAll: boolean;
    setShowAll: (next: boolean) => void;
-   cryoCount: number;
    scope: { repos: string[]; authors: string[] };
    setScope: (next: { repos: string[]; authors: string[] }) => void;
 }) {
@@ -49,7 +44,6 @@ export function RepoFilter({
 
    const shownRepos = repos.filter(r => repoState(r.name, orgHidden, prefs) === 'shown');
    const hiddenRepos = repos.filter(r => repoState(r.name, orgHidden, prefs) !== 'shown');
-   const mutedCount = repos.filter(r => repoState(r.name, orgHidden, prefs) === 'muted').length;
 
    const commit = (next: string[], all: string[]) =>
       setScope({ ...scope, repos: all.length && next.length === all.length ? [] : next });
@@ -62,14 +56,15 @@ export function RepoFilter({
    };
    const included = (name: string) => !scope.repos.length || scope.repos.includes(name);
 
-   // the trigger summary: repos you've narrowed to, plus how many you've
-   // muted — drafts/hidden/cryo now live in FilterChips, not here
-   const bits: string[] = [];
-   if (scope.repos.length)
-      bits.push(`${scope.repos.length} repo${scope.repos.length > 1 ? 's' : ''}`);
-   if (mutedCount) bits.push(`${mutedCount} muted`);
-   const active = bits.length > 0;
-   const summary = bits.length ? bits.join(' · ') : 'Repos';
+   // the trigger names only what narrows the board: a lone repo by name, more
+   // as a count. Mute counts are durable state — they read in the hidden-PR
+   // ledger, not here, so the trigger stays quiet when nothing is filtered.
+   const value =
+      scope.repos.length === 0
+         ? null
+         : scope.repos.length === 1
+           ? shortRepo(scope.repos[0])
+           : `${scope.repos.length} repos`;
 
    const shownRow = (name: string, count: number) => {
       const isPrimary = primary.has(name);
@@ -165,21 +160,13 @@ export function RepoFilter({
             panelClass="max-h-[460px] overflow-auto p-2"
             rootClass="relative inline-flex items-center"
             trigger={t => (
-               <button
-                  {...t}
-                  type="button"
-                  className={`pressable inline-flex h-8 max-w-[220px] items-center gap-1.5 rounded-lg border px-2.5 text-[13px] font-medium ${
-                     active
-                        ? 'border-brand bg-brand-50 text-brand-700 hover:border-brand-700'
-                        : 'border-line bg-surface text-ink-2 hover:text-brand'
-                  }`}
-                  title={summary}
-                  aria-label={`repos filter: ${summary}`}
-               >
-                  <Icon icon={Tag} />
-                  <span className="hidden truncate sm:inline">{summary}</span>
-                  <Icon icon={ChevronDown} className="ml-auto text-ink-3" />
-               </button>
+               <FilterTrigger
+                  t={t}
+                  label="Repos"
+                  value={value}
+                  onClear={() => setScope({ ...scope, repos: [] })}
+                  ariaLabel={`repos filter: ${value ?? 'off'}`}
+               />
             )}
          >
             <FilterSearch value={repoQuery} onChange={setRepoQuery} label="Filter repos" />
@@ -214,39 +201,6 @@ export function RepoFilter({
             {filteredShown.length === 0 && (
                <div className="px-1.5 py-2 text-xs text-ink-3">No repos match.</div>
             )}
-
-            {cryoCount > 0 &&
-               (() => {
-                  const cryoSessionOn = settings.showCryo || reveal.includes(CRYO_KEY) || showAll;
-                  return (
-                     <div className="mt-2 border-t border-secondary pt-2">
-                        <div className="mb-1.5 text-[11px] font-semibold tracking-wide text-ink-3 uppercase">
-                           This session
-                        </div>
-                        <label className="flex items-center gap-2 px-1.5 text-[13px]">
-                           <input
-                              type="checkbox"
-                              className="m-0 disabled:opacity-40"
-                              checked={cryoSessionOn}
-                              disabled={settings.showCryo || showAll}
-                              onChange={() => toggleReveal(CRYO_KEY)}
-                           />
-                           <span className="flex-1">Show parked (Cryogenic) PRs</span>
-                           <span className="text-[11px] text-ink-3 tabular-nums">{cryoCount}</span>
-                        </label>
-                        {cryoSessionOn !== settings.showCryo && (
-                           <div className="mt-1.5 px-1.5">
-                              <QuietButton
-                                 size="sm"
-                                 onClick={() => setSettings({ showCryo: cryoSessionOn })}
-                              >
-                                 Make this my default
-                              </QuietButton>
-                           </div>
-                        )}
-                     </div>
-                  );
-               })()}
          </Popover>
       </div>
    );

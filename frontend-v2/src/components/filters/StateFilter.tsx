@@ -1,11 +1,9 @@
-import { ChevronDown, ClipboardList } from 'lucide-react';
 import type { ActionStateKey } from '../../model/actions';
 import { actionState } from '../../model/actions';
 import type { DerivedPull } from '../../model/status';
 import { usePulldasher } from '../../store';
-import { Icon } from '../Icon';
 import { Popover } from '../Popover';
-import { FilterRow, OnlyButton } from './shared';
+import { FilterRow, FilterTrigger, OnlyButton } from './shared';
 
 /**
  * State filter option order: what's waiting on you first (the thing you're
@@ -51,13 +49,15 @@ export function StateFilter({
       setStateSel(next);
    };
 
-   const active = stateSel.length > 0;
-   const summary =
+   // one selection names itself; more collapse to "first +N" so the trigger
+   // can't grow as long as the option labels themselves
+   const first = STATE_OPTIONS.find(o => o.key === stateSel[0])?.label ?? stateSel[0];
+   const value =
       stateSel.length === 0
-         ? 'State'
+         ? null
          : stateSel.length === 1
-           ? `State · ${STATE_OPTIONS.find(o => o.key === stateSel[0])?.label ?? stateSel[0]}`
-           : `State · ${stateSel.length} selected`;
+           ? first
+           : `${first} +${stateSel.length - 1}`;
 
    return (
       <div>
@@ -67,21 +67,13 @@ export function StateFilter({
             panelClass="p-2"
             rootClass="relative inline-flex items-center"
             trigger={t => (
-               <button
-                  {...t}
-                  type="button"
-                  className={`pressable inline-flex h-8 max-w-[220px] items-center gap-1.5 rounded-lg border px-2.5 text-[13px] font-medium ${
-                     active
-                        ? 'border-brand bg-brand-50 text-brand-700 hover:border-brand-700'
-                        : 'border-line bg-surface text-ink-2 hover:text-brand'
-                  }`}
-                  title={summary}
-                  aria-label={`state filter: ${summary}`}
-               >
-                  <Icon icon={ClipboardList} />
-                  <span className="hidden truncate sm:inline">{summary}</span>
-                  <Icon icon={ChevronDown} className="ml-auto text-ink-3" />
-               </button>
+               <FilterTrigger
+                  t={t}
+                  label="State"
+                  value={value}
+                  onClear={() => setStateSel([])}
+                  ariaLabel={`state filter: ${value ?? 'off'}`}
+               />
             )}
          >
             {STATE_OPTIONS.map(({ key, label }) => (

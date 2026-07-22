@@ -1,13 +1,11 @@
 import { useState } from 'react';
-import { ChevronDown, Users } from 'lucide-react';
 import type { DerivedPull } from '../../model/status';
 import { toggleMutedPerson, toggleStarredPerson, useSettings } from '../../settings';
 import { usePulldasher } from '../../store';
 import type { Team } from '../../types';
 import { Avatar, QuietButton, StarMark } from '../bits';
-import { Icon } from '../Icon';
 import { Popover } from '../Popover';
-import { FilterRow, FilterSearch, OnlyButton } from './shared';
+import { FilterRow, FilterSearch, FilterTrigger, OnlyButton } from './shared';
 
 /**
  * The people filter: team preset chips, then a searchable author list where
@@ -58,13 +56,14 @@ export function PeopleFilter({
    };
    const included = (login: string) => !scope.authors.length || scope.authors.includes(login);
 
-   const mutedCount = settings.mutedPeople.length;
-   const bits: string[] = [];
-   if (scope.authors.length)
-      bits.push(`${scope.authors.length} ${scope.authors.length > 1 ? 'people' : 'person'}`);
-   if (mutedCount) bits.push(`${mutedCount} muted`);
-   const active = bits.length > 0;
-   const summary = bits.length ? bits.join(' · ') : 'People';
+   // the trigger names only what narrows the board: one person by login,
+   // more as a count. Mute counts read in the hidden-PR ledger, not here.
+   const value =
+      scope.authors.length === 0
+         ? null
+         : scope.authors.length === 1
+           ? scope.authors[0]
+           : `${scope.authors.length} people`;
 
    const filteredShown = shownAuthors.filter(([login]) =>
       login.toLowerCase().includes(peopleQuery.toLowerCase())
@@ -81,21 +80,13 @@ export function PeopleFilter({
             panelClass="max-h-[460px] overflow-auto p-2"
             rootClass="relative inline-flex items-center"
             trigger={t => (
-               <button
-                  {...t}
-                  type="button"
-                  className={`pressable inline-flex h-8 max-w-[220px] items-center gap-1.5 rounded-lg border px-2.5 text-[13px] font-medium ${
-                     active
-                        ? 'border-brand bg-brand-50 text-brand-700 hover:border-brand-700'
-                        : 'border-line bg-surface text-ink-2 hover:text-brand'
-                  }`}
-                  title={summary}
-                  aria-label={`people filter: ${summary}`}
-               >
-                  <Icon icon={Users} />
-                  <span className="hidden truncate sm:inline">{summary}</span>
-                  <Icon icon={ChevronDown} className="ml-auto text-ink-3" />
-               </button>
+               <FilterTrigger
+                  t={t}
+                  label="People"
+                  value={value}
+                  onClear={() => setScope({ ...scope, authors: [] })}
+                  ariaLabel={`people filter: ${value ?? 'off'}`}
+               />
             )}
          >
             {teams.length > 0 && (

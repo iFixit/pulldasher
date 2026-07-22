@@ -36,8 +36,8 @@ import { RepoFilter } from './components/filters/RepoFilter';
 import { PeopleFilter } from './components/filters/PeopleFilter';
 import { WeightFilter } from './components/filters/WeightFilter';
 import { StateFilter } from './components/filters/StateFilter';
-import { DraftsFilter } from './components/filters/DraftsFilter';
-import { FilterChips, hasActiveFilters } from './components/filters/FilterChips';
+import { HiddenPanel } from './components/filters/HiddenPanel';
+import { hasActiveFilters } from './components/filters/shared';
 import { SavedFiltersInput, SavedFiltersMenu } from './components/SavedFiltersPanel';
 import type { RowOptions } from './components/Row';
 import { Review } from './views/Review';
@@ -464,6 +464,61 @@ export function App() {
       [scope.authors, queryAuthors]
    );
 
+   // The one is-this-pull-off-the-board predicate: muted (user) and
+   // org-hidden repos, muted people, cryo, snoozes, and the drafts rule stay
+   // off unless a session act reveals them — an explicit reveal, a scope, a
+   // repo:/author: query term, or the master "show everything". Never hides
+   // your own pulls or bots via mutes: bots have their own fold, and a person
+   // can't mute themselves off their own board. Shared by the filter pipeline
+   // and the hidden-PR ledger's counts so the ledger's number can never
+   // disagree with what the board actually withholds.
+   const boardHidden = useCallback(
+      (p: DerivedPull) => {
+         if (showAll) return false;
+         const hiddenRepo =
+            repoHidden(p.data.repo, hiddenRepos, settings.repoPrefs) && !revealedRepo(p.data.repo);
+         const hiddenPerson =
+            p.data.user.login !== me &&
+            !isBot(p) &&
+            personHidden(p.data.user.login, settings.mutedPeople) &&
+            !revealedAuthor(p.data.user.login);
+         const cryoHidden = p.cryo && !settings.showCryo && !reveal.includes(CRYO_KEY);
+         // drafts: 'mine' keeps other people's drafts quiet on the general
+         // board, but not when you've deliberately looked (scoped/`author:`d
+         // that person) or when GitHub explicitly requested your review — a
+         // review-requested draft was vanishing even from the reviewer it was
+         // requested from, the reported bug. Your own drafts always show. The
+         // legacy path owns its own draft rule, so don't double-apply.
+         const draftHidden =
+            !legacy &&
+            draftsMode === 'mine' &&
+            p.data.draft &&
+            p.data.user.login !== me &&
+            !revealedAuthor(p.data.user.login) &&
+            !reviewRequestedFrom(p, me);
+         // a snoozed pull stays off the board until tomorrow or its next
+         // change; the master reveal shows it like every other hidden group
+         return (
+            hiddenRepo || hiddenPerson || cryoHidden || draftHidden || isSnoozed(p.data, snoozed)
+         );
+      },
+      [
+         showAll,
+         reveal,
+         revealedRepo,
+         revealedAuthor,
+         hiddenRepos,
+         legacy,
+         me,
+         isBot,
+         settings.repoPrefs,
+         settings.showCryo,
+         settings.mutedPeople,
+         draftsMode,
+         snoozed,
+      ]
+   );
+
    // every existing scope/query pass, but not yet the Weight/State filters —
    // WeightFilter's live per-option counts read this pool, so narrowing to
    // one weight class doesn't make the other classes' counts vanish (the
@@ -471,65 +526,15 @@ export function App() {
    const preWeightScoped = useMemo(() => {
       let out = pulls;
       if (legacy) out = applyLegacyFilters(out, legacy, me);
-      // Muted (user) and org-hidden repos, muted people, and cryo PRs stay off
-      // the board unless a session act reveals them: an explicit reveal, a
-      // scope, or a repo:/author: query term. Session-explicit beats the
-      // durable mute. Never hide your own pulls or bots — bots have their own
-      // fold, and a person can't mute themselves off their own board.
-      if (!showAll)
-         out = out.filter(p => {
-            const hiddenRepo =
-               repoHidden(p.data.repo, hiddenRepos, settings.repoPrefs) &&
-               !revealedRepo(p.data.repo);
-            const hiddenPerson =
-               p.data.user.login !== me &&
-               !isBot(p) &&
-               personHidden(p.data.user.login, settings.mutedPeople) &&
-               !revealedAuthor(p.data.user.login);
-            const cryoHidden = p.cryo && !settings.showCryo && !reveal.includes(CRYO_KEY);
-            // a snoozed pull stays off the board until tomorrow or its next
-            // change; the master reveal shows it like every other hidden group
-            return !hiddenRepo && !hiddenPerson && !cryoHidden && !isSnoozed(p.data, snoozed);
-         });
+      out = out.filter(p => !boardHidden(p));
       if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.data.repo));
       // bots bypass the people filter on purpose: dependency bumps need review
       // no matter whose work you follow (they land in the bots fold, not lanes)
       if (scope.authors.length)
          out = out.filter(p => isBot(p) || scope.authors.includes(p.data.user.login));
-      // drafts: 'mine' keeps other people's drafts quiet on the general board,
-      // but not when you've deliberately looked (scoped/`author:`d that person)
-      // or when GitHub explicitly requested your review — a review-requested
-      // draft was vanishing even from the reviewer it was requested from, the
-      // reported bug. Your own drafts always show. The legacy path owns its own
-      // draft rule, so don't double-apply.
-      if (!legacy && draftsMode === 'mine')
-         out = out.filter(
-            p =>
-               !p.data.draft ||
-               p.data.user.login === me ||
-               revealedAuthor(p.data.user.login) ||
-               reviewRequestedFrom(p, me)
-         );
       if (query) out = out.filter(p => matchesQuery(p, query, me));
       return out;
-   }, [
-      pulls,
-      scope,
-      query,
-      showAll,
-      reveal,
-      revealedRepo,
-      revealedAuthor,
-      hiddenRepos,
-      legacy,
-      me,
-      isBot,
-      settings.repoPrefs,
-      settings.showCryo,
-      settings.mutedPeople,
-      draftsMode,
-      snoozed,
-   ]);
+   }, [pulls, legacy, me, boardHidden, scope, isBot, query]);
 
    // preWeightScoped narrowed by the Weight filter, but not yet State —
    // StateFilter's own live counts read this pool for the same
@@ -599,9 +604,37 @@ export function App() {
       extraBots,
    ]);
 
-   const cryoCount = pulls.filter(p => p.cryo).length;
+   // the hidden-PR ledger's numbers: stable per-category sizes (what each
+   // rule covers, whether or not a session reveal currently shows it) plus
+   // the live currently-hidden total for the trigger label
+   const hiddenCounts = useMemo(() => {
+      const c = { parked: 0, drafts: 0, mutedRepos: 0, mutedPeople: 0, snoozed: 0, hiddenNow: 0 };
+      for (const p of pulls) {
+         if (p.cryo) c.parked++;
+         if (p.data.draft && p.data.user.login !== me && !reviewRequestedFrom(p, me)) c.drafts++;
+         if (repoHidden(p.data.repo, hiddenRepos, settings.repoPrefs)) c.mutedRepos++;
+         if (
+            p.data.user.login !== me &&
+            !isBot(p) &&
+            personHidden(p.data.user.login, settings.mutedPeople)
+         )
+            c.mutedPeople++;
+         if (isSnoozed(p.data, snoozed)) c.snoozed++;
+         if (boardHidden(p)) c.hiddenNow++;
+      }
+      return c;
+   }, [
+      pulls,
+      me,
+      hiddenRepos,
+      settings.repoPrefs,
+      settings.mutedPeople,
+      isBot,
+      snoozed,
+      boardHidden,
+   ]);
    // counts every open pull a snooze currently hides, for the Settings surface
-   const snoozedCount = pulls.filter(p => isSnoozed(p.data, snoozed)).length;
+   const snoozedCount = hiddenCounts.snoozed;
 
    const isScoped = scope.repos.length || scope.authors.length || query;
 
@@ -925,7 +958,6 @@ export function App() {
                   toggleReveal={toggleReveal}
                   showAll={showAll}
                   setShowAll={setShowAll}
-                  cryoCount={cryoCount}
                   scope={scope}
                   setScope={setScope}
                />
@@ -936,28 +968,33 @@ export function App() {
                   setWeightSel={setWeightSel}
                />
                <StateFilter pulls={preStateScoped} stateSel={stateSel} setStateSel={setStateSel} />
-               <DraftsFilter
-                  draftsMode={draftsMode}
-                  setDraftsMode={setDraftsMode}
-                  defaultMode={settings.draftsMode}
-               />
                <SavedFiltersMenu sessionActive={sessionActive} />
-               <FilterChips
-                  query={query}
-                  setQuery={setQuery}
-                  reveal={reveal}
-                  toggleReveal={toggleReveal}
+               <HiddenPanel
+                  counts={hiddenCounts}
                   showAll={showAll}
                   setShowAll={setShowAll}
+                  reveal={reveal}
+                  toggleReveal={toggleReveal}
                   draftsMode={draftsMode}
                   setDraftsMode={setDraftsMode}
-                  scope={scope}
-                  setScope={setScope}
-                  weightSel={weightSel}
-                  setWeightSel={setWeightSel}
-                  stateSel={stateSel}
-                  setStateSel={setStateSel}
                />
+               {sessionActive && (
+                  <button
+                     type="button"
+                     onClick={() => {
+                        setScope({ repos: [], authors: [] });
+                        setWeightSel([]);
+                        setStateSel([]);
+                        setShowAll(false);
+                        setReveal([]);
+                        setDraftsMode(settings.draftsMode);
+                     }}
+                     title="clears scope and session toggles; mutes and stars stay"
+                     className="hit pressable rounded-md px-1.5 py-1 text-[13px] text-ink-3 hover:text-brand"
+                  >
+                     Reset
+                  </button>
+               )}
                {legacy && (
                   <ToggleChip
                      active

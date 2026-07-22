@@ -7,7 +7,7 @@ import {
    type KeyboardEvent,
    type RefObject,
 } from 'react';
-import { Bookmark, ChevronDown, Search, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import {
    applySavedFilter,
    deleteFilter,
@@ -18,6 +18,7 @@ import {
    type SavedFilter,
 } from '../model/savedFilters';
 import { QuietButton } from './bits';
+import { FilterTrigger } from './filters/shared';
 import { Icon } from './Icon';
 import { Popover } from './Popover';
 
@@ -315,8 +316,8 @@ export function SavedFiltersInput({
  * The header's "Saved ▾" trigger: only rendered once there's at least one
  * real saved filter (suggestions live in the query panel, not here — this is
  * the durable list, and an empty durable list has nothing to open into).
- * Styled to match the other four filter triggers (RepoFilter, PeopleFilter,
- * WeightFilter, StateFilter): h-8 pill, label hidden below sm.
+ * Wears the same quiet FilterTrigger the four dimension triggers wear, so
+ * the bar reads as one family.
  */
 export function SavedFiltersMenu({ sessionActive }: { sessionActive: boolean }) {
    const saved = useSavedFilters();
@@ -330,17 +331,11 @@ export function SavedFiltersMenu({ sessionActive }: { sessionActive: boolean }) 
             panelClass="max-h-[400px] overflow-auto p-2"
             rootClass="relative inline-flex items-center"
             trigger={t => (
-               <button
-                  {...t}
-                  type="button"
-                  className="pressable inline-flex h-8 max-w-[220px] items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[13px] font-medium text-ink-2 hover:text-brand"
-                  title="saved filters"
-                  aria-label={`saved filters: ${saved.length} saved`}
-               >
-                  <Icon icon={Bookmark} />
-                  <span className="hidden truncate sm:inline">Saved</span>
-                  <Icon icon={ChevronDown} className="ml-auto text-ink-3" />
-               </button>
+               <FilterTrigger
+                  t={t}
+                  label="Saved"
+                  ariaLabel={`saved filters: ${saved.length} saved`}
+               />
             )}
          >
             {saved.map(f => (

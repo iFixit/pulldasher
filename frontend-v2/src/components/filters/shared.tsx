@@ -1,4 +1,100 @@
 import type { ChangeEvent, ReactNode } from 'react';
+import { ChevronDown, X } from 'lucide-react';
+import { Icon } from '../Icon';
+import type { PopoverTriggerProps } from '../Popover';
+
+/**
+ * The one filter-bar trigger: a quiet text-level control, not a bordered
+ * button. The bar's normal state is "a few filters always on", so an active
+ * filter can't wear highlight chrome — the whole ladder is typographic:
+ * inactive = muted word, active = the dimension's VALUE named in ink with a
+ * small clear ×. The trigger is the chip; there is no second pill restating
+ * it elsewhere. (No leading icons either: six pictograms said less than the
+ * six words, and cost a row of decoding.)
+ */
+export function FilterTrigger({
+   t,
+   label,
+   value,
+   onClear,
+   ariaLabel,
+}: {
+   t: PopoverTriggerProps;
+   /** the dimension name, always visible: Repos, People, Weight… */
+   label: string;
+   /** the active selection, named ("XS, S"); null/empty = inactive */
+   value?: string | null;
+   /** clears just this dimension (renders the × beside the trigger) */
+   onClear?: () => void;
+   ariaLabel: string;
+}) {
+   return (
+      <span className="inline-flex items-center">
+         <button
+            {...t}
+            type="button"
+            title={value ? `${label} · ${value}` : label}
+            aria-label={ariaLabel}
+            className="hit pressable inline-flex max-w-[240px] items-center gap-1 rounded-md px-1.5 py-1 text-[13px] text-ink-3 hover:text-ink"
+         >
+            {value ? (
+               <>
+                  <span className="flex-none">{label} ·</span>
+                  <span className="truncate font-medium text-ink">{value}</span>
+               </>
+            ) : (
+               label
+            )}
+            <Icon icon={ChevronDown} size={12} className="flex-none" />
+         </button>
+         {value && onClear && (
+            <button
+               type="button"
+               onClick={onClear}
+               aria-label={`clear ${label} filter`}
+               className="hit pressable -ml-0.5 rounded px-0.5 text-ink-3 hover:text-brand"
+            >
+               <Icon icon={X} size={12} />
+            </button>
+         )}
+      </span>
+   );
+}
+
+/**
+ * Whether any TRANSIENT session filter is narrowing (or revealing) the board
+ * right now — what the bar's "Reset" resets, and what the saved-filters
+ * panel reads to decide whether there's anything worth bookmarking. One
+ * definition so the two surfaces can't disagree about what counts as
+ * "active". Durable state (mutes, stars, defaults) is deliberately not here.
+ */
+export function hasActiveFilters({
+   reveal,
+   showAll,
+   draftsMode,
+   defaultDraftsMode,
+   scope,
+   weightSel,
+   stateSel,
+}: {
+   reveal: string[];
+   showAll: boolean;
+   draftsMode: 'mine' | 'all';
+   defaultDraftsMode: 'mine' | 'all';
+   scope: { repos: string[]; authors: string[] };
+   weightSel: string[];
+   stateSel: string[];
+}): boolean {
+   return (
+      scope.repos.length > 0 ||
+      scope.authors.length > 0 ||
+      weightSel.length > 0 ||
+      stateSel.length > 0 ||
+      reveal.length > 0 ||
+      showAll ||
+      draftsMode !== defaultDraftsMode
+   );
+}
 
 /**
  * The one filter-panel search input, replacing the three copy-pasted

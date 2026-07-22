@@ -165,7 +165,7 @@ export function Legend() {
                   <span className="inline-flex items-center gap-1">
                      <span className="text-[11px] font-medium text-ink-3">CI</span>
                      <span className="pip pip-fail" />
-                     <span className="pip-progress" style={{ "--sweep": "240deg" } as never} />
+                     <span className="pip-progress" style={{ '--sweep': '240deg' } as never} />
                   </span>
                }
                def="CI wears the same marks as CR and QA. The machine is a reviewer too. A red ✗ disc means one or more checks failed (the popover says which); a gray-blue ring filling clockwise means the checks are still running, and the filled share is how many have finished. Passing shows nothing at rest. No news is good news; hover a row for its quiet green check and the per-check list"
@@ -324,7 +324,7 @@ export function Legend() {
                      />
                   </svg>
                }
-               def="the eye selector reveals off-by-default PRs: Cryogenic Storage and quiet repos"
+               def="the filter bar's “hidden” count names what the board holds back — parked (Cryogenic Storage) PRs, others' drafts, muted repos and people — and shows any of it for the session"
             />
          </Group>
 

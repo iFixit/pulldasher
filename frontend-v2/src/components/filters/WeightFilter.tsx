@@ -1,9 +1,7 @@
-import { ChevronDown, Weight as WeightIcon } from 'lucide-react';
 import type { DerivedPull } from '../../model/status';
 import { weightFilterKey } from '../../model/status';
-import { Icon } from '../Icon';
 import { Popover } from '../Popover';
-import { FilterRow, OnlyButton } from './shared';
+import { FilterRow, FilterTrigger, OnlyButton } from './shared';
 
 /** Weight filter option order: lightest to heaviest, then the unknown-size
  * catch-all — mirrors the rail's own weight-letter read (XS through XL). */
@@ -43,8 +41,10 @@ export function WeightFilter({
       setWeightSel(next);
    };
 
-   const active = weightSel.length > 0;
-   const summary = active ? `Weight · ${weightSel.join(', ')}` : 'Weight';
+   // the rail spells weights as letters (XS…XL); the trigger matches it
+   const value = weightSel.length
+      ? weightSel.map(k => (k === 'unknown' ? 'unknown' : k.toUpperCase())).join(', ')
+      : null;
 
    return (
       <div>
@@ -54,21 +54,13 @@ export function WeightFilter({
             panelClass="p-2"
             rootClass="relative inline-flex items-center"
             trigger={t => (
-               <button
-                  {...t}
-                  type="button"
-                  className={`pressable inline-flex h-8 max-w-[220px] items-center gap-1.5 rounded-lg border px-2.5 text-[13px] font-medium ${
-                     active
-                        ? 'border-brand bg-brand-50 text-brand-700 hover:border-brand-700'
-                        : 'border-line bg-surface text-ink-2 hover:text-brand'
-                  }`}
-                  title={summary}
-                  aria-label={`weight filter: ${summary}`}
-               >
-                  <Icon icon={WeightIcon} />
-                  <span className="hidden truncate sm:inline">{summary}</span>
-                  <Icon icon={ChevronDown} className="ml-auto text-ink-3" />
-               </button>
+               <FilterTrigger
+                  t={t}
+                  label="Weight"
+                  value={value}
+                  onClear={() => setWeightSel([])}
+                  ariaLabel={`weight filter: ${value ?? 'off'}`}
+               />
             )}
          >
             {WEIGHT_OPTIONS.map(({ key, label }) => (
