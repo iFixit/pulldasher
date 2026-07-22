@@ -940,8 +940,16 @@ export function PullTitleLink({
                width="w-[440px] max-w-[90vw]"
                panelClass="p-3 max-h-[420px] overflow-auto"
                // no click-pin: a click on the title means "open the PR", and
-               // pinning a preview behind the tab you just opened is noise
-               trigger={({ onClick: _pin, ...t }) => <span {...t}>{title}</span>}
+               // pinning a preview behind the tab you just opened is noise.
+               // pd-raise lifts the words above the anchor's stretched hit
+               // layer (z 0) — without it the pointer hit-tests the ::after,
+               // the span never sees mouseenter, and the door never opens;
+               // still inside the anchor, so a click navigates as before
+               trigger={({ onClick: _pin, ...t }) => (
+                  <span {...t} className="pd-raise">
+                     {title}
+                  </span>
+               )}
             >
                <DescriptionBody md={preview} />
             </Popover>
