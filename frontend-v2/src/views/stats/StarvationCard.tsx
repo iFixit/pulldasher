@@ -43,8 +43,7 @@ export function StarvationCard({
                         lead={<PersonCell login={row.login} me={me} onPerson={onPerson} />}
                         trail={
                            <span className="flex-none text-right text-ink-3 tabular-nums">
-                              {row.count} {row.count === 1 ? 'PR' : 'PRs'} · worst{' '}
-                              <span style={{ color: heat }}>{row.worstDays}d</span>
+                              {row.count} {row.count === 1 ? 'PR' : 'PRs'} · worst {row.worstDays}d
                            </span>
                         }
                      />

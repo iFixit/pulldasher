@@ -3,13 +3,18 @@ import { Avatar } from '../../components/bits';
 import type { Weight } from '../../model/status';
 import type { DayCount } from '../../model/stats';
 
-/** the light→heavy color read every weight surface shares */
+/**
+ * The light→heavy color read every weight surface shares. Weight/effort is
+ * always neutral ink — never a hue — so heaviness reads as opacity of one
+ * token instead of borrowing colors that mean something else (--ok, --warn,
+ * --bad) on the board.
+ */
 export const WEIGHT_RAMP: Record<Weight, string> = {
-   XS: 'var(--ok)',
-   S: 'var(--ok)',
-   M: 'var(--ink-3)',
-   L: 'var(--warn)',
-   XL: 'var(--bad)',
+   XS: 'color-mix(in oklab, var(--ink-3) 35%, transparent)',
+   S: 'color-mix(in oklab, var(--ink-3) 50%, transparent)',
+   M: 'color-mix(in oklab, var(--ink-3) 65%, transparent)',
+   L: 'color-mix(in oklab, var(--ink-3) 82%, transparent)',
+   XL: 'var(--ink-3)',
 };
 
 /**

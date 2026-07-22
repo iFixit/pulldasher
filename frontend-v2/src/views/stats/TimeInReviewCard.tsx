@@ -39,7 +39,7 @@ export function TimeInReviewCard({ weeks }: { weeks: TimeInReviewWeek[] }) {
                      },
                      {
                         label: 'time to merge (avg)',
-                        color: 'var(--violet)',
+                        color: 'var(--slate)',
                         values: weeks.map(w => w.mergeAvgHours),
                      },
                   ]}

@@ -3,8 +3,10 @@ import { BarRow, StatsCard } from './parts';
 
 /**
  * How old the open board is, youngest bucket first. Color follows the same
- * fresh→amber→red read as the rows' age stamps, so a bottom-heavy chart here
- * and a wall of red ages on the board are the same fact.
+ * fresh→amber read as the rows' age stamps: buckets still under warnDays stay
+ * quiet ink (young isn't a "confirmation" worth --ok), buckets at/past
+ * warnDays pick up --warn, and buckets at/past rotDays go full-strength warn
+ * — never red, since --bad is reserved for broken CI.
  */
 export function AgeMixCard({
    buckets,
@@ -16,10 +18,14 @@ export function AgeMixCard({
    rotDays: number;
 }) {
    const max = Math.max(...buckets.map(b => b.count), 1);
-   // bucket upper bounds, mirroring ageMix's edges
-   const edges = [0, 2, 6, 13, Infinity];
-   const color = (i: number) =>
-      edges[i] >= rotDays ? 'var(--bad)' : edges[i] >= warnDays ? 'var(--warn)' : 'var(--ok)';
+   // bucket lower bounds (days), mirroring ageMix's today/1–2d/3–6d/7–13d/14d+ ranges
+   const lowerBounds = [0, 1, 3, 7, 14];
+   const color = (i: number) => {
+      const lowerBound = lowerBounds[i];
+      if (lowerBound >= rotDays) return 'var(--warn)';
+      if (lowerBound >= warnDays) return 'color-mix(in oklab, var(--warn) 55%, transparent)';
+      return 'var(--ink-3)';
+   };
    return (
       <StatsCard title="Age of open PRs" sub="time since opened">
          <div className="mt-3 flex flex-col gap-2">
