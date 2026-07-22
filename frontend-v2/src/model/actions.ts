@@ -138,7 +138,7 @@ function authorNote(p: DerivedPull, me: string): RowNote {
    if (p.status === 'needs_qa') {
       if (!p.qaingLogin && !p.reqaBy.length) return doOnly('Find a QA-er');
       if (p.qaingLogin) return waitOnly(`${who([p.qaingLogin])} is testing it`);
-      if (p.reqaBy.length) return waitOnly(`${who(p.reqaBy)}'s QA fell to a push`);
+      if (p.reqaBy.length) return waitOnly(`new commits undid ${who(p.reqaBy)}'s QA`);
    }
    if (p.status === 'needs_recr')
       return waitOnly(`waiting on ${who(p.recrBy)} to re-stamp${pushed}`);

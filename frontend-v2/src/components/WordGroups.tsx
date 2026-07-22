@@ -25,8 +25,8 @@ export const eyebrowText = 'text-[11px] font-semibold tracking-wide uppercase';
 const WORD_GLOSS: Record<string, string> = {
    // do-words: the next step is yours
    'Re-stamp':
-      'You approved an earlier version and a push invalidated it. Confirm it still looks good.',
-   'Re-QA': 'Your QA stamp fell to a push. Test it again.',
+      'You approved this PR, then new commits landed and undid your approval. Check the changes and approve again.',
+   'Re-QA': 'You tested this PR, then new commits landed. Test it again.',
    'Finish QA': 'You started testing these. Finish and stamp.',
    'Finish CR': 'You started reviewing; your stamp isn’t in yet.',
    'Re-review': 'You asked for changes and they pushed. Take another look.',
@@ -41,10 +41,10 @@ const WORD_GLOSS: Record<string, string> = {
    QA: 'Open PRs you could test.',
    'Finish draft': 'Your draft. Not up for review until you open it.',
    // wait-words: why the pull sits
-   'waiting on re-CR': 'A reviewer’s stamp fell to a push; waiting on them to confirm it again.',
+   'waiting on re-CR': 'A reviewer approved it, then new commits landed. Waiting on them to approve again.',
    'waiting on CR': 'Waiting for someone to code review it.',
    'with author': 'Changes were requested; the next push is the author’s.',
-   'waiting on re-QA': 'A tester’s stamp fell to a push; waiting on them to re-test.',
+   'waiting on re-QA': 'Someone tested it, then new commits landed. Waiting on them to test again.',
    'waiting on QA': 'Waiting for someone to test it.',
    'in QA': 'Someone is testing it right now.',
    claimed: 'Someone flagged they’re reading it.',

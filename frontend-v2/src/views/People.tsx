@@ -225,9 +225,9 @@ export function People({
             sub={
                <SubDoor label="How this queue is ordered" text="best next review first">
                   <p>
-                     Lightest first, so a short gap fits a review. A pull one stamp from done
-                     jumps up (your stamp finishes it), and waiting adds credit as a pull ages.
-                     PRs still being actively pushed to sink, never hide.
+                     Lightest first, so a short break fits a review. A PR that needs just one
+                     more approval jumps up (yours would finish it), and PRs move up as they
+                     wait. PRs the author is still actively pushing to sink to the bottom.
                   </p>
                </SubDoor>
             }

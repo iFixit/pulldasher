@@ -208,7 +208,7 @@ describe('rowNote — the author matrix', () => {
       });
       expect(note({ status: 'needs_qa', reqaBy: ['frank'] }, me)).toEqual({
          action: null,
-         context: "frank's QA fell to a push",
+         context: "new commits undid frank's QA",
       });
    });
 

@@ -367,9 +367,10 @@ export function Review({
                         If it’s in this lane, nothing happens until you act:
                      </p>
                      <p>
-                        re-stamps a push owes, feedback waiting on your answer, your own merge
-                        buttons, CI fixes and rebases on your PRs, reviews requested of you, and
-                        claims you hold.
+                        PRs you approved that changed after your approval (they need a fresh
+                        re-stamp from you), feedback that needs your reply, your own PRs ready to
+                        merge, fix, or rebase, PRs someone asked you to review, and reviews you
+                        claimed.
                      </p>
                      <p>
                         Grouped by the action, most urgent action first, oldest first inside a
@@ -460,14 +461,13 @@ export function Review({
                <SubDoor label="How the queue is ranked" text="one queue, best next review first">
                   <p className="font-medium text-ink">One score ranks every card:</p>
                   <p>
-                     pulls open {opts.ageWarnDays ?? 4}+ days without a full CR float to the top,
-                     longest-and-heaviest waiters first (age × size), even outside your primary
-                     repos.
+                     PRs that have waited {opts.ageWarnDays ?? 4}+ days for review jump to the
+                     top, oldest and biggest first, even from repos you don’t usually review.
                   </p>
                   <p>
-                     Then: repos you’ve stamped before, authors who’ve reviewed yours, and small
-                     quick wins, lightest first. Pulls from people you’ve starred always lead, ahead
-                     of everything above; bot bumps sink to the tail.
+                     After those: PRs in repos you’ve reviewed before, PRs from people who review
+                     your work, and small quick wins, lightest first. PRs from people you starred
+                     always come first; bot PRs (dependency bumps) sink to the bottom.
                   </p>
                </SubDoor>
             }
