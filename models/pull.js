@@ -9,6 +9,41 @@ import getLogin from '../lib/get-user-login.js';
 
 const log = debug('pulldasher:pull');
 
+/**
+ * Memory-only cache of review-request metadata: `"repo#number"` -> a Map of
+ * `login` -> `{ at, self }`. GitHub's requested_reviewers (a plain login
+ * list, carried on `data` like any other field) is the source of truth for
+ * WHO is currently requested; this cache only ever adds the *when/how* for
+ * logins we've been able to observe an origin for, via one of two writers:
+ *
+ *   - A full refresh (git-manager's parse(), which reads the issue's events
+ *     stream) computes the complete, authoritative set for a pull and
+ *     replaces this cache's entry for it wholesale (see fromGithubApi below).
+ *   - A `review_requested` / `review_request_removed` webhook (see
+ *     controllers/githubHooks.js) knows only its own one login; it updates
+ *     that single entry via recordReviewRequested/recordReviewRequestRemoved.
+ *
+ * Reading (getReviewRequests, used by toObject) always reconciles against the
+ * pull's *current* requested_reviewers at read time, so a login the cache
+ * doesn't know about yet (e.g. requested before Pulldasher ever saw an event
+ * for it, or before the next full refresh) still gets an entry, just
+ * `{ at: null, self: false }` -- never a DB write, and never persisted past a
+ * process restart.
+ */
+const reviewRequestsByPull = new Map();
+
+function reviewRequestsKey(repo, number) {
+   return `${repo}#${number}`;
+}
+
+function getReviewRequests(repo, number, requestedReviewerLogins) {
+   const known = reviewRequestsByPull.get(reviewRequestsKey(repo, number));
+   return (requestedReviewerLogins || []).map(login => {
+      const entry = known && known.get(login);
+      return entry ? { login, at: entry.at, self: entry.self } : { login, at: null, self: false };
+   });
+}
+
 class Pull {
    constructor(data, signatures, comments, reviews, commitStatuses, labels) {
       this.data = data;
@@ -144,6 +179,7 @@ class Pull {
       var data = _.extend({}, this.data);
       data.status = this.getStatus();
       data.labels = this.labels.map(label => label.data);
+      data.review_requests = getReviewRequests(data.repo, data.number, data.requested_reviewers);
       return data;
    }
 
@@ -225,7 +261,28 @@ class Pull {
       return bodyTags;
    }
 
-   static fromGithubApi(data, signatures, comments, reviews, commitStatuses, labels) {
+   /**
+    * `reviewRequests`, when passed, is the complete `{ login, at, self }[]`
+    * git-manager's parse() derived from the issue's events stream (see
+    * deriveReviewRequests) -- authoritative as of this refresh, so it
+    * replaces whatever this pull's cache entry held.
+    *
+    * The webhook path (controllers/githubHooks.js) has no events and so
+    * calls this with `reviewRequests` omitted: the cache is left untouched
+    * here, and toObject()'s read-time reconcile (via getReviewRequests)
+    * carries forward whatever's already cached for logins still in
+    * requested_reviewers, defaulting any login it's never seen to
+    * `{ at: null, self: false }` until the next full refresh.
+    */
+   static fromGithubApi(
+      data,
+      signatures,
+      comments,
+      reviews,
+      commitStatuses,
+      labels,
+      reviewRequests
+   ) {
       data = {
          repo: data.base.repo.full_name,
          number: data.number,
@@ -267,7 +324,42 @@ class Pull {
          changed_files: data.changed_files,
       };
 
+      if (reviewRequests) {
+         reviewRequestsByPull.set(
+            reviewRequestsKey(data.repo, data.number),
+            new Map(reviewRequests.map(r => [r.login, { at: r.at, self: r.self }]))
+         );
+      }
+
       return new Pull(data, signatures, comments, reviews, commitStatuses, labels);
+   }
+
+   /**
+    * Record a single `review_requested` webhook precisely: `login` was
+    * requested at `at` (epoch seconds), `self` per the wire contract. Merges
+    * into whatever's already cached for this pull rather than replacing it --
+    * unlike the full-refresh path, a webhook only ever knows about its own
+    * one login.
+    */
+   static recordReviewRequested(repo, number, login, { at, self }) {
+      const key = reviewRequestsKey(repo, number);
+      const known = reviewRequestsByPull.get(key) || new Map();
+      known.set(login, { at, self });
+      reviewRequestsByPull.set(key, known);
+   }
+
+   /**
+    * Record a single `review_request_removed` webhook: drop `login`'s cached
+    * metadata for this pull. toObject() only ever emits entries for logins
+    * still in requested_reviewers anyway, so this is mostly cache hygiene --
+    * it keeps a since-re-requested login from momentarily showing stale
+    * at/self from its prior request.
+    */
+   static recordReviewRequestRemoved(repo, number, login) {
+      const known = reviewRequestsByPull.get(reviewRequestsKey(repo, number));
+      if (known) {
+         known.delete(login);
+      }
    }
 
    /**

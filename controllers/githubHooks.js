@@ -12,6 +12,7 @@ import queue from '../lib/pull-queue.js';
 import getLogin from '../lib/get-user-login.js';
 import utils from '../lib/utils.js';
 import dbManager from '../lib/db-manager.js';
+import git from '../lib/git-manager.js';
 
 const hooksDebug = debug('pulldasher:hooks');
 
@@ -71,6 +72,18 @@ const HooksController = {
             case 'closed':
             case 'edited':
             case 'merged':
+               break;
+
+            case 'review_requested':
+            case 'review_request_removed':
+               // These two actions alone carry `requested_reviewer` (the
+               // login) and `sender` (who did it) -- fields the generic
+               // pull_request payload below doesn't have -- so record the
+               // precise at/self metadata directly, memory-only (no
+               // review_requests column -- see models/pull.js), before the
+               // generic `Pull.fromGithubApi(body.pull_request)` call reads
+               // it back out.
+               preUpdate = preUpdate.then(() => recordReviewRequestMetadata(body));
                break;
 
             case 'synchronize':
@@ -265,6 +278,37 @@ function handleLabelEvents(body) {
          queue.markPullAsDirty(body.repository.full_name, object.number);
       }
    }
+}
+
+/**
+ * Record one `review_requested` / `review_request_removed` webhook's
+ * metadata onto the in-memory review_requests cache (models/pull.js) --
+ * memory-only, no DB write. `body.requested_reviewer` is absent for a team
+ * review request, which Pulldasher doesn't track per-reviewer, so that's a
+ * no-op.
+ */
+function recordReviewRequestMetadata(body) {
+   const reviewer = body.requested_reviewer;
+   if (!reviewer) {
+      return Promise.resolve();
+   }
+
+   const repo = body.repository.full_name;
+   const number = body.pull_request.number;
+   const login = getLogin(reviewer);
+
+   if (body.action === 'review_request_removed') {
+      Pull.recordReviewRequestRemoved(repo, number, login);
+      return Promise.resolve();
+   }
+
+   return git.getBotLogin().then(function (botLogin) {
+      const senderLogin = getLogin(body.sender);
+      Pull.recordReviewRequested(repo, number, login, {
+         at: Math.floor(Date.now() / 1000),
+         self: senderLogin === login || (Boolean(botLogin) && senderLogin === botLogin),
+      });
+   });
 }
 
 function refreshPullOrIssue(responseBody) {

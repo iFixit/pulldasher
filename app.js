@@ -6,7 +6,6 @@ import authManager from './lib/authentication.js';
 import socketAuthenticator from './lib/socket-auth.js';
 import refresh from './lib/refresh.js';
 import pullManager from './lib/pull-manager.js';
-import claims, { SWEEP_INTERVAL_MS } from './lib/claims.js';
 import git from './lib/git-manager.js';
 import dbManager from './lib/db-manager.js';
 import pullQueue from './lib/pull-queue.js';
@@ -66,6 +65,12 @@ app.get('/token', mainController.getToken);
 app.get('/stats-history', statsController.getHistory);
 app.post('/hooks/main', hooksController.main);
 
+// Warm the bot-login cache (used to tell a pulldasher claim apart from a
+// GitHub-UI self-request) before any webhook or socket traffic needs it.
+// Memoized in git-manager, so this just avoids the first caller paying for
+// the lookup.
+git.getBotLogin();
+
 debug('Loading all recent pulls from the DB');
 dbManager
    .getRecentPulls(pullManager.getOldestAllowedPullTimestamp())
@@ -107,7 +112,6 @@ io.on('connection', function (socket) {
       if (user) {
          socket.user = user;
          socket.emit('authenticated');
-         socket.emit('reviewClaims', claims.all());
          pullManager.addSocket(socket);
       } else {
          socket.emit('unauthenticated');
@@ -119,42 +123,30 @@ io.on('connection', function (socket) {
       refresh.pull(repo, number);
    });
 
-   socket.on('claimReview', function (repo, number, ttlMs) {
+   // GitHub's requested_reviewers is now the only claim state (see
+   // review_requests on the pull payload). `ttlMs` may still arrive from
+   // older clients that used to size a claim's expiry; it's meaningless now
+   // and ignored. Requesting the reviewer on GitHub, then refreshing the pull
+   // from the API, is what makes the claim show up for every client -- there's
+   // no separate broadcast to do here.
+   socket.on('claimReview', function (repo, number) {
       if (!socket.user) {
          return;
       }
-      claims.claim(repo, number, socket.user.username, Date.now(), ttlMs);
-      io.emit('reviewClaims', claims.all());
-      // Mirror the claim onto the PR itself: put the claimer in GitHub's
-      // Reviewers list so the claim is visible to anyone not on the dashboard.
-      // Best-effort and fire-and-forget — the local claim already succeeded, and
-      // GitHub legitimately refuses this when the claimer authored the PR.
-      git.requestReviewer(repo, number, socket.user.username);
+      git.requestReviewer(repo, number, socket.user.username).then(function () {
+         refresh.pull(repo, number);
+      });
    });
 
    socket.on('releaseReview', function (repo, number) {
       if (!socket.user) {
          return;
       }
-      if (claims.release(repo, number, socket.user.username)) {
-         io.emit('reviewClaims', claims.all());
-         git.removeReviewer(repo, number, socket.user.username);
-      }
+      git.removeReviewer(repo, number, socket.user.username).then(function () {
+         refresh.pull(repo, number);
+      });
    });
 });
-
-// Sweep expired review claims and re-broadcast the whole map on an interval,
-// so a stale claim disappears from every client within one sweep even if
-// nobody claims/releases/reads anything in the meantime. unref() so this
-// timer never keeps the process (or a test run importing this module) alive
-// on its own.
-const claimsSweepTimer = setInterval(function () {
-   claims.prune();
-   io.emit('reviewClaims', claims.all());
-}, SWEEP_INTERVAL_MS);
-if (typeof claimsSweepTimer.unref === 'function') {
-   claimsSweepTimer.unref();
-}
 
 debug('Listening on port %s', config.port);
 httpServer.listen(config.port);
