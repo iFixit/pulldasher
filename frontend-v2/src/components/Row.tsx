@@ -293,20 +293,20 @@ function useRowActions(pull: DerivedPull) {
 }
 
 /**
- * The verb dock: the rail's last column, where the row's workflow verbs
- * live — Claim and Snooze are the board's two first-class gestures, so
- * they hold a place in the row's anatomy like CR and age do. The place
- * STANDS; the words REST INVISIBLE and fade in on row hover/focus
- * (opacity only — the board's established reveal mechanism; motion stays
- * reserved for state changes), so a scanned lane is quiet and the verbs
- * appear exactly when a row has your attention. On touch, where hover
- * doesn't exist, they stay visible at the whisper tier. Claim wears brand
- * (the invitation); Snooze, ink. A claim you HOLD is a commitment, and
- * commitments never hide: its standing mark is the brand hand riding with
- * the CR pips (a claim is literally a pending review request), while
- * "Release" reveals here like its sibling verbs. Snooze renders only
- * where it acts (Review); slots are reserved even when empty so the dock
- * is one column down a lane. Utilities stay in the kebab.
+ * The row's workflow verbs — Claim and Snooze, the board's two first-class
+ * gestures. They own no geometry: the data rail's right edge is the
+ * board's strongest column (the age numeral caps it), so the verbs FLOAT
+ * just left of the rail, fading in on row hover/focus (opacity only —
+ * the board's one reveal mechanism; motion stays reserved for state
+ * changes) on a muted backdrop that keeps them legible over the meta
+ * text beneath. Nothing is reserved, nothing ever shifts, every fact
+ * column stays aligned. Pointer-events follow the fade so the invisible
+ * words can never steal a click. Claim and Release wear brand (the
+ * invitation and its undo); Snooze, ink. A claim you HOLD is a
+ * commitment and commitments never hide: its standing mark is the brand
+ * hand riding with the CR pips (a claim is literally a pending review
+ * request). Touch has no hover, so there the verbs live in the kebab
+ * alone, labeled. Snooze renders only where it acts (Review).
  */
 function VerbDock({
    pull,
@@ -322,15 +322,16 @@ function VerbDock({
    const a = useRowActions(pull);
    const mine = claim?.login === me;
    const claimable = pull.data.user.login !== me && !mine;
+   if (!showSnooze && !claimable && !mine) return null;
    const verb =
       'hit pressable rounded border-0 bg-transparent px-0.5 text-xs whitespace-nowrap';
    return (
-      <span className="ml-1 inline-flex items-center gap-1.5">
+      <span className="pd-verbs absolute top-1/2 right-full z-10 mr-1.5 flex -translate-y-1/2 items-center gap-2 rounded-md bg-muted px-1.5 py-1">
          {showSnooze && (
             <button
                type="button"
                title="off your Review lens until tomorrow or until it changes"
-               className={`${verb} pd-verb`}
+               className={`${verb} text-ink-2`}
                onClick={a.snooze}
             >
                Snooze
@@ -340,7 +341,7 @@ function VerbDock({
             <button
                type="button"
                title="release your claim"
-               className={`${verb} pd-verb pd-verb-claim font-medium`}
+               className={`${verb} font-medium text-brand`}
                onClick={a.release}
             >
                Release
@@ -353,16 +354,12 @@ function VerbDock({
                      ? `claim review, currently ${claim.login}'s`
                      : 'claim this review: adds you as a reviewer on the PR itself, so GitHub and the board both show you’re on it'
                }
-               className={`${verb} pd-verb pd-verb-claim font-medium`}
+               className={`${verb} font-medium text-brand`}
                onClick={a.claim}
             >
                Claim
             </button>
-         ) : (
-            <span aria-hidden className="invisible px-0.5 text-xs font-medium">
-               Claim
-            </span>
-         )}
+         ) : null}
       </span>
    );
 }
@@ -588,9 +585,7 @@ function MetricRail({
    const me = opts.me;
    return (
       <span
-         className={`pd-rail pd-raise ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 ${
-            opts.compact ? 'relative' : ''
-         }`}
+         className="pd-rail pd-raise relative ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2"
       >
          <RowActionsKebab pull={pull} claim={claim} showSnooze={opts.showSnooze} />
          {/* one instrument, humans first: CR (label, weight letter, pips —

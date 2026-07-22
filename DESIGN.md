@@ -83,25 +83,27 @@ remains: a ranked lane IS the recommendation — put pick logic in the
 lane's ordering and explain it behind the sub-line, never inside a control
 with its own private order.
 
-**Workflow verbs are first-class: a standing place, a resting quiet.**
-Claim and Snooze are the board's two gestures, so they own the rail's
-last column — the verb dock — like CR and age do. The SLOT stands (its
-width is reserved even when empty, so the dock is one column down a lane
-and nothing ever shifts); the WORDS rest invisible and fade in on row
-hover or focus — opacity only, the board's one reveal mechanism (the
-green CI ring, the kebab); motion stays reserved for state changes, so
-nothing slides or grows because a cursor passed. Claim and Release wear
-brand (the invitation and its undo); Snooze, ink. On touch, where hover
-doesn't exist, the words stay visible at a whisper. A claim you HOLD is a
-commitment, and commitments never hide: its standing mark is the brand
-hand riding with the CR pips — a claim is literally a pending review
-request, so the CR cluster is its semantic home — while "Release"
-reveals in the dock like its sibling verbs. A verb renders only where it
-acts (Snooze on Review alone); utilities (copy branch, re-fetch) stay in
-the kebab at every width, verbs atop its menu. Failure modes this design
-retires: four identical icons (equal salience, unequal decisions), a
-hover pill (core gesture undiscoverable, layout that materializes), and
-sixty standing words down a lane (texture where quiet belongs).
+**Workflow verbs are first-class — and own no geometry.** Claim and
+Snooze are the board's two gestures; the rail's right edge is the
+board's strongest column (the age numeral caps it) and belongs to DATA
+alone. So the verbs float just left of the rail, fading in on row hover
+or focus — opacity only, the board's one reveal mechanism; motion stays
+reserved for state changes — on a muted backdrop that keeps them legible
+over the meta text beneath. Nothing is reserved, nothing shifts, every
+fact column stays flush. Pointer-events follow the fade, so an invisible
+word can never steal a click. Claim and Release wear brand (the
+invitation and its undo); Snooze, ink. A claim you HOLD is a commitment,
+and commitments never hide: its standing mark is the brand hand riding
+with the CR pips — a claim is literally a pending review request, so the
+CR cluster is its semantic home. Touch has no hover: the kebab is the
+verbs' labeled home there. A verb renders only where it acts (Snooze on
+Review alone); utilities stay in the kebab at every width, verbs atop
+its menu. Failure modes this design retires, in order tried: four
+identical icons (equal salience, unequal decisions); sixty standing
+words down a lane (texture where quiet belongs); and a reserved
+invisible slot at the row's end (it pushed the age column off the right
+edge and paid dead space for words that weren't there — a place is only
+worth standing if something visible stands in it).
 
 **Work-in-progress lives inline, not in a popover.** A popover is for
 glancing (state detail, signatures, rankings) and rightly dies on any

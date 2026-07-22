@@ -449,28 +449,26 @@ label:has(> input:not(:disabled)) {
   z-index: 1;
 }
 
-/* the verb dock's words (Claim / Snooze / Release): the SLOT stands (the
-   dock reserves its width, so nothing ever shifts), the WORDS rest
-   invisible and fade in on row hover or focus — opacity only, the board's
-   established reveal (the green CI ring, the kebab); motion stays reserved
-   for state changes. Claim/Release wear brand (the invitation and its
-   undo); Snooze, ink. On touch, where hover doesn't exist, the words stay
-   visible at the whisper tier instead. */
-.pd-verb {
+/* the row's verbs (Claim / Snooze / Release) float left of the rail with
+   ZERO standing geometry — the rail's right edge is the board's strongest
+   column and stays the data's alone. They fade in on row hover or focus
+   (opacity only, the board's one reveal mechanism); pointer-events follow
+   the fade so invisible words never steal a click from the meta text they
+   float over. Touch has no hover: the kebab is the verbs' labeled home
+   there, so the float simply doesn't exist. */
+.pd-verbs {
   opacity: 0;
-  color: var(--ink-2);
+  pointer-events: none;
   transition: opacity 150ms ease-out;
 }
-.pd-verb-claim {
-  color: var(--brand);
-}
-.pd-row:hover .pd-verb,
-.pd-row:focus-within .pd-verb {
+.pd-row:hover .pd-verbs,
+.pd-row:focus-within .pd-verbs {
   opacity: 1;
+  pointer-events: auto;
 }
 @media (hover: none) {
-  .pd-verb {
-    opacity: 0.55;
+  .pd-verbs {
+    display: none;
   }
 }
 
