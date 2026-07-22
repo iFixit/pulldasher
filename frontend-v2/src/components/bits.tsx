@@ -260,8 +260,12 @@ export function WeightMeter({
 }: {
    weight: Weight;
    known?: boolean;
-   /** stretch the track across the container (the rail's whole CR+QA cell);
-    * default is a fixed 36px track for standalone uses (deal card, legend) */
+   /** the rail's full-size track: a FIXED 112px ruler, right-anchored under
+    * the marks — the sign-off cell's width varies (one CR slot vs two, a
+    * failing count), and a track that stretched with it made identical
+    * weights render different lengths row to row. Same ruler on every row,
+    * or the fractions lie. Default is the 36px mini track (legend, samples).
+    */
    wide?: boolean;
 }) {
    const rank = weightRank(weight);
@@ -273,7 +277,7 @@ export function WeightMeter({
          role="img"
          aria-label={label}
          title={`${label}, from diff size`}
-         className={`flex h-[4px] overflow-hidden rounded-full ${wide ? 'w-full' : 'w-9'}`}
+         className={`flex h-[4px] overflow-hidden rounded-full ${wide ? 'ml-auto w-28' : 'w-9'}`}
          style={{ background: 'var(--secondary)', opacity: known ? 1 : 0.5 }}
       >
          <span
@@ -375,7 +379,7 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
                // -my-2/py-2: a real tap target without changing the rail's height.
                // Quiet states keep their full content at opacity 0 so the reveal
                // can never reflow the line, and CR/QA never shift beside them.
-               className={`pressable -my-2 inline-flex items-center gap-1 rounded border-0 bg-transparent px-0 py-2 hover:bg-secondary/60 ${
+               className={`pressable -my-2 mr-1.5 inline-flex items-center gap-1 rounded border-0 bg-transparent px-0 py-2 hover:bg-secondary/60 ${
                   failing > 0
                      ? ''
                      : 'opacity-0 transition-opacity duration-150 hover:opacity-100 focus-visible:opacity-100 [.pd-row:hover_&]:opacity-100 motion-reduce:transition-none'
