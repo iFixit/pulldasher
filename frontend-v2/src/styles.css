@@ -355,7 +355,10 @@ label:has(> input:not(:disabled)) {
     z-index: 1;
     height: 10px;
   }
-  .pd-age-hit:hover .pd-age-line,
+  /* the band grows on ROW hover, not just its own 10px strip: hovering the
+     card is the "tell me about this row" gesture, and the deepened band is
+     part of that answer (its popover still needs the band's own hover) */
+  .pd-row:hover .pd-age-line,
   .pd-age-hit:focus-visible .pd-age-line {
     height: 8px;
   }
