@@ -263,7 +263,7 @@ export function Fold({
                ▸
             </span>
             <span className="h-2 w-2 flex-none rounded-[3px]" style={{ background: dot }} />
-            <b className="font-semibold text-ink tabular-nums">{count}</b> {label}
+            <span className="tabular-nums">{count}</span> {label}
             {hint && <span className="ml-auto text-xs text-ink-3">{hint}</span>}
          </summary>
          <div className="border-t border-secondary">{children}</div>

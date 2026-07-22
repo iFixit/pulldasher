@@ -41,23 +41,6 @@ export const STATUS_LABEL: Record<Status, string> = {
    draft: 'Draft',
 };
 
-// ci_pending / dev_block / unmergeable used to share amber, which made
-// "only CI left" (benign, nearly done) look as urgent as "dev blocked" (you
-// owe feedback). Three distinct tones now: calm slate for the CI wait, amber
-// for the action-owed dev block, gray for the git-conflict rebase.
-const STATUS_CLASS: Record<Status, string> = {
-   ready: 'badge-ready',
-   ci_pending: 'badge-slate',
-   needs_recr: 'badge-recr',
-   needs_qa: 'badge-qa',
-   needs_cr: 'badge-cr',
-   dev_block: 'badge-blocked',
-   deploy_block: 'badge-hold',
-   unmergeable: 'badge-hold',
-   ci_red: 'badge-red',
-   draft: 'badge-draft',
-};
-
 export const STATUS_DOT: Record<Status, string> = {
    ready: 'var(--ok)',
    ci_pending: 'var(--slate)',
@@ -99,18 +82,9 @@ export function QuietButton({
    );
 }
 
-export function StatusBadge({ status, inline }: { status: Status; inline?: boolean }) {
-   return (
-      <span className={`badge ${STATUS_CLASS[status]} ${inline ? 'badge-inline' : ''}`}>
-         {STATUS_LABEL[status]}
-      </span>
-   );
-}
-
 /**
- * Merged/closed state as a pill, in the same badge vocabulary StatusBadge uses
- * for every open state — so a closed pull reads with the same grammar as an
- * open one instead of the ad-hoc colored text the board used to show.
+ * Merged/closed state as a pill — the one badge left on the board; open pulls
+ * are badge-less and carry state via section position + the state popover.
  */
 export function ClosedBadge({ merged, inline }: { merged: boolean; inline?: boolean }) {
    return (

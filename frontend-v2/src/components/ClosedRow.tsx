@@ -10,6 +10,7 @@ import { ClosedBadgeTrigger } from './StatePopover';
  * under it — so nothing competes with the title for width. The old layout kept
  * the repo ref + age in a flex-none whitespace-nowrap cluster on the right,
  * which on a phone starved the title to ~0px and stacked it one char per line.
+ * Nothing here truncates: the title wraps instead.
  * Memoized like Row: closed rows live in folds that re-render with every
  * publish, but a closed pull's data never changes again.
  */
@@ -40,7 +41,7 @@ export const ClosedRow = memo(function ClosedRow({
             <Avatar login={pull.user.login} />
          </span>
          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="truncate text-sm">
+            <span className="text-sm leading-snug break-words">
                <PullTitleLink repo={pull.repo} number={pull.number} title={pull.title} stretch />
             </span>
             <span className="flex items-center gap-2 text-xs whitespace-nowrap text-ink-3">

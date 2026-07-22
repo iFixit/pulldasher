@@ -246,7 +246,7 @@ export function People({
                </Fold>
                {selectedPerson && (
                   <Fold
-                     dot="var(--brand)"
+                     dot="var(--warn)"
                      count={owed.length}
                      label="re-stamps they owe others"
                      id="people:owed"

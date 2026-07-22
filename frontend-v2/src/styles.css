@@ -25,8 +25,6 @@
   --badge-red-fg: #7f1d1d;
   --badge-amber-bg: #fde68a;
   --badge-amber-fg: #78350f;
-  --badge-purple-bg: #e9d5ff;
-  --badge-purple-fg: #581c87;
   --badge-brand-bg: var(--brand-100);
   --badge-brand-fg: var(--brand-900);
   --badge-gray-bg: #e5e7eb;
@@ -71,8 +69,6 @@
   --badge-red-fg: #fecaca;
   --badge-amber-bg: #78350f;
   --badge-amber-fg: #fde68a;
-  --badge-purple-bg: #581c87;
-  --badge-purple-fg: #e9d5ff;
   --badge-brand-bg: #123a5f;
   --badge-brand-fg: #cce7ff;
   --badge-gray-bg: #364153;
@@ -173,15 +169,6 @@ label:has(> input:not(:disabled)) {
   }
   .badge-ready { background: var(--badge-green-bg); color: var(--badge-green-fg); }
   .badge-recr { background: var(--badge-brand-bg); color: var(--badge-brand-fg); }
-  /* the imperative for YOUR move: a status badge's shape, a lighter brand tint
-     and a touch bolder so it reads as "do this", not a state */
-  .badge-do {
-    @apply rounded-lg px-[7px] py-[3px] text-xs font-semibold;
-    background: var(--brand-50);
-    color: var(--brand-700);
-    flex: none;
-  }
-  .badge-qa { background: var(--badge-purple-bg); color: var(--badge-purple-fg); }
   .badge-cr { background: var(--badge-gray-bg); color: var(--badge-gray-fg); }
   .badge-blocked { background: var(--badge-amber-bg); color: var(--badge-amber-fg); }
   /* deploy hold: deliberate, not alarming — gray, not amber */

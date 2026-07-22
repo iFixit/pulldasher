@@ -4,7 +4,7 @@ import { matchesRegion } from '../model/regions';
 import { crSort } from '../model/sort';
 import { teamBuckets } from '../model/team';
 import { useSettings } from '../settings';
-import { Avatar } from '../components/bits';
+import { Avatar, EmptyState } from '../components/bits';
 import { Fold, FoldRows, Lane, RestGroup } from '../components/Lane';
 import { Popover } from '../components/Popover';
 import type { RowOptions } from '../components/Row';
@@ -134,7 +134,7 @@ export function Team({
          )}
 
          {reviewable.length === 0 && stamped.length === 0 && rest.length === 0 && (
-            <p className="text-[13px] text-ink-3">Nothing open from your team right now.</p>
+            <EmptyState title="All clear" sub="Nothing open from your team right now." />
          )}
 
          {codeRegions.length > 0 && regionMatches.length > 0 && (

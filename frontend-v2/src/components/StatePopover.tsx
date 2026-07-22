@@ -133,10 +133,17 @@ function FactsSection({
              : 'none required';
    return (
       <div className="flex flex-col gap-1 border-b border-secondary px-1 py-2 text-ink-2">
+         {/* no "· updated X ago" here: it duplicated the "last commit X ago"
+             the state line above already shows (same event, same timestamp) */}
          <p>
             opened {ago(epoch(d.created_at))} ago by{' '}
-            <b className="font-medium text-ink">{d.user.login}</b> · updated{' '}
-            {ago(epoch(d.updated_at))} ago
+            <b className="font-medium text-ink">{d.user.login}</b>
+         </p>
+         {/* the one readable home for the branch name — the row's copy action
+             only tucks it in a tooltip, and "which branch is this?" shouldn't
+             need a trip to GitHub */}
+         <p className="break-all">
+            branch <b className="font-medium text-ink">{d.head.ref}</b>
          </p>
          <p>
             CR {pull.crHave} of {crReq}

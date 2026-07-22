@@ -1,8 +1,7 @@
 import { crDone, qaDone, type DerivedPull } from '../model/status';
 import type { PullData } from '../types';
-import { ago, closedEpoch, pullKey } from '../format';
-import { ClosedBadge, EmptyState, RepoRef } from '../components/bits';
-import { CardShell } from '../components/Card';
+import { closedEpoch, pullKey } from '../format';
+import { EmptyState } from '../components/bits';
 import { BoardColumn } from '../components/Column';
 import { laneShown, Truncated } from '../components/Lane';
 import { WordGroupRows } from '../components/WordGroups';
@@ -80,36 +79,16 @@ function Column({
    );
 }
 
-/** The closed card shares the column card's two-zone anatomy. */
-function ClosedCard({ pull }: { pull: PullData }) {
-   const merged = !!pull.merged_at;
-   return (
-      <CardShell
-         login={pull.user.login}
-         repo={pull.repo}
-         number={pull.number}
-         title={pull.title}
-         meta={
-            <>
-               <ClosedBadge merged={merged} inline />
-               <RepoRef repo={pull.repo} number={pull.number} />
-               <span className="ml-auto w-16 text-right tabular-nums">
-                  {ago(closedEpoch(pull))} ago
-               </span>
-            </>
-         }
-      />
-   );
-}
-
 /** v1's Recently Closed panel, honored for ?closed=1 bookmarks. */
-function ClosedColumn({ pulls }: { pulls: PullData[] }) {
+function ClosedColumn({ pulls, opts }: { pulls: PullData[]; opts: RowOptions }) {
    const ordered = [...pulls].sort((a, b) => closedEpoch(b) - closedEpoch(a));
    return (
       <BoardColumn count={pulls.length} header="Recently Closed">
-         {ordered.map(p => (
-            <ClosedCard key={pullKey(p)} pull={p} />
-         ))}
+         <Truncated cap={laneShown(30, opts)} id="classic:closed">
+            {ordered.map(p => (
+               <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />
+            ))}
+         </Truncated>
       </BoardColumn>
    );
 }
@@ -178,7 +157,7 @@ export function Classic({
                defaultOpen={!collapsed?.has(id)}
             />
          ))}
-         {closed && <ClosedColumn pulls={closed} />}
+         {closed && <ClosedColumn pulls={closed} opts={opts} />}
       </div>
    );
 }
