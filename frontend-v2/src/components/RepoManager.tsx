@@ -103,7 +103,10 @@ export function RepoManagerGroup({
                   return (
                      <div className="flex items-center gap-2 text-[13px]" key={repo.name}>
                         <button
-                           className={`hit pressable -my-1.5 rounded-md px-1 py-1.5 text-sm leading-none ${
+                           // the glyph's own py already clears the 24px tap
+                           // floor, so no .hit bleed (it overlapped the star in
+                           // the row below); no -my so the box can't spill out
+                           className={`pressable rounded-md px-1.5 py-1.5 text-sm leading-none ${
                               isPrimary
                                  ? 'text-brand hover:text-brand/70'
                                  : 'text-ink-3 hover:text-brand'

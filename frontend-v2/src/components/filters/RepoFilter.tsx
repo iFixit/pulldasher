@@ -97,7 +97,9 @@ export function RepoFilter({
             <OnlyButton onClick={() => setScope({ ...scope, repos: [name] })} />
             <button
                type="button"
-               className={`hit pressable -my-1.5 rounded-md px-1 py-1.5 text-sm leading-none ${
+               // no .hit bleed / no -my: the star's own py clears the 24px tap
+               // floor, and the bled box was overlapping its neighbors' clicks
+               className={`pressable rounded-md px-1.5 py-1.5 text-sm leading-none ${
                   isPrimary ? 'text-brand hover:text-brand/70' : 'text-ink-3 hover:text-brand'
                }`}
                onClick={() => togglePrimaryRepo(name, !isPrimary)}

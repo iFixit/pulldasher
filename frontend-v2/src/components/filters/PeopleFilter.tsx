@@ -151,7 +151,9 @@ export function PeopleFilter({
                      <OnlyButton onClick={() => setScope({ ...scope, authors: [login] })} />
                      <button
                         type="button"
-                        className={`hit pressable -my-1.5 rounded-md px-1 py-1.5 text-sm leading-none ${
+                        // no .hit bleed / no -my: the star's own py clears the
+                        // 24px floor; the bled box overlapped adjacent clicks
+                        className={`pressable rounded-md px-1.5 py-1.5 text-sm leading-none ${
                            isStarred
                               ? 'text-brand hover:text-brand/70'
                               : 'text-ink-3 hover:text-brand'

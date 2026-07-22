@@ -128,14 +128,18 @@ label:has(> input:not(:disabled)) {
 }
 
 /* extend a small control's tap target past 24px without moving any layout —
-   the pseudo-element takes the hits, the visual box stays put */
+   the pseudo-element takes the hits, the visual box stays put. inset is -4px,
+   not more: adjacent .hit controls sit a gap-2 (8px) apart in the repo/people
+   rows, so a larger bleed would overlap in the gap and steal each other's
+   clicks (the star vs. its Mute/Only neighbors). -4px still lifts the smallest
+   control we use it on (a 16px avatar) to the 24px target floor. */
 .hit {
   position: relative;
 }
 .hit::after {
   content: "";
   position: absolute;
-  inset: -5px;
+  inset: -4px;
 }
 
 /* an internally-scrollable strip (the mobile lens nav) reads as a swipeable
