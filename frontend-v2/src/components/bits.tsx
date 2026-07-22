@@ -351,7 +351,7 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
          : [...headStatuses(pull.data)].sort(
               (a, b) => ciRank(a) - ciRank(b) || a.data.context.localeCompare(b.data.context)
            );
-   if (!checks.length) return <span aria-hidden className="inline-block w-9" />;
+   if (!checks.length) return <span aria-hidden className="mr-1.5 inline-block w-[52px]" />;
 
    const failing = checks.filter(isRedCheck).length;
    const passing = checks.filter(c => c.data.state === 'success').length;
@@ -379,7 +379,10 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
                // -my-2/py-2: a real tap target without changing the rail's height.
                // Quiet states keep their full content at opacity 0 so the reveal
                // can never reflow the line, and CR/QA never shift beside them.
-               className={`pressable -my-2 mr-1.5 inline-flex items-center gap-1 rounded border-0 bg-transparent px-0 py-2 hover:bg-secondary/60 ${
+               // One fixed slot width in every state (sized to the failing
+               // cluster, the widest), so the rail — and the age numeral's
+               // right edge in the meta line — stays one column down a lane.
+               className={`pressable -my-2 mr-1.5 inline-flex w-[52px] items-center gap-1 rounded border-0 bg-transparent px-0 py-2 hover:bg-secondary/60 ${
                   failing > 0
                      ? ''
                      : 'opacity-0 transition-opacity duration-150 hover:opacity-100 focus-visible:opacity-100 [.pd-row:hover_&]:opacity-100 motion-reduce:transition-none'
