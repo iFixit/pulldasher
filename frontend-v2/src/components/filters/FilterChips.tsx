@@ -66,6 +66,8 @@ export function FilterChips({
    setWeightSel,
    stateSel,
    setStateSel,
+   query,
+   setQuery,
 }: {
    reveal: string[];
    toggleReveal: (key: string) => void;
@@ -79,6 +81,12 @@ export function FilterChips({
    setWeightSel: (next: string[]) => void;
    stateSel: ActionStateKey[];
    setStateSel: (next: ActionStateKey[]) => void;
+   /** the typed filter-box query: structured tokens in it (weight:xs,
+    * is:blocked, repo:…) are real filters that AND with the dropdowns —
+    * without a chip each, a dropdown + a forgotten token can silently
+    * empty the board with only one of the two culprits visible. */
+   query: string;
+   setQuery: (next: string) => void;
 }) {
    const settings = useSettings();
    // an individually-revealed repo/cryo, outside full showAll — "hidden shown"
@@ -88,6 +96,22 @@ export function FilterChips({
    const cryoRevealedAlone = !showAll && reveal.includes(CRYO_KEY);
 
    const pills: Pill[] = [];
+   // one pill per structured token typed in the filter box, individually
+   // clearable — bare text terms are searches, not filters, and get none
+   const tokenRe = /^(weight|status|is|has|older|label|repo|author):.+$/;
+   for (const t of query.split(/\s+/).filter(x => tokenRe.test(x))) {
+      pills.push({
+         key: `q:${t}`,
+         label: t,
+         onClear: () =>
+            setQuery(
+               query
+                  .split(/\s+/)
+                  .filter(x => x !== t)
+                  .join(' ')
+            ),
+      });
+   }
    if (scope.repos.length)
       pills.push({
          key: 'repos',

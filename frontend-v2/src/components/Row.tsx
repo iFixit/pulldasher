@@ -27,6 +27,7 @@ import {
    AgeBaseline,
    CiStatus,
    DiffSize,
+   QuietButton,
    RepoRef,
    SigPips,
    WEIGHT_WORD,
@@ -48,9 +49,12 @@ export interface RowOptions {
     * pull changes again; persisted per-browser) */
    acked: Readonly<Record<string, number>>;
    onPerson?: (login: string) => void;
-   /** age-color thresholds from user settings (fall back to the model's) */
+   /** age thresholds from user settings (fall back to the model's) */
    ageWarnDays?: number;
    ageRotDays?: number;
+   /** the board's longest-open pull, in days — the age baseline's full
+    * track; every row's line is a fraction of the oldest */
+   maxAgeDays?: number;
    /** toggle a weight bucket ('xs'..'xl' or 'unknown') in the session Weight
     * filter — the row-initiated twin of WeightFilter's own checkboxes */
    onWeightToggle?: (w: string) => void;
@@ -359,7 +363,7 @@ function RowActions({
             </button>
          )}
          <span
-            className={`row-actions hidden items-center gap-1 min-[720px]:inline-flex ${
+            className={`row-actions hidden items-center gap-1 [@media(hover:hover)_and_(min-width:720px)]:inline-flex ${
                overlay
                   ? 'absolute right-full top-1/2 z-10 mr-1 -translate-y-1/2 rounded-md bg-muted px-1'
                   : 'flex-none'
@@ -467,7 +471,7 @@ function RowActionsKebab({
       <Popover
          label="Row actions"
          side="right"
-         rootClass="relative inline-flex min-[720px]:hidden"
+         rootClass="relative inline-flex [@media(hover:hover)_and_(min-width:720px)]:hidden"
          // capped to the viewport: w-max would size to the branch name and
          // push the panel off a phone screen — the branch truncates instead
          width="w-max min-w-[190px] max-w-[min(280px,calc(100vw-16px))]"
@@ -603,24 +607,23 @@ function WeightChip({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          rootClass="relative flex"
          width="w-max"
          panelClass="p-2 text-xs"
-         trigger={t =>
-            onWeightToggle ? (
-               <button
-                  {...t}
-                  type="button"
-                  aria-label={`filter to ${pull.weight} PRs`}
-                  title={`filter to ${pull.weight} PRs`}
-                  className="pressable hit block w-full rounded border-0 bg-transparent p-0"
-                  onClick={() => onWeightToggle(key)}
-               >
-                  <span aria-hidden className="contents">
-                     {meter}
-                  </span>
-               </button>
-            ) : (
-               <span className="contents">{meter}</span>
-            )
-         }
+         // the trigger keeps the shared pin contract ({...t}'s own click) so
+         // tap and Enter open the SAME panel hover gets — an explicit onClick
+         // here once overwrote the toggle and locked this popover to
+         // mouse-hover only, an information blackout for touch and keyboard.
+         // The filter action lives inside the panel instead.
+         trigger={t => (
+            <button
+               {...t}
+               type="button"
+               aria-label={`review effort: ${WEIGHT_WORD[pull.weight]}`}
+               className="pressable hit block w-full rounded border-0 bg-transparent p-0"
+            >
+               <span aria-hidden className="contents">
+                  {meter}
+               </span>
+            </button>
+         )}
       >
          <span className="block font-medium text-ink">
             review effort: {WEIGHT_WORD[pull.weight]}
@@ -633,6 +636,13 @@ function WeightChip({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
          <span className="mt-1 block text-ink-3">
             {pull.sizeKnown ? 'from diff size' : 'size estimated'}
          </span>
+         {onWeightToggle && (
+            <span className="mt-1.5 block">
+               <QuietButton onClick={() => onWeightToggle(key)}>
+                  Filter to {pull.sizeKnown ? pull.weight : 'unknown-size'} PRs
+               </QuietButton>
+            </span>
+         )}
       </Popover>
    );
 }
@@ -795,9 +805,7 @@ function RowImpl({
                      {regions.length > 2 && ` +${regions.length - 2}`}
                   </span>
                )}
-               <RowDetails
-                  flags={rowFlags(pull, showIterating, depth, orphanParent)}
-               />
+               <RowDetails flags={rowFlags(pull, showIterating, depth, orphanParent)} />
                {/* the age numeral floats right, capping the baseline track —
                    a quiet timestamp column, mail-client style */}
                <span className="ml-auto flex-none pr-0.5">
@@ -818,7 +826,7 @@ function RowImpl({
             <AgeBaseline
                ageDays={pull.ageDays}
                warnDays={opts.ageWarnDays}
-               rotDays={opts.ageRotDays}
+               maxAgeDays={opts.maxAgeDays}
                quiet={['draft', 'dev_block', 'deploy_block'].includes(pull.status)}
             />
          }
@@ -842,6 +850,7 @@ export const Row = memo(
       a.opts.acked === b.opts.acked &&
       a.opts.onPerson === b.opts.onPerson &&
       a.opts.ageWarnDays === b.opts.ageWarnDays &&
+      a.opts.maxAgeDays === b.opts.maxAgeDays &&
       a.opts.ageRotDays === b.opts.ageRotDays &&
       a.opts.onWeightToggle === b.opts.onWeightToggle &&
       a.opts.parentOf === b.opts.parentOf &&

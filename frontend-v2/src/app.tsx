@@ -677,6 +677,13 @@ export function App() {
       }
       return m;
    }, [pulls, pools]);
+   // the age baseline is RELATIVE: the board's longest-open pull sets the
+   // full track, everything else is a fraction of it — "how long has this
+   // waited, relative to what waiting looks like here"
+   const maxAgeDays = useMemo(
+      () => pulls.reduce((m, p) => Math.max(m, p.ageDays), 1),
+      [pulls]
+   );
    // stable identity so memo(Row) can skip untouched rows on socket bursts
    const rowOpts: RowOptions = useMemo(
       () => ({
@@ -685,6 +692,7 @@ export function App() {
          acked,
          onPerson,
          onWeightToggle,
+         maxAgeDays,
          ageWarnDays: settings.ageWarnDays,
          ageRotDays: settings.ageRotDays,
          compact: settings.density === 'compact',
@@ -700,6 +708,7 @@ export function App() {
          acked,
          onPerson,
          onWeightToggle,
+         maxAgeDays,
          settings.ageWarnDays,
          settings.ageRotDays,
          settings.density,
@@ -934,6 +943,8 @@ export function App() {
                />
                <SavedFiltersMenu sessionActive={sessionActive} />
                <FilterChips
+                  query={query}
+                  setQuery={setQuery}
                   reveal={reveal}
                   toggleReveal={toggleReveal}
                   showAll={showAll}
