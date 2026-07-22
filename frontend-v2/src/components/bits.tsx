@@ -381,12 +381,20 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
                      : 'opacity-0 transition-opacity duration-150 hover:opacity-100 focus-visible:opacity-100 [.pd-row:hover_&]:opacity-100 motion-reduce:transition-none'
                }`}
             >
-               <span aria-hidden className="w-[18px] text-left text-[11px] font-medium text-ink-3">
+               <span
+                  aria-hidden
+                  className={`w-[18px] text-left text-[11px] ${
+                     failing > 0 ? 'font-semibold' : 'font-medium text-ink-3'
+                  }`}
+                  style={failing > 0 ? { color: 'var(--bad)' } : undefined}
+               >
                   CI
                </span>
                <span
                   aria-hidden
-                  className={`pip ${failing > 0 ? 'pip-fail' : pending ? 'pip-run' : 'pip-on'}`}
+                  className={`pip ${
+                     failing > 0 ? 'pip-fail pip-alarm' : pending ? 'pip-run' : 'pip-on'
+                  }`}
                />
                {failing > 0 && (
                   <span

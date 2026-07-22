@@ -162,11 +162,11 @@ export function Legend() {
                term={
                   <span className="inline-flex items-center gap-1">
                      <span className="text-[11px] font-medium text-ink-3">CI</span>
-                     <span className="pip pip-fail" />
+                     <span className="pip pip-fail pip-alarm" />
                      <span className="pip pip-run" />
                   </span>
                }
-               def="CI wears the same marks as CR and QA — the machine is a reviewer too. A red ✗ disc means failing checks (the count beside it says how many); the gray-blue ring means still running. Passing shows nothing at rest — no news is good news; hover a row for its quiet green check and the per-check list"
+               def="CI wears the same marks as CR and QA — the machine is a reviewer too. A red ✗ disc, drawn a size larger than every other mark, means failing checks (the count beside it says how many); the gray-blue ring means still running. Passing shows nothing at rest — no news is good news; hover a row for its quiet green check and the per-check list"
             />
             <Item
                term={<DiffSize additions={120} deletions={30} />}
