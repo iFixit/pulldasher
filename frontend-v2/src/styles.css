@@ -35,11 +35,15 @@
   --badge-slate-fg: #334155;
   --slate: #475569;
   /* text-grade in light mode: --ok/--warn also fill the 8px sign-off pips,
-     the most decision-critical marks on the board, and must stay legible */
-  --ok: #15803d;
-  --warn: #b45309;
-  --bad: #b91c1c;
-  --violet: #9333ea;
+     the most decision-critical marks on the board, and must stay legible.
+     Chroma deliberately tempered (2026-07 color audit): red had shipped MORE
+     saturated than the brand accent, and green as loud as red — backwards for
+     a restrained tool where red = broken (rare), amber = you owe something,
+     green = quiet confirmation. All values still clear AA. */
+  --ok: #2b663e;
+  --warn: #985521;
+  --bad: #a83630;
+  --violet: oklch(52% 0.15 300);
   --ease-quint: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-quart: cubic-bezier(0.25, 1, 0.5, 1);
 }
@@ -76,10 +80,14 @@
   --badge-slate-bg: #334155;
   --badge-slate-fg: #dde7f2;
   --slate: #94a3b8;
-  --ok: #4ade80;
-  --warn: #fbbf24;
-  --bad: #f87171;
-  --violet: #c084fc;
+  /* dark tokens ran at 70-84% lightness with full chroma — neon on a near-
+     black canvas (the audit's worst offender was --warn as highlighter
+     yellow). Same tempered hierarchy as light; worst contrast is --bad at
+     4.58:1, still AA. */
+  --ok: #66b27c;
+  --warn: #d8953d;
+  --bad: #cd605a;
+  --violet: oklch(72% 0.13 300);
 }
 
 @theme inline {
