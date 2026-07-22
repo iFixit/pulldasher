@@ -83,6 +83,10 @@ export interface Settings {
    /** open a PR in a new tab when you click its card, so the board stays put
     * behind you — this is a hub. Off opens it in the same tab. */
    openPrsNewTab: boolean;
+   /** ms the cursor must rest on a hover popover (a card's state, sign-off, CI
+    * or age tooltip) before it opens, so brushing the pointer across the board
+    * doesn't flash panels open. 0 = open instantly; a click always bypasses it. */
+   hoverDelayMs: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -111,6 +115,7 @@ export const DEFAULT_SETTINGS: Settings = {
    claimLengthMins: 240,
    claimWarnMins: 120,
    openPrsNewTab: true,
+   hoverDelayMs: 250,
 };
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);

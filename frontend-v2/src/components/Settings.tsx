@@ -505,6 +505,22 @@ export function Settings({
                               onChange={v => set({ openPrsNewTab: v === 'new' })}
                            />
                         </Field>
+                        <Field
+                           label="Hover delay"
+                           hint="How long the cursor rests on a card's tooltips (state, sign-off, CI, age) before they open. Off opens them instantly; a click always does."
+                        >
+                           <Segmented
+                              ariaLabel="hover tooltip delay"
+                              value={String(s.hoverDelayMs)}
+                              options={[
+                                 ['0', 'Off'],
+                                 ['150', '150ms'],
+                                 ['250', '250ms'],
+                                 ['500', '500ms'],
+                              ]}
+                              onChange={v => set({ hoverDelayMs: Number(v) })}
+                           />
+                        </Field>
                      </Group>
 
                      <TeamPickerGroup extraBots={extraBots} />

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getSettings } from '../settings';
 
 /**
  * The house popover discipline, shared by Legend, Scope, and the signature
@@ -7,9 +8,9 @@ import { useEffect, useRef, useState } from 'react';
  * dialog they just opened.
  *
  * Pass `{ hover: true }` for the informational popovers (the sign-off ledger):
- * the panel then previews on hover and pins on click. A hover-open never steals
- * focus — only a click (or keyboard) does — so brushing past a row's pips can't
- * yank the page around.
+ * the panel then previews on hover (after a short intent delay) and pins on
+ * click. A hover-open never steals focus — only a click (or keyboard) does — so
+ * brushing past a row's pips can't yank the page around.
  */
 export function usePopover<Panel extends HTMLElement, Trigger extends HTMLElement>(opts?: {
    hover?: boolean;
@@ -22,6 +23,7 @@ export function usePopover<Panel extends HTMLElement, Trigger extends HTMLElemen
    // moving the mouse away closes it while a pinned one stays.
    const pinned = useRef(false);
    const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
    const clearClose = () => {
       if (closeTimer.current) {
@@ -29,9 +31,17 @@ export function usePopover<Panel extends HTMLElement, Trigger extends HTMLElemen
          closeTimer.current = null;
       }
    };
+   const clearOpen = () => {
+      if (openTimer.current) {
+         clearTimeout(openTimer.current);
+         openTimer.current = null;
+      }
+   };
 
-   // click/keyboard: pin an unpinned-open panel, otherwise toggle
+   // click/keyboard: pin an unpinned-open panel, otherwise toggle. A click
+   // beats any pending hover-open — no delay when you commit.
    const toggle = () => {
+      clearOpen();
       clearClose();
       if (open && !pinned.current) {
          pinned.current = true;
@@ -45,10 +55,19 @@ export function usePopover<Panel extends HTMLElement, Trigger extends HTMLElemen
    const onMouseEnter = () => {
       if (!opts?.hover) return;
       clearClose();
-      setOpen(true);
+      // a short intent delay (a user setting): brushing the cursor across a row
+      // of triggers shouldn't flash their panels open one after another. Read
+      // non-reactively at hover time so a popover doesn't re-subscribe to
+      // settings; 0 keeps the old open-instantly behavior.
+      clearOpen();
+      const delay = getSettings().hoverDelayMs;
+      if (delay <= 0) setOpen(true);
+      else openTimer.current = setTimeout(() => setOpen(true), delay);
    };
    const onMouseLeave = () => {
-      if (!opts?.hover || pinned.current) return;
+      if (!opts?.hover) return;
+      clearOpen();
+      if (pinned.current) return;
       clearClose();
       closeTimer.current = setTimeout(() => setOpen(false), 140);
    };
@@ -79,7 +98,13 @@ export function usePopover<Panel extends HTMLElement, Trigger extends HTMLElemen
       };
    }, [open]);
 
-   useEffect(() => clearClose, []);
+   useEffect(
+      () => () => {
+         clearClose();
+         clearOpen();
+      },
+      []
+   );
 
    const hoverProps = opts?.hover ? { onMouseEnter, onMouseLeave } : {};
    return { open, toggle, rootRef, panelRef, triggerRef, hoverProps };
