@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 import { githubUrl, rowDomId } from './format';
+import { Icon } from './components/Icon';
 import {
    type CheerBaseline,
    type CheerToast,
@@ -581,15 +583,7 @@ function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: num
                onDismiss(toast.id);
             }}
          >
-            <svg
-               viewBox="0 0 16 16"
-               className="h-3.5 w-3.5"
-               fill="none"
-               stroke="currentColor"
-               strokeWidth="1.75"
-            >
-               <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
-            </svg>
+            <Icon icon={X} />
          </button>
          {toast.shimmer && (
             // the sweep gets its own clipping layer instead of overflow-hidden

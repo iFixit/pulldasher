@@ -1,5 +1,7 @@
+import { ChevronDown, Weight as WeightIcon } from 'lucide-react';
 import type { DerivedPull } from '../../model/status';
 import { weightFilterKey } from '../../model/status';
+import { Icon } from '../Icon';
 import { Popover } from '../Popover';
 import { FilterRow, OnlyButton } from './shared';
 
@@ -63,17 +65,9 @@ export function WeightFilter({
                   title={summary}
                   aria-label={`weight filter: ${summary}`}
                >
-                  <svg
-                     viewBox="0 0 16 16"
-                     aria-hidden
-                     className="h-3.5 w-3.5 flex-none fill-current"
-                  >
-                     <path d="M2 12.5h12v1.5H2v-1.5Zm1-3h2.5V13H3V9.5Zm3.5-3H8V13H6.5V6.5Zm3.5-3h1.5V13H10V3.5Z" />
-                  </svg>
+                  <Icon icon={WeightIcon} />
                   <span className="hidden truncate sm:inline">{summary}</span>
-                  <span aria-hidden className="ml-auto text-ink-3">
-                     ▾
-                  </span>
+                  <Icon icon={ChevronDown} className="ml-auto text-ink-3" />
                </button>
             )}
          >

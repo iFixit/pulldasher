@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { ChevronRight, Settings as SettingsIcon, X } from 'lucide-react';
 import { clearStoredPrefs } from '../storage';
 import {
    notificationsSupported,
@@ -21,6 +22,7 @@ import {
    useSettings,
 } from '../settings';
 import { QuietButton, Segmented, Switch } from './bits';
+import { Icon } from './Icon';
 import { RepoManagerGroup } from './RepoManager';
 import { TeamPickerGroup } from './TeamPicker';
 
@@ -53,9 +55,7 @@ function Explainer({ summary, children }: { summary: string; children: ReactNode
    return (
       <details className="group/exp -mt-1">
          <summary className="flex cursor-pointer list-none items-center gap-1 py-0.5 text-xs font-medium text-ink-3 hover:text-ink-2">
-            <span aria-hidden className="transition-transform group-open/exp:rotate-90">
-               ▸
-            </span>
+            <Icon icon={ChevronRight} className="transition-transform group-open/exp:rotate-90" />
             {summary}
          </summary>
          <div className="space-y-1.5 pt-1 pb-0.5 pl-3 text-xs text-ink-2">{children}</div>
@@ -162,15 +162,7 @@ function CodeRegionsGroup() {
                            onClick={() => removeCodeRegion(r)}
                            className="hit pressable rounded p-0.5 text-brand-700/60 hover:text-brand-700"
                         >
-                           <svg
-                              viewBox="0 0 16 16"
-                              className="h-3 w-3"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                           >
-                              <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
-                           </svg>
+                           <Icon icon={X} size={12} />
                         </button>
                      </span>
                   </li>
@@ -314,9 +306,7 @@ export function Settings({
             onClick={() => setOpen(o => !o)}
             className="pressable inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-surface text-ink-2 hover:text-brand"
          >
-            <svg viewBox="0 0 20 20" aria-hidden className="h-4 w-4 fill-current">
-               <path d="M11.5 1.5a.6.6 0 0 1 .59.49l.24 1.42a6.6 6.6 0 0 1 1.36.79l1.34-.53a.6.6 0 0 1 .74.27l1.5 2.6a.6.6 0 0 1-.15.76l-1.11.9c.05.26.07.53.07.8s-.02.54-.07.8l1.11.9a.6.6 0 0 1 .15.76l-1.5 2.6a.6.6 0 0 1-.74.27l-1.34-.53c-.42.33-.88.6-1.36.79l-.24 1.42a.6.6 0 0 1-.59.49h-3a.6.6 0 0 1-.59-.49l-.24-1.42a6.6 6.6 0 0 1-1.36-.79l-1.34.53a.6.6 0 0 1-.74-.27l-1.5-2.6a.6.6 0 0 1 .15-.76l1.11-.9a6.7 6.7 0 0 1 0-1.6l-1.11-.9a.6.6 0 0 1-.15-.76l1.5-2.6a.6.6 0 0 1 .74-.27l1.34.53c.42-.33.88-.6 1.36-.79l.24-1.42a.6.6 0 0 1 .59-.49h3ZM10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
-            </svg>
+            <Icon icon={SettingsIcon} size={16} />
          </button>
          {open &&
             createPortal(
@@ -342,7 +332,7 @@ export function Settings({
                            onClick={() => setOpen(false)}
                            className="pressable inline-flex h-7 w-7 items-center justify-center rounded-lg text-ink-3 hover:bg-muted hover:text-ink"
                         >
-                           ✕
+                           <Icon icon={X} size={14} />
                         </button>
                      </div>
 

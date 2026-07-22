@@ -438,6 +438,9 @@ export function Review({
                cap={8}
                opts={{
                   ...opts,
+                  // the lane heading already says "this is your region," so
+                  // the row-level region mark would just repeat it
+                  hideRegionMark: true,
                   rankReason: p => {
                      const r = matchedRegions(p, codeRegions);
                      return r.length

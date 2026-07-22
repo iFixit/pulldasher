@@ -1,12 +1,10 @@
 import { useState } from 'react';
+import { Bell, X } from 'lucide-react';
 import { ago, githubUrl } from '../format';
 import { useSettings } from '../settings';
 import type { ToastRecord } from '../toasts';
+import { Icon } from './Icon';
 import { onOpen, Popover } from './Popover';
-
-// A plain outline bell (16-unit viewBox) — the clapper is a second subpath.
-const BELL =
-   'M8 1.5A2.5 2.5 0 0 0 5.5 4v.28C4.03 4.9 3 6.36 3 8.06V11l-1.2 1.2A.5.5 0 0 0 2.15 13H13.85a.5.5 0 0 0 .35-.85L13 11V8.06c0-1.7-1.03-3.16-2.5-3.78V4A2.5 2.5 0 0 0 8 1.5Zm1.5 12.5a1.5 1.5 0 0 1-3 0h3Z';
 
 /** Tone → medallion tint, matching the toast card's own vocabulary so a nudge
  * reads the same in the panel as it did when it flashed. */
@@ -56,9 +54,7 @@ export function NotificationPanel({
                onClick={onOpen(t, () => setLastSeen(Date.now()))}
                className="pressable relative inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-surface text-ink-3 hover:text-brand"
             >
-               <svg viewBox="0 0 16 16" aria-hidden className="h-4 w-4 fill-current">
-                  <path d={BELL} />
-               </svg>
+               <Icon icon={Bell} size={16} />
                {flag &&
                   (badge === 'dot' ? (
                      <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-surface" />
@@ -125,16 +121,7 @@ export function NotificationPanel({
                         onClick={() => onDismiss(r.id)}
                         className="hit pressable -m-1 flex-none rounded p-1 text-ink-3 opacity-0 transition-opacity hover:text-ink group-hover/n:opacity-100 focus-visible:opacity-100"
                      >
-                        <svg
-                           viewBox="0 0 16 16"
-                           aria-hidden
-                           className="h-3 w-3"
-                           fill="none"
-                           stroke="currentColor"
-                           strokeWidth="1.75"
-                        >
-                           <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
-                        </svg>
+                        <Icon icon={X} size={12} />
                      </button>
                   </li>
                ))}

@@ -1,4 +1,5 @@
 import { memo, useState, type ReactNode } from 'react';
+import { AlarmClock, Copy, Diamond, EllipsisVertical, Hand, RefreshCw, Star } from 'lucide-react';
 import type { DerivedPull } from '../model/status';
 import { isIterating, lastPushEpoch, weightFilterKey } from '../model/status';
 import { type Claim, rowNote } from '../model/actions';
@@ -30,9 +31,11 @@ import {
    QuietButton,
    RepoRef,
    SigPips,
+   StarMark,
    WEIGHT_WORD,
 } from './bits';
 import { CardShell } from './Card';
+import { Icon } from './Icon';
 import { StatePopover } from './StatePopover';
 import { Popover } from './Popover';
 
@@ -73,6 +76,10 @@ export interface RowOptions {
     * lane (Review's queue / Needs QA) — rendered in the state popover, never
     * inline on the card. */
    rankReason?: (p: DerivedPull) => string | null;
+   /** the two "In your code regions" lanes (Review, Team) set this true on
+    * their own rows: the lane header already says "this is your region," so
+    * the region mark would be redundant on every card inside it. */
+   hideRegionMark?: boolean;
 }
 
 /**
@@ -246,31 +253,12 @@ function RowDetails({ flags }: { flags: Flag[] }) {
    );
 }
 
-const ICON_COPY =
-   'M5 1a1 1 0 0 0-1 1v1H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1h1a1 1 0 0 0 1-1V4.4L11.6 1H5Zm6 11v1H3V4h1v7a1 1 0 0 0 1 1h6Zm2-2H5V2h5v3h3v5Z';
-const ICON_SNOOZE =
-   'M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Zm-.75 2v4.06l3.1 1.86.77-1.28-2.37-1.42V4.5h-1.5Z';
-const ICON_REFRESH =
-   'M8 3a5 5 0 1 0 4.9 6h-1.55A3.5 3.5 0 1 1 8 4.5c.97 0 1.85.4 2.48 1.02L8.5 7.5H13V3l-1.46 1.46A4.98 4.98 0 0 0 8 3Z';
-const ICON_KEBAB =
-   'M8 4.4a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Zm0 5a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Zm0 5a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8Z';
-// A raised hand: "I've got this one" — the claim toggle, like putting your
-// hand up to take the review. Heroicons' solid hand-raised (24-unit viewBox,
-// so this icon renders with box={24}). Brand-tinted when the claim is yours
-// (below), muted otherwise, same glyph either way.
-const ICON_HAND =
-   'M10.5 1.875a1.125 1.125 0 0 1 2.25 0v8.219c.517.162 1.02.382 1.5.659V3.375a1.125 1.125 0 0 1 2.25 0v10.937a4.505 4.505 0 0 0-3.25 2.373 8.963 8.963 0 0 1 4-.935A.75.75 0 0 0 18 15v-2.266a3.368 3.368 0 0 1 .988-2.37 1.125 1.125 0 0 1 1.591 1.59 1.118 1.118 0 0 0-.329.79v3.006h.005a6 6 0 0 1-1.752 4.007l-1.736 1.736a6 6 0 0 1-4.242 1.757H10.5a7.5 7.5 0 0 1-7.5-7.5V6.375a1.125 1.125 0 0 1 2.25 0v5.519c.46-.452.965-.832 1.5-1.141V3.375a1.125 1.125 0 0 1 2.25 0v6.526c.495-.1.997-.151 1.5-.151V1.875Z';
-
-function ActionIcon({ d, spin, box = 16 }: { d: string; spin?: boolean; box?: number }) {
-   return (
-      <svg
-         viewBox={`0 0 ${box} ${box}`}
-         aria-hidden
-         className={`h-3.5 w-3.5 flex-none fill-current ${spin ? 'spin-once' : ''}`}
-      >
-         <path d={d} />
-      </svg>
-   );
+/** "a, b, and c" for the region-match popover sentence — plain-English list,
+ * no Oxford-comma debate for the two-item case. */
+function joinAnd(items: string[]): string {
+   if (items.length <= 1) return items.join('');
+   if (items.length === 2) return `${items[0]} and ${items[1]}`;
+   return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
 }
 
 /**
@@ -335,7 +323,7 @@ function RowActions({
                className="hit pressable rounded border-0 bg-transparent px-1 text-xs text-brand"
                onClick={a.release}
             >
-               <ActionIcon d={ICON_HAND} box={24} />
+               <Icon icon={Hand} />
             </button>
          )}
          <span
@@ -357,7 +345,7 @@ function RowActions({
                      copied
                   </span>
                ) : (
-                  <ActionIcon d={ICON_COPY} />
+                  <Icon icon={Copy} />
                )}
             </button>
             <button
@@ -367,7 +355,7 @@ function RowActions({
                className={btn}
                onClick={a.snooze}
             >
-               <ActionIcon d={ICON_SNOOZE} />
+               <Icon icon={AlarmClock} />
             </button>
             <button
                type="button"
@@ -376,7 +364,7 @@ function RowActions({
                className={btn}
                onClick={a.refresh}
             >
-               <ActionIcon d={ICON_REFRESH} spin={a.spinning} />
+               <Icon icon={RefreshCw} className={a.spinning ? 'spin-once' : undefined} />
             </button>
             {/* never offered on your own pull — you don't review yourself,
                 but the slot's width is reserved so the rail (and the age
@@ -399,24 +387,11 @@ function RowActions({
                   className={btn}
                   onClick={a.claim}
                >
-                  <ActionIcon d={ICON_HAND} box={24} />
+                  <Icon icon={Hand} />
                </button>
             )}
          </span>
       </>
-   );
-}
-
-/**
- * The star/mute glyph every kebab star item shares: a fixed-width slot the
- * same size as the SVG action icons, so the menu's leading column still
- * lines up even though these two rows use a text glyph instead of a path.
- */
-function StarGlyph({ on }: { on: boolean }) {
-   return (
-      <span aria-hidden className="inline-block h-3.5 w-3.5 flex-none text-center leading-[14px]">
-         {on ? '★' : '☆'}
-      </span>
    );
 }
 
@@ -458,12 +433,12 @@ function RowActionsKebab({ pull, claim }: { pull: DerivedPull; claim: Claim | nu
                aria-label="row actions"
                className="hit pressable -my-2 rounded border-0 bg-transparent px-0.5 py-2 text-ink-3 hover:text-brand"
             >
-               <ActionIcon d={ICON_KEBAB} />
+               <Icon icon={EllipsisVertical} />
             </button>
          )}
       >
          <button type="button" className={item} onClick={a.copy}>
-            <ActionIcon d={ICON_COPY} />
+            <Icon icon={Copy} />
             {a.copied ? (
                <span style={{ color: 'var(--ok)' }}>Copied!</span>
             ) : (
@@ -476,11 +451,11 @@ function RowActionsKebab({ pull, claim }: { pull: DerivedPull; claim: Claim | nu
             )}
          </button>
          <button type="button" className={item} onClick={a.snooze}>
-            <ActionIcon d={ICON_SNOOZE} />
+            <Icon icon={AlarmClock} />
             Snooze until tomorrow
          </button>
          <button type="button" className={item} onClick={a.refresh}>
-            <ActionIcon d={ICON_REFRESH} spin={a.spinning} />
+            <Icon icon={RefreshCw} className={a.spinning ? 'spin-once' : undefined} />
             Re-fetch from GitHub
          </button>
          {/* never offered on your own pull — you don't review yourself */}
@@ -498,7 +473,7 @@ function RowActionsKebab({ pull, claim }: { pull: DerivedPull; claim: Claim | nu
                        : "claim this review, flags that you're reading it"
                }
             >
-               <ActionIcon d={ICON_HAND} box={24} />
+               <Icon icon={Hand} />
                {claimedByMe ? 'Release claim' : 'Claim review'}
             </button>
          )}
@@ -514,7 +489,7 @@ function RowActionsKebab({ pull, claim }: { pull: DerivedPull; claim: Claim | nu
                   : `mark ${repoLabel} a primary repo, leads your review queue`
             }
          >
-            <StarGlyph on={isPrimaryRepo} />
+            <StarMark on={isPrimaryRepo} />
             {isPrimaryRepo ? `Unstar ${repoLabel}` : `Star ${repoLabel}`}
          </button>
          <button
@@ -541,7 +516,7 @@ function RowActionsKebab({ pull, claim }: { pull: DerivedPull; claim: Claim | nu
                   : `star ${author}, floats their pulls to the front of your queues`
             }
          >
-            <StarGlyph on={isStarredAuthor} />
+            <StarMark on={isStarredAuthor} />
             {isStarredAuthor ? `Unstar ${author}` : `Star ${author}`}
          </button>
          {/* never offered for your own pulls — you can't mute yourself off
@@ -761,11 +736,10 @@ function RowImpl({
          avatarBadge={
             starredAuthor && (
                <span
-                  aria-hidden
                   title={`${d.user.login} is starred`}
-                  className="absolute -right-0.5 -bottom-0.5 text-[9px] leading-none text-brand"
+                  className="absolute -right-0.5 -bottom-0.5 text-brand"
                >
-                  ★
+                  <Icon icon={Star} size={9} fill="currentColor" />
                </span>
             )
          }
@@ -792,20 +766,37 @@ function RowImpl({
                >
                   <RepoRef repo={d.repo} number={d.number} />
                </StatePopover>
-               {regions.length > 0 && (
-                  // a neutral chip, only the ◆ in brand: region-match is soft
-                  // personalization, not urgency — a filled brand chip diluted
-                  // "blue = your move" (color audit)
-                  <span
-                     title={`in your code ${regions.length > 1 ? 'regions' : 'region'}: ${regions.join(', ')}`}
-                     className="pd-chip-optional chip-in inline-flex flex-none items-center gap-1 rounded border border-line px-1.5 py-0.5 text-[11px] leading-none font-medium text-ink-2"
+               {regions.length > 0 && !opts.hideRegionMark && (
+                  // a bare hover-door mark, not a chip: region-match is soft
+                  // personalization, not urgency, and inside the "In your code
+                  // regions" lanes it would only repeat what the lane header
+                  // already says — a filled brand chip diluted "blue = your
+                  // move" (color audit), and naming every region inline
+                  // out-weighed a 10px glyph (2026-07 icon pass)
+                  <Popover
+                     label="Code region match"
+                     hover
+                     side="right"
+                     rootClass="relative inline-flex flex-none"
+                     width="w-max max-w-[260px]"
+                     panelClass="p-2 text-xs"
+                     trigger={t => (
+                        <button
+                           {...t}
+                           type="button"
+                           aria-label={`in your code ${regions.length > 1 ? 'regions' : 'region'}: ${regions.join(', ')}`}
+                           className="pressable -my-2 flex-none rounded px-0.5 py-2 text-brand hover:bg-secondary/60"
+                        >
+                           <Icon icon={Diamond} size={10} fill="currentColor" />
+                        </button>
+                     )}
                   >
-                     <span aria-hidden className="text-brand">
-                        ◆
+                     <span className="block text-ink-2">
+                        Touches {joinAnd(regions)},{' '}
+                        {regions.length > 1 ? 'code regions' : 'a code region'} you flagged in
+                        Settings.
                      </span>
-                     {regions.slice(0, 2).join(', ')}
-                     {regions.length > 2 && ` +${regions.length - 2}`}
-                  </span>
+                  </Popover>
                )}
                <RowDetails flags={rowFlags(pull, showIterating, depth, orphanParent)} />
                {/* the age numeral floats right, capping the baseline track —

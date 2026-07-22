@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { repoState } from '../model/visibility';
-import { QuietButton } from './bits';
+import { QuietButton, StarMark } from './bits';
 import { FilterSearch } from './filters/shared';
 
 export function RepoManagerGroup({
@@ -121,7 +121,7 @@ export function RepoManagerGroup({
                            }
                            title={isPrimary ? 'a repo you review' : 'mark a repo you review'}
                         >
-                           {isPrimary ? '★' : '☆'}
+                           <StarMark on={isPrimary} />
                         </button>
                         <span title={repo.name} className="min-w-0 flex-1 truncate">
                            {repo.name}

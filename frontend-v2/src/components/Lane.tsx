@@ -1,8 +1,10 @@
 import { useState, type ReactNode, type SyntheticEvent } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { pullKey } from '../format';
 import type { DerivedPull } from '../model/status';
 import { groupIntoTree } from '../model/stack';
 import { createPersistentStore } from '../storage';
+import { Icon } from './Icon';
 import { Popover } from './Popover';
 import { Row, type RowOptions } from './Row';
 
@@ -305,9 +307,10 @@ export function Fold({
          onToggle={id ? onToggle : undefined}
       >
          <summary className="flex cursor-pointer list-none items-center gap-2.5 px-3.5 py-[9px] text-[13px] text-ink-2 transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
-            <span className="text-ink-3 transition-[rotate] duration-150 ease-out group-open:rotate-90 motion-reduce:transition-none">
-               ▸
-            </span>
+            <Icon
+               icon={ChevronRight}
+               className="text-ink-3 transition-[rotate] duration-150 ease-out group-open:rotate-90 motion-reduce:transition-none"
+            />
             <span className="h-2 w-2 flex-none rounded-[3px]" style={{ background: dot }} />
             <span className="tabular-nums">{count}</span> {label}
             {hint && <span className="ml-auto text-xs text-ink-3">{hint}</span>}

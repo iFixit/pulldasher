@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
+import { ChevronRight, CircleHelp, Diamond } from 'lucide-react';
 import { useSettings } from '../settings';
 import { DiffSize } from './bits';
+import { Icon } from './Icon';
 import { Popover } from './Popover';
 import { eyebrowText } from './WordGroups';
 
@@ -61,9 +63,9 @@ export function Legend() {
                type="button"
                aria-label="what the symbols mean"
                title="what the symbols mean"
-               className="pressable inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-surface text-[13px] font-semibold text-ink-3 hover:text-brand"
+               className="pressable inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-surface text-ink-3 hover:text-brand"
             >
-               ?
+               <Icon icon={CircleHelp} size={16} />
             </button>
          )}
       >
@@ -133,9 +135,10 @@ export function Legend() {
             />
             <details className="group/weight mt-0.5 px-1">
                <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
-                  <span aria-hidden className="transition-transform group-open/weight:rotate-90">
-                     ▸
-                  </span>
+                  <Icon
+                     icon={ChevronRight}
+                     className="transition-transform group-open/weight:rotate-90"
+                  />
                   How weight is decided
                </summary>
                <div className="space-y-1.5 pt-0.5 pb-1 pl-3 text-ink-2">
@@ -182,17 +185,18 @@ export function Legend() {
             />
             <Item
                term={
-                  <span className="inline-flex items-center gap-1 rounded bg-brand-50 px-1.5 py-0.5 text-[11px] leading-none font-medium text-brand-700">
-                     <span aria-hidden>◆</span>region
+                  <span className="text-brand">
+                     <Icon icon={Diamond} fill="currentColor" />
                   </span>
                }
-               def="matches a code region you set in Settings; these gather in the “In your code regions” section on Review and Team"
+               def="matches a code region you set in Settings: a bare mark, hover it for which region(s). These gather in the “In your code regions” section on Review and Team, where the lane heading already says it, so the mark itself doesn’t render there"
             />
             <details className="group/region mt-0.5 px-1">
                <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
-                  <span aria-hidden className="transition-transform group-open/region:rotate-90">
-                     ▸
-                  </span>
+                  <Icon
+                     icon={ChevronRight}
+                     className="transition-transform group-open/region:rotate-90"
+                  />
                   How regions work
                </summary>
                <div className="space-y-1.5 pt-0.5 pb-1 pl-3 text-ink-2">
@@ -204,7 +208,7 @@ export function Legend() {
                      A PR matches when a region appears, case-insensitively, anywhere in the text
                      already on the board: its title, description, repo, branch name, or labels.
                      Changed file paths aren’t checked (the board never fetches them). A match earns
-                     the ◆ chip, floats up your queue, and collects in “In your code regions”.
+                     the diamond mark, floats up your queue, and collects in “In your code regions”.
                   </p>
                </div>
             </details>
@@ -229,9 +233,10 @@ export function Legend() {
             />
             <details className="group/claim mt-0.5 px-1">
                <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
-                  <span aria-hidden className="transition-transform group-open/claim:rotate-90">
-                     ▸
-                  </span>
+                  <Icon
+                     icon={ChevronRight}
+                     className="transition-transform group-open/claim:rotate-90"
+                  />
                   How claims work
                </summary>
                <div className="space-y-1.5 pt-0.5 pb-1 pl-3 text-ink-2">
@@ -260,9 +265,10 @@ export function Legend() {
             />
             <details className="group/turn mt-0.5 px-1">
                <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
-                  <span aria-hidden className="transition-transform group-open/turn:rotate-90">
-                     ▸
-                  </span>
+                  <Icon
+                     icon={ChevronRight}
+                     className="transition-transform group-open/turn:rotate-90"
+                  />
                   How your turn is picked
                </summary>
                <div className="space-y-1.5 pt-0.5 pb-1 pl-3 text-ink-2">

@@ -7,6 +7,7 @@ import {
    useState,
    type ReactNode,
 } from 'react';
+import { X } from 'lucide-react';
 import { ago, closedEpoch, n, pullKey, shortRepo } from './format';
 import type { ActionStateKey } from './model/actions';
 import { actionState } from './model/actions';
@@ -27,6 +28,7 @@ import { matchesQuery } from './model/query';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from './model/visibility';
 import { reviewRequestedFrom } from './model/reviewers';
 import { foldDomId, openFold } from './components/Lane';
+import { Icon } from './components/Icon';
 import { Legend } from './components/Legend';
 import { Logo } from './components/Logo';
 import { NotificationPanel } from './components/NotificationPanel';
@@ -861,7 +863,10 @@ export function App() {
                         connection === 'connected'
                            ? 'conn-live bg-ok'
                            : connection === 'connecting'
-                             ? 'bg-warn'
+                             ? // in-progress, not an alarm — the same slate hue CI
+                               // running wears, not warn (which means "you owe
+                               // something")
+                               'bg-slate'
                              : 'bg-bad'
                      }`}
                      title={connection}
@@ -964,7 +969,7 @@ export function App() {
                      <span className="truncate">
                         v1 view: {describeLegacyView(legacy) || 'defaults'}
                      </span>
-                     <span aria-hidden>✕</span>
+                     <Icon icon={X} size={12} />
                   </ToggleChip>
                )}
                <span className="flex-1" />

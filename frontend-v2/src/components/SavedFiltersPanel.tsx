@@ -7,6 +7,7 @@ import {
    type KeyboardEvent,
    type RefObject,
 } from 'react';
+import { Bookmark, ChevronDown, Search, X } from 'lucide-react';
 import {
    applySavedFilter,
    deleteFilter,
@@ -17,6 +18,7 @@ import {
    type SavedFilter,
 } from '../model/savedFilters';
 import { QuietButton } from './bits';
+import { Icon } from './Icon';
 import { Popover } from './Popover';
 
 /**
@@ -103,7 +105,7 @@ function SavedFilterRow({
                   {armed ? (
                      <span className="font-medium whitespace-nowrap text-bad">sure?</span>
                   ) : (
-                     '✕'
+                     <Icon icon={X} size={12} />
                   )}
                </QuietButton>
             </span>
@@ -220,13 +222,7 @@ export function SavedFiltersInput({
          className="relative ml-auto inline-flex max-w-full grow items-center sm:grow-0"
          onBlur={onWrapperBlur}
       >
-         <svg
-            viewBox="0 0 16 16"
-            aria-hidden
-            className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 fill-ink-3"
-         >
-            <path d="M7 2a5 5 0 1 0 3.02 8.98l2.5 2.5a.75.75 0 1 0 1.06-1.06l-2.5-2.5A5 5 0 0 0 7 2Zm0 1.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Z" />
-         </svg>
+         <Icon icon={Search} className="pointer-events-none absolute left-2.5 text-ink-3" />
          <input
             ref={inputRef}
             type="search"
@@ -341,17 +337,9 @@ export function SavedFiltersMenu({ sessionActive }: { sessionActive: boolean }) 
                   title="saved filters"
                   aria-label={`saved filters: ${saved.length} saved`}
                >
-                  <svg
-                     viewBox="0 0 16 16"
-                     aria-hidden
-                     className="h-3.5 w-3.5 flex-none fill-current"
-                  >
-                     <path d="M4 2a1 1 0 0 0-1 1v10.5a.5.5 0 0 0 .77.42L8 11.1l4.23 2.82a.5.5 0 0 0 .77-.42V3a1 1 0 0 0-1-1H4Z" />
-                  </svg>
+                  <Icon icon={Bookmark} />
                   <span className="hidden truncate sm:inline">Saved</span>
-                  <span aria-hidden className="ml-auto text-ink-3">
-                     ▾
-                  </span>
+                  <Icon icon={ChevronDown} className="ml-auto text-ink-3" />
                </button>
             )}
          >

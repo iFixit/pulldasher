@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { ChevronDown, Users } from 'lucide-react';
 import type { DerivedPull } from '../../model/status';
 import { toggleMutedPerson, toggleStarredPerson, useSettings } from '../../settings';
 import { usePulldasher } from '../../store';
 import type { Team } from '../../types';
-import { Avatar, QuietButton } from '../bits';
+import { Avatar, QuietButton, StarMark } from '../bits';
+import { Icon } from '../Icon';
 import { Popover } from '../Popover';
 import { FilterRow, FilterSearch, OnlyButton } from './shared';
 
@@ -90,17 +92,9 @@ export function PeopleFilter({
                   title={summary}
                   aria-label={`people filter: ${summary}`}
                >
-                  <svg
-                     viewBox="0 0 16 16"
-                     aria-hidden
-                     className="h-3.5 w-3.5 flex-none fill-current"
-                  >
-                     <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 1.5c-2.7 0-6 1.35-6 3.9V14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-.6c0-2.55-3.3-3.9-6-3.9Z" />
-                  </svg>
+                  <Icon icon={Users} />
                   <span className="hidden truncate sm:inline">{summary}</span>
-                  <span aria-hidden className="ml-auto text-ink-3">
-                     ▾
-                  </span>
+                  <Icon icon={ChevronDown} className="ml-auto text-ink-3" />
                </button>
             )}
          >
@@ -167,7 +161,7 @@ export function PeopleFilter({
                               : `star ${login} to float their pulls to the front of your queues`
                         }
                      >
-                        {isStarred ? '★' : '☆'}
+                        <StarMark on={isStarred} />
                      </button>
                      {login !== me && (
                         <QuietButton onClick={() => toggleMutedPerson(login, true)}>

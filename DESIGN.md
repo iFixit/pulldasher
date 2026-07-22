@@ -130,6 +130,27 @@ Marks are drawn as SVG masks / CSS geometry, never font glyphs — a text ✓
 at 10px is at the mercy of the platform rasterizer (a struck-through ✓ was
 conceptually perfect and rendered as a blob).
 
+### Icons
+
+One family: every icon on the board renders through `lucide-react` (ISC,
+per-icon imports so tree-shaking holds) via the single wrapper in
+`components/Icon.tsx` — 14px for inline/action marks, 16px for header chrome,
+lucide's own stroke weight never overridden (a second weight would be a second
+family). A 2026-07 icon audit found four different coordinate grids, fill and
+stroke mixed on what should've been one glyph language, and a dozen
+platform-rendered text glyphs standing in for marks (★/☆, ▸/▾, ✕, ◆) — all
+retired in the same pass. **Text glyphs are banned for marks app-wide now**,
+not just on the rail; if a mark needs a new glyph, it comes from lucide.
+
+Two things stay outside that family on purpose: the rail's CI/CR/QA pips
+(`.pip`, above) are CSS masks, not lucide imports — one shape family, sized
+and animated in ways an icon library's fixed viewBox can't do, and the
+doctrine that governs them predates this pass and isn't part of it. The
+`EmptyState` animated draw-check (bits.tsx) is a sanctioned hand-drawn
+set-piece: it already speaks lucide's own stroke-and-round-cap language, and
+its one-shot draw-on animation is bespoke to this exact SVG, not a lucide
+icon with a class bolted on.
+
 ## Layout invariants
 
 - The metric rail is a vertically-centered right column on wide rows

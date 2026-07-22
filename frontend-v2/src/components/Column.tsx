@@ -1,4 +1,6 @@
 import { useState, type ReactNode } from 'react';
+import { ChevronRight } from 'lucide-react';
+import { Icon } from './Icon';
 
 /**
  * The board column shell shared by Board, Classic, and Recently Closed:
@@ -33,14 +35,12 @@ export function BoardColumn({
             >
                {/* the disclosure cue the header lacked: without it the only
                    hint this collapses was a native tooltip */}
-               <span
-                  aria-hidden
-                  className={`text-xs text-ink-3 transition-[rotate] duration-150 ease-out motion-reduce:transition-none ${
+               <Icon
+                  icon={ChevronRight}
+                  className={`text-ink-3 transition-[rotate] duration-150 ease-out motion-reduce:transition-none ${
                      open ? 'rotate-90' : ''
                   }`}
-               >
-                  ▸
-               </span>
+               />
                {header}
                <span className="flex-1" />
                {/* an empty column still earns its header (muscle memory), but

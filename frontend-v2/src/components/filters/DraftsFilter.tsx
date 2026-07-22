@@ -1,4 +1,6 @@
+import { ChevronDown, Pencil } from 'lucide-react';
 import { Segmented } from '../bits';
+import { Icon } from '../Icon';
 import { Popover } from '../Popover';
 
 /**
@@ -40,17 +42,9 @@ export function DraftsFilter({
                   title={summary}
                   aria-label={`drafts filter: ${summary}`}
                >
-                  <svg
-                     viewBox="0 0 16 16"
-                     aria-hidden
-                     className="h-3.5 w-3.5 flex-none fill-current"
-                  >
-                     <path d="M11.3 2.3a1 1 0 0 1 1.4 0l1 1a1 1 0 0 1 0 1.4l-7.1 7.1a1 1 0 0 1-.46.26l-2.5.66a.5.5 0 0 1-.61-.61l.66-2.5a1 1 0 0 1 .26-.46l7.1-7.1Z" />
-                  </svg>
+                  <Icon icon={Pencil} />
                   <span className="hidden truncate sm:inline">{summary}</span>
-                  <span aria-hidden className="ml-auto text-ink-3">
-                     ▾
-                  </span>
+                  <Icon icon={ChevronDown} className="ml-auto text-ink-3" />
                </button>
             )}
          >

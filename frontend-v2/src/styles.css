@@ -102,6 +102,7 @@
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-bad: var(--bad);
+  --color-slate: var(--slate);
 }
 
 body {
@@ -343,18 +344,6 @@ label:has(> input:not(:disabled)) {
     padding-inline: 4px;
   }
 }
-/* below 360px, hide the one optional chip — the code-region tag (Row.tsx
-   applies .pd-chip-optional to it alone; the +/- diff size isn't inline on
-   cards at all, it lives in the weight popover) — so the title and rail keep
-   the width in a genuinely cramped column (Classic's tightest 3-4-up columns,
-   or a phone). Its content stays reachable via the row's title attribute and
-   the regions lane, so nothing is truly lost. */
-@container (max-width: 360px) {
-  .pd-chip-optional {
-    display: none;
-  }
-}
-
 /* whole-card click target: the title link stretches an invisible layer over
    its positioned row, so clicking anywhere opens the PR. Genuinely
    interactive children (avatar, ledger, actions) sit above it via .pd-raise. */

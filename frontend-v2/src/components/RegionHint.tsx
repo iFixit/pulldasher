@@ -1,4 +1,6 @@
+import { Diamond, X } from 'lucide-react';
 import { createPersistentStore } from '../storage';
+import { Icon } from './Icon';
 
 // One-time, per-browser dismissal — a tip you've read once shouldn't nag again.
 const dismissed = createPersistentStore<{ done: boolean }>('pd2.tip.codeRegions', {
@@ -23,13 +25,13 @@ export function RegionHint() {
    if (gone) return null;
    return (
       <div className="mb-4 flex items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-700 ring-1 ring-brand/15 ring-inset">
-         <span aria-hidden className="text-brand">
-            ◆
+         <span className="text-brand">
+            <Icon icon={Diamond} fill="currentColor" />
          </span>
          <span className="min-w-0 flex-1">
             Review a particular area? Add <b className="font-semibold">code regions</b> in Settings.
-            A region is plain text matched against a PR’s title, labels, branch, and repo;
-            matches gather in their own section above the queue.
+            A region is plain text matched against a PR’s title, labels, branch, and repo; matches
+            gather in their own section above the queue.
          </span>
          <button
             type="button"
@@ -44,16 +46,7 @@ export function RegionHint() {
             onClick={() => dismissed.set({ done: true })}
             className="hit pressable -m-0.5 flex-none rounded p-0.5 text-brand-700/70 hover:text-brand"
          >
-            <svg
-               viewBox="0 0 16 16"
-               aria-hidden
-               className="h-3.5 w-3.5"
-               fill="none"
-               stroke="currentColor"
-               strokeWidth="1.75"
-            >
-               <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
-            </svg>
+            <Icon icon={X} />
          </button>
       </div>
    );

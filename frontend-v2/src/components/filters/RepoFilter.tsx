@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { ChevronDown, Tag } from 'lucide-react';
 import { CRYO_KEY, repoState } from '../../model/visibility';
 import { shortRepo } from '../../format';
 import { setRepoPref, togglePrimaryRepo, useSettings } from '../../settings';
-import { QuietButton } from '../bits';
+import { QuietButton, StarMark } from '../bits';
+import { Icon } from '../Icon';
 import { Popover } from '../Popover';
 import { FilterSearch, OnlyButton } from './shared';
 
@@ -111,7 +113,7 @@ export function RepoFilter({
                }
                title={isPrimary ? 'a repo you review' : 'mark a repo you review'}
             >
-               {isPrimary ? '★' : '☆'}
+               <StarMark on={isPrimary} />
             </button>
             <QuietButton onClick={() => setRepoPref(name, 'mute')}>Mute</QuietButton>
          </div>
@@ -174,17 +176,9 @@ export function RepoFilter({
                   title={summary}
                   aria-label={`repos filter: ${summary}`}
                >
-                  <svg
-                     viewBox="0 0 16 16"
-                     aria-hidden
-                     className="h-3.5 w-3.5 flex-none fill-current"
-                  >
-                     <path d="M1.5 3h13a.5.5 0 0 1 .4.8l-4.9 6v3.7a.5.5 0 0 1-.7.45l-2-1a.5.5 0 0 1-.3-.45V9.8l-4.9-6a.5.5 0 0 1 .4-.8Z" />
-                  </svg>
+                  <Icon icon={Tag} />
                   <span className="hidden truncate sm:inline">{summary}</span>
-                  <span aria-hidden className="ml-auto text-ink-3">
-                     ▾
-                  </span>
+                  <Icon icon={ChevronDown} className="ml-auto text-ink-3" />
                </button>
             )}
          >

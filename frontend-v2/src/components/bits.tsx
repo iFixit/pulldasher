@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { Check, CircleDot, Star, X } from 'lucide-react';
 import {
    type DerivedPull,
    headStatuses,
@@ -21,6 +22,7 @@ import {
    signatureUrl,
 } from '../format';
 import { getSettings } from '../settings';
+import { Icon } from './Icon';
 import { Popover } from './Popover';
 
 export const STATUS_LABEL: Record<Status, string> = {
@@ -43,7 +45,9 @@ export const STATUS_LABEL: Record<Status, string> = {
 export const STATUS_DOT: Record<Status, string> = {
    ready: 'var(--ok)',
    ci_pending: 'var(--slate)',
-   needs_recr: 'var(--brand)',
+   // a lapsed stamp is owed work, amber by doctrine — reaches the screen via
+   // Stats' status bar
+   needs_recr: 'var(--warn)',
    needs_qa: 'var(--violet)',
    needs_cr: 'var(--ink-3)',
    dev_block: 'var(--warn)',
@@ -235,6 +239,16 @@ export function Avatar({
    );
 }
 
+/**
+ * The one star mark every "primary repo" / "starred person" toggle shares
+ * (Row's kebab menu, RepoFilter, PeopleFilter, RepoManager): filled when on,
+ * outline when off, same lucide glyph everywhere instead of five hand-rolled
+ * ★/☆ copies.
+ */
+export function StarMark({ on, size = 14 }: { on: boolean; size?: number }) {
+   return <Icon icon={Star} size={size} fill={on ? 'currentColor' : 'none'} />;
+}
+
 export const WEIGHT_WORD: Record<Weight, string> = {
    XS: 'very light',
    S: 'light',
@@ -264,12 +278,12 @@ export function DiffSize({ additions, deletions }: { additions: number; deletion
 
 const CI_STATE_META: Record<
    CommitStatus['data']['state'],
-   { icon: string; color: string; word: string }
+   { icon: typeof Check; color: string; word: string }
 > = {
-   success: { icon: '✓', color: 'var(--ok)', word: 'passed' },
-   failure: { icon: '✗', color: 'var(--bad)', word: 'failed' },
-   error: { icon: '✗', color: 'var(--bad)', word: 'errored' },
-   pending: { icon: '•', color: 'var(--slate)', word: 'running' },
+   success: { icon: Check, color: 'var(--ok)', word: 'passed' },
+   failure: { icon: X, color: 'var(--bad)', word: 'failed' },
+   error: { icon: X, color: 'var(--bad)', word: 'errored' },
+   pending: { icon: CircleDot, color: 'var(--slate)', word: 'running' },
 };
 
 const isRedCheck = (s: CommitStatus) => s.data.state === 'failure' || s.data.state === 'error';
@@ -379,12 +393,8 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
             const dur = ciDuration(c);
             const inner = (
                <>
-                  <span
-                     aria-hidden
-                     className="w-3 flex-none text-center"
-                     style={{ color: meta.color }}
-                  >
-                     {meta.icon}
+                  <span className="w-3 flex-none text-center" style={{ color: meta.color }}>
+                     <Icon icon={meta.icon} size={12} />
                   </span>
                   <b className="min-w-0 font-medium break-all text-ink">{c.data.context}</b>
                   <span className="flex-none text-ink-3">{meta.word}</span>

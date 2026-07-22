@@ -150,7 +150,9 @@ export function Team({
                }
                pulls={regionMatches}
                cap={8}
-               opts={opts}
+               // the lane heading already says "this is your region," so the
+               // row-level region mark would just repeat it
+               opts={{ ...opts, hideRegionMark: true }}
             />
          )}
          <Lane
@@ -158,9 +160,9 @@ export function Team({
             sub={
                <SubDoor label="How this queue is ordered" text="best next review first">
                   <p>
-                     Lightest first, so a short break fits a review. A PR that needs just one
-                     more approval jumps up (yours would finish it), and PRs move up as they
-                     wait. PRs the author is still actively pushing to sink to the bottom.
+                     Lightest first, so a short break fits a review. A PR that needs just one more
+                     approval jumps up (yours would finish it), and PRs move up as they wait. PRs
+                     the author is still actively pushing to sink to the bottom.
                   </p>
                </SubDoor>
             }

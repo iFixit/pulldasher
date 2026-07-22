@@ -1,7 +1,9 @@
+import { ChevronDown, ClipboardList } from 'lucide-react';
 import type { ActionStateKey } from '../../model/actions';
 import { actionState } from '../../model/actions';
 import type { DerivedPull } from '../../model/status';
 import { usePulldasher } from '../../store';
+import { Icon } from '../Icon';
 import { Popover } from '../Popover';
 import { FilterRow, OnlyButton } from './shared';
 
@@ -76,17 +78,9 @@ export function StateFilter({
                   title={summary}
                   aria-label={`state filter: ${summary}`}
                >
-                  <svg
-                     viewBox="0 0 16 16"
-                     aria-hidden
-                     className="h-3.5 w-3.5 flex-none fill-current"
-                  >
-                     <path d="M8 1.5a1 1 0 0 1 1 1V3h2.5a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1H6v-.5a1 1 0 0 1 1-1h1Zm-2.5 6h5V6h-5v1.5Zm0 3h5V9h-5v1.5Z" />
-                  </svg>
+                  <Icon icon={ClipboardList} />
                   <span className="hidden truncate sm:inline">{summary}</span>
-                  <span aria-hidden className="ml-auto text-ink-3">
-                     ▾
-                  </span>
+                  <Icon icon={ChevronDown} className="ml-auto text-ink-3" />
                </button>
             )}
          >

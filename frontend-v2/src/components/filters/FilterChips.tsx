@@ -1,6 +1,8 @@
+import { X } from 'lucide-react';
 import type { ActionStateKey } from '../../model/actions';
 import { CRYO_KEY } from '../../model/visibility';
 import { useSettings } from '../../settings';
+import { Icon } from '../Icon';
 
 interface Pill {
    key: string;
@@ -197,7 +199,7 @@ export function FilterChips({
                   aria-label={`clear ${p.label}`}
                   className="hit pressable rounded px-1 text-ink-3 hover:text-brand"
                >
-                  ✕
+                  <Icon icon={X} size={12} />
                </button>
             </span>
          ))}
