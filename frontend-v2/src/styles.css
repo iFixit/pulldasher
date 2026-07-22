@@ -224,15 +224,24 @@ label:has(> input:not(:disabled)) {
     --pip-shape: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cdefs%3E%3Cmask id='x'%3E%3Crect width='16' height='16' fill='white'/%3E%3Cpath d='M5.4 5.4l5.2 5.2M10.6 5.4l-5.2 5.2' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'/%3E%3C/mask%3E%3C/defs%3E%3Ccircle cx='8' cy='8' r='7.4' fill='white' mask='url(%23x)'/%3E%3C/svg%3E");
     background-color: var(--bad);
   }
-  /* the alarm tier: broken is the one state allowed to outsize the pips —
-     the rarest signal owns the loudest honest channel (form, not fill) */
-  .pip-alarm {
-    width: 18px;
-    height: 18px;
-  }
   .pip-run {
     --pip-shape: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.6' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E");
     background-color: var(--slate);
+  }
+
+  /* CI while running: the run ring sweeping shut. The ring mask above cuts
+     the circle; a conic gradient paints the completed share of checks in
+     slate and leaves the rest as the secondary track, so 3 checks and 25
+     checks both read as one quiet dial filling clockwise (v1's grey
+     "running" section, in the pip family's geometry). --sweep is set inline
+     by CiStatus. */
+  .pip-progress {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.6' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.6' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+    background: conic-gradient(var(--slate) var(--sweep, 0deg), var(--secondary) var(--sweep, 0deg));
   }
 
   /* the slot you personally stamped: a dotted rule under the marks */
@@ -321,6 +330,13 @@ label:has(> input:not(:disabled)) {
    justify-end. flex-basis:100% can't share a line with anything, so it wraps
    whole. */
 @container (max-width: 520px) {
+  /* a wrapped rail has no cross-row columns to hold: the reserved quiet-CI
+     slot (and the no-checks placeholder) would just be a hole, so it
+     collapses here. Wide lanes keep the reservation for alignment. */
+  .pd-ci-quiet,
+  span.pd-ci-slot {
+    display: none;
+  }
   .pd-rail {
     flex-basis: 100%;
     margin-left: 0;

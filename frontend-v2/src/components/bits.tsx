@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type { ButtonHTMLAttributes, CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Check, CircleDot, Star, X } from 'lucide-react';
 import {
    type DerivedPull,
@@ -319,7 +319,7 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
          : [...headStatuses(pull.data)].sort(
               (a, b) => ciRank(a) - ciRank(b) || a.data.context.localeCompare(b.data.context)
            );
-   if (!checks.length) return <span aria-hidden className="mr-1.5 inline-block w-[52px]" />;
+   if (!checks.length) return <span aria-hidden className="pd-ci-slot mr-1.5 inline-block w-[36px]" />;
 
    const failing = checks.filter(isRedCheck).length;
    const passing = checks.filter(c => c.data.state === 'success').length;
@@ -350,34 +350,33 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
                // One fixed slot width in every state (sized to the failing
                // cluster, the widest), so the rail — and the age numeral's
                // right edge in the meta line — stays one column down a lane.
-               className={`pressable -my-2 mr-1.5 inline-flex w-[52px] items-center gap-1 rounded border-0 bg-transparent px-0 py-2 hover:bg-secondary/60 ${
-                  failing > 0
+               className={`pd-ci-slot pressable -my-2 mr-1.5 inline-flex w-[36px] items-center gap-1 rounded border-0 bg-transparent px-0 py-2 hover:bg-secondary/60 ${
+                  failing > 0 || pending
                      ? ''
-                     : 'opacity-0 transition-opacity duration-150 hover:opacity-100 focus-visible:opacity-100 [.pd-row:hover_&]:opacity-100 motion-reduce:transition-none'
+                     : 'pd-ci-quiet opacity-0 transition-opacity duration-150 hover:opacity-100 focus-visible:opacity-100 [.pd-row:hover_&]:opacity-100 motion-reduce:transition-none'
                }`}
             >
-               <span
-                  aria-hidden
-                  className={`w-[18px] text-left text-[11px] ${
-                     failing > 0 ? 'font-semibold' : 'font-medium text-ink-3'
-                  }`}
-                  style={failing > 0 ? { color: 'var(--bad)' } : undefined}
-               >
+               <span aria-hidden className="w-[18px] text-left text-[11px] font-medium text-ink-3">
                   CI
                </span>
-               <span
-                  aria-hidden
-                  className={`pip ${
-                     failing > 0 ? 'pip-fail pip-alarm' : pending ? 'pip-run' : 'pip-on'
-                  }`}
-               />
-               {failing > 0 && (
+               {/* one circle, three standings: a red ✗ disc = failing (the
+                   fraction lives in the popover; a 1-of-25 failure must read
+                   as loudly as 25-of-25), a slate ring sweeping closed =
+                   running (the sweep is the completed share, v1's grey
+                   section reborn), a green ✓ disc = passed, revealed on row
+                   hover only. Same 14px as every other pip: with the weight
+                   ruler gone the rail is quiet enough that red needs no size
+                   escalation to be its loudest mark. */}
+               {failing > 0 ? (
+                  <span aria-hidden className="pip pip-fail" />
+               ) : pending ? (
                   <span
-                     className="text-[11px] font-medium tabular-nums"
-                     style={{ color: 'var(--bad)' }}
-                  >
-                     {failing}
-                  </span>
+                     aria-hidden
+                     className="pip-progress"
+                     style={{ '--sweep': `${Math.round(((checks.length - pendingCount) / checks.length) * 360)}deg` } as CSSProperties}
+                  />
+               ) : (
+                  <span aria-hidden className="pip pip-on" />
                )}
             </button>
          )}
