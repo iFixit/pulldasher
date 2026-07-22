@@ -1,4 +1,4 @@
-import { authorOwnsIt, rowNote } from './actions';
+import { authorOwnsIt, parked, rowNote } from './actions';
 import type { DerivedPull } from './status';
 
 /**
@@ -43,10 +43,12 @@ function matchTerm(p: DerivedPull, term: string, me: string): boolean {
             return val.split(',').filter(Boolean).includes(p.weight.toLowerCase());
          if (key === 'has') return val === 'action' && rowNote(p, me).action != null;
          if (key === 'is') {
-            // same authorOwnsIt gate as reviewerMove: no re-stamp is owed
-            // while the pull is a draft, dev-blocked, or red-CI
+            // same gates as reviewerMove: no re-stamp is owed while the pull
+            // is parked, a draft, dev-blocked, or red-CI
             if (val === 'restamp')
-               return !authorOwnsIt(p) && (p.recrBy.includes(me) || p.reqaBy.includes(me));
+               return (
+                  !parked(p) && !authorOwnsIt(p) && (p.recrBy.includes(me) || p.reqaBy.includes(me))
+               );
             if (val === 'blocked') return p.status === 'dev_block' || p.status === 'deploy_block';
             return false;
          }

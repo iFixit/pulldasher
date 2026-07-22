@@ -29,6 +29,7 @@ function dp(o: {
    devBlockedBy?: string[];
    deployBlockedBy?: string[];
    externalBlock?: boolean;
+   cryo?: boolean;
 }): DerivedPull {
    return {
       data: {
@@ -58,6 +59,7 @@ function dp(o: {
       devBlockedBy: o.devBlockedBy ?? [],
       deployBlockedBy: o.deployBlockedBy ?? [],
       externalBlock: o.externalBlock ?? false,
+      cryo: o.cryo ?? false,
    } as unknown as DerivedPull;
 }
 
@@ -156,7 +158,8 @@ describe('rowNote — the author matrix', () => {
    const me = 'author';
 
    it('draft', () => {
-      expect(note({ status: 'draft' }, me)).toEqual({ action: 'Finish the draft', context: null });
+      // "Undraft" is the exit verb: the move is marking it ready for review
+      expect(note({ status: 'draft' }, me)).toEqual({ action: 'Undraft', context: null });
    });
 
    it('ci_red names the failing checks when known', () => {
@@ -382,6 +385,35 @@ describe('rowNote — the author matrix', () => {
       expect(
          note({ status: 'needs_cr', changesRequestedBy: ['carol'], headPushedAt: 200 }, me)
       ).toEqual({ action: 'Address feedback', context: 'changes requested by carol' });
+   });
+});
+
+describe('parked (Cryogenic Storage) — asks nothing of anyone', () => {
+   it('masks every move, the author’s included', () => {
+      // a parked pull is shelved on purpose: no do-word for the author…
+      expect(rowNote(dp({ author: 'me', status: 'ready', cryo: true }), 'me')).toEqual({
+         action: null,
+         context: 'parked, kept open on purpose',
+      });
+      expect(authorMove(dp({ author: 'me', status: 'ci_red', cryo: true }))).toBeNull();
+      // …no re-stamp or lane slot for a reviewer…
+      expect(
+         reviewerMove(dp({ author: 'a', status: 'needs_recr', recrBy: ['me'], cryo: true }), 'me')
+      ).toBeNull();
+      // …no desktop nudge, and the State bucket is the wait it shows
+      expect(
+         alertMove(dp({ author: 'a', status: 'needs_qa', reqaBy: ['me'], cryo: true }), 'me')
+      ).toBeNull();
+      expect(actionState(dp({ author: 'a', status: 'needs_cr', cryo: true }), 'me')).toBe(
+         'waiting'
+      );
+   });
+
+   it('groups under its own wait word', () => {
+      expect(rowWord(dp({ author: 'a', status: 'needs_cr', cryo: true }), 'me')).toEqual({
+         kind: 'wait',
+         word: 'parked',
+      });
    });
 });
 

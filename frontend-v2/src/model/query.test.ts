@@ -124,6 +124,10 @@ describe('matchesQuery', () => {
       expect(matchesQuery(fake({ status: 'draft', reqaBy: ['bob'] }), 'is:restamp', 'bob')).toBe(
          false
       );
+      // parked pulls ask nothing of anyone
+      expect(
+         matchesQuery({ ...fake({ recrBy: ['bob'] }), cryo: true } as never, 'is:restamp', 'bob')
+      ).toBe(false);
    });
 
    it('is:blocked matches dev_block and deploy_block statuses only', () => {

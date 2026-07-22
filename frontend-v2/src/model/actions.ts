@@ -18,6 +18,15 @@ export const authorOwnsIt = (p: DerivedPull): boolean =>
    p.status === 'draft' || p.status === 'dev_block' || p.status === 'ci_red';
 
 /**
+ * A parked pull (the Cryogenic Storage label) asks nothing of ANYONE —
+ * author included — until the label comes off. Stronger than authorOwnsIt
+ * (where the author still has a move): parked means deliberately shelved,
+ * so no do-word, no lane slot, no turn, no nudge, whether or not the pull
+ * is visible on the board.
+ */
+export const parked = (p: DerivedPull): boolean => p.cryo;
+
+/**
  * The verb column: what moves this pull, and whose move is it? Review's
  * "Yours to do" lane and My work's "Your move" both read from here so the
  * two tabs can never disagree about what you owe.
@@ -26,6 +35,7 @@ export const authorOwnsIt = (p: DerivedPull): boolean =>
 /** Your move on a pull you authored; null = waiting on someone else. Only ever
  * called for the viewer's own pulls, so the author IS the viewer here. */
 export function authorMove(p: DerivedPull): string | null {
+   if (parked(p)) return null;
    if (p.status === 'ready') return 'Merge it';
    if (p.status === 'ci_red') return 'Fix CI';
    // a dev block is feedback waiting on YOU — v1 lore said "ask them to lift
@@ -42,7 +52,8 @@ export function authorMove(p: DerivedPull): string | null {
    // there is nothing to rebase and no move to nudge about
    if (p.conflict) return 'Rebase';
    if (p.status === 'needs_qa' && !p.qaingLogin && !p.reqaBy.length) return 'Find a QA-er';
-   if (p.status === 'draft') return 'Finish the draft';
+   // the exit verb, not "finish": the move is marking it ready for review
+   if (p.status === 'draft') return 'Undraft';
    return null;
 }
 
@@ -56,7 +67,7 @@ export function authorMove(p: DerivedPull): string | null {
  * reviewers for nothing until the author's move lands. */
 export function reviewerMove(p: DerivedPull, me: string): string | null {
    if (p.data.user.login === me) return null;
-   if (authorOwnsIt(p)) return null;
+   if (parked(p) || authorOwnsIt(p)) return null;
    if (p.recrBy.includes(me)) return 'Re-stamp';
    if (p.qaingLogin === me) return 'Finish QA';
    if (p.reqaBy.includes(me)) return 'Re-QA';
@@ -75,8 +86,8 @@ export function alertMove(p: DerivedPull, me: string): string | null {
       const v = authorMove(p);
       // 'Lift your block' is a block you put on yourself — a standing choice,
       // not an event that landed on you, so it earns no desktop nudge (same as
-      // 'Find a QA-er' / 'Finish the draft')
-      const standing = v === 'Find a QA-er' || v === 'Finish the draft' || v === 'Lift your block';
+      // 'Find a QA-er' / 'Undraft')
+      const standing = v === 'Find a QA-er' || v === 'Undraft' || v === 'Lift your block';
       return v && !standing ? v : null;
    }
    const v = reviewerMove(p, me);
@@ -125,7 +136,7 @@ function authorNote(p: DerivedPull, me: string): RowNote {
    const pushed = p.headPushedAt ? ` · last commit ${ago(p.headPushedAt)} ago` : '';
    const crReq = d.status.cr_req;
 
-   if (p.status === 'draft') return doOnly('Finish the draft');
+   if (p.status === 'draft') return doOnly('Undraft');
    if (p.status === 'ci_red')
       return { action: 'Fix CI', context: p.ciFailing.length ? p.ciFailing.join(', ') : null };
    // a dev block is feedback waiting on YOU — v1 lore said "ask them to lift
@@ -434,6 +445,9 @@ export function rowNote(
    me: string,
    extra?: { claim?: Claim | null; turn?: string | null }
 ): RowNote {
+   // parked outranks everything, the author's own moves included: a shelved
+   // pull is a wait for everyone until the label comes off
+   if (parked(p)) return waitOnly('parked, kept open on purpose');
    const note = p.data.user.login === me ? authorNote(p, me) : reviewerNote(p, me, extra);
    // An external blocker is worth surfacing over a generic wait, but never
    // hides an actual move — a real action always wins. On your OWN pull the
@@ -470,7 +484,7 @@ const DO_WORD: Record<string, string> = {
    'Find a QA-er': 'Find QA-er',
    'Review it': 'Review',
    'QA it': 'QA',
-   'Finish the draft': 'Finish draft',
+   Undraft: 'Undraft',
 };
 
 /** Same freshness rule withCoordination uses for a claim by someone else — but
@@ -491,6 +505,7 @@ function freshOtherClaim(me: string, claim?: Claim | null): boolean {
  * claim only absolves a viewer with no stake of their own in the pull.
  */
 function waitWord(p: DerivedPull, me: string, extra?: { claim?: Claim | null }): string {
+   if (parked(p)) return 'parked';
    if (p.externalBlock) return 'on hold';
    const isAuthor = p.data.user.login === me;
    switch (p.status) {
@@ -564,7 +579,7 @@ export const DO_WORD_RANK: readonly string[] = [
    'Find QA-er',
    'Review',
    'QA',
-   'Finish draft',
+   'Undraft',
 ];
 
 /** Most-urgent-first order for the 'wait' word groups. */
@@ -584,6 +599,7 @@ export const WAIT_WORD_RANK: readonly string[] = [
    'conflicts',
    'stacked',
    'on hold',
+   'parked',
    'ready',
    'draft',
    'waiting',

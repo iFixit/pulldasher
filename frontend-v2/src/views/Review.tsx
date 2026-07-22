@@ -94,6 +94,7 @@ export function Review({
    // stale is the re-review gap that put already-done work back in your queue.
    const crPool = others.filter(
       p =>
+         !p.cryo &&
          !p.crBy.includes(me) &&
          (p.status === 'needs_cr' || (p.status === 'needs_recr' && !p.recrBy.includes(me)))
    );
@@ -109,6 +110,7 @@ export function Review({
    const botReviewable = bots
       .filter(
          p =>
+            !p.cryo &&
             !p.crBy.includes(me) &&
             (p.status === 'needs_cr' || (p.status === 'needs_recr' && !p.recrBy.includes(me)))
       )
@@ -128,6 +130,7 @@ export function Review({
    // read both pools before either lane's pool is filtered)
    const qaPool = others.filter(
       p =>
+         !p.cryo &&
          !qaDone(p) &&
          ['success', 'none'].includes(p.ci) &&
          !p.conflict &&
@@ -612,7 +615,7 @@ export function Review({
 }
 
 // Your own pulls contribute only their do-it-now verbs to the home lane.
-// "Finish the draft" always stays in My work (planning, not minutes). Getting
+// "Undraft" always stays in My work (planning, not minutes). Getting
 // QA is different: when the team self-reviews, CR isn't the gate and lining up
 // QA is the daily stall, so "Find a QA-er" graduates to a home to-do.
 function ownVerb(p: DerivedPull, selfReview: boolean): string | null {

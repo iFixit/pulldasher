@@ -68,7 +68,7 @@ function feedbackSources(p: DerivedPull): FeedbackSource[] {
  * four never set one, so the popover restates the action in plain words
  * instead of leaving Section 1 blank. */
 const ACTION_EXPLANATION: Record<string, string> = {
-   'Finish the draft': 'still being drafted, not ready for review yet.',
+   Undraft: 'your draft; mark it ready on GitHub when you want review.',
    'Merge it': 'fully signed off and green, go ahead and merge.',
    'Finish QA': "you're already testing it, finish up and stamp.",
    'Re-QA': 'a push invalidated your QA stamp.',

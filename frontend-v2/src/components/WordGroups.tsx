@@ -39,7 +39,7 @@ const WORD_GLOSS: Record<string, string> = {
    'Find QA-er': 'CR isn’t the gate here, QA is. Line someone up to test it.',
    Review: 'Open PRs you could code review.',
    QA: 'Open PRs you could test.',
-   'Finish draft': 'Your draft. Not up for review until you open it.',
+   Undraft: 'Your draft. Mark it ready on GitHub when you want review.',
    // wait-words: why the pull sits
    'waiting on re-CR':
       'A reviewer approved it, then new commits landed. Waiting on them to approve again.',
@@ -60,6 +60,8 @@ const WORD_GLOSS: Record<string, string> = {
    conflicts: 'Conflicts with its base branch; the author rebases.',
    stacked: 'Based on another open PR; it merges with its parent.',
    'on hold': 'Blocked on something outside this repo.',
+   parked:
+      'Labeled Cryogenic Storage: shelved on purpose. Nothing is asked of anyone while it’s parked.',
    ready: 'Fully signed off and green; waiting on the author to merge.',
    draft: 'Not up for review yet.',
    waiting: 'Waiting, and the board can’t say on what.',

@@ -67,7 +67,9 @@ export function turnFor(
    pools: ReadonlyMap<string, string[]>,
    pulls: readonly DerivedPull[]
 ): string | null {
-   if (!p.starved || !TURN_STATUSES.includes(p.status)) return null;
+   // a parked (Cryogenic Storage) pull asks nothing of anyone, so it never
+   // enters the rotation, starved or not
+   if (p.cryo || !p.starved || !TURN_STATUSES.includes(p.status)) return null;
    // An explicit GitHub review request answers "whose turn" authoritatively —
    // don't also rotate a name onto the pull, or the board would tell someone
    // it's their turn on a PR GitHub already routed to a specific reviewer.

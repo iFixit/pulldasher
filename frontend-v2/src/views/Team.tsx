@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { authorOwnsIt } from '../model/actions';
+import { authorOwnsIt, parked } from '../model/actions';
 import type { DerivedPull } from '../model/status';
 import { matchesRegion } from '../model/regions';
 import { crSort } from '../model/sort';
@@ -47,7 +47,7 @@ export function Team({
    }, [allPulls]);
    const owes = useMemo(() => {
       const m = new Map<string, DerivedPull[]>();
-      for (const p of allPulls.filter(x => !authorOwnsIt(x))) for (const u of p.recrBy) m.set(u, [...(m.get(u) ?? []), p]);
+      for (const p of allPulls.filter(x => !parked(x) && !authorOwnsIt(x))) for (const u of p.recrBy) m.set(u, [...(m.get(u) ?? []), p]);
       return m;
    }, [allPulls]);
 
