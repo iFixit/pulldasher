@@ -3,15 +3,14 @@ import { weightFilterKey } from '../../model/status';
 import { Popover } from '../Popover';
 import { FilterRow, FilterTrigger, OnlyButton } from './shared';
 
-/** Weight filter option order: lightest to heaviest, then the unknown-size
- * catch-all — mirrors the rail's own weight-letter read (XS through XL). */
+/** Weight filter option order: lightest to heaviest — mirrors the rail's
+ * own weight-letter read (XS through XL). */
 const WEIGHT_OPTIONS: { key: string; label: string }[] = [
    { key: 'xs', label: 'XS · very light' },
    { key: 's', label: 'S · light' },
    { key: 'm', label: 'M · medium' },
    { key: 'l', label: 'L · heavy' },
    { key: 'xl', label: 'XL · very heavy' },
-   { key: 'unknown', label: 'Size unknown' },
 ];
 
 /**
@@ -42,9 +41,7 @@ export function WeightFilter({
    };
 
    // the rail spells weights as letters (XS…XL); the trigger matches it
-   const value = weightSel.length
-      ? weightSel.map(k => (k === 'unknown' ? 'unknown' : k.toUpperCase())).join(', ')
-      : null;
+   const value = weightSel.length ? weightSel.map(k => k.toUpperCase()).join(', ') : null;
 
    return (
       <div>

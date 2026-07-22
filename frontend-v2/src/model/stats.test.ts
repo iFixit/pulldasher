@@ -145,7 +145,8 @@ function full(over: {
    n?: number;
    ageDays?: number;
    weight?: Weight;
-   sizeKnown?: boolean;
+   additions?: number | null;
+   deletions?: number | null;
    crHave?: number;
    qaHave?: number;
    crReq?: number;
@@ -165,7 +166,6 @@ function full(over: {
       status: over.status ?? 'needs_cr',
       ageDays: over.ageDays ?? 0,
       weight: over.weight ?? 'M',
-      sizeKnown: over.sizeKnown ?? true,
       crHave: over.crHave ?? 0,
       qaHave: over.qaHave ?? 0,
       recrBy: over.recrBy ?? [],
@@ -179,6 +179,8 @@ function full(over: {
       data: {
          repo: over.repo ?? 'iFixit/ifixit',
          number: over.n ?? 1,
+         additions: over.additions === undefined ? 100 : over.additions,
+         deletions: over.deletions === undefined ? 20 : over.deletions,
          user: { login: over.author ?? 'alice' },
          status: {
             cr_req: over.crReq ?? 2,
@@ -243,7 +245,7 @@ describe('effortMix', () => {
    it('counts open pulls per weight, keeping zero classes, tracking estimates', () => {
       const mix = effortMix([
          full({ weight: 'XS' }),
-         full({ weight: 'XS', sizeKnown: false }),
+         full({ weight: 'XS', additions: null, deletions: null }),
          full({ weight: 'XL' }),
       ]);
       expect(mix.buckets.map(b => b.count)).toEqual([2, 0, 0, 0, 1]);

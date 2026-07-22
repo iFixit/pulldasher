@@ -41,14 +41,6 @@ describe('crScore / crSort', () => {
       expect(crScore(oldM)).toBeLessThan(crScore(freshS));
    });
 
-   it('unknown size ranks as a medium guess, never XS-first', () => {
-      const unknown = fake({ sizeKnown: false, weight: 'XS', additions: null });
-      const knownXs = fake({ weight: 'XS' });
-      const knownL = fake({ weight: 'L' });
-      expect(crScore(unknown)).toBeGreaterThan(crScore(knownXs));
-      expect(crScore(unknown)).toBeLessThan(crScore(knownL));
-   });
-
    it('sorts by score, then oldest first', () => {
       const a = fake({ weight: 'S', ageDays: 10 });
       const b = fake({ weight: 'S', ageDays: 2 });

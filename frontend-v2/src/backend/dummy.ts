@@ -19,7 +19,21 @@ export async function loadDummy(): Promise<InitializePayload> {
    const raw = (await import('./dummy-pulls.json')).default as unknown as PullData[];
    // The fixture is a decade of frozen pulls; re-date them so age-derived
    // signals (heat, starvation, freshness) exercise realistically.
-   const pulls = withSyntheticStacks(raw).map((p, i) => redate(p, i));
+   // the frozen fixture predates diff stats on the wire; the real server now
+   // guarantees them on every open pull, so the demo board synthesizes a
+   // deterministic spread that exercises every weight class (and the
+   // >15-files bump) instead of reading all-XS
+   const SIZE_SPREAD = [12, 38, 90, 140, 320, 560, 900, 1400, 2600];
+   const withSizes = (p: PullData, i: number): PullData =>
+      p.additions != null
+         ? p
+         : {
+              ...p,
+              additions: Math.round(SIZE_SPREAD[i % SIZE_SPREAD.length] * 0.7),
+              deletions: Math.round(SIZE_SPREAD[i % SIZE_SPREAD.length] * 0.3),
+              changed_files: 1 + (i % 22),
+           };
+   const pulls = withSyntheticStacks(raw).map((p, i) => withSizes(redate(p, i), i));
    return {
       repos: [{ name: 'iFixit/ifixit' }],
       // The fixture carries almost no closed/merged pulls and no diff sizes, so

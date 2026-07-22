@@ -62,7 +62,7 @@ function score(p: DerivedPull, opts: DealRankOptions): number {
    const owedByAuthor = opts.pulls.some(
       other => other.data.user.login === opts.me && hasStamp(other, author)
    );
-   const quickWin = p.sizeKnown && (p.weight === 'XS' || p.weight === 'S');
+   const quickWin = p.weight === 'XS' || p.weight === 'S';
    const base = urgency + (familiar ? 2 : 0) + (owedByAuthor ? 2 : 0) + (quickWin ? 1 : 0);
    // a demoted pull (a bot's) sinks below every non-demoted one no matter how
    // old, but keeps its relative order among the other demoted ones

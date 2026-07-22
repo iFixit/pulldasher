@@ -279,7 +279,7 @@ export function startHereReason(
    const author = p.data.user.login;
    const owedByAuthor = pulls.some(o => o.data.user.login === me && hasStamp(o, author));
    if (owedByAuthor) return `${author} reviewed yours, return the favor`;
-   const quickWin = p.sizeKnown && (p.weight === 'XS' || p.weight === 'S');
+   const quickWin = p.weight === 'XS' || p.weight === 'S';
    if (quickWin) return `Small one (${p.weight}), quick`;
    const days = Math.max(1, Math.round(p.ageDays));
    return superlative
@@ -394,7 +394,7 @@ export function readSignals(input: CheerInput): Signals {
 
    const quickWinCandidates = crSort(
       reviewableUnclaimed.filter(
-         p => !isBot(p) && p.sizeKnown && (p.weight === 'XS' || p.weight === 'S')
+         p => !isBot(p) && (p.weight === 'XS' || p.weight === 'S')
       )
    );
    const quickWinPull = quickWinCandidates[0] ?? null;

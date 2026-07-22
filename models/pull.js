@@ -382,6 +382,9 @@ class Pull {
          difficulty: data.difficulty,
          additions: data.additions,
          deletions: data.deletions,
+         // was dropped on the DB round-trip: DBPull writes it, but a restart
+         // read it back as undefined, losing the >15-files weight bump
+         changed_files: data.changed_files,
          milestone: {
             title: data.milestone_title,
             due_on: utils.fromUnixTime(data.milestone_due_on),

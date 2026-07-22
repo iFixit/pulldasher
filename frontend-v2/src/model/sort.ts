@@ -15,7 +15,7 @@ import { STARVE_DAYS, isIterating, weightRank, type DerivedPull } from './status
  * to the top of everyone's queue.
  */
 export function crScore(p: DerivedPull): number {
-   const weight = p.sizeKnown ? weightRank(p.weight) : 2.5;
+   const weight = weightRank(p.weight);
    const req = p.data.status.cr_req;
    const oneFromDone = p.crHave > 0 && req - p.crHave === 1;
    const ageCredit = Math.min(p.ageDays / STARVE_DAYS, 2);

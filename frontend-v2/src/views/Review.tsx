@@ -155,8 +155,7 @@ export function Review({
       [...list].sort(
          (a, b) =>
             Number(!!a.qaingLogin) - Number(!!b.qaingLogin) ||
-            (a.sizeKnown ? weightRank(a.weight) : 2.5) -
-               (b.sizeKnown ? weightRank(b.weight) : 2.5) ||
+            weightRank(a.weight) - weightRank(b.weight) ||
             b.ageDays - a.ageDays
       );
 
@@ -316,7 +315,7 @@ export function Review({
    const whyQaNext = (p: DerivedPull) =>
       p.qaingLogin
          ? `${p.qaingLogin} is already testing it; it sinks below unclaimed QA`
-         : p.sizeKnown && (p.weight === 'XS' || p.weight === 'S')
+         : p.weight === 'XS' || p.weight === 'S'
            ? `Nobody's testing it yet, a light one (${p.weight})`
            : `Nobody's testing it yet, waiting ${Math.max(1, Math.round(p.ageDays))}d`;
 

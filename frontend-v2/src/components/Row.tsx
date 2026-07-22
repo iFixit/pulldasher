@@ -560,29 +560,24 @@ function RailLabel({ children }: { children: ReactNode }) {
  * diff, how the letter is decided, and the filter action.
  */
 function WeightPanelSection({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
-   const { weight, sizeKnown } = pull;
+   const { weight } = pull;
    const d = pull.data;
    return (
       <div className="mt-1 border-t border-secondary px-1 pt-1.5">
          <span className="block text-ink-2">
-            review effort:{' '}
-            <b className="font-medium text-ink">{WEIGHT_WORD[weight]}</b>
-            {sizeKnown ? '' : ' (estimated)'}
+            review effort: <b className="font-medium text-ink">{WEIGHT_WORD[weight]}</b>
          </span>
-         {sizeKnown && (
-            <span className="mt-1 block">
-               <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
-            </span>
-         )}
+         <span className="mt-1 block">
+            <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
+         </span>
          <span className="mt-1 block max-w-[230px] text-ink-3">
-            {sizeKnown
-               ? 'From the org’s size label when the PR has one, else the diff: 50 / 150 / 600 / 1500 lines step XS through XL, one class up past 15 files. A pointer, not a verdict.'
-               : 'A guess: the wire sent no diff size.'}
+            From the org’s size label when the PR has one, else the diff: 50 / 150 / 600 / 1500
+            lines step XS through XL, one class up past 15 files. A pointer, not a verdict.
          </span>
          {opts.onWeightToggle && (
             <span className="mt-1.5 block">
                <QuietButton onClick={() => opts.onWeightToggle?.(weightFilterKey(pull))}>
-                  Filter to {sizeKnown ? weight : 'unknown-size'} PRs
+                  Filter to {weight} PRs
                </QuietButton>
             </span>
          )}
@@ -642,11 +637,9 @@ function MetricRail({
                   </span>
                   <span
                      aria-hidden
-                     className={`w-[18px] flex-none text-left text-[11px] font-medium tabular-nums text-ink-3 ${
-                        pull.sizeKnown ? '' : 'opacity-60'
-                     }`}
+                     className="w-[18px] flex-none text-left text-[11px] font-medium tabular-nums text-ink-3"
                   >
-                     {pull.sizeKnown ? pull.weight : '?'}
+                     {pull.weight}
                   </span>
                </>
             }

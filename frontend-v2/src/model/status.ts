@@ -86,8 +86,6 @@ export interface DerivedPull {
    mergeUnknown: boolean;
    /** base isn't main/master: lands with its parent, gates "ready" */
    dependent: boolean;
-   /** additions/deletions absent from the wire: weight and size sorts are guesses */
-   sizeKnown: boolean;
    /** everyone holding an active dev block: the author owes them changes */
    devBlockedBy: string[];
    /** everyone holding an active deploy block: done, deliberately not shipped */
@@ -293,7 +291,6 @@ export function derive(
    // versioned with the labeller) and overrides the diff-size guess. It also
    // counts as a known size for the sort, even when adds/dels are off the wire.
    const labeledWeight = weightFromLabels(pull.labels, weightLabels);
-   const sizeKnown = labeledWeight != null || pull.additions != null || pull.deletions != null;
    const size = (pull.additions ?? 0) + (pull.deletions ?? 0);
    // Rot is rot whether the pull has zero stamps, one of two, or a stale one
    // waiting on a re-stamp — the old `crHave === 0` cliff hid half-reviewed
@@ -333,7 +330,6 @@ export function derive(
       conflict,
       mergeUnknown: pull.mergeable == null,
       dependent,
-      sizeKnown,
       devBlockedBy,
       deployBlockedBy,
       qaingLogin: label(LABELS.qaing)?.user ?? null,
@@ -379,22 +375,22 @@ export function reviewWeight(pull: PullData): Weight {
 export const weightRank = (w: Weight) => WEIGHT_RANK[w];
 
 /**
- * The session Weight filter's bucket for a pull: its weight letter
- * (lowercase) when the size is known, else `'unknown'` — never the diff-size
- * guess `reviewWeight()` falls back to for a missing size (additions/
- * deletions default to 0, which always reads XS, not a real class). Shared
- * by the scoped-pull filter pass in app.tsx and WeightFilter's live
+ * The session Weight filter's bucket for a pull: its weight letter,
+ * lowercase. The old 'unknown' bucket is gone — the server now guarantees
+ * diff stats on every open pull (a list item that arrives without them gets
+ * the full pull fetched and grafted on), so every pull has a real class.
+ * Shared by the scoped-pull filter pass in app.tsx and WeightFilter's live
  * per-option counts, so the two can't disagree about which bucket a pull
  * lands in.
  */
-export function weightFilterKey(p: Pick<DerivedPull, 'weight' | 'sizeKnown'>): string {
-   return p.sizeKnown ? p.weight.toLowerCase() : 'unknown';
+export function weightFilterKey(p: Pick<DerivedPull, 'weight'>): string {
+   return p.weight.toLowerCase();
 }
 
 /** Does this pull match any of the given Weight-filter selections? An empty
  * selection means no filter is applied. */
 export function matchesWeightFilter(
-   p: Pick<DerivedPull, 'weight' | 'sizeKnown'>,
+   p: Pick<DerivedPull, 'weight'>,
    sel: readonly string[]
 ): boolean {
    return sel.length === 0 || sel.includes(weightFilterKey(p));

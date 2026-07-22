@@ -491,11 +491,10 @@ describe('weight labels override the diff-size heuristic', () => {
       expect(derive(p, undefined, NOW).weight).toBe(reviewWeight(p));
    });
 
-   it('a label counts as a known size even with adds/dels off the wire', () => {
+   it('a label sets the class even with adds/dels off the wire', () => {
       const p = pull({ additions: null, deletions: null, labels: [wl('size: M')] });
       const d = derive(p, undefined, NOW, STARVE_DAYS, MAP);
       expect(d.weight).toBe('M');
-      expect(d.sizeKnown).toBe(true);
    });
 
    it('weightFromLabels only matches configured titles', () => {

@@ -230,7 +230,7 @@ export function effortMix(pulls: DerivedPull[]): EffortMix {
    let estimated = 0;
    for (const p of pulls) {
       by.set(p.weight, by.get(p.weight)! + 1);
-      if (!p.sizeKnown) estimated += 1;
+      if (p.data.additions == null && p.data.deletions == null) estimated += 1;
    }
    return { buckets: WEIGHTS.map(weight => ({ weight, count: by.get(weight)! })), estimated };
 }

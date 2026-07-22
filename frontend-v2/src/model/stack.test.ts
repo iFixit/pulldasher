@@ -71,7 +71,6 @@ function dp(
       conflict: false,
       mergeUnknown: false,
       dependent: !['main', 'master'].includes(baseRef),
-      sizeKnown: true,
       devBlockedBy: [],
       deployBlockedBy: [],
       qaingLogin: null,
