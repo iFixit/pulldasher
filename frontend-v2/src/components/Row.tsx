@@ -110,10 +110,8 @@ function flashOnce(key: string, fresh: boolean): boolean {
 
 interface Flag {
    key: string;
-   /** 'warn' = act on it (amber); 'note' = a neutral fact (muted);
-    * 'brand' = a standing state YOU chose (claimed, snoozed) — brand is the
-    * yours color, and a choice you made never hides behind a hover */
-   tone: 'warn' | 'note' | 'brand';
+   /** 'warn' = act on it (amber); 'note' = a neutral fact (muted) */
+   tone: 'warn' | 'note';
    label: string;
    detail: ReactNode;
 }
@@ -135,28 +133,10 @@ function rowFlags(
    pull: DerivedPull,
    showIterating: boolean,
    depth: number,
-   orphanParent: ParentRef | null,
-   claimedByMe = false,
-   snoozedNow = false
+   orphanParent: ParentRef | null
 ): Flag[] {
    const p = pull;
    const flags: Flag[] = [];
-   if (claimedByMe)
-      flags.push({
-         key: 'claimed',
-         tone: 'brand',
-         label: 'claimed',
-         detail:
-            'You claimed this review — GitHub and the board both show you’re on it. Hover the row for Release.',
-      });
-   if (snoozedNow)
-      flags.push({
-         key: 'snoozed',
-         tone: 'brand',
-         label: 'snoozed',
-         detail:
-            'Off your Review lens until tomorrow or its next change. Hover the row for Unsnooze.',
-      });
    if (p.conflict && p.status !== 'unmergeable')
       flags.push({
          key: 'conflicts',
@@ -256,13 +236,7 @@ function RowDetails({ flags }: { flags: Flag[] }) {
                {flags.map(f => (
                   <span
                      key={f.key}
-                     className={`whitespace-nowrap ${
-                        f.tone === 'warn'
-                           ? 'flag-warn'
-                           : f.tone === 'brand'
-                             ? 'flag-brand'
-                             : 'flag-note'
-                     }`}
+                     className={`whitespace-nowrap ${f.tone === 'warn' ? 'flag-warn' : 'flag-note'}`}
                   >
                      {f.label}
                   </span>
@@ -275,14 +249,7 @@ function RowDetails({ flags }: { flags: Flag[] }) {
                <span
                   aria-hidden
                   className="mt-[5px] h-1.5 w-1.5 flex-none rounded-full"
-                  style={{
-                     background:
-                        f.tone === 'warn'
-                           ? 'var(--warn)'
-                           : f.tone === 'brand'
-                             ? 'var(--brand)'
-                             : 'var(--ink-3)',
-                  }}
+                  style={{ background: f.tone === 'warn' ? 'var(--warn)' : 'var(--ink-3)' }}
                />
                <span className="text-ink-2">
                   <b className="font-medium text-ink">{f.label}</b> {f.detail}
@@ -329,20 +296,17 @@ function useRowActions(pull: DerivedPull) {
 }
 
 /**
- * The row's workflow verbs — Claim and Snooze, the board's two first-class
- * gestures. They own no geometry: the data rail's right edge is the
- * board's strongest column (the age numeral caps it), so the verbs FLOAT
- * just left of the rail, fading in on row hover/focus (opacity only —
- * the board's one reveal mechanism; motion stays reserved for state
- * changes) on a muted backdrop that keeps them legible over the meta
- * text beneath. Nothing is reserved, nothing ever shifts, every fact
- * column stays aligned. Pointer-events follow the fade so the invisible
- * words can never steal a click. Claim and Release wear brand (the
- * invitation and its undo); Snooze, ink. A claim you HOLD is a
- * commitment and commitments never hide: its standing mark is the brand
- * hand riding with the CR pips (a claim is literally a pending review
- * request). Touch has no hover, so there the verbs live in the kebab
- * alone, labeled. Snooze renders only where it acts (Review).
+ * The row's two workflow buttons — Snooze and Claim — floating left of the
+ * data rail (zero standing geometry; the right edge stays the facts').
+ * Each is its own chip with one rule: a button STANDS when it records a
+ * choice you made — a claimed row always shows "Release", a snoozed row
+ * always shows "Unsnooze", both in place with no hover — and reveals on
+ * row hover/focus when it merely OFFERS one ("Claim", "Snooze"). If both
+ * states are yours, both chips stand. Opacity-only reveal (motion stays
+ * reserved for state changes), pointer-events following it so a hidden
+ * offer can't steal a click. Touch has no hover: offers live in the kebab
+ * there, while standing exits remain visible. Snooze renders only where
+ * it acts (Review).
  */
 function VerbDock({
    pull,
@@ -360,12 +324,14 @@ function VerbDock({
    const snoozedNow = isSnoozed(pull.data, snoozed);
    const mine = claim?.login === me;
    const claimable = pull.data.user.login !== me && !mine;
-   if (!showSnooze && !claimable && !mine) return null;
-   const verb =
-      'hit pressable rounded border-0 bg-transparent px-0.5 text-xs whitespace-nowrap';
+   const showSnoozeChip = showSnooze || snoozedNow;
+   const showClaimChip = claimable || mine;
+   if (!showSnoozeChip && !showClaimChip) return null;
+   const chip =
+      'hit pressable rounded-md border-0 bg-muted px-1.5 py-1 text-xs whitespace-nowrap';
    return (
-      <span className="pd-verbs absolute top-1/2 right-full z-10 mr-1.5 flex -translate-y-1/2 items-center gap-2 rounded-md bg-muted px-1.5 py-1">
-         {showSnooze && (
+      <span className="pd-verbs absolute top-1/2 right-full z-10 mr-1.5 flex -translate-y-1/2 items-center gap-1.5">
+         {showSnoozeChip && (
             <button
                type="button"
                title={
@@ -373,35 +339,36 @@ function VerbDock({
                      ? 'wake it: back on your Review lens now'
                      : 'off your Review lens until tomorrow or until it changes'
                }
-               className={`${verb} text-ink-2`}
+               className={`${chip} text-ink-2 ${snoozedNow ? '' : 'pd-verb'}`}
                onClick={snoozedNow ? a.unsnooze : a.snooze}
             >
                {snoozedNow ? 'Unsnooze' : 'Snooze'}
             </button>
          )}
-         {mine ? (
-            <button
-               type="button"
-               title="release your claim"
-               className={`${verb} font-medium text-brand`}
-               onClick={a.release}
-            >
-               Release
-            </button>
-         ) : claimable ? (
-            <button
-               type="button"
-               title={
-                  claim
-                     ? `claim review, currently ${claim.login}'s`
-                     : 'claim this review: adds you as a reviewer on the PR itself, so GitHub and the board both show you’re on it'
-               }
-               className={`${verb} font-medium text-brand`}
-               onClick={a.claim}
-            >
-               Claim
-            </button>
-         ) : null}
+         {showClaimChip &&
+            (mine ? (
+               <button
+                  type="button"
+                  title="release your claim"
+                  className={`${chip} font-medium text-brand`}
+                  onClick={a.release}
+               >
+                  Release
+               </button>
+            ) : (
+               <button
+                  type="button"
+                  title={
+                     claim
+                        ? `claim review, currently ${claim.login}'s`
+                        : 'claim this review: adds you as a reviewer on the PR itself, so GitHub and the board both show you’re on it'
+                  }
+                  className={`${chip} pd-verb font-medium text-brand`}
+                  onClick={a.claim}
+               >
+                  Claim
+               </button>
+            ))}
       </span>
    );
 }
@@ -713,7 +680,6 @@ function RowImpl({
    // both optional, so a lens that hasn't threaded them (yet) just sees null
    // and rowNote falls back to its base (pre-coordination) note
    const claim = claimFor(d);
-   const { snoozed: snoozedMap } = usePulldasher();
    const turn = opts.turns?.get(key) ?? null;
    const poolSize = opts.pools?.get(d.repo)?.length ?? 0;
    // the viewer-relative note (model/actions.ts): never both-null for an open
@@ -809,16 +775,7 @@ function RowImpl({
                      </span>
                   </Popover>
                )}
-               <RowDetails
-                  flags={rowFlags(
-                     pull,
-                     showIterating,
-                     depth,
-                     orphanParent,
-                     claim?.login === opts.me,
-                     isSnoozed(d, snoozedMap)
-                  )}
-               />
+               <RowDetails flags={rowFlags(pull, showIterating, depth, orphanParent)} />
             </>
          }
          rail={<MetricRail pull={pull} opts={opts} claim={claim} />}

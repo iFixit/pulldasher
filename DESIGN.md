@@ -92,15 +92,16 @@ reserved for state changes — on a muted backdrop that keeps them legible
 over the meta text beneath. Nothing is reserved, nothing shifts, every
 fact column stays flush. Pointer-events follow the fade, so an invisible
 word can never steal a click. Claim and Release wear brand (the
-invitation and its undo); Snooze, ink. The verbs are TOGGLES that name
-the exit: a claimed row's verb reads Release, a snoozed row's reads
-Unsnooze — the same slot, the opposite word, no state glyph (the hand
-icon was retired outright). The STANDING record of the choice is a brand
-FLAG in the meta line — "claimed" / "snoozed" beside conflicts and
-stacked — because flags are the board's channel for standing row facts,
-and brand is the yours color: a state you chose stays visible on every
-lens, in blue, with no hover required. Touch has no hover: the kebab is the verbs'
-labeled home there, and its items carry the same toggled words. A verb renders only where it acts (Snooze on
+invitation and its undo); Snooze, ink. Each chip follows ONE rule: it
+STANDS when it records a choice you made — a claimed row always shows
+"Release", a snoozed row always shows "Unsnooze", in place, no hover —
+and reveals on approach when it merely OFFERS one ("Claim", "Snooze").
+The state and its exit are the same pixel: no state glyph (the hand
+icon was retired outright), no meta flag restating it (tried and cut —
+the standing chip already IS the record). If both states are yours,
+both chips stand. Touch has no hover: offers live in the kebab there,
+labeled and carrying the same toggled words; standing exits remain
+visible everywhere. A verb renders only where it acts (Snooze on
 Review alone); utilities stay in the kebab at every width, verbs atop
 its menu. Failure modes this design retires, in order tried: four
 identical icons (equal salience, unequal decisions); sixty standing

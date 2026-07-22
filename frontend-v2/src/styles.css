@@ -365,10 +365,6 @@ label:has(> input:not(:disabled)) {
 
   /* row flags: quiet colored labels, not badges — amber for act-on-it,
      muted ink for neutral facts. The cluster's hover popover carries meaning. */
-  .flag-brand {
-    @apply text-[11px] font-medium;
-    color: var(--brand);
-  }
   .flag-warn {
     @apply text-[11px] font-medium;
     color: var(--warn);
@@ -453,25 +449,25 @@ label:has(> input:not(:disabled)) {
   z-index: 1;
 }
 
-/* the row's verbs (Claim / Snooze / Release) float left of the rail with
-   ZERO standing geometry — the rail's right edge is the board's strongest
-   column and stays the data's alone. They fade in on row hover or focus
-   (opacity only, the board's one reveal mechanism); pointer-events follow
-   the fade so invisible words never steal a click from the meta text they
-   float over. Touch has no hover: the kebab is the verbs' labeled home
-   there, so the float simply doesn't exist. */
-.pd-verbs {
+/* the row's verb chips float left of the rail with ZERO standing geometry
+   — the rail's right edge is the board's strongest column and stays the
+   data's alone. A chip that only OFFERS (.pd-verb: Claim, Snooze) fades in
+   on row hover or focus, pointer-events following so a hidden offer never
+   steals a click; a chip that RECORDS your choice (Release, Unsnooze — no
+   .pd-verb) simply stands. Touch has no hover: offers live in the kebab
+   there, standing exits stay visible. */
+.pd-verb {
   opacity: 0;
   pointer-events: none;
   transition: opacity 150ms ease-out;
 }
-.pd-row:hover .pd-verbs,
-.pd-row:focus-within .pd-verbs {
+.pd-row:hover .pd-verb,
+.pd-row:focus-within .pd-verb {
   opacity: 1;
   pointer-events: auto;
 }
 @media (hover: none) {
-  .pd-verbs {
+  .pd-verb {
     display: none;
   }
 }
