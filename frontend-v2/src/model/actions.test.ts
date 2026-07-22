@@ -250,7 +250,7 @@ describe('rowNote — the author matrix', () => {
 
    it('needs_cr: untouched and starved chases a review', () => {
       expect(note({ status: 'needs_cr', starved: true, ageDays: 12 }, me)).toEqual({
-         action: 'Chase a review',
+         action: 'Nudge for a review',
          context: 'unreviewed 12d',
       });
    });
@@ -771,17 +771,17 @@ describe('rowWord — the one-word section-header key', () => {
    });
 
    describe('wait words', () => {
-      it('author needs_recr, someone else owes the re-stamp → awaiting re-CR', () => {
+      it('author needs_recr, someone else owes the re-stamp → waiting on re-CR', () => {
          expect(word({ author: 'me', status: 'needs_recr', recrBy: ['dave'] }, 'me')).toEqual({
             kind: 'wait',
-            word: 'awaiting re-CR',
+            word: 'waiting on re-CR',
          });
       });
 
-      it('author needs_cr, untouched queue → awaiting CR', () => {
+      it('author needs_cr, untouched queue → waiting on CR', () => {
          expect(word({ author: 'me', status: 'needs_cr' }, 'me')).toEqual({
             kind: 'wait',
-            word: 'awaiting CR',
+            word: 'waiting on CR',
          });
       });
 

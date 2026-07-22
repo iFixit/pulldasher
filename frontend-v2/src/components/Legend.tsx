@@ -300,7 +300,7 @@ export function Legend() {
             <Item
                term={
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
-                     awaiting CR · 2
+                     waiting on CR · 2
                   </span>
                }
                def="gray group header: why those cards wait. Hover a card’s repo #number for the full state — status, names, dates, CI, feedback"

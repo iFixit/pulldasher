@@ -149,7 +149,7 @@ function authorNote(p: DerivedPull, me: string): RowNote {
       if (reviewerLogins.length)
          return { action: 'Answer the review', context: `from ${who(reviewerLogins)}` };
       if (p.engagedNoStamp.length) return waitOnly(`in discussion with ${who(p.engagedNoStamp)}`);
-      if (p.starved) return { action: 'Chase a review', context: `unreviewed ${p.ageDays}d` };
+      if (p.starved) return { action: 'Nudge for a review', context: `unreviewed ${p.ageDays}d` };
       return waitOnly(
          p.crHave > 0 ? `in the CR queue · ${p.crHave} of ${crReq}` : 'in the CR queue'
       );
@@ -418,7 +418,7 @@ const DO_WORD: Record<string, string> = {
    'Lift your block': 'Unblock',
    Unblock: 'Unblock',
    Rebase: 'Rebase',
-   'Chase a review': 'Chase CR',
+   'Nudge for a review': 'Nudge CR',
    'Find a QA-er': 'Find QA-er',
    'Review it': 'Review',
    'QA it': 'QA',
@@ -461,18 +461,18 @@ function waitWord(p: DerivedPull, me: string, extra?: { claim?: Claim | null }):
       case 'needs_qa':
          if (p.qaBy.includes(me)) return 'stamped';
          if (p.qaingLogin) return 'in QA';
-         if (isAuthor && p.reqaBy.length) return 'awaiting re-QA';
-         return 'awaiting QA';
+         if (isAuthor && p.reqaBy.length) return 'waiting on re-QA';
+         return 'waiting on QA';
       case 'needs_recr':
          if (p.crBy.includes(me)) return 'stamped';
          if (freshOtherClaim(me, extra?.claim)) return 'claimed';
-         return 'awaiting re-CR';
+         return 'waiting on re-CR';
       case 'needs_cr':
          if (p.changesRequestedBy.length)
-            return feedbackAnswered(p) ? 'awaiting re-CR' : 'with author';
+            return feedbackAnswered(p) ? 'waiting on re-CR' : 'with author';
          if (p.crBy.includes(me)) return 'stamped';
          if (freshOtherClaim(me, extra?.claim)) return 'claimed';
-         return 'awaiting CR';
+         return 'waiting on CR';
       default:
          return 'waiting';
    }
@@ -510,7 +510,7 @@ export const DO_WORD_RANK: readonly string[] = [
    'Respond',
    'Unblock',
    'Rebase',
-   'Chase CR',
+   'Nudge CR',
    'Find QA-er',
    'Review',
    'QA',
@@ -519,11 +519,11 @@ export const DO_WORD_RANK: readonly string[] = [
 
 /** Most-urgent-first order for the 'wait' word groups. */
 export const WAIT_WORD_RANK: readonly string[] = [
-   'awaiting re-CR',
-   'awaiting CR',
+   'waiting on re-CR',
+   'waiting on CR',
    'with author',
-   'awaiting re-QA',
-   'awaiting QA',
+   'waiting on re-QA',
+   'waiting on QA',
    'in QA',
    'claimed',
    'stamped',

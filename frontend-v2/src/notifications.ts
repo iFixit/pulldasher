@@ -80,7 +80,7 @@ const TITLE: Record<string, string> = {
    'Fix CI': 'CI failed',
    'Address feedback': 'Changes requested',
    Rebase: 'Needs a rebase',
-   'Re-stamp': 'Re-review owed',
+   'Re-stamp': 'Re-stamp owed',
    'Re-QA': 'Re-QA owed',
 };
 
