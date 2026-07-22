@@ -1,5 +1,5 @@
 import { memo, useState, type ReactNode } from 'react';
-import { AlarmClock, Copy, Diamond, EllipsisVertical, Hand, RefreshCw, Star } from 'lucide-react';
+import { AlarmClock, Copy, Diamond, EllipsisVertical, RefreshCw, Star } from 'lucide-react';
 import type { DerivedPull } from '../model/status';
 import { isIterating, lastPushEpoch, weightFilterKey } from '../model/status';
 import { type Claim, rowNote } from '../model/actions';
@@ -18,9 +18,11 @@ import {
    claimFor,
    claimReview,
    isFresh,
+   isSnoozed,
    refreshPull,
    releaseReview,
    snoozePull,
+   unsnoozePull,
    usePulldasher,
 } from '../store';
 import {
@@ -282,6 +284,7 @@ function useRowActions(pull: DerivedPull) {
          setTimeout(() => setCopied(false), 1200);
       },
       snooze: () => snoozePull(pullKey(pull.data)),
+      unsnooze: () => unsnoozePull(pullKey(pull.data)),
       refresh: () => {
          refreshPull(pull.data.repo, pull.data.number);
          setSpinning(true);
@@ -320,6 +323,8 @@ function VerbDock({
    showSnooze?: boolean;
 }) {
    const a = useRowActions(pull);
+   const { snoozed } = usePulldasher();
+   const snoozedNow = isSnoozed(pull.data, snoozed);
    const mine = claim?.login === me;
    const claimable = pull.data.user.login !== me && !mine;
    if (!showSnooze && !claimable && !mine) return null;
@@ -330,11 +335,15 @@ function VerbDock({
          {showSnooze && (
             <button
                type="button"
-               title="off your Review lens until tomorrow or until it changes"
+               title={
+                  snoozedNow
+                     ? 'wake it: back on your Review lens now'
+                     : 'off your Review lens until tomorrow or until it changes'
+               }
                className={`${verb} text-ink-2`}
-               onClick={a.snooze}
+               onClick={snoozedNow ? a.unsnooze : a.snooze}
             >
-               Snooze
+               {snoozedNow ? 'Unsnooze' : 'Snooze'}
             </button>
          )}
          {mine ? (
@@ -384,7 +393,8 @@ function RowActionsKebab({
 }) {
    const a = useRowActions(pull);
    const settings = useSettings();
-   const { me } = usePulldasher();
+   const { me, snoozed } = usePulldasher();
+   const snoozedNow = isSnoozed(pull.data, snoozed);
    const repo = pull.data.repo;
    const author = pull.data.user.login;
    const repoLabel = shortRepo(repo);
@@ -429,14 +439,17 @@ function RowActionsKebab({
                        : "claim this review, flags that you're reading it"
                }
             >
-               <Icon icon={Hand} />
                {claimedByMe ? 'Release claim' : 'Claim review'}
             </button>
          )}
          {showSnooze && (
-            <button type="button" className={item} onClick={a.snooze}>
-            <Icon icon={AlarmClock} />
-            Snooze until tomorrow
+            <button
+               type="button"
+               className={item}
+               onClick={snoozedNow ? a.unsnooze : a.snooze}
+            >
+               <Icon icon={AlarmClock} />
+               {snoozedNow ? 'Unsnooze' : 'Snooze until tomorrow'}
             </button>
          )}
          <div aria-hidden className="my-1 border-t border-secondary" />
@@ -619,15 +632,6 @@ function MetricRail({
             }
             panelExtra={<WeightPanelSection pull={pull} opts={opts} />}
          />
-         {claim?.login === me && (
-            <span
-               aria-label="you claimed this review"
-               title="you claimed this review — release it from the row's Release slot"
-               className="-ml-1 flex-none text-brand"
-            >
-               <Icon icon={Hand} size={12} />
-            </span>
-         )}
          <SigPips
             label="QA"
             have={pull.qaHave}

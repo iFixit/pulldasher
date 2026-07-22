@@ -174,6 +174,12 @@ export function snoozePull(key: string) {
    saveSnoozed();
    schedulePublish();
 }
+export function unsnoozePull(key: string) {
+   delete snoozed[key];
+   saveSnoozed();
+   schedulePublish();
+}
+
 export function clearSnoozes() {
    snoozed = {};
    writeStorage(SNOOZED_KEY, '{}');

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CircleHelp, Hand } from 'lucide-react';
+import { CircleHelp } from 'lucide-react';
 import { Icon } from './Icon';
 import { Popover } from './Popover';
 import { eyebrowText } from './WordGroups';
@@ -127,12 +127,8 @@ export function Legend() {
 
          <Group title="Coordination">
             <Item
-               term={
-                  <span className="text-ink-3">
-                     <Icon icon={Hand} size={14} />
-                  </span>
-               }
-               def="claim a review: adds you as a reviewer on the PR, so GitHub and the board both show you’re on it. Clears when you submit, release, or are removed"
+               term={<span className="text-xs font-medium text-brand">Claim</span>}
+               def="hover a row for its verbs. Claiming adds you as a reviewer on the PR, so GitHub and the board both show you’re on it; the row moves to Waiting on you until you submit, release, or are removed"
             />
             <Item
                term={<span className="text-ink-2 italic">requested from you</span>}

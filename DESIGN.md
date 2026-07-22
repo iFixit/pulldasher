@@ -92,11 +92,13 @@ reserved for state changes — on a muted backdrop that keeps them legible
 over the meta text beneath. Nothing is reserved, nothing shifts, every
 fact column stays flush. Pointer-events follow the fade, so an invisible
 word can never steal a click. Claim and Release wear brand (the
-invitation and its undo); Snooze, ink. A claim you HOLD is a commitment,
-and commitments never hide: its standing mark is the brand hand riding
-with the CR pips — a claim is literally a pending review request, so the
-CR cluster is its semantic home. Touch has no hover: the kebab is the
-verbs' labeled home there. A verb renders only where it acts (Snooze on
+invitation and its undo); Snooze, ink. The verbs are TOGGLES that name
+the exit: a claimed row's verb reads Release, a snoozed row's reads
+Unsnooze — the same slot, the opposite word, no state glyph (the hand
+icon was retired outright; a claimed row already reads through position,
+grouping under Finish CR in Waiting on you, so a second mark restated
+what structure says). Touch has no hover: the kebab is the verbs'
+labeled home there, and its items carry the same toggled words. A verb renders only where it acts (Snooze on
 Review alone); utilities stay in the kebab at every width, verbs atop
 its menu. Failure modes this design retires, in order tried: four
 identical icons (equal salience, unequal decisions); sixty standing
