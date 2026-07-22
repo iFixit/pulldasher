@@ -542,17 +542,21 @@ export function Pips({
          {none ? (
             <span
                aria-hidden
-               className="flex min-w-[31px] justify-start text-xs text-ink-3 opacity-60"
+               className="flex min-w-[48px] justify-start text-xs text-ink-3 opacity-60"
             >
                –
             </span>
          ) : (
-            // min-width sized to the COMMON case (two marks), not the 3-mark
-            // maximum — a fixed 3-wide slot left dead air before QA on almost
-            // every row; the rare 3-required pull just grows
+            // min-width sized to the 3-mark case, not the common two: the
+            // rail is right-anchored, so a slot that hugged two marks made a
+            // 3-required pull grow the rail leftward and knock the age
+            // numeral off its right-edge column in the meta line. The air
+            // this reserves before the next label matches what the CI slot
+            // already reserves for its failing cluster — one rail width,
+            // every row. A 4-required pull (unseen in practice) still grows.
             <span
                aria-hidden
-               className={`flex min-w-[31px] items-center justify-start gap-[3px] ${
+               className={`flex min-w-[48px] items-center justify-start gap-[3px] ${
                   mine || owedByMe ? 'pip-mine' : ''
                }`}
             >
