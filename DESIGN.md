@@ -103,15 +103,15 @@ member of the sign-off family (it did, when weight was a dot):
 
 | Shape | Metric | Behavior |
 |---|---|---|
-| circle-checks (14px SVG masks, `.pip`) | CR/QA sign-off | the rail's senior elements; nothing else may match their size |
-| segmented horizontal bar | CI | red/slate segments sized by count; **passed is invisible at rest**, green revealed on hover |
-| horizontal ratio strip (4px, under CR+QA) | review weight | one quiet ink fill on a fixed-extent track; fill **doubles per class** (6/13/25/50/100%) because effort doubles per class — exponential honesty beats linear prettiness |
-| horizontal ratio strip (4px, under CI) | age / starvation | **gated, not always-on**: renders nothing below the aging threshold (a placeholder holds the slot), then an amber fill growing warn→rot, red past rot, plateauing there. Distinct from the weight strip on four axes — left column, gated, only ever amber/red, square caps vs pill. The numeral in the meta line stays neutral ink (weight bump only): one mark carries the color |
+| circle marks (14px SVG masks, `.pip`) | CI/CR/QA sign-off | ONE family for all three reviewers — the machine is a reviewer too. The label names the reviewer, the glyph names the verdict (✓ approved, ✗ failed, ring = needed/running), the treatment names the standing (solid stands, outlined lapsed). CI is invisible at rest unless failing — its quiet states render in a reserved slot at opacity 0, revealed on row hover, so the reveal can never reflow the line |
+| horizontal ratio strip (4px, under the marks) | review weight | one quiet ink fill on a fixed-extent track; fill **doubles per class** (6/13/25/50/100%) because effort doubles per class — exponential honesty beats linear prettiness |
+| the row's baseline (2px, bottom edge) | age / starvation | **gated, not always-on**: nothing below the aging threshold, then an amber line growing left→right toward the rot day and plateauing there — a 30-day pull doesn't shout louder than a 10-day one. **Amber only; red belongs to CI alone** (a red age bar shipped once and read as "broken" everywhere). The quiet day count floats right in the meta line, capping the track; it carries no color, only font weight |
 
-The rail is two columns × two decks: `CI / age-strip` on the left,
-`CR+QA pips / weight-strip` on the right. Age's color lives *only* in its
-strip — when a signal moves onto a better mark, remove it from the old one
-in the same change, or the card gets louder instead of clearer.
+The rail is one instrument: `CI · CR · QA` marks in a row, the weight
+strip beneath them. Age lives on the row's own bottom edge, not in the
+rail — the track is a line the row already had. When a signal moves onto
+a better mark, remove it from the old one in the same change, or the card
+gets louder instead of clearer.
 
 Marks are drawn as SVG masks / CSS geometry, never font glyphs — a text ✓
 at 10px is at the mercy of the platform rasterizer (a struck-through ✓ was
