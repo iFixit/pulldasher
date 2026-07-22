@@ -66,7 +66,7 @@ export function CardShell({
    number: number;
    title: string;
    onOpen?: () => void;
-   /** stable DOM id (format.ts's rowDomId) — lets "Deal me one" scroll to and
+   /** stable DOM id (format.ts's rowDomId) — lets toasts scroll to and
     * flash the row it just claimed. */
    id?: string;
    className?: string;

@@ -369,7 +369,7 @@ export function claimFor(
    return claims[pullKey(pull)] ?? null;
 }
 
-/** Claim/release actions: thin wrappers so callers (Row, "Deal me one") go
+/** Claim/release actions: thin wrappers so callers (Row, toasts) go
  * through the store like every other mutation instead of reaching into the
  * backend directly. */
 export function claimReview(pull: Pick<PullData, 'repo' | 'number'>): void {

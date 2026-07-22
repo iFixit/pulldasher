@@ -98,26 +98,6 @@ function flashOnce(key: string, fresh: boolean): boolean {
    return true;
 }
 
-/**
- * The same one-shot `.row-fresh` highlight a brand-new/updated row gets,
- * requested on demand for a row that ISN'T fresh — Review's "Deal me one"
- * flashing the pull it just claimed. Recorded in a Set exactly like flashOnce
- * above (and consumed the same one-shot way below) rather than mutated
- * directly on the DOM: a claim always changes opts.claims's reference, which
- * forces this memoized row to re-render on its own shortly after (see Row's
- * memo comparator) — direct className mutation would just get clobbered by
- * that re-render, since Row doesn't otherwise know to keep the class.
- */
-const dealtFlash = new Set<string>();
-export function markDealtFlash(key: string): void {
-   dealtFlash.add(key);
-}
-function consumeDealtFlash(key: string): boolean {
-   if (!dealtFlash.has(key)) return false;
-   dealtFlash.delete(key);
-   return true;
-}
-
 interface Flag {
    key: string;
    /** 'warn' = act on it (amber); 'note' = a neutral fact (muted) */
@@ -760,7 +740,7 @@ function RowImpl({
          id={rowDomId(d)}
          compact={opts.compact}
          depth={depth}
-         className={`${flashOnce(key, !!fresh) || consumeDealtFlash(key) ? 'row-fresh' : ''} transition-[background-color] duration-150 ease-out motion-reduce:transition-none`}
+         className={`${flashOnce(key, !!fresh) ? 'row-fresh' : ''} transition-[background-color] duration-150 ease-out motion-reduce:transition-none`}
          avatarBadge={
             starredAuthor && (
                <span

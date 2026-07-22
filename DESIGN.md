@@ -66,32 +66,28 @@ only remaining fact is when it landed) · avatar · title · repo# · age. No
 rail — nothing is left to act on. Every lens that shows closed pulls renders
 this component; never a second hand-rolled closed card.
 
-**Every card that shows a PR is a board row** — the Deal-me-one result, fold
-contents, popover previews. Same element order, same marks, same doors. A
-context may *add* (a "why this one" footnote, claim buttons) but never
-reorder or restate — inline status text on a card is always a regression.
+**Every card that shows a PR is a board row** — fold contents, popover
+previews, any future one-off surface. Same element order, same marks, same
+doors. A context may *add* (a "why this one" footnote, claim buttons) but
+never reorder or restate — inline status text on a card is always a
+regression.
 
-**A button that acts on a list acts on the list the user sees.** The review
-queue is ranked by the same score Deal-me-one deals from, so the button
-always takes the top visible card. Two orderings for one list — one shown,
-one hidden inside a button — is a least-surprise bug even when both are
-individually sensible; if a pick needs extra signals, put them in the
-lane's ranking and explain them behind the sub-line. A control that sits
-away from its list (the deal strip at the top of the page) names the list
-in its own label — "takes the top card of your review queue" — so the
-contract survives the distance. And when the action commits somewhere (a
-claim re-buckets the row into "Your move"), take the user there: scroll to
-the row's new home and flash it, so the commitment visibly lands instead
-of evaporating into a lane they aren't looking at.
+**A button that acts on a list acts on the list the user sees — and once
+they fully agree, the button is redundant.** The retired "Deal me one"
+feature walked the whole arc: first its hidden ranking diverged from the
+queue's (a least-surprise bug), so the queue adopted the deal's exact
+score; then the button could only ever hand you the top visible card of
+the lane directly under it, so it was removed entirely. The rule that
+remains: a ranked lane IS the recommendation — put pick logic in the
+lane's ordering and explain it behind the sub-line, never inside a control
+with its own private order.
 
 **Work-in-progress lives inline, not in a popover.** A popover is for
 glancing (state detail, signatures, rankings) and rightly dies on any
-outside click. A dealt card is a commitment in progress — it renders as an
-inline banner section in the board's own flow, full-width so the row keeps
-the board's rail geometry, dismissed only by an explicit Done or Escape.
-The deal popover shipped first and had three failure modes at once: buried
-mid-page on the queue lane's header, a row squeezed to 320px, and
-stray-click dismissal mid-triage.
+outside click. Anything the user is mid-way through renders in the board's
+own flow, full-width so rows keep the rail geometry, dismissed only
+explicitly. (The retired deal feature learned this the hard way: its
+popover era dismissed a commitment-in-progress on any stray click.)
 
 **Ranked lanes explain themselves in three quiet layers**: the sub-line
 says the ordering in one plain sentence (and is itself the hover-door to
@@ -151,6 +147,37 @@ conceptually perfect and rendered as a blob).
   eyebrow labels (`eyebrowText` in WordGroups.tsx — word sub-headers and
   band labels share the exported constant, never a hand-rolled copy) >
   `Fold` summaries (disclosure rows, not titles).
+
+## Copy rules (static text is part of the visual system)
+
+- **Say the thing, don't be clever.** Lane names state their contents
+  plainly: "Waiting on you" / "Waiting on others", never a metaphor the
+  reader has to decode ("Your move" tested badly — some developers didn't
+  parse the chess reference, and clever-compressed titles read as
+  AI-written).
+- **One concept, one word, everywhere it appears.** The same underlying
+  fact must use the same word in the lane title, the group eyebrow, the
+  State filter, the notification title, and the settings toggle (an owed
+  re-stamp is "Re-stamp" / "Re-stamp owed" on every surface; it was once
+  also "Re-review owed"). Before adding copy, grep for the concept's
+  existing word.
+- **Team vocabulary is native, not jargon.** CR, QA, stamp, re-stamp,
+  rebase come from this team's own workflow (v1 heritage, `cr_req` in the
+  DB) and stay. What goes: internal engineering words the reader never
+  chose — "scope" (say "filters"), "starved" (say how long it waited),
+  "lens" (say "tab"), "wire" (say where the data comes from), codenames
+  without their plain gloss ("cryo" → "parked").
+- **No em dashes in rendered copy.** Comma, period, semicolon, colon, or
+  the house "·" separator. (Comments may keep them; the reader never sees
+  comments.)
+- **Every curated lane's sub-line is a door** (`SubDoor` in Lane.tsx): the
+  visible sentence states the ordering, hovering it opens what lands in
+  the lane and how it's ranked. Every group eyebrow glosses itself the
+  same way (WORD_GLOSS). A control that sits away from the thing it acts
+  on names that thing in its own label, so the connection survives the
+  distance. The test for any new mark, header, or lane: a
+  developer who has never opened the legend can decode it from the screen
+  alone. The legend documents; it never teaches.
 
 ## Verification discipline (how design changes get accepted here)
 

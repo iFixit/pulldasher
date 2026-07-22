@@ -79,8 +79,7 @@ export function Rows({ children }: { children: ReactNode }) {
 
 /** The shared lane/group header: title, optional subtitle, optional
  * right-aligned count and/or an extra control. Exported so one-off sections
- * (Review's dealt-to-you banner) use the one header system instead of
- * hand-rolling a lookalike. */
+ * use the one header system instead of hand-rolling a lookalike. */
 export function GroupHeader({
    title,
    sub,
@@ -155,7 +154,7 @@ export function Lane({
    opts: RowOptions;
    /** extra rows rendered inside the container, before the more-line */
    children?: ReactNode;
-   /** an extra control right-aligned in the header, e.g. Review's "Deal me one" */
+   /** an extra control right-aligned in the header */
    headerExtra?: ReactNode;
 }) {
    if (!pulls.length && !children) return null;

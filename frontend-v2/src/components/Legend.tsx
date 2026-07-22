@@ -270,7 +270,7 @@ export function Legend() {
                      candidates are everyone who’s CR’d that repo before (minus the author and
                      anyone who already stamped this one), so they all know the code; the pick then
                      favors whoever the author has reviewed before, a good turn owed back, the same
-                     signal “Deal me one” leans on.
+                     signal the review queue’s ranking leans on.
                   </p>
                   <p>
                      If you’re the pick, a toast asks you to claim it right there (which also adds

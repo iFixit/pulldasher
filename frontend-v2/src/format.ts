@@ -57,7 +57,7 @@ export function pullKey(d: { repo: string; number: number }) {
 
 /** The DOM id a row renders under — repo's slashes swapped for hyphens (a
  * literal '/' or '#' is legal in an HTML id but not in a CSS selector), so
- * "Deal me one" can scrollIntoView + flash the row it just claimed. */
+ * a toast can scrollIntoView + flash the row it points at. */
 export function rowDomId(d: { repo: string; number: number }) {
    return `pull-${d.repo.replace(/\//g, '-')}-${d.number}`;
 }
