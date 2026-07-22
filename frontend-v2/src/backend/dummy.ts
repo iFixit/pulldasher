@@ -154,6 +154,31 @@ function withSyntheticStacks(pulls: PullData[]): PullData[] {
    const [forkParent, forkChild1, forkChild2] = FORK_INDEXES;
    rebase(forkChild1, out[forkParent].head.ref);
    rebase(forkChild2, out[forkParent].head.ref);
+   // The chain belongs to the dummy viewer: a dependent pull's status differs
+   // from its parent's, so on Review the members scatter across lanes and
+   // only ever demo the flat-with-stub case. My work is the one surface that
+   // holds a whole chain in one list (your own PRs, and WordGroupRows pulls
+   // children into their root's bucket), so a viewer-authored chain is the
+   // standing FULL demo of nesting: indent + elbow, three deep. The fork
+   // stays authored by others, which keeps the split-stack stub demo alive
+   // on Review at the same time.
+   for (const i of CHAIN_INDEXES) {
+      out[i] = { ...out[i], user: { ...out[i].user, login: dummyUser() } };
+   }
+   // ...and every chain member gets a merge conflict and a clean signature
+   // slate. The children are already 'unmergeable' by virtue of being
+   // dependent, but per-member noise (the grandchild's fixture carries a
+   // stale CR, the root would otherwise be a plain wait) scatters the three
+   // across the move/wait lanes, and a chain only nests when its members
+   // share one list. Uniform state = one bucket = the standing 3-deep demo
+   // of indent + elbow on My work and Review both.
+   for (const i of CHAIN_INDEXES) {
+      out[i] = {
+         ...out[i],
+         mergeable: false,
+         status: { ...out[i].status, allCR: [], allQA: [] },
+      };
+   }
    return out;
 }
 
