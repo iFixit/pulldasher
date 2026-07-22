@@ -402,10 +402,15 @@ function RowActions({
             >
                <ActionIcon d={ICON_REFRESH} spin={a.spinning} />
             </button>
-            {/* never offered on your own pull — you don't review yourself.
-                Once it's yours, the always-visible hand above (outside
-                .row-actions) takes over so the claim doesn't disappear on
-                hover-out. */}
+            {/* never offered on your own pull — you don't review yourself,
+                but the slot's width is reserved so the rail (and the age
+                numeral's right edge in the meta line) stays one column
+                whether or not a row is claimable. In wide lanes this cluster
+                is in-flow (visibility:hidden keeps layout), so a missing
+                button would shift everything left of it. Once it's yours,
+                the always-visible hand above (outside .row-actions) takes
+                over so the claim doesn't disappear on hover-out. */}
+            {pull.data.user.login === me && <span aria-hidden className="w-[22px] flex-none" />}
             {pull.data.user.login !== me && !mine && (
                <button
                   type="button"
