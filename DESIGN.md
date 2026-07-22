@@ -71,6 +71,20 @@ contents, popover previews. Same element order, same marks, same doors. A
 context may *add* (a "why this one" footnote, claim buttons) but never
 reorder or restate — inline status text on a card is always a regression.
 
+**A button that acts on a list acts on the list the user sees.** The review
+queue is ranked by the same score Deal-me-one deals from, so the button
+always takes the top visible card. Two orderings for one list — one shown,
+one hidden inside a button — is a least-surprise bug even when both are
+individually sensible; if a pick needs extra signals, put them in the
+lane's ranking and explain them behind the sub-line.
+
+**Ranked lanes explain themselves in three quiet layers**: the sub-line
+says the ordering in one plain sentence (and is itself the hover-door to
+the full story — existing text becomes interactive, no info-icon chrome);
+each card's state popover carries a "why it's up next" line; and every
+fold's hint says what lands in it. If a user has to ask why a card is
+where it is, one of these layers is missing.
+
 ## Identity vs standing
 
 A mark has two layers: the **glyph names what it is; the treatment names its
@@ -92,6 +106,12 @@ member of the sign-off family (it did, when weight was a dot):
 | circle-checks (14px SVG masks, `.pip`) | CR/QA sign-off | the rail's senior elements; nothing else may match their size |
 | segmented horizontal bar | CI | red/slate segments sized by count; **passed is invisible at rest**, green revealed on hover |
 | horizontal ratio strip (4px, under CR+QA) | review weight | one quiet ink fill on a fixed-extent track; fill **doubles per class** (6/13/25/50/100%) because effort doubles per class — exponential honesty beats linear prettiness |
+| horizontal ratio strip (4px, under CI) | age / starvation | **gated, not always-on**: renders nothing below the aging threshold (a placeholder holds the slot), then an amber fill growing warn→rot, red past rot, plateauing there. Distinct from the weight strip on four axes — left column, gated, only ever amber/red, square caps vs pill. The numeral in the meta line stays neutral ink (weight bump only): one mark carries the color |
+
+The rail is two columns × two decks: `CI / age-strip` on the left,
+`CR+QA pips / weight-strip` on the right. Age's color lives *only* in its
+strip — when a signal moves onto a better mark, remove it from the old one
+in the same change, or the card gets louder instead of clearer.
 
 Marks are drawn as SVG masks / CSS geometry, never font glyphs — a text ✓
 at 10px is at the mercy of the platform rasterizer (a struck-through ✓ was
