@@ -19,6 +19,11 @@ export interface Settings {
     * derive that rotDays for AgeStamp/AgeBaseline (app.tsx, views/Stats.tsx)
     * instead of storing it separately. */
    ageWarnDays: number;
+   /** which clock the row's age numeral shows: days since it opened, or days
+    * since its last update. Both clocks stay in the numeral's popover, and
+    * the urgency weight always follows the OPENED clock — how long a pull
+    * has been open is the truth the board ranks by. */
+   ageDisplay: 'opened' | 'updated';
    /** seconds of attention before leaving stamps "last seen" (the glance guard) */
    seenAfterSecs: number;
    /** per-repo override of the org baseline: 'mute' hides a shown repo,
@@ -99,6 +104,7 @@ export const DEFAULT_SETTINGS: Settings = {
    density: 'comfortable',
    defaultLens: 'review',
    ageWarnDays: STARVE_DAYS,
+   ageDisplay: 'opened',
    seenAfterSecs: 45,
    repoPrefs: {},
    draftsMode: 'mine',

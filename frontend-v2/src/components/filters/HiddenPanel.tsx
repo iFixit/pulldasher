@@ -16,8 +16,6 @@ export interface HiddenCounts {
    mutedRepos: number;
    /** PRs by people you muted */
    mutedPeople: number;
-   /** PRs you snoozed */
-   snoozed: number;
    /** PRs currently off the board, after session reveals */
    hiddenNow: number;
 }
@@ -56,7 +54,7 @@ export function HiddenPanel({
    // the undo is one click, mirroring how an active filter clears
    const revealing = showAll || reveal.length > 0 || draftsMode !== settings.draftsMode;
    const anythingHidden =
-      counts.parked + counts.drafts + counts.mutedRepos + counts.mutedPeople + counts.snoozed > 0;
+      counts.parked + counts.drafts + counts.mutedRepos + counts.mutedPeople > 0;
    if (!anythingHidden && !revealing) return null;
 
    const resetReveals = () => {
@@ -173,13 +171,6 @@ export function HiddenPanel({
                   'By people you muted',
                   counts.mutedPeople,
                   'Unmute them under People.'
-               )}
-            {counts.snoozed > 0 &&
-               infoRow(
-                  'snoozed',
-                  'Snoozed by you',
-                  counts.snoozed,
-                  'Back tomorrow, or as soon as they change.'
                )}
             <div className="mt-1.5 border-t border-secondary px-1.5 pt-2 pb-1">
                <label className="flex items-center gap-2">

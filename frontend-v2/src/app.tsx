@@ -18,7 +18,7 @@ import { buildReviewerPools, turnFor } from './model/rotation';
 import { shipRelevance, shippedToast } from './model/shipped';
 import type { Toast } from './model/toast';
 import type { Team as TeamGroup } from './types';
-import { claimReview, isSnoozed, markAllSeen, setWeightLabels, usePulldasher } from './store';
+import { claimReview, markAllSeen, setWeightLabels, usePulldasher } from './store';
 import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
 import { loadSiteConfig, primeScope, useScope } from './prefs';
 import { getSettings, useSettings } from './settings';
@@ -228,7 +228,6 @@ export function App() {
       lastPayloadAt,
       lastSeen,
       acked,
-      snoozed,
       refreshProgress,
    } = usePulldasher();
    // desktop notifications watch the whole board, not the current filter
@@ -496,11 +495,10 @@ export function App() {
             p.data.user.login !== me &&
             !revealedAuthor(p.data.user.login) &&
             !reviewRequestedFrom(p, me);
-         // a snoozed pull stays off the board until tomorrow or its next
-         // change; the master reveal shows it like every other hidden group
-         return (
-            hiddenRepo || hiddenPerson || cryoHidden || draftHidden || isSnoozed(p.data, snoozed)
-         );
+         // snoozes are NOT here: a snooze only quiets the Review lens (its
+         // "not today" gesture), so the Review view applies it itself and
+         // every other lens still shows the pull
+         return hiddenRepo || hiddenPerson || cryoHidden || draftHidden;
       },
       [
          showAll,
@@ -515,7 +513,6 @@ export function App() {
          settings.showCryo,
          settings.mutedPeople,
          draftsMode,
-         snoozed,
       ]
    );
 
@@ -608,7 +605,7 @@ export function App() {
    // rule covers, whether or not a session reveal currently shows it) plus
    // the live currently-hidden total for the trigger label
    const hiddenCounts = useMemo(() => {
-      const c = { parked: 0, drafts: 0, mutedRepos: 0, mutedPeople: 0, snoozed: 0, hiddenNow: 0 };
+      const c = { parked: 0, drafts: 0, mutedRepos: 0, mutedPeople: 0, hiddenNow: 0 };
       for (const p of pulls) {
          if (p.cryo) c.parked++;
          if (p.data.draft && p.data.user.login !== me && !reviewRequestedFrom(p, me)) c.drafts++;
@@ -619,22 +616,10 @@ export function App() {
             personHidden(p.data.user.login, settings.mutedPeople)
          )
             c.mutedPeople++;
-         if (isSnoozed(p.data, snoozed)) c.snoozed++;
          if (boardHidden(p)) c.hiddenNow++;
       }
       return c;
-   }, [
-      pulls,
-      me,
-      hiddenRepos,
-      settings.repoPrefs,
-      settings.mutedPeople,
-      isBot,
-      snoozed,
-      boardHidden,
-   ]);
-   // counts every open pull a snooze currently hides, for the Settings surface
-   const snoozedCount = hiddenCounts.snoozed;
+   }, [pulls, me, hiddenRepos, settings.repoPrefs, settings.mutedPeople, isBot, boardHidden]);
 
    const isScoped = scope.repos.length || scope.authors.length || query;
 
@@ -730,6 +715,7 @@ export function App() {
          maxAgeDays,
          ageWarnDays: settings.ageWarnDays,
          ageRotDays: Math.round(settings.ageWarnDays * 2.5),
+         ageDisplay: settings.ageDisplay,
          compact: settings.density === 'compact',
          laneCap: settings.laneCapByLens[lens] ?? settings.laneCap,
          parentOf,
@@ -744,6 +730,7 @@ export function App() {
          onWeightToggle,
          maxAgeDays,
          settings.ageWarnDays,
+         settings.ageDisplay,
          settings.density,
          settings.laneCap,
          settings.laneCapByLens,
@@ -933,7 +920,7 @@ export function App() {
                   <span className="hidden sm:flex">
                      <Legend />
                   </span>
-                  <Settings snoozedCount={snoozedCount} onGoToTeam={() => setLens('team')} />
+                  <Settings onGoToTeam={() => setLens('team')} />
                </div>
                <div className="mx-auto flex max-w-[1240px] min-w-0 items-center px-5 py-2.5 pl-11 pr-32 sm:pr-40 2xl:px-5">
                   {/* min-w-0 + overflow-x-auto (no-scrollbar in styles.css)

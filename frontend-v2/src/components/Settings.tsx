@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Settings as SettingsIcon, X } from 'lucide-react';
 import { clearStoredPrefs } from '../storage';
-import { clearSnoozes, markAllSeen, refreshAll, usePulldasher } from '../store';
+import { markAllSeen, refreshAll, usePulldasher } from '../store';
 import {
    addCodeRegion,
    removeCodeRegion,
@@ -121,11 +121,8 @@ function CodeRegionsGroup() {
 }
 
 export function Settings({
-   snoozedCount,
    onGoToTeam,
 }: {
-   /** pulls currently hidden by a row snooze */
-   snoozedCount: number;
    /** switch the board to the Team lens and close this panel — the "Edited
     * on the board" pointer line's action. The team picker and repo manager
     * embeds are gone (Team view and the header's Repos filter own those
@@ -318,6 +315,20 @@ export function Settings({
                            />
                         </Field>
                         <Field
+                           label="Age number shows"
+                           hint="Which clock the quiet number at a row’s right edge reads: days since the PR opened, or days since its last update. Hover the number for both."
+                        >
+                           <Segmented
+                              ariaLabel="which clock the age number shows"
+                              value={s.ageDisplay}
+                              options={[
+                                 ['opened', 'Opened'],
+                                 ['updated', 'Last update'],
+                              ]}
+                              onChange={ageDisplay => set({ ageDisplay })}
+                           />
+                        </Field>
+                        <Field
                            label="Getting QA is a to-do"
                            hint="For teams that self-review, no separate CR gate means lining up QA is the real stall, so “Find a QA-er” on your own PRs shows in Waiting on you. Off keeps it in My work only."
                         >
@@ -434,22 +445,8 @@ export function Settings({
                               </span>
                            </div>
 
-                           <span className="mt-2 block text-ink-2">
-                              A snoozed row hides for a day, or until the PR changes.
-                           </span>
-                           <div className="flex items-center gap-3 pt-1">
-                              <QuietButton
-                                 size="md"
-                                 disabled={!snoozedCount}
-                                 onClick={() => clearSnoozes()}
-                              >
-                                 Bring back snoozed
-                              </QuietButton>
-                              <span className="text-xs text-ink-3 tabular-nums">
-                                 {snoozedCount} hidden now
-                              </span>
-                           </div>
-
+                           {/* snoozes live on the board now: the Review lens
+                               shows its own Snoozed section with the wake-all */}
                            <div className="pt-2">
                               <Field
                                  label="Mark the board seen after"

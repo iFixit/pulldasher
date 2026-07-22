@@ -54,6 +54,8 @@ export interface RowOptions {
    /** age thresholds from user settings (fall back to the model's) */
    ageWarnDays?: number;
    ageRotDays?: number;
+   /** which clock the age numeral shows (settings.ageDisplay) */
+   ageDisplay?: 'opened' | 'updated';
    /** the board's longest-open pull, in days — the age baseline's full
     * track; every row's line is a fraction of the oldest */
    maxAgeDays?: number;
@@ -350,8 +352,8 @@ function RowActions({
             </button>
             <button
                type="button"
-               aria-label="snooze: hide until tomorrow or until it changes"
-               title="snooze: hide until tomorrow or until it changes"
+               aria-label="snooze: off your Review lens until tomorrow or until it changes"
+               title="snooze: off your Review lens until tomorrow or until it changes"
                className={btn}
                onClick={a.snooze}
             >
@@ -551,73 +553,39 @@ function RailLabel({ children }: { children: ReactNode }) {
 }
 
 /**
- * Review weight as a letter in the CR cluster — XS/S/M/L/XL, or "?" when the
- * wire sent no size — not the strip that used to run under the whole
- * sign-off row (the owner found the bar visually loud and it only ever said
- * what a letter already can). Same fixed 18px slot as the CI/CR/QA labels:
- * "XS" and "XL" are the widest cases this ever renders, exactly as wide as
- * those two-letter labels, so the letter never nudges the pips beside it.
- * Click/hover opens the same popover the old strip did: the effort word, the
- * exact +/− diff, and a "Filter to X PRs" toggle into the session Weight
- * filter (falls back to a plain trigger when no lens has wired
- * RowOptions.onWeightToggle up).
+ * The weight drill-down, now a section of the CR ledger panel (one popover
+ * for the whole CR cluster — label, letter, and pips are a single door).
+ * Content is the old standalone weight popover's: the effort word, the exact
+ * diff, how the letter is decided, and the filter action.
  */
-function WeightLetter({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
+function WeightPanelSection({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
    const { weight, sizeKnown } = pull;
-   const word = WEIGHT_WORD[weight];
-   const letter = sizeKnown ? weight : '?';
-   const onWeightToggle = opts.onWeightToggle;
    const d = pull.data;
    return (
-      <Popover
-         label="review effort"
-         hover
-         side="right"
-         rootClass="relative inline-flex"
-         width="w-max"
-         panelClass="p-2 text-xs"
-         // the trigger keeps the shared pin contract ({...t}'s own click) so
-         // tap and Enter open the SAME panel hover gets — an explicit onClick
-         // here once overwrote the toggle and locked this popover to
-         // mouse-hover only, an information blackout for touch and keyboard.
-         // The filter action lives inside the panel instead.
-         trigger={t => (
-            <button
-               {...t}
-               type="button"
-               aria-label={`review effort: ${word}${sizeKnown ? '' : ' (size estimated)'}`}
-               // -my-2/py-2: the rail's shared tap-target trick, no layout
-               // change. Faded when the size is a guess, same tell the old
-               // strip used.
-               className={`pressable -my-2 inline-block w-[18px] rounded border-0 bg-transparent px-0 py-2 text-left text-[11px] font-medium tabular-nums text-ink-3 hover:bg-secondary/60 ${
-                  sizeKnown ? '' : 'opacity-60'
-               }`}
-            >
-               {letter}
-            </button>
-         )}
-      >
-         <span className="block font-medium text-ink">review effort: {word}</span>
+      <div className="mt-1 border-t border-secondary px-1 pt-1.5">
+         <span className="block text-ink-2">
+            review effort:{' '}
+            <b className="font-medium text-ink">{WEIGHT_WORD[weight]}</b>
+            {sizeKnown ? '' : ' (estimated)'}
+         </span>
          {sizeKnown && (
             <span className="mt-1 block">
                <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
             </span>
          )}
-         {/* how the letter is decided, in place of the old legend essay: the
-             popover is the drill-down, so the rule lives here */}
          <span className="mt-1 block max-w-[230px] text-ink-3">
             {sizeKnown
                ? 'From the org’s size label when the PR has one, else the diff: 50 / 150 / 600 / 1500 lines step XS through XL, one class up past 15 files. A pointer, not a verdict.'
                : 'A guess: the wire sent no diff size.'}
          </span>
-         {onWeightToggle && (
+         {opts.onWeightToggle && (
             <span className="mt-1.5 block">
-               <QuietButton onClick={() => onWeightToggle(weightFilterKey(pull))}>
+               <QuietButton onClick={() => opts.onWeightToggle?.(weightFilterKey(pull))}>
                   Filter to {sizeKnown ? weight : 'unknown-size'} PRs
                </QuietButton>
             </span>
          )}
-      </Popover>
+      </div>
    );
 }
 
@@ -650,41 +618,63 @@ function MetricRail({
       >
          <RowActions pull={pull} overlay={!!opts.compact} me={me} claim={claim} />
          <RowActionsKebab pull={pull} claim={claim} />
-         {/* one instrument: the three reviewers' marks in a row — machine
-             first, then the humans, weight riding along inside the CR
-             cluster. CI is invisible at rest unless failing (revealed on row
-             hover), in a reserved slot so nothing shifts. */}
+         {/* one instrument, humans first: CR (label, weight letter, pips —
+             one door into one panel), then QA, then the machine's circle at
+             the rail's end, where its optional render (green only on hover)
+             can't shift the human marks, and last the age numeral capping
+             the row. */}
+         <SigPips
+            label="CR"
+            have={pull.crHave}
+            req={d.status.cr_req}
+            by={pull.crBy}
+            staleBy={pull.recrBy}
+            me={me}
+            sigs={d.status.allCR}
+            lead={
+               <>
+                  <RailLabel>CR</RailLabel>
+                  {/* the owner's sketch was "CR · S ✓✓": the middot keeps the
+                      label and the size letter from fusing at 11px */}
+                  <span aria-hidden className="flex-none text-[11px] text-ink-3">
+                     ·
+                  </span>
+                  <span
+                     aria-hidden
+                     className={`w-[18px] flex-none text-left text-[11px] font-medium tabular-nums text-ink-3 ${
+                        pull.sizeKnown ? '' : 'opacity-60'
+                     }`}
+                  >
+                     {pull.sizeKnown ? pull.weight : '?'}
+                  </span>
+               </>
+            }
+            panelExtra={<WeightPanelSection pull={pull} opts={opts} />}
+         />
+         <SigPips
+            label="QA"
+            have={pull.qaHave}
+            req={d.status.qa_req}
+            by={pull.qaBy}
+            staleBy={pull.reqaBy}
+            me={me}
+            sigs={d.status.allQA}
+            lead={<RailLabel>QA</RailLabel>}
+         />
          <CiStatus pull={pull} />
-         <span className="inline-flex items-center gap-1">
-            <RailLabel>CR</RailLabel>
-            {/* the owner's sketch was "CR · S ✓✓": the middot keeps the
-                label and the size letter from fusing into one token at 11px */}
-            <span aria-hidden className="flex-none text-[11px] text-ink-3">
-               ·
-            </span>
-            <WeightLetter pull={pull} opts={opts} />
-            <SigPips
-               label="CR"
-               have={pull.crHave}
-               req={d.status.cr_req}
-               by={pull.crBy}
-               staleBy={pull.recrBy}
-               me={me}
-               sigs={d.status.allCR}
-            />
-         </span>
-         <span className="inline-flex items-center gap-1">
-            <RailLabel>QA</RailLabel>
-            <SigPips
-               label="QA"
-               have={pull.qaHave}
-               req={d.status.qa_req}
-               by={pull.qaBy}
-               staleBy={pull.reqaBy}
-               me={me}
-               sigs={d.status.allQA}
-            />
-         </span>
+         {/* the age numeral caps the rail — the row's far-right column, a
+             whisper in the age line's own tint until the row is hovered
+             (styles.css .pd-age-num). Which clock it shows is the user's
+             call (settings.ageDisplay); both clocks stay in its popover. */}
+         <AgeStamp
+            ageDays={pull.ageDays}
+            createdAt={epoch(d.created_at)}
+            updatedAt={epoch(d.updated_at)}
+            quiet={['draft', 'dev_block', 'deploy_block'].includes(pull.status)}
+            warnDays={opts.ageWarnDays}
+            rotDays={opts.ageRotDays}
+            display={opts.ageDisplay}
+         />
       </span>
    );
 }
@@ -804,19 +794,6 @@ function RowImpl({
                   </Popover>
                )}
                <RowDetails flags={rowFlags(pull, showIterating, depth, orphanParent)} />
-               {/* the age numeral floats right, capping the baseline track —
-                   a quiet timestamp column, mail-client style */}
-               <span className="ml-auto flex-none pr-0.5">
-                  <AgeStamp
-                     ageDays={pull.ageDays}
-                     createdAt={epoch(d.created_at)}
-                     updatedAt={epoch(d.updated_at)}
-                     quiet={['draft', 'dev_block', 'deploy_block'].includes(pull.status)}
-                     warnDays={opts.ageWarnDays}
-                     rotDays={opts.ageRotDays}
-                     inline
-                  />
-               </span>
             </>
          }
          rail={<MetricRail pull={pull} opts={opts} claim={claim} />}
@@ -856,6 +833,7 @@ export const Row = memo(
       a.opts.ageWarnDays === b.opts.ageWarnDays &&
       a.opts.maxAgeDays === b.opts.maxAgeDays &&
       a.opts.ageRotDays === b.opts.ageRotDays &&
+      a.opts.ageDisplay === b.opts.ageDisplay &&
       a.opts.onWeightToggle === b.opts.onWeightToggle &&
       a.opts.parentOf === b.opts.parentOf &&
       a.opts.pools === b.opts.pools &&

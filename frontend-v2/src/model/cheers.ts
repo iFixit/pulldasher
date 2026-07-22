@@ -431,7 +431,10 @@ export function readSignals(input: CheerInput): Signals {
    }
 
    const authorPrs = new Map<string, AuthorPrState>();
-   for (const p of myPulls) {
+   // parked pulls sit out the edge system entirely: "ready to merge",
+   // "waiting Nd", and "answer the feedback" are all asks, and a parked pull
+   // asks nothing — the edges resume when the label comes off
+   for (const p of myPulls.filter(x => !x.cryo)) {
       authorPrs.set(pullKey(p.data), {
          green: p.status === 'ready',
          // "someone picked up your PR" means someone ELSE — a self-CR stamp
@@ -445,7 +448,9 @@ export function readSignals(input: CheerInput): Signals {
    }
 
    const boardReviewable = pulls.filter(
-      p => p.status === 'needs_cr' || p.status === 'needs_recr' || p.status === 'needs_qa'
+      p =>
+         !p.cryo &&
+         (p.status === 'needs_cr' || p.status === 'needs_recr' || p.status === 'needs_qa')
    ).length;
 
    // claims of yours gone stale that you still haven't stamped — the nudge to
@@ -474,6 +479,7 @@ export function readSignals(input: CheerInput): Signals {
    for (const p of pulls) {
       const key = pullKey(p.data);
       if (
+         !p.cryo &&
          (p.status === 'needs_cr' || p.status === 'needs_recr') &&
          reviewRequestedFrom(p, me) &&
          !p.crBy.includes(me)

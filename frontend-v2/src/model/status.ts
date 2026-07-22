@@ -269,6 +269,10 @@ export function derive(
    const conflict = pull.mergeable === false;
    const dependent = !['main', 'master'].includes(pull.base.ref);
    const label = (title: string) => pull.labels.find(l => l.title === title);
+   // computed early: parked (Cryogenic Storage) pulls age on purpose, so
+   // starvation — and everything downstream of it (starve nags, starve
+   // scores, the turn rotation) — must never see them as rotting
+   const isParked = !!label(LABELS.cryo);
 
    let status: Status;
    if (pull.draft) status = 'draft';
@@ -294,7 +298,8 @@ export function derive(
    // Rot is rot whether the pull has zero stamps, one of two, or a stale one
    // waiting on a re-stamp — the old `crHave === 0` cliff hid half-reviewed
    // pulls from the aging lane forever.
-   const starved = ['needs_cr', 'needs_recr'].includes(status) && !crMet && ageDays >= warnDays;
+   const starved =
+      !isParked && ['needs_cr', 'needs_recr'].includes(status) && !crMet && ageDays >= warnDays;
 
    const signedOffAt =
       crMet && qaMet
@@ -333,7 +338,7 @@ export function derive(
       deployBlockedBy,
       qaingLogin: label(LABELS.qaing)?.user ?? null,
       externalBlock: !!label(LABELS.externalBlock),
-      cryo: !!label(LABELS.cryo),
+      cryo: isParked,
       changesRequestedBy,
       engagedNoStamp,
    };

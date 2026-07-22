@@ -3,6 +3,7 @@ import type {
    ButtonHTMLAttributes,
    CSSProperties,
    KeyboardEvent as ReactKeyboardEvent,
+   ReactNode,
 } from 'react';
 import { Check, CircleDot, Star, X } from 'lucide-react';
 import {
@@ -324,7 +325,7 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
               (a, b) => ciRank(a) - ciRank(b) || a.data.context.localeCompare(b.data.context)
            );
    if (!checks.length)
-      return <span aria-hidden className="pd-ci-slot mr-1.5 inline-block w-[36px]" />;
+      return <span aria-hidden className="pd-ci-slot inline-block w-[36px]" />;
 
    const failing = checks.filter(isRedCheck).length;
    const passing = checks.filter(c => c.data.state === 'success').length;
@@ -355,7 +356,7 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
                // One fixed slot width in every state (sized to the failing
                // cluster, the widest), so the rail — and the age numeral's
                // right edge in the meta line — stays one column down a lane.
-               className={`pd-ci-slot pressable -my-2 mr-1.5 inline-flex w-[36px] items-center gap-1 rounded border-0 bg-transparent px-0 py-2 hover:bg-secondary/60 ${
+               className={`pd-ci-slot pressable -my-2 inline-flex w-[36px] items-center gap-1 rounded border-0 bg-transparent px-0 py-2 hover:bg-secondary/60 ${
                   failing > 0 || pending
                      ? ''
                      : 'pd-ci-quiet opacity-0 transition-opacity duration-150 hover:opacity-100 focus-visible:opacity-100 [.pd-row:hover_&]:opacity-100 motion-reduce:transition-none'
@@ -563,6 +564,8 @@ export function SigPips({
    staleBy = [],
    me,
    sigs,
+   lead,
+   panelExtra,
 }: {
    label: string;
    have: number;
@@ -571,11 +574,13 @@ export function SigPips({
    staleBy?: string[];
    me?: string;
    sigs: Signature[];
+   /** rendered inside the trigger before the pips — the cluster's text label
+    * (and, for CR, the weight letter), so the words are part of the door */
+   lead?: ReactNode;
+   /** an extra panel section under the signer rows (CR carries the weight
+    * drill-down here — one popover for the whole cluster) */
+   panelExtra?: ReactNode;
 }) {
-   // bare pips (the no-signatures fallback) keep their native title; inside
-   // the hover popover below it would just stack a browser tooltip on top
-   if (!sigs.length)
-      return <Pips label={label} have={have} req={req} by={by} staleBy={staleBy} me={me} />;
    const pips = (
       <Pips label={label} have={have} req={req} by={by} staleBy={staleBy} me={me} titled={false} />
    );
@@ -606,11 +611,13 @@ export function SigPips({
             <button
                {...t}
                type="button"
+               aria-label={`${label} stamps: ${have} of ${req}`}
                // no native title: the popover itself opens on this same hover
                // py+negative-my: a real tap target (the marks are ~10px glyphs)
                // without moving anything in the rail's layout
-               className="pressable -my-2 cursor-pointer rounded border-0 bg-transparent px-0 py-2 text-left hover:bg-secondary/60"
+               className="pressable -my-2 inline-flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-0 py-2 text-left hover:bg-secondary/60"
             >
+               {lead}
                {pips}
             </button>
          )}
@@ -625,6 +632,9 @@ export function SigPips({
                </span>
             )}
          </span>
+         {rows.length === 0 && (
+            <span className="block px-1 py-[3px] text-ink-3">No stamps yet.</span>
+         )}
          {rows.map(s => (
             <a
                key={s.data.user.login}
@@ -654,6 +664,7 @@ export function SigPips({
             <span className="pip pip-stale ml-1.5" /> staled by a push
             <span className="pip pip-off ml-1.5" /> needed
          </span>
+         {panelExtra}
       </Popover>
    );
 }
@@ -784,10 +795,17 @@ export function AgeBaseline({
  * The age slot: hours under a day, then days, with both clocks in the
  * popover. Hours matter here: in three months of real history, 62% of
  * pulls merged same-day, so "0d" was a dead signal for most of the live
- * board. The urgency *color* lives on the row's AgeBaseline now — this
- * numeral stays neutral ink and only gains font weight past the same
- * thresholds, so age's salience is carried once, by the mark built for
- * continuous gradation, not twice.
+ * board. It rides at the rail's far right, capping the row — and it
+ * WHISPERS: its resting color is the age line's own border tint, rising to
+ * ink on row hover (see styles.css .pd-age-num). Age's salience is carried
+ * once, by the baseline built for continuous gradation; the numeral is the
+ * label you consult, not a second alarm. Font weight still steps at the
+ * warn/rot thresholds so the hover read carries the urgency.
+ *
+ * `display` picks the clock the numeral shows (opened vs last update); the
+ * urgency weight always follows the OPENED clock — how long a pull has been
+ * open is the truth the board ranks by, whichever number the user prefers
+ * to read.
  */
 export function AgeStamp({
    ageDays,
@@ -797,6 +815,7 @@ export function AgeStamp({
    warnDays = STARVE_DAYS,
    rotDays = ROT_DAYS,
    inline,
+   display = 'opened',
 }: {
    ageDays: number;
    /** epoch secs the pull opened */
@@ -813,6 +832,8 @@ export function AgeStamp({
     * fixed-width column — drops the w-7/text-right slot in favor of plain
     * inline text. */
    inline?: boolean;
+   /** which clock the numeral shows (settings.ageDisplay) */
+   display?: 'opened' | 'updated';
 }) {
    const heft = quiet
       ? ''
@@ -821,7 +842,12 @@ export function AgeStamp({
         : ageDays >= warnDays
           ? 'font-medium'
           : '';
-   const text = ageDays === 0 ? ago(createdAt) : `${ageDays}d`;
+   const shownEpoch = display === 'updated' ? updatedAt : createdAt;
+   const shownDays =
+      display === 'updated'
+         ? Math.max(0, Math.floor((Date.now() / 1000 - updatedAt) / 86400))
+         : ageDays;
+   const text = shownDays === 0 ? ago(shownEpoch) : `${shownDays}d`;
    // a popover, not a title: the second clock (last activity) exists nowhere
    // else on the row, and a native tooltip is mouse-only — this way touch
    // taps it and keyboard reads it from the aria-label
@@ -842,7 +868,7 @@ export function AgeStamp({
             >
                <span
                   aria-hidden
-                  className={`tabular-nums ${inline ? '' : 'block w-7 text-right'} ${heft}`}
+                  className={`pd-age-num tabular-nums ${inline ? '' : 'block w-7 text-right'} ${heft}`}
                >
                   {text}
                </span>

@@ -303,6 +303,20 @@ label:has(> input:not(:disabled)) {
     }
   }
 
+  /* the age numeral whispers: at rest it wears the age line's own border
+     tint (a label, not a second alarm), rising to ink when the row is
+     hovered or it is focused. Weight (the warn/rot heft) shows through on
+     the hover read. */
+  .pd-age-num {
+    color: var(--border);
+    transition: color 150ms ease-out;
+  }
+  .pd-row:hover .pd-age-num,
+  button:focus-visible > .pd-age-num,
+  button:hover > .pd-age-num {
+    color: var(--ink-3);
+  }
+
   /* the slot you personally stamped: a dotted rule under the marks */
   .pip-mine { border-bottom: 1px dotted var(--ink-3); padding-bottom: 2px; }
 
@@ -389,12 +403,20 @@ label:has(> input:not(:disabled)) {
    justify-end. flex-basis:100% can't share a line with anything, so it wraps
    whole. */
 @container (max-width: 520px) {
-  /* a wrapped rail has no cross-row columns to hold: the reserved quiet-CI
-     slot (and the no-checks placeholder) would just be a hole, so it
-     collapses here. Wide lanes keep the reservation for alignment. */
-  .pd-ci-quiet,
+  /* a wrapped rail has no cross-row columns to hold: the no-checks
+     placeholder collapses outright, and a quiet (passing) CI collapses at
+     rest but comes back on row hover — green stays one hover away even in
+     Classic's narrow columns. CI sits at the rail's end, so reappearing
+     grows the line rightward without shoving the human marks. */
   span.pd-ci-slot {
     display: none;
+  }
+  .pd-ci-quiet {
+    display: none;
+  }
+  .pd-row:hover .pd-ci-quiet,
+  .pd-ci-quiet:focus-visible {
+    display: inline-flex;
   }
   .pd-rail {
     flex-basis: 100%;

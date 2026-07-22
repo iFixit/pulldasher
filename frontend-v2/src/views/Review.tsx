@@ -14,9 +14,9 @@ import { reviewRequestedFrom } from '../model/reviewers';
 import { startHereReason } from '../model/cheers';
 import { dealRank } from '../model/deal';
 import { useSettings } from '../settings';
-import { claimFor, isFresh } from '../store';
+import { claimFor, clearSnoozes, isFresh, isSnoozed, usePulldasher } from '../store';
 import type { PullData } from '../types';
-import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
+import { EmptyState, QuietButton, STATUS_DOT, STATUS_LABEL } from '../components/bits';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, SubDoor, Truncated } from '../components/Lane';
 import { RegionHint } from '../components/RegionHint';
 import type { RowOptions } from '../components/Row';
@@ -31,8 +31,8 @@ import { ClosedRow } from '../components/ClosedRow';
  * work to pick from.
  */
 export function Review({
-   pulls,
-   bots,
+   pulls: allPulls,
+   bots: allBots,
    closed,
    opts,
 }: {
@@ -44,6 +44,14 @@ export function Review({
    const me = opts.me;
    const { selfReview, primaryRepos, starredPeople, codeRegions } = useSettings();
    const starred = new Set(starredPeople);
+   // A snooze is "not today" for THIS lens only: the daily what-do-I-review
+   // loop lives here, so the quieting gesture belongs here — every other
+   // lens still shows the pull. Snoozed rows collect in their own section at
+   // the bottom of the board instead of vanishing into Settings.
+   const { snoozed } = usePulldasher();
+   const napping = [...allPulls, ...allBots].filter(p => isSnoozed(p.data, snoozed));
+   const pulls = allPulls.filter(p => !isSnoozed(p.data, snoozed));
+   const bots = allBots.filter(p => !isSnoozed(p.data, snoozed));
    const others = pulls.filter(p => p.data.user.login !== me);
 
    // Repo relevance is per-person: a web dev and a firmware dev share the
@@ -496,7 +504,7 @@ export function Review({
             cap={6}
             opts={{ ...opts, rankReason: whyQaNext }}
          />
-         {restTotal > 0 && (
+         {(restTotal > 0 || napping.length > 0) && (
             <RestGroup title="The rest of the board">
                <Fold
                   dot={STATUS_DOT.needs_cr}
@@ -607,6 +615,27 @@ export function Review({
                         <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />
                      ))}
                   </Truncated>
+               </Fold>
+               {/* your snoozes, visibly parked at the board's bottom instead
+                   of vanishing into Settings — hiding is trustworthy when you
+                   can always see what's hidden. Review-lens only: a snooze
+                   quiets this lens's daily loop, nothing else. */}
+               <Fold
+                  dot="var(--ink-3)"
+                  count={napping.length}
+                  label="snoozed by you"
+                  hint="back tomorrow, or as soon as they change"
+                  id="review:snoozed"
+               >
+                  <div className="flex items-center justify-between gap-2 border-t border-secondary px-3.5 py-1.5 first:border-t-0">
+                     <span className="text-xs text-ink-3">
+                        Hidden from this lens only; every other lens still shows them.
+                     </span>
+                     <QuietButton size="sm" onClick={() => clearSnoozes()}>
+                        Wake all
+                     </QuietButton>
+                  </div>
+                  <FoldRows list={napping} opts={opts} id="review:snoozed" />
                </Fold>
             </RestGroup>
          )}

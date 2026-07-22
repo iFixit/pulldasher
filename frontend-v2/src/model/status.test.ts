@@ -395,6 +395,25 @@ describe('starvation and weight', () => {
       // fully CRed: never starved
       const done = withStatus({ allCR: [sig('CR', 'r', true)] }, { created_at: old });
       expect(derive(done, undefined, NOW).starved).toBe(false);
+
+      // parked (Cryogenic Storage) ages on purpose: never starved, so no
+      // starve nags, no starve score, no turn rotation
+      const parked = pull({
+         created_at: old,
+         labels: [
+            {
+               title: 'Cryogenic Storage',
+               number: 1,
+               repo: 'iFixit/ifixit',
+               user: 'author',
+               created_at: '2026-01-01T00:00:00Z',
+            },
+         ],
+      });
+      const dp = derive(parked, undefined, NOW);
+      expect(dp.cryo).toBe(true);
+      expect(dp.starved).toBe(false);
+      expect(dp.starveScore).toBe(0);
    });
 
    it('records when the last required sign-off landed', () => {
