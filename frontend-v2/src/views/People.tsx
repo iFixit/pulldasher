@@ -204,20 +204,16 @@ export function People({
             </span>
             <span className="ml-auto flex gap-4 text-center text-xs text-ink-3">
                <span>
-                  <b className="block text-base font-semibold text-ink tabular-nums">
-                     {reviewable.length}
-                  </b>
+                  <b className="block text-base text-ink-2 tabular-nums">{reviewable.length}</b>
                   you can review
                </span>
                <span>
-                  <b className="block text-base font-semibold text-ink tabular-nums">{shipping}</b>
+                  <b className="block text-base text-ink-2 tabular-nums">{shipping}</b>
                   ready or in QA
                </span>
                {selectedPerson && (
                   <span>
-                     <b className="block text-base font-semibold text-ink tabular-nums">
-                        {owed.length}
-                     </b>
+                     <b className="block text-base text-ink-2 tabular-nums">{owed.length}</b>
                      {owed.length === 1 ? 're-stamp owed' : 're-stamps owed'}
                   </span>
                )}

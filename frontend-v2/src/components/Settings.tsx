@@ -53,7 +53,7 @@ function Explainer({ summary, children }: { summary: string; children: ReactNode
       <details className="group/exp -mt-1">
          <summary className="flex cursor-pointer list-none items-center gap-1 py-0.5 text-xs font-medium text-ink-3 hover:text-ink-2">
             <span aria-hidden className="transition-transform group-open/exp:rotate-90">
-               ›
+               ▸
             </span>
             {summary}
          </summary>
@@ -415,7 +415,7 @@ export function Settings({
                         </Field>
                         <Field
                            label="Age line appears"
-                           hint="When the amber age line appears and a pull counts as starved — this floats it up the review queue, not just draws it."
+                           hint="When the age hairline appears and a pull counts as starved — this floats it up the review queue, not just draws it."
                         >
                            <NumberField
                               value={s.ageWarnDays}
@@ -425,7 +425,10 @@ export function Settings({
                               onChange={ageWarnDays => set({ ageWarnDays })}
                            />
                         </Field>
-                        <Field label="Age line maxes out">
+                        <Field
+                           label="Age counts as rotting"
+                           hint="Bolds the day count at its heaviest and sets the rot tier in stats — the age line itself scales to the board's oldest pull."
+                        >
                            <NumberField
                               value={s.ageRotDays}
                               min={s.ageWarnDays + 1}

@@ -108,8 +108,13 @@ export function FreshTag({ kind }: { kind: 'new' | 'updated' }) {
    return (
       <span
          className={`chip-in flex-none rounded-lg px-[7px] py-[2px] text-[11px] font-semibold ${
-            isNew ? 'bg-brand text-white' : 'text-brand-700 shadow-[inset_0_0_0_1px_var(--brand)]'
+            isNew ? '' : 'text-brand-700 shadow-[inset_0_0_0_1px_var(--brand)]'
          }`}
+         style={
+            isNew
+               ? { background: 'var(--badge-brand-bg)', color: 'var(--badge-brand-fg)' }
+               : undefined
+         }
          title={isNew ? 'new since your last look' : 'updated since your last look'}
       >
          {isNew ? 'new' : 'updated'}
@@ -654,31 +659,47 @@ export function SigPips({
 }
 
 /**
- * Age as the row's own baseline: an amber 2px line along the bottom edge,
- * left-anchored so every row's fill starts at the same x, growing with
- * time-without-review and plateauing at the rot day — a 30-day pull doesn't
- * shout louder than a 10-day one. Amber only: red belongs to CI alone, and
- * a second red bar in the rail read as "broken" (it shipped that way once).
- * Silent below the aging threshold — a healthy young row draws nothing.
- * The quiet day count floats right in the meta line, capping the track;
- * that numeral's popover carries the exact clocks, so this line is pure
- * geometry (aria-hidden).
+ * Age as the row's own baseline: a 1px hairline along the bottom edge — a
+ * tinted stretch of the divider the row already has, not a drawn bar.
+ * RELATIVE, not thresholded: the board's longest-open pull sets the full
+ * track and every row is a fraction of it, so the line answers "how long
+ * has this waited, relative to what waiting looks like here." The tint
+ * deepens with that same fraction, ultra-light ink for the merely-aging
+ * through full ink-3 for the oldest — age is a quiet fact in grey, never
+ * a colored alarm (an amber version shipped for an hour and was the
+ * loudest thing on the board; urgency belongs to the queue's ranking and
+ * the numeral's weight). Silent below the aging threshold — a healthy
+ * young row draws nothing. aria-hidden: the numeral's popover carries the
+ * clocks; this line is pure geometry.
  */
 export function AgeBaseline({
    ageDays,
    warnDays = STARVE_DAYS,
-   rotDays = ROT_DAYS,
+   maxAgeDays = 1,
    quiet,
 }: {
    ageDays: number;
    warnDays?: number;
-   rotDays?: number;
+   /** the board's longest-open pull — the 100% mark of the track */
+   maxAgeDays?: number;
    /** drafts and holds age on purpose: draw nothing */
    quiet?: boolean;
 }) {
    if (quiet || ageDays < warnDays) return null;
-   const pct = Math.min((ageDays - warnDays) / Math.max(rotDays - warnDays, 1), 1);
-   return <span aria-hidden className="pd-age-line" style={{ width: `${(pct * 100).toFixed(1)}%` }} />;
+   const t = Math.min(ageDays / Math.max(maxAgeDays, 1), 1);
+   // tint rides the same fraction as length: ~30% ink at the gate, full
+   // ink-3 on the board's oldest
+   const inkPct = Math.round(30 + 70 * t);
+   return (
+      <span
+         aria-hidden
+         className="pd-age-line"
+         style={{
+            width: `${(t * 100).toFixed(1)}%`,
+            background: `color-mix(in oklab, var(--ink-3) ${inkPct}%, transparent)`,
+         }}
+      />
+   );
 }
 
 /**

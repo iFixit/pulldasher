@@ -231,16 +231,16 @@ label:has(> input:not(:disabled)) {
   /* the slot you personally stamped: a dotted rule under the marks */
   .pip-mine { border-bottom: 1px dotted var(--ink-3); padding-bottom: 2px; }
 
-  /* age as the row's own baseline: an amber line along the bottom edge,
-     left-anchored, growing with time-without-review toward the rot day and
-     plateauing there. Amber only — red belongs to CI alone. The quiet day
-     count floats right in the meta line, capping the track. */
+  /* age as the row's own baseline: a 1px grey hairline along the bottom
+     edge — a deepened stretch of the divider the row already has. Length
+     and tint are both relative to the board's longest-open pull (see
+     bits.tsx AgeBaseline). The quiet day count floats right in the meta
+     line, capping the track. */
   .pd-age-line {
     position: absolute;
     left: 0;
     bottom: 0;
-    height: 2px;
-    background: var(--warn);
+    height: 1px;
     pointer-events: none;
   }
 

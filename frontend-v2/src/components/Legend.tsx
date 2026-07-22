@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { useSettings } from '../settings';
-import { WeightMeter } from './bits';
+import { DiffSize, WeightMeter } from './bits';
 import { Popover } from './Popover';
+import { eyebrowText } from './WordGroups';
 
 /** a keycap, sized to the legend's small type */
 function Kbd({ children }: { children: ReactNode }) {
@@ -32,9 +33,7 @@ function Item({ term, def }: { term: ReactNode; def: ReactNode }) {
 function Group({ title, children }: { title: string; children: ReactNode }) {
    return (
       <div className="mt-1.5 border-t border-secondary pt-1.5 first:mt-0 first:border-t-0 first:pt-0">
-         <div className="px-1 pb-0.5 text-[10px] font-semibold tracking-[0.08em] text-ink-3 uppercase">
-            {title}
-         </div>
+         <div className={`px-1 pb-0.5 text-ink-3 ${eyebrowText}`}>{title}</div>
          {children}
       </div>
    );
@@ -115,12 +114,12 @@ export function Legend() {
                term={
                   <span className="relative inline-block h-3 w-16">
                      <span
-                        className="absolute bottom-0 left-0 h-[2px] w-2/3 rounded-[1px]"
-                        style={{ background: 'var(--warn)' }}
+                        className="absolute bottom-0 left-0 h-px w-2/3"
+                        style={{ background: 'color-mix(in oklab, var(--ink-3) 75%, transparent)' }}
                      />
                   </span>
                }
-               def={`age — an amber line along a row's bottom edge appears once it's ${s.ageWarnDays}+ days without full review and grows to the right; reaching full width means ${s.ageRotDays}+ days. The quiet day count at the row's right edge caps it and just gets bolder — hover it for both clocks`}
+               def={`age — a grey hairline along a row's bottom edge appears once it's ${s.ageWarnDays}+ days without full review; its length and depth are relative to the board's longest-open pull, so the oldest runs full width in full grey. The quiet day count at the row's right edge caps it and just gets bolder — hover it for both clocks`}
             />
             <Item
                term={
@@ -135,7 +134,7 @@ export function Legend() {
             <details className="group/weight mt-0.5 px-1">
                <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
                   <span aria-hidden className="transition-transform group-open/weight:rotate-90">
-                     ›
+                     ▸
                   </span>
                   How weight is decided
                </summary>
@@ -170,13 +169,8 @@ export function Legend() {
                def="CI wears the same marks as CR and QA — the machine is a reviewer too. A red ✗ disc means failing checks (the count beside it says how many); the gray-blue ring means still running. Passing shows nothing at rest — no news is good news; hover a row for its quiet green check and the per-check list"
             />
             <Item
-               term={
-                  <span className="tabular-nums">
-                     <span style={{ color: 'var(--ok)' }}>+120</span>{' '}
-                     <span style={{ color: 'var(--bad)' }}>−30</span>
-                  </span>
-               }
-               def="lines added and removed"
+               term={<DiffSize additions={120} deletions={30} />}
+               def="lines added and removed — neutral on purpose: a line count is a routine fact, not a verdict"
             />
             <Item
                term={
@@ -198,7 +192,7 @@ export function Legend() {
             <details className="group/region mt-0.5 px-1">
                <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
                   <span aria-hidden className="transition-transform group-open/region:rotate-90">
-                     ›
+                     ▸
                   </span>
                   How regions work
                </summary>
@@ -241,7 +235,7 @@ export function Legend() {
             <details className="group/claim mt-0.5 px-1">
                <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
                   <span aria-hidden className="transition-transform group-open/claim:rotate-90">
-                     ›
+                     ▸
                   </span>
                   How claims work
                </summary>
@@ -270,7 +264,7 @@ export function Legend() {
             <details className="group/turn mt-0.5 px-1">
                <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
                   <span aria-hidden className="transition-transform group-open/turn:rotate-90">
-                     ›
+                     ▸
                   </span>
                   How your turn is picked
                </summary>
