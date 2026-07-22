@@ -417,6 +417,24 @@ label:has(> input:not(:disabled)) {
   .pd-ci-quiet:focus-visible {
     display: inline-flex;
   }
+  /* the four-icon hover cluster would crowd the wrapped rail: it collapses
+     outright and the kebab (mobile's menu, same actions) takes over on
+     desktop too — revealed on row hover / focus, opacity so the slot never
+     jumps. Unlayered on purpose: it must beat the kebab's own
+     hidden-at-desktop utility. */
+  .row-actions {
+    display: none;
+  }
+  @media (hover: hover) and (min-width: 720px) {
+    .pd-kebab {
+      display: inline-flex;
+      opacity: 0;
+    }
+    .pd-row:hover .pd-kebab,
+    .pd-kebab:focus-within {
+      opacity: 1;
+    }
+  }
   .pd-rail {
     flex-basis: 100%;
     margin-left: 0;

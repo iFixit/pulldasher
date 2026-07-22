@@ -294,8 +294,9 @@ function useRowActions(pull: DerivedPull) {
  * `overlay` (compact) floats them over the row's tail instead of reserving
  * rail width — .row-actions hides them with visibility, which still takes
  * layout space, and in a narrow column that standing ~70px tax comes straight
- * out of the title. Hidden below 720px, where RowActionsKebab takes over
- * (hover-reveal has no phone story).
+ * out of the title. Hidden below 720px AND in narrow (≤520px) containers,
+ * where RowActionsKebab takes over — hover-reveal has no phone story, and a
+ * wrapped rail has no room for four inline icons.
  */
 function RowActions({
    pull,
@@ -398,13 +399,13 @@ function RowActions({
 }
 
 /**
- * The touch-only row menu: below 720px the hover cluster (RowActions) doesn't
- * exist, so every row keeps a quiet, always-visible kebab that opens a
- * tap-friendly labeled menu (the house click-to-open popover — no hover in the
- * path). It's hidden at and above 720px: everything it offers has a desktop
- * home already — copy/snooze/re-fetch/claim in the hover cluster, and repo/
- * person star/mute in Settings' repo manager and the People lens — so on a
- * pointer device the kebab was pure redundancy.
+ * The overflow row menu: below 720px every row keeps a quiet, always-visible
+ * kebab that opens a tap-friendly labeled menu (the house click-to-open
+ * popover — no hover in the path). At desktop widths it stays hidden EXCEPT
+ * in narrow columns (≤520px containers, Classic's): there the four-icon
+ * hover cluster would crowd the wrapped rail, so it collapses and this kebab
+ * takes over, revealed on row hover / focus (styles.css .pd-kebab). In wide
+ * lanes the hover cluster remains the desktop home and the kebab stays gone.
  */
 function RowActionsKebab({ pull, claim }: { pull: DerivedPull; claim: Claim | null }) {
    const a = useRowActions(pull);
@@ -423,7 +424,7 @@ function RowActionsKebab({ pull, claim }: { pull: DerivedPull; claim: Claim | nu
       <Popover
          label="Row actions"
          side="right"
-         rootClass="relative inline-flex [@media(hover:hover)_and_(min-width:720px)]:hidden"
+         rootClass="pd-kebab relative inline-flex [@media(hover:hover)_and_(min-width:720px)]:hidden"
          // capped to the viewport: w-max would size to the branch name and
          // push the panel off a phone screen — the branch truncates instead
          width="w-max min-w-[190px] max-w-[min(280px,calc(100vw-16px))]"
