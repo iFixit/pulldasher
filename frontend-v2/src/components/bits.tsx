@@ -722,8 +722,9 @@ export function AgeBaseline({
 }) {
    if (quiet || ageDays < warnDays) return null;
    const t = Math.min(ageDays / Math.max(maxAgeDays, 1), 1);
-   // tint rides the same fraction as length: ~30% ink at the gate, full
-   // ink-3 on the board's oldest
+   // tint rides the same fraction as length: ~30% border-grey at the
+   // gate, the full border color on the board's oldest (owner call: the
+   // ink ramp read too dark against the row divider it extends)
    const inkPct = Math.round(30 + 70 * t);
    return (
       // the percentage width lives on this outer track (not the line itself,
@@ -752,7 +753,7 @@ export function AgeBaseline({
                      aria-hidden
                      className="pd-age-line"
                      style={{
-                        background: `color-mix(in oklab, var(--ink-3) ${inkPct}%, transparent)`,
+                        background: `color-mix(in oklab, var(--border) ${inkPct}%, transparent)`,
                      }}
                   />
                </button>
