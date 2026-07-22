@@ -82,6 +82,7 @@ function sig(o: Partial<Signals> & { queue?: number; pulls?: DerivedPull[] } = {
       staleClaims: o.staleClaims ?? new Map(),
       staleClaimAfter: o.staleClaimAfter ?? 'a couple hours',
       requestedOfMe: o.requestedOfMe ?? new Map(),
+      rankHolders: o.rankHolders ?? new Map(),
    };
 }
 
@@ -390,6 +391,14 @@ describe('diffCheers — leaderboard', () => {
       expect(toasts.some(t => t.icon === '📈' && t.title === "You're climbing")).toBe(true);
    });
 
+   it('does not fire climbing when your rank improves passively (no new stamp of yours)', () => {
+      // other people's reviewed PRs merged away, so your rank number got
+      // better while your own count never moved; that is not your climb
+      const base = primed(sig({ myRank: 3, myCount: 2 }));
+      const { toasts } = diffCheers(sig({ myRank: 2, myCount: 2, peerBelow: 'bob' }), 'me', base);
+      expect(toasts.some(t => t.icon === '📈')).toBe(false);
+   });
+
    it('does not fire climbing without an identifiable peer', () => {
       const base = primed(sig({ myRank: 3, myCount: 2 }));
       const { toasts } = diffCheers(sig({ myRank: 2, myCount: 3, peerBelow: null }), 'me', base);
@@ -400,6 +409,94 @@ describe('diffCheers — leaderboard', () => {
       const base = primed(sig({ myRank: 2, myCount: 2 }));
       const { toasts } = diffCheers(sig({ myRank: 1, myCount: 3, peerBelow: 'bob' }), 'me', base);
       expect(toasts.some(t => t.icon === '📈')).toBe(false);
+   });
+
+   // Regression test for the reported bug: "climbing" was firing when the
+   // viewer's rank got numerically WORSE (moved down the board), not better.
+   // Rank 1 is best, so climbing must require the numeric rank to decrease.
+   it('does not fire climbing when your rank gets worse (was #3, now #4)', () => {
+      const base = primed(sig({ myRank: 3, myCount: 5 }));
+      const { toasts } = diffCheers(sig({ myRank: 4, myCount: 5, peerBelow: 'bob' }), 'me', base);
+      expect(toasts.some(t => t.icon === '📈' || t.title === "You're climbing")).toBe(false);
+   });
+});
+
+describe('diffCheers — overtaken', () => {
+   it('fires when your rank slips and names whoever now holds your old spot', () => {
+      const base = primed(sig({ myRank: 3, myCount: 4 }));
+      const rankHolders = new Map([[3, ['alice']]]);
+      const { toasts } = diffCheers(sig({ myRank: 4, myCount: 4, rankHolders }), 'me', base);
+      const toast = toasts.find(t => t.dedupeKey?.startsWith('overtaken:'));
+      expect(toast).toBeDefined();
+      expect(toast?.tone).toBe('nag');
+      expect(toast?.title).toBe('alice took your #3 spot');
+      expect(toast?.body).toBe("You're #4 on the board now.");
+      expect(toast?.dedupeKey).toBe('overtaken:3:alice');
+   });
+
+   it('picks the alphabetically-first holder when a tie shares your old rank', () => {
+      const base = primed(sig({ myRank: 2, myCount: 6 }));
+      const rankHolders = new Map([[2, ['zeb', 'alice']]]);
+      const { toasts } = diffCheers(sig({ myRank: 3, myCount: 6, rankHolders }), 'me', base);
+      const toast = toasts.find(t => t.dedupeKey?.startsWith('overtaken:'));
+      expect(toast?.title).toBe('alice took your #2 spot');
+   });
+
+   it('does not fire when nobody is identifiably at your old rank', () => {
+      const base = primed(sig({ myRank: 3, myCount: 4 }));
+      const { toasts } = diffCheers(
+         sig({ myRank: 4, myCount: 4, rankHolders: new Map() }),
+         'me',
+         base
+      );
+      expect(toasts.some(t => t.dedupeKey?.startsWith('overtaken:'))).toBe(false);
+   });
+
+   it('does not fire when your rank holds steady or improves', () => {
+      const base = primed(sig({ myRank: 3, myCount: 4 }));
+      const rankHolders = new Map([[3, ['alice']]]);
+      const steady = diffCheers(sig({ myRank: 3, myCount: 4, rankHolders }), 'me', base);
+      expect(steady.toasts.some(t => t.dedupeKey?.startsWith('overtaken:'))).toBe(false);
+      const improved = diffCheers(
+         sig({ myRank: 2, myCount: 5, rankHolders, peerBelow: 'bob' }),
+         'me',
+         base
+      );
+      expect(improved.toasts.some(t => t.dedupeKey?.startsWith('overtaken:'))).toBe(false);
+   });
+
+   it('fires once per drop, then stays silent while the standing persists', () => {
+      const base = primed(sig({ myRank: 3, myCount: 4 }));
+      const rankHolders = new Map([[3, ['alice']]]);
+      const first = diffCheers(sig({ myRank: 4, myCount: 4, rankHolders }), 'me', base);
+      expect(first.toasts.some(t => t.dedupeKey === 'overtaken:3:alice')).toBe(true);
+      const second = diffCheers(sig({ myRank: 4, myCount: 4, rankHolders }), 'me', first.next);
+      expect(second.toasts.some(t => t.dedupeKey?.startsWith('overtaken:'))).toBe(false);
+   });
+
+   it('can fire again after climbing back then dropping a second time', () => {
+      const base = primed(sig({ myRank: 3, myCount: 4 }));
+      const rankHoldersAt3 = new Map([[3, ['alice']]]);
+      const dropped = diffCheers(
+         sig({ myRank: 4, myCount: 4, rankHolders: rankHoldersAt3 }),
+         'me',
+         base
+      );
+      expect(dropped.toasts.some(t => t.dedupeKey === 'overtaken:3:alice')).toBe(true);
+      // reclaim #3
+      const reclaimed = diffCheers(
+         sig({ myRank: 3, myCount: 6, peerBelow: 'carol' }),
+         'me',
+         dropped.next
+      );
+      expect(reclaimed.toasts.some(t => t.dedupeKey?.startsWith('overtaken:'))).toBe(false);
+      // drop again, same rank transition
+      const droppedAgain = diffCheers(
+         sig({ myRank: 4, myCount: 6, rankHolders: rankHoldersAt3 }),
+         'me',
+         reclaimed.next
+      );
+      expect(droppedAgain.toasts.some(t => t.dedupeKey === 'overtaken:3:alice')).toBe(true);
    });
 });
 

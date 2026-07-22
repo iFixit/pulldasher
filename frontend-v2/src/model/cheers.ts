@@ -68,6 +68,10 @@ export interface CheerBaseline {
    favorsSeen: ReadonlySet<string>;
    /** your leaderboard rank last tick (0 = unranked / no stamps in view) */
    myRank: number;
+   /** your stamp count last tick — climbing requires it to have GROWN, so a
+    * rank that improves passively (someone else's reviewed PRs merged away)
+    * never cheers you for work you didn't do */
+   myCount: number;
    /** you were the #1 reviewer on the board last tick */
    wasTop: boolean;
    /** review requests already toasted, so each fires once per pull; rebuilt
@@ -97,6 +101,7 @@ export const EMPTY_BASELINE: CheerBaseline = {
    quickWinsNagged: false,
    favorsSeen: new Set(),
    myRank: 0,
+   myCount: 0,
    wasTop: false,
    requestedSeen: new Set(),
    hadBacklog: false,
@@ -126,6 +131,7 @@ export function serializeBaseline(b: CheerBaseline): unknown {
       quickWinsNagged: b.quickWinsNagged,
       favorsSeen: [...b.favorsSeen],
       myRank: b.myRank,
+      myCount: b.myCount,
       wasTop: b.wasTop,
       requestedSeen: [...b.requestedSeen],
       hadBacklog: b.hadBacklog,
@@ -157,6 +163,7 @@ export function reviveBaseline(raw: unknown): CheerBaseline | null {
          quickWinsNagged: !!o.quickWinsNagged,
          favorsSeen: new Set(arr(o.favorsSeen) as string[]),
          myRank: Number(o.myRank) || 0,
+         myCount: Number(o.myCount) || 0,
          wasTop: !!o.wasTop,
          requestedSeen: new Set(arr(o.requestedSeen) as string[]),
          hadBacklog: !!o.hadBacklog,
@@ -349,6 +356,10 @@ export interface Signals {
    /** pulls GitHub has asked YOU to review (and you haven't yet), for the
     * review-requested toast — the most direct "review this" the board carries */
    requestedOfMe: Map<string, DerivedPull>;
+   /** logins holding each rank right now, you excluded, keyed by rank number —
+    * the leaderboard neighborhood the overtaken nudge reads to name whoever
+    * now sits at the rank you held last tick */
+   rankHolders: Map<number, string[]>;
 }
 
 export function readSignals(input: CheerInput): Signals {
@@ -483,6 +494,16 @@ export function readSignals(input: CheerInput): Signals {
          .sort();
       peerBelow = candidates[0] ?? null;
    }
+   // who holds each rank right now, so a later tick can name whoever now sits
+   // at the rank the viewer held last time (the overtaken nudge); same
+   // dense-rank tie caveat as peerBelow, since two logins can share a rank
+   const rankHolders = new Map<number, string[]>();
+   for (const [login, r] of ranks) {
+      if (login === me) continue;
+      const holders = rankHolders.get(r.rank) ?? [];
+      holders.push(login);
+      rankHolders.set(r.rank, holders);
+   }
 
    return {
       stamped,
@@ -506,6 +527,7 @@ export function readSignals(input: CheerInput): Signals {
       staleClaims,
       staleClaimAfter,
       requestedOfMe,
+      rankHolders,
    };
 }
 
@@ -534,6 +556,7 @@ export const PRIORITY_ORDER = [
    'milestone',
    'top-of-board',
    'climbing',
+   'overtaken',
    'stamp-landed',
    'pr-first-review',
    'review-requested',
@@ -662,6 +685,12 @@ export const CHEER_CATALOG: {
       label: 'Claimed but still unreviewed',
       hint: 'A review you claimed has sat unreviewed too long.',
    },
+   {
+      kind: 'overtaken',
+      group: 'nudge',
+      label: 'Overtaken on the board',
+      hint: 'Someone passes you on the leaderboard.',
+   },
    // Your PRs — author-side alerts
    {
       kind: 'pr-first-review',
@@ -758,6 +787,7 @@ export function diffCheers(
             quickWinsNagged: sig.quickWinCount >= QUICK_WIN_THRESHOLD,
             favorsSeen: new Set(),
             myRank: sig.myRank,
+            myCount: sig.myCount,
             wasTop: sig.myRank === 1,
             requestedSeen: new Set(sig.requestedOfMe.keys()),
             hadBacklog: sig.backlog > 0,
@@ -993,6 +1023,7 @@ export function diffCheers(
    // state in the baseline so they re-fire while the standing persists.
    let nextWasTop = sig.myRank === 1;
    let nextMyRank = sig.myRank;
+   let nextMyCount = sig.myCount;
    if (sig.myRank === 1 && !base.wasTop && sig.myCount > 0) {
       push(
          'top-of-board',
@@ -1015,6 +1046,11 @@ export function diffCheers(
       base.myRank > 0 &&
       sig.myRank > 0 &&
       sig.myRank < base.myRank &&
+      // only cheer a climb you caused: rank also improves passively when
+      // other people's reviewed PRs merge and their stamps leave the board,
+      // and congratulating you for someone else's merge reads as the cheer
+      // firing at random (the owner experienced exactly this)
+      sig.myCount > (base.myCount ?? 0) &&
       sig.myRank > 1 &&
       sig.myCount >= 2 &&
       sig.peerBelow
@@ -1035,8 +1071,35 @@ export function diffCheers(
          },
          () => {
             nextMyRank = base.myRank;
+            nextMyCount = base.myCount;
          }
       );
+   }
+   // the inverse of climbing: your rank got numerically worse (you dropped),
+   // and someone identifiable now sits at the rank you held last tick. Same
+   // edge-triggered shape as climbing (nextMyRank only advances once the
+   // toast survives eviction, so the same drop keeps offering the nudge until
+   // it's shown), just naming the person instead of staying anonymous, since
+   // rankHolders reads the CURRENT tick's full board rather than guessing
+   // from a single peer.
+   if (base.myRank > 0 && sig.myRank > 0 && sig.myRank > base.myRank) {
+      const holders = [...(sig.rankHolders.get(base.myRank) ?? [])].sort();
+      const overtaker = holders[0] ?? null;
+      if (overtaker) {
+         push(
+            'overtaken',
+            {
+               tone: 'nag',
+               icon: '📉',
+               title: `${overtaker} took your #${base.myRank} spot`,
+               body: `You're #${sig.myRank} on the board now.`,
+               dedupeKey: `overtaken:${base.myRank}:${overtaker}`,
+            },
+            () => {
+               nextMyRank = base.myRank;
+            }
+         );
+      }
    }
 
    // author-side: your own open PRs, watched for edge transitions only — a
@@ -1191,6 +1254,7 @@ export function diffCheers(
          quickWinsNagged,
          favorsSeen,
          myRank: nextMyRank,
+         myCount: nextMyCount,
          wasTop: nextWasTop,
          requestedSeen,
          hadBacklog: nextHadBacklog,
