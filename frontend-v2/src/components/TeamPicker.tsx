@@ -15,11 +15,13 @@ function CandidateRow({
    login,
    count,
    checked,
+   self,
    onToggle,
 }: {
    login: string;
    count?: number;
    checked: boolean;
+   self?: boolean;
    onToggle: () => void;
 }) {
    return (
@@ -34,6 +36,7 @@ function CandidateRow({
          <Avatar login={login} size={18} />
          <span title={login} className="min-w-0 flex-1 truncate">
             {login}
+            {self && <span className="ml-1 text-[11px] text-ink-3">(you)</span>}
          </span>
          {count != null && (
             <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
@@ -43,11 +46,11 @@ function CandidateRow({
 }
 
 /** Every author and signer on the board — the login universe a teammate can
- * be picked from — with an open-PR count for sorting. Bots and yourself are
- * excluded: you're implicitly on your own team, and a dependency bot never
- * reviews anything. */
+ * be picked from — with an open-PR count for sorting. Bots are excluded (a
+ * dependency bot never reviews anything); you are not — some people want their
+ * own PRs to ride along in the Team view, so you can tick yourself. */
 function useCandidates(extraBots: ReadonlySet<string>) {
-   const { pulls, me } = usePulldasher();
+   const { pulls } = usePulldasher();
    return useMemo(() => {
       const counts = new Map<string, number>();
       const known = new Set<string>();
@@ -60,10 +63,10 @@ function useCandidates(extraBots: ReadonlySet<string>) {
          }
       }
       return [...known]
-         .filter(login => login !== me && !isBotLogin(login, extraBots))
+         .filter(login => !isBotLogin(login, extraBots))
          .sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0) || a.localeCompare(b))
          .map(login => ({ login, count: counts.get(login) ?? 0 }));
-   }, [pulls, me, extraBots]);
+   }, [pulls, extraBots]);
 }
 
 /**
@@ -75,6 +78,7 @@ function useCandidates(extraBots: ReadonlySet<string>) {
  */
 export function TeamPicker({ extraBots = EMPTY_BOTS }: { extraBots?: ReadonlySet<string> }) {
    const { myTeam } = useSettings();
+   const { me } = usePulldasher();
    const candidates = useCandidates(extraBots);
    const [query, setQuery] = useState('');
 
@@ -96,6 +100,7 @@ export function TeamPicker({ extraBots = EMPTY_BOTS }: { extraBots?: ReadonlySet
                key={login}
                login={login}
                checked
+               self={login === me}
                onToggle={() => toggleTeammate(login, false)}
             />
          ))}
@@ -113,6 +118,7 @@ export function TeamPicker({ extraBots = EMPTY_BOTS }: { extraBots?: ReadonlySet
                login={c.login}
                count={c.count}
                checked={false}
+               self={c.login === me}
                onToggle={() => toggleTeammate(c.login, true)}
             />
          ))}

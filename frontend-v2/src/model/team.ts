@@ -18,9 +18,10 @@ export interface TeamBuckets {
  * went stale — the PR is back to 0-of-1 and still needs a CR, reviewable by
  * you (a re-stamp) or by anyone else — so it belongs in `reviewable`, not
  * `stamped`. (The row's own note still reads "your move: Re-stamp"; the lane
- * just must not claim it's waiting on someone else.) The author being you is
- * excluded everywhere, even if `me` ends up in `members` by mistake — you
- * can't review your own PR.
+ * just must not claim it's waiting on someone else.) You can't review your own
+ * PR, so your pulls stay out of `reviewable`/`stamped` — but they still land in
+ * `rest`, so adding yourself to your team surfaces your work instead of
+ * dropping it (the same way People.tsx handles viewing your own page).
  */
 export function teamBuckets(
    pulls: DerivedPull[],
@@ -28,15 +29,24 @@ export function teamBuckets(
    me: string | null
 ): TeamBuckets {
    const memberSet = new Set(members);
-   const theirs = pulls.filter(p => memberSet.has(p.data.user.login) && p.data.user.login !== me);
+   // include your own pulls in the pool; you just can't *review* them, so they
+   // fall through to `rest` below instead of vanishing when you add yourself
+   const theirs = pulls.filter(p => memberSet.has(p.data.user.login));
+   const reviewableByMe = (p: DerivedPull) => p.data.user.login !== me;
 
    const reviewable = crSort(
       theirs.filter(
-         p => ['needs_cr', 'needs_recr'].includes(p.status) && !p.crBy.includes(me ?? '')
+         p =>
+            reviewableByMe(p) &&
+            ['needs_cr', 'needs_recr'].includes(p.status) &&
+            !p.crBy.includes(me ?? '')
       )
    );
    const stamped = theirs.filter(
-      p => ['needs_cr', 'needs_recr'].includes(p.status) && p.crBy.includes(me ?? '')
+      p =>
+         reviewableByMe(p) &&
+         ['needs_cr', 'needs_recr'].includes(p.status) &&
+         p.crBy.includes(me ?? '')
    );
    const inLane = new Set([...reviewable, ...stamped]);
    const rest = theirs

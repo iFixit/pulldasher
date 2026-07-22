@@ -38,10 +38,12 @@ describe('teamBuckets — what a team-authored pull sorts into', () => {
       expect(reviewable).toEqual([p]);
    });
 
-   it('excludes a pull authored by me, even if I ended up in the member list', () => {
+   it('keeps my own pull out of reviewable/stamped but lands it in rest (self on team)', () => {
+      // you can't review your own PR, so it never enters reviewable/stamped —
+      // but adding yourself should still surface your work, in rest, not drop it
       const p = dp({ author: 'me', status: 'needs_cr' });
       const buckets = teamBuckets([p], ['me'], 'me');
-      expect(buckets).toEqual({ reviewable: [], stamped: [], rest: [] });
+      expect(buckets).toEqual({ reviewable: [], stamped: [], rest: [p] });
    });
 
    it('moves a pull to stamped once I hold a CR stamp on it', () => {
