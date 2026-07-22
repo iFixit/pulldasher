@@ -595,35 +595,67 @@ function RowActionsKebab({
 }
 
 /**
- * The weight meter as a filter toggle: click it to add/remove that size class
- * from the session Weight filter — the same bucket WeightFilter's own
- * checkboxes drive, just row-initiated. Falls back to the plain,
- * non-interactive meter when no callback is wired up (e.g. a lens that
- * hasn't threaded RowOptions.onWeightToggle).
+ * The weight chip as both a filter toggle and a hover preview: click adds/
+ * removes that size class from the session Weight filter — the same bucket
+ * WeightFilter's own checkboxes drive, just row-initiated — while hovering
+ * previews the exact +/− diff size the letter is standing in for. Falls back
+ * to a plain, non-interactive trigger (still inside the same popover) when no
+ * callback is wired up (e.g. a lens that hasn't threaded
+ * RowOptions.onWeightToggle).
  */
 function WeightChip({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
-   const meter = <WeightMeter weight={pull.weight} known={pull.sizeKnown} />;
+   const meter = <WeightMeter weight={pull.weight} known={pull.sizeKnown} wide />;
    const onWeightToggle = opts.onWeightToggle;
-   if (!onWeightToggle) return meter;
    const key = pull.sizeKnown ? pull.weight.toLowerCase() : 'unknown';
+   const d = pull.data;
    return (
-      <button
-         type="button"
-         aria-label={`filter to ${pull.weight} PRs`}
-         title={`filter to ${pull.weight} PRs`}
-         className="pressable hit -my-2 rounded border-0 bg-transparent px-0 py-2 hover:bg-secondary/60"
-         onClick={() => onWeightToggle(key)}
+      <Popover
+         label="review effort"
+         hover
+         side="right"
+         rootClass="relative flex"
+         width="w-max"
+         panelClass="p-2 text-xs"
+         trigger={t =>
+            onWeightToggle ? (
+               <button
+                  {...t}
+                  type="button"
+                  aria-label={`filter to ${pull.weight} PRs`}
+                  title={`filter to ${pull.weight} PRs`}
+                  className="pressable hit block w-full rounded border-0 bg-transparent p-0"
+                  onClick={() => onWeightToggle(key)}
+               >
+                  <span aria-hidden className="contents">
+                     {meter}
+                  </span>
+               </button>
+            ) : (
+               <span className="contents">{meter}</span>
+            )
+         }
       >
-         <span aria-hidden className="contents">
-            {meter}
+         <span className="block font-medium text-ink">
+            review effort: {WEIGHT_WORD[pull.weight]}
          </span>
-      </button>
+         {pull.sizeKnown && (
+            <span className="mt-1 block">
+               <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
+            </span>
+         )}
+         <span className="mt-1 block text-ink-3">
+            {pull.sizeKnown ? 'from diff size' : 'size estimated'}
+         </span>
+      </Popover>
    );
 }
 
 /**
- * The metric rail every row ends on, in one order everywhere: how heavy to
- * review, then the CR and QA sign-off pips, then age. Right-anchored and
+ * The metric rail every row ends on, in one order everywhere: CI, then the CR
+ * and QA sign-off pips, then how heavy to review — weight is the rightmost
+ * anchor now, the "can I fit this in" scan column reviewers hunt first. Age
+ * moved to the meta line (see RowImpl): it's a fact about the pull, not a
+ * per-row action like the rest of this rail. Right-anchored and
  * fixed-geometry, so it reads as vertical columns down any lens. Raised above
  * the card's click layer so the sign-off popovers still open.
  */
@@ -640,39 +672,40 @@ function MetricRail({
    const me = opts.me;
    return (
       <span
-         className={`pd-rail pd-raise ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2.5 ${
+         className={`pd-rail pd-raise ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 ${
             opts.compact ? 'relative' : ''
          }`}
       >
          <RowActions pull={pull} overlay={!!opts.compact} me={me} claim={claim} />
          <RowActionsKebab pull={pull} claim={claim} />
-         <WeightChip pull={pull} opts={opts} />
-         <SigPips
-            label="CR"
-            have={pull.crHave}
-            req={d.status.cr_req}
-            by={pull.crBy}
-            staleBy={pull.recrBy}
-            me={me}
-            sigs={d.status.allCR}
-         />
-         <SigPips
-            label="QA"
-            have={pull.qaHave}
-            req={d.status.qa_req}
-            by={pull.qaBy}
-            staleBy={pull.reqaBy}
-            me={me}
-            sigs={d.status.allQA}
-         />
-         <AgeStamp
-            ageDays={pull.ageDays}
-            createdAt={epoch(d.created_at)}
-            updatedAt={epoch(d.updated_at)}
-            quiet={['draft', 'dev_block', 'deploy_block'].includes(pull.status)}
-            warnDays={opts.ageWarnDays}
-            rotDays={opts.ageRotDays}
-         />
+         <CiStatus pull={pull} />
+         {/* weight rides UNDER the whole sign-off section (CR + QA) as a
+             ratio strip — it's "how heavy is this review", both halves, not
+             its own rail slot. The shared extent normalizes the track length
+             and gives the doubling fill real resolution. */}
+         <span className="flex flex-col items-stretch gap-[3px]">
+            <span className="flex items-center gap-2">
+               <SigPips
+                  label="CR"
+                  have={pull.crHave}
+                  req={d.status.cr_req}
+                  by={pull.crBy}
+                  staleBy={pull.recrBy}
+                  me={me}
+                  sigs={d.status.allCR}
+               />
+               <SigPips
+                  label="QA"
+                  have={pull.qaHave}
+                  req={d.status.qa_req}
+                  by={pull.qaBy}
+                  staleBy={pull.reqaBy}
+                  me={me}
+                  sigs={d.status.allQA}
+               />
+            </span>
+            <WeightChip pull={pull} opts={opts} />
+         </span>
       </span>
    );
 }

@@ -182,29 +182,41 @@ label:has(> input:not(:disabled)) {
   .badge-red { background: var(--badge-red-bg); color: var(--badge-red-fg); }
   .badge-draft { background: none; color: var(--ink-3); border: 1px dashed var(--border); }
 
-  /* review-effort meter: five rising segments, N filled by weight class,
-     color ramping green→gray→amber→red. Replaces the XS–XL letter chip so
-     "how heavy is this to review" reads without decoding a size code. */
-  .wt { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
-  .wt i { width: 3px; border-radius: 1px; background: var(--secondary); }
-  .wt i:nth-child(1) { height: 4px; }
-  .wt i:nth-child(2) { height: 6px; }
-  .wt i:nth-child(3) { height: 8px; }
-  .wt i:nth-child(4) { height: 10px; }
-  .wt i:nth-child(5) { height: 12px; }
-
-  /* sign-off pips: one square per required stamp. Filled = a live stamp,
-     amber = a stamp a push invalidated (a re-stamp is owed), hollow = still
-     needed. This is the whole ledger vocabulary — no ✓, no ⊘. */
-  .pip { width: 8px; height: 8px; border-radius: 2px; flex: none;
-    transition: background-color 240ms var(--ease-quint), box-shadow 240ms var(--ease-quint); }
-  .pip-on { background: var(--ok); }
-  .pip-stale { background: var(--warn); }
-  /* ink-3, not --border: the hollow "still needed" pip is a meaningful mark
-     and --border rings only hit ~1.5:1 against the surface — invisible to
-     low-vision users. ink-3 is tuned ≥4.5:1 in both themes. */
-  .pip-off { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink-3); }
-  /* the slot you personally stamped: a dotted rule under the pips */
+  /* sign-off marks: one circle-check per required stamp, drawn as SVG masks
+     so the geometry is machined — identical stroke weight and optical center,
+     never at the mercy of a font rasterizer (a text ✓ with text-stroke went
+     muddy/anemic at 10px). The mark is the identity; the FILL is the
+     standing: a solid disc = an approval that stands, the same mark drained
+     to an outline = it stood once but a later push lapsed it (re-confirm),
+     an empty ring = never approved. A muted dash (markup, not .pip) = not
+     required. Colored via background-color, so the tokens theme it. */
+  /* 14px: simplicity must not whisper — the marks are the board's
+     decision-critical facts and, standing bare with no chip around them,
+     they carry the slot alone; strokes sized so the outline states read as
+     drawn, never wispy. */
+  .pip {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    transition: background-color 240ms var(--ease-quint);
+    -webkit-mask: var(--pip-shape) center / 100% 100% no-repeat;
+    mask: var(--pip-shape) center / 100% 100% no-repeat;
+  }
+  .pip-on {
+    --pip-shape: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cdefs%3E%3Cmask id='k'%3E%3Crect width='16' height='16' fill='white'/%3E%3Cpath d='M4.6 8.4l2.3 2.3 4.5-5.2' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/mask%3E%3C/defs%3E%3Ccircle cx='8' cy='8' r='7.4' fill='white' mask='url(%23k)'/%3E%3C/svg%3E");
+    background-color: var(--ok);
+  }
+  .pip-stale {
+    --pip-shape: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cg fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='8' cy='8' r='6.6'/%3E%3Cpath d='M5.1 8.3l1.9 1.9 3.9-4.4'/%3E%3C/g%3E%3C/svg%3E");
+    background-color: var(--warn);
+  }
+  /* ink-3, not --border: the "still needed" ring is meaningful and must stay
+     ≥4.5:1 in both themes for low-vision users */
+  .pip-off {
+    --pip-shape: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.6' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E");
+    background-color: var(--ink-3);
+  }
+  /* the slot you personally stamped: a dotted rule under the marks */
   .pip-mine { border-bottom: 1px dotted var(--ink-3); padding-bottom: 2px; }
 
   /* row flags: quiet colored labels, not badges — amber for act-on-it,
@@ -220,6 +232,68 @@ label:has(> input:not(:disabled)) {
     flex: none;
   }
 
+}
+
+/* Each card row is its own inline-size query container, so the metric rail can
+   decide to break onto its own line by measured COLUMN WIDTH rather than by how
+   long this particular row's meta chips happened to be. That's the whole fix
+   for "cards don't align": today the rail is ml-auto inside the meta flex-wrap,
+   so it right-aligns on line 1 when it fits (wide Review lanes) but drops to an
+   incidental, per-row position when it doesn't (narrow Classic columns). The
+   @container rule below makes that break deterministic and identical for every
+   card in the same column, so the weight/CR/QA/CI/age columns line up down the
+   list. inline-size (not size) leaves row height auto; pd-row is already
+   `relative`, so the containing-block it now establishes for the .pd-link::after
+   stretch layer and the stack connector is unchanged. */
+.pd-row {
+  container-type: inline-size;
+}
+/* comfortable density renders the rail as a DIRECT child of the row (compact
+   nests it in the flowing text span, so this selector skips it): center it
+   vertically so the two-line card's height reads as deliberate space around
+   the marks — controls-centered-right, like a mail client's list row. */
+.pd-row > .pd-rail {
+  align-self: center;
+}
+/* below a width only ever hit by Classic's ~300-450px columns (Review's
+   full-width lanes stay well above it, so they keep today's inline right-anchored
+   rail), force the rail onto its own line, still right-aligned via its own
+   justify-end. flex-basis:100% can't share a line with anything, so it wraps
+   whole. */
+@container (max-width: 520px) {
+  .pd-rail {
+    flex-basis: 100%;
+    margin-left: 0;
+    margin-top: 1px;
+    /* chips flow left under the text (v1's card anatomy) instead of
+       right-anchoring into ragged centered-looking lines */
+    justify-content: flex-start;
+    position: relative;
+  }
+  /* the hover action cluster floats over the rail's right end instead of
+     reserving ~70px of a 200px-wide rail line (visibility:hidden still takes
+     layout space; in a narrow column that reservation shoved the chips) */
+  .pd-rail .row-actions {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    translate: 0 -50%;
+    z-index: 10;
+    background: var(--muted);
+    border-radius: 6px;
+    padding-inline: 4px;
+  }
+}
+/* below 360px, hide the one optional chip — the code-region tag (Row.tsx
+   applies .pd-chip-optional to it alone; the +/- diff size isn't inline on
+   cards at all, it lives in the weight popover) — so the title and rail keep
+   the width in a genuinely cramped column (Classic's tightest 3-4-up columns,
+   or a phone). Its content stays reachable via the row's title attribute and
+   the regions lane, so nothing is truly lost. */
+@container (max-width: 360px) {
+  .pd-chip-optional {
+    display: none;
+  }
 }
 
 /* whole-card click target: the title link stretches an invisible layer over
@@ -352,17 +426,9 @@ label:has(> input:not(:disabled)) {
   gap: 0.375rem;
 }
 :root[data-density="compact"] .pip {
-  width: 7px;
-  height: 7px;
+  width: 12px;
+  height: 12px;
 }
-:root[data-density="compact"] .wt {
-  height: 10px;
-}
-:root[data-density="compact"] .wt i:nth-child(1) { height: 3px; }
-:root[data-density="compact"] .wt i:nth-child(2) { height: 5px; }
-:root[data-density="compact"] .wt i:nth-child(3) { height: 6px; }
-:root[data-density="compact"] .wt i:nth-child(4) { height: 8px; }
-:root[data-density="compact"] .wt i:nth-child(5) { height: 10px; }
 
 /* settings slide-out from the right, with a fading scrim */
 @keyframes panel-in {

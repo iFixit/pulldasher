@@ -71,10 +71,10 @@ export function CardShell({
    className?: string;
    /** the meta line: badge, repo#number, context, flags */
    meta: ReactNode;
-   /** the fixed metric rail (weight, pips, age). A separate slot on purpose:
-    * in compact it renders outside the wrapping content column, so the
-    * metrics hold a stable right rail while the text flows. Comfortable
-    * keeps it on the wrapping meta line. */
+   /** the fixed metric rail (CI, sign-off marks, weight). A separate slot on
+    * purpose: comfortable renders it as its own right-hand column, vertically
+    * centered in the row; compact keeps it in the flowing line. In narrow
+    * columns the container query wraps it to a full-width line below. */
    rail?: ReactNode;
    stretch?: boolean;
    compact?: boolean;
@@ -124,7 +124,10 @@ export function CardShell({
    return (
       <div
          id={id}
-         className={`pd-row relative flex items-start gap-2.5 border-t border-secondary py-2 pr-3.5 first:border-t-0 hover:bg-muted ${className}`}
+         // flex-wrap exists solely for the rail: in a narrow column the
+         // container query gives .pd-rail flex-basis:100%, wrapping it to its
+         // own full-width line under the text
+         className={`pd-row relative flex flex-wrap items-start gap-2.5 border-t border-secondary py-2 pr-3.5 first:border-t-0 hover:bg-muted ${className}`}
          style={{ paddingLeft: 14 + depth * STACK_INDENT_PX }}
       >
          {connector}
@@ -136,9 +139,13 @@ export function CardShell({
             <span className="block text-sm leading-snug break-words">{titleLink}</span>
             <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-3">
                {meta}
-               {rail}
             </span>
          </span>
+         {/* the rail rides as its own right-hand column, vertically centered
+             in the row (styles.css .pd-row > .pd-rail) — the two-line card's
+             height becomes deliberate space around the marks instead of dead
+             air above trailing chips */}
+         {rail}
       </div>
    );
 }

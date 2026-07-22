@@ -3,6 +3,22 @@ import { useSettings } from '../settings';
 import { FreshTag, WeightMeter } from './bits';
 import { Popover } from './Popover';
 
+/** a bare CI bar for the legend, without the popover/button chrome the real
+ * CiStatus trigger carries — same segment shape and colors, just static. */
+function CiBarSample({ segments }: { segments: { background: string; opacity?: number }[] }) {
+   return (
+      <span className="flex h-[9px] w-8 gap-px overflow-hidden rounded-[3px]">
+         {segments.map((s, i) => (
+            <span
+               key={i}
+               className="flex-1"
+               style={{ background: s.background, opacity: s.opacity }}
+            />
+         ))}
+      </span>
+   );
+}
+
 /** a keycap, sized to the legend's small type */
 function Kbd({ children }: { children: ReactNode }) {
    return (
@@ -85,7 +101,7 @@ export function Legend() {
                      <span className="pip pip-off" />
                   </span>
                }
-               def="one pip per required stamp: filled = done, hollow = still needed. Click a row’s pips for who signed"
+               def="one mark per required stamp: a solid check is an approval that stands, an empty ring is still needed. Click a row’s marks for who signed"
             />
             <Item
                term={
@@ -94,7 +110,7 @@ export function Legend() {
                      <span className="pip pip-stale" />
                   </span>
                }
-               def="an amber pip is a stamp a push invalidated: a re-stamp is owed"
+               def="the outlined check is an approval a later push left stale: it stood once, and needs re-confirming against the new code"
             />
             <Item
                term={
@@ -122,8 +138,14 @@ export function Legend() {
                def={`age: hours under a day, amber past ${s.ageWarnDays} days, red past ${s.ageRotDays}. Hover or tap it for both clocks`}
             />
             <Item
-               term={<WeightMeter weight="M" />}
-               def="how much review it needs, light (XS) to heavy (XL)"
+               term={
+                  <span className="inline-flex items-center gap-1">
+                     <WeightMeter weight="XS" />
+                     <WeightMeter weight="M" />
+                     <WeightMeter weight="XL" />
+                  </span>
+               }
+               def="review effort — the strip under the CR/QA marks fills with the review’s weight, doubling per class: a sliver = a quick pickup, full = very heavy. Hover for the exact +/− lines, click to filter"
             />
             <details className="group/weight mt-0.5 px-1">
                <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
@@ -152,6 +174,18 @@ export function Legend() {
                   </p>
                </div>
             </details>
+            <Item
+               term={
+                  <CiBarSample
+                     segments={[
+                        { background: 'var(--bad)' },
+                        { background: 'var(--slate)' },
+                        { background: 'var(--ok)', opacity: 0.3 },
+                     ]}
+                  />
+               }
+               def="CI: a proportional bar, red = failing, gray-blue = still running. Passed checks show nothing at rest — no news is good news; hover to reveal the green and the per-check list"
+            />
             <Item
                term={
                   <span className="tabular-nums">

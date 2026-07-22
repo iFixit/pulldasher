@@ -1,7 +1,26 @@
+import { useState } from 'react';
 import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { ROT_DAYS, STARVE_DAYS, type Status, type Weight, weightRank } from '../model/status';
-import type { Signature } from '../types';
-import { ago, epoch, githubUrl, loginHue, shortRepo, signatureUrl } from '../format';
+import {
+   type DerivedPull,
+   headStatuses,
+   ROT_DAYS,
+   STARVE_DAYS,
+   type Status,
+   type Weight,
+   weightRank,
+} from '../model/status';
+import type { CommitStatus, Signature } from '../types';
+import {
+   ago,
+   epoch,
+   githubAvatarUrl,
+   githubProfileUrl,
+   githubUrl,
+   loginHue,
+   n,
+   shortRepo,
+   signatureUrl,
+} from '../format';
 import { getSettings } from '../settings';
 import { Popover } from './Popover';
 
@@ -169,59 +188,233 @@ const WEIGHT_WORD: Record<Weight, string> = {
    L: 'heavy',
    XL: 'very heavy',
 };
-// green for the cheap ones, gray at medium, amber then red as effort climbs —
-// the same light→heavy read the old XS–XL colors carried, now as fill height
-const WEIGHT_FILL = ['var(--ok)', 'var(--ok)', 'var(--ink-3)', 'var(--warn)', 'var(--bad)'];
 
 /**
- * Review effort as a five-segment meter: how heavy this is to review, filled
- * by weight class and color-ramped. Always present, so the rightmost column
- * of every row answers "can I fit this in the time I have" at a glance. A
- * cheap prior from diff size; humans override by reading (dimmed when the
- * wire didn't send additions/deletions).
+ * Review effort as a horizontal RATIO strip under the whole sign-off
+ * section (CR and QA — weight is how heavy the REVIEW is, both halves), not
+ * its own rail slot. The long shared extent gives the exponential fill real
+ * resolution, and the fill doubles per class — 6/13/25/50/100% — because review
+ * effort roughly doubles per class, so the lengths separate honestly without
+ * color carrying anything. Faded whole when the wire didn't send a size; the
+ * hover popover has the word and exact +/− lines.
  */
-export function WeightMeter({ weight, known = true }: { weight: Weight; known?: boolean }) {
-   const fill = weightRank(weight) + 1;
-   const color = WEIGHT_FILL[weightRank(weight)];
+export function WeightMeter({
+   weight,
+   known = true,
+   wide = false,
+}: {
+   weight: Weight;
+   known?: boolean;
+   /** stretch the track across the container (the rail's whole CR+QA cell);
+    * default is a fixed 36px track for standalone uses (deal card, legend) */
+   wide?: boolean;
+}) {
+   const rank = weightRank(weight);
    const word = WEIGHT_WORD[weight];
    const label = known ? `review effort: ${word}` : `review effort: ${word} (size estimated)`;
+   const ratio = [6, 13, 25, 50, 100][rank];
    return (
       <span
-         className="wt"
          role="img"
          aria-label={label}
          title={`${label}, from diff size`}
-         style={{ opacity: known ? 1 : 0.45 }}
+         className={`flex h-[4px] overflow-hidden rounded-full ${wide ? 'w-full' : 'w-9'}`}
+         style={{ background: 'var(--secondary)', opacity: known ? 1 : 0.5 }}
       >
-         {[0, 1, 2, 3, 4].map(i => (
-            <i key={i} style={i < fill ? { background: color } : undefined} />
-         ))}
+         <span
+            aria-hidden
+            className="rounded-full"
+            style={{ width: `${ratio}%`, background: 'var(--ink-3)', opacity: 0.55 }}
+         />
       </span>
    );
 }
 
 /**
- * The concrete diff size beside the abstract weight meter: +added −deleted,
- * GitHub's green/red, so the exact number is there when the five-segment
- * gauge isn't precise enough. Hidden when the wire didn't send a size.
+ * The concrete diff size beside the abstract weight letter: +added −deleted,
+ * so the exact number is there when the letter chip isn't precise enough.
+ * Neutral ink, not GitHub's green/red: a line count is a routine metric on
+ * every healthy PR, and painting it with the broken/done hues taught the eye
+ * to ignore red — the glyphs already say which side is which. Hidden when the
+ * wire didn't send a size.
  */
 export function DiffSize({ additions, deletions }: { additions: number; deletions: number }) {
    return (
-      <span className="whitespace-nowrap tabular-nums" title={`+${additions} −${deletions} lines`}>
-         <span style={{ color: 'var(--ok)' }}>+{additions}</span>{' '}
-         <span style={{ color: 'var(--bad)' }}>−{deletions}</span>
+      <span
+         className="whitespace-nowrap text-ink-2 tabular-nums"
+         title={`+${additions} −${deletions} lines`}
+      >
+         +{additions} −{deletions}
       </span>
    );
 }
 
+const CI_STATE_META: Record<
+   CommitStatus['data']['state'],
+   { icon: string; color: string; word: string }
+> = {
+   success: { icon: '✓', color: 'var(--ok)', word: 'passed' },
+   failure: { icon: '✗', color: 'var(--bad)', word: 'failed' },
+   error: { icon: '✗', color: 'var(--bad)', word: 'errored' },
+   pending: { icon: '•', color: 'var(--slate)', word: 'running' },
+};
+
+const isRedCheck = (s: CommitStatus) => s.data.state === 'failure' || s.data.state === 'error';
+
+// failures first, then the still-running ones, then the greens; alphabetical
+// within a tier so the list is stable run to run
+function ciRank(s: CommitStatus): number {
+   return isRedCheck(s) ? 0 : s.data.state === 'pending' ? 1 : 2;
+}
+
+/** completed − started, when both timestamps are known, as a terse "45s"/"6m". */
+function ciDuration(s: CommitStatus): string | null {
+   const { started_at, completed_at } = s.data;
+   if (started_at == null || completed_at == null) return null;
+   const secs = Math.max(0, completed_at - started_at);
+   return secs < 60 ? `${Math.round(secs)}s` : `${Math.round(secs / 60)}m`;
+}
+
 /**
- * Sign-off state as a pip meter: one square per required stamp, in a
- * fixed-width slot so CR, QA, and age land at the same x down a board. Filled
- * green = a live stamp; amber = a stamp a push invalidated, so a re-stamp is
- * owed (the single most actionable state on the board — it can't hide inside
- * a fraction); hollow = still needed; a muted dash = nothing required. A
- * dotted underline marks a slot you personally stamped. No check, no slash —
- * the fill is the whole vocabulary.
+ * CI as a rail chip: a small proportional bar (red-failing / slate-pending /
+ * quiet-green-passing) opening a per-check list — state, name, how long it
+ * took, and a link to each — the panel v1 had and v2 flattened to a single
+ * "CI: red" word. All-green stays a whisper (a single pale fill), not a
+ * checkmark — v1 users only ever "saw green on hover". A fixed-width
+ * placeholder (not null) stands in for a pull with no checks to show (ci
+ * 'none' / empty), so the rail's other slots don't shift column-to-column.
+ */
+export function CiStatus({ pull }: { pull: DerivedPull }) {
+   const checks =
+      pull.ci === 'none'
+         ? []
+         : [...headStatuses(pull.data)].sort(
+              (a, b) => ciRank(a) - ciRank(b) || a.data.context.localeCompare(b.data.context)
+           );
+   if (!checks.length) return <span aria-hidden className="inline-block w-8" />;
+
+   const failing = checks.filter(isRedCheck).length;
+   const passing = checks.filter(c => c.data.state === 'success').length;
+   const pendingCount = checks.filter(c => c.data.state === 'pending').length;
+   const pending = pendingCount > 0;
+   const summary = failing
+      ? `CI: ${failing} of ${checks.length} failing`
+      : pending
+        ? `CI running · ${passing} of ${checks.length} passed`
+        : `CI passed · ${n(checks.length, 'check')}`;
+   // failing, then pending, then passing. Passed is invisible until you hover
+   // the bar (no news is good news — an all-green board shows NO bar at rest,
+   // and a mixed bar shows only its red/slate trouble); each segment's share
+   // of the bar is its own count, with a 3px floor so one failure among
+   // twenty checks stays visible
+   const segments = [
+      { count: failing, background: 'var(--bad)' },
+      { count: pendingCount, background: 'var(--slate)' },
+      { count: passing, background: 'var(--ok)', quiet: true },
+   ].filter(s => s.count > 0);
+
+   return (
+      <Popover
+         label="CI checks"
+         side="right"
+         hover
+         rootClass="relative inline-flex"
+         width="w-max min-w-[200px] max-w-[320px]"
+         panelClass="p-2 text-xs"
+         trigger={t => (
+            <button
+               {...t}
+               type="button"
+               aria-label={summary}
+               title={summary}
+               // -my-2/py-2: a real tap target without changing the rail's height.
+               // `group`: the passed segments key their hover-reveal off it below
+               className="group pressable -my-2 inline-flex items-center gap-1 rounded border-0 bg-transparent px-0 py-2 hover:bg-secondary/60"
+            >
+               <span aria-hidden className="flex h-[9px] w-8 gap-px overflow-hidden rounded-[3px]">
+                  {segments.map((s, i) => (
+                     <span
+                        key={i}
+                        className={
+                           s.quiet
+                              ? 'opacity-0 transition-opacity duration-150 group-hover:opacity-30 group-focus-visible:opacity-30 motion-reduce:transition-none'
+                              : undefined
+                        }
+                        style={{ flexGrow: s.count, minWidth: 3, background: s.background }}
+                     />
+                  ))}
+               </span>
+               {failing > 0 && (
+                  <span
+                     className="text-[11px] font-medium tabular-nums"
+                     style={{ color: 'var(--bad)' }}
+                  >
+                     {failing}
+                  </span>
+               )}
+            </button>
+         )}
+      >
+         <span className="block px-1 pb-1 font-semibold text-ink">
+            CI checks
+            <span className="ml-1 font-normal text-ink-3 tabular-nums">
+               · {passing} of {checks.length} passed
+            </span>
+         </span>
+         {checks.map(c => {
+            const meta = CI_STATE_META[c.data.state];
+            const dur = ciDuration(c);
+            const inner = (
+               <>
+                  <span
+                     aria-hidden
+                     className="w-3 flex-none text-center"
+                     style={{ color: meta.color }}
+                  >
+                     {meta.icon}
+                  </span>
+                  <b className="min-w-0 font-medium break-all text-ink">{c.data.context}</b>
+                  <span className="flex-none text-ink-3">{meta.word}</span>
+                  {dur && (
+                     <span className="ml-auto flex-none pl-2 whitespace-nowrap text-ink-3 tabular-nums">
+                        {dur}
+                     </span>
+                  )}
+               </>
+            );
+            return c.data.target_url ? (
+               <a
+                  key={c.data.context}
+                  href={c.data.target_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`open ${c.data.context} on GitHub`}
+                  className="flex items-center gap-1.5 rounded px-1 py-[3px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none"
+               >
+                  {inner}
+               </a>
+            ) : (
+               <span key={c.data.context} className="flex items-center gap-1.5 px-1 py-[3px]">
+                  {inner}
+               </span>
+            );
+         })}
+      </Popover>
+   );
+}
+
+/**
+ * Sign-off state as a circle-check meter: one mark per required stamp, in a
+ * fixed-width slot so CR, QA, and weight land at the same x down a board.
+ * One mark, three standings (see styles.css .pip): a solid disc = an
+ * approval that stands, the same mark drained to an outline = it stood once
+ * but a push lapsed it (the most actionable state on the board), an empty
+ * ring = still needed, a muted dash = nothing required. A dotted underline
+ * marks a slot you personally stamped. No enclosing chip at all: the marks
+ * are confident enough to stand bare beside their label — every box, wash,
+ * and hairline this slot has worn turned out to be scaffolding (the earlier
+ * colored squares and tinted backgrounds were a private code that sent eyes
+ * to the rail instead of the titles).
  */
 export function Pips({
    label,
@@ -272,6 +465,12 @@ export function Pips({
              ? `${label} done, including your stamp`
              : `${label} done`
           : `${label}: ${have} of ${req}`;
+   // No chip-level tint at all: a filled wash — however muted — out-competed
+   // the section headers and titles the eye should scan first (salience is
+   // about form, not volume). The re-stamp-owed signal lives on the stale pip
+   // itself instead: a thin amber halo confined to its own 8px square (see
+   // .pip-stale). The word-group header and the pip-mine underline already
+   // say whose move it is; the hover title spells out who and when.
    return (
       <span
          className="inline-flex items-center gap-1"
@@ -282,13 +481,19 @@ export function Pips({
             {label}
          </span>
          {none ? (
-            <span aria-hidden className="flex w-[30px] justify-start text-xs text-ink-3 opacity-60">
+            <span
+               aria-hidden
+               className="flex min-w-[31px] justify-start text-xs text-ink-3 opacity-60"
+            >
                –
             </span>
          ) : (
+            // min-width sized to the COMMON case (two marks), not the 3-mark
+            // maximum — a fixed 3-wide slot left dead air before QA on almost
+            // every row; the rare 3-required pull just grows
             <span
                aria-hidden
-               className={`flex w-[30px] items-center justify-start gap-1 ${
+               className={`flex min-w-[31px] items-center justify-start gap-[3px] ${
                   mine || owedByMe ? 'pip-mine' : ''
                }`}
             >
@@ -365,7 +570,7 @@ export function SigPips({
                {...t}
                type="button"
                // no native title: the popover itself opens on this same hover
-               // py+negative-my: a real tap target (the pips are 8px squares)
+               // py+negative-my: a real tap target (the marks are ~10px glyphs)
                // without moving anything in the rail's layout
                className="pressable -my-2 cursor-pointer rounded border-0 bg-transparent px-0 py-2 text-left hover:bg-secondary/60"
             >

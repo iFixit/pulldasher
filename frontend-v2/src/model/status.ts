@@ -182,6 +182,26 @@ export function ciFailing(pull: PullData, spec?: RepoSpec): string[] {
 
 const isFailing = (s: CommitStatus) => s.data.state === 'failure' || s.data.state === 'error';
 
+/**
+ * Every CI check on the current head, one row per context (a later report for
+ * the same context supersedes an earlier one), for the at-a-glance CI list the
+ * rail chip and its popover show. Unlike ciVerdict/ciFailing this ignores the
+ * repo's required/ignored config — the breakdown shows what actually ran, links
+ * and all, the way v1's CI panel did. Falls back to all statuses when none are
+ * tagged to the head sha (older payloads).
+ */
+export function headStatuses(pull: PullData): CommitStatus[] {
+   const onHead = pull.status.commit_statuses.filter(s => s.data.sha === pull.head.sha);
+   const statuses = onHead.length ? onHead : pull.status.commit_statuses;
+   const at = (s: CommitStatus) => s.data.completed_at ?? s.data.started_at ?? 0;
+   const latest = new Map<string, CommitStatus>();
+   for (const s of statuses) {
+      const prev = latest.get(s.data.context);
+      if (!prev || at(s) >= at(prev)) latest.set(s.data.context, s);
+   }
+   return [...latest.values()];
+}
+
 /** When did the author push the current head? Head-CI-start is the proxy. */
 export function headPushedAt(pull: PullData): number | null {
    const starts = pull.status.commit_statuses
