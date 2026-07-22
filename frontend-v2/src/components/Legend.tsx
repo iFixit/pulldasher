@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useSettings } from '../settings';
-import { WeightMeter } from './bits';
+import { AgeStrip, WeightMeter } from './bits';
 import { Popover } from './Popover';
 
 /** a bare CI bar for the legend, without the popover/button chrome the real
@@ -129,13 +129,20 @@ export function Legend() {
          <Group title="Reading a row">
             <Item
                term={
-                  <span className="tabular-nums">
-                     <b style={{ color: 'var(--warn)' }}>{s.ageWarnDays}d</b>
-                     <span className="text-ink-3">/</span>
-                     <b style={{ color: 'var(--bad)' }}>{s.ageRotDays}d</b>
+                  <span className="inline-flex items-center gap-1">
+                     <AgeStrip
+                        ageDays={s.ageWarnDays + 1}
+                        warnDays={s.ageWarnDays}
+                        rotDays={s.ageRotDays}
+                     />
+                     <AgeStrip
+                        ageDays={s.ageRotDays}
+                        warnDays={s.ageWarnDays}
+                        rotDays={s.ageRotDays}
+                     />
                   </span>
                }
-               def={`age: hours under a day, amber past ${s.ageWarnDays} days, red past ${s.ageRotDays}. Hover or tap it for both clocks`}
+               def={`age — the strip under the CI bar stays invisible until a pull is ${s.ageWarnDays}+ days old without full review, then fills amber toward ${s.ageRotDays} days and turns red past it. The day count next to the repo# just gets bolder, and hovering it shows both clocks`}
             />
             <Item
                term={
@@ -202,7 +209,7 @@ export function Legend() {
                      <span className="flag-note">stacked</span>
                   </>
                }
-               def="row flags: amber = act on it (conflicts, deploy block, external, aging), gray = a neutral fact (stacked, CI, recent changes). Hover them for the full meaning"
+               def="row flags: amber = act on it (conflicts, deploy block, external), gray = a neutral fact (stacked, CI, recent changes). Hover them for the full meaning"
             />
             <Item
                term={

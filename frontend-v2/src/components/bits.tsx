@@ -665,11 +665,57 @@ export function SigPips({
 }
 
 /**
- * The age slot: hours under a day, then days, with an urgency ramp (amber
- * past STARVE_DAYS, red past ROT_DAYS) and both clocks in the tooltip — a
- * 30-day pull pushed an hour ago is hot, and the flat gray number hid
- * that. Hours matter here: in three months of real history, 62% of pulls
- * merged same-day, so "0d" was a dead signal for most of the live board.
+ * Age as the rail's second strip, under the CI bar — the old Aging lane's
+ * positional signal relocated onto every card. Silent below `warnDays` (no
+ * news is good news: an invisible placeholder holds the slot), then an
+ * amber fill growing from a sliver to full across warn→rot, flipping red at
+ * `rotDays` and plateauing there — a 30-day pull shouldn't shout louder
+ * than a 10-day one. Deliberately distinct from the weight strip on four
+ * axes so the two ratio marks can't be confused: left column (paired with
+ * CI, not the sign-offs), gated (weight's track is always drawn), only
+ * ever amber/red (weight's fill is always neutral ink), square caps
+ * (weight is a pill).
+ */
+export function AgeStrip({
+   ageDays,
+   warnDays = STARVE_DAYS,
+   rotDays = ROT_DAYS,
+   quiet,
+}: {
+   ageDays: number;
+   warnDays?: number;
+   rotDays?: number;
+   /** drafts and holds age on purpose: keep the strip dark */
+   quiet?: boolean;
+}) {
+   if (quiet || ageDays < warnDays) return <span aria-hidden className="block h-[4px] w-8" />;
+   const span = Math.max(rotDays - warnDays, 1);
+   const pct = 6 + Math.min((ageDays - warnDays) / span, 1) * 94;
+   const rotted = ageDays >= rotDays;
+   return (
+      <span
+         role="img"
+         aria-label={`open ${ageDays} days without full review`}
+         className="flex h-[4px] w-8 overflow-hidden rounded-[1px]"
+         style={{ background: 'var(--secondary)' }}
+      >
+         <span
+            aria-hidden
+            className="rounded-[1px]"
+            style={{ width: `${pct}%`, background: rotted ? 'var(--bad)' : 'var(--warn)' }}
+         />
+      </span>
+   );
+}
+
+/**
+ * The age slot: hours under a day, then days, with both clocks in the
+ * popover. Hours matter here: in three months of real history, 62% of
+ * pulls merged same-day, so "0d" was a dead signal for most of the live
+ * board. The urgency *color* lives in the rail's AgeStrip now — this
+ * numeral stays neutral ink and only gains font weight past the same
+ * thresholds, so age's salience is carried once, by the mark built for
+ * continuous gradation, not twice.
  */
 export function AgeStamp({
    ageDays,
@@ -685,24 +731,24 @@ export function AgeStamp({
    createdAt: number;
    /** epoch secs of the last activity */
    updatedAt: number;
-   /** drafts and holds age on purpose: no urgency color */
+   /** drafts and holds age on purpose: no urgency weight */
    quiet?: boolean;
-   /** amber at/after this many days (user setting; defaults to the model's) */
+   /** heavier type at/after this many days (user setting; defaults to the model's) */
    warnDays?: number;
-   /** red at/after this many days */
+   /** heaviest type at/after this many days */
    rotDays?: number;
    /** true when it's embedded in a flowing meta line rather than the rail's
     * fixed-width column — drops the w-7/text-right slot in favor of plain
     * inline text. */
    inline?: boolean;
 }) {
-   const hot = quiet
-      ? null
+   const heft = quiet
+      ? ''
       : ageDays >= rotDays
-        ? 'var(--bad)'
+        ? 'font-semibold'
         : ageDays >= warnDays
-          ? 'var(--warn)'
-          : null;
+          ? 'font-medium'
+          : '';
    const text = ageDays === 0 ? ago(createdAt) : `${ageDays}d`;
    // a popover, not a title: the second clock (last activity) exists nowhere
    // else on the row, and a native tooltip is mouse-only — this way touch
@@ -724,8 +770,7 @@ export function AgeStamp({
             >
                <span
                   aria-hidden
-                  className={`tabular-nums ${inline ? '' : 'block w-7 text-right'} ${hot ? 'font-medium' : ''}`}
-                  style={hot ? { color: hot } : undefined}
+                  className={`tabular-nums ${inline ? '' : 'block w-7 text-right'} ${heft}`}
                >
                   {text}
                </span>
