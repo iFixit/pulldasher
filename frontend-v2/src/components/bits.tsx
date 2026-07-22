@@ -117,6 +117,72 @@ export function FreshTag({ kind }: { kind: 'new' | 'updated' }) {
    );
 }
 
+/**
+ * The circle itself: the GitHub picture over the deterministic-hue initials.
+ * The initials sit underneath and show through the instant the image 404s
+ * (bots, deleted accounts, an offline CDN) — so we always render something,
+ * never a broken-image glyph.
+ */
+function AvatarFace({ login, size }: { login: string; size: number }) {
+   const [broken, setBroken] = useState(false);
+   // OKLCH holds perceived lightness constant across the hue wheel — the old
+   // hsl(h 45% 45%) made yellow-green logins illegible under white text
+   const style = {
+      background: `oklch(0.48 0.09 ${loginHue(login)})`,
+      width: size,
+      height: size,
+      fontSize: Math.round(size * 0.42),
+   };
+   return (
+      <span
+         className="relative inline-flex flex-none items-center justify-center overflow-hidden rounded-full font-semibold uppercase text-white"
+         style={style}
+      >
+         {login.slice(0, 2)}
+         {!broken && (
+            <img
+               src={githubAvatarUrl(login, size)}
+               alt=""
+               aria-hidden
+               loading="lazy"
+               className="absolute inset-0 h-full w-full object-cover"
+               onError={() => setBroken(true)}
+            />
+         )}
+      </span>
+   );
+}
+
+/** The hover card behind a clickable avatar: the picture bigger, the handle,
+ * and a jump to their GitHub profile. (A real name would need a server-side
+ * user fetch — it isn't on our wire — so we show the handle we have.) */
+function PersonCard({ login }: { login: string }) {
+   return (
+      <div className="flex items-center gap-2.5 text-[13px]">
+         <AvatarFace login={login} size={40} />
+         <div className="min-w-0">
+            <a
+               href={githubProfileUrl(login)}
+               target="_blank"
+               rel="noopener noreferrer"
+               className="block truncate font-semibold text-ink hover:underline"
+               title={`@${login} on GitHub`}
+            >
+               {login}
+            </a>
+            <a
+               href={githubProfileUrl(login)}
+               target="_blank"
+               rel="noopener noreferrer"
+               className="text-[11px] text-ink-3 hover:text-brand hover:underline"
+            >
+               GitHub profile ↗
+            </a>
+         </div>
+      </div>
+   );
+}
+
 export function Avatar({
    login,
    size = 22,
@@ -126,36 +192,46 @@ export function Avatar({
    size?: number;
    onClick?: (login: string) => void;
 }) {
-   // OKLCH holds perceived lightness constant across the hue wheel — the
-   // old hsl(h 45% 45%) made yellow-green logins illegible under white text
-   const style = {
-      background: `oklch(0.48 0.09 ${loginHue(login)})`,
-      width: size,
-      height: size,
-      fontSize: Math.round(size * 0.42),
-   };
-   const cls =
-      'inline-flex flex-none items-center justify-center rounded-full font-semibold uppercase text-white transition-[scale] duration-150 ease-out motion-reduce:transition-none';
-   return onClick ? (
-      <button
-         type="button"
-         // .hit: the circle is 16-22px, under the 24px target floor everywhere
-         className={`${cls} hit cursor-pointer border-0 p-0 hover:scale-115`}
-         style={style}
-         aria-label={`${login}: view their PRs`}
-         title={`${login} · view their PRs`}
-         onClick={() => onClick(login)}
+   if (!onClick) {
+      return (
+         <span title={login} className="inline-flex">
+            <AvatarFace login={login} size={size} />
+         </span>
+      );
+   }
+   // A clickable avatar keeps its one-click "filter to this person" gesture
+   // (the trigger's own onClick), and grows a hover preview card on top — the
+   // same hover-open/pin discipline AgeStamp and the ledger use. Hover is a
+   // supplement (the picture bigger + a GitHub link); the click action stays
+   // fully keyboard- and touch-reachable.
+   return (
+      <Popover
+         label={login}
+         hover
+         side="left"
+         rootClass="relative inline-flex"
+         width="w-[220px]"
+         panelClass="p-2.5"
+         trigger={t => (
+            <button
+               {...t}
+               type="button"
+               // .hit: the circle is 16-22px, under the 24px target floor
+               className="hit pressable cursor-pointer border-0 p-0 transition-[scale] duration-150 ease-out hover:scale-115 motion-reduce:transition-none"
+               aria-label={`${login}: view their PRs`}
+               // click filters to this person; the hover card is the extra
+               onClick={() => onClick(login)}
+            >
+               <AvatarFace login={login} size={size} />
+            </button>
+         )}
       >
-         {login.slice(0, 2)}
-      </button>
-   ) : (
-      <span className={cls} style={style} title={login}>
-         {login.slice(0, 2)}
-      </span>
+         <PersonCard login={login} />
+      </Popover>
    );
 }
 
-const WEIGHT_WORD: Record<Weight, string> = {
+export const WEIGHT_WORD: Record<Weight, string> = {
    XS: 'very light',
    S: 'light',
    M: 'medium',

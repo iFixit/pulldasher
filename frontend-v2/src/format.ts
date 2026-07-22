@@ -8,11 +8,25 @@ export function ago(epochSecs: number, now: number = Date.now() / 1000) {
    return `${Math.round(s / 86400)}d`;
 }
 
-/** Deterministic avatar hue per login (no external images: CSP-safe). */
+/** Deterministic hue per login, the fallback avatar color behind the picture
+ * (and the whole avatar for bots / deleted accounts that have no picture). */
 export function loginHue(login: string) {
    let h = 0;
    for (const c of login) h = (h * 31 + c.charCodeAt(0)) % 360;
    return h;
+}
+
+/** GitHub serves a public, unauthenticated avatar for any login at
+ * github.com/<login>.png (v1 used the same). Ask for 2× the render size so it
+ * stays crisp on retina. Bots and deleted accounts 404 here, so the caller
+ * falls back to the login's initials on error. */
+export function githubAvatarUrl(login: string, px: number) {
+   return `https://github.com/${encodeURIComponent(login)}.png?size=${Math.round(px * 2)}`;
+}
+
+/** A person's GitHub profile page. */
+export function githubProfileUrl(login: string) {
+   return `https://github.com/${encodeURIComponent(login)}`;
 }
 
 export function githubUrl(repo: string, number: number) {
