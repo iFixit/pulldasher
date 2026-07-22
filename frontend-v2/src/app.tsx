@@ -819,78 +819,96 @@ export function App() {
       <>
          <ToastStack toasts={toasts} onDismiss={dismissToast} />
          <header ref={headerRef} className="sticky top-0 z-10 border-b border-line bg-surface">
-            <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-x-3.5 gap-y-1 px-5 py-2.5">
+            {/* Logo + lenses share one line. The logo and the right-hand
+                controls both float out past the centered content into the
+                gutters — but only as far as a 1536px cap, so an ultrawide
+                display parks them a fixed ~150px outside the content instead of
+                flinging them to the screen edges. The wordmark collapses to the
+                mark, and the open-count / v1 link hide, once the gutter is too
+                tight (below 2xl); the tabs reserve pl/pr for the floats below
+                that so nothing collides. The floats carry z-[1] so they stay
+                clickable over the tab row's own box. */}
+            <div className="relative mx-auto max-w-[1536px]">
                {/* the page's one h1 — heading navigation needs a root, and
                    every lane h2 needs a parent level */}
-               <h1 className="m-0 flex items-center gap-1.5 text-base font-semibold tracking-tight">
+               <h1 className="absolute inset-y-0 left-4 z-[1] m-0 flex items-center gap-1.5 text-base font-semibold tracking-tight">
                   <Logo size={22} className="text-brand" />
-                  pull<em className="text-brand not-italic">dasher</em>
-               </h1>
-               <span
-                  role="status"
-                  className={`h-[7px] w-[7px] rounded-full ${
-                     connection === 'connected'
-                        ? 'conn-live bg-ok'
-                        : connection === 'connecting'
-                          ? 'bg-warn'
-                          : 'bg-bad'
-                  }`}
-                  title={connection}
-               >
-                  <span className="sr-only">live updates {connection}</span>
-               </span>
-               {refreshProgress && (
-                  // no spinner, no color — the changing number is the motion,
-                  // same wording Settings' Data group shows for the same state
-                  <span className="text-xs text-ink-3 tabular-nums">
-                     {refreshProgress.done === refreshProgress.total
-                        ? `refreshed ${refreshProgress.total}`
-                        : `refreshing ${refreshProgress.done} of ${refreshProgress.total}`}
+                  <span className="hidden 2xl:inline">
+                     pull<em className="text-brand not-italic">dasher</em>
                   </span>
-               )}
-               <span className="text-xs text-ink-3 tabular-nums">
-                  <b className="text-ink">
-                     {isScoped ? `${scoped.length} of ${pulls.length}` : pulls.length}
-                  </b>{' '}
-                  open
-               </span>
-               <span className="flex-1" />
-               <a
-                  href="/v1"
-                  className="text-xs text-ink-3 transition-colors duration-150 ease-out hover:text-brand motion-reduce:transition-none"
-                  title="the classic board"
-               >
-                  v1 board
-               </a>
-               <NotificationPanel
-                  records={toastHistory}
-                  onClear={clearHistory}
-                  onDismiss={dismissHistoryItem}
-               />
-               <Legend />
-               <Settings
-                  repos={repoCounts}
-                  orgHidden={hiddenRepos}
-                  snoozedCount={snoozedCount}
-                  extraBots={extraBots}
-               />
+               </h1>
+               {/* inset-y-0 + items-center for vertical centering, NOT
+                   -translate-y-1/2: a transform on this ancestor would re-base
+                   position:fixed for the Settings drawer / popovers rendered
+                   under it, leaving them mispositioned (invisible). */}
+               <div className="absolute inset-y-0 right-4 z-[1] flex items-center gap-x-3.5">
+                  {refreshProgress && (
+                     // no spinner, no color — the changing number is the motion,
+                     // same wording Settings' Data group shows for the same state
+                     <span className="hidden text-xs text-ink-3 tabular-nums sm:inline">
+                        {refreshProgress.done === refreshProgress.total
+                           ? `refreshed ${refreshProgress.total}`
+                           : `refreshing ${refreshProgress.done} of ${refreshProgress.total}`}
+                     </span>
+                  )}
+                  <span
+                     role="status"
+                     className={`h-[7px] w-[7px] flex-none rounded-full ${
+                        connection === 'connected'
+                           ? 'conn-live bg-ok'
+                           : connection === 'connecting'
+                             ? 'bg-warn'
+                             : 'bg-bad'
+                     }`}
+                     title={connection}
+                  >
+                     <span className="sr-only">live updates {connection}</span>
+                  </span>
+                  <span className="hidden text-xs text-ink-3 tabular-nums 2xl:inline">
+                     <b className="text-ink">
+                        {isScoped ? `${scoped.length} of ${pulls.length}` : pulls.length}
+                     </b>{' '}
+                     open
+                  </span>
+                  <a
+                     href="/v1"
+                     className="hidden text-xs text-ink-3 transition-colors duration-150 ease-out hover:text-brand motion-reduce:transition-none 2xl:inline"
+                     title="the classic board"
+                  >
+                     v1 board
+                  </a>
+                  <NotificationPanel
+                     records={toastHistory}
+                     onClear={clearHistory}
+                     onDismiss={dismissHistoryItem}
+                  />
+                  {/* the symbol legend is a reference, not an action — drop it
+                      on phones to give the header controls their room back */}
+                  <span className="hidden sm:flex">
+                     <Legend />
+                  </span>
+                  <Settings
+                     repos={repoCounts}
+                     orgHidden={hiddenRepos}
+                     snoozedCount={snoozedCount}
+                     extraBots={extraBots}
+                  />
+               </div>
+               <div className="mx-auto flex max-w-[1240px] min-w-0 items-center px-5 py-2.5 pl-11 pr-32 sm:pr-40 2xl:px-5">
+                  {/* min-w-0 + overflow-x-auto (no-scrollbar in styles.css)
+                      turns a too-narrow tab strip into a swipe rather than a
+                      wrap ("My work 5" splitting) or a page-widening overflow. */}
+                  <nav className="no-scrollbar flex min-w-0 shrink gap-1 overflow-x-auto">
+                     {tab('review', 'Review')}
+                     {tab('mine', 'My work', mineCount)}
+                     {tab('team', 'Team')}
+                     {tab('people', 'People')}
+                     {tab('classic', 'Classic')}
+                     {tab('stats', 'Stats')}
+                  </nav>
+               </div>
             </div>
-            <div className="mx-auto flex max-w-[1240px] min-w-0 flex-wrap items-center gap-2 px-5 pb-2.5">
-               {/* min-w-0 lets this flex item shrink below its tabs' combined
-                   min-content width; without it, the six-tab row would force
-                   the whole page wider than the viewport instead of scrolling
-                   internally. overflow-x-auto + no-scrollbar (styles.css)
-                   turns the overflow into a swipeable tab strip rather than
-                   letting it wrap ("My work 5" splitting across two lines) or
-                   push the page sideways. */}
-               <nav className="no-scrollbar mr-1 flex min-w-0 shrink gap-1 overflow-x-auto">
-                  {tab('review', 'Review')}
-                  {tab('mine', 'My work', mineCount)}
-                  {tab('team', 'Team')}
-                  {tab('people', 'People')}
-                  {tab('classic', 'Classic')}
-                  {tab('stats', 'Stats')}
-               </nav>
+            <div className="mx-auto flex max-w-[1240px] min-w-0 flex-wrap items-center gap-2 border-t border-secondary px-5 py-2">
                <RepoFilter
                   repos={repoCounts}
                   orgHidden={hiddenRepos}
