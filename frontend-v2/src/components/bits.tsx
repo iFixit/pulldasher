@@ -364,20 +364,19 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
                <span aria-hidden className="w-[18px] text-left text-[11px] font-medium text-ink-3">
                   CI
                </span>
-               {/* one circle, three standings: a red ✗ disc = failing (the
-                   fraction lives in the popover; a 1-of-25 failure must read
-                   as loudly as 25-of-25), a slate ring sweeping closed =
-                   running (the sweep is the completed share, v1's grey
-                   section reborn), a green ✓ disc = passed, revealed on row
-                   hover only. Same 14px as every other pip: with the weight
-                   ruler gone the rail is quiet enough that red needs no size
-                   escalation to be its loudest mark. */}
+               {/* one circle, no glyphs (styles.css .ci-ring/.ci-disc): a
+                   solid red disc = failing (the fraction lives in the
+                   popover; a 1-of-25 failure must read as loudly as
+                   25-of-25), the slate ring sweeping closed = running (the
+                   sweep is the completed share, v1's grey section reborn),
+                   and a green ring drawing itself shut on row hover =
+                   passed. Check glyphs stay reserved for human stamps. */}
                {failing > 0 ? (
-                  <span aria-hidden className="pip pip-fail" />
+                  <span aria-hidden className="ci-disc" />
                ) : pending ? (
                   <span
                      aria-hidden
-                     className="pip-progress"
+                     className="ci-ring ci-ring-run"
                      style={
                         {
                            '--sweep': `${Math.round(((checks.length - pendingCount) / checks.length) * 360)}deg`,
@@ -385,7 +384,7 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
                      }
                   />
                ) : (
-                  <span aria-hidden className="pip pip-on" />
+                  <span aria-hidden className="ci-ring ci-ring-pass" />
                )}
             </button>
          )}

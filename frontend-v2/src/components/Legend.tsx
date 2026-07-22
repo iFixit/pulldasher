@@ -94,11 +94,14 @@ export function Legend() {
                term={
                   <span className="inline-flex items-center gap-1">
                      <span className="text-[11px] font-medium text-ink-3">CI</span>
-                     <span className="pip pip-fail" />
-                     <span className="pip-progress" style={{ '--sweep': '240deg' } as never} />
+                     <span className="ci-disc" />
+                     <span
+                        className="ci-ring ci-ring-run"
+                        style={{ '--sweep': '240deg' } as never}
+                     />
                   </span>
                }
-               def="CI wears the same circles: the machine is a reviewer. Red ✗: a check failed. Sweeping ring: running, the filled share done. Passing shows only on row hover: no news is good news"
+               def="CI is one circle, the machine’s mark: solid red, a check failed; the ring sweeping shut is a run in progress, the filled share done. On row hover a green ring closes the loop: passed. No news is good news"
             />
          </Group>
 
