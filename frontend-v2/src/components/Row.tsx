@@ -382,7 +382,7 @@ function RowActions({
                   title={
                      claim
                         ? `claim review, currently ${claim.login}'s`
-                        : "claim this review, flags that you're reading it"
+                        : 'claim this review: adds you as a reviewer on the PR itself, so GitHub and the board both show you’re on it'
                   }
                   className={btn}
                   onClick={a.claim}
@@ -603,8 +603,12 @@ function WeightLetter({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
                <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
             </span>
          )}
-         <span className="mt-1 block text-ink-3">
-            {sizeKnown ? 'from diff size' : 'size estimated'}
+         {/* how the letter is decided, in place of the old legend essay: the
+             popover is the drill-down, so the rule lives here */}
+         <span className="mt-1 block max-w-[230px] text-ink-3">
+            {sizeKnown
+               ? 'From the org’s size label when the PR has one, else the diff: 50 / 150 / 600 / 1500 lines step XS through XL, one class up past 15 files. A pointer, not a verdict.'
+               : 'A guess: the wire sent no diff size.'}
          </span>
          {onWeightToggle && (
             <span className="mt-1.5 block">

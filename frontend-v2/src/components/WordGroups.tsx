@@ -47,12 +47,15 @@ const WORD_GLOSS: Record<string, string> = {
    'with author': 'Changes were requested; the next push is the author’s.',
    'waiting on re-QA': 'Someone tested it, then new commits landed. Waiting on them to test again.',
    'waiting on QA': 'Waiting for someone to test it.',
-   'in QA': 'Someone is testing it right now.',
+   'in QA':
+      'Someone is testing it right now: they added the QAing label on GitHub. Add it yourself to claim a QA.',
    claimed: 'Someone flagged they’re reading it.',
    stamped: 'Your stamp is in; waiting on the rest of the sign-offs.',
    'CI running': 'Checks are still running.',
-   'CI red': 'A required check is failing; the author fixes that first.',
-   blocked: 'The author paused it with a dev block.',
+   'CI red':
+      'A required check is failing; the author fixes that first. Stale stamps wait too: nobody is asked to re-stamp until it’s green.',
+   blocked:
+      'Someone left a dev block; the author owes changes first. Stale stamps wait until the block lifts.',
    'deploy hold': 'Done, but deliberately not shipped yet.',
    conflicts: 'Conflicts with its base branch; the author rebases.',
    stacked: 'Based on another open PR; it merges with its parent.',

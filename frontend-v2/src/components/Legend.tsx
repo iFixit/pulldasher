@@ -1,7 +1,5 @@
 import type { ReactNode } from 'react';
-import { ChevronRight, CircleHelp, Diamond } from 'lucide-react';
-import { useSettings } from '../settings';
-import { DiffSize } from './bits';
+import { CircleHelp, Hand } from 'lucide-react';
 import { Icon } from './Icon';
 import { Popover } from './Popover';
 import { eyebrowText } from './WordGroups';
@@ -42,128 +40,56 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /**
- * The one-stop decoder for the board's invented vocabulary. New hires can't
- * learn "stamp" or the slashed pip from hover titles alone — this is the
- * visible answer the review pass found missing. Grouped so it reads as a
- * key, not a glossary dump: sign-offs, then the row anatomy, then badges,
- * then catching up, then keys.
+ * The conventions card, not an encyclopedia. Everything tied to one mark
+ * explains itself where the mark is — the sign-off ledger keys its own pips,
+ * the CI / weight / age popovers carry their own rules, every group header
+ * glosses its word on hover, the hidden count names what it hides. What
+ * remains here is only what no single mark can teach: the board's invented
+ * vocabulary (stamp), its color grammar, the coordination signals, the query
+ * tokens, and the keyboard. One screen, no folds, no scrolling essays.
  */
 export function Legend() {
-   const s = useSettings();
-
    return (
       <Popover
-         label="Symbol legend"
+         label="Board conventions"
          side="right"
-         width="w-[380px]"
+         width="w-[420px] max-w-[calc(100vw-2rem)]"
          panelClass="max-h-[85vh] overflow-auto p-3 text-xs"
          trigger={t => (
             <button
                {...t}
                type="button"
-               aria-label="what the symbols mean"
-               title="what the symbols mean"
+               aria-label="how to read the board"
+               title="how to read the board"
                className="pressable inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-surface text-ink-3 hover:text-brand"
             >
                <Icon icon={CircleHelp} size={16} />
             </button>
          )}
       >
-         <span className="block px-1 pb-1.5 text-[13px] font-semibold text-ink">
+         <span className="block px-1 pb-0.5 text-[13px] font-semibold text-ink">
             Reading the board
          </span>
+         <p className="px-1 pb-1.5 leading-snug text-ink-3">
+            Everything explains itself where it sits: hover any mark, flag, header, or count. These
+            are the conventions that don’t announce themselves.
+         </p>
 
-         <Group title="Sign-offs">
+         <Group title="Stamps">
             <Item
                term={<b className="font-semibold text-ink">stamp</b>}
-               def="a CR or QA sign-off, left as a comment on the PR"
-            />
-            <Item
-               term={
-                  <span className="inline-flex items-center gap-1">
-                     <span className="text-[11px] font-medium text-ink-3">CR</span>
-                     <span className="pip pip-on" />
-                     <span className="pip pip-off" />
-                  </span>
-               }
-               def="one mark per required stamp: a solid check is an approval that stands, an empty ring is still needed. Click a row’s marks for who signed"
+               def="a CR or QA sign-off: a GitHub approval, or a “CR 👍” / “QA 👍” comment. A push undoes it until it’s re-confirmed"
             />
             <Item
                term={
                   <span className="inline-flex items-center gap-1">
                      <span className="pip pip-on" />
                      <span className="pip pip-stale" />
+                     <span className="pip pip-off" />
                   </span>
                }
-               def="the outlined check is an approval a later push left stale: it stood once, and needs re-confirming against the new code"
+               def="one circle per required stamp, in order: stands, staled by a push, still needed. A dotted underline marks yours; click them for who signed. While a PR is a draft, blocked, or red, the re-ask waits: the author moves first"
             />
-            <Item
-               term={
-                  <span className="pip-mine inline-flex items-center gap-1">
-                     <span className="pip pip-on" />
-                  </span>
-               }
-               def="the dotted underline marks a slot you stamped"
-            />
-            <Item
-               term={<b className="font-semibold text-ink">Re-stamp</b>}
-               def="a push undid your stamp and the board is asking again — but only once the PR is reviewable: while it's a draft, dev-blocked, or CI is red, the next move is the author's and no re-stamp is asked of you yet"
-            />
-            <Item
-               term={<span className="text-ink-2 italic">is testing it</span>}
-               def="someone claimed QA by adding the QAing label on GitHub"
-            />
-         </Group>
-
-         <Group title="Reading a row">
-            <Item
-               term={
-                  <span className="relative inline-block h-3 w-16">
-                     <span
-                        className="absolute bottom-0 left-0 h-px w-2/3"
-                        style={{ background: 'color-mix(in oklab, var(--ink-3) 75%, transparent)' }}
-                     />
-                  </span>
-               }
-               def={`age: a grey hairline along a row's bottom edge appears once it's ${s.ageWarnDays}+ days without full review; its length and depth are relative to the board's longest-open pull, so the oldest runs full width in full grey. Hover the line itself (it widens) or the quiet day count at the row's right edge for both clocks`}
-            />
-            <Item
-               term={
-                  <span className="inline-flex items-center gap-2 text-[11px] font-medium tabular-nums text-ink-3">
-                     <span>XS</span>
-                     <span>M</span>
-                     <span>XL</span>
-                  </span>
-               }
-               def="review effort: the letter beside the CR marks, lightest to heaviest (a “?” means the wire sent no size). Hover for the word and the exact +/− lines, click to filter"
-            />
-            <details className="group/weight mt-0.5 px-1">
-               <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
-                  <Icon
-                     icon={ChevronRight}
-                     className="transition-transform group-open/weight:rotate-90"
-                  />
-                  How weight is decided
-               </summary>
-               <div className="space-y-1.5 pt-0.5 pb-1 pl-3 text-ink-2">
-                  <p>
-                     XS through XL is roughly how much review a PR will take, lightest to heaviest.
-                     The board sorts by it, and you can filter on it (
-                     <code className="font-mono text-[11px]">weight:xs,s</code>).
-                  </p>
-                  <p>
-                     If the PR carries one of the org’s size labels, that wins: it’s deterministic,
-                     per-file-weighted, and versioned with the labeller. With no label it’s a guess
-                     from the diff: under 50 lines changed reads XS, under 150 S, under 600 M, under
-                     1500 L, and 1500+ XL, bumped up a class when the PR spans more than 15 files.
-                  </p>
-                  <p>
-                     It’s only a prior, never a verdict: a tiny diff can hide a subtle change and a
-                     big one can be a rename sweep, so the meter points you at what to read, it
-                     doesn’t decide for you.
-                  </p>
-               </div>
-            </details>
             <Item
                term={
                   <span className="inline-flex items-center gap-1">
@@ -172,11 +98,18 @@ export function Legend() {
                      <span className="pip-progress" style={{ '--sweep': '240deg' } as never} />
                   </span>
                }
-               def="CI wears the same marks as CR and QA. The machine is a reviewer too. A red ✗ disc means one or more checks failed (the popover says which); a gray-blue ring filling clockwise means the checks are still running, and the filled share is how many have finished. Passing shows nothing at rest. No news is good news; hover a row for its quiet green check and the per-check list"
+               def="CI wears the same circles: the machine is a reviewer. Red ✗: a check failed. Sweeping ring: running, the filled share done. Passing shows only on row hover: no news is good news"
             />
+         </Group>
+
+         <Group title="Color">
             <Item
-               term={<DiffSize additions={120} deletions={30} />}
-               def="lines added and removed, neutral on purpose: a line count is a routine fact, not a verdict"
+               term={
+                  <span className="text-[11px] font-semibold tracking-wide text-brand-700 uppercase">
+                     Re-stamp · 3
+                  </span>
+               }
+               def="brand is your move: a brand header names an action you owe, a gray one says why a card waits. Hover the word for its meaning"
             />
             <Item
                term={
@@ -185,175 +118,46 @@ export function Legend() {
                      <span className="flag-note">stacked</span>
                   </>
                }
-               def="row flags: amber = act on it (conflicts, deploy block, external), gray = a neutral fact (stacked, CI, recent changes). Hover them for the full meaning"
-            />
-            <Item
-               term={
-                  <span className="text-brand">
-                     <Icon icon={Diamond} fill="currentColor" />
-                  </span>
-               }
-               def="matches a code region you set in Settings: a bare mark, hover it for which region(s). These gather in the “In your code regions” section on Review and Team, where the lane heading already says it, so the mark itself doesn’t render there"
-            />
-            <details className="group/region mt-0.5 px-1">
-               <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
-                  <Icon
-                     icon={ChevronRight}
-                     className="transition-transform group-open/region:rotate-90"
-                  />
-                  How regions work
-               </summary>
-               <div className="space-y-1.5 pt-0.5 pb-1 pl-3 text-ink-2">
-                  <p>
-                     Code regions are free text you set in Settings, the areas you own or follow,
-                     like “Growthbook” or “Shopify”. They’re a plain text match, not a regex.
-                  </p>
-                  <p>
-                     A PR matches when a region appears, case-insensitively, anywhere in the text
-                     already on the board: its title, description, repo, branch name, or labels.
-                     Changed file paths aren’t checked (the board never fetches them). A match earns
-                     the diamond mark, floats up your queue, and collects in “In your code regions”.
-                  </p>
-               </div>
-            </details>
-            <Item
-               term={<span aria-hidden>✦</span>}
-               def="review requested: GitHub asked you directly. These PRs land in Waiting on you, and the board quiets its own turn rotation for them"
+               def="amber flag: act on it. Gray flag: a plain fact"
             />
          </Group>
 
          <Group title="Coordination">
             <Item
                term={
-                  <span aria-hidden className="text-brand">
-                     ✋
+                  <span className="text-ink-3">
+                     <Icon icon={Hand} size={14} />
                   </span>
                }
-               def="claim a review so teammates know you’re on it; the hand stays lit on your row, and claimed PRs collect in “You’re reviewing”. It nudges you if it sits too long (set in Settings) and clears once you submit, release it, or GitHub removes you as a reviewer"
+               def="claim a review: adds you as a reviewer on the PR, so GitHub and the board both show you’re on it. Clears when you submit, release, or are removed"
             />
             <Item
-               term={<span className="text-ink-2 italic">X is reading it</span>}
-               def="someone else has claimed this review"
+               term={<span className="text-ink-2 italic">requested from you</span>}
+               def="GitHub asked you directly. Lands in Waiting on you, and the board quiets its own suggestions for that PR"
             />
-            <details className="group/claim mt-0.5 px-1">
-               <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
-                  <Icon
-                     icon={ChevronRight}
-                     className="transition-transform group-open/claim:rotate-90"
-                  />
-                  How claims work
-               </summary>
-               <div className="space-y-1.5 pt-0.5 pb-1 pl-3 text-ink-2">
-                  <p>
-                     Claiming a review adds you as a requested reviewer on the PR, through
-                     pulldasher’s own bot account. It’s the same kind of GitHub review request as
-                     anyone else asking you to review, so everyone sees it: on the board, as your
-                     row’s raised hand, and on the PR itself on GitHub.
-                  </p>
-                  <p>
-                     It clears the same way any GitHub review request does: you submit your review,
-                     you release it from Pulldasher, or anyone removes you as a reviewer on GitHub.
-                     There’s no timer counting it down.
-                  </p>
-                  <p>
-                     Because GitHub holds the claim, not the server, it survives a server restart.
-                     The one thing that doesn’t always survive is the “X ago” timestamp: right after
-                     a restart the server hasn’t caught up on exactly when the request was made, so
-                     a claim can briefly show with no age attached.
-                  </p>
-               </div>
-            </details>
             <Item
                term={<span className="text-ink-2 italic">your turn</span>}
-               def="a starved review nobody’s on gets pointed at the best-matched person so it doesn’t sit forever; a toast asks them to claim it, and anyone can still take it"
-            />
-            <details className="group/turn mt-0.5 px-1">
-               <summary className="flex cursor-pointer list-none items-center gap-1 py-1 text-[11px] font-medium text-ink-3 hover:text-ink-2">
-                  <Icon
-                     icon={ChevronRight}
-                     className="transition-transform group-open/turn:rotate-90"
-                  />
-                  How your turn is picked
-               </summary>
-               <div className="space-y-1.5 pt-0.5 pb-1 pl-3 text-ink-2">
-                  <p>
-                     When a PR has gone too long without enough CR and nobody has claimed it, the
-                     board points it at one reviewer so it stops falling through the cracks. The
-                     candidates are everyone who’s CR’d that repo before (minus the author and
-                     anyone who already stamped this one), so they all know the code; the pick then
-                     favors whoever the author has reviewed before, a good turn owed back, the same
-                     signal the review queue’s ranking leans on.
-                  </p>
-                  <p>
-                     If you’re the pick, a toast asks you to claim it right there (which also adds
-                     you as a GitHub reviewer). Every client lands on the same name with no
-                     coordination, and ties spread across PRs so it isn’t always one person. It’s a
-                     nudge, not a lock; anyone can take it, and an explicit GitHub review request
-                     overrides the guess entirely.
-                  </p>
-               </div>
-            </details>
-         </Group>
-
-         <Group title="Groups">
-            <Item
-               term={
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-brand-700">
-                     Re-stamp · 3
-                  </span>
-               }
-               def="brand group header: cards under it need an action from you; the word is the action. Hover any header for its one-line meaning"
-            />
-            <Item
-               term={
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
-                     waiting on CR · 2
-                  </span>
-               }
-               def="gray group header: why those cards wait. Hover a card’s repo #number for the full state: status, names, dates, CI, feedback"
-            />
-         </Group>
-
-         <Group title="Catching up">
-            <Item
-               term={
-                  <svg viewBox="0 0 16 16" aria-hidden className="h-4 w-4 fill-ink-3">
-                     <path d="M8 3.5C4.4 3.5 1.7 5.8.6 8c1.1 2.2 3.8 4.5 7.4 4.5s6.3-2.3 7.4-4.5C14.3 5.8 11.6 3.5 8 3.5Zm0 7.5a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-1.6a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8Z" />
-                     <path
-                        d="M2.4 2.1l11.5 11.5"
-                        stroke="var(--ink-3)"
-                        strokeWidth="1.4"
-                        strokeLinecap="round"
-                        fill="none"
-                     />
-                  </svg>
-               }
-               def="the filter bar's “hidden” count names what the board holds back — parked (Cryogenic Storage) PRs, others' drafts, muted repos and people — and shows any of it for the session"
+               def="a review that sat too long, pointed at the best-matched reviewer. A nudge, not a lock: anyone can take it"
             />
          </Group>
 
          <Group title="Query">
             <Item
                term={<code className="font-mono text-[11px] text-ink-2">weight:xs,s</code>}
-               def="review-effort class(es), comma list ORs; click a row’s weight meter to toggle it"
+               def="review-effort classes; a row’s weight letter filters with a click"
             />
             <Item
                term={<code className="font-mono text-[11px] text-ink-2">has:action</code>}
-               def="cards where you personally have a move to make"
+               def="cards where the next move is yours"
             />
             <Item
                term={<code className="font-mono text-[11px] text-ink-2">is:restamp</code>}
-               def="cards where a push owes you a re-CR or re-QA"
+               def="a push undid your stamp and the PR is reviewable again"
             />
             <Item
                term={<code className="font-mono text-[11px] text-ink-2">is:blocked</code>}
-               def="cards under a dev or deploy block"
+               def="under a dev or deploy block, whoever holds it"
             />
-            <Item
-               term="Weight / State"
-               def="the point-and-click version of weight:/has:/is:, pick from a dropdown instead of typing. State's Blocked is viewer-relative (a dev block you authored counts as waiting on you), unlike is:blocked, which matches for anyone"
-            />
-            <Item term="Saved" def="save filter combos from the search box; reapply from Saved" />
          </Group>
 
          <Group title="Keys">

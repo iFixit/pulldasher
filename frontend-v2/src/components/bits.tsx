@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import type { ButtonHTMLAttributes, CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type {
+   ButtonHTMLAttributes,
+   CSSProperties,
+   KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import { Check, CircleDot, Star, X } from 'lucide-react';
 import {
    type DerivedPull,
@@ -319,7 +323,8 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
          : [...headStatuses(pull.data)].sort(
               (a, b) => ciRank(a) - ciRank(b) || a.data.context.localeCompare(b.data.context)
            );
-   if (!checks.length) return <span aria-hidden className="pd-ci-slot mr-1.5 inline-block w-[36px]" />;
+   if (!checks.length)
+      return <span aria-hidden className="pd-ci-slot mr-1.5 inline-block w-[36px]" />;
 
    const failing = checks.filter(isRedCheck).length;
    const passing = checks.filter(c => c.data.state === 'success').length;
@@ -373,7 +378,11 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
                   <span
                      aria-hidden
                      className="pip-progress"
-                     style={{ '--sweep': `${Math.round(((checks.length - pendingCount) / checks.length) * 360)}deg` } as CSSProperties}
+                     style={
+                        {
+                           '--sweep': `${Math.round(((checks.length - pendingCount) / checks.length) * 360)}deg`,
+                        } as CSSProperties
+                     }
                   />
                ) : (
                   <span aria-hidden className="pip pip-on" />
@@ -639,6 +648,13 @@ export function SigPips({
                )}
             </a>
          ))}
+         {/* the mark vocabulary, keyed right where the marks are read — the
+             legend stays a conventions card, not a per-mark decoder */}
+         <span className="mt-1 flex items-center gap-1 border-t border-secondary px-1 pt-1.5 text-[11px] text-ink-3">
+            <span className="pip pip-on" /> stands
+            <span className="pip pip-stale ml-1.5" /> staled by a push
+            <span className="pip pip-off ml-1.5" /> needed
+         </span>
       </Popover>
    );
 }
