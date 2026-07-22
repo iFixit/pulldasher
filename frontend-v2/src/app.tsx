@@ -42,16 +42,15 @@ import { SavedFiltersInput, SavedFiltersMenu } from './components/SavedFiltersPa
 import type { RowOptions } from './components/Row';
 import { Review } from './views/Review';
 import { MyWork } from './views/MyWork';
-import { People } from './views/People';
 import { Team } from './views/Team';
 import { Classic } from './views/Classic';
 import { Ci } from './views/Ci';
 import { Stats } from './views/Stats';
 import { Settings } from './components/Settings';
 
-type Lens = 'review' | 'mine' | 'team' | 'people' | 'classic' | 'ci' | 'stats';
+type Lens = 'review' | 'mine' | 'team' | 'classic' | 'ci' | 'stats';
 
-const LENSES: Lens[] = ['review', 'mine', 'team', 'people', 'classic', 'ci', 'stats'];
+const LENSES: Lens[] = ['review', 'mine', 'team', 'classic', 'ci', 'stats'];
 
 /** every actionState bucket, for validating the `state=` hash param against */
 const ACTION_STATE_KEYS: ActionStateKey[] = [
@@ -107,6 +106,9 @@ function readHash(): HashState {
    // the Board lens merged into Classic (same columns, real justification);
    // old #lens=board links keep working
    if ((lens as string) === 'board') lens = 'classic';
+   // People merged into Team (same board, different picker); old links keep
+   // their person=/team= params, so they land on the same page they named
+   if ((lens as string) === 'people') lens = 'team';
    // a bare URL (no lens param) opens the user's configured default view
    const fallback = defaultLensFallback();
    return {
@@ -672,7 +674,7 @@ export function App() {
    const onPerson = useCallback((login: string) => {
       setPerson(login);
       setTeam(null);
-      setLens('people');
+      setLens('team');
    }, []);
    // a row's weight chip toggles that bucket in the session Weight filter —
    // the same array WeightFilter's own checkboxes drive
@@ -930,7 +932,6 @@ export function App() {
                      {tab('review', 'Review')}
                      {tab('mine', 'My work', mineCount)}
                      {tab('team', 'Team')}
-                     {tab('people', 'People')}
                      {tab('classic', 'Classic')}
                      {tab('ci', 'CI')}
                      {tab('stats', 'Stats')}
@@ -1064,16 +1065,6 @@ export function App() {
                <Team
                   pulls={humans}
                   allPulls={pulls.filter(p => !isBot(p))}
-                  me={me}
-                  opts={rowOpts}
-                  onPerson={onPerson}
-                  extraBots={extraBots}
-               />
-            )}
-            {initialized && lens === 'people' && (
-               <People
-                  pulls={humans}
-                  allPulls={pulls.filter(p => !isBot(p))}
                   teams={allTeams}
                   person={person}
                   team={team}
@@ -1085,7 +1076,12 @@ export function App() {
                      setTeam(name);
                      setPerson(null);
                   }}
+                  onHome={() => {
+                     setPerson(null);
+                     setTeam(null);
+                  }}
                   opts={rowOpts}
+                  extraBots={extraBots}
                />
             )}
             {initialized && lens === 'classic' && (

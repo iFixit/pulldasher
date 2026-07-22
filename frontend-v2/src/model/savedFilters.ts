@@ -77,7 +77,8 @@ const LENS_LABEL: Record<string, string> = {
    review: 'Review',
    mine: 'My work',
    team: 'Team',
-   people: 'People',
+   // legacy: the People tab merged into Team; old saved hashes still say it
+   people: 'Team',
    classic: 'Classic',
    stats: 'Stats',
 };

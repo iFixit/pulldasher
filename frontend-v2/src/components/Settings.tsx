@@ -19,7 +19,6 @@ const LENS_OPTIONS: [string, string][] = [
    ['review', 'Review'],
    ['mine', 'My work'],
    ['team', 'Team'],
-   ['people', 'People'],
    ['classic', 'Classic'],
    ['ci', 'CI'],
    ['stats', 'Stats'],
@@ -31,7 +30,6 @@ const LANE_CAP_LENS_OPTIONS: [string, string][] = [
    ['review', 'Review'],
    ['mine', 'My work'],
    ['team', 'Team'],
-   ['people', 'People'],
    ['classic', 'Classic'],
    ['ci', 'CI'],
 ];
