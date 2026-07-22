@@ -22,14 +22,21 @@ import {
    snoozePull,
    usePulldasher,
 } from '../store';
-import { AgeStamp, CiStatus, DiffSize, RepoRef, SigPips, WEIGHT_WORD, WeightMeter } from './bits';
+import {
+   AgeStamp,
+   AgeStrip,
+   CiStatus,
+   DiffSize,
+   RepoRef,
+   SigPips,
+   WEIGHT_WORD,
+   WeightMeter,
+} from './bits';
 import { CardShell } from './Card';
 import { StatePopover } from './StatePopover';
 import { Popover } from './Popover';
 
 export interface RowOptions {
-   /** show the open-Nd flag on starved pulls */
-   aging?: boolean;
    /** compact density: one-line rows, smaller avatar, tighter spacing */
    compact?: boolean;
    /** rows a lane shows before folding; 0 = no cap. Falls back to the lane's
@@ -62,6 +69,10 @@ export interface RowOptions {
    /** pull key → whose turn it is (the best-fit reviewer for a starved,
     * unclaimed PR), computed once in app.tsx so the row just looks it up. */
    turns?: ReadonlyMap<string, string>;
+   /** one plain-words line on why this pull sits where it does in a ranked
+    * lane (Review's queue / Needs QA) — rendered in the state popover, never
+    * inline on the card. */
+   rankReason?: (p: DerivedPull) => string | null;
 }
 
 /**
@@ -113,7 +124,8 @@ interface Flag {
 
 /**
  * The row's secondary annotations, gathered in one place: conflicts, stacked,
- * holds, in-flight CI, iterating, aging. They're not the status (the badge is)
+ * holds, in-flight CI, iterating. (Age lives in the rail's AgeStrip, not a
+ * flag — one mark per fact.) They're not the status (the badge is)
  * and not your action (the note is), so they read as quiet colored labels,
  * not badges — amber only for the ones you act on, muted gray for plain facts.
  *
@@ -126,7 +138,6 @@ interface Flag {
 function rowFlags(
    pull: DerivedPull,
    showIterating: boolean,
-   aging: boolean,
    depth: number,
    orphanParent: ParentRef | null
 ): Flag[] {
@@ -153,29 +164,6 @@ function rowFlags(
          label: 'external',
          detail: 'Blocked on something outside this repo.',
       });
-   if (aging) {
-      // the server ships discussion aggregates (newer servers only): an aging
-      // PR nobody has even discussed is a different neglect than one debated
-      // for a week — say which this is
-      const commentCount = p.data.status.comment_count;
-      const lastCommentAt = p.data.status.last_comment_at;
-      const quiet =
-         commentCount == null
-            ? ''
-            : commentCount === 0
-              ? ' No discussion yet.'
-              : lastCommentAt
-                ? ` Last comment ${ago(epoch(lastCommentAt))} ago.`
-                : '';
-      flags.push({
-         key: 'aging',
-         tone: 'warn',
-         // the rail's AgeStamp already shows the day count on this same card —
-         // the chip names WHY it's in the aging lane, the hover has the numbers
-         label: 'aging',
-         detail: `Open ${p.ageDays} days without full CR (${p.crHave} of ${p.data.status.cr_req}).${quiet}`,
-      });
-   }
    if (p.dependent && p.status !== 'unmergeable' && depth === 0) {
       flags.push(
          orphanParent
@@ -677,7 +665,19 @@ function MetricRail({
       >
          <RowActions pull={pull} overlay={!!opts.compact} me={me} claim={claim} />
          <RowActionsKebab pull={pull} claim={claim} />
-         <CiStatus pull={pull} />
+         {/* the rail's left deck: CI on top, the age strip under it — the
+             same two-deck geometry as the sign-off column beside it. The
+             strip stays invisible until the pull crosses the aging
+             threshold, so a healthy young row shows nothing here. */}
+         <span className="flex flex-col items-center gap-[3px]">
+            <CiStatus pull={pull} />
+            <AgeStrip
+               ageDays={pull.ageDays}
+               warnDays={opts.ageWarnDays}
+               rotDays={opts.ageRotDays}
+               quiet={['draft', 'dev_block', 'deploy_block'].includes(pull.status)}
+            />
+         </span>
          {/* weight rides UNDER the whole sign-off section (CR + QA) as a
              ratio strip — it's "how heavy is this review", both halves, not
              its own rail slot. The shared extent normalizes the track length
@@ -786,6 +786,7 @@ function RowImpl({
                   claim={claim}
                   turn={turn}
                   poolSize={poolSize}
+                  whyHere={opts.rankReason?.(pull) ?? null}
                   title="see the full state"
                >
                   <RepoRef repo={d.repo} number={d.number} />
@@ -815,13 +816,7 @@ function RowImpl({
                   </span>
                )}
                <RowDetails
-                  flags={rowFlags(
-                     pull,
-                     showIterating,
-                     !!opts.aging && pull.starved,
-                     depth,
-                     orphanParent
-                  )}
+                  flags={rowFlags(pull, showIterating, depth, orphanParent)}
                />
             </>
          }
@@ -840,7 +835,6 @@ export const Row = memo(
    (a, b) =>
       a.pull === b.pull &&
       a.depth === b.depth &&
-      a.opts.aging === b.opts.aging &&
       a.opts.compact === b.opts.compact &&
       a.opts.me === b.opts.me &&
       a.opts.lastSeen === b.opts.lastSeen &&

@@ -415,7 +415,7 @@ export function Settings({
                         </Field>
                         <Field
                            label="Age turns amber"
-                           hint="When a PR’s age reads as getting old (color only; the aging lane is unchanged)."
+                           hint="When the age strip appears and a pull counts as starved — this floats it up the review queue, not just recolors it."
                         >
                            <NumberField
                               value={s.ageWarnDays}

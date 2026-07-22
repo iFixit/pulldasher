@@ -223,18 +223,28 @@ function StatePopoverBody({
    claim,
    turn,
    poolSize,
+   whyHere,
 }: {
    pull: DerivedPull;
    me: string;
    claim?: { login: string; at: number } | null;
    turn?: string | null;
    poolSize?: number;
+   whyHere?: string | null;
 }) {
    return (
       <>
          <StateSection pull={pull} me={me} claim={claim} turn={turn} />
          <FactsSection pull={pull} claim={claim} turn={turn} poolSize={poolSize} />
          <FeedbackSection pull={pull} />
+         {/* ranked lanes explain their pick per-card here — behind the same
+             door as everything else, never inline on the row */}
+         {whyHere && (
+            <p className="border-b border-secondary px-1 py-2 text-ink-3">
+               <span className="font-medium text-ink-2">why it’s up next — </span>
+               {whyHere}
+            </p>
+         )}
          <a
             href={githubUrl(pull.data.repo, pull.data.number)}
             target="_blank"
@@ -268,6 +278,7 @@ export function StatePopover({
    claim,
    turn,
    poolSize,
+   whyHere,
    title = 'see the full state',
    children,
 }: {
@@ -276,6 +287,8 @@ export function StatePopover({
    claim?: { login: string; at: number } | null;
    turn?: string | null;
    poolSize?: number;
+   /** a ranked lane's one-line reason this pull sits where it does */
+   whyHere?: string | null;
    title?: string;
    children: ReactNode;
 }) {
@@ -293,7 +306,14 @@ export function StatePopover({
             </button>
          )}
       >
-         <StatePopoverBody pull={pull} me={me} claim={claim} turn={turn} poolSize={poolSize} />
+         <StatePopoverBody
+            pull={pull}
+            me={me}
+            claim={claim}
+            turn={turn}
+            poolSize={poolSize}
+            whyHere={whyHere}
+         />
       </Popover>
    );
 }

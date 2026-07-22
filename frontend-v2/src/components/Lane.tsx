@@ -45,7 +45,10 @@ function GroupHeader({
    headerExtra,
 }: {
    title: string;
-   sub?: string;
+   /** plain string for most lanes; a ReactNode when the sub-line itself is
+    * the door to more detail (Review's queue wraps its ranking one-liner in
+    * a popover — existing text becomes interactive, zero new chrome) */
+   sub?: ReactNode;
    count?: number;
    compact?: boolean;
    headerExtra?: ReactNode;
@@ -100,7 +103,7 @@ export function Lane({
    headerExtra,
 }: {
    title: string;
-   sub?: string;
+   sub?: ReactNode;
    pulls: DerivedPull[];
    /** header count when rows come in via children instead of pulls */
    count?: number;

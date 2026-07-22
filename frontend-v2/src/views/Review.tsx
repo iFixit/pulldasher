@@ -13,12 +13,13 @@ import {
 } from '../model/actions';
 import { reviewRequestedFrom } from '../model/reviewers';
 import { startHereReason } from '../model/cheers';
-import { dealOne } from '../model/deal';
+import { dealFrom, dealRank } from '../model/deal';
 import { useSettings } from '../settings';
 import { claimFor, claimReview, isFresh, usePulldasher } from '../store';
 import type { PullData } from '../types';
 import {
    AgeStamp,
+   AgeStrip,
    Avatar,
    CiStatus,
    EmptyState,
@@ -83,7 +84,14 @@ function DealtCard({
             <PullTitleLink repo={d.repo} number={d.number} title={d.title} />
          </div>
          <div className="flex items-center gap-2">
-            <CiStatus pull={pull} />
+            <span className="flex flex-col items-center gap-[3px]">
+               <CiStatus pull={pull} />
+               <AgeStrip
+                  ageDays={pull.ageDays}
+                  warnDays={opts.ageWarnDays}
+                  rotDays={opts.ageRotDays}
+               />
+            </span>
             <span className="flex flex-col items-stretch gap-[3px]">
                <span className="flex items-center gap-2">
                   <SigPips
@@ -123,35 +131,20 @@ function DealtCard({
 
 /**
  * "Deal me one": for a reviewer who'd rather be handed the next pull than
- * browse, pick the single best one out of the review queue and show it as a
- * card in a popover anchored to the button. "Claim it" takes it (and adds you
- * as a GitHub reviewer) then immediately deals the next, so a run of triage
- * doesn't mean reopening; "Pass" skips to the next without claiming. Clicking
- * away or Escape ends the session. Opening always deals a fresh pull.
+ * browse, deal the top still-available card of the queue exactly as the lane
+ * renders it, shown as a card in a popover anchored to the button. "Claim it"
+ * takes it (and adds you as a GitHub reviewer) then immediately deals the
+ * next, so a run of triage doesn't mean reopening; "Pass" skips to the next
+ * without claiming. Clicking away or Escape ends the session. Opening always
+ * deals a fresh pull.
  */
-function DealButton({
-   queue,
-   opts,
-   deprioritize,
-}: {
-   queue: DerivedPull[];
-   opts: RowOptions;
-   /** bots (etc.) the pick should hand out only once human work is clear */
-   deprioritize?: (p: DerivedPull) => boolean;
-}) {
+function DealButton({ queue, opts }: { queue: DerivedPull[]; opts: RowOptions }) {
    const { pulls } = usePulldasher();
-   const me = opts.me;
    const [dealtKey, setDealtKey] = useState<string | null>(null);
    const [passed, setPassed] = useState<ReadonlySet<string>>(new Set());
 
    const deal = (passedNow: ReadonlySet<string>) => {
-      const picked = dealOne(queue, {
-         me,
-         pulls,
-         claims: opts.claims ?? {},
-         passed: passedNow,
-         deprioritize,
-      });
+      const picked = dealFrom(queue, { claims: opts.claims ?? {}, passed: passedNow });
       setDealtKey(picked ? pullKey(picked.data) : null);
    };
 
@@ -282,8 +275,7 @@ export function Review({
          !p.crBy.includes(me) &&
          (p.status === 'needs_cr' || (p.status === 'needs_recr' && !p.recrBy.includes(me)))
    );
-   const aged = crPool.filter(p => p.starved).sort((a, b) => b.starveScore - a.starveScore);
-   const reviewable = crSort(crPool.filter(p => !p.starved));
+   const nonStarved = crPool.filter(p => !p.starved);
 
    // Bot PRs (dependency bumps, mostly) are review work too — someone has to
    // move the daily ones along — just low priority. The reviewable ones join
@@ -303,21 +295,26 @@ export function Review({
    const botRest = bots.filter(p => !botKeys.has(pullKey(p.data))).sort(bySecurityThenAge);
    const isDemoted = (p: DerivedPull) => botKeys.has(pullKey(p.data));
 
-   // your review queue leads with your repos, then the day's bot bumps at the
-   // tail; everything else folds into "other repos" so it's reachable but not in
-   // the way. Starvation stays cross-repo (the Aging lane) — the fairness
-   // backstop is deliberately everyone's job.
-   const queueHumans = starFirst(
-      reviewable.filter(p => isPrimaryRepo(p.data.repo)),
+   // ONE review queue: your primary repos' reviewables, every starved pull
+   // regardless of repo (the fairness backstop rides in the ranking now, not
+   // a separate Aging lane — starveScore's uncapped age × size term floats
+   // them to the top numerically instead of positionally), and the day's bot
+   // bumps sinking to the tail. Ranked by the exact score Deal me one uses,
+   // so the button always deals the top visible card — the list and the
+   // button can't disagree. Non-starved work outside your primary repos still
+   // folds into "other repos" below, reachable but not in the way.
+   const queue = starFirst(
+      dealRank(
+         [
+            ...nonStarved.filter(p => isPrimaryRepo(p.data.repo)),
+            ...crPool.filter(p => p.starved),
+            ...botReviewable,
+         ],
+         { me, pulls, deprioritize: isDemoted, warnDays: opts.ageWarnDays }
+      ),
       starred
    );
-   const queue = [...queueHumans, ...botReviewable];
-   const queueOther = reviewable.filter(p => !isPrimaryRepo(p.data.repo));
-
-   // Deal me one draws from the whole reviewable pool — your primary repos, the
-   // aging cross-repo backstop, and bots — so a triage run doesn't skip the
-   // stuff that quietly needs moving. Bots sink to the end of the pick.
-   const dealPool = [...queueHumans, ...aged, ...botReviewable];
+   const queueOther = crSort(nonStarved.filter(p => !isPrimaryRepo(p.data.repo)));
 
    // Ready-to-merge is the author's button, not the reviewer's job: a count
    // in the rest group, not a lane at the top.
@@ -458,12 +455,16 @@ export function Review({
    // a quiet board (nothing in any primary lane) is exactly when the rest
    // group's folds become the main event — they should greet you open, not
    // as a wall of closed triangles
+   // the per-card "why" behind the repo# door in the ranked lanes — the same
+   // reason strings the dealt card's footnote and the Start-here toast use,
+   // so every surface explains a pick in the same words
+   const whyUpNext = (p: DerivedPull) => startHereReason(p, pulls, me);
+
    const boardIsQuiet =
       !yourMove.length &&
       !yoursWaiting.length &&
       !changed.length &&
       !queue.length &&
-      !aged.length &&
       !needsQa.length;
 
    // the rest group itself earns a title only when it has something inside —
@@ -548,30 +549,58 @@ export function Review({
          {/* below here is offered work, not owed work — the board's suggestion
              for what to pick up next, as distinct from "Your move" above. The
              label only earns its place when something is actually on offer. */}
-         {(aged.length > 0 || queue.length > 0 || needsQa.length > 0) && (
+         {(queue.length > 0 || needsQa.length > 0) && (
             <div className={`mb-2 text-ink-3 ${eyebrowText}`}>Pick up next</div>
          )}
          <Lane
-            title="Aging without full review"
-            sub={`open ${opts.ageWarnDays}+ days without a complete CR — most starved first (age × size)`}
-            pulls={aged}
-            cap={8}
-            opts={{ ...opts, aging: true }}
-         />
-         <Lane
             title="Review queue"
-            sub="the best next review first — your repos lead, then leverage, age and weight"
+            sub={
+               // the sub-line itself is the door to the full ranking story —
+               // existing text becomes interactive, zero new chrome at rest
+               <Popover
+                  label="How the queue is ranked"
+                  side="right"
+                  hover
+                  rootClass="relative inline-flex"
+                  width="w-[300px]"
+                  panelClass="p-3 text-xs"
+                  trigger={t => (
+                     <button
+                        {...t}
+                        type="button"
+                        className="hit rounded border-0 bg-transparent p-0 text-left text-xs text-ink-3 decoration-dotted underline-offset-2 hover:underline"
+                     >
+                        one queue, best next review first — hover for how
+                     </button>
+                  )}
+               >
+                  <div className="flex flex-col gap-1.5 px-1 text-ink-2">
+                     <p className="font-medium text-ink">One score ranks every card:</p>
+                     <p>
+                        pulls open {opts.ageWarnDays ?? 4}+ days without a full CR float to the top,
+                        hardest-starved first (age × size) — even heavy ones, even outside your
+                        primary repos.
+                     </p>
+                     <p>
+                        Then: repos you’ve stamped before, authors who’ve reviewed yours, and small
+                        quick wins, lightest first. Starred repos pin to the top; bot bumps sink to
+                        the tail.
+                     </p>
+                     <p>“Deal me one” deals the top card that isn’t claimed or passed.</p>
+                  </div>
+               </Popover>
+            }
             pulls={queue}
-            cap={9}
-            opts={opts}
-            headerExtra={<DealButton queue={dealPool} opts={opts} deprioritize={isDemoted} />}
+            cap={12}
+            opts={{ ...opts, rankReason: whyUpNext }}
+            headerExtra={<DealButton queue={queue} opts={opts} />}
          />
          <Lane
             title="Needs QA"
-            sub="CR and QA run in parallel"
+            sub="CR and QA run in parallel — a pull can sit here and in the queue"
             pulls={needsQa}
             cap={6}
-            opts={opts}
+            opts={{ ...opts, rankReason: whyUpNext }}
          />
          {restTotal > 0 && (
             <RestGroup title="The rest of the board">
@@ -608,6 +637,7 @@ export function Review({
                   dot={STATUS_DOT.dev_block}
                   count={devBlocked.length}
                   label="dev blocked"
+                  hint="paused by the author — nothing to review yet"
                   id="review:dev-blocked"
                >
                   <FoldRows list={devBlocked} opts={opts} id="review:dev-blocked" />
@@ -643,6 +673,7 @@ export function Review({
                   dot={STATUS_DOT.ci_red}
                   count={ciRed.length}
                   label="CI red"
+                  hint="the author fixes CI first"
                   id="review:ci-red"
                   defaultOpen={boardIsQuiet}
                >
@@ -652,6 +683,7 @@ export function Review({
                   dot={STATUS_DOT.draft}
                   count={drafts.length}
                   label={drafts.length === 1 ? 'draft' : 'drafts'}
+                  hint="not up for review yet"
                   id="review:drafts"
                >
                   <FoldRows list={drafts} opts={opts} id="review:drafts" />
