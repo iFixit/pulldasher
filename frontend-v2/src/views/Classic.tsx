@@ -13,8 +13,13 @@ import type { RowOptions } from '../components/Row';
  * predicates, the same sorts, straight from frontend/src/pulldasher/index.tsx
  * and pulldasher/sort.ts. A pull can appear in several columns at once and
  * empty columns stay visible — that spatial constancy is the muscle memory
- * this lens exists to preserve. New concepts (lanes, one-status-per-pull,
- * folds) stay out of here on purpose.
+ * this lens exists to preserve. Lanes and folds stay out on purpose; the ONE
+ * v2 concept allowed in is the word sub-headers inside each column (the
+ * owner asked for them here explicitly when badges died board-wide). Note
+ * the axes deliberately differ: a column names a v1 predicate, the words
+ * name the viewer's verb — so "AWAITING CR" can appear inside QA (v1's QA
+ * column never required CR-done; QA runs in parallel). That overlap is v1
+ * behavior made legible, not a grouping bug.
  */
 
 // v1 predicate ports. Where v1 read raw wire fields (dev_block[0] with no
