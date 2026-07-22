@@ -76,7 +76,22 @@ queue is ranked by the same score Deal-me-one deals from, so the button
 always takes the top visible card. Two orderings for one list — one shown,
 one hidden inside a button — is a least-surprise bug even when both are
 individually sensible; if a pick needs extra signals, put them in the
-lane's ranking and explain them behind the sub-line.
+lane's ranking and explain them behind the sub-line. A control that sits
+away from its list (the deal strip at the top of the page) names the list
+in its own label — "takes the top card of your review queue" — so the
+contract survives the distance. And when the action commits somewhere (a
+claim re-buckets the row into "Your move"), take the user there: scroll to
+the row's new home and flash it, so the commitment visibly lands instead
+of evaporating into a lane they aren't looking at.
+
+**Work-in-progress lives inline, not in a popover.** A popover is for
+glancing (state detail, signatures, rankings) and rightly dies on any
+outside click. A dealt card is a commitment in progress — it renders as an
+inline banner section in the board's own flow, full-width so the row keeps
+the board's rail geometry, dismissed only by an explicit Done or Escape.
+The deal popover shipped first and had three failure modes at once: buried
+mid-page on the queue lane's header, a row squeezed to 320px, and
+stray-click dismissal mid-triage.
 
 **Ranked lanes explain themselves in three quiet layers**: the sub-line
 says the ordering in one plain sentence (and is itself the hover-door to

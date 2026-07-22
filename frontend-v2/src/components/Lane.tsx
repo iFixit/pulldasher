@@ -36,8 +36,10 @@ export function Rows({ children }: { children: ReactNode }) {
 }
 
 /** The shared lane/group header: title, optional subtitle, optional
- * right-aligned count and/or an extra control (e.g. Review's "Deal me one"). */
-function GroupHeader({
+ * right-aligned count and/or an extra control. Exported so one-off sections
+ * (Review's dealt-to-you banner) use the one header system instead of
+ * hand-rolling a lookalike. */
+export function GroupHeader({
    title,
    sub,
    count,

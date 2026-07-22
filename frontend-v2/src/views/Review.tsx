@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { type DerivedPull, qaDone, type Status, weightRank } from '../model/status';
-import { pullKey } from '../format';
+import { pullKey, rowDomId } from '../format';
 import { crSort, starFirst } from '../model/sort';
 import { matchedRegions, matchesRegion } from '../model/regions';
 import {
@@ -18,8 +18,17 @@ import { useSettings } from '../settings';
 import { claimFor, claimReview, isFresh, usePulldasher } from '../store';
 import type { PullData } from '../types';
 import { EmptyState, QuietButton, STATUS_DOT, STATUS_LABEL } from '../components/bits';
-import { Fold, FoldRows, Lane, laneShown, RestGroup, Truncated } from '../components/Lane';
-import { onOpen, Popover } from '../components/Popover';
+import {
+   Fold,
+   FoldRows,
+   GroupHeader,
+   Lane,
+   laneShown,
+   RestGroup,
+   Rows,
+   Truncated,
+} from '../components/Lane';
+import { Popover } from '../components/Popover';
 import { RegionHint } from '../components/RegionHint';
 import { markDealtFlash, Row, type RowOptions } from '../components/Row';
 import { eyebrowText, WordGroupRows } from '../components/WordGroups';
@@ -27,7 +36,7 @@ import { ClosedRow } from '../components/ClosedRow';
 
 /**
  * The dealt pull IS a board row — the real Row component, not a re-drawn
- * card, so the popover shows exactly what the queue shows (alarm CI, pips,
+ * card, so the banner shows exactly what the queue shows (alarm CI, pips,
  * weight strip, age baseline, the repo# state door, flags, hover actions)
  * and can never drift from it. Below the row: the "why this one" line as a
  * quiet footnote — reasons are context, not state — and the two verbs.
@@ -64,18 +73,33 @@ function DealtCard({
 }
 
 /**
- * "Deal me one": for a reviewer who'd rather be handed the next pull than
- * browse, deal the top still-available card of the queue exactly as the lane
- * renders it, shown as a card in a popover anchored to the button. "Claim it"
- * takes it (and adds you as a GitHub reviewer) then immediately deals the
- * next, so a run of triage doesn't mean reopening; "Pass" skips to the next
- * without claiming. Clicking away or Escape ends the session. Opening always
- * deals a fresh pull.
+ * "Deal me one" as the board's greeting: for a reviewer who'd rather be
+ * handed the next pull than browse, a quiet full-width strip at the very top
+ * of the lens — the page opens by answering "what should I pick up next?".
+ * Clicking it unfolds an inline banner (a lane-shaped section, the one
+ * header system) holding the dealt pull as a REAL full-width board row.
+ * It used to be a popover on the queue lane's header, which buried the
+ * feature mid-page, squeezed the row to 320px (denying it the board's rail
+ * geometry), and dismissed on any stray click mid-commitment — an inline
+ * banner has none of those failure modes and keeps the queue visible
+ * beneath, so you can see the dealt card IS the queue's top card.
+ *
+ * "Claim it" takes the pull (and adds you as a GitHub reviewer), then deals
+ * the next for an uninterrupted run of triage — and once the claim lands in
+ * the store, scrolls to the row in its new lane ("Your move", right below)
+ * and flashes it, so the commitment visibly arrives somewhere. "Pass" skips
+ * without claiming. "Done" or Escape folds the banner back to the strip.
  */
-function DealButton({ queue, opts }: { queue: DerivedPull[]; opts: RowOptions }) {
+function DealStrip({ queue, opts }: { queue: DerivedPull[]; opts: RowOptions }) {
    const { pulls } = usePulldasher();
+   const [open, setOpen] = useState(false);
    const [dealtKey, setDealtKey] = useState<string | null>(null);
    const [passed, setPassed] = useState<ReadonlySet<string>>(new Set());
+   // the claim we're waiting to see land in the store, so the scroll targets
+   // the row AFTER it has moved to its new lane, not its old queue position
+   const [landing, setLanding] = useState<{ key: string; repo: string; number: number } | null>(
+      null
+   );
 
    const deal = (passedNow: ReadonlySet<string>) => {
       const picked = dealFrom(queue, { claims: opts.claims ?? {}, passed: passedNow });
@@ -91,6 +115,7 @@ function DealButton({ queue, opts }: { queue: DerivedPull[]; opts: RowOptions })
       // deal the next straight away for an uninterrupted run of triage
       markDealtFlash(dealtKey);
       claimReview(dealt.data);
+      setLanding({ key: dealtKey, repo: dealt.data.repo, number: dealt.data.number });
       const next = new Set(passed);
       next.add(dealtKey);
       setPassed(next);
@@ -105,33 +130,76 @@ function DealButton({ queue, opts }: { queue: DerivedPull[]; opts: RowOptions })
       deal(next);
    };
 
+   // scroll to the claimed row once the store's claims include it — that's
+   // the same publish that re-buckets it into "Your move" and paints the
+   // markDealtFlash highlight, so the scroll lands on its settled position.
+   // A frame's wait lets the re-render commit first.
+   useEffect(() => {
+      if (!landing || opts.claims?.[landing.key]?.login !== opts.me) return;
+      const target = landing;
+      setLanding(null);
+      requestAnimationFrame(() => {
+         document
+            .getElementById(rowDomId(target))
+            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+   }, [landing, opts.claims, opts.me]);
+
+   useEffect(() => {
+      if (!open) return;
+      const onKey = (e: KeyboardEvent) => {
+         if (e.key === 'Escape') setOpen(false);
+      };
+      window.addEventListener('keydown', onKey);
+      return () => window.removeEventListener('keydown', onKey);
+   }, [open]);
+
+   // nothing to deal and no session in progress: no strip at all — a button
+   // that could only say "nothing left" is noise, not an affordance
+   if (!queue.length && !open) return null;
+
    return (
-      <Popover
-         label="A pull to review"
-         side="right"
-         width="w-[320px]"
-         panelClass="text-xs"
-         trigger={t => (
+      <section className={opts.compact ? 'mb-4' : 'mb-7'}>
+         {!open ? (
             <button
-               {...t}
                type="button"
-               // opening always deals a fresh pull
-               onClick={onOpen(t, () => {
+               onClick={() => {
                   setPassed(new Set());
                   deal(new Set());
-               })}
-               className="hit pressable rounded-md border border-line bg-surface px-2 py-0.5 text-xs font-medium text-ink-2 hover:text-brand"
+                  setOpen(true);
+               }}
+               className="pressable flex w-full items-center gap-2 rounded-2xl border border-line bg-surface px-3.5 py-2.5 text-left text-xs text-ink-2 hover:text-brand"
             >
-               Deal me one
+               <span className="flex-none font-medium whitespace-nowrap">Deal me one</span>
+               <span className="min-w-0 text-ink-3">— takes the top card of your review queue</span>
+               <span className="ml-auto flex-none text-ink-3 tabular-nums">{queue.length}</span>
             </button>
-         )}
-      >
-         {dealt ? (
-            <DealtCard pull={dealt} opts={opts} pulls={pulls} onClaim={claim} onPass={pass} />
          ) : (
-            <div className="p-3 text-xs text-ink-3">Nothing left to deal in this queue.</div>
+            <>
+               <GroupHeader
+                  title="Dealt to you"
+                  sub="the top card of your review queue — claim it or pass"
+                  compact={opts.compact}
+                  headerExtra={<QuietButton onClick={() => setOpen(false)}>Done</QuietButton>}
+               />
+               <Rows>
+                  {dealt ? (
+                     <DealtCard
+                        pull={dealt}
+                        opts={opts}
+                        pulls={pulls}
+                        onClaim={claim}
+                        onPass={pass}
+                     />
+                  ) : (
+                     <div className="px-3.5 py-3 text-xs text-ink-3">
+                        Nothing left to deal — you’ve claimed or passed everything in the queue.
+                     </div>
+                  )}
+               </Rows>
+            </>
          )}
-      </Popover>
+      </section>
    );
 }
 
@@ -458,6 +526,7 @@ export function Review({
 
    return (
       <>
+         <DealStrip queue={queue} opts={opts} />
          {codeRegions.length === 0 && <RegionHint />}
          {yourMove.length > 0 && (
             <Lane
@@ -562,7 +631,6 @@ export function Review({
             pulls={queue}
             cap={12}
             opts={{ ...opts, rankReason: whyUpNext }}
-            headerExtra={<DealButton queue={queue} opts={opts} />}
          />
          <Lane
             title="Needs QA"
