@@ -121,8 +121,8 @@ popover era dismissed a commitment-in-progress on any stray click.)
 says the ordering in one plain sentence (and is itself the hover-door to
 the full story — existing text becomes interactive, no info-icon chrome);
 each card's state popover carries a "why it's up next" line; and every
-fold's hint says what lands in it. If a user has to ask why a card is
-where it is, one of these layers is missing.
+fold's label glosses what lands in it on hover. If a user has to ask why
+a card is where it is, one of these layers is missing.
 
 ## Identity vs standing
 
@@ -211,11 +211,26 @@ icon with a class bolted on.
 - **Counts are always quiet**: `tabular-nums` in the surrounding text color,
   never bold ink — a count is a fact, not an alert. (Fold counts once shipped
   bold and read as more urgent than the lane titles above them.)
-- **One header system, four tiers**, each defined once: `BoardColumn`
+- **One header system, three tiers**, each defined once: `BoardColumn`
   (collapsible column panel) > `GroupHeader` (sticky lane title) >
-  eyebrow labels (`eyebrowText` in WordGroups.tsx — word sub-headers and
-  band labels share the exported constant, never a hand-rolled copy) >
-  `Fold` summaries (disclosure rows, not titles).
+  `Fold` (the board's ONE subsection: a collapsible eyebrow band).
+  Every subdivision below a lane title is a Fold — word groups inside
+  "Waiting on you", the rest-of-the-board ledger, a person's other PRs,
+  Ci's per-check bands. The former fourth tier (non-folding word
+  sub-headers vs chevron-and-dot disclosure rows) merged into it: two
+  grouping languages on one board meant the reader learned both.
+  `eyebrowText` (exported from Lane.tsx) is the band's type treatment;
+  band labels outside a Fold ("Pick up next", "Check health") share the
+  constant, never a hand-rolled copy.
+- **The Fold contract**: label speaks the row-word vocabulary (brand for
+  a do-word — the next step is yours; muted for everything that waits),
+  `· count` after it, a 12px chevron as the one disclosure affordance,
+  no status dot (the rows inside carry their own pips — a second color
+  code on the band was redundant weight). Clicking anywhere on the band
+  toggles, including the label; hovering the label opens its
+  one-sentence gloss. Primary lanes greet you with groups open; ledger
+  groups rest closed, so a quiet stack of bands reads as a table of
+  contents. An explicit open/closed choice is remembered per fold id.
 
 ## Settings & configuration
 

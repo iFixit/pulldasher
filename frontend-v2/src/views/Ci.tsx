@@ -19,19 +19,6 @@ import { eyebrowText } from '../components/WordGroups';
  * admits (same disclosure contract as Needs QA's CR overlap).
  */
 
-/** The per-check band header inside the failing lane — the word-group
- * eyebrow's grammar with a check name where the verb would be. */
-function CheckHeader({ context, count }: { context: string; count: number }) {
-   return (
-      <div
-         className={`border-t border-secondary bg-muted/40 px-3.5 py-1 first:border-t-0 ${eyebrowText}`}
-      >
-         <span className="text-ink-3">{context}</span>{' '}
-         <span className="text-ink-3 tabular-nums">· {count}</span>
-      </div>
-   );
-}
-
 /**
  * One check's health row: name, the board's 112px ruler carrying the red
  * failing share (and slate running share) of its runs, quiet counts, and the
@@ -134,15 +121,23 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
                   count={byCheck.reduce((sum, g) => sum + g.pulls.length, 0)}
                   opts={opts}
                >
+                  {/* check names are case-sensitive identifiers, so the
+                      fold skips the eyebrow's uppercase transform */}
                   {byCheck.map(g => (
-                     <div key={g.context}>
-                        <CheckHeader context={g.context} count={g.pulls.length} />
-                        <Truncated cap={laneShown(6, opts)} id={`ci:check:${g.context}`}>
+                     <Fold
+                        key={g.context}
+                        count={g.pulls.length}
+                        label={g.context}
+                        caps={false}
+                        id={`ci:check:${g.context}`}
+                        defaultOpen
+                     >
+                        <Truncated cap={laneShown(6, opts)} id={`ci:check:${g.context}:rows`}>
                            {g.pulls.map(p => (
                               <Row key={pullKey(p.data)} pull={p} opts={opts} />
                            ))}
                         </Truncated>
-                     </div>
+                     </Fold>
                   ))}
                </Lane>
             </section>
@@ -174,10 +169,9 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
             <RestGroup title="The rest of the board">
                {green.length > 0 && (
                   <Fold
-                     dot="var(--ok)"
                      count={green.length}
-                     label="all green"
-                     hint="every check passed"
+                     label="All green"
+                     gloss="Every check on these passed."
                      id="ci:green"
                      defaultOpen={allGreen}
                   >
@@ -186,10 +180,9 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
                )}
                {noChecks.length > 0 && (
                   <Fold
-                     dot="var(--ink-3)"
                      count={noChecks.length}
-                     label="no checks"
-                     hint="nothing runs CI on these"
+                     label="No checks"
+                     gloss="Nothing runs CI on these."
                      id="ci:no-checks"
                   >
                      <FoldRows list={noChecks} opts={opts} id="ci:no-checks" />

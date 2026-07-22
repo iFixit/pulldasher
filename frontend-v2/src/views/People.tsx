@@ -4,7 +4,8 @@ import { STATUS_ORDER, type DerivedPull } from '../model/status';
 import { useSettings } from '../settings';
 import type { Team } from '../types';
 import { Avatar, EmptyState } from '../components/bits';
-import { Fold, FoldRows, Lane, RestGroup, SubDoor } from '../components/Lane';
+import { Fold, FoldRows, Lane, laneShown, RestGroup, SubDoor } from '../components/Lane';
+import { WordGroupRows } from '../components/WordGroups';
 import type { RowOptions } from '../components/Row';
 import { crSort } from '../model/sort';
 
@@ -42,7 +43,8 @@ export function People({
    for (const p of allPulls)
       counts.set(p.data.user.login, (counts.get(p.data.user.login) ?? 0) + 1);
    const owes = new Map<string, DerivedPull[]>();
-   for (const p of allPulls.filter(x => !parked(x) && !authorOwnsIt(x))) for (const u of p.recrBy) owes.set(u, [...(owes.get(u) ?? []), p]);
+   for (const p of allPulls.filter(x => !parked(x) && !authorOwnsIt(x)))
+      for (const u of p.recrBy) owes.set(u, [...(owes.get(u) ?? []), p]);
 
    // starred people lead the directory; muted ones drop out entirely unless
    // they're the person an explicit pick (a URL or a click) already landed on
@@ -61,7 +63,12 @@ export function People({
    const selectedTeam = team && teams.some(t => t.team === team) ? team : null;
    const selectedPerson = selectedTeam ? null : (person ?? defaultPerson);
    if (!selectedPerson && !selectedTeam) {
-      return <EmptyState title="Nobody to show" sub="No open PRs from any person matching your filters." />;
+      return (
+         <EmptyState
+            title="Nobody to show"
+            sub="No open PRs from any person matching your filters."
+         />
+      );
    }
 
    const members = selectedTeam
@@ -226,9 +233,9 @@ export function People({
             sub={
                <SubDoor label="How this queue is ordered" text="best next review first">
                   <p>
-                     Lightest first, so a short break fits a review. A PR that needs just one
-                     more approval jumps up (yours would finish it), and PRs move up as they
-                     wait. PRs the author is still actively pushing to sink to the bottom.
+                     Lightest first, so a short break fits a review. A PR that needs just one more
+                     approval jumps up (yours would finish it), and PRs move up as they wait. PRs
+                     the author is still actively pushing to sink to the bottom.
                   </p>
                </SubDoor>
             }
@@ -236,30 +243,23 @@ export function People({
             cap={8}
             opts={opts}
          />
+         {/* everything not in the queue, split by the same words the Review
+             lens groups on — your live stamp emerges as the "stamped" group
+             instead of needing its own hand-made fold */}
          {(rest.length > 0 || owed.length > 0 || mine.length > 0) && (
-            <RestGroup>
-               <Fold
-                  dot="var(--ok)"
-                  count={mine.length}
-                  label="stamped by you"
-                  hint="waiting on another reviewer"
-                  id="people:mine"
-               >
-                  <FoldRows list={mine} opts={opts} id="people:mine" />
-               </Fold>
-               <Fold
-                  dot="var(--ink-3)"
-                  count={rest.length}
-                  label={selectedTeam ? 'their other team PRs' : 'their other PRs'}
+            <RestGroup title="The rest of their work">
+               <WordGroupRows
+                  pulls={[...mine, ...rest]}
+                  opts={opts}
                   id="people:rest"
-               >
-                  <FoldRows list={rest} opts={opts} id="people:rest" />
-               </Fold>
+                  cap={laneShown(30, opts)}
+                  foldDefaultOpen={false}
+               />
                {selectedPerson && (
                   <Fold
-                     dot="var(--warn)"
                      count={owed.length}
-                     label="re-stamps they owe others"
+                     label="Re-stamps they owe"
+                     gloss="Their earlier approval went stale after new commits; a fresh re-stamp from them is owed to the author."
                      id="people:owed"
                   >
                      <FoldRows list={owed} opts={opts} id="people:owed" />

@@ -6,7 +6,8 @@ import { crSort } from '../model/sort';
 import { teamBuckets } from '../model/team';
 import { useSettings } from '../settings';
 import { Avatar, EmptyState } from '../components/bits';
-import { Fold, FoldRows, Lane, RestGroup, SubDoor } from '../components/Lane';
+import { Lane, laneShown, RestGroup, SubDoor } from '../components/Lane';
+import { WordGroupRows } from '../components/WordGroups';
 import { Popover } from '../components/Popover';
 import type { RowOptions } from '../components/Row';
 import { TeamPicker } from '../components/TeamPicker';
@@ -47,7 +48,8 @@ export function Team({
    }, [allPulls]);
    const owes = useMemo(() => {
       const m = new Map<string, DerivedPull[]>();
-      for (const p of allPulls.filter(x => !parked(x) && !authorOwnsIt(x))) for (const u of p.recrBy) m.set(u, [...(m.get(u) ?? []), p]);
+      for (const p of allPulls.filter(x => !parked(x) && !authorOwnsIt(x)))
+         for (const u of p.recrBy) m.set(u, [...(m.get(u) ?? []), p]);
       return m;
    }, [allPulls]);
 
@@ -171,20 +173,18 @@ export function Team({
             cap={9}
             opts={opts}
          />
+         {/* everything not in the queue, split by the same words the Review
+             lens groups on — "stamped" (yours, in flight) emerges from the
+             vocabulary instead of needing its own hand-made fold */}
          {(stamped.length > 0 || rest.length > 0) && (
-            <RestGroup>
-               <Fold
-                  dot="var(--ok)"
-                  count={stamped.length}
-                  label="you've stamped"
-                  hint="waiting on another reviewer"
-                  id="team:stamped"
-               >
-                  <FoldRows list={stamped} opts={opts} id="team:stamped" />
-               </Fold>
-               <Fold dot="var(--ink-3)" count={rest.length} label="their other PRs" id="team:rest">
-                  <FoldRows list={rest} opts={opts} id="team:rest" />
-               </Fold>
+            <RestGroup title="The rest of their work">
+               <WordGroupRows
+                  pulls={[...stamped, ...rest]}
+                  opts={opts}
+                  id="team:rest"
+                  cap={laneShown(30, opts)}
+                  foldDefaultOpen={false}
+               />
             </RestGroup>
          )}
       </>

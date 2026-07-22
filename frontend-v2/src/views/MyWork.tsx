@@ -71,10 +71,9 @@ export function MyWork({
          {shipped.length > 0 && (
             <RestGroup>
                <Fold
-                  dot="var(--ok)"
                   count={shipped.length}
-                  label="recently closed"
-                  hint="merged or closed in the last 14 days"
+                  label="Recently closed"
+                  gloss="Merged or closed in the last 14 days."
                   id="mine:shipped"
                   // both lanes above are clear and shipped has something to
                   // show: "look what got done" is exactly the content the

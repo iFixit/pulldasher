@@ -1,4 +1,4 @@
-import { useState, type ReactNode, type SyntheticEvent } from 'react';
+import { useRef, useState, type ReactNode, type SyntheticEvent } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { pullKey } from '../format';
 import type { DerivedPull } from '../model/status';
@@ -264,20 +264,43 @@ export function Truncated({
    );
 }
 
-/** One folded line in "the rest of the board": count + hint, rows on demand. */
+/**
+ * The one eyebrow-label type treatment: every 11px uppercase in-list label on
+ * the board (Fold headers, Review's "Pick up next" band label, Ci's Check
+ * health label) shares this string so the tier can't drift apart one
+ * hand-rolled copy at a time.
+ */
+export const eyebrowText = 'text-[11px] font-semibold tracking-wide uppercase';
+
+/**
+ * The board's one subsection: a collapsible eyebrow band. Word groups inside
+ * "Waiting on you", the rest-of-the-board ledger, a person's other PRs, Ci's
+ * per-check bands — every subdivision below a lane title is this component,
+ * so the whole board folds in a single grammar. The label speaks the same
+ * wait/do vocabulary the row words use: brand for your move, muted for
+ * everything that waits. Hovering the label opens its one-sentence gloss
+ * (locality — the legend stays optional reading); clicking anywhere on the
+ * band toggles the fold.
+ */
 export function Fold({
-   dot,
    count,
    label,
-   hint,
+   gloss,
+   tone = 'wait',
+   caps = true,
    id,
    defaultOpen = false,
    children,
 }: {
-   dot: string;
    count: number;
    label: string;
-   hint?: string;
+   /** one hover sentence explaining the label in place */
+   gloss?: string;
+   /** 'do' = the next step is yours (brand); 'wait' = everything else */
+   tone?: 'do' | 'wait';
+   /** false for case-sensitive identifiers (CI check names) the eyebrow
+    * transform would mangle */
+   caps?: boolean;
    /** stable identity: remembers this fold's open/closed choice across sessions */
    id?: string;
    /** initial state when nothing is stored yet — e.g. auto-open the one fold
@@ -286,6 +309,7 @@ export function Fold({
    children: ReactNode;
 }) {
    if (!count) return null;
+   const detailsRef = useRef<HTMLDetailsElement>(null);
    const stored = foldOpenStore.useValue();
    const explicit = id ? stored[id] : undefined;
    const open = explicit ?? defaultOpen;
@@ -299,21 +323,64 @@ export function Fold({
       if (foldOpenStore.get()[id] !== next)
          foldOpenStore.set({ ...foldOpenStore.get(), [id]: next });
    };
+   const labelInner = (
+      <>
+         <span className={tone === 'do' ? 'text-brand-700' : 'text-ink-3'}>{label}</span>{' '}
+         <span className="tabular-nums text-ink-3">· {count}</span>
+      </>
+   );
    return (
       <details
+         ref={detailsRef}
          id={id ? foldDomId(id) : undefined}
          className="group border-t border-secondary first:border-t-0"
          open={id ? open : undefined}
          onToggle={id ? onToggle : undefined}
       >
-         <summary className="flex cursor-pointer list-none items-center gap-2.5 px-3.5 py-[9px] text-[13px] text-ink-2 transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
+         <summary
+            className={`flex cursor-pointer list-none items-center gap-2 bg-muted/40 px-3.5 py-[6px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none [&::-webkit-details-marker]:hidden ${
+               caps ? eyebrowText : 'text-[11px] font-semibold'
+            }`}
+         >
             <Icon
                icon={ChevronRight}
-               className="text-ink-3 transition-[rotate] duration-150 ease-out group-open:rotate-90 motion-reduce:transition-none"
+               size={12}
+               className="flex-none text-ink-3 transition-[rotate] duration-150 ease-out group-open:rotate-90 motion-reduce:transition-none"
             />
-            <span className="h-2 w-2 flex-none rounded-[3px]" style={{ background: dot }} />
-            <span className="tabular-nums">{count}</span> {label}
-            {hint && <span className="ml-auto text-xs text-ink-3">{hint}</span>}
+            {gloss ? (
+               <Popover
+                  label={`what “${label}” means`}
+                  side="right"
+                  hover
+                  rootClass="relative inline-flex"
+                  width="w-max max-w-[280px]"
+                  panelClass="p-2 text-xs"
+                  trigger={t => (
+                     <button
+                        {...t}
+                        type="button"
+                        // a button inside <summary> captures the click, so the
+                        // band's promise (click anywhere toggles) is honored
+                        // here by hand — the gloss itself stays hover-only
+                        onClick={() => {
+                           const el = detailsRef.current;
+                           if (el) el.open = !el.open;
+                        }}
+                        className={`hit rounded border-0 bg-transparent p-0 text-left ${
+                           caps ? eyebrowText : 'text-[11px] font-semibold'
+                        }`}
+                     >
+                        {labelInner}
+                     </button>
+                  )}
+               >
+                  {/* the panel sits inside the uppercase eyebrow — undo the
+                      treatment so the gloss reads as a normal sentence */}
+                  <p className="px-1 font-normal normal-case tracking-normal text-ink-2">{gloss}</p>
+               </Popover>
+            ) : (
+               labelInner
+            )}
          </summary>
          <div className="border-t border-secondary">{children}</div>
       </details>

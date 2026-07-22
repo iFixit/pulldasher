@@ -16,7 +16,7 @@ import { dealRank } from '../model/deal';
 import { useSettings } from '../settings';
 import { claimFor, clearSnoozes, isFresh, isSnoozed, usePulldasher } from '../store';
 import type { PullData } from '../types';
-import { EmptyState, QuietButton, STATUS_DOT, STATUS_LABEL } from '../components/bits';
+import { EmptyState, QuietButton } from '../components/bits';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, SubDoor, Truncated } from '../components/Lane';
 import { RegionHint } from '../components/RegionHint';
 import type { RowOptions } from '../components/Row';
@@ -506,85 +506,76 @@ export function Review({
          {(restTotal > 0 || napping.length > 0) && (
             <RestGroup title="The rest of the board">
                <Fold
-                  dot={STATUS_DOT.needs_cr}
                   count={queueOther.length}
-                  label="to review in other repos"
-                  hint="outside your primary repos"
+                  label="Review, other repos"
+                  gloss="Reviewable, just outside your primary repos. The queue above sticks to the repos you actually review."
                   id="review:other-repos"
                   defaultOpen={boardIsQuiet}
                >
                   <FoldRows list={queueOther} opts={opts} id="review:other-repos" />
                </Fold>
                <Fold
-                  dot={STATUS_DOT.needs_qa}
                   count={needsQaOther.length}
-                  label="to QA in other repos"
-                  hint="outside your primary repos"
+                  label="QA, other repos"
+                  gloss="Needs a tester, just outside your primary repos."
                   id="review:qa-other-repos"
                   defaultOpen={boardIsQuiet}
                >
                   <FoldRows list={needsQaOther} opts={opts} id="review:qa-other-repos" />
                </Fold>
                <Fold
-                  dot={STATUS_DOT.ready}
                   count={ready.length}
-                  label="ready to merge"
-                  hint="nudge if idle"
+                  label="Ready to merge"
+                  gloss="Fully signed off and green; waiting on the author to merge. Nudge if idle."
                   id="review:ready"
                >
                   <FoldRows list={ready} opts={opts} id="review:ready" />
                </Fold>
                <Fold
-                  dot={STATUS_DOT.dev_block}
                   count={devBlocked.length}
-                  label="dev blocked"
-                  hint="paused by the author, nothing to review yet"
+                  label="Blocked"
+                  gloss="Someone left a dev block; the author owes changes first. Nothing to review yet."
                   id="review:dev-blocked"
                >
                   <FoldRows list={devBlocked} opts={opts} id="review:dev-blocked" />
                </Fold>
                <Fold
-                  dot={STATUS_DOT.deploy_block}
                   count={deployHeld.length}
-                  label="deploy blocked"
-                  hint="each row names who blocked it"
+                  label="Deploy hold"
+                  gloss="Done, but deliberately not shipped yet. Each row names who holds it."
                   id="review:deploy-blocked"
                >
                   <FoldRows list={deployHeld} opts={opts} id="review:deploy-blocked" />
                </Fold>
                <Fold
-                  dot={STATUS_DOT.unmergeable}
                   count={unmergeable.length}
-                  label="can’t merge"
-                  hint="the author rebases"
+                  label="Conflicts"
+                  gloss="Conflicts with the base branch; the author rebases."
                   id="review:unmergeable"
                >
                   <FoldRows list={unmergeable} opts={opts} id="review:unmergeable" />
                </Fold>
                <Fold
-                  dot={STATUS_DOT.ci_pending}
                   count={ciPending.length}
-                  label={STATUS_LABEL.ci_pending.toLowerCase()}
-                  hint="waiting on green"
+                  label="CI running"
+                  gloss="Checks are still running; review waits on green."
                   id="review:ci-pending"
                >
                   <FoldRows list={ciPending} opts={opts} id="review:ci-pending" />
                </Fold>
                <Fold
-                  dot={STATUS_DOT.ci_red}
                   count={ciRed.length}
                   label="CI red"
-                  hint="the author fixes CI first"
+                  gloss="A required check is failing; the author fixes that before anyone reviews."
                   id="review:ci-red"
                   defaultOpen={boardIsQuiet}
                >
                   <FoldRows list={ciRed} opts={opts} id="review:ci-red" />
                </Fold>
                <Fold
-                  dot={STATUS_DOT.draft}
                   count={drafts.length}
-                  label={drafts.length === 1 ? 'draft' : 'drafts'}
-                  hint="not up for review yet"
+                  label={drafts.length === 1 ? 'Draft' : 'Drafts'}
+                  gloss="Not up for review yet."
                   id="review:drafts"
                >
                   <FoldRows list={drafts} opts={opts} id="review:drafts" />
@@ -593,19 +584,17 @@ export function Review({
                    what's left here isn't up for review (merge-ready, in CI, or
                    draft), so it stays folded and never auto-opens */}
                <Fold
-                  dot="var(--ink-3)"
                   count={botRest.length}
-                  label="other bot PRs"
-                  hint="not up for review"
+                  label="Bot PRs"
+                  gloss="Dependency bumps that aren’t up for review — merge-ready, in CI, or draft. Reviewable bot PRs join the queue above."
                   id="review:bots"
                >
                   <FoldRows list={botRest} opts={opts} id="review:bots" />
                </Fold>
                <Fold
-                  dot="var(--ok)"
                   count={closed.length}
-                  label="recently closed"
-                  hint="merged or closed in the last 14 days"
+                  label="Recently closed"
+                  gloss="Merged or closed in the last 14 days."
                   id="review:shipped"
                   defaultOpen={boardIsQuiet}
                >
@@ -620,10 +609,9 @@ export function Review({
                    can always see what's hidden. Review-lens only: a snooze
                    quiets this lens's daily loop, nothing else. */}
                <Fold
-                  dot="var(--ink-3)"
                   count={napping.length}
-                  label="snoozed by you"
-                  hint="back tomorrow, or as soon as they change"
+                  label="Snoozed by you"
+                  gloss="Hidden from this lens only, until tomorrow or until they change. Every other lens still shows them."
                   id="review:snoozed"
                >
                   <div className="flex items-center justify-between gap-2 border-t border-secondary px-3.5 py-1.5 first:border-t-0">

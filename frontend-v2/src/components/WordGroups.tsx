@@ -1,19 +1,12 @@
-import type { ReactNode } from 'react';
 import { DO_WORD_RANK, rowWord, WAIT_WORD_RANK, type RowWord } from '../model/actions';
 import { groupIntoTree, type StackedPull } from '../model/stack';
 import type { DerivedPull } from '../model/status';
 import { pullKey } from '../format';
 import { claimFor } from '../store';
-import { Truncated } from './Lane';
-import { Popover } from './Popover';
+import { Fold, Truncated } from './Lane';
 import { Row, type RowOptions } from './Row';
 
-/**
- * The one eyebrow-label type treatment: every 11px uppercase in-list label on
- * the board (word sub-headers here, Review's "Pick up next" band label) shares
- * this string so the tier can't drift apart one hand-rolled copy at a time.
- */
-export const eyebrowText = 'text-[11px] font-semibold tracking-wide uppercase';
+export { eyebrowText } from './Lane';
 
 /**
  * One plain sentence per group word, shown on hovering the header — the
@@ -67,62 +60,6 @@ const WORD_GLOSS: Record<string, string> = {
    waiting: 'Waiting, and the board can’t say on what.',
 };
 
-/**
- * The quiet in-list label every word-grouped list splits on — the badge's
- * replacement: instead of a per-card pill, the section itself says what's
- * owed (brand) or why it waits (muted). Mirrors Classic's old SubHeader
- * styling so the two lenses still read as one design. The word itself is a
- * hover door to its one-sentence gloss (WORD_GLOSS above).
- */
-export function WordSubHeader({
-   word,
-   kind,
-   count,
-}: {
-   word: string;
-   kind: RowWord['kind'];
-   count: number;
-}) {
-   const gloss = WORD_GLOSS[word];
-   const inner = (
-      <>
-         <span className={kind === 'do' ? 'text-brand-700' : 'text-ink-3'}>{word}</span>{' '}
-         <span className="tabular-nums text-ink-3">· {count}</span>
-      </>
-   );
-   return (
-      <div
-         className={`border-t border-secondary bg-muted/40 px-3.5 py-1 first:border-t-0 ${eyebrowText}`}
-      >
-         {gloss ? (
-            <Popover
-               label={`what “${word}” means`}
-               side="right"
-               hover
-               rootClass="relative inline-flex"
-               width="w-max max-w-[280px]"
-               panelClass="p-2 text-xs"
-               trigger={t => (
-                  <button
-                     {...t}
-                     type="button"
-                     className={`hit rounded border-0 bg-transparent p-0 text-left ${eyebrowText}`}
-                  >
-                     {inner}
-                  </button>
-               )}
-            >
-               {/* the panel sits inside the uppercase eyebrow — undo the
-                   treatment so the gloss reads as a normal sentence */}
-               <p className="px-1 font-normal normal-case tracking-normal text-ink-2">{gloss}</p>
-            </Popover>
-         ) : (
-            inner
-         )}
-      </div>
-   );
-}
-
 export interface WordGroup {
    word: string;
    kind: RowWord['kind'];
@@ -167,39 +104,50 @@ export function groupNodesByWord(tree: StackedPull[], me: string): WordGroup[] {
 
 /**
  * The full word-grouped renderer: stack the pulls, bucket them by rowWord,
- * and render each bucket as a header followed by its rows — exactly the rows
- * FoldRows would produce, just split by section instead of one flat run.
- * Headers don't count against `cap` (the truncation only rations rows), so
- * the cap is lifted by the header count before handing it to Truncated.
+ * and render each bucket as its own Fold — the board's one subsection band,
+ * so every group can be collapsed and the choice is remembered. `cap` rations
+ * rows per group ("+N more" inside the fold); primary lanes greet you open
+ * (`foldDefaultOpen`), ledger uses pass false so the stack of bands reads as
+ * a quiet table of contents.
  */
 export function WordGroupRows({
    pulls,
    opts,
    id,
    cap,
+   foldDefaultOpen = true,
 }: {
    pulls: DerivedPull[];
    opts: RowOptions;
    id?: string;
    cap: number;
+   foldDefaultOpen?: boolean;
 }) {
    const tree = groupIntoTree(pulls);
    const groups = groupNodesByWord(tree, opts.me);
    if (!groups.length) return null;
-   const children: ReactNode[] = groups.flatMap(g => [
-      <WordSubHeader
-         key={`h-${g.kind}-${g.word}`}
-         word={g.word}
-         kind={g.kind}
-         count={g.nodes.length}
-      />,
-      ...g.nodes.map(({ pull: p, depth }) => (
-         <Row key={pullKey(p.data)} pull={p} opts={opts} depth={depth} />
-      )),
-   ]);
    return (
-      <Truncated cap={cap + groups.length} id={id}>
-         {children}
-      </Truncated>
+      <>
+         {groups.map(g => {
+            const gid = id ? `${id}:${g.kind}:${g.word}` : undefined;
+            return (
+               <Fold
+                  key={`${g.kind}-${g.word}`}
+                  count={g.nodes.length}
+                  label={g.word}
+                  tone={g.kind}
+                  gloss={WORD_GLOSS[g.word]}
+                  id={gid}
+                  defaultOpen={foldDefaultOpen}
+               >
+                  <Truncated cap={cap} id={gid ? `${gid}:rows` : undefined}>
+                     {g.nodes.map(({ pull: p, depth }) => (
+                        <Row key={pullKey(p.data)} pull={p} opts={opts} depth={depth} />
+                     ))}
+                  </Truncated>
+               </Fold>
+            );
+         })}
+      </>
    );
 }
