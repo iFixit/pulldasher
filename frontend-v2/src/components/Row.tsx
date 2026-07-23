@@ -757,17 +757,17 @@ function RowImpl({
                   <RepoRef repo={d.repo} number={d.number} />
                </StatePopover>
                {regions.length > 0 && !opts.hideRegionMark && (
-                  // a bare hover-door mark, not a chip: region-match is soft
-                  // personalization, not urgency, and inside the "In your code
-                  // regions" lanes it would only repeat what the lane header
-                  // already says — a filled brand chip diluted "blue = your
-                  // move" (color audit), and naming every region inline
-                  // out-weighed a 10px glyph (2026-07 icon pass)
+                  // the brand diamond leads and the matched region is NAMED in
+                  // quiet ink beside it — which of your regions hit must read
+                  // without a hover (a bare glyph hid it; owner call). No
+                  // border, no fill: plain meta text, not a chip, so "blue =
+                  // your move" stays undiluted. The full sentence keeps its
+                  // hover door.
                   <Popover
                      label="Code region match"
                      hover
                      side="right"
-                     rootClass="relative inline-flex flex-none"
+                     rootClass="relative inline-flex min-w-0 flex-none"
                      width="w-max max-w-[260px]"
                      panelClass="p-2 text-xs"
                      trigger={t => (
@@ -775,9 +775,16 @@ function RowImpl({
                            {...t}
                            type="button"
                            aria-label={`in your code ${regions.length > 1 ? 'regions' : 'region'}: ${regions.join(', ')}`}
-                           className="pressable -my-2 flex-none rounded px-0.5 py-2 text-brand hover:bg-secondary/60"
+                           className="pressable -my-2 flex min-w-0 flex-none items-center gap-1 rounded px-0.5 py-2 hover:bg-secondary/60"
                         >
-                           <Icon icon={Diamond} size={10} fill="currentColor" />
+                           <span aria-hidden className="text-brand">
+                              <Icon icon={Diamond} size={10} fill="currentColor" />
+                           </span>
+                           <span aria-hidden className="max-w-[18ch] truncate text-ink-3">
+                              {regions.length > 1
+                                 ? `${regions[0]} +${regions.length - 1}`
+                                 : regions[0]}
+                           </span>
                         </button>
                      )}
                   >
