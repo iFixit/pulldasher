@@ -37,6 +37,12 @@ import { WeightFilter } from './components/filters/WeightFilter';
 import { StateFilter } from './components/filters/StateFilter';
 import { HiddenPanel } from './components/filters/HiddenPanel';
 import { hasActiveFilters } from './components/filters/shared';
+import {
+   applySavedFilter,
+   describeHash,
+   matchesView,
+   useAllSavedFilters,
+} from './model/savedFilters';
 import { SavedFiltersInput, SavedFiltersMenu } from './components/SavedFiltersPanel';
 import type { RowOptions } from './components/Row';
 import { Review } from './views/Review';
@@ -344,6 +350,10 @@ export function App() {
          setShowAll(h.hidden);
          setReveal(h.reveal);
          setDraftsMode(h.drafts ?? getSettings().draftsMode);
+         // the hash is the whole view, scope included: applying a saved
+         // search (or walking history) must land its repos/authors too.
+         // Primed, not persisted — same rule as opening a shared link.
+         primeScope({ repos: h.repos, authors: h.authors, notAuthors: h.notAuthors });
       };
       window.addEventListener('hashchange', onHash);
       return () => window.removeEventListener('hashchange', onHash);
@@ -671,6 +681,10 @@ export function App() {
       stateSel,
    });
 
+   // every search both doors show; the pinned ones become the bar's chips
+   const allSearches = useAllSavedFilters();
+   const pinnedSearches = useMemo(() => allSearches.filter(f => f.pinned), [allSearches]);
+
    const onPerson = useCallback((login: string) => {
       setPerson(login);
       setTeam(null);
@@ -959,49 +973,31 @@ export function App() {
                </div>
             </div>
             <div className="mx-auto flex max-w-[1240px] min-w-0 flex-wrap items-center gap-2 border-t border-secondary px-5 py-2">
-               {/* one quick scope toggle per personal roster, FIRST in the bar
-                   so a growing trigger can never displace it. Three states,
-                   cycled by click and carried entirely by color/decoration —
-                   the chip's text never changes, so nothing ever shifts:
-                   quiet name = off; tinted pill = only this team;
-                   struck-through tint = everyone except them. */}
-               {settings.teams.map(t => {
-                  const same = (xs: string[]) =>
-                     xs.length === t.members.length && t.members.every(m => xs.includes(m));
-                  const state = same(scope.authors)
-                     ? 'only'
-                     : same(scope.notAuthors ?? [])
-                       ? 'except'
-                       : 'off';
-                  const next =
-                     state === 'off'
-                        ? { authors: [...t.members], notAuthors: [] }
-                        : state === 'only'
-                          ? { authors: [], notAuthors: [...t.members] }
-                          : { authors: [], notAuthors: [] };
-                  const title =
-                     state === 'off'
-                        ? `show only ${t.name}’s PRs`
-                        : state === 'only'
-                          ? `showing only ${t.name} — click to hide them instead`
-                          : `hiding ${t.name}’s PRs — click to show everyone`;
+               {/* pinned saved searches, FIRST in the bar so a growing
+                   trigger can never displace them: every roster earns one
+                   automatically (kept in sync with its members), and any
+                   search can be pinned from the Saved menu. Click applies
+                   it on the lens you're standing on; click again clears.
+                   State is carried entirely by color — the chip's text
+                   never changes, so nothing ever shifts. */}
+               {pinnedSearches.map(f => {
+                  const active = matchesView(f.hash, currentHash);
+                  const title = active
+                     ? `showing ${f.name} — click to clear`
+                     : `show ${f.name}: ${describeHash(f.hash)}`;
                   return (
                      <button
-                        key={t.name}
+                        key={(f.auto ? 'team:' : 'saved:') + f.name}
                         type="button"
-                        aria-pressed={state !== 'off'}
+                        aria-pressed={active}
                         title={title}
                         aria-label={title}
-                        onClick={() => setScope({ ...scope, ...next })}
+                        onClick={() => applySavedFilter(active ? '' : f.hash)}
                         className={`hit pressable inline-flex max-w-[160px] items-center rounded-md px-1.5 py-1 text-[13px] ${
-                           state === 'only'
-                              ? 'bg-secondary text-ink'
-                              : state === 'except'
-                                ? 'bg-secondary text-ink-3 line-through'
-                                : 'text-ink-3 hover:text-ink'
+                           active ? 'bg-secondary text-ink' : 'text-ink-3 hover:text-ink'
                         }`}
                      >
-                        <span className="truncate">{t.name}</span>
+                        <span className="truncate">{f.name}</span>
                      </button>
                   );
                })}

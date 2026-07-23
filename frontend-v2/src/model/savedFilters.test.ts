@@ -4,10 +4,12 @@ import {
    describeHash,
    removeSavedFilter,
    findSavedName,
+   matchesView,
    normalizeHash,
    SAVED_FILTERS_CAP,
    seedStarters,
    STARTER_FILTERS,
+   teamSearches,
    type SavedFilter,
 } from './savedFilters';
 
@@ -113,6 +115,13 @@ describe('addSavedFilter', () => {
       expect(next).toHaveLength(SAVED_FILTERS_CAP);
       expect(next.find(f => f.name === 'f3')?.hash).toBe('state=updated');
    });
+
+   it('re-saving an existing name keeps its pinned flag', () => {
+      const items: SavedFilter[] = [{ name: 'Mine', hash: 'state=qa', pinned: true }];
+      expect(addSavedFilter(items, 'Mine', 'state=review')).toEqual([
+         { name: 'Mine', hash: 'state=review', pinned: true },
+      ]);
+   });
 });
 
 describe('removeSavedFilter', () => {
@@ -158,5 +167,42 @@ describe('normalizeHash / findSavedName', () => {
       const items: SavedFilter[] = [{ name: 'Quick wins', hash: 'weight=xs,s&state=review,qa' }];
       expect(findSavedName(items, 'state=qa,review&weight=s,xs')).toBe('Quick wins');
       expect(findSavedName(items, 'state=qa')).toBeNull();
+   });
+
+   it('recognizes a lens-agnostic saved view from any lens', () => {
+      const items: SavedFilter[] = [{ name: 'Team', hash: 'authors=al,bo' }];
+      expect(findSavedName(items, 'authors=bo,al&lens=classic')).toBe('Team');
+   });
+});
+
+describe('matchesView', () => {
+   it('ignores the live lens when the saved hash names none', () => {
+      expect(matchesView('authors=al,bo', 'authors=bo,al&lens=classic')).toBe(true);
+   });
+
+   it('still requires the lens to match when the saved hash names one', () => {
+      expect(matchesView('lens=team&authors=al', 'authors=al&lens=classic')).toBe(false);
+      expect(matchesView('lens=classic&authors=al', 'authors=al&lens=classic')).toBe(true);
+   });
+
+   it('never treats extra live narrowing as a match', () => {
+      expect(matchesView('authors=al', 'authors=al&weight=xs')).toBe(false);
+   });
+});
+
+describe('teamSearches', () => {
+   it('derives one pinned search per non-empty roster, members sorted', () => {
+      const out = teamSearches(
+         [
+            { name: 'My team', members: ['zed', 'al'] },
+            { name: 'Empty', members: [] },
+         ],
+         []
+      );
+      expect(out).toEqual([{ name: 'My team', hash: 'authors=al,zed', pinned: true, auto: true }]);
+   });
+
+   it('honors the stored unpin list', () => {
+      expect(teamSearches([{ name: 'A', members: ['x'] }], ['A'])[0].pinned).toBe(false);
    });
 });

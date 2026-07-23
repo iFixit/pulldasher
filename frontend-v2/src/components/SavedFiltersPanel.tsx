@@ -7,14 +7,15 @@ import {
    type KeyboardEvent,
    type RefObject,
 } from 'react';
-import { Check, Search, X } from 'lucide-react';
+import { Check, Pin, Search, Trash2 } from 'lucide-react';
 import {
    applySavedFilter,
    deleteFilter,
    describeHash,
    findSavedName,
    saveFilter,
-   useSavedFilters,
+   setPinned,
+   useAllSavedFilters,
    type SavedFilter,
 } from '../model/savedFilters';
 import { QuietButton } from './bits';
@@ -46,7 +47,9 @@ function SavedFilterRow({
    /** this row's hash IS the view on screen */
    current?: boolean;
    onApply: () => void;
-   onRemove: () => void;
+   /** absent for a roster's auto search — it lives and dies with the roster
+    * (Team lens), so this panel offers no delete for it */
+   onRemove?: () => void;
 }) {
    // arm-then-confirm, same pattern as Settings' "Clear settings": a saved
    // filter can be a hand-tuned query, so a single misclick on the ✕ must not
@@ -81,38 +84,69 @@ function SavedFilterRow({
                   </span>
                )}
             </span>
-            <span className="truncate text-xs text-ink-3">{describeHash(filter.hash)}</span>
+            <span className="truncate text-xs text-ink-3">
+               {filter.auto
+                  ? `your roster · ${describeHash(filter.hash)}`
+                  : describeHash(filter.hash)}
+            </span>
          </button>
+         {/* a pinned pin is standing state, so it stays visible; an unpinned
+             one is an offer and reveals on row hover like the delete */}
          <span
             className={`flex-none transition-opacity duration-150 ease-out group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none ${
-               armed ? 'opacity-100' : 'opacity-0'
+               filter.pinned ? 'opacity-100' : 'opacity-0'
             }`}
          >
             <QuietButton
                onClick={e => {
                   e.stopPropagation();
-                  if (!armed) {
-                     setArmed(true);
-                     disarm.current = setTimeout(() => setArmed(false), 4000);
-                     return;
-                  }
-                  if (disarm.current) clearTimeout(disarm.current);
-                  onRemove();
+                  setPinned(filter, !filter.pinned);
                }}
+               aria-pressed={!!filter.pinned}
                aria-label={
-                  armed
-                     ? `confirm removing saved filter ${filter.name}`
-                     : `remove saved filter ${filter.name}`
+                  filter.pinned
+                     ? `unpin ${filter.name} from the filter bar`
+                     : `pin ${filter.name} to the filter bar`
                }
-               title={armed ? 'click again to remove' : 'remove this saved filter'}
+               title={
+                  filter.pinned ? 'unpin from the filter bar' : 'pin to the filter bar as a chip'
+               }
             >
-               {armed ? (
-                  <span className="font-medium whitespace-nowrap text-bad">sure?</span>
-               ) : (
-                  <Icon icon={X} size={12} />
-               )}
+               <Icon icon={Pin} size={12} fill={filter.pinned ? 'currentColor' : 'none'} />
             </QuietButton>
          </span>
+         {onRemove && (
+            <span
+               className={`flex-none transition-opacity duration-150 ease-out group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none ${
+                  armed ? 'opacity-100' : 'opacity-0'
+               }`}
+            >
+               <QuietButton
+                  onClick={e => {
+                     e.stopPropagation();
+                     if (!armed) {
+                        setArmed(true);
+                        disarm.current = setTimeout(() => setArmed(false), 4000);
+                        return;
+                     }
+                     if (disarm.current) clearTimeout(disarm.current);
+                     onRemove();
+                  }}
+                  aria-label={
+                     armed
+                        ? `confirm deleting saved filter ${filter.name}`
+                        : `delete saved filter ${filter.name}`
+                  }
+                  title={armed ? 'click again to delete' : 'delete this saved filter'}
+               >
+                  {armed ? (
+                     <span className="font-medium whitespace-nowrap text-bad">sure?</span>
+                  ) : (
+                     <Icon icon={Trash2} size={12} />
+                  )}
+               </QuietButton>
+            </span>
+         )}
       </div>
    );
 }
@@ -243,7 +277,7 @@ export function SavedFiltersInput({
       className: string;
    };
 }) {
-   const saved = useSavedFilters();
+   const saved = useAllSavedFilters();
    const savedAs = sessionActive ? findSavedName(saved, currentHash) : null;
 
    const [open, setOpen] = useState(false);
@@ -329,13 +363,13 @@ export function SavedFiltersInput({
             >
                {saved.map((f, i) => (
                   <SavedFilterRow
-                     key={f.name}
+                     key={(f.auto ? 'team:' : 'saved:') + f.name}
                      id={`${listboxId}-${i}`}
                      filter={f}
                      active={i === activeIndex}
                      current={f.name === savedAs}
                      onApply={() => apply(f.hash)}
-                     onRemove={() => deleteFilter(f.name)}
+                     onRemove={f.auto ? undefined : () => deleteFilter(f.name)}
                   />
                ))}
                {sessionActive && (
@@ -367,7 +401,7 @@ export function SavedFiltersMenu({
    currentHash: string;
    sessionActive: boolean;
 }) {
-   const saved = useSavedFilters();
+   const saved = useAllSavedFilters();
    const savedAs = sessionActive ? findSavedName(saved, currentHash) : null;
 
    return (
@@ -387,11 +421,11 @@ export function SavedFiltersMenu({
          >
             {saved.map(f => (
                <SavedFilterRow
-                  key={f.name}
+                  key={(f.auto ? 'team:' : 'saved:') + f.name}
                   filter={f}
                   current={f.name === savedAs}
                   onApply={() => applySavedFilter(f.hash)}
-                  onRemove={() => deleteFilter(f.name)}
+                  onRemove={f.auto ? undefined : () => deleteFilter(f.name)}
                />
             ))}
             {saved.length === 0 && (

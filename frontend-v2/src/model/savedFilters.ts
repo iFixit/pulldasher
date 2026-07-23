@@ -1,4 +1,6 @@
+import { useMemo } from 'react';
 import { createPersistentStore } from '../storage';
+import { type PersonalTeam, useSettings } from '../settings';
 
 /**
  * A named bookmark of the SESSION filter state — the same fields buildHash
@@ -11,6 +13,12 @@ import { createPersistentStore } from '../storage';
 export interface SavedFilter {
    name: string;
    hash: string;
+   /** rendered as a quick one-click chip at the front of the filter bar */
+   pinned?: boolean;
+   /** derived live from a personal roster (settings.teams) rather than
+    * stored — always in sync with the roster's members and name, so it can
+    * be unpinned here but only removed by removing the roster itself */
+   auto?: boolean;
 }
 
 /** Oldest saved filter is evicted once a save would push the list past this —
@@ -23,6 +31,9 @@ interface SavedFiltersData {
    /** the starter filters were planted once already — deleting them must be
     * permanent, not a game of whack-a-mole against re-seeding */
    seeded?: boolean;
+   /** roster names whose auto search the user unpinned from the bar — the
+    * searches themselves are derived, so only the unpin choice is stored */
+   unpinnedTeams?: string[];
 }
 
 const store = createPersistentStore<SavedFiltersData>('pd2.savedFilters', { items: [] });
@@ -64,11 +75,72 @@ export function normalizeHash(hash: string): string {
    return entries.map(([k, v]) => `${k}=${v}`).join('&');
 }
 
+/**
+ * Saved-view equality: a saved hash that names no lens is lens-agnostic —
+ * applying it keeps the lens you're on (applySavedFilter), so recognizing
+ * it must ignore the lens too, or a pinned chip you just clicked would read
+ * as inactive on any non-default lens.
+ */
+export function matchesView(savedHash: string, liveHash: string): boolean {
+   let live = liveHash;
+   if (!new URLSearchParams(savedHash).get('lens')) {
+      const p = new URLSearchParams(liveHash);
+      p.delete('lens');
+      live = p.toString();
+   }
+   return normalizeHash(savedHash) === normalizeHash(live);
+}
+
 /** The saved filter the given hash IS, if any — how the UI says "you're on
  * a saved view" instead of offering to save a duplicate. */
 export function findSavedName(items: SavedFilter[], hash: string): string | null {
-   const norm = normalizeHash(hash);
-   return items.find(f => normalizeHash(f.hash) === norm)?.name ?? null;
+   return items.find(f => matchesView(f.hash, hash))?.name ?? null;
+}
+
+/**
+ * The auto search each personal roster earns: one bookmark narrowing the
+ * board to that roster's authors, named after the roster and derived fresh
+ * every read — a rename or membership change can never leave a stale copy
+ * behind. Born pinned; the stored unpin list is the only per-user state.
+ */
+export function teamSearches(teams: PersonalTeam[], unpinnedTeams: string[]): SavedFilter[] {
+   return teams
+      .filter(t => t.members.length > 0)
+      .map(t => ({
+         name: t.name,
+         hash: `authors=${[...t.members].sort().join(',')}`,
+         pinned: !unpinnedTeams.includes(t.name),
+         auto: true,
+      }));
+}
+
+/** Every search both doors and the pinned chips render: the rosters' auto
+ * searches lead (they're the board's standing shortcuts), then the stored
+ * list in its saved order. */
+export function useAllSavedFilters(): SavedFilter[] {
+   const data = store.useValue();
+   const { teams } = useSettings();
+   return useMemo(
+      () => [...teamSearches(teams, data.unpinnedTeams ?? []), ...data.items],
+      [teams, data]
+   );
+}
+
+/** Pin or unpin a search from the filter bar. Auto (roster) searches store
+ * only the unpin choice; stored searches carry the flag themselves. */
+export function setPinned(f: SavedFilter, pinned: boolean): void {
+   const cur = store.get();
+   if (f.auto) {
+      const un = new Set(cur.unpinnedTeams ?? []);
+      if (pinned) un.delete(f.name);
+      else un.add(f.name);
+      store.set({ ...cur, unpinnedTeams: [...un] });
+   } else {
+      store.set({
+         ...cur,
+         items: cur.items.map(i => (i.name === f.name ? { ...i, pinned } : i)),
+      });
+   }
 }
 
 /**
@@ -82,7 +154,13 @@ export function findSavedName(items: SavedFilter[], hash: string): string | null
 export function addSavedFilter(items: SavedFilter[], name: string, hash: string): SavedFilter[] {
    const trimmed = name.trim();
    if (!trimmed) return items;
-   const next = [...items.filter(f => f.name !== trimmed), { name: trimmed, hash }];
+   // re-saving under an existing name keeps its pinned choice — updating a
+   // bookmark must not silently knock its chip out of the bar
+   const prev = items.find(f => f.name === trimmed);
+   const next = [
+      ...items.filter(f => f.name !== trimmed),
+      { name: trimmed, hash, ...(prev?.pinned ? { pinned: true } : {}) },
+   ];
    return next.length > SAVED_FILTERS_CAP ? next.slice(next.length - SAVED_FILTERS_CAP) : next;
 }
 
@@ -101,13 +179,20 @@ export function deleteFilter(name: string): void {
    store.set({ ...store.get(), items: removeSavedFilter(store.get().items, name) });
 }
 
-export function useSavedFilters(): SavedFilter[] {
-   return store.useValue().items;
-}
-
-/** Navigate to a saved/suggested filter's hash — the app's hashchange
- * listener (app.tsx) reads it back into every piece of session state. */
+/** Navigate to a saved filter's hash — the app's hashchange listener
+ * (app.tsx) reads it back into every piece of session state. A search that
+ * names no lens applies to the lens you're on: it's a bookmark of WHAT to
+ * show, not WHERE you're standing. */
 export function applySavedFilter(hash: string): void {
+   const p = new URLSearchParams(hash);
+   if (!p.get('lens')) {
+      const lens = new URLSearchParams(location.hash.slice(1)).get('lens');
+      if (lens) {
+         p.set('lens', lens);
+         location.hash = p.toString();
+         return;
+      }
+   }
    location.hash = hash;
 }
 
