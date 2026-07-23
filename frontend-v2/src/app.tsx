@@ -27,6 +27,7 @@ import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from './model/visibili
 import { reviewRequestedFrom } from './model/reviewers';
 import { foldDomId, openFold } from './components/Lane';
 import { Legend } from './components/Legend';
+import { LensMenu } from './components/LensMenu';
 import { Logo } from './components/Logo';
 import { NotificationPanel } from './components/NotificationPanel';
 import { RepoFilter } from './components/filters/RepoFilter';
@@ -45,9 +46,20 @@ import { Ci } from './views/Ci';
 import { Stats } from './views/Stats';
 import { Settings } from './components/Settings';
 
-type Lens = 'review' | 'mine' | 'team' | 'classic' | 'ci' | 'stats';
+export type Lens = 'review' | 'mine' | 'team' | 'classic' | 'ci' | 'stats';
 
 const LENSES: Lens[] = ['review', 'mine', 'team', 'classic', 'ci', 'stats'];
+
+/** the tab strip's own copy for each lens — lifted so the phone dropdown
+ * (LensMenu) can reuse it instead of restating the six strings */
+const LENS_LABELS: Record<Lens, string> = {
+   review: 'Review',
+   mine: 'My work',
+   team: 'Team',
+   classic: 'Classic',
+   ci: 'CI',
+   stats: 'Stats',
+};
 
 /** every actionState bucket, for validating the `state=` hash param against */
 const ACTION_STATE_KEYS: ActionStateKey[] = [
@@ -879,15 +891,28 @@ export function App() {
                <div className="mx-auto flex max-w-[1240px] min-w-0 items-center px-5 py-2.5 pl-11 pr-32 sm:pr-40 2xl:px-5">
                   {/* min-w-0 + overflow-x-auto (no-scrollbar in styles.css)
                       turns a too-narrow tab strip into a swipe rather than a
-                      wrap ("My work 5" splitting) or a page-widening overflow. */}
-                  <nav className="no-scrollbar flex min-w-0 shrink gap-1 overflow-x-auto">
-                     {tab('review', 'Review')}
-                     {tab('mine', 'My work', mineCount)}
-                     {tab('team', 'Team')}
-                     {tab('classic', 'Classic')}
-                     {tab('ci', 'CI')}
-                     {tab('stats', 'Stats')}
+                      wrap ("My work 5" splitting) or a page-widening overflow.
+                      Below sm the strip no longer fits at all and that swipe
+                      is undiscoverable on a phone, so it's hidden there in
+                      favor of LensMenu's dropdown twin. */}
+                  <nav className="no-scrollbar hidden min-w-0 shrink gap-1 overflow-x-auto sm:flex">
+                     {tab('review', LENS_LABELS.review)}
+                     {tab('mine', LENS_LABELS.mine, mineCount)}
+                     {tab('team', LENS_LABELS.team)}
+                     {tab('classic', LENS_LABELS.classic)}
+                     {tab('ci', LENS_LABELS.ci)}
+                     {tab('stats', LENS_LABELS.stats)}
                   </nav>
+                  <LensMenu
+                     className="sm:hidden"
+                     lens={lens}
+                     setLens={setLens}
+                     options={LENSES.map(id => ({
+                        id,
+                        label: LENS_LABELS[id],
+                        count: id === 'mine' ? mineCount : undefined,
+                     }))}
+                  />
                </div>
             </div>
             <div className="mx-auto flex max-w-[1240px] min-w-0 flex-wrap items-center gap-2 border-t border-secondary px-5 py-2">
