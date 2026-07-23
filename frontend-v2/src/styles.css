@@ -333,6 +333,10 @@ label:has(> input:not(:disabled)) {
     width: 100%;
     height: 1px;
     pointer-events: none;
+    /* the growing tip rounds like every other surface on the board; the left
+       end stays square — it's a measurement from the row's edge, a ruler
+       fill, and it tucks under the lane card's own rounded corner */
+    border-radius: 0 999px 999px 0;
     /* only the height animates open; the global prefers-reduced-motion
        rule at the bottom of this file already zeroes this out */
     transition: height 150ms var(--ease-quart);
