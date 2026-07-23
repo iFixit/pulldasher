@@ -138,16 +138,3 @@ export interface TokenResponse {
    user: string;
    title: string;
 }
-
-/** GitHub team → members, for the Teams lens (served as static config). */
-export interface Team {
-   team: string;
-   members: string[];
-}
-
-/** a Team as the board renders it: config teams plus the user's own personal
- * rosters (settings.ts `teams`), the latter flagged so views can pin, style,
- * and route them differently from org teams. */
-export interface BoardTeam extends Team {
-   personal?: boolean;
-}

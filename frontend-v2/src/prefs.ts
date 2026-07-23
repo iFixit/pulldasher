@@ -1,6 +1,5 @@
 import type { Weight } from './model/status';
 import { createPersistentStore } from './storage';
-import type { Team } from './types';
 
 const WEIGHTS: ReadonlySet<string> = new Set(['XS', 'S', 'M', 'L', 'XL']);
 
@@ -37,8 +36,6 @@ export function useScope(): [Scope, (next: Scope) => void] {
 }
 
 export interface SiteConfig {
-   /** team → members, for the People lens chips and scope presets */
-   teams: Team[];
    /** bot logins beyond the `[bot]` suffix GitHub Apps carry */
    bots: string[];
    /** label title → weight bucket. A PR carrying one of these labels takes
@@ -49,30 +46,22 @@ export interface SiteConfig {
 
 /**
  * Deployment-specific config, served as a static file next to the app (see
- * config.example.json). Absent file means no team features and suffix-only
- * bot detection; everything else still works.
+ * config.example.json). Absent file means suffix-only bot detection and
+ * heuristic-only weights; everything else still works. A `teams` key in an
+ * older config.json is simply ignored — org teams retired in favor of
+ * personal rosters and their pinned saved searches.
  */
 export async function loadSiteConfig(): Promise<SiteConfig> {
-   const none: SiteConfig = { teams: [], bots: [], weightLabels: {} };
+   const none: SiteConfig = { bots: [], weightLabels: {} };
    try {
       const res = await fetch(`${import.meta.env.BASE_URL}config.json`);
       if (!res.ok) return none;
       const raw = (await res.json()) as {
-         teams?: unknown;
          bots?: unknown;
          weightLabels?: unknown;
       };
-      const teams = Array.isArray(raw.teams) ? raw.teams : [];
       const bots = Array.isArray(raw.bots) ? raw.bots : [];
       return {
-         // one malformed entry must not white-screen the whole app
-         teams: teams.filter(
-            (t): t is Team =>
-               !!t &&
-               typeof (t as Team).team === 'string' &&
-               Array.isArray((t as Team).members) &&
-               (t as Team).members.every(m => typeof m === 'string')
-         ),
          bots: bots.filter((b): b is string => typeof b === 'string'),
          weightLabels: parseWeightLabels(raw.weightLabels),
       };
