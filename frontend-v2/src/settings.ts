@@ -246,6 +246,15 @@ export function addTeam(name: string) {
    setSettings({ teams: [...teams, { name: trimmed, members: [] }] });
 }
 
+/** Rename a roster in place. Blank or colliding names are a no-op — the
+ * caller's field just stays put rather than half-applying. */
+export function renameTeam(oldName: string, newName: string) {
+   const trimmed = newName.trim();
+   const teams = store.get().teams;
+   if (!trimmed || trimmed === oldName || teams.some(t => t.name === trimmed)) return;
+   setSettings({ teams: teams.map(t => (t.name === oldName ? { ...t, name: trimmed } : t)) });
+}
+
 /** Delete a roster outright (its members lose the float unless they're also
  * in another roster). */
 export function removeTeam(name: string) {

@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { displayName, useNames } from '../model/names';
 import { isBotLogin } from '../model/visibility';
-import { addTeam, DEFAULT_TEAM_NAME, removeTeam, toggleTeammate, useSettings } from '../settings';
+import { renameTeam, toggleTeammate, useSettings } from '../settings';
 import { usePulldasher } from '../store';
-import { Avatar, QuietButton } from './bits';
+import { Avatar } from './bits';
 import { FilterSearch } from './filters/shared';
 
 const SUGGESTION_CAP = 12;
@@ -74,28 +74,34 @@ function useCandidates(extraBots: ReadonlySet<string>) {
 }
 
 /**
- * The roster editor: pick which roster you're editing (or start a new one),
- * current members first (uncheck to remove), then a searchable, capped list
- * of everyone else on the board. Typing a login with no match on the board
- * still lets you add it — a teammate can have nothing open right now.
- * Standalone so the Team view's empty state can embed it without any drawer
- * chrome around it.
+ * One roster's member picker: current members first (uncheck to remove),
+ * then a searchable, capped list of everyone else on the board. Typing a
+ * login with no match on the board still lets you add it — a teammate can
+ * have nothing open right now. Creating, choosing, and removing rosters
+ * happens on the Team lens itself; this panel only ever edits the one team
+ * it was opened for. Standalone so the Team view's empty state can embed it
+ * without any drawer chrome around it.
  */
-export function TeamPicker({ extraBots = EMPTY_BOTS }: { extraBots?: ReadonlySet<string> }) {
+export function TeamPicker({
+   teamName,
+   extraBots = EMPTY_BOTS,
+}: {
+   /** the roster this picker edits (created on first add if absent) */
+   teamName: string;
+   extraBots?: ReadonlySet<string>;
+}) {
    const { teams } = useSettings();
    const { me } = usePulldasher();
    const candidates = useCandidates(extraBots);
    const [query, setQuery] = useState('');
-   // which roster the checkboxes edit. Kept as a name, not an index, so a
-   // removal elsewhere can't silently retarget the checkboxes; a stale pick
-   // falls back to the first roster (or the default-to-be when none exists).
-   const [picked, setPicked] = useState('');
-   const [newName, setNewName] = useState<string | null>(null);
-   const activeName = teams.some(t => t.name === picked)
-      ? picked
-      : (teams[0]?.name ?? DEFAULT_TEAM_NAME);
-   const active = teams.find(t => t.name === activeName);
-   const activeMembers = active?.members ?? [];
+   // the roster's name, editable in place — draft locally, commit on
+   // Enter/blur; renameTeam no-ops on blank or collision so the field just
+   // stays put on a bad name
+   const [nameDraft, setNameDraft] = useState(teamName);
+   useEffect(() => setNameDraft(teamName), [teamName]);
+   const commitRename = () => renameTeam(teamName, nameDraft);
+   const activeName = teamName;
+   const activeMembers = teams.find(t => t.name === teamName)?.members ?? [];
 
    // search by handle OR human name — "metz" should find djmetzle
    const namesMap = useNames();
@@ -116,71 +122,29 @@ export function TeamPicker({ extraBots = EMPTY_BOTS }: { extraBots?: ReadonlySet
    const exactMatch =
       !!trimmed && (members.has(trimmed) || candidates.some(c => c.login.toLowerCase() === needle));
 
-   const createTeam = () => {
-      const name = (newName ?? '').trim();
-      if (!name) return;
-      addTeam(name);
-      setPicked(name);
-      setNewName(null);
-   };
-
    return (
       <div>
+         <input
+            value={nameDraft}
+            onChange={e => setNameDraft(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={e => {
+               if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commitRename();
+               } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setNameDraft(teamName);
+               }
+            }}
+            aria-label="team name — edit to rename"
+            title="the team’s name — edit it here to rename"
+            className="mb-1.5 h-8 w-full rounded-lg border border-line bg-surface px-2 text-[13px] font-semibold"
+         />
          <p className="px-1.5 pb-1.5 text-[11px] leading-snug text-ink-3">
-            Your review circles, not the org chart — anyone whose work you review belongs here.
-            Everyone on any of your rosters leads your review queues; each roster is also its own
-            board on this tab.
+            Anyone whose work you review belongs on a roster — your review circle, not the org
+            chart. Everyone on any roster leads your review queues.
          </p>
-         {teams.length > 1 && (
-            <div className="mb-1.5 flex flex-wrap items-center gap-1 px-1">
-               {teams.map(t => (
-                  <button
-                     key={t.name}
-                     type="button"
-                     aria-pressed={t.name === activeName}
-                     onClick={() => setPicked(t.name)}
-                     className={`pressable rounded-lg border px-2 py-[3px] text-xs font-medium ${
-                        t.name === activeName
-                           ? 'border-brand bg-surface text-brand-700'
-                           : 'border-line bg-surface text-ink-2 hover:border-brand hover:text-brand'
-                     }`}
-                  >
-                     {t.name}
-                  </button>
-               ))}
-            </div>
-         )}
-         {newName != null ? (
-            <div className="mb-1.5 flex items-center gap-1.5 px-1">
-               <input
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                  onKeyDown={e => {
-                     if (e.key === 'Enter') createTeam();
-                     if (e.key === 'Escape') setNewName(null);
-                  }}
-                  placeholder="Name the new team"
-                  aria-label="name the new team"
-                  className="h-7 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 text-[13px]"
-               />
-               <QuietButton size="sm" tone="brand" onClick={createTeam} disabled={!newName.trim()}>
-                  Add
-               </QuietButton>
-            </div>
-         ) : (
-            teams.length > 0 && (
-               <div className="mb-1.5 px-1">
-                  <button
-                     type="button"
-                     onClick={() => setNewName('')}
-                     className="hit pressable rounded px-0.5 text-[11px] font-medium text-ink-3 hover:text-brand"
-                  >
-                     + New team — a second circle (say, a cross-team pairing)
-                  </button>
-               </div>
-            )
-         )}
-
          {activeMembers.map(login => (
             <CandidateRow
                key={login}
@@ -191,15 +155,6 @@ export function TeamPicker({ extraBots = EMPTY_BOTS }: { extraBots?: ReadonlySet
                onToggle={() => toggleTeammate(login, false, activeName)}
             />
          ))}
-         {active && activeMembers.length === 0 && (
-            <div className="flex items-center justify-between gap-2 px-1.5 py-1 text-[13px] text-ink-3">
-               <span>“{active.name}” is empty.</span>
-               <QuietButton size="sm" onClick={() => removeTeam(active.name)}>
-                  Remove this team
-               </QuietButton>
-            </div>
-         )}
-
          <FilterSearch
             value={query}
             onChange={setQuery}

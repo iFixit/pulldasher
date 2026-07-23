@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react';
+import { Plus, X } from 'lucide-react';
 import { authorOwnsIt, parked } from '../model/actions';
 import { displayName, useNames } from '../model/names';
 import type { DerivedPull } from '../model/status';
 import { matchesRegion } from '../model/regions';
 import { crSort } from '../model/sort';
 import { teamBuckets } from '../model/team';
-import { myPeople, useSettings } from '../settings';
+import { addTeam, DEFAULT_TEAM_NAME, myPeople, removeTeam, useSettings } from '../settings';
 import type { BoardTeam } from '../types';
-import { Avatar, EmptyState } from '../components/bits';
+import { Avatar, EmptyState, QuietButton } from '../components/bits';
+import { Icon } from '../components/Icon';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, SubDoor } from '../components/Lane';
 import { Popover } from '../components/Popover';
 import type { RowOptions } from '../components/Row';
@@ -172,8 +174,10 @@ export function Team({
 
    return (
       <>
-         {/* yours, pinned: the roster chips (union first when there are
-             several), each member once, and the picker */}
+         {/* yours, pinned: one quiet cluster per roster — its name chip, its
+             members, and its own add door — so who belongs where reads as
+             geometry, not memory. Creating a roster is inline on the lens
+             (nothing modal to lose); an emptied roster grows a remove ×. */}
          {personalTeams.length > 0 && (
             <div className="mb-2 flex flex-wrap items-center gap-1.5">
                {personalTeams.length > 1 &&
@@ -188,37 +192,58 @@ export function Team({
                      home,
                      onHome
                   )}
-               {personalTeams.map(t =>
-                  chip(
-                     `mine:${t.name}`,
-                     <>
-                        <b className="pl-1 font-semibold text-ink">{t.name}</b>
-                        <span className="text-[11px] text-ink-3 tabular-nums">
-                           {allPulls.filter(p => t.members.includes(p.data.user.login)).length}
-                        </span>
-                     </>,
-                     personalTeams.length === 1 ? home || explicitTeam === t.name : explicitTeam === t.name,
-                     personalTeams.length === 1 ? onHome : () => onTeam(t.name)
-                  )
-               )}
-               {yourPeople.map(login => personChip(login, login === selectedPerson))}
-               <Popover
-                  label="Edit your team"
-                  side="right"
-                  width="w-[280px]"
-                  panelClass="p-3 max-h-[60vh] overflow-auto"
-                  trigger={t => (
-                     <button
-                        {...t}
-                        type="button"
-                        className="pressable inline-flex h-8 items-center rounded-lg border border-line bg-surface px-2.5 text-[13px] font-medium text-ink-3 hover:text-brand"
+               {personalTeams.map(t => (
+                  <span
+                     key={t.name}
+                     className="inline-flex flex-wrap items-center gap-1 rounded-xl bg-muted/60 p-1"
+                  >
+                     {chip(
+                        `mine:${t.name}`,
+                        <>
+                           <b className="pl-1 font-semibold text-ink">{t.name}</b>
+                           <span className="text-[11px] text-ink-3 tabular-nums">
+                              {allPulls.filter(p => t.members.includes(p.data.user.login)).length}
+                           </span>
+                        </>,
+                        personalTeams.length === 1
+                           ? home || explicitTeam === t.name
+                           : explicitTeam === t.name,
+                        personalTeams.length === 1 ? onHome : () => onTeam(t.name)
+                     )}
+                     {t.members.map(login => personChip(login, login === selectedPerson))}
+                     <Popover
+                        label={`Add to ${t.name}`}
+                        side="right"
+                        width="w-[280px]"
+                        panelClass="p-3 max-h-[60vh] overflow-auto"
+                        trigger={tr => (
+                           <button
+                              {...tr}
+                              type="button"
+                              aria-label={`add someone to ${t.name}`}
+                              title={`add someone to ${t.name}`}
+                              className="pressable inline-flex h-7 w-7 items-center justify-center rounded-lg text-ink-3 hover:text-brand"
+                           >
+                              <Icon icon={Plus} size={14} />
+                           </button>
+                        )}
                      >
-                        Edit
-                     </button>
-                  )}
-               >
-                  <TeamPicker extraBots={extraBots} />
-               </Popover>
+                        <TeamPicker teamName={t.name} extraBots={extraBots} />
+                     </Popover>
+                     {t.members.length === 0 && (
+                        <button
+                           type="button"
+                           onClick={() => removeTeam(t.name)}
+                           aria-label={`remove the ${t.name} team`}
+                           title={`remove the ${t.name} team`}
+                           className="pressable inline-flex h-7 w-7 items-center justify-center rounded-lg text-ink-3 hover:text-bad"
+                        >
+                           <Icon icon={X} size={12} />
+                        </button>
+                     )}
+                  </span>
+               ))}
+               <NewTeamChip />
                <button
                   type="button"
                   aria-expanded={directoryShown}
@@ -271,7 +296,7 @@ export function Team({
                   queues. Or click anyone above to see just their work.
                </p>
                <div className="w-full rounded-2xl border border-line bg-surface p-3 text-left">
-                  <TeamPicker extraBots={extraBots} />
+                  <TeamPicker teamName={DEFAULT_TEAM_NAME} extraBots={extraBots} />
                </div>
             </div>
          )}
@@ -393,5 +418,59 @@ export function Team({
             </RestGroup>
          )}
       </>
+   );
+}
+
+/**
+ * The inline "start another roster" affordance: a dashed ghost chip that
+ * swaps into a name field IN the lens flow — no popover involved, so there
+ * is nothing to accidentally close. Enter creates the (empty) roster, which
+ * appears as its own cluster with an add door ready.
+ */
+function NewTeamChip() {
+   const [name, setName] = useState<string | null>(null);
+   if (name == null) {
+      return (
+         <button
+            type="button"
+            onClick={() => setName('')}
+            className="pressable inline-flex items-center gap-1 rounded-lg border border-dashed border-line bg-transparent px-2.5 py-[5px] text-[13px] font-medium text-ink-3 hover:border-brand hover:text-brand"
+         >
+            <Icon icon={Plus} size={12} />
+            New team
+         </button>
+      );
+   }
+   const create = () => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      addTeam(trimmed);
+      setName(null);
+   };
+   return (
+      <span className="inline-flex items-center gap-1">
+         <input
+            // the field only exists because the user just asked for it;
+            // focus is the point
+            autoFocus
+            value={name}
+            onChange={e => setName(e.target.value)}
+            onKeyDown={e => {
+               if (e.key === 'Enter') {
+                  e.preventDefault();
+                  create();
+               } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setName(null);
+               }
+            }}
+            placeholder="Name the team"
+            aria-label="name the new team"
+            className="h-8 w-[150px] rounded-lg border border-line bg-surface px-2 text-[13px]"
+         />
+         <QuietButton size="sm" tone="brand" disabled={!name.trim()} onClick={create}>
+            Add
+         </QuietButton>
+      </span>
    );
 }

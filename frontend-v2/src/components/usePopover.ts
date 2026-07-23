@@ -80,9 +80,20 @@ export function usePopover<Panel extends HTMLElement, Trigger extends HTMLElemen
       // only a pinned (clicked/keyboard) open moves focus into the panel
       if (pinned.current) panelRef.current?.focus();
       const clickAway = (e: MouseEvent) => {
-         const t = e.target as Node;
-         // the panel may be portaled outside the root, so check it explicitly
-         if (rootRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+         // composedPath, NOT contains(e.target): React 18 flushes state in a
+         // microtask BETWEEN the button's listener and this document-level
+         // one, so a panel button that swaps itself out on click (e.g. "+ New
+         // team" becoming a name input) is already detached by the time we
+         // run — contains() then reads an inside click as outside and slams
+         // the panel shut. The path is captured at dispatch and survives the
+         // unmount. (Only a real pointer reproduces this: synthetic .click()
+         // dispatch never yields to microtasks between listeners.)
+         const path = e.composedPath();
+         if (
+            (rootRef.current && path.includes(rootRef.current)) ||
+            (panelRef.current && path.includes(panelRef.current))
+         )
+            return;
          setOpen(false);
       };
       const onKey = (e: KeyboardEvent) => {
