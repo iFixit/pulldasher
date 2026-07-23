@@ -124,7 +124,9 @@ export function Review({
       )
       .sort(bySecurityThenAge);
    const botKeys = new Set(botReviewable.map(p => pullKey(p.data)));
-   const botRest = bots.filter(p => !botKeys.has(pullKey(p.data))).sort(bySecurityThenAge);
+   const botRest = bots
+      .filter(p => !botKeys.has(pullKey(p.data)) && p.status !== 'ready')
+      .sort(bySecurityThenAge);
    const isDemoted = (p: DerivedPull) => botKeys.has(pullKey(p.data));
 
    // 4. Needs QA is a query, not the status bucket: QA runs in parallel with
@@ -202,9 +204,14 @@ export function Review({
       nonStarved.filter(p => !isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data)))
    );
 
-   // Ready-to-merge is the author's button, not the reviewer's job: a count
-   // in the rest group, not a lane at the top.
-   const ready = others.filter(p => p.status === 'ready');
+   // Ready to merge is finishable work for anyone: fully signed off, green,
+   // one button-press from done. It earns a real lane in Pick up next rather
+   // than a fold — and bot PRs that reach ready join it, since a human has to
+   // land them. Longest-waiting first: the ones most likely forgotten.
+   const ready = [
+      ...others.filter(p => p.status === 'ready'),
+      ...bots.filter(p => p.status === 'ready'),
+   ].sort((a, b) => b.ageDays - a.ageDays);
 
    const needsQa = starFirst(
       qaSort(qaPool.filter(p => isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data)))),
@@ -324,7 +331,8 @@ export function Review({
       !yoursWaiting.length &&
       !changed.length &&
       !queue.length &&
-      !needsQa.length;
+      !needsQa.length &&
+      !ready.length;
 
    // the rest group itself earns a title only when it has something inside —
    // an empty "rest of the board" with 11 closed folds under it is still noise.
@@ -333,7 +341,6 @@ export function Review({
    const restTotal =
       queueOther.length +
       needsQaOther.length +
-      ready.length +
       devBlocked.length +
       deployHeld.length +
       unmergeable.length +
@@ -375,8 +382,9 @@ export function Review({
                         claimed.
                      </p>
                      <p>
-                        Grouped by the action, most urgent action first, oldest first inside a
-                        group.
+                        Each group is named for the action you’d take (Re-stamp, Respond, Merge…).
+                        The kinds of action that unblock other people come first; inside a group,
+                        the PR that has been open the longest comes first.
                      </p>
                   </SubDoor>
                }
@@ -405,7 +413,10 @@ export function Review({
                         your own PRs waiting on a review, QA, or CI, plus PRs you’ve already stamped
                         that are still waiting on another reviewer.
                      </p>
-                     <p>Grouped by what each one waits on.</p>
+                     <p>
+                        Each group is named for what the PR is waiting on (a review, a tester, CI, a
+                        re-stamp), so you can see where everything of yours is stuck.
+                     </p>
                   </SubDoor>
                }
                pulls={[]}
@@ -437,7 +448,10 @@ export function Review({
          {/* below here is offered work, not owed work — the board's suggestion
              for what to pick up next, as distinct from "Waiting on you" above. The
              label only earns its place when something is actually on offer. */}
-         {(queue.length > 0 || needsQa.length > 0 || regionMatches.length > 0) && (
+         {(queue.length > 0 ||
+            needsQa.length > 0 ||
+            regionMatches.length > 0 ||
+            ready.length > 0) && (
             <div className={`mb-2 text-ink-3 ${eyebrowText}`}>Pick up next</div>
          )}
          {codeRegions.length > 0 && regionMatches.length > 0 && (
@@ -510,6 +524,28 @@ export function Review({
             cap={6}
             opts={{ ...opts, rankReason: whyQaNext }}
          />
+         <Lane
+            title="Ready to merge"
+            sub={
+               <SubDoor
+                  label="Why Ready to merge sits up here"
+                  text="signed off and green — someone just has to press merge"
+               >
+                  <p>
+                     Everything is done on these: code review and QA are in, CI is green, and they
+                     merge cleanly. The author usually lands their own PR, but anyone can — merge
+                     it, or nudge the author if it’s been sitting.
+                  </p>
+                  <p>
+                     Bot PRs land here too once they’re fully green: they only ship when a human
+                     merges them. Longest-waiting first.
+                  </p>
+               </SubDoor>
+            }
+            pulls={ready}
+            cap={6}
+            opts={opts}
+         />
          {(restTotal > 0 || napping.length > 0) && (
             <RestGroup title="The rest of the board">
                <Fold
@@ -531,14 +567,6 @@ export function Review({
                   <FoldRows list={needsQaOther} opts={opts} id="review:qa-other-repos" />
                </Fold>
                <Fold
-                  count={ready.length}
-                  label="Ready to merge"
-                  gloss="Fully signed off and green; waiting on the author to merge. Nudge if idle."
-                  id="review:ready"
-               >
-                  <FoldRows list={ready} opts={opts} id="review:ready" />
-               </Fold>
-               <Fold
                   count={devBlocked.length}
                   label="Blocked"
                   gloss="Someone left a dev block; the author owes changes first. Nothing to review yet."
@@ -557,7 +585,7 @@ export function Review({
                <Fold
                   count={unmergeable.length}
                   label="Conflicts"
-                  gloss="Conflicts with the base branch; the author rebases."
+                  gloss="These have merge conflicts with their base branch, so GitHub can’t merge them until the author rebases."
                   id="review:unmergeable"
                >
                   <FoldRows list={unmergeable} opts={opts} id="review:unmergeable" />
@@ -565,15 +593,15 @@ export function Review({
                <Fold
                   count={ciPending.length}
                   label="CI running"
-                  gloss="Checks are still running; review waits on green."
+                  gloss="CI checks are still running on the latest push; review waits until they finish."
                   id="review:ci-pending"
                >
                   <FoldRows list={ciPending} opts={opts} id="review:ci-pending" />
                </Fold>
                <Fold
                   count={ciRed.length}
-                  label="CI red"
-                  gloss="A required check is failing; the author fixes that before anyone reviews."
+                  label="CI failing"
+                  gloss="A required CI check is failing, so the author fixes the build before anyone reviews."
                   id="review:ci-red"
                   defaultOpen={boardIsQuiet}
                >
