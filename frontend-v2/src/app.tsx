@@ -319,13 +319,20 @@ export function App() {
    }, []);
    // lane/section headers stick just below the app header; its height varies
    // (the toolbar wraps on narrow screens), so publish the measured height as
-   // --header-h for their sticky offset
+   // --header-h for their sticky offset. getBoundingClientRect, NOT
+   // offsetHeight: the browser resolves sticky offsets against the header's
+   // true fractional height, and offsetHeight's integer rounding leaves a
+   // hairline gap above the stuck header at non-100% zoom, with scrolled
+   // rows showing through it.
    const headerRef = useRef<HTMLElement>(null);
    useLayoutEffect(() => {
       const el = headerRef.current;
       if (!el) return;
       const publish = () =>
-         document.documentElement.style.setProperty('--header-h', `${el.offsetHeight}px`);
+         document.documentElement.style.setProperty(
+            '--header-h',
+            `${el.getBoundingClientRect().height}px`
+         );
       publish();
       const ro = new ResizeObserver(publish);
       ro.observe(el);
