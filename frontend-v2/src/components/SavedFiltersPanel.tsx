@@ -76,7 +76,10 @@ function SavedFilterRow({
             onClick={onApply}
             className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left"
          >
-            <span className="flex min-w-0 items-center gap-1.5">
+            {/* max-w-full on both lines: in a flex-col with items-start the
+                children shrink-to-fit, so without a width bound `truncate`
+                never binds and a long roster gloss runs out of the panel */}
+            <span className="flex max-w-full min-w-0 items-center gap-1.5">
                <span className="truncate text-[13px] font-medium text-ink">{filter.name}</span>
                {current && (
                   <span className="flex-none text-brand" title="the view you’re on right now">
@@ -84,7 +87,7 @@ function SavedFilterRow({
                   </span>
                )}
             </span>
-            <span className="truncate text-xs text-ink-3">
+            <span className="max-w-full truncate text-xs text-ink-3">
                {filter.auto
                   ? `your roster · ${describeHash(filter.hash)}`
                   : describeHash(filter.hash)}
