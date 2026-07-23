@@ -5,7 +5,7 @@ import type { Scope } from '../../prefs';
 import { setRepoPref, togglePrimaryRepo, useSettings } from '../../settings';
 import { QuietButton, StarMark } from '../bits';
 import { Popover } from '../Popover';
-import { FilterSearch, FilterTrigger, OnlyButton } from './shared';
+import { ClearRow, FilterSearch, FilterTrigger, OnlyButton } from './shared';
 
 /**
  * The repos filter: opens straight into the repo list (no tabs — the old
@@ -164,8 +164,8 @@ export function RepoFilter({
                <FilterTrigger
                   t={t}
                   label="Repos"
-                  value={value}
-                  onClear={() => setScope({ ...scope, repos: [] })}
+                  badge={scope.repos.length ? String(scope.repos.length) : null}
+                  title={value ? `Repos · ${value}` : undefined}
                   ariaLabel={`repos filter: ${value ?? 'off'}`}
                />
             )}
@@ -202,6 +202,10 @@ export function RepoFilter({
             {filteredShown.length === 0 && (
                <div className="px-1.5 py-2 text-xs text-ink-3">No repos match.</div>
             )}
+            <ClearRow
+               active={scope.repos.length > 0}
+               onClear={() => setScope({ ...scope, repos: [] })}
+            />
          </Popover>
       </div>
    );

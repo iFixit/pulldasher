@@ -16,7 +16,6 @@ import { buildParentLookup } from './model/stack';
 import { buildReviewerPools, turnFor } from './model/rotation';
 import { shipRelevance, shippedToast } from './model/shipped';
 import type { Toast } from './model/toast';
-import type { BoardTeam, Team as TeamGroup } from './types';
 import { claimReview, setWeightLabels, usePulldasher } from './store';
 import { loadSiteConfig, primeScope, useScope } from './prefs';
 import { getSettings, useSettings } from './settings';
@@ -26,6 +25,7 @@ import { matchesQuery } from './model/query';
 import { requestNames, useNames } from './model/names';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from './model/visibility';
 import { reviewRequestedFrom } from './model/reviewers';
+import { CornerBadge } from './components/bits';
 import { foldDomId, openFold } from './components/Lane';
 import { Legend } from './components/Legend';
 import { LensMenu } from './components/LensMenu';
@@ -264,7 +264,6 @@ export function App() {
    const [draftsMode, setDraftsMode] = useState<'mine' | 'all'>(
       () => urlState.drafts ?? getSettings().draftsMode
    );
-   const [teams, setTeams] = useState<TeamGroup[]>([]);
    const [extraBots, setExtraBots] = useState<ReadonlySet<string>>(new Set());
    // login-level twin of isBot, for row-level consumers (the avatar's square
    // bot tile) that hold a login rather than a DerivedPull
@@ -273,17 +272,6 @@ export function App() {
    // theme, density, default view, age colors, glance guard — all live in
    // settings now (the cog panel), persisted per-browser
    const settings = useSettings();
-   // your personal team merges into the org's config.json teams, leading the
-   // list — it's the one a viewer actually picked, not a standing org fixture
-   const allTeams = useMemo(
-      () => [
-         ...settings.teams.map(
-            (t): BoardTeam => ({ team: t.name, members: t.members, personal: true })
-         ),
-         ...teams,
-      ],
-      [teams, settings.teams]
-   );
    const [systemDark, setSystemDark] = useState(
       () => matchMedia('(prefers-color-scheme: dark)').matches
    );
@@ -293,7 +281,6 @@ export function App() {
    useEffect(() => {
       void loadSiteConfig().then(c => {
          setExtraBots(new Set(c.bots));
-         setTeams(c.teams);
          setWeightLabels(c.weightLabels);
       });
    }, []);
@@ -730,24 +717,20 @@ export function App() {
    );
 
    const mineCount = humans.filter(p => p.data.user.login === me).length;
-   // a tab that carries a count keeps its numeral slot even while the count
-   // is 0 (before data lands) — the number fading in must not widen the tab
-   // and shove every tab after it sideways mid-load
+   // a tab's count rides as the corner badge (out of flow), so it appearing
+   // when data lands can never widen the tab and shove the strip sideways
    const tab = (id: Lens, label: string, count?: number) => (
       <button
          type="button"
          aria-current={lens === id ? 'page' : undefined}
+         aria-label={count ? `${label}, ${count} of yours open` : undefined}
          onClick={() => setLens(id)}
-         className={`pressable shrink-0 rounded-lg border-0 px-3 py-2 text-sm font-medium whitespace-nowrap ${
+         className={`pressable relative shrink-0 rounded-lg border-0 px-3 py-2 text-sm font-medium whitespace-nowrap ${
             lens === id ? 'bg-secondary text-ink' : 'bg-transparent text-ink-2 hover:text-brand'
          }`}
       >
          {label}
-         {count != null && (
-            <span className="ml-1.5 inline-block min-w-[2ch] text-left text-xs text-ink-3 tabular-nums">
-               {count > 0 ? count : ''}
-            </span>
-         )}
+         {count != null && count > 0 && <CornerBadge text={String(count)} />}
       </button>
    );
 
@@ -981,7 +964,7 @@ export function App() {
                   scope={scope}
                   setScope={setScope}
                />
-               <PeopleFilter pulls={pulls} teams={allTeams} scope={scope} setScope={setScope} />
+               <PeopleFilter pulls={pulls} scope={scope} setScope={setScope} />
                <WeightFilter
                   pulls={preWeightScoped}
                   weightSel={weightSel}
@@ -1084,7 +1067,6 @@ export function App() {
                <Team
                   pulls={humans}
                   allPulls={pulls.filter(p => !isBot(p))}
-                  teams={allTeams}
                   selected={scope.authors}
                   onSelect={logins => setScope({ ...scope, authors: logins, notAuthors: [] })}
                   opts={rowOpts}

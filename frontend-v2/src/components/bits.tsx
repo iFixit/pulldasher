@@ -70,6 +70,27 @@ export const STATUS_DOT: Record<Status, string> = {
  * show), md = standalone panel actions. tone='brand' for the affirmative
  * variant ("Show for me").
  */
+/**
+ * The corner count/state badge the filter triggers and lens tabs share:
+ * absolutely positioned, so appearing or changing NEVER moves its host —
+ * data landing mid-load can't reflow the bar. 1–3 characters (a count, a
+ * lone weight's letters, a −count for an exclusion). 'brand' = something of
+ * yours or a narrowing you chose; 'quiet' = standing info (the hidden
+ * ledger's count). aria-hidden: the host's aria-label carries the words.
+ */
+export function CornerBadge({ text, tone = 'brand' }: { text: string; tone?: 'brand' | 'quiet' }) {
+   return (
+      <span
+         aria-hidden
+         className={`absolute -top-1 -right-1 min-w-[15px] rounded-full px-1 text-center text-[10px] font-semibold leading-[15px] ${
+            tone === 'brand' ? 'bg-brand-50 text-brand-700' : 'bg-secondary text-ink-2'
+         }`}
+      >
+         {text}
+      </span>
+   );
+}
+
 export function QuietButton({
    size = 'sm',
    tone = 'default',

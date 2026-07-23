@@ -1,7 +1,7 @@
 import type { DerivedPull } from '../../model/status';
 import { weightFilterKey } from '../../model/status';
 import { Popover } from '../Popover';
-import { FilterRow, FilterTrigger, OnlyButton } from './shared';
+import { ClearRow, FilterRow, FilterTrigger, OnlyButton } from './shared';
 
 /** Weight filter option order: lightest to heaviest — mirrors the rail's
  * own weight-letter read (XS through XL). */
@@ -54,8 +54,19 @@ export function WeightFilter({
                <FilterTrigger
                   t={t}
                   label="Weight"
-                  value={value}
-                  onClear={() => setWeightSel([])}
+                  // a lone weight is short enough to BE the badge; more
+                  // collapse to their count ('unknown' can only arrive via a
+                  // weight: query token — the panel doesn't offer it)
+                  badge={
+                     weightSel.length === 0
+                        ? null
+                        : weightSel.length === 1
+                          ? weightSel[0] === 'unknown'
+                             ? '?'
+                             : weightSel[0].toUpperCase()
+                          : String(weightSel.length)
+                  }
+                  title={value ? `Weight · ${value}` : undefined}
                   ariaLabel={`weight filter: ${value ?? 'off'}`}
                />
             )}
@@ -77,6 +88,7 @@ export function WeightFilter({
                   <OnlyButton onClick={() => setWeightSel([key])} />
                </FilterRow>
             ))}
+            <ClearRow active={weightSel.length > 0} onClear={() => setWeightSel([])} />
          </Popover>
       </div>
    );

@@ -1,63 +1,70 @@
 import type { ChangeEvent, ReactNode } from 'react';
-import { ChevronDown, X } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { Icon } from '../Icon';
 import type { PopoverTriggerProps } from '../Popover';
+import { CornerBadge, QuietButton } from '../bits';
 
 /**
- * The one filter-bar trigger: a quiet text-level control, not a bordered
- * button. The bar's normal state is "a few filters always on", so an active
- * filter can't wear highlight chrome — the whole ladder is typographic:
- * inactive = muted word, active = the dimension's VALUE named in ink with a
- * small clear ×. The trigger is the chip; there is no second pill restating
- * it elsewhere. (No leading icons either: six pictograms said less than the
- * six words, and cost a row of decoding.)
+ * The one filter-bar trigger: a quiet text-level control whose geometry NEVER
+ * changes. The dimension name is the whole trigger; the active state rides as
+ * a small corner badge of 1–3 characters — a count, or the value itself when
+ * it fits (a lone weight's "S"), or a −count for an excluding selection — so
+ * narrowing the board can't reflow the bar. Full words live in the hover
+ * title and aria-label; the panel behind the click is the detail view, and
+ * clearing lives in the panel too (ClearRow), not as an appearing ×.
  */
 export function FilterTrigger({
    t,
    label,
-   value,
-   onClear,
+   badge,
+   badgeTone = 'brand',
+   active = false,
+   title,
    ariaLabel,
 }: {
    t: PopoverTriggerProps;
    /** the dimension name, always visible: Repos, People, Weight… */
    label: string;
-   /** the active selection, named ("XS, S"); null/empty = inactive */
-   value?: string | null;
-   /** clears just this dimension (renders the × beside the trigger) */
-   onClear?: () => void;
+   /** 1–3 character summary of the active state; null/empty = no badge */
+   badge?: string | null;
+   /** 'brand' = a narrowing you chose; 'quiet' = standing info (the hidden
+    * ledger's count) */
+   badgeTone?: 'brand' | 'quiet';
+   /** a standing non-badge state (e.g. "showing hidden") — carried by color
+    * only, so the trigger still never moves */
+   active?: boolean;
+   /** full-words active state for the hover title (the badge abbreviates) */
+   title?: string;
    ariaLabel: string;
 }) {
    return (
-      <span className="inline-flex items-center">
-         <button
-            {...t}
-            type="button"
-            title={value ? `${label} · ${value}` : label}
-            aria-label={ariaLabel}
-            className="hit pressable inline-flex max-w-[240px] items-center gap-1 rounded-md px-1.5 py-1 text-[13px] text-ink-3 hover:text-ink"
-         >
-            {value ? (
-               <>
-                  <span className="flex-none">{label} ·</span>
-                  <span className="truncate font-medium text-ink">{value}</span>
-               </>
-            ) : (
-               label
-            )}
-            <Icon icon={ChevronDown} size={12} className="flex-none" />
-         </button>
-         {value && onClear && (
-            <button
-               type="button"
-               onClick={onClear}
-               aria-label={`clear ${label} filter`}
-               className="hit pressable -ml-0.5 rounded px-0.5 text-ink-3 hover:text-brand"
-            >
-               <Icon icon={X} size={12} />
-            </button>
-         )}
-      </span>
+      <button
+         {...t}
+         type="button"
+         title={title ?? label}
+         aria-label={ariaLabel}
+         className={`hit pressable relative inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[13px] ${
+            active ? 'font-medium text-brand' : 'text-ink-3 hover:text-ink'
+         }`}
+      >
+         {label}
+         <Icon icon={ChevronDown} size={12} className="flex-none" />
+         {!!badge && <CornerBadge text={badge} tone={badgeTone} />}
+      </button>
+   );
+}
+
+/**
+ * The panel-footer clear for one dimension — the home the bar's per-trigger ×
+ * moved into when triggers went geometry-constant. Renders nothing while the
+ * dimension is inactive, so panels only offer what would do something.
+ */
+export function ClearRow({ active, onClear }: { active: boolean; onClear: () => void }) {
+   if (!active) return null;
+   return (
+      <div className="mt-1.5 border-t border-secondary pt-1.5">
+         <QuietButton onClick={onClear}>Clear</QuietButton>
+      </div>
    );
 }
 
@@ -156,6 +163,33 @@ export function OnlyButton({ onClick }: { onClick: () => void }) {
          }}
       >
          only
+      </button>
+   );
+}
+
+/**
+ * "only"'s inverse, People rows only: flip this person into the "everyone
+ * except" scope. An excluded row's button STANDS (visible without hover,
+ * beside the struck-through name) because it records a choice; clicking it
+ * again re-includes them.
+ */
+export function ExceptButton({ on, onClick }: { on: boolean; onClick: () => void }) {
+   return (
+      <button
+         type="button"
+         aria-pressed={on}
+         title={on ? 'excluded — click to show their PRs again' : 'show everyone except them'}
+         className={`hit pressable rounded px-1 text-xs leading-none transition-opacity duration-150 focus-visible:opacity-100 motion-reduce:transition-none ${
+            on
+               ? 'font-medium text-brand opacity-100'
+               : 'text-ink-3 opacity-0 group-hover:opacity-100 hover:text-brand'
+         }`}
+         onClick={e => {
+            e.stopPropagation();
+            onClick();
+         }}
+      >
+         except
       </button>
    );
 }

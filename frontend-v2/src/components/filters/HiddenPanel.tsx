@@ -1,9 +1,8 @@
-import { ChevronDown, X } from 'lucide-react';
 import { CRYO_KEY } from '../../model/visibility';
 import { setSettings, useSettings } from '../../settings';
 import { QuietButton } from '../bits';
-import { Icon } from '../Icon';
 import { Popover } from '../Popover';
+import { FilterTrigger } from './shared';
 
 /** Per-category sizes of everything the board hides by default — computed in
  * app.tsx beside the visibility filter itself so the two can't drift. */
@@ -114,24 +113,26 @@ export function HiddenPanel({
             panelClass="p-2"
             rootClass="relative inline-flex items-center"
             trigger={t => (
-               <button
-                  {...t}
-                  type="button"
-                  title="what the board is hiding, and why"
-                  aria-label={
+               <FilterTrigger
+                  t={t}
+                  label="Hidden"
+                  // standing info, not a narrowing you chose — the quiet tone.
+                  // While revealing, the count falls as PRs surface and the
+                  // brand text carries the "showing them for now" state.
+                  badge={counts.hiddenNow ? String(counts.hiddenNow) : null}
+                  badgeTone="quiet"
+                  active={revealing}
+                  title={
+                     revealing
+                        ? 'showing hidden PRs for now — what the board normally hides, and why'
+                        : 'what the board is hiding, and why'
+                  }
+                  ariaLabel={
                      revealing
                         ? 'hidden PRs: showing them for now'
                         : `hidden PRs: ${counts.hiddenNow} off the board`
                   }
-                  className="hit pressable inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[13px] text-ink-3 hover:text-ink"
-               >
-                  {revealing ? (
-                     <span className="font-medium text-ink">showing hidden</span>
-                  ) : (
-                     <span className="tabular-nums">{counts.hiddenNow} hidden</span>
-                  )}
-                  <Icon icon={ChevronDown} size={12} className="flex-none" />
-               </button>
+               />
             )}
          >
             {counts.parked > 0 &&
@@ -183,18 +184,14 @@ export function HiddenPanel({
                   <span className="text-[13px]">Show everything for now</span>
                </label>
             </div>
+            {/* the one-click undo for every session reveal lives in the
+                panel now — a bar-level × that came and went moved the bar */}
+            {revealing && (
+               <div className="mt-1.5 border-t border-secondary pt-1.5">
+                  <QuietButton onClick={resetReveals}>Hide them again</QuietButton>
+               </div>
+            )}
          </Popover>
-         {revealing && (
-            <button
-               type="button"
-               onClick={resetReveals}
-               aria-label="hide them again"
-               title="hide them again"
-               className="hit pressable -ml-0.5 rounded px-0.5 text-ink-3 hover:text-brand"
-            >
-               <Icon icon={X} size={12} />
-            </button>
-         )}
       </span>
    );
 }

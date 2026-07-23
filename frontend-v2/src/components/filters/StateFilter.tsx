@@ -3,7 +3,7 @@ import { actionState } from '../../model/actions';
 import type { DerivedPull } from '../../model/status';
 import { usePulldasher } from '../../store';
 import { Popover } from '../Popover';
-import { FilterRow, FilterTrigger, OnlyButton } from './shared';
+import { ClearRow, FilterRow, FilterTrigger, OnlyButton } from './shared';
 
 /**
  * State filter option order: what's waiting on you first (the thing you're
@@ -70,8 +70,8 @@ export function StateFilter({
                <FilterTrigger
                   t={t}
                   label="State"
-                  value={value}
-                  onClear={() => setStateSel([])}
+                  badge={stateSel.length ? String(stateSel.length) : null}
+                  title={value ? `State · ${value}` : undefined}
                   ariaLabel={`state filter: ${value ?? 'off'}`}
                />
             )}
@@ -93,6 +93,7 @@ export function StateFilter({
                   <OnlyButton onClick={() => setStateSel([key])} />
                </FilterRow>
             ))}
+            <ClearRow active={stateSel.length > 0} onClear={() => setStateSel([])} />
          </Popover>
       </div>
    );
