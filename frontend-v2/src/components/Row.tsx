@@ -412,7 +412,7 @@ function RowActionsKebab({
    const repoLabel = shortRepo(repo);
    const isPrimaryRepo = settings.primaryRepos.includes(repo);
    const isHiddenRepo = settings.repoPrefs[repo] === 'hide';
-   const isTeammate = settings.myTeam.includes(author);
+   const isTeammate = settings.teams.some(t => t.members.includes(author));
    const claimedByMe = claim?.login === me;
    const item =
       'flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2 text-left text-xs text-ink-2 hover:bg-muted';
@@ -699,7 +699,7 @@ function RowImpl({
    // so the row itself says "one of your people" without a trip to the
    // kebab menu
    const settings = useSettings();
-   const teamAuthor = settings.myTeam.includes(d.user.login);
+   const teamAuthor = settings.teams.some(t => t.members.includes(d.user.login));
    // which of your code regions this pull matched (why it floated to the top)
    const regions = matchedRegions(pull, settings.codeRegions);
    // only worth asking the whole-board lookup when this row is stacked but

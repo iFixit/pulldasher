@@ -1,6 +1,15 @@
 import { STARVE_DAYS } from './model/status';
 import { createPersistentStore } from './storage';
 
+/** one named review circle; DEFAULT_TEAM_NAME is what quick add-to-team
+ * gestures (the row kebab, the People filter) create when no roster exists */
+export interface PersonalTeam {
+   name: string;
+   members: string[];
+}
+
+export const DEFAULT_TEAM_NAME = 'My team';
+
 /**
  * User settings: the knobs that are a matter of personal taste, not team
  * policy (that's config.json) or model correctness (that's the sort and
@@ -67,12 +76,13 @@ export interface Settings {
     * firmware dev share a monorepo but little else). Empty = infer from the
     * repos where you've authored or stamped on the current board. */
    primaryRepos: string[];
-   /** logins of your teammates — your REVIEW CIRCLE, yours to define, not
-    * the org chart (a cross-team pairing partner belongs here). One roster,
-    * two effects: the Team lens shows their combined board, and their pulls
-    * lead your Review queue and Needs QA. Absorbed the old starredPeople
-    * list — two rosters for "people whose work I watch" was one too many. */
-   myTeam: string[];
+   /** your named rosters — REVIEW CIRCLES, yours to define, not the org
+    * chart (an official team and a cross-team pairing partner can be two
+    * separate rosters). Every roster's members get the same two effects:
+    * the Team lens shows their boards, and their pulls lead your Review
+    * queue and Needs QA (the union — see myPeople). Absorbed the old
+    * starredPeople and single-myTeam fields. */
+   teams: PersonalTeam[];
    /** logins whose pulls stay off your board until an explicit reveal (a
     * scope pick or an author: query term) brings them back for the session.
     * Mirrors repoPrefs' hide, but people have no org baseline to fall back
@@ -115,7 +125,7 @@ export const DEFAULT_SETTINGS: Settings = {
    laneCapByLens: {},
    selfReview: true,
    primaryRepos: [],
-   myTeam: [],
+   teams: [],
    hiddenPeople: [],
    codeRegions: [],
    claimWarnMins: 120,
@@ -130,29 +140,46 @@ const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
 // - "Mute" grew up into "hide" for repos and people — hiding is what
 //   actually happens (cheer kinds still mute: silencing a notification is
 //   real muting).
-// - starredPeople folded into myTeam — two rosters for "people whose work I
-//   watch" was one too many; the one team roster now powers the Team lens
-//   AND leads the review queues.
+// - starredPeople and the single myTeam list folded into named `teams` —
+//   every roster powers the Team lens AND leads the review queues; the
+//   legacy fields collapse into one "My team" roster.
 {
    type LegacyBlob = Omit<Settings, 'repoPrefs'> & {
       mutedPeople?: string[];
       starredPeople?: string[];
+      myTeam?: string[];
       repoPrefs: Record<string, 'hide' | 'mute' | 'show'>;
    };
    const raw = store.get() as unknown as LegacyBlob;
    const hadMutedRepos = Object.values(raw.repoPrefs).includes('mute');
-   if (hadMutedRepos || raw.mutedPeople?.length || raw.starredPeople?.length) {
+   if (
+      hadMutedRepos ||
+      raw.mutedPeople?.length ||
+      raw.starredPeople?.length ||
+      raw.myTeam?.length
+   ) {
       const repoPrefs = Object.fromEntries(
          Object.entries(raw.repoPrefs).map(([r, p]) => [r, p === 'mute' ? 'hide' : p])
       ) as Record<string, 'hide' | 'show'>;
-      const { mutedPeople, starredPeople, ...rest } = raw;
+      const { mutedPeople, starredPeople, myTeam, ...rest } = raw;
+      const legacyMembers = [...new Set([...(myTeam ?? []), ...(starredPeople ?? [])])].sort();
       store.set({
          ...rest,
          repoPrefs,
          hiddenPeople: rest.hiddenPeople.length ? rest.hiddenPeople : (mutedPeople ?? []),
-         myTeam: [...new Set([...rest.myTeam, ...(starredPeople ?? [])])].sort(),
+         teams: rest.teams?.length
+            ? rest.teams
+            : legacyMembers.length
+              ? [{ name: DEFAULT_TEAM_NAME, members: legacyMembers }]
+              : [],
       });
    }
+}
+
+/** Union of every personal roster, sorted — "your people": the set that
+ * leads the review queues and wears the teammate corner star. */
+export function myPeople(teams: PersonalTeam[]): string[] {
+   return [...new Set(teams.flatMap(t => t.members))].sort();
 }
 
 /** Plain getter for non-React readers. */
@@ -187,12 +214,42 @@ export function togglePrimaryRepo(repo: string, primary: boolean) {
    setSettings({ primaryRepos: next });
 }
 
-/** Add or remove a teammate. Deduped and sorted so the Team view and picker
- * render in a stable order regardless of insertion order. */
-export function toggleTeammate(login: string, add: boolean) {
-   const cur = store.get().myTeam;
-   const next = add ? [...new Set([...cur, login])].sort() : cur.filter(l => l !== login);
-   setSettings({ myTeam: next });
+/** Add or remove a teammate. Adding lands in `teamName` (or the first
+ * roster, creating "My team" when none exists — the quick gesture from a row
+ * kebab must never dead-end on an empty state). Removing without a teamName
+ * removes from EVERY roster: the kebab's "remove from your team" means "this
+ * person no longer leads my queues", not a per-roster bookkeeping question.
+ * Members stay deduped and sorted for stable render order. */
+export function toggleTeammate(login: string, add: boolean, teamName?: string) {
+   const teams = store.get().teams.map(t => ({ ...t, members: [...t.members] }));
+   if (add) {
+      let target = teamName ? teams.find(t => t.name === teamName) : teams[0];
+      if (!target) {
+         target = { name: teamName ?? DEFAULT_TEAM_NAME, members: [] };
+         teams.push(target);
+      }
+      target.members = [...new Set([...target.members, login])].sort();
+   } else {
+      for (const t of teams) {
+         if (teamName && t.name !== teamName) continue;
+         t.members = t.members.filter(l => l !== login);
+      }
+   }
+   setSettings({ teams });
+}
+
+/** Create an empty named roster (no-op on a duplicate or blank name). */
+export function addTeam(name: string) {
+   const trimmed = name.trim();
+   const teams = store.get().teams;
+   if (!trimmed || teams.some(t => t.name === trimmed)) return;
+   setSettings({ teams: [...teams, { name: trimmed, members: [] }] });
+}
+
+/** Delete a roster outright (its members lose the float unless they're also
+ * in another roster). */
+export function removeTeam(name: string) {
+   setSettings({ teams: store.get().teams.filter(t => t.name !== name) });
 }
 
 /** Hide or unhide a person's pulls. Deduped and sorted for a stable render order. */

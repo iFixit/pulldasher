@@ -392,7 +392,7 @@ export function Settings({
                      <Group title="Edited on the board">
                         <div className="flex items-center justify-between gap-3">
                            <span className="text-[13px] text-ink-2">
-                              Your team: edit it on the Team view.
+                              Teams: build your rosters on the Team view.
                            </span>
                            <QuietButton
                               size="md"

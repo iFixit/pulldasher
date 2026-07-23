@@ -13,7 +13,7 @@ import {
 import { reviewRequestedFrom } from '../model/reviewers';
 import { startHereReason } from '../model/cheers';
 import { dealRank } from '../model/deal';
-import { useSettings } from '../settings';
+import { myPeople, useSettings } from '../settings';
 import { claimFor, clearSnoozes, isFresh, isSnoozed, markAllSeen, usePulldasher } from '../store';
 import type { PullData } from '../types';
 import { EmptyState, QuietButton } from '../components/bits';
@@ -42,8 +42,8 @@ export function Review({
    opts: RowOptions;
 }) {
    const me = opts.me;
-   const { selfReview, primaryRepos, myTeam, codeRegions } = useSettings();
-   const team = new Set(myTeam);
+   const { selfReview, primaryRepos, teams, codeRegions } = useSettings();
+   const team = new Set(myPeople(teams));
    // A snooze is "not today" for THIS lens only: the daily what-do-I-review
    // loop lives here, so the quieting gesture belongs here — every other
    // lens still shows the pull. Snoozed rows collect in their own section at

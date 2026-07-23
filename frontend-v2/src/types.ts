@@ -144,3 +144,10 @@ export interface Team {
    team: string;
    members: string[];
 }
+
+/** a Team as the board renders it: config teams plus the user's own personal
+ * rosters (settings.ts `teams`), the latter flagged so views can pin, style,
+ * and route them differently from org teams. */
+export interface BoardTeam extends Team {
+   personal?: boolean;
+}

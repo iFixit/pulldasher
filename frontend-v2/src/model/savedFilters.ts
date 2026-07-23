@@ -5,7 +5,7 @@ import { createPersistentStore } from '../storage';
  * (app.tsx) writes to location.hash: lens, q, repos, authors, weight, state,
  * hidden, reveal, drafts. `hash` is stored verbatim (no leading '#') so
  * applying one is just `location.hash = hash`; the app's existing hashchange
- * listener does the rest. Durable per-browser prefs (hidden repos/people, stars, myTeam)
+ * listener does the rest. Durable per-browser prefs (hidden repos/people, teams, primary repos)
  * are deliberately NOT part of this — they aren't in the hash to begin with.
  */
 export interface SavedFilter {
@@ -105,6 +105,7 @@ export function describeHash(hash: string): string {
    if (q) parts.push(`"${q}"`);
    list('repos', 'repo');
    list('authors', 'author');
+   list('xauthors', 'excluding');
    const drafts = p.get('drafts');
    if (drafts) parts.push(`drafts: ${drafts}`);
    if (p.get('hidden') === '1') parts.push('showing hidden');

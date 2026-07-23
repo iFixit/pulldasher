@@ -81,13 +81,14 @@ export function hasActiveFilters({
    showAll: boolean;
    draftsMode: 'mine' | 'all';
    defaultDraftsMode: 'mine' | 'all';
-   scope: { repos: string[]; authors: string[] };
+   scope: { repos: string[]; authors: string[]; notAuthors?: string[] };
    weightSel: string[];
    stateSel: string[];
 }): boolean {
    return (
       scope.repos.length > 0 ||
       scope.authors.length > 0 ||
+      (scope.notAuthors?.length ?? 0) > 0 ||
       weightSel.length > 0 ||
       stateSel.length > 0 ||
       reveal.length > 0 ||

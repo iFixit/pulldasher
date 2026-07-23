@@ -5,8 +5,8 @@ import type { DerivedPull } from '../model/status';
 import { matchesRegion } from '../model/regions';
 import { crSort } from '../model/sort';
 import { teamBuckets } from '../model/team';
-import { useSettings } from '../settings';
-import type { Team as TeamGroup } from '../types';
+import { myPeople, useSettings } from '../settings';
+import type { BoardTeam } from '../types';
 import { Avatar, EmptyState } from '../components/bits';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, SubDoor } from '../components/Lane';
 import { Popover } from '../components/Popover';
@@ -41,7 +41,7 @@ export function Team({
    /** unscoped pool (for chip counts and owed re-stamps — filters must not
     * make the directory lie about someone's real load) */
    allPulls: DerivedPull[];
-   teams: TeamGroup[];
+   teams: BoardTeam[];
    person: string | null;
    team: string | null;
    onPerson: (login: string) => void;
@@ -58,7 +58,9 @@ export function Team({
    // no explicit choice (the door follows the selection); true/false = the
    // user's own toggle for this visit
    const [directoryChoice, setDirectoryChoice] = useState<boolean | null>(null);
-   const { myTeam, codeRegions, hiddenPeople } = useSettings();
+   const { teams: personalTeams, codeRegions, hiddenPeople } = useSettings();
+   const yourPeople = myPeople(personalTeams);
+   const yourSet = new Set(yourPeople);
    // login -> human name for the directory chips (app.tsx prefetches the board)
    const namesMap = useNames();
    const nameOf = (login: string) => displayName(namesMap, login);
@@ -84,13 +86,13 @@ export function Team({
    // home = the tab with nothing picked; with a team configured that IS the
    // "Your team" board, without one it's the build-your-team invitation
    const home = !explicitTeam && !selectedPerson;
-   const selectedTeam = explicitTeam ?? (home && myTeam.length > 0 ? 'Your team' : null);
-
    const members = selectedPerson
       ? [selectedPerson]
-      : selectedTeam
-        ? (teams.find(t => t.team === selectedTeam)?.members ?? [])
-        : [];
+      : explicitTeam
+        ? (teams.find(t => t.team === explicitTeam)?.members ?? [])
+        : home
+          ? yourPeople
+          : [];
    const isSubject = (p: DerivedPull) => members.includes(p.data.user.login);
    const theirs = pulls.filter(isSubject);
    const theirsUnscoped = allPulls.filter(isSubject);
@@ -104,7 +106,7 @@ export function Team({
    const regionMatches = home ? crSort(reviewable.filter(p => matchesRegion(p, codeRegions))) : [];
    const owed = selectedPerson ? (owes.get(selectedPerson) ?? []) : [];
    const memberTeam = selectedPerson
-      ? teams.find(t => t.team !== 'Your team' && t.members.includes(selectedPerson))?.team
+      ? teams.find(t => !t.personal && t.members.includes(selectedPerson))?.team
       : null;
    const shipping = theirs.filter(p => ['ready', 'needs_qa'].includes(p.status)).length;
 
@@ -112,15 +114,18 @@ export function Team({
    // explicit pick (a URL or a click) already landed on them; your team's
    // members are pinned in their own row above, so they don't repeat here
    const logins = [...new Set([...counts.keys(), ...owes.keys()])]
-      .filter(l => (!hiddenSet.has(l) || l === selectedPerson) && !myTeam.includes(l))
+      .filter(l => (!hiddenSet.has(l) || l === selectedPerson) && !yourSet.has(l))
       .sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0));
    const shownLogins = allPeople ? logins : logins.slice(0, 24);
 
    // the door opens itself when it must: no team yet (the directory is the
    // only content), or the current pick lives outside your team (hiding the
    // chip that explains the board would orphan it)
-   const outsidePick = !!explicitTeam || (!!selectedPerson && !myTeam.includes(selectedPerson));
-   const directoryShown = myTeam.length === 0 || (directoryChoice ?? outsidePick);
+   const personalNames = new Set(personalTeams.map(t => t.name));
+   const outsidePick =
+      (!!explicitTeam && !personalNames.has(explicitTeam)) ||
+      (!!selectedPerson && !yourSet.has(selectedPerson));
+   const directoryShown = personalTeams.length === 0 || (directoryChoice ?? outsidePick);
 
    const chip = (key: string, label: React.ReactNode, active: boolean, onPick: () => void) => (
       <button
@@ -167,21 +172,36 @@ export function Team({
 
    return (
       <>
-         {/* yours, pinned: the aggregate board chip, each member, and the picker */}
-         {myTeam.length > 0 && (
+         {/* yours, pinned: the roster chips (union first when there are
+             several), each member once, and the picker */}
+         {personalTeams.length > 0 && (
             <div className="mb-2 flex flex-wrap items-center gap-1.5">
-               {chip(
-                  'your-team',
-                  <>
-                     <b className="pl-1 font-semibold text-ink">Your team</b>
-                     <span className="text-[11px] text-ink-3 tabular-nums">
-                        {allPulls.filter(p => myTeam.includes(p.data.user.login)).length}
-                     </span>
-                  </>,
-                  selectedTeam === 'Your team',
-                  onHome
+               {personalTeams.length > 1 &&
+                  chip(
+                     'your-people',
+                     <>
+                        <b className="pl-1 font-semibold text-ink">Everyone yours</b>
+                        <span className="text-[11px] text-ink-3 tabular-nums">
+                           {allPulls.filter(p => yourSet.has(p.data.user.login)).length}
+                        </span>
+                     </>,
+                     home,
+                     onHome
+                  )}
+               {personalTeams.map(t =>
+                  chip(
+                     `mine:${t.name}`,
+                     <>
+                        <b className="pl-1 font-semibold text-ink">{t.name}</b>
+                        <span className="text-[11px] text-ink-3 tabular-nums">
+                           {allPulls.filter(p => t.members.includes(p.data.user.login)).length}
+                        </span>
+                     </>,
+                     personalTeams.length === 1 ? home || explicitTeam === t.name : explicitTeam === t.name,
+                     personalTeams.length === 1 ? onHome : () => onTeam(t.name)
+                  )
                )}
-               {myTeam.map(login => personChip(login, login === selectedPerson))}
+               {yourPeople.map(login => personChip(login, login === selectedPerson))}
                <Popover
                   label="Edit your team"
                   side="right"
@@ -215,7 +235,7 @@ export function Team({
          {directoryShown && (
             <div className="mb-4 flex flex-wrap gap-1.5">
                {teams
-                  .filter(t => t.team !== 'Your team')
+                  .filter(t => !t.personal)
                   .map(t =>
                      chip(
                         `team:${t.team}`,
@@ -242,7 +262,7 @@ export function Team({
             </div>
          )}
 
-         {home && myTeam.length === 0 && (
+         {home && personalTeams.length === 0 && (
             <div className="mx-auto flex max-w-[440px] flex-col items-center gap-3 py-12 text-center">
                <h2 className="m-0 text-lg font-semibold text-ink">Build your team</h2>
                <p className="m-0 text-[13px] text-ink-3">
@@ -304,10 +324,11 @@ export function Team({
             </div>
          )}
 
-         {selectedTeam === 'Your team' && scopeHides > 0 && (
+         {(home || (explicitTeam && personalNames.has(explicitTeam))) && scopeHides > 0 && (
             <div className="mb-3 text-xs text-warn">filters hide {scopeHides} more</div>
          )}
-         {selectedTeam === 'Your team' &&
+         {(home || (explicitTeam && personalNames.has(explicitTeam))) &&
+            personalTeams.length > 0 &&
             reviewable.length === 0 &&
             stamped.length === 0 &&
             rest.length === 0 && (

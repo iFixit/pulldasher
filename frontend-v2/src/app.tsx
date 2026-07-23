@@ -16,7 +16,7 @@ import { buildParentLookup } from './model/stack';
 import { buildReviewerPools, turnFor } from './model/rotation';
 import { shipRelevance, shippedToast } from './model/shipped';
 import type { Toast } from './model/toast';
-import type { Team as TeamGroup } from './types';
+import type { BoardTeam, Team as TeamGroup } from './types';
 import { claimReview, setWeightLabels, usePulldasher } from './store';
 import { loadSiteConfig, primeScope, useScope } from './prefs';
 import { getSettings, useSettings } from './settings';
@@ -85,6 +85,8 @@ interface HashState {
    q: string;
    repos: string[];
    authors: string[];
+   /** logins scoped OUT (the team chips' "excluding" state) */
+   notAuthors: string[];
    /** review-effort classes to narrow to: 'xs'..'xl' or 'unknown' */
    weight: string[];
    /** actionState buckets to narrow to (model/actions.ts) */
@@ -128,6 +130,7 @@ function readHash(): HashState {
       q: p.get('q') ?? '',
       repos: p.get('repos')?.split(',').filter(Boolean) ?? [],
       authors: p.get('authors')?.split(',').filter(Boolean) ?? [],
+      notAuthors: p.get('xauthors')?.split(',').filter(Boolean) ?? [],
       weight: p.get('weight')?.split(',').filter(Boolean) ?? [],
       state: (p.get('state')?.split(',').filter(Boolean) ?? []).filter((s): s is ActionStateKey =>
          ACTION_STATE_KEYS.includes(s as ActionStateKey)
@@ -146,6 +149,7 @@ function buildHash(s: HashState): string {
    if (s.q) p.set('q', s.q);
    if (s.repos.length) p.set('repos', s.repos.join(','));
    if (s.authors.length) p.set('authors', s.authors.join(','));
+   if (s.notAuthors.length) p.set('xauthors', s.notAuthors.join(','));
    if (s.weight.length) p.set('weight', s.weight.join(','));
    if (s.state.length) p.set('state', s.state.join(','));
    if (s.hidden) p.set('hidden', '1');
@@ -157,8 +161,12 @@ function buildHash(s: HashState): string {
 // A shared link's scope applies for the session without touching the
 // visitor's saved scope; their own edits still persist as usual.
 const urlState = readHash();
-if (urlState.repos.length || urlState.authors.length) {
-   primeScope({ repos: urlState.repos, authors: urlState.authors });
+if (urlState.repos.length || urlState.authors.length || urlState.notAuthors.length) {
+   primeScope({
+      repos: urlState.repos,
+      authors: urlState.authors,
+      notAuthors: urlState.notAuthors,
+   });
 }
 
 /** Full-width notice under the header: bad = red alert, warn = amber, brand = informational. */
@@ -222,7 +230,7 @@ export function App() {
       requestNames([
          ...pulls.map(p => p.data.user.login),
          ...closed.map(p => p.user.login),
-         ...s.myTeam,
+         ...s.teams.flatMap(t => t.members),
          ...s.hiddenPeople,
       ]);
    }, [pulls, closed]);
@@ -262,10 +270,13 @@ export function App() {
    // list — it's the one a viewer actually picked, not a standing org fixture
    const allTeams = useMemo(
       () =>
-         settings.myTeam.length
-            ? [{ team: 'Your team', members: settings.myTeam }, ...teams]
-            : teams,
-      [teams, settings.myTeam]
+         [
+            ...settings.teams.map(
+               (t): BoardTeam => ({ team: t.name, members: t.members, personal: true })
+            ),
+            ...teams,
+         ],
+      [teams, settings.teams]
    );
    const [systemDark, setSystemDark] = useState(
       () => matchMedia('(prefers-color-scheme: dark)').matches
@@ -292,6 +303,7 @@ export function App() {
          q: query,
          repos: scope.repos,
          authors: scope.authors,
+         notAuthors: scope.notAuthors ?? [],
          weight: weightSel,
          state: stateSel,
          hidden: showAll,
@@ -515,6 +527,10 @@ export function App() {
       // no matter whose work you follow (they land in the bots fold, not lanes)
       if (scope.authors.length)
          out = out.filter(p => isBot(p) || scope.authors.includes(p.data.user.login));
+      // the exclusion scope: "everyone except" — bots ride along, same as the
+      // allow-list above (a dependency bump is nobody's teammate)
+      if (scope.notAuthors?.length)
+         out = out.filter(p => isBot(p) || !scope.notAuthors!.includes(p.data.user.login));
       if (query) out = out.filter(p => matchesQuery(p, query, me, names));
       return out;
    }, [pulls, boardHidden, scope, isBot, query, names, me]);
@@ -621,6 +637,7 @@ export function App() {
             q: query,
             repos: scope.repos,
             authors: scope.authors,
+            notAuthors: scope.notAuthors ?? [],
             weight: weightSel,
             state: stateSel,
             hidden: showAll,
@@ -930,6 +947,52 @@ export function App() {
                </div>
             </div>
             <div className="mx-auto flex max-w-[1240px] min-w-0 flex-wrap items-center gap-2 border-t border-secondary px-5 py-2">
+               {/* one quick scope toggle per personal roster, FIRST in the bar
+                   so a growing trigger can never displace it. Three states,
+                   cycled by click and carried entirely by color/decoration —
+                   the chip's text never changes, so nothing ever shifts:
+                   quiet name = off; tinted pill = only this team;
+                   struck-through tint = everyone except them. */}
+               {settings.teams.map(t => {
+                  const same = (xs: string[]) =>
+                     xs.length === t.members.length && t.members.every(m => xs.includes(m));
+                  const state = same(scope.authors)
+                     ? 'only'
+                     : same(scope.notAuthors ?? [])
+                       ? 'except'
+                       : 'off';
+                  const next =
+                     state === 'off'
+                        ? { authors: [...t.members], notAuthors: [] }
+                        : state === 'only'
+                          ? { authors: [], notAuthors: [...t.members] }
+                          : { authors: [], notAuthors: [] };
+                  const title =
+                     state === 'off'
+                        ? `show only ${t.name}’s PRs`
+                        : state === 'only'
+                          ? `showing only ${t.name} — click to hide them instead`
+                          : `hiding ${t.name}’s PRs — click to show everyone`;
+                  return (
+                     <button
+                        key={t.name}
+                        type="button"
+                        aria-pressed={state !== 'off'}
+                        title={title}
+                        aria-label={title}
+                        onClick={() => setScope({ ...scope, ...next })}
+                        className={`hit pressable inline-flex max-w-[160px] items-center rounded-md px-1.5 py-1 text-[13px] ${
+                           state === 'only'
+                              ? 'bg-secondary text-ink'
+                              : state === 'except'
+                                ? 'bg-secondary text-ink-3 line-through'
+                                : 'text-ink-3 hover:text-ink'
+                        }`}
+                     >
+                        <span className="truncate">{t.name}</span>
+                     </button>
+                  );
+               })}
                <RepoFilter
                   repos={repoCounts}
                   orgHidden={hiddenRepos}
@@ -961,7 +1024,7 @@ export function App() {
                   <button
                      type="button"
                      onClick={() => {
-                        setScope({ repos: [], authors: [] });
+                        setScope({ repos: [], authors: [], notAuthors: [] });
                         setWeightSel([]);
                         setStateSel([]);
                         setShowAll(false);

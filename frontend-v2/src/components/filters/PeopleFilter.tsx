@@ -3,7 +3,7 @@ import type { DerivedPull } from '../../model/status';
 import { displayName, useNames } from '../../model/names';
 import { toggleHiddenPerson, toggleTeammate, useSettings } from '../../settings';
 import { usePulldasher } from '../../store';
-import type { Team } from '../../types';
+import type { BoardTeam } from '../../types';
 import { Avatar, QuietButton, StarMark } from '../bits';
 import { Popover } from '../Popover';
 import { FilterRow, FilterSearch, FilterTrigger, OnlyButton } from './shared';
@@ -25,7 +25,7 @@ export function PeopleFilter({
    setScope,
 }: {
    pulls: DerivedPull[];
-   teams: Team[];
+   teams: BoardTeam[];
    scope: { repos: string[]; authors: string[] };
    setScope: (next: { repos: string[]; authors: string[] }) => void;
 }) {
@@ -37,7 +37,7 @@ export function PeopleFilter({
    const nameOf = (login: string) => displayName(namesMap, login);
    const matchesPerson = (login: string, q: string) =>
       login.toLowerCase().includes(q) || (nameOf(login) ?? '').toLowerCase().includes(q);
-   const teamSet = new Set(settings.myTeam);
+   const teamSet = new Set(settings.teams.flatMap(t => t.members));
    const hiddenSet = new Set(settings.hiddenPeople);
    const [peopleQuery, setPeopleQuery] = useState('');
 
@@ -99,7 +99,7 @@ export function PeopleFilter({
             {teams.length > 0 && (
                <div className="mb-2 flex flex-wrap gap-1 px-0.5">
                   {teams.map(t => {
-                     const isYours = t.team === 'Your team';
+                     const isYours = !!t.personal;
                      return (
                         <button
                            key={t.team}
