@@ -52,6 +52,11 @@ export function Team({
 }) {
    const me = opts.me;
    const [allPeople, setAllPeople] = useState(false);
+   // the directory rests behind a door: your team is the tab's home, and
+   // thirty stranger-chips standing above it outweighed the content. null =
+   // no explicit choice (the door follows the selection); true/false = the
+   // user's own toggle for this visit
+   const [directoryChoice, setDirectoryChoice] = useState<boolean | null>(null);
    const { myTeam, codeRegions, starredPeople, mutedPeople } = useSettings();
    const starredSet = new Set(starredPeople);
    const mutedSet = new Set(mutedPeople);
@@ -111,6 +116,13 @@ export function Team({
             (counts.get(b) ?? 0) - (counts.get(a) ?? 0)
       );
    const shownLogins = allPeople ? logins : logins.slice(0, 24);
+
+   // the door opens itself when it must: no team yet (the directory is the
+   // only content), or the current pick lives outside your team (hiding the
+   // chip that explains the board would orphan it)
+   const outsidePick =
+      !!explicitTeam || (!!selectedPerson && !myTeam.includes(selectedPerson));
+   const directoryShown = myTeam.length === 0 || (directoryChoice ?? outsidePick);
 
    const chip = (key: string, label: React.ReactNode, active: boolean, onPick: () => void) => (
       <button
@@ -187,9 +199,20 @@ export function Team({
                >
                   <TeamPicker extraBots={extraBots} />
                </Popover>
+               <button
+                  type="button"
+                  aria-expanded={directoryShown}
+                  onClick={() => setDirectoryChoice(!directoryShown)}
+                  className="pressable ml-auto inline-flex items-center rounded-lg border border-line bg-surface px-2.5 py-[5px] text-[13px] font-medium text-ink-3 hover:text-brand"
+               >
+                  Everyone
+                  <span className="pl-1.5 text-[11px] tabular-nums">{logins.length}</span>
+               </button>
             </div>
          )}
-         {/* the rest of the directory: config teams, then everyone else */}
+         {/* the rest of the directory: config teams, then everyone else —
+             behind the Everyone door unless it must stand (see above) */}
+         {directoryShown && (
          <div className="mb-4 flex flex-wrap gap-1.5">
             {teams
                .filter(t => t.team !== 'Your team')
@@ -217,6 +240,7 @@ export function Team({
                </button>
             )}
          </div>
+         )}
 
          {home && myTeam.length === 0 && (
             <div className="mx-auto flex max-w-[440px] flex-col items-center gap-3 py-12 text-center">
