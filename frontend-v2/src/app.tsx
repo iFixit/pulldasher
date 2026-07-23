@@ -86,8 +86,6 @@ const ACTION_STATE_KEYS: ActionStateKey[] = [
  */
 interface HashState {
    lens: Lens;
-   person: string | null;
-   team: string | null;
    q: string;
    repos: string[];
    authors: string[];
@@ -120,19 +118,11 @@ function defaultLensFallback(): Lens {
 
 function readHash(): HashState {
    const p = new URLSearchParams(location.hash.slice(1));
-   let lens = p.get('lens') as Lens | null;
-   // the Board lens merged into Classic (same columns, real justification);
-   // old #lens=board links keep working
-   if ((lens as string) === 'board') lens = 'classic';
-   // People merged into Team (same board, different picker); old links keep
-   // their person=/team= params, so they land on the same page they named
-   if ((lens as string) === 'people') lens = 'team';
+   const lens = p.get('lens') as Lens | null;
    // a bare URL (no lens param) opens the user's configured default view
    const fallback = defaultLensFallback();
    return {
       lens: lens && LENSES.includes(lens) ? lens : fallback,
-      person: p.get('person'),
-      team: p.get('team'),
       q: p.get('q') ?? '',
       repos: p.get('repos')?.split(',').filter(Boolean) ?? [],
       authors: p.get('authors')?.split(',').filter(Boolean) ?? [],
@@ -150,8 +140,6 @@ function readHash(): HashState {
 function buildHash(s: HashState): string {
    const p = new URLSearchParams();
    if (s.lens !== defaultLensFallback()) p.set('lens', s.lens);
-   if (s.person) p.set('person', s.person);
-   if (s.team) p.set('team', s.team);
    if (s.q) p.set('q', s.q);
    if (s.repos.length) p.set('repos', s.repos.join(','));
    if (s.authors.length) p.set('authors', s.authors.join(','));
@@ -242,8 +230,6 @@ export function App() {
    }, [pulls, closed]);
    const [scope, setScope] = useScope();
    const [lens, setLens] = useState<Lens>(() => readHash().lens);
-   const [person, setPerson] = useState<string | null>(() => urlState.person);
-   const [team, setTeam] = useState<string | null>(() => urlState.team);
    const [query, setQuery] = useState(() => urlState.q);
    // narrows the board to one or more review-effort classes ('xs'..'xl',
    // 'unknown'); empty = no filter
@@ -296,15 +282,13 @@ export function App() {
          setWeightLabels(c.weightLabels);
       });
    }, []);
-   // View changes (lens, person, team) earn a history entry so the back
-   // button navigates between boards; filter tweaks replace in place so
-   // typing a query doesn't bury history under keystrokes.
-   const prevView = useRef({ lens, person, team });
+   // View changes (lens switches) earn a history entry so the back button
+   // navigates between boards; filter tweaks replace in place so typing a
+   // query doesn't bury history under keystrokes.
+   const prevView = useRef({ lens });
    useEffect(() => {
       const next = buildHash({
          lens,
-         person,
-         team,
          q: query,
          repos: scope.repos,
          authors: scope.authors,
@@ -317,8 +301,8 @@ export function App() {
       });
       if (next === location.hash.slice(1)) return;
       const prev = prevView.current;
-      prevView.current = { lens, person, team };
-      if (prev.lens !== lens || prev.person !== person || prev.team !== team) {
+      prevView.current = { lens };
+      if (prev.lens !== lens) {
          // fires hashchange; the listener below re-reads idempotently
          location.hash = next;
       } else {
@@ -326,8 +310,6 @@ export function App() {
       }
    }, [
       lens,
-      person,
-      team,
       query,
       scope,
       weightSel,
@@ -342,8 +324,6 @@ export function App() {
       const onHash = () => {
          const h = readHash();
          setLens(h.lens);
-         setPerson(h.person);
-         setTeam(h.team);
          setQuery(h.q);
          setWeightSel(h.weight);
          setStateSel(h.state);
@@ -641,8 +621,6 @@ export function App() {
       () =>
          buildHash({
             lens,
-            person,
-            team,
             q: query,
             repos: scope.repos,
             authors: scope.authors,
@@ -653,19 +631,7 @@ export function App() {
             reveal,
             drafts: draftsMode !== settings.draftsMode ? draftsMode : null,
          }),
-      [
-         lens,
-         person,
-         team,
-         query,
-         scope,
-         weightSel,
-         stateSel,
-         showAll,
-         reveal,
-         draftsMode,
-         settings.draftsMode,
-      ]
+      [lens, query, scope, weightSel, stateSel, showAll, reveal, draftsMode, settings.draftsMode]
    );
    // gates the saved-filters panel's "Save current filter…" row (query box)
    // and its muted hint row (the header "Saved" menu) — one definition
@@ -685,11 +651,16 @@ export function App() {
    const allSearches = useAllSavedFilters();
    const pinnedSearches = useMemo(() => allSearches.filter(f => f.pinned), [allSearches]);
 
-   const onPerson = useCallback((login: string) => {
-      setPerson(login);
-      setTeam(null);
-      setLens('team');
-   }, []);
+   // an avatar click anywhere lands on that person's board: their login
+   // becomes the authors scope (visible in the bar, clearable there too)
+   // and the Team lens shows the result
+   const onPerson = useCallback(
+      (login: string) => {
+         setScope({ ...scope, authors: [login], notAuthors: [] });
+         setLens('team');
+      },
+      [scope, setScope]
+   );
    // a row's weight chip toggles that bucket in the session Weight filter —
    // the same array WeightFilter's own checkboxes drive
    const onWeightToggle = useCallback((w: string) => {
@@ -1115,20 +1086,8 @@ export function App() {
                   pulls={humans}
                   allPulls={pulls.filter(p => !isBot(p))}
                   teams={allTeams}
-                  person={person}
-                  team={team}
-                  onPerson={login => {
-                     setPerson(login);
-                     setTeam(null);
-                  }}
-                  onTeam={name => {
-                     setTeam(name);
-                     setPerson(null);
-                  }}
-                  onHome={() => {
-                     setPerson(null);
-                     setTeam(null);
-                  }}
+                  selected={scope.authors}
+                  onSelect={logins => setScope({ ...scope, authors: logins, notAuthors: [] })}
                   opts={rowOpts}
                   extraBots={extraBots}
                />

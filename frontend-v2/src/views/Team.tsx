@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
 import { Plus, X } from 'lucide-react';
 import { authorOwnsIt, parked } from '../model/actions';
 import { displayName, useNames } from '../model/names';
@@ -18,23 +18,22 @@ import { WordGroupRows } from '../components/WordGroups';
 
 /**
  * The people tab (named Team): every board keyed by who wrote the work,
- * starting with yours. Your picked team is the pinned first row and its
- * aggregate board is the tab's home; behind it sits the whole directory —
- * config.json teams and every author on the board — so any avatar click
- * anywhere lands here on that person's page. One body serves all three
- * selections (your team / a person / a GitHub team) through the same
- * teamBuckets split, which is why the former separate People tab merged in:
- * it was this view with a different picker.
+ * starting with yours. Your rosters are the pinned first row; behind them
+ * sits the whole directory — config.json teams and every author on the
+ * board — so any avatar click anywhere lands here on that person's page.
+ *
+ * Selection here IS the authors filter: clicking a person or a team chip
+ * writes the same scope the filter bar's People picker edits, so what you
+ * pick is visible (and clearable) in the bar and narrows every lens the
+ * same way. Plain click focuses one person or roster; shift-click keeps
+ * the rest of the selection and toggles just them.
  */
 export function Team({
    pulls,
    allPulls,
    teams,
-   person,
-   team,
-   onPerson,
-   onTeam,
-   onHome,
+   selected,
+   onSelect,
    opts,
    extraBots,
 }: {
@@ -44,12 +43,9 @@ export function Team({
     * make the directory lie about someone's real load) */
    allPulls: DerivedPull[];
    teams: BoardTeam[];
-   person: string | null;
-   team: string | null;
-   onPerson: (login: string) => void;
-   onTeam: (team: string) => void;
-   /** clear any selection: back to your team's aggregate board */
-   onHome: () => void;
+   /** the authors scope (app.tsx) — this lens's selection is that filter */
+   selected: string[];
+   onSelect: (logins: string[]) => void;
    opts: RowOptions;
    extraBots?: ReadonlySet<string>;
 }) {
@@ -82,23 +78,39 @@ export function Team({
       return m;
    }, [allPulls]);
 
-   // ---- selection: an explicit pick from the hash, else your team's board ----
-   const explicitTeam = team && teams.some(t => t.team === team) ? team : null;
-   const selectedPerson = explicitTeam ? null : person;
-   // home = the tab with nothing picked; with a team configured that IS the
-   // "Your team" board, without one it's the build-your-team invitation
-   const home = !explicitTeam && !selectedPerson;
-   const members = selectedPerson
-      ? [selectedPerson]
-      : explicitTeam
-        ? (teams.find(t => t.team === explicitTeam)?.members ?? [])
-        : home
-          ? yourPeople
-          : [];
+   // ---- selection: this lens reads and writes the authors scope ----
+   const sameSet = (a: string[], b: string[]) =>
+      a.length === b.length && b.every(m => a.includes(m));
+   // a selection that is exactly some team's roster earns that team's name
+   const selTeam = selected.length ? teams.find(t => sameSet(selected, t.members)) : undefined;
+   const explicitTeam = selTeam?.team ?? null;
+   const selectedPerson = !selTeam && selected.length === 1 ? selected[0] : null;
+   // home = nothing selected: your rosters' aggregate board, unfiltered
+   const home = selected.length === 0;
+   const members = home ? yourPeople : selected;
    const isSubject = (p: DerivedPull) => members.includes(p.data.user.login);
    const theirs = pulls.filter(isSubject);
    const theirsUnscoped = allPulls.filter(isSubject);
    const scopeHides = theirsUnscoped.length - theirs.length;
+
+   // plain click focuses one person (clicking them again unfocuses);
+   // shift-click keeps the rest of the selection and toggles just them
+   const toggleIn = (login: string) =>
+      selected.includes(login) ? selected.filter(l => l !== login) : [...selected, login];
+   const pickPerson = (login: string, e: MouseEvent) =>
+      onSelect(e.shiftKey ? toggleIn(login) : sameSet(selected, [login]) ? [] : [login]);
+   // team chips work the same way at roster scale: click focuses the whole
+   // roster, shift-click merges it into (or carves it out of) the selection
+   const pickGroup = (group: string[], e: MouseEvent) => {
+      if (e.shiftKey) {
+         const allIn = group.every(m => selected.includes(m));
+         onSelect(
+            allIn ? selected.filter(l => !group.includes(l)) : [...new Set([...selected, ...group])]
+         );
+      } else {
+         onSelect(sameSet(selected, group) ? [] : [...group]);
+      }
+   };
 
    const { reviewable, stamped, rest } = useMemo(
       () => teamBuckets(pulls, members, me),
@@ -112,11 +124,11 @@ export function Team({
       : null;
    const shipping = theirs.filter(p => ['ready', 'needs_qa'].includes(p.status)).length;
 
-   // the directory: busiest authors lead, hidden ones drop out unless an
-   // explicit pick (a URL or a click) already landed on them; your team's
-   // members are pinned in their own row above, so they don't repeat here
+   // the directory: busiest authors lead, hidden ones drop out unless the
+   // current selection already includes them; your rosters' members are
+   // pinned in their own row above, so they don't repeat here
    const logins = [...new Set([...counts.keys(), ...owes.keys()])]
-      .filter(l => (!hiddenSet.has(l) || l === selectedPerson) && !yourSet.has(l))
+      .filter(l => (!hiddenSet.has(l) || selected.includes(l)) && !yourSet.has(l))
       .sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0));
    const shownLogins = allPeople ? logins : logins.slice(0, 24);
 
@@ -124,17 +136,22 @@ export function Team({
    // only content), or the current pick lives outside your team (hiding the
    // chip that explains the board would orphan it)
    const personalNames = new Set(personalTeams.map(t => t.name));
-   const outsidePick =
-      (!!explicitTeam && !personalNames.has(explicitTeam)) ||
-      (!!selectedPerson && !yourSet.has(selectedPerson));
+   const outsidePick = selected.some(l => !yourSet.has(l));
    const directoryShown = personalTeams.length === 0 || (directoryChoice ?? outsidePick);
 
-   const chip = (key: string, label: React.ReactNode, active: boolean, onPick: () => void) => (
+   const chip = (
+      key: string,
+      label: React.ReactNode,
+      active: boolean,
+      onPick: (e: MouseEvent) => void,
+      title?: string
+   ) => (
       <button
          key={key}
          type="button"
          onClick={onPick}
          aria-pressed={active}
+         title={title}
          className={`pressable inline-flex items-center gap-1.5 rounded-lg border bg-surface py-[5px] pr-2.5 pl-1.5 text-[13px] font-medium text-ink-2 ${
             active
                ? 'border-brand shadow-[0_0_0_1px_var(--brand)] hover:bg-muted'
@@ -157,7 +174,7 @@ export function Team({
             {owes.get(login)!.length}
          </span>
       );
-   const personChip = (login: string, active: boolean) =>
+   const personChip = (login: string) =>
       chip(
          login,
          <>
@@ -168,8 +185,9 @@ export function Team({
             <span className="text-[11px] text-ink-3 tabular-nums">{counts.get(login) ?? 0}</span>
             {owesMark(login)}
          </>,
-         active,
-         () => onPerson(login)
+         selected.includes(login),
+         e => pickPerson(login, e),
+         `${nameOf(login) ?? login}’s board — shift-click to add or remove them from the selection`
       );
 
    return (
@@ -189,8 +207,9 @@ export function Team({
                            {allPulls.filter(p => yourSet.has(p.data.user.login)).length}
                         </span>
                      </>,
-                     home,
-                     onHome
+                     sameSet(selected, yourPeople),
+                     e => pickGroup(yourPeople, e),
+                     'everyone across your rosters — click to narrow the board to them'
                   )}
                {personalTeams.map(t => (
                   <span
@@ -205,12 +224,11 @@ export function Team({
                               {allPulls.filter(p => t.members.includes(p.data.user.login)).length}
                            </span>
                         </>,
-                        personalTeams.length === 1
-                           ? home || explicitTeam === t.name
-                           : explicitTeam === t.name,
-                        personalTeams.length === 1 ? onHome : () => onTeam(t.name)
+                        sameSet(selected, t.members),
+                        e => pickGroup(t.members, e),
+                        `narrow the board to ${t.name} — shift-click to add or remove the whole roster`
                      )}
-                     {t.members.map(login => personChip(login, login === selectedPerson))}
+                     {t.members.map(login => personChip(login))}
                      <Popover
                         label={`Add to ${t.name}`}
                         side="right"
@@ -270,11 +288,12 @@ export function Team({
                               {allPulls.filter(p => t.members.includes(p.data.user.login)).length}
                            </span>
                         </>,
-                        t.team === explicitTeam,
-                        () => onTeam(t.team)
+                        sameSet(selected, t.members),
+                        e => pickGroup(t.members, e),
+                        `narrow the board to ${t.team} — shift-click to add or remove the whole team`
                      )
                   )}
-               {shownLogins.map(login => personChip(login, login === selectedPerson))}
+               {shownLogins.map(login => personChip(login))}
                {!allPeople && logins.length > 24 && (
                   <button
                      type="button"
@@ -303,24 +322,28 @@ export function Team({
 
          {/* an explicit pick earns the summary card; the home board's summary
              is the member strip itself (counts and owed pips per person) */}
-         {(selectedPerson || explicitTeam) && (
+         {selected.length > 0 && (
             <div className="mb-4 flex items-center gap-3 rounded-2xl border border-line bg-surface p-4">
                {selectedPerson ? (
                   <Avatar login={selectedPerson} size={38} />
                ) : (
                   <span className="flex -space-x-1.5">
                      {members.slice(0, 6).map(m => (
-                        <Avatar key={m} login={m} onClick={onPerson} />
+                        <Avatar key={m} login={m} onClick={l => onSelect([l])} />
                      ))}
                   </span>
                )}
                <span>
                   <span className="text-base leading-snug font-semibold">
-                     {selectedPerson ?? explicitTeam}
+                     {selectedPerson
+                        ? (nameOf(selectedPerson) ?? selectedPerson)
+                        : (explicitTeam ?? `${selected.length} people`)}
                   </span>
                   <br />
                   <span className="text-xs text-ink-3">
                      {memberTeam ? `${memberTeam} · ` : ''}
+                     {/* the member count only earns its place under a team
+                         NAME — a nameless selection's title already counts it */}
                      {explicitTeam ? `${members.length} members · ` : ''}
                      {theirs.length === 0
                         ? 'nothing open right now'
