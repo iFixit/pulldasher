@@ -269,13 +269,12 @@ export function App() {
    // your personal team merges into the org's config.json teams, leading the
    // list — it's the one a viewer actually picked, not a standing org fixture
    const allTeams = useMemo(
-      () =>
-         [
-            ...settings.teams.map(
-               (t): BoardTeam => ({ team: t.name, members: t.members, personal: true })
-            ),
-            ...teams,
-         ],
+      () => [
+         ...settings.teams.map(
+            (t): BoardTeam => ({ team: t.name, members: t.members, personal: true })
+         ),
+         ...teams,
+      ],
       [teams, settings.teams]
    );
    const [systemDark, setSystemDark] = useState(
@@ -745,6 +744,9 @@ export function App() {
    );
 
    const mineCount = humans.filter(p => p.data.user.login === me).length;
+   // a tab that carries a count keeps its numeral slot even while the count
+   // is 0 (before data lands) — the number fading in must not widen the tab
+   // and shove every tab after it sideways mid-load
    const tab = (id: Lens, label: string, count?: number) => (
       <button
          type="button"
@@ -755,8 +757,10 @@ export function App() {
          }`}
       >
          {label}
-         {count != null && count > 0 && (
-            <span className="ml-1.5 text-xs text-ink-3 tabular-nums">{count}</span>
+         {count != null && (
+            <span className="ml-1.5 inline-block min-w-[2ch] text-left text-xs text-ink-3 tabular-nums">
+               {count > 0 ? count : ''}
+            </span>
          )}
       </button>
    );
@@ -871,8 +875,10 @@ export function App() {
                <div className="absolute inset-y-0 right-4 z-[1] flex items-center gap-x-3.5">
                   {refreshProgress && (
                      // no spinner, no color — the changing number is the motion,
-                     // same wording Settings' Data group shows for the same state
-                     <span className="hidden text-xs text-ink-3 tabular-nums sm:inline">
+                     // same wording Settings' Data group shows for the same state.
+                     // Out of flow (anchored left of the cluster): transient text
+                     // must not shove the bell/legend/cog sideways mid-aim.
+                     <span className="absolute inset-y-0 right-full mr-2 hidden items-center bg-surface pl-2 text-xs whitespace-nowrap text-ink-3 tabular-nums sm:flex">
                         {refreshProgress.done === refreshProgress.total
                            ? `refreshed ${refreshProgress.total}`
                            : `refreshing ${refreshProgress.done} of ${refreshProgress.total}`}
@@ -894,9 +900,15 @@ export function App() {
                   >
                      <span className="sr-only">live updates {connection}</span>
                   </span>
+                  {/* numeral slot reserved (and blank until data lands) so the
+                      count fading in doesn't nudge the connection dot on load */}
                   <span className="hidden text-xs text-ink-3 tabular-nums 2xl:inline">
-                     <b className="text-ink">
-                        {isScoped ? `${scoped.length} of ${pulls.length}` : pulls.length}
+                     <b className="inline-block min-w-[3ch] text-right text-ink">
+                        {initialized
+                           ? isScoped
+                              ? `${scoped.length} of ${pulls.length}`
+                              : pulls.length
+                           : ''}
                      </b>{' '}
                      open
                   </span>

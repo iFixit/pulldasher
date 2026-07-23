@@ -114,6 +114,13 @@
   --color-slate: var(--slate);
 }
 
+/* the board almost always overflows once data lands: without a reserved
+   gutter, the scrollbar's arrival shoves every centered container ~half a
+   scrollbar left one beat after load */
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   background: var(--canvas);
   color: var(--ink);
