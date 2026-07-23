@@ -879,10 +879,3 @@ input[type="checkbox"] {
   border: 1px solid var(--secondary);
   padding: 3px 8px;
 }
-
-/* your own pull's author mark: the avatar itself wears the brand — one ring,
-   no second glyph (the star means "starred person", not "you"). */
-.pd-own-avatar {
-  border-radius: 9999px;
-  box-shadow: 0 0 0 1.5px var(--brand);
-}

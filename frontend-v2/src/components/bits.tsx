@@ -136,6 +136,28 @@ export function FreshTag({ kind }: { kind: 'new' | 'updated' }) {
  * (bots, deleted accounts, an offline CDN) — so we always render something,
  * never a broken-image glyph.
  */
+/**
+ * The you-coin: what stands in the identity slot when the pull is the
+ * viewer's own — v1's blue star, minted. A brand ring (the coin's edge)
+ * around a filled brand star, same mass as a face, so the row rhythm holds
+ * while yours reads at a glance. The star vocabulary is one concept, people
+ * who matter to you: a corner star on someone you starred, the full coin
+ * for its limit case — you.
+ */
+export function YouCoin({ size = 22 }: { size?: number }) {
+   return (
+      <span
+         role="img"
+         aria-label="your PR"
+         title="your PR"
+         className="inline-flex flex-none items-center justify-center rounded-full text-brand"
+         style={{ width: size, height: size, boxShadow: '0 0 0 1.5px var(--brand)' }}
+      >
+         <Star size={Math.round(size * 0.55)} fill="currentColor" aria-hidden />
+      </span>
+   );
+}
+
 function AvatarFace({ login, size }: { login: string; size: number }) {
    const [broken, setBroken] = useState(false);
    // OKLCH holds perceived lightness constant across the hue wheel — the old

@@ -126,6 +126,17 @@ a card is where it is, one of these layers is missing.
 
 ## Identity vs standing
 
+**The you-coin.** The identity slot holds a face for everyone except the
+viewer: your own pulls carry a minted mark instead — a brand ring (the
+coin's edge) around a filled brand star, the same visual mass as an
+avatar so row rhythm holds. v1's blue star, brought forward. Rejected on
+the way here: a brand ring AROUND your avatar (a halo reads as
+selection/focus and lands as decoration), a corner dot (reads as online
+presence), recoloring the repo#number (brand text implies a link). The
+star vocabulary is one concept — people who matter to you: corner star
+on someone you starred, the full coin for its limit case, you.
+
+
 A mark has two layers: the **glyph names what it is; the treatment names its
 condition.** Encode state transitions by modifying a dimension of the
 existing mark, not by swapping symbols:
