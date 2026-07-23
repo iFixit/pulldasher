@@ -1010,7 +1010,7 @@ export function App() {
                   setWeightSel={setWeightSel}
                />
                <StateFilter pulls={preStateScoped} stateSel={stateSel} setStateSel={setStateSel} />
-               <SavedFiltersMenu sessionActive={sessionActive} />
+               <SavedFiltersMenu currentHash={currentHash} sessionActive={sessionActive} />
                <HiddenPanel
                   counts={hiddenCounts}
                   showAll={showAll}

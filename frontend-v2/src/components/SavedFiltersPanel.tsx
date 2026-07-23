@@ -7,13 +7,13 @@ import {
    type KeyboardEvent,
    type RefObject,
 } from 'react';
-import { Search, X } from 'lucide-react';
+import { Check, Search, X } from 'lucide-react';
 import {
    applySavedFilter,
    deleteFilter,
    describeHash,
+   findSavedName,
    saveFilter,
-   SUGGESTED_FILTERS,
    useSavedFilters,
    type SavedFilter,
 } from '../model/savedFilters';
@@ -23,16 +23,19 @@ import { Icon } from './Icon';
 import { Popover } from './Popover';
 
 /**
- * One saved (or suggested) filter row, shared by the query-box panel and the
- * header "Saved" menu: name + a muted one-line gloss of what it narrows,
- * with a quiet remove affordance that only shows on row hover/focus (a
- * suggested row has no remove — there's nothing to remove).
+ * One saved-filter row, shared by the query-box panel and the header "Saved"
+ * menu — the two doors into the same list, so a row must read identically in
+ * both: name + a muted one-line gloss of what it narrows, a quiet brand ✓
+ * when it IS the view on screen, and a remove affordance that only shows on
+ * row hover/focus. There is exactly one kind of row: the starters are
+ * planted into the store on first load and are as removable as anything the
+ * user saved.
  */
 function SavedFilterRow({
    filter,
    id,
    active,
-   suggested,
+   current,
    onApply,
    onRemove,
 }: {
@@ -40,9 +43,10 @@ function SavedFilterRow({
    id?: string;
    /** keyboard-highlighted (query panel only) */
    active?: boolean;
-   suggested?: boolean;
+   /** this row's hash IS the view on screen */
+   current?: boolean;
    onApply: () => void;
-   onRemove?: () => void;
+   onRemove: () => void;
 }) {
    // arm-then-confirm, same pattern as Settings' "Clear settings": a saved
    // filter can be a hand-tuned query, so a single misclick on the ✕ must not
@@ -71,56 +75,140 @@ function SavedFilterRow({
          >
             <span className="flex min-w-0 items-center gap-1.5">
                <span className="truncate text-[13px] font-medium text-ink">{filter.name}</span>
-               {suggested && (
-                  <span className="flex-none rounded bg-muted px-1 py-px text-[10px] font-medium tracking-wide text-ink-3 uppercase">
-                     suggested
+               {current && (
+                  <span className="flex-none text-brand" title="the view you’re on right now">
+                     <Icon icon={Check} size={12} />
                   </span>
                )}
             </span>
             <span className="truncate text-xs text-ink-3">{describeHash(filter.hash)}</span>
          </button>
-         {onRemove && (
-            <span
-               className={`flex-none transition-opacity duration-150 ease-out group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none ${
-                  armed ? 'opacity-100' : 'opacity-0'
-               }`}
-            >
-               <QuietButton
-                  onClick={e => {
-                     e.stopPropagation();
-                     if (!armed) {
-                        setArmed(true);
-                        disarm.current = setTimeout(() => setArmed(false), 4000);
-                        return;
-                     }
-                     if (disarm.current) clearTimeout(disarm.current);
-                     onRemove();
-                  }}
-                  aria-label={
-                     armed
-                        ? `confirm removing saved filter ${filter.name}`
-                        : `remove saved filter ${filter.name}`
+         <span
+            className={`flex-none transition-opacity duration-150 ease-out group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none ${
+               armed ? 'opacity-100' : 'opacity-0'
+            }`}
+         >
+            <QuietButton
+               onClick={e => {
+                  e.stopPropagation();
+                  if (!armed) {
+                     setArmed(true);
+                     disarm.current = setTimeout(() => setArmed(false), 4000);
+                     return;
                   }
-                  title={armed ? 'click again to remove' : 'remove this saved filter'}
-               >
-                  {armed ? (
-                     <span className="font-medium whitespace-nowrap text-bad">sure?</span>
-                  ) : (
-                     <Icon icon={X} size={12} />
-                  )}
-               </QuietButton>
-            </span>
-         )}
+                  if (disarm.current) clearTimeout(disarm.current);
+                  onRemove();
+               }}
+               aria-label={
+                  armed
+                     ? `confirm removing saved filter ${filter.name}`
+                     : `remove saved filter ${filter.name}`
+               }
+               title={armed ? 'click again to remove' : 'remove this saved filter'}
+            >
+               {armed ? (
+                  <span className="font-medium whitespace-nowrap text-bad">sure?</span>
+               ) : (
+                  <Icon icon={X} size={12} />
+               )}
+            </QuietButton>
+         </span>
       </div>
    );
 }
 
 /**
- * The query box's own panel: focus an EMPTY filter input and it drops a list
- * of saved filters (or, before you've saved any, two suggested starting
- * points) under the input — arrow keys highlight a row, Enter applies it,
- * Escape closes without losing focus. Typing anything closes it and the
- * input goes back to being a plain filter box.
+ * The save affordance, identical in both doors and honest about state:
+ * nothing narrowing → a quiet hint; an unsaved view on screen → "Save this
+ * view…" opening an inline name field; a view that IS saved → its name, so
+ * the button never offers to duplicate what already exists.
+ */
+function SaveCurrentView({
+   currentHash,
+   sessionActive,
+   savedAs,
+   onSaved,
+}: {
+   currentHash: string;
+   sessionActive: boolean;
+   /** the name this view is already saved under, if any */
+   savedAs: string | null;
+   /** close the containing panel after a successful save */
+   onSaved?: () => void;
+}) {
+   const [name, setName] = useState<string | null>(null);
+   const nameRef = useRef<HTMLInputElement>(null);
+   useEffect(() => {
+      if (name != null) nameRef.current?.focus();
+   }, [name != null]);
+
+   if (!sessionActive) {
+      return (
+         <div className="px-1.5 py-1 text-xs text-ink-3">
+            Set up filters, then save the view here.
+         </div>
+      );
+   }
+   if (savedAs) {
+      return (
+         <div className="flex items-center gap-1.5 px-1.5 py-1 text-xs text-ink-3">
+            <span className="text-brand">
+               <Icon icon={Check} size={12} />
+            </span>
+            This view is saved as “{savedAs}”.
+         </div>
+      );
+   }
+   if (name == null) {
+      return (
+         <button
+            type="button"
+            onClick={() => setName('')}
+            className="hit px-1.5 py-1 text-xs font-medium text-brand hover:underline"
+         >
+            Save this view…
+         </button>
+      );
+   }
+   const save = () => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      saveFilter(trimmed, currentHash);
+      setName(null);
+      onSaved?.();
+   };
+   return (
+      <div className="flex items-center gap-1.5 px-0.5">
+         <input
+            ref={nameRef}
+            value={name}
+            onChange={e => setName(e.target.value)}
+            onKeyDown={e => {
+               if (e.key === 'Enter') {
+                  e.preventDefault();
+                  save();
+               } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setName(null);
+               }
+            }}
+            placeholder="Name this view"
+            aria-label="Name this view"
+            className="h-8 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 text-[13px]"
+         />
+         <QuietButton tone="brand" disabled={!name.trim()} onClick={save}>
+            Save
+         </QuietButton>
+      </div>
+   );
+}
+
+/**
+ * The query box's own door into saved filters: focus the EMPTY filter input
+ * and the list drops under it — arrow keys highlight a row, Enter applies
+ * it, Escape closes without losing focus. Typing anything closes it and the
+ * input goes back to being a plain filter box. Same rows, same save
+ * affordance as the header's Saved menu: one feature, two doors.
  *
  * Hand-rolled rather than built on the house Popover: Popover's usePopover
  * pins/unpins on trigger *clicks* and returns focus to a trigger *button* on
@@ -144,7 +232,7 @@ export function SavedFiltersInput({
    /** the hash a save right now would capture (buildHash of the live state) */
    currentHash: string;
    /** whether the current session has anything worth bookmarking (mirrors
-    * FilterChips' hasActiveFilters) — gates the "Save current filter…" row */
+    * FilterChips' hasActiveFilters) — gates the "Save this view…" row */
    sessionActive: boolean;
    /** the search input's existing aria-label/placeholder/title/className, so
     * this wrapper doesn't have to restate app.tsx's exact copy */
@@ -156,35 +244,18 @@ export function SavedFiltersInput({
    };
 }) {
    const saved = useSavedFilters();
-   const suggested = saved.length === 0;
-   const rows = suggested ? SUGGESTED_FILTERS : saved;
+   const savedAs = sessionActive ? findSavedName(saved, currentHash) : null;
 
    const [open, setOpen] = useState(false);
    const [activeIndex, setActiveIndex] = useState(-1);
-   const [showSaveForm, setShowSaveForm] = useState(false);
-   const [saveName, setSaveName] = useState('');
    const listboxId = useId();
-   const saveNameRef = useRef<HTMLInputElement>(null);
 
    useEffect(() => {
-      if (open) return;
-      setActiveIndex(-1);
-      setShowSaveForm(false);
-      setSaveName('');
+      if (!open) setActiveIndex(-1);
    }, [open]);
-
-   useEffect(() => {
-      if (showSaveForm) saveNameRef.current?.focus();
-   }, [showSaveForm]);
 
    const apply = (hash: string) => {
       applySavedFilter(hash);
-      setOpen(false);
-   };
-   const save = () => {
-      const name = saveName.trim();
-      if (!name) return;
-      saveFilter(name, currentHash);
       setOpen(false);
    };
 
@@ -201,14 +272,14 @@ export function SavedFiltersInput({
       if (!open) return;
       if (e.key === 'ArrowDown') {
          e.preventDefault();
-         setActiveIndex(i => Math.min(i + 1, rows.length - 1));
+         setActiveIndex(i => Math.min(i + 1, saved.length - 1));
       } else if (e.key === 'ArrowUp') {
          e.preventDefault();
          setActiveIndex(i => Math.max(i - 1, -1));
       } else if (e.key === 'Enter') {
-         if (activeIndex >= 0 && rows[activeIndex]) {
+         if (activeIndex >= 0 && saved[activeIndex]) {
             e.preventDefault();
-            apply(rows[activeIndex].hash);
+            apply(saved[activeIndex].hash);
          }
       } else if (e.key === 'Escape') {
          e.preventDefault();
@@ -217,6 +288,8 @@ export function SavedFiltersInput({
    };
 
    const activeId = activeIndex >= 0 ? `${listboxId}-${activeIndex}` : undefined;
+   // an empty list with nothing to save would open an empty box — stay shut
+   const canOpen = saved.length > 0 || sessionActive;
 
    return (
       <span
@@ -237,7 +310,7 @@ export function SavedFiltersInput({
                if (next) setOpen(false);
             }}
             onFocus={() => {
-               if (!query) setOpen(true);
+               if (!query && canOpen) setOpen(true);
             }}
             onKeyDown={onInputKeyDown}
             role="combobox"
@@ -252,58 +325,27 @@ export function SavedFiltersInput({
                id={listboxId}
                role="listbox"
                aria-label="Saved filters"
-               className="popover popover-right absolute top-full right-0 z-30 mt-1 w-[300px] max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-surface p-2 text-[13px] shadow-md outline-none"
+               className="popover popover-right absolute top-full right-0 z-50 mt-1 w-[300px] max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-surface p-2 text-[13px] shadow-md outline-none"
             >
-               {suggested && (
-                  <div className="px-1.5 pb-1 text-[11px] font-semibold tracking-wide text-ink-3 uppercase">
-                     Suggested
-                  </div>
-               )}
-               {rows.map((f, i) => (
+               {saved.map((f, i) => (
                   <SavedFilterRow
                      key={f.name}
                      id={`${listboxId}-${i}`}
                      filter={f}
                      active={i === activeIndex}
-                     suggested={suggested}
+                     current={f.name === savedAs}
                      onApply={() => apply(f.hash)}
-                     onRemove={suggested ? undefined : () => deleteFilter(f.name)}
+                     onRemove={() => deleteFilter(f.name)}
                   />
                ))}
                {sessionActive && (
-                  <div className="mt-1.5 border-t border-secondary pt-1.5">
-                     {showSaveForm ? (
-                        <div className="flex items-center gap-1.5 px-0.5">
-                           <input
-                              ref={saveNameRef}
-                              value={saveName}
-                              onChange={e => setSaveName(e.target.value)}
-                              onKeyDown={e => {
-                                 if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    save();
-                                 } else if (e.key === 'Escape') {
-                                    e.preventDefault();
-                                    setShowSaveForm(false);
-                                 }
-                              }}
-                              placeholder="Name this filter"
-                              aria-label="Name this filter"
-                              className="h-8 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 text-[13px]"
-                           />
-                           <QuietButton tone="brand" disabled={!saveName.trim()} onClick={save}>
-                              Save
-                           </QuietButton>
-                        </div>
-                     ) : (
-                        <button
-                           type="button"
-                           onClick={() => setShowSaveForm(true)}
-                           className="hit px-1.5 py-1 text-xs font-medium text-brand hover:underline"
-                        >
-                           Save current filter…
-                        </button>
-                     )}
+                  <div className={saved.length ? 'mt-1.5 border-t border-secondary pt-1.5' : ''}>
+                     <SaveCurrentView
+                        currentHash={currentHash}
+                        sessionActive={sessionActive}
+                        savedAs={savedAs}
+                        onSaved={() => setOpen(false)}
+                     />
                   </div>
                )}
             </div>
@@ -313,15 +355,20 @@ export function SavedFiltersInput({
 }
 
 /**
- * The header's "Saved ▾" trigger: only rendered once there's at least one
- * real saved filter (suggestions live in the query panel, not here — this is
- * the durable list, and an empty durable list has nothing to open into).
- * Wears the same quiet FilterTrigger the four dimension triggers wear, so
- * the bar reads as one family.
+ * The header's "Saved ▾" trigger — the feature's permanent home, always in
+ * the bar: the full list plus the save affordance, honest about whether the
+ * view on screen is already saved. Wears the same quiet FilterTrigger the
+ * four dimension triggers wear, so the bar reads as one family.
  */
-export function SavedFiltersMenu({ sessionActive }: { sessionActive: boolean }) {
+export function SavedFiltersMenu({
+   currentHash,
+   sessionActive,
+}: {
+   currentHash: string;
+   sessionActive: boolean;
+}) {
    const saved = useSavedFilters();
-   if (saved.length === 0) return null;
+   const savedAs = sessionActive ? findSavedName(saved, currentHash) : null;
 
    return (
       <div>
@@ -342,15 +389,21 @@ export function SavedFiltersMenu({ sessionActive }: { sessionActive: boolean }) 
                <SavedFilterRow
                   key={f.name}
                   filter={f}
+                  current={f.name === savedAs}
                   onApply={() => applySavedFilter(f.hash)}
                   onRemove={() => deleteFilter(f.name)}
                />
             ))}
-            {sessionActive && (
-               <div className="mt-1.5 border-t border-secondary px-1.5 pt-1.5 text-xs text-ink-3">
-                  save the current view from the search box
-               </div>
+            {saved.length === 0 && (
+               <div className="px-1.5 py-1 text-xs text-ink-3">Nothing saved yet.</div>
             )}
+            <div className="mt-1.5 border-t border-secondary pt-1.5">
+               <SaveCurrentView
+                  currentHash={currentHash}
+                  sessionActive={sessionActive}
+                  savedAs={savedAs}
+               />
+            </div>
          </Popover>
       </div>
    );

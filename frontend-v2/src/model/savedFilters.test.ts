@@ -3,8 +3,11 @@ import {
    addSavedFilter,
    describeHash,
    removeSavedFilter,
+   findSavedName,
+   normalizeHash,
    SAVED_FILTERS_CAP,
-   SUGGESTED_FILTERS,
+   seedStarters,
+   STARTER_FILTERS,
    type SavedFilter,
 } from './savedFilters';
 
@@ -29,11 +32,11 @@ describe('describeHash', () => {
    });
 
    it('matches the "Waiting on you" suggested filter', () => {
-      expect(describeHash(SUGGESTED_FILTERS[0].hash)).toBe('state: review, qa, restamp, mine');
+      expect(describeHash(STARTER_FILTERS[0].hash)).toBe('state: review, qa, restamp, mine');
    });
 
    it('matches the "Quick wins" suggested filter', () => {
-      expect(describeHash(SUGGESTED_FILTERS[1].hash)).toBe('state: review, qa · weight: xs, s');
+      expect(describeHash(STARTER_FILTERS[1].hash)).toBe('state: review, qa · weight: xs, s');
    });
 
    it('quotes a search query', () => {
@@ -124,5 +127,36 @@ describe('removeSavedFilter', () => {
    it('is a no-op when the name is not present', () => {
       const items: SavedFilter[] = [{ name: 'a', hash: 'x' }];
       expect(removeSavedFilter(items, 'missing')).toEqual(items);
+   });
+});
+
+describe('seedStarters', () => {
+   it('plants the starters into a never-seeded empty store, once', () => {
+      const first = seedStarters({ items: [] });
+      expect(first.items).toEqual(STARTER_FILTERS);
+      expect(first.seeded).toBe(true);
+      // deleting a starter later must be permanent: a seeded store never re-plants
+      expect(seedStarters({ items: [], seeded: true }).items).toEqual([]);
+   });
+
+   it('never touches a list the user already curated', () => {
+      const mine: SavedFilter[] = [{ name: 'Mine', hash: 'q=x' }];
+      const out = seedStarters({ items: mine });
+      expect(out.items).toEqual(mine);
+      expect(out.seeded).toBe(true);
+   });
+});
+
+describe('normalizeHash / findSavedName', () => {
+   it('ignores param order and comma-list order', () => {
+      expect(normalizeHash('weight=s,xs&state=review,qa')).toBe(
+         normalizeHash('state=qa,review&weight=xs,s')
+      );
+   });
+
+   it('names the saved filter a live hash matches, else null', () => {
+      const items: SavedFilter[] = [{ name: 'Quick wins', hash: 'weight=xs,s&state=review,qa' }];
+      expect(findSavedName(items, 'state=qa,review&weight=s,xs')).toBe('Quick wins');
+      expect(findSavedName(items, 'state=qa')).toBeNull();
    });
 });

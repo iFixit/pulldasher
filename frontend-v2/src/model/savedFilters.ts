@@ -20,18 +20,56 @@ export const SAVED_FILTERS_CAP = 8;
 
 interface SavedFiltersData {
    items: SavedFilter[];
+   /** the starter filters were planted once already — deleting them must be
+    * permanent, not a game of whack-a-mole against re-seeding */
+   seeded?: boolean;
 }
 
 const store = createPersistentStore<SavedFiltersData>('pd2.savedFilters', { items: [] });
 
 /**
- * Two starter filters shown only until the user has saved one of their own —
- * not persisted, so they can't be "removed" (they just stop being offered).
+ * Two starter filters, planted ONCE into the store itself so the feature is
+ * never empty on day one and there is exactly one kind of entry: a saved
+ * filter. They're as real (and as deletable) as anything the user saves.
  */
-export const SUGGESTED_FILTERS: SavedFilter[] = [
+export const STARTER_FILTERS: SavedFilter[] = [
    { name: 'Waiting on you', hash: 'state=review,qa,restamp,mine' },
    { name: 'Quick wins', hash: 'weight=xs,s&state=review,qa' },
 ];
+
+/** Pure seed rule: plant the starters only into a store that has never been
+ * seeded AND holds nothing — a user who already curated their own list must
+ * not find rows they never made (worse, a full list would evict theirs). */
+export function seedStarters(data: SavedFiltersData): SavedFiltersData {
+   if (data.seeded) return data;
+   return { items: data.items.length ? data.items : [...STARTER_FILTERS], seeded: true };
+}
+
+{
+   const cur = store.get();
+   if (!cur.seeded) store.set(seedStarters(cur));
+}
+
+/**
+ * A hash normalized for equality: params sorted, each comma-list's values
+ * sorted — `state=qa,review` and `state=review,qa` narrow identically, and
+ * click order must not decide whether the board recognizes a saved view.
+ */
+export function normalizeHash(hash: string): string {
+   const p = new URLSearchParams(hash);
+   const entries = [...p.entries()].map(
+      ([k, v]) => [k, v.split(',').filter(Boolean).sort().join(',')] as const
+   );
+   entries.sort(([a], [b]) => a.localeCompare(b));
+   return entries.map(([k, v]) => `${k}=${v}`).join('&');
+}
+
+/** The saved filter the given hash IS, if any — how the UI says "you're on
+ * a saved view" instead of offering to save a duplicate. */
+export function findSavedName(items: SavedFilter[], hash: string): string | null {
+   const norm = normalizeHash(hash);
+   return items.find(f => normalizeHash(f.hash) === norm)?.name ?? null;
+}
 
 /**
  * Pure add: saving under a name that already exists replaces that entry
@@ -55,12 +93,12 @@ export function removeSavedFilter(items: SavedFilter[], name: string): SavedFilt
 
 /** Save (or overwrite) a named filter to the persistent store. */
 export function saveFilter(name: string, hash: string): void {
-   store.set({ items: addSavedFilter(store.get().items, name, hash) });
+   store.set({ ...store.get(), items: addSavedFilter(store.get().items, name, hash) });
 }
 
 /** Remove a saved filter from the persistent store. */
 export function deleteFilter(name: string): void {
-   store.set({ items: removeSavedFilter(store.get().items, name) });
+   store.set({ ...store.get(), items: removeSavedFilter(store.get().items, name) });
 }
 
 export function useSavedFilters(): SavedFilter[] {
