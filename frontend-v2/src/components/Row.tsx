@@ -6,6 +6,7 @@ import {
    EllipsisVertical,
    Eye,
    EyeOff,
+   Hand,
    RefreshCw,
    Star,
 } from 'lucide-react';
@@ -340,47 +341,45 @@ function VerbDock({
    const showSnoozeChip = showSnooze || snoozedNow;
    const showClaimChip = claimable || mine;
    if (!showSnoozeChip && !showClaimChip) return null;
-   const chip = 'hit pressable rounded-md border-0 bg-muted px-1.5 py-1 text-xs whitespace-nowrap';
+   // icon chips: one glyph per verb (clock = snooze, hand = claim), with the
+   // standing/offer split carried by visibility and aria-pressed — the title
+   // and aria-label carry the words the glyph gave up
+   const chip =
+      'hit pressable inline-flex items-center justify-center rounded-md border-0 bg-muted px-1.5 py-1 whitespace-nowrap';
+   const snoozeWords = snoozedNow
+      ? 'wake it: back on your Review lens now'
+      : 'snooze: off your Review lens until tomorrow or until it changes';
+   const claimWords = mine
+      ? 'release your claim'
+      : claim
+        ? `claim review, currently ${claim.login}'s`
+        : 'claim this review: adds you as a reviewer on the PR itself, so GitHub and the board both show you’re on it';
    return (
       <span className="pd-verbs absolute top-1/2 right-full z-10 mr-1.5 flex -translate-y-1/2 items-center gap-1.5">
          {showSnoozeChip && (
             <button
                type="button"
-               title={
-                  snoozedNow
-                     ? 'wake it: back on your Review lens now'
-                     : 'off your Review lens until tomorrow or until it changes'
-               }
+               aria-pressed={snoozedNow}
+               aria-label={snoozeWords}
+               title={snoozeWords}
                className={`${chip} text-ink-2 ${snoozedNow ? '' : 'pd-verb'}`}
                onClick={snoozedNow ? a.unsnooze : a.snooze}
             >
-               {snoozedNow ? 'Unsnooze' : 'Snooze'}
+               <Icon icon={AlarmClock} />
             </button>
          )}
-         {showClaimChip &&
-            (mine ? (
-               <button
-                  type="button"
-                  title="release your claim"
-                  className={`${chip} font-medium text-brand`}
-                  onClick={a.release}
-               >
-                  Release
-               </button>
-            ) : (
-               <button
-                  type="button"
-                  title={
-                     claim
-                        ? `claim review, currently ${claim.login}'s`
-                        : 'claim this review: adds you as a reviewer on the PR itself, so GitHub and the board both show you’re on it'
-                  }
-                  className={`${chip} pd-verb font-medium text-brand`}
-                  onClick={a.claim}
-               >
-                  Claim
-               </button>
-            ))}
+         {showClaimChip && (
+            <button
+               type="button"
+               aria-pressed={mine}
+               aria-label={claimWords}
+               title={claimWords}
+               className={`${chip} text-brand ${mine ? '' : 'pd-verb'}`}
+               onClick={mine ? a.release : a.claim}
+            >
+               <Icon icon={Hand} />
+            </button>
+         )}
       </span>
    );
 }
@@ -451,6 +450,7 @@ function RowActionsKebab({
                        : "claim this review, flags that you're reading it"
                }
             >
+               <Icon icon={Hand} />
                {claimedByMe ? 'Release claim' : 'Claim review'}
             </button>
          )}
