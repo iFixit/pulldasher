@@ -126,20 +126,39 @@ a card is where it is, one of these layers is missing.
 
 ## Identity vs standing
 
-**The seated-star seal.** Your own pulls keep your face; around it, a
-brand ring parted at the upper-right with a filled brand star seated IN
-the opening, on the ring's own circumference — one object, not a ring
-plus a badge. A parted ring cannot read as a focus ring (focus rings
-never break), which is what sank the plain halo. Static always:
-identity, not state. Rejected on the way here: the plain brand ring
-(selection halo), a corner dot (online presence), a brand repo#number
-(reads as a link), v1's full star-substitution coin (loses the face),
-and star-badge-riding-ring (two marks negotiating one corner; the seal
-fuses them into one). Runner-up glyph was the @ (GitHub's author:@me);
-the star won on filled mass and v1 muscle memory. The star vocabulary
-is one concept — people who matter to you: corner star at bottom-right
-on someone you starred, the star crowning the whole seal for its limit
-case, you.
+**The silhouette and the star** — the author-identity system, two
+channels and no ring:
+
+- **Shape answers person-or-machine.** People are circles; bots (a
+  `[bot]` login or config.json's `bots` list) are rounded-square tiles,
+  the app-icon idiom Slack and GitHub already taught. No glyph, no hue:
+  the outline is the whole mark, so it reads at 16px and in peripheral
+  vision.
+- **The bottom-right corner answers what-this-person-is-to-you, in one
+  glyph.** A small (9px) brand star on someone you starred; on your own
+  avatar, a larger (13px/11px) brand star seated ON the rim with a
+  transparent bite masked out of the face — your silhouette is visibly
+  broken, so your rows are findable by *form* before the star even
+  resolves. You are the star vocabulary's largest case, escalated by
+  size and a broken outline, never by fill. The bite is a mask, not a
+  painted stroke, so it stays correct over any row background (hover,
+  fresh flash).
+- Static always: identity, not state. Never animates.
+
+Rejected on the way here, in order: the plain brand ring (selection
+halo), a corner dot (online presence), a brand repo#number (reads as a
+link), v1's full star-substitution coin (loses the face),
+star-badge-riding-ring (two marks negotiating one corner), and the
+seated-star seal itself — a parted ring with the star in the opening —
+which shipped, then died on the owner's read ("I don't like the seal at
+all"): even parted, ring-ness reads as chrome around the face rather
+than a mark of it. From the 20-concept sweep that followed, the
+runner-ups were a pure size bump (your face ~5px larger; zero new
+vocabulary but marginal in far periphery) and a brand mat behind your
+avatar (unmissable but the board's first filled color area on rows).
+The corner-bot-glyph variant of full unification lost to the square
+silhouette: a 9px machine glyph needs bespoke drawing to survive
+rasterization, and shape gets the same distinction free.
 
 
 A mark has two layers: the **glyph names what it is; the treatment names its

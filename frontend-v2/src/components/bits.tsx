@@ -132,113 +132,74 @@ export function FreshTag({ kind }: { kind: 'new' | 'updated' }) {
 }
 
 /**
- * The circle itself: the GitHub picture over the deterministic-hue initials.
+ * The board's author-identity system — the silhouette and the star:
+ *
+ * - SHAPE answers "person or machine": people are circles, bots (GitHub
+ *   Apps and config-listed machine accounts) are rounded squares, the
+ *   app-tile idiom Slack and GitHub already taught. No glyph, no hue — the
+ *   outline is the mark, so it reads at 16px and in peripheral vision.
+ * - The BOTTOM-RIGHT CORNER answers "what is this person to you", in one
+ *   glyph: a small star on someone you starred, and a larger star seated on
+ *   the rim of your own avatar with a bite masked out of the face, so your
+ *   silhouette is visibly broken. You are the star vocabulary's largest
+ *   case — escalated by size and form, never by fill. (The ringed seal and
+ *   the v1 star-coin both died here: a halo reads as focus, a coin loses
+ *   the face.)
+ * - Identity, never state: none of it animates or changes with PR status.
+ */
+
+/** The you-mark's geometry, shared by the face's bite mask and the star
+ * seated in it: star size, the star's center relative to the avatar box,
+ * and the moat (bite) radius. One source so mask and glyph can't drift. */
+function youStarGeometry(size: number) {
+   const star = size >= 20 ? 13 : 11;
+   const offset = size >= 20 ? 3 : 2.5;
+   const center = size + offset - star / 2;
+   return { star, offset, center, moat: star / 2 + 2 };
+}
+
+/**
+ * The face itself: the GitHub picture over the deterministic-hue initials.
  * The initials sit underneath and show through the instant the image 404s
  * (bots, deleted accounts, an offline CDN) — so we always render something,
  * never a broken-image glyph.
  */
-/**
- * The seated-star seal: the mark for the viewer's own pulls. A brand ring
- * around your avatar, parted at the upper-right, with a filled brand star
- * seated IN the opening on the ring's own circumference — one object, not a
- * ring plus a badge. A parted ring cannot read as a focus ring (focus rings
- * never break), which is what sank the plain-halo attempt. Star vocabulary
- * stays one concept, people who matter to you: corner star at bottom-right
- * on someone you starred; the star crowning the whole seal is you. Static
- * always — identity, not state.
- */
-export function YouSeal({
+function AvatarFace({
    login,
-   size = 22,
-   onClick,
+   size,
+   shape = 'circle',
+   bitten = false,
 }: {
    login: string;
-   size?: number;
-   onClick?: (login: string) => void;
+   size: number;
+   /** 'square' = a bot/app tile (~18% corner radius); 'circle' = a person */
+   shape?: 'circle' | 'square';
+   /** notch the bottom-right rim out of the face so the you-star can seat
+    * IN the silhouette rather than merely on top of it */
+   bitten?: boolean;
 }) {
-   const compact = size <= 16;
-   return (
-      <span className="you-seal relative inline-flex flex-none">
-         <Avatar login={login} size={size} onClick={onClick} />
-         {compact ? (
-            <svg
-               width="26"
-               height="26"
-               viewBox="0 0 26 26"
-               role="img"
-               aria-label="yours"
-               className="pointer-events-none absolute"
-               style={{ inset: -5 }}
-            >
-               <circle
-                  cx="13"
-                  cy="13"
-                  r="10"
-                  fill="none"
-                  stroke="var(--brand)"
-                  strokeOpacity="0.45"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeDasharray="47.1 15.7"
-               />
-               <path
-                  d="M20.1 2.4 L21.1 4.8 L23.6 5.05 L21.7 6.75 L22.3 9.2 L20.1 7.9 L17.9 9.2 L18.5 6.75 L16.6 5.05 L19.1 4.8 Z"
-                  fill="var(--brand)"
-                  stroke="var(--surface)"
-                  strokeWidth="1"
-                  paintOrder="stroke fill"
-                  strokeLinejoin="round"
-               />
-            </svg>
-         ) : (
-            <svg
-               width="32"
-               height="32"
-               viewBox="0 0 32 32"
-               role="img"
-               aria-label="yours"
-               className="pointer-events-none absolute"
-               style={{ inset: -5 }}
-            >
-               <circle
-                  cx="16"
-                  cy="16"
-                  r="13"
-                  fill="none"
-                  stroke="var(--brand)"
-                  strokeOpacity="0.45"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeDasharray="63.5 18.2"
-                  transform="rotate(-5 16 16)"
-               />
-               <path
-                  d="M25.2 2.3 L26.5 5.4 L29.7 5.7 L27.2 7.9 L28 11.1 L25.2 9.4 L22.4 11.1 L23.2 7.9 L20.7 5.7 L23.9 5.4 Z"
-                  fill="var(--brand)"
-                  stroke="var(--surface)"
-                  strokeWidth="1"
-                  paintOrder="stroke fill"
-                  strokeLinejoin="round"
-               />
-            </svg>
-         )}
-      </span>
-   );
-}
-
-function AvatarFace({ login, size }: { login: string; size: number }) {
    const [broken, setBroken] = useState(false);
    // OKLCH holds perceived lightness constant across the hue wheel — the old
    // hsl(h 45% 45%) made yellow-green logins illegible under white text
-   const style = {
+   const style: CSSProperties = {
       background: `oklch(0.48 0.09 ${loginHue(login)})`,
       width: size,
       height: size,
       fontSize: Math.round(size * 0.42),
+      borderRadius: shape === 'square' ? Math.max(3, Math.round(size * 0.18)) : 9999,
    };
+   if (bitten) {
+      const g = youStarGeometry(size);
+      // transparent moat, not a painted stroke: the bite stays correct over
+      // any row background (hover, fresh-flash), which the old seal's
+      // surface-colored outline never quite did
+      const mask = `radial-gradient(circle at ${g.center}px ${g.center}px, transparent ${g.moat - 0.25}px, #000 ${g.moat + 0.25}px)`;
+      style.WebkitMaskImage = mask;
+      style.maskImage = mask;
+   }
    return (
       <span
-         className="relative inline-flex flex-none items-center justify-center overflow-hidden rounded-full font-semibold uppercase text-white"
+         className="relative inline-flex flex-none items-center justify-center overflow-hidden font-semibold uppercase text-white"
          style={style}
       >
          {login.slice(0, 2)}
@@ -290,15 +251,39 @@ export function Avatar({
    login,
    size = 22,
    onClick,
+   shape = 'circle',
+   you = false,
 }: {
    login: string;
    size?: number;
    onClick?: (login: string) => void;
+   /** 'square' for bot/app authors — see the identity-system note above */
+   shape?: 'circle' | 'square';
+   /** the viewer's own avatar: wears the seated corner star + bitten rim */
+   you?: boolean;
 }) {
+   const g = you ? youStarGeometry(size) : null;
+   // the star rides INSIDE whatever scales on hover, so the bite in the face
+   // and the star seated in it can never fall out of registration
+   const face = (
+      <span className="relative inline-flex flex-none">
+         <AvatarFace login={login} size={size} shape={shape} bitten={you} />
+         {g && (
+            <span
+               role="img"
+               aria-label="yours"
+               className="pointer-events-none absolute inline-flex text-brand"
+               style={{ right: -g.offset, bottom: -g.offset }}
+            >
+               <Icon icon={Star} size={g.star} fill="currentColor" />
+            </span>
+         )}
+      </span>
+   );
    if (!onClick) {
       return (
          <span title={login} className="inline-flex">
-            <AvatarFace login={login} size={size} />
+            {face}
          </span>
       );
    }
@@ -321,11 +306,11 @@ export function Avatar({
                type="button"
                // .hit: the circle is 16-22px, under the 24px target floor
                className="hit pressable cursor-pointer border-0 p-0 transition-[scale] duration-150 ease-out hover:scale-115 motion-reduce:transition-none"
-               aria-label={`${login}: view their PRs`}
+               aria-label={you ? `${login} (you): view your PRs` : `${login}: view their PRs`}
                // click filters to this person; the hover card is the extra
                onClick={() => onClick(login)}
             >
-               <AvatarFace login={login} size={size} />
+               {face}
             </button>
          )}
       >

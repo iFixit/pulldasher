@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CircleHelp } from 'lucide-react';
+import { CircleHelp, Star } from 'lucide-react';
 import { Icon } from './Icon';
 import { Popover } from './Popover';
 import { eyebrowText } from './WordGroups';
@@ -102,6 +102,35 @@ export function Legend() {
                   </span>
                }
                def="CI is one circle, the machine’s mark: the red ring with a center dot, a check failed; the ring sweeping shut is a run in progress, the filled share done. On row hover a green ring closes the loop: passed. No news is good news"
+            />
+         </Group>
+
+         <Group title="Authors">
+            <Item
+               term={
+                  <span className="inline-flex items-center gap-1">
+                     <span
+                        aria-hidden
+                        className="h-3.5 w-3.5 rounded-full"
+                        style={{ background: 'var(--line)' }}
+                     />
+                     <span
+                        aria-hidden
+                        className="h-3.5 w-3.5 rounded-[3px]"
+                        style={{ background: 'var(--line)' }}
+                     />
+                  </span>
+               }
+               def="a circle avatar is a person; a square tile is a bot or app"
+            />
+            <Item
+               term={
+                  <span className="inline-flex items-center gap-1 text-brand">
+                     <Icon icon={Star} size={9} fill="currentColor" />
+                     <Icon icon={Star} size={13} fill="currentColor" />
+                  </span>
+               }
+               def="a small corner star marks someone you starred; the larger star seated on your own avatar’s rim is you"
             />
          </Group>
 

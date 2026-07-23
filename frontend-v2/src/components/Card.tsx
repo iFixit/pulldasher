@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Avatar, PullTitleLink, YouSeal } from './bits';
+import { Avatar, PullTitleLink } from './bits';
 
 /**
  * The one row every lens renders. Two densities of the same content:
@@ -85,6 +85,7 @@ export function CardShell({
    stretch = true,
    compact = false,
    own = false,
+   bot = false,
    avatarBadge,
    edge,
    depth = 0,
@@ -110,9 +111,13 @@ export function CardShell({
    rail?: ReactNode;
    stretch?: boolean;
    compact?: boolean;
-   /** the viewer authored this pull: the identity slot holds the you-coin
-    * (v1's blue star, minted) instead of their avatar */
+   /** the viewer authored this pull: the avatar wears the you-mark (the
+    * corner star seated in a bite on its rim — see bits.tsx's identity
+    * system note) */
    own?: boolean;
+   /** a bot/app author: the avatar renders as a rounded-square tile instead
+    * of a circle — shape is the whole mark */
+   bot?: boolean;
    /** a tiny marker absolutely-positioned over the avatar (the row's starred-
     * author ★) — a slot rather than an Avatar prop, so this stays a one-
     * caller concern instead of touching every Avatar call site. */
@@ -132,13 +137,7 @@ export function CardShell({
    stackStub?: boolean;
 }) {
    const titleLink = (
-      <PullTitleLink
-         repo={repo}
-         number={number}
-         title={title}
-         body={body}
-         stretch={stretch}
-      />
+      <PullTitleLink repo={repo} number={number} title={title} body={body} stretch={stretch} />
    );
    const connector =
       depth > 0 ? (
@@ -158,11 +157,13 @@ export function CardShell({
             {/* raise only when the avatar is a real button — a raised inert
                 span punches a dead zone into the whole-row click target */}
             <span className={`relative flex-none ${onPerson ? 'pd-raise' : ''}`}>
-               {own ? (
-                  <YouSeal login={login} size={16} onClick={onPerson} />
-               ) : (
-                  <Avatar login={login} onClick={onPerson} size={16} />
-               )}
+               <Avatar
+                  login={login}
+                  onClick={onPerson}
+                  size={16}
+                  shape={bot ? 'square' : 'circle'}
+                  you={own}
+               />
                {avatarBadge}
             </span>
             {/* nothing here truncates: the row flows as one tight line and
@@ -191,11 +192,7 @@ export function CardShell({
       >
          {connector}
          <span className={`relative mt-px flex-none ${onPerson ? 'pd-raise' : ''}`}>
-            {own ? (
-               <YouSeal login={login} onClick={onPerson} />
-            ) : (
-               <Avatar login={login} onClick={onPerson} />
-            )}
+            <Avatar login={login} onClick={onPerson} shape={bot ? 'square' : 'circle'} you={own} />
             {avatarBadge}
          </span>
          <span className="min-w-0 flex-1">

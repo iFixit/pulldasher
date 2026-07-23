@@ -225,10 +225,10 @@ export function App() {
    );
    const [teams, setTeams] = useState<TeamGroup[]>([]);
    const [extraBots, setExtraBots] = useState<ReadonlySet<string>>(new Set());
-   const isBot = useCallback(
-      (p: DerivedPull) => isBotLogin(p.data.user.login, extraBots),
-      [extraBots]
-   );
+   // login-level twin of isBot, for row-level consumers (the avatar's square
+   // bot tile) that hold a login rather than a DerivedPull
+   const isBotAuthor = useCallback((login: string) => isBotLogin(login, extraBots), [extraBots]);
+   const isBot = useCallback((p: DerivedPull) => isBotAuthor(p.data.user.login), [isBotAuthor]);
    // theme, density, default view, age colors, glance guard — all live in
    // settings now (the cog panel), persisted per-browser
    const settings = useSettings();
@@ -680,6 +680,7 @@ export function App() {
          parentOf,
          pools,
          turns,
+         isBotAuthor,
       }),
       [
          me,
@@ -696,6 +697,7 @@ export function App() {
          parentOf,
          pools,
          turns,
+         isBotAuthor,
       ]
    );
 

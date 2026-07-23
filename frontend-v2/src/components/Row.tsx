@@ -92,6 +92,9 @@ export interface RowOptions {
     * their own rows: the lane header already says "this is your region," so
     * the region mark would be redundant on every card inside it. */
    hideRegionMark?: boolean;
+   /** bot detection for the avatar's square-tile shape (app.tsx's config-fed
+    * isBotLogin — the row can't know the config's extra-bots list itself) */
+   isBotAuthor?: (login: string) => boolean;
 }
 
 /**
@@ -711,13 +714,17 @@ function RowImpl({
          title={d.title}
          body={d.body}
          own={d.user.login === opts.me}
+         bot={opts.isBotAuthor?.(d.user.login) ?? false}
          id={rowDomId(d)}
          compact={opts.compact}
          depth={depth}
          stackStub={pull.dependent && depth === 0}
          className={`${flashOnce(key, !!fresh) ? 'row-fresh' : ''} transition-[background-color] duration-150 ease-out motion-reduce:transition-none`}
          avatarBadge={
-            starredAuthor && (
+            // your own rows never wear it: the you-star owns that corner,
+            // and star-on-yourself would double the glyph
+            starredAuthor &&
+            d.user.login !== opts.me && (
                <span
                   title={`${d.user.login} is starred`}
                   className="absolute -right-0.5 -bottom-0.5 text-brand"
@@ -825,5 +832,6 @@ export const Row = memo(
       a.opts.onWeightToggle === b.opts.onWeightToggle &&
       a.opts.parentOf === b.opts.parentOf &&
       a.opts.pools === b.opts.pools &&
-      a.opts.turns === b.opts.turns
+      a.opts.turns === b.opts.turns &&
+      a.opts.isBotAuthor === b.opts.isBotAuthor
 );
