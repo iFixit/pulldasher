@@ -3,8 +3,7 @@ import type { PullData } from '../types';
 import { actionState } from './actions';
 import { dealFrom, dealRank } from './deal';
 import { reviewerRanks } from './leaderboard';
-import { reviewRequestedFrom } from './reviewers';
-import { buildReviewerPools, turnFor } from './rotation';
+import { claimFor, reviewRequestedFrom } from './reviewers';
 import { crSort } from './sort';
 import type { DerivedPull } from './status';
 import type { Toast } from './toast';
@@ -169,6 +168,10 @@ export function reviveBaseline(raw: unknown): CheerBaseline | null {
 
 export interface CheerInput {
    pulls: DerivedPull[];
+   /** whose turn each starved, unclaimed pull is (pull key → login), computed
+    * once in app.tsx and shared by the rows, desktop notifications, and these
+    * cheers — three surfaces, one rotation read */
+   turns: ReadonlyMap<string, string>;
    /** closed pulls in the loaded window, for the leaderboard's tally — optional
     * so older callers still typecheck; an absent window just ranks off the
     * open board. */
@@ -232,15 +235,8 @@ function hasStamp(p: DerivedPull, login: string): boolean {
    return p.crBy.includes(login) || p.qaBy.includes(login);
 }
 
-/** Whoever's claimed this pull, read straight off the wire
- * (pull.review_requests) — a self-requested review. Mirrors store.ts's
- * claimFor; duplicated rather than imported so this stays a pure model
- * function independent of the (browser-coupled) store module, like every
- * other file in model/. `at` is epoch seconds, null when the server can't say. */
-function claimOf(p: DerivedPull): { login: string; at: number | null } | null {
-   const entry = (p.data.review_requests ?? []).find(r => r.self && r.login !== p.data.user.login);
-   return entry ? { login: entry.login, at: entry.at } : null;
-}
+/** Whoever's claimed this pull — model/reviewers' one claim predicate. */
+const claimOf = (p: DerivedPull) => claimFor(p.data);
 
 /**
  * The one-line "why this pull" for start-here, in priority order: returning a
@@ -348,7 +344,6 @@ export function readSignals(input: CheerInput): Signals {
    const { pulls, me } = input;
    const closed = input.closed ?? [];
    const now = input.now ?? Date.now();
-   const pools = buildReviewerPools(pulls);
    const stamped = new Set<string>();
    const turns = new Map<string, DerivedPull>();
    const byKey = new Map<string, DerivedPull>();
@@ -369,7 +364,7 @@ export function readSignals(input: CheerInput): Signals {
       else if (st === 'restamp') restampKeys.add(key);
       // a starved BOT pull shouldn't tap you with "your turn — you're the best
       // fit"; bots are handled on their own low-priority cadence, not the rotation
-      if (!mine && !isBot(p) && !claimOf(p) && turnFor(p, pools, pulls) === me) turns.set(key, p);
+      if (!mine && !isBot(p) && !claimOf(p) && input.turns.get(key) === me) turns.set(key, p);
    }
 
    const reviewableUnclaimed = pulls.filter(p => actionState(p, me) === 'review' && !claimOf(p));

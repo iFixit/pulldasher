@@ -791,13 +791,13 @@ describe('evaluateCheers — loading guard', () => {
 
    it('no-ops and carries the baseline while the board is still loading', () => {
       // the empty snapshot the store publishes before the first payload lands
-      const { toasts, next } = evaluateCheers({ pulls: [], me: 'me', ready: false }, primedBase);
+      const { toasts, next } = evaluateCheers({ pulls: [], turns: new Map(), me: 'me', ready: false }, primedBase);
       expect(toasts).toEqual([]);
       expect(next).toBe(primedBase);
    });
 
    it('WOULD fire phantom clears against that empty board once ready — the bug the guard prevents', () => {
-      const { toasts } = evaluateCheers({ pulls: [], me: 'me', ready: true }, primedBase);
+      const { toasts } = evaluateCheers({ pulls: [], turns: new Map(), me: 'me', ready: true }, primedBase);
       const keys = toasts.map(t => t.dedupeKey);
       expect(keys).toContain('inbox:zero');
       expect(keys).toContain('board:clear');

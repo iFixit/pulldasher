@@ -214,8 +214,22 @@ export function App() {
       lastSeen,
       refreshProgress,
    } = usePulldasher();
+   // per-repo reviewer pools and whose turn each starved, unclaimed pull is —
+   // computed ONCE over the whole board and shared by the rows (rowOpts),
+   // desktop notifications, and the cheers evaluator, so the three surfaces
+   // can never disagree about the rotation (and never re-derive it in
+   // parallel; buildReviewerPools walks every pull's signatures)
+   const pools = useMemo(() => buildReviewerPools(pulls), [pulls]);
+   const turns = useMemo(() => {
+      const m = new Map<string, string>();
+      for (const p of pulls) {
+         const who = turnFor(p, pools, pulls);
+         if (who) m.set(pullKey(p.data), who);
+      }
+      return m;
+   }, [pulls, pools]);
    // desktop notifications watch the whole board, not the current filter
-   useNotifications(pulls, me, initialized);
+   useNotifications(pulls, me, turns, initialized);
    // resolve every author on the board to a human display name (batched,
    // cached — model/names.ts): the person hover-cards, the people pickers,
    // and name-aware search all read from this one map
@@ -671,20 +685,6 @@ export function App() {
    // pull (not the scoped/filtered view a given lane renders), so a row whose
    // parent got filtered out of ITS list can still name it (see model/stack.ts)
    const parentOf = useMemo(() => buildParentLookup(pulls), [pulls]);
-   // per-repo reviewer pool for the turn rotation (model/rotation.ts): built
-   // once over the whole board's open pulls, same reasoning as parentOf above
-   const pools = useMemo(() => buildReviewerPools(pulls), [pulls]);
-   // whose turn each starved, unclaimed pull is — computed once over the whole
-   // board (turnFor reads it for the reciprocity signal) so a Row just looks
-   // its answer up instead of re-scanning the board per row
-   const turns = useMemo(() => {
-      const m = new Map<string, string>();
-      for (const p of pulls) {
-         const who = turnFor(p, pools, pulls);
-         if (who) m.set(pullKey(p.data), who);
-      }
-      return m;
-   }, [pulls, pools]);
    // the age baseline is RELATIVE: the board's longest-open pull sets the
    // full track, everything else is a fraction of it — "how long has this
    // waited, relative to what waiting looks like here"
@@ -830,7 +830,7 @@ export function App() {
       history: toastHistory,
       clearHistory,
       dismissHistoryItem,
-   } = useToasts(pulls, me, shippedExtras, closed, onQuickWins, onClaimTurn, initialized);
+   } = useToasts(pulls, me, turns, shippedExtras, closed, onQuickWins, onClaimTurn, initialized);
 
    return (
       <>

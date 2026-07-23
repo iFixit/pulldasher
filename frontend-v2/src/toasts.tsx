@@ -193,6 +193,9 @@ interface LiveToast extends Toast {
 export function useToasts(
    pulls: DerivedPull[],
    me: string,
+   /** whose turn each starved, unclaimed pull is (pull key → login) — app.tsx
+    * computes it once for the rows, desktop notifications, and these cheers */
+   turns: ReadonlyMap<string, string>,
    extras: Toast[] = [],
    closed: PullData[] = [],
    /** clicking the quick-wins toast filters the board to the small ones rather
@@ -333,6 +336,7 @@ export function useToasts(
       const { toasts: fresh, next } = evaluateCheers(
          {
             pulls,
+            turns,
             closed,
             me,
             now: Date.now(),
@@ -359,7 +363,7 @@ export function useToasts(
          return t;
       });
       if (on) push(bound);
-   }, [ready, pulls, closed, me, push, onQuickWins, onClaimTurn]);
+   }, [ready, pulls, turns, closed, me, push, onQuickWins, onClaimTurn]);
 
    // pre-built one-shot toasts from the caller (e.g. the shipped catch-up),
    // deduped by dedupeKey so the same logical toast never re-fires on a later

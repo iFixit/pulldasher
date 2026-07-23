@@ -2,7 +2,7 @@ import type { DerivedPull } from '../model/status';
 import { rowWord } from '../model/actions';
 import type { PullData } from '../types';
 import { pullKey } from '../format';
-import { claimFor } from '../store';
+import { claimFor } from '../model/reviewers';
 import { EmptyState } from '../components/bits';
 import { Fold, Lane, laneShown, RestGroup, Truncated } from '../components/Lane';
 import type { RowOptions } from '../components/Row';

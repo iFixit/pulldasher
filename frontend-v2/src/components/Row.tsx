@@ -14,6 +14,7 @@ import type { DerivedPull } from '../model/status';
 import { isIterating, lastPushEpoch, weightFilterKey } from '../model/status';
 import { type Claim, rowNote } from '../model/actions';
 import { matchedRegions } from '../model/regions';
+import { claimFor } from '../model/reviewers';
 import type { ParentRef } from '../model/stack';
 import { ago, epoch, pullKey, rowDomId, shortRepo } from '../format';
 import {
@@ -24,7 +25,6 @@ import {
    useSettings,
 } from '../settings';
 import {
-   claimFor,
    claimReview,
    isFresh,
    isSnoozed,

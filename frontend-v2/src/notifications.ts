@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { githubUrl, pullKey, shortRepo } from './format';
 import { alertMove } from './model/actions';
-import { buildReviewerPools, turnFor } from './model/rotation';
+import { claimFor } from './model/reviewers';
 import type { DerivedPull } from './model/status';
 import { getSettings } from './settings';
 
@@ -125,12 +125,9 @@ export function testNotification() {
 /** At most this many individual alerts per update; a rare bigger burst collapses. */
 const MAX_PER_TICK = 5;
 
-/** Whether anyone has claimed this pull — a self-requested review, read
- * straight off the wire (pull.review_requests). Mirrors store.ts's claimFor;
- * duplicated rather than imported so this file stays independent of the
- * store's socket/browser plumbing. */
+/** Whether anyone has claimed this pull (model/reviewers' one claim predicate). */
 function isClaimed(p: DerivedPull): boolean {
-   return (p.data.review_requests ?? []).some(r => r.self && r.login !== p.data.user.login);
+   return claimFor(p.data) != null;
 }
 
 /**
@@ -153,6 +150,10 @@ function isClaimed(p: DerivedPull): boolean {
 export function useNotifications(
    pulls: DerivedPull[],
    me: string,
+   /** whose turn each starved, unclaimed pull is (pull key → login) — computed
+    * once in app.tsx and shared with the rows and the cheers evaluator, so the
+    * three surfaces can never disagree about whose turn it is */
+   turns: ReadonlyMap<string, string>,
    /** the board's first payload has arrived. While false the board is still
     * loading (an empty snapshot); recording that as the baseline would make
     * every real pull look "new" and fire a backlog of alerts once data lands. */
@@ -193,7 +194,6 @@ export function useNotifications(
          return;
       }
 
-      const pools = buildReviewerPools(pulls);
       const current = new Map<string, string>();
       for (const p of pulls) {
          const action = alertMove(p, me);
@@ -202,8 +202,7 @@ export function useNotifications(
             continue;
          }
          const key = pullKey(p.data);
-         const turn = turnFor(p, pools, pulls);
-         if (turn === me && !isClaimed(p)) current.set(key, TURN_ACTION);
+         if (turns.get(key) === me && !isClaimed(p)) current.set(key, TURN_ACTION);
       }
 
       // record the baseline but stay silent while unprimed or focused
@@ -225,5 +224,5 @@ export function useNotifications(
       }
       if (fired > 0 && s.notifySound) chime();
       seen.current = current;
-   }, [ready, pulls, me]);
+   }, [ready, pulls, me, turns]);
 }

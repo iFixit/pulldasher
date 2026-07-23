@@ -1,4 +1,5 @@
 import { pullKey } from '../format';
+import { claimFor } from './reviewers';
 import { crSort } from './sort';
 import { STARVE_DAYS, type DerivedPull } from './status';
 
@@ -33,13 +34,9 @@ function hasStamp(p: DerivedPull, login: string): boolean {
    return p.crBy.includes(login) || p.qaBy.includes(login);
 }
 
-/** Whether anyone has claimed this pull — a self-requested review, read
- * straight off the wire (pull.review_requests). Mirrors store.ts's claimFor;
- * duplicated rather than imported so this stays a pure model function
- * independent of the (browser-coupled) store module, like every other file
- * in model/. */
+/** Whether anyone has claimed this pull (model/reviewers' one claim predicate). */
 function isClaimed(p: DerivedPull): boolean {
-   return (p.data.review_requests ?? []).some(r => r.self && r.login !== p.data.user.login);
+   return claimFor(p.data) != null;
 }
 
 /**

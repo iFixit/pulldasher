@@ -2,7 +2,7 @@ import { DO_WORD_RANK, rowWord, WAIT_WORD_RANK, type RowWord } from '../model/ac
 import { groupIntoTree, type StackedPull } from '../model/stack';
 import type { DerivedPull } from '../model/status';
 import { pullKey } from '../format';
-import { claimFor } from '../store';
+import { claimFor } from '../model/reviewers';
 import { Fold, Truncated } from './Lane';
 import { Row, type RowOptions } from './Row';
 

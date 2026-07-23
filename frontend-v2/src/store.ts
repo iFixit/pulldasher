@@ -300,18 +300,6 @@ export function usePulldasher(): Snapshot {
 
 export const refreshPull = backend.refreshPull;
 
-/** Whoever's claimed to review this pull right now, or null. GitHub is the
- * source of truth: a claim IS a review request the reviewer made on
- * themselves, so this reads straight off the wire (pull.review_requests) —
- * no map, no server round trip to reconcile. `at` is epoch seconds, null when
- * the server can't say (e.g. it restarted before the webhook backfilled it) —
- * callers that show "X ago" must handle that case rather than assume a
- * number. */
-export function claimFor(pull: PullData): { login: string; at: number | null } | null {
-   const entry = (pull.review_requests ?? []).find(r => r.self && r.login !== pull.user.login);
-   return entry ? { login: entry.login, at: entry.at } : null;
-}
-
 /** Claim/release actions: thin wrappers so callers (Row, toasts) go
  * through the store like every other mutation instead of reaching into the
  * backend directly. Claims no longer expire on a timer — they clear when the
