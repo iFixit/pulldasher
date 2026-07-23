@@ -12,10 +12,10 @@ export interface HiddenCounts {
    parked: number;
    /** other people's drafts (yours always show) */
    drafts: number;
-   /** PRs in repos you muted or the org hides by default */
-   mutedRepos: number;
-   /** PRs by people you muted */
-   mutedPeople: number;
+   /** PRs in repos you hid or the org hides by default */
+   hiddenRepos: number;
+   /** PRs by people you hid */
+   hiddenPeople: number;
    /** PRs currently off the board, after session reveals */
    hiddenNow: number;
 }
@@ -23,7 +23,7 @@ export interface HiddenCounts {
 /**
  * The board's hidden-PR ledger: one quiet door at the end of the filter bar
  * that always says how many open PRs you are NOT seeing, and opens into the
- * why — parked, drafts, muted, snoozed — each with its count. The two
+ * why — parked, drafts, hidden repos and people — each with its count. The two
  * categories with clean session toggles (parked, drafts) toggle right here;
  * the durable ones say where their controls live instead of duplicating
  * them. Replaces the parked-PRs checkbox that hid at the bottom of the Repos
@@ -54,7 +54,7 @@ export function HiddenPanel({
    // the undo is one click, mirroring how an active filter clears
    const revealing = showAll || reveal.length > 0 || draftsMode !== settings.draftsMode;
    const anythingHidden =
-      counts.parked + counts.drafts + counts.mutedRepos + counts.mutedPeople > 0;
+      counts.parked + counts.drafts + counts.hiddenRepos + counts.hiddenPeople > 0;
    if (!anythingHidden && !revealing) return null;
 
    const resetReveals = () => {
@@ -137,12 +137,12 @@ export function HiddenPanel({
             {counts.parked > 0 &&
                toggleRow(
                   'parked',
-                  'Parked PRs',
+                  'Show parked PRs',
                   counts.parked,
                   parkedShown,
                   settings.showCryo || showAll,
                   () => toggleReveal(CRYO_KEY),
-                  'Labeled Cryogenic Storage: long-running work, set aside on purpose.',
+                  'PRs labeled Cryogenic Storage: long-running work, set aside on purpose. Check the box to show them for this session.',
                   !settings.showCryo && reveal.includes(CRYO_KEY)
                      ? () => setSettings({ showCryo: true })
                      : undefined
@@ -150,27 +150,27 @@ export function HiddenPanel({
             {counts.drafts > 0 &&
                toggleRow(
                   'drafts',
-                  'Drafts by others',
+                  'Show drafts by others',
                   counts.drafts,
                   draftsShown,
                   showAll,
                   () => setDraftsMode(draftsMode === 'all' ? 'mine' : 'all'),
-                  'Your own drafts always show.',
+                  'Check the box to show other people’s drafts too; your own drafts always show.',
                   draftsMode !== settings.draftsMode ? () => setSettings({ draftsMode }) : undefined
                )}
-            {counts.mutedRepos > 0 &&
+            {counts.hiddenRepos > 0 &&
                infoRow(
-                  'muted-repos',
-                  'In repos you muted',
-                  counts.mutedRepos,
-                  'Show or unmute them under Repos.'
+                  'hidden-repos',
+                  'In repos you hid',
+                  counts.hiddenRepos,
+                  'Show them again from the Repos filter.'
                )}
-            {counts.mutedPeople > 0 &&
+            {counts.hiddenPeople > 0 &&
                infoRow(
-                  'muted-people',
-                  'By people you muted',
-                  counts.mutedPeople,
-                  'Unmute them under People.'
+                  'hidden-people',
+                  'By people you hid',
+                  counts.hiddenPeople,
+                  'Show them again from the People filter.'
                )}
             <div className="mt-1.5 border-t border-secondary px-1.5 pt-2 pb-1">
                <label className="flex items-center gap-2">

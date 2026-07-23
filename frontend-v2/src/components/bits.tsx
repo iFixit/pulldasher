@@ -32,9 +32,10 @@ import { Popover } from './Popover';
 
 export const STATUS_LABEL: Record<Status, string> = {
    ready: 'Ready to merge',
-   // only at the ready gate: fully signed off, nothing left but a green build.
-   // 'CI running' would lie — a needs-CR pull can have CI running too.
-   ci_pending: 'Only CI left',
+   // only at the ready gate: fully signed off, CI is the one thing left.
+   // 'CI running' would lie — a needs-CR pull can have CI running too — so
+   // the badge names the WAIT, not the machinery.
+   ci_pending: 'Waiting on CI',
    needs_recr: 'Needs re-CR',
    needs_qa: 'Needs QA',
    needs_cr: 'Needs CR',
@@ -43,7 +44,7 @@ export const STATUS_LABEL: Record<Status, string> = {
    dev_block: 'Dev blocked',
    deploy_block: 'Deploy block',
    unmergeable: 'Can’t merge',
-   ci_red: 'CI red',
+   ci_red: 'CI failing',
    draft: 'Draft',
 };
 
@@ -64,8 +65,8 @@ export const STATUS_DOT: Record<Status, string> = {
 
 /**
  * The quiet outlined button the settings surfaces share — one definition so a
- * radius or hover tweak lands everywhere. sm = inline row actions (mute,
- * unmute), md = standalone panel actions. tone='brand' for the affirmative
+ * radius or hover tweak lands everywhere. sm = inline row actions (hide,
+ * show), md = standalone panel actions. tone='brand' for the affirmative
  * variant ("Show for me").
  */
 export function QuietButton({
@@ -413,8 +414,7 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
          : [...headStatuses(pull.data)].sort(
               (a, b) => ciRank(a) - ciRank(b) || a.data.context.localeCompare(b.data.context)
            );
-   if (!checks.length)
-      return <span aria-hidden className="pd-ci-slot inline-block w-[36px]" />;
+   if (!checks.length) return <span aria-hidden className="pd-ci-slot inline-block w-[36px]" />;
 
    const failing = checks.filter(isRedCheck).length;
    const passing = checks.filter(c => c.data.state === 'success').length;

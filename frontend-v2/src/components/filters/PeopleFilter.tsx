@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { DerivedPull } from '../../model/status';
-import { toggleMutedPerson, toggleStarredPerson, useSettings } from '../../settings';
+import { toggleHiddenPerson, toggleStarredPerson, useSettings } from '../../settings';
 import { usePulldasher } from '../../store';
 import type { Team } from '../../types';
 import { Avatar, QuietButton, StarMark } from '../bits';
@@ -9,9 +9,9 @@ import { FilterRow, FilterSearch, FilterTrigger, OnlyButton } from './shared';
 
 /**
  * The people filter: team preset chips, then a searchable author list where
- * scope (on my board), star (floats to the front of my queues), and mute
+ * scope (on my board), star (floats to the front of my queues), and hide
  * (off my board, period) live side by side on each row — the same
- * scope/mute-together layout RepoFilter uses for repos. "Your team" (your
+ * scope/hide-together layout RepoFilter uses for repos. "Your team" (your
  * own per-browser roster, prepended to the org's teams in app.tsx) gets a
  * brand border instead of the ★ prefix: the star glyph already means
  * something specific elsewhere on this row (star a person), so reusing it as
@@ -31,19 +31,19 @@ export function PeopleFilter({
    const { me } = usePulldasher();
    const settings = useSettings();
    const starredSet = new Set(settings.starredPeople);
-   const mutedSet = new Set(settings.mutedPeople);
+   const hiddenSet = new Set(settings.hiddenPeople);
    const [peopleQuery, setPeopleQuery] = useState('');
 
    const authorCounts = new Map<string, number>();
    for (const p of pulls)
       authorCounts.set(p.data.user.login, (authorCounts.get(p.data.user.login) ?? 0) + 1);
    for (const name of scope.authors) if (!authorCounts.has(name)) authorCounts.set(name, 0);
-   for (const name of settings.mutedPeople) if (!authorCounts.has(name)) authorCounts.set(name, 0);
+   for (const name of settings.hiddenPeople) if (!authorCounts.has(name)) authorCounts.set(name, 0);
    const authors = [...authorCounts.entries()].sort(
       (a, b) => b[1] - a[1] || a[0].localeCompare(b[0])
    );
-   const shownAuthors = authors.filter(([login]) => !mutedSet.has(login));
-   const mutedAuthors = authors.filter(([login]) => mutedSet.has(login));
+   const shownAuthors = authors.filter(([login]) => !hiddenSet.has(login));
+   const hiddenAuthors = authors.filter(([login]) => hiddenSet.has(login));
 
    const commit = (next: string[], all: string[]) =>
       setScope({ ...scope, authors: all.length && next.length === all.length ? [] : next });
@@ -57,7 +57,7 @@ export function PeopleFilter({
    const included = (login: string) => !scope.authors.length || scope.authors.includes(login);
 
    // the trigger names only what narrows the board: one person by login,
-   // more as a count. Mute counts read in the hidden-PR ledger, not here.
+   // more as a count. Hidden counts read in the hidden-PR ledger, not here.
    const value =
       scope.authors.length === 0
          ? null
@@ -68,7 +68,7 @@ export function PeopleFilter({
    const filteredShown = shownAuthors.filter(([login]) =>
       login.toLowerCase().includes(peopleQuery.toLowerCase())
    );
-   const filteredMuted = mutedAuthors.filter(([login]) =>
+   const filteredHidden = hiddenAuthors.filter(([login]) =>
       login.toLowerCase().includes(peopleQuery.toLowerCase())
    );
 
@@ -155,8 +155,8 @@ export function PeopleFilter({
                         <StarMark on={isStarred} />
                      </button>
                      {login !== me && (
-                        <QuietButton onClick={() => toggleMutedPerson(login, true)}>
-                           Mute
+                        <QuietButton onClick={() => toggleHiddenPerson(login, true)}>
+                           Hide
                         </QuietButton>
                      )}
                   </FilterRow>
@@ -165,12 +165,12 @@ export function PeopleFilter({
             {filteredShown.length === 0 && (
                <div className="px-1.5 py-2 text-xs text-ink-3">No one matches.</div>
             )}
-            {filteredMuted.length > 0 && (
+            {filteredHidden.length > 0 && (
                <details className="mt-1.5 border-t border-secondary pt-1.5">
                   <summary className="flex cursor-pointer items-center gap-2 px-1.5 py-1 text-xs font-semibold text-ink-3">
-                     Muted people ({filteredMuted.length})
+                     Hidden people ({filteredHidden.length})
                   </summary>
-                  {filteredMuted.map(([login, count]) => (
+                  {filteredHidden.map(([login, count]) => (
                      <FilterRow key={login}>
                         <span className="flex min-w-0 flex-1 items-center gap-2">
                            <Avatar login={login} size={18} />
@@ -184,8 +184,8 @@ export function PeopleFilter({
                               {count || ''}
                            </span>
                         </span>
-                        <QuietButton onClick={() => toggleMutedPerson(login, false)}>
-                           Unmute
+                        <QuietButton onClick={() => toggleHiddenPerson(login, false)}>
+                           Show
                         </QuietButton>
                      </FilterRow>
                   ))}

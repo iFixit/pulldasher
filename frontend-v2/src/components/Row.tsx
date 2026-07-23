@@ -1,5 +1,14 @@
 import { memo, useState, type ReactNode } from 'react';
-import { AlarmClock, Copy, Diamond, EllipsisVertical, RefreshCw, Star } from 'lucide-react';
+import {
+   AlarmClock,
+   Copy,
+   Diamond,
+   EllipsisVertical,
+   Eye,
+   EyeOff,
+   RefreshCw,
+   Star,
+} from 'lucide-react';
 import type { DerivedPull } from '../model/status';
 import { isIterating, lastPushEpoch, weightFilterKey } from '../model/status';
 import { type Claim, rowNote } from '../model/actions';
@@ -8,7 +17,7 @@ import type { ParentRef } from '../model/stack';
 import { ago, epoch, pullKey, rowDomId, shortRepo } from '../format';
 import {
    setRepoPref,
-   toggleMutedPerson,
+   toggleHiddenPerson,
    togglePrimaryRepo,
    toggleStarredPerson,
    useSettings,
@@ -65,7 +74,7 @@ export interface RowOptions {
    onWeightToggle?: (w: string) => void;
    /** whole-board parent lookup (model/stack.ts's buildParentLookup, memoized
     * once in app.tsx): resolves a dependent pull's parent even when it's
-    * absent from the CURRENT list (a different lane, a muted repo, another
+    * absent from the CURRENT list (a different lane, a hidden repo, another
     * lens' scope), so the 'stacked' flag can name it instead of just saying
     * "based on <ref>". */
    parentOf?: (p: DerivedPull) => ParentRef | null;
@@ -192,7 +201,12 @@ function rowFlags(
          detail: 'GitHub hasn’t confirmed this merges cleanly yet.',
       });
    if (p.ci === 'pending' && p.status !== 'ci_pending')
-      flags.push({ key: 'ci', tone: 'note', label: 'CI…', detail: 'CI is still running.' });
+      flags.push({
+         key: 'ci',
+         tone: 'note',
+         label: 'CI running',
+         detail: 'CI checks are still running on the latest push.',
+      });
    if (showIterating) {
       const pushedAt = lastPushEpoch(p);
       flags.push({
@@ -323,8 +337,7 @@ function VerbDock({
    const showSnoozeChip = showSnooze || snoozedNow;
    const showClaimChip = claimable || mine;
    if (!showSnoozeChip && !showClaimChip) return null;
-   const chip =
-      'hit pressable rounded-md border-0 bg-muted px-1.5 py-1 text-xs whitespace-nowrap';
+   const chip = 'hit pressable rounded-md border-0 bg-muted px-1.5 py-1 text-xs whitespace-nowrap';
    return (
       <span className="pd-verbs absolute top-1/2 right-full z-10 mr-1.5 flex -translate-y-1/2 items-center gap-1.5">
          {showSnoozeChip && (
@@ -395,7 +408,7 @@ function RowActionsKebab({
    const author = pull.data.user.login;
    const repoLabel = shortRepo(repo);
    const isPrimaryRepo = settings.primaryRepos.includes(repo);
-   const isMutedRepo = settings.repoPrefs[repo] === 'mute';
+   const isHiddenRepo = settings.repoPrefs[repo] === 'hide';
    const isStarredAuthor = settings.starredPeople.includes(author);
    const claimedByMe = claim?.login === me;
    const item =
@@ -439,11 +452,7 @@ function RowActionsKebab({
             </button>
          )}
          {showSnooze && (
-            <button
-               type="button"
-               className={item}
-               onClick={snoozedNow ? a.unsnooze : a.snooze}
-            >
+            <button type="button" className={item} onClick={snoozedNow ? a.unsnooze : a.snooze}>
                <Icon icon={AlarmClock} />
                {snoozedNow ? 'Unsnooze' : 'Snooze until tomorrow'}
             </button>
@@ -484,15 +493,16 @@ function RowActionsKebab({
          <button
             type="button"
             className={item}
-            onClick={() => setRepoPref(repo, isMutedRepo ? null : 'mute')}
-            aria-pressed={isMutedRepo}
+            onClick={() => setRepoPref(repo, isHiddenRepo ? null : 'hide')}
+            aria-pressed={isHiddenRepo}
             title={
-               isMutedRepo
-                  ? `unmute ${repoLabel}, show it on your board again`
-                  : `mute ${repoLabel}, hide it on your board`
+               isHiddenRepo
+                  ? `show ${repoLabel} on your board again`
+                  : `hide ${repoLabel} from your board`
             }
          >
-            {isMutedRepo ? `Unmute ${repoLabel}` : `Mute ${repoLabel}`}
+            <Icon icon={isHiddenRepo ? Eye : EyeOff} />
+            {isHiddenRepo ? `Show ${repoLabel}` : `Hide ${repoLabel}`}
          </button>
          <button
             type="button"
@@ -508,16 +518,17 @@ function RowActionsKebab({
             <StarMark on={isStarredAuthor} />
             {isStarredAuthor ? `Unstar ${author}` : `Star ${author}`}
          </button>
-         {/* never offered for your own pulls — you can't mute yourself off
+         {/* never offered for your own pulls — you can't hide yourself from
              your own board */}
          {author !== me && (
             <button
                type="button"
                className={item}
-               onClick={() => toggleMutedPerson(author, true)}
-               title={`mute ${author}, hide their pulls on your board`}
+               onClick={() => toggleHiddenPerson(author, true)}
+               title={`hide ${author}'s pulls from your board`}
             >
-               Mute {author}
+               <Icon icon={EyeOff} />
+               Hide {author}
             </button>
          )}
       </Popover>
@@ -593,9 +604,7 @@ function MetricRail({
    const d = pull.data;
    const me = opts.me;
    return (
-      <span
-         className="pd-rail pd-raise relative ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2"
-      >
+      <span className="pd-rail pd-raise relative ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
          <RowActionsKebab pull={pull} claim={claim} showSnooze={opts.showSnooze} />
          {/* one instrument, humans first: CR (label, weight letter, pips —
              one door into one panel), then QA, then the machine's circle at

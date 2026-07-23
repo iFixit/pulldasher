@@ -57,9 +57,12 @@ export function Team({
    // no explicit choice (the door follows the selection); true/false = the
    // user's own toggle for this visit
    const [directoryChoice, setDirectoryChoice] = useState<boolean | null>(null);
-   const { myTeam, codeRegions, starredPeople, mutedPeople } = useSettings();
+   const { myTeam, codeRegions, starredPeople, hiddenPeople } = useSettings();
+   // login -> human name for the directory chips (app.tsx prefetches the board)
+   const namesMap = useNames();
+   const nameOf = (login: string) => displayName(namesMap, login);
    const starredSet = new Set(starredPeople);
-   const mutedSet = new Set(mutedPeople);
+   const hiddenSet = new Set(hiddenPeople);
 
    // authored/owed counts read the UNSCOPED pool: a narrowed scope shouldn't
    // change what a chip says about a person's real backlog
@@ -105,11 +108,11 @@ export function Team({
       : null;
    const shipping = theirs.filter(p => ['ready', 'needs_qa'].includes(p.status)).length;
 
-   // the directory: starred people lead, muted ones drop out unless an
+   // the directory: starred people lead, hidden ones drop out unless an
    // explicit pick (a URL or a click) already landed on them; your team's
    // members are pinned in their own row above, so they don't repeat here
    const logins = [...new Set([...counts.keys(), ...owes.keys()])]
-      .filter(l => (!mutedSet.has(l) || l === selectedPerson) && !myTeam.includes(l))
+      .filter(l => (!hiddenSet.has(l) || l === selectedPerson) && !myTeam.includes(l))
       .sort(
          (a, b) =>
             Number(starredSet.has(b)) - Number(starredSet.has(a)) ||

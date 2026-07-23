@@ -24,9 +24,9 @@ export interface Settings {
     * the urgency weight always follows the OPENED clock — how long a pull
     * has been open is the truth the board ranks by. */
    ageDisplay: 'opened' | 'updated';
-   /** per-repo override of the org baseline: 'mute' hides a shown repo,
+   /** per-repo override of the org baseline: 'hide' hides a shown repo,
     * 'show' reveals an org-hidden one. Absent = follow the org default. */
-   repoPrefs: Record<string, 'mute' | 'show'>;
+   repoPrefs: Record<string, 'hide' | 'show'>;
    /** your default for other people's drafts: 'mine' hides them (your own
     * always show), 'all' shows everyone's */
    draftsMode: 'mine' | 'all';
@@ -76,9 +76,9 @@ export interface Settings {
    starredPeople: string[];
    /** logins whose pulls stay off your board until an explicit reveal (a
     * scope pick or an author: query term) brings them back for the session.
-    * Mirrors repoPrefs' mute, but people have no org baseline to fall back
-    * to — muting is the whole state. */
-   mutedPeople: string[];
+    * Mirrors repoPrefs' hide, but people have no org baseline to fall back
+    * to — hidden is the whole state. */
+   hiddenPeople: string[];
    /** free-text areas you own or care about (e.g. "Growthbook", "Shopify").
     * A PR whose title, body, labels, branch, or repo partial-matches any of
     * these floats to the top of the review queue. Arbitrary strings, not a
@@ -118,7 +118,7 @@ export const DEFAULT_SETTINGS: Settings = {
    primaryRepos: [],
    myTeam: [],
    starredPeople: [],
-   mutedPeople: [],
+   hiddenPeople: [],
    codeRegions: [],
    claimWarnMins: 120,
    openPrsNewTab: true,
@@ -126,6 +126,30 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
+
+// "Mute" grew up into "hide" for repos and people — hiding is what actually
+// happens (cheer kinds still mute: silencing a notification is real muting).
+// Old saved blobs speak the old vocabulary; translate once on load and
+// persist, so everything downstream reads only 'hide'/hiddenPeople.
+{
+   type LegacyBlob = Omit<Settings, 'repoPrefs'> & {
+      mutedPeople?: string[];
+      repoPrefs: Record<string, 'hide' | 'mute' | 'show'>;
+   };
+   const raw = store.get() as unknown as LegacyBlob;
+   const hadMutedRepos = Object.values(raw.repoPrefs).includes('mute');
+   if (hadMutedRepos || raw.mutedPeople?.length) {
+      const repoPrefs = Object.fromEntries(
+         Object.entries(raw.repoPrefs).map(([r, p]) => [r, p === 'mute' ? 'hide' : p])
+      ) as Record<string, 'hide' | 'show'>;
+      const { mutedPeople, ...rest } = raw;
+      store.set({
+         ...rest,
+         repoPrefs,
+         hiddenPeople: rest.hiddenPeople.length ? rest.hiddenPeople : (mutedPeople ?? []),
+      });
+   }
+}
 
 /** Plain getter for non-React readers. */
 export function getSettings(): Settings {
@@ -137,7 +161,7 @@ export function setSettings(patch: Partial<Settings>) {
 }
 
 /** Set or clear one repo's visibility override. null follows the org default. */
-export function setRepoPref(repo: string, pref: 'mute' | 'show' | null) {
+export function setRepoPref(repo: string, pref: 'hide' | 'show' | null) {
    const next = { ...store.get().repoPrefs };
    if (pref == null) delete next[repo];
    else next[repo] = pref;
@@ -174,11 +198,11 @@ export function toggleStarredPerson(login: string, on: boolean) {
    setSettings({ starredPeople: next });
 }
 
-/** Mute or unmute a person. Deduped and sorted for a stable render order. */
-export function toggleMutedPerson(login: string, on: boolean) {
-   const cur = store.get().mutedPeople;
+/** Hide or unhide a person's pulls. Deduped and sorted for a stable render order. */
+export function toggleHiddenPerson(login: string, on: boolean) {
+   const cur = store.get().hiddenPeople;
    const next = on ? [...new Set([...cur, login])].sort() : cur.filter(l => l !== login);
-   setSettings({ mutedPeople: next });
+   setSettings({ hiddenPeople: next });
 }
 
 /** Add a code region (trimmed). Deduped case-insensitively so "Shopify" and

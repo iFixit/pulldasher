@@ -14,7 +14,7 @@ const ROWS: { key: keyof Friction; label: string; dot: string; hint: string }[] 
       dot: 'var(--warn)',
       hint: 'feedback waiting on the author',
    },
-   { key: 'ciRed', label: 'CI red', dot: 'var(--bad)', hint: 'a required check is failing' },
+   { key: 'ciRed', label: 'CI failing', dot: 'var(--bad)', hint: 'a required CI check is failing' },
    {
       key: 'deployBlocked',
       label: 'deploy blocked',

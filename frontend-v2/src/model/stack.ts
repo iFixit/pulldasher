@@ -131,7 +131,7 @@ export interface ParentRef {
  * The whole-board parent lookup: same resolution rule as `groupIntoTree`, but
  * over every pull on the board — not just the filtered/scoped list a given
  * lane renders — so a pull whose parent exists somewhere else (a different
- * lane, a muted repo, another lens' scope) can still be named instead of just
+ * lane, a hidden repo, another lens' scope) can still be named instead of just
  * saying "based on <ref>". Build once (memoized over the full pull set in
  * app.tsx) and thread through RowOptions.parentOf.
  */

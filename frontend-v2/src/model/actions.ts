@@ -118,14 +118,14 @@ const unique = (xs: string[]): string[] => [...new Set(xs)];
  */
 const FALLBACK_STATUS_LABEL: Record<DerivedPull['status'], string> = {
    ready: 'ready to merge',
-   ci_pending: 'only CI left',
+   ci_pending: 'waiting on CI',
    needs_recr: 'needs re-CR',
    needs_qa: 'needs QA',
    needs_cr: 'needs CR',
    dev_block: 'dev blocked',
    deploy_block: 'deploy block',
    unmergeable: 'can’t merge',
-   ci_red: 'CI red',
+   ci_red: 'CI failing',
    draft: 'draft',
 };
 
@@ -195,7 +195,7 @@ function authorNote(p: DerivedPull, me: string): RowNote {
          p.crHave > 0 ? `in the CR queue · ${p.crHave} of ${crReq}` : 'in the CR queue'
       );
    }
-   if (p.status === 'ci_pending') return waitOnly('CI running, then merge');
+   if (p.status === 'ci_pending') return waitOnly('merge when it goes green');
    if (p.status === 'deploy_block') return waitOnly(`ask ${who(p.deployBlockedBy)} before deploy`);
 
    return waitOnly(FALLBACK_STATUS_LABEL[p.status]);
@@ -325,7 +325,7 @@ function reviewerNote(
    }
 
    if (p.status === 'draft') return waitOnly('draft, not reviewable yet');
-   if (p.status === 'ci_red') return waitOnly('CI red · author fixes');
+   if (p.status === 'ci_red') return waitOnly('CI failing · author fixes');
    if (p.status === 'dev_block')
       return waitOnly(
          p.devBlockedBy.includes(me)
@@ -382,7 +382,7 @@ function reviewerNote(
    if (p.status === 'deploy_block') return waitOnly(`ask ${who(p.deployBlockedBy)} first`);
    if (p.status === 'unmergeable')
       return waitOnly(p.conflict ? 'conflicts · author rebases' : 'lands with its parent');
-   if (p.status === 'ci_pending') return waitOnly('only CI left');
+   if (p.status === 'ci_pending') return waitOnly('all stamps in, waiting on green');
    if (p.status === 'ready') return waitOnly(`ready · nudge ${author} if it sits`);
 
    return waitOnly(FALLBACK_STATUS_LABEL[p.status]);
@@ -481,7 +481,7 @@ const DO_WORD: Record<string, string> = {
    Unblock: 'Unblock',
    Rebase: 'Rebase',
    'Nudge for a review': 'Nudge CR',
-   'Find a QA-er': 'Find QA-er',
+   'Find a QA-er': 'Find a QA-er',
    'Review it': 'Review',
    'QA it': 'QA',
    Undraft: 'Undraft',
@@ -512,7 +512,7 @@ function waitWord(p: DerivedPull, me: string, extra?: { claim?: Claim | null }):
       case 'draft':
          return 'draft';
       case 'ci_red':
-         return 'CI red';
+         return 'CI failing';
       case 'dev_block':
          return 'blocked';
       case 'deploy_block':
@@ -576,7 +576,7 @@ export const DO_WORD_RANK: readonly string[] = [
    'Unblock',
    'Rebase',
    'Nudge CR',
-   'Find QA-er',
+   'Find a QA-er',
    'Review',
    'QA',
    'Undraft',
@@ -593,7 +593,7 @@ export const WAIT_WORD_RANK: readonly string[] = [
    'claimed',
    'stamped',
    'CI running',
-   'CI red',
+   'CI failing',
    'blocked',
    'deploy hold',
    'conflicts',

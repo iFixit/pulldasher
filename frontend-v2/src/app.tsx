@@ -402,7 +402,7 @@ export function App() {
    // scope/query applied, but NOT the changed-only toggle: the changed count
    // must describe the pool the toggle would narrow, or the banner promises
    // rows the click doesn't deliver
-   // repos named in the query (repo:x) reveal a muted repo for this session —
+   // repos named in the query (repo:x) reveal a hidden repo for this session —
    // an explicit filter is an explicit "I want it now"
    const queryRepos = useMemo(
       () => (query ? [...query.matchAll(/repo:(\S+)/gi)].map(m => m[1].toLowerCase()) : []),
@@ -428,12 +428,12 @@ export function App() {
       [scope.authors, queryAuthors]
    );
 
-   // The one is-this-pull-off-the-board predicate: muted (user) and
-   // org-hidden repos, muted people, cryo, snoozes, and the drafts rule stay
+   // The one is-this-pull-off-the-board predicate: user-hidden and
+   // org-hidden repos, hidden people, cryo, snoozes, and the drafts rule stay
    // off unless a session act reveals them — an explicit reveal, a scope, a
    // repo:/author: query term, or the master "show everything". Never hides
-   // your own pulls or bots via mutes: bots have their own fold, and a person
-   // can't mute themselves off their own board. Shared by the filter pipeline
+   // your own pulls or bots via hides: bots have their own fold, and a person
+   // can't hide themselves from their own board. Shared by the filter pipeline
    // and the hidden-PR ledger's counts so the ledger's number can never
    // disagree with what the board actually withholds.
    const boardHidden = useCallback(
@@ -444,7 +444,7 @@ export function App() {
          const hiddenPerson =
             p.data.user.login !== me &&
             !isBot(p) &&
-            personHidden(p.data.user.login, settings.mutedPeople) &&
+            personHidden(p.data.user.login, settings.hiddenPeople) &&
             !revealedAuthor(p.data.user.login);
          const cryoHidden = p.cryo && !settings.showCryo && !reveal.includes(CRYO_KEY);
          // drafts: 'mine' keeps other people's drafts quiet on the general
@@ -473,7 +473,7 @@ export function App() {
          isBot,
          settings.repoPrefs,
          settings.showCryo,
-         settings.mutedPeople,
+         settings.hiddenPeople,
          draftsMode,
       ]
    );
@@ -541,7 +541,7 @@ export function App() {
             const hiddenPerson =
                p.user.login !== me &&
                !isBotLogin(p.user.login, extraBots) &&
-               personHidden(p.user.login, settings.mutedPeople) &&
+               personHidden(p.user.login, settings.hiddenPeople) &&
                !revealedAuthor(p.user.login);
             return !hiddenRepo && !hiddenPerson;
          });
@@ -553,7 +553,7 @@ export function App() {
       showAll,
       hiddenRepos,
       settings.repoPrefs,
-      settings.mutedPeople,
+      settings.hiddenPeople,
       revealedRepo,
       revealedAuthor,
       scope,
@@ -565,21 +565,21 @@ export function App() {
    // rule covers, whether or not a session reveal currently shows it) plus
    // the live currently-hidden total for the trigger label
    const hiddenCounts = useMemo(() => {
-      const c = { parked: 0, drafts: 0, mutedRepos: 0, mutedPeople: 0, hiddenNow: 0 };
+      const c = { parked: 0, drafts: 0, hiddenRepos: 0, hiddenPeople: 0, hiddenNow: 0 };
       for (const p of pulls) {
          if (p.cryo) c.parked++;
          if (p.data.draft && p.data.user.login !== me && !reviewRequestedFrom(p, me)) c.drafts++;
-         if (repoHidden(p.data.repo, hiddenRepos, settings.repoPrefs)) c.mutedRepos++;
+         if (repoHidden(p.data.repo, hiddenRepos, settings.repoPrefs)) c.hiddenRepos++;
          if (
             p.data.user.login !== me &&
             !isBot(p) &&
-            personHidden(p.data.user.login, settings.mutedPeople)
+            personHidden(p.data.user.login, settings.hiddenPeople)
          )
-            c.mutedPeople++;
+            c.hiddenPeople++;
          if (boardHidden(p)) c.hiddenNow++;
       }
       return c;
-   }, [pulls, me, hiddenRepos, settings.repoPrefs, settings.mutedPeople, isBot, boardHidden]);
+   }, [pulls, me, hiddenRepos, settings.repoPrefs, settings.hiddenPeople, isBot, boardHidden]);
 
    const isScoped = scope.repos.length || scope.authors.length || query;
 
@@ -927,7 +927,7 @@ export function App() {
                         setReveal([]);
                         setDraftsMode(settings.draftsMode);
                      }}
-                     title="clears scope and session toggles; mutes and stars stay"
+                     title="clears scope and session toggles; your hidden and starred choices stay"
                      className="hit pressable rounded-md px-1.5 py-1 text-[13px] text-ink-3 hover:text-brand"
                   >
                      Reset
@@ -989,11 +989,11 @@ export function App() {
             )}
             {initialized && lens === 'review' && (
                <Review
-               pulls={humans}
-               bots={bots}
-               closed={scopedClosed}
-               opts={{ ...rowOpts, showSnooze: true }}
-            />
+                  pulls={humans}
+                  bots={bots}
+                  closed={scopedClosed}
+                  opts={{ ...rowOpts, showSnooze: true }}
+               />
             )}
             {initialized && lens === 'mine' && (
                <MyWork pulls={humans} closed={closed} opts={rowOpts} />
@@ -1021,9 +1021,7 @@ export function App() {
                   extraBots={extraBots}
                />
             )}
-            {initialized && lens === 'classic' && (
-               <Classic pulls={scoped} opts={rowOpts} />
-            )}
+            {initialized && lens === 'classic' && <Classic pulls={scoped} opts={rowOpts} />}
             {initialized && lens === 'ci' && <Ci pulls={scoped} opts={rowOpts} />}
             {initialized && lens === 'stats' && (
                <Stats pulls={humans} closed={closed} me={me} onPerson={onPerson} />

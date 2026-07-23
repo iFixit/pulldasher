@@ -29,7 +29,8 @@ const WORD_GLOSS: Record<string, string> = {
    Unblock: 'A block of yours is what holds it. Lift it when you’re ready.',
    Rebase: 'Your PR conflicts with its base branch.',
    'Nudge CR': 'Your PR, and nobody has reviewed it yet. Worth a ping.',
-   'Find QA-er': 'CR isn’t the gate here, QA is. Line someone up to test it.',
+   'Find a QA-er':
+      'Your PR doesn’t need more code review, it needs someone to test it. Line a tester up.',
    Review: 'Open PRs you could code review.',
    QA: 'Open PRs you could test.',
    Undraft: 'Your draft. Mark it ready on GitHub when you want review.',
@@ -44,9 +45,9 @@ const WORD_GLOSS: Record<string, string> = {
       'Someone is testing it right now: they added the QAing label on GitHub. Add it yourself to claim a QA.',
    claimed: 'Someone flagged they’re reading it.',
    stamped: 'Your stamp is in; waiting on the rest of the sign-offs.',
-   'CI running': 'Checks are still running.',
-   'CI red':
-      'A required check is failing; the author fixes that first. Stale stamps wait too: nobody is asked to re-stamp until it’s green.',
+   'CI running': 'CI checks are still running on the latest push.',
+   'CI failing':
+      'A required CI check is failing; the author fixes that first. Stale stamps wait too: nobody is asked to re-stamp until the build is green.',
    blocked:
       'Someone left a dev block; the author owes changes first. Stale stamps wait until the block lifts.',
    'deploy hold': 'Done, but deliberately not shipped yet.',
@@ -55,9 +56,9 @@ const WORD_GLOSS: Record<string, string> = {
    'on hold': 'Blocked on something outside this repo.',
    parked:
       'Labeled Cryogenic Storage: shelved on purpose. Nothing is asked of anyone while it’s parked.',
-   ready: 'Fully signed off and green; waiting on the author to merge.',
+   ready: 'Fully signed off and green; anyone can merge it, usually the author does.',
    draft: 'Not up for review yet.',
-   waiting: 'Waiting, and the board can’t say on what.',
+   waiting: 'Waiting on something GitHub’s data doesn’t name — open the PR to see.',
 };
 
 export interface WordGroup {

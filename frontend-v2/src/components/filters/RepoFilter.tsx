@@ -10,7 +10,7 @@ import { FilterSearch, FilterTrigger, OnlyButton } from './shared';
  * The repos filter: opens straight into the repo list (no tabs — the old
  * 3-tab Filters popover split repos/people/drafts behind a Segmented click
  * you had to make before you could even search). Scope (which repos are on
- * your board right now) and mute (which repos are off your board, period)
+ * your board right now) and hide (which repos are off your board, period)
  * live side by side on each row, plus the ★ star that marks a repo you
  * actively review (drives the review queue's primary/other split). (Parked
  * PRs and drafts used to ride along here as session toggles; they're
@@ -27,7 +27,7 @@ export function RepoFilter({
    scope,
    setScope,
 }: {
-   /** all repos with open-PR counts (org-hidden and muted included) */
+   /** all repos with open-PR counts (org-hidden and user-hidden included) */
    repos: { name: string; count: number }[];
    orgHidden: ReadonlySet<string>;
    reveal: string[];
@@ -57,7 +57,7 @@ export function RepoFilter({
    const included = (name: string) => !scope.repos.length || scope.repos.includes(name);
 
    // the trigger names only what narrows the board: a lone repo by name, more
-   // as a count. Mute counts are durable state — they read in the hidden-PR
+   // as a count. Hidden counts are durable state — they read in the hidden-PR
    // ledger, not here, so the trigger stays quiet when nothing is filtered.
    const value =
       scope.repos.length === 0
@@ -110,12 +110,12 @@ export function RepoFilter({
             >
                <StarMark on={isPrimary} />
             </button>
-            <QuietButton onClick={() => setRepoPref(name, 'mute')}>Mute</QuietButton>
+            <QuietButton onClick={() => setRepoPref(name, 'hide')}>Hide</QuietButton>
          </div>
       );
    };
 
-   const hiddenRow = (name: string, count: number, state: 'muted' | 'org-hidden') => (
+   const hiddenRow = (name: string, count: number, state: 'hidden' | 'org-hidden') => (
       <div
          key={name}
          className="flex items-center gap-2 rounded-md px-1.5 py-[5px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none"
@@ -135,8 +135,8 @@ export function RepoFilter({
             </span>
             <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
          </label>
-         {state === 'muted' ? (
-            <QuietButton onClick={() => setRepoPref(name, null)}>Unmute</QuietButton>
+         {state === 'hidden' ? (
+            <QuietButton onClick={() => setRepoPref(name, null)}>Show</QuietButton>
          ) : (
             <QuietButton tone="brand" onClick={() => setRepoPref(name, 'show')}>
                Show
@@ -170,13 +170,13 @@ export function RepoFilter({
             )}
          >
             <FilterSearch value={repoQuery} onChange={setRepoQuery} label="Filter repos" />
-            {/* muted & org-hidden ("drafts") ride at the top, collapsed, so the
-                one-click reveal is the first thing you reach — matching the
-                Settings repo manager's muted→hidden→shown order */}
+            {/* hidden repos ride at the top, collapsed, so the one-click
+                reveal is the first thing you reach — matching the Settings
+                repo manager's hidden→shown order */}
             {filteredHidden.length > 0 && (
                <details className="mb-1.5 border-b border-secondary pb-1.5">
                   <summary className="flex cursor-pointer items-center gap-2 px-1.5 py-1 text-xs font-semibold text-ink-3">
-                     Muted &amp; org-hidden ({filteredHidden.length})
+                     Hidden by you &amp; org-hidden ({filteredHidden.length})
                      <button
                         type="button"
                         onClick={e => {
@@ -192,7 +192,7 @@ export function RepoFilter({
                      hiddenRow(
                         r.name,
                         r.count,
-                        repoState(r.name, orgHidden, prefs) as 'muted' | 'org-hidden'
+                        repoState(r.name, orgHidden, prefs) as 'hidden' | 'org-hidden'
                      )
                   )}
                </details>

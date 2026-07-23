@@ -329,7 +329,7 @@ describe('rowNote — the author matrix', () => {
    it('ci_pending', () => {
       expect(note({ status: 'ci_pending' }, me)).toEqual({
          action: null,
-         context: 'CI running, then merge',
+         context: 'merge when it goes green',
       });
    });
 
@@ -449,7 +449,7 @@ describe('rowNote — the non-author matrix', () => {
       // about to change, so the note is the wait, not "Re-stamp"
       expect(note({ author, status: 'ci_red', recrBy: ['me'] }, me)).toEqual({
          action: null,
-         context: 'CI red · author fixes',
+         context: 'CI failing · author fixes',
       });
       expect(note({ author, status: 'draft', recrBy: ['me'] }, me)).toEqual({
          action: null,
@@ -473,7 +473,7 @@ describe('rowNote — the non-author matrix', () => {
    it('ci_red', () => {
       expect(note({ author, status: 'ci_red' }, me)).toEqual({
          action: null,
-         context: 'CI red · author fixes',
+         context: 'CI failing · author fixes',
       });
    });
 
@@ -620,7 +620,7 @@ describe('rowNote — the non-author matrix', () => {
    it('ci_pending', () => {
       expect(note({ author, status: 'ci_pending' }, me)).toEqual({
          action: null,
-         context: 'only CI left',
+         context: 'all stamps in, waiting on green',
       });
    });
 

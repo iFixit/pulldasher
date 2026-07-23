@@ -127,12 +127,12 @@ function FactsSection({
    const qaReq = d.status.qa_req;
    const ciWord =
       pull.ci === 'failing'
-         ? 'red'
+         ? 'failing'
          : pull.ci === 'pending'
            ? 'running'
            : pull.ci === 'success'
-             ? 'green'
-             : 'none required';
+             ? 'passed'
+             : 'no checks required';
    // a failing check's name links straight to its run log (the status's
    // target_url) — "which check, and show me" without a GitHub detour
    const redLogs = new Map(
@@ -173,9 +173,7 @@ function FactsSection({
                {srcLink(`${githubUrl(d.repo, d.number)}/conflicts`, 'resolve on GitHub →')}
             </p>
          )}
-         {d.closes != null && (
-            <p>closes {srcLink(issueUrl(d.repo, d.closes), `#${d.closes}`)}</p>
-         )}
+         {d.closes != null && <p>closes {srcLink(issueUrl(d.repo, d.closes), `#${d.closes}`)}</p>}
          {d.connects != null && (
             <p>connects {srcLink(issueUrl(d.repo, d.connects), `#${d.connects}`)}</p>
          )}
@@ -200,10 +198,7 @@ function FactsSection({
                pull.ciFailing.map(ctx => (
                   <span key={ctx}>
                      {' · '}
-                     {srcLink(
-                        redLogs.get(ctx) || `${githubUrl(d.repo, d.number)}/checks`,
-                        ctx
-                     )}
+                     {srcLink(redLogs.get(ctx) || `${githubUrl(d.repo, d.number)}/checks`, ctx)}
                   </span>
                ))}
          </p>

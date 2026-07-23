@@ -42,7 +42,7 @@ describe('describeHash', () => {
 
    it('shows repo/author counts and drafts/hidden flags', () => {
       expect(describeHash('repos=ifixit,valkyrie&authors=al&drafts=all&hidden=1')).toBe(
-         'repo: ifixit, valkyrie · author: al · drafts: all · hidden shown'
+         'repo: ifixit, valkyrie · author: al · drafts: all · showing hidden'
       );
    });
 

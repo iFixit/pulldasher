@@ -113,7 +113,7 @@ export function Classic({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOption
       .sort(qaCompare(me));
 
    const columns: [string, DerivedPull[]][] = [
-      ['CI Blocked', ciBlocked],
+      ['CI Failing', ciBlocked],
       ['Deploy Blocked', deployBlocked],
       ['Ready', ready],
       ['Dev Blocked', devBlocked],

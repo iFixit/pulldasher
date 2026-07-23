@@ -713,7 +713,7 @@ export const CHEER_CATALOG: {
    {
       kind: 'pr-ci-red',
       group: 'author',
-      label: 'CI broke on your PR',
+      label: 'CI failing on your PR',
       hint: 'A required check went red on your PR.',
    },
    {
@@ -1173,7 +1173,7 @@ export function diffCheers(
             {
                tone: 'nag',
                icon: '🔴',
-               title: 'CI broke on your PR',
+               title: 'CI failing on your PR',
                body: p.ciFailing?.length ? `Fix ${p.ciFailing.join(', ')}.` : 'Fix the build.',
                pull: pullRef(p),
                dedupeKey: `cired:${key}`,

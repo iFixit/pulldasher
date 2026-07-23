@@ -66,7 +66,7 @@ export function FilterTrigger({
  * right now — what the bar's "Reset" resets, and what the saved-filters
  * panel reads to decide whether there's anything worth bookmarking. One
  * definition so the two surfaces can't disagree about what counts as
- * "active". Durable state (mutes, stars, defaults) is deliberately not here.
+ * "active". Durable state (hidden, stars, defaults) is deliberately not here.
  */
 export function hasActiveFilters({
    reveal,
@@ -141,7 +141,7 @@ export function FilterRow({ children }: { children: ReactNode }) {
  * The "only" quick-action: narrows a filter-picker's selection to exactly
  * this one row's item, deselecting everything else. Hidden until the row is
  * hovered or the button itself is keyboard-focused, so it never crowds the
- * row's existing checkbox/star/mute buttons while still being reachable
+ * row's existing checkbox/star/hide buttons while still being reachable
  * without a mouse. Mirrors v1's filter "only" feature.
  */
 export function OnlyButton({ onClick }: { onClick: () => void }) {

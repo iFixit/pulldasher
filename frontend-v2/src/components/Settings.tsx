@@ -405,7 +405,7 @@ export function Settings({
                            </QuietButton>
                         </div>
                         <span className="text-[13px] text-ink-2">
-                           Repos: star and mute from the Repos filter in the header.
+                           Repos: star and hide from the Repos filter in the header.
                         </span>
                      </Group>
 
@@ -444,7 +444,7 @@ export function Settings({
 
 
                            <span className="mt-2 block text-ink-2">
-                              Reset every preference on this browser (theme, filters, muted repos,
+                              Reset every preference on this browser (theme, filters, hidden repos and people,
                               last-seen marker) back to defaults. This can’t be undone.
                            </span>
                            <div className="flex items-center gap-3 pt-1">
