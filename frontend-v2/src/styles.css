@@ -434,6 +434,15 @@ label:has(> input:not(:disabled)) {
     justify-content: flex-start;
     position: relative;
   }
+  /* the verb dock hangs OFF the rail's left edge in wide rows (right:100%),
+     but a wrapped rail IS the row — right:100% would park the chips off the
+     row's left edge, where the lane's overflow-hidden clips them to a sliver.
+     Anchor them to the rail's right edge instead. */
+  .pd-rail .pd-verbs {
+    right: 0;
+    left: auto;
+    margin-right: 0;
+  }
 }
 /* whole-card click target: the title link stretches an invisible layer over
    its positioned row, so clicking anywhere opens the PR. Genuinely
