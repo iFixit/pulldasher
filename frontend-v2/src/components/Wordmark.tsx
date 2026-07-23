@@ -9,26 +9,21 @@ import { useEffect, useState, type CSSProperties } from 'react';
  * uses), but mounted always: the h1 is absolutely positioned, so neither
  * state touches layout.
  *
- * Starts hidden on purpose and flips on the first painted frame — mounting
- * straight into the shown state would skip the transition, and the deal-in
- * is the page's one moment of arrival.
+ * Mounts straight into its final state on purpose: page load gets NO
+ * animation (a board you open ten times a day shouldn't perform an
+ * entrance) — the letters only deal when a resize carries the wordmark
+ * across the breakpoint, in or out of view.
  *
  * aria-hidden: the Logo beside it already carries the accessible name
  * "Pulldasher"; per-letter spans would only spell noise at a screen reader.
  */
 export function Wordmark() {
-   const [shown, setShown] = useState(false);
+   const [shown, setShown] = useState(() => matchMedia('(min-width: 1536px)').matches);
    useEffect(() => {
       const mq = matchMedia('(min-width: 1536px)');
       const follow = () => setShown(mq.matches);
-      // double rAF: the browser must paint the hidden state once before the
-      // flip, or there is nothing to transition from
-      const raf = requestAnimationFrame(() => requestAnimationFrame(follow));
       mq.addEventListener('change', follow);
-      return () => {
-         cancelAnimationFrame(raf);
-         mq.removeEventListener('change', follow);
-      };
+      return () => mq.removeEventListener('change', follow);
    }, []);
    return (
       <span aria-hidden className={`wm ${shown ? 'wm-in' : 'wm-out'}`}>
