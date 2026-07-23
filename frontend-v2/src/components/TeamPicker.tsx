@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { displayName, useNames } from '../model/names';
 import { isBotLogin } from '../model/visibility';
-import { renameTeam, toggleTeammate, useSettings } from '../settings';
+import { removeTeam, renameTeam, toggleTeammate, useSettings } from '../settings';
 import { usePulldasher } from '../store';
 import { Avatar } from './bits';
 import { FilterSearch } from './filters/shared';
+import { Icon } from './Icon';
 
 const SUGGESTION_CAP = 12;
 const EMPTY_BOTS: ReadonlySet<string> = new Set();
@@ -101,7 +103,18 @@ export function TeamPicker({
    useEffect(() => setNameDraft(teamName), [teamName]);
    const commitRename = () => renameTeam(teamName, nameDraft);
    const activeName = teamName;
+   const exists = teams.some(t => t.name === teamName);
    const activeMembers = teams.find(t => t.name === teamName)?.members ?? [];
+   // deleting a roster is arm-then-confirm, same as removing a saved filter:
+   // one misclick must not erase a hand-built list of people
+   const [armed, setArmed] = useState(false);
+   const disarm = useRef<ReturnType<typeof setTimeout> | null>(null);
+   useEffect(
+      () => () => {
+         if (disarm.current) clearTimeout(disarm.current);
+      },
+      []
+   );
 
    // search by handle OR human name — "metz" should find djmetzle
    const namesMap = useNames();
@@ -188,6 +201,41 @@ export function TeamPicker({
             >
                Add “{trimmed}”
             </button>
+         )}
+
+         {/* the roster's one management panel is also where it can end —
+             not buried behind "empty it first, then a button appears" */}
+         {exists && (
+            <div className="mt-2 border-t border-secondary pt-1.5">
+               <button
+                  type="button"
+                  onClick={() => {
+                     if (!armed) {
+                        setArmed(true);
+                        disarm.current = setTimeout(() => setArmed(false), 4000);
+                        return;
+                     }
+                     if (disarm.current) clearTimeout(disarm.current);
+                     removeTeam(teamName);
+                  }}
+                  aria-label={
+                     armed ? `confirm deleting the ${teamName} team` : `delete the ${teamName} team`
+                  }
+                  title={
+                     armed
+                        ? 'click again to delete'
+                        : 'delete this team — people on other rosters stay there'
+                  }
+                  className="hit pressable flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-ink-3 hover:text-bad"
+               >
+                  <Icon icon={Trash2} size={12} />
+                  {armed ? (
+                     <span className="font-medium whitespace-nowrap text-bad">sure?</span>
+                  ) : (
+                     'Delete team'
+                  )}
+               </button>
+            </div>
          )}
       </div>
    );

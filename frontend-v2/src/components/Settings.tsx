@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Settings as SettingsIcon, X } from 'lucide-react';
+import { Settings as SettingsIcon, Trash2, X } from 'lucide-react';
 import { clearStoredPrefs } from '../storage';
 import { refreshAll, usePulldasher } from '../store';
 import {
@@ -102,12 +102,12 @@ function CodeRegionsGroup() {
                         {r}
                         <button
                            type="button"
-                           aria-label={`remove code region ${r}`}
-                           title="remove"
+                           aria-label={`delete code region ${r}`}
+                           title="delete"
                            onClick={() => removeCodeRegion(r)}
                            className="hit pressable rounded p-0.5 text-brand-700/60 hover:text-brand-700"
                         >
-                           <Icon icon={X} size={12} />
+                           <Icon icon={Trash2} size={12} />
                         </button>
                      </span>
                   </li>
@@ -442,10 +442,9 @@ export function Settings({
                               </span>
                            </div>
 
-
                            <span className="mt-2 block text-ink-2">
-                              Reset every preference on this browser (theme, filters, hidden repos and people,
-                              last-seen marker) back to defaults. This can’t be undone.
+                              Reset every preference on this browser (theme, filters, hidden repos
+                              and people, last-seen marker) back to defaults. This can’t be undone.
                            </span>
                            <div className="flex items-center gap-3 pt-1">
                               <button

@@ -1,5 +1,5 @@
 import { useMemo, useState, type MouseEvent } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { authorOwnsIt, parked } from '../model/actions';
 import { displayName, useNames } from '../model/names';
 import type { DerivedPull } from '../model/status';
@@ -252,11 +252,11 @@ export function Team({
                         <button
                            type="button"
                            onClick={() => removeTeam(t.name)}
-                           aria-label={`remove the ${t.name} team`}
-                           title={`remove the ${t.name} team`}
+                           aria-label={`delete the ${t.name} team`}
+                           title={`delete the ${t.name} team`}
                            className="pressable inline-flex h-7 w-7 items-center justify-center rounded-lg text-ink-3 hover:text-bad"
                         >
-                           <Icon icon={X} size={12} />
+                           <Icon icon={Trash2} size={12} />
                         </button>
                      )}
                   </span>
