@@ -1,7 +1,8 @@
 import { memo } from 'react';
 import type { PullData } from '../types';
 import { ago, closedEpoch } from '../format';
-import { Avatar, PullTitleLink, RepoRef } from './bits';
+import { PullTitleLink, RepoRef } from './bits';
+import { Avatar } from './identity';
 import { ClosedBadgeTrigger } from './StatePopover';
 
 /**

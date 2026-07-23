@@ -4,7 +4,8 @@ import { displayName, useNames } from '../../model/names';
 import type { Scope } from '../../prefs';
 import { toggleHiddenPerson, toggleTeammate, useSettings } from '../../settings';
 import { usePulldasher } from '../../store';
-import { Avatar, QuietButton, StarMark } from '../bits';
+import { QuietButton } from '../bits';
+import { Avatar, StarMark } from '../identity';
 import { Popover } from '../Popover';
 import {
    ClearRow,

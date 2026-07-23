@@ -4,8 +4,8 @@ import { displayName, useNames } from '../model/names';
 import { isBotLogin } from '../model/visibility';
 import { removeTeam, renameTeam, toggleTeammate, useSettings } from '../settings';
 import { usePulldasher } from '../store';
-import { Avatar } from './bits';
 import { FilterSearch } from './filters/shared';
+import { Avatar } from './identity';
 import { Icon } from './Icon';
 
 const SUGGESTION_CAP = 12;

@@ -3,7 +3,8 @@ import { repoState } from '../../model/visibility';
 import { shortRepo } from '../../format';
 import type { Scope } from '../../prefs';
 import { setRepoPref, togglePrimaryRepo, useSettings } from '../../settings';
-import { QuietButton, StarMark } from '../bits';
+import { QuietButton } from '../bits';
+import { StarMark } from '../identity';
 import { Popover } from '../Popover';
 import { ClearRow, FilterSearch, FilterTrigger, OnlyButton } from './shared';
 

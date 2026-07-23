@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Avatar, PullTitleLink } from './bits';
+import { PullTitleLink } from './bits';
+import { Avatar } from './identity';
 
 /**
  * The one row every lens renders. Two densities of the same content:
@@ -112,7 +113,7 @@ export function CardShell({
    stretch?: boolean;
    compact?: boolean;
    /** the viewer authored this pull: the avatar wears the you-mark (the
-    * corner star seated in a bite on its rim — see bits.tsx's identity
+    * corner star seated in a bite on its rim — see identity.tsx's identity
     * system note) */
    own?: boolean;
    /** a bot/app author: the avatar renders as a rounded-square tile instead

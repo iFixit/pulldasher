@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Avatar } from '../../components/bits';
+import { Avatar } from '../../components/identity';
 import type { Weight } from '../../model/status';
 
 /**

@@ -4,7 +4,8 @@ import type { Claim, RowNote } from '../model/actions';
 import { rowNote } from '../model/actions';
 import type { PullData } from '../types';
 import { ago, closedEpoch, epoch, githubUrl, issueUrl, signatureUrl } from '../format';
-import { Avatar, ClosedBadge, STATUS_LABEL } from './bits';
+import { ClosedBadge, STATUS_LABEL } from './bits';
+import { Avatar } from './identity';
 import { Popover } from './Popover';
 
 interface FeedbackSource {

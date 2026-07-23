@@ -34,18 +34,11 @@ import {
    unsnoozePull,
    usePulldasher,
 } from '../store';
-import {
-   AgeStamp,
-   AgeBaseline,
-   CiStatus,
-   DiffSize,
-   QuietButton,
-   RepoRef,
-   SigPips,
-   StarMark,
-   WEIGHT_WORD,
-} from './bits';
+import { AgeStamp, AgeBaseline } from './age';
+import { DiffSize, QuietButton, RepoRef, WEIGHT_WORD } from './bits';
 import { CardShell } from './Card';
+import { StarMark } from './identity';
+import { CiStatus, SigPips } from './pips';
 import { Icon } from './Icon';
 import { StatePopover } from './StatePopover';
 import { Popover } from './Popover';
