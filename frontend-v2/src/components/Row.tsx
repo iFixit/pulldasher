@@ -19,7 +19,7 @@ import {
    setRepoPref,
    toggleHiddenPerson,
    togglePrimaryRepo,
-   toggleStarredPerson,
+   toggleTeammate,
    useSettings,
 } from '../settings';
 import {
@@ -412,7 +412,7 @@ function RowActionsKebab({
    const repoLabel = shortRepo(repo);
    const isPrimaryRepo = settings.primaryRepos.includes(repo);
    const isHiddenRepo = settings.repoPrefs[repo] === 'hide';
-   const isStarredAuthor = settings.starredPeople.includes(author);
+   const isTeammate = settings.myTeam.includes(author);
    const claimedByMe = claim?.login === me;
    const item =
       'flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2 text-left text-xs text-ink-2 hover:bg-muted';
@@ -510,16 +510,16 @@ function RowActionsKebab({
          <button
             type="button"
             className={item}
-            onClick={() => toggleStarredPerson(author, !isStarredAuthor)}
-            aria-pressed={isStarredAuthor}
+            onClick={() => toggleTeammate(author, !isTeammate)}
+            aria-pressed={isTeammate}
             title={
-               isStarredAuthor
-                  ? `unstar ${author}`
-                  : `star ${author}, floats their pulls to the front of your queues`
+               isTeammate
+                  ? `remove ${author} from your team`
+                  : `add ${author} to your team: their PRs lead your review queues, and the Team tab shows their board`
             }
          >
-            <StarMark on={isStarredAuthor} />
-            {isStarredAuthor ? `Unstar ${author}` : `Star ${author}`}
+            <StarMark on={isTeammate} />
+            {isTeammate ? `Remove ${author} from your team` : `Add ${author} to your team`}
          </button>
          {/* never offered for your own pulls — you can't hide yourself from
              your own board */}
@@ -695,11 +695,11 @@ function RowImpl({
    const note = rowNote(pull, opts.me, { claim, turn });
    // the wait badge may itself carry a "last commit …" — don't say it twice
    const showIterating = isIterating(pull) && !(note.context ?? '').includes('last commit');
-   // the smallest clean marker for a starred author: a tiny ★ over their
-   // avatar, so the row itself says "you follow this person" without a
-   // trip to the kebab menu
+   // the smallest clean marker for a teammate: a tiny ★ over their avatar,
+   // so the row itself says "one of your people" without a trip to the
+   // kebab menu
    const settings = useSettings();
-   const starredAuthor = settings.starredPeople.includes(d.user.login);
+   const teamAuthor = settings.myTeam.includes(d.user.login);
    // which of your code regions this pull matched (why it floated to the top)
    const regions = matchedRegions(pull, settings.codeRegions);
    // only worth asking the whole-board lookup when this row is stacked but
@@ -723,10 +723,10 @@ function RowImpl({
          avatarBadge={
             // your own rows never wear it: the you-star owns that corner,
             // and star-on-yourself would double the glyph
-            starredAuthor &&
+            teamAuthor &&
             d.user.login !== opts.me && (
                <span
-                  title={`${d.user.login} is starred`}
+                  title={`${d.user.login} is on your team`}
                   className="absolute -right-0.5 -bottom-0.5 text-brand"
                >
                   <Icon icon={Star} size={9} fill="currentColor" />

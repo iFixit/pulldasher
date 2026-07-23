@@ -58,11 +58,10 @@ export function Team({
    // no explicit choice (the door follows the selection); true/false = the
    // user's own toggle for this visit
    const [directoryChoice, setDirectoryChoice] = useState<boolean | null>(null);
-   const { myTeam, codeRegions, starredPeople, hiddenPeople } = useSettings();
+   const { myTeam, codeRegions, hiddenPeople } = useSettings();
    // login -> human name for the directory chips (app.tsx prefetches the board)
    const namesMap = useNames();
    const nameOf = (login: string) => displayName(namesMap, login);
-   const starredSet = new Set(starredPeople);
    const hiddenSet = new Set(hiddenPeople);
 
    // authored/owed counts read the UNSCOPED pool: a narrowed scope shouldn't
@@ -109,23 +108,18 @@ export function Team({
       : null;
    const shipping = theirs.filter(p => ['ready', 'needs_qa'].includes(p.status)).length;
 
-   // the directory: starred people lead, hidden ones drop out unless an
+   // the directory: busiest authors lead, hidden ones drop out unless an
    // explicit pick (a URL or a click) already landed on them; your team's
    // members are pinned in their own row above, so they don't repeat here
    const logins = [...new Set([...counts.keys(), ...owes.keys()])]
       .filter(l => (!hiddenSet.has(l) || l === selectedPerson) && !myTeam.includes(l))
-      .sort(
-         (a, b) =>
-            Number(starredSet.has(b)) - Number(starredSet.has(a)) ||
-            (counts.get(b) ?? 0) - (counts.get(a) ?? 0)
-      );
+      .sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0));
    const shownLogins = allPeople ? logins : logins.slice(0, 24);
 
    // the door opens itself when it must: no team yet (the directory is the
    // only content), or the current pick lives outside your team (hiding the
    // chip that explains the board would orphan it)
-   const outsidePick =
-      !!explicitTeam || (!!selectedPerson && !myTeam.includes(selectedPerson));
+   const outsidePick = !!explicitTeam || (!!selectedPerson && !myTeam.includes(selectedPerson));
    const directoryShown = myTeam.length === 0 || (directoryChoice ?? outsidePick);
 
    const chip = (key: string, label: React.ReactNode, active: boolean, onPick: () => void) => (
@@ -219,41 +213,42 @@ export function Team({
          {/* the rest of the directory: config teams, then everyone else —
              behind the Everyone door unless it must stand (see above) */}
          {directoryShown && (
-         <div className="mb-4 flex flex-wrap gap-1.5">
-            {teams
-               .filter(t => t.team !== 'Your team')
-               .map(t =>
-                  chip(
-                     `team:${t.team}`,
-                     <>
-                        <b className="pl-1 font-semibold text-ink">{t.team}</b>
-                        <span className="text-[11px] text-ink-3 tabular-nums">
-                           {allPulls.filter(p => t.members.includes(p.data.user.login)).length}
-                        </span>
-                     </>,
-                     t.team === explicitTeam,
-                     () => onTeam(t.team)
-                  )
+            <div className="mb-4 flex flex-wrap gap-1.5">
+               {teams
+                  .filter(t => t.team !== 'Your team')
+                  .map(t =>
+                     chip(
+                        `team:${t.team}`,
+                        <>
+                           <b className="pl-1 font-semibold text-ink">{t.team}</b>
+                           <span className="text-[11px] text-ink-3 tabular-nums">
+                              {allPulls.filter(p => t.members.includes(p.data.user.login)).length}
+                           </span>
+                        </>,
+                        t.team === explicitTeam,
+                        () => onTeam(t.team)
+                     )
+                  )}
+               {shownLogins.map(login => personChip(login, login === selectedPerson))}
+               {!allPeople && logins.length > 24 && (
+                  <button
+                     type="button"
+                     onClick={() => setAllPeople(true)}
+                     className="pressable inline-flex items-center rounded-lg border border-line bg-surface px-2.5 py-[5px] text-[13px] font-medium text-ink-3 hover:text-brand"
+                  >
+                     + {logins.length - 24} more
+                  </button>
                )}
-            {shownLogins.map(login => personChip(login, login === selectedPerson))}
-            {!allPeople && logins.length > 24 && (
-               <button
-                  type="button"
-                  onClick={() => setAllPeople(true)}
-                  className="pressable inline-flex items-center rounded-lg border border-line bg-surface px-2.5 py-[5px] text-[13px] font-medium text-ink-3 hover:text-brand"
-               >
-                  + {logins.length - 24} more
-               </button>
-            )}
-         </div>
+            </div>
          )}
 
          {home && myTeam.length === 0 && (
             <div className="mx-auto flex max-w-[440px] flex-col items-center gap-3 py-12 text-center">
                <h2 className="m-0 text-lg font-semibold text-ink">Build your team</h2>
                <p className="m-0 text-[13px] text-ink-3">
-                  Pick the people whose work you review; their combined board becomes this tab’s
-                  home. Or click anyone above to see just their work.
+                  Pick the people whose work you review — your review circle, not the org chart.
+                  Their combined board becomes this tab’s home, and their PRs lead your review
+                  queues. Or click anyone above to see just their work.
                </p>
                <div className="w-full rounded-2xl border border-line bg-surface p-3 text-left">
                   <TeamPicker extraBots={extraBots} />

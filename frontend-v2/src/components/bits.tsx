@@ -140,7 +140,7 @@ export function FreshTag({ kind }: { kind: 'new' | 'updated' }) {
  *   app-tile idiom Slack and GitHub already taught. No glyph, no hue — the
  *   outline is the mark, so it reads at 16px and in peripheral vision.
  * - The BOTTOM-RIGHT CORNER answers "what is this person to you", in one
- *   glyph: a small star on someone you starred, and a larger star seated on
+ *   glyph: a small star on a teammate (your review circle), and a larger star seated on
  *   the rim of your own avatar with a bite masked out of the face, so your
  *   silhouette is visibly broken. You are the star vocabulary's largest
  *   case — escalated by size and form, never by fill. (The ringed seal and
@@ -324,7 +324,7 @@ export function Avatar({
 }
 
 /**
- * The one star mark every "primary repo" / "starred person" toggle shares
+ * The one star mark every "primary repo" / "teammate" toggle shares
  * (Row's kebab menu, RepoFilter, PeopleFilter, RepoManager): filled when on,
  * outline when off, same lucide glyph everywhere instead of five hand-rolled
  * ★/☆ copies.

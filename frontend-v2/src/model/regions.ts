@@ -42,7 +42,7 @@ export function matchesRegion(p: DerivedPull, regions: string[]): boolean {
 /**
  * Stable-partition a sorted list so region-matching pulls float to the front,
  * each group keeping its existing relative order — the same shape as sort.ts's
- * starFirst. A no-op (returns the input) when no regions are configured, so
+ * teamFirst. A no-op (returns the input) when no regions are configured, so
  * callers can wrap it unconditionally.
  */
 export function regionFirst(pulls: DerivedPull[], regions: string[]): DerivedPull[] {

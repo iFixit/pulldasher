@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DerivedPull } from './status';
-import { crScore, crSort, starFirst } from './sort';
+import { crScore, crSort, teamFirst } from './sort';
 
 function fake(over: {
    ageDays?: number;
@@ -56,12 +56,12 @@ function withAuthor(login: string): DerivedPull {
    return { data: { user: { login } } } as unknown as DerivedPull;
 }
 
-describe('starFirst', () => {
+describe('teamFirst', () => {
    it('moves starred authors to the front', () => {
       const a = withAuthor('alice');
       const b = withAuthor('bob');
       const c = withAuthor('carol');
-      const sorted = starFirst([a, b, c], new Set(['carol']));
+      const sorted = teamFirst([a, b, c], new Set(['carol']));
       expect(sorted[0]).toBe(c);
       expect(sorted.slice(1)).toEqual([a, b]);
    });
@@ -71,7 +71,7 @@ describe('starFirst', () => {
       const a2 = withAuthor('alice');
       const b1 = withAuthor('bob');
       const b2 = withAuthor('bob');
-      const sorted = starFirst([b1, a1, b2, a2], new Set(['alice']));
+      const sorted = teamFirst([b1, a1, b2, a2], new Set(['alice']));
       // both alice pulls lead, in their original relative order; same for bob
       expect(sorted).toEqual([a1, a2, b1, b2]);
    });
@@ -79,6 +79,6 @@ describe('starFirst', () => {
    it('leaves the list untouched when nobody is starred', () => {
       const a = withAuthor('alice');
       const b = withAuthor('bob');
-      expect(starFirst([a, b], new Set())).toEqual([a, b]);
+      expect(teamFirst([a, b], new Set())).toEqual([a, b]);
    });
 });

@@ -67,13 +67,12 @@ export interface Settings {
     * firmware dev share a monorepo but little else). Empty = infer from the
     * repos where you've authored or stamped on the current board. */
    primaryRepos: string[];
-   /** logins of your teammates (you are implicit; not GitHub teams — a
-    * per-browser list powering the Team lens and the "Your team" filter). */
+   /** logins of your teammates — your REVIEW CIRCLE, yours to define, not
+    * the org chart (a cross-team pairing partner belongs here). One roster,
+    * two effects: the Team lens shows their combined board, and their pulls
+    * lead your Review queue and Needs QA. Absorbed the old starredPeople
+    * list — two rosters for "people whose work I watch" was one too many. */
    myTeam: string[];
-   /** logins you star — their pulls float to the front of the review queue,
-    * Needs QA, and the People chip list. No org baseline (unlike repos): a
-    * simple two-state per-person toggle. */
-   starredPeople: string[];
    /** logins whose pulls stay off your board until an explicit reveal (a
     * scope pick or an author: query term) brings them back for the session.
     * Mirrors repoPrefs' hide, but people have no org baseline to fall back
@@ -117,7 +116,6 @@ export const DEFAULT_SETTINGS: Settings = {
    selfReview: true,
    primaryRepos: [],
    myTeam: [],
-   starredPeople: [],
    hiddenPeople: [],
    codeRegions: [],
    claimWarnMins: 120,
@@ -127,26 +125,32 @@ export const DEFAULT_SETTINGS: Settings = {
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
 
-// "Mute" grew up into "hide" for repos and people — hiding is what actually
-// happens (cheer kinds still mute: silencing a notification is real muting).
-// Old saved blobs speak the old vocabulary; translate once on load and
-// persist, so everything downstream reads only 'hide'/hiddenPeople.
+// Two vocabulary migrations, folded in once on load so everything downstream
+// reads only the new fields:
+// - "Mute" grew up into "hide" for repos and people — hiding is what
+//   actually happens (cheer kinds still mute: silencing a notification is
+//   real muting).
+// - starredPeople folded into myTeam — two rosters for "people whose work I
+//   watch" was one too many; the one team roster now powers the Team lens
+//   AND leads the review queues.
 {
    type LegacyBlob = Omit<Settings, 'repoPrefs'> & {
       mutedPeople?: string[];
+      starredPeople?: string[];
       repoPrefs: Record<string, 'hide' | 'mute' | 'show'>;
    };
    const raw = store.get() as unknown as LegacyBlob;
    const hadMutedRepos = Object.values(raw.repoPrefs).includes('mute');
-   if (hadMutedRepos || raw.mutedPeople?.length) {
+   if (hadMutedRepos || raw.mutedPeople?.length || raw.starredPeople?.length) {
       const repoPrefs = Object.fromEntries(
          Object.entries(raw.repoPrefs).map(([r, p]) => [r, p === 'mute' ? 'hide' : p])
       ) as Record<string, 'hide' | 'show'>;
-      const { mutedPeople, ...rest } = raw;
+      const { mutedPeople, starredPeople, ...rest } = raw;
       store.set({
          ...rest,
          repoPrefs,
          hiddenPeople: rest.hiddenPeople.length ? rest.hiddenPeople : (mutedPeople ?? []),
+         myTeam: [...new Set([...rest.myTeam, ...(starredPeople ?? [])])].sort(),
       });
    }
 }
@@ -189,13 +193,6 @@ export function toggleTeammate(login: string, add: boolean) {
    const cur = store.get().myTeam;
    const next = add ? [...new Set([...cur, login])].sort() : cur.filter(l => l !== login);
    setSettings({ myTeam: next });
-}
-
-/** Star or unstar a person. Deduped and sorted for a stable render order. */
-export function toggleStarredPerson(login: string, on: boolean) {
-   const cur = store.get().starredPeople;
-   const next = on ? [...new Set([...cur, login])].sort() : cur.filter(l => l !== login);
-   setSettings({ starredPeople: next });
 }
 
 /** Hide or unhide a person's pulls. Deduped and sorted for a stable render order. */

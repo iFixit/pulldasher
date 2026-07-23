@@ -1,6 +1,6 @@
 import { type DerivedPull, qaDone, type Status, weightRank } from '../model/status';
 import { ago, pullKey } from '../format';
-import { crSort, starFirst } from '../model/sort';
+import { crSort, teamFirst } from '../model/sort';
 import { matchedRegions, matchesRegion } from '../model/regions';
 import {
    authorMove,
@@ -42,8 +42,8 @@ export function Review({
    opts: RowOptions;
 }) {
    const me = opts.me;
-   const { selfReview, primaryRepos, starredPeople, codeRegions } = useSettings();
-   const starred = new Set(starredPeople);
+   const { selfReview, primaryRepos, myTeam, codeRegions } = useSettings();
+   const team = new Set(myTeam);
    // A snooze is "not today" for THIS lens only: the daily what-do-I-review
    // loop lives here, so the quieting gesture belongs here — every other
    // lens still shows the pull. Snoozed rows collect in their own section at
@@ -187,7 +187,7 @@ export function Review({
    // folds into "other repos" below, reachable but not in the way. Region
    // matches are excluded here too (same Set-filter pattern as botKeys) — they
    // live in their own lane above, not doubled up in the queue.
-   const queue = starFirst(
+   const queue = teamFirst(
       dealRank(
          [
             ...nonStarved.filter(
@@ -198,7 +198,7 @@ export function Review({
          ],
          { me, pulls, deprioritize: isDemoted, warnDays: opts.ageWarnDays }
       ),
-      starred
+      team
    );
    const queueOther = crSort(
       nonStarved.filter(p => !isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data)))
@@ -213,9 +213,9 @@ export function Review({
       ...bots.filter(p => p.status === 'ready'),
    ].sort((a, b) => b.ageDays - a.ageDays);
 
-   const needsQa = starFirst(
+   const needsQa = teamFirst(
       qaSort(qaPool.filter(p => isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data)))),
-      starred
+      team
    );
    const needsQaOther = qaSort(
       qaPool.filter(p => !isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data)))
@@ -313,14 +313,19 @@ export function Review({
    // the per-card "why" behind the repo# door in the ranked lanes — the same
    // reason strings the dealt card's footnote and the Start-here toast use,
    // so every surface explains a pick in the same words
-   const whyUpNext = (p: DerivedPull) => startHereReason(p, pulls, me);
+   const whyUpNext = (p: DerivedPull) =>
+      team.has(p.data.user.login)
+         ? `From ${p.data.user.login}, on your team — teammates’ PRs lead your queue`
+         : startHereReason(p, pulls, me);
 
    // Needs QA's own "why" line: that lane isn't ranked by deal-score, it's
    // sorted by qaSort (unclaimed-first, then lightest, then oldest) — reusing
    // whyUpNext's reciprocity/quick-win/urgency reasons here would describe a
    // ranking this lane doesn't use.
    const whyQaNext = (p: DerivedPull) =>
-      p.qaingLogin
+      team.has(p.data.user.login)
+         ? `From ${p.data.user.login}, on your team — teammates’ PRs lead this lane`
+         : p.qaingLogin
          ? `${p.qaingLogin} is already testing it; it sinks below unclaimed QA`
          : p.weight === 'XS' || p.weight === 'S'
            ? `Nobody's testing it yet, a light one (${p.weight})`
@@ -491,9 +496,14 @@ export function Review({
                      oldest and biggest first, even from repos you don’t usually review.
                   </p>
                   <p>
+                     Your team’s PRs always come first (edit your team on the Team tab), ordered
+                     among themselves by this same score — being on your team is the boost; there
+                     is no extra ranking between teammates.
+                  </p>
+                  <p>
                      After those: PRs in repos you’ve reviewed before, PRs from people who review
-                     your work, and small quick wins, lightest first. PRs from people you starred
-                     always come first; bot PRs (dependency bumps) sink to the bottom.
+                     your work, and small quick wins, lightest first. Bot PRs (dependency bumps)
+                     sink to the bottom.
                   </p>
                   <p>PRs you claim stay in the queue and also appear in Waiting on you.</p>
                </SubDoor>

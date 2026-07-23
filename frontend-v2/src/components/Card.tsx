@@ -118,7 +118,7 @@ export function CardShell({
    /** a bot/app author: the avatar renders as a rounded-square tile instead
     * of a circle — shape is the whole mark */
    bot?: boolean;
-   /** a tiny marker absolutely-positioned over the avatar (the row's starred-
+   /** a tiny marker absolutely-positioned over the avatar (the row's teammate
     * author ★) — a slot rather than an Avatar prop, so this stays a one-
     * caller concern instead of touching every Avatar call site. */
    avatarBadge?: ReactNode;

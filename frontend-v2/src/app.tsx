@@ -223,7 +223,6 @@ export function App() {
          ...pulls.map(p => p.data.user.login),
          ...closed.map(p => p.user.login),
          ...s.myTeam,
-         ...s.starredPeople,
          ...s.hiddenPeople,
       ]);
    }, [pulls, closed]);
@@ -969,7 +968,7 @@ export function App() {
                         setReveal([]);
                         setDraftsMode(settings.draftsMode);
                      }}
-                     title="clears scope and session toggles; your hidden and starred choices stay"
+                     title="clears scope and session toggles; your team, hidden, and primary-repo choices stay"
                      className="hit pressable rounded-md px-1.5 py-1 text-[13px] text-ink-3 hover:text-brand"
                   >
                      Reset

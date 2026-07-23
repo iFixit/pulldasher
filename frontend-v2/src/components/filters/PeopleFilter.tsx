@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { DerivedPull } from '../../model/status';
 import { displayName, useNames } from '../../model/names';
-import { toggleHiddenPerson, toggleStarredPerson, useSettings } from '../../settings';
+import { toggleHiddenPerson, toggleTeammate, useSettings } from '../../settings';
 import { usePulldasher } from '../../store';
 import type { Team } from '../../types';
 import { Avatar, QuietButton, StarMark } from '../bits';
@@ -37,7 +37,7 @@ export function PeopleFilter({
    const nameOf = (login: string) => displayName(namesMap, login);
    const matchesPerson = (login: string, q: string) =>
       login.toLowerCase().includes(q) || (nameOf(login) ?? '').toLowerCase().includes(q);
-   const starredSet = new Set(settings.starredPeople);
+   const teamSet = new Set(settings.myTeam);
    const hiddenSet = new Set(settings.hiddenPeople);
    const [peopleQuery, setPeopleQuery] = useState('');
 
@@ -119,7 +119,7 @@ export function PeopleFilter({
             )}
             <FilterSearch value={peopleQuery} onChange={setPeopleQuery} label="Filter people" />
             {filteredShown.map(([login, count]) => {
-               const isStarred = starredSet.has(login);
+               const isTeammate = teamSet.has(login);
                return (
                   <FilterRow key={login}>
                      <label className="flex min-w-0 flex-1 items-center gap-2">
@@ -146,20 +146,24 @@ export function PeopleFilter({
                         // no .hit bleed / no -my: the star's own py clears the
                         // 24px floor; the bled box overlapped adjacent clicks
                         className={`pressable rounded-md px-1.5 py-1.5 text-sm leading-none ${
-                           isStarred
+                           isTeammate
                               ? 'text-brand hover:text-brand/70'
                               : 'text-ink-3 hover:text-brand'
                         }`}
-                        onClick={() => toggleStarredPerson(login, !isStarred)}
-                        aria-pressed={isStarred}
-                        aria-label={isStarred ? `unstar ${login}` : `star ${login}`}
+                        onClick={() => toggleTeammate(login, !isTeammate)}
+                        aria-pressed={isTeammate}
+                        aria-label={
+                           isTeammate
+                              ? `remove ${login} from your team`
+                              : `add ${login} to your team`
+                        }
                         title={
-                           isStarred
-                              ? `${login} is starred, floats to the front of your queues`
-                              : `star ${login} to float their pulls to the front of your queues`
+                           isTeammate
+                              ? `${login} is on your team; their PRs lead your review queues`
+                              : `add ${login} to your team: their PRs lead your review queues`
                         }
                      >
-                        <StarMark on={isStarred} />
+                        <StarMark on={isTeammate} />
                      </button>
                      {login !== me && (
                         <QuietButton onClick={() => toggleHiddenPerson(login, true)}>

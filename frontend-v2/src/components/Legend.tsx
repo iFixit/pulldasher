@@ -130,7 +130,7 @@ export function Legend() {
                      <Icon icon={Star} size={13} fill="currentColor" />
                   </span>
                }
-               def="a small corner star marks someone you starred; the larger star seated on your own avatar’s rim is you"
+               def="a small corner star marks someone on your team; the larger star seated on your own avatar’s rim is you"
             />
          </Group>
 

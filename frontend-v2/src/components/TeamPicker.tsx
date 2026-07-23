@@ -106,6 +106,10 @@ export function TeamPicker({ extraBots = EMPTY_BOTS }: { extraBots?: ReadonlySet
 
    return (
       <div>
+         <p className="px-1.5 pb-1.5 text-[11px] leading-snug text-ink-3">
+            Your review circle, not the org chart — anyone whose work you review belongs here.
+            Teammates’ PRs lead your review queues, and this tab shows their combined board.
+         </p>
          {myTeam.map(login => (
             <CandidateRow
                key={login}
