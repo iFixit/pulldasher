@@ -34,8 +34,6 @@ const isBot = (p: DerivedPull) => isBotLogin(p.data.user.login, NO_EXTRA_BOTS);
  * Every other signal is silent until it changes.
  */
 
-export type CheerTone = 'reward' | 'nag' | 'info';
-
 export type CheerToast = Toast;
 
 /** Everything the evaluator must remember between ticks. Plain data (Sets and
@@ -50,10 +48,6 @@ export interface CheerBaseline {
    stamped: ReadonlySet<string>;
    /** your open review/qa/restamp count last tick */
    queue: number;
-   /** highest queue threshold already crossed — no toast reads this anymore
-    * (the old "N reviews waiting" nag is gone), but it's carried forward
-    * as standing state for the next pass to reuse or retire outright. */
-   nagLevel: number;
    /** stamps you've landed this session (drives milestones) */
    sessionStamps: number;
    /** milestone counts already celebrated */
@@ -93,7 +87,6 @@ export const EMPTY_BASELINE: CheerBaseline = {
    login: '',
    stamped: new Set(),
    queue: 0,
-   nagLevel: 0,
    sessionStamps: 0,
    firedMilestones: new Set(),
    seenTurns: new Set(),
@@ -123,7 +116,6 @@ export function serializeBaseline(b: CheerBaseline): unknown {
       login: b.login,
       stamped: [...b.stamped],
       queue: b.queue,
-      nagLevel: b.nagLevel,
       sessionStamps: b.sessionStamps,
       firedMilestones: [...b.firedMilestones],
       seenTurns: [...b.seenTurns],
@@ -155,7 +147,6 @@ export function reviveBaseline(raw: unknown): CheerBaseline | null {
          login: typeof o.login === 'string' ? o.login : '',
          stamped: new Set(arr(o.stamped) as string[]),
          queue: Number(o.queue) || 0,
-         nagLevel: Number(o.nagLevel) || 0,
          sessionStamps: Number(o.sessionStamps) || 0,
          firedMilestones: new Set(arr(o.firedMilestones) as number[]),
          seenTurns: new Set(arr(o.seenTurns) as string[]),
@@ -217,8 +208,6 @@ function durationPhrase(ms: number): string {
  * hasStamp, so the evaluator doesn't couple to the actions module. */
 const STALE_CLAIM_MS = 2 * 60 * 60 * 1000;
 
-/** Queue sizes that used to earn the retired count nag as you crossed them. */
-const NAG_STEPS = [3, 5, 8];
 /** Session stamp counts worth celebrating. */
 const MILESTONES = [3, 5, 10];
 /** No single tick fires more than this — a socket burst that flips many pulls
@@ -234,13 +223,6 @@ const MILESTONE_PRAISE = ['Good pace.'];
  * are stable and two clients narrate the same board the same way. */
 function pick(list: string[], seed: number): string {
    return list[((seed % list.length) + list.length) % list.length];
-}
-
-/** Highest crossed nag step for a queue size (0 if below the first step). */
-function nagStepFor(queue: number): number {
-   let step = 0;
-   for (const s of NAG_STEPS) if (queue >= s) step = s;
-   return step;
 }
 
 /** Has `login` landed an active CR or QA stamp on this pull? Mirrors
@@ -393,9 +375,7 @@ export function readSignals(input: CheerInput): Signals {
    const reviewableUnclaimed = pulls.filter(p => actionState(p, me) === 'review' && !claimOf(p));
 
    const quickWinCandidates = crSort(
-      reviewableUnclaimed.filter(
-         p => !isBot(p) && (p.weight === 'XS' || p.weight === 'S')
-      )
+      reviewableUnclaimed.filter(p => !isBot(p) && (p.weight === 'XS' || p.weight === 'S'))
    );
    const quickWinPull = quickWinCandidates[0] ?? null;
 
@@ -785,7 +765,6 @@ export function diffCheers(
             login: me,
             stamped: sig.stamped,
             queue: sig.queue,
-            nagLevel: nagStepFor(sig.queue),
             sessionStamps: 0,
             firedMilestones: new Set(),
             seenTurns: new Set(sig.turns.keys()),
@@ -1232,13 +1211,6 @@ export function diffCheers(
       );
    }
 
-   // ── nagLevel bookkeeping only (no toast fires from this anymore — the old
-   // count nag is retired in favor of start-here) ──────────────────────────
-   let nagLevel = base.nagLevel;
-   const step = nagStepFor(sig.queue);
-   if (sig.queue === 0) nagLevel = 0;
-   else nagLevel = step;
-
    const ranked = entries.sort((a, b) => PRIORITY[b.kind] - PRIORITY[a.kind]);
    // the cap defers, it doesn't discard: whatever it evicts gets its "already
    // seen" bookkeeping undone, so the same edge is still live next tick
@@ -1252,7 +1224,6 @@ export function diffCheers(
          login: me,
          stamped: sig.stamped,
          queue: nextQueue,
-         nagLevel,
          sessionStamps,
          firedMilestones,
          seenTurns,

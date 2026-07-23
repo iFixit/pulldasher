@@ -293,7 +293,7 @@ export function App() {
          q: query,
          repos: scope.repos,
          authors: scope.authors,
-         notAuthors: scope.notAuthors ?? [],
+         notAuthors: scope.notAuthors,
          weight: weightSel,
          state: stateSel,
          hidden: showAll,
@@ -519,8 +519,8 @@ export function App() {
          out = out.filter(p => isBot(p) || scope.authors.includes(p.data.user.login));
       // the exclusion scope: "everyone except" — bots ride along, same as the
       // allow-list above (a dependency bump is nobody's teammate)
-      if (scope.notAuthors?.length)
-         out = out.filter(p => isBot(p) || !scope.notAuthors!.includes(p.data.user.login));
+      if (scope.notAuthors.length)
+         out = out.filter(p => isBot(p) || !scope.notAuthors.includes(p.data.user.login));
       if (query) out = out.filter(p => matchesQuery(p, query, me, names));
       return out;
    }, [pulls, boardHidden, scope, isBot, query, names, me]);
@@ -625,7 +625,7 @@ export function App() {
             q: query,
             repos: scope.repos,
             authors: scope.authors,
-            notAuthors: scope.notAuthors ?? [],
+            notAuthors: scope.notAuthors,
             weight: weightSel,
             state: stateSel,
             hidden: showAll,

@@ -80,8 +80,7 @@ export interface Settings {
     * chart (an official team and a cross-team pairing partner can be two
     * separate rosters). Every roster's members get the same two effects:
     * the Team lens shows their boards, and their pulls lead your Review
-    * queue and Needs QA (the union — see myPeople). Absorbed the old
-    * starredPeople and single-myTeam fields. */
+    * queue and Needs QA (the union — see myPeople). */
    teams: PersonalTeam[];
    /** logins whose pulls stay off your board until an explicit reveal (a
     * scope pick or an author: query term) brings them back for the session.
@@ -134,47 +133,6 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
-
-// Two vocabulary migrations, folded in once on load so everything downstream
-// reads only the new fields:
-// - "Mute" grew up into "hide" for repos and people — hiding is what
-//   actually happens (cheer kinds still mute: silencing a notification is
-//   real muting).
-// - starredPeople and the single myTeam list folded into named `teams` —
-//   every roster powers the Team lens AND leads the review queues; the
-//   legacy fields collapse into one "My team" roster.
-{
-   type LegacyBlob = Omit<Settings, 'repoPrefs'> & {
-      mutedPeople?: string[];
-      starredPeople?: string[];
-      myTeam?: string[];
-      repoPrefs: Record<string, 'hide' | 'mute' | 'show'>;
-   };
-   const raw = store.get() as unknown as LegacyBlob;
-   const hadMutedRepos = Object.values(raw.repoPrefs).includes('mute');
-   if (
-      hadMutedRepos ||
-      raw.mutedPeople?.length ||
-      raw.starredPeople?.length ||
-      raw.myTeam?.length
-   ) {
-      const repoPrefs = Object.fromEntries(
-         Object.entries(raw.repoPrefs).map(([r, p]) => [r, p === 'mute' ? 'hide' : p])
-      ) as Record<string, 'hide' | 'show'>;
-      const { mutedPeople, starredPeople, myTeam, ...rest } = raw;
-      const legacyMembers = [...new Set([...(myTeam ?? []), ...(starredPeople ?? [])])].sort();
-      store.set({
-         ...rest,
-         repoPrefs,
-         hiddenPeople: rest.hiddenPeople.length ? rest.hiddenPeople : (mutedPeople ?? []),
-         teams: rest.teams?.length
-            ? rest.teams
-            : legacyMembers.length
-              ? [{ name: DEFAULT_TEAM_NAME, members: legacyMembers }]
-              : [],
-      });
-   }
-}
 
 /** Union of every personal roster, sorted — "your people": the set that
  * leads the review queues and wears the teammate corner star. */

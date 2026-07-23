@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { DerivedPull } from '../../model/status';
 import { displayName, useNames } from '../../model/names';
+import type { Scope } from '../../prefs';
 import { toggleHiddenPerson, toggleTeammate, useSettings } from '../../settings';
 import { usePulldasher } from '../../store';
 import type { BoardTeam } from '../../types';
@@ -26,8 +27,8 @@ export function PeopleFilter({
 }: {
    pulls: DerivedPull[];
    teams: BoardTeam[];
-   scope: { repos: string[]; authors: string[] };
-   setScope: (next: { repos: string[]; authors: string[] }) => void;
+   scope: Scope;
+   setScope: (next: Scope) => void;
 }) {
    const { me } = usePulldasher();
    const settings = useSettings();

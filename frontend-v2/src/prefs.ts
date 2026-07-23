@@ -13,9 +13,9 @@ const WEIGHTS: ReadonlySet<string> = new Set(['XS', 'S', 'M', 'L', 'XL']);
 export interface Scope {
    repos: string[];
    authors: string[];
-   /** logins scoped OUT — "everyone except": the team chips' third state.
-    * Optional so older saved scopes read as [] */
-   notAuthors?: string[];
+   /** logins scoped OUT — "everyone except" (an excluding saved search).
+    * Always present: the store's defaults merge fills it in. */
+   notAuthors: string[];
 }
 
 const store = createPersistentStore<Scope>('pd2.scope', { repos: [], authors: [], notAuthors: [] });

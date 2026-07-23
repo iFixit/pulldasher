@@ -115,7 +115,6 @@ describe('diffCheers — priming', () => {
       // adopts the standing world so a reload never replays it
       expect(next.stamped.has('org/a#1')).toBe(true);
       expect(next.queue).toBe(4);
-      expect(next.nagLevel).toBe(3);
    });
 
    it('primes silently except for start-here', () => {

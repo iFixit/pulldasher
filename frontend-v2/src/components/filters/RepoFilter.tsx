@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { repoState } from '../../model/visibility';
 import { shortRepo } from '../../format';
+import type { Scope } from '../../prefs';
 import { setRepoPref, togglePrimaryRepo, useSettings } from '../../settings';
 import { QuietButton, StarMark } from '../bits';
 import { Popover } from '../Popover';
@@ -34,8 +35,8 @@ export function RepoFilter({
    toggleReveal: (key: string) => void;
    showAll: boolean;
    setShowAll: (next: boolean) => void;
-   scope: { repos: string[]; authors: string[] };
-   setScope: (next: { repos: string[]; authors: string[] }) => void;
+   scope: Scope;
+   setScope: (next: Scope) => void;
 }) {
    const settings = useSettings();
    const prefs = settings.repoPrefs;

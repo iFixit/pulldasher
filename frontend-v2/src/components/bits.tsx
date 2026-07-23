@@ -108,31 +108,6 @@ export function ClosedBadge({ merged, inline }: { merged: boolean; inline?: bool
 }
 
 /**
- * The "changed since your last look" marker, spelled out instead of left as a
- * gutter dot you had to decode: a solid brand chip for a brand-new PR, a brand
- * outline for one that merely changed. Opening the PR clears it for the
- * session.
- */
-export function FreshTag({ kind }: { kind: 'new' | 'updated' }) {
-   const isNew = kind === 'new';
-   return (
-      <span
-         className={`chip-in flex-none rounded-lg px-[7px] py-[2px] text-[11px] font-semibold ${
-            isNew ? '' : 'text-brand-700 shadow-[inset_0_0_0_1px_var(--brand)]'
-         }`}
-         style={
-            isNew
-               ? { background: 'var(--badge-brand-bg)', color: 'var(--badge-brand-fg)' }
-               : undefined
-         }
-         title={isNew ? 'new since you cleared' : 'updated since you cleared'}
-      >
-         {isNew ? 'new' : 'updated'}
-      </span>
-   );
-}
-
-/**
  * The board's author-identity system — the silhouette and the star:
  *
  * - SHAPE answers "person or machine": people are circles, bots (GitHub

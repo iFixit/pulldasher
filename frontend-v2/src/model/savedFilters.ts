@@ -200,8 +200,6 @@ const LENS_LABEL: Record<string, string> = {
    review: 'Review',
    mine: 'My work',
    team: 'Team',
-   // legacy: the People tab merged into Team; old saved hashes still say it
-   people: 'Team',
    classic: 'Classic',
    stats: 'Stats',
 };
@@ -232,10 +230,6 @@ export function describeHash(hash: string): string {
    const drafts = p.get('drafts');
    if (drafts) parts.push(`drafts: ${drafts}`);
    if (p.get('hidden') === '1') parts.push('showing hidden');
-   const person = p.get('person');
-   if (person) parts.push(`person: ${person}`);
-   const team = p.get('team');
-   if (team) parts.push(`team: ${team}`);
    const lens = p.get('lens');
    if (lens) parts.push(`${LENS_LABEL[lens] ?? lens} lens`);
    return parts.length ? parts.join(' · ') : 'everything';
