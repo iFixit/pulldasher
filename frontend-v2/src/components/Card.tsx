@@ -78,13 +78,13 @@ export function CardShell({
    number,
    title,
    body,
-   onOpen,
    id,
    className = '',
    meta,
    rail,
    stretch = true,
    compact = false,
+   own = false,
    avatarBadge,
    edge,
    depth = 0,
@@ -97,7 +97,6 @@ export function CardShell({
    title: string;
    /** PR description for the title's hover preview */
    body?: string;
-   onOpen?: () => void;
    /** stable DOM id (format.ts's rowDomId) — lets toasts scroll to and
     * flash the row it just claimed. */
    id?: string;
@@ -111,6 +110,9 @@ export function CardShell({
    rail?: ReactNode;
    stretch?: boolean;
    compact?: boolean;
+   /** the viewer authored this pull: their avatar wears the brand ring —
+    * v1's blue star's job, carried by the identity mark itself */
+   own?: boolean;
    /** a tiny marker absolutely-positioned over the avatar (the row's starred-
     * author ★) — a slot rather than an Avatar prop, so this stays a one-
     * caller concern instead of touching every Avatar call site. */
@@ -135,7 +137,6 @@ export function CardShell({
          number={number}
          title={title}
          body={body}
-         onOpen={onOpen}
          stretch={stretch}
       />
    );
@@ -156,7 +157,9 @@ export function CardShell({
             {connector}
             {/* raise only when the avatar is a real button — a raised inert
                 span punches a dead zone into the whole-row click target */}
-            <span className={`relative flex-none ${onPerson ? 'pd-raise' : ''}`}>
+            <span
+               className={`relative flex-none ${onPerson ? 'pd-raise' : ''} ${own ? 'pd-own-avatar' : ''}`}
+            >
                <Avatar login={login} onClick={onPerson} size={16} />
                {avatarBadge}
             </span>
@@ -185,7 +188,9 @@ export function CardShell({
          style={{ paddingLeft: 14 + depth * STACK_INDENT_PX }}
       >
          {connector}
-         <span className={`relative mt-px flex-none ${onPerson ? 'pd-raise' : ''}`}>
+         <span
+            className={`relative mt-px flex-none ${onPerson ? 'pd-raise' : ''} ${own ? 'pd-own-avatar' : ''}`}
+         >
             <Avatar login={login} onClick={onPerson} />
             {avatarBadge}
          </span>

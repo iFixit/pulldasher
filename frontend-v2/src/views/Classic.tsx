@@ -1,11 +1,8 @@
 import { crDone, qaDone, type DerivedPull } from '../model/status';
-import type { PullData } from '../types';
-import { closedEpoch, pullKey } from '../format';
 import { EmptyState } from '../components/bits';
 import { BoardColumn } from '../components/Column';
-import { laneShown, Truncated } from '../components/Lane';
+import { laneShown } from '../components/Lane';
 import { WordGroupRows } from '../components/WordGroups';
-import { ClosedRow } from '../components/ClosedRow';
 import type { RowOptions } from '../components/Row';
 
 /**
@@ -84,35 +81,9 @@ function Column({
    );
 }
 
-/** v1's Recently Closed panel, honored for ?closed=1 bookmarks. */
-function ClosedColumn({ pulls, opts }: { pulls: PullData[]; opts: RowOptions }) {
-   const ordered = [...pulls].sort((a, b) => closedEpoch(b) - closedEpoch(a));
-   return (
-      <BoardColumn count={pulls.length} header="Recently Closed">
-         <Truncated cap={laneShown(30, opts)} id="classic:closed">
-            {ordered.map(p => (
-               <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />
-            ))}
-         </Truncated>
-      </BoardColumn>
-   );
-}
-
-export function Classic({
-   pulls,
-   opts,
-   collapsed,
-   closed,
-}: {
-   pulls: DerivedPull[];
-   opts: RowOptions;
-   /** v1 ?cr=0-style column collapse flags from a legacy URL */
-   collapsed?: Set<string>;
-   /** closed pulls to show when a legacy URL asked for ?closed=1 */
-   closed?: PullData[] | null;
-}) {
+export function Classic({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) {
    const me = opts.me;
-   if (!pulls.length && !closed?.length) {
+   if (!pulls.length) {
       return <EmptyState title="Workbench clear" sub="No open PRs match your filters." />;
    }
    const base = [...pulls].sort(defaultCompare(me));
@@ -141,28 +112,20 @@ export function Classic({
       .filter(p => !qaDone(p) && !isDevBlocked(p) && !isDraft(p) && !p.conflict && passedCI(p))
       .sort(qaCompare(me));
 
-   // ids match v1's column collapse params (?ci=0&cr=0…) so old URLs map 1:1
-   const columns: [string, string, DerivedPull[]][] = [
-      ['ci', 'CI Blocked', ciBlocked],
-      ['dep', 'Deploy Blocked', deployBlocked],
-      ['ready', 'Ready', ready],
-      ['dev', 'Dev Blocked', devBlocked],
-      ['cr', 'CR', needsCr],
-      ['qa', 'QA', needsQa],
+   const columns: [string, DerivedPull[]][] = [
+      ['CI Blocked', ciBlocked],
+      ['Deploy Blocked', deployBlocked],
+      ['Ready', ready],
+      ['Dev Blocked', devBlocked],
+      ['CR', needsCr],
+      ['QA', needsQa],
    ];
 
    return (
       <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(300px,1fr))]">
-         {columns.map(([id, title, list]) => (
-            <Column
-               key={id}
-               title={title}
-               pulls={list}
-               opts={opts}
-               defaultOpen={!collapsed?.has(id)}
-            />
+         {columns.map(([title, list]) => (
+            <Column key={title} title={title} pulls={list} opts={opts} />
          ))}
-         {closed && <ClosedColumn pulls={closed} opts={opts} />}
       </div>
    );
 }

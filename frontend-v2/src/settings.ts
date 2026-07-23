@@ -24,8 +24,6 @@ export interface Settings {
     * the urgency weight always follows the OPENED clock — how long a pull
     * has been open is the truth the board ranks by. */
    ageDisplay: 'opened' | 'updated';
-   /** seconds of attention before leaving stamps "last seen" (the glance guard) */
-   seenAfterSecs: number;
    /** per-repo override of the org baseline: 'mute' hides a shown repo,
     * 'show' reveals an org-hidden one. Absent = follow the org default. */
    repoPrefs: Record<string, 'mute' | 'show'>;
@@ -105,7 +103,6 @@ export const DEFAULT_SETTINGS: Settings = {
    defaultLens: 'review',
    ageWarnDays: STARVE_DAYS,
    ageDisplay: 'opened',
-   seenAfterSecs: 45,
    repoPrefs: {},
    draftsMode: 'mine',
    showCryo: false,
@@ -130,7 +127,7 @@ export const DEFAULT_SETTINGS: Settings = {
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
 
-/** Plain getter for non-React readers (the store's glance guard). */
+/** Plain getter for non-React readers. */
 export function getSettings(): Settings {
    return store.get();
 }

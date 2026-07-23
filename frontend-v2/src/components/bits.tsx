@@ -123,7 +123,7 @@ export function FreshTag({ kind }: { kind: 'new' | 'updated' }) {
                ? { background: 'var(--badge-brand-bg)', color: 'var(--badge-brand-fg)' }
                : undefined
          }
-         title={isNew ? 'new since your last look' : 'updated since your last look'}
+         title={isNew ? 'new since you cleared' : 'updated since you cleared'}
       >
          {isNew ? 'new' : 'updated'}
       </span>
@@ -898,7 +898,6 @@ export function PullTitleLink({
    number,
    title,
    body,
-   onOpen,
    stretch,
 }: {
    repo: string;
@@ -907,8 +906,6 @@ export function PullTitleLink({
    /** the PR description; when present, hovering the visible title previews
     * it rendered — the "can I act on this?" read without leaving the board */
    body?: string;
-   /** fired when the user opens the PR — the row's natural "seen" ack */
-   onOpen?: () => void;
    /** cover the whole row as one click target */
    stretch?: boolean;
 }) {
@@ -925,8 +922,6 @@ export function PullTitleLink({
          className={`font-medium hover:underline hover:underline-offset-2 ${stretch ? 'pd-link' : ''}`}
          href={githubUrl(repo, number)}
          {...(newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-         onClick={onOpen}
-         onAuxClick={onOpen}
       >
          {preview ? (
             // hoverTriggerOnly scopes the hover door to the visible words: the

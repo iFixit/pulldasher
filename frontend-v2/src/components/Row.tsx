@@ -14,7 +14,6 @@ import {
    useSettings,
 } from '../settings';
 import {
-   ackPull,
    claimFor,
    claimReview,
    isFresh,
@@ -49,9 +48,6 @@ export interface RowOptions {
    laneCap?: number;
    me: string;
    lastSeen: number;
-   /** pull key → epoch secs it was opened (clears the fresh dot until the
-    * pull changes again; persisted per-browser) */
-   acked: Readonly<Record<string, number>>;
    onPerson?: (login: string) => void;
    /** age thresholds from user settings (fall back to the model's) */
    ageWarnDays?: number;
@@ -94,7 +90,7 @@ export interface RowOptions {
  * opening it clears the mark for the session.
  */
 function freshKind(p: DerivedPull, opts: RowOptions): 'new' | 'updated' | null {
-   if (!isFresh(p.data, opts.lastSeen, opts.acked)) return null;
+   if (!isFresh(p.data, opts.lastSeen)) return null;
    return epoch(p.data.created_at) > opts.lastSeen ? 'new' : 'updated';
 }
 
@@ -705,7 +701,7 @@ function RowImpl({
          number={d.number}
          title={d.title}
          body={d.body}
-         onOpen={() => ackPull(key)}
+         own={d.user.login === opts.me}
          id={rowDomId(d)}
          compact={opts.compact}
          depth={depth}
@@ -811,7 +807,6 @@ export const Row = memo(
       a.opts.compact === b.opts.compact &&
       a.opts.me === b.opts.me &&
       a.opts.lastSeen === b.opts.lastSeen &&
-      a.opts.acked === b.opts.acked &&
       a.opts.onPerson === b.opts.onPerson &&
       a.opts.ageWarnDays === b.opts.ageWarnDays &&
       a.opts.maxAgeDays === b.opts.maxAgeDays &&

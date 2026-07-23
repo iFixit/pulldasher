@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Settings as SettingsIcon, X } from 'lucide-react';
 import { clearStoredPrefs } from '../storage';
-import { markAllSeen, refreshAll, usePulldasher } from '../store';
+import { refreshAll, usePulldasher } from '../store';
 import {
    addCodeRegion,
    removeCodeRegion,
@@ -132,7 +132,6 @@ export function Settings({
    const { refreshProgress } = usePulldasher();
    const panelRef = useRef<HTMLDivElement>(null);
    const triggerRef = useRef<HTMLButtonElement>(null);
-   const [seenNote, setSeenNote] = useState(false);
    const [refreshNote, setRefreshNote] = useState('');
    const [armReset, setArmReset] = useState(false);
 
@@ -443,41 +442,6 @@ export function Settings({
                               </span>
                            </div>
 
-                           {/* snoozes live on the board now: the Review lens
-                               shows its own Snoozed section with the wake-all */}
-                           <div className="pt-2">
-                              <Field
-                                 label="Mark the board seen after"
-                                 hint="How long it must stay open, in view, before leaving counts as a look. A quick glance won’t clear the new-and-updated marks."
-                              >
-                                 <NumberField
-                                    value={s.seenAfterSecs}
-                                    min={0}
-                                    max={600}
-                                    suffix="sec"
-                                    onChange={seenAfterSecs => set({ seenAfterSecs })}
-                                 />
-                              </Field>
-                           </div>
-                           <div className="flex items-center gap-3 pt-1">
-                              <QuietButton
-                                 size="md"
-                                 onClick={() => {
-                                    markAllSeen();
-                                    setSeenNote(true);
-                                    setTimeout(() => setSeenNote(false), 1600);
-                                 }}
-                              >
-                                 Mark everything as seen
-                              </QuietButton>
-                              <span
-                                 role="status"
-                                 className="text-xs"
-                                 style={{ color: 'var(--ok)' }}
-                              >
-                                 {seenNote ? 'done' : ''}
-                              </span>
-                           </div>
 
                            <span className="mt-2 block text-ink-2">
                               Reset every preference on this browser (theme, filters, muted repos,

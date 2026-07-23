@@ -1,5 +1,5 @@
 import { type DerivedPull, qaDone, type Status, weightRank } from '../model/status';
-import { pullKey } from '../format';
+import { ago, pullKey } from '../format';
 import { crSort, starFirst } from '../model/sort';
 import { matchedRegions, matchesRegion } from '../model/regions';
 import {
@@ -14,7 +14,7 @@ import { reviewRequestedFrom } from '../model/reviewers';
 import { startHereReason } from '../model/cheers';
 import { dealRank } from '../model/deal';
 import { useSettings } from '../settings';
-import { claimFor, clearSnoozes, isFresh, isSnoozed, usePulldasher } from '../store';
+import { claimFor, clearSnoozes, isFresh, isSnoozed, markAllSeen, usePulldasher } from '../store';
 import type { PullData } from '../types';
 import { EmptyState, QuietButton } from '../components/bits';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, SubDoor, Truncated } from '../components/Lane';
@@ -231,12 +231,12 @@ export function Review({
    const ciRed = byStatus('ci_red');
    const drafts = byStatus('draft');
 
-   // Changed since your last look: everything that moved (new or updated),
-   // collected at the top instead of a bar toggle — newest change first. A
-   // pull can also live in a lane below; this is the "what happened while I
-   // was away" glance, not an exclusive bucket.
+   // Recently updated: everything that moved since the user last hit Clear,
+   // newest first. A pull can also live in a lane below; this is the "what
+   // happened" glance, not an exclusive bucket — and only the Clear button
+   // empties it (nothing leaves the list silently).
    const changed = pulls
-      .filter(p => isFresh(p.data, opts.lastSeen, opts.acked))
+      .filter(p => isFresh(p.data, opts.lastSeen))
       .sort((a, b) => Date.parse(b.data.updated_at) - Date.parse(a.data.updated_at));
 
    // GitHub asked you directly — the most concrete "review this" on the board,
@@ -421,11 +421,18 @@ export function Review({
             </Lane>
          )}
          <Lane
-            title="Changed since your last look"
-            sub="new or updated while you were away"
+            title="Recently updated"
+            sub={`new or updated in the last ${ago(opts.lastSeen)}`}
             pulls={changed}
             cap={8}
             opts={opts}
+            // the ONE control that moves the baseline — at the point of its
+            // effect, not buried in Settings; nothing advances it silently
+            headerExtra={
+               <QuietButton size="sm" onClick={() => markAllSeen()}>
+                  Clear
+               </QuietButton>
+            }
          />
          {/* below here is offered work, not owed work — the board's suggestion
              for what to pick up next, as distinct from "Waiting on you" above. The

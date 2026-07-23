@@ -276,7 +276,7 @@ function withCoordination(
    if (requestedFromMe)
       return {
          action: 'Review it',
-         context: base.context ? `requested from you · ${base.context}` : 'requested from you',
+         context: base.context ? `review requested · ${base.context}` : 'review requested',
       };
    if (turn === me)
       return {

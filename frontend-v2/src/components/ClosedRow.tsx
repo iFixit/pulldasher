@@ -30,8 +30,8 @@ export const ClosedRow = memo(function ClosedRow({
             <span
                className="dot-fresh absolute top-1/2 left-[3px] -translate-y-1/2"
                role="img"
-               aria-label={`${merged ? 'merged' : 'closed'} since your last look`}
-               title={`${merged ? 'merged' : 'closed'} since your last look`}
+               aria-label={`${merged ? 'merged' : 'closed'} since you cleared`}
+               title={`${merged ? 'merged' : 'closed'} since you cleared`}
             />
          )}
          <span className="flex-none">

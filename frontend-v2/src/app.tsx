@@ -7,7 +7,6 @@ import {
    useState,
    type ReactNode,
 } from 'react';
-import { X } from 'lucide-react';
 import { ago, closedEpoch, n, pullKey, shortRepo } from './format';
 import type { ActionStateKey } from './model/actions';
 import { actionState } from './model/actions';
@@ -18,8 +17,7 @@ import { buildReviewerPools, turnFor } from './model/rotation';
 import { shipRelevance, shippedToast } from './model/shipped';
 import type { Toast } from './model/toast';
 import type { Team as TeamGroup } from './types';
-import { claimReview, markAllSeen, setWeightLabels, usePulldasher } from './store';
-import { applyLegacyFilters, describeLegacyView, readLegacyView } from './legacy';
+import { claimReview, setWeightLabels, usePulldasher } from './store';
 import { loadSiteConfig, primeScope, useScope } from './prefs';
 import { getSettings, useSettings } from './settings';
 import { useNotifications } from './notifications';
@@ -28,7 +26,6 @@ import { matchesQuery } from './model/query';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from './model/visibility';
 import { reviewRequestedFrom } from './model/reviewers';
 import { foldDomId, openFold } from './components/Lane';
-import { Icon } from './components/Icon';
 import { Legend } from './components/Legend';
 import { Logo } from './components/Logo';
 import { NotificationPanel } from './components/NotificationPanel';
@@ -188,36 +185,6 @@ function Banner({
    );
 }
 
-/** Header pill toggle: brand-tinted while active, quiet outline otherwise. */
-function ToggleChip({
-   active,
-   onClick,
-   title,
-   className = '',
-   children,
-}: {
-   active: boolean;
-   onClick: () => void;
-   title?: string;
-   className?: string;
-   children: ReactNode;
-}) {
-   return (
-      <button
-         type="button"
-         onClick={onClick}
-         title={title}
-         className={`pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium ${
-            active
-               ? 'border-brand bg-brand-50 text-brand-700'
-               : 'border-line bg-surface text-ink-3 hover:text-brand'
-         } ${className}`}
-      >
-         {children}
-      </button>
-   );
-}
-
 export function App() {
    const {
       pulls,
@@ -229,20 +196,12 @@ export function App() {
       authFailed,
       lastPayloadAt,
       lastSeen,
-      acked,
       refreshProgress,
    } = usePulldasher();
    // desktop notifications watch the whole board, not the current filter
    useNotifications(pulls, me, initialized);
    const [scope, setScope] = useScope();
-   // a v1 bookmark (?repo=…&author=…&cryo=1…) opens Classic configured the
-   // same way; the chip below shows what it applied and dismisses it
-   const [legacy, setLegacy] = useState(() => readLegacyView(location.search));
-   const [lens, setLens] = useState<Lens>(() => {
-      const h = readHash();
-      if (legacy && !location.hash.includes('lens=')) return 'classic';
-      return h.lens;
-   });
+   const [lens, setLens] = useState<Lens>(() => readHash().lens);
    const [person, setPerson] = useState<string | null>(() => urlState.person);
    const [team, setTeam] = useState<string | null>(() => urlState.team);
    const [query, setQuery] = useState(() => urlState.q);
@@ -253,9 +212,7 @@ export function App() {
    const [stateSel, setStateSel] = useState<ActionStateKey[]>(() => urlState.state);
    // "hidden" is two off-by-default groups (Cryogenic-Storage PRs, quiet
    // repos). showAll reveals both; reveal names individual groups to show.
-   const [showAll, setShowAll] = useState(
-      () => urlState.hidden || (!!legacy && (legacy.cryo || legacy.showAllRepos))
-   );
+   const [showAll, setShowAll] = useState(() => urlState.hidden);
    const [reveal, setReveal] = useState<string[]>(() => urlState.reveal);
    const toggleReveal = useCallback(
       (key: string) =>
@@ -448,9 +405,8 @@ export function App() {
       (repo: string) =>
          reveal.includes(repo) ||
          scope.repos.includes(repo) ||
-         !!legacy?.repos.includes(shortRepo(repo)) ||
          queryRepos.some(q => shortRepo(repo).toLowerCase().includes(q)),
-      [reveal, scope.repos, legacy, queryRepos]
+      [reveal, scope.repos, queryRepos]
    );
    // same idea as queryRepos/revealedRepo, but people have no reveal= list of
    // their own — muting is a plain two-state toggle, so a scope pick or an
@@ -488,10 +444,8 @@ export function App() {
          // board, but not when you've deliberately looked (scoped/`author:`d
          // that person) or when GitHub explicitly requested your review — a
          // review-requested draft was vanishing even from the reviewer it was
-         // requested from, the reported bug. Your own drafts always show. The
-         // legacy path owns its own draft rule, so don't double-apply.
+         // requested from, the reported bug. Your own drafts always show.
          const draftHidden =
-            !legacy &&
             draftsMode === 'mine' &&
             p.data.draft &&
             p.data.user.login !== me &&
@@ -508,7 +462,6 @@ export function App() {
          revealedRepo,
          revealedAuthor,
          hiddenRepos,
-         legacy,
          me,
          isBot,
          settings.repoPrefs,
@@ -523,9 +476,7 @@ export function App() {
    // one weight class doesn't make the other classes' counts vanish (the
    // same reasoning PeopleFilter's authorCounts follows for its own pool)
    const preWeightScoped = useMemo(() => {
-      let out = pulls;
-      if (legacy) out = applyLegacyFilters(out, legacy, me);
-      out = out.filter(p => !boardHidden(p));
+      let out = pulls.filter(p => !boardHidden(p));
       if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.data.repo));
       // bots bypass the people filter on purpose: dependency bumps need review
       // no matter whose work you follow (they land in the bots fold, not lanes)
@@ -533,7 +484,7 @@ export function App() {
          out = out.filter(p => isBot(p) || scope.authors.includes(p.data.user.login));
       if (query) out = out.filter(p => matchesQuery(p, query, me));
       return out;
-   }, [pulls, legacy, me, boardHidden, scope, isBot, query]);
+   }, [pulls, boardHidden, scope, isBot, query]);
 
    // preWeightScoped narrowed by the Weight filter, but not yet State —
    // StateFilter's own live counts read this pool for the same
@@ -711,7 +662,6 @@ export function App() {
       () => ({
          me,
          lastSeen,
-         acked,
          onPerson,
          onWeightToggle,
          maxAgeDays,
@@ -727,7 +677,6 @@ export function App() {
       [
          me,
          lastSeen,
-         acked,
          onPerson,
          onWeightToggle,
          maxAgeDays,
@@ -812,16 +761,10 @@ export function App() {
       const base = shippedToast(backlog, me);
       if (!base) return [];
       const jump = shippedFoldCount > 0 ? jumpToShipped : undefined;
-      return [
-         {
-            ...base,
-            onAct: () => {
-               jump?.();
-               markAllSeen();
-            },
-            onGone: markAllSeen,
-         },
-      ];
+      // NOTE: dismissing this toast no longer touches the last-cleared
+      // baseline — a toast quietly expiring was wiping the "Recently
+      // updated" ledger; only that lane's Clear button moves the state
+      return [{ ...base, onAct: jump }];
    }, [query, scopedClosed, lastSeen, me, jumpToShipped, shippedFoldCount]);
 
    // the quick-wins toast filters the board to the small reviewable ones on the
@@ -983,19 +926,6 @@ export function App() {
                      Reset
                   </button>
                )}
-               {legacy && (
-                  <ToggleChip
-                     active
-                     onClick={() => setLegacy(null)}
-                     title={`filters from your v1 bookmark: ${describeLegacyView(legacy) || 'defaults'}. Click to drop them`}
-                     className="max-w-[260px]"
-                  >
-                     <span className="truncate">
-                        v1 view: {describeLegacyView(legacy) || 'defaults'}
-                     </span>
-                     <Icon icon={X} size={12} />
-                  </ToggleChip>
-               )}
                <span className="flex-1" />
                {bots.length > 0 && (
                   <span className="text-xs text-ink-3 tabular-nums">
@@ -1085,12 +1015,7 @@ export function App() {
                />
             )}
             {initialized && lens === 'classic' && (
-               <Classic
-                  pulls={scoped}
-                  opts={rowOpts}
-                  collapsed={legacy?.collapsed}
-                  closed={legacy?.closed ? closed : null}
-               />
+               <Classic pulls={scoped} opts={rowOpts} />
             )}
             {initialized && lens === 'ci' && <Ci pulls={scoped} opts={rowOpts} />}
             {initialized && lens === 'stats' && (

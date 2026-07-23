@@ -131,8 +131,8 @@ export function Legend() {
                def="hover a row for its verbs. Claiming adds you as a reviewer on the PR, so GitHub and the board both show you’re on it; the row moves to Waiting on you until you submit, release, or are removed"
             />
             <Item
-               term={<span className="text-ink-2 italic">requested from you</span>}
-               def="GitHub asked you directly. Lands in Waiting on you, and the board quiets its own suggestions for that PR"
+               term={<span className="text-ink-2 italic">review requested</span>}
+               def="someone requested your review on GitHub. Lands in Waiting on you, and the board quiets its own suggestions for that PR"
             />
             <Item
                term={<span className="text-ink-2 italic">your turn</span>}

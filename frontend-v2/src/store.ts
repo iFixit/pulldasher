@@ -25,11 +25,8 @@ export interface Snapshot {
    authFailed: boolean;
    /** epoch secs of the last payload from the server; 0 until one arrives */
    lastPayloadAt: number;
-   /** epoch secs of the last-seen marker (previous visit's departure) */
+   /** epoch secs of the last Clear — the "Recently updated" baseline */
    lastSeen: number;
-   /** pull key → epoch secs it was opened: clears the fresh dot until the
-    * pull changes again. Persisted per-browser. */
-   acked: Readonly<Record<string, number>>;
    /** pull key → epoch secs it was snoozed: hidden for a day or until it
     * changes. Persisted per-browser. */
    snoozed: Readonly<Record<string, number>>;
@@ -82,75 +79,26 @@ function noteRefreshArrival(key: string) {
    }, 4000);
 }
 
-// The marker advances when you LEAVE (pagehide / tab hidden), not when you
-// arrive — an accidental reload must not erase "changed since yesterday".
-// And only after the page has actually been LOOKED AT: a two-second Monday
-// glance on the way to Slack must not mark the weekend's forty changes as
-// seen. "Looked at" = N cumulative visible seconds since the last stamp,
-// where N is the user's glance-guard setting (seenAfterSecs).
+// The marker moves ONLY by the user's hand — the "Recently updated" lane's
+// Clear button. Earlier versions guessed attention from tab visibility plus a
+// glance-guard timer and guessed wrong (a page on a hidden virtual desktop
+// still counts as "visible"); an explicit control the user can see beats a
+// heuristic they can't predict. New browsers start with a 6-hour window.
 let lastSeen = Number(readStorage(LAST_SEEN_KEY)) || Date.now() / 1000 - 6 * 3600;
-let attendedSecs = 0;
-let visibleSince: number | null = document.visibilityState === 'visible' ? Date.now() / 1000 : null;
-const settleAttention = () => {
-   if (visibleSince != null) {
-      attendedSecs += Date.now() / 1000 - visibleSince;
-      visibleSince = null;
-   }
-};
-const stampSeen = () => {
-   settleAttention();
-   if (attendedSecs < getSettings().seenAfterSecs) return;
-   lastSeen = Date.now() / 1000;
-   writeStorage(LAST_SEEN_KEY, String(lastSeen));
-   attendedSecs = 0;
-};
-window.addEventListener('pagehide', stampSeen);
-document.addEventListener('visibilitychange', () => {
-   if (document.visibilityState === 'hidden') stampSeen();
-   else visibleSince = Date.now() / 1000;
-});
 
-/** Settings action: treat everything on the board as seen, right now. */
+/** The Clear action: everything on the board right now is old news. */
 export function markAllSeen() {
    lastSeen = Date.now() / 1000;
    writeStorage(LAST_SEEN_KEY, String(lastSeen));
-   attendedSecs = 0;
    schedulePublish();
 }
 
-// Per-row acknowledgment: opening a PR clears its fresh dot. Persisted with
-// the TIME of the ack, not just the key, so a reload doesn't resurrect dots
-// you already cleared — while a pull that changes again after the ack earns
-// its dot back (the session-Set version hid later changes too).
-const ACKED_KEY = 'pd2.acked';
-let acked: Record<string, number> = {};
-try {
-   acked = JSON.parse(readStorage(ACKED_KEY) ?? '{}') ?? {};
-} catch {
-   acked = {};
-}
-const saveAcked = () => {
-   // an ack older than the board's last-seen stamp can never affect a dot
-   // (updated_at > lastSeen implies updated_at > that ack) — prune, so the
-   // blob doesn't grow forever
-   for (const [k, at] of Object.entries(acked)) if (at < lastSeen) delete acked[k];
-   writeStorage(ACKED_KEY, JSON.stringify(acked));
-};
-export function ackPull(key: string) {
-   acked[key] = Date.now() / 1000;
-   saveAcked();
-   schedulePublish();
-}
-
-/** The one fresh predicate: changed since your last look AND since you last
- * opened it. */
-export function isFresh(
-   d: Pick<PullData, 'repo' | 'number' | 'updated_at'>,
-   lastSeenAt: number,
-   ackedAt: Readonly<Record<string, number>>
-) {
-   const updated = epoch(d.updated_at);
-   return updated > lastSeenAt && updated > (ackedAt[`${d.repo}#${d.number}`] ?? 0);
+/** The one fresh predicate: changed since the user last cleared. No per-row
+ * acks — opening a PR used to silently remove its row from "Recently
+ * updated", which read as the board losing things; one state, one visible
+ * control. */
+export function isFresh(d: Pick<PullData, 'updated_at'>, lastSeenAt: number) {
+   return epoch(d.updated_at) > lastSeenAt;
 }
 
 // Snooze: "not today" for one PR. A snooze lasts a day, and any change to
@@ -207,7 +155,6 @@ let snapshot: Snapshot = {
    authFailed,
    lastPayloadAt,
    lastSeen,
-   acked: { ...acked },
    snoozed: { ...snoozed },
    refreshProgress: null,
 };
@@ -275,7 +222,6 @@ function publish() {
       authFailed,
       lastPayloadAt,
       lastSeen,
-      acked: { ...acked },
       snoozed: { ...snoozed },
       refreshProgress: refreshTracking
          ? {
