@@ -327,10 +327,10 @@ export function Review({
       team.has(p.data.user.login)
          ? `From ${p.data.user.login}, on your team — teammates’ PRs lead this lane`
          : p.qaingLogin
-         ? `${p.qaingLogin} is already testing it; it sinks below unclaimed QA`
-         : p.weight === 'XS' || p.weight === 'S'
-           ? `Nobody's testing it yet, a light one (${p.weight})`
-           : `Nobody's testing it yet, waiting ${Math.max(1, Math.round(p.ageDays))}d`;
+           ? `${p.qaingLogin} is already testing it; it sinks below unclaimed QA`
+           : p.weight === 'XS' || p.weight === 'S'
+             ? `Nobody's testing it yet, a light one (${p.weight})`
+             : `Nobody's testing it yet, waiting ${Math.max(1, Math.round(p.ageDays))}d`;
 
    const boardIsQuiet =
       !yourMove.length &&
@@ -498,8 +498,8 @@ export function Review({
                   </p>
                   <p>
                      Your team’s PRs always come first (edit your team on the Team tab), ordered
-                     among themselves by this same score — being on your team is the boost; there
-                     is no extra ranking between teammates.
+                     among themselves by this same score — being on your team is the boost; there is
+                     no extra ranking between teammates.
                   </p>
                   <p>
                      After those: PRs in repos you’ve reviewed before, PRs from people who review
@@ -604,7 +604,7 @@ export function Review({
                <Fold
                   count={ciPending.length}
                   label="CI running"
-                  gloss="CI checks are still running on the latest push; review waits until they finish."
+                  gloss="Fully signed off — CI is still running on the latest push, and it's ready the moment checks go green."
                   id="review:ci-pending"
                >
                   <FoldRows list={ciPending} opts={opts} id="review:ci-pending" />
@@ -612,7 +612,7 @@ export function Review({
                <Fold
                   count={ciRed.length}
                   label="CI failing"
-                  gloss="A required CI check is failing, so the author fixes the build before anyone reviews."
+                  gloss="Fully signed off, but a required CI check is failing — the author fixes the build, then it's ready. (A red build still awaiting review stays in the queue; reviewing it is your call.)"
                   id="review:ci-red"
                   defaultOpen={boardIsQuiet}
                >

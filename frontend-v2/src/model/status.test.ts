@@ -89,12 +89,14 @@ describe('status derivation precedence', () => {
       expect(derive(p, undefined, NOW).status).toBe('dev_block');
    });
 
-   it('a deploy block gates only the late stages, never review or CI', () => {
+   it('a deploy block gates only the late stages, never review', () => {
+      // unreviewed: a hold (and even a red build) never pulls it out of the
+      // review lanes — reviewers decide what to pick up
       const red = withStatus({
          deploy_block: [sig('deploy_block', 'x', true)],
          commit_statuses: [ci('failure')],
       });
-      expect(derive(red, undefined, NOW).status).toBe('ci_red');
+      expect(derive(red, undefined, NOW).status).toBe('needs_cr');
 
       const held = withStatus({
          deploy_block: [sig('deploy_block', 'ops', true)],
@@ -106,9 +108,20 @@ describe('status derivation precedence', () => {
       expect(d.deployBlockedBy).toEqual(['ops']);
    });
 
-   it('failing CI beats the review lanes', () => {
-      const p = withStatus({ commit_statuses: [ci('failure')] });
-      expect(derive(p, undefined, NOW).status).toBe('ci_red');
+   it('failing CI never leaves the review lanes; ci_red means signed off + red', () => {
+      // unreviewed with a red build: reviewing it is the reviewer's call, so
+      // the status stays needs_cr — the ci flag carries red to the rail's pip
+      const unreviewed = derive(withStatus({ commit_statuses: [ci('failure')] }), undefined, NOW);
+      expect(unreviewed.status).toBe('needs_cr');
+      expect(unreviewed.ci).toBe('failing');
+
+      // fully signed off: CI is the only gate left, so the status says so
+      const signedOff = withStatus({
+         allCR: [sig('CR', 'r', true)],
+         allQA: [sig('QA', 'q', true)],
+         commit_statuses: [ci('failure')],
+      });
+      expect(derive(signedOff, undefined, NOW).status).toBe('ci_red');
    });
 
    it('an invalidated CR makes needs_recr, and names who owes the re-stamp', () => {

@@ -6,13 +6,15 @@ import { isBotLogin } from './visibility';
 /**
  * The three statuses that put the ball wholly with the author — while one
  * holds, the board asks reviewers for NOTHING, not even an owed re-stamp: a
- * draft isn't reviewable, a dev block means more pushes are coming, and red
- * CI means the head everyone would re-review is about to change. Gates the
- * personal-obligation checks (Re-stamp / Finish QA / Re-QA) in reviewerMove,
- * reviewerNote, and the `is:restamp` query token, so a stale stamp only asks
- * for its re-stamp once the pull is reviewable again. (QA obligations stay
- * un-gated across the OTHER statuses on purpose — QA runs in parallel with
- * CR on this board.)
+ * draft isn't reviewable, a dev block means more pushes are coming, and
+ * ci_red only exists once a pull is fully signed off (model/status moved CI
+ * to the ready gate), so nothing is left to ask of reviewers but the build.
+ * A red build on a pull still AWAITING review keeps its needs_cr/needs_recr
+ * status and stays in the queues — whether to review a failing build is the
+ * reviewer's call, not the board's. Gates the personal-obligation checks
+ * (Re-stamp / Finish QA / Re-QA) in reviewerMove, reviewerNote, and the
+ * `is:restamp` query token. (QA obligations stay un-gated across the OTHER
+ * statuses on purpose — QA runs in parallel with CR on this board.)
  */
 export const authorOwnsIt = (p: DerivedPull): boolean =>
    p.status === 'draft' || p.status === 'dev_block' || p.status === 'ci_red';
@@ -37,7 +39,10 @@ export const parked = (p: DerivedPull): boolean => p.cryo;
 export function authorMove(p: DerivedPull): string | null {
    if (parked(p)) return null;
    if (p.status === 'ready') return 'Merge it';
-   if (p.status === 'ci_red') return 'Fix CI';
+   // the ci FLAG, not just the ci_red status: a red build mid-review keeps
+   // its needs_cr status (reviewers may still take it), but fixing the build
+   // is the author's move either way
+   if (p.status === 'ci_red' || p.ci === 'failing') return 'Fix CI';
    // a dev block is feedback waiting on YOU — v1 lore said "ask them to lift
    // it", which misroutes the most common author action. But a block you put
    // on your own PR (self-flagged "hold off") isn't feedback to answer — the
@@ -137,7 +142,8 @@ function authorNote(p: DerivedPull, me: string): RowNote {
    const crReq = d.status.cr_req;
 
    if (p.status === 'draft') return doOnly('Undraft');
-   if (p.status === 'ci_red')
+   // flag, not just status: red CI mid-review still names the author's move
+   if (p.status === 'ci_red' || p.ci === 'failing')
       return { action: 'Fix CI', context: p.ciFailing.length ? p.ciFailing.join(', ') : null };
    // a dev block is feedback waiting on YOU — v1 lore said "ask them to lift
    // it", which misroutes the most common author action. But when you're the

@@ -6,8 +6,8 @@ import { isBotLogin } from './visibility';
  * One pull, one status. Mutually exclusive by precedence — the fix for v1's
  * six overlapping column predicates (a pull could sit in CR and QA at once).
  *
- *   draft > dev_block > ci_red > needs_recr > needs_cr > needs_qa >
- *   deploy_block > ci_pending > unmergeable > ready
+ *   draft > dev_block > needs_recr > needs_cr > needs_qa >
+ *   ci_red > deploy_block > ci_pending > unmergeable > ready
  *
  * The old single "blocked" bucket conflated three opposite situations, so it
  * split: dev_block means the author owes changes (it hides the pull from the
@@ -16,9 +16,13 @@ import { isBotLogin } from './visibility';
  * outranks the ready gate); unmergeable means signed off and green but
  * conflicted or based on an unmerged parent (the author rebases).
  *
- * ci_pending exists only at the ready gate: pending CI never hides a pull
- * from the review lanes (reviews don't need green), but a fully-signed-off
- * pull isn't "ready" until CI agrees.
+ * BOTH CI states exist only at the ready gate: a red or pending build never
+ * hides a pull from the review lanes — reviews don't need green, CI
+ * false-negatives are common, and whether to review a failing build is the
+ * reviewer's call (the rail's CI pip shows the state either way; authors
+ * shouldn't have to babysit re-runs to get review attention). A
+ * fully-signed-off pull isn't "ready" until CI agrees: ci_red means the
+ * author fixes the build, ci_pending means everyone waits a minute.
  */
 export type Status =
    | 'draft'
@@ -275,10 +279,13 @@ export function derive(
    let status: Status;
    if (pull.draft) status = 'draft';
    else if (devBlockedBy.length) status = 'dev_block';
-   else if (ci === 'failing') status = 'ci_red';
    else if (!crMet && staleCr.length) status = 'needs_recr';
    else if (!crMet) status = 'needs_cr';
    else if (!qaMet) status = 'needs_qa';
+   // CI gates readiness only (see the Status doc): a red or pending build
+   // never pulls a PR out of the review lanes — the `ci` field carries the
+   // state to the rail's pip whatever the status says
+   else if (ci === 'failing') status = 'ci_red';
    else if (deployBlockedBy.length) status = 'deploy_block';
    else if (ci === 'pending') status = 'ci_pending';
    // signed off and green, but unmergeable as-is: the author rebases

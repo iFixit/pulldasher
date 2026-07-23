@@ -417,7 +417,9 @@ export function readSignals(input: CheerInput): Signals {
          reviewed: p.crBy.some(l => l !== me),
          conflict: p.conflict,
          starved: p.starved,
-         ciRed: p.status === 'ci_red',
+         // the flag, not the status: ci_red now only exists once signed off,
+         // but the author's "CI failed" nudge should fire mid-review too
+         ciRed: p.ci === 'failing',
          needsAnswer: p.status === 'dev_block' || p.changesRequestedBy.length > 0,
       });
    }
