@@ -126,15 +126,20 @@ a card is where it is, one of these layers is missing.
 
 ## Identity vs standing
 
-**The you-coin.** The identity slot holds a face for everyone except the
-viewer: your own pulls carry a minted mark instead — a brand ring (the
-coin's edge) around a filled brand star, the same visual mass as an
-avatar so row rhythm holds. v1's blue star, brought forward. Rejected on
-the way here: a brand ring AROUND your avatar (a halo reads as
-selection/focus and lands as decoration), a corner dot (reads as online
-presence), recoloring the repo#number (brand text implies a link). The
-star vocabulary is one concept — people who matter to you: corner star
-on someone you starred, the full coin for its limit case, you.
+**The seated-star seal.** Your own pulls keep your face; around it, a
+brand ring parted at the upper-right with a filled brand star seated IN
+the opening, on the ring's own circumference — one object, not a ring
+plus a badge. A parted ring cannot read as a focus ring (focus rings
+never break), which is what sank the plain halo. Static always:
+identity, not state. Rejected on the way here: the plain brand ring
+(selection halo), a corner dot (online presence), a brand repo#number
+(reads as a link), v1's full star-substitution coin (loses the face),
+and star-badge-riding-ring (two marks negotiating one corner; the seal
+fuses them into one). Runner-up glyph was the @ (GitHub's author:@me);
+the star won on filled mass and v1 muscle memory. The star vocabulary
+is one concept — people who matter to you: corner star at bottom-right
+on someone you starred, the star crowning the whole seal for its limit
+case, you.
 
 
 A mark has two layers: the **glyph names what it is; the treatment names its

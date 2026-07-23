@@ -137,23 +137,88 @@ export function FreshTag({ kind }: { kind: 'new' | 'updated' }) {
  * never a broken-image glyph.
  */
 /**
- * The you-coin: what stands in the identity slot when the pull is the
- * viewer's own — v1's blue star, minted. A brand ring (the coin's edge)
- * around a filled brand star, same mass as a face, so the row rhythm holds
- * while yours reads at a glance. The star vocabulary is one concept, people
- * who matter to you: a corner star on someone you starred, the full coin
- * for its limit case — you.
+ * The seated-star seal: the mark for the viewer's own pulls. A brand ring
+ * around your avatar, parted at the upper-right, with a filled brand star
+ * seated IN the opening on the ring's own circumference — one object, not a
+ * ring plus a badge. A parted ring cannot read as a focus ring (focus rings
+ * never break), which is what sank the plain-halo attempt. Star vocabulary
+ * stays one concept, people who matter to you: corner star at bottom-right
+ * on someone you starred; the star crowning the whole seal is you. Static
+ * always — identity, not state.
  */
-export function YouCoin({ size = 22 }: { size?: number }) {
+export function YouSeal({
+   login,
+   size = 22,
+   onClick,
+}: {
+   login: string;
+   size?: number;
+   onClick?: (login: string) => void;
+}) {
+   const compact = size <= 16;
    return (
-      <span
-         role="img"
-         aria-label="your PR"
-         title="your PR"
-         className="inline-flex flex-none items-center justify-center rounded-full text-brand"
-         style={{ width: size, height: size, boxShadow: '0 0 0 1.5px var(--brand)' }}
-      >
-         <Star size={Math.round(size * 0.55)} fill="currentColor" aria-hidden />
+      <span className="you-seal relative inline-flex flex-none">
+         <Avatar login={login} size={size} onClick={onClick} />
+         {compact ? (
+            <svg
+               width="26"
+               height="26"
+               viewBox="0 0 26 26"
+               role="img"
+               aria-label="yours"
+               className="pointer-events-none absolute"
+               style={{ inset: -5 }}
+            >
+               <circle
+                  cx="13"
+                  cy="13"
+                  r="10"
+                  fill="none"
+                  stroke="var(--brand)"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeDasharray="47.1 15.7"
+               />
+               <path
+                  d="M20.1 2.4 L21.1 4.8 L23.6 5.05 L21.7 6.75 L22.3 9.2 L20.1 7.9 L17.9 9.2 L18.5 6.75 L16.6 5.05 L19.1 4.8 Z"
+                  fill="var(--brand)"
+                  stroke="var(--surface)"
+                  strokeWidth="1"
+                  paintOrder="stroke fill"
+                  strokeLinejoin="round"
+               />
+            </svg>
+         ) : (
+            <svg
+               width="32"
+               height="32"
+               viewBox="0 0 32 32"
+               role="img"
+               aria-label="yours"
+               className="pointer-events-none absolute"
+               style={{ inset: -5 }}
+            >
+               <circle
+                  cx="16"
+                  cy="16"
+                  r="13"
+                  fill="none"
+                  stroke="var(--brand)"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeDasharray="63.5 18.2"
+                  transform="rotate(-5 16 16)"
+               />
+               <path
+                  d="M25.2 2.3 L26.5 5.4 L29.7 5.7 L27.2 7.9 L28 11.1 L25.2 9.4 L22.4 11.1 L23.2 7.9 L20.7 5.7 L23.9 5.4 Z"
+                  fill="var(--brand)"
+                  stroke="var(--surface)"
+                  strokeWidth="1"
+                  paintOrder="stroke fill"
+                  strokeLinejoin="round"
+               />
+            </svg>
+         )}
       </span>
    );
 }

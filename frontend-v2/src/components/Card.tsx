@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Avatar, PullTitleLink, YouCoin } from './bits';
+import { Avatar, PullTitleLink, YouSeal } from './bits';
 
 /**
  * The one row every lens renders. Two densities of the same content:
@@ -158,7 +158,11 @@ export function CardShell({
             {/* raise only when the avatar is a real button — a raised inert
                 span punches a dead zone into the whole-row click target */}
             <span className={`relative flex-none ${onPerson ? 'pd-raise' : ''}`}>
-               {own ? <YouCoin size={16} /> : <Avatar login={login} onClick={onPerson} size={16} />}
+               {own ? (
+                  <YouSeal login={login} size={16} onClick={onPerson} />
+               ) : (
+                  <Avatar login={login} onClick={onPerson} size={16} />
+               )}
                {avatarBadge}
             </span>
             {/* nothing here truncates: the row flows as one tight line and
@@ -187,7 +191,11 @@ export function CardShell({
       >
          {connector}
          <span className={`relative mt-px flex-none ${onPerson ? 'pd-raise' : ''}`}>
-            {own ? <YouCoin /> : <Avatar login={login} onClick={onPerson} />}
+            {own ? (
+               <YouSeal login={login} onClick={onPerson} />
+            ) : (
+               <Avatar login={login} onClick={onPerson} />
+            )}
             {avatarBadge}
          </span>
          <span className="min-w-0 flex-1">
