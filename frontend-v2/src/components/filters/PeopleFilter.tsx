@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { DerivedPull } from '../../model/status';
+import { displayName, useNames } from '../../model/names';
 import { toggleHiddenPerson, toggleStarredPerson, useSettings } from '../../settings';
 import { usePulldasher } from '../../store';
 import type { Team } from '../../types';
@@ -30,6 +31,12 @@ export function PeopleFilter({
 }) {
    const { me } = usePulldasher();
    const settings = useSettings();
+   // login -> human name (app.tsx prefetches everyone on the board), so the
+   // list can read and search by the person, not just the handle
+   const namesMap = useNames();
+   const nameOf = (login: string) => displayName(namesMap, login);
+   const matchesPerson = (login: string, q: string) =>
+      login.toLowerCase().includes(q) || (nameOf(login) ?? '').toLowerCase().includes(q);
    const starredSet = new Set(settings.starredPeople);
    const hiddenSet = new Set(settings.hiddenPeople);
    const [peopleQuery, setPeopleQuery] = useState('');
@@ -66,10 +73,10 @@ export function PeopleFilter({
            : `${scope.authors.length} people`;
 
    const filteredShown = shownAuthors.filter(([login]) =>
-      login.toLowerCase().includes(peopleQuery.toLowerCase())
+      matchesPerson(login, peopleQuery.toLowerCase())
    );
    const filteredHidden = hiddenAuthors.filter(([login]) =>
-      login.toLowerCase().includes(peopleQuery.toLowerCase())
+      matchesPerson(login, peopleQuery.toLowerCase())
    );
 
    return (
@@ -129,7 +136,7 @@ export function PeopleFilter({
                         />
                         <Avatar login={login} size={18} />
                         <span title={login} className="min-w-0 flex-1 truncate text-[13px]">
-                           {login}
+                           {nameOf(login) ?? login}
                         </span>
                         <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
                      </label>
@@ -178,7 +185,7 @@ export function PeopleFilter({
                               title={login}
                               className="min-w-0 flex-1 truncate text-[13px] text-ink-3"
                            >
-                              {login}
+                              {nameOf(login) ?? login}
                            </span>
                            <span className="text-[11px] text-ink-3 tabular-nums">
                               {count || ''}

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { authorOwnsIt, parked } from '../model/actions';
+import { displayName, useNames } from '../model/names';
 import type { DerivedPull } from '../model/status';
 import { matchesRegion } from '../model/regions';
 import { crSort } from '../model/sort';
@@ -160,7 +161,9 @@ export function Team({
          login,
          <>
             <Avatar login={login} />
-            <b className="font-semibold text-ink">{login}</b>
+            <b className="font-semibold text-ink" title={login}>
+               {nameOf(login) ?? login}
+            </b>
             <span className="text-[11px] text-ink-3 tabular-nums">{counts.get(login) ?? 0}</span>
             {owesMark(login)}
          </>,

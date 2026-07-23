@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { displayName, useNames } from '../model/names';
 import { isBotLogin } from '../model/visibility';
 import { toggleTeammate, useSettings } from '../settings';
 import { usePulldasher } from '../store';
@@ -13,12 +14,15 @@ const EMPTY_BOTS: ReadonlySet<string> = new Set();
  * wherever it appears. */
 function CandidateRow({
    login,
+   name,
    count,
    checked,
    self,
    onToggle,
 }: {
    login: string;
+   /** human display name, when known (model/names.ts) */
+   name?: string | null;
    count?: number;
    checked: boolean;
    self?: boolean;
@@ -35,7 +39,7 @@ function CandidateRow({
          />
          <Avatar login={login} size={18} />
          <span title={login} className="min-w-0 flex-1 truncate">
-            {login}
+            {name ?? login}
             {self && <span className="ml-1 text-[11px] text-ink-3">(you)</span>}
          </span>
          {count != null && (
@@ -85,9 +89,16 @@ export function TeamPicker({ extraBots = EMPTY_BOTS }: { extraBots?: ReadonlySet
    const members = new Set(myTeam);
    const trimmed = query.trim();
    const needle = trimmed.toLowerCase();
+   // search by handle OR human name — "metz" should find djmetzle
+   const namesMap = useNames();
+   const nameOf = (login: string) => displayName(namesMap, login);
    const available = candidates.filter(c => !members.has(c.login));
    const filtered = needle
-      ? available.filter(c => c.login.toLowerCase().includes(needle))
+      ? available.filter(
+           c =>
+              c.login.toLowerCase().includes(needle) ||
+              (nameOf(c.login) ?? '').toLowerCase().includes(needle)
+        )
       : available.slice(0, SUGGESTION_CAP);
 
    const exactMatch =
@@ -99,6 +110,7 @@ export function TeamPicker({ extraBots = EMPTY_BOTS }: { extraBots?: ReadonlySet
             <CandidateRow
                key={login}
                login={login}
+               name={nameOf(login)}
                checked
                self={login === me}
                onToggle={() => toggleTeammate(login, false)}
@@ -116,6 +128,7 @@ export function TeamPicker({ extraBots = EMPTY_BOTS }: { extraBots?: ReadonlySet
             <CandidateRow
                key={c.login}
                login={c.login}
+               name={nameOf(c.login)}
                count={c.count}
                checked={false}
                self={c.login === me}

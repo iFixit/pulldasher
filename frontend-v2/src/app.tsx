@@ -23,6 +23,7 @@ import { getSettings, useSettings } from './settings';
 import { useNotifications } from './notifications';
 import { ToastStack, useToasts } from './toasts';
 import { matchesQuery } from './model/query';
+import { requestNames, useNames } from './model/names';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from './model/visibility';
 import { reviewRequestedFrom } from './model/reviewers';
 import { foldDomId, openFold } from './components/Lane';
@@ -212,6 +213,20 @@ export function App() {
    } = usePulldasher();
    // desktop notifications watch the whole board, not the current filter
    useNotifications(pulls, me, initialized);
+   // resolve every author on the board to a human display name (batched,
+   // cached — model/names.ts): the person hover-cards, the people pickers,
+   // and name-aware search all read from this one map
+   const names = useNames();
+   useEffect(() => {
+      const s = getSettings();
+      requestNames([
+         ...pulls.map(p => p.data.user.login),
+         ...closed.map(p => p.user.login),
+         ...s.myTeam,
+         ...s.starredPeople,
+         ...s.hiddenPeople,
+      ]);
+   }, [pulls, closed]);
    const [scope, setScope] = useScope();
    const [lens, setLens] = useState<Lens>(() => readHash().lens);
    const [person, setPerson] = useState<string | null>(() => urlState.person);
@@ -501,9 +516,9 @@ export function App() {
       // no matter whose work you follow (they land in the bots fold, not lanes)
       if (scope.authors.length)
          out = out.filter(p => isBot(p) || scope.authors.includes(p.data.user.login));
-      if (query) out = out.filter(p => matchesQuery(p, query, me));
+      if (query) out = out.filter(p => matchesQuery(p, query, me, names));
       return out;
-   }, [pulls, boardHidden, scope, isBot, query]);
+   }, [pulls, boardHidden, scope, isBot, query, names, me]);
 
    // preWeightScoped narrowed by the Weight filter, but not yet State —
    // StateFilter's own live counts read this pool for the same

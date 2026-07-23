@@ -17,15 +17,28 @@ import type { DerivedPull } from './status';
  *   is:blocked    status is dev_block or deploy_block
  *
  * `me` is the viewer's login, needed only for has:/is: — every other token
- * ignores it.
+ * ignores it. `names` is the optional login → display-name map (model/
+ * names.ts): when present, author: and bare terms match the human name too,
+ * so "metz" finds djmetzle.
  */
-export function matchesQuery(p: DerivedPull, query: string, me: string): boolean {
+export function matchesQuery(
+   p: DerivedPull,
+   query: string,
+   me: string,
+   names?: Readonly<Record<string, string | null>>
+): boolean {
    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-   return terms.every(t => matchTerm(p, t, me));
+   return terms.every(t => matchTerm(p, t, me, names));
 }
 
-function matchTerm(p: DerivedPull, term: string, me: string): boolean {
+function matchTerm(
+   p: DerivedPull,
+   term: string,
+   me: string,
+   names?: Readonly<Record<string, string | null>>
+): boolean {
    const d = p.data;
+   const authorName = names?.[d.user.login]?.toLowerCase() ?? '';
    const i = term.indexOf(':');
    if (i > 0) {
       const key = term.slice(0, i);
@@ -38,7 +51,8 @@ function matchTerm(p: DerivedPull, term: string, me: string): boolean {
             return Number.isFinite(days) && p.ageDays >= days;
          }
          if (key === 'repo') return d.repo.toLowerCase().includes(val);
-         if (key === 'author') return d.user.login.toLowerCase().includes(val);
+         if (key === 'author')
+            return d.user.login.toLowerCase().includes(val) || authorName.includes(val);
          if (key === 'weight')
             return val.split(',').filter(Boolean).includes(p.weight.toLowerCase());
          if (key === 'has') return val === 'action' && rowNote(p, me).action != null;
@@ -61,6 +75,7 @@ function matchTerm(p: DerivedPull, term: string, me: string): boolean {
       d.title.toLowerCase().includes(term) ||
       d.repo.toLowerCase().includes(term) ||
       d.user.login.toLowerCase().includes(term) ||
+      (authorName !== '' && authorName.includes(term)) ||
       d.labels.some(l => l.title.toLowerCase().includes(term))
    );
 }

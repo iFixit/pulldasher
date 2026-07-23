@@ -27,6 +27,7 @@ import {
    signatureUrl,
 } from '../format';
 import { getSettings } from '../settings';
+import { displayName, requestNames, useNames } from '../model/names';
 import { Icon } from './Icon';
 import { Popover } from './Popover';
 
@@ -217,10 +218,13 @@ function AvatarFace({
    );
 }
 
-/** The hover card behind a clickable avatar: the picture bigger, the handle,
- * and a jump to their GitHub profile. (A real name would need a server-side
- * user fetch — it isn't on our wire — so we show the handle we have.) */
+/** The hover card behind a clickable avatar: the picture bigger, the human
+ * name when GitHub has one (resolved through model/names.ts's cached
+ * server-side lookup), the handle, and a jump to their GitHub profile. */
 function PersonCard({ login }: { login: string }) {
+   const names = useNames();
+   useEffect(() => requestNames([login]), [login]);
+   const name = displayName(names, login);
    return (
       <div className="flex items-center gap-2.5 text-[13px]">
          <AvatarFace login={login} size={40} />
@@ -232,7 +236,7 @@ function PersonCard({ login }: { login: string }) {
                className="block truncate font-semibold text-ink hover:underline"
                title={`@${login} on GitHub`}
             >
-               {login}
+               {name ?? login}
             </a>
             <a
                href={githubProfileUrl(login)}
@@ -240,7 +244,7 @@ function PersonCard({ login }: { login: string }) {
                rel="noopener noreferrer"
                className="text-[11px] text-ink-3 hover:text-brand hover:underline"
             >
-               GitHub profile ↗
+               {name ? `@${login} · ` : ''}GitHub profile ↗
             </a>
          </div>
       </div>

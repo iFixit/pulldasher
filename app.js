@@ -12,6 +12,7 @@ import pullQueue from './lib/pull-queue.js';
 import mainController from './controllers/main.js';
 import hooksController from './controllers/githubHooks.js';
 import statsController from './controllers/stats.js';
+import userNamesController from './controllers/user-names.js';
 import Debug from './lib/debug.js';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -63,6 +64,7 @@ app.use('/v1', express.static(__dirname + '/frontend/dist'));
 app.use('/', express.static(__dirname + '/frontend-v2/dist'));
 app.get('/token', mainController.getToken);
 app.get('/stats-history', statsController.getHistory);
+app.get('/user-names', userNamesController.getNames);
 app.post('/hooks/main', hooksController.main);
 
 // Warm the bot-login cache (used to tell a pulldasher claim apart from a
