@@ -536,6 +536,37 @@ label:has(> input:not(:disabled)) {
   animation: none;
 }
 
+/* ── The wordmark deals in (components/Wordmark.tsx): letters slide out from
+   behind the deer left-to-right on show, and tuck back toward it far-end
+   first on hide, so the word collapses into the mark instead of shearing.
+   The h1 is out of flow — neither state ever reflows the header. Transforms
+   and opacity only; visibility flips on the wrapper after the letters land
+   so the invisible word can't sit under a cursor. ── */
+.wm {
+  display: inline-flex;
+  visibility: visible;
+}
+.wm-out {
+  visibility: hidden;
+  transition: visibility 0s 0.5s;
+}
+.wm-letter {
+  display: inline-block;
+  transition:
+    opacity 0.26s var(--ease-quint),
+    transform 0.26s var(--ease-quint);
+}
+.wm-in .wm-letter {
+  opacity: 1;
+  transform: translateX(0);
+  transition-delay: calc(var(--i) * 24ms);
+}
+.wm-out .wm-letter {
+  opacity: 0;
+  transform: translateX(calc(-14px - var(--i) * 4px));
+  transition-delay: calc((9 - var(--i)) * 16ms);
+}
+
 @keyframes pop {
   from {
     opacity: 0;
@@ -783,8 +814,12 @@ input[type="checkbox"] {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    /* staggered entrances (.settle-once, .wm) carry their motion in delays;
+       zeroed durations alone would leave content invisible for the delay */
+    transition-delay: 0.01ms !important;
   }
   .pressable:active {
     scale: 1;

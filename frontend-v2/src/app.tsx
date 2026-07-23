@@ -30,6 +30,7 @@ import { foldDomId, openFold } from './components/Lane';
 import { Legend } from './components/Legend';
 import { LensMenu } from './components/LensMenu';
 import { Logo } from './components/Logo';
+import { Wordmark } from './components/Wordmark';
 import { NotificationPanel } from './components/NotificationPanel';
 import { RepoFilter } from './components/filters/RepoFilter';
 import { PeopleFilter } from './components/filters/PeopleFilter';
@@ -849,9 +850,7 @@ export function App() {
                    every lane h2 needs a parent level */}
                <h1 className="absolute inset-y-0 left-4 z-[1] m-0 flex items-center gap-1.5 text-base font-semibold tracking-tight">
                   <Logo size={22} className="text-brand" />
-                  <span className="hidden 2xl:inline">
-                     pull<em className="text-brand not-italic">dasher</em>
-                  </span>
+                  <Wordmark />
                </h1>
                {/* inset-y-0 + items-center for vertical centering, NOT
                    -translate-y-1/2: a transform on this ancestor would re-base
