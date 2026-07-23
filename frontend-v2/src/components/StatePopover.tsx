@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import type { DerivedPull } from '../model/status';
+import { headStatuses, type DerivedPull } from '../model/status';
 import type { Claim, RowNote } from '../model/actions';
 import { rowNote } from '../model/actions';
 import type { PullData } from '../types';
-import { ago, closedEpoch, epoch, githubUrl, signatureUrl } from '../format';
+import { ago, closedEpoch, epoch, githubUrl, issueUrl, signatureUrl } from '../format';
 import { Avatar, ClosedBadge, STATUS_LABEL } from './bits';
 import { Popover } from './Popover';
 
@@ -41,7 +41,7 @@ function feedbackSources(p: DerivedPull): FeedbackSource[] {
       .map(s => ({
          key: `block-${s.data.comment_id}`,
          login: s.data.user.login,
-         stateWord: 'blocked',
+         stateWord: s.data.type === 'dev_block' ? 'dev blocked' : 'deploy blocked',
          atEpoch: epoch(s.data.created_at),
          url: signatureUrl(s),
       }));
@@ -133,6 +133,23 @@ function FactsSection({
            : pull.ci === 'success'
              ? 'green'
              : 'none required';
+   // a failing check's name links straight to its run log (the status's
+   // target_url) — "which check, and show me" without a GitHub detour
+   const redLogs = new Map(
+      headStatuses(d)
+         .filter(s => s.data.state === 'failure' || s.data.state === 'error')
+         .map(s => [s.data.context, s.data.target_url])
+   );
+   const srcLink = (href: string, word: string) => (
+      <a
+         href={href}
+         target="_blank"
+         rel="noopener noreferrer"
+         className="text-brand hover:underline"
+      >
+         {word}
+      </a>
+   );
    return (
       <div className="flex flex-col gap-1 border-b border-secondary px-1 py-2 text-ink-2">
          {/* no "· updated X ago" here: it duplicated the "last commit X ago"
@@ -146,7 +163,22 @@ function FactsSection({
              need a trip to GitHub */}
          <p className="break-all">
             branch <b className="font-medium text-ink">{d.head.ref}</b>
+            <span className="text-ink-3"> into {d.base.ref}</span>
          </p>
+         {/* the conflict named and actionable in place: which branch it
+             fights, and the door to GitHub's conflict editor */}
+         {pull.conflict && (
+            <p>
+               <span style={{ color: 'var(--warn)' }}>conflicts with {d.base.ref}</span> ·{' '}
+               {srcLink(`${githubUrl(d.repo, d.number)}/conflicts`, 'resolve on GitHub →')}
+            </p>
+         )}
+         {d.closes != null && (
+            <p>closes {srcLink(issueUrl(d.repo, d.closes), `#${d.closes}`)}</p>
+         )}
+         {d.connects != null && (
+            <p>connects {srcLink(issueUrl(d.repo, d.connects), `#${d.connects}`)}</p>
+         )}
          <p>
             CR {pull.crHave} of {crReq}
             {pull.crBy.length > 0 && <> · {pull.crBy.join(', ')}</>}
@@ -164,10 +196,32 @@ function FactsSection({
          </p>
          <p>
             CI: {ciWord}
-            {pull.ci === 'failing' && pull.ciFailing.length > 0 && (
-               <> · {pull.ciFailing.join(', ')}</>
-            )}
+            {pull.ci === 'failing' &&
+               pull.ciFailing.map(ctx => (
+                  <span key={ctx}>
+                     {' · '}
+                     {srcLink(
+                        redLogs.get(ctx) || `${githubUrl(d.repo, d.number)}/checks`,
+                        ctx
+                     )}
+                  </span>
+               ))}
          </p>
+         {(d.status.comment_count ?? 0) > 0 && (
+            <p>
+               {d.status.comment_count} comment{d.status.comment_count === 1 ? '' : 's'}
+               {d.status.last_comment_at && <> · last {ago(epoch(d.status.last_comment_at))} ago</>}
+            </p>
+         )}
+         {(d.assignees?.length ?? 0) > 0 && <p>assigned to {d.assignees!.join(', ')}</p>}
+         {d.milestone.title && (
+            <p>
+               milestone <b className="font-medium text-ink">{d.milestone.title}</b>
+               {d.milestone.due_on && (
+                  <span className="text-ink-3"> · due {d.milestone.due_on.slice(0, 10)}</span>
+               )}
+            </p>
+         )}
          {/* a claim always trumps the rotation guess — same precedence as
              model/actions.ts's withCoordination */}
          {claim ? (

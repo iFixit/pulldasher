@@ -71,6 +71,10 @@ export interface PullData {
    additions: number | null;
    deletions: number | null;
    changed_files?: number | null;
+   /** issue numbers parsed from the description's closes/connects body tags
+    * (server-side, models/pull.js parseBody); string digits on the wire */
+   closes?: string | number | null;
+   connects?: string | number | null;
    milestone: { title: string | null; due_on: string | null };
    head: { ref: string; sha: string; repo: { owner: { login: string } } };
    base: { ref: string };

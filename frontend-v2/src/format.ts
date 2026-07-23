@@ -33,6 +33,10 @@ export function githubUrl(repo: string, number: number) {
    return `https://github.com/${repo}/pull/${number}`;
 }
 
+export function issueUrl(repo: string, number: number | string) {
+   return `https://github.com/${repo}/issues/${number}`;
+}
+
 /**
  * A permalink to the comment or review a stamp came from. The comment_id is
  * two different GitHub id spaces, so the anchor depends on source_type; a
