@@ -4,29 +4,31 @@ import { displayName, useNames } from '../../model/names';
 import type { Scope } from '../../prefs';
 import { toggleHiddenPerson, toggleTeammate, useSettings } from '../../settings';
 import { usePulldasher } from '../../store';
-import type { BoardTeam } from '../../types';
 import { Avatar, QuietButton, StarMark } from '../bits';
 import { Popover } from '../Popover';
-import { FilterRow, FilterSearch, FilterTrigger, OnlyButton } from './shared';
+import {
+   ClearRow,
+   ExceptButton,
+   FilterRow,
+   FilterSearch,
+   FilterTrigger,
+   OnlyButton,
+} from './shared';
 
 /**
- * The people filter: team preset chips, then a searchable author list where
- * scope (on my board), star (floats to the front of my queues), and hide
- * (off my board, period) live side by side on each row — the same
- * scope/hide-together layout RepoFilter uses for repos. "Your team" (your
- * own per-browser roster, prepended to the org's teams in app.tsx) gets a
- * brand border instead of the ★ prefix: the star glyph already means
- * something specific elsewhere on this row (star a person), so reusing it as
- * decoration on the team chip would read as "this team is starred."
+ * The people filter: a searchable author list where scope (on my board),
+ * except (everyone but them), star (floats to the front of my queues), and
+ * hide (off my board, period) live side by side on each row — the same
+ * scope/hide-together layout RepoFilter uses for repos. Whole-team narrowing
+ * lives in the pinned saved searches, not here: every roster already derives
+ * one, so this panel stays a per-person surface.
  */
 export function PeopleFilter({
    pulls,
-   teams,
    scope,
    setScope,
 }: {
    pulls: DerivedPull[];
-   teams: BoardTeam[];
    scope: Scope;
    setScope: (next: Scope) => void;
 }) {
@@ -63,15 +65,40 @@ export function PeopleFilter({
       commit(cur, all);
    };
    const included = (login: string) => !scope.authors.length || scope.authors.includes(login);
+   // the "everyone except" lane: per-login, mutually exclusive with the
+   // allow-list (excluding someone pulls them out of authors, and vice versa)
+   const exclude = (login: string) =>
+      setScope({
+         ...scope,
+         authors: scope.authors.filter(l => l !== login),
+         notAuthors: [...new Set([...scope.notAuthors, login])],
+      });
+   const include = (login: string) =>
+      setScope({ ...scope, notAuthors: scope.notAuthors.filter(l => l !== login) });
 
-   // the trigger names only what narrows the board: one person by login,
-   // more as a count. Hidden counts read in the hidden-PR ledger, not here.
+   // full words for the hover title / aria; the badge abbreviates to a count
+   // (or a −count when the selection is an exclusion)
    const value =
       scope.authors.length === 0
          ? null
          : scope.authors.length === 1
            ? scope.authors[0]
            : `${scope.authors.length} people`;
+   const excludingWords =
+      scope.notAuthors.length === 0
+         ? null
+         : `excluding ${
+              scope.notAuthors.length === 1
+                 ? scope.notAuthors[0]
+                 : `${scope.notAuthors.length} people`
+           }`;
+   const words =
+      value && excludingWords ? `${value} · ${excludingWords}` : (value ?? excludingWords);
+   const badge = scope.authors.length
+      ? String(scope.authors.length)
+      : scope.notAuthors.length
+        ? `−${scope.notAuthors.length}`
+        : null;
 
    const filteredShown = shownAuthors.filter(([login]) =>
       matchesPerson(login, peopleQuery.toLowerCase())
@@ -91,57 +118,50 @@ export function PeopleFilter({
                <FilterTrigger
                   t={t}
                   label="People"
-                  value={value}
-                  onClear={() => setScope({ ...scope, authors: [] })}
-                  ariaLabel={`people filter: ${value ?? 'off'}`}
+                  badge={badge}
+                  title={words ? `People · ${words}` : undefined}
+                  ariaLabel={`people filter: ${words ?? 'off'}`}
                />
             )}
          >
-            {teams.length > 0 && (
-               <div className="mb-2 flex flex-wrap gap-1 px-0.5">
-                  {teams.map(t => {
-                     const isYours = !!t.personal;
-                     return (
-                        <button
-                           key={t.team}
-                           type="button"
-                           onClick={() => setScope({ ...scope, authors: [...t.members] })}
-                           className={`pressable rounded-lg border px-2 py-[3px] text-xs font-medium ${
-                              isYours
-                                 ? 'border-brand bg-surface text-brand-700 hover:border-brand-700'
-                                 : 'border-line bg-surface text-ink-2 hover:border-brand hover:text-brand'
-                           }`}
-                        >
-                           {t.team}
-                        </button>
-                     );
-                  })}
-               </div>
-            )}
             <FilterSearch value={peopleQuery} onChange={setPeopleQuery} label="Filter people" />
             {filteredShown.map(([login, count]) => {
                const isTeammate = teamSet.has(login);
+               const excluded = scope.notAuthors.includes(login);
                return (
                   <FilterRow key={login}>
                      <label className="flex min-w-0 flex-1 items-center gap-2">
                         <input
                            type="checkbox"
                            className="m-0"
-                           checked={included(login)}
+                           checked={included(login) && !excluded}
                            onChange={() =>
-                              toggleScope(
-                                 login,
-                                 authors.map(([l]) => l)
-                              )
+                              excluded
+                                 ? include(login)
+                                 : toggleScope(
+                                      login,
+                                      authors.map(([l]) => l)
+                                   )
                            }
                         />
                         <Avatar login={login} size={18} />
-                        <span title={login} className="min-w-0 flex-1 truncate text-[13px]">
+                        <span
+                           title={login}
+                           className={`min-w-0 flex-1 truncate text-[13px] ${
+                              excluded ? 'text-ink-3 line-through' : ''
+                           }`}
+                        >
                            {nameOf(login) ?? login}
                         </span>
                         <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
                      </label>
-                     <OnlyButton onClick={() => setScope({ ...scope, authors: [login] })} />
+                     <OnlyButton
+                        onClick={() => setScope({ ...scope, authors: [login], notAuthors: [] })}
+                     />
+                     <ExceptButton
+                        on={excluded}
+                        onClick={() => (excluded ? include(login) : exclude(login))}
+                     />
                      <button
                         type="button"
                         // no .hit bleed / no -my: the star's own py clears the
@@ -203,6 +223,10 @@ export function PeopleFilter({
                   ))}
                </details>
             )}
+            <ClearRow
+               active={scope.authors.length > 0 || scope.notAuthors.length > 0}
+               onClear={() => setScope({ ...scope, authors: [], notAuthors: [] })}
+            />
          </Popover>
       </div>
    );

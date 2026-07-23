@@ -7,7 +7,6 @@ import { matchesRegion } from '../model/regions';
 import { crSort } from '../model/sort';
 import { teamBuckets } from '../model/team';
 import { addTeam, DEFAULT_TEAM_NAME, myPeople, removeTeam, useSettings } from '../settings';
-import type { BoardTeam } from '../types';
 import { Avatar, EmptyState, QuietButton } from '../components/bits';
 import { Icon } from '../components/Icon';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, SubDoor } from '../components/Lane';
@@ -19,8 +18,8 @@ import { WordGroupRows } from '../components/WordGroups';
 /**
  * The people tab (named Team): every board keyed by who wrote the work,
  * starting with yours. Your rosters are the pinned first row; behind them
- * sits the whole directory — config.json teams and every author on the
- * board — so any avatar click anywhere lands here on that person's page.
+ * sits the whole directory — every author on the board — so any avatar
+ * click anywhere lands here on that person's page.
  *
  * Selection here IS the authors filter: clicking a person or a team chip
  * writes the same scope the filter bar's People picker edits, so what you
@@ -31,7 +30,6 @@ import { WordGroupRows } from '../components/WordGroups';
 export function Team({
    pulls,
    allPulls,
-   teams,
    selected,
    onSelect,
    opts,
@@ -42,7 +40,6 @@ export function Team({
    /** unscoped pool (for chip counts and owed re-stamps — filters must not
     * make the directory lie about someone's real load) */
    allPulls: DerivedPull[];
-   teams: BoardTeam[];
    /** the authors scope (app.tsx) — this lens's selection is that filter */
    selected: string[];
    onSelect: (logins: string[]) => void;
@@ -81,9 +78,11 @@ export function Team({
    // ---- selection: this lens reads and writes the authors scope ----
    const sameSet = (a: string[], b: string[]) =>
       a.length === b.length && b.every(m => a.includes(m));
-   // a selection that is exactly some team's roster earns that team's name
-   const selTeam = selected.length ? teams.find(t => sameSet(selected, t.members)) : undefined;
-   const explicitTeam = selTeam?.team ?? null;
+   // a selection that is exactly some roster earns that roster's name
+   const selTeam = selected.length
+      ? personalTeams.find(t => sameSet(selected, t.members))
+      : undefined;
+   const explicitTeam = selTeam?.name ?? null;
    const selectedPerson = !selTeam && selected.length === 1 ? selected[0] : null;
    // home = nothing selected: your rosters' aggregate board, unfiltered
    const home = selected.length === 0;
@@ -119,9 +118,6 @@ export function Team({
    );
    const regionMatches = home ? crSort(reviewable.filter(p => matchesRegion(p, codeRegions))) : [];
    const owed = selectedPerson ? (owes.get(selectedPerson) ?? []) : [];
-   const memberTeam = selectedPerson
-      ? teams.find(t => !t.personal && t.members.includes(selectedPerson))?.team
-      : null;
    const shipping = theirs.filter(p => ['ready', 'needs_qa'].includes(p.status)).length;
 
    // the directory: busiest authors lead, hidden ones drop out unless the
@@ -135,7 +131,6 @@ export function Team({
    // the door opens itself when it must: no team yet (the directory is the
    // only content), or the current pick lives outside your team (hiding the
    // chip that explains the board would orphan it)
-   const personalNames = new Set(personalTeams.map(t => t.name));
    const outsidePick = selected.some(l => !yourSet.has(l));
    const directoryShown = personalTeams.length === 0 || (directoryChoice ?? outsidePick);
 
@@ -152,10 +147,8 @@ export function Team({
          onClick={onPick}
          aria-pressed={active}
          title={title}
-         className={`pressable inline-flex items-center gap-1.5 rounded-lg border bg-surface py-[5px] pr-2.5 pl-1.5 text-[13px] font-medium text-ink-2 ${
-            active
-               ? 'border-brand shadow-[0_0_0_1px_var(--brand)] hover:bg-muted'
-               : 'border-line hover:bg-muted'
+         className={`pressable inline-flex items-center gap-1.5 rounded-lg border border-line py-[5px] pr-2.5 pl-1.5 text-[13px] font-medium text-ink-2 ${
+            active ? 'bg-secondary' : 'bg-surface hover:bg-muted'
          }`}
       >
          {label}
@@ -273,26 +266,10 @@ export function Team({
                </button>
             </div>
          )}
-         {/* the rest of the directory: config teams, then everyone else —
-             behind the Everyone door unless it must stand (see above) */}
+         {/* the rest of the directory: everyone on the board who isn't on a
+             roster — behind the Everyone door unless it must stand (see above) */}
          {directoryShown && (
             <div className="mb-4 flex flex-wrap gap-1.5">
-               {teams
-                  .filter(t => !t.personal)
-                  .map(t =>
-                     chip(
-                        `team:${t.team}`,
-                        <>
-                           <b className="pl-1 font-semibold text-ink">{t.team}</b>
-                           <span className="text-[11px] text-ink-3 tabular-nums">
-                              {allPulls.filter(p => t.members.includes(p.data.user.login)).length}
-                           </span>
-                        </>,
-                        sameSet(selected, t.members),
-                        e => pickGroup(t.members, e),
-                        `narrow the board to ${t.team} — shift-click to add or remove the whole team`
-                     )
-                  )}
                {shownLogins.map(login => personChip(login))}
                {!allPeople && logins.length > 24 && (
                   <button
@@ -341,7 +318,6 @@ export function Team({
                   </span>
                   <br />
                   <span className="text-xs text-ink-3">
-                     {memberTeam ? `${memberTeam} · ` : ''}
                      {/* the member count only earns its place under a team
                          NAME — a nameless selection's title already counts it */}
                      {explicitTeam ? `${members.length} members · ` : ''}
@@ -372,10 +348,10 @@ export function Team({
             </div>
          )}
 
-         {(home || (explicitTeam && personalNames.has(explicitTeam))) && scopeHides > 0 && (
+         {(home || explicitTeam) && scopeHides > 0 && (
             <div className="mb-3 text-xs text-warn">filters hide {scopeHides} more</div>
          )}
-         {(home || (explicitTeam && personalNames.has(explicitTeam))) &&
+         {(home || explicitTeam) &&
             personalTeams.length > 0 &&
             reviewable.length === 0 &&
             stamped.length === 0 &&
