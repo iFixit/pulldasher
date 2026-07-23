@@ -3,29 +3,29 @@ import { lastPushEpoch, type DerivedPull } from '../model/status';
 import { checkLedgers, ciSecsWord, type CheckLedger } from '../model/ci';
 import { pullKey } from '../format';
 import { EmptyState } from '../components/bits';
-import { Fold, FoldRows, Lane, laneShown, RestGroup, Rows, Truncated } from '../components/Lane';
+import { Fold, FoldRows, Lane, laneShown, RestGroup, SubDoor, Truncated } from '../components/Lane';
 import { Row, type RowOptions } from '../components/Row';
-import { eyebrowText } from '../components/WordGroups';
 
 /**
- * The CI lens: the board re-keyed by the machine reviewer. Where Review asks
- * "what's my move," this asks "what's broken, by which check" — your own red
- * builds first (fixing CI is always the author's move), then everyone else's
- * failures grouped under the check that's failing them, then what's still
- * running, then a per-check health ledger. The rest folds complete the
- * partition (all-green and no-checks pulls), so every open pull is
- * accounted for exactly once across the lanes and folds — except that a
- * pull failing several checks sits under each of them, which the sub-line
- * admits (same disclosure contract as Needs QA's CR overlap).
+ * The CI lens: the board re-keyed by the machine reviewer. It leads with the
+ * check ledger — every check on the board, worst first, each row carrying
+ * its health at a glance (failing/running share on the fixed ruler, counts
+ * in words, average run time), and each FAILING check opening into the PRs
+ * it's failing. That one section is the QA-engineering read: "are our tests
+ * failing in certain ways?" The dev read follows: your own red builds, then
+ * what's still running, then the rest folds (all-green, no-checks). A pull
+ * failing several checks sits under each of them, which the sub-line admits
+ * (same disclosure contract as Needs QA's CR overlap).
  */
 
 /**
- * One check's health row: name, the board's 112px ruler carrying the red
- * failing share (and slate running share) of its runs, quiet counts, and the
- * average run time. The ruler matches the weight strip's fixed extent so
- * fractions compare truthfully down the list.
+ * One check's health, at a glance: the board's 112px ruler carrying the red
+ * failing share (and slate running share) of its runs, the counts in words,
+ * and the average run time. Lives in a Fold's band (failing checks, where it
+ * doubles as the accordion title) and in the chevron-less row a healthy
+ * check gets — the ruler's fixed extent keeps fractions comparable in both.
  */
-function HealthRow({ ledger }: { ledger: CheckLedger }) {
+function LedgerGlance({ ledger }: { ledger: CheckLedger }) {
    const { context, failing, running, total, avgSecs } = ledger;
    const failPct = (failing.length / total) * 100;
    const runPct = (running / total) * 100;
@@ -35,10 +35,7 @@ function HealthRow({ ledger }: { ledger: CheckLedger }) {
         ? `${running} of ${total} still running`
         : `all ${total} green`;
    return (
-      <div className="flex items-center gap-3 border-t border-secondary px-3.5 py-2 text-xs first:border-t-0">
-         <span className="min-w-0 flex-1 truncate font-medium text-ink" title={context}>
-            {context}
-         </span>
+      <>
          <span
             role="img"
             aria-label={`${context}: ${word}`}
@@ -52,11 +49,11 @@ function HealthRow({ ledger }: { ledger: CheckLedger }) {
                <span aria-hidden style={{ width: `${runPct}%`, background: 'var(--slate)' }} />
             )}
          </span>
-         <span className="w-36 flex-none text-right text-ink-3 tabular-nums">{word}</span>
-         <span className="w-12 flex-none text-right text-ink-3 tabular-nums">
+         <span className="w-36 flex-none text-right tabular-nums">{word}</span>
+         <span className="w-12 flex-none text-right tabular-nums">
             {avgSecs != null ? `~${ciSecsWord(avgSecs)}` : '—'}
          </span>
-      </div>
+      </>
    );
 }
 
@@ -70,19 +67,6 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
       [withChecks]
    );
    const mineBroken = failing.filter(p => p.data.user.login === me);
-
-   // others' failures re-keyed by the check that's failing them, worst check
-   // first — a pull failing two checks sits under both (the sub-line admits
-   // it); yours are excluded here because they already lead the page
-   const byCheck = useMemo(() => {
-      const mine = new Set(failing.filter(p => p.data.user.login === me).map(p => pullKey(p.data)));
-      return ledgers
-         .map(l => ({
-            context: l.context,
-            pulls: l.failing.filter(p => !mine.has(pullKey(p.data))),
-         }))
-         .filter(g => g.pulls.length > 0);
-   }, [ledgers, failing, me]);
 
    const running = useMemo(
       () =>
@@ -105,17 +89,72 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
 
    return (
       <>
-         {/* the dashboard first: every check's failing/running share on the
-             fixed ruler — the lens's own summary card, before any pull list */}
+         {/* the ledger IS the dashboard: every check, worst first, health in
+             the band; a failing check opens into the PRs it's failing. All
+             collapsed until the user chooses otherwise (the choice is
+             remembered) — the glance is the point, the pulls are the detail. */}
          {ledgers.length > 0 && (
-            <section className={opts.compact ? 'mb-4' : 'mb-7'}>
-               <div className={`mb-2 text-ink-3 ${eyebrowText}`}>Check health</div>
-               <Rows>
-                  {ledgers.map(l => (
-                     <HealthRow key={l.context} ledger={l} />
-                  ))}
-               </Rows>
-            </section>
+            <Lane
+               title="Check health"
+               sub={
+                  <SubDoor
+                     label="How Check health reads"
+                     text="every check on the board, worst first — open one for the PRs failing it"
+                  >
+                     <p>
+                        Each band: the share of the check’s runs failing (red) or still running
+                        (slate), the counts in words, and the average run time.
+                     </p>
+                     <p>
+                        A failing check opens into every PR it’s failing, oldest first, yours
+                        included. A PR failing two checks sits under both.
+                     </p>
+                  </SubDoor>
+               }
+               pulls={[]}
+               count={ledgers.length}
+               opts={opts}
+            >
+               {/* check names are case-sensitive identifiers, so the fold
+                   skips the eyebrow's uppercase transform */}
+               {ledgers.map(l =>
+                  l.failing.length > 0 ? (
+                     <Fold
+                        key={l.context}
+                        count={l.failing.length}
+                        showCount={false}
+                        label={l.context}
+                        caps={false}
+                        detail={<LedgerGlance ledger={l} />}
+                        id={`ci:health:${l.context}`}
+                     >
+                        <Truncated cap={laneShown(6, opts)} id={`ci:health:${l.context}:rows`}>
+                           {l.failing.map(p => (
+                              <Row key={pullKey(p.data)} pull={p} opts={opts} />
+                           ))}
+                        </Truncated>
+                     </Fold>
+                  ) : (
+                     // a healthy check has nothing to open: same band, no
+                     // chevron — the leading spacer keeps names in one column
+                     <div
+                        key={l.context}
+                        className="flex items-center gap-2 border-t border-secondary bg-muted/40 px-3.5 py-[6px] text-[11px] first:border-t-0"
+                     >
+                        <span className="w-3 flex-none" aria-hidden />
+                        <span
+                           className="min-w-0 truncate font-semibold text-ink-3"
+                           title={l.context}
+                        >
+                           {l.context}
+                        </span>
+                        <span className="ml-auto flex min-w-0 items-center gap-3 text-ink-3">
+                           <LedgerGlance ledger={l} />
+                        </span>
+                     </div>
+                  )
+               )}
+            </Lane>
          )}
          <Lane
             title="Your broken builds"
@@ -124,36 +163,6 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
             cap={8}
             opts={opts}
          />
-         {byCheck.length > 0 && (
-            <section className={opts.compact ? 'mb-4' : 'mb-7'}>
-               <Lane
-                  title="Failing, by check"
-                  sub="worst check first, oldest pull first. A pull failing two checks sits under both; yours lead the page"
-                  pulls={[]}
-                  count={byCheck.reduce((sum, g) => sum + g.pulls.length, 0)}
-                  opts={opts}
-               >
-                  {/* check names are case-sensitive identifiers, so the
-                      fold skips the eyebrow's uppercase transform */}
-                  {byCheck.map(g => (
-                     <Fold
-                        key={g.context}
-                        count={g.pulls.length}
-                        label={g.context}
-                        caps={false}
-                        id={`ci:check:${g.context}`}
-                        defaultOpen
-                     >
-                        <Truncated cap={laneShown(6, opts)} id={`ci:check:${g.context}:rows`}>
-                           {g.pulls.map(p => (
-                              <Row key={pullKey(p.data)} pull={p} opts={opts} />
-                           ))}
-                        </Truncated>
-                     </Fold>
-                  ))}
-               </Lane>
-            </section>
-         )}
          <Lane
             title="CI running"
             sub="longest since the last push first"

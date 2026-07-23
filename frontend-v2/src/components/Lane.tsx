@@ -288,6 +288,8 @@ export function Fold({
    gloss,
    tone = 'wait',
    caps = true,
+   showCount = true,
+   detail,
    id,
    defaultOpen = false,
    children,
@@ -301,6 +303,11 @@ export function Fold({
    /** false for case-sensitive identifiers (CI check names) the eyebrow
     * transform would mangle */
    caps?: boolean;
+   /** hide the "· N" when the `detail` slot already states the count in its
+    * own words (the CI ledger's "5 of 57 runs failing") */
+   showCount?: boolean;
+   /** right-aligned band content — a ruler, counts in words, a time */
+   detail?: ReactNode;
    /** stable identity: remembers this fold's open/closed choice across sessions */
    id?: string;
    /** initial state when nothing is stored yet — e.g. auto-open the one fold
@@ -314,19 +321,22 @@ export function Fold({
    const explicit = id ? stored[id] : undefined;
    const open = explicit ?? defaultOpen;
    // native <details> owns its own open/closed state on click; we only need to
-   // hear about it so the store matches, not to drive every toggle ourselves —
-   // writing back only on an actual change keeps stored-value re-renders from
-   // re-triggering this handler
+   // hear about it so the store matches. The browser also fires `toggle` on
+   // MOUNT for a details that renders open, so only a toggle that DIFFERS
+   // from the rendered state (a real user flip) is recorded — otherwise every
+   // defaultOpen fold would write itself into the store on first paint and
+   // "collapsed unless you chose otherwise" could never hold
    const onToggle = (e: SyntheticEvent<HTMLDetailsElement>) => {
       if (!id) return;
       const next = e.currentTarget.open;
+      if (next === open) return;
       if (foldOpenStore.get()[id] !== next)
          foldOpenStore.set({ ...foldOpenStore.get(), [id]: next });
    };
    const labelInner = (
       <>
-         <span className={tone === 'do' ? 'text-brand-700' : 'text-ink-3'}>{label}</span>{' '}
-         <span className="tabular-nums text-ink-3">· {count}</span>
+         <span className={tone === 'do' ? 'text-brand-700' : 'text-ink-3'}>{label}</span>
+         {showCount && <span className="tabular-nums text-ink-3"> · {count}</span>}
       </>
    );
    return (
@@ -380,6 +390,11 @@ export function Fold({
                </Popover>
             ) : (
                labelInner
+            )}
+            {detail && (
+               <span className="ml-auto flex min-w-0 items-center gap-3 font-normal normal-case tracking-normal text-ink-3">
+                  {detail}
+               </span>
             )}
          </summary>
          <div className="border-t border-secondary">{children}</div>
