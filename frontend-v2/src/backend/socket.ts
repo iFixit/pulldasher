@@ -28,29 +28,85 @@ function liveBackend(): Backend {
       token =
          token ??
          fetch('/token').then(async r => {
-            if (!r.ok) throw new Error(`token fetch failed: ${r.status}`);
+            // an expired session redirects toward the OAuth flow instead of
+            // returning JSON — surface that as a failure, not a parse error
+            if (!r.ok || r.redirected) throw new Error(`token fetch failed: ${r.status}`);
             const t = (await r.json()) as TokenResponse;
             if (!t.socketToken) throw new Error('token response missing socketToken');
             return t;
          });
+      // a failed fetch must not poison the cache: the next caller retries
+      // instead of replaying tonight's rejection forever
+      token.catch(() => {
+         token = null;
+      });
       return token;
    };
 
    let onState: ((state: ConnectionState) => void) | null = null;
 
+   // Overnight, the app session cookie can expire while the tab sleeps; the
+   // socket then reconnects fine but /token fails and the board would sit on
+   // "retrying" forever. A visible, online tab whose token keeps failing gets
+   // ONE reload per 5 minutes: the page-level auth gate re-runs the OAuth
+   // handshake (silent with a live GitHub session) and comes back signed in.
+   const RELOAD_AT_KEY = 'pd2.authReloadAt';
+   const maybeReloadForAuth = () => {
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+      const last = Number(sessionStorage.getItem(RELOAD_AT_KEY) || 0);
+      if (Date.now() - last < 5 * 60_000) return;
+      sessionStorage.setItem(RELOAD_AT_KEY, String(Date.now()));
+      location.reload();
+   };
+
+   // The auth handshake retries on its own: a socket that reconnected after a
+   // sleep is useless until 'authenticate' lands, so a token failure backs
+   // off (2s → 30s cap) instead of giving up after one shot. A new connect or
+   // a disconnect always resets the loop.
+   let authRetry: ReturnType<typeof setTimeout> | null = null;
+   const clearAuthRetry = () => {
+      if (authRetry != null) clearTimeout(authRetry);
+      authRetry = null;
+   };
+   const authenticate = (attempt = 0) => {
+      // Socket tokens are single-use and expire quickly: re-fetch on every
+      // (re)connect rather than reusing the first one.
+      token = null;
+      getToken().then(
+         t => socket!.emit('authenticate', t.socketToken),
+         () => {
+            onState?.('error');
+            if (attempt >= 1) maybeReloadForAuth();
+            clearAuthRetry();
+            authRetry = setTimeout(
+               () => authenticate(attempt + 1),
+               Math.min(30_000, 2_000 * 2 ** attempt)
+            );
+         }
+      );
+   };
+
    const getSocket = () => {
       if (socket) return socket;
       socket = io();
       socket.on('connect', () => {
-         // Socket tokens are single-use and expire quickly: re-fetch on every
-         // (re)connect rather than reusing the first one.
-         token = null;
-         getToken().then(
-            t => socket!.emit('authenticate', t.socketToken),
-            () => onState?.('error')
-         );
+         clearAuthRetry();
+         authenticate();
       });
+      socket.on('disconnect', () => clearAuthRetry());
       socket.on('connect_error', () => onState?.('error'));
+      // Chrome freezes background tabs and laptops sleep; on wake, socket.io
+      // would sit out the rest of its backoff before trying again. Any wake
+      // signal — the tab becoming visible, the window refocusing, the network
+      // returning — skips the wait and reconnects now.
+      const wake = () => {
+         if (socket && !socket.connected) socket.connect();
+      };
+      document.addEventListener('visibilitychange', () => {
+         if (document.visibilityState === 'visible') wake();
+      });
+      window.addEventListener('focus', wake);
+      window.addEventListener('online', wake);
       return socket;
    };
 
