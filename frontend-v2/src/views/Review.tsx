@@ -171,6 +171,34 @@ export function Review({
             lanes.ready.length > 0) && (
             <div className={`mb-2 text-ink-3 ${eyebrowText}`}>Pick up next</div>
          )}
+         {/* leads Pick up next: fully finished work is the fastest, highest-
+             leverage pickup on the board — signed off, green, one press from
+             shipped — so it sits at the top of what's on offer rather than
+             rotting at the bottom under the review queue. (Your OWN ready PR
+             is already up in "Waiting on you" as a Merge-it; this lane is
+             everyone else's done work, landable by anyone.) */}
+         <Lane
+            title="Ready to merge"
+            sub={
+               <SubDoor
+                  label="Why Ready to merge leads"
+                  text="signed off and green, someone just has to press merge"
+               >
+                  <p>
+                     Everything is done on these: code review and QA are in, CI is green, and they
+                     merge cleanly. The author usually lands their own PR, but anyone can. Merge it,
+                     or nudge the author if it’s been sitting.
+                  </p>
+                  <p>
+                     Bot PRs land here too once they’re fully green: they only ship when a human
+                     merges them. Longest-waiting first.
+                  </p>
+               </SubDoor>
+            }
+            pulls={lanes.ready}
+            cap={6}
+            opts={opts}
+         />
          {codeRegions.length > 0 && lanes.regionMatches.length > 0 && (
             <Lane
                title="In your code regions"
@@ -310,28 +338,6 @@ export function Review({
             pulls={lanes.needsQa}
             cap={6}
             opts={{ ...opts, rankReason: lanes.whyQaNext }}
-         />
-         <Lane
-            title="Ready to merge"
-            sub={
-               <SubDoor
-                  label="Why Ready to merge sits up here"
-                  text="signed off and green — someone just has to press merge"
-               >
-                  <p>
-                     Everything is done on these: code review and QA are in, CI is green, and they
-                     merge cleanly. The author usually lands their own PR, but anyone can — merge
-                     it, or nudge the author if it’s been sitting.
-                  </p>
-                  <p>
-                     Bot PRs land here too once they’re fully green: they only ship when a human
-                     merges them. Longest-waiting first.
-                  </p>
-               </SubDoor>
-            }
-            pulls={lanes.ready}
-            cap={6}
-            opts={opts}
          />
          {(lanes.restTotal > 0 || lanes.napping.length > 0) && (
             <RestGroup title="The rest of the board">
