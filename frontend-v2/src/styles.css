@@ -1,0 +1,947 @@
+@import "tailwindcss";
+
+/* --sweep must be a registered <angle> for the CI ring's share to GLIDE
+   between values (an unregistered custom property snaps). Top level on
+   purpose: @property doesn't belong to a layer. */
+@property --sweep {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* ── Design tokens: gray-ramp neutrals, one brand blue as the only action
+   color, status badges as 200-tint bg / 900-step text. The dark board keeps
+   pulldasher's night-shift habit, derived from the same gray ramp. Retheme
+   by swapping --brand* and the badge pairs. ── */
+:root {
+  --canvas: #f9fafb;
+  --surface: #ffffff;
+  --muted: #f3f4f6;
+  --secondary: #e5e7eb;
+  --border: #d1d5dc;
+  --ring: #99a1af;
+  --ink: #030712;
+  --ink-2: #4b5563;
+  --ink-3: #5d6673;
+  --brand: #0071ce;
+  --brand-50: #e0f1ff;
+  --brand-100: #cce7ff;
+  --brand-700: #004a87;
+  --brand-900: #002b4e;
+  --badge-green-bg: #bbf7d0;
+  --badge-green-fg: #14532d;
+  --badge-red-bg: #fecaca;
+  --badge-red-fg: #7f1d1d;
+  --badge-amber-bg: #fde68a;
+  --badge-amber-fg: #78350f;
+  --badge-brand-bg: var(--brand-100);
+  --badge-brand-fg: var(--brand-900);
+  --badge-gray-bg: #e5e7eb;
+  --badge-gray-fg: #101828;
+  --badge-slate-bg: #dde3ea;
+  --badge-slate-fg: #334155;
+  --slate: #475569;
+  /* text-grade in light mode: --ok/--warn also fill the 8px sign-off pips,
+     the most decision-critical marks on the board, and must stay legible.
+     Chroma deliberately tempered (2026-07 color audit): red had shipped MORE
+     saturated than the brand accent, and green as loud as red — backwards for
+     a restrained tool where red = broken (rare), amber = you owe something,
+     green = quiet confirmation. All values still clear AA. */
+  --ok: #2b663e;
+  --warn: #985521;
+  --bad: #a83630;
+  --violet: oklch(52% 0.15 300);
+  --ease-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-quart: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.dark {
+  --canvas: #030712;
+  --surface: #101828;
+  --muted: #1e2939;
+  --secondary: #364153;
+  --border: #364153;
+  --ring: #6a7282;
+  /* ink-2/ink-3 sit a step lighter than the gray ramp suggests: they carry
+     11-12px content (repo#, counts, cues) and must clear AA on --muted too */
+  --ink: #f9fafb;
+  --ink-2: #b6bcc7;
+  --ink-3: #99a1af;
+  --brand: #4da3e8;
+  --brand-50: #0d2b47;
+  --brand-100: #123a5f;
+  --brand-700: #8ec6f2;
+  --brand-900: #cce7ff;
+  --badge-green-bg: #14532d;
+  --badge-green-fg: #bbf7d0;
+  --badge-red-bg: #7f1d1d;
+  --badge-red-fg: #fecaca;
+  --badge-amber-bg: #78350f;
+  --badge-amber-fg: #fde68a;
+  --badge-brand-bg: #123a5f;
+  --badge-brand-fg: #cce7ff;
+  --badge-gray-bg: #364153;
+  --badge-gray-fg: #e5e7eb;
+  --badge-slate-bg: #334155;
+  --badge-slate-fg: #dde7f2;
+  --slate: #94a3b8;
+  /* dark tokens ran at 70-84% lightness with full chroma — neon on a near-
+     black canvas (the audit's worst offender was --warn as highlighter
+     yellow). Same tempered hierarchy as light; worst contrast is --bad at
+     4.58:1, still AA. */
+  --ok: #66b27c;
+  --warn: #d8953d;
+  --bad: #cd605a;
+  --violet: oklch(72% 0.13 300);
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
+  --color-secondary: var(--secondary);
+  --color-line: var(--border);
+  --color-ring: var(--ring);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-brand: var(--brand);
+  --color-brand-50: var(--brand-50);
+  --color-brand-700: var(--brand-700);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-slate: var(--slate);
+}
+
+/* the board almost always overflows once data lands: without a reserved
+   gutter, the scrollbar's arrival shoves every centered container ~half a
+   scrollbar left one beat after load */
+html {
+  scrollbar-gutter: stable;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font: 400 14px/1.5 ui-sans-serif, system-ui, sans-serif;
+}
+
+/* gate hand-authored hovers the way Tailwind v4 gates its hover: variants —
+   touch taps must not leave a sticky highlight */
+@media (hover: hover) {
+  a:hover {
+    color: var(--brand);
+  }
+}
+
+/* Tailwind v4 ships no button cursor at all (native arrow); the app's
+   convention is the hand on everything clickable, declared once instead of
+   remembered 27 times. Disabled buttons keep the arrow. */
+button:not(:disabled),
+summary,
+label:has(> input:not(:disabled)) {
+  cursor: pointer;
+}
+
+/* extend a small control's tap target past 24px without moving any layout —
+   the pseudo-element takes the hits, the visual box stays put. inset is -4px,
+   not more: adjacent .hit controls sit a gap-2 (8px) apart in the repo/people
+   rows, so a larger bleed would overlap in the gap and steal each other's
+   clicks (the star vs. its Mute/Only neighbors). -4px still lifts the smallest
+   control we use it on (a 16px avatar) to the 24px target floor. */
+.hit {
+  position: relative;
+}
+.hit::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
+
+/* an internally-scrollable strip (the mobile lens nav) reads as a swipeable
+   tab bar, not a mini scrollpane, once the scrollbar chrome is gone */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* shared focus ring (house: border-ring + ring/50 at 3px) */
+:is(select, input, button, summary, a):focus-visible {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+}
+
+@layer components {
+  /* status badge: house Badge (200-tint bg, 900 text, 8px radius) */
+  .badge {
+    @apply rounded-lg px-0 py-[3px] text-center text-xs font-medium;
+    width: 84px;
+    flex: none;
+  }
+  /* inline on a meta line: sized to its text, not a fixed column */
+  .badge-inline {
+    width: auto;
+    padding-inline: 7px;
+  }
+  .badge-ready { background: var(--badge-green-bg); color: var(--badge-green-fg); }
+  .badge-cr { background: var(--badge-gray-bg); color: var(--badge-gray-fg); }
+
+  /* sign-off marks: one circle-check per required stamp, drawn as SVG masks
+     so the geometry is machined — identical stroke weight and optical center,
+     never at the mercy of a font rasterizer (a text ✓ with text-stroke went
+     muddy/anemic at 10px). The mark is the identity; the FILL is the
+     standing: a solid disc = an approval that stands, the same mark drained
+     to an outline = it stood once but a later push lapsed it (re-confirm),
+     an empty ring = never approved. A muted dash (markup, not .pip) = not
+     required. Colored via background-color, so the tokens theme it. */
+  /* 14px: simplicity must not whisper — the marks are the board's
+     decision-critical facts and, standing bare with no chip around them,
+     they carry the slot alone; strokes sized so the outline states read as
+     drawn, never wispy. */
+  .pip {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    transition: background-color 240ms var(--ease-quint);
+    -webkit-mask: var(--pip-shape) center / 100% 100% no-repeat;
+    mask: var(--pip-shape) center / 100% 100% no-repeat;
+  }
+  /* rail CR/QA pip slots pad to the widest required count on the board
+     (--cr-slots / --qa-slots, published from app.tsx over all open pulls), so
+     marks line up in a column across rows and the slot collapses when no pull
+     needs many. 14px pip + 3px gap; the compact override tracks the 12px pip. */
+  .pd-pip-slot-cr {
+    min-width: max(0px, calc(var(--cr-slots, 1) * 17px - 3px));
+  }
+  .pd-pip-slot-qa {
+    min-width: max(0px, calc(var(--qa-slots, 1) * 17px - 3px));
+  }
+  :root[data-density="compact"] .pd-pip-slot-cr {
+    min-width: max(0px, calc(var(--cr-slots, 1) * 15px - 3px));
+  }
+  :root[data-density="compact"] .pd-pip-slot-qa {
+    min-width: max(0px, calc(var(--qa-slots, 1) * 15px - 3px));
+  }
+  .pip-on {
+    --pip-shape: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cdefs%3E%3Cmask id='k'%3E%3Crect width='16' height='16' fill='white'/%3E%3Cpath d='M4.6 8.4l2.3 2.3 4.5-5.2' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/mask%3E%3C/defs%3E%3Ccircle cx='8' cy='8' r='7.4' fill='white' mask='url(%23k)'/%3E%3C/svg%3E");
+    background-color: var(--ok);
+  }
+  .pip-stale {
+    --pip-shape: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cg fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='8' cy='8' r='6.6'/%3E%3Cpath d='M5.1 8.3l1.9 1.9 3.9-4.4'/%3E%3C/g%3E%3C/svg%3E");
+    background-color: var(--warn);
+  }
+  /* ink-3, not --border: the "still needed" ring is meaningful and must stay
+     ≥4.5:1 in both themes for low-vision users */
+  .pip-off {
+    --pip-shape: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.6' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E");
+    background-color: var(--ink-3);
+  }
+  /* ── CI is ONE circle, no glyphs: the machine's mark beside the human
+     checks (the old knocked-out ✗ read louder than any human mark; mass and
+     color carry the alarm now, and check glyphs stay reserved for people).
+     Three standings, one geometry:
+       running  .ci-ring.ci-ring-run   slate ring sweeping shut — the filled
+                                       share is checks done (--sweep, inline
+                                       from CiStatus), breathing slowly so a
+                                       live run reads as alive; the sweep
+                                       GLIDES when the share changes (the
+                                       registered --sweep property below)
+       failing  .ci-fail               the ring with a red X at its center
+                                       (lucide circle-x's proportions, hand-
+                                       drawn in the mask so the ring keeps the
+                                       exact geometry of its pass/run siblings)
+                                       — a FORM apart from the green passed
+                                       ring, not just a hue, and the X reads as
+                                       "broken" faster than the old center dot.
+                                       Lands once with a small settle, then
+                                       holds still: an alarm that keeps moving
+                                       is a nag, not a mark
+       passed   .ci-ring.ci-ring-pass  a closed green ring, revealed on row
+                                       hover / focus — invisible at rest (no
+                                       news is good news). It does NOT draw
+                                       itself on reveal: animation here means
+                                       "something changed", and hovering
+                                       isn't a change */
+  .ci-ring {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.6' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.6' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+    background: conic-gradient(var(--ci-ink, var(--slate)) var(--sweep, 0deg), var(--ci-track, var(--secondary)) var(--sweep, 0deg));
+    transition: --sweep 480ms var(--ease-quint);
+  }
+  .ci-ring-run {
+    animation: ci-breathe 2.4s ease-in-out infinite;
+  }
+  .ci-ring-pass {
+    --ci-ink: var(--ok);
+    --ci-track: transparent;
+    --sweep: 360deg;
+  }
+  .ci-fail {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.6' fill='none' stroke='white' stroke-width='2'/%3E%3Cpath d='M6 6 10 10M10 6 6 10' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.6' fill='none' stroke='white' stroke-width='2'/%3E%3Cpath d='M6 6 10 10M10 6 6 10' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+    background: var(--bad);
+    animation: ci-land 320ms var(--ease-quint);
+  }
+  @keyframes ci-breathe {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+  @keyframes ci-land {
+    from {
+      transform: scale(0.4);
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ci-ring {
+      transition: none;
+    }
+    .ci-ring-run,
+    .ci-fail {
+      animation: none;
+    }
+  }
+
+  /* the age numeral whispers: at rest it wears the age line's own border
+     tint (a label, not a second alarm), rising to ink when the row is
+     hovered or it is focused. Weight (the warn/rot heft) shows through on
+     the hover read. */
+  .pd-age-num {
+    color: var(--border);
+    transition: color 150ms ease-out;
+  }
+  .pd-row:hover .pd-age-num,
+  button:focus-visible > .pd-age-num,
+  button:hover > .pd-age-num {
+    color: var(--ink-3);
+  }
+
+  /* the slot you personally stamped: a dotted rule under the marks */
+  .pip-mine { border-bottom: 1px dotted var(--ink-3); padding-bottom: 2px; }
+
+  /* age as the row's own baseline: a 2px grey hairline along the bottom
+     edge — a deepened stretch of the divider the row already has. A single
+     pixel read too faint to register as a deliberate mark, so the resting
+     line sits at 2px: still a quiet fact, now legible at a glance. Length
+     and tint are both relative to the board's longest-open pull (see
+     bits.tsx AgeBaseline). The quiet day count floats right in the meta
+     line, capping the track. width:100% fills its immediate parent, the
+     hoverable .pd-age-hit button below — not the row — so the line's own
+     extent stays exactly what it was before the hover door was added. */
+  .pd-age-line {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 2px;
+    pointer-events: none;
+    /* the growing tip rounds like every other surface on the board; the left
+       end stays square — it's a measurement from the row's edge, a ruler
+       fill, and it tucks under the lane card's own rounded corner */
+    border-radius: 0 999px 999px 0;
+    /* only the height animates open; the global prefers-reduced-motion
+       rule at the bottom of this file already zeroes this out */
+    transition: height 150ms var(--ease-quart);
+  }
+
+  /* the line's own door: .pd-age-track is the row-relative track (bits.tsx
+     sets its width inline to the SAME fraction the line draws, the row's
+     age relative to the board's oldest, not the full row) — a taller (10px)
+     box so a thin line doesn't need pixel-hunting. z-index:1 matches
+     .pd-raise's tier: enough to sit above the row's stretched-link click
+     layer (.pd-link::after, z-index 0) inside this one strip, without
+     stealing a click anywhere else on the row. .pd-age-hit is the button
+     that fills it; hovering or focusing it grows .pd-age-line to an 8px
+     band and opens the same age popover the numeral shows (bits.tsx's
+     AgePopoverBody — one copy, two doors). */
+  .pd-age-track {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    z-index: 1;
+    height: 10px;
+  }
+  /* the band grows on ROW hover, not just its own 10px strip: hovering the
+     card is the "tell me about this row" gesture, and the deepened band is
+     part of that answer (its popover still needs the band's own hover) */
+  .pd-row:hover .pd-age-line,
+  .pd-age-hit:focus-visible .pd-age-line {
+    height: 8px;
+  }
+
+  /* row flags: quiet colored labels, not badges — amber for act-on-it,
+     muted ink for neutral facts. The cluster's hover popover carries meaning. */
+  .flag-warn {
+    @apply text-[11px] font-medium;
+    color: var(--warn);
+    flex: none;
+  }
+  .flag-note {
+    @apply text-[11px] font-medium;
+    color: var(--ink-3);
+    flex: none;
+  }
+
+}
+
+/* Each card row is its own inline-size query container, so the metric rail can
+   decide to break onto its own line by measured COLUMN WIDTH rather than by how
+   long this particular row's meta chips happened to be. That's the whole fix
+   for "cards don't align": today the rail is ml-auto inside the meta flex-wrap,
+   so it right-aligns on line 1 when it fits (wide Review lanes) but drops to an
+   incidental, per-row position when it doesn't (narrow Classic columns). The
+   @container rule below makes that break deterministic and identical for every
+   card in the same column, so the weight/CR/QA/CI/age columns line up down the
+   list. inline-size (not size) leaves row height auto; pd-row is already
+   `relative`, so the containing-block it now establishes for the .pd-link::after
+   stretch layer and the stack connector is unchanged. */
+.pd-row {
+  container-type: inline-size;
+}
+/* comfortable density renders the rail as a DIRECT child of the row (compact
+   nests it in the flowing text span, so this selector skips it): center it
+   vertically so the two-line card's height reads as deliberate space around
+   the marks — controls-centered-right, like a mail client's list row. */
+.pd-row > .pd-rail {
+  align-self: center;
+}
+/* below a width only ever hit by Classic's ~300-450px columns (Review's
+   full-width lanes stay well above it, so they keep today's inline right-anchored
+   rail), force the rail onto its own line, still right-aligned via its own
+   justify-end. flex-basis:100% can't share a line with anything, so it wraps
+   whole. */
+@container (max-width: 520px) {
+  /* a wrapped rail has no cross-row columns to hold: the no-checks
+     placeholder collapses outright, and a quiet (passing) CI collapses at
+     rest but comes back on row hover — green stays one hover away even in
+     Classic's narrow columns. CI sits at the rail's end, so reappearing
+     grows the line rightward without shoving the human marks. */
+  span.pd-ci-slot {
+    display: none;
+  }
+  .pd-ci-quiet {
+    display: none;
+  }
+  .pd-row:hover .pd-ci-quiet,
+  .pd-ci-quiet:focus-visible {
+    display: inline-flex;
+  }
+  /* the four-icon hover cluster would crowd the wrapped rail: it collapses
+     outright and the kebab (mobile's menu, same actions) takes over on
+     desktop too — revealed on row hover / focus, opacity so the slot never
+     jumps. Unlayered on purpose: it must beat the kebab's own
+     hidden-at-desktop utility. */
+  .pd-rail {
+    flex-basis: 100%;
+    margin-left: 0;
+    margin-top: 1px;
+    /* chips flow left under the text (v1's card anatomy) instead of
+       right-anchoring into ragged centered-looking lines */
+    justify-content: flex-start;
+    position: relative;
+  }
+  /* the verb dock hangs OFF the rail's left edge in wide rows (right:100%),
+     but a wrapped rail IS the row — right:100% would park the chips off the
+     row's left edge, where the lane's overflow-hidden clips them to a sliver.
+     Anchor them to the rail's right edge instead. */
+  .pd-rail .pd-verbs {
+    right: 0;
+    left: auto;
+    margin-right: 0;
+  }
+}
+/* whole-card click target: the title link stretches an invisible layer over
+   its positioned row, so clicking anywhere opens the PR. Genuinely
+   interactive children (avatar, ledger, actions) sit above it via .pd-raise. */
+.pd-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.pd-raise {
+  position: relative;
+  z-index: 1;
+}
+
+/* the row's verb chips float left of the rail with ZERO standing geometry
+   — the rail's right edge is the board's strongest column and stays the
+   data's alone. A chip that only OFFERS (.pd-verb: Claim, Snooze) fades in
+   on row hover or focus, pointer-events following so a hidden offer never
+   steals a click; a chip that RECORDS your choice (Release, Unsnooze — no
+   .pd-verb) simply stands. Touch has no hover: offers live in the kebab
+   there, standing exits stay visible. */
+.pd-verb {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease-out;
+}
+.pd-row:hover .pd-verb,
+.pd-row:focus-within .pd-verb {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .pd-verb {
+    display: none;
+  }
+}
+
+/* the kebab (utilities + management) reveals on row hover at every desktop
+   width — one overflow pattern board-wide; below 720px it's always visible
+   (hover has no phone story). Opacity, not display, so the slot never
+   jumps. */
+@media (hover: hover) and (min-width: 720px) {
+  .pd-kebab {
+    opacity: 0;
+  }
+  .pd-row:hover .pd-kebab,
+  .pd-kebab:focus-within {
+    opacity: 1;
+  }
+}
+
+/* ── Motion: state feedback only, exponential ease-out, one settle entrance ── */
+@keyframes settle {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
+/* one staggered entrance, two moments: .settle-once on first paint only (tab
+   switches into a task must be instant), .reveal-stagger on the rows a
+   "+N more" click reveals (display:contents on that wrapper keeps the rows in
+   the container's flow — borders, hover — unchanged) */
+.settle-once > *,
+.reveal-stagger > * {
+  animation: settle 240ms var(--ease-quint) backwards;
+}
+.settle-once > *:nth-child(2),
+.reveal-stagger > *:nth-child(2) { animation-delay: 30ms; }
+.settle-once > *:nth-child(3),
+.reveal-stagger > *:nth-child(3) { animation-delay: 60ms; }
+.settle-once > *:nth-child(4),
+.reveal-stagger > *:nth-child(4) { animation-delay: 90ms; }
+.settle-once > *:nth-child(n + 5),
+.reveal-stagger > *:nth-child(n + 5) { animation-delay: 120ms; }
+/* a big "+N more" can reveal 50+ rows at once; starting that many animation
+   instances in one frame is real main-thread work for zero perceptible gain —
+   past the first two dozen the rows just appear */
+.reveal-stagger > *:nth-child(n + 25) {
+  animation: none;
+}
+
+/* ── The wordmark deals in (components/Wordmark.tsx): letters slide out from
+   behind the deer left-to-right on show, and tuck back toward it far-end
+   first on hide, so the word collapses into the mark instead of shearing.
+   The h1 is out of flow — neither state ever reflows the header. Transforms
+   and opacity only; visibility flips on the wrapper after the letters land
+   so the invisible word can't sit under a cursor. ── */
+.wm {
+  display: inline-flex;
+  visibility: visible;
+}
+.wm-out {
+  visibility: hidden;
+  transition: visibility 0s 0.5s;
+}
+.wm-letter {
+  display: inline-block;
+  transition:
+    opacity 0.26s var(--ease-quint),
+    transform 0.26s var(--ease-quint);
+}
+.wm-in .wm-letter {
+  opacity: 1;
+  transform: translateX(0);
+  transition-delay: calc(var(--i) * 24ms);
+}
+.wm-out .wm-letter {
+  opacity: 0;
+  transform: translateX(calc(-14px - var(--i) * 4px));
+  transition-delay: calc((9 - var(--i)) * 16ms);
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    scale: 0.97;
+    translate: 0 -4px;
+  }
+}
+.popover {
+  transform-origin: top left;
+  animation: pop 180ms var(--ease-quint);
+}
+/* right-anchored panels grow from their anchored corner, not across the row */
+.popover-right {
+  transform-origin: top right;
+}
+
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    translate: 0 -6px;
+  }
+}
+.notice-inner {
+  animation: slide-down 200ms var(--ease-quint);
+}
+
+/* changed rows: the tick flashes once, then rests. background-color (not the
+   background shorthand) so the browser interpolates one paint property; kept
+   under a second so a socket burst that flashes many rows settles fast */
+@keyframes fresh-flash {
+  0% {
+    background-color: color-mix(in srgb, var(--brand) 12%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.row-fresh {
+  animation: fresh-flash 800ms var(--ease-quart) 200ms backwards;
+}
+
+/* the "N merged since your last look" banner jumps to the shipped fold and
+   flashes it once — ClosedRow has no per-row flash of its own (its dot-fresh
+   marker is a standing mark, not a one-shot cue), so the fold container
+   itself carries the same fresh-flash pulse instead. */
+.fold-flash {
+  animation: fresh-flash 800ms var(--ease-quart);
+}
+
+/* the since-your-last-look marker on a closed row (open rows use FreshTag) */
+.dot-fresh {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--brand);
+}
+
+/* compact density: the CardShell already collapses to one line with a smaller
+   avatar and tighter padding; these finish the job for the pieces it doesn't
+   own — the closed-row variant, the sign-off pips, the weight meter, and the
+   metric-rail gap — so the whole row shrinks together, not just the card. */
+:root[data-density="compact"] .pd-row {
+  padding-top: 0.125rem;
+  padding-bottom: 0.125rem;
+}
+:root[data-density="compact"] .pd-rail {
+  gap: 0.375rem;
+}
+:root[data-density="compact"] .pip {
+  width: 12px;
+  height: 12px;
+}
+
+/* settings slide-out from the right, with a fading scrim */
+@keyframes panel-in {
+  from {
+    translate: 100% 0;
+  }
+}
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+.settings-panel {
+  animation: panel-in 220ms var(--ease-quint);
+}
+.settings-scrim {
+  animation: scrim-in 160ms ease-out;
+}
+
+/* press feedback: house scale-97 */
+.pressable {
+  transition:
+    background-color 150ms ease-out,
+    color 150ms ease-out,
+    border-color 150ms ease-out,
+    scale 150ms ease-out;
+}
+.pressable:active {
+  scale: 0.97;
+}
+
+/* the live dot breathes: connected and listening */
+@keyframes breathe {
+  50% {
+    opacity: 0.4;
+  }
+}
+.conn-live {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+/* empty-state check draws itself */
+@keyframes draw-check {
+  from {
+    stroke-dashoffset: 26;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.draw-check {
+  stroke-dasharray: 26;
+  animation: draw-check 500ms var(--ease-quint) 200ms backwards;
+}
+
+/* one-shot micro-interactions: a chip popping in, an icon spinning once */
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+.chip-in {
+  animation: chip-in 160ms var(--ease-quint);
+}
+
+@keyframes spin-once {
+  to {
+    rotate: 360deg;
+  }
+}
+.spin-once {
+  animation: spin-once 400ms var(--ease-quart);
+}
+
+@keyframes nod {
+  50% {
+    scale: 1.25;
+  }
+}
+input[type="checkbox"]:checked {
+  animation: nod 180ms var(--ease-quint);
+}
+input[type="checkbox"] {
+  accent-color: var(--brand);
+}
+
+/* ── Cheers toasts: rewards and nags rise from the corner. The card springs up
+   on enter and drops away on dismiss; a reward's medallion pops, a nag's
+   settles in a touch heavier, wistful. ── */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    translate: 0 16px;
+    scale: 0.96;
+  }
+}
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    translate: 0 10px;
+    scale: 0.96;
+  }
+}
+.toast-enter {
+  animation: toast-in 260ms var(--ease-quint) backwards;
+}
+.toast-leave {
+  animation: toast-out 200ms var(--ease-quart) forwards;
+}
+@keyframes medallion-pop {
+  0% {
+    opacity: 0;
+    scale: 0.4;
+  }
+  60% {
+    scale: 1.18;
+  }
+  100% {
+    opacity: 1;
+    scale: 1;
+  }
+}
+.medallion-pop {
+  animation: medallion-pop 400ms var(--ease-quint) 90ms backwards;
+}
+@keyframes medallion-slump {
+  from {
+    opacity: 0;
+    translate: 0 -5px;
+    rotate: -8deg;
+  }
+}
+.medallion-slump {
+  animation: medallion-slump 440ms var(--ease-quint) 70ms backwards;
+}
+/* a richer reward flourish: glints fly out radially from the medallion, then
+   fade — driven by per-spark --dx/--dy set inline */
+@keyframes sparkle-burst {
+  0% {
+    opacity: 0;
+    translate: 0 0;
+    scale: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: var(--dx, 0) var(--dy, 0);
+    scale: 1;
+  }
+}
+.sparkle {
+  animation: sparkle-burst 820ms var(--ease-quart) forwards;
+}
+/* one-shot light glint sweeping across a reward card */
+@keyframes toast-shine {
+  from {
+    transform: translateX(-140%) skewX(-18deg);
+  }
+  to {
+    transform: translateX(260%) skewX(-18deg);
+  }
+}
+.toast-shine {
+  animation: toast-shine 900ms var(--ease-quint) 140ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    /* staggered entrances (.settle-once, .wm) carry their motion in delays;
+       zeroed durations alone would leave content invisible for the delay */
+    transition-delay: 0.01ms !important;
+  }
+  .pressable:active {
+    scale: 1;
+  }
+}
+
+/* ---- .md-prose: the rendered PR description inside the title's hover
+   preview (markdown.ts sanitizes; this only sets the type). Sized a notch
+   under the board's own text so the quoted document reads as an inset. ---- */
+.md-prose {
+  color: var(--ink-2);
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+.md-prose > :first-child {
+  margin-top: 0;
+}
+.md-prose > :last-child {
+  margin-bottom: 0;
+}
+.md-prose h1,
+.md-prose h2,
+.md-prose h3,
+.md-prose h4,
+.md-prose h5,
+.md-prose h6 {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.md-prose h1 {
+  font-size: 14px;
+}
+.md-prose h2 {
+  font-size: 13px;
+}
+.md-prose p {
+  margin: 6px 0;
+}
+.md-prose ul,
+.md-prose ol {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+.md-prose ul {
+  list-style: disc;
+}
+.md-prose ol {
+  list-style: decimal;
+}
+.md-prose li {
+  margin: 2px 0;
+}
+/* gfm task-list items: the checkbox replaces the bullet */
+.md-prose li:has(> input[type='checkbox']) {
+  margin-left: -14px;
+  list-style: none;
+}
+.md-prose input[type='checkbox'] {
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+.md-prose code {
+  border-radius: 4px;
+  background: var(--muted);
+  padding: 1px 4px;
+  font-size: 12px;
+}
+.md-prose pre {
+  margin: 6px 0;
+  border-radius: 8px;
+  background: var(--muted);
+  padding: 8px 10px;
+  overflow-x: auto;
+}
+.md-prose pre code {
+  background: none;
+  padding: 0;
+}
+.md-prose a {
+  color: var(--brand);
+}
+.md-prose a:hover {
+  text-decoration: underline;
+}
+.md-prose img {
+  max-width: 100%;
+  max-height: 260px;
+  border-radius: 8px;
+}
+.md-prose blockquote {
+  margin: 6px 0;
+  border-radius: 8px;
+  background: var(--muted);
+  padding: 6px 10px;
+}
+.md-prose hr {
+  margin: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--secondary);
+}
+.md-prose table {
+  display: block;
+  margin: 6px 0;
+  border-collapse: collapse;
+  overflow-x: auto;
+  font-size: 12px;
+}
+.md-prose th,
+.md-prose td {
+  border: 1px solid var(--secondary);
+  padding: 3px 8px;
+}

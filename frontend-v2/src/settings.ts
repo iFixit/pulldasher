@@ -1,0 +1,294 @@
+import { STARVE_DAYS } from '../../shared/model/status';
+import { createPersistentStore } from './storage';
+
+/** one named review circle; DEFAULT_TEAM_NAME is what quick add-to-team
+ * gestures (the row kebab, the People filter) create when no roster exists */
+export interface PersonalTeam {
+   name: string;
+   members: string[];
+}
+
+export const DEFAULT_TEAM_NAME = 'My team';
+
+/**
+ * User settings: the knobs that are a matter of personal taste, not team
+ * policy (that's the server's config.js) or model correctness (that's the sort and
+ * starvation math). Persisted per-browser, same as scope. New fields fall
+ * back to their default so an old saved blob never breaks.
+ */
+export interface Settings {
+   /** 'system' follows the OS; the others pin it */
+   theme: 'system' | 'light' | 'dark';
+   /** row height: comfortable is the default, compact packs more on screen */
+   density: 'comfortable' | 'compact';
+   /** which lens a bare / URL opens */
+   defaultLens: string;
+   /** a PR's age turns amber at this many days (display only). The heaviest
+    * text tier (red) follows automatically at ageWarnDays * 2.5 — callers
+    * derive that rotDays for AgeStamp/AgeBaseline (app.tsx, views/Stats.tsx)
+    * instead of storing it separately. */
+   ageWarnDays: number;
+   /** which clock the row's age numeral shows: days since it opened, or days
+    * since its last update. Both clocks stay in the numeral's popover, and
+    * the urgency weight always follows the OPENED clock — how long a pull
+    * has been open is the truth the board ranks by. */
+   ageDisplay: 'opened' | 'updated';
+   /** per-repo hides: 'hide' takes a repo off the board. 'show' is a relic
+    * of the retired org-level mute (it overrode the org default) — stored
+    * values still parse but mean the same as absent: shown. */
+   repoPrefs: Record<string, 'hide' | 'show'>;
+   /** your default for other people's drafts: 'mine' hides them (your own
+    * always show), 'all' shows everyone's */
+   draftsMode: 'mine' | 'all';
+   /** hide bot PRs (dependency bumps and other machine authors) from the
+    * board entirely. Off by default: bots are low-priority review work but
+    * still work, and live in their own fold. On makes the board people-only.
+    * A saved preference, not a session reveal. */
+   hideBots: boolean;
+   /** your default for Cryogenic-Storage (parked) PRs */
+   showCryo: boolean;
+   /** desktop notifications when your PR is ready to merge / a re-review is owed */
+   notify: boolean;
+   /** play a chime alongside those notifications */
+   notifySound: boolean;
+   /** in-app "cheers": playful rewards when your reviews land and gentle nags
+    * when they pile up. Session-only, fires while you're on the board. */
+   cheers: boolean;
+   /** how long a cheer/nudge toast lingers before it slides away, in ms —
+    * or 'sticky' to keep it until you dismiss it (or a newer one pushes it
+    * off the top of the stack). */
+   cheerDwell: number | 'sticky';
+   /** how the recent-nudges bell flags what landed since you last opened it:
+    * the running count, a bare dot, or nothing. */
+   notifyBadge: 'count' | 'dot' | 'none';
+   /** cheer/nudge kinds switched off individually (CHEER_CATALOG keys). A
+    * mute-list, not an allow-list, so a newly added kind defaults to on. Only
+    * bites when `cheers` is on — the master switch still gates the whole lot. */
+   mutedCheers: string[];
+   /** rows a lane shows before folding into "+N more"; 0 = no cap (show all).
+    * The global default; a lens absent from laneCapByLens uses this. */
+   laneCap: number;
+   /** per-lens override of laneCap, keyed by the lens id (app.tsx's Lens
+    * type minus 'stats', which has no lanes). An absent key means "use the
+    * global laneCap" — old saved settings simply lack this field, so they
+    * fall back to the object default below. */
+   laneCapByLens: Record<string, number>;
+   /** teams that self-review (iFixit) don't gate on CR, so lining up QA is the
+    * real stall: surface "Find a QA-er" on your own PR as a home to-do, not a
+    * My-work afterthought. Off leaves getting QA in My work only. */
+   selfReview: boolean;
+   /** your named rosters — REVIEW CIRCLES, yours to define, not the org
+    * chart (an official team and a cross-team pairing partner can be two
+    * separate rosters). Every roster's members get the same two effects:
+    * the Team lens shows their boards, and their pulls lead your Review
+    * queue and Needs QA (the union — see myPeople). */
+   teams: PersonalTeam[];
+   /** logins whose pulls stay off your board until an explicit reveal (a
+    * scope pick or an author: query term) brings them back for the session.
+    * Mirrors repoPrefs' hide, but people have no org baseline to fall back
+    * to — hidden is the whole state. */
+   hiddenPeople: string[];
+   /** free-text areas you own or care about (e.g. "Growthbook", "Shopify").
+    * A PR whose title, body, labels, branch, or repo partial-matches any of
+    * these floats to the top of the review queue. Arbitrary strings, not a
+    * known set — unlike repos/logins. */
+   codeRegions: string[];
+   /** when an unfinished claim of yours starts nagging you to finish or
+    * release it. Claims themselves don't expire on a timer — they clear when
+    * the review is submitted, released, or removed on GitHub. */
+   claimWarnMins: number;
+   /** the review queue's repo order: the queue renders as contiguous per-repo
+    * blocks in this order (dev repos before ops before non-dev, the owner's
+    * taxonomy), each block internally score-ranked with teammates leading.
+    * Repos on the board but absent here trail the listed ones by their best
+    * pull's rank. Empty = one interleaved queue (no blocks, no cap). */
+   repoPriority: string[];
+   /** rows each repo block shows before folding into "+N more from <repo>" —
+    * the flood bound: one busy repo can't monopolize the visible queue.
+    * 0 = no cap. Only meaningful while repoPriority is non-empty. */
+   repoQueueCap: number;
+   /** open a PR in a new tab when you click its card, so the board stays put
+    * behind you — this is a hub. Off opens it in the same tab. */
+   openPrsNewTab: boolean;
+   /** ms the cursor must rest on a hover popover (a card's state, sign-off, CI
+    * or age tooltip) before it opens, so brushing the pointer across the board
+    * doesn't flash panels open. 0 = open instantly; a click always bypasses it. */
+   hoverDelayMs: number;
+}
+
+/** The heaviest age text tier (red), derived from ageWarnDays rather than
+ * stored separately — see the field's own doc comment above. The one
+ * definition AgeStamp/AgeBaseline's callers (app.tsx, views/Stats.tsx) share,
+ * so the 2.5x multiplier can't drift between the two surfaces. */
+export function ageRotDays(warnDays: number): number {
+   return Math.round(warnDays * 2.5);
+}
+
+/** The shipped repo order, from a 2026-07 audit of 90-day PR volume across
+ * every watched repo (17 of 25 were fully dormant): the monorepo dwarfs
+ * everything (1182 PRs/90d), then dev tooling, then ops (server-templates,
+ * 157 — two reviewers absorbing an AI-assisted flood), then non-dev planning
+ * repos. Dormant repos are omitted on purpose — an unlisted repo that wakes
+ * up trails the list automatically. */
+export const DEFAULT_REPO_PRIORITY = [
+   'iFixit/ifixit',
+   'iFixit/pulldasher',
+   'iFixit/valkyrie',
+   'iFixit/server-templates',
+   'iFixit/ifixit-schooner-mfg-sw',
+   'iFixit/Product-Development',
+   'iFixit/PD-Test',
+];
+
+export const DEFAULT_SETTINGS: Settings = {
+   theme: 'system',
+   density: 'comfortable',
+   defaultLens: 'review',
+   ageWarnDays: STARVE_DAYS,
+   ageDisplay: 'opened',
+   repoPrefs: {},
+   draftsMode: 'mine',
+   hideBots: false,
+   showCryo: false,
+   notify: false,
+   notifySound: false,
+   cheers: true,
+   cheerDwell: 5000,
+   notifyBadge: 'count',
+   mutedCheers: [],
+   laneCap: 10,
+   laneCapByLens: {},
+   selfReview: true,
+   teams: [],
+   hiddenPeople: [],
+   codeRegions: [],
+   claimWarnMins: 120,
+   repoPriority: DEFAULT_REPO_PRIORITY,
+   repoQueueCap: 15,
+   openPrsNewTab: true,
+   hoverDelayMs: 250,
+};
+
+const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
+
+/** Union of every personal roster, sorted — "your people": the set that
+ * leads the review queues and wears the teammate corner heart. */
+export function myPeople(teams: PersonalTeam[]): string[] {
+   return [...new Set(teams.flatMap(t => t.members))].sort();
+}
+
+/** Plain getter for non-React readers. */
+export function getSettings(): Settings {
+   return store.get();
+}
+
+export function setSettings(patch: Partial<Settings>) {
+   store.set({ ...store.get(), ...patch });
+}
+
+/** Set or clear one repo's visibility override. null follows the org default. */
+export function setRepoPref(repo: string, pref: 'hide' | 'show' | null) {
+   const next = { ...store.get().repoPrefs };
+   if (pref == null) delete next[repo];
+   else next[repo] = pref;
+   setSettings({ repoPrefs: next });
+}
+
+/** Set or clear one lens's lane-length override. null follows the global laneCap. */
+export function setLaneCapForLens(lens: string, cap: number | null) {
+   const next = { ...store.get().laneCapByLens };
+   if (cap == null) delete next[lens];
+   else next[lens] = cap;
+   setSettings({ laneCapByLens: next });
+}
+
+/** Add or remove a teammate. Adding lands in `teamName` (or the first
+ * roster, creating "My team" when none exists — the quick gesture from a row
+ * kebab must never dead-end on an empty state). Removing without a teamName
+ * removes from EVERY roster: the kebab's "remove from your team" means "this
+ * person no longer leads my queues", not a per-roster bookkeeping question.
+ * Members stay deduped and sorted for stable render order. */
+export function toggleTeammate(login: string, add: boolean, teamName?: string) {
+   const teams = store.get().teams.map(t => ({ ...t, members: [...t.members] }));
+   if (add) {
+      let target = teamName ? teams.find(t => t.name === teamName) : teams[0];
+      if (!target) {
+         target = { name: teamName ?? DEFAULT_TEAM_NAME, members: [] };
+         teams.push(target);
+      }
+      // logins are case-insensitive (one GitHub account) — don't add a login
+      // that's already on the roster under different casing, and keep the
+      // casing of whichever spelling got there first
+      if (!target.members.some(m => m.toLowerCase() === login.toLowerCase())) {
+         target.members = [...target.members, login].sort();
+      }
+   } else {
+      for (const t of teams) {
+         if (teamName && t.name !== teamName) continue;
+         t.members = t.members.filter(l => l !== login);
+      }
+   }
+   setSettings({ teams });
+}
+
+/** Create an empty named roster (no-op on a duplicate or blank name). */
+export function addTeam(name: string) {
+   const trimmed = name.trim();
+   const teams = store.get().teams;
+   if (!trimmed || teams.some(t => t.name === trimmed)) return;
+   setSettings({ teams: [...teams, { name: trimmed, members: [] }] });
+}
+
+/** Rename a roster in place. Blank or colliding names are a no-op — the
+ * caller's field just stays put rather than half-applying. */
+export function renameTeam(oldName: string, newName: string) {
+   const trimmed = newName.trim();
+   const teams = store.get().teams;
+   if (!trimmed || trimmed === oldName || teams.some(t => t.name === trimmed)) return;
+   setSettings({ teams: teams.map(t => (t.name === oldName ? { ...t, name: trimmed } : t)) });
+}
+
+/** Delete a roster outright (its members lose the float unless they're also
+ * in another roster). */
+export function removeTeam(name: string) {
+   setSettings({ teams: store.get().teams.filter(t => t.name !== name) });
+}
+
+/** Hide or unhide a person's pulls. Deduped and sorted for a stable render order. */
+export function toggleHiddenPerson(login: string, on: boolean) {
+   const cur = store.get().hiddenPeople;
+   const next = on ? [...new Set([...cur, login])].sort() : cur.filter(l => l !== login);
+   setSettings({ hiddenPeople: next });
+}
+
+/** Add a code region (trimmed). Deduped case-insensitively so "Shopify" and
+ * "shopify" don't both land; stored as first typed, newest last so the editor
+ * reads in the order you added them. */
+export function addCodeRegion(region: string) {
+   const trimmed = region.trim();
+   if (!trimmed) return;
+   const cur = store.get().codeRegions;
+   if (cur.some(r => r.toLowerCase() === trimmed.toLowerCase())) return;
+   setSettings({ codeRegions: [...cur, trimmed] });
+}
+
+/** Remove a code region (exact match). */
+export function removeCodeRegion(region: string) {
+   setSettings({ codeRegions: store.get().codeRegions.filter(r => r !== region) });
+}
+
+/** Switch one cheer/nudge kind on or off. `on` adds it back (drops it from the
+ * mute-list); off mutes it. */
+export function toggleCheerKind(kind: string, on: boolean) {
+   const cur = store.get().mutedCheers;
+   const next = on ? cur.filter(k => k !== kind) : [...new Set([...cur, kind])];
+   setSettings({ mutedCheers: next });
+}
+
+export function useSettings(): Settings {
+   return store.useValue();
+}
+
+/** Non-React subscription, for the store to re-derive when a setting that
+ * feeds the model (the aging threshold) changes. Returns an unsubscribe. */
+export const subscribeSettings = store.subscribe;

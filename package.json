@@ -42,6 +42,7 @@
     "@typescript-eslint/parser": "^5.2.0",
     "babel-loader": "^8.2.3",
     "css-loader": "^6.7.1",
+    "esbuild": "^0.28.1",
     "eslint": "^8.12.0",
     "eslint-plugin-import": "^2.25.2",
     "eslint-plugin-react": "^7.29.4",
@@ -63,10 +64,14 @@
     "start": "node app.js",
     "debug": "node inspect app.js",
     "lint": "eslint ./",
-    "frontend:start": "DUMMY_USER=danielbeardsley DUMMY_PULLS=./frontend/dummy-pulls.json webpack-dev-server --config ./frontend/webpack.dev.config.js",
-    "frontend:watch": "webpack --watch --config ./frontend/webpack.dev.config.js",
-    "postinstall": "npm run build",
+    "postinstall": "npm run build:shared && npm run build && npm run build:v2",
     "build": "webpack --config ./frontend/webpack.prod.config.js",
+    "build:v2": "cd frontend-v2 && npm ci && npm run build",
+    "build:shared": "esbuild shared/index.ts --bundle --platform=node --format=esm --outfile=shared/dist/index.js",
+    "v1:dev": "DUMMY_USER=danielbeardsley DUMMY_PULLS=./frontend/dummy-pulls.json webpack-dev-server --config ./frontend/webpack.dev.config.js",
+    "v1:watch": "webpack --watch --config ./frontend/webpack.dev.config.js",
+    "frontend:dev": "cd frontend-v2 && npm run dev",
+    "frontend:dummy": "cd frontend-v2 && npm run dev:dummy",
     "test": "CONFIG_PATH=../test/fixtures/config.js node --test test/*.test.js",
     "precommit": "lint-staged"
   },
@@ -75,9 +80,9 @@
       "eslint --fix"
     ]
   },
-  "eslintIgnore": [
-    "dist/bundle.js"
-  ],
+  "overrides": {
+    "@types/lodash": "4.14.181"
+  },
   "main": "app.js",
   "repository": "git@github.com:ifixit/pulldasher.git",
   "author": "iFixit",
