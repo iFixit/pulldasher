@@ -306,9 +306,9 @@ export function Settings({
                               ariaLabel="rows per repo before folding"
                               value={String(s.repoQueueCap)}
                               options={[
-                                 ['3', '3'],
-                                 ['5', '5'],
-                                 ['8', '8'],
+                                 ['15', '15'],
+                                 ['30', '30'],
+                                 ['50', '50'],
                                  ['0', 'No cap'],
                               ]}
                               onChange={v => set({ repoQueueCap: Number(v) })}
@@ -401,7 +401,6 @@ export function Settings({
                            />
                         </Field>
                      </Group>
-
 
                      <CodeRegionsGroup />
 

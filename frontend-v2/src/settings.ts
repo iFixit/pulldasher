@@ -150,7 +150,7 @@ export const DEFAULT_SETTINGS: Settings = {
    codeRegions: [],
    claimWarnMins: 120,
    repoPriority: DEFAULT_REPO_PRIORITY,
-   repoQueueCap: 5,
+   repoQueueCap: 15,
    openPrsNewTab: true,
    hoverDelayMs: 250,
 };
