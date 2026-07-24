@@ -1,13 +1,17 @@
 import type { Weight } from './model/status';
-import { createPersistentStore } from './storage';
+import { createMemoryStore, removeStorage } from './storage';
 
 const WEIGHTS: ReadonlySet<string> = new Set(['XS', 'S', 'M', 'L', 'XL']);
 
 /**
- * Scope is the one saved customization: which repos and people are "my
- * board". Empty arrays mean everything — a full selection is stored as
- * empty so new repos and new teammates are never silently excluded by a
- * stale saved list.
+ * Scope is TRANSIENT view state — which repos and people the board is
+ * narrowed to right now. Empty arrays mean everything. It lives in memory
+ * and in the URL hash (repos=/authors=/xauthors=), never in localStorage:
+ * the hash is the view state, and a second, invisible persistence resurrected
+ * months-old allow-lists on hash-less loads — a stale scope naming a hidden
+ * repo counted as an "explicit reveal" and kept its pulls on the board no
+ * matter how often the user hid it (the prod mute bug). Durable curation
+ * (hidden repos/people, rosters) belongs to settings, not scope.
  */
 export interface Scope {
    repos: string[];
@@ -17,16 +21,16 @@ export interface Scope {
    notAuthors: string[];
 }
 
-const store = createPersistentStore<Scope>('pd2.scope', { repos: [], authors: [], notAuthors: [] });
+const store = createMemoryStore<Scope>({ repos: [], authors: [], notAuthors: [] });
 
-/**
- * Apply a scope from a shared URL for this session WITHOUT persisting it —
- * opening a teammate's link must not silently overwrite your saved board.
- * The moment the user edits the scope themselves, useScope's setter saves
- * as usual.
- */
+// housekeeping for the persistence this store used to have: drop the old
+// key so a future reader can't mistake it for live state
+removeStorage('pd2.scope');
+
+/** Apply a scope from the URL hash (load or hashchange). Same as setScope —
+ * kept as a named door because the hash is scope's one durable carrier. */
 export function primeScope(next: Scope) {
-   store.prime(next);
+   store.set(next);
 }
 
 export function useScope(): [Scope, (next: Scope) => void] {

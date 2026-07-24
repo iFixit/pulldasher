@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { ChevronRight } from 'lucide-react';
 import type { DerivedPull } from '../../model/status';
 import { displayName, useNames } from '../../model/names';
 import type { Scope } from '../../prefs';
 import { toggleHiddenPerson, useSettings } from '../../settings';
 import { usePulldasher } from '../../store';
+import { Icon } from '../Icon';
 import { Avatar } from '../identity';
 import { Popover } from '../Popover';
 import { ClearRow, EyeButton, FilterRow, FilterSearch, FilterTrigger, OnlyButton } from './shared';
@@ -178,8 +180,15 @@ export function PeopleFilter({
                <div className="px-1.5 py-2 text-xs text-ink-3">No one matches.</div>
             )}
             {filteredHidden.length > 0 && (
-               <details className="mt-1.5 border-t border-secondary pt-1.5">
-                  <summary className="flex cursor-pointer items-center gap-2 px-1.5 py-1 text-xs font-semibold text-ink-3">
+               <details className="group mt-1.5 border-t border-secondary pt-1.5">
+                  <summary className="flex cursor-pointer items-center gap-1 px-1.5 py-1 text-xs font-semibold text-ink-3">
+                     {/* the caret is the fold affordance — without it this row
+                         read as a label, not a door (owner report) */}
+                     <Icon
+                        icon={ChevronRight}
+                        size={12}
+                        className="flex-none transition-transform duration-150 ease-out group-open:rotate-90 motion-reduce:transition-none"
+                     />
                      Hidden people ({filteredHidden.length})
                   </summary>
                   {filteredHidden.map(([login, count]) => (

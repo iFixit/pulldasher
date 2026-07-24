@@ -21,6 +21,14 @@ export function writeStorage(key: string, value: string): void {
    }
 }
 
+export function removeStorage(key: string): void {
+   try {
+      localStorage.removeItem(key);
+   } catch {
+      // storage blocked: nothing was persisted to remove
+   }
+}
+
 /**
  * Wipe every persisted preference — all of our `pd2.` localStorage keys
  * (settings, scope, last-seen marker). The caller reloads so the in-memory
@@ -44,6 +52,30 @@ export function clearStoredPrefs(): void {
  * board). Unknown fields in a stale saved blob fall back to their default, so
  * a new field never breaks an old blob.
  */
+/**
+ * createPersistentStore's in-memory twin: same get/set/subscribe/useValue
+ * surface, nothing written anywhere. For state whose durable carrier is the
+ * URL hash (scope) — a localStorage shadow copy of hash-carried state
+ * resurrects stale versions of it on hash-less loads.
+ */
+export function createMemoryStore<T extends object>(defaults: T) {
+   let value = { ...defaults };
+   const listeners = new Set<() => void>();
+   const subscribe = (fn: () => void) => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+   };
+   return {
+      get: () => value,
+      set(next: T) {
+         value = next;
+         for (const fn of listeners) fn();
+      },
+      subscribe,
+      useValue: () => useSyncExternalStore(subscribe, () => value),
+   };
+}
+
 export function createPersistentStore<T extends object>(key: string, defaults: T) {
    const load = (): T => {
       try {

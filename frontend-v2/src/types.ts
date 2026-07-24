@@ -16,7 +16,8 @@ export interface RepoSpec {
    name: string;
    requiredStatuses?: string[];
    ignoredStatuses?: string[];
-   hideByDefault?: boolean;
+   /* the wire also carries a v1-era `hideByDefault` flag; the client
+      ignores it — repo hiding is per-user (see model/visibility.ts) */
 }
 
 export interface Label {

@@ -11,7 +11,7 @@ export interface HiddenCounts {
    parked: number;
    /** other people's drafts (yours always show) */
    drafts: number;
-   /** PRs in repos you hid or the org hides by default */
+   /** PRs in repos you hid */
    hiddenRepos: number;
    /** PRs by people you hid */
    hiddenPeople: number;

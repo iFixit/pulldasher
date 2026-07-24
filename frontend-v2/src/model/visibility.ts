@@ -1,43 +1,23 @@
 /**
  * The one place "is this repo (or person) on my board by default" is
  * decided, shared by the filter pipeline and the filter controls so they can
- * never disagree. For repos, three parties vote in a fixed order of
- * authority — a per-user override beats the org baseline — and a session
- * reveal (scope, query, the show= set) can still override the result for
- * right now (that lives in app.tsx, not here). People have no org baseline:
- * hiding is a plain two-state toggle.
+ * never disagree. Hiding is per-user and two-state for repos and people
+ * alike: the server config's v1-era `hideByDefault` flag is deliberately
+ * ignored (org-level muting was retired — each user hides a repo once,
+ * their call). A session reveal (scope, query, the show= set) can still
+ * override the result for right now; that lives in app.tsx, not here.
  */
 
 /** the reveal-set sentinel for Cryogenic-Storage PRs (repo names fill the rest) */
 export const CRYO_KEY = 'cryo';
 
-export type RepoState = 'shown' | 'hidden' | 'org-hidden';
-
 type RepoPrefs = Record<string, 'hide' | 'show'>;
 
-/**
- * The durable state of a repo: your override wins, else the org baseline.
- * 'hidden' = you hid it; 'org-hidden' = off by default for everyone and you
- * haven't unhidden it; 'shown' = on your board.
- */
-export function repoState(
-   repo: string,
-   orgHidden: ReadonlySet<string>,
-   prefs: RepoPrefs
-): RepoState {
-   const pref = prefs[repo];
-   if (pref === 'hide') return 'hidden';
-   if (pref === 'show') return 'shown';
-   return orgHidden.has(repo) ? 'org-hidden' : 'shown';
-}
-
-/** Hidden by default (you hid it, or org-hidden) — before any session reveal. */
-export function repoHidden(
-   repo: string,
-   orgHidden: ReadonlySet<string>,
-   prefs: RepoPrefs
-): boolean {
-   return repoState(repo, orgHidden, prefs) !== 'shown';
+/** You hid it — before any session reveal. Values other than 'hide'
+ * (including the org-era 'show' still parked in old stored prefs) mean
+ * shown. */
+export function repoHidden(repo: string, prefs: RepoPrefs): boolean {
+   return prefs[repo] === 'hide';
 }
 
 /** GitHub Apps carry a [bot] suffix; other machine accounts are named in
@@ -48,7 +28,7 @@ export function isBotLogin(login: string, extra: ReadonlySet<string>): boolean {
 }
 
 /** A person has no org baseline the way a repo does — hiding is a plain
- * two-state toggle, not a three-way state like repoState. */
+ * two-state toggle. */
 export function personHidden(login: string, hidden: string[]): boolean {
    return hidden.includes(login);
 }

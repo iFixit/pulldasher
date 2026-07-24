@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { repoState } from '../../model/visibility';
+import { ChevronRight } from 'lucide-react';
+import { repoHidden } from '../../model/visibility';
 import { shortRepo } from '../../format';
 import type { Scope } from '../../prefs';
 import { setRepoPref, useSettings } from '../../settings';
+import { Icon } from '../Icon';
 import { Popover } from '../Popover';
 import { ClearRow, EyeButton, FilterSearch, FilterTrigger, OnlyButton } from './shared';
 
@@ -11,13 +13,14 @@ import { ClearRow, EyeButton, FilterSearch, FilterTrigger, OnlyButton } from './
  * 3-tab Filters popover split repos/people/drafts behind a Segmented click
  * you had to make before you could even search). Scope (which repos are on
  * your board right now) and hide (which repos are off your board, period)
- * live side by side on each row. (Parked PRs and drafts used to ride along
- * here as session toggles; they're board-level hiding, so they live in the
- * filter bar's hidden-PR ledger now — see HiddenPanel.)
+ * live side by side on each row. Hiding is per-user only: the server
+ * config's v1-era org-level mute is ignored — each user hides a repo once,
+ * their call. (Parked PRs and drafts used to ride along here as session
+ * toggles; they're board-level hiding, so they live in the filter bar's
+ * hidden-PR ledger now — see HiddenPanel.)
  */
 export function RepoFilter({
    repos,
-   orgHidden,
    reveal,
    toggleReveal,
    showAll,
@@ -25,9 +28,8 @@ export function RepoFilter({
    scope,
    setScope,
 }: {
-   /** all repos with open-PR counts (org-hidden and user-hidden included) */
+   /** all repos with open-PR counts (user-hidden included) */
    repos: { name: string; count: number }[];
-   orgHidden: ReadonlySet<string>;
    reveal: string[];
    toggleReveal: (key: string) => void;
    showAll: boolean;
@@ -39,8 +41,8 @@ export function RepoFilter({
    const prefs = settings.repoPrefs;
    const [repoQuery, setRepoQuery] = useState('');
 
-   const shownRepos = repos.filter(r => repoState(r.name, orgHidden, prefs) === 'shown');
-   const hiddenRepos = repos.filter(r => repoState(r.name, orgHidden, prefs) !== 'shown');
+   const shownRepos = repos.filter(r => !repoHidden(r.name, prefs));
+   const hiddenRepos = repos.filter(r => repoHidden(r.name, prefs));
 
    const commit = (next: string[], all: string[]) =>
       setScope({ ...scope, repos: all.length && next.length === all.length ? [] : next });
@@ -95,7 +97,7 @@ export function RepoFilter({
       </div>
    );
 
-   const hiddenRow = (name: string, count: number, state: 'hidden' | 'org-hidden') => (
+   const hiddenRow = (name: string, count: number) => (
       <div
          key={name}
          className="flex items-center gap-2 rounded-md px-1.5 py-[5px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none"
@@ -111,20 +113,10 @@ export function RepoFilter({
             />
             <span title={name} className="min-w-0 flex-1 truncate text-[13px] text-ink-3">
                {shortRepo(name)}
-               {state === 'org-hidden' && <span className="ml-1 text-[11px] text-ink-3">org</span>}
             </span>
             <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
          </label>
-         {state === 'hidden' ? (
-            <EyeButton hidden subject={shortRepo(name)} onClick={() => setRepoPref(name, null)} />
-         ) : (
-            <EyeButton
-               hidden
-               subject={shortRepo(name)}
-               tone="brand"
-               onClick={() => setRepoPref(name, 'show')}
-            />
-         )}
+         <EyeButton hidden subject={shortRepo(name)} onClick={() => setRepoPref(name, null)} />
       </div>
    );
 
@@ -157,9 +149,16 @@ export function RepoFilter({
                 reveal is the first thing you reach — matching the Settings
                 repo manager's hidden→shown order */}
             {filteredHidden.length > 0 && (
-               <details className="mb-1.5 border-b border-secondary pb-1.5">
-                  <summary className="flex cursor-pointer items-center gap-2 px-1.5 py-1 text-xs font-semibold text-ink-3">
-                     Hidden by you &amp; org-hidden ({filteredHidden.length})
+               <details className="group mb-1.5 border-b border-secondary pb-1.5">
+                  <summary className="flex cursor-pointer items-center gap-1 px-1.5 py-1 text-xs font-semibold text-ink-3">
+                     {/* the caret is the fold affordance — without it this row
+                         read as a label, not a door (owner report) */}
+                     <Icon
+                        icon={ChevronRight}
+                        size={12}
+                        className="flex-none transition-transform duration-150 ease-out group-open:rotate-90 motion-reduce:transition-none"
+                     />
+                     Hidden by you ({filteredHidden.length})
                      <button
                         type="button"
                         onClick={e => {
@@ -171,13 +170,7 @@ export function RepoFilter({
                         {showAll ? 'stop showing all' : 'show all'}
                      </button>
                   </summary>
-                  {filteredHidden.map(r =>
-                     hiddenRow(
-                        r.name,
-                        r.count,
-                        repoState(r.name, orgHidden, prefs) as 'hidden' | 'org-hidden'
-                     )
-                  )}
+                  {filteredHidden.map(r => hiddenRow(r.name, r.count))}
                </details>
             )}
             {filteredShown.map(r => shownRow(r.name, r.count))}

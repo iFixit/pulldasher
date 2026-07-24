@@ -205,7 +205,6 @@ export function App() {
    const {
       pulls,
       closed,
-      repoSpecs,
       me,
       connection,
       initialized,
@@ -423,11 +422,6 @@ export function App() {
       return () => document.removeEventListener('keydown', onKey);
    }, []);
 
-   const hiddenRepos = useMemo(
-      () => new Set(repoSpecs.filter(s => s.hideByDefault).map(s => s.name)),
-      [repoSpecs]
-   );
-
    // scope/query applied, but NOT the changed-only toggle: the changed count
    // must describe the pool the toggle would narrow, or the banner promises
    // rows the click doesn't deliver
@@ -457,19 +451,19 @@ export function App() {
       [scope.authors, queryAuthors]
    );
 
-   // The one is-this-pull-off-the-board predicate: user-hidden and
-   // org-hidden repos, hidden people, cryo, snoozes, and the drafts rule stay
-   // off unless a session act reveals them — an explicit reveal, a scope, a
-   // repo:/author: query term, or the master "show everything". Never hides
-   // your own pulls or bots via hides: bots have their own fold, and a person
-   // can't hide themselves from their own board. Shared by the filter pipeline
-   // and the hidden-PR ledger's counts so the ledger's number can never
-   // disagree with what the board actually withholds.
+   // The one is-this-pull-off-the-board predicate: hidden repos, hidden
+   // people, cryo, snoozes, and the drafts rule stay off unless a session
+   // act reveals them — an explicit reveal, a scope, a repo:/author: query
+   // term, or the master "show everything". Never hides your own pulls or
+   // bots via hides: bots have their own fold, and a person can't hide
+   // themselves from their own board. Shared by the filter pipeline and the
+   // hidden-PR ledger's counts so the ledger's number can never disagree
+   // with what the board actually withholds.
    const boardHidden = useCallback(
       (p: DerivedPull) => {
          if (showAll) return false;
          const hiddenRepo =
-            repoHidden(p.data.repo, hiddenRepos, settings.repoPrefs) && !revealedRepo(p.data.repo);
+            repoHidden(p.data.repo, settings.repoPrefs) && !revealedRepo(p.data.repo);
          const hiddenPerson =
             p.data.user.login !== me &&
             !isBot(p) &&
@@ -497,7 +491,6 @@ export function App() {
          reveal,
          revealedRepo,
          revealedAuthor,
-         hiddenRepos,
          me,
          isBot,
          settings.repoPrefs,
@@ -550,16 +543,15 @@ export function App() {
    const humans = useMemo(() => scoped.filter(p => !isBot(p)), [scoped, isBot]);
    const bots = useMemo(() => scoped.filter(isBot), [scoped, isBot]);
    // every known repo with its open-PR count — feeds the Filters popover and
-   // the Settings repo manager. Includes org-hidden and pref'd repos at 0.
+   // the Settings repo manager. Includes pref'd repos at 0.
    const repoCounts = useMemo(() => {
       const m = new Map<string, number>();
-      for (const name of hiddenRepos) m.set(name, 0);
-      for (const name of Object.keys(settings.repoPrefs)) if (!m.has(name)) m.set(name, 0);
+      for (const name of Object.keys(settings.repoPrefs)) m.set(name, 0);
       for (const p of pulls) m.set(p.data.repo, (m.get(p.data.repo) ?? 0) + 1);
       return [...m.entries()]
          .map(([name, count]) => ({ name, count }))
          .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-   }, [pulls, hiddenRepos, settings.repoPrefs]);
+   }, [pulls, settings.repoPrefs]);
 
    // "recently shipped" must follow the same scope as the open lanes above it —
    // narrowing to one repo or author shouldn't still show the whole org's
@@ -569,8 +561,7 @@ export function App() {
       let out = closed;
       if (!showAll)
          out = out.filter(p => {
-            const hiddenRepo =
-               repoHidden(p.repo, hiddenRepos, settings.repoPrefs) && !revealedRepo(p.repo);
+            const hiddenRepo = repoHidden(p.repo, settings.repoPrefs) && !revealedRepo(p.repo);
             const hiddenPerson =
                p.user.login !== me &&
                !isBotLogin(p.user.login, extraBots) &&
@@ -584,7 +575,6 @@ export function App() {
    }, [
       closed,
       showAll,
-      hiddenRepos,
       settings.repoPrefs,
       settings.hiddenPeople,
       revealedRepo,
@@ -602,7 +592,7 @@ export function App() {
       for (const p of pulls) {
          if (p.cryo) c.parked++;
          if (p.data.draft && p.data.user.login !== me && !reviewRequestedFrom(p, me)) c.drafts++;
-         if (repoHidden(p.data.repo, hiddenRepos, settings.repoPrefs)) c.hiddenRepos++;
+         if (repoHidden(p.data.repo, settings.repoPrefs)) c.hiddenRepos++;
          if (
             p.data.user.login !== me &&
             !isBot(p) &&
@@ -612,7 +602,7 @@ export function App() {
          if (boardHidden(p)) c.hiddenNow++;
       }
       return c;
-   }, [pulls, me, hiddenRepos, settings.repoPrefs, settings.hiddenPeople, isBot, boardHidden]);
+   }, [pulls, me, settings.repoPrefs, settings.hiddenPeople, isBot, boardHidden]);
 
    const isScoped = scope.repos.length || scope.authors.length || query;
 
@@ -956,7 +946,6 @@ export function App() {
                })}
                <RepoFilter
                   repos={repoCounts}
-                  orgHidden={hiddenRepos}
                   reveal={reveal}
                   toggleReveal={toggleReveal}
                   showAll={showAll}

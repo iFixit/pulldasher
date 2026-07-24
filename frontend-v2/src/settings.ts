@@ -33,8 +33,9 @@ export interface Settings {
     * the urgency weight always follows the OPENED clock — how long a pull
     * has been open is the truth the board ranks by. */
    ageDisplay: 'opened' | 'updated';
-   /** per-repo override of the org baseline: 'hide' hides a shown repo,
-    * 'show' reveals an org-hidden one. Absent = follow the org default. */
+   /** per-repo hides: 'hide' takes a repo off the board. 'show' is a relic
+    * of the retired org-level mute (it overrode the org default) — stored
+    * values still parse but mean the same as absent: shown. */
    repoPrefs: Record<string, 'hide' | 'show'>;
    /** your default for other people's drafts: 'mine' hides them (your own
     * always show), 'all' shows everyone's */
