@@ -5,4 +5,3 @@ pulldasher.pid
 dist
 db_data/
 /.env.db
-frontend-v2/public/config.json

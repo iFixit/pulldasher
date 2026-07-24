@@ -122,15 +122,15 @@ npm test             # vitest: status, sort, query, and legacy-URL unit tests
 
 ## Site config
 
-Copy `public/config.example.json` to `public/config.json` (gitignored) for
-deployment-specific settings:
+Deployment config (`bots`, `weightLabels`) lives in the backend's `config.js`
+— the one source — and rides to the board in the socket `initialize` payload;
+there's no separate `config.json` fetch. See the repo-root `config.example.js`.
 
-- `teams` — GitHub team slugs with member logins. Powers the team chips on
-  the People lens and the scope presets; without it those features quietly
-  disappear. Long-term this belongs in the backend (fetch org teams via the
-  existing Octokit client and ship them with the socket handshake).
 - `bots` — machine-account logins to fold into the bot-PRs group. Accounts
   with GitHub's `[bot]` suffix are detected without config.
+- `weightLabels` — label title → review-weight bucket (`XS`|`S`|`M`|`L`|`XL`);
+  a PR carrying one takes that weight over the diff-size heuristic. The same
+  values feed the `/api/v1` classification.
 
 ## v1 bookmark compatibility
 

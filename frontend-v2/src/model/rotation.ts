@@ -32,7 +32,7 @@ function djb2(s: string): number {
  * rotation even if their stamp on this particular pull went stale. Bots
  * excluded (isBotLogin's suffix check is enough here, same as
  * model/status.ts's engagedNoStamp — this module has no reason to depend on
- * config.json's `bots` list).
+ * the org's configured `bots` list).
  */
 export function buildReviewerPools(pulls: DerivedPull[]): Map<string, string[]> {
    const byRepo = new Map<string, Set<string>>();

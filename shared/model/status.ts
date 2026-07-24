@@ -110,6 +110,23 @@ export interface DerivedPull {
 
 export type Weight = 'XS' | 'S' | 'M' | 'L' | 'XL';
 const WEIGHT_RANK: Record<Weight, number> = { XS: 0, S: 1, M: 2, L: 3, XL: 4 };
+const WEIGHTS: ReadonlySet<string> = new Set(['XS', 'S', 'M', 'L', 'XL']);
+
+/**
+ * Parse a raw `{ label title -> weight }` config object into a validated Map,
+ * dropping any entry whose value isn't a real weight bucket so a typo in config
+ * can't inject a bogus weight (the model would sort it as unknown). Shared by
+ * the board (reading the socket initialize payload) and the backend /api/v1
+ * (reading config.js), so both turn config into weight labels identically.
+ */
+export function parseWeightLabels(raw: unknown): Map<string, Weight> {
+   const out = new Map<string, Weight>();
+   if (!raw || typeof raw !== 'object') return out;
+   for (const [title, w] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof w === 'string' && WEIGHTS.has(w)) out.set(title, w as Weight);
+   }
+   return out;
+}
 
 /**
  * Tuned to the shop's real cadence (3 months of history: median first

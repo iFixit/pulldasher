@@ -12,7 +12,7 @@ export const DEFAULT_TEAM_NAME = 'My team';
 
 /**
  * User settings: the knobs that are a matter of personal taste, not team
- * policy (that's config.json) or model correctness (that's the sort and
+ * policy (that's the server's config.js) or model correctness (that's the sort and
  * starvation math). Persisted per-browser, same as scope. New fields fall
  * back to their default so an old saved blob never breaks.
  */

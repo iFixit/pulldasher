@@ -63,8 +63,11 @@ const status = (context, state) => ({
       completed_at: 1753300060,
    },
 });
-const pullOf = (rowO = {}, sigs = [], statuses = []) =>
-   Pull.getFromDB(row(rowO), sigs, [], [], statuses, []);
+const label = title => ({
+   data: { title, number: 1, repo: 'test/repo-a', user: 'x', created_at: '2026-07-20T00:00:00Z' },
+});
+const pullOf = (rowO = {}, sigs = [], statuses = [], labels = []) =>
+   Pull.getFromDB(row(rowO), sigs, [], [], statuses, labels);
 
 test('needs_cr: no sign-offs, no CI', () => {
    const d = derivePull(pullOf(), NOW);
@@ -119,4 +122,11 @@ test('unmergeable: signed off + green, but mergeable=0 from the DB', () => {
 test('draft: outranks everything', () => {
    const d = derivePull(pullOf({ draft: 1 }), NOW);
    assert.equal(d.status, 'draft');
+});
+
+test('weight label overrides the size heuristic (config.js weightLabels)', () => {
+   // a 6-line diff is XS by the heuristic; the configured "weight: XL" label
+   // (fixture config.js) must win, proving weightLabels reaches derive
+   const d = derivePull(pullOf({ additions: 5, deletions: 1 }, [], [], [label('weight: XL')]), NOW);
+   assert.equal(d.weight, 'XL');
 });

@@ -1,5 +1,5 @@
 import pullManager from '../lib/pull-manager.js';
-import { deriveAll } from '../lib/review-model.js';
+import { deriveAll, isBot } from '../lib/review-model.js';
 import { STATUS_ORDER } from '../shared/dist/index.js';
 
 // STATUS_ORDER is the board's canonical bucket order; index it so the default
@@ -22,6 +22,7 @@ function toRecord(d) {
       title: p.title,
       url: `https://github.com/${p.repo}/pull/${p.number}`,
       author: p.user.login,
+      is_bot: isBot(p.user.login),
       draft: p.draft,
       status: d.status,
       ci: d.ci,

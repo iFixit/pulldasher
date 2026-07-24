@@ -46,6 +46,16 @@ export async function loadDummy(): Promise<InitializePayload> {
    const pulls = withSyntheticStacks(raw).map((p, i) => withBody(withSizes(redate(p, i), i), i));
    return {
       repos: [{ name: 'iFixit/ifixit' }],
+      // config the live server delivers here too — a bot login and the weight
+      // labels, so the dummy board exercises bot folding and label weights
+      bots: ['renovate-bot'],
+      weightLabels: {
+         'size: XS': 'XS',
+         'size: S': 'S',
+         'size: M': 'M',
+         'size: L': 'L',
+         'size: XL': 'XL',
+      },
       // The fixture carries almost no closed/merged pulls and no diff sizes, so
       // the Stats lens (merge-time-by-size, leaderboards over shipped work) has
       // nothing to show. Synthesize a fortnight of merged PRs across the size

@@ -11,7 +11,7 @@ import { isBotLogin } from '../../../shared/model/visibility';
 
 /** The suffix bot check ('…[bot]') is enough in the cheers layer — like
  * status.ts's engagedNoStamp, this module has no reason to depend on
- * config.json's bots list, and a non-suffixed bot slipping through just costs
+ * the org's configured bots list, and a non-suffixed bot slipping through just costs
  * one soft nudge, never a wrong review decision. */
 const NO_EXTRA_BOTS: ReadonlySet<string> = new Set();
 const isBot = (p: DerivedPull) => isBotLogin(p.data.user.login, NO_EXTRA_BOTS);

@@ -18,6 +18,7 @@ export {
    headPushedAt,
    reviewWeight,
    weightFromLabels,
+   parseWeightLabels,
    crDone,
    qaDone,
    lastPushEpoch,
@@ -30,6 +31,8 @@ export type { DerivedPull, Status, CiVerdict, Weight } from './model/status';
 
 export { checkLedgers, ciSecsWord } from './model/ci';
 export type { CheckLedger } from './model/ci';
+
+export { isBotLogin } from './model/visibility';
 
 export { epoch } from './format';
 export type { PullData, RepoSpec, Signature, CommitStatus, Label } from './types';

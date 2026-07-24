@@ -1,6 +1,11 @@
 import { useSyncExternalStore } from 'react';
 import { backend, type ConnectionState } from './backend/socket';
-import { derive, type DerivedPull, type Weight } from '../../shared/model/status';
+import {
+   derive,
+   parseWeightLabels,
+   type DerivedPull,
+   type Weight,
+} from '../../shared/model/status';
 import { getSettings, subscribeSettings } from './settings';
 import { epoch } from '../../shared/format';
 import { readStorage, writeStorage } from './storage';
@@ -15,6 +20,8 @@ import type { PullData, RepoSpec } from '../../shared/types';
 export interface Snapshot {
    pulls: DerivedPull[];
    repoSpecs: RepoSpec[];
+   /** bot logins beyond the `[bot]` suffix, from server config (initialize) */
+   extraBots: ReadonlySet<string>;
    /** merged/closed in the last 14 days (the server's retention window) */
    closed: PullData[];
    me: string;
@@ -39,9 +46,11 @@ const LAST_SEEN_KEY = 'pd2.lastSeen';
 
 const raw = new Map<string, PullData>();
 let repoSpecs: RepoSpec[] = [];
-// label title → weight bucket, from config.json. Set once when config loads;
-// a fresh Map reference invalidates the derive cache so weights re-resolve.
+// Deployment config the server owns (config.js), delivered in the initialize
+// payload — not a separate config.json fetch. A fresh weightLabels Map
+// reference invalidates the derive cache so weights re-resolve when it arrives.
 let weightLabels: ReadonlyMap<string, Weight> = new Map();
+let extraBots: ReadonlySet<string> = new Set();
 let me = '';
 let connection: ConnectionState = 'connecting';
 let initialized = false;
@@ -148,6 +157,7 @@ export function isSnoozed(
 let snapshot: Snapshot = {
    pulls: [],
    repoSpecs,
+   extraBots,
    closed: [],
    me,
    connection,
@@ -192,16 +202,6 @@ function deriveCached(pull: PullData, spec: RepoSpec | undefined, warnDays: numb
    return value;
 }
 
-/**
- * Install the weight-label config (from config.json) and re-derive. Rebuilding
- * the Map gives a new reference, which misses the derive cache so every pull's
- * weight re-resolves against the labels. Call once after the config loads.
- */
-export function setWeightLabels(map: Record<string, Weight>) {
-   weightLabels = new Map(Object.entries(map));
-   schedulePublish();
-}
-
 function publish() {
    const specByName = new Map(repoSpecs.map(s => [s.name, s]));
    const warnDays = getSettings().ageWarnDays;
@@ -216,6 +216,7 @@ function publish() {
             (a, b) => (Date.parse(b.closed_at ?? '') || 0) - (Date.parse(a.closed_at ?? '') || 0)
          ),
       repoSpecs,
+      extraBots,
       me,
       connection,
       initialized,
@@ -264,6 +265,9 @@ function start() {
          // were disconnected live on as ghosts
          raw.clear();
          repoSpecs = payload.repos;
+         // server-owned config rides with the board (see shared/types)
+         weightLabels = parseWeightLabels(payload.weightLabels);
+         extraBots = new Set(payload.bots ?? []);
          for (const p of payload.pulls) raw.set(`${p.repo}#${p.number}`, p);
          initialized = true;
          // a reconnect resends everything; counting it as refresh progress

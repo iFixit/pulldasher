@@ -16,8 +16,8 @@ import { buildParentLookup } from './model/stack';
 import { buildReviewerPools, turnFor } from './model/rotation';
 import { shipRelevance, shippedToast } from './model/shipped';
 import type { Toast } from './model/toast';
-import { claimReview, setWeightLabels, usePulldasher } from './store';
-import { loadSiteConfig, primeScope, useScope } from './prefs';
+import { claimReview, usePulldasher } from './store';
+import { primeScope, useScope } from './prefs';
 import { getSettings, useSettings } from './settings';
 import { useNotifications } from './notifications';
 import { ToastStack, useToasts } from './toasts';
@@ -204,6 +204,7 @@ function Banner({
 export function App() {
    const {
       pulls,
+      extraBots,
       closed,
       me,
       connection,
@@ -263,7 +264,6 @@ export function App() {
    const [draftsMode, setDraftsMode] = useState<'mine' | 'all'>(
       () => urlState.drafts ?? getSettings().draftsMode
    );
-   const [extraBots, setExtraBots] = useState<ReadonlySet<string>>(new Set());
    // login-level twin of isBot, for row-level consumers (the avatar's square
    // bot tile) that hold a login rather than a DerivedPull
    const isBotAuthor = useCallback((login: string) => isBotLogin(login, extraBots), [extraBots]);
@@ -277,12 +277,6 @@ export function App() {
    const dark = settings.theme === 'dark' || (settings.theme === 'system' && systemDark);
    const searchRef = useRef<HTMLInputElement>(null);
 
-   useEffect(() => {
-      void loadSiteConfig().then(c => {
-         setExtraBots(new Set(c.bots));
-         setWeightLabels(c.weightLabels);
-      });
-   }, []);
    // View changes (lens switches) earn a history entry so the back button
    // navigates between boards; filter tweaks replace in place so typing a
    // query doesn't bury history under keystrokes.

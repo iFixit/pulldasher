@@ -56,6 +56,39 @@ function seedNeedsCr() {
    pullManager.updatePull(Pull.getFromDB(row, [], [], [], [], []));
 }
 
+// A pull authored by a configured bot (fixture config.js bots: ['fixture-bot']),
+// so the record's is_bot must be true even without a `[bot]` suffix.
+function seedBot() {
+   const row = {
+      repo: 'test/repo-a',
+      number: 43,
+      state: 'open',
+      title: 'Bot PR',
+      body: '',
+      draft: 0,
+      date: 1753200000,
+      date_updated: 1753300000,
+      date_closed: null,
+      mergeable: 1,
+      date_merged: null,
+      difficulty: null,
+      additions: 100,
+      deletions: 10,
+      changed_files: 3,
+      milestone_title: null,
+      milestone_due_on: null,
+      head_branch: 'f',
+      head_sha: 'sha2',
+      base_branch: 'main',
+      owner: 'fixture-bot',
+      assignees: [],
+      requested_reviewers: [],
+      cr_req: 2,
+      qa_req: 1,
+   };
+   pullManager.updatePull(Pull.getFromDB(row, [], [], [], [], []));
+}
+
 const realFetch = globalThis.fetch;
 
 before(() => {
@@ -69,6 +102,7 @@ before(() => {
       return { ok: false, status: 401, json: async () => ({}) };
    };
    seedNeedsCr();
+   seedBot();
 });
 
 after(() => {
@@ -119,5 +153,8 @@ test('serves the board classified server-side (/pulls)', async () => {
    assert.equal(rec.signoffs.cr.req, 2);
    assert.equal(rec.signoffs.cr.have, 0);
    assert.equal(rec.url, 'https://github.com/test/repo-a/pull/42');
+   assert.equal(rec.is_bot, false); // bob isn't a configured bot
+   const botRec = body.pulls.find(p => p.id === 'test/repo-a#43');
+   assert.equal(botRec.is_bot, true); // fixture-bot is, via config.js bots
    server.close();
 });

@@ -132,6 +132,12 @@ export interface PullData {
 export interface InitializePayload {
    repos: RepoSpec[];
    pulls: PullData[];
+   /** deployment config the server owns (config.js), delivered here instead of
+    * a separate static config.json fetch: bot logins beyond the `[bot]` suffix,
+    * and the label-title -> weight map. Optional/additive so an older server
+    * that omits them just means suffix-only bots and heuristic-only weights. */
+   bots?: string[];
+   weightLabels?: Record<string, string>;
 }
 
 export interface TokenResponse {
