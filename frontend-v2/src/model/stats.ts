@@ -52,6 +52,7 @@ export function signoffLeaders(
       const sigs = type === 'CR' ? d.status.allCR : d.status.allQA;
       for (const s of sigs) {
          const login = s.data.user.login;
+         if (login === d.user.login) continue; // self-stamps aren't review economy
          const key = `${d.repo}#${d.number}`;
          if (!prs.has(login)) prs.set(login, new Set());
          prs.get(login)!.add(key);
