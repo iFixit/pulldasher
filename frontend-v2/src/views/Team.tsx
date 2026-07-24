@@ -1,5 +1,5 @@
 import { useMemo, useState, type MouseEvent } from 'react';
-import { ChevronRight, Plus, Settings } from 'lucide-react';
+import { ChevronRight, Plus } from 'lucide-react';
 import { authorOwnsIt, parked } from '../model/actions';
 import { displayName, useNames } from '../model/names';
 import type { DerivedPull } from '../../../shared/model/status';
@@ -7,11 +7,11 @@ import { matchesRegion } from '../model/regions';
 import { crSort } from '../model/sort';
 import { teamBuckets } from '../model/team';
 import { addTeam, DEFAULT_TEAM_NAME, myPeople, useSettings } from '../settings';
+import { createPersistentStore } from '../storage';
 import { EmptyState, QuietButton, textInputClass } from '../components/bits';
 import { Icon } from '../components/Icon';
 import { Avatar } from '../components/identity';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, SubDoor } from '../components/Lane';
-import { Popover } from '../components/Popover';
 import type { RowOptions } from '../components/Row';
 import { TeamPicker } from '../components/TeamPicker';
 import { commitKeyHandler } from '../components/useCommitOnEnter';
@@ -21,19 +21,66 @@ import { WordGroupRows } from '../components/WordGroups';
 const DIR_KEY = '__directory__';
 
 /**
+ * Which roster sections are expanded, persisted so a fold survives leaving
+ * and returning to the tab. Absent = collapsed: a team shows as a one-line
+ * face cluster by default (its members ARE the overview, read horizontally),
+ * and expands to its inline manager only when you choose to. Replaces an
+ * ephemeral useState that reopened every roster on every visit.
+ */
+const teamOpenStore = createPersistentStore<Record<string, boolean>>('pd2.teamOpen', {});
+
+/**
+ * A roster's members as an overlapping cluster of faces — the horizontal,
+ * recognize-by-face reading of "who's on this team" that the collapsed team
+ * row wears and the selection summary reuses. Caps at `max` faces then a "+N"
+ * so a big team still fits one line. Decorative by default (no onSelect:
+ * aria-hidden, its faces aren't focusable); pass onSelect to make each face a
+ * click-to-focus-that-person control (the summary card).
+ */
+function FaceStack({
+   members,
+   me,
+   max = 5,
+   onSelect,
+}: {
+   members: string[];
+   me: string;
+   max?: number;
+   onSelect?: (login: string) => void;
+}) {
+   if (members.length === 0) return null;
+   const shown = members.slice(0, max);
+   const extra = members.length - shown.length;
+   return (
+      <span className="flex flex-none items-center" aria-hidden={onSelect ? undefined : true}>
+         <span className="flex -space-x-1.5">
+            {shown.map(login => (
+               <Avatar key={login} login={login} size={20} you={login === me} onClick={onSelect} />
+            ))}
+         </span>
+         {extra > 0 && (
+            <span className="ml-1.5 text-[11px] font-medium text-ink-3 tabular-nums">+{extra}</span>
+         )}
+      </span>
+   );
+}
+
+/**
  * The people tab (named Team): every board keyed by who wrote the work,
- * starting with yours. The header is ONE foldable roster list — a section
- * per roster (open by default, so each member's load and owed re-stamps read
- * at a glance), then the directory (every other author on the board) folded
- * beneath. No tab strip, no wrapping chip row: one column that looks the same
- * whether you have zero teams or six.
+ * starting with yours. The header is ONE roster list — a collapsed row per
+ * roster showing its name and an overlapping cluster of its members' faces
+ * (who's on the team, read horizontally at a glance), then the directory
+ * (every other author on the board) folded beneath. No tab strip, no
+ * wrapping chip row: one column that looks the same whether you have zero
+ * teams or six.
  *
  * Selection here IS the authors filter: clicking a person or a roster writes
  * the same scope the filter bar's People picker edits, so what you pick is
  * visible (and clearable) in the bar and narrows every lens the same way.
  * Plain click focuses one person or roster; shift-click keeps the rest of the
- * selection and toggles just them. A roster's gear opens its one management
- * panel — rename, members, delete — in place.
+ * selection and toggles just them. Expanding a roster (its caret) opens its
+ * one inline manager — rename, add/remove members, delete — in place, no
+ * popover.
  */
 export function Team({
    pulls,
@@ -56,18 +103,14 @@ export function Team({
 }) {
    const me = opts.me;
    const [allPeople, setAllPeople] = useState(false);
-   // one foldable roster list: your teams open by default (their per-person
-   // load + owed pips are the overview), the directory folded (the stranger
-   // wall stays out of sight until asked). `collapsed` holds the closed keys.
-   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set([DIR_KEY]));
-   const isOpen = (key: string) => !collapsed.has(key);
+   // one roster list: every team collapsed to a one-line face cluster by
+   // default (expand to manage it), the directory folded beneath. The fold
+   // choice persists per key, so a roster you open or close stays that way
+   // across visits — the ephemeral state it replaced reopened everything.
+   const openMap = teamOpenStore.useValue();
+   const isOpen = (key: string) => openMap[key] ?? false;
    const toggleOpen = (key: string) =>
-      setCollapsed(s => {
-         const n = new Set(s);
-         if (n.has(key)) n.delete(key);
-         else n.add(key);
-         return n;
-      });
+      teamOpenStore.set({ ...teamOpenStore.get(), [key]: !isOpen(key) });
    const { teams: personalTeams, codeRegions, hiddenPeople } = useSettings();
    const yourPeople = myPeople(personalTeams);
    const yourSet = new Set(yourPeople);
@@ -224,11 +267,11 @@ export function Team({
                const owedHere = t.members.some(m => (owes.get(m)?.length ?? 0) > 0);
                return (
                   <div key={t.name}>
-                     <div className="group flex items-center gap-1">
+                     <div className="group flex items-center gap-2">
                         {caret(
                            open,
                            () => toggleOpen(key),
-                           open ? `collapse ${t.name}` : `expand ${t.name}`
+                           open ? `collapse ${t.name}` : `manage ${t.name}`
                         )}
                         <button
                            type="button"
@@ -239,49 +282,28 @@ export function Team({
                               active ? 'bg-secondary' : 'hover:bg-muted'
                            }`}
                         >
-                           <b className="min-w-0 flex-1 truncate font-semibold text-ink">
-                              {t.name}
-                           </b>
-                           <span className="flex-none text-[11px] text-ink-3 tabular-nums">
+                           <b className="min-w-0 truncate font-semibold text-ink">{t.name}</b>
+                           {/* who's on the team, read at a glance — the collapsed
+                               row's members as an overlapping face cluster. Hidden
+                               while expanded, where the inline manager shows them
+                               editable. */}
+                           {!open && <FaceStack members={t.members} me={me} />}
+                           <span className="ml-auto flex-none text-[11px] text-ink-3 tabular-nums">
                               {allPulls.filter(p => t.members.includes(p.data.user.login)).length}
                            </span>
                            {owedHere && (
                               <span
                                  aria-hidden
+                                 title="someone here owes a re-stamp"
                                  className="h-1.5 w-1.5 flex-none rounded-full"
                                  style={{ background: 'var(--warn)' }}
                               />
                            )}
                         </button>
-                        <Popover
-                           label={`Manage ${t.name}`}
-                           side="right"
-                           width="w-[300px]"
-                           panelClass="p-3 max-h-[70vh] overflow-auto"
-                           trigger={tr => (
-                              <button
-                                 {...tr}
-                                 type="button"
-                                 aria-label={`manage the ${t.name} team`}
-                                 title={`rename, add members, or delete ${t.name}`}
-                                 className="pressable inline-flex h-7 w-7 flex-none items-center justify-center rounded-lg text-ink-3 opacity-0 transition-opacity duration-150 hover:text-brand focus-visible:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
-                              >
-                                 <Icon icon={Settings} size={14} />
-                              </button>
-                           )}
-                        >
-                           <TeamPicker teamName={t.name} extraBots={extraBots} />
-                        </Popover>
                      </div>
                      {open && (
-                        <div className="pb-1">
-                           {t.members.length === 0 ? (
-                              <p className="py-1 pl-9 text-[12px] text-ink-3">
-                                 No one yet — open the gear to add teammates.
-                              </p>
-                           ) : (
-                              t.members.map(login => memberRow(login))
-                           )}
+                        <div className="mt-0.5 mr-1 mb-1 ml-8 rounded-xl border border-line bg-muted/40 p-2">
+                           <TeamPicker teamName={t.name} extraBots={extraBots} />
                         </div>
                      )}
                   </div>
@@ -361,11 +383,7 @@ export function Team({
                {selectedPerson ? (
                   <Avatar login={selectedPerson} size={38} />
                ) : (
-                  <span className="flex -space-x-1.5">
-                     {members.slice(0, 6).map(m => (
-                        <Avatar key={m} login={m} onClick={l => onSelect([l])} />
-                     ))}
-                  </span>
+                  <FaceStack members={members} me={me} max={6} onSelect={l => onSelect([l])} />
                )}
                <span>
                   <span className="text-base leading-snug font-semibold">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, X } from 'lucide-react';
 import { displayName, useNames } from '../model/names';
 import { isBotLogin } from '../../../shared/model/visibility';
 import { removeTeam, renameTeam, toggleTeammate, useSettings } from '../settings';
@@ -145,16 +145,33 @@ export function TeamPicker({
             Anyone whose work you review belongs on a roster — your review circle, not the org
             chart. Everyone on any roster leads your review queues.
          </p>
-         {activeMembers.map(login => (
-            <CandidateRow
-               key={login}
-               login={login}
-               name={nameOf(login)}
-               checked
-               self={login === me}
-               onToggle={() => toggleTeammate(login, false, activeName)}
-            />
-         ))}
+         {/* current members as removable face chips — horizontal and
+             recognizable, not a column of checkbox rows. The ✕ removes; adding
+             more happens in the search below. */}
+         {activeMembers.length > 0 && (
+            <div className="mb-1.5 flex flex-wrap gap-1.5">
+               {activeMembers.map(login => (
+                  <span
+                     key={login}
+                     className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface py-0.5 pr-1 pl-0.5 text-[12px]"
+                  >
+                     <Avatar login={login} size={18} you={login === me} />
+                     <span className="max-w-[128px] truncate font-medium text-ink" title={login}>
+                        {nameOf(login) ?? login}
+                     </span>
+                     <button
+                        type="button"
+                        onClick={() => toggleTeammate(login, false, activeName)}
+                        aria-label={`remove ${nameOf(login) ?? login} from this team`}
+                        title="remove from team"
+                        className="hit flex h-4 w-4 flex-none items-center justify-center rounded-full text-ink-3 hover:bg-secondary hover:text-bad"
+                     >
+                        <Icon icon={X} size={11} />
+                     </button>
+                  </span>
+               ))}
+            </div>
+         )}
          <FilterSearch
             value={query}
             onChange={setQuery}
