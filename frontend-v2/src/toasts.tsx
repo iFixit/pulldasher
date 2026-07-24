@@ -208,7 +208,10 @@ export function useToasts(
    /** login → human display name (model/names.ts) — threaded into
     * evaluateCheers so cheer/nudge text shows a name instead of a login, same
     * dependency-injection pattern as `closed`/`extras` above. */
-   names: Readonly<Record<string, string | null>> = {}
+   names: Readonly<Record<string, string | null>> = {},
+   /** pull keys the viewer snoozed in Review — passed to evaluateCheers so a
+    * snoozed pull stops firing start-here / your-turn cheers. */
+   snoozed: ReadonlySet<string> = new Set()
 ) {
    const [toasts, setToasts] = useState<LiveToast[]>([]);
    const [history, setHistory] = useState<ToastRecord[]>([]);
@@ -342,6 +345,7 @@ export function useToasts(
             now: Date.now(),
             claimWarnMs: getSettings().claimWarnMins * 60_000,
             muted: new Set(getSettings().mutedCheers as ToastKind[]),
+            snoozed,
             ready,
             names,
          },
@@ -364,7 +368,7 @@ export function useToasts(
          return t;
       });
       if (on) push(bound);
-   }, [ready, pulls, turns, closed, me, push, onQuickWins, onClaimTurn, names]);
+   }, [ready, pulls, turns, closed, me, push, onQuickWins, onClaimTurn, names, snoozed]);
 
    // pre-built one-shot toasts from the caller (e.g. the shipped catch-up),
    // deduped by dedupeKey so the same logical toast never re-fires on a later

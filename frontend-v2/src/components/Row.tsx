@@ -56,9 +56,6 @@ export interface RowOptions {
    /** the board's longest-open pull, in days — the age baseline's full
     * track; every row's line is a fraction of the oldest */
    maxAgeDays?: number;
-   /** toggle a weight bucket ('xs'..'xl' or 'unknown') in the session Weight
-    * filter — the row-initiated twin of WeightFilter's own checkboxes */
-   onWeightToggle?: (w: string) => void;
    /** whole-board parent lookup (model/stack.ts's buildParentLookup, memoized
     * once in app.tsx): resolves a dependent pull's parent even when it's
     * absent from the CURRENT list (a different lane, a hidden repo, another
@@ -797,7 +794,6 @@ export const Row = memo(
       a.opts.ageRotDays === b.opts.ageRotDays &&
       a.opts.ageDisplay === b.opts.ageDisplay &&
       a.opts.showSnooze === b.opts.showSnooze &&
-      a.opts.onWeightToggle === b.opts.onWeightToggle &&
       a.opts.parentOf === b.opts.parentOf &&
       a.opts.pools === b.opts.pools &&
       a.opts.turns === b.opts.turns &&

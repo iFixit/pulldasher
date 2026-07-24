@@ -163,7 +163,7 @@ export function Legend() {
          <Group title="Query">
             <Item
                term={<code className="font-mono text-[11px] text-ink-2">weight:xs,s</code>}
-               def="review-effort classes; a row’s weight letter filters with a click"
+               def="review-effort classes; a row shows its class as a letter beside CR, detailed in the CR popover"
             />
             <Item
                term={<code className="font-mono text-[11px] text-ink-2">has:action</code>}
@@ -176,6 +176,14 @@ export function Legend() {
             <Item
                term={<code className="font-mono text-[11px] text-ink-2">is:blocked</code>}
                def="under a dev or deploy block, whoever holds it"
+            />
+            <Item
+               term={<code className="font-mono text-[11px] text-ink-2">is:draft</code>}
+               def="still a draft"
+            />
+            <Item
+               term={<code className="font-mono text-[11px] text-ink-2">is:mine</code>}
+               def="opened by you"
             />
          </Group>
 

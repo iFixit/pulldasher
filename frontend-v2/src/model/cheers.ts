@@ -187,6 +187,10 @@ interface CheerInput {
     * cap, so muting a high-priority kind frees its slot for a shown one rather
     * than firing then hiding it. */
    muted?: ReadonlySet<ToastKind>;
+   /** pull keys the viewer snoozed ("not today") in the Review lens — excluded
+    * from the reviewable pool so start-here / quick-wins / your-turn cheers
+    * don't re-nudge a pull you just deferred. */
+   snoozed?: ReadonlySet<string>;
    /** login → human display name (model/names.ts) — turns a GitHub login into
     * a name in cheer/nudge copy. Threaded in as a plain object (like `me`/
     * `muted`/`claimWarnMs`) rather than read from the names store directly,
@@ -351,6 +355,7 @@ export interface Signals {
 function readSignals(input: CheerInput): Signals {
    const { pulls, me } = input;
    const closed = input.closed ?? [];
+   const snoozed = input.snoozed ?? new Set<string>();
    const now = input.now ?? Date.now();
    const stamped = new Set<string>();
    const turns = new Map<string, DerivedPull>();
@@ -372,10 +377,13 @@ function readSignals(input: CheerInput): Signals {
       else if (st === 'restamp') restampKeys.add(key);
       // a starved BOT pull shouldn't tap you with "your turn — you're the best
       // fit"; bots are handled on their own low-priority cadence, not the rotation
-      if (!mine && !isBot(p) && !claimOf(p) && input.turns.get(key) === me) turns.set(key, p);
+      if (!mine && !isBot(p) && !claimOf(p) && !snoozed.has(key) && input.turns.get(key) === me)
+         turns.set(key, p);
    }
 
-   const reviewableUnclaimed = pulls.filter(p => actionState(p, me) === 'review' && !claimOf(p));
+   const reviewableUnclaimed = pulls.filter(
+      p => actionState(p, me) === 'review' && !claimOf(p) && !snoozed.has(pullKey(p.data))
+   );
 
    const quickWinCandidates = crSort(
       reviewableUnclaimed.filter(p => !isBot(p) && (p.weight === 'XS' || p.weight === 'S'))

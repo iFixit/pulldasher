@@ -64,6 +64,8 @@ function matchTerm(
                   !parked(p) && !authorOwnsIt(p) && (p.recrBy.includes(me) || p.reqaBy.includes(me))
                );
             if (val === 'blocked') return p.status === 'dev_block' || p.status === 'deploy_block';
+            if (val === 'draft') return p.status === 'draft';
+            if (val === 'mine') return d.user.login.toLowerCase() === me.toLowerCase();
             // unrecognized is: value: fall through to the plain substring
             // match below, same as any other unknown key
          }

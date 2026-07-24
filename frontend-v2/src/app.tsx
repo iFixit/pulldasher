@@ -9,7 +9,7 @@ import { buildParentLookup } from './model/stack';
 import { buildReviewerPools, turnFor } from './model/rotation';
 import { shipRelevance, shippedToast } from './model/shipped';
 import type { Toast } from './model/toast';
-import { claimReview, usePulldasher } from './store';
+import { claimReview, isSnoozed, usePulldasher } from './store';
 import { primeScope, useScope } from './prefs';
 import { useBoardHotkeys, useHeaderHeightVar } from './hooks';
 import { ageRotDays, getSettings, type Settings as SettingsShape, useSettings } from './settings';
@@ -222,6 +222,7 @@ export function App() {
       lastPayloadAt,
       lastSeen,
       refreshProgress,
+      snoozed,
    } = usePulldasher();
    // per-repo reviewer pools and whose turn each starved, unclaimed pull is —
    // computed ONCE over the whole board and shared by the rows (rowOpts),
@@ -647,11 +648,6 @@ export function App() {
       },
       [scope, setScope]
    );
-   // a row's weight chip toggles that bucket in the session Weight filter —
-   // the same array WeightFilter's own checkboxes drive
-   const onWeightToggle = useCallback((w: string) => {
-      setWeightSel(cur => (cur.includes(w) ? cur.filter(k => k !== w) : [...cur, w]));
-   }, []);
    // the whole-board parent lookup for stacked pulls: built once over every
    // pull (not the scoped/filtered view a given lane renders), so a row whose
    // parent got filtered out of ITS list can still name it (see model/stack.ts)
@@ -669,7 +665,6 @@ export function App() {
          me,
          lastSeen,
          onPerson,
-         onWeightToggle,
          maxAgeDays,
          ageWarnDays: settings.ageWarnDays,
          ageRotDays: ageRotDays(settings.ageWarnDays),
@@ -685,7 +680,6 @@ export function App() {
          me,
          lastSeen,
          onPerson,
-         onWeightToggle,
          maxAgeDays,
          settings.ageWarnDays,
          settings.ageDisplay,
@@ -791,6 +785,13 @@ export function App() {
       },
       [pulls]
    );
+   // pull keys the viewer snoozed in Review, so cheers skips them the way the
+   // Review lane does — a snooze is "not today", not "nudge me anyway"
+   const snoozedKeys = useMemo(
+      () =>
+         new Set(nudgeablePulls.filter(p => isSnoozed(p.data, snoozed)).map(p => pullKey(p.data))),
+      [nudgeablePulls, snoozed]
+   );
    const {
       toasts,
       dismiss: dismissToast,
@@ -806,7 +807,8 @@ export function App() {
       onQuickWins,
       onClaimTurn,
       initialized,
-      names
+      names,
+      snoozedKeys
    );
 
    return (
@@ -1013,9 +1015,9 @@ export function App() {
                   sessionActive={sessionActive}
                   inputProps={{
                      'aria-label':
-                        'Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:restamp, is:blocked',
+                        'Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked',
                      placeholder: 'Filter (press /)',
-                     title: 'text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:restamp, is:blocked',
+                     title: 'text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked',
                      className: `w-[210px] max-w-full grow pr-2.5 pl-8 sm:grow-0 ${textInputClass}`,
                   }}
                />
