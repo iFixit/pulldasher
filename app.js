@@ -126,7 +126,14 @@ io.on('connection', function (socket) {
    });
 
    socket.on('refresh', function (repo, number) {
-      refresh.pull(repo, number);
+      refresh.pull(repo, number).catch(function (err) {
+         console.error(
+            'Socket "refresh" failed for %s#%s: %s',
+            repo,
+            number,
+            (err && err.message) || err
+         );
+      });
    });
 
    // GitHub's requested_reviewers is now the only claim state (see
@@ -139,18 +146,38 @@ io.on('connection', function (socket) {
       if (!socket.user) {
          return;
       }
-      git.requestReviewer(repo, number, socket.user.username).then(function () {
-         refresh.pull(repo, number);
-      });
+      git.requestReviewer(repo, number, socket.user.username)
+         .then(function () {
+            return refresh.pull(repo, number);
+         })
+         .catch(function (err) {
+            console.error(
+               'Socket "claimReview" failed for %s#%s (user %s): %s',
+               repo,
+               number,
+               socket.user.username,
+               (err && err.message) || err
+            );
+         });
    });
 
    socket.on('releaseReview', function (repo, number) {
       if (!socket.user) {
          return;
       }
-      git.removeReviewer(repo, number, socket.user.username).then(function () {
-         refresh.pull(repo, number);
-      });
+      git.removeReviewer(repo, number, socket.user.username)
+         .then(function () {
+            return refresh.pull(repo, number);
+         })
+         .catch(function (err) {
+            console.error(
+               'Socket "releaseReview" failed for %s#%s (user %s): %s',
+               repo,
+               number,
+               socket.user.username,
+               (err && err.message) || err
+            );
+         });
    });
 });
 

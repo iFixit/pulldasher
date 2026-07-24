@@ -113,9 +113,20 @@ const HooksController = {
             // fold it into `dbUpdated`: coupling the webhook's HTTP response to a
             // full, serialized refresh risks GitHub's 10s webhook timeout and
             // turns a transient refresh failure into a 500 + redelivery storm.
-            dbUpdated.then(function () {
-               refresh.pull(body.repository.full_name, body.pull_request.number);
-            });
+            const syncRepo = body.repository.full_name;
+            const syncNumber = body.pull_request.number;
+            dbUpdated
+               .then(function () {
+                  return refresh.pull(syncRepo, syncNumber);
+               })
+               .catch(function (err) {
+                  console.error(
+                     'synchronize reconciliation refresh failed for %s#%s: %s',
+                     syncRepo,
+                     syncNumber,
+                     (err && err.message) || err
+                  );
+               });
          }
       } else if (event === 'issue_comment') {
          if (body.action === 'created') {
@@ -313,16 +324,32 @@ function recordReviewRequestMetadata(body) {
 
 function refreshPullOrIssue(responseBody) {
    var repo = responseBody.repository.full_name;
+   var number;
+   var refreshed;
 
    // The Docs: https://developer.github.com/v3/issues/#list-issues say you can
    // tell the difference like this:
    if (responseBody.pull_request) {
-      refresh.pull(repo, responseBody.pull_request.number);
+      number = responseBody.pull_request.number;
+      refreshed = refresh.pull(repo, number);
    } else if (responseBody.issue.pull_request) {
-      refresh.pull(repo, responseBody.issue.number);
+      number = responseBody.issue.number;
+      refreshed = refresh.pull(repo, number);
    } else {
-      refresh.issue(repo, responseBody.issue.number);
+      number = responseBody.issue.number;
+      refreshed = refresh.issue(repo, number);
    }
+
+   // Fire-and-forget (see callers): covers the issue_comment / pull_request_review
+   // edited-or-deleted paths, and the issues-event handler below.
+   refreshed.catch(function (err) {
+      console.error(
+         'refreshPullOrIssue failed for %s#%s: %s',
+         repo,
+         number,
+         (err && err.message) || err
+      );
+   });
 }
 
 export default HooksController;
