@@ -1,12 +1,12 @@
 import { useMemo, useState, type MouseEvent } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { ChevronRight, Plus, Settings } from 'lucide-react';
 import { authorOwnsIt, parked } from '../model/actions';
 import { displayName, useNames } from '../model/names';
 import type { DerivedPull } from '../model/status';
 import { matchesRegion } from '../model/regions';
 import { crSort } from '../model/sort';
 import { teamBuckets } from '../model/team';
-import { addTeam, DEFAULT_TEAM_NAME, myPeople, removeTeam, useSettings } from '../settings';
+import { addTeam, DEFAULT_TEAM_NAME, myPeople, useSettings } from '../settings';
 import { EmptyState, QuietButton } from '../components/bits';
 import { Icon } from '../components/Icon';
 import { Avatar } from '../components/identity';
@@ -16,17 +16,23 @@ import type { RowOptions } from '../components/Row';
 import { TeamPicker } from '../components/TeamPicker';
 import { WordGroupRows } from '../components/WordGroups';
 
+/** the directory fold's stable key in the open/closed set */
+const DIR_KEY = '__directory__';
+
 /**
  * The people tab (named Team): every board keyed by who wrote the work,
- * starting with yours. Your rosters are the pinned first row; behind them
- * sits the whole directory — every author on the board — so any avatar
- * click anywhere lands here on that person's page.
+ * starting with yours. The header is ONE foldable roster list — a section
+ * per roster (open by default, so each member's load and owed re-stamps read
+ * at a glance), then the directory (every other author on the board) folded
+ * beneath. No tab strip, no wrapping chip row: one column that looks the same
+ * whether you have zero teams or six.
  *
- * Selection here IS the authors filter: clicking a person or a team chip
- * writes the same scope the filter bar's People picker edits, so what you
- * pick is visible (and clearable) in the bar and narrows every lens the
- * same way. Plain click focuses one person or roster; shift-click keeps
- * the rest of the selection and toggles just them.
+ * Selection here IS the authors filter: clicking a person or a roster writes
+ * the same scope the filter bar's People picker edits, so what you pick is
+ * visible (and clearable) in the bar and narrows every lens the same way.
+ * Plain click focuses one person or roster; shift-click keeps the rest of the
+ * selection and toggles just them. A roster's gear opens its one management
+ * panel — rename, members, delete — in place.
  */
 export function Team({
    pulls,
@@ -49,21 +55,28 @@ export function Team({
 }) {
    const me = opts.me;
    const [allPeople, setAllPeople] = useState(false);
-   // the directory rests behind a door: your team is the tab's home, and
-   // thirty stranger-chips standing above it outweighed the content. null =
-   // no explicit choice (the door follows the selection); true/false = the
-   // user's own toggle for this visit
-   const [directoryChoice, setDirectoryChoice] = useState<boolean | null>(null);
+   // one foldable roster list: your teams open by default (their per-person
+   // load + owed pips are the overview), the directory folded (the stranger
+   // wall stays out of sight until asked). `collapsed` holds the closed keys.
+   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set([DIR_KEY]));
+   const isOpen = (key: string) => !collapsed.has(key);
+   const toggleOpen = (key: string) =>
+      setCollapsed(s => {
+         const n = new Set(s);
+         if (n.has(key)) n.delete(key);
+         else n.add(key);
+         return n;
+      });
    const { teams: personalTeams, codeRegions, hiddenPeople } = useSettings();
    const yourPeople = myPeople(personalTeams);
    const yourSet = new Set(yourPeople);
-   // login -> human name for the directory chips (app.tsx prefetches the board)
+   // login -> human name for the roster rows (app.tsx prefetches the board)
    const namesMap = useNames();
    const nameOf = (login: string) => displayName(namesMap, login);
    const hiddenSet = new Set(hiddenPeople);
 
    // authored/owed counts read the UNSCOPED pool: a narrowed scope shouldn't
-   // change what a chip says about a person's real backlog
+   // change what a row says about a person's real backlog
    const counts = useMemo(() => {
       const m = new Map<string, number>();
       for (const p of allPulls) m.set(p.data.user.login, (m.get(p.data.user.login) ?? 0) + 1);
@@ -99,7 +112,7 @@ export function Team({
       selected.includes(login) ? selected.filter(l => l !== login) : [...selected, login];
    const pickPerson = (login: string, e: MouseEvent) =>
       onSelect(e.shiftKey ? toggleIn(login) : sameSet(selected, [login]) ? [] : [login]);
-   // team chips work the same way at roster scale: click focuses the whole
+   // roster headers work the same way at roster scale: click focuses the whole
    // roster, shift-click merges it into (or carves it out of) the selection
    const pickGroup = (group: string[], e: MouseEvent) => {
       if (e.shiftKey) {
@@ -122,39 +135,15 @@ export function Team({
    const shipping = theirs.filter(p => ['ready', 'needs_qa'].includes(p.status)).length;
 
    // the directory: busiest authors lead, hidden ones drop out unless the
-   // current selection already includes them; your rosters' members are
-   // pinned in their own row above, so they don't repeat here
+   // current selection already includes them; your rosters' members are their
+   // own sections above, so they don't repeat here
    const logins = [...new Set([...counts.keys(), ...owes.keys()])]
       .filter(l => (!hiddenSet.has(l) || selected.includes(l)) && !yourSet.has(l))
       .sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0));
    const shownLogins = allPeople ? logins : logins.slice(0, 24);
+   // with no roster yet, the directory is the only content — open it
+   const dirOpen = personalTeams.length === 0 ? true : isOpen(DIR_KEY);
 
-   // the door opens itself when it must: no team yet (the directory is the
-   // only content), or the current pick lives outside your team (hiding the
-   // chip that explains the board would orphan it)
-   const outsidePick = selected.some(l => !yourSet.has(l));
-   const directoryShown = personalTeams.length === 0 || (directoryChoice ?? outsidePick);
-
-   const chip = (
-      key: string,
-      label: React.ReactNode,
-      active: boolean,
-      onPick: (e: MouseEvent) => void,
-      title?: string
-   ) => (
-      <button
-         key={key}
-         type="button"
-         onClick={onPick}
-         aria-pressed={active}
-         title={title}
-         className={`pressable inline-flex items-center gap-1.5 rounded-lg border border-line py-[5px] pr-2.5 pl-1.5 text-[13px] font-medium text-ink-2 ${
-            active ? 'bg-secondary' : 'bg-surface hover:bg-muted'
-         }`}
-      >
-         {label}
-      </button>
-   );
    const owesMark = (login: string) =>
       (owes.get(login)?.length ?? 0) > 0 && (
          <span
@@ -168,121 +157,167 @@ export function Team({
             {owes.get(login)!.length}
          </span>
       );
-   const personChip = (login: string) =>
-      chip(
-         login,
-         <>
-            <Avatar login={login} />
-            <b className="font-semibold text-ink" title={login}>
-               {nameOf(login) ?? login}
-            </b>
-            <span className="text-[11px] text-ink-3 tabular-nums">{counts.get(login) ?? 0}</span>
-            {owesMark(login)}
-         </>,
-         selected.includes(login),
-         e => pickPerson(login, e),
-         `${nameOf(login) ?? login}’s board — shift-click to add or remove them from the selection`
-      );
+
+   // one member row: avatar, name, open count, owed pip — the same person
+   // treatment in a roster section and in the directory
+   const memberRow = (login: string) => (
+      <button
+         key={login}
+         type="button"
+         onClick={e => pickPerson(login, e)}
+         aria-pressed={selected.includes(login)}
+         title={`${nameOf(login) ?? login}’s board — shift-click to add or remove them`}
+         className={`flex w-full items-center gap-2 rounded-lg py-[5px] pr-2 pl-9 text-left text-[13px] transition-[background-color] duration-150 ease-out motion-reduce:transition-none ${
+            selected.includes(login) ? 'bg-secondary' : 'hover:bg-muted'
+         }`}
+      >
+         <Avatar login={login} />
+         <span className="min-w-0 flex-1 truncate font-medium text-ink" title={login}>
+            {nameOf(login) ?? login}
+         </span>
+         <span className="text-[11px] text-ink-3 tabular-nums">{counts.get(login) ?? 0}</span>
+         {owesMark(login)}
+      </button>
+   );
+
+   // the disclosure caret shared by every section header — a plain toggle,
+   // never a scope gesture (the label beside it does the scoping)
+   const caret = (open: boolean, onToggle: () => void, label: string) => (
+      <button
+         type="button"
+         onClick={onToggle}
+         aria-expanded={open}
+         aria-label={label}
+         className="pressable flex h-6 w-6 flex-none items-center justify-center rounded-md text-ink-3 hover:text-ink"
+      >
+         <Icon
+            icon={ChevronRight}
+            size={14}
+            className={`transition-transform duration-150 ease-out motion-reduce:transition-none ${
+               open ? 'rotate-90' : ''
+            }`}
+         />
+      </button>
+   );
 
    return (
       <>
-         {/* yours, pinned: one quiet cluster per roster — its name chip, its
-             members, and its own add door — so who belongs where reads as
-             geometry, not memory. Creating a roster is inline on the lens
-             (nothing modal to lose); an emptied roster grows a remove ×. */}
-         {personalTeams.length > 0 && (
-            <div className="mb-2 flex flex-wrap items-center gap-1.5">
-               {personalTeams.length > 1 &&
-                  chip(
-                     'your-people',
-                     <>
-                        <b className="pl-1 font-semibold text-ink">Everyone yours</b>
-                        <span className="text-[11px] text-ink-3 tabular-nums">
-                           {allPulls.filter(p => yourSet.has(p.data.user.login)).length}
-                        </span>
-                     </>,
-                     sameSet(selected, yourPeople),
-                     e => pickGroup(yourPeople, e),
-                     'everyone across your rosters — click to narrow the board to them'
-                  )}
-               {personalTeams.map(t => (
-                  <span
-                     key={t.name}
-                     className="inline-flex flex-wrap items-center gap-1 rounded-xl bg-muted/60 p-1"
-                  >
-                     {chip(
-                        `mine:${t.name}`,
-                        <>
-                           <b className="pl-1 font-semibold text-ink">{t.name}</b>
+         {/* the roster list: your teams (open — load + owed pips visible),
+             then the directory (folded). One column, same shape at any team
+             count. Every label writes the shared authors scope. */}
+         <div className="mb-4 rounded-2xl border border-line bg-surface p-1.5">
+            {/* no explicit "all my teams" row: the home board (nothing
+                selected) already shows every roster combined, and clicking an
+                active team again — or Reset in the bar — returns to it. */}
+            {personalTeams.map(t => {
+               const key = `team:${t.name}`;
+               const open = isOpen(key);
+               const active = sameSet(selected, t.members);
+               const owedHere = t.members.some(m => (owes.get(m)?.length ?? 0) > 0);
+               return (
+                  <div key={t.name}>
+                     <div className="group flex items-center gap-1">
+                        {caret(
+                           open,
+                           () => toggleOpen(key),
+                           open ? `collapse ${t.name}` : `expand ${t.name}`
+                        )}
+                        <button
+                           type="button"
+                           onClick={e => pickGroup(t.members, e)}
+                           aria-pressed={active}
+                           title={`narrow the board to ${t.name} — shift-click to add or remove the whole roster`}
+                           className={`flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left ${
+                              active ? 'bg-secondary' : 'hover:bg-muted'
+                           }`}
+                        >
+                           <b className="font-semibold text-ink">{t.name}</b>
                            <span className="text-[11px] text-ink-3 tabular-nums">
                               {allPulls.filter(p => t.members.includes(p.data.user.login)).length}
                            </span>
-                        </>,
-                        sameSet(selected, t.members),
-                        e => pickGroup(t.members, e),
-                        `narrow the board to ${t.name} — shift-click to add or remove the whole roster`
+                           {owedHere && (
+                              <span
+                                 aria-hidden
+                                 className="h-1.5 w-1.5 flex-none rounded-full"
+                                 style={{ background: 'var(--warn)' }}
+                              />
+                           )}
+                        </button>
+                        <Popover
+                           label={`Manage ${t.name}`}
+                           side="right"
+                           width="w-[300px]"
+                           panelClass="p-3 max-h-[70vh] overflow-auto"
+                           trigger={tr => (
+                              <button
+                                 {...tr}
+                                 type="button"
+                                 aria-label={`manage the ${t.name} team`}
+                                 title={`rename, add members, or delete ${t.name}`}
+                                 className="pressable inline-flex h-7 w-7 flex-none items-center justify-center rounded-lg text-ink-3 opacity-0 transition-opacity duration-150 hover:text-brand focus-visible:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
+                              >
+                                 <Icon icon={Settings} size={14} />
+                              </button>
+                           )}
+                        >
+                           <TeamPicker teamName={t.name} extraBots={extraBots} />
+                        </Popover>
+                     </div>
+                     {open && (
+                        <div className="pb-1">
+                           {t.members.length === 0 ? (
+                              <p className="py-1 pl-9 text-[12px] text-ink-3">
+                                 No one yet — open the gear to add teammates.
+                              </p>
+                           ) : (
+                              t.members.map(login => memberRow(login))
+                           )}
+                        </div>
                      )}
-                     {t.members.map(login => personChip(login))}
-                     <Popover
-                        label={`Add to ${t.name}`}
-                        side="right"
-                        width="w-[280px]"
-                        panelClass="p-3 max-h-[60vh] overflow-auto"
-                        trigger={tr => (
+                  </div>
+               );
+            })}
+            {logins.length > 0 && (
+               <div>
+                  <div className="flex items-center gap-1">
+                     {caret(
+                        dirOpen,
+                        () => toggleOpen(DIR_KEY),
+                        dirOpen ? 'collapse everyone else' : 'expand everyone else'
+                     )}
+                     <button
+                        type="button"
+                        onClick={() => toggleOpen(DIR_KEY)}
+                        className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-muted"
+                     >
+                        <span className="font-semibold text-ink-2">
+                           {personalTeams.length ? 'Everyone else' : 'Everyone'}
+                        </span>
+                        <span className="text-[11px] text-ink-3 tabular-nums">{logins.length}</span>
+                     </button>
+                  </div>
+                  {dirOpen && (
+                     <div className="pb-1">
+                        {shownLogins.map(login => memberRow(login))}
+                        {!allPeople && logins.length > 24 && (
                            <button
-                              {...tr}
                               type="button"
-                              aria-label={`add someone to ${t.name}`}
-                              title={`add someone to ${t.name}`}
-                              className="pressable inline-flex h-7 w-7 items-center justify-center rounded-lg text-ink-3 hover:text-brand"
+                              onClick={() => setAllPeople(true)}
+                              className="pressable py-[5px] pl-9 text-[13px] font-medium text-ink-3 hover:text-brand"
                            >
-                              <Icon icon={Plus} size={14} />
+                              + {logins.length - 24} more
                            </button>
                         )}
-                     >
-                        <TeamPicker teamName={t.name} extraBots={extraBots} />
-                     </Popover>
-                     {t.members.length === 0 && (
-                        <button
-                           type="button"
-                           onClick={() => removeTeam(t.name)}
-                           aria-label={`delete the ${t.name} team`}
-                           title={`delete the ${t.name} team`}
-                           className="pressable inline-flex h-7 w-7 items-center justify-center rounded-lg text-ink-3 hover:text-bad"
-                        >
-                           <Icon icon={Trash2} size={12} />
-                        </button>
-                     )}
-                  </span>
-               ))}
-               <NewTeamChip />
-               <button
-                  type="button"
-                  aria-expanded={directoryShown}
-                  onClick={() => setDirectoryChoice(!directoryShown)}
-                  className="pressable ml-auto inline-flex items-center rounded-lg border border-line bg-surface px-2.5 py-[5px] text-[13px] font-medium text-ink-3 hover:text-brand"
-               >
-                  Everyone
-                  <span className="pl-1.5 text-[11px] tabular-nums">{logins.length}</span>
-               </button>
-            </div>
-         )}
-         {/* the rest of the directory: everyone on the board who isn't on a
-             roster — behind the Everyone door unless it must stand (see above) */}
-         {directoryShown && (
-            <div className="mb-4 flex flex-wrap gap-1.5">
-               {shownLogins.map(login => personChip(login))}
-               {!allPeople && logins.length > 24 && (
-                  <button
-                     type="button"
-                     onClick={() => setAllPeople(true)}
-                     className="pressable inline-flex items-center rounded-lg border border-line bg-surface px-2.5 py-[5px] text-[13px] font-medium text-ink-3 hover:text-brand"
-                  >
-                     + {logins.length - 24} more
-                  </button>
-               )}
-            </div>
-         )}
+                     </div>
+                  )}
+               </div>
+            )}
+            {personalTeams.length > 0 && (
+               <div className="px-1 pt-1">
+                  <NewTeamChip />
+               </div>
+            )}
+         </div>
 
          {home && personalTeams.length === 0 && (
             <div className="mx-auto flex max-w-[440px] flex-col items-center gap-3 py-12 text-center">
@@ -299,7 +334,7 @@ export function Team({
          )}
 
          {/* an explicit pick earns the summary card; the home board's summary
-             is the member strip itself (counts and owed pips per person) */}
+             is the roster list itself (counts and owed pips per person) */}
          {selected.length > 0 && (
             <div className="mb-4 flex items-center gap-3 rounded-2xl border border-line bg-surface p-4">
                {selectedPerson ? (
@@ -425,7 +460,7 @@ export function Team({
  * The inline "start another roster" affordance: a dashed ghost chip that
  * swaps into a name field IN the lens flow — no popover involved, so there
  * is nothing to accidentally close. Enter creates the (empty) roster, which
- * appears as its own cluster with an add door ready.
+ * appears as its own section with a gear ready.
  */
 function NewTeamChip() {
    const [name, setName] = useState<string | null>(null);
