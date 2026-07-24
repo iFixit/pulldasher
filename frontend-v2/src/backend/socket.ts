@@ -5,12 +5,25 @@ import { readSessionStorage, writeSessionStorage } from '../storage';
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'error';
 
+/** Thrown by the token fetch when the app SESSION is dead (a redirect into the
+ * OAuth flow, or a 401) -- distinct from a transient network/5xx failure, so
+ * only this one flips the "sign in again" banner. */
+class AuthExpiredError extends Error {
+   constructor(status: number) {
+      super(`session expired (${status})`);
+      this.name = 'AuthExpiredError';
+   }
+}
+
 export interface Backend {
    /** Resolves once we know who the viewer is (the /token user). */
    whoami: () => Promise<string>;
    /** Streams the initial snapshot, then one pull per change. */
    onPulls: (handler: (payload: InitializePayload | PullData) => void) => void;
    onConnection: (handler: (state: ConnectionState) => void) => () => void;
+   /** Streams whether the app session is dead (a /token redirect or 401 on
+    * (re)auth), so the UI can say "sign in again" instead of "retrying". */
+   onAuthExpired: (handler: (expired: boolean) => void) => () => void;
    refreshPull: (repo: string, number: number) => void;
    /** Ask to review a pull. The server derives the login from the socket's
     * own auth — no login argument here. A claim is a GitHub review request
@@ -29,9 +42,12 @@ function liveBackend(): Backend {
       token =
          token ??
          fetch('/token').then(async r => {
-            // an expired session redirects toward the OAuth flow instead of
-            // returning JSON — surface that as a failure, not a parse error
-            if (!r.ok || r.redirected) throw new Error(`token fetch failed: ${r.status}`);
+            // an expired session redirects toward the OAuth flow (or 401s)
+            // instead of returning JSON. Separate that dead-session case from
+            // a transient network/5xx failure, so only the former says "sign
+            // in again" while a blip keeps retrying quietly.
+            if (r.redirected || r.status === 401) throw new AuthExpiredError(r.status);
+            if (!r.ok) throw new Error(`token fetch failed: ${r.status}`);
             const t = (await r.json()) as TokenResponse;
             if (!t.socketToken) throw new Error('token response missing socketToken');
             return t;
@@ -45,6 +61,7 @@ function liveBackend(): Backend {
    };
 
    let onState: ((state: ConnectionState) => void) | null = null;
+   let onAuth: ((expired: boolean) => void) | null = null;
 
    // Overnight, the app session cookie can expire while the tab sleeps; the
    // socket then reconnects fine but /token fails and the board would sit on
@@ -74,8 +91,15 @@ function liveBackend(): Backend {
       // (re)connect rather than reusing the first one.
       token = null;
       getToken().then(
-         t => socket!.emit('authenticate', t.socketToken),
-         () => {
+         t => {
+            // a valid /token proves the app session is alive again
+            onAuth?.(false);
+            socket!.emit('authenticate', t.socketToken);
+         },
+         (err: unknown) => {
+            // a dead session (redirect/401) is "sign in again", not "retrying";
+            // a transient failure leaves authFailed alone and just backs off
+            if (err instanceof AuthExpiredError) onAuth?.(true);
             onState?.('error');
             if (attempt >= 1) maybeReloadForAuth();
             clearAuthRetry();
@@ -132,6 +156,12 @@ function liveBackend(): Backend {
             s.off('connect', connected);
             s.off('disconnect', disconnected);
             s.io.off('reconnect_attempt', connecting);
+         };
+      },
+      onAuthExpired(handler) {
+         onAuth = handler;
+         return () => {
+            onAuth = null;
          };
       },
       refreshPull(repo, number) {
@@ -196,6 +226,9 @@ function dummyBackend(): Backend {
       },
       onConnection(handler) {
          handler('connected');
+         return () => undefined;
+      },
+      onAuthExpired() {
          return () => undefined;
       },
       refreshPull(repo, number) {

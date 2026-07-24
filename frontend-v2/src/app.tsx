@@ -1034,15 +1034,17 @@ export function App() {
                </span>
             </Banner>
          )}
-         {initialized && (connection === 'disconnected' || connection === 'error') && (
-            <Banner tone="warn">
-               <span className="font-semibold text-warn">Live updates lost.</span>
-               <span className="text-ink-2">
-                  Showing data as of {lastPayloadAt ? `${ago(lastPayloadAt)} ago` : 'page load'},
-                  retrying in the background.
-               </span>
-            </Banner>
-         )}
+         {initialized &&
+            !authFailed &&
+            (connection === 'disconnected' || connection === 'error') && (
+               <Banner tone="warn">
+                  <span className="font-semibold text-warn">Live updates lost.</span>
+                  <span className="text-ink-2">
+                     Showing data as of {lastPayloadAt ? `${ago(lastPayloadAt)} ago` : 'page load'},
+                     retrying in the background.
+                  </span>
+               </Banner>
+            )}
          <main
             className={`mx-auto mt-4 max-w-[1240px] px-5 pb-16 ${entrance ? 'settle-once' : ''}`}
          >

@@ -282,6 +282,12 @@ function start() {
       connection = state;
       schedulePublish();
    });
+   // a mid-session auth death (the cookie expired while the tab slept) flips
+   // the banner from "retrying" to "sign in again"; a later re-auth clears it
+   backend.onAuthExpired(failed => {
+      authFailed = failed;
+      schedulePublish();
+   });
    // the aging threshold feeds derive(): re-derive when the user changes it
    subscribeSettings(schedulePublish);
    // time-based derivations (iterating, "Nm ago") expire even on a quiet board
