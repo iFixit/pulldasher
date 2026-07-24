@@ -99,11 +99,6 @@ dbManager
    })
    .done();
 
-/*
-@TODO: Update pulls which were open last time Pulldasher ran but are closed now.
-dbManager.closeStalePulls();
-*/
-
 //====================================================
 // Socket.IO
 const io = new Server(httpServer);

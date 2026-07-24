@@ -1,5 +1,7 @@
 import git from '../lib/git-manager.js';
 import debug from '../lib/debug.js';
+import { isFresh as isCacheFresh } from '../lib/ttl-cache.js';
+import { respondOrError } from '../lib/controller-utils.js';
 
 const userNamesDebug = debug('pulldasher:user-names');
 
@@ -43,10 +45,12 @@ export function parseLoginsParam(raw) {
 
 /**
  * Whether a cache entry ({ name, at }) is still within CACHE_TTL_MS of `now`.
- * A missing entry is never fresh.
+ * A missing entry is never fresh. Thin wrapper over the shared ttl-cache
+ * check, keeping this module's own CACHE_TTL_MS baked in for callers here and
+ * in tests.
  */
 export function isFresh(entry, now = Date.now()) {
-   return Boolean(entry) && now - entry.at < CACHE_TTL_MS;
+   return isCacheFresh(entry, CACHE_TTL_MS, now);
 }
 
 /**
@@ -126,17 +130,16 @@ export default {
 
       const validLogins = requested.filter(isValidLogin);
 
-      resolveNames(validLogins, { cache, fetcher: githubFetcher })
-         .then(names => {
+      respondOrError(
+         res,
+         resolveNames(validLogins, { cache, fetcher: githubFetcher }).then(names => {
             const body = {};
             for (const login of requested) {
                body[login] = names[login] ?? null;
             }
-            res.json({ names: body });
-         })
-         .catch(err => {
-            console.error('user-names query failed:', err);
-            res.status(500).json({ error: 'user-names query failed' });
-         });
+            return { names: body };
+         }),
+         'user-names query failed'
+      );
    },
 };

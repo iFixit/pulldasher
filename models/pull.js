@@ -2,7 +2,6 @@ import utils from '../lib/utils.js';
 import _ from 'underscore';
 import config from '../lib/config-loader.js';
 import queue from '../lib/pull-queue.js';
-import Promise from 'bluebird';
 import debug from '../lib/debug.js';
 import DBPull from './db_pull.js';
 import getLogin from '../lib/get-user-login.js';
@@ -29,6 +28,11 @@ const log = debug('pulldasher:pull');
  * for it, or before the next full refresh) still gets an entry, just
  * `{ at: null, self: false }` -- never a DB write, and never persisted past a
  * process restart.
+ *
+ * Nothing here ever drops the outer `repo#number` key on its own (only the
+ * inner per-login entries shrink, via recordReviewRequestRemoved), so
+ * pull-manager.js's hourly cull calls pruneReviewRequests to keep this map
+ * from growing by one entry per pull for the life of the process.
  */
 const reviewRequestsByPull = new Map();
 
@@ -144,35 +148,6 @@ class Pull {
          });
       });
       return unstamped;
-   }
-
-   syncToIssue() {
-      return Promise.resolve(this);
-      /* The below needs to be rethought a bit and possibly the causal direction
-      * reversed (updates to the issue should propagate to the pull).
-     var Issue = require('./issue');
-     var self = this;
-     var connected = this.data.closes || this.data.connects;
-     if (!this.data.milestone.title && connected) {
-        return Issue.findByNumber(this.data.repo, connected).
-        then(function(issue) {
-           log("Updating pull from issue: %s", issue.number);
-           if (issue.milestone) {
-              var milestone = self.data.milestone;
-              milestone.title = issue.milestone.title;
-              milestone.due_on = issue.milestone.due_on;
-           }
-           self.data.difficulty = issue.difficulty;
-           return self.update();
-        }).
-        then(function() {
-           // This makes it easier to chain a call to this function
-           return self;
-        });
-     } else {
-        return new Promise.resolve(self);
-     }
-     */
    }
 
    toObject() {
@@ -295,7 +270,6 @@ class Pull {
          closed_at: utils.fromDateString(data.closed_at),
          mergeable: data.mergeable,
          merged_at: utils.fromDateString(data.merged_at),
-         difficulty: data.difficulty,
          milestone: {
             title: data.milestone && data.milestone.title,
             due_on: data.milestone && utils.fromDateString(data.milestone.due_on),
@@ -318,7 +292,6 @@ class Pull {
          },
          assignees: (data.assignees || []).map(a => getLogin(a)),
          requested_reviewers: (data.requested_reviewers || []).map(r => getLogin(r)),
-         commits: data.commits,
          additions: data.additions,
          deletions: data.deletions,
          changed_files: data.changed_files,
@@ -363,6 +336,32 @@ class Pull {
    }
 
    /**
+    * The `"repo#number"` key reviewRequestsByPull is keyed by, exposed so a
+    * caller (pull-manager.js's cull, below) can compute the same keys for its
+    * own surviving pulls without duplicating the format.
+    */
+   static reviewRequestsKey(repo, number) {
+      return reviewRequestsKey(repo, number);
+   }
+
+   /**
+    * Drop reviewRequestsByPull's outer per-pull entry for any key not in
+    * `liveKeys` (a Set of `"repo#number"`, from Pull.reviewRequestsKey).
+    * recordReviewRequestRemoved only ever prunes an entry's INNER per-login
+    * map; nothing dropped the outer key once a pull closed and aged out of
+    * pull-manager's in-memory `pulls` array, so the cache grew by one entry
+    * per pull, forever. Called from pull-manager.js's hourly cull right after
+    * it filters its own list, so the two stay in lockstep.
+    */
+   static pruneReviewRequests(liveKeys) {
+      for (const key of reviewRequestsByPull.keys()) {
+         if (!liveKeys.has(key)) {
+            reviewRequestsByPull.delete(key);
+         }
+      }
+   }
+
+   /**
     * Takes an object representing a DB row, and returns an instance of this
     * Pull object.
     */
@@ -386,7 +385,6 @@ class Pull {
          // mergeable. Normalize at the DB boundary, same as `draft` above.
          mergeable: data.mergeable == null ? null : data.mergeable === 1,
          merged_at: utils.fromUnixTime(data.date_merged),
-         difficulty: data.difficulty,
          additions: data.additions,
          deletions: data.deletions,
          // was dropped on the DB round-trip: DBPull writes it, but a restart

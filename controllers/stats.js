@@ -1,5 +1,7 @@
 import db from '../lib/db.js';
 import debug from '../lib/debug.js';
+import { isFresh } from '../lib/ttl-cache.js';
+import { respondOrError } from '../lib/controller-utils.js';
 
 const statsDebug = debug('pulldasher:stats');
 
@@ -217,19 +219,18 @@ export default {
     * memoized for CACHE_TTL_MS since the underlying data moves slowly.
     */
    getHistory: function (req, res) {
-      if (cache && Date.now() - cache.at < CACHE_TTL_MS) {
+      if (isFresh(cache, CACHE_TTL_MS)) {
          statsDebug('getHistory: serving cached response');
          return res.json(cache.body);
       }
 
-      loadHistory()
-         .then(function (body) {
+      respondOrError(
+         res,
+         loadHistory().then(function (body) {
             cache = { at: Date.now(), body: body };
-            res.json(body);
-         })
-         .catch(function (err) {
-            console.error('stats-history query failed:', err);
-            res.status(500).json({ error: 'stats query failed' });
-         });
+            return body;
+         }),
+         'stats-history query failed'
+      );
    },
 };
