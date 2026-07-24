@@ -141,8 +141,13 @@ export function Team({
       .filter(l => (!hiddenSet.has(l) || selected.includes(l)) && !yourSet.has(l))
       .sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0));
    const shownLogins = allPeople ? logins : logins.slice(0, 24);
-   // with no roster yet, the directory is the only content — open it
-   const dirOpen = personalTeams.length === 0 ? true : isOpen(DIR_KEY);
+   // the directory force-opens when it's the only content (no rosters yet) or
+   // when the selection includes a directory-only person — else that selected
+   // row would hide inside a closed fold with nothing to explain the board.
+   // Otherwise it follows the user's own fold choice.
+   const outsidePick = selected.some(l => !yourSet.has(l));
+   const dirForced = personalTeams.length === 0 || outsidePick;
+   const dirOpen = dirForced || isOpen(DIR_KEY);
 
    const owesMark = (login: string) =>
       (owes.get(login)?.length ?? 0) > 0 && (
@@ -212,7 +217,9 @@ export function Team({
             {personalTeams.map(t => {
                const key = `team:${t.name}`;
                const open = isOpen(key);
-               const active = sameSet(selected, t.members);
+               // an empty roster's [] vacuously "equals" the empty home
+               // selection — guard so it isn't highlighted as active at home
+               const active = t.members.length > 0 && sameSet(selected, t.members);
                const owedHere = t.members.some(m => (owes.get(m)?.length ?? 0) > 0);
                return (
                   <div key={t.name}>
@@ -231,8 +238,10 @@ export function Team({
                               active ? 'bg-secondary' : 'hover:bg-muted'
                            }`}
                         >
-                           <b className="font-semibold text-ink">{t.name}</b>
-                           <span className="text-[11px] text-ink-3 tabular-nums">
+                           <b className="min-w-0 flex-1 truncate font-semibold text-ink">
+                              {t.name}
+                           </b>
+                           <span className="flex-none text-[11px] text-ink-3 tabular-nums">
                               {allPulls.filter(p => t.members.includes(p.data.user.login)).length}
                            </span>
                            {owedHere && (
@@ -279,23 +288,34 @@ export function Team({
             })}
             {logins.length > 0 && (
                <div>
-                  <div className="flex items-center gap-1">
-                     {caret(
-                        dirOpen,
-                        () => toggleOpen(DIR_KEY),
-                        dirOpen ? 'collapse everyone else' : 'expand everyone else'
-                     )}
-                     <button
-                        type="button"
-                        onClick={() => toggleOpen(DIR_KEY)}
-                        className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-muted"
-                     >
-                        <span className="font-semibold text-ink-2">
-                           {personalTeams.length ? 'Everyone else' : 'Everyone'}
-                        </span>
-                        <span className="text-[11px] text-ink-3 tabular-nums">{logins.length}</span>
-                     </button>
-                  </div>
+                  {/* one control for the directory disclosure (the caret is
+                      inside it), so a screen reader hears a single toggle with
+                      its state. A no-op while force-open (dirForced), so a
+                      click can't silently flip the stored fold state. */}
+                  <button
+                     type="button"
+                     onClick={() => {
+                        if (!dirForced) toggleOpen(DIR_KEY);
+                     }}
+                     aria-expanded={dirOpen}
+                     className="flex w-full items-center gap-1 rounded-lg py-1.5 pr-2 text-left hover:bg-muted"
+                  >
+                     <span className="flex h-6 w-6 flex-none items-center justify-center text-ink-3">
+                        <Icon
+                           icon={ChevronRight}
+                           size={14}
+                           className={`transition-transform duration-150 ease-out motion-reduce:transition-none ${
+                              dirOpen ? 'rotate-90' : ''
+                           }`}
+                        />
+                     </span>
+                     <span className="min-w-0 flex-1 truncate font-semibold text-ink-2">
+                        {personalTeams.length ? 'Everyone else' : 'Everyone'}
+                     </span>
+                     <span className="flex-none text-[11px] text-ink-3 tabular-nums">
+                        {logins.length}
+                     </span>
+                  </button>
                   {dirOpen && (
                      <div className="pb-1">
                         {shownLogins.map(login => memberRow(login))}

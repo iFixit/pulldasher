@@ -120,14 +120,19 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
       (mx, l) => (l.avgSecs != null && (mx == null || l.avgSecs > mx) ? l.avgSecs : mx),
       null
    );
+   // count the PRs from the SAME population the checks come from (the ledger),
+   // so "N checks failing · M PRs" can't disagree with itself when a check is
+   // config-ignored for the merge verdict but still red in the health ledger
+   const failingPrCount = new Set(failingChecks.flatMap(l => l.failing.map(p => pullKey(p.data))))
+      .size;
    const summary = failingChecks.length
-      ? `${failingChecks.length} check${failingChecks.length === 1 ? '' : 's'} failing · ${
-           failing.length
-        } PR${failing.length === 1 ? '' : 's'}${
+      ? `${failingChecks.length} check${
+           failingChecks.length === 1 ? '' : 's'
+        } failing · ${failingPrCount} PR${failingPrCount === 1 ? '' : 's'}${
            slowestFailing != null ? ` · slowest ~${ciSecsWord(slowestFailing)}` : ''
         }`
       : running.length
-        ? `no checks failing · ${running.length} still running`
+        ? `no checks failing · ${running.length} PR${running.length === 1 ? '' : 's'} still running`
         : 'every check passing';
 
    return (
@@ -164,7 +169,7 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
                   </SubDoor>
                }
                pulls={[]}
-               count={ledgers.length}
+               count={failingChecks.length}
                opts={opts}
             >
                {/* check names are case-sensitive identifiers, so the fold skips
@@ -190,13 +195,11 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
                   <Fold
                      count={clearChecks.length}
                      showCount={false}
-                     caps={false}
                      label={`${clearChecks.length} check${
                         clearChecks.length === 1 ? '' : 's'
-                     } all passing`}
-                     gloss="Every run of these is green (or still going). Open to audit the whole fleet."
+                     } clear`}
+                     gloss="Every run of these is green or still going — none failing. Open to audit the whole fleet."
                      id="ci:health:clear"
-                     defaultOpen={allGreen}
                   >
                      {clearChecks.map(l => (
                         <HealthyRow key={l.context} ledger={l} />

@@ -347,7 +347,10 @@ export function LineChart({
             viewBox={`0 0 ${CHART_W} ${height}`}
             preserveAspectRatio="none"
             className="w-full"
-            style={{ height, touchAction: 'none' }}
+            // pan-y (not none): vertical page-scroll stays native on touch,
+            // only horizontal drags feed the hover scrub — the crosshair's
+            // one axis. touchAction:none blocked scrolling a finger over a chart
+            style={{ height, touchAction: 'pan-y' }}
             role="img"
             aria-label={ariaLabel}
             onPointerMove={onMove}
@@ -445,15 +448,17 @@ export function LineChart({
                      strokeDasharray="3 3"
                      opacity={0.55}
                   />
-                  {visBars.map(b => (
-                     <circle
-                        key={`hb-${b.label}`}
-                        cx={x(hover)}
-                        cy={yFor(b.values[hover] ?? 0, b.axis)}
-                        r={2.5}
-                        fill={b.color}
-                     />
-                  ))}
+                  {visBars.map(b =>
+                     b.values[hover] != null ? (
+                        <circle
+                           key={`hb-${b.label}`}
+                           cx={x(hover)}
+                           cy={yFor(b.values[hover], b.axis)}
+                           r={2.5}
+                           fill={b.color}
+                        />
+                     ) : null
+                  )}
                   {visSeries.map(s =>
                      s.values[hover] != null ? (
                         <circle
@@ -482,38 +487,42 @@ export function LineChart({
                {pointLabels?.[hover] && (
                   <div className="mb-0.5 font-semibold text-ink">{pointLabels[hover]}</div>
                )}
-               {visBars.map(b => (
-                  <div
-                     key={b.label}
-                     className="flex items-center gap-1.5 whitespace-nowrap text-ink-2"
-                  >
-                     <span
-                        aria-hidden
-                        className="inline-block h-2 w-2 rounded-[2px]"
-                        style={{ background: b.color }}
-                     />
-                     <span>{b.label}</span>
-                     <b className="ml-auto pl-3 font-semibold text-ink tabular-nums">
-                        {fmt(b.values[hover] ?? 0)}
-                     </b>
-                  </div>
-               ))}
-               {visSeries.map(s => (
-                  <div
-                     key={s.label}
-                     className="flex items-center gap-1.5 whitespace-nowrap text-ink-2"
-                  >
-                     <span
-                        aria-hidden
-                        className="inline-block h-[2px] w-3"
-                        style={{ background: s.color, opacity: s.dashed ? 0.6 : 1 }}
-                     />
-                     <span>{s.label}</span>
-                     <b className="ml-auto pl-3 font-semibold text-ink tabular-nums">
-                        {fmt(s.values[hover] ?? 0)}
-                     </b>
-                  </div>
-               ))}
+               {visBars.map(b =>
+                  b.values[hover] != null ? (
+                     <div
+                        key={b.label}
+                        className="flex items-center gap-1.5 whitespace-nowrap text-ink-2"
+                     >
+                        <span
+                           aria-hidden
+                           className="inline-block h-2 w-2 rounded-[2px]"
+                           style={{ background: b.color }}
+                        />
+                        <span>{b.label}</span>
+                        <b className="ml-auto pl-3 font-semibold text-ink tabular-nums">
+                           {fmt(b.values[hover])}
+                        </b>
+                     </div>
+                  ) : null
+               )}
+               {visSeries.map(s =>
+                  s.values[hover] != null ? (
+                     <div
+                        key={s.label}
+                        className="flex items-center gap-1.5 whitespace-nowrap text-ink-2"
+                     >
+                        <span
+                           aria-hidden
+                           className="inline-block h-[2px] w-3"
+                           style={{ background: s.color, opacity: s.dashed ? 0.6 : 1 }}
+                        />
+                        <span>{s.label}</span>
+                        <b className="ml-auto pl-3 font-semibold text-ink tabular-nums">
+                           {fmt(s.values[hover])}
+                        </b>
+                     </div>
+                  ) : null
+               )}
             </div>
          )}
          <AxisLabels ticks={axisTicks} count={n} />
