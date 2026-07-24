@@ -216,7 +216,12 @@ export function toggleTeammate(login: string, add: boolean, teamName?: string) {
          target = { name: teamName ?? DEFAULT_TEAM_NAME, members: [] };
          teams.push(target);
       }
-      target.members = [...new Set([...target.members, login])].sort();
+      // logins are case-insensitive (one GitHub account) — don't add a login
+      // that's already on the roster under different casing, and keep the
+      // casing of whichever spelling got there first
+      if (!target.members.some(m => m.toLowerCase() === login.toLowerCase())) {
+         target.members = [...target.members, login].sort();
+      }
    } else {
       for (const t of teams) {
          if (teamName && t.name !== teamName) continue;

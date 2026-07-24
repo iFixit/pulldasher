@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Trash2, X } from 'lucide-react';
 import { displayName, useNames } from '../model/names';
 import { isBotLogin } from '../../../shared/model/visibility';
-import { removeTeam, renameTeam, toggleTeammate, useSettings } from '../settings';
+import { getSettings, removeTeam, renameTeam, toggleTeammate, useSettings } from '../settings';
 import { usePulldasher } from '../store';
 import { textInputClass } from './bits';
 import { CheckboxField, FilterSearch, hoverRowClass } from './filters/shared';
@@ -100,7 +100,13 @@ export function TeamPicker({
    // stays put on a bad name
    const [nameDraft, setNameDraft] = useState(teamName);
    useEffect(() => setNameDraft(teamName), [teamName]);
-   const commitRename = () => renameTeam(teamName, nameDraft);
+   const commitRename = () => {
+      renameTeam(teamName, nameDraft);
+      // renameTeam no-ops on a blank or colliding name, leaving `teamName`
+      // unchanged — when that happens the draft must not keep showing the
+      // rejected text indefinitely
+      if (getSettings().teams.some(t => t.name === teamName)) setNameDraft(teamName);
+   };
    const activeName = teamName;
    const exists = teams.some(t => t.name === teamName);
    const activeMembers = teams.find(t => t.name === teamName)?.members ?? [];
@@ -112,10 +118,12 @@ export function TeamPicker({
    const namesMap = useNames();
    const nameOf = (login: string) => displayName(namesMap, login);
 
-   const members = new Set(activeMembers);
+   // logins are case-insensitive (one GitHub account), so membership must be
+   // too — otherwise "JDoe" and "jdoe" pass as two different people
+   const members = new Set(activeMembers.map(l => l.toLowerCase()));
    const trimmed = query.trim();
    const needle = trimmed.toLowerCase();
-   const available = candidates.filter(c => !members.has(c.login));
+   const available = candidates.filter(c => !members.has(c.login.toLowerCase()));
    const filtered = needle
       ? available.filter(
            c =>
@@ -125,7 +133,7 @@ export function TeamPicker({
       : available.slice(0, SUGGESTION_CAP);
 
    const exactMatch =
-      !!trimmed && (members.has(trimmed) || candidates.some(c => c.login.toLowerCase() === needle));
+      !!trimmed && (members.has(needle) || candidates.some(c => c.login.toLowerCase() === needle));
 
    return (
       <div>
