@@ -299,6 +299,22 @@ export function Settings({
                            </div>
                         </Explainer>
                         <Field
+                           label="Repo cap in the queue"
+                           hint="Rows each repo shows in the review queue before folding into “+N more” — one busy repo can’t take the whole screen. Reorder the repos themselves by dragging in the Repos filter."
+                        >
+                           <Segmented
+                              ariaLabel="rows per repo before folding"
+                              value={String(s.repoQueueCap)}
+                              options={[
+                                 ['3', '3'],
+                                 ['5', '5'],
+                                 ['8', '8'],
+                                 ['0', 'No cap'],
+                              ]}
+                              onChange={v => set({ repoQueueCap: Number(v) })}
+                           />
+                        </Field>
+                        <Field
                            label="Age line appears"
                            hint="When the age line appears and waiting starts counting against a pull. This floats it up the review queue, not just draws the line. The heaviest text tier follows automatically, at about 2.5x this."
                         >
@@ -385,6 +401,7 @@ export function Settings({
                            />
                         </Field>
                      </Group>
+
 
                      <CodeRegionsGroup />
 

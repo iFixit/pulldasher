@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, GripVertical } from 'lucide-react';
 import { repoHidden } from '../../model/visibility';
 import { shortRepo } from '../../format';
 import type { Scope } from '../../prefs';
-import { setRepoPref, useSettings } from '../../settings';
+import { setRepoPref, setSettings, useSettings } from '../../settings';
 import { Icon } from '../Icon';
 import { Popover } from '../Popover';
 import { ClearRow, EyeButton, FilterSearch, FilterTrigger, OnlyButton } from './shared';
@@ -15,9 +15,15 @@ import { ClearRow, EyeButton, FilterSearch, FilterTrigger, OnlyButton } from './
  * your board right now) and hide (which repos are off your board, period)
  * live side by side on each row. Hiding is per-user only: the server
  * config's v1-era org-level mute is ignored — each user hides a repo once,
- * their call. (Parked PRs and drafts used to ride along here as session
- * toggles; they're board-level hiding, so they live in the filter bar's
- * hidden-PR ledger now — see HiddenPanel.)
+ * their call.
+ *
+ * The list's ORDER is load-bearing: rows sort by settings.repoPriority — the
+ * same order the review queue renders its repo blocks in — and the grip
+ * handle reorders it (drag, or arrow keys on the focused grip). This panel
+ * is the one place the order changes; Settings keeps only the per-repo cap.
+ * (Parked PRs and drafts used to ride along here as session toggles; they're
+ * board-level hiding, so they live in the filter bar's hidden-PR ledger now —
+ * see HiddenPanel.)
  */
 export function RepoFilter({
    repos,
@@ -39,10 +45,42 @@ export function RepoFilter({
 }) {
    const settings = useSettings();
    const prefs = settings.repoPrefs;
+   const priority = settings.repoPriority;
    const [repoQuery, setRepoQuery] = useState('');
+   const [dragging, setDragging] = useState<string | null>(null);
+   const [dropTarget, setDropTarget] = useState<string | null>(null);
 
-   const shownRepos = repos.filter(r => !repoHidden(r.name, prefs));
+   // the list shows YOUR order: priority-listed repos first, in that order
+   // (stable sort keeps the incoming count order among the unlisted tail)
+   const orderOf = (name: string) => {
+      const i = priority.indexOf(name);
+      return i === -1 ? Number.POSITIVE_INFINITY : i;
+   };
+   const shownRepos = repos
+      .filter(r => !repoHidden(r.name, prefs))
+      .sort((a, b) => orderOf(a.name) - orderOf(b.name));
    const hiddenRepos = repos.filter(r => repoHidden(r.name, prefs));
+
+   // any reorder writes the full shown order as the priority — after the
+   // first drag every visible repo is explicitly placed, which is exactly
+   // what the user just expressed
+   const reorder = (name: string, target: string) => {
+      if (name === target) return;
+      const order = shownRepos.map(r => r.name);
+      order.splice(order.indexOf(name), 1);
+      // inserting at the target's post-removal index lands before it when
+      // dragging up and after it when dragging down — the intuitive drop
+      order.splice(order.indexOf(target), 0, name);
+      setSettings({ repoPriority: order });
+   };
+   const nudge = (name: string, key: string) => {
+      const order = shownRepos.map(r => r.name);
+      const i = order.indexOf(name);
+      const j = key === 'ArrowUp' ? i - 1 : i + 1;
+      if (j < 0 || j >= order.length) return;
+      [order[i], order[j]] = [order[j], order[i]];
+      setSettings({ repoPriority: order });
+   };
 
    const commit = (next: string[], all: string[]) =>
       setScope({ ...scope, repos: all.length && next.length === all.length ? [] : next });
@@ -69,7 +107,49 @@ export function RepoFilter({
       <div
          key={name}
          className="group flex items-center gap-2 rounded-md px-1.5 py-[5px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none"
+         onDragOver={e => {
+            if (!dragging) return;
+            e.preventDefault();
+            setDropTarget(name);
+         }}
+         onDrop={e => {
+            e.preventDefault();
+            if (dragging) reorder(dragging, name);
+            setDragging(null);
+            setDropTarget(null);
+         }}
+         // an inset shadow, not a border: the drop indicator must not move
+         // the rows it's pointing between
+         style={
+            dropTarget === name && dragging !== name
+               ? { boxShadow: 'inset 0 2px 0 0 var(--brand)' }
+               : undefined
+         }
       >
+         <span
+            role="button"
+            tabIndex={0}
+            draggable
+            aria-label={`reorder ${shortRepo(name)} — drag, or arrow keys; this order is your review queue's repo order`}
+            title="drag to reorder — the queue shows repos in this order"
+            className="cursor-grab touch-none text-ink-3 hover:text-ink focus-visible:text-brand active:cursor-grabbing"
+            onDragStart={e => {
+               setDragging(name);
+               e.dataTransfer.effectAllowed = 'move';
+               e.dataTransfer.setData('text/plain', name);
+            }}
+            onDragEnd={() => {
+               setDragging(null);
+               setDropTarget(null);
+            }}
+            onKeyDown={e => {
+               if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+               e.preventDefault();
+               nudge(name, e.key);
+            }}
+         >
+            <Icon icon={GripVertical} size={13} />
+         </span>
          <label className="flex min-w-0 flex-1 items-center gap-2">
             <input
                type="checkbox"

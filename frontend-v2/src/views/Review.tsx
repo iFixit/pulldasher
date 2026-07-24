@@ -1,5 +1,6 @@
 import { type DerivedPull, qaDone, type Status, weightRank } from '../model/status';
-import { ago, pullKey } from '../format';
+import { ago, pullKey, shortRepo } from '../format';
+import { repoBlocks } from '../model/repoBlocks';
 import { crSort, teamFirst } from '../model/sort';
 import { matchedRegions, matchesRegion } from '../model/regions';
 import {
@@ -43,7 +44,7 @@ export function Review({
    opts: RowOptions;
 }) {
    const me = opts.me;
-   const { selfReview, teams, codeRegions } = useSettings();
+   const { selfReview, teams, codeRegions, repoPriority, repoQueueCap } = useSettings();
    const team = new Set(myPeople(teams));
    // A snooze is "not today" for THIS lens only: the daily what-do-I-review
    // loop lives here, so the quieting gesture belongs here — every other
@@ -315,6 +316,11 @@ export function Review({
       team.has(p.data.user.login)
          ? `From ${p.data.user.login}, on your team — teammates’ PRs lead your queue`
          : startHereReason(p, pulls, me);
+   const queueOpts = { ...opts, rankReason: whyUpNext };
+   // the queue's repo blocks (priority order, starved pierced out front) —
+   // computed unconditionally, cheap; the render only reads it when a
+   // priority is set
+   const { starved: queueStarved, blocks: queueBlocks } = repoBlocks(queue, repoPriority);
 
    // Needs QA's own "why" line: that lane isn't ranked by deal-score, it's
    // sorted by qaSort (unclaimed-first, then lightest, then oldest) — reusing
@@ -484,32 +490,97 @@ export function Review({
                }}
             />
          )}
-         <Lane
-            title="Review queue"
-            sub={
-               <SubDoor label="How the queue is ranked" text="one queue, best next review first">
-                  <p className="font-medium text-ink">One score ranks every card:</p>
-                  <p>
-                     PRs that have waited {opts.ageWarnDays ?? 4}+ days for review jump to the top,
-                     oldest and biggest first, even from repos you don’t usually review.
-                  </p>
-                  <p>
-                     Your team’s PRs always come first (edit your team on the Team tab), ordered
-                     among themselves by this same score — being on your team is the boost; there is
-                     no extra ranking between teammates.
-                  </p>
-                  <p>
-                     After those: PRs in repos you’ve reviewed before, PRs from people who review
-                     your work, and small quick wins, lightest first. Bot PRs (dependency bumps)
-                     sink to the bottom.
-                  </p>
-                  <p>PRs you claim stay in the queue and also appear in Waiting on you.</p>
-               </SubDoor>
-            }
-            pulls={queue}
-            cap={12}
-            opts={{ ...opts, rankReason: whyUpNext }}
-         />
+         {repoPriority.length > 0 ? (
+            // the owner's priority-and-cap model: contiguous per-repo blocks in
+            // the Settings repo order, each block score-ranked inside and
+            // flood-bounded by the per-repo cap. Starving PRs pierce the
+            // partition — the fairness backstop can't sit below a repo the
+            // viewer ranked last, or "surface the other repos" becomes a lie.
+            <Lane
+               title="Review queue"
+               sub={
+                  <SubDoor
+                     label="How the queue is ranked"
+                     text="your repos in your order, best first"
+                  >
+                     <p className="font-medium text-ink">
+                        Repos appear as blocks in your repo order (Settings), each showing its best
+                        few:
+                     </p>
+                     <p>
+                        PRs that have waited {opts.ageWarnDays ?? 4}+ days for review outrank the
+                        blocks entirely — they lead the lane whatever repo they’re from.
+                     </p>
+                     <p>
+                        Inside a block: your team’s PRs first, then repos you’ve reviewed before,
+                        people who review your work, and small quick wins, lightest first. Bot PRs
+                        sink to each block’s bottom. The per-repo cap folds the rest behind “+N
+                        more” so one busy repo can’t take the whole screen.
+                     </p>
+                     <p>PRs you claim stay in the queue and also appear in Waiting on you.</p>
+                  </SubDoor>
+               }
+               pulls={[]}
+               count={queue.length}
+               opts={queueOpts}
+            >
+               <Fold
+                  count={queueStarved.length}
+                  label="Starving"
+                  tone="do"
+                  gloss={`Waited ${opts.ageWarnDays ?? 4}+ days for review — these outrank your repo order.`}
+                  id="review:queue:starving"
+                  defaultOpen
+               >
+                  <FoldRows list={queueStarved} opts={queueOpts} id="review:queue:starving" />
+               </Fold>
+               {queueBlocks.map(b => (
+                  <Fold
+                     key={b.repo}
+                     count={b.pulls.length}
+                     label={shortRepo(b.repo)}
+                     gloss={`${shortRepo(b.repo)}’s reviewable PRs, best first — your repo order (Settings) decides where the block sits.`}
+                     id={`review:queue:${b.repo}`}
+                     defaultOpen
+                  >
+                     <FoldRows
+                        list={b.pulls}
+                        opts={queueOpts}
+                        id={`review:queue:${b.repo}`}
+                        cap={repoQueueCap || Number.POSITIVE_INFINITY}
+                        label={`more from ${shortRepo(b.repo)}`}
+                     />
+                  </Fold>
+               ))}
+            </Lane>
+         ) : (
+            <Lane
+               title="Review queue"
+               sub={
+                  <SubDoor label="How the queue is ranked" text="one queue, best next review first">
+                     <p className="font-medium text-ink">One score ranks every card:</p>
+                     <p>
+                        PRs that have waited {opts.ageWarnDays ?? 4}+ days for review jump to the
+                        top, oldest and biggest first, even from repos you don’t usually review.
+                     </p>
+                     <p>
+                        Your team’s PRs always come first (edit your team on the Team tab), ordered
+                        among themselves by this same score — being on your team is the boost; there
+                        is no extra ranking between teammates.
+                     </p>
+                     <p>
+                        After those: PRs in repos you’ve reviewed before, PRs from people who review
+                        your work, and small quick wins, lightest first. Bot PRs (dependency bumps)
+                        sink to the bottom.
+                     </p>
+                     <p>PRs you claim stay in the queue and also appear in Waiting on you.</p>
+                  </SubDoor>
+               }
+               pulls={queue}
+               cap={12}
+               opts={queueOpts}
+            />
+         )}
          <Lane
             title="Needs QA"
             sub={

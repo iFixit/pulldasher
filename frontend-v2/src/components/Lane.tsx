@@ -188,15 +188,23 @@ export function FoldRows({
    list,
    opts,
    id,
+   cap,
+   label,
 }: {
    list: DerivedPull[];
    opts: RowOptions;
    /** stable identity: remembers "+N more" expansion across unmounts this session */
    id?: string;
+   /** override the standard lane cap (the repo blocks pass their own flood
+    * bound); omitted = laneShown's usual 30 */
+   cap?: number;
+   /** the "+N …" button's noun — "more from server-templates" names WHOSE
+    * overflow this is when blocks of several repos share one lane */
+   label?: string;
 }) {
    const tree = groupIntoTree(list);
    return (
-      <Truncated cap={laneShown(30, opts)} id={id}>
+      <Truncated cap={cap ?? laneShown(30, opts)} id={id} label={label}>
          {tree.map(({ pull: p, depth }) => (
             <Row key={pullKey(p.data)} pull={p} opts={opts} depth={depth} />
          ))}

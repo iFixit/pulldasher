@@ -92,6 +92,16 @@ export interface Settings {
     * release it. Claims themselves don't expire on a timer — they clear when
     * the review is submitted, released, or removed on GitHub. */
    claimWarnMins: number;
+   /** the review queue's repo order: the queue renders as contiguous per-repo
+    * blocks in this order (dev repos before ops before non-dev, the owner's
+    * taxonomy), each block internally score-ranked with teammates leading.
+    * Repos on the board but absent here trail the listed ones by their best
+    * pull's rank. Empty = one interleaved queue (no blocks, no cap). */
+   repoPriority: string[];
+   /** rows each repo block shows before folding into "+N more from <repo>" —
+    * the flood bound: one busy repo can't monopolize the visible queue.
+    * 0 = no cap. Only meaningful while repoPriority is non-empty. */
+   repoQueueCap: number;
    /** open a PR in a new tab when you click its card, so the board stays put
     * behind you — this is a hub. Off opens it in the same tab. */
    openPrsNewTab: boolean;
@@ -100,6 +110,22 @@ export interface Settings {
     * doesn't flash panels open. 0 = open instantly; a click always bypasses it. */
    hoverDelayMs: number;
 }
+
+/** The shipped repo order, from a 2026-07 audit of 90-day PR volume across
+ * every watched repo (17 of 25 were fully dormant): the monorepo dwarfs
+ * everything (1182 PRs/90d), then dev tooling, then ops (server-templates,
+ * 157 — two reviewers absorbing an AI-assisted flood), then non-dev planning
+ * repos. Dormant repos are omitted on purpose — an unlisted repo that wakes
+ * up trails the list automatically. */
+export const DEFAULT_REPO_PRIORITY = [
+   'iFixit/ifixit',
+   'iFixit/pulldasher',
+   'iFixit/valkyrie',
+   'iFixit/server-templates',
+   'iFixit/ifixit-schooner-mfg-sw',
+   'iFixit/Product-Development',
+   'iFixit/PD-Test',
+];
 
 export const DEFAULT_SETTINGS: Settings = {
    theme: 'system',
@@ -123,6 +149,8 @@ export const DEFAULT_SETTINGS: Settings = {
    hiddenPeople: [],
    codeRegions: [],
    claimWarnMins: 120,
+   repoPriority: DEFAULT_REPO_PRIORITY,
+   repoQueueCap: 5,
    openPrsNewTab: true,
    hoverDelayMs: 250,
 };
