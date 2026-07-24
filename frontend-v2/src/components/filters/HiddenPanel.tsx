@@ -15,6 +15,8 @@ interface HiddenCounts {
    hiddenRepos: number;
    /** PRs by people you hid */
    hiddenPeople: number;
+   /** bot PRs on the board (the pool "Ignore bot PRs" would hide) */
+   bots: number;
    /** PRs currently off the board, after session reveals */
    hiddenNow: number;
 }
@@ -54,7 +56,9 @@ export function HiddenPanel({
    const revealing = showAll || reveal.length > 0 || draftsMode !== settings.draftsMode;
    const anythingHidden =
       counts.parked + counts.drafts + counts.hiddenRepos + counts.hiddenPeople > 0;
-   if (!anythingHidden && !revealing) return null;
+   // the bot toggle keeps the door reachable even when nothing else is hidden:
+   // it's the one durable "hide a whole category" control that lives here
+   if (!anythingHidden && !revealing && !counts.bots && !settings.hideBots) return null;
 
    const resetReveals = () => {
       setShowAll(false);
@@ -173,6 +177,24 @@ export function HiddenPanel({
                   counts.hiddenPeople,
                   'Show them again from the People filter.'
                )}
+            {(counts.bots > 0 || settings.hideBots) && (
+               <div className="mt-1.5 border-t border-secondary px-1.5 pt-2 pb-1">
+                  <CheckboxField
+                     checked={settings.hideBots}
+                     onChange={() => setSettings({ hideBots: !settings.hideBots })}
+                     ariaLabel="Ignore bot PRs"
+                     className="flex items-center gap-2"
+                     textClassName="flex-1 text-[13px]"
+                     count={settings.hideBots ? undefined : counts.bots || undefined}
+                  >
+                     Ignore bot PRs
+                  </CheckboxField>
+                  <p className="mt-0.5 pl-[22px] text-[11px] leading-snug text-ink-3">
+                     Keep dependency-bump and other bot PRs off the board for good. A saved
+                     preference; the Show everything toggle still reveals them.
+                  </p>
+               </div>
+            )}
             <div className="mt-1.5 border-t border-secondary px-1.5 pt-2 pb-1">
                <CheckboxField
                   checked={showAll}

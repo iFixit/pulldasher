@@ -401,9 +401,9 @@ export function App() {
    // The one is-this-pull-off-the-board predicate: hidden repos, hidden
    // people, cryo, snoozes, and the drafts rule stay off unless a session
    // act reveals them — an explicit reveal, a scope, a repo:/author: query
-   // term, or the master "show everything". Never hides your own pulls or
-   // bots via hides: bots have their own fold, and a person can't hide
-   // themselves from their own board. Shared by the filter pipeline and the
+   // term, or the master "show everything". Never hides your own pulls; bots
+   // hide only when you turn on Ignore bot PRs (they otherwise have their own
+   // fold), and a person can't hide themselves. Shared by the filter pipeline and the
    // hidden-PR ledger's counts so the ledger's number can never disagree
    // with what the board actually withholds.
    const boardHidden = useCallback(
@@ -431,7 +431,12 @@ export function App() {
          // snoozes are NOT here: a snooze only quiets the Review lens (its
          // "not today" gesture), so the Review view applies it itself and
          // every other lens still shows the pull
-         return hidden || cryoHidden || draftHidden;
+         // "Ignore bot PRs": a saved preference that keeps machine authors off
+         // the board entirely (they otherwise live in their own low-priority
+         // fold). "Show everything" still reveals them via the showAll early
+         // return above.
+         const botHidden = settings.hideBots && isBot(p);
+         return hidden || cryoHidden || draftHidden || botHidden;
       },
       [
          showAll,
@@ -443,6 +448,7 @@ export function App() {
          settings.repoPrefs,
          settings.showCryo,
          settings.hiddenPeople,
+         settings.hideBots,
          draftsMode,
       ]
    );
@@ -560,7 +566,7 @@ export function App() {
    // rule covers, whether or not a session reveal currently shows it) plus
    // the live currently-hidden total for the trigger label
    const hiddenCounts = useMemo(() => {
-      const c = { parked: 0, drafts: 0, hiddenRepos: 0, hiddenPeople: 0, hiddenNow: 0 };
+      const c = { parked: 0, drafts: 0, hiddenRepos: 0, hiddenPeople: 0, bots: 0, hiddenNow: 0 };
       for (const p of pulls) {
          if (p.cryo) c.parked++;
          if (p.data.draft && p.data.user.login !== me && !reviewRequestedFrom(p, me)) c.drafts++;
@@ -571,6 +577,7 @@ export function App() {
             personHidden(p.data.user.login, settings.hiddenPeople)
          )
             c.hiddenPeople++;
+         if (isBot(p)) c.bots++;
          if (boardHidden(p)) c.hiddenNow++;
       }
       return c;

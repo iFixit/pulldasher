@@ -40,6 +40,11 @@ export interface Settings {
    /** your default for other people's drafts: 'mine' hides them (your own
     * always show), 'all' shows everyone's */
    draftsMode: 'mine' | 'all';
+   /** hide bot PRs (dependency bumps and other machine authors) from the
+    * board entirely. Off by default: bots are low-priority review work but
+    * still work, and live in their own fold. On makes the board people-only.
+    * A saved preference, not a session reveal. */
+   hideBots: boolean;
    /** your default for Cryogenic-Storage (parked) PRs */
    showCryo: boolean;
    /** desktop notifications when your PR is ready to merge / a re-review is owed */
@@ -143,6 +148,7 @@ export const DEFAULT_SETTINGS: Settings = {
    ageDisplay: 'opened',
    repoPrefs: {},
    draftsMode: 'mine',
+   hideBots: false,
    showCryo: false,
    notify: false,
    notifySound: false,
