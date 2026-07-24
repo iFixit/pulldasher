@@ -128,8 +128,10 @@ export function Team({
    }, [allPulls]);
    const owes = useMemo(() => {
       const m = new Map<string, DerivedPull[]>();
-      for (const p of allPulls.filter(x => !parked(x) && !authorOwnsIt(x)))
+      for (const p of allPulls.filter(x => !parked(x) && !authorOwnsIt(x))) {
          for (const u of p.recrBy) m.set(u, [...(m.get(u) ?? []), p]);
+         for (const u of p.reqaBy) m.set(u, [...(m.get(u) ?? []), p]);
+      }
       return m;
    }, [allPulls]);
 
