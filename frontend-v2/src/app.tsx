@@ -1,12 +1,4 @@
-import {
-   useCallback,
-   useEffect,
-   useLayoutEffect,
-   useMemo,
-   useRef,
-   useState,
-   type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ago, closedEpoch, n, pullKey, shortRepo } from '../../shared/format';
 import type { ActionStateKey } from './model/actions';
 import { actionState } from './model/actions';
@@ -19,6 +11,7 @@ import { shipRelevance, shippedToast } from './model/shipped';
 import type { Toast } from './model/toast';
 import { claimReview, usePulldasher } from './store';
 import { primeScope, useScope } from './prefs';
+import { useBoardHotkeys, useHeaderHeightVar } from './hooks';
 import { ageRotDays, getSettings, type Settings as SettingsShape, useSettings } from './settings';
 import { useNotifications } from './notifications';
 import { ToastStack, useToasts } from './toasts';
@@ -356,27 +349,12 @@ export function App() {
       const t = setTimeout(() => setEntrance(false), 700);
       return () => clearTimeout(t);
    }, []);
-   // lane/section headers stick just below the app header; its height varies
-   // (the toolbar wraps on narrow screens), so publish the measured height as
-   // --header-h for their sticky offset. getBoundingClientRect, NOT
-   // offsetHeight: the browser resolves sticky offsets against the header's
-   // true fractional height, and offsetHeight's integer rounding leaves a
-   // hairline gap above the stuck header at non-100% zoom, with scrolled
-   // rows showing through it.
+   // lane/section headers stick just below the app header; see hooks.ts's
+   // useHeaderHeightVar for why (its height varies with the toolbar wrap, and
+   // getBoundingClientRect over offsetHeight avoids a hairline gap at
+   // non-100% zoom).
    const headerRef = useRef<HTMLElement>(null);
-   useLayoutEffect(() => {
-      const el = headerRef.current;
-      if (!el) return;
-      const publish = () =>
-         document.documentElement.style.setProperty(
-            '--header-h',
-            `${el.getBoundingClientRect().height}px`
-         );
-      publish();
-      const ro = new ResizeObserver(publish);
-      ro.observe(el);
-      return () => ro.disconnect();
-   }, []);
+   useHeaderHeightVar(headerRef);
    useEffect(() => {
       document.documentElement.classList.toggle('dark', dark);
    }, [dark]);
@@ -390,48 +368,8 @@ export function App() {
       mq.addEventListener('change', follow);
       return () => mq.removeEventListener('change', follow);
    }, []);
-   // The keyboard model for an audience that lives in editors:
-   //   /   jump to the filter box (v1's hotkey)
-   //   j/k move focus down/up the rows (Enter opens — it's a link)
-   //   c   copy the focused row's branch name
-   useEffect(() => {
-      const onKey = (e: KeyboardEvent) => {
-         if (e.metaKey || e.ctrlKey || e.altKey) return;
-         const t = e.target as HTMLElement;
-         if (['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName) || t.isContentEditable) return;
-         if (e.key === '/') {
-            e.preventDefault();
-            searchRef.current?.focus();
-            searchRef.current?.select();
-            return;
-         }
-         if (e.key === 'j' || e.key === 'k') {
-            const links = [
-               ...document.querySelectorAll<HTMLAnchorElement>('.pd-row a[href*="/pull/"]'),
-            ];
-            if (!links.length) return;
-            const at = links.indexOf(document.activeElement as HTMLAnchorElement);
-            const next =
-               at === -1
-                  ? e.key === 'j'
-                     ? 0
-                     : links.length - 1
-                  : e.key === 'j'
-                    ? Math.min(at + 1, links.length - 1)
-                    : Math.max(at - 1, 0);
-            links[next]?.focus();
-            e.preventDefault();
-            return;
-         }
-         if (e.key === 'c') {
-            const row = (document.activeElement as HTMLElement | null)?.closest('.pd-row');
-            const copy = row?.querySelector<HTMLButtonElement>('button[aria-label^="copy branch"]');
-            copy?.click();
-         }
-      };
-      document.addEventListener('keydown', onKey);
-      return () => document.removeEventListener('keydown', onKey);
-   }, []);
+   // the board's j/k/c/"/" shortcuts — see hooks.ts's useBoardHotkeys
+   useBoardHotkeys(searchRef);
 
    // scope/query applied, but NOT the changed-only toggle: the changed count
    // must describe the pool the toggle would narrow, or the banner promises

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ChevronRight, GripVertical } from 'lucide-react';
 import { repoHidden } from '../../../../shared/model/visibility';
 import { shortRepo } from '../../../../shared/format';
-import type { Scope } from '../../prefs';
+import { toggleScopeMember, type Scope } from '../../prefs';
 import { setRepoPref, setSettings, useSettings } from '../../settings';
 import { Icon } from '../Icon';
 import { Popover } from '../Popover';
@@ -90,15 +90,8 @@ export function RepoFilter({
       setSettings({ repoPriority: order });
    };
 
-   const commit = (next: string[], all: string[]) =>
-      setScope({ ...scope, repos: all.length && next.length === all.length ? [] : next });
-   const toggleScope = (name: string, all: string[]) => {
-      const cur = scope.repos.length ? [...scope.repos] : [...all];
-      const i = cur.indexOf(name);
-      if (i >= 0) cur.splice(i, 1);
-      else cur.push(name);
-      commit(cur, all);
-   };
+   const toggleScope = (name: string, all: string[]) =>
+      setScope(toggleScopeMember(scope, 'repos', name, all));
    const included = (name: string) => !scope.repos.length || scope.repos.includes(name);
 
    // the trigger names only what narrows the board: a lone repo by name, more

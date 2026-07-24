@@ -18,6 +18,29 @@ export interface Scope {
    notAuthors: string[];
 }
 
+/**
+ * Toggle one member of a scope's allow-list (authors or repos) — the trio
+ * PeopleFilter and RepoFilter each hand-rolled identically (a `commit`, a
+ * `toggleScope`, fused here into one pure step). Encodes the two conventions
+ * both panels rely on: an empty list means "everyone"/"every repo", so
+ * toggling the first member off a blank slate starts from the full `all`
+ * list (selecting everyone else); and selecting every member back out
+ * collapses to empty rather than storing the full list explicitly, so the
+ * filter reads as "off" again instead of a fully-enumerated no-op scope.
+ */
+export function toggleScopeMember(
+   scope: Scope,
+   field: 'authors' | 'repos',
+   value: string,
+   all: string[]
+): Scope {
+   const cur = scope[field].length ? [...scope[field]] : [...all];
+   const i = cur.indexOf(value);
+   if (i >= 0) cur.splice(i, 1);
+   else cur.push(value);
+   return { ...scope, [field]: all.length && cur.length === all.length ? [] : cur };
+}
+
 const store = createMemoryStore<Scope>({ repos: [], authors: [], notAuthors: [] });
 
 // housekeeping for the persistence this store used to have: drop the old

@@ -1,21 +1,8 @@
-import { type DerivedPull, qaDone, type Status, weightRank } from '../../../shared/model/status';
+import type { DerivedPull } from '../../../shared/model/status';
 import { ago, pullKey, shortRepo } from '../../../shared/format';
-import { repoBlocks } from '../model/repoBlocks';
-import { crSort, teamFirst } from '../model/sort';
-import { matchedRegions, matchesRegion } from '../model/regions';
-import {
-   authorMove,
-   DO_WORD_RANK,
-   reviewerMove,
-   rowNote,
-   rowWord,
-   WAIT_WORD_RANK,
-} from '../model/actions';
-import { reviewRequestedFrom } from '../model/reviewers';
-import { startHereReason } from '../model/cheers';
-import { dealRank } from '../model/deal';
-import { myPeople, useSettings } from '../settings';
-import { claimFor } from '../model/reviewers';
+import { matchedRegions } from '../model/regions';
+import { buildReviewLanes } from '../model/reviewLanes';
+import { useSettings } from '../settings';
 import { clearSnoozes, isFresh, isSnoozed, markAllSeen, usePulldasher } from '../store';
 import type { PullData } from '../../../shared/types';
 import { EmptyState, QuietButton } from '../components/bits';
@@ -31,6 +18,10 @@ import { ClosedRow } from '../components/ClosedRow';
  * fixes — regardless of who authored the pull. The daily loop must not
  * require flipping between Review and My work. Below that, other people's
  * work to pick from.
+ *
+ * The lane/pool math (queues, QA, "waiting on you", region matches, ...) is
+ * model/reviewLanes.ts's buildReviewLanes — this component's job is only to
+ * filter out snoozed pulls (a store concern) and render the result.
  */
 export function Review({
    pulls: allPulls,
@@ -45,7 +36,6 @@ export function Review({
 }) {
    const me = opts.me;
    const { selfReview, teams, codeRegions, repoPriority, repoQueueCap } = useSettings();
-   const team = new Set(myPeople(teams));
    // A snooze is "not today" for THIS lens only: the daily what-do-I-review
    // loop lives here, so the quieting gesture belongs here — every other
    // lens still shows the pull. Snoozed rows collect in their own section at
@@ -54,188 +44,6 @@ export function Review({
    const napping = [...allPulls, ...allBots].filter(p => isSnoozed(p.data, snoozed));
    const pulls = allPulls.filter(p => !isSnoozed(p.data, snoozed));
    const bots = allBots.filter(p => !isSnoozed(p.data, snoozed));
-   const others = pulls.filter(p => p.data.user.login !== me);
-
-   // Repo relevance is per-person (a web dev and a firmware dev share the
-   // monorepo but little else) and inferred from the current board: the
-   // repos you've authored or stamped on. An empty inference means we can't
-   // tell, so every repo counts as primary and the queue stays flat.
-   const primarySet = new Set(
-      pulls
-         .filter(p => p.data.user.login === me || p.crBy.includes(me) || p.qaBy.includes(me))
-         .map(p => p.data.repo)
-   );
-   const isPrimaryRepo = (repo: string) => primarySet.size === 0 || primarySet.has(repo);
-
-   // 1. Waiting on you: strictly your verbs. The earlier "Act now" lesson still
-   //    binds — padding this with other people's jobs made it noise — but
-   //    your own merge button is your job, whichever tab you're on.
-   const MOVE_RANK = [
-      'Re-stamp',
-      'Re-QA',
-      'Finish QA',
-      'Merge it',
-      'Fix CI',
-      'Address feedback',
-      'Lift your block',
-      'Rebase',
-      'Find a QA-er',
-   ];
-   const todo = pulls
-      .map(p => ({
-         p,
-         verb: p.data.user.login === me ? ownVerb(p, selfReview) : reviewerMove(p, me),
-      }))
-      .filter((x): x is { p: DerivedPull; verb: string } => x.verb !== null)
-      .sort(
-         (a, b) =>
-            MOVE_RANK.indexOf(a.verb) - MOVE_RANK.indexOf(b.verb) || b.p.ageDays - a.p.ageDays
-      );
-
-   // 2. Review queue: best next review first (leverage + age + weight).
-   //    Includes pulls waiting on someone else's re-stamp — a fresh CR from
-   //    you counts there too (the stale pip marks them).
-   // exclude PRs you already hold a live CR stamp on — including a needs_recr
-   // whose re-stamp is owed by someone else, not you. You reviewed this head;
-   // being asked to review it again because a different reviewer's stamp went
-   // stale is the re-review gap that put already-done work back in your queue.
-   const crPool = others.filter(
-      p =>
-         !p.cryo &&
-         !p.crBy.includes(me) &&
-         (p.status === 'needs_cr' || (p.status === 'needs_recr' && !p.recrBy.includes(me)))
-   );
-   const nonStarved = crPool.filter(p => !p.starved);
-
-   // Bot PRs (dependency bumps, mostly) are review work too — someone has to
-   // move the daily ones along — just low priority. The reviewable ones join
-   // the queue tail and the deal, demoted so they're only handed out once human
-   // work is clear; the rest (already merge-ready, in CI, or draft) stay folded.
-   const bySecurityThenAge = (a: DerivedPull, b: DerivedPull) =>
-      Number(b.data.labels.some(l => /security/i.test(l.title))) -
-         Number(a.data.labels.some(l => /security/i.test(l.title))) || b.ageDays - a.ageDays;
-   const botReviewable = bots
-      .filter(
-         p =>
-            !p.cryo &&
-            !p.crBy.includes(me) &&
-            (p.status === 'needs_cr' || (p.status === 'needs_recr' && !p.recrBy.includes(me)))
-      )
-      .sort(bySecurityThenAge);
-   const botKeys = new Set(botReviewable.map(p => pullKey(p.data)));
-   const botRest = bots
-      .filter(p => !botKeys.has(pullKey(p.data)) && p.status !== 'ready')
-      .sort(bySecurityThenAge);
-   const isDemoted = (p: DerivedPull) => botKeys.has(pullKey(p.data));
-
-   // 4. Needs QA is a query, not the status bucket: QA runs in parallel with
-   //    CR here (v1's QA column predicate), so anything QA-incomplete with
-   //    green CI belongs — not just pulls whose CR is already done. Unclaimed
-   //    QA leads (it needs a volunteer), someone-else's claim sinks; within a
-   //    claim state, lighter tests first, then oldest. Split by your primary
-   //    repos, same as the review queue — QA is the bottleneck on a
-   //    self-review team, so it deserves the same relevance cut.
-   // (moved above the queue/needsQa construction so regionMatches below can
-   // read both pools before either lane's pool is filtered)
-   const qaPool = others.filter(
-      p =>
-         !p.cryo &&
-         !qaDone(p) &&
-         ['success', 'none'].includes(p.ci) &&
-         !p.conflict &&
-         !['draft', 'dev_block'].includes(p.status) &&
-         // your in-flight QA and owed re-QAs live in "Waiting on you"; a QA
-         // stamp you already gave lives in the "QA'd by you" fold. The re-QA
-         // exclusion is status-agnostic to match reviewerMove — a re-QA owed
-         // on a needs_recr pull is still yours to do, not a generic lane slot
-         p.qaingLogin !== me &&
-         !p.qaBy.includes(me) &&
-         !p.reqaBy.includes(me)
-   );
-   const qaSort = (list: DerivedPull[]) =>
-      [...list].sort(
-         (a, b) =>
-            Number(!!a.qaingLogin) - Number(!!b.qaingLogin) ||
-            weightRank(a.weight) - weightRank(b.weight) ||
-            b.ageDays - a.ageDays
-      );
-
-   // In your code regions: reviewable pulls (CR or QA pool) matching a region
-   // you set in Settings, deduped across the two pools and genuinely pulled
-   // out of the queue/QA lanes below (including their "other repos" folds)
-   // into their own section — the most explicit "this is my area" signal
-   // earns its own spot instead of a float within the queue.
-   const regionSeen = new Set<string>();
-   const regionMatches = crSort(
-      [...crPool, ...qaPool].filter(p => {
-         const k = pullKey(p.data);
-         if (regionSeen.has(k) || !matchesRegion(p, codeRegions)) return false;
-         regionSeen.add(k);
-         return true;
-      })
-   );
-   const regionKeys = new Set(regionMatches.map(p => pullKey(p.data)));
-
-   // ONE review queue: your primary repos' reviewables, every starved pull
-   // regardless of repo (the fairness backstop rides in the ranking now, not
-   // a separate Aging lane — starveScore's uncapped age × size term floats
-   // them to the top numerically instead of positionally), and the day's bot
-   // bumps sinking to the tail. The top of this lane IS the board's best
-   // next pickup; the retired "Deal me one" button dealt this exact order,
-   // which is why the button became redundant and was removed. Non-starved work outside your primary repos still
-   // folds into "other repos" below, reachable but not in the way. Region
-   // matches are excluded here too (same Set-filter pattern as botKeys) — they
-   // live in their own lane above, not doubled up in the queue.
-   const queue = teamFirst(
-      dealRank(
-         [
-            ...nonStarved.filter(
-               p => isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data))
-            ),
-            ...crPool.filter(p => p.starved && !regionKeys.has(pullKey(p.data))),
-            ...botReviewable,
-         ],
-         { me, pulls, deprioritize: isDemoted, warnDays: opts.ageWarnDays }
-      ),
-      team
-   );
-   const queueOther = crSort(
-      nonStarved.filter(p => !isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data)))
-   );
-
-   // Ready to merge is finishable work for anyone: fully signed off, green,
-   // one button-press from done. It earns a real lane in Pick up next rather
-   // than a fold — and bot PRs that reach ready join it, since a human has to
-   // land them. Longest-waiting first: the ones most likely forgotten.
-   const ready = [
-      ...others.filter(p => p.status === 'ready'),
-      ...bots.filter(p => p.status === 'ready'),
-   ].sort((a, b) => b.ageDays - a.ageDays);
-
-   const needsQa = teamFirst(
-      qaSort(qaPool.filter(p => isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data)))),
-      team
-   );
-   const needsQaOther = qaSort(
-      qaPool.filter(p => !isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data)))
-   );
-
-   // your live CR stamp is in, the PR just isn't fully signed off yet (another
-   // reviewer owes a stamp, or a re-CR). Covers needs_recr too, so a PR you
-   // reviewed doesn't vanish once someone else's stamp goes stale.
-   const stamped = others.filter(
-      p => (p.status === 'needs_cr' || p.status === 'needs_recr') && p.crBy.includes(me)
-   );
-   // QA's symmetric case: you gave a QA stamp but qa_req wants more. Without
-   // this the PR sits in "Needs QA" as if you never touched it.
-   const qaStamped = others.filter(p => !qaDone(p) && p.qaBy.includes(me));
-   const byStatus = (s: Status) => others.filter(p => p.status === s);
-   const devBlocked = byStatus('dev_block');
-   const deployHeld = byStatus('deploy_block');
-   const unmergeable = byStatus('unmergeable');
-   const ciPending = byStatus('ci_pending');
-   const ciRed = byStatus('ci_red');
-   const drafts = byStatus('draft');
 
    // Recently updated: everything that moved since the user last hit Clear,
    // newest first. A pull can also live in a lane below; this is the "what
@@ -245,123 +53,23 @@ export function Review({
       .filter(p => isFresh(p.data, opts.lastSeen))
       .sort((a, b) => Date.parse(b.data.updated_at) - Date.parse(a.data.updated_at));
 
-   // GitHub asked you directly — the most concrete "review this" on the board,
-   // so it leads. Only while it's still your move (unstamped, review-stage).
-   const requestedOfYou = crSort(
-      others.filter(
-         p =>
-            (p.status === 'needs_cr' || p.status === 'needs_recr') &&
-            reviewRequestedFrom(p, me) &&
-            !p.crBy.includes(me)
-      )
-   );
-
-   // PRs you've claimed — the coordination lane so a claim isn't just a hand
-   // icon buried in a lower lane; it's your commitment, surfaced up top.
-   const claimed = crSort(pulls.filter(p => claimFor(p.data)?.login === me));
-
-   // A push answered the feedback, so the ball is back with whoever asked for
-   // changes — their move now is to re-review, not to wait some more.
-   const reReview = others.filter(p => rowNote(p, me).action === 'Re-review');
-
-   // "Waiting on you": every lane above whose next step is yours, folded into one flat
-   // list and re-bucketed by rowWord (Requested of you / You're reviewing no
-   // longer stand alone — their members show up here, grouped by verb instead
-   // of by where they came from).
-   const yourMoveKeys = new Set<string>();
-   const yourMove: DerivedPull[] = [];
-   for (const p of [...todo.map(({ p }) => p), ...requestedOfYou, ...claimed, ...reReview]) {
-      const k = pullKey(p.data);
-      if (yourMoveKeys.has(k)) continue;
-      yourMoveKeys.add(k);
-      yourMove.push(p);
-   }
-   const doRankOf = (p: DerivedPull) => {
-      const word = rowWord(p, me, { claim: claimFor(p.data) }).word;
-      const idx = DO_WORD_RANK.indexOf(word);
-      return idx === -1 ? Number.POSITIVE_INFINITY : idx;
-   };
-   yourMove.sort((a, b) => doRankOf(a) - doRankOf(b) || b.ageDays - a.ageDays);
-
-   // "Waiting on others": your PRs and stamps sitting with someone else right now —
-   // your own PRs waiting on a review/QA, plus a stamp you've already given
-   // that isn't fully signed off yet (stamped/qaStamped, formerly their own
-   // rest-group folds — redundant once this lane exists).
-   const yoursWaitingKeys = new Set<string>();
-   const yoursWaiting: DerivedPull[] = [];
-   for (const p of [
-      ...pulls.filter(p => p.data.user.login === me && rowWord(p, me).kind === 'wait'),
-      ...stamped,
-      ...qaStamped,
-   ]) {
-      const k = pullKey(p.data);
-      if (yoursWaitingKeys.has(k)) continue;
-      yoursWaitingKeys.add(k);
-      yoursWaiting.push(p);
-   }
-   const waitRankOf = (p: DerivedPull) => {
-      const word = rowWord(p, me, { claim: claimFor(p.data) }).word;
-      const idx = WAIT_WORD_RANK.indexOf(word);
-      return idx === -1 ? Number.POSITIVE_INFINITY : idx;
-   };
-   yoursWaiting.sort((a, b) => waitRankOf(a) - waitRankOf(b) || b.ageDays - a.ageDays);
-
-   // a quiet board (nothing in any primary lane) is exactly when the rest
-   // group's folds become the main event — they should greet you open, not
-   // as a wall of closed triangles
-   // the per-card "why" behind the repo# door in the ranked lanes — the same
-   // reason strings the dealt card's footnote and the Start-here toast use,
-   // so every surface explains a pick in the same words
-   const whyUpNext = (p: DerivedPull) =>
-      team.has(p.data.user.login)
-         ? `From ${p.data.user.login}, on your team — teammates’ PRs lead your queue`
-         : startHereReason(p, pulls, me);
-   const queueOpts = { ...opts, rankReason: whyUpNext };
-   // the queue's repo blocks (priority order, starved pierced out front) —
-   // computed unconditionally, cheap; the render only reads it when a
-   // priority is set
-   const { starved: queueStarved, blocks: queueBlocks } = repoBlocks(queue, repoPriority);
-
-   // Needs QA's own "why" line: that lane isn't ranked by deal-score, it's
-   // sorted by qaSort (unclaimed-first, then lightest, then oldest) — reusing
-   // whyUpNext's reciprocity/quick-win/urgency reasons here would describe a
-   // ranking this lane doesn't use.
-   const whyQaNext = (p: DerivedPull) =>
-      team.has(p.data.user.login)
-         ? `From ${p.data.user.login}, on your team — teammates’ PRs lead this lane`
-         : p.qaingLogin
-           ? `${p.qaingLogin} is already testing it; it sinks below unclaimed QA`
-           : p.weight === 'XS' || p.weight === 'S'
-             ? `Nobody's testing it yet, a light one (${p.weight})`
-             : `Nobody's testing it yet, waiting ${Math.max(1, Math.round(p.ageDays))}d`;
-
-   const boardIsQuiet =
-      !yourMove.length &&
-      !yoursWaiting.length &&
-      !changed.length &&
-      !queue.length &&
-      !needsQa.length &&
-      !ready.length;
-
-   // the rest group itself earns a title only when it has something inside —
-   // an empty "rest of the board" with 11 closed folds under it is still noise.
-   // stamped/qaStamped moved into "Waiting on others" above, so they no longer
-   // count here.
-   const restTotal =
-      queueOther.length +
-      needsQaOther.length +
-      devBlocked.length +
-      deployHeld.length +
-      unmergeable.length +
-      ciPending.length +
-      ciRed.length +
-      drafts.length +
-      botRest.length +
-      closed.length;
+   const lanes = buildReviewLanes({
+      pulls,
+      bots,
+      closed,
+      napping,
+      changed,
+      me,
+      selfReview,
+      teams,
+      codeRegions,
+      repoPriority,
+      ageWarnDays: opts.ageWarnDays,
+   });
+   const queueOpts = { ...opts, rankReason: lanes.whyUpNext };
 
    // bots/shipped stay reachable even when no human PRs need review
-   const empty = !pulls.length && !bots.length && !closed.length;
-   if (empty) {
+   if (lanes.empty) {
       return (
          <EmptyState
             title="Workbench clear"
@@ -373,7 +81,7 @@ export function Review({
    return (
       <>
          {codeRegions.length === 0 && <RegionHint />}
-         {yourMove.length > 0 && (
+         {lanes.yourMove.length > 0 && (
             <Lane
                title="Waiting on you"
                sub={
@@ -398,18 +106,18 @@ export function Review({
                   </SubDoor>
                }
                pulls={[]}
-               count={yourMove.length}
+               count={lanes.yourMove.length}
                opts={opts}
             >
                <WordGroupRows
-                  pulls={yourMove}
+                  pulls={lanes.yourMove}
                   opts={opts}
                   id="lane:Waiting on you"
                   cap={laneShown(12, opts)}
                />
             </Lane>
          )}
-         {yoursWaiting.length > 0 && (
+         {lanes.yoursWaiting.length > 0 && (
             <Lane
                title="Waiting on others"
                sub={
@@ -429,11 +137,11 @@ export function Review({
                   </SubDoor>
                }
                pulls={[]}
-               count={yoursWaiting.length}
+               count={lanes.yoursWaiting.length}
                opts={opts}
             >
                <WordGroupRows
-                  pulls={yoursWaiting}
+                  pulls={lanes.yoursWaiting}
                   opts={opts}
                   id="lane:Waiting on others"
                   cap={laneShown(8, opts)}
@@ -443,7 +151,7 @@ export function Review({
          <Lane
             title="Recently updated"
             sub={`new or updated in the last ${ago(opts.lastSeen)}`}
-            pulls={changed}
+            pulls={lanes.changed}
             cap={8}
             opts={opts}
             // the ONE control that moves the baseline — at the point of its
@@ -457,13 +165,13 @@ export function Review({
          {/* below here is offered work, not owed work — the board's suggestion
              for what to pick up next, as distinct from "Waiting on you" above. The
              label only earns its place when something is actually on offer. */}
-         {(queue.length > 0 ||
-            needsQa.length > 0 ||
-            regionMatches.length > 0 ||
-            ready.length > 0) && (
+         {(lanes.queue.length > 0 ||
+            lanes.needsQa.length > 0 ||
+            lanes.regionMatches.length > 0 ||
+            lanes.ready.length > 0) && (
             <div className={`mb-2 text-ink-3 ${eyebrowText}`}>Pick up next</div>
          )}
-         {codeRegions.length > 0 && regionMatches.length > 0 && (
+         {codeRegions.length > 0 && lanes.regionMatches.length > 0 && (
             <Lane
                title="In your code regions"
                sub={
@@ -474,7 +182,7 @@ export function Review({
                      </p>
                   </SubDoor>
                }
-               pulls={regionMatches}
+               pulls={lanes.regionMatches}
                cap={8}
                opts={{
                   ...opts,
@@ -521,20 +229,20 @@ export function Review({
                   </SubDoor>
                }
                pulls={[]}
-               count={queue.length}
+               count={lanes.queue.length}
                opts={queueOpts}
             >
                <Fold
-                  count={queueStarved.length}
+                  count={lanes.queueStarved.length}
                   label="Starving"
                   tone="do"
                   gloss={`Waited ${opts.ageWarnDays ?? 4}+ days for review — these outrank your repo order.`}
                   id="review:queue:starving"
                   defaultOpen
                >
-                  <FoldRows list={queueStarved} opts={queueOpts} id="review:queue:starving" />
+                  <FoldRows list={lanes.queueStarved} opts={queueOpts} id="review:queue:starving" />
                </Fold>
-               {queueBlocks.map(b => (
+               {lanes.queueBlocks.map(b => (
                   <Fold
                      key={b.repo}
                      count={b.pulls.length}
@@ -576,7 +284,7 @@ export function Review({
                      <p>PRs you claim stay in the queue and also appear in Waiting on you.</p>
                   </SubDoor>
                }
-               pulls={queue}
+               pulls={lanes.queue}
                cap={12}
                opts={queueOpts}
             />
@@ -599,9 +307,9 @@ export function Review({
                   </p>
                </SubDoor>
             }
-            pulls={needsQa}
+            pulls={lanes.needsQa}
             cap={6}
-            opts={{ ...opts, rankReason: whyQaNext }}
+            opts={{ ...opts, rankReason: lanes.whyQaNext }}
          />
          <Lane
             title="Ready to merge"
@@ -621,96 +329,96 @@ export function Review({
                   </p>
                </SubDoor>
             }
-            pulls={ready}
+            pulls={lanes.ready}
             cap={6}
             opts={opts}
          />
-         {(restTotal > 0 || napping.length > 0) && (
+         {(lanes.restTotal > 0 || lanes.napping.length > 0) && (
             <RestGroup title="The rest of the board">
                <Fold
-                  count={queueOther.length}
+                  count={lanes.queueOther.length}
                   label="Review, other repos"
                   gloss="Reviewable, just outside your primary repos. The queue above sticks to the repos you actually review."
                   id="review:other-repos"
-                  defaultOpen={boardIsQuiet}
+                  defaultOpen={lanes.boardIsQuiet}
                >
-                  <FoldRows list={queueOther} opts={opts} id="review:other-repos" />
+                  <FoldRows list={lanes.queueOther} opts={opts} id="review:other-repos" />
                </Fold>
                <Fold
-                  count={needsQaOther.length}
+                  count={lanes.needsQaOther.length}
                   label="QA, other repos"
                   gloss="Needs a tester, just outside your primary repos."
                   id="review:qa-other-repos"
-                  defaultOpen={boardIsQuiet}
+                  defaultOpen={lanes.boardIsQuiet}
                >
-                  <FoldRows list={needsQaOther} opts={opts} id="review:qa-other-repos" />
+                  <FoldRows list={lanes.needsQaOther} opts={opts} id="review:qa-other-repos" />
                </Fold>
                <Fold
-                  count={devBlocked.length}
+                  count={lanes.devBlocked.length}
                   label="Blocked"
                   gloss="Someone left a dev block; the author owes changes first. Nothing to review yet."
                   id="review:dev-blocked"
                >
-                  <FoldRows list={devBlocked} opts={opts} id="review:dev-blocked" />
+                  <FoldRows list={lanes.devBlocked} opts={opts} id="review:dev-blocked" />
                </Fold>
                <Fold
-                  count={deployHeld.length}
+                  count={lanes.deployHeld.length}
                   label="Deploy hold"
                   gloss="Done, but deliberately not shipped yet. Each row names who holds it."
                   id="review:deploy-blocked"
                >
-                  <FoldRows list={deployHeld} opts={opts} id="review:deploy-blocked" />
+                  <FoldRows list={lanes.deployHeld} opts={opts} id="review:deploy-blocked" />
                </Fold>
                <Fold
-                  count={unmergeable.length}
+                  count={lanes.unmergeable.length}
                   label="Conflicts"
                   gloss="These have merge conflicts with their base branch, so GitHub can’t merge them until the author rebases."
                   id="review:unmergeable"
                >
-                  <FoldRows list={unmergeable} opts={opts} id="review:unmergeable" />
+                  <FoldRows list={lanes.unmergeable} opts={opts} id="review:unmergeable" />
                </Fold>
                <Fold
-                  count={ciPending.length}
+                  count={lanes.ciPending.length}
                   label="CI running"
                   gloss="Fully signed off — CI is still running on the latest push, and it's ready the moment checks go green."
                   id="review:ci-pending"
                >
-                  <FoldRows list={ciPending} opts={opts} id="review:ci-pending" />
+                  <FoldRows list={lanes.ciPending} opts={opts} id="review:ci-pending" />
                </Fold>
                <Fold
-                  count={ciRed.length}
+                  count={lanes.ciRed.length}
                   label="CI failing"
                   gloss="Fully signed off, but a required CI check is failing — the author fixes the build, then it's ready. (A red build still awaiting review stays in the queue; reviewing it is your call.)"
                   id="review:ci-red"
-                  defaultOpen={boardIsQuiet}
+                  defaultOpen={lanes.boardIsQuiet}
                >
-                  <FoldRows list={ciRed} opts={opts} id="review:ci-red" />
+                  <FoldRows list={lanes.ciRed} opts={opts} id="review:ci-red" />
                </Fold>
                <Fold
-                  count={drafts.length}
-                  label={drafts.length === 1 ? 'Draft' : 'Drafts'}
+                  count={lanes.drafts.length}
+                  label={lanes.drafts.length === 1 ? 'Draft' : 'Drafts'}
                   gloss="Not up for review yet."
                   id="review:drafts"
                >
-                  <FoldRows list={drafts} opts={opts} id="review:drafts" />
+                  <FoldRows list={lanes.drafts} opts={opts} id="review:drafts" />
                </Fold>
                {/* the reviewable bots moved up into the queue and the deal;
                    what's left here isn't up for review (merge-ready, in CI, or
                    draft), so it stays folded and never auto-opens */}
                <Fold
-                  count={botRest.length}
+                  count={lanes.botRest.length}
                   label="Bot PRs"
                   gloss="Dependency bumps that aren’t up for review — merge-ready, in CI, or draft. Reviewable bot PRs join the queue above."
                   id="review:bots"
                >
-                  <FoldRows list={botRest} opts={opts} id="review:bots" />
+                  <FoldRows list={lanes.botRest} opts={opts} id="review:bots" />
                </Fold>
                <Fold
                   count={closed.length}
                   label="Recently closed"
                   gloss="Merged or closed in the last 14 days."
                   id="review:shipped"
-                  defaultOpen={boardIsQuiet}
+                  defaultOpen={lanes.boardIsQuiet}
                >
                   <Truncated cap={laneShown(30, opts)} id="review:shipped-rows">
                      {closed.map(p => (
@@ -723,7 +431,7 @@ export function Review({
                    can always see what's hidden. Review-lens only: a snooze
                    quiets this lens's daily loop, nothing else. */}
                <Fold
-                  count={napping.length}
+                  count={lanes.napping.length}
                   label="Snoozed by you"
                   gloss="Hidden from this lens only, until tomorrow or until they change. Every other lens still shows them."
                   id="review:snoozed"
@@ -736,22 +444,10 @@ export function Review({
                         Wake all
                      </QuietButton>
                   </div>
-                  <FoldRows list={napping} opts={opts} id="review:snoozed" />
+                  <FoldRows list={lanes.napping} opts={opts} id="review:snoozed" />
                </Fold>
             </RestGroup>
          )}
       </>
    );
-}
-
-// Your own pulls contribute only their do-it-now verbs to the home lane.
-// "Undraft" always stays in My work (planning, not minutes). Getting
-// QA is different: when the team self-reviews, CR isn't the gate and lining up
-// QA is the daily stall, so "Find a QA-er" graduates to a home to-do.
-function ownVerb(p: DerivedPull, selfReview: boolean): string | null {
-   const verb = authorMove(p);
-   if (!verb) return null;
-   const doNow = ['Merge it', 'Fix CI', 'Address feedback', 'Lift your block', 'Rebase'];
-   if (selfReview) doNow.push('Find a QA-er');
-   return doNow.includes(verb) ? verb : null;
 }

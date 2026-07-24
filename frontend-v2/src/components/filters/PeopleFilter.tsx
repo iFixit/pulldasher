@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import type { DerivedPull } from '../../../../shared/model/status';
 import { displayName, useNames } from '../../model/names';
-import type { Scope } from '../../prefs';
+import { toggleScopeMember, type Scope } from '../../prefs';
 import { toggleHiddenPerson, useSettings } from '../../settings';
 import { usePulldasher } from '../../store';
 import { Icon } from '../Icon';
@@ -59,15 +59,8 @@ export function PeopleFilter({
    const shownAuthors = authors.filter(([login]) => !hiddenSet.has(login));
    const hiddenAuthors = authors.filter(([login]) => hiddenSet.has(login));
 
-   const commit = (next: string[], all: string[]) =>
-      setScope({ ...scope, authors: all.length && next.length === all.length ? [] : next });
-   const toggleScope = (login: string, all: string[]) => {
-      const cur = scope.authors.length ? [...scope.authors] : [...all];
-      const i = cur.indexOf(login);
-      if (i >= 0) cur.splice(i, 1);
-      else cur.push(login);
-      commit(cur, all);
-   };
+   const toggleScope = (login: string, all: string[]) =>
+      setScope(toggleScopeMember(scope, 'authors', login, all));
    const included = (login: string) => !scope.authors.length || scope.authors.includes(login);
    // the "everyone except" lane: per-login, mutually exclusive with the
    // allow-list (excluding someone pulls them out of authors, and vice versa)
