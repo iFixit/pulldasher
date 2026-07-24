@@ -124,7 +124,9 @@ module.exports = {
       {
          name: 'cr_req',
          regex: /\bcr_req ([0-9]+)\b/i,
-         default: 2,
+         // one CR by default, matching prod/dev config.js; a PR sets its own
+         // cr_req N in the body to require more (or 0 to waive review)
+         default: 1,
       },
       {
          name: 'qa_req',

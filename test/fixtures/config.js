@@ -31,7 +31,7 @@ export default {
    },
 
    body_tags: [
-      { name: 'cr_req', regex: /\bcr_req ([0-9]+)\b/i, default: 2 },
+      { name: 'cr_req', regex: /\bcr_req ([0-9]+)\b/i, default: 1 },
       { name: 'qa_req', regex: /\bqa_req ([0-9]+)\b/i, default: 1 },
       {
          name: 'closes',
