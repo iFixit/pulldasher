@@ -3,6 +3,7 @@ import { githubUrl, pullKey, shortRepo } from '../../shared/format';
 import { alertMove } from './model/actions';
 import { claimFor } from './model/reviewers';
 import type { DerivedPull } from '../../shared/model/status';
+import { isSuffixBot } from '../../shared/model/visibility';
 import { getSettings } from './settings';
 
 /** A pull key → this sentinel action means "the rotation just named you" —
@@ -130,6 +131,13 @@ function isClaimed(p: DerivedPull): boolean {
    return claimFor(p.data) != null;
 }
 
+/** Bot-authored pulls never earn a "your turn" nudge -- mirrors cheers.ts's
+ * own isBot guard on the same turns input, so a starved Dependabot PR can't
+ * page a human. */
+function isBot(p: DerivedPull): boolean {
+   return isSuffixBot(p.data.user.login);
+}
+
 /**
  * Desktop notifications for every real transition that lands on you — your PR
  * going mergeable, breaking CI, getting feedback or needing a rebase, and
@@ -202,7 +210,7 @@ export function useNotifications(
             continue;
          }
          const key = pullKey(p.data);
-         if (turns.get(key) === me && !isClaimed(p)) current.set(key, TURN_ACTION);
+         if (turns.get(key) === me && !isClaimed(p) && !isBot(p)) current.set(key, TURN_ACTION);
       }
 
       // record the baseline but stay silent while unprimed or focused
