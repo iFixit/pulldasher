@@ -210,7 +210,7 @@ export function MiniMeter({ pct, color }: { pct: number; color: string }) {
    );
 }
 
-export interface LineSeries {
+interface LineSeries {
    label: string;
    color: string;
    values: number[];
@@ -221,14 +221,14 @@ export interface LineSeries {
    area?: boolean;
 }
 
-export interface BarSeries {
+interface BarSeries {
    label: string;
    color: string;
    values: number[];
    axis?: 'left' | 'right';
 }
 
-export interface LineChartBand {
+interface LineChartBand {
    /** index into `series` for the two lines to shade the area between */
    a: number;
    b: number;
@@ -578,7 +578,7 @@ export function LineChart({
    );
 }
 
-export interface DonutSlice {
+interface DonutSlice {
    label: string;
    value: number;
    color: string;

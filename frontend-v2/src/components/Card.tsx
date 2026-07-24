@@ -24,12 +24,17 @@ import { Avatar } from './identity';
  * child without starving narrow columns (Classic's are the tight case). */
 const STACK_INDENT_PX = 16;
 
+/** The comfortable/compact left-pad a stack connector starts from — shared
+ * by StackConnector and StackStub so the two elbow shapes always align on
+ * the same origin regardless of density. */
+const stackBasePad = (compact: boolean) => (compact ? 12 : 14);
+
 /** The elbow before a nested row's avatar — one CSS hairline that says
  * "child of the row above". Absolutely positioned inside the indent gutter
  * so it costs the row zero flex width (a glyph in the flow both rendered as
  * a literal "L" and squeezed the rail into overflow in narrow columns). */
 function StackConnector({ compact, depth }: { compact: boolean; depth: number }) {
-   const basePad = compact ? 12 : 14;
+   const basePad = stackBasePad(compact);
    return (
       <span
          aria-hidden
@@ -56,7 +61,7 @@ function StackConnector({ compact, depth }: { compact: boolean; depth: number })
  * instead of only in words.
  */
 function StackStub({ compact }: { compact: boolean }) {
-   const basePad = compact ? 12 : 14;
+   const basePad = stackBasePad(compact);
    return (
       <span
          aria-hidden

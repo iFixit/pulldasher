@@ -77,7 +77,7 @@ export interface WordGroup {
  * urgent DO_WORD_RANK first), then wait-groups (WAIT_WORD_RANK), unknown
  * words last, ties kept in first-seen order (Array#sort is stable).
  */
-export function groupNodesByWord(tree: StackedPull[], me: string): WordGroup[] {
+function groupNodesByWord(tree: StackedPull[], me: string): WordGroup[] {
    const buckets = new Map<string, WordGroup>();
    let currentKey: string | null = null;
    for (const node of tree) {

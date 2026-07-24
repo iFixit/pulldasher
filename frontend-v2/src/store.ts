@@ -19,7 +19,6 @@ import type { PullData, RepoSpec } from '../../shared/types';
 
 export interface Snapshot {
    pulls: DerivedPull[];
-   repoSpecs: RepoSpec[];
    /** bot logins beyond the `[bot]` suffix, from server config (initialize) */
    extraBots: ReadonlySet<string>;
    /** merged/closed in the last 14 days (the server's retention window) */
@@ -156,7 +155,6 @@ export function isSnoozed(
 
 let snapshot: Snapshot = {
    pulls: [],
-   repoSpecs,
    extraBots,
    closed: [],
    me,
@@ -215,7 +213,6 @@ function publish() {
          .sort(
             (a, b) => (Date.parse(b.closed_at ?? '') || 0) - (Date.parse(a.closed_at ?? '') || 0)
          ),
-      repoSpecs,
       extraBots,
       me,
       connection,

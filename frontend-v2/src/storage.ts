@@ -47,10 +47,8 @@ export function clearStoredPrefs(): void {
 /**
  * A per-browser store for one JSON blob (settings, scope): load-with-defaults,
  * a listener set, and a useSyncExternalStore hook — the boilerplate settings
- * and scope each hand-rolled. `set` persists; `prime` updates the live value
- * and notifies WITHOUT persisting (a shared URL must not overwrite your saved
- * board). Unknown fields in a stale saved blob fall back to their default, so
- * a new field never breaks an old blob.
+ * and scope each hand-rolled. Unknown fields in a stale saved blob fall back
+ * to their default, so a new field never breaks an old blob.
  */
 /**
  * createPersistentStore's in-memory twin: same get/set/subscribe/useValue
@@ -98,10 +96,6 @@ export function createPersistentStore<T extends object>(key: string, defaults: T
       set(next: T) {
          value = next;
          writeStorage(key, JSON.stringify(value));
-         emit();
-      },
-      prime(next: T) {
-         value = next;
          emit();
       },
       subscribe,

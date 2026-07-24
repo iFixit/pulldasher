@@ -15,9 +15,9 @@ export interface PopoverTriggerProps {
 
 /**
  * Wraps a trigger's onClick so `fn` runs once, only on the transition from
- * closed to open — not on every toggle. DealButton (deal a fresh pull) and
- * NotificationPanel (mark notifications seen) both only care about the open
- * edge; the toggle itself stays the house Popover's.
+ * closed to open — not on every toggle. NotificationPanel (mark notifications
+ * seen) only cares about the open edge; the toggle itself stays the house
+ * Popover's.
  */
 export function onOpen(t: PopoverTriggerProps, fn: () => void): () => void {
    return () => {
@@ -29,9 +29,11 @@ export function onOpen(t: PopoverTriggerProps, fn: () => void): () => void {
 
 /**
  * The house popover: a trigger button plus a role=dialog panel, sharing the
- * click-away / Escape / focus discipline in usePopover. Legend, the sign-off
- * ledger, and Filters all render through this, so the panel chrome and ARIA
- * plumbing live in one place instead of being hand-rolled three times.
+ * click-away / Escape / focus discipline in usePopover. NotificationPanel,
+ * Legend, the sign-off ledger, and the filter components (StateFilter,
+ * WeightFilter, RepoFilter, PeopleFilter, HiddenPanel) all render through
+ * this, so the panel chrome and ARIA plumbing live in one place instead of
+ * being hand-rolled per caller.
  * (Settings is deliberately NOT one of these — it's a portal drawer with a
  * scrim, a different dismissal model.)
  *

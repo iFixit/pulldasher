@@ -10,7 +10,7 @@ import { ClearRow, FilterRow, FilterTrigger, OnlyButton } from './shared';
  * most likely to be hunting for), then the two reviewer verbs, then the
  * re-stamp lane, then the two states with no action of your own.
  */
-export const STATE_OPTIONS: { key: ActionStateKey; label: string }[] = [
+const STATE_OPTIONS: { key: ActionStateKey; label: string }[] = [
    { key: 'mine', label: 'Waiting on me' },
    { key: 'review', label: 'Review it' },
    { key: 'qa', label: 'QA it' },

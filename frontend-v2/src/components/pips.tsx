@@ -180,7 +180,7 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
  * slot something else (the weight letter) between the label and these marks
  * without it ending up inside this component's own hover/click surface.
  */
-export function Pips({
+function Pips({
    label,
    have,
    req,

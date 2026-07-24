@@ -6,7 +6,7 @@ import { FilterTrigger } from './shared';
 
 /** Per-category sizes of everything the board hides by default — computed in
  * app.tsx beside the visibility filter itself so the two can't drift. */
-export interface HiddenCounts {
+interface HiddenCounts {
    /** PRs labeled Cryogenic Storage */
    parked: number;
    /** other people's drafts (yours always show) */

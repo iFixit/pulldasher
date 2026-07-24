@@ -4,7 +4,7 @@ import type { Lens } from '../app';
 import { Icon } from './Icon';
 import { Popover } from './Popover';
 
-export interface LensOption {
+interface LensOption {
    id: Lens;
    label: string;
    count?: number;

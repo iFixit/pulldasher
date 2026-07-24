@@ -189,14 +189,7 @@ label:has(> input:not(:disabled)) {
     padding-inline: 7px;
   }
   .badge-ready { background: var(--badge-green-bg); color: var(--badge-green-fg); }
-  .badge-recr { background: var(--badge-brand-bg); color: var(--badge-brand-fg); }
   .badge-cr { background: var(--badge-gray-bg); color: var(--badge-gray-fg); }
-  .badge-blocked { background: var(--badge-amber-bg); color: var(--badge-amber-fg); }
-  /* deploy hold: deliberate, not alarming — gray, not amber */
-  .badge-hold { background: var(--badge-gray-bg); color: var(--badge-gray-fg); }
-  .badge-slate { background: var(--badge-slate-bg); color: var(--badge-slate-fg); }
-  .badge-red { background: var(--badge-red-bg); color: var(--badge-red-fg); }
-  .badge-draft { background: none; color: var(--ink-3); border: 1px dashed var(--border); }
 
   /* sign-off marks: one circle-check per required stamp, drawn as SVG masks
      so the geometry is machined — identical stroke weight and optical center,

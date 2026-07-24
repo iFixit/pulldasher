@@ -166,7 +166,7 @@ export function reviveBaseline(raw: unknown): CheerBaseline | null {
    }
 }
 
-export interface CheerInput {
+interface CheerInput {
    pulls: DerivedPull[];
    /** whose turn each starved, unclaimed pull is (pull key → login), computed
     * once in app.tsx and shared by the rows, desktop notifications, and these
@@ -340,7 +340,7 @@ export interface Signals {
    rankHolders: Map<number, string[]>;
 }
 
-export function readSignals(input: CheerInput): Signals {
+function readSignals(input: CheerInput): Signals {
    const { pulls, me } = input;
    const closed = input.closed ?? [];
    const now = input.now ?? Date.now();

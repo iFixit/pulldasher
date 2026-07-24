@@ -9,7 +9,7 @@ const dismissed = createPersistentStore<{ done: boolean }>('pd2.tip.codeRegions'
 
 /** Fire the event Settings listens for (see Settings.tsx), so the tip's
  * call-to-action opens the drawer where code regions are configured. */
-export function openSettings(): void {
+function openSettings(): void {
    window.dispatchEvent(new Event('pd2:open-settings'));
 }
 
