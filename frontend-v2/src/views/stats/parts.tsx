@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { type PointerEvent as ReactPointerEvent, type ReactNode, useState } from 'react';
 import { Avatar } from '../../components/identity';
 import type { Weight } from '../../model/status';
 
@@ -263,6 +263,7 @@ export function LineChart({
    bars,
    axisTicks,
    band,
+   pointLabels,
    height = 120,
    ariaLabel,
 }: {
@@ -270,25 +271,43 @@ export function LineChart({
    bars?: BarSeries[];
    axisTicks?: AxisTick[];
    band?: LineChartBand;
+   /** one label per x-position for the hover tooltip's header (a date, week,
+    * or month) — the sparse axisTicks can't name every point */
+   pointLabels?: string[];
    /** chart height in px; width always fills the container */
    height?: number;
    ariaLabel: string;
 }) {
-   const n = Math.max(
-      0,
-      ...series.map(s => s.values.length),
-      ...(bars ?? []).map(b => b.values.length)
-   );
+   // click a legend entry to hide its series/bar (and rescale to what's left);
+   // hover the plot for a crosshair + a per-point value tooltip. Both are
+   // hand-rolled here rather than pulling in a charting dependency — the data
+   // is tiny and the SVG already themes through CSS vars for free.
+   const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
+   const [hover, setHover] = useState<number | null>(null);
+   const toggle = (label: string) =>
+      setHidden(h => {
+         const next = new Set(h);
+         if (next.has(label)) next.delete(label);
+         else next.add(label);
+         return next;
+      });
+
+   const allBars = bars ?? [];
+   const n = Math.max(0, ...series.map(s => s.values.length), ...allBars.map(b => b.values.length));
    const pad = 6;
    const top = 8;
    const bottom = height - 8;
+   // hiding a series rescales the axes to what's left — the point of isolating
+   // one line to read its own trend without the others' range swamping it
+   const visSeries = series.filter(s => !hidden.has(s.label));
+   const visBars = allBars.filter(b => !hidden.has(b.label));
    const leftValues = [
-      ...series.filter(s => s.axis !== 'right').flatMap(s => s.values),
-      ...(bars ?? []).filter(b => b.axis !== 'right').flatMap(b => b.values),
+      ...visSeries.filter(s => s.axis !== 'right').flatMap(s => s.values),
+      ...visBars.filter(b => b.axis !== 'right').flatMap(b => b.values),
    ];
    const rightValues = [
-      ...series.filter(s => s.axis === 'right').flatMap(s => s.values),
-      ...(bars ?? []).filter(b => b.axis === 'right').flatMap(b => b.values),
+      ...visSeries.filter(s => s.axis === 'right').flatMap(s => s.values),
+      ...visBars.filter(b => b.axis === 'right').flatMap(b => b.values),
    ];
    const left = axisExtent(leftValues);
    const right = axisExtent(rightValues);
@@ -299,17 +318,40 @@ export function LineChart({
          : scaleY(v, left.min, left.max, top, bottom);
    const gridLines = [0, 0.25, 0.5, 0.75, 1].map(f => top + f * (bottom - top));
    const slot = n > 0 ? (CHART_W - 2 * pad) / n : 0;
-   const hasLegend = series.length > 0 || (bars?.length ?? 0) > 0;
+   const hasLegend = series.length > 0 || allBars.length > 0;
+
+   const bandVisible =
+      band != null &&
+      series[band.a] != null &&
+      series[band.b] != null &&
+      !hidden.has(series[band.a].label) &&
+      !hidden.has(series[band.b].label) &&
+      n > 1;
+
+   const onMove = (e: ReactPointerEvent<SVGSVGElement>) => {
+      if (n === 0) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const frac = (e.clientX - rect.left) / rect.width;
+      const i = n <= 1 ? 0 : Math.round((frac * CHART_W - pad) / ((CHART_W - 2 * pad) / (n - 1)));
+      setHover(Math.max(0, Math.min(n - 1, i)));
+   };
+   const fmt = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
+   const hoverFrac = hover != null ? x(hover) / CHART_W : 0;
+   // flip the tooltip to the left of the crosshair once it's past ~60% so it
+   // never runs off the right edge
+   const flip = hoverFrac > 0.6;
 
    return (
-      <div>
+      <div className="relative">
          <svg
             viewBox={`0 0 ${CHART_W} ${height}`}
             preserveAspectRatio="none"
             className="w-full"
-            style={{ height }}
+            style={{ height, touchAction: 'none' }}
             role="img"
             aria-label={ariaLabel}
+            onPointerMove={onMove}
+            onPointerLeave={() => setHover(null)}
          >
             <title>{ariaLabel}</title>
             {gridLines.map(y => (
@@ -323,7 +365,7 @@ export function LineChart({
                   strokeWidth={1}
                />
             ))}
-            {bars?.map(b => {
+            {visBars.map(b => {
                const barW = Math.max(slot * 0.55, 1.5);
                return (
                   <g key={b.label}>
@@ -347,7 +389,7 @@ export function LineChart({
                   </g>
                );
             })}
-            {band && series[band.a] && series[band.b] && n > 1 && (
+            {bandVisible && band && series[band.a] && series[band.b] && (
                <polygon
                   points={[
                      ...series[band.a].values.map(
@@ -361,7 +403,7 @@ export function LineChart({
                   opacity={0.12}
                />
             )}
-            {series.map(s => {
+            {visSeries.map(s => {
                if (s.values.length === 0) return null;
                const pts = s.values.map((v, i) => [x(i), yFor(v, s.axis)] as const);
                const path = pts.map(([px, py], i) => `${i === 0 ? 'M' : 'L'}${px},${py}`).join(' ');
@@ -391,30 +433,136 @@ export function LineChart({
                   </g>
                );
             })}
-         </svg>
-         <AxisLabels ticks={axisTicks} count={n} />
-         {hasLegend && (
-            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-ink-3">
-               {series.map(s => (
-                  <span key={s.label} className="inline-flex items-center gap-1.5">
-                     <span
-                        aria-hidden
-                        className="inline-block h-[2px] w-3"
-                        style={{ background: s.color, opacity: s.dashed ? 0.6 : 1 }}
+            {hover != null && (
+               <g aria-hidden pointerEvents="none">
+                  <line
+                     x1={x(hover)}
+                     x2={x(hover)}
+                     y1={top}
+                     y2={bottom}
+                     stroke="var(--ink-3)"
+                     strokeWidth={1}
+                     strokeDasharray="3 3"
+                     opacity={0.55}
+                  />
+                  {visBars.map(b => (
+                     <circle
+                        key={`hb-${b.label}`}
+                        cx={x(hover)}
+                        cy={yFor(b.values[hover] ?? 0, b.axis)}
+                        r={2.5}
+                        fill={b.color}
                      />
-                     {s.label}
-                  </span>
-               ))}
-               {bars?.map(b => (
-                  <span key={b.label} className="inline-flex items-center gap-1.5">
+                  ))}
+                  {visSeries.map(s =>
+                     s.values[hover] != null ? (
+                        <circle
+                           key={`hs-${s.label}`}
+                           cx={x(hover)}
+                           cy={yFor(s.values[hover], s.axis)}
+                           r={3}
+                           fill={s.color}
+                           stroke="var(--surface)"
+                           strokeWidth={1}
+                        />
+                     ) : null
+                  )}
+               </g>
+            )}
+         </svg>
+         {hover != null && (
+            <div
+               className="pointer-events-none absolute z-10 rounded-md border border-line bg-surface px-2 py-1 text-[11px] shadow-sm"
+               style={{
+                  left: `${hoverFrac * 100}%`,
+                  top: 2,
+                  transform: flip ? 'translateX(calc(-100% - 10px))' : 'translateX(10px)',
+               }}
+            >
+               {pointLabels?.[hover] && (
+                  <div className="mb-0.5 font-semibold text-ink">{pointLabels[hover]}</div>
+               )}
+               {visBars.map(b => (
+                  <div
+                     key={b.label}
+                     className="flex items-center gap-1.5 whitespace-nowrap text-ink-2"
+                  >
                      <span
                         aria-hidden
                         className="inline-block h-2 w-2 rounded-[2px]"
                         style={{ background: b.color }}
                      />
-                     {b.label}
-                  </span>
+                     <span>{b.label}</span>
+                     <b className="ml-auto pl-3 font-semibold text-ink tabular-nums">
+                        {fmt(b.values[hover] ?? 0)}
+                     </b>
+                  </div>
                ))}
+               {visSeries.map(s => (
+                  <div
+                     key={s.label}
+                     className="flex items-center gap-1.5 whitespace-nowrap text-ink-2"
+                  >
+                     <span
+                        aria-hidden
+                        className="inline-block h-[2px] w-3"
+                        style={{ background: s.color, opacity: s.dashed ? 0.6 : 1 }}
+                     />
+                     <span>{s.label}</span>
+                     <b className="ml-auto pl-3 font-semibold text-ink tabular-nums">
+                        {fmt(s.values[hover] ?? 0)}
+                     </b>
+                  </div>
+               ))}
+            </div>
+         )}
+         <AxisLabels ticks={axisTicks} count={n} />
+         {hasLegend && (
+            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-ink-3">
+               {series.map(s => {
+                  const off = hidden.has(s.label);
+                  return (
+                     <button
+                        key={s.label}
+                        type="button"
+                        onClick={() => toggle(s.label)}
+                        aria-pressed={!off}
+                        title={off ? `show ${s.label}` : `hide ${s.label} — isolate the rest`}
+                        className={`pressable inline-flex items-center gap-1.5 ${
+                           off ? 'text-ink-3 line-through opacity-50' : 'hover:text-ink'
+                        }`}
+                     >
+                        <span
+                           aria-hidden
+                           className="inline-block h-[2px] w-3"
+                           style={{ background: s.color, opacity: s.dashed ? 0.6 : 1 }}
+                        />
+                        {s.label}
+                     </button>
+                  );
+               })}
+               {allBars.map(b => {
+                  const off = hidden.has(b.label);
+                  return (
+                     <button
+                        key={b.label}
+                        type="button"
+                        onClick={() => toggle(b.label)}
+                        aria-pressed={!off}
+                        title={off ? `show ${b.label}` : `hide ${b.label} — isolate the rest`}
+                        className={`pressable inline-flex items-center gap-1.5 ${
+                           off ? 'text-ink-3 line-through opacity-50' : 'hover:text-ink'
+                        }`}
+                     >
+                        <span
+                           aria-hidden
+                           className="inline-block h-2 w-2 rounded-[2px]"
+                           style={{ background: b.color }}
+                        />
+                        {b.label}
+                     </button>
+                  );
+               })}
             </div>
          )}
       </div>

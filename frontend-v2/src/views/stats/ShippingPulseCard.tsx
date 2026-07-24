@@ -61,6 +61,12 @@ export function ShippingPulseCard({
                   },
                ]}
                axisTicks={axisTicks}
+               pointLabels={perDay.map(d =>
+                  new Date(d.day).toLocaleDateString(undefined, {
+                     month: 'short',
+                     day: 'numeric',
+                  })
+               )}
             />
          </div>
          <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[13px] text-ink-2">

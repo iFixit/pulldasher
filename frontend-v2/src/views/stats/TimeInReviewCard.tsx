@@ -44,6 +44,7 @@ export function TimeInReviewCard({ weeks }: { weeks: TimeInReviewWeek[] }) {
                      },
                   ]}
                   axisTicks={axisTicks}
+                  pointLabels={weeks.map(w => `week ${w.isoWeek.replace(/^\d+-W?/, '')}`)}
                />
             </div>
          )}

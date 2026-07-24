@@ -31,6 +31,7 @@ export function MonthlyThroughputCard({ monthly }: { monthly: MonthlyRow[] }) {
                ]}
                band={{ a: 0, b: 1, color: 'var(--brand)' }}
                axisTicks={axisTicks}
+               pointLabels={monthly.map(m => monthLabel(m.month))}
             />
          </div>
          <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[13px] text-ink-2">
