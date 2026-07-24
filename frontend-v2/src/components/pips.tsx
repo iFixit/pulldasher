@@ -187,6 +187,7 @@ function Pips({
    staleBy = [],
    me,
    titled = true,
+   aligned = false,
 }: {
    label: string;
    have: number;
@@ -201,6 +202,10 @@ function Pips({
     * tooltip under it — the same double-tooltip AgeStamp solved by switching
     * to aria-label. The bare-pips fallback keeps its title. */
    titled?: boolean;
+   /** rail context: pad the pip slot to the board-wide max required count
+    * (--cr-slots / --qa-slots, set in app.tsx) so every row's marks line up in
+    * a column, collapsing when no pull needs many. Off = content-sized. */
+   aligned?: boolean;
 }) {
    const none = !req && !have && !staleBy.length;
    const met = !none && have >= req;
@@ -234,6 +239,7 @@ function Pips({
    // itself instead: a thin amber halo confined to its own 8px square (see
    // .pip-stale). The word-group header and the pip-mine underline already
    // say whose move it is; the hover title spells out who and when.
+   const slotClass = aligned ? (label === 'CR' ? 'pd-pip-slot-cr' : 'pd-pip-slot-qa') : '';
    return (
       <span
          className="inline-flex items-center gap-1"
@@ -241,7 +247,10 @@ function Pips({
          title={titled ? title : undefined}
       >
          {none ? (
-            <span aria-hidden className="flex justify-start text-xs text-ink-3 opacity-60">
+            <span
+               aria-hidden
+               className={`flex justify-start text-xs text-ink-3 opacity-60 ${slotClass}`}
+            >
                –
             </span>
          ) : (
@@ -252,7 +261,7 @@ function Pips({
             // a wider cluster grows leftward without moving the numeral.)
             <span
                aria-hidden
-               className={`flex items-center justify-start gap-[3px] ${
+               className={`flex items-center justify-start gap-[3px] ${slotClass} ${
                   mine || owedByMe ? 'pip-mine' : ''
                }`}
             >
@@ -303,7 +312,16 @@ export function SigPips({
    panelExtra?: ReactNode;
 }) {
    const pips = (
-      <Pips label={label} have={have} req={req} by={by} staleBy={staleBy} me={me} titled={false} />
+      <Pips
+         label={label}
+         have={have}
+         req={req}
+         by={by}
+         staleBy={staleBy}
+         me={me}
+         titled={false}
+         aligned
+      />
    );
 
    // latest signature per user, live stamps first, then invalidated ones

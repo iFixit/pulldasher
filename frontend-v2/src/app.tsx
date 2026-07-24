@@ -229,6 +229,24 @@ export function App() {
    // can never disagree about the rotation (and never re-derive it in
    // parallel; buildReviewerPools walks every pull's signatures)
    const pools = useMemo(() => buildReviewerPools(pulls), [pulls]);
+   // Publish the widest CR/QA required counts on the board so every row's pip
+   // slot pads to them (styles.css .pd-pip-slot-*) and the marks line up in a
+   // column. Over ALL open pulls, not the filtered view: simpler, and the
+   // column just tracks what's open (a PR bumped to cr_req 3 widens every slot
+   // until it merges). Floor of 1 so a slot always holds at least one mark.
+   const maxCrReq = useMemo(
+      () => pulls.reduce((m, p) => Math.max(m, Number(p.data.status.cr_req) || 0), 1),
+      [pulls]
+   );
+   const maxQaReq = useMemo(
+      () => pulls.reduce((m, p) => Math.max(m, Number(p.data.status.qa_req) || 0), 1),
+      [pulls]
+   );
+   useEffect(() => {
+      const root = document.documentElement.style;
+      root.setProperty('--cr-slots', String(maxCrReq));
+      root.setProperty('--qa-slots', String(maxQaReq));
+   }, [maxCrReq, maxQaReq]);
    const turns = useMemo(() => {
       const m = new Map<string, string>();
       for (const p of pulls) {
