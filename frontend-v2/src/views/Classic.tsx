@@ -84,7 +84,7 @@ function Column({
 export function Classic({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) {
    const me = opts.me;
    if (!pulls.length) {
-      return <EmptyState title="Workbench clear" sub="No open PRs match your filters." />;
+      return <EmptyState title="All clear" sub="No open PRs match your filters." />;
    }
    const base = [...pulls].sort(defaultCompare(me));
 

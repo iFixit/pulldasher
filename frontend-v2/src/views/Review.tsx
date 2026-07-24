@@ -77,7 +77,7 @@ export function Review({
    if (lanes.empty) {
       return (
          <EmptyState
-            title="Workbench clear"
+            title="All clear"
             sub="Nothing to review with these filters. Clear some to see more."
          />
       );

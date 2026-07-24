@@ -101,7 +101,7 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
    const noChecks = useMemo(() => pulls.filter(p => p.ci === 'none'), [pulls]);
 
    if (!pulls.length) {
-      return <EmptyState title="Workbench clear" sub="No open PRs match your filters." />;
+      return <EmptyState title="All clear" sub="No open PRs match your filters." />;
    }
    if (!withChecks.length) {
       return <EmptyState title="No checks to show" sub="None of these PRs run CI checks." />;
