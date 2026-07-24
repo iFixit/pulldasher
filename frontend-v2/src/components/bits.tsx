@@ -136,6 +136,10 @@ export const HeaderIconButton = forwardRef<
       label: string;
       /** hover title text; defaults to `label` */
       title?: string;
+      /** declared explicitly (though ButtonHTMLAttributes already carries it)
+       * so react/prop-types resolves it through the intersection — it's merged
+       * into the base classes below rather than passed straight through */
+      className?: string;
       children?: ReactNode;
    }
 >(function HeaderIconButton({ icon, label, title, className = '', children, ...rest }, ref) {
