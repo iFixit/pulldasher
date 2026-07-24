@@ -820,8 +820,12 @@ export function App() {
                 clickable over the tab row's own box. */}
             <div className="relative mx-auto max-w-[1536px]">
                {/* the page's one h1 — heading navigation needs a root, and
-                   every lane h2 needs a parent level */}
-               <h1 className="absolute inset-y-0 left-4 z-[1] m-0 flex items-center gap-1.5 text-base font-semibold tracking-tight">
+                   every lane h2 needs a parent level. pointer-events-none:
+                   nothing in it is interactive, and its box spans the hidden
+                   wordmark's width — at narrow widths that invisible span sat
+                   over the Review tab / lens menu at z-[1] and ate their
+                   clicks (prod report) */}
+               <h1 className="pointer-events-none absolute inset-y-0 left-4 z-[1] m-0 flex items-center gap-1.5 text-base font-semibold tracking-tight">
                   <Logo size={22} className="text-brand" />
                   <Wordmark />
                </h1>
@@ -895,7 +899,11 @@ export function App() {
                       Below sm the strip no longer fits at all and that swipe
                       is undiscoverable on a phone, so it's hidden there in
                       favor of LensMenu's dropdown twin. */}
-                  <nav className="no-scrollbar hidden min-w-0 shrink gap-1 overflow-x-auto sm:flex">
+                  {/* py-1/-my-1: the scroll container clips its content box, and
+                     the My-work corner badge rides 4px above its tab — the
+                     padding gives the badge headroom inside the clip without
+                     moving the strip (prod report: badge top shaved off) */}
+                  <nav className="no-scrollbar -my-1 hidden min-w-0 shrink gap-1 overflow-x-auto py-1 sm:flex">
                      {tab('review', LENS_LABELS.review)}
                      {tab('mine', LENS_LABELS.mine, mineCount)}
                      {tab('team', LENS_LABELS.team)}
