@@ -377,7 +377,14 @@ class Pull {
          created_at: utils.fromUnixTime(data.date),
          updated_at: utils.fromUnixTime(data.date_updated),
          closed_at: utils.fromUnixTime(data.date_closed),
-         mergeable: data.mergeable,
+         // mysql2 hands back tinyint(1) as a raw 0/1/null, but the wire
+         // contract (and the shared derive, client and server) treats
+         // mergeable as a real boolean|null. Without this normalization a
+         // conflicted PR read from the DB after a restart carries 0, and
+         // derive()'s strict `mergeable === false` never matches until a
+         // GitHub refresh re-derives the pull -- so it mis-buckets as
+         // mergeable. Normalize at the DB boundary, same as `draft` above.
+         mergeable: data.mergeable == null ? null : data.mergeable === 1,
          merged_at: utils.fromUnixTime(data.date_merged),
          difficulty: data.difficulty,
          additions: data.additions,
