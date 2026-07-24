@@ -323,9 +323,9 @@ export function Fold({
    defaultOpen?: boolean;
    children: ReactNode;
 }) {
-   if (!count) return null;
    const detailsRef = useRef<HTMLDetailsElement>(null);
    const stored = foldOpenStore.useValue();
+   if (!count) return null;
    const explicit = id ? stored[id] : undefined;
    const open = explicit ?? defaultOpen;
    // native <details> owns its own open/closed state on click; we only need to
