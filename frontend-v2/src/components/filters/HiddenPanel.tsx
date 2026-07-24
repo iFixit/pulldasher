@@ -128,7 +128,7 @@ export function HiddenPanel({
                   active={revealing}
                   title={
                      revealing
-                        ? 'showing hidden PRs for now — what the board normally hides, and why'
+                        ? 'showing hidden PRs for now: what the board normally hides, and why'
                         : 'what the board is hiding, and why'
                   }
                   ariaLabel={

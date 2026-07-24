@@ -536,7 +536,7 @@ export function LineChart({
                         type="button"
                         onClick={() => toggle(s.label)}
                         aria-pressed={!off}
-                        title={off ? `show ${s.label}` : `hide ${s.label} — isolate the rest`}
+                        title={off ? `show ${s.label}` : `hide ${s.label}: isolate the rest`}
                         className={`pressable inline-flex items-center gap-1.5 ${
                            off ? 'text-ink-3 line-through opacity-50' : 'hover:text-ink'
                         }`}
@@ -558,7 +558,7 @@ export function LineChart({
                         type="button"
                         onClick={() => toggle(b.label)}
                         aria-pressed={!off}
-                        title={off ? `show ${b.label}` : `hide ${b.label} — isolate the rest`}
+                        title={off ? `show ${b.label}` : `hide ${b.label}: isolate the rest`}
                         className={`pressable inline-flex items-center gap-1.5 ${
                            off ? 'text-ink-3 line-through opacity-50' : 'hover:text-ink'
                         }`}

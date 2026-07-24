@@ -137,13 +137,13 @@ export function TeamPicker({
                onCommit: commitRename,
                onCancel: () => setNameDraft(teamName),
             })}
-            aria-label="team name — edit to rename"
-            title="the team’s name — edit it here to rename"
+            aria-label="team name: edit to rename"
+            title="the team’s name: edit it here to rename"
             className={`mb-1.5 w-full px-2 font-semibold ${textInputClass}`}
          />
          <p className="px-1.5 pb-1.5 text-[11px] leading-snug text-ink-3">
-            Anyone whose work you review belongs on a roster — your review circle, not the org
-            chart. Everyone on any roster leads your review queues.
+            Anyone whose work you review belongs on a roster: your review circle, not the org chart.
+            Everyone on any roster leads your review queues.
          </p>
          {/* current members as removable face chips — horizontal and
              recognizable, not a column of checkbox rows. The ✕ removes; adding
@@ -220,7 +220,7 @@ export function TeamPicker({
                   title={
                      armed
                         ? 'click again to delete'
-                        : 'delete this team — people on other rosters stay there'
+                        : 'delete this team: people on other rosters stay there'
                   }
                   className="hit pressable flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-ink-3 hover:text-bad"
                >

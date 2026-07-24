@@ -256,7 +256,7 @@ export function Review({
                      </p>
                      <p>
                         PRs that have waited {opts.ageWarnDays ?? 4}+ days for review outrank the
-                        blocks entirely — they lead the lane whatever repo they’re from.
+                        blocks entirely; they lead the lane whatever repo they’re from.
                      </p>
                      <p>
                         Inside a block: your team’s PRs first, then repos you’ve reviewed before,
@@ -275,7 +275,7 @@ export function Review({
                   count={lanes.queueStarved.length}
                   label="Starving"
                   tone="do"
-                  gloss={`Waited ${opts.ageWarnDays ?? 4}+ days for review — these outrank your repo order.`}
+                  gloss={`Waited ${opts.ageWarnDays ?? 4}+ days for review; these outrank your repo order.`}
                   id="review:queue:starving"
                   defaultOpen
                >
@@ -286,7 +286,7 @@ export function Review({
                      key={b.repo}
                      count={b.pulls.length}
                      label={shortRepo(b.repo)}
-                     gloss={`${shortRepo(b.repo)}’s reviewable PRs, best first — your repo order (Settings) decides where the block sits.`}
+                     gloss={`${shortRepo(b.repo)}’s reviewable PRs, best first; your repo order (Settings) decides where the block sits.`}
                      id={`review:queue:${b.repo}`}
                      defaultOpen
                   >
@@ -312,7 +312,7 @@ export function Review({
                      </p>
                      <p>
                         Your team’s PRs always come first (edit your team on the Team tab), ordered
-                        among themselves by this same score — being on your team is the boost; there
+                        among themselves by this same score: being on your team is the boost; there
                         is no extra ranking between teammates.
                      </p>
                      <p>
@@ -397,7 +397,7 @@ export function Review({
                <Fold
                   count={lanes.ciPending.length}
                   label="CI running"
-                  gloss="Fully signed off — CI is still running on the latest push, and it's ready the moment checks go green."
+                  gloss="Fully signed off; CI is still running on the latest push, and it's ready the moment checks go green."
                   id="review:ci-pending"
                >
                   <FoldRows list={lanes.ciPending} opts={opts} id="review:ci-pending" />
@@ -405,7 +405,7 @@ export function Review({
                <Fold
                   count={lanes.ciRed.length}
                   label="CI failing"
-                  gloss="Fully signed off, but a required CI check is failing — the author fixes the build, then it's ready. (A red build still awaiting review stays in the queue; reviewing it is your call.)"
+                  gloss="Fully signed off, but a required CI check is failing; the author fixes the build, then it's ready. (A red build still awaiting review stays in the queue; reviewing it is your call.)"
                   id="review:ci-red"
                   defaultOpen={lanes.boardIsQuiet}
                >
@@ -425,7 +425,7 @@ export function Review({
                <Fold
                   count={lanes.botRest.length}
                   label="Bot PRs"
-                  gloss="Dependency bumps that aren’t up for review — merge-ready, in CI, or draft. Reviewable bot PRs join the queue above."
+                  gloss="Dependency bumps that aren’t up for review: merge-ready, in CI, or draft. Reviewable bot PRs join the queue above."
                   id="review:bots"
                >
                   <FoldRows list={lanes.botRest} opts={opts} id="review:bots" />
@@ -450,12 +450,12 @@ export function Review({
                <Fold
                   count={lanes.napping.length}
                   label="Snoozed by you"
-                  gloss="Hidden from this lens only, until tomorrow or until they change. Every other lens still shows them."
+                  gloss="Hidden from this tab only, until tomorrow or until they change. Every other tab still shows them."
                   id="review:snoozed"
                >
                   <div className="flex items-center justify-between gap-2 border-t border-secondary px-3.5 py-1.5 first:border-t-0">
                      <span className="text-xs text-ink-3">
-                        Hidden from this lens only; every other lens still shows them.
+                        Hidden from this tab only; every other tab still shows them.
                      </span>
                      <QuietButton size="sm" onClick={() => clearSnoozes()}>
                         Wake all

@@ -224,6 +224,6 @@ export function describeHash(hash: string): string {
    if (drafts) parts.push(`drafts: ${drafts}`);
    if (p.get('hidden') === '1') parts.push('showing hidden');
    const lens = p.get('lens');
-   if (lens) parts.push(`${LENS_LABELS[lens as Lens] ?? lens} lens`);
+   if (lens) parts.push(`${LENS_LABELS[lens as Lens] ?? lens} tab`);
    return parts.length ? parts.join(' · ') : 'everything';
 }

@@ -926,7 +926,7 @@ export function App() {
                {pinnedSearches.map(f => {
                   const active = matchesView(f.hash, currentHash);
                   const title = active
-                     ? `showing ${f.name} — click to clear`
+                     ? `showing ${f.name}: click to clear`
                      : `show ${f.name}: ${describeHash(f.hash)}`;
                   return (
                      <button
@@ -981,7 +981,7 @@ export function App() {
                         setReveal([]);
                         setDraftsMode(settings.draftsMode);
                      }}
-                     title="clears scope and session toggles; your team, hidden, and primary-repo choices stay"
+                     title="clears filters and session toggles; your team, hidden, and primary-repo choices stay"
                      className="hit pressable rounded-md px-1.5 py-1 text-[13px] text-ink-3 hover:text-brand"
                   >
                      Reset

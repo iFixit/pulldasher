@@ -52,21 +52,21 @@ describe('describeHash', () => {
    });
 
    it("names the lens, using the same labels app.tsx's tabs show", () => {
-      expect(describeHash('lens=team')).toBe('Team lens');
-      expect(describeHash('lens=mine')).toBe('My work lens');
+      expect(describeHash('lens=team')).toBe('Team tab');
+      expect(describeHash('lens=mine')).toBe('My work tab');
       // regression: describeHash used to hand-roll its own label map, missing
       // the 'ci' entry — a saved CI-lens filter read as "ci lens" instead of
       // "CI lens". Now sourced from the shared lens.ts LENS_LABELS.
-      expect(describeHash('lens=ci')).toBe('CI lens');
+      expect(describeHash('lens=ci')).toBe('CI tab');
    });
 
    it('falls back to the raw value for an unrecognized lens', () => {
-      expect(describeHash('lens=board')).toBe('board lens');
+      expect(describeHash('lens=board')).toBe('board tab');
    });
 
    it('combines params in a stable state → weight → query → lens order', () => {
       expect(describeHash('lens=review&state=qa&weight=xs')).toBe(
-         'state: qa · weight: xs · Review lens'
+         'state: qa · weight: xs · Review tab'
       );
    });
 });

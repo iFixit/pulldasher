@@ -130,8 +130,8 @@ export function RepoFilter({
             role="button"
             tabIndex={0}
             draggable
-            aria-label={`reorder ${shortRepo(name)} — drag, or arrow keys; this order is your review queue's repo order`}
-            title="drag to reorder — the queue shows repos in this order"
+            aria-label={`reorder ${shortRepo(name)}: drag, or arrow keys; this order is your review queue's repo order`}
+            title="drag to reorder: the queue shows repos in this order"
             className="cursor-grab touch-none text-ink-3 hover:text-ink focus-visible:text-brand active:cursor-grabbing"
             onDragStart={e => {
                setDragging(name);
@@ -158,7 +158,7 @@ export function RepoFilter({
                   shownRepos.map(r => r.name)
                )
             }
-            ariaLabel={`scope to ${shortRepo(name)}`}
+            ariaLabel={`filter to ${shortRepo(name)}`}
             title={name}
          >
             {shortRepo(name)}

@@ -130,7 +130,7 @@ export function PeopleFilter({
                         checked={included(login) && !excluded}
                         checkboxTitle={
                            excluded
-                              ? 'excluded — click to show their PRs again'
+                              ? 'excluded: click to show their PRs again'
                               : '⇧ click: everyone except them'
                         }
                         // ⇧-click is the "everyone except" gesture. It rides the

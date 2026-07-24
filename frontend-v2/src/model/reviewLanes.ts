@@ -401,7 +401,7 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    // so every surface explains a pick in the same words
    const whyUpNext = (p: DerivedPull) =>
       team.has(p.data.user.login)
-         ? `From ${displayName(names, p.data.user.login) ?? p.data.user.login}, on your team — teammates’ PRs lead your queue`
+         ? `From ${displayName(names, p.data.user.login) ?? p.data.user.login}, on your team: teammates’ PRs lead your queue`
          : startHereReason(p, pulls, me, false, names);
    // the queue's repo blocks (priority order, starved pierced out front) —
    // computed unconditionally, cheap; the render only reads it when a
@@ -414,7 +414,7 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    // ranking this lane doesn't use.
    const whyQaNext = (p: DerivedPull) =>
       team.has(p.data.user.login)
-         ? `From ${displayName(names, p.data.user.login) ?? p.data.user.login}, on your team — teammates’ PRs lead this lane`
+         ? `From ${displayName(names, p.data.user.login) ?? p.data.user.login}, on your team: teammates’ PRs lead this lane`
          : p.qaingLogin
            ? `${displayName(names, p.qaingLogin) ?? p.qaingLogin} is already testing it; it sinks below unclaimed QA`
            : p.weight === 'XS' || p.weight === 'S'

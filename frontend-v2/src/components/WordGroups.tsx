@@ -58,7 +58,7 @@ const WORD_GLOSS: Record<string, string> = {
       'Labeled Cryogenic Storage: shelved on purpose. Nothing is asked of anyone while it’s parked.',
    ready: 'Fully signed off and green; anyone can merge it, usually the author does.',
    draft: 'Not up for review yet.',
-   waiting: 'Waiting on something GitHub’s data doesn’t name — open the PR to see.',
+   waiting: 'Waiting on something GitHub’s data doesn’t name. Open the PR to see.',
 };
 
 export interface WordGroup {

@@ -283,7 +283,7 @@ export function Settings({
                         </Explainer>
                         <Field
                            label="Repo cap in the queue"
-                           hint="Rows each repo shows in the review queue before folding into “+N more” — one busy repo can’t take the whole screen. Reorder the repos themselves by dragging in the Repos filter."
+                           hint="Rows each repo shows in the review queue before folding into “+N more”: one busy repo can’t take the whole screen. Reorder the repos themselves by dragging in the Repos filter."
                         >
                            <Segmented
                               ariaLabel="rows per repo before folding"

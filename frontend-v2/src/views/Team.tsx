@@ -215,7 +215,7 @@ export function Team({
          type="button"
          onClick={e => pickPerson(login, e)}
          aria-pressed={selected.includes(login)}
-         title={`${nameOf(login) ?? login}’s board — shift-click to add or remove them`}
+         title={`${nameOf(login) ?? login}’s board: shift-click to add or remove them`}
          className={`flex w-full items-center gap-2 rounded-lg py-[5px] pr-2 pl-9 text-left text-[13px] transition-[background-color] duration-150 ease-out motion-reduce:transition-none ${
             selected.includes(login) ? 'bg-secondary' : 'hover:bg-muted'
          }`}
@@ -277,7 +277,7 @@ export function Team({
                            type="button"
                            onClick={e => pickGroup(t.members, e)}
                            aria-pressed={active}
-                           title={`narrow the board to ${t.name} — shift-click to add or remove the whole roster`}
+                           title={`narrow the board to ${t.name}: shift-click to add or remove the whole roster`}
                            className={`flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left ${
                               active ? 'bg-secondary' : 'hover:bg-muted'
                            }`}
@@ -366,7 +366,7 @@ export function Team({
             <div className="mx-auto flex max-w-[440px] flex-col items-center gap-3 py-12 text-center">
                <h2 className="m-0 text-lg font-semibold text-ink">Build your team</h2>
                <p className="m-0 text-[13px] text-ink-3">
-                  Pick the people whose work you review — your review circle, not the org chart.
+                  Pick the people whose work you review: your review circle, not the org chart.
                   Their combined board becomes this tab’s home, and their PRs lead your review
                   queues. Or click anyone above to see just their work.
                </p>

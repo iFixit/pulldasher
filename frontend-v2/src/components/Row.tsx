@@ -333,8 +333,8 @@ function VerbDock({
    const chip =
       'hit pressable inline-flex items-center justify-center rounded-md border-0 bg-muted px-1.5 py-1 whitespace-nowrap';
    const snoozeWords = snoozedNow
-      ? 'wake it: back on your Review lens now'
-      : 'snooze: off your Review lens until tomorrow or until it changes';
+      ? 'wake it: back on your Review tab now'
+      : 'snooze: off your Review tab until tomorrow or until it changes';
    const claimWords = mine
       ? 'release your claim'
       : claim
@@ -682,7 +682,7 @@ function RowImpl({
             rosters.length > 0 &&
             d.user.login !== opts.me && (
                <span
-                  title={`on ${rosters.length ? rosters.join(' & ') : 'your team'} — their PRs lead your review queue`}
+                  title={`on ${rosters.length ? rosters.join(' & ') : 'your team'}: their PRs lead your review queue`}
                   // seated on a surface-colored disc so the brand heart reads as
                   // a distinct mark instead of muddying into the avatar's colored
                   // face — the visible separation the you-star gets from its

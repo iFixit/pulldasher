@@ -363,9 +363,7 @@ describe('buildReviewLanes — why-line display names', () => {
             names: { alice: 'Alice A' },
          })
       );
-      expect(lanes.whyUpNext(p)).toBe(
-         'From Alice A, on your team — teammates’ PRs lead your queue'
-      );
+      expect(lanes.whyUpNext(p)).toBe('From Alice A, on your team: teammates’ PRs lead your queue');
    });
 
    it('whyUpNext falls back to the login when no display name is known', () => {
@@ -373,7 +371,7 @@ describe('buildReviewLanes — why-line display names', () => {
       const lanes = buildReviewLanes(
          input({ pulls: [p], teams: [{ name: 'My team', members: ['alice'] }] })
       );
-      expect(lanes.whyUpNext(p)).toBe('From alice, on your team — teammates’ PRs lead your queue');
+      expect(lanes.whyUpNext(p)).toBe('From alice, on your team: teammates’ PRs lead your queue');
    });
 
    it('whyUpNext threads names into startHereReason for a non-teammate', () => {

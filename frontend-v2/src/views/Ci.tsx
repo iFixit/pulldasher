@@ -57,7 +57,7 @@ function LedgerGlance({ ledger }: { ledger: CheckLedger }) {
          </span>
          <span className="w-36 flex-none text-right tabular-nums">{word}</span>
          <span className="w-12 flex-none text-right tabular-nums">
-            {avgSecs != null ? `~${ciSecsWord(avgSecs)}` : '—'}
+            {avgSecs != null ? `~${ciSecsWord(avgSecs)}` : ''}
          </span>
       </>
    );
@@ -158,7 +158,7 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
                      <p>
                         Each band: the share of the check’s runs failing (red) or still running
                         (slate), the counts in words, and the average run time. The slowest failing
-                        check rides in the line above — a slow, red check is the worst kind.
+                        check rides in the line above. A slow, red check is the worst kind.
                      </p>
                      <p>
                         Only checks with a failing run show here; the healthy ones fold into the
@@ -198,7 +198,7 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
                      label={`${clearChecks.length} check${
                         clearChecks.length === 1 ? '' : 's'
                      } clear`}
-                     gloss="Every run of these is green or still going — none failing. Open to audit the whole fleet."
+                     gloss="Every run of these is green or still going · none failing. Open to audit the whole fleet."
                      id="ci:health:clear"
                   >
                      {clearChecks.map(l => (
