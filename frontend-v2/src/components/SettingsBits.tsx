@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { textInputClass } from './bits';
 import { Icon } from './Icon';
@@ -67,17 +67,26 @@ export function NumberField({
    suffix: string;
    onChange: (next: number) => void;
 }) {
+   // held as a string so the field can go transiently empty while editing —
+   // Number('') is 0, which would otherwise clamp-and-commit on the first
+   // backspace and block typing a fresh multi-digit value
+   const [raw, setRaw] = useState(String(value));
+   useEffect(() => setRaw(String(value)), [value]);
    return (
       <span className="inline-flex items-center gap-1.5">
          <input
             type="number"
             min={min}
             max={max}
-            value={value}
+            value={raw}
             onChange={e => {
-               const n = Number(e.target.value);
+               const next = e.target.value;
+               setRaw(next);
+               if (next === '') return;
+               const n = Number(next);
                if (Number.isFinite(n)) onChange(Math.min(max, Math.max(min, Math.round(n))));
             }}
+            onBlur={() => setRaw(String(value))}
             className={`w-16 px-2 text-right tabular-nums ${textInputClass}`}
          />
          <span className="text-xs text-ink-3">{suffix}</span>

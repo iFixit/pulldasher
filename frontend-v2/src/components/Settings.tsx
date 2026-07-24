@@ -166,9 +166,13 @@ export function Settings({
       };
    }, [open]);
 
-   // return focus to the cog when the panel closes
+   // return focus to the cog when the panel closes — but only after a real
+   // open->close transition, not on initial mount (open starts false, and
+   // stealing focus to the gear on page load with no user interaction)
+   const didOpenRef = useRef(false);
    useEffect(() => {
-      if (!open) triggerRef.current?.focus?.();
+      if (open) didOpenRef.current = true;
+      else if (didOpenRef.current) triggerRef.current?.focus?.();
    }, [open]);
 
    const set = (patch: Partial<SettingsShape>) => setSettings(patch);
