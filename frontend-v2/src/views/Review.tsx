@@ -56,6 +56,12 @@ export function Review({
    // empties it (nothing leaves the list silently).
    const changed = pulls
       .filter(p => isFresh(p.data, opts.lastSeen))
+      // others' drafts stay out of the "what changed" glance: a draft you
+      // don't own isn't yours to act on, and draftsMode already keeps them off
+      // the board — they only reach this pool through boardHidden's
+      // review-requested exception (app.tsx). Your own drafts stay; they're
+      // your work.
+      .filter(p => !p.data.draft || p.data.user.login === me)
       .sort((a, b) => Date.parse(b.data.updated_at) - Date.parse(a.data.updated_at));
 
    const lanes = buildReviewLanes({
