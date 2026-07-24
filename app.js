@@ -13,6 +13,8 @@ import mainController from './controllers/main.js';
 import hooksController from './controllers/githubHooks.js';
 import statsController from './controllers/stats.js';
 import userNamesController from './controllers/user-names.js';
+import apiController from './controllers/api.js';
+import apiAuth from './lib/api-auth.js';
 import Debug from './lib/debug.js';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -66,6 +68,13 @@ app.get('/token', mainController.getToken);
 app.get('/stats-history', statsController.getHistory);
 app.get('/user-names', userNamesController.getNames);
 app.post('/hooks/main', hooksController.main);
+
+// /api/v1: machine-to-machine JSON for the review skills, Bearer-authed with
+// the caller's own GitHub token (see lib/api-auth). Independent of the
+// cookie-session gate -- setupRoutes never registers these paths, so the
+// session `auth` middleware doesn't run for them.
+app.get('/api/v1/me', apiAuth, apiController.getMe);
+app.get('/api/v1/pulls', apiAuth, apiController.getPulls);
 
 // Warm the bot-login cache (used to tell a pulldasher claim apart from a
 // GitHub-UI self-request) before any webhook or socket traffic needs it.
