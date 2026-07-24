@@ -27,6 +27,14 @@ export function isBotLogin(login: string, extra: ReadonlySet<string>): boolean {
    return login.endsWith('[bot]') || extra.has(login);
 }
 
+/** The suffix-only half of isBotLogin, for the model-layer call sites that
+ * have no reason to depend on config.json's `bots` list (they'd otherwise
+ * call isBotLogin with an empty extra set every time). Equivalent to
+ * `isBotLogin(login, new Set())`. */
+export function isSuffixBot(login: string): boolean {
+   return login.endsWith('[bot]');
+}
+
 /** A person has no org baseline the way a repo does — hiding is a plain
  * two-state toggle. */
 export function personHidden(login: string, hidden: string[]): boolean {

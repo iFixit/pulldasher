@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { isDummy } from '../backend/dummy';
+import { DAY_MS, startOfDay } from '../../../shared/format';
 
 /**
  * The Stats lens's history layer: months/weeks of PR history the live socket
@@ -44,12 +45,7 @@ export interface StatsHistory {
    durationByWeek: DurationWeekRow[];
 }
 
-const DAY_MS = 86_400_000;
 const WEEK_MS = 7 * DAY_MS;
-
-function startOfDay(t: number): number {
-   return new Date(t).setHours(0, 0, 0, 0);
-}
 
 function isoDate(t: number): string {
    const d = new Date(t);

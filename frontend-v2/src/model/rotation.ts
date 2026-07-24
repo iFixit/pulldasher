@@ -1,6 +1,6 @@
 import { hasReviewRequest } from './reviewers';
-import type { DerivedPull, Status } from '../../../shared/model/status';
-import { isBotLogin } from '../../../shared/model/visibility';
+import { CR_INCOMPLETE, type DerivedPull } from '../../../shared/model/status';
+import { isSuffixBot } from '../../../shared/model/visibility';
 
 /**
  * Turn rotation: a starved, CR-incomplete pull with no claim still needs
@@ -30,9 +30,9 @@ function djb2(s: string): number {
  * stale — on any pull of that repo. Stale counts because a re-review is
  * still a review: someone who has CR'd this repo before is fair game for the
  * rotation even if their stamp on this particular pull went stale. Bots
- * excluded (isBotLogin's suffix check is enough here, same as
- * model/status.ts's engagedNoStamp — this module has no reason to depend on
- * the org's configured `bots` list).
+ * excluded (isSuffixBot is enough here, same as model/status.ts's
+ * engagedNoStamp — this module has no reason to depend on the org's
+ * configured `bots` list).
  */
 export function buildReviewerPools(pulls: DerivedPull[]): Map<string, string[]> {
    const byRepo = new Map<string, Set<string>>();
@@ -40,7 +40,7 @@ export function buildReviewerPools(pulls: DerivedPull[]): Map<string, string[]> 
       const set = byRepo.get(p.data.repo) ?? new Set<string>();
       for (const sig of p.data.status.allCR) {
          const login = sig.data.user.login;
-         if (!isBotLogin(login, new Set())) set.add(login);
+         if (!isSuffixBot(login)) set.add(login);
       }
       byRepo.set(p.data.repo, set);
    }
@@ -49,7 +49,7 @@ export function buildReviewerPools(pulls: DerivedPull[]): Map<string, string[]> 
    return pools;
 }
 
-const TURN_STATUSES: Status[] = ['needs_cr', 'needs_recr'];
+const TURN_STATUSES = CR_INCOMPLETE;
 
 /**
  * Whose turn it is on this pull, or null when there's no rotation to name:

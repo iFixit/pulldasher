@@ -1,6 +1,6 @@
 import { epoch } from '../format';
 import type { CommitStatus, Label, PullData, RepoSpec, Signature } from '../types';
-import { isBotLogin } from './visibility';
+import { isSuffixBot } from './visibility';
 
 /**
  * One pull, one status. Mutually exclusive by precedence — the fix for v1's
@@ -108,9 +108,20 @@ export interface DerivedPull {
    engagedNoStamp: string[];
 }
 
-export type Weight = 'XS' | 'S' | 'M' | 'L' | 'XL';
-const WEIGHT_RANK: Record<Weight, number> = { XS: 0, S: 1, M: 2, L: 3, XL: 4 };
-const WEIGHTS: ReadonlySet<string> = new Set(['XS', 'S', 'M', 'L', 'XL']);
+export const WEIGHT_ORDER = ['XS', 'S', 'M', 'L', 'XL'] as const;
+export type Weight = (typeof WEIGHT_ORDER)[number];
+const WEIGHT_RANK: Record<Weight, number> = WEIGHT_ORDER.reduce(
+   (acc, w, i) => ({ ...acc, [w]: i }),
+   {} as Record<Weight, number>
+);
+const WEIGHTS: ReadonlySet<string> = new Set(WEIGHT_ORDER);
+
+/** Statuses where a pull is still short of the CR gate — either no re-stamp
+ * has covered a stale one (needs_recr) or the count is simply short
+ * (needs_cr). Shared so every "is this pull CR-incomplete?" check (starve
+ * math, the rotation, the review lanes, the stats lens) agrees on the same
+ * two statuses. */
+export const CR_INCOMPLETE: Status[] = ['needs_cr', 'needs_recr'];
 
 /**
  * Parse a raw `{ label title -> weight }` config object into a validated Map,
@@ -152,7 +163,7 @@ const staleUsers = (sigs: Signature[], author: string) => {
    );
 };
 
-function unique<T>(xs: T[]): T[] {
+export function unique<T>(xs: T[]): T[] {
    return [...new Set(xs)];
 }
 
@@ -265,9 +276,9 @@ export function derive(
    // APPROVED review already lands as a CR signature server-side) plus
    // comment-only participants: the "engaged but no stamp to show for it"
    // pool rowNote draws "answer their review" / "in discussion with" from.
-   // isBotLogin's suffix check is enough here (an empty extra set): this
-   // model module has no reason to depend on config.json's `bots` list, and
-   // a missed non-suffixed bot just shows up as a harmless extra name.
+   // isSuffixBot is enough here: this model module has no reason to depend on
+   // config.json's `bots` list, and a missed non-suffixed bot just shows up
+   // as a harmless extra name.
    const unstampedReviewers = st.unstamped_reviewers ?? [];
    const changesRequestedBy = unique(
       unstampedReviewers.filter(r => r.state === 'CHANGES_REQUESTED').map(r => r.login)
@@ -282,7 +293,7 @@ export function derive(
          ...(pull.participants ?? []).filter(
             login => login !== pull.user.login && !everStamped.has(login)
          ),
-      ].filter(login => !isBotLogin(login, new Set()))
+      ].filter(login => !isSuffixBot(login))
    );
 
    const conflict = pull.mergeable === false;
@@ -319,8 +330,7 @@ export function derive(
    // Rot is rot whether the pull has zero stamps, one of two, or a stale one
    // waiting on a re-stamp — the old `crHave === 0` cliff hid half-reviewed
    // pulls from the aging lane forever.
-   const starved =
-      !isParked && ['needs_cr', 'needs_recr'].includes(status) && !crMet && ageDays >= warnDays;
+   const starved = !isParked && CR_INCOMPLETE.includes(status) && !crMet && ageDays >= warnDays;
 
    const signedOffAt =
       crMet && qaMet
@@ -393,7 +403,7 @@ export function reviewWeight(pull: PullData): Weight {
    const files = pull.changed_files ?? 0;
    let i = size < 50 ? 0 : size < 150 ? 1 : size < 600 ? 2 : size < 1500 ? 3 : 4;
    if (files > 15 && i < 4) i++;
-   return (['XS', 'S', 'M', 'L', 'XL'] as const)[i];
+   return WEIGHT_ORDER[i];
 }
 
 export const weightRank = (w: Weight) => WEIGHT_RANK[w];

@@ -71,6 +71,15 @@ export function epoch(iso: string): number {
    return Date.parse(iso) / 1000;
 }
 
+/** One day in milliseconds — the day-bucketing unit stats.ts and
+ * statsHistory.ts both need for local-day gap-filling. */
+export const DAY_MS = 86_400_000;
+
+/** Local midnight for a given epoch-ms timestamp, as epoch ms. */
+export function startOfDay(t: number): number {
+   return new Date(t).setHours(0, 0, 0, 0);
+}
+
 /**
  * When a pull actually stopped moving, in epoch seconds: its close time, or
  * last activity as a fallback for the rare pull with no `closed_at`. The one

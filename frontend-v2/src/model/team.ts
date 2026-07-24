@@ -1,4 +1,4 @@
-import { STATUS_ORDER, type DerivedPull } from '../../../shared/model/status';
+import { CR_INCOMPLETE, STATUS_ORDER, type DerivedPull } from '../../../shared/model/status';
 import { crSort } from './sort';
 
 export interface TeamBuckets {
@@ -36,17 +36,11 @@ export function teamBuckets(
 
    const reviewable = crSort(
       theirs.filter(
-         p =>
-            reviewableByMe(p) &&
-            ['needs_cr', 'needs_recr'].includes(p.status) &&
-            !p.crBy.includes(me ?? '')
+         p => reviewableByMe(p) && CR_INCOMPLETE.includes(p.status) && !p.crBy.includes(me ?? '')
       )
    );
    const stamped = theirs.filter(
-      p =>
-         reviewableByMe(p) &&
-         ['needs_cr', 'needs_recr'].includes(p.status) &&
-         p.crBy.includes(me ?? '')
+      p => reviewableByMe(p) && CR_INCOMPLETE.includes(p.status) && p.crBy.includes(me ?? '')
    );
    const inLane = new Set([...reviewable, ...stamped]);
    const rest = theirs

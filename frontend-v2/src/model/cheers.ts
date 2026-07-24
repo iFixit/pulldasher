@@ -1,20 +1,19 @@
 import { pullKey } from '../../../shared/format';
 import type { PullData } from '../../../shared/types';
-import { actionState } from './actions';
+import { actionState, STALE_CLAIM_SECS } from './actions';
 import { dealFrom, dealRank } from './deal';
 import { reviewerRanks } from './leaderboard';
 import { claimFor, reviewRequestedFrom } from './reviewers';
 import { crSort } from './sort';
-import type { DerivedPull } from '../../../shared/model/status';
+import { CR_INCOMPLETE, type DerivedPull } from '../../../shared/model/status';
 import type { Toast } from './toast';
-import { isBotLogin } from '../../../shared/model/visibility';
+import { isSuffixBot } from '../../../shared/model/visibility';
 
 /** The suffix bot check ('…[bot]') is enough in the cheers layer — like
  * status.ts's engagedNoStamp, this module has no reason to depend on
  * the org's configured bots list, and a non-suffixed bot slipping through just costs
  * one soft nudge, never a wrong review decision. */
-const NO_EXTRA_BOTS: ReadonlySet<string> = new Set();
-const isBot = (p: DerivedPull) => isBotLogin(p.data.user.login, NO_EXTRA_BOTS);
+const isBot = (p: DerivedPull) => isSuffixBot(p.data.user.login);
 
 /**
  * "Cheers": the gamification layer. A pure, edge-triggered evaluator that turns
@@ -207,9 +206,8 @@ function durationPhrase(ms: number): string {
 
 /** A claim you're sitting on stops absolving other reviewers at 2h (see
  * model/actions STALE_CLAIM_SECS); that's the moment worth a nudge to either
- * finish it or hand it back. Kept here as a self-contained duplicate, same as
- * hasStamp, so the evaluator doesn't couple to the actions module. */
-const STALE_CLAIM_MS = 2 * 60 * 60 * 1000;
+ * finish it or hand it back. */
+const STALE_CLAIM_MS = STALE_CLAIM_SECS * 1000;
 
 /** Session stamp counts worth celebrating. */
 const MILESTONES = [3, 5, 10];
@@ -425,9 +423,7 @@ function readSignals(input: CheerInput): Signals {
    }
 
    const boardReviewable = pulls.filter(
-      p =>
-         !p.cryo &&
-         (p.status === 'needs_cr' || p.status === 'needs_recr' || p.status === 'needs_qa')
+      p => !p.cryo && (CR_INCOMPLETE.includes(p.status) || p.status === 'needs_qa')
    ).length;
 
    // claims of yours gone stale that you still haven't stamped — the nudge to
@@ -457,7 +453,7 @@ function readSignals(input: CheerInput): Signals {
       const key = pullKey(p.data);
       if (
          !p.cryo &&
-         (p.status === 'needs_cr' || p.status === 'needs_recr') &&
+         CR_INCOMPLETE.includes(p.status) &&
          reviewRequestedFrom(p, me) &&
          !p.crBy.includes(me)
       ) {

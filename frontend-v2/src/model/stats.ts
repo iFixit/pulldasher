@@ -1,5 +1,14 @@
+import { DAY_MS, startOfDay } from '../../../shared/format';
 import type { PullData } from '../../../shared/types';
-import { type DerivedPull, type Status, type Weight, STATUS_ORDER, reviewWeight } from '../../../shared/model/status';
+import {
+   CR_INCOMPLETE,
+   type DerivedPull,
+   type Status,
+   type Weight,
+   STATUS_ORDER,
+   WEIGHT_ORDER,
+   reviewWeight,
+} from '../../../shared/model/status';
 
 /**
  * The Stats lens's aggregation layer: pure reductions over the same open pool
@@ -74,7 +83,7 @@ export interface Starved {
 export function crStarvation(pulls: DerivedPull[]): Starved[] {
    const by = new Map<string, { count: number; totalDays: number; worstDays: number }>();
    for (const p of pulls) {
-      if (!['needs_cr', 'needs_recr'].includes(p.status)) continue;
+      if (!CR_INCOMPLETE.includes(p.status)) continue;
       const login = p.data.user.login;
       const cur = by.get(login) ?? { count: 0, totalDays: 0, worstDays: 0 };
       cur.count += 1;
@@ -103,8 +112,6 @@ export interface MergeBySize {
    merged: number;
 }
 
-const WEIGHTS: Weight[] = ['XS', 'S', 'M', 'L', 'XL'];
-
 /**
  * How long a merge takes by diff size, over the closed window. Merge time is
  * merged_at − created_at; a pull only counts if it merged, carries a size
@@ -113,7 +120,7 @@ const WEIGHTS: Weight[] = ['XS', 'S', 'M', 'L', 'XL'];
  * the median is the honest "typical".
  */
 export function mergeTimeBySize(closed: PullData[]): MergeBySize {
-   const hours = new Map<Weight, number[]>(WEIGHTS.map(w => [w, []]));
+   const hours = new Map<Weight, number[]>(WEIGHT_ORDER.map(w => [w, []]));
    let sampled = 0;
    let merged = 0;
    for (const d of closed) {
@@ -126,7 +133,7 @@ export function mergeTimeBySize(closed: PullData[]): MergeBySize {
       hours.get(reviewWeight(d))!.push(h);
       sampled += 1;
    }
-   const buckets = WEIGHTS.map(weight => {
+   const buckets = WEIGHT_ORDER.map(weight => {
       const xs = hours.get(weight)!;
       return {
          weight,
@@ -143,11 +150,6 @@ function median(xs: number[]): number {
    const s = [...xs].sort((a, b) => a - b);
    const mid = Math.floor(s.length / 2);
    return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-}
-
-const DAY_MS = 86_400_000;
-function startOfDay(t: number): number {
-   return new Date(t).setHours(0, 0, 0, 0);
 }
 
 export interface DayCount {
@@ -226,13 +228,13 @@ export interface EffortMix {
 
 /** the open board's review effort, by weight class. */
 export function effortMix(pulls: DerivedPull[]): EffortMix {
-   const by = new Map<Weight, number>(WEIGHTS.map(w => [w, 0]));
+   const by = new Map<Weight, number>(WEIGHT_ORDER.map(w => [w, 0]));
    let estimated = 0;
    for (const p of pulls) {
       by.set(p.weight, by.get(p.weight)! + 1);
       if (p.data.additions == null && p.data.deletions == null) estimated += 1;
    }
-   return { buckets: WEIGHTS.map(weight => ({ weight, count: by.get(weight)! })), estimated };
+   return { buckets: WEIGHT_ORDER.map(weight => ({ weight, count: by.get(weight)! })), estimated };
 }
 
 export interface ReviewDebt {
@@ -254,7 +256,7 @@ export interface ReviewDebt {
 export function reviewDebt(pulls: DerivedPull[]): ReviewDebt {
    const debt = { crSlots: 0, qaSlots: 0, restamps: 0, unclaimedQa: 0 };
    for (const p of pulls) {
-      if (['needs_cr', 'needs_recr'].includes(p.status))
+      if (CR_INCOMPLETE.includes(p.status))
          debt.crSlots += Math.max(p.data.status.cr_req - p.crHave, 0);
       if (p.status === 'needs_qa') {
          debt.qaSlots += Math.max(p.data.status.qa_req - p.qaHave, 0);
@@ -347,7 +349,7 @@ export function authorLoad(pulls: DerivedPull[]): AuthorLoad[] {
    for (const p of pulls) {
       const cur = by.get(p.data.user.login) ?? { count: 0, awaitingCr: 0, oldestDays: 0 };
       cur.count += 1;
-      if (['needs_cr', 'needs_recr'].includes(p.status)) cur.awaitingCr += 1;
+      if (CR_INCOMPLETE.includes(p.status)) cur.awaitingCr += 1;
       cur.oldestDays = Math.max(cur.oldestDays, p.ageDays);
       by.set(p.data.user.login, cur);
    }
@@ -373,7 +375,7 @@ export function repoBreakdown(pulls: DerivedPull[]): RepoLoad[] {
    for (const p of pulls) {
       const cur = by.get(p.data.repo) ?? { count: 0, awaitingCr: 0, oldestDays: 0 };
       cur.count += 1;
-      if (['needs_cr', 'needs_recr'].includes(p.status)) cur.awaitingCr += 1;
+      if (CR_INCOMPLETE.includes(p.status)) cur.awaitingCr += 1;
       cur.oldestDays = Math.max(cur.oldestDays, p.ageDays);
       by.set(p.data.repo, cur);
    }

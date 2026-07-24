@@ -1,7 +1,7 @@
 import { ago } from '../../../shared/format';
 import { requestedReviewers } from './reviewers';
-import type { DerivedPull } from '../../../shared/model/status';
-import { isBotLogin } from '../../../shared/model/visibility';
+import { CR_INCOMPLETE, unique, type DerivedPull } from '../../../shared/model/status';
+import { isSuffixBot } from '../../../shared/model/visibility';
 
 /**
  * The three statuses that put the ball wholly with the author — while one
@@ -113,7 +113,6 @@ export interface RowNote {
 
 const doOnly = (action: string): RowNote => ({ action, context: null });
 const waitOnly = (context: string): RowNote => ({ action: null, context });
-const unique = (xs: string[]): string[] => [...new Set(xs)];
 
 /**
  * Mirrors components/bits.tsx STATUS_LABEL. Duplicated rather than imported:
@@ -157,7 +156,7 @@ function authorNote(p: DerivedPull, me: string): RowNote {
       if (!otherBlockers.length) return doOnly('Lift your block');
       return { action: 'Address feedback', context: `from ${who(otherBlockers)}` };
    }
-   if ((p.status === 'needs_cr' || p.status === 'needs_recr') && p.changesRequestedBy.length) {
+   if (CR_INCOMPLETE.includes(p.status) && p.changesRequestedBy.length) {
       // ball-tracking: once you've pushed past the review, the move is theirs
       if (feedbackAnswered(p))
          return waitOnly(`waiting on ${who(p.changesRequestedBy)} to re-review${pushed}`);
@@ -190,7 +189,7 @@ function authorNote(p: DerivedPull, me: string): RowNote {
       // quarter of the live board, burying the real queue-position context.
       const reviewerLogins = unique(
          (d.status.unstamped_reviewers ?? [])
-            .filter(r => r.state !== 'DISMISSED' && !isBotLogin(r.login, new Set()))
+            .filter(r => r.state !== 'DISMISSED' && !isSuffixBot(r.login))
             .map(r => r.login)
       );
       if (reviewerLogins.length)
@@ -241,7 +240,7 @@ export interface Claim {
 
 /** A claim older than this no longer absolves anyone else — the reader may
  * have wandered off, so the pull goes back on the market. */
-const STALE_CLAIM_SECS = 2 * 3600;
+export const STALE_CLAIM_SECS = 2 * 3600;
 
 /**
  * Layers claim/turn coordination onto a base needs_cr/needs_recr note — the
@@ -338,7 +337,7 @@ function reviewerNote(
             ? 'your block stands; lift it when ready'
             : `feedback from ${who(p.devBlockedBy)}`
       );
-   if ((p.status === 'needs_cr' || p.status === 'needs_recr') && p.changesRequestedBy.length) {
+   if (CR_INCOMPLETE.includes(p.status) && p.changesRequestedBy.length) {
       // the author has pushed past the review: the requester's move now is to
       // re-review (an action for them, a wait for everyone else)
       if (feedbackAnswered(p)) {
@@ -352,7 +351,7 @@ function reviewerNote(
    // CR stamp earns the reassuring "you've stamped" count instead of the
    // generic "waiting on a re-stamp" line, so this check runs before the
    // plain needs_recr branch below, not after it.
-   if ((p.status === 'needs_cr' || p.status === 'needs_recr') && p.crBy.includes(me))
+   if (CR_INCOMPLETE.includes(p.status) && p.crBy.includes(me))
       return waitOnly(`you've stamped · ${p.crHave} of ${crReq}`);
    if (p.status === 'needs_recr')
       return withCoordination(
