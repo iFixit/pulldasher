@@ -2,7 +2,7 @@ import { CRYO_KEY } from '../../../../shared/model/visibility';
 import { setSettings, useSettings } from '../../settings';
 import { QuietButton } from '../bits';
 import { Popover } from '../Popover';
-import { FilterTrigger } from './shared';
+import { CheckboxField, FilterTrigger } from './shared';
 
 /** Per-category sizes of everything the board hides by default — computed in
  * app.tsx beside the visibility filter itself so the two can't drift. */
@@ -73,17 +73,17 @@ export function HiddenPanel({
       makeDefault?: () => void
    ) => (
       <div key={key} className="px-1.5 py-1">
-         <label className="flex items-center gap-2">
-            <input
-               type="checkbox"
-               className="m-0 disabled:opacity-40"
-               checked={checked}
-               disabled={disabled}
-               onChange={onToggle}
-            />
-            <span className="flex-1 text-[13px]">{label}</span>
-            <span className="text-[11px] text-ink-3 tabular-nums">{count}</span>
-         </label>
+         <CheckboxField
+            checked={checked}
+            disabled={disabled}
+            onChange={onToggle}
+            ariaLabel={label}
+            className="flex items-center gap-2"
+            textClassName="flex-1 text-[13px]"
+            count={count}
+         >
+            {label}
+         </CheckboxField>
          <p className="mt-0.5 pl-[22px] text-[11px] leading-snug text-ink-3">{gloss}</p>
          {makeDefault && (
             <div className="mt-1 pl-[22px]">
@@ -174,15 +174,15 @@ export function HiddenPanel({
                   'Show them again from the People filter.'
                )}
             <div className="mt-1.5 border-t border-secondary px-1.5 pt-2 pb-1">
-               <label className="flex items-center gap-2">
-                  <input
-                     type="checkbox"
-                     className="m-0"
-                     checked={showAll}
-                     onChange={() => setShowAll(!showAll)}
-                  />
-                  <span className="text-[13px]">Show everything for now</span>
-               </label>
+               <CheckboxField
+                  checked={showAll}
+                  onChange={() => setShowAll(!showAll)}
+                  ariaLabel="Show everything for now"
+                  className="flex items-center gap-2"
+                  textClassName="text-[13px]"
+               >
+                  Show everything for now
+               </CheckboxField>
             </div>
             {/* the one-click undo for every session reveal lives in the
                 panel now — a bar-level × that came and went moved the bar */}

@@ -6,7 +6,15 @@ import type { Scope } from '../../prefs';
 import { setRepoPref, setSettings, useSettings } from '../../settings';
 import { Icon } from '../Icon';
 import { Popover } from '../Popover';
-import { ClearRow, EyeButton, FilterRow, FilterSearch, FilterTrigger, OnlyButton } from './shared';
+import {
+   CheckboxField,
+   ClearRow,
+   EyeButton,
+   FilterRow,
+   FilterSearch,
+   FilterTrigger,
+   OnlyButton,
+} from './shared';
 
 /**
  * The repos filter: opens straight into the repo list (no tabs — the old
@@ -149,23 +157,19 @@ export function RepoFilter({
          >
             <Icon icon={GripVertical} size={13} />
          </span>
-         <label className="flex min-w-0 flex-1 items-center gap-2">
-            <input
-               type="checkbox"
-               className="m-0"
-               checked={included(name)}
-               onChange={() =>
-                  toggleScope(
-                     name,
-                     shownRepos.map(r => r.name)
-                  )
-               }
-               aria-label={`scope to ${shortRepo(name)}`}
-            />
-            <span title={name} className="min-w-0 flex-1 truncate text-[13px]">
-               {shortRepo(name)}
-            </span>
-         </label>
+         <CheckboxField
+            checked={included(name)}
+            onChange={() =>
+               toggleScope(
+                  name,
+                  shownRepos.map(r => r.name)
+               )
+            }
+            ariaLabel={`scope to ${shortRepo(name)}`}
+            title={name}
+         >
+            {shortRepo(name)}
+         </CheckboxField>
          {/* "only" leads the right cluster: it fades in on hover, so it must
              not interject between the standing count and eye */}
          <OnlyButton onClick={() => setScope({ ...scope, repos: [name] })} />
@@ -180,20 +184,17 @@ export function RepoFilter({
 
    const hiddenRow = (name: string, count: number) => (
       <FilterRow key={name}>
-         <label className="flex min-w-0 flex-1 items-center gap-2">
-            <input
-               type="checkbox"
-               className="m-0 disabled:opacity-40"
-               checked={showAll || reveal.includes(name)}
-               disabled={showAll}
-               onChange={() => toggleReveal(name)}
-               aria-label={`reveal ${shortRepo(name)} for now`}
-            />
-            <span title={name} className="min-w-0 flex-1 truncate text-[13px] text-ink-3">
-               {shortRepo(name)}
-            </span>
-            <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
-         </label>
+         <CheckboxField
+            checked={showAll || reveal.includes(name)}
+            disabled={showAll}
+            onChange={() => toggleReveal(name)}
+            ariaLabel={`reveal ${shortRepo(name)} for now`}
+            title={name}
+            textClassName="min-w-0 flex-1 truncate text-[13px] text-ink-3"
+            count={count || ''}
+         >
+            {shortRepo(name)}
+         </CheckboxField>
          <EyeButton hidden subject={shortRepo(name)} onClick={() => setRepoPref(name, null)} />
       </FilterRow>
    );

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { CircleHelp, Heart, Star } from 'lucide-react';
+import { HeaderIconButton } from './bits';
 import { Icon } from './Icon';
 import { Popover } from './Popover';
 import { eyebrowText } from './WordGroups';
@@ -55,17 +56,7 @@ export function Legend() {
          side="right"
          width="w-[420px] max-w-[calc(100vw-2rem)]"
          panelClass="max-h-[85vh] overflow-auto p-3 text-xs"
-         trigger={t => (
-            <button
-               {...t}
-               type="button"
-               aria-label="how to read the board"
-               title="how to read the board"
-               className="pressable inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-surface text-ink-3 hover:text-brand"
-            >
-               <Icon icon={CircleHelp} size={16} />
-            </button>
-         )}
+         trigger={t => <HeaderIconButton {...t} icon={CircleHelp} label="how to read the board" />}
       >
          <span className="block px-1 pb-0.5 text-[13px] font-semibold text-ink">
             Reading the board

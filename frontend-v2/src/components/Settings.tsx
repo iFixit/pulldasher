@@ -12,7 +12,7 @@ import {
    useSettings,
 } from '../settings';
 import { LENS_LABELS, type Lens } from '../lens';
-import { QuietButton, Segmented } from './bits';
+import { HeaderIconButton, QuietButton, Segmented } from './bits';
 import { Icon } from './Icon';
 import { Explainer, Field, Group, NumberField } from './SettingsBits';
 import { useArmedConfirm } from './useArmedConfirm';
@@ -175,18 +175,14 @@ export function Settings({
 
    return (
       <>
-         <button
+         <HeaderIconButton
             ref={triggerRef}
-            type="button"
             aria-haspopup="dialog"
             aria-expanded={open}
-            aria-label="settings"
-            title="settings"
+            icon={SettingsIcon}
+            label="settings"
             onClick={() => setOpen(o => !o)}
-            className="pressable inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-surface text-ink-2 hover:text-brand"
-         >
-            <Icon icon={SettingsIcon} size={16} />
-         </button>
+         />
          {open &&
             createPortal(
                <div className="fixed inset-0 z-[100]">

@@ -2,8 +2,7 @@ import type { ActionStateKey } from '../../model/actions';
 import { actionState } from '../../model/actions';
 import type { DerivedPull } from '../../../../shared/model/status';
 import { usePulldasher } from '../../store';
-import { Popover } from '../Popover';
-import { ClearRow, FilterRow, FilterTrigger, OnlyButton } from './shared';
+import { ChecklistFilter } from './shared';
 
 /**
  * State filter option order: what's waiting on you first (the thing you're
@@ -60,41 +59,18 @@ export function StateFilter({
            : `${first} +${stateSel.length - 1}`;
 
    return (
-      <div>
-         <Popover
-            label="State filter"
-            width="w-[220px]"
-            panelClass="p-2"
-            rootClass="relative inline-flex items-center"
-            trigger={t => (
-               <FilterTrigger
-                  t={t}
-                  label="State"
-                  badge={stateSel.length ? String(stateSel.length) : null}
-                  title={value ? `State · ${value}` : undefined}
-                  ariaLabel={`state filter: ${value ?? 'off'}`}
-               />
-            )}
-         >
-            {STATE_OPTIONS.map(({ key, label }) => (
-               <FilterRow key={key}>
-                  <label className="flex min-w-0 flex-1 items-center gap-2">
-                     <input
-                        type="checkbox"
-                        className="m-0"
-                        checked={stateSel.includes(key)}
-                        onChange={() => toggle(key)}
-                     />
-                     <span className="min-w-0 flex-1 truncate text-[13px]">{label}</span>
-                     <span className="text-[11px] text-ink-3 tabular-nums">
-                        {counts.get(key) || ''}
-                     </span>
-                  </label>
-                  <OnlyButton onClick={() => setStateSel([key])} />
-               </FilterRow>
-            ))}
-            <ClearRow active={stateSel.length > 0} onClear={() => setStateSel([])} />
-         </Popover>
-      </div>
+      <ChecklistFilter
+         popoverLabel="State filter"
+         triggerLabel="State"
+         badge={stateSel.length ? String(stateSel.length) : null}
+         triggerTitle={value ? `State · ${value}` : undefined}
+         ariaLabel={`state filter: ${value ?? 'off'}`}
+         options={STATE_OPTIONS}
+         counts={counts}
+         selected={stateSel}
+         onToggle={toggle}
+         onOnly={key => setStateSel([key])}
+         onClear={() => setStateSel([])}
+      />
    );
 }

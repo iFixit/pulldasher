@@ -1,7 +1,7 @@
 import type { ChangeEvent, ComponentPropsWithoutRef, ReactNode } from 'react';
 import { ChevronDown, Eye, EyeClosed } from 'lucide-react';
 import { Icon } from '../Icon';
-import type { PopoverTriggerProps } from '../Popover';
+import { Popover, type PopoverTriggerProps } from '../Popover';
 import { CornerBadge, QuietButton, textInputClass } from '../bits';
 
 /**
@@ -157,6 +157,88 @@ export function FilterRow({
 }
 
 /**
+ * The labelled-checkbox inner block every checkbox row on the board shares
+ * (WeightFilter, StateFilter, RepoFilter, HiddenPanel, PeopleFilter,
+ * TeamPicker's CandidateRow): a native checkbox, an optional leading slot
+ * (an avatar), the option's text, and an optional trailing count — one
+ * definition so the five copy-pasted versions of this can't drift. The row
+ * wrapper (FilterRow or a caller's own div) and any sibling OnlyButton/
+ * EyeButton stay at the call site — this only ever renders the `<label>`.
+ *
+ * `className`/`textClassName` default to the recipe most callers share, but
+ * a couple of rows (HiddenPanel's wider text column, TeamPicker's row that
+ * already carries `text-[13px]` on the label itself) need their own — both
+ * are fully overridable rather than assumed.
+ *
+ * Accessibility fix folded into every adopter: a clean `aria-label` (the
+ * option name only, no count) instead of relying on the label's full text
+ * content — which used to read out as e.g. "django 12" to a screen reader,
+ * the count leaking into the accessible name. The count span itself is
+ * `aria-hidden` so it never re-enters the name once the checkbox already
+ * carries it correctly.
+ */
+export function CheckboxField({
+   checked,
+   onChange,
+   children,
+   count,
+   leading,
+   ariaLabel,
+   disabled,
+   title,
+   checkboxTitle,
+   className = 'flex min-w-0 flex-1 items-center gap-2',
+   textClassName = 'min-w-0 flex-1 truncate text-[13px]',
+}: {
+   checked: boolean;
+   onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+   /** the option's visible text/content */
+   children: ReactNode;
+   /** trailing count, rendered aria-hidden; omit to render no count span at
+    * all (matches call sites where the count lives outside this label) */
+   count?: ReactNode;
+   /** rendered between the checkbox and the text — TeamPicker/PeopleFilter's
+    * avatar slot */
+   leading?: ReactNode;
+   /** the checkbox's accessible name — the option name only, never the count */
+   ariaLabel: string;
+   disabled?: boolean;
+   /** native title attribute on the text span (Repo/People rows show the
+    * full name on hover) */
+   title?: string;
+   /** native title attribute on the checkbox itself (PeopleFilter's
+    * shift-click hint) */
+   checkboxTitle?: string;
+   /** override the label wrapper's classes */
+   className?: string;
+   /** override the text span's classes */
+   textClassName?: string;
+}) {
+   return (
+      <label className={className}>
+         <input
+            type="checkbox"
+            className={disabled !== undefined ? 'm-0 disabled:opacity-40' : 'm-0'}
+            checked={checked}
+            disabled={disabled}
+            title={checkboxTitle}
+            onChange={onChange}
+            aria-label={ariaLabel}
+         />
+         {leading}
+         <span title={title} className={textClassName}>
+            {children}
+         </span>
+         {count != null && (
+            <span aria-hidden className="text-[11px] text-ink-3 tabular-nums">
+               {count}
+            </span>
+         )}
+      </label>
+   );
+}
+
+/**
  * The "only" quick-action: narrows a filter-picker's selection to exactly
  * this one row's item, deselecting everything else. Hidden until the row is
  * hovered or the button itself is keyboard-focused, so it never crowds the
@@ -215,5 +297,81 @@ export function EyeButton({
       >
          <Icon icon={hidden ? EyeClosed : Eye} size={14} />
       </button>
+   );
+}
+
+/**
+ * The generic shape WeightFilter and StateFilter both build by hand: a count
+ * per option over the pre-filtered pool, a toggle over a selection array, a
+ * FilterTrigger with a length-derived badge, a FilterRow list of
+ * CheckboxField + OnlyButton, and a trailing ClearRow. The badge/title
+ * wording differs per filter (a lone weight collapses to its letter; state
+ * collapses to "first +N"), so those stay the caller's own derivation —
+ * this only owns the popover/list/clear plumbing they'd otherwise repeat.
+ */
+export function ChecklistFilter<K extends string>({
+   popoverLabel,
+   triggerLabel,
+   badge,
+   triggerTitle,
+   ariaLabel,
+   options,
+   counts,
+   selected,
+   onToggle,
+   onOnly,
+   onClear,
+}: {
+   /** the Popover panel's own aria-label, e.g. "Weight filter" */
+   popoverLabel: string;
+   /** the trigger's always-visible dimension name, e.g. "Weight" */
+   triggerLabel: string;
+   /** 1–3 character corner-badge text; null/empty renders no badge */
+   badge: string | null;
+   /** hover title on the trigger when active */
+   triggerTitle?: string;
+   /** the trigger's accessible name */
+   ariaLabel: string;
+   options: { key: K; label: string }[];
+   /** option key -> open-PR count in the caller's pre-filtered pool */
+   counts: Map<K, number>;
+   selected: K[];
+   onToggle: (key: K) => void;
+   onOnly: (key: K) => void;
+   onClear: () => void;
+}) {
+   return (
+      <div>
+         <Popover
+            label={popoverLabel}
+            width="w-[220px]"
+            panelClass="p-2"
+            rootClass="relative inline-flex items-center"
+            trigger={t => (
+               <FilterTrigger
+                  t={t}
+                  label={triggerLabel}
+                  badge={badge}
+                  title={triggerTitle}
+                  ariaLabel={ariaLabel}
+               />
+            )}
+         >
+            {options.map(({ key, label }) => (
+               <FilterRow key={key}>
+                  <CheckboxField
+                     checked={selected.includes(key)}
+                     onChange={() => onToggle(key)}
+                     ariaLabel={label}
+                     count={counts.get(key) || ''}
+                  >
+                     {label}
+                  </CheckboxField>
+                  <OnlyButton onClick={() => onOnly(key)} />
+               </FilterRow>
+            ))}
+            <ClearRow active={selected.length > 0} onClear={onClear} />
+         </Popover>
+      </div>
    );
 }

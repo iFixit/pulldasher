@@ -1,6 +1,6 @@
 import type { ForwardRefExoticComponent, SVGProps } from 'react';
 
-type LucideComponent = ForwardRefExoticComponent<
+export type LucideComponent = ForwardRefExoticComponent<
    SVGProps<SVGSVGElement> & { size?: number | string }
 >;
 

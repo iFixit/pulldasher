@@ -5,7 +5,7 @@ import { isBotLogin } from '../../../shared/model/visibility';
 import { removeTeam, renameTeam, toggleTeammate, useSettings } from '../settings';
 import { usePulldasher } from '../store';
 import { textInputClass } from './bits';
-import { FilterSearch, hoverRowClass } from './filters/shared';
+import { CheckboxField, FilterSearch, hoverRowClass } from './filters/shared';
 import { Avatar } from './identity';
 import { Icon } from './Icon';
 import { useArmedConfirm } from './useArmedConfirm';
@@ -34,23 +34,19 @@ function CandidateRow({
    onToggle: () => void;
 }) {
    return (
-      <label className={`gap-2 text-[13px] ${hoverRowClass}`}>
-         <input
-            type="checkbox"
-            className="m-0"
-            checked={checked}
-            onChange={onToggle}
-            aria-label={checked ? `remove ${login} from this team` : `add ${login} to this team`}
-         />
-         <Avatar login={login} size={18} />
-         <span title={login} className="min-w-0 flex-1 truncate">
-            {name ?? login}
-            {self && <span className="ml-1 text-[11px] text-ink-3">(you)</span>}
-         </span>
-         {count != null && (
-            <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
-         )}
-      </label>
+      <CheckboxField
+         checked={checked}
+         onChange={onToggle}
+         ariaLabel={checked ? `remove ${login} from this team` : `add ${login} to this team`}
+         leading={<Avatar login={login} size={18} />}
+         title={login}
+         className={`gap-2 text-[13px] ${hoverRowClass}`}
+         textClassName="min-w-0 flex-1 truncate"
+         count={count == null ? undefined : count || ''}
+      >
+         {name ?? login}
+         {self && <span className="ml-1 text-[11px] text-ink-3">(you)</span>}
+      </CheckboxField>
    );
 }
 

@@ -1,7 +1,6 @@
 import type { DerivedPull } from '../../../../shared/model/status';
 import { weightFilterKey } from '../../../../shared/model/status';
-import { Popover } from '../Popover';
-import { ClearRow, FilterRow, FilterTrigger, OnlyButton } from './shared';
+import { ChecklistFilter } from './shared';
 
 /** Weight filter option order: lightest to heaviest — mirrors the rail's
  * own weight-letter read (XS through XL). */
@@ -44,52 +43,29 @@ export function WeightFilter({
    const value = weightSel.length ? weightSel.map(k => k.toUpperCase()).join(', ') : null;
 
    return (
-      <div>
-         <Popover
-            label="Weight filter"
-            width="w-[220px]"
-            panelClass="p-2"
-            rootClass="relative inline-flex items-center"
-            trigger={t => (
-               <FilterTrigger
-                  t={t}
-                  label="Weight"
-                  // a lone weight is short enough to BE the badge; more
-                  // collapse to their count ('unknown' can only arrive via a
-                  // weight: query token — the panel doesn't offer it)
-                  badge={
-                     weightSel.length === 0
-                        ? null
-                        : weightSel.length === 1
-                          ? weightSel[0] === 'unknown'
-                             ? '?'
-                             : weightSel[0].toUpperCase()
-                          : String(weightSel.length)
-                  }
-                  title={value ? `Weight · ${value}` : undefined}
-                  ariaLabel={`weight filter: ${value ?? 'off'}`}
-               />
-            )}
-         >
-            {WEIGHT_OPTIONS.map(({ key, label }) => (
-               <FilterRow key={key}>
-                  <label className="flex min-w-0 flex-1 items-center gap-2">
-                     <input
-                        type="checkbox"
-                        className="m-0"
-                        checked={weightSel.includes(key)}
-                        onChange={() => toggle(key)}
-                     />
-                     <span className="min-w-0 flex-1 truncate text-[13px]">{label}</span>
-                     <span className="text-[11px] text-ink-3 tabular-nums">
-                        {counts.get(key) || ''}
-                     </span>
-                  </label>
-                  <OnlyButton onClick={() => setWeightSel([key])} />
-               </FilterRow>
-            ))}
-            <ClearRow active={weightSel.length > 0} onClear={() => setWeightSel([])} />
-         </Popover>
-      </div>
+      <ChecklistFilter
+         popoverLabel="Weight filter"
+         triggerLabel="Weight"
+         // a lone weight is short enough to BE the badge; more collapse to
+         // their count ('unknown' can only arrive via a weight: query token
+         // — the panel doesn't offer it)
+         badge={
+            weightSel.length === 0
+               ? null
+               : weightSel.length === 1
+                 ? weightSel[0] === 'unknown'
+                    ? '?'
+                    : weightSel[0].toUpperCase()
+                 : String(weightSel.length)
+         }
+         triggerTitle={value ? `Weight · ${value}` : undefined}
+         ariaLabel={`weight filter: ${value ?? 'off'}`}
+         options={WEIGHT_OPTIONS}
+         counts={counts}
+         selected={weightSel}
+         onToggle={toggle}
+         onOnly={key => setWeightSel([key])}
+         onClear={() => setWeightSel([])}
+      />
    );
 }

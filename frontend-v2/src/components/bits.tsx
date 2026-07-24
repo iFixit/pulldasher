@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
-import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { forwardRef, useEffect, useState } from 'react';
+import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import type { Status, Weight } from '../../../shared/model/status';
 import { githubUrl, shortRepo } from '../../../shared/format';
 import { getSettings } from '../settings';
+import { Icon, type LucideComponent } from './Icon';
 import { Popover } from './Popover';
 
 /**
@@ -114,6 +115,44 @@ export function QuietButton({
       />
    );
 }
+
+/**
+ * The 8×8 bordered-square header icon button — Legend, Settings, and
+ * NotificationPanel's three trigger buttons, one recipe instead of three
+ * hand-copies. `ref`/`onClick`/`aria-*` spread through via `...rest` so it
+ * still works as a Popover trigger (Legend, NotificationPanel spread `t`
+ * straight onto it) or a plain ref+onClick pair (Settings' portal drawer).
+ * `title` defaults to `label` (most callers' hover text repeats their
+ * aria-label verbatim); pass it explicitly when they diverge (NotificationPanel's
+ * title stays "recent nudges" while the aria-label grows an unseen count).
+ * `className`/`children` extend the recipe for NotificationPanel's `relative`
+ * positioning and count badge overlay.
+ */
+export const HeaderIconButton = forwardRef<
+   HTMLButtonElement,
+   ButtonHTMLAttributes<HTMLButtonElement> & {
+      icon: LucideComponent;
+      /** the button's accessible name */
+      label: string;
+      /** hover title text; defaults to `label` */
+      title?: string;
+      children?: ReactNode;
+   }
+>(function HeaderIconButton({ icon, label, title, className = '', children, ...rest }, ref) {
+   return (
+      <button
+         ref={ref}
+         type="button"
+         aria-label={label}
+         title={title ?? label}
+         className={`pressable inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-surface text-ink-3 hover:text-brand ${className}`.trim()}
+         {...rest}
+      >
+         <Icon icon={icon} size={16} />
+         {children}
+      </button>
+   );
+});
 
 /**
  * Merged/closed state as a pill — the one badge left on the board; open pulls

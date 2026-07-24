@@ -8,7 +8,15 @@ import { usePulldasher } from '../../store';
 import { Icon } from '../Icon';
 import { Avatar } from '../identity';
 import { Popover } from '../Popover';
-import { ClearRow, EyeButton, FilterRow, FilterSearch, FilterTrigger, OnlyButton } from './shared';
+import {
+   CheckboxField,
+   ClearRow,
+   EyeButton,
+   FilterRow,
+   FilterSearch,
+   FilterTrigger,
+   OnlyButton,
+} from './shared';
 
 /**
  * The people filter: a searchable author list where scope (on my board) and
@@ -125,43 +133,38 @@ export function PeopleFilter({
                const excluded = scope.notAuthors.includes(login);
                return (
                   <FilterRow key={login}>
-                     <label className="flex min-w-0 flex-1 items-center gap-2">
-                        <input
-                           type="checkbox"
-                           className="m-0"
-                           checked={included(login) && !excluded}
-                           title={
-                              excluded
-                                 ? 'excluded — click to show their PRs again'
-                                 : '⇧ click: everyone except them'
-                           }
-                           // ⇧-click is the "everyone except" gesture. It rides the
-                           // change event, not onClick: React synthesizes checkbox
-                           // onChange from the click, so a preventDefault-ed onClick
-                           // still fires it and the two writes race. The checkbox is
-                           // controlled, so the render restores the right checked
-                           // state either way.
-                           onChange={e => {
-                              if ((e.nativeEvent as MouseEvent).shiftKey)
-                                 return excluded ? include(login) : exclude(login);
-                              excluded
-                                 ? include(login)
-                                 : toggleScope(
-                                      login,
-                                      authors.map(([l]) => l)
-                                   );
-                           }}
-                        />
-                        <Avatar login={login} size={18} />
-                        <span
-                           title={login}
-                           className={`min-w-0 flex-1 truncate text-[13px] ${
-                              excluded ? 'text-ink-3 line-through' : ''
-                           }`}
-                        >
-                           {nameOf(login) ?? login}
-                        </span>
-                     </label>
+                     <CheckboxField
+                        checked={included(login) && !excluded}
+                        checkboxTitle={
+                           excluded
+                              ? 'excluded — click to show their PRs again'
+                              : '⇧ click: everyone except them'
+                        }
+                        // ⇧-click is the "everyone except" gesture. It rides the
+                        // change event, not onClick: React synthesizes checkbox
+                        // onChange from the click, so a preventDefault-ed onClick
+                        // still fires it and the two writes race. The checkbox is
+                        // controlled, so the render restores the right checked
+                        // state either way.
+                        onChange={e => {
+                           if ((e.nativeEvent as MouseEvent).shiftKey)
+                              return excluded ? include(login) : exclude(login);
+                           excluded
+                              ? include(login)
+                              : toggleScope(
+                                   login,
+                                   authors.map(([l]) => l)
+                                );
+                        }}
+                        ariaLabel={nameOf(login) ?? login}
+                        leading={<Avatar login={login} size={18} />}
+                        title={login}
+                        textClassName={`min-w-0 flex-1 truncate text-[13px] ${
+                           excluded ? 'text-ink-3 line-through' : ''
+                        }`}
+                     >
+                        {nameOf(login) ?? login}
+                     </CheckboxField>
                      {/* "only" leads the right cluster: it fades in on hover, so
                          it must not interject between the standing count and eye */}
                      <OnlyButton

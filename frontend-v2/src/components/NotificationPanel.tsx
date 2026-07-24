@@ -16,7 +16,7 @@ import {
    unlockSound,
 } from '../notifications';
 import type { ToastRecord } from '../toasts';
-import { QuietButton, Segmented, Switch } from './bits';
+import { HeaderIconButton, QuietButton, Segmented, Switch } from './bits';
 import { Icon } from './Icon';
 import { onOpen, Popover } from './Popover';
 import { Explainer, Field } from './SettingsBits';
@@ -264,10 +264,10 @@ export function NotificationPanel({
                : 'max-h-[70vh] overflow-auto p-0 text-xs'
          }
          trigger={t => (
-            <button
+            <HeaderIconButton
                {...t}
-               type="button"
-               aria-label={unseen > 0 ? `recent nudges, ${unseen} new` : 'recent nudges'}
+               icon={Bell}
+               label={unseen > 0 ? `recent nudges, ${unseen} new` : 'recent nudges'}
                title="recent nudges"
                // opening marks everything seen and resets back to the nudges
                // list, so the gear detour never leaks into the next open
@@ -275,9 +275,8 @@ export function NotificationPanel({
                   setLastSeen(Date.now());
                   setView('nudges');
                })}
-               className="pressable relative inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-surface text-ink-3 hover:text-brand"
+               className="relative"
             >
-               <Icon icon={Bell} size={16} />
                {flag &&
                   (badge === 'dot' ? (
                      <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-surface" />
@@ -286,7 +285,7 @@ export function NotificationPanel({
                         {unseen > 9 ? '9+' : unseen}
                      </span>
                   ))}
-            </button>
+            </HeaderIconButton>
          )}
       >
          {view === 'settings' ? (
