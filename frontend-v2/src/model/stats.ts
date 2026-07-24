@@ -1,5 +1,5 @@
-import type { PullData } from '../types';
-import { type DerivedPull, type Status, type Weight, STATUS_ORDER, reviewWeight } from './status';
+import type { PullData } from '../../../shared/types';
+import { type DerivedPull, type Status, type Weight, STATUS_ORDER, reviewWeight } from '../../../shared/model/status';
 
 /**
  * The Stats lens's aggregation layer: pure reductions over the same open pool

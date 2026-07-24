@@ -1,4 +1,4 @@
-import { STATUS_ORDER, type DerivedPull } from './status';
+import { STATUS_ORDER, type DerivedPull } from '../../../shared/model/status';
 import { crSort } from './sort';
 
 export interface TeamBuckets {

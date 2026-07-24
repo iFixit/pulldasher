@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent } from 'react';
-import type { Status, Weight } from '../model/status';
-import { githubUrl, shortRepo } from '../format';
+import type { Status, Weight } from '../../../shared/model/status';
+import { githubUrl, shortRepo } from '../../../shared/format';
 import { getSettings } from '../settings';
 import { Popover } from './Popover';
 

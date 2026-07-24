@@ -2,7 +2,7 @@ import { useMemo, useState, type MouseEvent } from 'react';
 import { ChevronRight, Plus, Settings } from 'lucide-react';
 import { authorOwnsIt, parked } from '../model/actions';
 import { displayName, useNames } from '../model/names';
-import type { DerivedPull } from '../model/status';
+import type { DerivedPull } from '../../../shared/model/status';
 import { matchesRegion } from '../model/regions';
 import { crSort } from '../model/sort';
 import { teamBuckets } from '../model/team';

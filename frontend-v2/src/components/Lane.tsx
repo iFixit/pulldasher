@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode, type SyntheticEvent } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { pullKey } from '../format';
-import type { DerivedPull } from '../model/status';
+import { pullKey } from '../../../shared/format';
+import type { DerivedPull } from '../../../shared/model/status';
 import { groupIntoTree } from '../model/stack';
 import { createPersistentStore } from '../storage';
 import { Icon } from './Icon';

@@ -1,4 +1,4 @@
-import type { DerivedPull } from './status';
+import type { DerivedPull } from '../../../shared/model/status';
 
 /**
  * "Code regions": free-text areas you own or care about (e.g. "Growthbook",

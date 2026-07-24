@@ -1,4 +1,4 @@
-import { shortRepo } from '../../format';
+import { shortRepo } from '../../../../shared/format';
 import type { RepoLoad } from '../../model/stats';
 import { SplitBarRow, StatsCard } from './parts';
 

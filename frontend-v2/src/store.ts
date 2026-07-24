@@ -1,10 +1,10 @@
 import { useSyncExternalStore } from 'react';
 import { backend, type ConnectionState } from './backend/socket';
-import { derive, type DerivedPull, type Weight } from './model/status';
+import { derive, type DerivedPull, type Weight } from '../../shared/model/status';
 import { getSettings, subscribeSettings } from './settings';
-import { epoch } from './format';
+import { epoch } from '../../shared/format';
 import { readStorage, writeStorage } from './storage';
-import type { PullData, RepoSpec } from './types';
+import type { PullData, RepoSpec } from '../../shared/types';
 
 /**
  * The one store: raw pulls keyed by repo#number, re-derived and re-published

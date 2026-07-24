@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { displayName, useNames } from '../model/names';
-import { isBotLogin } from '../model/visibility';
+import { isBotLogin } from '../../../shared/model/visibility';
 import { removeTeam, renameTeam, toggleTeammate, useSettings } from '../settings';
 import { usePulldasher } from '../store';
 import { FilterSearch } from './filters/shared';

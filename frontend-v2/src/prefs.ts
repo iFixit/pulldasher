@@ -1,4 +1,4 @@
-import type { Weight } from './model/status';
+import type { Weight } from '../../shared/model/status';
 import { createMemoryStore, removeStorage } from './storage';
 
 const WEIGHTS: ReadonlySet<string> = new Set(['XS', 'S', 'M', 'L', 'XL']);

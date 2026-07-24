@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pullKey } from '../format';
+import { pullKey } from '../../../shared/format';
 import {
    type AuthorPrState,
    CHEER_CATALOG,
@@ -16,7 +16,7 @@ import {
    startHereReason,
    type ToastKind,
 } from './cheers';
-import type { DerivedPull, Weight } from './status';
+import type { DerivedPull, Weight } from '../../../shared/model/status';
 
 /** A pull carrying only the fields diffCheers/startHereReason read off it. */
 function pull(

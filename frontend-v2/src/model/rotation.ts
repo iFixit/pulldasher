@@ -1,6 +1,6 @@
 import { hasReviewRequest } from './reviewers';
-import type { DerivedPull, Status } from './status';
-import { isBotLogin } from './visibility';
+import type { DerivedPull, Status } from '../../../shared/model/status';
+import { isBotLogin } from '../../../shared/model/visibility';
 
 /**
  * Turn rotation: a starved, CR-incomplete pull with no claim still needs

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DerivedPull, Weight } from './status';
+import type { DerivedPull, Weight } from '../../../shared/model/status';
 import { dealFrom, dealRank, type DealRankOptions } from './deal';
 
 /** A DerivedPull with only the fields the deal ranking (and the crSort it

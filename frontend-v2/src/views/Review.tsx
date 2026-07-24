@@ -1,5 +1,5 @@
-import { type DerivedPull, qaDone, type Status, weightRank } from '../model/status';
-import { ago, pullKey, shortRepo } from '../format';
+import { type DerivedPull, qaDone, type Status, weightRank } from '../../../shared/model/status';
+import { ago, pullKey, shortRepo } from '../../../shared/format';
 import { repoBlocks } from '../model/repoBlocks';
 import { crSort, teamFirst } from '../model/sort';
 import { matchedRegions, matchesRegion } from '../model/regions';
@@ -17,7 +17,7 @@ import { dealRank } from '../model/deal';
 import { myPeople, useSettings } from '../settings';
 import { claimFor } from '../model/reviewers';
 import { clearSnoozes, isFresh, isSnoozed, markAllSeen, usePulldasher } from '../store';
-import type { PullData } from '../types';
+import type { PullData } from '../../../shared/types';
 import { EmptyState, QuietButton } from '../components/bits';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, SubDoor, Truncated } from '../components/Lane';
 import { RegionHint } from '../components/RegionHint';

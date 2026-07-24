@@ -1,6 +1,6 @@
 import { type PointerEvent as ReactPointerEvent, type ReactNode, useState } from 'react';
 import { Avatar } from '../../components/identity';
-import type { Weight } from '../../model/status';
+import type { Weight } from '../../../../shared/model/status';
 
 /**
  * The light→heavy color read every weight surface shares. Weight/effort is

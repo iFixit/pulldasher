@@ -1,4 +1,4 @@
-import { crDone, qaDone, type DerivedPull } from '../model/status';
+import { crDone, qaDone, type DerivedPull } from '../../../shared/model/status';
 import { EmptyState } from '../components/bits';
 import { BoardColumn } from '../components/Column';
 import { laneShown } from '../components/Lane';

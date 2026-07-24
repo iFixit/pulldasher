@@ -1,4 +1,4 @@
-import { CRYO_KEY } from '../../model/visibility';
+import { CRYO_KEY } from '../../../../shared/model/visibility';
 import { setSettings, useSettings } from '../../settings';
 import { QuietButton } from '../bits';
 import { Popover } from '../Popover';

@@ -10,6 +10,9 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
    plugins: [react(), tailwindcss()],
    server: {
+      // the derive/CI model lives in ../shared (imported by both this app and
+      // the pulldasher backend); let the dev server read one level up
+      fs: { allow: ['..'] },
       proxy: {
          '/token': 'http://localhost:3000',
          '/socket.io': { target: 'http://localhost:3000', ws: true },

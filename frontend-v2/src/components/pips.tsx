@@ -1,8 +1,8 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { Check, CircleDot, X } from 'lucide-react';
-import { type DerivedPull, headStatuses } from '../model/status';
-import type { CommitStatus, Signature } from '../types';
-import { ago, epoch, n, signatureUrl } from '../format';
+import { type DerivedPull, headStatuses } from '../../../shared/model/status';
+import type { CommitStatus, Signature } from '../../../shared/types';
+import { ago, epoch, n, signatureUrl } from '../../../shared/format';
 import { Avatar } from './identity';
 import { Icon } from './Icon';
 import { Popover } from './Popover';

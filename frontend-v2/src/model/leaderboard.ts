@@ -1,6 +1,6 @@
-import { pullKey } from '../format';
-import type { PullData } from '../types';
-import type { DerivedPull } from './status';
+import { pullKey } from '../../../shared/format';
+import type { PullData } from '../../../shared/types';
+import type { DerivedPull } from '../../../shared/model/status';
 
 /**
  * "On the board": a dense-ranked leaderboard of who's carried the most review

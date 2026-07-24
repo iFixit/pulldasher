@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PullData, Signature, SignatureType } from '../types';
+import type { PullData, Signature, SignatureType } from '../../../shared/types';
 import {
    ciVerdict,
    derive,
@@ -8,7 +8,7 @@ import {
    STARVE_DAYS,
    type Weight,
    weightFromLabels,
-} from './status';
+} from '../../../shared/model/status';
 
 const NOW = 1_800_000_000;
 

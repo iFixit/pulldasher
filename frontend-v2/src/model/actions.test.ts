@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { ago } from '../format';
-import type { DerivedPull, Status } from './status';
-import { STATUS_ORDER } from './status';
+import { ago } from '../../../shared/format';
+import type { DerivedPull, Status } from '../../../shared/model/status';
+import { STATUS_ORDER } from '../../../shared/model/status';
 import { actionState, alertMove, authorMove, reviewerMove, rowNote, rowWord } from './actions';
 
 /** A DerivedPull with only the fields the move functions read. */

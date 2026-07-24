@@ -7,11 +7,11 @@ import {
    useState,
    type ReactNode,
 } from 'react';
-import { ago, closedEpoch, n, pullKey, shortRepo } from './format';
+import { ago, closedEpoch, n, pullKey, shortRepo } from '../../shared/format';
 import type { ActionStateKey } from './model/actions';
 import { actionState } from './model/actions';
-import type { DerivedPull } from './model/status';
-import { matchesWeightFilter } from './model/status';
+import type { DerivedPull } from '../../shared/model/status';
+import { matchesWeightFilter } from '../../shared/model/status';
 import { buildParentLookup } from './model/stack';
 import { buildReviewerPools, turnFor } from './model/rotation';
 import { shipRelevance, shippedToast } from './model/shipped';
@@ -23,7 +23,7 @@ import { useNotifications } from './notifications';
 import { ToastStack, useToasts } from './toasts';
 import { matchesQuery } from './model/query';
 import { requestNames, useNames } from './model/names';
-import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from './model/visibility';
+import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from '../../shared/model/visibility';
 import { reviewRequestedFrom } from './model/reviewers';
 import { CornerBadge } from './components/bits';
 import { foldDomId, openFold } from './components/Lane';

@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react';
-import type { DerivedPull } from '../model/status';
+import type { DerivedPull } from '../../../shared/model/status';
 import {
    ageMix,
    authorLoad,
@@ -18,7 +18,7 @@ import {
 } from '../model/stats';
 import { fillMonthGaps, useStatsHistory, weeklyTimeInReview } from '../model/statsHistory';
 import { useSettings } from '../settings';
-import type { PullData } from '../types';
+import type { PullData } from '../../../shared/types';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
 import { AgeMixCard } from './stats/AgeMixCard';
 import { AuthorLoadCard } from './stats/AuthorLoadCard';

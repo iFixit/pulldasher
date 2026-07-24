@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Heart, Star } from 'lucide-react';
-import { githubAvatarUrl, githubProfileUrl, loginHue } from '../format';
+import { githubAvatarUrl, githubProfileUrl, loginHue } from '../../../shared/format';
 import { displayName, requestNames, useNames } from '../model/names';
 import { useSettings } from '../settings';
 import { Icon } from './Icon';

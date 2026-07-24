@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DerivedPull, Status } from './status';
+import type { DerivedPull, Status } from '../../../shared/model/status';
 import { buildReviewerPools, turnFor } from './rotation';
 
 /** A DerivedPull with only the fields buildReviewerPools/turnFor read. */

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { githubUrl, rowDomId } from './format';
+import { githubUrl, rowDomId } from '../../shared/format';
 import { Icon } from './components/Icon';
 import {
    type CheerBaseline,
@@ -11,10 +11,10 @@ import {
    serializeBaseline,
    type ToastKind,
 } from './model/cheers';
-import type { DerivedPull } from './model/status';
+import type { DerivedPull } from '../../shared/model/status';
 import type { Toast } from './model/toast';
 import { getSettings } from './settings';
-import type { PullData } from './types';
+import type { PullData } from '../../shared/types';
 
 /** Time for the leave animation before the node is removed. */
 const LEAVE_MS = 200;

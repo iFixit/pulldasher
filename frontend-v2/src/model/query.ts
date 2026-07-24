@@ -1,5 +1,5 @@
 import { authorOwnsIt, parked, rowNote } from './actions';
-import type { DerivedPull } from './status';
+import type { DerivedPull } from '../../../shared/model/status';
 
 /**
  * The filter box grammar. Bare terms AND-match as substrings across title,

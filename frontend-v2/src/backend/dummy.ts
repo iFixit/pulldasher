@@ -1,4 +1,4 @@
-import type { InitializePayload, PullData } from '../types';
+import type { InitializePayload, PullData } from '../../../shared/types';
 
 /**
  * Dummy mode: run the whole UI without a backend.

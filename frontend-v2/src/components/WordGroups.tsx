@@ -1,7 +1,7 @@
 import { DO_WORD_RANK, rowWord, WAIT_WORD_RANK, type RowWord } from '../model/actions';
 import { groupIntoTree, type StackedPull } from '../model/stack';
-import type { DerivedPull } from '../model/status';
-import { pullKey } from '../format';
+import type { DerivedPull } from '../../../shared/model/status';
+import { pullKey } from '../../../shared/format';
 import { claimFor } from '../model/reviewers';
 import { Fold, Truncated } from './Lane';
 import { Row, type RowOptions } from './Row';

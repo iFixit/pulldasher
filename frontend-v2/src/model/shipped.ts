@@ -1,5 +1,5 @@
-import { closedEpoch } from '../format';
-import type { PullData } from '../types';
+import { closedEpoch } from '../../../shared/format';
+import type { PullData } from '../../../shared/types';
 import { SHIPPED_TOAST_KIND } from './cheers';
 import type { Toast } from './toast';
 

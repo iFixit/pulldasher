@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { hasReviewRequest, requestedReviewers, reviewRequestedFrom } from './reviewers';
-import type { DerivedPull } from './status';
+import type { DerivedPull } from '../../../shared/model/status';
 
 function pull(author: string, requested: string[] | undefined): DerivedPull {
    return {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronRight } from 'lucide-react';
-import type { DerivedPull } from '../../model/status';
+import type { DerivedPull } from '../../../../shared/model/status';
 import { displayName, useNames } from '../../model/names';
 import type { Scope } from '../../prefs';
 import { toggleHiddenPerson, useSettings } from '../../settings';

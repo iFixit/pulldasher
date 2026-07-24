@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { matchedRegions, matchesRegion, regionFirst } from './regions';
-import type { DerivedPull } from './status';
+import type { DerivedPull } from '../../../shared/model/status';
 
 /** A pull carrying only the text surfaces regions match against. */
 function dp(o: {

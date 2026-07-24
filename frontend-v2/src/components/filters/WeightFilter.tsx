@@ -1,5 +1,5 @@
-import type { DerivedPull } from '../../model/status';
-import { weightFilterKey } from '../../model/status';
+import type { DerivedPull } from '../../../../shared/model/status';
+import { weightFilterKey } from '../../../../shared/model/status';
 import { Popover } from '../Popover';
 import { ClearRow, FilterRow, FilterTrigger, OnlyButton } from './shared';
 

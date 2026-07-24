@@ -10,13 +10,13 @@ import {
    Heart,
    RefreshCw,
 } from 'lucide-react';
-import type { DerivedPull } from '../model/status';
-import { isIterating, lastPushEpoch, weightFilterKey } from '../model/status';
+import type { DerivedPull } from '../../../shared/model/status';
+import { isIterating, lastPushEpoch, weightFilterKey } from '../../../shared/model/status';
 import { type Claim, rowNote } from '../model/actions';
 import { matchedRegions } from '../model/regions';
 import { claimFor } from '../model/reviewers';
 import type { ParentRef } from '../model/stack';
-import { ago, epoch, pullKey, rowDomId, shortRepo } from '../format';
+import { ago, epoch, pullKey, rowDomId, shortRepo } from '../../../shared/format';
 import { setRepoPref, toggleHiddenPerson, useSettings } from '../settings';
 import {
    claimReview,

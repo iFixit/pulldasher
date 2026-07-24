@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PullData } from '../types';
+import type { PullData } from '../../../shared/types';
 import { rankShipped, shipRelevance, shippedToast } from './shipped';
 
 /** A closed PullData carrying only the fields shipped ranking reads. */

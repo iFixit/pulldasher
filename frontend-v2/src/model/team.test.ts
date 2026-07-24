@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DerivedPull, Status, Weight } from './status';
+import type { DerivedPull, Status, Weight } from '../../../shared/model/status';
 import { teamBuckets } from './team';
 
 /** A DerivedPull with only the fields teamBuckets and crSort read. */

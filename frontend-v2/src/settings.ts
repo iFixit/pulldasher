@@ -1,4 +1,4 @@
-import { STARVE_DAYS } from './model/status';
+import { STARVE_DAYS } from '../../shared/model/status';
 import { createPersistentStore } from './storage';
 
 /** one named review circle; DEFAULT_TEAM_NAME is what quick add-to-team

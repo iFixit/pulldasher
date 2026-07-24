@@ -1,4 +1,4 @@
-import type { DerivedPull } from './status';
+import type { DerivedPull } from '../../../shared/model/status';
 
 /**
  * The review queue's repo blocks: the owner's priority-and-cap model. With a

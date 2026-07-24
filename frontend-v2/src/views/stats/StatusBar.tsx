@@ -1,4 +1,4 @@
-import type { Status } from '../../model/status';
+import type { Status } from '../../../../shared/model/status';
 import { StatsCard } from './parts';
 
 /**

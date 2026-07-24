@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { PullData } from '../types';
-import type { DerivedPull, Status, Weight } from './status';
+import type { PullData } from '../../../shared/types';
+import type { DerivedPull, Status, Weight } from '../../../shared/model/status';
 import {
    ageMix,
    authorLoad,

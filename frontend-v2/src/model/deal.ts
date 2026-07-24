@@ -1,7 +1,7 @@
-import { pullKey } from '../format';
+import { pullKey } from '../../../shared/format';
 import { claimFor } from './reviewers';
 import { crSort } from './sort';
-import { STARVE_DAYS, type DerivedPull } from './status';
+import { STARVE_DAYS, type DerivedPull } from '../../../shared/model/status';
 
 /**
  * The review queue's one ranking. dealRank orders a pool by the same score

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronRight, GripVertical } from 'lucide-react';
-import { repoHidden } from '../../model/visibility';
-import { shortRepo } from '../../format';
+import { repoHidden } from '../../../../shared/model/visibility';
+import { shortRepo } from '../../../../shared/format';
 import type { Scope } from '../../prefs';
 import { setRepoPref, setSettings, useSettings } from '../../settings';
 import { Icon } from '../Icon';

@@ -1,7 +1,7 @@
-import type { DerivedPull } from '../model/status';
+import type { DerivedPull } from '../../../shared/model/status';
 import { rowWord } from '../model/actions';
-import type { PullData } from '../types';
-import { pullKey } from '../format';
+import type { PullData } from '../../../shared/types';
+import { pullKey } from '../../../shared/format';
 import { claimFor } from '../model/reviewers';
 import { EmptyState } from '../components/bits';
 import { Fold, Lane, laneShown, RestGroup, Truncated } from '../components/Lane';

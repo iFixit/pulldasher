@@ -1,5 +1,5 @@
-import type { PullData } from '../types';
-import type { DerivedPull } from './status';
+import type { PullData } from '../../../shared/types';
+import type { DerivedPull } from '../../../shared/model/status';
 
 /**
  * GitHub review requests. A `requested_reviewers` entry is GitHub's explicit,

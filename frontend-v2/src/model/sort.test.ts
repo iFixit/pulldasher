@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DerivedPull } from './status';
+import type { DerivedPull } from '../../../shared/model/status';
 import { crScore, crSort, teamFirst } from './sort';
 
 function fake(over: {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { repoBlocks } from './repoBlocks';
-import type { DerivedPull } from './status';
+import type { DerivedPull } from '../../../shared/model/status';
 
 const pull = (repo: string, n: number, starved = false) =>
    ({ data: { repo, number: n }, starved }) as unknown as DerivedPull;

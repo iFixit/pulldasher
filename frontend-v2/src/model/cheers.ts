@@ -1,13 +1,13 @@
-import { pullKey } from '../format';
-import type { PullData } from '../types';
+import { pullKey } from '../../../shared/format';
+import type { PullData } from '../../../shared/types';
 import { actionState } from './actions';
 import { dealFrom, dealRank } from './deal';
 import { reviewerRanks } from './leaderboard';
 import { claimFor, reviewRequestedFrom } from './reviewers';
 import { crSort } from './sort';
-import type { DerivedPull } from './status';
+import type { DerivedPull } from '../../../shared/model/status';
 import type { Toast } from './toast';
-import { isBotLogin } from './visibility';
+import { isBotLogin } from '../../../shared/model/visibility';
 
 /** The suffix bot check ('…[bot]') is enough in the cheers layer — like
  * status.ts's engagedNoStamp, this module has no reason to depend on

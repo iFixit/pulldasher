@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { DerivedPull } from './status';
-import type { StatusState } from '../types';
-import { checkLedgers, ciSecsWord } from './ci';
+import type { DerivedPull } from '../../../shared/model/status';
+import type { StatusState } from '../../../shared/types';
+import { checkLedgers, ciSecsWord } from '../../../shared/model/ci';
 
 /** A DerivedPull with only the fields checkLedgers reads: head statuses and
  * ageDays (for the failing-order tie inside a ledger). */

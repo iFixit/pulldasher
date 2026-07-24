@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DerivedPull, Weight } from './status';
+import type { DerivedPull, Weight } from '../../../shared/model/status';
 import { matchesQuery } from './query';
 
 function fake(

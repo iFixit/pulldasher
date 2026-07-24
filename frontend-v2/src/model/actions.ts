@@ -1,7 +1,7 @@
-import { ago } from '../format';
+import { ago } from '../../../shared/format';
 import { requestedReviewers } from './reviewers';
-import type { DerivedPull } from './status';
-import { isBotLogin } from './visibility';
+import type { DerivedPull } from '../../../shared/model/status';
+import { isBotLogin } from '../../../shared/model/visibility';
 
 /**
  * The three statuses that put the ball wholly with the author — while one

@@ -1,5 +1,5 @@
-import { githubUrl, pullKey } from '../format';
-import type { DerivedPull } from './status';
+import { githubUrl, pullKey } from '../../../shared/format';
+import type { DerivedPull } from '../../../shared/model/status';
 
 /**
  * A pull paired with its stack-nesting depth (0 = top-level). Board render

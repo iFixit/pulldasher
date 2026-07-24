@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { headStatuses, type DerivedPull } from '../model/status';
+import { headStatuses, type DerivedPull } from '../../../shared/model/status';
 import type { Claim, RowNote } from '../model/actions';
 import { rowNote } from '../model/actions';
-import type { PullData } from '../types';
-import { ago, closedEpoch, epoch, githubUrl, issueUrl, signatureUrl } from '../format';
+import type { PullData } from '../../../shared/types';
+import { ago, closedEpoch, epoch, githubUrl, issueUrl, signatureUrl } from '../../../shared/format';
 import { ClosedBadge, STATUS_LABEL } from './bits';
 import { Avatar } from './identity';
 import { Popover } from './Popover';

@@ -1,5 +1,5 @@
 import { io, type Socket } from 'socket.io-client';
-import type { InitializePayload, PullData, TokenResponse } from '../types';
+import type { InitializePayload, PullData, TokenResponse } from '../../../shared/types';
 import { isDummy, loadDummy, dummyUser } from './dummy';
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'error';

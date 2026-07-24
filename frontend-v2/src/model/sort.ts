@@ -1,4 +1,4 @@
-import { STARVE_DAYS, isIterating, weightRank, type DerivedPull } from './status';
+import { STARVE_DAYS, isIterating, weightRank, type DerivedPull } from '../../../shared/model/status';
 
 /**
  * The review-queue score, lower first. Weight is the base (lightest first —

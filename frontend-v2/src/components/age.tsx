@@ -1,5 +1,5 @@
-import { ROT_DAYS, STARVE_DAYS } from '../model/status';
-import { ago } from '../format';
+import { ROT_DAYS, STARVE_DAYS } from '../../../shared/model/status';
+import { ago } from '../../../shared/format';
 import { Popover } from './Popover';
 
 /**

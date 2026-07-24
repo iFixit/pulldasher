@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, Bell, Settings as SettingsIcon, X } from 'lucide-react';
-import { ago, githubUrl } from '../format';
+import { ago, githubUrl } from '../../../shared/format';
 import { type CheerGroup, CONFIGURABLE_TOASTS } from '../model/cheers';
 import {
    type Settings as SettingsShape,

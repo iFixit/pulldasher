@@ -1,6 +1,6 @@
 import type { ActionStateKey } from '../../model/actions';
 import { actionState } from '../../model/actions';
-import type { DerivedPull } from '../../model/status';
+import type { DerivedPull } from '../../../../shared/model/status';
 import { usePulldasher } from '../../store';
 import { Popover } from '../Popover';
 import { ClearRow, FilterRow, FilterTrigger, OnlyButton } from './shared';

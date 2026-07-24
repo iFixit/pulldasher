@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { lastPushEpoch, type DerivedPull } from '../model/status';
-import { checkLedgers, ciSecsWord, type CheckLedger } from '../model/ci';
-import { pullKey } from '../format';
+import { lastPushEpoch, type DerivedPull } from '../../../shared/model/status';
+import { checkLedgers, ciSecsWord, type CheckLedger } from '../../../shared/model/ci';
+import { pullKey } from '../../../shared/format';
 import { EmptyState } from '../components/bits';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, SubDoor, Truncated } from '../components/Lane';
 import { Row, type RowOptions } from '../components/Row';

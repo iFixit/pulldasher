@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { githubUrl, pullKey, shortRepo } from './format';
+import { githubUrl, pullKey, shortRepo } from '../../shared/format';
 import { alertMove } from './model/actions';
 import { claimFor } from './model/reviewers';
-import type { DerivedPull } from './model/status';
+import type { DerivedPull } from '../../shared/model/status';
 import { getSettings } from './settings';
 
 /** A pull key → this sentinel action means "the rotation just named you" —

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { PullData } from '../types';
+import type { PullData } from '../../../shared/types';
 import { reviewerRanks } from './leaderboard';
-import type { DerivedPull } from './status';
+import type { DerivedPull } from '../../../shared/model/status';
 
 /** An open DerivedPull carrying only the fields reviewerRanks reads. author
  * defaults to a sentinel that never appears in crBy/qaBy, so existing cases are
