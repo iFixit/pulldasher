@@ -450,7 +450,14 @@ function readSignals(input: CheerInput): Signals {
    for (const p of pulls) {
       const key = pullKey(p.data);
       const c = claimOf(p);
-      if (c && c.login === me && c.at != null && !hasStamp(p, me) && now - c.at * 1000 > warnMs) {
+      if (
+         CR_INCOMPLETE.includes(p.status) &&
+         c &&
+         c.login === me &&
+         c.at != null &&
+         !hasStamp(p, me) &&
+         now - c.at * 1000 > warnMs
+      ) {
          staleClaims.set(key, p);
       }
    }
@@ -816,17 +823,28 @@ export function diffCheers(
          if (p) landed.push(p);
       }
    }
+   // evicted → deferred, never lost (see the priority-cap comment below): an
+   // evicted stamp-landed toast must not be recorded as seen, or the "you
+   // stamped this" edge never re-fires and the praise is silently dropped.
+   const nextStamped = new Set(sig.stamped);
    for (const p of landed.slice(0, 2)) {
       sessionStamps++;
       const isQa = p.qaBy.includes(me) && !p.crBy.includes(me);
-      push('stamp-landed', {
-         tone: 'reward',
-         icon: isQa ? '🧪' : '✅',
-         title: pick(STAMP_PRAISE, sessionStamps),
-         body: `${isQa ? 'QA' : 'CR'} landed`,
-         pull: pullRef(p),
-         dedupeKey: `stamp:${pullKey(p.data)}`,
-      });
+      const key = pullKey(p.data);
+      push(
+         'stamp-landed',
+         {
+            tone: 'reward',
+            icon: isQa ? '🧪' : '✅',
+            title: pick(STAMP_PRAISE, sessionStamps),
+            body: `${isQa ? 'QA' : 'CR'} landed`,
+            pull: pullRef(p),
+            dedupeKey: `stamp:${key}`,
+         },
+         () => {
+            nextStamped.delete(key);
+         }
+      );
    }
    // any leftover landed stamps past the cap still count toward milestones
    sessionStamps += Math.max(0, landed.length - 2);
@@ -1020,7 +1038,7 @@ export function diffCheers(
    let nextWasTop = sig.myRank === 1;
    let nextMyRank = sig.myRank;
    let nextMyCount = sig.myCount;
-   if (sig.myRank === 1 && !base.wasTop && sig.myCount > 0) {
+   if (sig.myRank === 1 && !base.wasTop && sig.myCount > 0 && sig.myCount > (base.myCount ?? 0)) {
       push(
          'top-of-board',
          {
@@ -1237,7 +1255,7 @@ export function diffCheers(
       next: {
          primed: true,
          login: me,
-         stamped: sig.stamped,
+         stamped: nextStamped,
          queue: nextQueue,
          sessionStamps,
          firedMilestones,
