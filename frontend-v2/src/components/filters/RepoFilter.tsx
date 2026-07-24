@@ -6,7 +6,7 @@ import type { Scope } from '../../prefs';
 import { setRepoPref, setSettings, useSettings } from '../../settings';
 import { Icon } from '../Icon';
 import { Popover } from '../Popover';
-import { ClearRow, EyeButton, FilterSearch, FilterTrigger, OnlyButton } from './shared';
+import { ClearRow, EyeButton, FilterRow, FilterSearch, FilterTrigger, OnlyButton } from './shared';
 
 /**
  * The repos filter: opens straight into the repo list (no tabs — the old
@@ -104,9 +104,8 @@ export function RepoFilter({
            : `${scope.repos.length} repos`;
 
    const shownRow = (name: string, count: number) => (
-      <div
+      <FilterRow
          key={name}
-         className="group flex items-center gap-2 rounded-md px-1.5 py-[5px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none"
          onDragOver={e => {
             if (!dragging) return;
             e.preventDefault();
@@ -176,14 +175,11 @@ export function RepoFilter({
             subject={shortRepo(name)}
             onClick={() => setRepoPref(name, 'hide')}
          />
-      </div>
+      </FilterRow>
    );
 
    const hiddenRow = (name: string, count: number) => (
-      <div
-         key={name}
-         className="flex items-center gap-2 rounded-md px-1.5 py-[5px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none"
-      >
+      <FilterRow key={name}>
          <label className="flex min-w-0 flex-1 items-center gap-2">
             <input
                type="checkbox"
@@ -199,7 +195,7 @@ export function RepoFilter({
             <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
          </label>
          <EyeButton hidden subject={shortRepo(name)} onClick={() => setRepoPref(name, null)} />
-      </div>
+      </FilterRow>
    );
 
    const filteredShown = shownRepos.filter(r =>

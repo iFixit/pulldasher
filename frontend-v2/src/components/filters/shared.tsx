@@ -1,8 +1,8 @@
-import type { ChangeEvent, ReactNode } from 'react';
+import type { ChangeEvent, ComponentPropsWithoutRef, ReactNode } from 'react';
 import { ChevronDown, Eye, EyeClosed } from 'lucide-react';
 import { Icon } from '../Icon';
 import type { PopoverTriggerProps } from '../Popover';
-import { CornerBadge, QuietButton } from '../bits';
+import { CornerBadge, QuietButton, textInputClass } from '../bits';
 
 /**
  * The one filter-bar trigger: a quiet text-level control whose geometry NEVER
@@ -127,19 +127,30 @@ export function FilterSearch({
          aria-label={label}
          placeholder={label}
          type="text"
-         className={`mb-2 h-8 w-full rounded-lg border border-line bg-surface px-2.5 text-[13px] ${className}`}
+         className={`mb-2 w-full px-2.5 ${textInputClass} ${className}`}
       />
    );
 }
 
 /**
- * The hover-highlighted row shell RepoFilter and PeopleFilter both wrap their
- * checkbox rows in — one definition so the row geometry (padding, radius,
- * hover tint) can't drift between the two lists.
+ * The hover-highlighted row shell every checkbox/candidate list on the board
+ * wraps its rows in (RepoFilter, PeopleFilter, WeightFilter, StateFilter):
+ * one definition so the row geometry (padding, radius, hover tint) can't
+ * drift between lists. Also the shared substring behind SavedFilterRow's and
+ * TeamPicker's CandidateRow's hand-copies of the same recipe (see
+ * `hoverRowClass`) — those rows differ just enough (no `group`, a different
+ * gap, an extra text-size class) that they compose it themselves rather than
+ * rendering through this component.
  */
-export function FilterRow({ children }: { children: ReactNode }) {
+export const hoverRowClass =
+   'flex items-center rounded-md px-1.5 py-[5px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none';
+
+export function FilterRow({
+   children,
+   ...rest
+}: { children: ReactNode } & ComponentPropsWithoutRef<'div'>) {
    return (
-      <div className="group flex items-center gap-2 rounded-md px-1.5 py-[5px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none">
+      <div {...rest} className={`group ${hoverRowClass} gap-2`}>
          {children}
       </div>
    );

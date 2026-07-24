@@ -7,13 +7,14 @@ import { matchesRegion } from '../model/regions';
 import { crSort } from '../model/sort';
 import { teamBuckets } from '../model/team';
 import { addTeam, DEFAULT_TEAM_NAME, myPeople, useSettings } from '../settings';
-import { EmptyState, QuietButton } from '../components/bits';
+import { EmptyState, QuietButton, textInputClass } from '../components/bits';
 import { Icon } from '../components/Icon';
 import { Avatar } from '../components/identity';
 import { Fold, FoldRows, Lane, laneShown, RestGroup, SubDoor } from '../components/Lane';
 import { Popover } from '../components/Popover';
 import type { RowOptions } from '../components/Row';
 import { TeamPicker } from '../components/TeamPicker';
+import { commitKeyHandler } from '../components/useCommitOnEnter';
 import { WordGroupRows } from '../components/WordGroups';
 
 /** the directory fold's stable key in the open/closed set */
@@ -510,18 +511,10 @@ function NewTeamChip() {
             autoFocus
             value={name}
             onChange={e => setName(e.target.value)}
-            onKeyDown={e => {
-               if (e.key === 'Enter') {
-                  e.preventDefault();
-                  create();
-               } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setName(null);
-               }
-            }}
+            onKeyDown={commitKeyHandler({ onCommit: create, onCancel: () => setName(null) })}
             placeholder="Name the team"
             aria-label="name the new team"
-            className="h-8 w-[150px] rounded-lg border border-line bg-surface px-2 text-[13px]"
+            className={`w-[150px] px-2 ${textInputClass}`}
          />
          <QuietButton size="sm" tone="brand" disabled={!name.trim()} onClick={create}>
             Add

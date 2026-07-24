@@ -26,7 +26,7 @@ import { matchesQuery } from './model/query';
 import { requestNames, useNames } from './model/names';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from '../../shared/model/visibility';
 import { reviewRequestedFrom } from './model/reviewers';
-import { CornerBadge } from './components/bits';
+import { CornerBadge, textInputClass } from './components/bits';
 import { foldDomId, openFold } from './components/Lane';
 import { Legend } from './components/Legend';
 import { LensMenu } from './components/LensMenu';
@@ -1009,8 +1009,7 @@ export function App() {
                         'Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:restamp, is:blocked',
                      placeholder: 'Filter (press /)',
                      title: 'text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:restamp, is:blocked',
-                     className:
-                        'h-8 w-[210px] max-w-full grow rounded-lg border border-line bg-surface pr-2.5 pl-8 text-[13px] sm:grow-0',
+                     className: `w-[210px] max-w-full grow pr-2.5 pl-8 sm:grow-0 ${textInputClass}`,
                   }}
                />
             </div>

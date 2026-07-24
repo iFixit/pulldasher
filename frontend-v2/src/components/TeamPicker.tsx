@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { displayName, useNames } from '../model/names';
 import { isBotLogin } from '../../../shared/model/visibility';
 import { removeTeam, renameTeam, toggleTeammate, useSettings } from '../settings';
 import { usePulldasher } from '../store';
-import { FilterSearch } from './filters/shared';
+import { textInputClass } from './bits';
+import { FilterSearch, hoverRowClass } from './filters/shared';
 import { Avatar } from './identity';
 import { Icon } from './Icon';
+import { useArmedConfirm } from './useArmedConfirm';
+import { commitKeyHandler } from './useCommitOnEnter';
 
 const SUGGESTION_CAP = 12;
 const EMPTY_BOTS: ReadonlySet<string> = new Set();
@@ -31,7 +34,7 @@ function CandidateRow({
    onToggle: () => void;
 }) {
    return (
-      <label className="flex items-center gap-2 rounded-md px-1.5 py-[5px] text-[13px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none">
+      <label className={`gap-2 text-[13px] ${hoverRowClass}`}>
          <input
             type="checkbox"
             className="m-0"
@@ -107,14 +110,7 @@ export function TeamPicker({
    const activeMembers = teams.find(t => t.name === teamName)?.members ?? [];
    // deleting a roster is arm-then-confirm, same as removing a saved filter:
    // one misclick must not erase a hand-built list of people
-   const [armed, setArmed] = useState(false);
-   const disarm = useRef<ReturnType<typeof setTimeout> | null>(null);
-   useEffect(
-      () => () => {
-         if (disarm.current) clearTimeout(disarm.current);
-      },
-      []
-   );
+   const { armed, run } = useArmedConfirm();
 
    // search by handle OR human name — "metz" should find djmetzle
    const namesMap = useNames();
@@ -141,18 +137,13 @@ export function TeamPicker({
             value={nameDraft}
             onChange={e => setNameDraft(e.target.value)}
             onBlur={commitRename}
-            onKeyDown={e => {
-               if (e.key === 'Enter') {
-                  e.preventDefault();
-                  commitRename();
-               } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setNameDraft(teamName);
-               }
-            }}
+            onKeyDown={commitKeyHandler({
+               onCommit: commitRename,
+               onCancel: () => setNameDraft(teamName),
+            })}
             aria-label="team name — edit to rename"
             title="the team’s name — edit it here to rename"
-            className="mb-1.5 h-8 w-full rounded-lg border border-line bg-surface px-2 text-[13px] font-semibold"
+            className={`mb-1.5 w-full px-2 font-semibold ${textInputClass}`}
          />
          <p className="px-1.5 pb-1.5 text-[11px] leading-snug text-ink-3">
             Anyone whose work you review belongs on a roster — your review circle, not the org
@@ -209,15 +200,7 @@ export function TeamPicker({
             <div className="mt-2 border-t border-secondary pt-1.5">
                <button
                   type="button"
-                  onClick={() => {
-                     if (!armed) {
-                        setArmed(true);
-                        disarm.current = setTimeout(() => setArmed(false), 4000);
-                        return;
-                     }
-                     if (disarm.current) clearTimeout(disarm.current);
-                     removeTeam(teamName);
-                  }}
+                  onClick={() => run(() => removeTeam(teamName))}
                   aria-label={
                      armed ? `confirm deleting the ${teamName} team` : `delete the ${teamName} team`
                   }

@@ -1,5 +1,6 @@
 import { ROT_DAYS, STARVE_DAYS } from '../../../shared/model/status';
 import { ago } from '../../../shared/format';
+import { railTriggerClass } from './bits';
 import { Popover } from './Popover';
 
 /**
@@ -197,7 +198,7 @@ export function AgeStamp({
                {...t}
                type="button"
                aria-label={`opened ${ago(createdAt)} ago, last activity ${ago(updatedAt)} ago`}
-               className="hit -my-2 rounded border-0 bg-transparent px-0 py-2 text-inherit hover:bg-secondary/60"
+               className={`px-0 text-inherit ${railTriggerClass}`}
             >
                <span
                   aria-hidden

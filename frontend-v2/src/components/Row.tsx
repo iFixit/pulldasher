@@ -29,7 +29,7 @@ import {
    usePulldasher,
 } from '../store';
 import { AgeStamp, AgeBaseline } from './age';
-import { DiffSize, QuietButton, RepoRef, WEIGHT_WORD } from './bits';
+import { DiffSize, QuietButton, railTriggerClass, RepoRef, WEIGHT_WORD } from './bits';
 import { CardShell } from './Card';
 import { CiStatus, SigPips } from './pips';
 import { Icon } from './Icon';
@@ -231,7 +231,7 @@ function RowDetails({ flags }: { flags: Flag[] }) {
                {...t}
                type="button"
                aria-label={`row details: ${flags.map(f => f.label).join(', ')}`}
-               className="pd-raise pressable -my-2 inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded px-0.5 py-2 hover:bg-secondary/60"
+               className={`pd-raise pressable inline-flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5 ${railTriggerClass}`}
             >
                {flags.map(f => (
                   <span
@@ -735,7 +735,7 @@ function RowImpl({
                            {...t}
                            type="button"
                            aria-label={`in your code ${regions.length > 1 ? 'regions' : 'region'}: ${regions.join(', ')}`}
-                           className="pressable -my-2 flex min-w-0 flex-none items-center gap-1 rounded px-0.5 py-2 hover:bg-secondary/60"
+                           className={`pressable flex min-w-0 flex-none items-center gap-1 px-0.5 ${railTriggerClass}`}
                         >
                            <span aria-hidden className="text-brand">
                               <Icon icon={Diamond} size={10} fill="currentColor" />

@@ -3,6 +3,7 @@ import { Check, CircleDot, X } from 'lucide-react';
 import { type DerivedPull, headStatuses } from '../../../shared/model/status';
 import type { CommitStatus, Signature } from '../../../shared/types';
 import { ago, epoch, n, signatureUrl } from '../../../shared/format';
+import { railTriggerClass } from './bits';
 import { Avatar } from './identity';
 import { Icon } from './Icon';
 import { Popover } from './Popover';
@@ -81,7 +82,7 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
                // One fixed slot width in every state (sized to the failing
                // cluster, the widest), so the rail — and the age numeral's
                // right edge in the meta line — stays one column down a lane.
-               className={`pd-ci-slot pressable -my-2 inline-flex w-[36px] items-center gap-1 rounded border-0 bg-transparent px-0 py-2 hover:bg-secondary/60 ${
+               className={`pd-ci-slot pressable inline-flex w-[36px] items-center gap-1 px-0 ${railTriggerClass} ${
                   failing > 0 || pending
                      ? ''
                      : 'pd-ci-quiet opacity-0 transition-opacity duration-150 hover:opacity-100 focus-visible:opacity-100 [.pd-row:hover_&]:opacity-100 motion-reduce:transition-none'
@@ -342,7 +343,7 @@ export function SigPips({
                // no native title: the popover itself opens on this same hover
                // py+negative-my: a real tap target (the marks are ~10px glyphs)
                // without moving anything in the rail's layout
-               className="pressable -my-2 inline-flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-0 py-2 text-left hover:bg-secondary/60"
+               className={`pressable inline-flex cursor-pointer items-center gap-1 px-0 text-left ${railTriggerClass}`}
             >
                {lead}
                {pips}

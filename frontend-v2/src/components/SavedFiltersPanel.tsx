@@ -18,10 +18,12 @@ import {
    useAllSavedFilters,
    type SavedFilter,
 } from '../model/savedFilters';
-import { QuietButton } from './bits';
-import { FilterTrigger } from './filters/shared';
+import { QuietButton, textInputClass } from './bits';
+import { FilterTrigger, hoverRowClass } from './filters/shared';
 import { Icon } from './Icon';
 import { Popover } from './Popover';
+import { commitKeyHandler } from './useCommitOnEnter';
+import { useArmedConfirm } from './useArmedConfirm';
 
 /**
  * One saved-filter row, shared by the query-box panel and the header "Saved"
@@ -54,22 +56,13 @@ function SavedFilterRow({
    // arm-then-confirm, same pattern as Settings' "Clear settings": a saved
    // filter can be a hand-tuned query, so a single misclick on the ✕ must not
    // erase it — first click arms for 4s, the second actually removes
-   const [armed, setArmed] = useState(false);
-   const disarm = useRef<ReturnType<typeof setTimeout> | null>(null);
-   useEffect(
-      () => () => {
-         if (disarm.current) clearTimeout(disarm.current);
-      },
-      []
-   );
+   const { armed, run } = useArmedConfirm();
    return (
       <div
          id={id}
          role="option"
          aria-selected={active}
-         className={`group flex items-center gap-1 rounded-md px-1.5 py-[5px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none ${
-            active ? 'bg-muted' : ''
-         }`}
+         className={`group ${hoverRowClass} gap-1 ${active ? 'bg-muted' : ''}`}
       >
          <button
             type="button"
@@ -127,13 +120,7 @@ function SavedFilterRow({
                <QuietButton
                   onClick={e => {
                      e.stopPropagation();
-                     if (!armed) {
-                        setArmed(true);
-                        disarm.current = setTimeout(() => setArmed(false), 4000);
-                        return;
-                     }
-                     if (disarm.current) clearTimeout(disarm.current);
-                     onRemove();
+                     run(onRemove);
                   }}
                   aria-label={
                      armed
@@ -220,18 +207,10 @@ function SaveCurrentView({
             ref={nameRef}
             value={name}
             onChange={e => setName(e.target.value)}
-            onKeyDown={e => {
-               if (e.key === 'Enter') {
-                  e.preventDefault();
-                  save();
-               } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setName(null);
-               }
-            }}
+            onKeyDown={commitKeyHandler({ onCommit: save, onCancel: () => setName(null) })}
             placeholder="Name this view"
             aria-label="Name this view"
-            className="h-8 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 text-[13px]"
+            className={`min-w-0 flex-1 px-2 ${textInputClass}`}
          />
          <QuietButton tone="brand" disabled={!name.trim()} onClick={save}>
             Save

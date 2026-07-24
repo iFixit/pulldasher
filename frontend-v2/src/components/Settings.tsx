@@ -15,6 +15,8 @@ import { LENS_LABELS, type Lens } from '../lens';
 import { QuietButton, Segmented } from './bits';
 import { Icon } from './Icon';
 import { Explainer, Field, Group, NumberField } from './SettingsBits';
+import { useArmedConfirm } from './useArmedConfirm';
+import { commitKeyHandler } from './useCommitOnEnter';
 
 const LENS_OPTIONS: [string, string][] = Object.entries(LENS_LABELS);
 
@@ -39,15 +41,14 @@ const LANE_CAP_OPTIONS: [string, string][] = [
 function LaneCapByLensRow({ lensId, label }: { lensId: string; label: string }) {
    const cap = useSettings().laneCapByLens[lensId];
    return (
-      <div className="flex items-center justify-between gap-2">
-         <span className="text-[13px] text-ink-2">{label}</span>
+      <Field label={label}>
          <Segmented
             ariaLabel={`lane length for ${label}`}
             value={cap == null ? 'default' : String(cap)}
             options={LANE_CAP_OPTIONS}
             onChange={v => setLaneCapForLens(lensId, v === 'default' ? null : Number(v))}
          />
-      </div>
+      </Field>
    );
 }
 
@@ -71,12 +72,7 @@ function CodeRegionsGroup() {
             <input
                value={draft}
                onChange={e => setDraft(e.target.value)}
-               onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                     e.preventDefault();
-                     add();
-                  }
-               }}
+               onKeyDown={commitKeyHandler({ onCommit: add, onCancel: () => setDraft('') })}
                placeholder="e.g. Growthbook, Shopify, Diagrams"
                aria-label="add a code region"
                className="min-w-0 flex-1 rounded-md border border-line bg-surface px-2 py-1 text-sm outline-none focus-visible:border-brand"
@@ -124,7 +120,7 @@ export function Settings({
    const panelRef = useRef<HTMLDivElement>(null);
    const triggerRef = useRef<HTMLButtonElement>(null);
    const [refreshNote, setRefreshNote] = useState('');
-   const [armReset, setArmReset] = useState(false);
+   const { armed: armReset, run: runReset } = useArmedConfirm();
 
    // open on demand — the code-regions tip's "Set them up" action dispatches
    // this so a reader can jump straight here from the board
@@ -455,15 +451,12 @@ export function Settings({
                            <div className="flex items-center gap-3 pt-1">
                               <button
                                  type="button"
-                                 onClick={() => {
-                                    if (!armReset) {
-                                       setArmReset(true);
-                                       setTimeout(() => setArmReset(false), 4000);
-                                       return;
-                                    }
-                                    clearStoredPrefs();
-                                    window.location.reload();
-                                 }}
+                                 onClick={() =>
+                                    runReset(() => {
+                                       clearStoredPrefs();
+                                       window.location.reload();
+                                    })
+                                 }
                                  className={`pressable inline-flex h-8 items-center rounded-lg border px-3 text-[13px] font-medium ${
                                     armReset
                                        ? 'border-bad bg-bad/10 text-bad hover:bg-bad/20'

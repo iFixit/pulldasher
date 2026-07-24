@@ -32,6 +32,25 @@ export const STATUS_LABEL: Record<Status, string> = {
    draft: 'Draft',
 };
 
+/**
+ * The house text-input recipe: the plain-bordered field shape every board
+ * name/search/number field shares. Callers append their own width, margin,
+ * and horizontal padding (a search box's icon inset differs from a plain
+ * name field's).
+ */
+export const textInputClass = 'h-8 rounded-lg border border-line bg-surface text-[13px]';
+
+/**
+ * Grows a rail hairline into a real tap target without shifting row height:
+ * a negative vertical margin matched by the same vertical padding, borderless
+ * and transparent so the mark inside is unaffected, plus the hover wash every
+ * rail trigger reveals on and `hit`'s widened click/tap target. Callers
+ * append their own sizing (width, gap, flex, horizontal padding) and any
+ * state-dependent classes.
+ */
+export const railTriggerClass =
+   'hit -my-2 rounded border-0 bg-transparent py-2 hover:bg-secondary/60';
+
 export const STATUS_DOT: Record<Status, string> = {
    ready: 'var(--ok)',
    ci_pending: 'var(--slate)',

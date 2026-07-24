@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
+import { textInputClass } from './bits';
 import { Icon } from './Icon';
 
 /** A labelled group of controls inside a settings surface (the Settings panel
@@ -77,7 +78,7 @@ export function NumberField({
                const n = Number(e.target.value);
                if (Number.isFinite(n)) onChange(Math.min(max, Math.max(min, Math.round(n))));
             }}
-            className="h-8 w-16 rounded-lg border border-line bg-surface px-2 text-right text-[13px] tabular-nums"
+            className={`w-16 px-2 text-right tabular-nums ${textInputClass}`}
          />
          <span className="text-xs text-ink-3">{suffix}</span>
       </span>
