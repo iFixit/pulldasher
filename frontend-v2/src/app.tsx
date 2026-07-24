@@ -259,15 +259,6 @@ export function App() {
    // cached — model/names.ts): the person hover-cards, the people pickers,
    // and name-aware search all read from this one map
    const names = useNames();
-   useEffect(() => {
-      const s = getSettings();
-      requestNames([
-         ...pulls.map(p => p.data.user.login),
-         ...closed.map(p => p.user.login),
-         ...s.teams.flatMap(t => t.members),
-         ...s.hiddenPeople,
-      ]);
-   }, [pulls, closed]);
    const [scope, setScope] = useScope();
    const [lens, setLens] = useState<Lens>(() => readHash().lens);
    const [query, setQuery] = useState(() => urlState.q);
@@ -296,6 +287,20 @@ export function App() {
    // theme, density, default view, age colors, glance guard — all live in
    // settings now (the cog panel), persisted per-browser
    const settings = useSettings();
+   // a stable primitive (not a fresh array/object each render) so adding it to
+   // the requestNames effect's deps below re-runs the effect when a teammate
+   // or hidden person is added, without looping on unrelated settings writes
+   const settingsLogins = useMemo(
+      () => [...settings.teams.flatMap(t => t.members), ...settings.hiddenPeople].join(','),
+      [settings.teams, settings.hiddenPeople]
+   );
+   useEffect(() => {
+      requestNames([
+         ...pulls.map(p => p.data.user.login),
+         ...closed.map(p => p.user.login),
+         ...settingsLogins.split(',').filter(Boolean),
+      ]);
+   }, [pulls, closed, settingsLogins]);
    const [systemDark, setSystemDark] = useState(
       () => matchMedia('(prefers-color-scheme: dark)').matches
    );
@@ -332,8 +337,15 @@ export function App() {
       const prev = prevView.current;
       prevView.current = { lens };
       if (prev.lens !== lens) {
-         // fires hashchange; the listener below re-reads idempotently
-         location.hash = next;
+         if (next) {
+            // fires hashchange; the listener below re-reads idempotently
+            location.hash = next;
+         } else {
+            // same empty-hash fallback as the branch below: assigning
+            // location.hash = '' renders as a stray trailing '#'. pushState
+            // (not replaceState) keeps the history entry a lens change earns.
+            history.pushState(null, '', location.pathname + location.search);
+         }
       } else {
          history.replaceState(null, '', next ? `#${next}` : location.pathname + location.search);
       }
