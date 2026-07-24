@@ -241,23 +241,18 @@ function Pips({
          title={titled ? title : undefined}
       >
          {none ? (
-            <span
-               aria-hidden
-               className="flex min-w-[48px] justify-start text-xs text-ink-3 opacity-60"
-            >
+            <span aria-hidden className="flex justify-start text-xs text-ink-3 opacity-60">
                –
             </span>
          ) : (
-            // min-width sized to the 3-mark case, not the common two: the
-            // rail is right-anchored, so a slot that hugged two marks made a
-            // 3-required pull grow the rail leftward and knock the age
-            // numeral off its right-edge column in the meta line. The air
-            // this reserves before the next label matches what the CI slot
-            // already reserves for its failing cluster — one rail width,
-            // every row. A 4-required pull (unseen in practice) still grows.
+            // Content-sized, so the pip cluster grows and shrinks with the
+            // required count: one required stamp shows one mark, four show
+            // four, and the slot reserves no empty air for marks a pull
+            // doesn't need. (The rail is right-anchored on the age numeral, so
+            // a wider cluster grows leftward without moving the numeral.)
             <span
                aria-hidden
-               className={`flex min-w-[48px] items-center justify-start gap-[3px] ${
+               className={`flex items-center justify-start gap-[3px] ${
                   mine || owedByMe ? 'pip-mine' : ''
                }`}
             >
@@ -359,7 +354,9 @@ export function SigPips({
             )}
          </span>
          {rows.length === 0 && (
-            <span className="block px-1 py-[3px] text-ink-3">No stamps yet.</span>
+            <span className="block px-1 py-[3px] text-ink-3">
+               {req === 0 ? `${label} not required.` : 'No stamps yet.'}
+            </span>
          )}
          {rows.map(s => (
             <a
@@ -384,12 +381,15 @@ export function SigPips({
             </a>
          ))}
          {/* the mark vocabulary, keyed right where the marks are read — the
-             legend stays a conventions card, not a per-mark decoder */}
-         <span className="mt-1 flex items-center gap-1 border-t border-secondary px-1 pt-1.5 text-[11px] text-ink-3">
-            <span className="pip pip-on" /> stands
-            <span className="pip pip-stale ml-1.5" /> stale review
-            <span className="pip pip-off ml-1.5" /> needed
-         </span>
+             legend stays a conventions card, not a per-mark decoder. Hidden
+             when the requirement is waived and there's nothing to decode. */}
+         {(rows.length > 0 || req > 0) && (
+            <span className="mt-1 flex items-center gap-1 border-t border-secondary px-1 pt-1.5 text-[11px] text-ink-3">
+               <span className="pip pip-on" /> stands
+               <span className="pip pip-stale ml-1.5" /> stale review
+               <span className="pip pip-off ml-1.5" /> needed
+            </span>
+         )}
          {panelExtra}
       </Popover>
    );
