@@ -87,10 +87,9 @@ function flushBatch() {
       fetch(`/user-names?${new URLSearchParams({ logins: group.join(',') })}`)
          .then(r => (r.ok ? (r.json() as Promise<{ names: Record<string, string | null> }>) : null))
          .then(result => {
-            for (const login of group) {
-               raw[login] = result?.names?.[login] ?? null;
-               inFlight.delete(login);
-            }
+            for (const login of group) inFlight.delete(login);
+            if (!result) return; // non-ok response: leave unresolved, same as the catch below
+            for (const login of group) raw[login] = result.names?.[login] ?? null;
             publish();
          })
          .catch(() => {
