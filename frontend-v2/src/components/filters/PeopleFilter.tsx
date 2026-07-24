@@ -161,11 +161,13 @@ export function PeopleFilter({
                         >
                            {nameOf(login) ?? login}
                         </span>
-                        <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
                      </label>
+                     {/* "only" leads the right cluster: it fades in on hover, so
+                         it must not interject between the standing count and eye */}
                      <OnlyButton
                         onClick={() => setScope({ ...scope, authors: [login], notAuthors: [] })}
                      />
+                     <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
                      {login !== me && (
                         <EyeButton
                            hidden={false}

@@ -86,9 +86,11 @@ export function RepoFilter({
             <span title={name} className="min-w-0 flex-1 truncate text-[13px]">
                {shortRepo(name)}
             </span>
-            <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
          </label>
+         {/* "only" leads the right cluster: it fades in on hover, so it must
+             not interject between the standing count and eye */}
          <OnlyButton onClick={() => setScope({ ...scope, repos: [name] })} />
+         <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
          <EyeButton
             hidden={false}
             subject={shortRepo(name)}
