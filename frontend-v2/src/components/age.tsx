@@ -81,7 +81,15 @@ export function AgeBaseline({
    quiet?: boolean;
 }) {
    if (quiet || ageDays < warnDays) return null;
-   const t = Math.min(ageDays / Math.max(maxAgeDays, 1), 1);
+   // A square-root curve, not a linear fraction: age doesn't feel linear
+   // (2→5 days reads as a big jump, 60→63 as almost none — Stevens' power
+   // law), and one very old PR setting the 100% mark would otherwise squash
+   // the whole actionable range into invisible slivers. √ expands the
+   // young/mid range (more visible growth per day early) and compresses the
+   // ancient tail (old is old), so the bar discriminates where the daily
+   // decisions are. Still relative to the board's oldest open pull; tune the
+   // exponent to steepen (→1 linear) or flatten (→0) the curve.
+   const t = Math.sqrt(Math.min(ageDays / Math.max(maxAgeDays, 1), 1));
    // tint rides the same fraction as length: ~30% border-grey at the
    // gate, the full border color on the board's oldest (owner call: the
    // ink ramp read too dark against the row divider it extends)
