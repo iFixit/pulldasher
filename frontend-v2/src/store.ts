@@ -7,7 +7,7 @@ import {
    type Weight,
 } from '../../shared/model/status';
 import { getSettings, subscribeSettings } from './settings';
-import { epoch } from '../../shared/format';
+import { epoch, pullKey } from '../../shared/format';
 import { readStorage, writeStorage } from './storage';
 import type { PullData, RepoSpec } from '../../shared/types';
 
@@ -148,7 +148,7 @@ export function isSnoozed(
    snoozedAt: Readonly<Record<string, number>>,
    now: number = Date.now() / 1000
 ) {
-   const at = snoozedAt[`${d.repo}#${d.number}`];
+   const at = snoozedAt[pullKey(d)];
    if (at == null) return false;
    return now < at + SNOOZE_SECS && epoch(d.updated_at) <= at;
 }
@@ -265,13 +265,13 @@ function start() {
          // server-owned config rides with the board (see shared/types)
          weightLabels = parseWeightLabels(payload.weightLabels);
          extraBots = new Set(payload.bots ?? []);
-         for (const p of payload.pulls) raw.set(`${p.repo}#${p.number}`, p);
+         for (const p of payload.pulls) raw.set(pullKey(p), p);
          initialized = true;
          // a reconnect resends everything; counting it as refresh progress
          // would either double-count or strand the tracker short of total
          clearRefreshTracking();
       } else {
-         const key = `${payload.repo}#${payload.number}`;
+         const key = pullKey(payload);
          raw.set(key, payload);
          noteRefreshArrival(key);
       }
@@ -327,7 +327,7 @@ export function refreshAll(): number {
    // with the last one's leftovers
    clearRefreshTracking();
    refreshTracking = {
-      pending: new Set(opens.map(p => `${p.repo}#${p.number}`)),
+      pending: new Set(opens.map(pullKey)),
       total: opens.length,
    };
    for (const p of opens) backend.refreshPull(p.repo, p.number);

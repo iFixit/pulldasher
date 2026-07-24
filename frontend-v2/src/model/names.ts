@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { isDummy } from '../backend/dummy';
+import { readSessionStorage, writeSessionStorage } from '../storage';
 
 /**
  * Login -> human display name, resolved server-side via GET /user-names (the
@@ -21,22 +22,6 @@ const DEBOUNCE_MS = 250;
 // MAX_LOGINS) -- chunk instead of risking a 400 if a lot piles up in one
 // debounce window (e.g. a big Team view mounting at once).
 const MAX_LOGINS_PER_FETCH = 100;
-
-function readSessionStorage(key: string): string | null {
-   try {
-      return sessionStorage.getItem(key);
-   } catch {
-      return null;
-   }
-}
-
-function writeSessionStorage(key: string, value: string): void {
-   try {
-      sessionStorage.setItem(key, value);
-   } catch {
-      // storage blocked/unavailable: the cache just doesn't survive a reload
-   }
-}
 
 interface StoredNames {
    at: number; // epoch ms this was written

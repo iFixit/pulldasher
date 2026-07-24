@@ -30,6 +30,29 @@ export function removeStorage(key: string): void {
 }
 
 /**
+ * sessionStorage's never-throws twin — same rationale as readStorage/
+ * writeStorage above (privacy modes and blocked-storage settings make every
+ * touch a potential SecurityError), for the per-tab state (backend/socket.ts's
+ * auth-reload throttle, toasts.tsx's cheer session) that deliberately doesn't
+ * survive a brand-new tab the way a preference in localStorage would.
+ */
+export function readSessionStorage(key: string): string | null {
+   try {
+      return sessionStorage.getItem(key);
+   } catch {
+      return null;
+   }
+}
+
+export function writeSessionStorage(key: string, value: string): void {
+   try {
+      sessionStorage.setItem(key, value);
+   } catch {
+      // storage blocked: the preference just doesn't persist
+   }
+}
+
+/**
  * Wipe every persisted preference — all of our `pd2.` localStorage keys
  * (settings, scope, last-seen marker). The caller reloads so the in-memory
  * stores re-initialize from their defaults.

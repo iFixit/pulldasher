@@ -54,6 +54,10 @@ describe('describeHash', () => {
    it("names the lens, using the same labels app.tsx's tabs show", () => {
       expect(describeHash('lens=team')).toBe('Team lens');
       expect(describeHash('lens=mine')).toBe('My work lens');
+      // regression: describeHash used to hand-roll its own label map, missing
+      // the 'ci' entry — a saved CI-lens filter read as "ci lens" instead of
+      // "CI lens". Now sourced from the shared lens.ts LENS_LABELS.
+      expect(describeHash('lens=ci')).toBe('CI lens');
    });
 
    it('falls back to the raw value for an unrecognized lens', () => {

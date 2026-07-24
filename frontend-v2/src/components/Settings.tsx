@@ -11,28 +11,19 @@ import {
    setSettings,
    useSettings,
 } from '../settings';
+import { LENS_LABELS, type Lens } from '../lens';
 import { QuietButton, Segmented } from './bits';
 import { Icon } from './Icon';
 import { Explainer, Field, Group, NumberField } from './SettingsBits';
 
-const LENS_OPTIONS: [string, string][] = [
-   ['review', 'Review'],
-   ['mine', 'My work'],
-   ['team', 'Team'],
-   ['classic', 'Classic'],
-   ['ci', 'CI'],
-   ['stats', 'Stats'],
-];
+const LENS_OPTIONS: [string, string][] = Object.entries(LENS_LABELS);
 
 // Stats has no lanes, so it's left out of the per-lens lane-length list
-// (unlike LENS_OPTIONS above, which covers every tab including Stats).
-const LANE_CAP_LENS_OPTIONS: [string, string][] = [
-   ['review', 'Review'],
-   ['mine', 'My work'],
-   ['team', 'Team'],
-   ['classic', 'Classic'],
-   ['ci', 'CI'],
-];
+// (unlike LENS_OPTIONS above, which covers every tab including Stats) — the
+// membership stays its own explicit list, but each label still comes from
+// the shared map so it can't drift from LENS_OPTIONS' wording.
+const LANE_CAP_LENSES: Lens[] = ['review', 'mine', 'team', 'classic', 'ci'];
+const LANE_CAP_LENS_OPTIONS: [string, string][] = LANE_CAP_LENSES.map(id => [id, LENS_LABELS[id]]);
 
 const LANE_CAP_OPTIONS: [string, string][] = [
    ['default', 'Default'],

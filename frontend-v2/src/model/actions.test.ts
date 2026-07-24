@@ -2,7 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { ago } from '../../../shared/format';
 import type { DerivedPull, Status } from '../../../shared/model/status';
 import { STATUS_ORDER } from '../../../shared/model/status';
-import { actionState, alertMove, authorMove, reviewerMove, rowNote, rowWord } from './actions';
+import {
+   actionState,
+   alertMove,
+   authorMove,
+   DO_WORD,
+   DO_WORD_RANK,
+   reviewerMove,
+   rowNote,
+   rowWord,
+   waitWord,
+   WAIT_WORD_RANK,
+} from './actions';
 
 /** A DerivedPull with only the fields the move functions read. */
 function dp(o: {
@@ -986,5 +997,49 @@ describe('rowWord — the one-word section-header key', () => {
             word: 'on hold',
          });
       });
+   });
+});
+
+describe('DO_WORD / WAIT_WORD_RANK — drift guard', () => {
+   // A caller (Sort/section-header grouping) ranks 'do' groups by
+   // DO_WORD_RANK.indexOf(word); a DO_WORD value missing from the rank would
+   // silently sort that group to the bottom instead of failing loudly. The
+   // two vocabularies must carry exactly the same set of words.
+   it('DO_WORD only ever produces words DO_WORD_RANK ranks', () => {
+      expect(new Set(Object.values(DO_WORD))).toEqual(new Set(DO_WORD_RANK));
+   });
+
+   // waitWord computes its word from the pull's own facts rather than a
+   // lookup table, so there's no map to read values off — this enumerates one
+   // fixture per branch (mirroring waitWord's own case order) instead, and
+   // checks every word it can produce is one WAIT_WORD_RANK actually ranks.
+   // Same drift risk as DO_WORD above: a word absent from the rank silently
+   // sorts to the bottom instead of failing loudly. (The switch's `default`
+   // branch is unreached here on purpose — every real Status is handled
+   // explicitly, so its 'waiting' fallback needs no fixture.)
+   it('every word waitWord() can return is ranked in WAIT_WORD_RANK', () => {
+      const cases: Array<[Parameters<typeof dp>[0], Parameters<typeof waitWord>[2]?]> = [
+         [{ status: 'ready', cryo: true }], // parked
+         [{ status: 'ready', externalBlock: true }], // on hold
+         [{ status: 'draft' }], // draft
+         [{ status: 'ci_red' }], // CI failing
+         [{ status: 'dev_block' }], // blocked
+         [{ status: 'deploy_block' }], // deploy hold
+         [{ status: 'unmergeable', conflict: true }], // conflicts
+         [{ status: 'unmergeable' }], // stacked
+         [{ status: 'ci_pending' }], // CI running
+         [{ status: 'ready' }], // ready
+         [{ status: 'needs_qa', qaBy: ['me'] }], // stamped
+         [{ status: 'needs_qa', qaingLogin: 'other' }], // in QA
+         [{ status: 'needs_qa', author: 'me', reqaBy: ['other'] }], // waiting on re-QA
+         [{ status: 'needs_qa' }], // waiting on QA
+         [{ status: 'needs_recr', crBy: ['me'] }], // stamped
+         [{ status: 'needs_recr' }, { claim: { login: 'other', at: null } }], // claimed
+         [{ status: 'needs_recr' }], // waiting on re-CR
+         [{ status: 'needs_cr', changesRequestedBy: ['other'] }], // with author
+         [{ status: 'needs_cr' }], // waiting on CR
+      ];
+      const produced = cases.map(([o, extra]) => waitWord(dp(o), 'me', extra));
+      expect(WAIT_WORD_RANK).toEqual(expect.arrayContaining(produced));
    });
 });

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { createPersistentStore } from '../storage';
 import { type PersonalTeam, useSettings } from '../settings';
+import { LENS_LABELS, type Lens } from '../lens';
 
 /**
  * A named bookmark of the SESSION filter state — the same fields buildHash
@@ -196,14 +197,6 @@ export function applySavedFilter(hash: string): void {
    location.hash = hash;
 }
 
-const LENS_LABEL: Record<string, string> = {
-   review: 'Review',
-   mine: 'My work',
-   team: 'Team',
-   classic: 'Classic',
-   stats: 'Stats',
-};
-
 /**
  * A muted one-line gloss of a stored hash, e.g.
  * "state: qa, review · weight: xs, s · Review lens" — parses the same
@@ -231,6 +224,6 @@ export function describeHash(hash: string): string {
    if (drafts) parts.push(`drafts: ${drafts}`);
    if (p.get('hidden') === '1') parts.push('showing hidden');
    const lens = p.get('lens');
-   if (lens) parts.push(`${LENS_LABEL[lens] ?? lens} lens`);
+   if (lens) parts.push(`${LENS_LABELS[lens as Lens] ?? lens} lens`);
    return parts.length ? parts.join(' · ') : 'everything';
 }

@@ -472,7 +472,7 @@ export type RowWord = { kind: 'do' | 'wait'; word: string };
 /** rowNote's action string → the one-word label its section header shows.
  * Falls back to the action string itself so a future action never renders
  * blank — but every string rowNote can produce today is listed here. */
-const DO_WORD: Record<string, string> = {
+export const DO_WORD: Record<string, string> = {
    'Re-stamp': 'Re-stamp',
    'Re-QA': 'Re-QA',
    'Finish QA': 'Finish QA',
@@ -509,7 +509,7 @@ function freshOtherClaim(me: string, claim?: Claim | null): boolean {
  * reviewerNote/authorNote: changes-requested outranks your own stamp, and a
  * claim only absolves a viewer with no stake of their own in the pull.
  */
-function waitWord(p: DerivedPull, me: string, extra?: { claim?: Claim | null }): string {
+export function waitWord(p: DerivedPull, me: string, extra?: { claim?: Claim | null }): string {
    if (parked(p)) return 'parked';
    if (p.externalBlock) return 'on hold';
    const isAuthor = p.data.user.login === me;

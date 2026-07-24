@@ -14,6 +14,7 @@ import {
 import type { DerivedPull } from '../../shared/model/status';
 import type { Toast } from './model/toast';
 import { getSettings } from './settings';
+import { readSessionStorage, writeSessionStorage } from './storage';
 import type { PullData } from '../../shared/types';
 
 /** Time for the leave animation before the node is removed. */
@@ -36,7 +37,7 @@ interface CheerSession {
 
 function loadCheerSession(me: string): CheerSession | null {
    try {
-      const raw = sessionStorage.getItem(SESSION_KEY);
+      const raw = readSessionStorage(SESSION_KEY);
       if (!raw) return null;
       const saved = JSON.parse(raw) as { me?: string; baseline?: unknown; fired?: unknown };
       if (saved.me !== me) return null;
@@ -53,15 +54,10 @@ function saveCheerSession(me: string, baseline: CheerBaseline, fired: Set<string
    // first render, and a me='' save would clobber the real session so the
    // hydrate that follows can't find it (and re-primes, replaying greetings).
    if (!me) return;
-   try {
-      sessionStorage.setItem(
-         SESSION_KEY,
-         JSON.stringify({ me, baseline: serializeBaseline(baseline), fired: [...fired] })
-      );
-   } catch {
-      // sessionStorage can be unavailable (private mode, quota); losing the
-      // replay guard is a soft failure, not worth interrupting the board.
-   }
+   writeSessionStorage(
+      SESSION_KEY,
+      JSON.stringify({ me, baseline: serializeBaseline(baseline), fired: [...fired] })
+   );
 }
 /** Most toasts on screen at once; a fourth pushes the oldest out early. */
 const MAX_VISIBLE = 3;

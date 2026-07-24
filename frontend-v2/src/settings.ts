@@ -111,6 +111,14 @@ export interface Settings {
    hoverDelayMs: number;
 }
 
+/** The heaviest age text tier (red), derived from ageWarnDays rather than
+ * stored separately — see the field's own doc comment above. The one
+ * definition AgeStamp/AgeBaseline's callers (app.tsx, views/Stats.tsx) share,
+ * so the 2.5x multiplier can't drift between the two surfaces. */
+export function ageRotDays(warnDays: number): number {
+   return Math.round(warnDays * 2.5);
+}
+
 /** The shipped repo order, from a 2026-07 audit of 90-day PR volume across
  * every watched repo (17 of 25 were fully dormant): the monorepo dwarfs
  * everything (1182 PRs/90d), then dev tooling, then ops (server-templates,

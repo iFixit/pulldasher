@@ -10,6 +10,7 @@ import {
 import { ago, closedEpoch, n, pullKey, shortRepo } from '../../shared/format';
 import type { ActionStateKey } from './model/actions';
 import { actionState } from './model/actions';
+import { LENS_LABELS, type Lens } from './lens';
 import type { DerivedPull } from '../../shared/model/status';
 import { matchesWeightFilter } from '../../shared/model/status';
 import { buildParentLookup } from './model/stack';
@@ -18,7 +19,7 @@ import { shipRelevance, shippedToast } from './model/shipped';
 import type { Toast } from './model/toast';
 import { claimReview, usePulldasher } from './store';
 import { primeScope, useScope } from './prefs';
-import { getSettings, useSettings } from './settings';
+import { ageRotDays, getSettings, type Settings as SettingsShape, useSettings } from './settings';
 import { useNotifications } from './notifications';
 import { ToastStack, useToasts } from './toasts';
 import { matchesQuery } from './model/query';
@@ -54,20 +55,9 @@ import { Ci } from './views/Ci';
 import { Stats } from './views/Stats';
 import { Settings } from './components/Settings';
 
-export type Lens = 'review' | 'mine' | 'team' | 'classic' | 'ci' | 'stats';
+export type { Lens };
 
 const LENSES: Lens[] = ['review', 'mine', 'team', 'classic', 'ci', 'stats'];
-
-/** the tab strip's own copy for each lens — lifted so the phone dropdown
- * (LensMenu) can reuse it instead of restating the six strings */
-const LENS_LABELS: Record<Lens, string> = {
-   review: 'Review',
-   mine: 'My work',
-   team: 'Team',
-   classic: 'Classic',
-   ci: 'CI',
-   stats: 'Stats',
-};
 
 /** every actionState bucket, for validating the `state=` hash param against */
 const ACTION_STATE_KEYS: ActionStateKey[] = [
@@ -201,6 +191,32 @@ function Banner({
    );
 }
 
+/**
+ * The hidden-repo/hidden-person check boardHidden (open DerivedPulls) and
+ * scopedClosed (closed PullData, below) both need — same two rules, just a
+ * different shape of pull to read them off. Takes primitives rather than
+ * either pull type so the two call sites can each do their own field access
+ * (DerivedPull nests repo/login under `.data`; PullData doesn't) and their
+ * own bot check (isBot(p) vs isBotLogin(login, extraBots)) before calling in.
+ * Cryo and the drafts rule are NOT here: scopedClosed has no cryo/draft state
+ * of its own to hide by, so only boardHidden layers those on top of this.
+ */
+function isHiddenFor(
+   pull: { login: string; repo: string; isBot: boolean },
+   settings: Pick<SettingsShape, 'repoPrefs' | 'hiddenPeople'>,
+   me: string,
+   revealedRepo: (repo: string) => boolean,
+   revealedAuthor: (login: string) => boolean
+): boolean {
+   const hiddenRepo = repoHidden(pull.repo, settings.repoPrefs) && !revealedRepo(pull.repo);
+   const hiddenPerson =
+      pull.login !== me &&
+      !pull.isBot &&
+      personHidden(pull.login, settings.hiddenPeople) &&
+      !revealedAuthor(pull.login);
+   return hiddenRepo || hiddenPerson;
+}
+
 export function App() {
    const {
       pulls,
@@ -277,12 +293,13 @@ export function App() {
    const dark = settings.theme === 'dark' || (settings.theme === 'system' && systemDark);
    const searchRef = useRef<HTMLInputElement>(null);
 
-   // View changes (lens switches) earn a history entry so the back button
-   // navigates between boards; filter tweaks replace in place so typing a
-   // query doesn't bury history under keystrokes.
-   const prevView = useRef({ lens });
-   useEffect(() => {
-      const next = buildHash({
+   // The whole session view as one object — what buildHash writes to the URL
+   // AND what "Save current filter…" would capture right now must never
+   // disagree, so both the write-effect below and currentHash (further down)
+   // read this one computed value instead of each re-building the same 10
+   // fields.
+   const hashState: HashState = useMemo(
+      () => ({
          lens,
          q: query,
          repos: scope.repos,
@@ -293,7 +310,15 @@ export function App() {
          hidden: showAll,
          reveal,
          drafts: draftsMode !== settings.draftsMode ? draftsMode : null,
-      });
+      }),
+      [lens, query, scope, weightSel, stateSel, showAll, reveal, draftsMode, settings.draftsMode]
+   );
+   // View changes (lens switches) earn a history entry so the back button
+   // navigates between boards; filter tweaks replace in place so typing a
+   // query doesn't bury history under keystrokes.
+   const prevView = useRef({ lens });
+   useEffect(() => {
+      const next = buildHash(hashState);
       if (next === location.hash.slice(1)) return;
       const prev = prevView.current;
       prevView.current = { lens };
@@ -303,18 +328,10 @@ export function App() {
       } else {
          history.replaceState(null, '', next ? `#${next}` : location.pathname + location.search);
       }
-   }, [
-      lens,
-      query,
-      scope,
-      weightSel,
-      stateSel,
-      showAll,
-      reveal,
-      draftsMode,
-      settings.draftsMode,
-      settings.defaultLens,
-   ]);
+      // buildHash's omission rule reads settings.defaultLens too (via
+      // defaultLensFallback) even though it's not one of hashState's own
+      // fields, so it stays a separate dependency here.
+   }, [hashState, lens, settings.defaultLens]);
    useEffect(() => {
       const onHash = () => {
          const h = readHash();
@@ -456,13 +473,13 @@ export function App() {
    const boardHidden = useCallback(
       (p: DerivedPull) => {
          if (showAll) return false;
-         const hiddenRepo =
-            repoHidden(p.data.repo, settings.repoPrefs) && !revealedRepo(p.data.repo);
-         const hiddenPerson =
-            p.data.user.login !== me &&
-            !isBot(p) &&
-            personHidden(p.data.user.login, settings.hiddenPeople) &&
-            !revealedAuthor(p.data.user.login);
+         const hidden = isHiddenFor(
+            { login: p.data.user.login, repo: p.data.repo, isBot: isBot(p) },
+            settings,
+            me,
+            revealedRepo,
+            revealedAuthor
+         );
          const cryoHidden = p.cryo && !settings.showCryo && !reveal.includes(CRYO_KEY);
          // drafts: 'mine' keeps other people's drafts quiet on the general
          // board, but not when you've deliberately looked (scoped/`author:`d
@@ -478,7 +495,7 @@ export function App() {
          // snoozes are NOT here: a snooze only quiets the Review lens (its
          // "not today" gesture), so the Review view applies it itself and
          // every other lens still shows the pull
-         return hiddenRepo || hiddenPerson || cryoHidden || draftHidden;
+         return hidden || cryoHidden || draftHidden;
       },
       [
          showAll,
@@ -554,15 +571,16 @@ export function App() {
    const scopedClosed = useMemo(() => {
       let out = closed;
       if (!showAll)
-         out = out.filter(p => {
-            const hiddenRepo = repoHidden(p.repo, settings.repoPrefs) && !revealedRepo(p.repo);
-            const hiddenPerson =
-               p.user.login !== me &&
-               !isBotLogin(p.user.login, extraBots) &&
-               personHidden(p.user.login, settings.hiddenPeople) &&
-               !revealedAuthor(p.user.login);
-            return !hiddenRepo && !hiddenPerson;
-         });
+         out = out.filter(
+            p =>
+               !isHiddenFor(
+                  { login: p.user.login, repo: p.repo, isBot: isBotLogin(p.user.login, extraBots) },
+                  settings,
+                  me,
+                  revealedRepo,
+                  revealedAuthor
+               )
+         );
       if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.repo));
       if (scope.authors.length) out = out.filter(p => scope.authors.includes(p.user.login));
       return out;
@@ -600,25 +618,10 @@ export function App() {
 
    const isScoped = scope.repos.length || scope.authors.length || query;
 
-   // what a "Save current filter…" click right now would capture — the same
-   // object the hash-writing effect above builds, so a saved filter's hash
+   // what a "Save current filter…" click right now would capture — reads the
+   // same hashState the write-effect above builds, so a saved filter's hash
    // always matches what location.hash would read at this moment
-   const currentHash = useMemo(
-      () =>
-         buildHash({
-            lens,
-            q: query,
-            repos: scope.repos,
-            authors: scope.authors,
-            notAuthors: scope.notAuthors,
-            weight: weightSel,
-            state: stateSel,
-            hidden: showAll,
-            reveal,
-            drafts: draftsMode !== settings.draftsMode ? draftsMode : null,
-         }),
-      [lens, query, scope, weightSel, stateSel, showAll, reveal, draftsMode, settings.draftsMode]
-   );
+   const currentHash = useMemo(() => buildHash(hashState), [hashState]);
    // gates the saved-filters panel's "Save current filter…" row (query box)
    // and its muted hint row (the header "Saved" menu) — one definition
    // (FilterChips.tsx) so the two surfaces can't disagree with FilterChips'
@@ -672,7 +675,7 @@ export function App() {
          onWeightToggle,
          maxAgeDays,
          ageWarnDays: settings.ageWarnDays,
-         ageRotDays: Math.round(settings.ageWarnDays * 2.5),
+         ageRotDays: ageRotDays(settings.ageWarnDays),
          ageDisplay: settings.ageDisplay,
          compact: settings.density === 'compact',
          laneCap: settings.laneCapByLens[lens] ?? settings.laneCap,

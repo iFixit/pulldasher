@@ -1,6 +1,7 @@
 import { io, type Socket } from 'socket.io-client';
 import type { InitializePayload, PullData, TokenResponse } from '../../../shared/types';
 import { isDummy, loadDummy, dummyUser } from './dummy';
+import { readSessionStorage, writeSessionStorage } from '../storage';
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -53,9 +54,9 @@ function liveBackend(): Backend {
    const RELOAD_AT_KEY = 'pd2.authReloadAt';
    const maybeReloadForAuth = () => {
       if (document.visibilityState !== 'visible' || !navigator.onLine) return;
-      const last = Number(sessionStorage.getItem(RELOAD_AT_KEY) || 0);
+      const last = Number(readSessionStorage(RELOAD_AT_KEY) || 0);
       if (Date.now() - last < 5 * 60_000) return;
-      sessionStorage.setItem(RELOAD_AT_KEY, String(Date.now()));
+      writeSessionStorage(RELOAD_AT_KEY, String(Date.now()));
       location.reload();
    };
 

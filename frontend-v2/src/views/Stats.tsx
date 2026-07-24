@@ -17,7 +17,7 @@ import {
    statusBreakdown,
 } from '../model/stats';
 import { fillMonthGaps, useStatsHistory, weeklyTimeInReview } from '../model/statsHistory';
-import { useSettings } from '../settings';
+import { ageRotDays as deriveAgeRotDays, useSettings } from '../settings';
 import type { PullData } from '../../../shared/types';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
 import { AgeMixCard } from './stats/AgeMixCard';
@@ -106,7 +106,7 @@ export function Stats({
    const settings = useSettings();
    // the heaviest text tier follows the warn threshold automatically, same
    // derivation as app.tsx's rowOpts — see ageWarnDays in settings.ts
-   const ageRotDays = Math.round(settings.ageWarnDays * 2.5);
+   const ageRotDays = deriveAgeRotDays(settings.ageWarnDays);
    // trends — server-side history the live socket payload doesn't carry (it
    // only ships open pulls + 14 days of closed ones); null while loading or on
    // any fetch failure, which hides the whole band below.
