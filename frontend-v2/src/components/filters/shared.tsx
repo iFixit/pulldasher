@@ -1,5 +1,5 @@
 import type { ChangeEvent, ReactNode } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Eye, EyeClosed } from 'lucide-react';
 import { Icon } from '../Icon';
 import type { PopoverTriggerProps } from '../Popover';
 import { CornerBadge, QuietButton } from '../bits';
@@ -168,28 +168,41 @@ export function OnlyButton({ onClick }: { onClick: () => void }) {
 }
 
 /**
- * "only"'s inverse, People rows only: flip this person into the "everyone
- * except" scope. An excluded row's button STANDS (visible without hover,
- * beside the struck-through name) because it records a choice; clicking it
- * again re-includes them.
+ * The row-level visibility toggle both filter lists share, replacing the
+ * worded Hide/Show pair: an open eye on a visible row (click hides), a
+ * closed eye on a hidden one (click shows). Icon-only on purpose — even
+ * hover-hidden words reserve layout width, and on a 300px panel the worded
+ * buttons were what crushed the name column. Full words live in title/aria.
+ * `tone="brand"` marks the show that overrides an org-level hide.
  */
-export function ExceptButton({ on, onClick }: { on: boolean; onClick: () => void }) {
+export function EyeButton({
+   hidden,
+   subject,
+   onClick,
+   tone = 'quiet',
+}: {
+   /** the row's current state: hidden rows wear the closed eye */
+   hidden: boolean;
+   /** what the title/aria name — a repo short name or a login */
+   subject: string;
+   onClick: () => void;
+   tone?: 'quiet' | 'brand';
+}) {
+   const words = hidden ? `show ${subject} again` : `hide ${subject} from the board`;
    return (
       <button
          type="button"
-         aria-pressed={on}
-         title={on ? 'excluded — click to show their PRs again' : 'show everyone except them'}
-         className={`hit pressable rounded px-1 text-xs leading-none transition-opacity duration-150 focus-visible:opacity-100 motion-reduce:transition-none ${
-            on
-               ? 'font-medium text-brand opacity-100'
-               : 'text-ink-3 opacity-0 group-hover:opacity-100 hover:text-brand'
+         title={words}
+         aria-label={words}
+         className={`pressable rounded-md px-1.5 py-1.5 leading-none ${
+            tone === 'brand' ? 'text-brand hover:text-brand/70' : 'text-ink-3 hover:text-brand'
          }`}
          onClick={e => {
             e.stopPropagation();
             onClick();
          }}
       >
-         except
+         <Icon icon={hidden ? EyeClosed : Eye} size={14} />
       </button>
    );
 }

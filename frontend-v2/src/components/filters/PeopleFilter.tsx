@@ -4,25 +4,20 @@ import { displayName, useNames } from '../../model/names';
 import type { Scope } from '../../prefs';
 import { toggleHiddenPerson, toggleTeammate, useSettings } from '../../settings';
 import { usePulldasher } from '../../store';
-import { QuietButton } from '../bits';
 import { Avatar, StarMark } from '../identity';
 import { Popover } from '../Popover';
-import {
-   ClearRow,
-   ExceptButton,
-   FilterRow,
-   FilterSearch,
-   FilterTrigger,
-   OnlyButton,
-} from './shared';
+import { ClearRow, EyeButton, FilterRow, FilterSearch, FilterTrigger, OnlyButton } from './shared';
 
 /**
  * The people filter: a searchable author list where scope (on my board),
- * except (everyone but them), star (floats to the front of my queues), and
- * hide (off my board, period) live side by side on each row — the same
- * scope/hide-together layout RepoFilter uses for repos. Whole-team narrowing
- * lives in the pinned saved searches, not here: every roster already derives
- * one, so this panel stays a per-person surface.
+ * star (floats to the front of my queues), and hide (off my board, period)
+ * live side by side on each row — the same scope/hide-together layout
+ * RepoFilter uses for repos. Whole-team narrowing lives in the pinned saved
+ * searches, not here: every roster already derives one, so this panel stays
+ * a per-person surface. The "everyone except" lane has no button of its own
+ * (a worded control per row was what crushed the name column): ⇧-clicking a
+ * row's checkbox excludes, and the struck-through row plus the trigger's −N
+ * badge stand for the choice.
  */
 export function PeopleFilter({
    pulls,
@@ -136,14 +131,27 @@ export function PeopleFilter({
                            type="checkbox"
                            className="m-0"
                            checked={included(login) && !excluded}
-                           onChange={() =>
+                           title={
+                              excluded
+                                 ? 'excluded — click to show their PRs again'
+                                 : '⇧ click: everyone except them'
+                           }
+                           // ⇧-click is the "everyone except" gesture. It rides the
+                           // change event, not onClick: React synthesizes checkbox
+                           // onChange from the click, so a preventDefault-ed onClick
+                           // still fires it and the two writes race. The checkbox is
+                           // controlled, so the render restores the right checked
+                           // state either way.
+                           onChange={e => {
+                              if ((e.nativeEvent as MouseEvent).shiftKey)
+                                 return excluded ? include(login) : exclude(login);
                               excluded
                                  ? include(login)
                                  : toggleScope(
                                       login,
                                       authors.map(([l]) => l)
-                                   )
-                           }
+                                   );
+                           }}
                         />
                         <Avatar login={login} size={18} />
                         <span
@@ -158,10 +166,6 @@ export function PeopleFilter({
                      </label>
                      <OnlyButton
                         onClick={() => setScope({ ...scope, authors: [login], notAuthors: [] })}
-                     />
-                     <ExceptButton
-                        on={excluded}
-                        onClick={() => (excluded ? include(login) : exclude(login))}
                      />
                      <button
                         type="button"
@@ -188,9 +192,11 @@ export function PeopleFilter({
                         <StarMark on={isTeammate} />
                      </button>
                      {login !== me && (
-                        <QuietButton onClick={() => toggleHiddenPerson(login, true)}>
-                           Hide
-                        </QuietButton>
+                        <EyeButton
+                           hidden={false}
+                           subject={login}
+                           onClick={() => toggleHiddenPerson(login, true)}
+                        />
                      )}
                   </FilterRow>
                );
@@ -217,9 +223,11 @@ export function PeopleFilter({
                               {count || ''}
                            </span>
                         </span>
-                        <QuietButton onClick={() => toggleHiddenPerson(login, false)}>
-                           Show
-                        </QuietButton>
+                        <EyeButton
+                           hidden
+                           subject={login}
+                           onClick={() => toggleHiddenPerson(login, false)}
+                        />
                      </FilterRow>
                   ))}
                </details>

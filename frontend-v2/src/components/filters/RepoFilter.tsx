@@ -3,10 +3,9 @@ import { repoState } from '../../model/visibility';
 import { shortRepo } from '../../format';
 import type { Scope } from '../../prefs';
 import { setRepoPref, togglePrimaryRepo, useSettings } from '../../settings';
-import { QuietButton } from '../bits';
 import { StarMark } from '../identity';
 import { Popover } from '../Popover';
-import { ClearRow, FilterSearch, FilterTrigger, OnlyButton } from './shared';
+import { ClearRow, EyeButton, FilterSearch, FilterTrigger, OnlyButton } from './shared';
 
 /**
  * The repos filter: opens straight into the repo list (no tabs — the old
@@ -112,7 +111,11 @@ export function RepoFilter({
             >
                <StarMark on={isPrimary} />
             </button>
-            <QuietButton onClick={() => setRepoPref(name, 'hide')}>Hide</QuietButton>
+            <EyeButton
+               hidden={false}
+               subject={shortRepo(name)}
+               onClick={() => setRepoPref(name, 'hide')}
+            />
          </div>
       );
    };
@@ -138,11 +141,14 @@ export function RepoFilter({
             <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
          </label>
          {state === 'hidden' ? (
-            <QuietButton onClick={() => setRepoPref(name, null)}>Show</QuietButton>
+            <EyeButton hidden subject={shortRepo(name)} onClick={() => setRepoPref(name, null)} />
          ) : (
-            <QuietButton tone="brand" onClick={() => setRepoPref(name, 'show')}>
-               Show
-            </QuietButton>
+            <EyeButton
+               hidden
+               subject={shortRepo(name)}
+               tone="brand"
+               onClick={() => setRepoPref(name, 'show')}
+            />
          )}
       </div>
    );
