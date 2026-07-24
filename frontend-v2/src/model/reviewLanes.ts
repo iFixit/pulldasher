@@ -11,6 +11,7 @@ import {
 } from './actions';
 import { startHereReason } from './cheers';
 import { dealRank } from './deal';
+import { displayName } from './names';
 import { matchesRegion } from './regions';
 import { repoBlocks, type RepoBlock } from './repoBlocks';
 import { claimFor, reviewRequestedFrom } from './reviewers';
@@ -61,6 +62,11 @@ export interface ReviewLanesInput {
    /** opts.ageWarnDays: the aging threshold dealRank's urgency ramp
     * normalizes against (falls back to the model's own STARVE_DAYS) */
    ageWarnDays?: number;
+   /** login → human display name (model/names.ts), threaded into whyUpNext/
+    * whyQaNext (and on into startHereReason) so the rank-reason popover shows
+    * a name instead of a login — defaults to {} so an unresolved login just
+    * falls back to itself. */
+   names?: Readonly<Record<string, string | null>>;
 }
 
 export interface ReviewLanes {
@@ -142,6 +148,7 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
       codeRegions,
       repoPriority,
       ageWarnDays,
+      names = {},
    } = input;
 
    const team = new Set(myPeople(teams));
@@ -394,8 +401,8 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    // so every surface explains a pick in the same words
    const whyUpNext = (p: DerivedPull) =>
       team.has(p.data.user.login)
-         ? `From ${p.data.user.login}, on your team — teammates’ PRs lead your queue`
-         : startHereReason(p, pulls, me);
+         ? `From ${displayName(names, p.data.user.login) ?? p.data.user.login}, on your team — teammates’ PRs lead your queue`
+         : startHereReason(p, pulls, me, false, names);
    // the queue's repo blocks (priority order, starved pierced out front) —
    // computed unconditionally, cheap; the render only reads it when a
    // priority is set
@@ -407,9 +414,9 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    // ranking this lane doesn't use.
    const whyQaNext = (p: DerivedPull) =>
       team.has(p.data.user.login)
-         ? `From ${p.data.user.login}, on your team — teammates’ PRs lead this lane`
+         ? `From ${displayName(names, p.data.user.login) ?? p.data.user.login}, on your team — teammates’ PRs lead this lane`
          : p.qaingLogin
-           ? `${p.qaingLogin} is already testing it; it sinks below unclaimed QA`
+           ? `${displayName(names, p.qaingLogin) ?? p.qaingLogin} is already testing it; it sinks below unclaimed QA`
            : p.weight === 'XS' || p.weight === 'S'
              ? `Nobody's testing it yet, a light one (${p.weight})`
              : `Nobody's testing it yet, waiting ${Math.max(1, Math.round(p.ageDays))}d`;

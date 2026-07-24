@@ -204,7 +204,11 @@ export function useToasts(
     * loading (an empty snapshot), and diffing that against a primed baseline
     * would fire phantom "Board's clear" / "Inbox zero" and count every stamp
     * as newly landed — so hold every evaluation until it's true. */
-   ready = true
+   ready = true,
+   /** login → human display name (model/names.ts) — threaded into
+    * evaluateCheers so cheer/nudge text shows a name instead of a login, same
+    * dependency-injection pattern as `closed`/`extras` above. */
+   names: Readonly<Record<string, string | null>> = {}
 ) {
    const [toasts, setToasts] = useState<LiveToast[]>([]);
    const [history, setHistory] = useState<ToastRecord[]>([]);
@@ -339,6 +343,7 @@ export function useToasts(
             claimWarnMs: getSettings().claimWarnMins * 60_000,
             muted: new Set(getSettings().mutedCheers as ToastKind[]),
             ready,
+            names,
          },
          baseline.current
       );
@@ -359,7 +364,7 @@ export function useToasts(
          return t;
       });
       if (on) push(bound);
-   }, [ready, pulls, turns, closed, me, push, onQuickWins, onClaimTurn]);
+   }, [ready, pulls, turns, closed, me, push, onQuickWins, onClaimTurn, names]);
 
    // pre-built one-shot toasts from the caller (e.g. the shipped catch-up),
    // deduped by dedupeKey so the same logical toast never re-fires on a later

@@ -237,8 +237,6 @@ export function App() {
       }
       return m;
    }, [pulls, pools]);
-   // desktop notifications watch the whole board, not the current filter
-   useNotifications(pulls, me, turns, initialized);
    // resolve every author on the board to a human display name (batched,
    // cached — model/names.ts): the person hover-cards, the people pickers,
    // and name-aware search all read from this one map
@@ -448,6 +446,30 @@ export function App() {
          draftsMode,
       ]
    );
+
+   // Nudges/notifications honor the STANDING hidden-repo/hidden-person
+   // settings only — never the current view's scope/query/weight/state
+   // filters, and never a session reveal — so a hidden-repo (or hidden-
+   // person) PR can never surface a cheer/nudge toast or desktop
+   // notification. Reuses the board's own isHiddenFor with reveals pinned
+   // to false, rather than a second copy of the hide logic.
+   const nudgeablePulls = useMemo(
+      () =>
+         pulls.filter(
+            p =>
+               !isHiddenFor(
+                  { login: p.data.user.login, repo: p.data.repo, isBot: isBot(p) },
+                  settings,
+                  me,
+                  () => false,
+                  () => false
+               )
+         ),
+      [pulls, settings, me, isBot]
+   );
+   // desktop notifications watch the whole board (minus the standing hidden
+   // settings above), not the current filter
+   useNotifications(nudgeablePulls, me, turns, initialized);
 
    // every existing scope/query pass, but not yet the Weight/State filters —
    // WeightFilter's live per-option counts read this pool, so narrowing to
@@ -738,7 +760,17 @@ export function App() {
       history: toastHistory,
       clearHistory,
       dismissHistoryItem,
-   } = useToasts(pulls, me, turns, shippedExtras, closed, onQuickWins, onClaimTurn, initialized);
+   } = useToasts(
+      nudgeablePulls,
+      me,
+      turns,
+      shippedExtras,
+      closed,
+      onQuickWins,
+      onClaimTurn,
+      initialized,
+      names
+   );
 
    return (
       <>

@@ -352,3 +352,41 @@ describe('buildReviewLanes — board summary', () => {
       expect(lanes.restTotal).toBe(2);
    });
 });
+
+describe('buildReviewLanes — why-line display names', () => {
+   it("whyUpNext resolves a teammate's display name instead of their login", () => {
+      const p = dp({ author: 'alice', status: 'needs_cr' });
+      const lanes = buildReviewLanes(
+         input({
+            pulls: [p],
+            teams: [{ name: 'My team', members: ['alice'] }],
+            names: { alice: 'Alice A' },
+         })
+      );
+      expect(lanes.whyUpNext(p)).toBe(
+         'From Alice A, on your team — teammates’ PRs lead your queue'
+      );
+   });
+
+   it('whyUpNext falls back to the login when no display name is known', () => {
+      const p = dp({ author: 'alice', status: 'needs_cr' });
+      const lanes = buildReviewLanes(
+         input({ pulls: [p], teams: [{ name: 'My team', members: ['alice'] }] })
+      );
+      expect(lanes.whyUpNext(p)).toBe('From alice, on your team — teammates’ PRs lead your queue');
+   });
+
+   it('whyUpNext threads names into startHereReason for a non-teammate', () => {
+      // reciprocity reason: alice reviewed one of "me"'s pulls
+      const target = dp({ author: 'alice', status: 'needs_cr' });
+      const mine = dp({ repo: 'org/repo', number: 99, author: 'me', crBy: ['alice'] });
+      const lanes = buildReviewLanes(input({ pulls: [target, mine], names: { alice: 'Alice A' } }));
+      expect(lanes.whyUpNext(target)).toBe('Alice A reviewed yours, return the favor');
+   });
+
+   it("whyQaNext resolves the tester's display name", () => {
+      const p = dp({ author: 'bob', status: 'needs_qa', qaingLogin: 'alice' });
+      const lanes = buildReviewLanes(input({ pulls: [p], names: { alice: 'Alice A' } }));
+      expect(lanes.whyQaNext(p)).toBe('Alice A is already testing it; it sinks below unclaimed QA');
+   });
+});

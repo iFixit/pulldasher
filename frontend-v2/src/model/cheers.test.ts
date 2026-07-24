@@ -791,13 +791,19 @@ describe('evaluateCheers — loading guard', () => {
 
    it('no-ops and carries the baseline while the board is still loading', () => {
       // the empty snapshot the store publishes before the first payload lands
-      const { toasts, next } = evaluateCheers({ pulls: [], turns: new Map(), me: 'me', ready: false }, primedBase);
+      const { toasts, next } = evaluateCheers(
+         { pulls: [], turns: new Map(), me: 'me', ready: false },
+         primedBase
+      );
       expect(toasts).toEqual([]);
       expect(next).toBe(primedBase);
    });
 
    it('WOULD fire phantom clears against that empty board once ready — the bug the guard prevents', () => {
-      const { toasts } = evaluateCheers({ pulls: [], turns: new Map(), me: 'me', ready: true }, primedBase);
+      const { toasts } = evaluateCheers(
+         { pulls: [], turns: new Map(), me: 'me', ready: true },
+         primedBase
+      );
       const keys = toasts.map(t => t.dedupeKey);
       expect(keys).toContain('inbox:zero');
       expect(keys).toContain('board:clear');
@@ -867,5 +873,93 @@ describe('diffCheers — muting', () => {
       const freed = build(new Set<ToastKind>(['review-requested']));
       expect(freed.toasts.some(t => t.dedupeKey?.startsWith('req:'))).toBe(false);
       expect(freed.toasts.some(t => t.icon === '⚡')).toBe(true);
+   });
+});
+
+describe('diffCheers / startHereReason — display names', () => {
+   const names = { alice: 'Alice A' };
+
+   it('resolves the requester’s name in review-requested, falling back to the login when unknown', () => {
+      const known = pull('org/a', 7, { author: 'alice' });
+      const unknown = pull('org/a', 8, { author: 'bob' });
+      const base = primed(sig());
+      const { toasts } = diffCheers(
+         sig({
+            requestedOfMe: new Map([
+               [pullKey(known.data), known],
+               [pullKey(unknown.data), unknown],
+            ]),
+            pulls: [known, unknown],
+         }),
+         'me',
+         base,
+         undefined,
+         names
+      );
+      expect(toasts.some(t => t.body === 'Alice A asked you to review this.')).toBe(true);
+      expect(toasts.some(t => t.body === 'bob asked you to review this.')).toBe(true);
+   });
+
+   it('resolves the debtor’s name in return-the-favor', () => {
+      const base = primed(sig());
+      const p = pull('org/a', 9, { author: 'alice' });
+      const debtors = [{ login: 'alice', pull: p, count: 1 }];
+      const { toasts } = diffCheers(sig({ debtors }), 'me', base, undefined, names);
+      expect(toasts.some(t => t.title === 'Return the favor to Alice A')).toBe(true);
+   });
+
+   it('resolves the overtaker’s name in overtaken, but keys the dedupeKey off the raw login', () => {
+      const base = primed(sig({ myRank: 3, myCount: 4 }));
+      const rankHolders = new Map([[3, ['alice']]]);
+      const { toasts } = diffCheers(
+         sig({ myRank: 4, myCount: 4, rankHolders }),
+         'me',
+         base,
+         undefined,
+         names
+      );
+      const toast = toasts.find(t => t.dedupeKey?.startsWith('overtaken:'));
+      expect(toast?.title).toBe('Alice A took your #3 spot');
+      expect(toast?.dedupeKey).toBe('overtaken:3:alice');
+   });
+
+   it('resolves the first reviewer’s name in pr-first-review', () => {
+      const key = 'org/a#2';
+      const p = pull('org/a', 2, { author: 'me', crBy: ['alice'] });
+      const base = primed(sig({ authorPrs: new Map([[key, prState()]]) }));
+      const { toasts } = diffCheers(
+         sig({ authorPrs: new Map([[key, prState({ reviewed: true })]]), pulls: [p] }),
+         'me',
+         base,
+         undefined,
+         names
+      );
+      expect(
+         toasts.some(t => t.dedupeKey === `firstrev:${key}` && t.body === 'Alice A is on it.')
+      ).toBe(true);
+   });
+
+   it('keeps the "A reviewer" fallback when no reviewer is found, rather than resolving it as a login', () => {
+      const key = 'org/a#3';
+      const p = pull('org/a', 3, { author: 'me', crBy: [] });
+      const base = primed(sig({ authorPrs: new Map([[key, prState()]]) }));
+      const { toasts } = diffCheers(
+         sig({ authorPrs: new Map([[key, prState({ reviewed: true })]]), pulls: [p] }),
+         'me',
+         base,
+         undefined,
+         names
+      );
+      expect(
+         toasts.some(t => t.dedupeKey === `firstrev:${key}` && t.body === 'A reviewer is on it.')
+      ).toBe(true);
+   });
+
+   it('resolves the reciprocity author’s name in startHereReason', () => {
+      const target = pull('org/a', 1, { author: 'alice', ageDays: 10, weight: 'XS' });
+      const mine = pull('org/a', 2, { author: 'me', crBy: ['alice'] });
+      expect(startHereReason(target, [target, mine], 'me', false, names)).toBe(
+         'Alice A reviewed yours, return the favor'
+      );
    });
 });

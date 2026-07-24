@@ -1,5 +1,6 @@
 import type { DerivedPull } from '../../../shared/model/status';
 import { ago, pullKey, shortRepo } from '../../../shared/format';
+import { useNames } from '../model/names';
 import { matchedRegions } from '../model/regions';
 import { buildReviewLanes } from '../model/reviewLanes';
 import { useSettings } from '../settings';
@@ -36,6 +37,9 @@ export function Review({
 }) {
    const me = opts.me;
    const { selfReview, teams, codeRegions, repoPriority, repoQueueCap } = useSettings();
+   // login -> human display name (app.tsx prefetches the board), for the
+   // rank-reason popover's why-lines (model/reviewLanes.ts's whyUpNext/whyQaNext)
+   const names = useNames();
    // A snooze is "not today" for THIS lens only: the daily what-do-I-review
    // loop lives here, so the quieting gesture belongs here — every other
    // lens still shows the pull. Snoozed rows collect in their own section at
@@ -65,6 +69,7 @@ export function Review({
       codeRegions,
       repoPriority,
       ageWarnDays: opts.ageWarnDays,
+      names,
    });
    const queueOpts = { ...opts, rankReason: lanes.whyUpNext };
 

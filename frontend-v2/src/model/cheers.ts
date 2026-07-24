@@ -3,6 +3,7 @@ import type { PullData } from '../../../shared/types';
 import { actionState, STALE_CLAIM_SECS } from './actions';
 import { dealFrom, dealRank } from './deal';
 import { reviewerRanks } from './leaderboard';
+import { displayName } from './names';
 import { claimFor, reviewRequestedFrom } from './reviewers';
 import { crSort } from './sort';
 import { CR_INCOMPLETE, type DerivedPull } from '../../../shared/model/status';
@@ -186,6 +187,13 @@ interface CheerInput {
     * cap, so muting a high-priority kind frees its slot for a shown one rather
     * than firing then hiding it. */
    muted?: ReadonlySet<ToastKind>;
+   /** login → human display name (model/names.ts) — turns a GitHub login into
+    * a name in cheer/nudge copy. Threaded in as a plain object (like `me`/
+    * `muted`/`claimWarnMs`) rather than read from the names store directly,
+    * so this module stays pure and testable; the hook passes useNames()'s
+    * snapshot. Defaults to {} so an unresolved login just falls back to
+    * itself. */
+   names?: Readonly<Record<string, string | null>>;
    /** the board's first payload has arrived. `false` means it's still loading
     * (an empty snapshot), and diffing that against a primed baseline would fire
     * a phantom "Board's clear" / "Inbox zero" and count every stamp as newly
@@ -250,11 +258,13 @@ export function startHereReason(
    p: DerivedPull,
    pulls: DerivedPull[],
    me: string,
-   superlative = false
+   superlative = false,
+   names: Readonly<Record<string, string | null>> = {}
 ): string {
    const author = p.data.user.login;
    const owedByAuthor = pulls.some(o => o.data.user.login === me && hasStamp(o, author));
-   if (owedByAuthor) return `${author} reviewed yours, return the favor`;
+   if (owedByAuthor)
+      return `${displayName(names, author) ?? author} reviewed yours, return the favor`;
    const quickWin = p.weight === 'XS' || p.weight === 'S';
    if (quickWin) return `Small one (${p.weight}), quick`;
    const days = Math.max(1, Math.round(p.ageDays));
@@ -378,7 +388,9 @@ function readSignals(input: CheerInput): Signals {
    const bestStart = dealFrom(dealRank(reviewableUnclaimed, { me, pulls, deprioritize: isBot }), {
       passed: new Set(),
    });
-   const startReason = bestStart ? startHereReason(bestStart, pulls, me, true) : '';
+   const startReason = bestStart
+      ? startHereReason(bestStart, pulls, me, true, input.names ?? {})
+      : '';
 
    // reciprocity: who has stamped one of your own pulls, and do they have an
    // open reviewable pull of their own right now?
@@ -523,7 +535,7 @@ export function evaluateCheers(
    // still loading — fire nothing and carry the baseline forward, so a primed
    // baseline never diffs against an empty board (the phantom-clear bug)
    if (input.ready === false) return { toasts: [], next: base };
-   return diffCheers(readSignals(input), input.me, base, input.muted);
+   return diffCheers(readSignals(input), input.me, base, input.muted, input.names);
 }
 
 /** Toast categories, highest priority first — what survives when a tick
@@ -744,7 +756,13 @@ export function diffCheers(
    sig: Signals,
    me: string,
    base: CheerBaseline,
-   muted: ReadonlySet<ToastKind> = NO_MUTED
+   muted: ReadonlySet<ToastKind> = NO_MUTED,
+   /** login → human display name, for the same login→name swap as
+    * startHereReason's own `names` param — threaded here too since these
+    * builders (review-requested, return-the-favor, overtaken,
+    * pr-first-review) construct their text directly, not through
+    * startHereReason. */
+   names: Readonly<Record<string, string | null>> = {}
 ): { toasts: CheerToast[]; next: CheerBaseline } {
    if (!base.primed || !me || (base.login !== '' && base.login !== me)) {
       const toasts: CheerToast[] = [];
@@ -888,7 +906,7 @@ export function diffCheers(
             tone: 'info',
             icon: '✦',
             title: 'Review requested',
-            body: `${p.data.user.login} asked you to review this.`,
+            body: `${displayName(names, p.data.user.login) ?? p.data.user.login} asked you to review this.`,
             pull: pullRef(p),
             dedupeKey: `req:${key}`,
          },
@@ -985,7 +1003,7 @@ export function diffCheers(
          {
             tone: 'info',
             icon: '🤝',
-            title: `Return the favor to ${login}`,
+            title: `Return the favor to ${displayName(names, login) ?? login}`,
             body:
                count === 1
                   ? 'They reviewed one of your PRs.'
@@ -1069,7 +1087,7 @@ export function diffCheers(
             {
                tone: 'nag',
                icon: '📉',
-               title: `${overtaker} took your #${base.myRank} spot`,
+               title: `${displayName(names, overtaker) ?? overtaker} took your #${base.myRank} spot`,
                body: `You're #${sig.myRank} on the board now.`,
                dedupeKey: `overtaken:${base.myRank}:${overtaker}`,
             },
@@ -1112,13 +1130,17 @@ export function diffCheers(
          );
       }
       if (!was.reviewed && now.reviewed) {
+         // resolve through displayName only when a login was actually found —
+         // the 'A reviewer' fallback is for "nobody found", not "found but
+         // nameless", so it must never itself get run through displayName
+         const firstReviewer = p.crBy.find(l => l !== p.data.user.login);
          push(
             'pr-first-review',
             {
                tone: 'info',
                icon: '👀',
                title: 'Someone picked up your PR',
-               body: `${p.crBy.find(l => l !== p.data.user.login) ?? 'A reviewer'} is on it.`,
+               body: `${firstReviewer ? (displayName(names, firstReviewer) ?? firstReviewer) : 'A reviewer'} is on it.`,
                pull: pullRef(p),
                dedupeKey: `firstrev:${key}`,
             },
