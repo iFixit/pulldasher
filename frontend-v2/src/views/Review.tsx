@@ -14,11 +14,12 @@ import { eyebrowText, WordGroupRows } from '../components/WordGroups';
 import { ClosedRow } from '../components/ClosedRow';
 
 /**
- * The home tab. It opens with the one lane the whole app used to lack: every
- * action that is yours — re-stamps you owe, your own merge buttons, your CI
- * fixes — regardless of who authored the pull. The daily loop must not
- * require flipping between Review and My work. Below that, other people's
- * work to pick from.
+ * The home tab. It opens with Ready to merge — the fastest board-clearing
+ * wins, done work anyone can land — then the one lane the whole app used to
+ * lack: every action that is yours (re-stamps you owe, your own merge buttons,
+ * your CI fixes), regardless of who authored the pull. The daily loop must not
+ * require flipping between Review and My work. Below that, other people's work
+ * to pick from.
  *
  * The lane/pool math (queues, QA, "waiting on you", region matches, ...) is
  * model/reviewLanes.ts's buildReviewLanes — this component's job is only to
@@ -86,6 +87,34 @@ export function Review({
    return (
       <>
          {codeRegions.length === 0 && <RegionHint />}
+         {/* Leads the whole lens (owner call): fully finished work — signed
+             off, green, one press from shipped — is the fastest, highest-
+             leverage thing on the board, so clearing it comes before even your
+             own owed work below. Your OWN ready PR still also appears in
+             "Waiting on you" as a Merge-it; this lane is everyone else's done
+             work, landable by anyone. */}
+         <Lane
+            title="Ready to merge"
+            sub={
+               <SubDoor
+                  label="Why Ready to merge leads"
+                  text="signed off and green, someone just has to press merge"
+               >
+                  <p>
+                     Everything is done on these: code review and QA are in, CI is green, and they
+                     merge cleanly. The author usually lands their own PR, but anyone can. Merge it,
+                     or nudge the author if it’s been sitting.
+                  </p>
+                  <p>
+                     Bot PRs land here too once they’re fully green: they only ship when a human
+                     merges them. Longest-waiting first.
+                  </p>
+               </SubDoor>
+            }
+            pulls={lanes.ready}
+            cap={6}
+            opts={opts}
+         />
          {lanes.yourMove.length > 0 && (
             <Lane
                title="Waiting on you"
@@ -172,38 +201,9 @@ export function Review({
              label only earns its place when something is actually on offer. */}
          {(lanes.queue.length > 0 ||
             lanes.needsQa.length > 0 ||
-            lanes.regionMatches.length > 0 ||
-            lanes.ready.length > 0) && (
+            lanes.regionMatches.length > 0) && (
             <div className={`mb-2 text-ink-3 ${eyebrowText}`}>Pick up next</div>
          )}
-         {/* leads Pick up next: fully finished work is the fastest, highest-
-             leverage pickup on the board — signed off, green, one press from
-             shipped — so it sits at the top of what's on offer rather than
-             rotting at the bottom under the review queue. (Your OWN ready PR
-             is already up in "Waiting on you" as a Merge-it; this lane is
-             everyone else's done work, landable by anyone.) */}
-         <Lane
-            title="Ready to merge"
-            sub={
-               <SubDoor
-                  label="Why Ready to merge leads"
-                  text="signed off and green, someone just has to press merge"
-               >
-                  <p>
-                     Everything is done on these: code review and QA are in, CI is green, and they
-                     merge cleanly. The author usually lands their own PR, but anyone can. Merge it,
-                     or nudge the author if it’s been sitting.
-                  </p>
-                  <p>
-                     Bot PRs land here too once they’re fully green: they only ship when a human
-                     merges them. Longest-waiting first.
-                  </p>
-               </SubDoor>
-            }
-            pulls={lanes.ready}
-            cap={6}
-            opts={opts}
-         />
          {codeRegions.length > 0 && lanes.regionMatches.length > 0 && (
             <Lane
                title="In your code regions"
