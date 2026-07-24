@@ -319,8 +319,10 @@ label:has(> input:not(:disabled)) {
   /* the slot you personally stamped: a dotted rule under the marks */
   .pip-mine { border-bottom: 1px dotted var(--ink-3); padding-bottom: 2px; }
 
-  /* age as the row's own baseline: a 1px grey hairline along the bottom
-     edge — a deepened stretch of the divider the row already has. Length
+  /* age as the row's own baseline: a 2px grey hairline along the bottom
+     edge — a deepened stretch of the divider the row already has. A single
+     pixel read too faint to register as a deliberate mark, so the resting
+     line sits at 2px: still a quiet fact, now legible at a glance. Length
      and tint are both relative to the board's longest-open pull (see
      bits.tsx AgeBaseline). The quiet day count floats right in the meta
      line, capping the track. width:100% fills its immediate parent, the
@@ -331,7 +333,7 @@ label:has(> input:not(:disabled)) {
     left: 0;
     bottom: 0;
     width: 100%;
-    height: 1px;
+    height: 2px;
     pointer-events: none;
     /* the growing tip rounds like every other surface on the board; the left
        end stays square — it's a measurement from the row's edge, a ruler
@@ -345,7 +347,7 @@ label:has(> input:not(:disabled)) {
   /* the line's own door: .pd-age-track is the row-relative track (bits.tsx
      sets its width inline to the SAME fraction the line draws, the row's
      age relative to the board's oldest, not the full row) — a taller (10px)
-     box so a 1px line doesn't need pixel-hunting. z-index:1 matches
+     box so a thin line doesn't need pixel-hunting. z-index:1 matches
      .pd-raise's tier: enough to sit above the row's stretched-link click
      layer (.pd-link::after, z-index 0) inside this one strip, without
      stealing a click anywhere else on the row. .pd-age-hit is the button
