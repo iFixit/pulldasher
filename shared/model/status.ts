@@ -288,12 +288,9 @@ export function derive(
       ...st.allQA.map(s => s.data.user.login),
    ]);
    const engagedNoStamp = unique(
-      [
-         ...unstampedReviewers.map(r => r.login),
-         ...(pull.participants ?? []).filter(
-            login => login !== pull.user.login && !everStamped.has(login)
-         ),
-      ].filter(login => !isSuffixBot(login))
+      [...unstampedReviewers.map(r => r.login), ...(pull.participants ?? [])].filter(
+         login => login !== pull.user.login && !everStamped.has(login) && !isSuffixBot(login)
+      )
    );
 
    const conflict = pull.mergeable === false;
