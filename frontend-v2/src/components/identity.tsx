@@ -1,25 +1,26 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { Star } from 'lucide-react';
+import { Heart, Star } from 'lucide-react';
 import { githubAvatarUrl, githubProfileUrl, loginHue } from '../format';
 import { displayName, requestNames, useNames } from '../model/names';
+import { useSettings } from '../settings';
 import { Icon } from './Icon';
 import { Popover } from './Popover';
 
 /**
- * The board's author-identity system — the silhouette and the star:
+ * The board's author-identity system — the silhouette and the corner mark:
  *
  * - SHAPE answers "person or machine": people are circles, bots (GitHub
  *   Apps and config-listed machine accounts) are rounded squares, the
  *   app-tile idiom Slack and GitHub already taught. No glyph, no hue — the
  *   outline is the mark, so it reads at 16px and in peripheral vision.
- * - The BOTTOM-RIGHT CORNER answers "what is this person to you", in one
- *   glyph: a small star on a teammate (your review circle), and a larger star seated on
- *   the rim of your own avatar with a bite masked out of the face, so your
- *   silhouette is visibly broken. You are the star vocabulary's largest
- *   case — escalated by size and form, never by fill. (The ringed seal and
- *   the v1 star-coin both died here: a halo reads as focus, a coin loses
- *   the face.)
+ * - The BOTTOM-RIGHT CORNER answers "what is this person to you", in one of
+ *   two glyphs: a small heart on a teammate (your review circle), and a
+ *   larger star seated on the rim of your own avatar with a bite masked out
+ *   of the face, so your silhouette is visibly broken. The star's only
+ *   meaning is you — you are the vocabulary's largest case, escalated by
+ *   size and form, never by fill. (The ringed seal and the v1 star-coin
+ *   both died here: a halo reads as focus, a coin loses the face.)
  * - Identity, never state: none of it animates or changes with PR status.
  */
 
@@ -99,6 +100,11 @@ function PersonCard({ login }: { login: string }) {
    const names = useNames();
    useEffect(() => requestNames([login]), [login]);
    const name = displayName(names, login);
+   // teammate attribution is one hover away anywhere an avatar is clickable,
+   // so a row's heart mark never has to be the only place that tells you
+   const rosters = useSettings()
+      .teams.filter(t => t.members.includes(login))
+      .map(t => t.name);
    return (
       <div className="flex items-center gap-2.5 text-[13px]">
          <AvatarFace login={login} size={40} />
@@ -120,6 +126,12 @@ function PersonCard({ login }: { login: string }) {
             >
                {name ? `@${login} · ` : ''}GitHub profile ↗
             </a>
+            {rosters.length > 0 && (
+               <div className="flex items-center gap-1 text-[11px] text-ink-3">
+                  <Icon icon={Heart} size={9} className="text-brand" fill="currentColor" />
+                  On {rosters.join(' & ')}
+               </div>
+            )}
          </div>
       </div>
    );
@@ -195,14 +207,4 @@ export function Avatar({
          <PersonCard login={login} />
       </Popover>
    );
-}
-
-/**
- * The one star mark every "primary repo" / "teammate" toggle shares
- * (Row's kebab menu, RepoFilter, PeopleFilter, RepoManager): filled when on,
- * outline when off, same lucide glyph everywhere instead of five hand-rolled
- * ★/☆ copies.
- */
-export function StarMark({ on, size = 14 }: { on: boolean; size?: number }) {
-   return <Icon icon={Star} size={size} fill={on ? 'currentColor' : 'none'} />;
 }

@@ -2,22 +2,21 @@ import { useState } from 'react';
 import type { DerivedPull } from '../../model/status';
 import { displayName, useNames } from '../../model/names';
 import type { Scope } from '../../prefs';
-import { toggleHiddenPerson, toggleTeammate, useSettings } from '../../settings';
+import { toggleHiddenPerson, useSettings } from '../../settings';
 import { usePulldasher } from '../../store';
-import { Avatar, StarMark } from '../identity';
+import { Avatar } from '../identity';
 import { Popover } from '../Popover';
 import { ClearRow, EyeButton, FilterRow, FilterSearch, FilterTrigger, OnlyButton } from './shared';
 
 /**
- * The people filter: a searchable author list where scope (on my board),
- * star (floats to the front of my queues), and hide (off my board, period)
- * live side by side on each row — the same scope/hide-together layout
- * RepoFilter uses for repos. Whole-team narrowing lives in the pinned saved
- * searches, not here: every roster already derives one, so this panel stays
- * a per-person surface. The "everyone except" lane has no button of its own
- * (a worded control per row was what crushed the name column): ⇧-clicking a
- * row's checkbox excludes, and the struck-through row plus the trigger's −N
- * badge stand for the choice.
+ * The people filter: a searchable author list where scope (on my board) and
+ * hide (off my board, period) live side by side on each row — the same
+ * scope/hide-together layout RepoFilter uses for repos. Whole-team narrowing
+ * lives in the pinned saved searches, not here: every roster already derives
+ * one, so this panel stays a per-person surface. The "everyone except" lane
+ * has no button of its own (a worded control per row was what crushed the
+ * name column): ⇧-clicking a row's checkbox excludes, and the struck-through
+ * row plus the trigger's −N badge stand for the choice.
  */
 export function PeopleFilter({
    pulls,
@@ -36,7 +35,6 @@ export function PeopleFilter({
    const nameOf = (login: string) => displayName(namesMap, login);
    const matchesPerson = (login: string, q: string) =>
       login.toLowerCase().includes(q) || (nameOf(login) ?? '').toLowerCase().includes(q);
-   const teamSet = new Set(settings.teams.flatMap(t => t.members));
    const hiddenSet = new Set(settings.hiddenPeople);
    const [peopleQuery, setPeopleQuery] = useState('');
 
@@ -122,7 +120,6 @@ export function PeopleFilter({
          >
             <FilterSearch value={peopleQuery} onChange={setPeopleQuery} label="Filter people" />
             {filteredShown.map(([login, count]) => {
-               const isTeammate = teamSet.has(login);
                const excluded = scope.notAuthors.includes(login);
                return (
                   <FilterRow key={login}>
@@ -167,30 +164,6 @@ export function PeopleFilter({
                      <OnlyButton
                         onClick={() => setScope({ ...scope, authors: [login], notAuthors: [] })}
                      />
-                     <button
-                        type="button"
-                        // no .hit bleed / no -my: the star's own py clears the
-                        // 24px floor; the bled box overlapped adjacent clicks
-                        className={`pressable rounded-md px-1.5 py-1.5 text-sm leading-none ${
-                           isTeammate
-                              ? 'text-brand hover:text-brand/70'
-                              : 'text-ink-3 hover:text-brand'
-                        }`}
-                        onClick={() => toggleTeammate(login, !isTeammate)}
-                        aria-pressed={isTeammate}
-                        aria-label={
-                           isTeammate
-                              ? `remove ${login} from your team`
-                              : `add ${login} to your team`
-                        }
-                        title={
-                           isTeammate
-                              ? `${login} is on your team; their PRs lead your review queues`
-                              : `add ${login} to your team: their PRs lead your review queues`
-                        }
-                     >
-                        <StarMark on={isTeammate} />
-                     </button>
                      {login !== me && (
                         <EyeButton
                            hidden={false}

@@ -57,7 +57,7 @@ function withAuthor(login: string): DerivedPull {
 }
 
 describe('teamFirst', () => {
-   it('moves starred authors to the front', () => {
+   it('moves team authors to the front', () => {
       const a = withAuthor('alice');
       const b = withAuthor('bob');
       const c = withAuthor('carol');
@@ -66,7 +66,7 @@ describe('teamFirst', () => {
       expect(sorted.slice(1)).toEqual([a, b]);
    });
 
-   it('is stable within the starred group and within the rest', () => {
+   it('is stable within the team group and within the rest', () => {
       const a1 = withAuthor('alice');
       const a2 = withAuthor('alice');
       const b1 = withAuthor('bob');
@@ -76,7 +76,7 @@ describe('teamFirst', () => {
       expect(sorted).toEqual([a1, a2, b1, b2]);
    });
 
-   it('leaves the list untouched when nobody is starred', () => {
+   it('leaves the list untouched when nobody is on the team', () => {
       const a = withAuthor('alice');
       const b = withAuthor('bob');
       expect(teamFirst([a, b], new Set())).toEqual([a, b]);

@@ -216,13 +216,12 @@ export function Settings({
                      tabIndex={-1}
                      className="settings-panel absolute top-0 right-0 flex h-full w-[min(360px,100vw)] flex-col overflow-y-auto border-l border-line bg-surface shadow-xl outline-none"
                   >
-                     {/* z-10: children further down the panel (avatars, star
-                         buttons, the code-regions Add button — anything
-                         position:relative via .hit/.pressable) paint above a
-                         sticky header with no z-index of its own once they
-                         scroll under it. The overlay above is already
-                         z-[100], so z-10 in here only has to beat panel
-                         content. */}
+                     {/* z-10: children further down the panel (avatars, the
+                         code-regions Add button — anything position:relative
+                         via .hit/.pressable) paint above a sticky header with
+                         no z-index of its own once they scroll under it. The
+                         overlay above is already z-[100], so z-10 in here
+                         only has to beat panel content. */}
                      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-surface px-4 py-3">
                         <span className="text-sm font-semibold text-ink">Settings</span>
                         <button
@@ -405,7 +404,7 @@ export function Settings({
                            </QuietButton>
                         </div>
                         <span className="text-[13px] text-ink-2">
-                           Repos: star and hide from the Repos filter in the header.
+                           Repos: hide and reveal from the Repos filter in the header.
                         </span>
                      </Group>
 

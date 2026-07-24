@@ -43,7 +43,7 @@ export function Review({
    opts: RowOptions;
 }) {
    const me = opts.me;
-   const { selfReview, primaryRepos, teams, codeRegions } = useSettings();
+   const { selfReview, teams, codeRegions } = useSettings();
    const team = new Set(myPeople(teams));
    // A snooze is "not today" for THIS lens only: the daily what-do-I-review
    // loop lives here, so the quieting gesture belongs here — every other
@@ -55,18 +55,15 @@ export function Review({
    const bots = allBots.filter(p => !isSnoozed(p.data, snoozed));
    const others = pulls.filter(p => p.data.user.login !== me);
 
-   // Repo relevance is per-person: a web dev and a firmware dev share the
-   // monorepo but little else. Your primary repos are the ones you set, or —
-   // until you set any — the ones you're demonstrably in (authored or stamped
-   // on the current board). An empty set means we can't tell, so treat every
-   // repo as primary and fall back to one flat queue.
-   const primarySet = primaryRepos.length
-      ? new Set(primaryRepos)
-      : new Set(
-           pulls
-              .filter(p => p.data.user.login === me || p.crBy.includes(me) || p.qaBy.includes(me))
-              .map(p => p.data.repo)
-        );
+   // Repo relevance is per-person (a web dev and a firmware dev share the
+   // monorepo but little else) and inferred from the current board: the
+   // repos you've authored or stamped on. An empty inference means we can't
+   // tell, so every repo counts as primary and the queue stays flat.
+   const primarySet = new Set(
+      pulls
+         .filter(p => p.data.user.login === me || p.crBy.includes(me) || p.qaBy.includes(me))
+         .map(p => p.data.repo)
+   );
    const isPrimaryRepo = (repo: string) => primarySet.size === 0 || primarySet.has(repo);
 
    // 1. Waiting on you: strictly your verbs. The earlier "Act now" lesson still

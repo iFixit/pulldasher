@@ -126,7 +126,7 @@ a card is where it is, one of these layers is missing.
 
 ## Identity vs standing
 
-**The silhouette and the star** — the author-identity system, two
+**The silhouette and the corner mark** — the author-identity system, two
 channels and no ring:
 
 - **Shape answers person-or-machine.** People are circles; bots (a
@@ -135,15 +135,21 @@ channels and no ring:
   the outline is the whole mark, so it reads at 16px and in peripheral
   vision.
 - **The bottom-right corner answers what-this-person-is-to-you, in one
-  glyph.** A small (9px) brand star on someone you starred; on your own
-  avatar, a larger (13px/11px) brand star seated ON the rim with a
-  transparent bite masked out of the face — your silhouette is visibly
-  broken, so your rows are findable by *form* before the star even
-  resolves. You are the star vocabulary's largest case, escalated by
-  size and a broken outline, never by fill. The bite is a mask, not a
-  painted stroke, so it stays correct over any row background (hover,
-  fresh flash).
+  of two glyphs.** A small (9px) filled brand heart on a teammate —
+  someone on one of your rosters; on your own avatar, a larger
+  (13px/11px) brand star seated ON the rim with a transparent bite
+  masked out of the face — your silhouette is visibly broken, so your
+  rows are findable by *form* before the star even resolves. The star
+  means exactly one thing now: you. You are the vocabulary's largest
+  case, escalated by size and a broken outline, never by fill. The bite
+  is a mask, not a painted stroke, so it stays correct over any row
+  background (hover, fresh flash).
 - Static always: identity, not state. Never animates.
+- **The controls are retired, not just renamed.** There is no more
+  "starred repo" or "starred person" toggle: repo relevance is inferred
+  from the current board (repos you've authored or stamped on), and
+  roster membership is edited only on the Team lens, not from a row or
+  filter-row button.
 
 Rejected on the way here, in order: the plain brand ring (selection
 halo), a corner dot (online presence), a brand repo#number (reads as a

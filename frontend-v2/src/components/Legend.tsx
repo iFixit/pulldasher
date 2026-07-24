@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CircleHelp, Star } from 'lucide-react';
+import { CircleHelp, Heart, Star } from 'lucide-react';
 import { Icon } from './Icon';
 import { Popover } from './Popover';
 import { eyebrowText } from './WordGroups';
@@ -126,11 +126,11 @@ export function Legend() {
             <Item
                term={
                   <span className="inline-flex items-center gap-1 text-brand">
-                     <Icon icon={Star} size={9} fill="currentColor" />
+                     <Icon icon={Heart} size={13} fill="currentColor" />
                      <Icon icon={Star} size={13} fill="currentColor" />
                   </span>
                }
-               def="a small corner star marks someone on your team; the larger star seated on your own avatar’s rim is you"
+               def="a corner heart marks someone on your team; the star seated on your own avatar’s rim is you"
             />
          </Group>
 

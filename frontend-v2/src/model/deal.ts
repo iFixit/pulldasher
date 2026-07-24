@@ -83,7 +83,7 @@ export function dealRank(pool: DerivedPull[], opts: DealRankOptions): DerivedPul
 /**
  * Deal the first still-available entry of an already-ranked list — skipping
  * anything claimed or already passed this sitting. Takes the *rendered* queue
- * (dealRank order, star-pinning and all) rather than re-ranking, so the card
+ * (dealRank order, team-pinning and all) rather than re-ranking, so the card
  * dealt is by construction the top visible one still up for grabs.
  */
 export function dealFrom(

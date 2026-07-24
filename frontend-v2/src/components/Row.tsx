@@ -7,8 +7,8 @@ import {
    Eye,
    EyeOff,
    Hand,
+   Heart,
    RefreshCw,
-   Star,
 } from 'lucide-react';
 import type { DerivedPull } from '../model/status';
 import { isIterating, lastPushEpoch, weightFilterKey } from '../model/status';
@@ -17,13 +17,7 @@ import { matchedRegions } from '../model/regions';
 import { claimFor } from '../model/reviewers';
 import type { ParentRef } from '../model/stack';
 import { ago, epoch, pullKey, rowDomId, shortRepo } from '../format';
-import {
-   setRepoPref,
-   toggleHiddenPerson,
-   togglePrimaryRepo,
-   toggleTeammate,
-   useSettings,
-} from '../settings';
+import { setRepoPref, toggleHiddenPerson, useSettings } from '../settings';
 import {
    claimReview,
    isFresh,
@@ -37,7 +31,6 @@ import {
 import { AgeStamp, AgeBaseline } from './age';
 import { DiffSize, QuietButton, RepoRef, WEIGHT_WORD } from './bits';
 import { CardShell } from './Card';
-import { StarMark } from './identity';
 import { CiStatus, SigPips } from './pips';
 import { Icon } from './Icon';
 import { StatePopover } from './StatePopover';
@@ -402,9 +395,7 @@ function RowActionsKebab({
    const repo = pull.data.repo;
    const author = pull.data.user.login;
    const repoLabel = shortRepo(repo);
-   const isPrimaryRepo = settings.primaryRepos.includes(repo);
    const isHiddenRepo = settings.repoPrefs[repo] === 'hide';
-   const isTeammate = settings.teams.some(t => t.members.includes(author));
    const claimedByMe = claim?.login === me;
    const item =
       'flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2 text-left text-xs text-ink-2 hover:bg-muted';
@@ -475,20 +466,6 @@ function RowActionsKebab({
          <button
             type="button"
             className={item}
-            onClick={() => togglePrimaryRepo(repo, !isPrimaryRepo)}
-            aria-pressed={isPrimaryRepo}
-            title={
-               isPrimaryRepo
-                  ? `remove ${repoLabel} from your primary repos`
-                  : `mark ${repoLabel} a primary repo, leads your review queue`
-            }
-         >
-            <StarMark on={isPrimaryRepo} />
-            {isPrimaryRepo ? `Unstar ${repoLabel}` : `Star ${repoLabel}`}
-         </button>
-         <button
-            type="button"
-            className={item}
             onClick={() => setRepoPref(repo, isHiddenRepo ? null : 'hide')}
             aria-pressed={isHiddenRepo}
             title={
@@ -499,20 +476,6 @@ function RowActionsKebab({
          >
             <Icon icon={isHiddenRepo ? Eye : EyeOff} />
             {isHiddenRepo ? `Show ${repoLabel}` : `Hide ${repoLabel}`}
-         </button>
-         <button
-            type="button"
-            className={item}
-            onClick={() => toggleTeammate(author, !isTeammate)}
-            aria-pressed={isTeammate}
-            title={
-               isTeammate
-                  ? `remove ${author} from your team`
-                  : `add ${author} to your team: their PRs lead your review queues, and the Team tab shows their board`
-            }
-         >
-            <StarMark on={isTeammate} />
-            {isTeammate ? `Remove ${author} from your team` : `Add ${author} to your team`}
          </button>
          {/* never offered for your own pulls — you can't hide yourself from
              your own board */}
@@ -688,11 +651,11 @@ function RowImpl({
    const note = rowNote(pull, opts.me, { claim, turn });
    // the wait badge may itself carry a "last commit …" — don't say it twice
    const showIterating = isIterating(pull) && !(note.context ?? '').includes('last commit');
-   // the smallest clean marker for a teammate: a tiny ★ over their avatar,
-   // so the row itself says "one of your people" without a trip to the
-   // kebab menu
+   // the smallest clean marker for a teammate: a tiny heart over their
+   // avatar, so the row itself says "one of your people" without a trip to
+   // the kebab menu
    const settings = useSettings();
-   const teamAuthor = settings.teams.some(t => t.members.includes(d.user.login));
+   const rosters = settings.teams.filter(t => t.members.includes(d.user.login)).map(t => t.name);
    // which of your code regions this pull matched (why it floated to the top)
    const regions = matchedRegions(pull, settings.codeRegions);
    // only worth asking the whole-board lookup when this row is stacked but
@@ -715,14 +678,18 @@ function RowImpl({
          className={`${flashOnce(key, !!fresh) ? 'row-fresh' : ''} transition-[background-color] duration-150 ease-out motion-reduce:transition-none`}
          avatarBadge={
             // your own rows never wear it: the you-star owns that corner,
-            // and star-on-yourself would double the glyph
-            teamAuthor &&
+            // and a heart-on-yourself would double the glyph
+            rosters.length > 0 &&
             d.user.login !== opts.me && (
                <span
-                  title={`${d.user.login} is on your team`}
-                  className="absolute -right-0.5 -bottom-0.5 text-brand"
+                  title={`on ${rosters.length ? rosters.join(' & ') : 'your team'} — their PRs lead your review queue`}
+                  // same seat and size as the you-star (youStarGeometry at the
+                  // 22px row avatar: 13px at -3), so the two identity marks
+                  // carry equal visual weight — owner call
+                  className="absolute text-brand"
+                  style={{ right: -3, bottom: -3 }}
                >
-                  <Icon icon={Star} size={9} fill="currentColor" />
+                  <Icon icon={Heart} size={13} fill="currentColor" />
                </span>
             )
          }

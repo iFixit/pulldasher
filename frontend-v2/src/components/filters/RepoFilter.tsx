@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { repoState } from '../../model/visibility';
 import { shortRepo } from '../../format';
 import type { Scope } from '../../prefs';
-import { setRepoPref, togglePrimaryRepo, useSettings } from '../../settings';
-import { StarMark } from '../identity';
+import { setRepoPref, useSettings } from '../../settings';
 import { Popover } from '../Popover';
 import { ClearRow, EyeButton, FilterSearch, FilterTrigger, OnlyButton } from './shared';
 
@@ -12,11 +11,9 @@ import { ClearRow, EyeButton, FilterSearch, FilterTrigger, OnlyButton } from './
  * 3-tab Filters popover split repos/people/drafts behind a Segmented click
  * you had to make before you could even search). Scope (which repos are on
  * your board right now) and hide (which repos are off your board, period)
- * live side by side on each row, plus the ★ star that marks a repo you
- * actively review (drives the review queue's primary/other split). (Parked
- * PRs and drafts used to ride along here as session toggles; they're
- * board-level hiding, so they live in the filter bar's hidden-PR ledger now —
- * see HiddenPanel.)
+ * live side by side on each row. (Parked PRs and drafts used to ride along
+ * here as session toggles; they're board-level hiding, so they live in the
+ * filter bar's hidden-PR ledger now — see HiddenPanel.)
  */
 export function RepoFilter({
    repos,
@@ -40,7 +37,6 @@ export function RepoFilter({
 }) {
    const settings = useSettings();
    const prefs = settings.repoPrefs;
-   const primary = new Set(settings.primaryRepos);
    const [repoQuery, setRepoQuery] = useState('');
 
    const shownRepos = repos.filter(r => repoState(r.name, orgHidden, prefs) === 'shown');
@@ -67,58 +63,37 @@ export function RepoFilter({
            ? shortRepo(scope.repos[0])
            : `${scope.repos.length} repos`;
 
-   const shownRow = (name: string, count: number) => {
-      const isPrimary = primary.has(name);
-      return (
-         <div
-            key={name}
-            className="group flex items-center gap-2 rounded-md px-1.5 py-[5px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none"
-         >
-            <label className="flex min-w-0 flex-1 items-center gap-2">
-               <input
-                  type="checkbox"
-                  className="m-0"
-                  checked={included(name)}
-                  onChange={() =>
-                     toggleScope(
-                        name,
-                        shownRepos.map(r => r.name)
-                     )
-                  }
-                  aria-label={`scope to ${shortRepo(name)}`}
-               />
-               <span title={name} className="min-w-0 flex-1 truncate text-[13px]">
-                  {shortRepo(name)}
-               </span>
-               <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
-            </label>
-            <OnlyButton onClick={() => setScope({ ...scope, repos: [name] })} />
-            <button
-               type="button"
-               // no .hit bleed / no -my: the star's own py clears the 24px tap
-               // floor, and the bled box was overlapping its neighbors' clicks
-               className={`pressable rounded-md px-1.5 py-1.5 text-sm leading-none ${
-                  isPrimary ? 'text-brand hover:text-brand/70' : 'text-ink-3 hover:text-brand'
-               }`}
-               onClick={() => togglePrimaryRepo(name, !isPrimary)}
-               aria-pressed={isPrimary}
-               aria-label={
-                  isPrimary
-                     ? `remove ${shortRepo(name)} from your primary repos`
-                     : `mark ${shortRepo(name)} a primary repo`
+   const shownRow = (name: string, count: number) => (
+      <div
+         key={name}
+         className="group flex items-center gap-2 rounded-md px-1.5 py-[5px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none"
+      >
+         <label className="flex min-w-0 flex-1 items-center gap-2">
+            <input
+               type="checkbox"
+               className="m-0"
+               checked={included(name)}
+               onChange={() =>
+                  toggleScope(
+                     name,
+                     shownRepos.map(r => r.name)
+                  )
                }
-               title={isPrimary ? 'a repo you review' : 'mark a repo you review'}
-            >
-               <StarMark on={isPrimary} />
-            </button>
-            <EyeButton
-               hidden={false}
-               subject={shortRepo(name)}
-               onClick={() => setRepoPref(name, 'hide')}
+               aria-label={`scope to ${shortRepo(name)}`}
             />
-         </div>
-      );
-   };
+            <span title={name} className="min-w-0 flex-1 truncate text-[13px]">
+               {shortRepo(name)}
+            </span>
+            <span className="text-[11px] text-ink-3 tabular-nums">{count || ''}</span>
+         </label>
+         <OnlyButton onClick={() => setScope({ ...scope, repos: [name] })} />
+         <EyeButton
+            hidden={false}
+            subject={shortRepo(name)}
+            onClick={() => setRepoPref(name, 'hide')}
+         />
+      </div>
+   );
 
    const hiddenRow = (name: string, count: number, state: 'hidden' | 'org-hidden') => (
       <div

@@ -71,11 +71,6 @@ export interface Settings {
     * real stall: surface "Find a QA-er" on your own PR as a home to-do, not a
     * My-work afterthought. Off leaves getting QA in My work only. */
    selfReview: boolean;
-   /** the repos you actually review, so the review queue leads with them and
-    * folds the rest away. Repo relevance is per-person (a web dev and a
-    * firmware dev share a monorepo but little else). Empty = infer from the
-    * repos where you've authored or stamped on the current board. */
-   primaryRepos: string[];
    /** your named rosters — REVIEW CIRCLES, yours to define, not the org
     * chart (an official team and a cross-team pairing partner can be two
     * separate rosters). Every roster's members get the same two effects:
@@ -123,7 +118,6 @@ export const DEFAULT_SETTINGS: Settings = {
    laneCap: 10,
    laneCapByLens: {},
    selfReview: true,
-   primaryRepos: [],
    teams: [],
    hiddenPeople: [],
    codeRegions: [],
@@ -135,7 +129,7 @@ export const DEFAULT_SETTINGS: Settings = {
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
 
 /** Union of every personal roster, sorted — "your people": the set that
- * leads the review queues and wears the teammate corner star. */
+ * leads the review queues and wears the teammate corner heart. */
 export function myPeople(teams: PersonalTeam[]): string[] {
    return [...new Set(teams.flatMap(t => t.members))].sort();
 }
@@ -163,13 +157,6 @@ export function setLaneCapForLens(lens: string, cap: number | null) {
    if (cap == null) delete next[lens];
    else next[lens] = cap;
    setSettings({ laneCapByLens: next });
-}
-
-/** Add or remove a repo from your primary (actively-reviewed) set. */
-export function togglePrimaryRepo(repo: string, primary: boolean) {
-   const cur = store.get().primaryRepos;
-   const next = primary ? [...new Set([...cur, repo])] : cur.filter(r => r !== repo);
-   setSettings({ primaryRepos: next });
 }
 
 /** Add or remove a teammate. Adding lands in `teamName` (or the first
