@@ -180,18 +180,17 @@ export const WEIGHT_WORD: Record<Weight, string> = {
 /**
  * The concrete diff size beside the abstract weight letter: +added −deleted,
  * so the exact number is there when the letter chip isn't precise enough.
- * Neutral ink, not GitHub's green/red: a line count is a routine metric on
- * every healthy PR, and painting it with the broken/done hues taught the eye
- * to ignore red — the glyphs already say which side is which. Hidden when the
- * wire didn't send a size.
+ * Additions and deletions, colored green/red in the weight popover — the
+ * GitHub-familiar read the owner asked for. Contained to that one popover call
+ * site: the board's rows still reserve red for broken CI and green for a live
+ * sign-off, so this detail-panel count borrows the hues without teaching the
+ * eye to tune them out on a row. Hidden when the wire didn't send a size.
  */
 export function DiffSize({ additions, deletions }: { additions: number; deletions: number }) {
    return (
-      <span
-         className="whitespace-nowrap text-ink-2 tabular-nums"
-         title={`+${additions} −${deletions} lines`}
-      >
-         +{additions} −{deletions}
+      <span className="whitespace-nowrap tabular-nums" title={`+${additions} −${deletions} lines`}>
+         <span className="text-[var(--ok)]">+{additions}</span>{' '}
+         <span className="text-[var(--bad)]">−{deletions}</span>
       </span>
    );
 }

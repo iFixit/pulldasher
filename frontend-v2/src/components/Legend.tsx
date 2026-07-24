@@ -79,7 +79,7 @@ export function Legend() {
                      <span className="pip pip-off" />
                   </span>
                }
-               def="one circle per required stamp, in order: stands, staled by a push, still needed. A dotted underline marks yours; click them for who signed. While a PR is a draft, blocked, or red, the re-ask waits: the author moves first"
+               def="one circle per required stamp, in order: stands, stale review, still needed. A dotted underline marks yours; click them for who signed. While a PR is a draft, blocked, or red, the re-ask waits: the author moves first"
             />
             <Item
                term={

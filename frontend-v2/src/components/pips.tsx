@@ -389,7 +389,7 @@ export function SigPips({
              legend stays a conventions card, not a per-mark decoder */}
          <span className="mt-1 flex items-center gap-1 border-t border-secondary px-1 pt-1.5 text-[11px] text-ink-3">
             <span className="pip pip-on" /> stands
-            <span className="pip pip-stale ml-1.5" /> staled by a push
+            <span className="pip pip-stale ml-1.5" /> stale review
             <span className="pip pip-off ml-1.5" /> needed
          </span>
          {panelExtra}

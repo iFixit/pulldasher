@@ -11,7 +11,7 @@ import {
    RefreshCw,
 } from 'lucide-react';
 import type { DerivedPull } from '../../../shared/model/status';
-import { isIterating, lastPushEpoch, weightFilterKey } from '../../../shared/model/status';
+import { isIterating, lastPushEpoch } from '../../../shared/model/status';
 import { type Claim, rowNote } from '../model/actions';
 import { matchedRegions } from '../model/regions';
 import { claimFor } from '../model/reviewers';
@@ -29,7 +29,7 @@ import {
    usePulldasher,
 } from '../store';
 import { AgeStamp, AgeBaseline } from './age';
-import { DiffSize, QuietButton, railTriggerClass, RepoRef, WEIGHT_WORD } from './bits';
+import { DiffSize, railTriggerClass, RepoRef, WEIGHT_WORD } from './bits';
 import { CardShell } from './Card';
 import { CiStatus, SigPips } from './pips';
 import { Icon } from './Icon';
@@ -515,7 +515,7 @@ function RailLabel({ children }: { children: ReactNode }) {
  * Content is the old standalone weight popover's: the effort word, the exact
  * diff, how the letter is decided, and the filter action.
  */
-function WeightPanelSection({ pull, opts }: { pull: DerivedPull; opts: RowOptions }) {
+function WeightPanelSection({ pull }: { pull: DerivedPull }) {
    const { weight } = pull;
    const d = pull.data;
    return (
@@ -526,17 +526,17 @@ function WeightPanelSection({ pull, opts }: { pull: DerivedPull; opts: RowOption
          <span className="mt-1 block">
             <DiffSize additions={d.additions ?? 0} deletions={d.deletions ?? 0} />
          </span>
-         <span className="mt-1 block max-w-[230px] text-ink-3">
-            From the org’s size label when the PR has one, else the diff: 50 / 150 / 600 / 1500
-            lines step XS through XL, one class up past 15 files. A pointer, not a verdict.
-         </span>
-         {opts.onWeightToggle && (
-            <span className="mt-1.5 block">
-               <QuietButton onClick={() => opts.onWeightToggle?.(weightFilterKey(pull))}>
-                  Filter to {weight} PRs
-               </QuietButton>
+         {/* how the letter is decided is reference, not the headline — folded
+             away so the panel leads with the effort word and the diff */}
+         <details className="mt-1.5">
+            <summary className="cursor-pointer list-none text-ink-3 hover:text-ink-2 [&::-webkit-details-marker]:hidden">
+               Weight details
+            </summary>
+            <span className="mt-1 block max-w-[230px] text-ink-3">
+               From the org’s size label when the PR has one, else the diff: 50 / 150 / 600 / 1500
+               lines step XS through XL, one class up past 15 files. A pointer, not a verdict.
             </span>
-         )}
+         </details>
       </div>
    );
 }
@@ -594,7 +594,7 @@ function MetricRail({
                   </span>
                </>
             }
-            panelExtra={<WeightPanelSection pull={pull} opts={opts} />}
+            panelExtra={<WeightPanelSection pull={pull} />}
          />
          <SigPips
             label="QA"
@@ -683,13 +683,14 @@ function RowImpl({
             d.user.login !== opts.me && (
                <span
                   title={`on ${rosters.length ? rosters.join(' & ') : 'your team'} — their PRs lead your review queue`}
-                  // same seat and size as the you-star (youStarGeometry at the
-                  // 22px row avatar: 13px at -3), so the two identity marks
-                  // carry equal visual weight — owner call
-                  className="absolute text-brand"
-                  style={{ right: -3, bottom: -3 }}
+                  // seated on a surface-colored disc so the brand heart reads as
+                  // a distinct mark instead of muddying into the avatar's colored
+                  // face — the visible separation the you-star gets from its
+                  // bitten moat, its counterpart in this corner.
+                  className="absolute flex items-center justify-center rounded-full bg-surface text-brand"
+                  style={{ right: -4, bottom: -4, width: 15, height: 15 }}
                >
-                  <Icon icon={Heart} size={13} fill="currentColor" />
+                  <Icon icon={Heart} size={11} fill="currentColor" />
                </span>
             )
          }
