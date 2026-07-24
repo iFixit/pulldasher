@@ -38,7 +38,7 @@ export function toggleScopeMember(
    const i = cur.indexOf(value);
    if (i >= 0) cur.splice(i, 1);
    else cur.push(value);
-   return { ...scope, [field]: all.length && cur.length === all.length ? [] : cur };
+   return { ...scope, [field]: all.length && all.every(x => cur.includes(x)) ? [] : cur };
 }
 
 const store = createMemoryStore<Scope>({ repos: [], authors: [], notAuthors: [] });
