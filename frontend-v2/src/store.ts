@@ -6,6 +6,7 @@ import {
    type DerivedPull,
    type Weight,
 } from '../../shared/model/status';
+import { isBotLogin } from '../../shared/model/visibility';
 import { getSettings, subscribeSettings } from './settings';
 import { epoch, pullKey } from '../../shared/format';
 import { readStorage, writeStorage } from './storage';
@@ -121,12 +122,21 @@ export function isFresh(d: Pick<PullData, 'updated_at'>, lastSeenAt: number) {
 export type SnoozeRecord = { at: number; comments: number; reviews: number };
 const SNOOZED_KEY = 'pd2.snoozed';
 const SNOOZE_SECS = 24 * 3600;
-// the comment/review signals that wake a snooze, read off the pull's status
-const snoozeActivity = (d: Pick<PullData, 'status'>) => ({
-   comments: d.status.comment_count ?? 0,
-   reviews:
-      d.status.allCR.length + d.status.allQA.length + (d.status.unstamped_reviewers?.length ?? 0),
-});
+// the comment/review signals that wake a snooze, read off the pull's status.
+// Bot activity (claude[bot]'s review, a CI bot's comment) must never wake a
+// snooze on its own, so every count here excludes bot logins first: prefer
+// the server's human-only comment count when it's sent, and re-derive the
+// review count from the same isBotLogin the board uses everywhere else.
+const snoozeActivity = (d: Pick<PullData, 'status'>) => {
+   const isHuman = (login: string) => !isBotLogin(login, extraBots);
+   return {
+      comments: d.status.human_comment_count ?? d.status.comment_count ?? 0,
+      reviews:
+         d.status.allCR.filter(s => isHuman(s.data.user.login)).length +
+         d.status.allQA.filter(s => isHuman(s.data.user.login)).length +
+         (d.status.unstamped_reviewers?.filter(r => isHuman(r.login)).length ?? 0),
+   };
+};
 let snoozed: Record<string, SnoozeRecord> = {};
 try {
    const raw = JSON.parse(readStorage(SNOOZED_KEY) ?? '{}') ?? {};

@@ -281,7 +281,9 @@ export function derive(
    // as a harmless extra name.
    const unstampedReviewers = st.unstamped_reviewers ?? [];
    const changesRequestedBy = unique(
-      unstampedReviewers.filter(r => r.state === 'CHANGES_REQUESTED').map(r => r.login)
+      unstampedReviewers
+         .filter(r => r.state === 'CHANGES_REQUESTED' && !isSuffixBot(r.login))
+         .map(r => r.login)
    );
    const everStamped = new Set([
       ...st.allCR.map(s => s.data.user.login),
