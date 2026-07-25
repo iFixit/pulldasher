@@ -929,35 +929,44 @@ export function App() {
                   />
                </div>
             </div>
-            <div className="mx-auto flex max-w-[1240px] min-w-0 flex-wrap items-center gap-2 border-t border-secondary px-5 py-2">
-               {/* pinned saved searches, FIRST in the bar so a growing
-                   trigger can never displace them: every roster earns one
-                   automatically (kept in sync with its members), and any
-                   search can be pinned from the Saved menu. Click applies
-                   it on the lens you're standing on; click again clears.
-                   State is carried entirely by color — the chip's text
-                   never changes, so nothing ever shifts. */}
-               {pinnedSearches.map(f => {
-                  const active = matchesView(f.hash, currentHash);
-                  const title = active
-                     ? `showing ${f.name}: click to clear`
-                     : `show ${f.name}: ${describeHash(f.hash)}`;
-                  return (
-                     <button
-                        key={(f.auto ? 'team:' : 'saved:') + f.name}
-                        type="button"
-                        aria-pressed={active}
-                        title={title}
-                        aria-label={title}
-                        onClick={() => applySavedFilter(active ? '' : f.hash)}
-                        className={`hit pressable inline-flex max-w-[160px] items-center rounded-md px-1.5 py-1 text-[13px] ${
-                           active ? 'bg-secondary text-ink' : 'text-ink-3 hover:text-ink'
-                        }`}
-                     >
-                        <span className="truncate">{f.name}</span>
-                     </button>
-                  );
-               })}
+            {/* Pinned saved searches get their own line. Reviewers deliberately
+                pin many (every roster earns one automatically, plus hand-saved
+                ones), which overflowed the shared trigger row into a wall. A
+                dedicated horizontally-scrollable strip keeps every pin one click
+                away and stops a growing set from wrapping the dimension triggers
+                below. Click applies it on the lens you're standing on; click
+                again clears. State is a background tint; the text never changes,
+                so nothing shifts. */}
+            {pinnedSearches.length > 0 && (
+               <div className="no-scrollbar mx-auto flex max-w-[1240px] min-w-0 items-center gap-2 overflow-x-auto border-t border-secondary px-5 py-2">
+                  {pinnedSearches.map(f => {
+                     const active = matchesView(f.hash, currentHash);
+                     const title = active
+                        ? `showing ${f.name}: click to clear`
+                        : `show ${f.name}: ${describeHash(f.hash)}`;
+                     return (
+                        <button
+                           key={(f.auto ? 'team:' : 'saved:') + f.name}
+                           type="button"
+                           aria-pressed={active}
+                           title={title}
+                           aria-label={title}
+                           onClick={() => applySavedFilter(active ? '' : f.hash)}
+                           className={`hit pressable inline-flex max-w-[160px] shrink-0 items-center rounded-md px-1.5 py-1 text-[13px] ${
+                              active ? 'bg-secondary text-ink' : 'text-ink-3 hover:text-ink'
+                           }`}
+                        >
+                           <span className="truncate">{f.name}</span>
+                        </button>
+                     );
+                  })}
+               </div>
+            )}
+            <div
+               className={`mx-auto flex max-w-[1240px] min-w-0 flex-wrap items-center gap-2 px-5 py-2 ${
+                  pinnedSearches.length > 0 ? '' : 'border-t border-secondary'
+               }`}
+            >
                <RepoFilter
                   repos={repoCounts}
                   reveal={reveal}
