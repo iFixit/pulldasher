@@ -398,7 +398,7 @@ export function NotificationPanel({
                                        rel="noopener noreferrer"
                                        className="mt-0.5 block font-medium text-brand hover:underline"
                                     >
-                                       #{r.toast.pull.number}
+                                       {shortRepo(r.toast.pull.repo)}#{r.toast.pull.number}
                                        {r.toast.pull.title ? ` ${r.toast.pull.title}` : ''}
                                     </a>
                                  )

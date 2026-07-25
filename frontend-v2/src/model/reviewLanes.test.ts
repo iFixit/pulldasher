@@ -367,6 +367,16 @@ describe('buildReviewLanes — board summary', () => {
       expect(lanes.empty).toBe(false);
    });
 
+   it('is not empty when botsForReady holds a ready bot, even with pulls/bots/closed all empty', () => {
+      // the bug: "Ignore bot PRs" empties `bots`, and empty only checked
+      // pulls/bots/closed — a merge-ready bot reachable through botsForReady
+      // (and showing in lanes.ready) still read as "All clear"
+      const bot = dp({ author: 'dependabot[bot]', status: 'ready' });
+      const lanes = buildReviewLanes(input({ botsForReady: [bot] }));
+      expect(lanes.empty).toBe(false);
+      expect(lanes.ready).toContain(bot);
+   });
+
    it('boardIsQuiet is false once the queue has something in it', () => {
       const p = dp({ author: 'alice', status: 'needs_cr' });
       const lanes = buildReviewLanes(input({ pulls: [p] }));

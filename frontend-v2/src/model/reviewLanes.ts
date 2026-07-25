@@ -456,8 +456,12 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
       botRest.length +
       closed.length;
 
-   // bots/shipped stay reachable even when no human PRs need review
-   const empty = !pulls.length && !bots.length && !closed.length;
+   // bots/shipped stay reachable even when no human PRs need review. Checks
+   // botsForReady too: a merge-ready bot can sit in `ready` via botsForReady
+   // while `bots` itself is empty ("Ignore bot PRs" hid it from the queue/
+   // fold), and that bot must not be declared "nothing to see" out from
+   // under it.
+   const empty = !pulls.length && !bots.length && !closed.length && !botsForReady.length;
 
    return {
       yourMove,

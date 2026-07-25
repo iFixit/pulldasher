@@ -584,7 +584,7 @@ function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: num
                      onClick={e => e.stopPropagation()}
                      className="mt-0.5 block text-xs font-medium text-brand hover:underline"
                   >
-                     #{toast.pull.number}
+                     {shortRepo(toast.pull.repo)}#{toast.pull.number}
                      {toast.pull.title ? ` ${toast.pull.title}` : ''}
                   </a>
                )

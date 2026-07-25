@@ -44,7 +44,7 @@ const AT = 1_000_000; // epoch secs the pull was snoozed
 const WITHIN = AT + 60; // "now", inside the 24h window
 const KEY = pullKey({ repo: 'org/repo', number: 7 });
 const rec = (o: Partial<SnoozeRecord> = {}): Record<string, SnoozeRecord> => ({
-   [KEY]: { at: AT, comments: 0, reviews: 0, ...o },
+   [KEY]: { at: AT, comments: 0, cr: 0, qa: 0, unstamped: 0, ...o },
 });
 
 describe('isSnoozed', () => {
@@ -63,11 +63,27 @@ describe('isSnoozed', () => {
    });
 
    it('wakes on a new review: a CR stamp or an unstamped verdict', () => {
+      expect(isSnoozed(pull({ updatedAtEpoch: AT - 100, cr: 1 }), rec({ cr: 0 }), WITHIN)).toBe(
+         false
+      );
       expect(
-         isSnoozed(pull({ updatedAtEpoch: AT - 100, cr: 1 }), rec({ reviews: 0 }), WITHIN)
+         isSnoozed(pull({ updatedAtEpoch: AT - 100, unstamped: 1 }), rec({ unstamped: 0 }), WITHIN)
       ).toBe(false);
+   });
+
+   it('wakes when a reviewer moves from COMMENTED to APPROVED while snoozed', () => {
+      // at snooze time: one human COMMENTED verdict sitting in
+      // unstamped_reviewers, no CR stamp yet. By the time of this check they
+      // approved: cr climbs to 1 and unstamped drops to 0. A single combined
+      // "reviews" counter (cr+qa+unstamped) would read this as unchanged
+      // (1 -> 1) and stay asleep; cr and unstamped tracked separately must
+      // each be compared to their own baseline so the cr climb alone wakes it.
       expect(
-         isSnoozed(pull({ updatedAtEpoch: AT - 100, unstamped: 1 }), rec({ reviews: 0 }), WITHIN)
+         isSnoozed(
+            pull({ updatedAtEpoch: AT - 100, cr: 1, unstamped: 0 }),
+            rec({ cr: 0, unstamped: 1 }),
+            WITHIN
+         )
       ).toBe(false);
    });
 
@@ -90,16 +106,12 @@ describe('isSnoozed', () => {
       // pull; bot activity must never drive the human-review nudge, so
       // neither should wake a snoozed row.
       expect(
-         isSnoozed(
-            pull({ updatedAtEpoch: AT - 100, cr: ['claude[bot]'] }),
-            rec({ reviews: 0 }),
-            WITHIN
-         )
+         isSnoozed(pull({ updatedAtEpoch: AT - 100, cr: ['claude[bot]'] }), rec({ cr: 0 }), WITHIN)
       ).toBe(true);
       expect(
          isSnoozed(
             pull({ updatedAtEpoch: AT - 100, unstamped: ['claude[bot]'] }),
-            rec({ reviews: 0 }),
+            rec({ unstamped: 0 }),
             WITHIN
          )
       ).toBe(true);
@@ -109,7 +121,7 @@ describe('isSnoozed', () => {
       expect(
          isSnoozed(
             pull({ updatedAtEpoch: AT - 100, cr: ['claude[bot]', 'human'] }),
-            rec({ reviews: 0 }),
+            rec({ cr: 0 }),
             WITHIN
          )
       ).toBe(false);

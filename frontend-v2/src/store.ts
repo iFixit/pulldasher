@@ -116,36 +116,56 @@ export function isFresh(d: Pick<PullData, 'updated_at'>, lastSeenAt: number) {
 // next. Two kinds of activity count. A push, edit, or label moves updated_at
 // (the classic check). A new comment or review does NOT move updated_at
 // (those arrive on their own webhook path), so the snooze also records the
-// comment and review counts at snooze time and wakes when either climbs.
-// Counts only: the wire has no per-event author, so your own comment wakes it
-// too, the same way your own push already does.
-export type SnoozeRecord = { at: number; comments: number; reviews: number };
+// comment count plus CR/QA/unstamped counts at snooze time and wakes when
+// any of them climbs. The three review counts are kept separate rather than
+// summed: a reviewer moving from COMMENTED to APPROVED drops unstamped by
+// one and raises cr by one, a wash under one combined total that would leave
+// a snooze asleep through exactly the transition it should wake for. Counts
+// only: the wire has no per-event author, so your own comment wakes it too,
+// the same way your own push already does.
+export type SnoozeRecord = {
+   at: number;
+   comments: number;
+   cr: number;
+   qa: number;
+   unstamped: number;
+};
 const SNOOZED_KEY = 'pd2.snoozed';
 const SNOOZE_SECS = 24 * 3600;
 // the comment/review signals that wake a snooze, read off the pull's status.
 // Bot activity (claude[bot]'s review, a CI bot's comment) must never wake a
 // snooze on its own, so every count here excludes bot logins first: prefer
-// the server's human-only comment count when it's sent, and re-derive the
-// review count from the same isBotLogin the board uses everywhere else.
+// the server's human-only comment count when it's sent, and re-derive cr/qa/
+// unstamped from the same isBotLogin the board uses everywhere else.
 const snoozeActivity = (d: Pick<PullData, 'status'>) => {
    const isHuman = (login: string) => !isBotLogin(login, extraBots);
    return {
       comments: d.status.human_comment_count ?? d.status.comment_count ?? 0,
-      reviews:
-         d.status.allCR.filter(s => isHuman(s.data.user.login)).length +
-         d.status.allQA.filter(s => isHuman(s.data.user.login)).length +
-         (d.status.unstamped_reviewers?.filter(r => isHuman(r.login)).length ?? 0),
+      cr: d.status.allCR.filter(s => isHuman(s.data.user.login)).length,
+      qa: d.status.allQA.filter(s => isHuman(s.data.user.login)).length,
+      unstamped: d.status.unstamped_reviewers?.filter(r => isHuman(r.login)).length ?? 0,
    };
 };
 let snoozed: Record<string, SnoozeRecord> = {};
 try {
    const raw = JSON.parse(readStorage(SNOOZED_KEY) ?? '{}') ?? {};
-   // clean cut: only the {at, comments, reviews} shape is supported. A
-   // pre-baseline entry (a bare epoch number from before this field) is
-   // dropped, so the pull reappears once and you re-snooze it if you still want.
-   for (const [k, v] of Object.entries(raw))
-      if (v && typeof v === 'object' && typeof (v as { at?: unknown }).at === 'number')
-         snoozed[k] = v as SnoozeRecord;
+   // clean cut: only the full {at, comments, cr, qa, unstamped} shape is
+   // supported. A half-shaped entry (the old {at, comments, reviews} baseline,
+   // or anything from before it) is dropped, so the pull reappears once and
+   // you re-snooze it if you still want.
+   for (const [k, v] of Object.entries(raw)) {
+      const r = v as Partial<SnoozeRecord> | null;
+      if (
+         r &&
+         typeof r === 'object' &&
+         typeof r.at === 'number' &&
+         typeof r.comments === 'number' &&
+         typeof r.cr === 'number' &&
+         typeof r.qa === 'number' &&
+         typeof r.unstamped === 'number'
+      )
+         snoozed[k] = r as SnoozeRecord;
+   }
 } catch {
    snoozed = {};
 }
@@ -185,7 +205,8 @@ export function isSnoozed(
    if (now >= rec.at + SNOOZE_SECS) return false;
    if (epoch(d.updated_at) > rec.at) return false;
    const a = snoozeActivity(d);
-   if (a.comments > rec.comments || a.reviews > rec.reviews) return false;
+   if (a.comments > rec.comments || a.cr > rec.cr || a.qa > rec.qa || a.unstamped > rec.unstamped)
+      return false;
    return true;
 }
 

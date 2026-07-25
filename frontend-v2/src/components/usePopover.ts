@@ -52,16 +52,18 @@ export function usePopover<Panel extends HTMLElement, Trigger extends HTMLElemen
       setOpen(!open);
    };
 
-   // Only a real mouse previews on hover. Touch has no hover: a tap
+   // Only touch is excluded from hover. Touch has no hover: a tap
    // synthesizes pointerenter, which used to arm the open timer and fire the
    // preview ~250ms LATER, after the tap's real action (a link navigation, a
    // filter) had already run — an uninvited popover on top of the page you
-   // were just sent to. Gating on pointerType keeps desktop hover intact and
-   // handles hybrid mouse+touch devices per interaction, unlike a device-level
-   // (hover: hover) check. Button doors still open on tap via toggle() (a
-   // click), so touch keeps every tap-to-open popover.
+   // were just sent to. Gating on pointerType === 'touch' (rather than
+   // requiring 'mouse') keeps desktop hover intact, handles hybrid
+   // mouse+touch devices per interaction unlike a device-level (hover: hover)
+   // check, and lets a stylus ('pen') and any other non-touch pointer keep
+   // hover too. Button doors still open on tap via toggle() (a click), so
+   // touch keeps every tap-to-open popover.
    const onPointerEnter = (e: ReactPointerEvent) => {
-      if (!opts?.hover || e.pointerType !== 'mouse') return;
+      if (!opts?.hover || e.pointerType === 'touch') return;
       clearClose();
       // a short intent delay (a user setting): brushing the cursor across a row
       // of triggers shouldn't flash their panels open one after another. Read
@@ -73,7 +75,7 @@ export function usePopover<Panel extends HTMLElement, Trigger extends HTMLElemen
       else openTimer.current = setTimeout(() => setOpen(true), delay);
    };
    const onPointerLeave = (e: ReactPointerEvent) => {
-      if (!opts?.hover || e.pointerType !== 'mouse') return;
+      if (!opts?.hover || e.pointerType === 'touch') return;
       clearOpen();
       if (pinned.current) return;
       clearClose();

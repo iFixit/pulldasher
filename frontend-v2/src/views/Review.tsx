@@ -1,5 +1,5 @@
 import type { DerivedPull } from '../../../shared/model/status';
-import { ago, pullKey, shortRepo } from '../../../shared/format';
+import { pullKey, shortRepo } from '../../../shared/format';
 import { useNames } from '../model/names';
 import { matchedRegions } from '../model/regions';
 import { buildReviewLanes } from '../model/reviewLanes';
@@ -214,7 +214,7 @@ export function Review({
          )}
          <Lane
             title="Recently updated"
-            sub={`new or updated in the last ${ago(opts.lastSeen)}`}
+            sub={`review-relevant activity from the last ${RECENT_MAX_AGE_DAYS} days`}
             pulls={lanes.changed}
             cap={8}
             opts={opts}

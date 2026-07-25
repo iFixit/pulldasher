@@ -1,6 +1,6 @@
 import { authorOwnsIt, parked, rowNote } from './actions';
 import type { DerivedPull } from '../../../shared/model/status';
-import { isSuffixBot } from '../../../shared/model/visibility';
+import { isBotLogin } from '../../../shared/model/visibility';
 
 /**
  * The filter box grammar. Bare terms AND-match as substrings across title,
@@ -16,29 +16,35 @@ import { isSuffixBot } from '../../../shared/model/visibility';
  *   has:action    the viewer (`me`) has an imperative move on this card
  *   is:restamp    `me` owes a re-CR or re-QA on a reviewable pull
  *   is:blocked    status is dev_block or deploy_block
- *   is:bot        the author is a bot (the `[bot]` suffix; config.json's
- *                 extra `bots` list isn't visible here, same as any other
- *                 model-layer bot check)
+ *   is:bot        the author is a bot: the `[bot]` suffix OR a login named in
+ *                 config.json's `bots` list (the caller's `extraBots` set) —
+ *                 a query-layer bot check must agree with what the board
+ *                 itself treats as a bot, or an active is:bot term narrows a
+ *                 pool (app.tsx's CI/Ready bot pool included) to fewer PRs
+ *                 than that pool actually holds
  *
  * `me` is the viewer's login, needed only for has:/is: — every other token
- * ignores it. `names` is the optional login → display-name map (model/
- * names.ts): when present, author: and bare terms match the human name too,
- * so "metz" finds djmetzle.
+ * ignores it. `extraBots` is config.json's non-suffix bot logins (empty set
+ * if the caller has none), needed only for is:bot. `names` is the optional
+ * login → display-name map (model/names.ts): when present, author: and bare
+ * terms match the human name too, so "metz" finds djmetzle.
  */
 export function matchesQuery(
    p: DerivedPull,
    query: string,
    me: string,
+   extraBots: ReadonlySet<string> = new Set(),
    names?: Readonly<Record<string, string | null>>
 ): boolean {
    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-   return terms.every(t => matchTerm(p, t, me, names));
+   return terms.every(t => matchTerm(p, t, me, extraBots, names));
 }
 
 function matchTerm(
    p: DerivedPull,
    term: string,
    me: string,
+   extraBots: ReadonlySet<string>,
    names?: Readonly<Record<string, string | null>>
 ): boolean {
    const d = p.data;
@@ -70,7 +76,7 @@ function matchTerm(
             if (val === 'blocked') return p.status === 'dev_block' || p.status === 'deploy_block';
             if (val === 'draft') return p.status === 'draft';
             if (val === 'mine') return d.user.login.toLowerCase() === me.toLowerCase();
-            if (val === 'bot') return isSuffixBot(d.user.login);
+            if (val === 'bot') return isBotLogin(d.user.login, extraBots);
             // unrecognized is: value: fall through to the plain substring
             // match below, same as any other unknown key
          }

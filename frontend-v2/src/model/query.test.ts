@@ -136,9 +136,18 @@ describe('matchesQuery', () => {
       expect(matchesQuery(fake({ status: 'ready' }), 'is:blocked', 'viewer')).toBe(false);
    });
 
-   it('is:bot matches a [bot]-suffixed author only', () => {
+   it('is:bot matches a [bot]-suffixed author', () => {
       expect(matchesQuery(fake({ author: 'dependabot[bot]' }), 'is:bot', 'viewer')).toBe(true);
       expect(matchesQuery(fake({ author: 'alice' }), 'is:bot', 'viewer')).toBe(false);
+   });
+
+   it("is:bot also matches a config.json extra-bots login, given the caller's set", () => {
+      const extraBots = new Set(['ifixit-systems']);
+      expect(matchesQuery(fake({ author: 'ifixit-systems' }), 'is:bot', 'viewer', extraBots)).toBe(
+         true
+      );
+      // absent the set (the default), a non-suffixed login isn't recognized as a bot
+      expect(matchesQuery(fake({ author: 'ifixit-systems' }), 'is:bot', 'viewer')).toBe(false);
    });
 
    it('unknown has:/is: values match nothing', () => {

@@ -487,8 +487,10 @@ export function App() {
    // term, or the master "show everything". Never hides your own pulls; bots
    // hide only when you turn on Ignore bot PRs (they otherwise have their own
    // fold), and a person can't hide themselves. Shared by the filter pipeline and the
-   // hidden-PR ledger's counts so the ledger's number can never disagree
-   // with what the board actually withholds.
+   // hidden-PR ledger's counts so the ledger's number matches this predicate
+   // exactly — with one deliberate exception: the CI lens and Ready-to-merge
+   // read botsBypassingHideBots (below) instead of this function, so a bot
+   // PR the ledger counts as hidden by "Ignore bot PRs" can still show there.
    const boardHidden = useCallback(
       (p: DerivedPull) => {
          if (showAll) return false;
@@ -554,9 +556,9 @@ export function App() {
       // allow-list above (a dependency bump is nobody's teammate)
       if (scope.notAuthors.length)
          out = out.filter(p => isBot(p) || !scope.notAuthors.includes(p.data.user.login));
-      if (query) out = out.filter(p => matchesQuery(p, query, me, names));
+      if (query) out = out.filter(p => matchesQuery(p, query, me, extraBots, names));
       return out;
-   }, [pulls, boardHidden, scope, isBot, query, names, me]);
+   }, [pulls, boardHidden, scope, isBot, query, names, me, extraBots]);
 
    // preWeightScoped narrowed by the Weight filter, but not yet State —
    // StateFilter's own live counts read this pool for the same
@@ -593,11 +595,22 @@ export function App() {
    const botsBypassingHideBots = useMemo(() => {
       let out = pulls.filter(p => isBot(p) && !boardHiddenExceptBots(p));
       if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.data.repo));
-      if (query) out = out.filter(p => matchesQuery(p, query, me, names));
+      if (query) out = out.filter(p => matchesQuery(p, query, me, extraBots, names));
       if (weightSel.length) out = out.filter(p => matchesWeightFilter(p, weightSel));
       if (stateSel.length) out = out.filter(p => stateSel.includes(actionState(p, me)));
       return out;
-   }, [pulls, isBot, boardHiddenExceptBots, scope.repos, query, me, names, weightSel, stateSel]);
+   }, [
+      pulls,
+      isBot,
+      boardHiddenExceptBots,
+      scope.repos,
+      query,
+      me,
+      names,
+      extraBots,
+      weightSel,
+      stateSel,
+   ]);
    // The CI lens's pool: `scoped` (which already respects hideBots, escape
    // hatch included) plus whatever bot the bypass pool above adds back —
    // deduped by key so a bot already visible in `scoped` (hideBots off, or
