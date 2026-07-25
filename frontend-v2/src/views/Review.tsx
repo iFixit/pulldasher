@@ -50,18 +50,24 @@ export function Review({
    const pulls = allPulls.filter(p => !isSnoozed(p.data, snoozed));
    const bots = allBots.filter(p => !isSnoozed(p.data, snoozed));
 
-   // Recently updated: everything that moved since the user last hit Clear,
-   // newest first. A pull can also live in a lane below; this is the "what
-   // happened" glance, not an exclusive bucket — and only the Clear button
-   // empties it (nothing leaves the list silently).
+   // Recently updated: your review work that moved recently, newest first.
+   // Bounded two ways so a quiet board stops resurfacing stale bumps — since
+   // you last hit Clear (isFresh) AND within the last RECENT_MAX_AGE_DAYS.
+   // Already-done and non-reviewable pulls drop out: a PR you hold a live CR
+   // stamp on is finished for you, and others' drafts or dev-blocked PRs
+   // aren't yours to act on. Your own PRs always stay; activity on them is
+   // worth seeing. A pull can still live in a lane below; this is a highlight,
+   // not an exclusive bucket, and only Clear empties it.
+   const RECENT_MAX_AGE_DAYS = 3;
+   const recentCutoff = Date.now() - RECENT_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
    const changed = pulls
       .filter(p => isFresh(p.data, opts.lastSeen))
-      // others' drafts stay out of the "what changed" glance: a draft you
-      // don't own isn't yours to act on, and draftsMode already keeps them off
-      // the board — they only reach this pool through boardHidden's
-      // review-requested exception (app.tsx). Your own drafts stay; they're
-      // your work.
-      .filter(p => !p.data.draft || p.data.user.login === me)
+      .filter(p => Date.parse(p.data.updated_at) > recentCutoff)
+      .filter(
+         p =>
+            p.data.user.login === me ||
+            (!p.data.draft && p.status !== 'dev_block' && !p.crBy.includes(me))
+      )
       .sort((a, b) => Date.parse(b.data.updated_at) - Date.parse(a.data.updated_at));
 
    const lanes = buildReviewLanes({
