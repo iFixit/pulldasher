@@ -240,9 +240,10 @@ export function Review({
          {repoPriority.length > 0 ? (
             // the owner's priority-and-cap model: contiguous per-repo blocks in
             // the Settings repo order, each block score-ranked inside and
-            // flood-bounded by the per-repo cap. Starving PRs pierce the
-            // partition — the fairness backstop can't sit below a repo the
-            // viewer ranked last, or "surface the other repos" becomes a lie.
+            // flood-bounded by the per-repo cap. Starving PRs lead the "Starving"
+            // fold as a highlight, but also stay in their own repo block below —
+            // the fairness backstop can't be hidden behind a repo the viewer
+            // ranked last, or "surface the other repos" becomes a lie.
             <Lane
                title="Review queue"
                sub={
@@ -265,6 +266,10 @@ export function Review({
                         more” so one busy repo can’t take the whole screen.
                      </p>
                      <p>PRs you claim stay in the queue and also appear in Waiting on you.</p>
+                     <p>
+                        Starving PRs and PRs in your code regions still show up in their repo block
+                        below; the call-outs above are copies, not removals.
+                     </p>
                   </SubDoor>
                }
                pulls={[]}
@@ -321,6 +326,10 @@ export function Review({
                         sink to the bottom.
                      </p>
                      <p>PRs you claim stay in the queue and also appear in Waiting on you.</p>
+                     <p>
+                        PRs in your code regions still show up in the queue below; the call-out
+                        above is a copy, not a removal.
+                     </p>
                   </SubDoor>
                }
                pulls={lanes.queue}

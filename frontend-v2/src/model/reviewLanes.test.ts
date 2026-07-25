@@ -260,11 +260,11 @@ describe('buildReviewLanes — waiting on you vs waiting on others', () => {
 });
 
 describe('buildReviewLanes — region matches', () => {
-   it('surfaces a pull matching a configured code region and pulls it out of the queue', () => {
+   it('surfaces a pull matching a configured code region as a highlight, without removing it from the queue', () => {
       const p = dp({ author: 'alice', status: 'needs_cr', title: 'Rework the Shopify sync' });
       const lanes = buildReviewLanes(input({ pulls: [p], codeRegions: ['Shopify'] }));
       expect(lanes.regionMatches).toEqual([p]);
-      expect(lanes.queue).not.toContain(p);
+      expect(lanes.queue).toContain(p);
    });
 
    it('leaves regionMatches empty when no regions are configured', () => {
@@ -274,7 +274,7 @@ describe('buildReviewLanes — region matches', () => {
       expect(lanes.queue).toEqual([p]);
    });
 
-   it('pulls a QA-pool match out of needsQa into regionMatches too', () => {
+   it('surfaces a QA-pool match in regionMatches too, without removing it from needsQa', () => {
       const p = dp({
          author: 'alice',
          status: 'needs_qa',
@@ -282,7 +282,40 @@ describe('buildReviewLanes — region matches', () => {
       });
       const lanes = buildReviewLanes(input({ pulls: [p], codeRegions: ['Shopify'] }));
       expect(lanes.regionMatches).toEqual([p]);
-      expect(lanes.needsQa).not.toContain(p);
+      expect(lanes.needsQa).toContain(p);
+   });
+
+   it('excludes a pull you already CR-stamped from regionMatches, even via the QA pool', () => {
+      // qaPool itself doesn't care about crBy — a needs_qa pull with a live
+      // stamp from you would otherwise sail through the QA-pool leg and land
+      // in "your code regions" as if it were news to you. It still belongs
+      // in needsQa (that lane's own filters don't look at crBy at all).
+      const p = dp({
+         author: 'alice',
+         status: 'needs_qa',
+         crBy: ['me'],
+         title: 'Rework the Shopify sync',
+      });
+      const lanes = buildReviewLanes(input({ pulls: [p], codeRegions: ['Shopify'] }));
+      expect(lanes.regionMatches).not.toContain(p);
+      expect(lanes.needsQa).toContain(p);
+   });
+
+   it('keeps a needs_recr pull in regionMatches when only your own stamp went stale', () => {
+      // recrBy including you means YOUR re-stamp is owed (a "Re-stamp" verb
+      // in Waiting on you) and crBy no longer includes you, since a stale
+      // stamp drops out of the active crBy set. The new qaPool exclusion
+      // only checks crBy (a currently-live stamp), so this pull still
+      // matches through the QA-pool leg.
+      const p = dp({
+         author: 'alice',
+         status: 'needs_recr',
+         recrBy: ['me'],
+         crBy: [],
+         title: 'Rework the Shopify sync',
+      });
+      const lanes = buildReviewLanes(input({ pulls: [p], codeRegions: ['Shopify'] }));
+      expect(lanes.regionMatches).toContain(p);
    });
 });
 
