@@ -33,9 +33,10 @@ export interface Snapshot {
    lastPayloadAt: number;
    /** epoch secs of the last Clear — the "Recently updated" baseline */
    lastSeen: number;
-   /** pull key → epoch secs it was snoozed: hidden for a day or until it
-    * changes. Persisted per-browser. */
-   snoozed: Readonly<Record<string, number>>;
+   /** pull key → snooze record (when it was snoozed, plus the comment and
+    * review baseline that wakes it): hidden for a day or until it changes.
+    * Persisted per-browser. */
+   snoozed: Readonly<Record<string, SnoozeRecord>>;
    /** "Refresh all" in progress (or just finished): how many of the pulls
     * queued at kickoff have reported back. Null when no refresh is running. */
    refreshProgress: { done: number; total: number } | null;
@@ -109,24 +110,43 @@ export function isFresh(d: Pick<PullData, 'updated_at'>, lastSeenAt: number) {
    return epoch(d.updated_at) > lastSeenAt;
 }
 
-// Snooze: "not today" for one PR. A snooze lasts a day, and any change to
-// the pull (a push, a comment — anything that moves updated_at) voids it
-// early: punting a PR must never hide what happens to it next.
+// Snooze: "not today" for one PR. A snooze lasts a day, and any activity on
+// the pull voids it early: punting a PR must never hide what happens to it
+// next. Two kinds of activity count. A push, edit, or label moves updated_at
+// (the classic check). A new comment or review does NOT move updated_at
+// (those arrive on their own webhook path), so the snooze also records the
+// comment and review counts at snooze time and wakes when either climbs.
+// Counts only: the wire has no per-event author, so your own comment wakes it
+// too, the same way your own push already does.
+export type SnoozeRecord = { at: number; comments: number; reviews: number };
 const SNOOZED_KEY = 'pd2.snoozed';
 const SNOOZE_SECS = 24 * 3600;
-let snoozed: Record<string, number> = {};
+// the comment/review signals that wake a snooze, read off the pull's status
+const snoozeActivity = (d: Pick<PullData, 'status'>) => ({
+   comments: d.status.comment_count ?? 0,
+   reviews:
+      d.status.allCR.length + d.status.allQA.length + (d.status.unstamped_reviewers?.length ?? 0),
+});
+let snoozed: Record<string, SnoozeRecord> = {};
 try {
-   snoozed = JSON.parse(readStorage(SNOOZED_KEY) ?? '{}') ?? {};
+   const raw = JSON.parse(readStorage(SNOOZED_KEY) ?? '{}') ?? {};
+   // clean cut: only the {at, comments, reviews} shape is supported. A
+   // pre-baseline entry (a bare epoch number from before this field) is
+   // dropped, so the pull reappears once and you re-snooze it if you still want.
+   for (const [k, v] of Object.entries(raw))
+      if (v && typeof v === 'object' && typeof (v as { at?: unknown }).at === 'number')
+         snoozed[k] = v as SnoozeRecord;
 } catch {
    snoozed = {};
 }
 const saveSnoozed = () => {
    const now = Date.now() / 1000;
-   for (const [k, at] of Object.entries(snoozed)) if (now > at + SNOOZE_SECS) delete snoozed[k];
+   for (const [k, rec] of Object.entries(snoozed))
+      if (now > rec.at + SNOOZE_SECS) delete snoozed[k];
    writeStorage(SNOOZED_KEY, JSON.stringify(snoozed));
 };
-export function snoozePull(key: string) {
-   snoozed[key] = Date.now() / 1000;
+export function snoozePull(pull: Pick<PullData, 'repo' | 'number' | 'status'>) {
+   snoozed[pullKey(pull)] = { at: Date.now() / 1000, ...snoozeActivity(pull) };
    saveSnoozed();
    schedulePublish();
 }
@@ -142,15 +162,21 @@ export function clearSnoozes() {
    schedulePublish();
 }
 
-/** Snoozed and nothing has happened since: still hidden. */
+/** Snoozed and nothing has happened since: still hidden. Wakes on a push
+ * (updated_at moved) or a new comment or review (a count above the baseline
+ * captured at snooze time). */
 export function isSnoozed(
-   d: Pick<PullData, 'repo' | 'number' | 'updated_at'>,
-   snoozedAt: Readonly<Record<string, number>>,
+   d: Pick<PullData, 'repo' | 'number' | 'updated_at' | 'status'>,
+   snoozedAt: Readonly<Record<string, SnoozeRecord>>,
    now: number = Date.now() / 1000
 ) {
-   const at = snoozedAt[pullKey(d)];
-   if (at == null) return false;
-   return now < at + SNOOZE_SECS && epoch(d.updated_at) <= at;
+   const rec = snoozedAt[pullKey(d)];
+   if (rec == null) return false;
+   if (now >= rec.at + SNOOZE_SECS) return false;
+   if (epoch(d.updated_at) > rec.at) return false;
+   const a = snoozeActivity(d);
+   if (a.comments > rec.comments || a.reviews > rec.reviews) return false;
+   return true;
 }
 
 let snapshot: Snapshot = {
