@@ -136,6 +136,11 @@ describe('matchesQuery', () => {
       expect(matchesQuery(fake({ status: 'ready' }), 'is:blocked', 'viewer')).toBe(false);
    });
 
+   it('is:bot matches a [bot]-suffixed author only', () => {
+      expect(matchesQuery(fake({ author: 'dependabot[bot]' }), 'is:bot', 'viewer')).toBe(true);
+      expect(matchesQuery(fake({ author: 'alice' }), 'is:bot', 'viewer')).toBe(false);
+   });
+
    it('unknown has:/is: values match nothing', () => {
       expect(matchesQuery(fake({}), 'has:bogus', 'viewer')).toBe(false);
       expect(matchesQuery(fake({}), 'is:bogus', 'viewer')).toBe(false);

@@ -333,6 +333,21 @@ describe('buildReviewLanes — stamped and ready lanes', () => {
       expect(lanes.ready).toEqual([bot, human]);
    });
 
+   it('draws ready’s bot portion from botsForReady, not bots, when the two differ', () => {
+      // "Ignore bot PRs" empties `bots` (the queue-tail/fold pool) but
+      // botsForReady bypasses that setting — Ready-to-merge must still
+      // surface the bot PR even though it's absent from `bots`.
+      const bot = dp({ author: 'dependabot[bot]', status: 'ready' });
+      const lanes = buildReviewLanes(input({ pulls: [], bots: [], botsForReady: [bot] }));
+      expect(lanes.ready).toEqual([bot]);
+   });
+
+   it('falls back to bots for ready when botsForReady is omitted', () => {
+      const bot = dp({ author: 'dependabot[bot]', status: 'ready' });
+      const lanes = buildReviewLanes(input({ pulls: [], bots: [bot] }));
+      expect(lanes.ready).toEqual([bot]);
+   });
+
    it('keeps a stamped (CR-incomplete, your stamp live) pull out of the queue and in yoursWaiting', () => {
       const p = dp({ author: 'alice', status: 'needs_cr', crBy: ['me'], crReq: 2 });
       const lanes = buildReviewLanes(input({ pulls: [p] }));

@@ -32,8 +32,18 @@ export interface ReviewLanesInput {
     * against the store's `snoozed` map) has already run, so a snoozed pull
     * never reaches the lane math below. */
    pulls: DerivedPull[];
-   /** same pool, bot pulls (dependency bumps etc.) — snoozed already excluded */
+   /** same pool, bot pulls (dependency bumps etc.) — snoozed already excluded.
+    * This pool empties out when "Ignore bot PRs" hides bots from Review's
+    * human-review surfaces (the queue tail, the bot fold), unless a filter
+    * reveals them. */
    bots: DerivedPull[];
+   /** the bot pool Ready-to-merge draws from instead of `bots` — bypasses
+    * "Ignore bot PRs" (a green, signed-off bot PR is one merge press from
+    * done regardless of that setting), while still respecting every other
+    * hide (hidden repo/person, cryo, drafts). Defaults to `bots` so a
+    * caller that doesn't separate the two pools sees today's behavior:
+    * hiding bots hides them from Ready too. */
+   botsForReady?: DerivedPull[];
    /** merged/closed pulls in the loaded window — only `.length` feeds the
     * lanes below (the "recently closed" fold's count, the empty-board check);
     * Review.tsx still renders the array itself, straight from its own prop. */
@@ -140,6 +150,7 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    const {
       pulls,
       bots,
+      botsForReady = bots,
       closed,
       napping,
       changed,
@@ -307,9 +318,12 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    // one button-press from done. It earns a real lane in Pick up next rather
    // than a fold — and bot PRs that reach ready join it, since a human has to
    // land them. Longest-waiting first: the ones most likely forgotten.
+   // botsForReady (not `bots`) so this lane keeps showing merge-ready bot
+   // PRs even when "Ignore bot PRs" has emptied `bots` out of the queue
+   // tail and the bot fold below.
    const ready = [
       ...others.filter(p => p.status === 'ready'),
-      ...bots.filter(p => p.status === 'ready'),
+      ...botsForReady.filter(p => p.status === 'ready'),
    ].sort((a, b) => b.ageDays - a.ageDays);
 
    const needsQa = teamFirst(qaSort(qaPool.filter(p => isPrimaryRepo(p.data.repo))), team);

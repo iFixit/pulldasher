@@ -28,11 +28,16 @@ import { ClosedRow } from '../components/ClosedRow';
 export function Review({
    pulls: allPulls,
    bots: allBots,
+   botsForReady: allBotsForReady,
    closed,
    opts,
 }: {
    pulls: DerivedPull[];
    bots: DerivedPull[];
+   /** the hideBots-bypassing bot pool (app.tsx) that keeps Ready-to-merge
+    * showing merge-ready bot PRs even when `bots` has been emptied by
+    * "Ignore bot PRs" — see model/reviewLanes.ts's botsForReady. */
+   botsForReady: DerivedPull[];
    closed: PullData[];
    opts: RowOptions;
 }) {
@@ -46,9 +51,21 @@ export function Review({
    // lens still shows the pull. Snoozed rows collect in their own section at
    // the bottom of the board instead of vanishing into Settings.
    const { snoozed } = usePulldasher();
-   const napping = [...allPulls, ...allBots].filter(p => isSnoozed(p.data, snoozed));
+   // allBotsForReady can hold a bot allBots no longer does ("Ignore bot PRs"
+   // pulled it out of the human-review surfaces) — folded in here too, deduped
+   // by key, so snoozing a bot straight off the Ready-to-merge lane still
+   // parks it in "Snoozed by you" instead of making it vanish with no undo.
+   const nappingKeys = new Set<string>();
+   const napping = [...allPulls, ...allBots, ...allBotsForReady].filter(p => {
+      if (!isSnoozed(p.data, snoozed)) return false;
+      const k = pullKey(p.data);
+      if (nappingKeys.has(k)) return false;
+      nappingKeys.add(k);
+      return true;
+   });
    const pulls = allPulls.filter(p => !isSnoozed(p.data, snoozed));
    const bots = allBots.filter(p => !isSnoozed(p.data, snoozed));
+   const botsForReady = allBotsForReady.filter(p => !isSnoozed(p.data, snoozed));
 
    // Recently updated: your review work that moved recently, newest first.
    // Bounded two ways so a quiet board stops resurfacing stale bumps — since
@@ -73,6 +90,7 @@ export function Review({
    const lanes = buildReviewLanes({
       pulls,
       bots,
+      botsForReady,
       closed,
       napping,
       changed,

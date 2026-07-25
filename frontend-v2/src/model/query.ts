@@ -1,5 +1,6 @@
 import { authorOwnsIt, parked, rowNote } from './actions';
 import type { DerivedPull } from '../../../shared/model/status';
+import { isSuffixBot } from '../../../shared/model/visibility';
 
 /**
  * The filter box grammar. Bare terms AND-match as substrings across title,
@@ -15,6 +16,9 @@ import type { DerivedPull } from '../../../shared/model/status';
  *   has:action    the viewer (`me`) has an imperative move on this card
  *   is:restamp    `me` owes a re-CR or re-QA on a reviewable pull
  *   is:blocked    status is dev_block or deploy_block
+ *   is:bot        the author is a bot (the `[bot]` suffix; config.json's
+ *                 extra `bots` list isn't visible here, same as any other
+ *                 model-layer bot check)
  *
  * `me` is the viewer's login, needed only for has:/is: — every other token
  * ignores it. `names` is the optional login → display-name map (model/
@@ -66,6 +70,7 @@ function matchTerm(
             if (val === 'blocked') return p.status === 'dev_block' || p.status === 'deploy_block';
             if (val === 'draft') return p.status === 'draft';
             if (val === 'mine') return d.user.login.toLowerCase() === me.toLowerCase();
+            if (val === 'bot') return isSuffixBot(d.user.login);
             // unrecognized is: value: fall through to the plain substring
             // match below, same as any other unknown key
          }

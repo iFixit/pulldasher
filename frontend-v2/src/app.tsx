@@ -428,16 +428,22 @@ export function App() {
          scope.authors.includes(login) || queryAuthors.some(q => login.toLowerCase().includes(q)),
       [scope.authors, queryAuthors]
    );
+   // "is:bot" is a blanket reveal (it doesn't name a specific bot the way
+   // author:<login> does), so it's a query-level flag rather than another
+   // per-login predicate like revealedAuthor.
+   const queryHasBotToken = useMemo(
+      () => query.toLowerCase().split(/\s+/).includes('is:bot'),
+      [query]
+   );
 
-   // The one is-this-pull-off-the-board predicate: hidden repos, hidden
-   // people, cryo, snoozes, and the drafts rule stay off unless a session
-   // act reveals them — an explicit reveal, a scope, a repo:/author: query
-   // term, or the master "show everything". Never hides your own pulls; bots
-   // hide only when you turn on Ignore bot PRs (they otherwise have their own
-   // fold), and a person can't hide themselves. Shared by the filter pipeline and the
-   // hidden-PR ledger's counts so the ledger's number can never disagree
-   // with what the board actually withholds.
-   const boardHidden = useCallback(
+   // Every off-by-default rule EXCEPT "Ignore bot PRs": hidden repos/people,
+   // parked (cryo) pulls, and the drafts-mine default. Split out of
+   // boardHidden below so botsBypassingHideBots (further down, feeding the CI
+   // lens and Ready-to-merge) can reuse it for a bot pool that skips ONLY the
+   // hideBots rule — those two surfaces need bot signal (fleet build health,
+   // a merge-ready bot PR) even when a reviewer has muted bots from Review's
+   // human-review surfaces.
+   const boardHiddenExceptBots = useCallback(
       (p: DerivedPull) => {
          if (showAll) return false;
          const hidden = isHiddenFor(
@@ -459,15 +465,7 @@ export function App() {
             p.data.user.login !== me &&
             !revealedAuthor(p.data.user.login) &&
             !reviewRequestedFrom(p, me);
-         // snoozes are NOT here: a snooze only quiets the Review lens (its
-         // "not today" gesture), so the Review view applies it itself and
-         // every other lens still shows the pull
-         // "Ignore bot PRs": a saved preference that keeps machine authors off
-         // the board entirely (they otherwise live in their own low-priority
-         // fold). "Show everything" still reveals them via the showAll early
-         // return above.
-         const botHidden = settings.hideBots && isBot(p);
-         return hidden || cryoHidden || draftHidden || botHidden;
+         return hidden || cryoHidden || draftHidden;
       },
       [
          showAll,
@@ -479,9 +477,42 @@ export function App() {
          settings.repoPrefs,
          settings.showCryo,
          settings.hiddenPeople,
-         settings.hideBots,
          draftsMode,
       ]
+   );
+
+   // The one is-this-pull-off-the-board predicate: hidden repos, hidden
+   // people, cryo, snoozes, and the drafts rule stay off unless a session
+   // act reveals them — an explicit reveal, a scope, a repo:/author: query
+   // term, or the master "show everything". Never hides your own pulls; bots
+   // hide only when you turn on Ignore bot PRs (they otherwise have their own
+   // fold), and a person can't hide themselves. Shared by the filter pipeline and the
+   // hidden-PR ledger's counts so the ledger's number can never disagree
+   // with what the board actually withholds.
+   const boardHidden = useCallback(
+      (p: DerivedPull) => {
+         if (showAll) return false;
+         // snoozes are NOT here: a snooze only quiets the Review lens (its
+         // "not today" gesture), so the Review view applies it itself and
+         // every other lens still shows the pull
+         // "Ignore bot PRs": a saved preference that keeps machine authors off
+         // Review's human-review surfaces (they otherwise live in their own
+         // low-priority fold and the queue tail). A bot named by the active
+         // saved/pinned filter (revealedAuthor, via scope.authors carrying its
+         // login) or a typed author:<bot> / is:bot query term still shows —
+         // the same reveal story every other hidden rule gets. "Show
+         // everything" still reveals them via the showAll early return above.
+         // The CI lens and Ready-to-merge bypass this rule entirely, reveal or
+         // not (see botsBypassingHideBots below): fleet build health and a
+         // merge-ready bot PR matter regardless of this setting.
+         const botHidden =
+            settings.hideBots &&
+            isBot(p) &&
+            !revealedAuthor(p.data.user.login) &&
+            !queryHasBotToken;
+         return boardHiddenExceptBots(p) || botHidden;
+      },
+      [showAll, boardHiddenExceptBots, settings.hideBots, isBot, revealedAuthor, queryHasBotToken]
    );
 
    // Nudges/notifications honor the STANDING hidden-repo/hidden-person
@@ -550,6 +581,32 @@ export function App() {
    // (each keystroke, settings toggle, and heartbeat re-runs App)
    const humans = useMemo(() => scoped.filter(p => !isBot(p)), [scoped, isBot]);
    const bots = useMemo(() => scoped.filter(isBot), [scoped, isBot]);
+
+   // Bots that pass every hidden rule except "Ignore bot PRs": hidden
+   // repos/people, cryo, and the drafts rule still apply, and the active
+   // repo scope / weight / state / query filters narrow it the same way
+   // they narrow `scoped` (scope.authors/notAuthors don't need repeating
+   // here — bots already bypass both in preWeightScoped above). Only the
+   // hideBots-specific exclusion is skipped. Feeds the CI lens and
+   // Ready-to-merge (below), the two surfaces that need bot signal
+   // regardless of hideBots.
+   const botsBypassingHideBots = useMemo(() => {
+      let out = pulls.filter(p => isBot(p) && !boardHiddenExceptBots(p));
+      if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.data.repo));
+      if (query) out = out.filter(p => matchesQuery(p, query, me, names));
+      if (weightSel.length) out = out.filter(p => matchesWeightFilter(p, weightSel));
+      if (stateSel.length) out = out.filter(p => stateSel.includes(actionState(p, me)));
+      return out;
+   }, [pulls, isBot, boardHiddenExceptBots, scope.repos, query, me, names, weightSel, stateSel]);
+   // The CI lens's pool: `scoped` (which already respects hideBots, escape
+   // hatch included) plus whatever bot the bypass pool above adds back —
+   // deduped by key so a bot already visible in `scoped` (hideBots off, or
+   // individually revealed) is never doubled.
+   const ciPulls = useMemo(() => {
+      const scopedKeys = new Set(scoped.map(p => pullKey(p.data)));
+      const extraBots = botsBypassingHideBots.filter(p => !scopedKeys.has(pullKey(p.data)));
+      return extraBots.length ? [...scoped, ...extraBots] : scoped;
+   }, [scoped, botsBypassingHideBots]);
    // every known repo with its open-PR count — feeds the Filters popover and
    // the Settings repo manager. Includes pref'd repos at 0.
    const repoCounts = useMemo(() => {
@@ -1024,9 +1081,9 @@ export function App() {
                   sessionActive={sessionActive}
                   inputProps={{
                      'aria-label':
-                        'Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked',
+                        'Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked, is:bot',
                      placeholder: 'Filter (press /)',
-                     title: 'text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked',
+                     title: 'text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked, is:bot',
                      className: `w-[210px] max-w-full grow pr-2.5 pl-8 sm:grow-0 ${textInputClass}`,
                   }}
                />
@@ -1069,6 +1126,7 @@ export function App() {
                <Review
                   pulls={humans}
                   bots={bots}
+                  botsForReady={botsBypassingHideBots}
                   closed={scopedClosed}
                   opts={{ ...rowOpts, showSnooze: true }}
                />
@@ -1087,7 +1145,7 @@ export function App() {
                />
             )}
             {initialized && lens === 'classic' && <Classic pulls={scoped} opts={rowOpts} />}
-            {initialized && lens === 'ci' && <Ci pulls={scoped} opts={rowOpts} />}
+            {initialized && lens === 'ci' && <Ci pulls={ciPulls} opts={rowOpts} />}
             {initialized && lens === 'stats' && (
                <Stats pulls={humans} closed={closed} me={me} onPerson={onPerson} />
             )}
