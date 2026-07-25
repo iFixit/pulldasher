@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, Bell, Settings as SettingsIcon, X } from 'lucide-react';
-import { ago, githubUrl } from '../../../shared/format';
+import { ago, githubUrl, pullKey, shortRepo } from '../../../shared/format';
 import { type CheerGroup, CONFIGURABLE_TOASTS } from '../model/cheers';
 import {
    type Settings as SettingsShape,
@@ -15,6 +15,7 @@ import {
    testNotification,
    unlockSound,
 } from '../notifications';
+import { TOAST_PULLS_SHOWN } from '../model/toast';
 import type { ToastRecord } from '../toasts';
 import { HeaderIconButton, QuietButton, Segmented, Switch } from './bits';
 import { Icon } from './Icon';
@@ -361,23 +362,46 @@ export function NotificationPanel({
                            </span>
                            <span className="min-w-0 flex-1">
                               <span className="flex items-baseline justify-between gap-2">
-                                 <span className="truncate font-semibold text-ink">
+                                 <span className="font-semibold text-ink">
+                                    {r.toast.count != null && `${r.toast.count} `}
                                     {r.toast.title}
                                  </span>
                                  <span className="flex-none text-[10px] text-ink-3 tabular-nums">
                                     {ago(r.at / 1000)}
                                  </span>
                               </span>
-                              {r.toast.pull && (
-                                 <a
-                                    href={githubUrl(r.toast.pull.repo, r.toast.pull.number)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="mt-0.5 block truncate font-medium text-brand hover:underline"
-                                 >
-                                    #{r.toast.pull.number}
-                                    {r.toast.pull.title ? ` ${r.toast.pull.title}` : ''}
-                                 </a>
+                              {r.toast.pulls && r.toast.pulls.length > 0 ? (
+                                 <span className="mt-0.5 flex flex-col gap-0.5">
+                                    {r.toast.pulls.slice(0, TOAST_PULLS_SHOWN).map(p => (
+                                       <a
+                                          key={pullKey(p)}
+                                          href={githubUrl(p.repo, p.number)}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="block font-medium text-brand hover:underline"
+                                       >
+                                          {shortRepo(p.repo)}#{p.number}
+                                          {p.title ? ` ${p.title}` : ''}
+                                       </a>
+                                    ))}
+                                    {r.toast.pulls.length > TOAST_PULLS_SHOWN && (
+                                       <span className="block text-ink-3">
+                                          +{r.toast.pulls.length - TOAST_PULLS_SHOWN} more
+                                       </span>
+                                    )}
+                                 </span>
+                              ) : (
+                                 r.toast.pull && (
+                                    <a
+                                       href={githubUrl(r.toast.pull.repo, r.toast.pull.number)}
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       className="mt-0.5 block font-medium text-brand hover:underline"
+                                    >
+                                       #{r.toast.pull.number}
+                                       {r.toast.pull.title ? ` ${r.toast.pull.title}` : ''}
+                                    </a>
+                                 )
                               )}
                               {r.toast.body && (
                                  <span className="mt-0.5 block text-ink-2">{r.toast.body}</span>

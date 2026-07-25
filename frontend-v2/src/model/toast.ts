@@ -1,5 +1,10 @@
 export type ToastTone = 'reward' | 'nag' | 'info';
 
+/** How many of a batched toast's `pulls` render as links before the rest
+ * fold into a "+N more" line. Shared by the toast stack and the notification
+ * panel so a batched nudge lists the same number of PRs in both places. */
+export const TOAST_PULLS_SHOWN = 3;
+
 /**
  * The reusable toast contract. Both the gamified cheers evaluator
  * (model/cheers) and the shipped catch-up (model/shipped) produce these;
@@ -30,6 +35,13 @@ export interface Toast {
     * on GitHub if off-screen), and the card renders its number + title as a
     * link, so a toast says WHICH pull, not just a bare #number */
    pull?: { repo: string; number: number; title?: string };
+   /** for a batched toast covering more than one PR (e.g. the shipped
+    * catch-up when several landed at once): the pulls it covers, ranked
+    * most-relevant-first. The renderer shows the first `TOAST_PULLS_SHOWN`
+    * as links and folds the rest into a "+N more" line, the same overflow
+    * pattern the board's other lists use. Falls back to the singular `pull`
+    * above when absent or empty. */
+   pulls?: { repo: string; number: number; title?: string }[];
    /** stable id so the same logical toast isn't re-fired every board tick */
    dedupeKey?: string;
    /** per-toast lifetime override (ms); falls back to the tone default */
