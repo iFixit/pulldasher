@@ -417,20 +417,30 @@ export function EmptyState({
    return (
       <div className="flex flex-col items-center gap-2.5 px-6 py-10 text-center text-[13px] text-ink-3">
          {variant === 'search' ? (
-            // pathLength normalizes the lens+handle to the check's 26, so the
-            // one draw-check keyframe animates either glyph. currentColor keeps
-            // it in the muted ink of the surrounding copy: informational, not an
-            // alarm and not a success.
-            <svg viewBox="0 0 36 36" fill="none" aria-hidden className="h-9 w-9">
+            // search-alert (lucide): the magnifying glass draws in like the
+            // check (pathLength normalizes the lens+handle to 26 so the one
+            // draw-check keyframe animates it), then the exclamation pops in
+            // last to pull the eye to "nothing matched." currentColor keeps it
+            // in the muted ink of the copy: a heads-up, not a red alarm.
+            <svg
+               viewBox="0 0 24 24"
+               fill="none"
+               aria-hidden
+               className="h-9 w-9"
+               stroke="currentColor"
+               strokeWidth={2}
+               strokeLinecap="round"
+               strokeLinejoin="round"
+            >
                <path
                   className="draw-check"
                   pathLength={26}
-                  d="M8 15a7 7 0 1 0 14 0a7 7 0 1 0-14 0M20 20l6.5 6.5"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                  d="M3 11a8 8 0 1 0 16 0a8 8 0 1 0-16 0M16.65 16.65 21 21"
                />
+               <g className="alert-pop">
+                  <path d="M11 7v4" />
+                  <path d="M11 15h.01" />
+               </g>
             </svg>
          ) : (
             <svg viewBox="0 0 36 36" fill="none" aria-hidden className="h-9 w-9">
