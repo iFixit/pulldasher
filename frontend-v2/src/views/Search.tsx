@@ -1,4 +1,4 @@
-import { type ReactNode, useDeferredValue } from 'react';
+import type { ReactNode } from 'react';
 import { closedEpoch, pullKey } from '../../../shared/format';
 import type { DerivedPull } from '../../../shared/model/status';
 import type { PullData } from '../../../shared/types';
@@ -42,6 +42,7 @@ export function Search({
    pulls,
    closed,
    query,
+   stale = false,
    opts,
    extraBots,
    names,
@@ -49,22 +50,19 @@ export function Search({
    /** the whole open board, unfiltered: search is global, hidden repos included */
    pulls: DerivedPull[];
    closed: PullData[];
+   /** already the DEFERRED query: App defers it so this view's first-keystroke
+    * MOUNT is a low-priority, time-sliced render rather than a synchronous block
+    * (a broad query renders hundreds of heavy rows). */
    query: string;
+   /** the deferred query is still catching up to what's typed, so dim the
+    * results to read as "updating" rather than final */
+   stale?: boolean;
    opts: RowOptions;
    extraBots: ReadonlySet<string>;
    names: Readonly<Record<string, string | null>>;
 }) {
    const me = opts.me;
-   // keep the box instant: setQuery is urgent (the input updates immediately),
-   // but the heavy filter + group + render of results runs off a deferred copy,
-   // so React shows the previous query's hits (dimmed) and can abandon a stale
-   // intermediate render on fast typing instead of blocking the keystroke.
-   // useDeferredValue beats a fixed debounce here: no latency on a fast machine,
-   // adaptive on a slow one, and interruptible. On mount it equals `query`, and
-   // App only mounts this view for a non-empty query, so it never filters on ''.
-   const deferred = useDeferredValue(query);
-   const stale = deferred !== query;
-   const q = deferred.trim();
+   const q = query.trim();
 
    if (!q) {
       return (
@@ -77,10 +75,10 @@ export function Search({
    }
 
    const openHits = pulls
-      .filter(p => matchesQuery(p, deferred, me, extraBots, names))
+      .filter(p => matchesQuery(p, query, me, extraBots, names))
       .sort((a, b) => b.data.created_at.localeCompare(a.data.created_at));
    const closedHits = closed
-      .filter(p => matchesClosedQuery(p, deferred, me, extraBots, names))
+      .filter(p => matchesClosedQuery(p, query, me, extraBots, names))
       .sort((a, b) => closedEpoch(b) - closedEpoch(a));
    const total = openHits.length + closedHits.length;
 

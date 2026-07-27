@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+   useCallback,
+   useDeferredValue,
+   useEffect,
+   useMemo,
+   useRef,
+   useState,
+   type ReactNode,
+} from 'react';
 import { ago, closedEpoch, n, pullKey, shortRepo } from '../../shared/format';
 import type { ActionStateKey } from './model/actions';
 import { actionState } from './model/actions';
@@ -266,8 +274,20 @@ export function App() {
    const [query, setQuery] = useState(() => urlState.q);
    // free text is find, not filter: any query switches the board to the Search
    // lens (global, over open + closed), so the header box stops narrowing the
-   // current lens and starts finding across the whole board
-   const searching = query.trim().length > 0;
+   // current lens and starts finding across the whole board.
+   //
+   // The heavy part of a search is rendering the matched rows, and the first
+   // keystroke MOUNTS the Search view. useDeferredValue gives no deferral on a
+   // mount, so deferring inside Search left that first render synchronous, and a
+   // broad query (say "a") blocked the main thread ~350ms on the dummy board,
+   // more at prod scale, freezing the keystroke itself. Deferring the query HERE
+   // makes the view swap and its render a low-priority, time-sliced pass: the
+   // box updates urgently off `query`, the board keeps showing the current lens
+   // until the deferred render is ready, and React can interrupt a stale broad
+   // render when you keep typing. `stale` dims the results while it catches up.
+   const deferredQuery = useDeferredValue(query);
+   const searching = deferredQuery.trim().length > 0;
+   const searchStale = query !== deferredQuery;
    // narrows the board to one or more review-effort classes ('xs'..'xl',
    // 'unknown'); empty = no filter
    const [weightSel, setWeightSel] = useState<string[]>(() => urlState.weight);
@@ -1167,7 +1187,8 @@ export function App() {
                <Search
                   pulls={pulls}
                   closed={closed}
-                  query={query}
+                  query={deferredQuery}
+                  stale={searchStale}
                   opts={rowOpts}
                   extraBots={extraBots}
                   names={names}
