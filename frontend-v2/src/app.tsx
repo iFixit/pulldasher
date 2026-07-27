@@ -47,6 +47,7 @@ import { Team } from './views/Team';
 import { Classic } from './views/Classic';
 import { Ci } from './views/Ci';
 import { Stats } from './views/Stats';
+import { Search } from './views/Search';
 import { Settings } from './components/Settings';
 
 export type { Lens };
@@ -264,6 +265,10 @@ export function App() {
    const [scope, setScope] = useScope();
    const [lens, setLens] = useState<Lens>(() => readHash().lens);
    const [query, setQuery] = useState(() => urlState.q);
+   // free text is find, not filter: any query switches the board to the Search
+   // lens (global, over open + closed), so the header box stops narrowing the
+   // current lens and starts finding across the whole board
+   const searching = query.trim().length > 0;
    // narrows the board to one or more review-effort classes ('xs'..'xl',
    // 'unknown'); empty = no filter
    const [weightSel, setWeightSel] = useState<string[]>(() => urlState.weight);
@@ -711,10 +716,17 @@ export function App() {
 
    // an avatar click anywhere lands on that person's board: their login
    // becomes the authors scope (visible in the bar, clearable there too)
+   // a user picking a lens leaves search: clear the query so the chosen lens
+   // actually renders (a lingering query keeps the Search lens up)
+   const goToLens = useCallback((id: Lens) => {
+      setQuery('');
+      setLens(id);
+   }, []);
    // and the Team lens shows the result
    const onPerson = useCallback(
       (login: string) => {
          setScope({ ...scope, authors: [login], notAuthors: [] });
+         setQuery('');
          setLens('team');
       },
       [scope, setScope]
@@ -771,11 +783,13 @@ export function App() {
    const tab = (id: Lens, label: string, count?: number) => (
       <button
          type="button"
-         aria-current={lens === id ? 'page' : undefined}
+         aria-current={lens === id && !searching ? 'page' : undefined}
          aria-label={count ? `${label}, ${count} of yours open` : undefined}
-         onClick={() => setLens(id)}
+         onClick={() => goToLens(id)}
          className={`pressable relative shrink-0 rounded-lg border-0 px-3 py-2 text-sm font-medium whitespace-nowrap ${
-            lens === id ? 'bg-secondary text-ink' : 'bg-transparent text-ink-2 hover:text-brand'
+            lens === id && !searching
+               ? 'bg-secondary text-ink'
+               : 'bg-transparent text-ink-2 hover:text-brand'
          }`}
       >
          {label}
@@ -844,6 +858,7 @@ export function App() {
    // the quick-wins toast filters the board to the small reviewable ones on the
    // review lens, instead of scrolling to just the first of the batch
    const onQuickWins = useCallback(() => {
+      setQuery('');
       setLens('review');
       setWeightSel(['XS', 'S']);
    }, []);
@@ -984,7 +999,7 @@ export function App() {
                   <span className="hidden sm:flex">
                      <Legend />
                   </span>
-                  <Settings onGoToTeam={() => setLens('team')} />
+                  <Settings onGoToTeam={() => goToLens('team')} />
                </div>
                <div className="mx-auto flex max-w-[1240px] min-w-0 items-center px-5 py-2.5 pl-11 pr-32 sm:pr-40 2xl:px-5">
                   {/* min-w-0 + overflow-x-auto (no-scrollbar in styles.css)
@@ -1008,7 +1023,7 @@ export function App() {
                   <LensMenu
                      className="sm:hidden"
                      lens={lens}
-                     setLens={setLens}
+                     setLens={goToLens}
                      options={LENSES.map(id => ({
                         id,
                         label: LENS_LABELS[id],
@@ -1112,8 +1127,8 @@ export function App() {
                   sessionActive={sessionActive}
                   inputProps={{
                      'aria-label':
-                        'Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked, is:bot',
-                     placeholder: 'Filter (press /)',
+                        'Search all PRs, open and closed: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked, is:bot',
+                     placeholder: 'Search all PRs (press /)',
                      title: 'text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked, is:bot',
                      className: `w-[210px] max-w-full grow pr-2.5 pl-8 sm:grow-0 ${textInputClass}`,
                   }}
@@ -1153,7 +1168,20 @@ export function App() {
                   <span className="text-sm">Loading the board…</span>
                </div>
             )}
-            {initialized && lens === 'review' && (
+            {/* free text is a find, not a filter: while there's a query the
+                board becomes the global Search lens (open + closed, every lens,
+                nothing folded), regardless of which tab was active */}
+            {initialized && searching && (
+               <Search
+                  pulls={pulls}
+                  closed={closed}
+                  query={query}
+                  opts={rowOpts}
+                  extraBots={extraBots}
+                  names={names}
+               />
+            )}
+            {initialized && !searching && lens === 'review' && (
                <Review
                   pulls={humans}
                   bots={bots}
@@ -1162,10 +1190,10 @@ export function App() {
                   opts={{ ...rowOpts, showSnooze: true }}
                />
             )}
-            {initialized && lens === 'mine' && (
+            {initialized && !searching && lens === 'mine' && (
                <MyWork pulls={humans} closed={closed} opts={rowOpts} />
             )}
-            {initialized && lens === 'team' && (
+            {initialized && !searching && lens === 'team' && (
                <Team
                   pulls={humans}
                   allPulls={pulls.filter(p => !isBot(p))}
@@ -1175,9 +1203,11 @@ export function App() {
                   extraBots={extraBots}
                />
             )}
-            {initialized && lens === 'classic' && <Classic pulls={scoped} opts={rowOpts} />}
-            {initialized && lens === 'ci' && <Ci pulls={ciPulls} opts={rowOpts} />}
-            {initialized && lens === 'stats' && (
+            {initialized && !searching && lens === 'classic' && (
+               <Classic pulls={scoped} opts={rowOpts} />
+            )}
+            {initialized && !searching && lens === 'ci' && <Ci pulls={ciPulls} opts={rowOpts} />}
+            {initialized && !searching && lens === 'stats' && (
                <Stats pulls={humans} closed={closed} me={me} onPerson={onPerson} />
             )}
          </main>
