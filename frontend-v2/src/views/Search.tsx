@@ -60,6 +60,7 @@ export function Search({
    if (!q) {
       return (
          <EmptyState
+            variant="search"
             title="Search every PR"
             sub="Find any open or closed pull by title, repo, #number, author, or label. Tokens like repo:, author:, and is:bot narrow it."
          />
@@ -77,6 +78,7 @@ export function Search({
    if (total === 0) {
       return (
          <EmptyState
+            variant="search"
             title={`No PR matches “${q}”`}
             sub="Nothing open or closed matched. Try fewer words, or a #number."
          />

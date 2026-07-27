@@ -108,7 +108,8 @@ export function Review({
    if (lanes.empty) {
       return (
          <EmptyState
-            title="All clear"
+            variant="search"
+            title="Nothing here"
             sub="Nothing to review with these filters. Clear some to see more."
          />
       );

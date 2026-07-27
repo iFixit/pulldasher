@@ -401,20 +401,50 @@ export function Switch({
    );
 }
 
-export function EmptyState({ title, sub }: { title: string; sub: string }) {
+export function EmptyState({
+   title,
+   sub,
+   variant = 'ok',
+}: {
+   title: string;
+   sub: string;
+   /** 'ok' is the green check: a genuine all-clear, nothing left to do (a good
+    * state). 'search' is the muted magnifying glass, for a null result from
+    * narrowing the board (a search or filter matched nothing) — where the check
+    * would wrongly read as success. Both draw the same stroke-in. */
+   variant?: 'ok' | 'search';
+}) {
    return (
       <div className="flex flex-col items-center gap-2.5 px-6 py-10 text-center text-[13px] text-ink-3">
-         <svg viewBox="0 0 36 36" fill="none" aria-hidden className="h-9 w-9">
-            <circle cx="18" cy="18" r="16" stroke="var(--ok)" strokeWidth="2" />
-            <path
-               className="draw-check"
-               d="M11 18.5l5 5 9-11"
-               stroke="var(--ok)"
-               strokeWidth="2.5"
-               strokeLinecap="round"
-               strokeLinejoin="round"
-            />
-         </svg>
+         {variant === 'search' ? (
+            // pathLength normalizes the lens+handle to the check's 26, so the
+            // one draw-check keyframe animates either glyph. currentColor keeps
+            // it in the muted ink of the surrounding copy: informational, not an
+            // alarm and not a success.
+            <svg viewBox="0 0 36 36" fill="none" aria-hidden className="h-9 w-9">
+               <path
+                  className="draw-check"
+                  pathLength={26}
+                  d="M8 15a7 7 0 1 0 14 0a7 7 0 1 0-14 0M20 20l6.5 6.5"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+               />
+            </svg>
+         ) : (
+            <svg viewBox="0 0 36 36" fill="none" aria-hidden className="h-9 w-9">
+               <circle cx="18" cy="18" r="16" stroke="var(--ok)" strokeWidth="2" />
+               <path
+                  className="draw-check"
+                  d="M11 18.5l5 5 9-11"
+                  stroke="var(--ok)"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+               />
+            </svg>
+         )}
          <span className="text-sm font-semibold text-ink-2">{title}</span>
          <span>{sub}</span>
       </div>
