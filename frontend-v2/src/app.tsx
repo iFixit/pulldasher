@@ -16,7 +16,6 @@ import { useBoardHotkeys, useHeaderHeightVar } from './hooks';
 import { ageRotDays, getSettings, type Settings as SettingsShape, useSettings } from './settings';
 import { useNotifications } from './notifications';
 import { ToastStack, useToasts } from './toasts';
-import { matchesQuery } from './model/query';
 import { requestNames, useNames } from './model/names';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from '../../shared/model/visibility';
 import { reviewRequestedFrom } from './model/reviewers';
@@ -547,10 +546,13 @@ export function App() {
    // settings above), not the current filter
    useNotifications(nudgeablePulls, me, turns, initialized);
 
-   // every existing scope/query pass, but not yet the Weight/State filters —
-   // WeightFilter's live per-option counts read this pool, so narrowing to
-   // one weight class doesn't make the other classes' counts vanish (the
-   // same reasoning PeopleFilter's authorCounts follows for its own pool)
+   // scope + hidden, but deliberately NOT free text: a query drives the global
+   // Search lens (App renders <Search> instead of the current lens), so
+   // filtering the whole board by it here would recompute every keystroke only
+   // to feed a view that never shows while searching. Also not the Weight/State
+   // filters yet: WeightFilter's live per-option counts read this pool, so
+   // narrowing to one weight class doesn't make the other classes' counts
+   // vanish (the same reasoning PeopleFilter's authorCounts follows).
    const preWeightScoped = useMemo(() => {
       let out = pulls.filter(p => !boardHidden(p));
       if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.data.repo));
@@ -562,9 +564,8 @@ export function App() {
       // allow-list above (a dependency bump is nobody's teammate)
       if (scope.notAuthors.length)
          out = out.filter(p => isBot(p) || !scope.notAuthors.includes(p.data.user.login));
-      if (query) out = out.filter(p => matchesQuery(p, query, me, extraBots, names));
       return out;
-   }, [pulls, boardHidden, scope, isBot, query, names, me, extraBots]);
+   }, [pulls, boardHidden, scope, isBot]);
 
    // preWeightScoped narrowed by the Weight filter, but not yet State —
    // StateFilter's own live counts read this pool for the same
@@ -592,31 +593,20 @@ export function App() {
 
    // Bots that pass every hidden rule except "Ignore bot PRs": hidden
    // repos/people, cryo, and the drafts rule still apply, and the active
-   // repo scope / weight / state / query filters narrow it the same way
-   // they narrow `scoped` (scope.authors/notAuthors don't need repeating
-   // here — bots already bypass both in preWeightScoped above). Only the
-   // hideBots-specific exclusion is skipped. Feeds the CI lens and
-   // Ready-to-merge (below), the two surfaces that need bot signal
-   // regardless of hideBots.
+   // repo scope / weight / state filters narrow it the same way they narrow
+   // `scoped` (scope.authors/notAuthors don't need repeating here — bots
+   // already bypass both in preWeightScoped above). Free text is left out for
+   // the same reason as preWeightScoped: a query shows the Search lens, not
+   // this pool's CI/Ready surfaces. Only the hideBots-specific exclusion is
+   // skipped. Feeds the CI lens and Ready-to-merge (below), the two surfaces
+   // that need bot signal regardless of hideBots.
    const botsBypassingHideBots = useMemo(() => {
       let out = pulls.filter(p => isBot(p) && !boardHiddenExceptBots(p));
       if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.data.repo));
-      if (query) out = out.filter(p => matchesQuery(p, query, me, extraBots, names));
       if (weightSel.length) out = out.filter(p => matchesWeightFilter(p, weightSel));
       if (stateSel.length) out = out.filter(p => stateSel.includes(actionState(p, me)));
       return out;
-   }, [
-      pulls,
-      isBot,
-      boardHiddenExceptBots,
-      scope.repos,
-      query,
-      me,
-      names,
-      extraBots,
-      weightSel,
-      stateSel,
-   ]);
+   }, [pulls, isBot, boardHiddenExceptBots, scope.repos, me, weightSel, stateSel]);
    // The CI lens's pool: `scoped` (which already respects hideBots, escape
    // hatch included) plus whatever bot the bypass pool above adds back —
    // deduped by key so a bot already visible in `scoped` (hideBots off, or
@@ -690,7 +680,9 @@ export function App() {
       return c;
    }, [pulls, me, settings.repoPrefs, settings.hiddenPeople, isBot, boardHidden]);
 
-   const isScoped = scope.repos.length || scope.authors.length || query;
+   // a query no longer scopes the board (it shows the Search lens instead), so
+   // the header's "X of Y" only reflects the repo/people filters
+   const isScoped = scope.repos.length || scope.authors.length;
 
    // what a "Save current filter…" click right now would capture — reads the
    // same hashState the write-effect above builds, so a saved filter's hash
