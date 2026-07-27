@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DerivedPull, Weight } from '../../../shared/model/status';
-import { matchesQuery } from './query';
+import type { PullData } from '../../../shared/types';
+import { matchesClosedQuery, matchesQuery } from './query';
 
 function fake(
    over: Partial<{
@@ -162,5 +163,69 @@ describe('matchesQuery', () => {
       expect(matchesQuery(match, 'weight:xs is:blocked', 'viewer')).toBe(true);
       expect(matchesQuery(wrongWeight, 'weight:xs is:blocked', 'viewer')).toBe(false);
       expect(matchesQuery(wrongStatus, 'weight:xs is:blocked', 'viewer')).toBe(false);
+   });
+});
+
+function fakeClosed(
+   over: Partial<{
+      title: string;
+      repo: string;
+      author: string;
+      number: number;
+      labels: string[];
+   }>
+): PullData {
+   return {
+      title: over.title ?? 'Rework the offer-sync batch loop',
+      repo: over.repo ?? 'acme/widgets',
+      number: over.number ?? 63258,
+      user: { login: over.author ?? 'alice' },
+      labels: (over.labels ?? []).map(title => ({ title })),
+   } as unknown as PullData;
+}
+
+describe('matchesClosedQuery', () => {
+   it('matches the identity fields a find actually uses', () => {
+      const p = fakeClosed({
+         title: 'Store offer sync',
+         author: 'alice',
+         number: 42,
+         labels: ['QAE'],
+      });
+      expect(matchesClosedQuery(p, 'offer', 'viewer')).toBe(true);
+      expect(matchesClosedQuery(p, '42', 'viewer')).toBe(true);
+      expect(matchesClosedQuery(p, '#42', 'viewer')).toBe(true);
+      expect(matchesClosedQuery(p, 'repo:widgets', 'viewer')).toBe(true);
+      expect(matchesClosedQuery(p, 'author:ali', 'viewer')).toBe(true);
+      expect(matchesClosedQuery(p, 'label:qae', 'viewer')).toBe(true);
+      expect(matchesClosedQuery(p, 'offer nope', 'viewer')).toBe(false);
+   });
+
+   it('is:bot and is:mine work on a closed pull', () => {
+      expect(matchesClosedQuery(fakeClosed({ author: 'renovate[bot]' }), 'is:bot', 'viewer')).toBe(
+         true
+      );
+      expect(
+         matchesClosedQuery(
+            fakeClosed({ author: 'ifixit-systems' }),
+            'is:bot',
+            'viewer',
+            new Set(['ifixit-systems'])
+         )
+      ).toBe(true);
+      expect(matchesClosedQuery(fakeClosed({ author: 'alice' }), 'is:mine', 'alice')).toBe(true);
+      expect(matchesClosedQuery(fakeClosed({ author: 'alice' }), 'is:mine', 'bob')).toBe(false);
+   });
+
+   it('a state-only token never matches a closed pull (it has no live state)', () => {
+      // status:/weight:/older:/has:/is:restamp describe an OPEN board state, so a
+      // query using one shouldn't drag closed pulls into the results by accident
+      const p = fakeClosed({ title: 'offer sync' });
+      expect(matchesClosedQuery(p, 'status:ready', 'viewer')).toBe(false);
+      expect(matchesClosedQuery(p, 'weight:xs', 'viewer')).toBe(false);
+      expect(matchesClosedQuery(p, 'has:action', 'viewer')).toBe(false);
+      expect(matchesClosedQuery(p, 'is:restamp', 'viewer')).toBe(false);
+      // but a bare term in the same pull still matches on its own
+      expect(matchesClosedQuery(p, 'offer', 'viewer')).toBe(true);
    });
 });

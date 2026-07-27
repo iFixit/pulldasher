@@ -1,5 +1,6 @@
 import { authorOwnsIt, parked, rowNote } from './actions';
 import type { DerivedPull } from '../../../shared/model/status';
+import type { PullData } from '../../../shared/types';
 import { isBotLogin } from '../../../shared/model/visibility';
 
 /**
@@ -91,5 +92,69 @@ function matchTerm(
       d.user.login.toLowerCase().includes(term) ||
       (authorName !== '' && authorName.includes(term)) ||
       d.labels.some(l => l.title.toLowerCase().includes(term))
+   );
+}
+
+/**
+ * The same grammar over a CLOSED pull (raw PullData, no derived status). The
+ * search lens runs this so a merged or closed PR is findable by the identity
+ * terms people actually search on: bare text, #number, repo:, author:, label:,
+ * is:bot, is:mine. Tokens that describe a live board state (status:, weight:,
+ * older:, has:action, is:restamp/blocked/draft) can't hold on something already
+ * closed, so a query using one deliberately excludes closed results rather than
+ * matching them by accident. Bare terms and identity tokens match exactly as
+ * matchTerm does for open pulls, so "offer" finds the same fields either side of
+ * the open/closed line.
+ */
+export function matchesClosedQuery(
+   pd: PullData,
+   query: string,
+   me: string,
+   extraBots: ReadonlySet<string> = new Set(),
+   names?: Readonly<Record<string, string | null>>
+): boolean {
+   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+   return terms.every(t => matchClosedTerm(pd, t, me, extraBots, names));
+}
+
+/** State-only token keys: they read a live derivation a closed pull no longer
+ * has, so a closed pull can never satisfy them. */
+const OPEN_ONLY_KEYS = new Set(['status', 'weight', 'older', 'has']);
+
+function matchClosedTerm(
+   pd: PullData,
+   term: string,
+   me: string,
+   extraBots: ReadonlySet<string>,
+   names?: Readonly<Record<string, string | null>>
+): boolean {
+   const authorName = names?.[pd.user.login]?.toLowerCase() ?? '';
+   const i = term.indexOf(':');
+   if (i > 0) {
+      const key = term.slice(0, i);
+      const val = term.slice(i + 1);
+      if (val) {
+         if (key === 'repo') return pd.repo.toLowerCase().includes(val);
+         if (key === 'author')
+            return pd.user.login.toLowerCase().includes(val) || authorName.includes(val);
+         if (key === 'label') return pd.labels.some(l => l.title.toLowerCase().includes(val));
+         if (key === 'is') {
+            if (val === 'bot') return isBotLogin(pd.user.login, extraBots);
+            if (val === 'mine') return pd.user.login.toLowerCase() === me.toLowerCase();
+            // is:restamp/blocked/draft describe an open pull's state
+            return false;
+         }
+         if (OPEN_ONLY_KEYS.has(key)) return false;
+         // unknown key: fall through to the substring match below
+      }
+   }
+   const bare = term.startsWith('#') ? term.slice(1) : term;
+   if (/^\d+$/.test(bare)) return String(pd.number).includes(bare);
+   return (
+      pd.title.toLowerCase().includes(term) ||
+      pd.repo.toLowerCase().includes(term) ||
+      pd.user.login.toLowerCase().includes(term) ||
+      (authorName !== '' && authorName.includes(term)) ||
+      pd.labels.some(l => l.title.toLowerCase().includes(term))
    );
 }
