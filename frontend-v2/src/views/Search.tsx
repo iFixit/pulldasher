@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useDeferredValue } from 'react';
 import { closedEpoch, pullKey } from '../../../shared/format';
 import type { DerivedPull } from '../../../shared/model/status';
 import type { PullData } from '../../../shared/types';
@@ -55,7 +55,16 @@ export function Search({
    names: Readonly<Record<string, string | null>>;
 }) {
    const me = opts.me;
-   const q = query.trim();
+   // keep the box instant: setQuery is urgent (the input updates immediately),
+   // but the heavy filter + group + render of results runs off a deferred copy,
+   // so React shows the previous query's hits (dimmed) and can abandon a stale
+   // intermediate render on fast typing instead of blocking the keystroke.
+   // useDeferredValue beats a fixed debounce here: no latency on a fast machine,
+   // adaptive on a slow one, and interruptible. On mount it equals `query`, and
+   // App only mounts this view for a non-empty query, so it never filters on ''.
+   const deferred = useDeferredValue(query);
+   const stale = deferred !== query;
+   const q = deferred.trim();
 
    if (!q) {
       return (
@@ -68,10 +77,10 @@ export function Search({
    }
 
    const openHits = pulls
-      .filter(p => matchesQuery(p, query, me, extraBots, names))
+      .filter(p => matchesQuery(p, deferred, me, extraBots, names))
       .sort((a, b) => b.data.created_at.localeCompare(a.data.created_at));
    const closedHits = closed
-      .filter(p => matchesClosedQuery(p, query, me, extraBots, names))
+      .filter(p => matchesClosedQuery(p, deferred, me, extraBots, names))
       .sort((a, b) => closedEpoch(b) - closedEpoch(a));
    const total = openHits.length + closedHits.length;
 
@@ -103,7 +112,9 @@ export function Search({
    );
 
    return (
-      <>
+      // dim while the deferred query is still catching up, so a stale result set
+      // reads as "updating" instead of final
+      <div className={`transition-opacity duration-150 ease-out ${stale ? 'opacity-60' : ''}`}>
          <div className="mb-5">
             <h2 className="m-0 text-base leading-snug font-semibold text-ink">Search</h2>
             <p className="mt-0.5 text-xs text-ink-3">
@@ -131,6 +142,6 @@ export function Search({
                closedHits.length,
                closedHits.map(p => <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />)
             )}
-      </>
+      </div>
    );
 }
