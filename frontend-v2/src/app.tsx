@@ -8,6 +8,7 @@ import { matchesWeightFilter } from '../../shared/model/status';
 import { buildParentLookup } from './model/stack';
 import { buildReviewerPools, turnFor } from './model/rotation';
 import { shipRelevance, shippedToast } from './model/shipped';
+import { notificationStale } from './model/notificationRelevance';
 import type { Toast } from './model/toast';
 import { claimReview, isSnoozed, usePulldasher } from './store';
 import { primeScope, useScope } from './prefs';
@@ -881,6 +882,23 @@ export function App() {
       snoozedKeys
    );
 
+   // A fired nudge outlives the PR it points at: once that PR merges or closes
+   // it drops off the board, so a bell entry like "return the favor on
+   // fixbot#3116" is left pointing at a dead link. Drop any panel record whose
+   // PR has left the open board -- notificationStale is general across every
+   // kind, and exempts the retrospective shipped recap and board-wide rewards.
+   // Keyed off the FULL board, not nudgeablePulls, so hiding a repo doesn't
+   // read as "done". Held until the first payload lands, or an empty pre-load
+   // board would blank the panel.
+   const openKeys = useMemo(() => new Set(pulls.map(p => pullKey(p.data))), [pulls]);
+   const liveHistory = useMemo(
+      () =>
+         initialized
+            ? toastHistory.filter(r => !notificationStale(r.toast, openKeys))
+            : toastHistory,
+      [toastHistory, openKeys, initialized]
+   );
+
    return (
       <>
          <ToastStack toasts={toasts} onDismiss={dismissToast} />
@@ -957,7 +975,7 @@ export function App() {
                      v1 board
                   </a>
                   <NotificationPanel
-                     records={toastHistory}
+                     records={liveHistory}
                      onClear={clearHistory}
                      onDismiss={dismissHistoryItem}
                   />
