@@ -215,7 +215,25 @@ export function Review({
          )}
          <Lane
             title="Recently updated"
-            sub={`review-relevant activity from the last ${RECENT_MAX_AGE_DAYS} days`}
+            sub={
+               <SubDoor
+                  label="What lands in Recently updated"
+                  text={`PRs you can still act on that changed in the last ${RECENT_MAX_AGE_DAYS} days`}
+               >
+                  <p>
+                     A PR shows up here when it changed since you last hit Clear, and that change
+                     was in the last {RECENT_MAX_AGE_DAYS} days. Newest first.
+                  </p>
+                  <p>
+                     PRs you’ve already code reviewed drop out, along with other people’s drafts and
+                     dev-blocked PRs. Your own PRs always stay.
+                  </p>
+                  <p>
+                     The review queue below is a different list: it ranks other people’s PRs that
+                     need a review, whether or not anything changed.
+                  </p>
+               </SubDoor>
+            }
             pulls={lanes.changed}
             cap={8}
             opts={opts}
