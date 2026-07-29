@@ -6,6 +6,7 @@ import {
    type DerivedPull,
    type Weight,
 } from '../../shared/model/status';
+import { isBotLogin } from '../../shared/model/visibility';
 import { getSettings, subscribeSettings } from './settings';
 import { epoch, pullKey } from '../../shared/format';
 import { readStorage, writeStorage } from './storage';
@@ -33,9 +34,10 @@ export interface Snapshot {
    lastPayloadAt: number;
    /** epoch secs of the last Clear — the "Recently updated" baseline */
    lastSeen: number;
-   /** pull key → epoch secs it was snoozed: hidden for a day or until it
-    * changes. Persisted per-browser. */
-   snoozed: Readonly<Record<string, number>>;
+   /** pull key → snooze record (when it was snoozed, plus the comment and
+    * review baseline that wakes it): hidden for a day or until it changes.
+    * Persisted per-browser. */
+   snoozed: Readonly<Record<string, SnoozeRecord>>;
    /** "Refresh all" in progress (or just finished): how many of the pulls
     * queued at kickoff have reported back. Null when no refresh is running. */
    refreshProgress: { done: number; total: number } | null;
@@ -109,24 +111,72 @@ export function isFresh(d: Pick<PullData, 'updated_at'>, lastSeenAt: number) {
    return epoch(d.updated_at) > lastSeenAt;
 }
 
-// Snooze: "not today" for one PR. A snooze lasts a day, and any change to
-// the pull (a push, a comment — anything that moves updated_at) voids it
-// early: punting a PR must never hide what happens to it next.
+// Snooze: "not today" for one PR. A snooze lasts a day, and any activity on
+// the pull voids it early: punting a PR must never hide what happens to it
+// next. Two kinds of activity count. A push, edit, or label moves updated_at
+// (the classic check). A new comment or review does NOT move updated_at
+// (those arrive on their own webhook path), so the snooze also records the
+// comment count plus CR/QA/unstamped counts at snooze time and wakes when
+// any of them climbs. The three review counts are kept separate rather than
+// summed: a reviewer moving from COMMENTED to APPROVED drops unstamped by
+// one and raises cr by one, a wash under one combined total that would leave
+// a snooze asleep through exactly the transition it should wake for. Counts
+// only: the wire has no per-event author, so your own comment wakes it too,
+// the same way your own push already does.
+export type SnoozeRecord = {
+   at: number;
+   comments: number;
+   cr: number;
+   qa: number;
+   unstamped: number;
+};
 const SNOOZED_KEY = 'pd2.snoozed';
 const SNOOZE_SECS = 24 * 3600;
-let snoozed: Record<string, number> = {};
+// the comment/review signals that wake a snooze, read off the pull's status.
+// Bot activity (claude[bot]'s review, a CI bot's comment) must never wake a
+// snooze on its own, so every count here excludes bot logins first: prefer
+// the server's human-only comment count when it's sent, and re-derive cr/qa/
+// unstamped from the same isBotLogin the board uses everywhere else.
+const snoozeActivity = (d: Pick<PullData, 'status'>) => {
+   const isHuman = (login: string) => !isBotLogin(login, extraBots);
+   return {
+      comments: d.status.human_comment_count ?? d.status.comment_count ?? 0,
+      cr: d.status.allCR.filter(s => isHuman(s.data.user.login)).length,
+      qa: d.status.allQA.filter(s => isHuman(s.data.user.login)).length,
+      unstamped: d.status.unstamped_reviewers?.filter(r => isHuman(r.login)).length ?? 0,
+   };
+};
+let snoozed: Record<string, SnoozeRecord> = {};
 try {
-   snoozed = JSON.parse(readStorage(SNOOZED_KEY) ?? '{}') ?? {};
+   const raw = JSON.parse(readStorage(SNOOZED_KEY) ?? '{}') ?? {};
+   // clean cut: only the full {at, comments, cr, qa, unstamped} shape is
+   // supported. A half-shaped entry (the old {at, comments, reviews} baseline,
+   // or anything from before it) is dropped, so the pull reappears once and
+   // you re-snooze it if you still want.
+   for (const [k, v] of Object.entries(raw)) {
+      const r = v as Partial<SnoozeRecord> | null;
+      if (
+         r &&
+         typeof r === 'object' &&
+         typeof r.at === 'number' &&
+         typeof r.comments === 'number' &&
+         typeof r.cr === 'number' &&
+         typeof r.qa === 'number' &&
+         typeof r.unstamped === 'number'
+      )
+         snoozed[k] = r as SnoozeRecord;
+   }
 } catch {
    snoozed = {};
 }
 const saveSnoozed = () => {
    const now = Date.now() / 1000;
-   for (const [k, at] of Object.entries(snoozed)) if (now > at + SNOOZE_SECS) delete snoozed[k];
+   for (const [k, rec] of Object.entries(snoozed))
+      if (now > rec.at + SNOOZE_SECS) delete snoozed[k];
    writeStorage(SNOOZED_KEY, JSON.stringify(snoozed));
 };
-export function snoozePull(key: string) {
-   snoozed[key] = Date.now() / 1000;
+export function snoozePull(pull: Pick<PullData, 'repo' | 'number' | 'status'>) {
+   snoozed[pullKey(pull)] = { at: Date.now() / 1000, ...snoozeActivity(pull) };
    saveSnoozed();
    schedulePublish();
 }
@@ -142,15 +192,22 @@ export function clearSnoozes() {
    schedulePublish();
 }
 
-/** Snoozed and nothing has happened since: still hidden. */
+/** Snoozed and nothing has happened since: still hidden. Wakes on a push
+ * (updated_at moved) or a new comment or review (a count above the baseline
+ * captured at snooze time). */
 export function isSnoozed(
-   d: Pick<PullData, 'repo' | 'number' | 'updated_at'>,
-   snoozedAt: Readonly<Record<string, number>>,
+   d: Pick<PullData, 'repo' | 'number' | 'updated_at' | 'status'>,
+   snoozedAt: Readonly<Record<string, SnoozeRecord>>,
    now: number = Date.now() / 1000
 ) {
-   const at = snoozedAt[pullKey(d)];
-   if (at == null) return false;
-   return now < at + SNOOZE_SECS && epoch(d.updated_at) <= at;
+   const rec = snoozedAt[pullKey(d)];
+   if (rec == null) return false;
+   if (now >= rec.at + SNOOZE_SECS) return false;
+   if (epoch(d.updated_at) > rec.at) return false;
+   const a = snoozeActivity(d);
+   if (a.comments > rec.comments || a.cr > rec.cr || a.qa > rec.qa || a.unstamped > rec.unstamped)
+      return false;
+   return true;
 }
 
 let snapshot: Snapshot = {

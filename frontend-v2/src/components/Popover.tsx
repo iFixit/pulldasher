@@ -1,4 +1,10 @@
-import { useLayoutEffect, useState, type ReactNode, type Ref } from 'react';
+import {
+   type PointerEvent as ReactPointerEvent,
+   useLayoutEffect,
+   useState,
+   type ReactNode,
+   type Ref,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { usePopover } from './usePopover';
 
@@ -8,9 +14,10 @@ export interface PopoverTriggerProps {
    'aria-expanded': boolean;
    onClick: () => void;
    /** present only with `hoverTriggerOnly`: the hover handlers move off the
-    * root and onto the trigger element itself */
-   onMouseEnter?: () => void;
-   onMouseLeave?: () => void;
+    * root and onto the trigger element itself. Pointer events, not mouse, so
+    * the hover-arm can be gated to a real mouse and skip touch taps. */
+   onPointerEnter?: (e: ReactPointerEvent) => void;
+   onPointerLeave?: (e: ReactPointerEvent) => void;
 }
 
 /**

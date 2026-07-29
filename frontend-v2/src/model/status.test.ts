@@ -298,6 +298,17 @@ describe('changesRequestedBy / engagedNoStamp', () => {
       expect(d.changesRequestedBy).toEqual(['grumpy']);
    });
 
+   it('changesRequestedBy excludes bots', () => {
+      const p = withStatus({
+         unstamped_reviewers: [
+            { login: 'grumpy', state: 'CHANGES_REQUESTED', date: 1 },
+            { login: 'dependabot[bot]', state: 'CHANGES_REQUESTED', date: 2 },
+         ],
+      });
+      const d = derive(p, undefined, NOW);
+      expect(d.changesRequestedBy).toEqual(['grumpy']);
+   });
+
    it('engagedNoStamp includes unstamped reviewers of any verdict', () => {
       const p = withStatus({
          unstamped_reviewers: [

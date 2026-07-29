@@ -1,5 +1,5 @@
 import type { DerivedPull } from '../../../shared/model/status';
-import { ago, pullKey, shortRepo } from '../../../shared/format';
+import { pullKey, shortRepo } from '../../../shared/format';
 import { useNames } from '../model/names';
 import { matchedRegions } from '../model/regions';
 import { buildReviewLanes } from '../model/reviewLanes';
@@ -28,11 +28,16 @@ import { ClosedRow } from '../components/ClosedRow';
 export function Review({
    pulls: allPulls,
    bots: allBots,
+   botsForReady: allBotsForReady,
    closed,
    opts,
 }: {
    pulls: DerivedPull[];
    bots: DerivedPull[];
+   /** the hideBots-bypassing bot pool (app.tsx) that keeps Ready-to-merge
+    * showing merge-ready bot PRs even when `bots` has been emptied by
+    * "Ignore bot PRs" — see model/reviewLanes.ts's botsForReady. */
+   botsForReady: DerivedPull[];
    closed: PullData[];
    opts: RowOptions;
 }) {
@@ -46,27 +51,46 @@ export function Review({
    // lens still shows the pull. Snoozed rows collect in their own section at
    // the bottom of the board instead of vanishing into Settings.
    const { snoozed } = usePulldasher();
-   const napping = [...allPulls, ...allBots].filter(p => isSnoozed(p.data, snoozed));
+   // allBotsForReady can hold a bot allBots no longer does ("Ignore bot PRs"
+   // pulled it out of the human-review surfaces) — folded in here too, deduped
+   // by key, so snoozing a bot straight off the Ready-to-merge lane still
+   // parks it in "Snoozed by you" instead of making it vanish with no undo.
+   const nappingKeys = new Set<string>();
+   const napping = [...allPulls, ...allBots, ...allBotsForReady].filter(p => {
+      if (!isSnoozed(p.data, snoozed)) return false;
+      const k = pullKey(p.data);
+      if (nappingKeys.has(k)) return false;
+      nappingKeys.add(k);
+      return true;
+   });
    const pulls = allPulls.filter(p => !isSnoozed(p.data, snoozed));
    const bots = allBots.filter(p => !isSnoozed(p.data, snoozed));
+   const botsForReady = allBotsForReady.filter(p => !isSnoozed(p.data, snoozed));
 
-   // Recently updated: everything that moved since the user last hit Clear,
-   // newest first. A pull can also live in a lane below; this is the "what
-   // happened" glance, not an exclusive bucket — and only the Clear button
-   // empties it (nothing leaves the list silently).
+   // Recently updated: your review work that moved recently, newest first.
+   // Bounded two ways so a quiet board stops resurfacing stale bumps — since
+   // you last hit Clear (isFresh) AND within the last RECENT_MAX_AGE_DAYS.
+   // Already-done and non-reviewable pulls drop out: a PR you hold a live CR
+   // stamp on is finished for you, and others' drafts or dev-blocked PRs
+   // aren't yours to act on. Your own PRs always stay; activity on them is
+   // worth seeing. A pull can still live in a lane below; this is a highlight,
+   // not an exclusive bucket, and only Clear empties it.
+   const RECENT_MAX_AGE_DAYS = 3;
+   const recentCutoff = Date.now() - RECENT_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
    const changed = pulls
       .filter(p => isFresh(p.data, opts.lastSeen))
-      // others' drafts stay out of the "what changed" glance: a draft you
-      // don't own isn't yours to act on, and draftsMode already keeps them off
-      // the board — they only reach this pool through boardHidden's
-      // review-requested exception (app.tsx). Your own drafts stay; they're
-      // your work.
-      .filter(p => !p.data.draft || p.data.user.login === me)
+      .filter(p => Date.parse(p.data.updated_at) > recentCutoff)
+      .filter(
+         p =>
+            p.data.user.login === me ||
+            (!p.data.draft && p.status !== 'dev_block' && !p.crBy.includes(me))
+      )
       .sort((a, b) => Date.parse(b.data.updated_at) - Date.parse(a.data.updated_at));
 
    const lanes = buildReviewLanes({
       pulls,
       bots,
+      botsForReady,
       closed,
       napping,
       changed,
@@ -84,7 +108,8 @@ export function Review({
    if (lanes.empty) {
       return (
          <EmptyState
-            title="All clear"
+            variant="search"
+            title="Nothing here"
             sub="Nothing to review with these filters. Clear some to see more."
          />
       );
@@ -190,7 +215,25 @@ export function Review({
          )}
          <Lane
             title="Recently updated"
-            sub={`new or updated in the last ${ago(opts.lastSeen)}`}
+            sub={
+               <SubDoor
+                  label="What lands in Recently updated"
+                  text={`PRs you can still act on that changed in the last ${RECENT_MAX_AGE_DAYS} days`}
+               >
+                  <p>
+                     A PR shows up here when it changed since you last hit Clear, and that change
+                     was in the last {RECENT_MAX_AGE_DAYS} days. Newest first.
+                  </p>
+                  <p>
+                     PRs you’ve already code reviewed drop out, along with other people’s drafts and
+                     dev-blocked PRs. Your own PRs always stay.
+                  </p>
+                  <p>
+                     The review queue below is a different list: it ranks other people’s PRs that
+                     need a review, whether or not anything changed.
+                  </p>
+               </SubDoor>
+            }
             pulls={lanes.changed}
             cap={8}
             opts={opts}
@@ -240,9 +283,10 @@ export function Review({
          {repoPriority.length > 0 ? (
             // the owner's priority-and-cap model: contiguous per-repo blocks in
             // the Settings repo order, each block score-ranked inside and
-            // flood-bounded by the per-repo cap. Starving PRs pierce the
-            // partition — the fairness backstop can't sit below a repo the
-            // viewer ranked last, or "surface the other repos" becomes a lie.
+            // flood-bounded by the per-repo cap. Starving PRs lead the "Starving"
+            // fold as a highlight, but also stay in their own repo block below —
+            // the fairness backstop can't be hidden behind a repo the viewer
+            // ranked last, or "surface the other repos" becomes a lie.
             <Lane
                title="Review queue"
                sub={
@@ -265,6 +309,10 @@ export function Review({
                         more” so one busy repo can’t take the whole screen.
                      </p>
                      <p>PRs you claim stay in the queue and also appear in Waiting on you.</p>
+                     <p>
+                        Starving PRs and PRs in your code regions still show up in their repo block
+                        below; the call-outs above are copies, not removals.
+                     </p>
                   </SubDoor>
                }
                pulls={[]}
@@ -321,6 +369,10 @@ export function Review({
                         sink to the bottom.
                      </p>
                      <p>PRs you claim stay in the queue and also appear in Waiting on you.</p>
+                     <p>
+                        PRs in your code regions still show up in the queue below; the call-out
+                        above is a copy, not a removal.
+                     </p>
                   </SubDoor>
                }
                pulls={lanes.queue}

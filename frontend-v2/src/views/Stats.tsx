@@ -127,6 +127,7 @@ export function Stats({
    if (!pulls.length && !closed.length) {
       return (
          <EmptyState
+            variant="search"
             title="No data yet"
             sub="Nothing open or recently closed matching your filters."
          />

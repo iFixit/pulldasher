@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { githubUrl, rowDomId } from '../../shared/format';
+import { githubUrl, pullKey, rowDomId, shortRepo } from '../../shared/format';
 import { Icon } from './components/Icon';
 import {
    type CheerBaseline,
@@ -12,7 +12,7 @@ import {
    type ToastKind,
 } from './model/cheers';
 import type { DerivedPull } from '../../shared/model/status';
-import type { Toast } from './model/toast';
+import { type Toast, TOAST_PULLS_SHOWN } from './model/toast';
 import { getSettings } from './settings';
 import { readSessionStorage, writeSessionStorage } from './storage';
 import type { PullData } from '../../shared/types';
@@ -554,21 +554,42 @@ function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: num
                )}
                {toast.title}
             </span>
-            {toast.pull && (
-               <a
-                  href={githubUrl(toast.pull.repo, toast.pull.number)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
-                  className="mt-0.5 block truncate text-xs font-medium text-brand hover:underline"
-               >
-                  #{toast.pull.number}
-                  {toast.pull.title ? ` ${toast.pull.title}` : ''}
-               </a>
+            {toast.pulls && toast.pulls.length > 0 ? (
+               <span className="mt-0.5 flex flex-col gap-0.5">
+                  {toast.pulls.slice(0, TOAST_PULLS_SHOWN).map(p => (
+                     <a
+                        key={pullKey(p)}
+                        href={githubUrl(p.repo, p.number)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="block text-xs font-medium text-brand hover:underline"
+                     >
+                        {shortRepo(p.repo)}#{p.number}
+                        {p.title ? ` ${p.title}` : ''}
+                     </a>
+                  ))}
+                  {toast.pulls.length > TOAST_PULLS_SHOWN && (
+                     <span className="block text-xs text-ink-3">
+                        +{toast.pulls.length - TOAST_PULLS_SHOWN} more
+                     </span>
+                  )}
+               </span>
+            ) : (
+               toast.pull && (
+                  <a
+                     href={githubUrl(toast.pull.repo, toast.pull.number)}
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     onClick={e => e.stopPropagation()}
+                     className="mt-0.5 block text-xs font-medium text-brand hover:underline"
+                  >
+                     {shortRepo(toast.pull.repo)}#{toast.pull.number}
+                     {toast.pull.title ? ` ${toast.pull.title}` : ''}
+                  </a>
+               )
             )}
-            {toast.body && (
-               <span className="mt-0.5 line-clamp-2 block text-xs text-ink-2">{toast.body}</span>
-            )}
+            {toast.body && <span className="mt-0.5 block text-xs text-ink-2">{toast.body}</span>}
             {toast.actionLabel && toast.onAction && (
                <button
                   type="button"

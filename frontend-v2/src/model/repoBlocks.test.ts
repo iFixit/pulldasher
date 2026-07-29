@@ -27,13 +27,13 @@ describe('repoBlocks', () => {
       expect(shape(repoBlocks(queue, ['ops'])).blocks[0].nums).toEqual([9, 1, 5]);
    });
 
-   it('starved pulls pierce the partition and lead in their own order', () => {
+   it('surfaces starved pulls as a highlight while keeping them in their own repo block', () => {
       const queue = [pull('mono', 1), pull('ops', 2, true), pull('mono', 3, true), pull('ops', 4)];
       expect(shape(repoBlocks(queue, ['mono', 'ops']))).toEqual({
          starved: [2, 3],
          blocks: [
-            { repo: 'mono', nums: [1] },
-            { repo: 'ops', nums: [4] },
+            { repo: 'mono', nums: [1, 3] },
+            { repo: 'ops', nums: [2, 4] },
          ],
       });
    });
