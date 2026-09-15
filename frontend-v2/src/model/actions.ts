@@ -211,7 +211,7 @@ function authorNote(p: DerivedPull, me: string): RowNote {
  * send them). */
 function lastChangesRequestedAt(p: DerivedPull): number | null {
    const dates = (p.data.status.unstamped_reviewers ?? [])
-      .filter(r => r.state === 'CHANGES_REQUESTED')
+      .filter(r => r.state === 'CHANGES_REQUESTED' && !isSuffixBot(r.login))
       .map(r => r.date);
    return dates.length ? Math.max(...dates) : null;
 }

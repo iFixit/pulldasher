@@ -726,6 +726,29 @@ label:has(> input:not(:disabled)) {
   animation: spin-once 400ms var(--ease-quart);
 }
 
+/* the empty-search exclamation punching in after the glass draws — one shot,
+   scale + fade from its own center (fill-box), delayed so it lands last */
+@keyframes alert-pop {
+  from {
+    opacity: 0;
+    scale: 0.4;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+.alert-pop {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: alert-pop 380ms var(--ease-quint) 300ms backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .alert-pop {
+    animation: none;
+  }
+}
+
 @keyframes nod {
   50% {
     scale: 1.25;

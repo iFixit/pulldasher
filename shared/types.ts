@@ -109,6 +109,11 @@ export interface PullData {
       commit_statuses: CommitStatus[];
       /** discussion aggregates; absent on servers older than the field */
       comment_count?: number;
+      /** comment_count with bot-authored comments (a `[bot]` login or
+       * config.json's `bots` list) excluded, so bot chatter can't drive the
+       * human-review nudge or wake a snooze. Optional and additive: older
+       * servers omit it, so a consumer falls back to comment_count. */
+      human_comment_count?: number;
       last_comment_at?: DateString | null;
       /** reviewers whose latest verdict has no signature of its own (CHANGES_
        * REQUESTED/COMMENTED/DISMISSED — an APPROVED review already shows up

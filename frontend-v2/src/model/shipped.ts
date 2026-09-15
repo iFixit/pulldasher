@@ -75,8 +75,13 @@ export function shippedToast(shipped: PullData[], me: string): Toast | null {
                ? 'Your PR landed.'
                : 'One you reviewed landed.'
             : breakdown,
-      // a single relevant merge gets a link to it; a batch stays a summary
+      // a single relevant merge gets a link to it; a batch lists the ranked
+      // PRs instead (the renderer shows the first few and folds the rest
+      // into a "+N more" line, per TOAST_PULLS_SHOWN) so a multi-ship
+      // catch-up names real work instead of collapsing to a bare count
       pull: n === 1 ? { repo: top.repo, number: top.number, title: top.title } : undefined,
+      pulls:
+         n > 1 ? ranked.map(p => ({ repo: p.repo, number: p.number, title: p.title })) : undefined,
       dedupeKey: `shipped:${latest}:${n}`,
    };
 }

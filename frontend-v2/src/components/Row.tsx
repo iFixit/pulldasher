@@ -280,7 +280,7 @@ function useRowActions(pull: DerivedPull) {
          setCopied(true);
          setTimeout(() => setCopied(false), 1200);
       },
-      snooze: () => snoozePull(pullKey(pull.data)),
+      snooze: () => snoozePull(pull.data),
       unsnooze: () => unsnoozePull(pullKey(pull.data)),
       refresh: () => {
          refreshPull(pull.data.repo, pull.data.number);

@@ -32,8 +32,18 @@ export interface ReviewLanesInput {
     * against the store's `snoozed` map) has already run, so a snoozed pull
     * never reaches the lane math below. */
    pulls: DerivedPull[];
-   /** same pool, bot pulls (dependency bumps etc.) — snoozed already excluded */
+   /** same pool, bot pulls (dependency bumps etc.) — snoozed already excluded.
+    * This pool empties out when "Ignore bot PRs" hides bots from Review's
+    * human-review surfaces (the queue tail, the bot fold), unless a filter
+    * reveals them. */
    bots: DerivedPull[];
+   /** the bot pool Ready-to-merge draws from instead of `bots` — bypasses
+    * "Ignore bot PRs" (a green, signed-off bot PR is one merge press from
+    * done regardless of that setting), while still respecting every other
+    * hide (hidden repo/person, cryo, drafts). Defaults to `bots` so a
+    * caller that doesn't separate the two pools sees today's behavior:
+    * hiding bots hides them from Ready too. */
+   botsForReady?: DerivedPull[];
    /** merged/closed pulls in the loaded window — only `.length` feeds the
     * lanes below (the "recently closed" fold's count, the empty-board check);
     * Review.tsx still renders the array itself, straight from its own prop. */
@@ -92,8 +102,9 @@ export interface ReviewLanes {
    /** the review queue's contiguous per-repo blocks (only meaningful with
     * repoPriority set) */
    queueBlocks: RepoBlock[];
-   /** CR- or QA-pool pulls matching a configured code region, deduped and
-    * pulled out of every lane below */
+   /** CR- or QA-pool pulls matching a configured code region, deduped — a
+    * highlight copy, not an extraction: matches also stay in the queue/QA
+    * lanes below */
    regionMatches: DerivedPull[];
    needsQa: DerivedPull[];
    needsQaOther: DerivedPull[];
@@ -139,6 +150,7 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    const {
       pulls,
       bots,
+      botsForReady = bots,
       closed,
       napping,
       changed,
@@ -259,20 +271,23 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
       );
 
    // In your code regions: reviewable pulls (CR or QA pool) matching a region
-   // you set in Settings, deduped across the two pools and genuinely pulled
-   // out of the queue/QA lanes below (including their "other repos" folds)
-   // into their own section — the most explicit "this is my area" signal
-   // earns its own spot instead of a float within the queue.
+   // you set in Settings, deduped across the two pools, surfaced as a
+   // highlight above the queue/QA lanes below — a copy of a slice, not an
+   // extraction (the same non-exclusive relationship "Recently updated" and
+   // a claimed PR already have with their lanes): a region match still shows
+   // up in its normal queue/QA spot too. The QA-pool leg excludes a pull you
+   // already hold a live CR stamp on — you've already reviewed it, so it
+   // isn't region news to you, even though qaPool itself doesn't otherwise
+   // care about CR state.
    const regionSeen = new Set<string>();
    const regionMatches = crSort(
-      [...crPool, ...qaPool].filter(p => {
+      [...crPool, ...qaPool.filter(p => !p.crBy.includes(me))].filter(p => {
          const k = pullKey(p.data);
          if (regionSeen.has(k) || !matchesRegion(p, codeRegions)) return false;
          regionSeen.add(k);
          return true;
       })
    );
-   const regionKeys = new Set(regionMatches.map(p => pullKey(p.data)));
 
    // ONE review queue: your primary repos' reviewables, every starved pull
    // regardless of repo (the fairness backstop rides in the ranking now, not
@@ -280,43 +295,39 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    // them to the top numerically instead of positionally), and the day's bot
    // bumps sinking to the tail. The top of this lane IS the board's best
    // next pickup; the retired "Deal me one" button dealt this exact order,
-   // which is why the button became redundant and was removed. Non-starved work outside your primary repos still
-   // folds into "other repos" below, reachable but not in the way. Region
-   // matches are excluded here too (same Set-filter pattern as botKeys) — they
-   // live in their own lane above, not doubled up in the queue.
+   // which is why the button became redundant and was removed. Non-starved
+   // work outside your primary repos still folds into "other repos" below,
+   // reachable but not in the way. Region matches stay in this queue too:
+   // "In your code regions" above is a highlight, a copy of a slice, not an
+   // extraction — the same non-exclusive relationship "Recently updated" and
+   // a claimed PR already have with their lanes.
    const queue = teamFirst(
       dealRank(
          [
-            ...nonStarved.filter(
-               p => isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data))
-            ),
-            ...crPool.filter(p => p.starved && !regionKeys.has(pullKey(p.data))),
+            ...nonStarved.filter(p => isPrimaryRepo(p.data.repo)),
+            ...crPool.filter(p => p.starved),
             ...botReviewable,
          ],
          { me, pulls, deprioritize: isDemoted, warnDays: ageWarnDays }
       ),
       team
    );
-   const queueOther = crSort(
-      nonStarved.filter(p => !isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data)))
-   );
+   const queueOther = crSort(nonStarved.filter(p => !isPrimaryRepo(p.data.repo)));
 
    // Ready to merge is finishable work for anyone: fully signed off, green,
    // one button-press from done. It earns a real lane in Pick up next rather
    // than a fold — and bot PRs that reach ready join it, since a human has to
    // land them. Longest-waiting first: the ones most likely forgotten.
+   // botsForReady (not `bots`) so this lane keeps showing merge-ready bot
+   // PRs even when "Ignore bot PRs" has emptied `bots` out of the queue
+   // tail and the bot fold below.
    const ready = [
       ...others.filter(p => p.status === 'ready'),
-      ...bots.filter(p => p.status === 'ready'),
+      ...botsForReady.filter(p => p.status === 'ready'),
    ].sort((a, b) => b.ageDays - a.ageDays);
 
-   const needsQa = teamFirst(
-      qaSort(qaPool.filter(p => isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data)))),
-      team
-   );
-   const needsQaOther = qaSort(
-      qaPool.filter(p => !isPrimaryRepo(p.data.repo) && !regionKeys.has(pullKey(p.data)))
-   );
+   const needsQa = teamFirst(qaSort(qaPool.filter(p => isPrimaryRepo(p.data.repo))), team);
+   const needsQaOther = qaSort(qaPool.filter(p => !isPrimaryRepo(p.data.repo)));
 
    // your live CR stamp is in, the PR just isn't fully signed off yet (another
    // reviewer owes a stamp, or a re-CR). Covers needs_recr too, so a PR you
@@ -445,8 +456,12 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
       botRest.length +
       closed.length;
 
-   // bots/shipped stay reachable even when no human PRs need review
-   const empty = !pulls.length && !bots.length && !closed.length;
+   // bots/shipped stay reachable even when no human PRs need review. Checks
+   // botsForReady too: a merge-ready bot can sit in `ready` via botsForReady
+   // while `bots` itself is empty ("Ignore bot PRs" hid it from the queue/
+   // fold), and that bot must not be declared "nothing to see" out from
+   // under it.
+   const empty = !pulls.length && !bots.length && !closed.length && !botsForReady.length;
 
    return {
       yourMove,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PullData } from '../../../shared/types';
 import { rankShipped, shipRelevance, shippedToast } from './shipped';
+import { TOAST_PULLS_SHOWN } from './toast';
 
 /** A closed PullData carrying only the fields shipped ranking reads. */
 function dp(o: {
@@ -114,6 +115,23 @@ describe('shippedToast', () => {
       expect(toast?.title).toBe('3 shipped while you were away');
       expect(toast?.body).toContain('1 yours');
       expect(toast?.body).toContain('2 you reviewed');
+   });
+
+   it('lists the shipped pulls ranked, for the renderer to show a top few plus an overflow count', () => {
+      const shipped = [1, 2, 3, 4, 5].map(number =>
+         dp({ number, author: 'me', closedAt: `2026-0${number}-01T00:00:00Z` })
+      );
+      const toast = shippedToast(shipped, 'me');
+      // no single `pull` for a batch; the list carries every relevant pull,
+      // ranked newest-closed-first (all tie on tier here, since every one is
+      // 'yours') so the renderer's top-N slice and "+N more" fold both read
+      // off the same ranked array instead of a separately-tracked count
+      expect(toast?.pull).toBeUndefined();
+      expect(toast?.pulls?.map(p => p.number)).toEqual([5, 4, 3, 2, 1]);
+      const shown = toast?.pulls?.slice(0, TOAST_PULLS_SHOWN) ?? [];
+      expect(shown.map(p => p.number)).toEqual([5, 4, 3]);
+      const overflow = (toast?.pulls?.length ?? 0) - TOAST_PULLS_SHOWN;
+      expect(overflow).toBe(2);
    });
 
    it('re-fires on a newer merge but is stable for the same backlog', () => {
