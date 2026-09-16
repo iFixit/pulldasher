@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+   useCallback,
+   useDeferredValue,
+   useEffect,
+   useMemo,
+   useRef,
+   useState,
+   type ReactNode,
+} from 'react';
 import { ago, closedEpoch, n, pullKey, shortRepo } from '../../shared/format';
 import type { ActionStateKey } from './model/actions';
 import { actionState } from './model/actions';
@@ -8,6 +16,7 @@ import { matchesWeightFilter } from '../../shared/model/status';
 import { buildParentLookup } from './model/stack';
 import { buildReviewerPools, turnFor } from './model/rotation';
 import { shipRelevance, shippedToast } from './model/shipped';
+import { notificationStale } from './model/notificationRelevance';
 import type { Toast } from './model/toast';
 import { claimReview, isSnoozed, usePulldasher } from './store';
 import { primeScope, useScope } from './prefs';
@@ -15,7 +24,6 @@ import { useBoardHotkeys, useHeaderHeightVar } from './hooks';
 import { ageRotDays, getSettings, type Settings as SettingsShape, useSettings } from './settings';
 import { useNotifications } from './notifications';
 import { ToastStack, useToasts } from './toasts';
-import { matchesQuery } from './model/query';
 import { requestNames, useNames } from './model/names';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from '../../shared/model/visibility';
 import { reviewRequestedFrom } from './model/reviewers';
@@ -46,6 +54,7 @@ import { Team } from './views/Team';
 import { Classic } from './views/Classic';
 import { Ci } from './views/Ci';
 import { Stats } from './views/Stats';
+import { Search } from './views/Search';
 import { Settings } from './components/Settings';
 
 export type { Lens };
@@ -263,6 +272,22 @@ export function App() {
    const [scope, setScope] = useScope();
    const [lens, setLens] = useState<Lens>(() => readHash().lens);
    const [query, setQuery] = useState(() => urlState.q);
+   // free text is find, not filter: any query switches the board to the Search
+   // lens (global, over open + closed), so the header box stops narrowing the
+   // current lens and starts finding across the whole board.
+   //
+   // The heavy part of a search is rendering the matched rows, and the first
+   // keystroke MOUNTS the Search view. useDeferredValue gives no deferral on a
+   // mount, so deferring inside Search left that first render synchronous, and a
+   // broad query (say "a") blocked the main thread ~350ms on the dummy board,
+   // more at prod scale, freezing the keystroke itself. Deferring the query HERE
+   // makes the view swap and its render a low-priority, time-sliced pass: the
+   // box updates urgently off `query`, the board keeps showing the current lens
+   // until the deferred render is ready, and React can interrupt a stale broad
+   // render when you keep typing. `stale` dims the results while it catches up.
+   const deferredQuery = useDeferredValue(query);
+   const searching = deferredQuery.trim().length > 0;
+   const searchStale = query !== deferredQuery;
    // narrows the board to one or more review-effort classes ('xs'..'xl',
    // 'unknown'); empty = no filter
    const [weightSel, setWeightSel] = useState<string[]>(() => urlState.weight);
@@ -428,16 +453,22 @@ export function App() {
          scope.authors.includes(login) || queryAuthors.some(q => login.toLowerCase().includes(q)),
       [scope.authors, queryAuthors]
    );
+   // "is:bot" is a blanket reveal (it doesn't name a specific bot the way
+   // author:<login> does), so it's a query-level flag rather than another
+   // per-login predicate like revealedAuthor.
+   const queryHasBotToken = useMemo(
+      () => query.toLowerCase().split(/\s+/).includes('is:bot'),
+      [query]
+   );
 
-   // The one is-this-pull-off-the-board predicate: hidden repos, hidden
-   // people, cryo, snoozes, and the drafts rule stay off unless a session
-   // act reveals them — an explicit reveal, a scope, a repo:/author: query
-   // term, or the master "show everything". Never hides your own pulls; bots
-   // hide only when you turn on Ignore bot PRs (they otherwise have their own
-   // fold), and a person can't hide themselves. Shared by the filter pipeline and the
-   // hidden-PR ledger's counts so the ledger's number can never disagree
-   // with what the board actually withholds.
-   const boardHidden = useCallback(
+   // Every off-by-default rule EXCEPT "Ignore bot PRs": hidden repos/people,
+   // parked (cryo) pulls, and the drafts-mine default. Split out of
+   // boardHidden below so botsBypassingHideBots (further down, feeding the CI
+   // lens and Ready-to-merge) can reuse it for a bot pool that skips ONLY the
+   // hideBots rule — those two surfaces need bot signal (fleet build health,
+   // a merge-ready bot PR) even when a reviewer has muted bots from Review's
+   // human-review surfaces.
+   const boardHiddenExceptBots = useCallback(
       (p: DerivedPull) => {
          if (showAll) return false;
          const hidden = isHiddenFor(
@@ -459,15 +490,7 @@ export function App() {
             p.data.user.login !== me &&
             !revealedAuthor(p.data.user.login) &&
             !reviewRequestedFrom(p, me);
-         // snoozes are NOT here: a snooze only quiets the Review lens (its
-         // "not today" gesture), so the Review view applies it itself and
-         // every other lens still shows the pull
-         // "Ignore bot PRs": a saved preference that keeps machine authors off
-         // the board entirely (they otherwise live in their own low-priority
-         // fold). "Show everything" still reveals them via the showAll early
-         // return above.
-         const botHidden = settings.hideBots && isBot(p);
-         return hidden || cryoHidden || draftHidden || botHidden;
+         return hidden || cryoHidden || draftHidden;
       },
       [
          showAll,
@@ -479,9 +502,44 @@ export function App() {
          settings.repoPrefs,
          settings.showCryo,
          settings.hiddenPeople,
-         settings.hideBots,
          draftsMode,
       ]
+   );
+
+   // The one is-this-pull-off-the-board predicate: hidden repos, hidden
+   // people, cryo, snoozes, and the drafts rule stay off unless a session
+   // act reveals them — an explicit reveal, a scope, a repo:/author: query
+   // term, or the master "show everything". Never hides your own pulls; bots
+   // hide only when you turn on Ignore bot PRs (they otherwise have their own
+   // fold), and a person can't hide themselves. Shared by the filter pipeline and the
+   // hidden-PR ledger's counts so the ledger's number matches this predicate
+   // exactly — with one deliberate exception: the CI lens and Ready-to-merge
+   // read botsBypassingHideBots (below) instead of this function, so a bot
+   // PR the ledger counts as hidden by "Ignore bot PRs" can still show there.
+   const boardHidden = useCallback(
+      (p: DerivedPull) => {
+         if (showAll) return false;
+         // snoozes are NOT here: a snooze only quiets the Review lens (its
+         // "not today" gesture), so the Review view applies it itself and
+         // every other lens still shows the pull
+         // "Ignore bot PRs": a saved preference that keeps machine authors off
+         // Review's human-review surfaces (they otherwise live in their own
+         // low-priority fold and the queue tail). A bot named by the active
+         // saved/pinned filter (revealedAuthor, via scope.authors carrying its
+         // login) or a typed author:<bot> / is:bot query term still shows —
+         // the same reveal story every other hidden rule gets. "Show
+         // everything" still reveals them via the showAll early return above.
+         // The CI lens and Ready-to-merge bypass this rule entirely, reveal or
+         // not (see botsBypassingHideBots below): fleet build health and a
+         // merge-ready bot PR matter regardless of this setting.
+         const botHidden =
+            settings.hideBots &&
+            isBot(p) &&
+            !revealedAuthor(p.data.user.login) &&
+            !queryHasBotToken;
+         return boardHiddenExceptBots(p) || botHidden;
+      },
+      [showAll, boardHiddenExceptBots, settings.hideBots, isBot, revealedAuthor, queryHasBotToken]
    );
 
    // Nudges/notifications honor the STANDING hidden-repo/hidden-person
@@ -508,10 +566,13 @@ export function App() {
    // settings above), not the current filter
    useNotifications(nudgeablePulls, me, turns, initialized);
 
-   // every existing scope/query pass, but not yet the Weight/State filters —
-   // WeightFilter's live per-option counts read this pool, so narrowing to
-   // one weight class doesn't make the other classes' counts vanish (the
-   // same reasoning PeopleFilter's authorCounts follows for its own pool)
+   // scope + hidden, but deliberately NOT free text: a query drives the global
+   // Search lens (App renders <Search> instead of the current lens), so
+   // filtering the whole board by it here would recompute every keystroke only
+   // to feed a view that never shows while searching. Also not the Weight/State
+   // filters yet: WeightFilter's live per-option counts read this pool, so
+   // narrowing to one weight class doesn't make the other classes' counts
+   // vanish (the same reasoning PeopleFilter's authorCounts follows).
    const preWeightScoped = useMemo(() => {
       let out = pulls.filter(p => !boardHidden(p));
       if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.data.repo));
@@ -523,9 +584,8 @@ export function App() {
       // allow-list above (a dependency bump is nobody's teammate)
       if (scope.notAuthors.length)
          out = out.filter(p => isBot(p) || !scope.notAuthors.includes(p.data.user.login));
-      if (query) out = out.filter(p => matchesQuery(p, query, me, names));
       return out;
-   }, [pulls, boardHidden, scope, isBot, query, names, me]);
+   }, [pulls, boardHidden, scope, isBot]);
 
    // preWeightScoped narrowed by the Weight filter, but not yet State —
    // StateFilter's own live counts read this pool for the same
@@ -550,6 +610,32 @@ export function App() {
    // (each keystroke, settings toggle, and heartbeat re-runs App)
    const humans = useMemo(() => scoped.filter(p => !isBot(p)), [scoped, isBot]);
    const bots = useMemo(() => scoped.filter(isBot), [scoped, isBot]);
+
+   // Bots that pass every hidden rule except "Ignore bot PRs": hidden
+   // repos/people, cryo, and the drafts rule still apply, and the active
+   // repo scope / weight / state filters narrow it the same way they narrow
+   // `scoped` (scope.authors/notAuthors don't need repeating here — bots
+   // already bypass both in preWeightScoped above). Free text is left out for
+   // the same reason as preWeightScoped: a query shows the Search lens, not
+   // this pool's CI/Ready surfaces. Only the hideBots-specific exclusion is
+   // skipped. Feeds the CI lens and Ready-to-merge (below), the two surfaces
+   // that need bot signal regardless of hideBots.
+   const botsBypassingHideBots = useMemo(() => {
+      let out = pulls.filter(p => isBot(p) && !boardHiddenExceptBots(p));
+      if (scope.repos.length) out = out.filter(p => scope.repos.includes(p.data.repo));
+      if (weightSel.length) out = out.filter(p => matchesWeightFilter(p, weightSel));
+      if (stateSel.length) out = out.filter(p => stateSel.includes(actionState(p, me)));
+      return out;
+   }, [pulls, isBot, boardHiddenExceptBots, scope.repos, me, weightSel, stateSel]);
+   // The CI lens's pool: `scoped` (which already respects hideBots, escape
+   // hatch included) plus whatever bot the bypass pool above adds back —
+   // deduped by key so a bot already visible in `scoped` (hideBots off, or
+   // individually revealed) is never doubled.
+   const ciPulls = useMemo(() => {
+      const scopedKeys = new Set(scoped.map(p => pullKey(p.data)));
+      const extraBots = botsBypassingHideBots.filter(p => !scopedKeys.has(pullKey(p.data)));
+      return extraBots.length ? [...scoped, ...extraBots] : scoped;
+   }, [scoped, botsBypassingHideBots]);
    // every known repo with its open-PR count — feeds the Filters popover and
    // the Settings repo manager. Includes pref'd repos at 0.
    const repoCounts = useMemo(() => {
@@ -614,7 +700,9 @@ export function App() {
       return c;
    }, [pulls, me, settings.repoPrefs, settings.hiddenPeople, isBot, boardHidden]);
 
-   const isScoped = scope.repos.length || scope.authors.length || query;
+   // a query no longer scopes the board (it shows the Search lens instead), so
+   // the header's "X of Y" only reflects the repo/people filters
+   const isScoped = scope.repos.length || scope.authors.length;
 
    // what a "Save current filter…" click right now would capture — reads the
    // same hashState the write-effect above builds, so a saved filter's hash
@@ -640,10 +728,17 @@ export function App() {
 
    // an avatar click anywhere lands on that person's board: their login
    // becomes the authors scope (visible in the bar, clearable there too)
+   // a user picking a lens leaves search: clear the query so the chosen lens
+   // actually renders (a lingering query keeps the Search lens up)
+   const goToLens = useCallback((id: Lens) => {
+      setQuery('');
+      setLens(id);
+   }, []);
    // and the Team lens shows the result
    const onPerson = useCallback(
       (login: string) => {
          setScope({ ...scope, authors: [login], notAuthors: [] });
+         setQuery('');
          setLens('team');
       },
       [scope, setScope]
@@ -700,11 +795,13 @@ export function App() {
    const tab = (id: Lens, label: string, count?: number) => (
       <button
          type="button"
-         aria-current={lens === id ? 'page' : undefined}
+         aria-current={lens === id && !searching ? 'page' : undefined}
          aria-label={count ? `${label}, ${count} of yours open` : undefined}
-         onClick={() => setLens(id)}
+         onClick={() => goToLens(id)}
          className={`pressable relative shrink-0 rounded-lg border-0 px-3 py-2 text-sm font-medium whitespace-nowrap ${
-            lens === id ? 'bg-secondary text-ink' : 'bg-transparent text-ink-2 hover:text-brand'
+            lens === id && !searching
+               ? 'bg-secondary text-ink'
+               : 'bg-transparent text-ink-2 hover:text-brand'
          }`}
       >
          {label}
@@ -773,6 +870,7 @@ export function App() {
    // the quick-wins toast filters the board to the small reviewable ones on the
    // review lens, instead of scrolling to just the first of the batch
    const onQuickWins = useCallback(() => {
+      setQuery('');
       setLens('review');
       setWeightSel(['XS', 'S']);
    }, []);
@@ -809,6 +907,23 @@ export function App() {
       initialized,
       names,
       snoozedKeys
+   );
+
+   // A fired nudge outlives the PR it points at: once that PR merges or closes
+   // it drops off the board, so a bell entry like "return the favor on
+   // fixbot#3116" is left pointing at a dead link. Drop any panel record whose
+   // PR has left the open board -- notificationStale is general across every
+   // kind, and exempts the retrospective shipped recap and board-wide rewards.
+   // Keyed off the FULL board, not nudgeablePulls, so hiding a repo doesn't
+   // read as "done". Held until the first payload lands, or an empty pre-load
+   // board would blank the panel.
+   const openKeys = useMemo(() => new Set(pulls.map(p => pullKey(p.data))), [pulls]);
+   const liveHistory = useMemo(
+      () =>
+         initialized
+            ? toastHistory.filter(r => !notificationStale(r.toast, openKeys))
+            : toastHistory,
+      [toastHistory, openKeys, initialized]
    );
 
    return (
@@ -887,7 +1002,7 @@ export function App() {
                      v1 board
                   </a>
                   <NotificationPanel
-                     records={toastHistory}
+                     records={liveHistory}
                      onClear={clearHistory}
                      onDismiss={dismissHistoryItem}
                   />
@@ -896,7 +1011,7 @@ export function App() {
                   <span className="hidden sm:flex">
                      <Legend />
                   </span>
-                  <Settings onGoToTeam={() => setLens('team')} />
+                  <Settings onGoToTeam={() => goToLens('team')} />
                </div>
                <div className="mx-auto flex max-w-[1240px] min-w-0 items-center px-5 py-2.5 pl-11 pr-32 sm:pr-40 2xl:px-5">
                   {/* min-w-0 + overflow-x-auto (no-scrollbar in styles.css)
@@ -920,7 +1035,7 @@ export function App() {
                   <LensMenu
                      className="sm:hidden"
                      lens={lens}
-                     setLens={setLens}
+                     setLens={goToLens}
                      options={LENSES.map(id => ({
                         id,
                         label: LENS_LABELS[id],
@@ -929,35 +1044,44 @@ export function App() {
                   />
                </div>
             </div>
-            <div className="mx-auto flex max-w-[1240px] min-w-0 flex-wrap items-center gap-2 border-t border-secondary px-5 py-2">
-               {/* pinned saved searches, FIRST in the bar so a growing
-                   trigger can never displace them: every roster earns one
-                   automatically (kept in sync with its members), and any
-                   search can be pinned from the Saved menu. Click applies
-                   it on the lens you're standing on; click again clears.
-                   State is carried entirely by color — the chip's text
-                   never changes, so nothing ever shifts. */}
-               {pinnedSearches.map(f => {
-                  const active = matchesView(f.hash, currentHash);
-                  const title = active
-                     ? `showing ${f.name}: click to clear`
-                     : `show ${f.name}: ${describeHash(f.hash)}`;
-                  return (
-                     <button
-                        key={(f.auto ? 'team:' : 'saved:') + f.name}
-                        type="button"
-                        aria-pressed={active}
-                        title={title}
-                        aria-label={title}
-                        onClick={() => applySavedFilter(active ? '' : f.hash)}
-                        className={`hit pressable inline-flex max-w-[160px] items-center rounded-md px-1.5 py-1 text-[13px] ${
-                           active ? 'bg-secondary text-ink' : 'text-ink-3 hover:text-ink'
-                        }`}
-                     >
-                        <span className="truncate">{f.name}</span>
-                     </button>
-                  );
-               })}
+            {/* Pinned saved searches get their own line. Reviewers deliberately
+                pin many (every roster earns one automatically, plus hand-saved
+                ones), which overflowed the shared trigger row into a wall. A
+                dedicated horizontally-scrollable strip keeps every pin one click
+                away and stops a growing set from wrapping the dimension triggers
+                below. Click applies it on the lens you're standing on; click
+                again clears. State is a background tint; the text never changes,
+                so nothing shifts. */}
+            {pinnedSearches.length > 0 && (
+               <div className="no-scrollbar mx-auto flex max-w-[1240px] min-w-0 items-center gap-2 overflow-x-auto border-t border-secondary px-5 py-2">
+                  {pinnedSearches.map(f => {
+                     const active = matchesView(f.hash, currentHash);
+                     const title = active
+                        ? `showing ${f.name}: click to clear`
+                        : `show ${f.name}: ${describeHash(f.hash)}`;
+                     return (
+                        <button
+                           key={(f.auto ? 'team:' : 'saved:') + f.name}
+                           type="button"
+                           aria-pressed={active}
+                           title={title}
+                           aria-label={title}
+                           onClick={() => applySavedFilter(active ? '' : f.hash)}
+                           className={`hit pressable inline-flex max-w-[160px] shrink-0 items-center rounded-md px-1.5 py-1 text-[13px] ${
+                              active ? 'bg-secondary text-ink' : 'text-ink-3 hover:text-ink'
+                           }`}
+                        >
+                           <span className="truncate">{f.name}</span>
+                        </button>
+                     );
+                  })}
+               </div>
+            )}
+            <div
+               className={`mx-auto flex max-w-[1240px] min-w-0 flex-wrap items-center gap-2 px-5 py-2 ${
+                  pinnedSearches.length > 0 ? '' : 'border-t border-secondary'
+               }`}
+            >
                <RepoFilter
                   repos={repoCounts}
                   reveal={reveal}
@@ -1015,9 +1139,9 @@ export function App() {
                   sessionActive={sessionActive}
                   inputProps={{
                      'aria-label':
-                        'Filter PRs: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked',
-                     placeholder: 'Filter (press /)',
-                     title: 'text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked',
+                        'Search all PRs, open and closed: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked, is:bot',
+                     placeholder: 'Search all PRs (press /)',
+                     title: 'text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked, is:bot',
                      className: `w-[210px] max-w-full grow pr-2.5 pl-8 sm:grow-0 ${textInputClass}`,
                   }}
                />
@@ -1056,18 +1180,33 @@ export function App() {
                   <span className="text-sm">Loading the board…</span>
                </div>
             )}
-            {initialized && lens === 'review' && (
+            {/* free text is a find, not a filter: while there's a query the
+                board becomes the global Search lens (open + closed, every lens,
+                nothing folded), regardless of which tab was active */}
+            {initialized && searching && (
+               <Search
+                  pulls={pulls}
+                  closed={closed}
+                  query={deferredQuery}
+                  stale={searchStale}
+                  opts={rowOpts}
+                  extraBots={extraBots}
+                  names={names}
+               />
+            )}
+            {initialized && !searching && lens === 'review' && (
                <Review
                   pulls={humans}
                   bots={bots}
+                  botsForReady={botsBypassingHideBots}
                   closed={scopedClosed}
                   opts={{ ...rowOpts, showSnooze: true }}
                />
             )}
-            {initialized && lens === 'mine' && (
+            {initialized && !searching && lens === 'mine' && (
                <MyWork pulls={humans} closed={closed} opts={rowOpts} />
             )}
-            {initialized && lens === 'team' && (
+            {initialized && !searching && lens === 'team' && (
                <Team
                   pulls={humans}
                   allPulls={pulls.filter(p => !isBot(p))}
@@ -1077,9 +1216,11 @@ export function App() {
                   extraBots={extraBots}
                />
             )}
-            {initialized && lens === 'classic' && <Classic pulls={scoped} opts={rowOpts} />}
-            {initialized && lens === 'ci' && <Ci pulls={scoped} opts={rowOpts} />}
-            {initialized && lens === 'stats' && (
+            {initialized && !searching && lens === 'classic' && (
+               <Classic pulls={scoped} opts={rowOpts} />
+            )}
+            {initialized && !searching && lens === 'ci' && <Ci pulls={ciPulls} opts={rowOpts} />}
+            {initialized && !searching && lens === 'stats' && (
                <Stats pulls={humans} closed={closed} me={me} onPerson={onPerson} />
             )}
          </main>

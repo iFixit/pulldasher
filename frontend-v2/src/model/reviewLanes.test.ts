@@ -260,11 +260,11 @@ describe('buildReviewLanes — waiting on you vs waiting on others', () => {
 });
 
 describe('buildReviewLanes — region matches', () => {
-   it('surfaces a pull matching a configured code region and pulls it out of the queue', () => {
+   it('surfaces a pull matching a configured code region as a highlight, without removing it from the queue', () => {
       const p = dp({ author: 'alice', status: 'needs_cr', title: 'Rework the Shopify sync' });
       const lanes = buildReviewLanes(input({ pulls: [p], codeRegions: ['Shopify'] }));
       expect(lanes.regionMatches).toEqual([p]);
-      expect(lanes.queue).not.toContain(p);
+      expect(lanes.queue).toContain(p);
    });
 
    it('leaves regionMatches empty when no regions are configured', () => {
@@ -274,7 +274,7 @@ describe('buildReviewLanes — region matches', () => {
       expect(lanes.queue).toEqual([p]);
    });
 
-   it('pulls a QA-pool match out of needsQa into regionMatches too', () => {
+   it('surfaces a QA-pool match in regionMatches too, without removing it from needsQa', () => {
       const p = dp({
          author: 'alice',
          status: 'needs_qa',
@@ -282,7 +282,40 @@ describe('buildReviewLanes — region matches', () => {
       });
       const lanes = buildReviewLanes(input({ pulls: [p], codeRegions: ['Shopify'] }));
       expect(lanes.regionMatches).toEqual([p]);
-      expect(lanes.needsQa).not.toContain(p);
+      expect(lanes.needsQa).toContain(p);
+   });
+
+   it('excludes a pull you already CR-stamped from regionMatches, even via the QA pool', () => {
+      // qaPool itself doesn't care about crBy — a needs_qa pull with a live
+      // stamp from you would otherwise sail through the QA-pool leg and land
+      // in "your code regions" as if it were news to you. It still belongs
+      // in needsQa (that lane's own filters don't look at crBy at all).
+      const p = dp({
+         author: 'alice',
+         status: 'needs_qa',
+         crBy: ['me'],
+         title: 'Rework the Shopify sync',
+      });
+      const lanes = buildReviewLanes(input({ pulls: [p], codeRegions: ['Shopify'] }));
+      expect(lanes.regionMatches).not.toContain(p);
+      expect(lanes.needsQa).toContain(p);
+   });
+
+   it('keeps a needs_recr pull in regionMatches when only your own stamp went stale', () => {
+      // recrBy including you means YOUR re-stamp is owed (a "Re-stamp" verb
+      // in Waiting on you) and crBy no longer includes you, since a stale
+      // stamp drops out of the active crBy set. The new qaPool exclusion
+      // only checks crBy (a currently-live stamp), so this pull still
+      // matches through the QA-pool leg.
+      const p = dp({
+         author: 'alice',
+         status: 'needs_recr',
+         recrBy: ['me'],
+         crBy: [],
+         title: 'Rework the Shopify sync',
+      });
+      const lanes = buildReviewLanes(input({ pulls: [p], codeRegions: ['Shopify'] }));
+      expect(lanes.regionMatches).toContain(p);
    });
 });
 
@@ -298,6 +331,21 @@ describe('buildReviewLanes — stamped and ready lanes', () => {
       const bot = dp({ author: 'dependabot[bot]', number: 2, status: 'ready', ageDays: 5 });
       const lanes = buildReviewLanes(input({ pulls: [human], bots: [bot] }));
       expect(lanes.ready).toEqual([bot, human]);
+   });
+
+   it('draws ready’s bot portion from botsForReady, not bots, when the two differ', () => {
+      // "Ignore bot PRs" empties `bots` (the queue-tail/fold pool) but
+      // botsForReady bypasses that setting — Ready-to-merge must still
+      // surface the bot PR even though it's absent from `bots`.
+      const bot = dp({ author: 'dependabot[bot]', status: 'ready' });
+      const lanes = buildReviewLanes(input({ pulls: [], bots: [], botsForReady: [bot] }));
+      expect(lanes.ready).toEqual([bot]);
+   });
+
+   it('falls back to bots for ready when botsForReady is omitted', () => {
+      const bot = dp({ author: 'dependabot[bot]', status: 'ready' });
+      const lanes = buildReviewLanes(input({ pulls: [], bots: [bot] }));
+      expect(lanes.ready).toEqual([bot]);
    });
 
    it('keeps a stamped (CR-incomplete, your stamp live) pull out of the queue and in yoursWaiting', () => {
@@ -317,6 +365,16 @@ describe('buildReviewLanes — board summary', () => {
    it('is not empty when a closed pull exists even with no open work', () => {
       const lanes = buildReviewLanes(input({ closed: [{ repo: 'org/repo', number: 9 } as never] }));
       expect(lanes.empty).toBe(false);
+   });
+
+   it('is not empty when botsForReady holds a ready bot, even with pulls/bots/closed all empty', () => {
+      // the bug: "Ignore bot PRs" empties `bots`, and empty only checked
+      // pulls/bots/closed — a merge-ready bot reachable through botsForReady
+      // (and showing in lanes.ready) still read as "All clear"
+      const bot = dp({ author: 'dependabot[bot]', status: 'ready' });
+      const lanes = buildReviewLanes(input({ botsForReady: [bot] }));
+      expect(lanes.empty).toBe(false);
+      expect(lanes.ready).toContain(bot);
    });
 
    it('boardIsQuiet is false once the queue has something in it', () => {

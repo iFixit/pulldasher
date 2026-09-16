@@ -397,6 +397,31 @@ describe('rowNote — the author matrix', () => {
          note({ status: 'needs_cr', changesRequestedBy: ['carol'], headPushedAt: 200 }, me)
       ).toEqual({ action: 'Address feedback', context: 'changes requested by carol' });
    });
+
+   it('a bot CHANGES_REQUESTED date never skews whether the author answered a human', () => {
+      // carol (human) requested changes at t=100; the author pushed at
+      // t=200, answering her. claude[bot] also left a later
+      // CHANGES_REQUESTED-flavored review at t=900 -- its date must not make
+      // carol's request look unanswered, or reset "Address feedback" over a
+      // human reviewer who's already been pushed past.
+      expect(
+         note(
+            {
+               status: 'needs_cr',
+               changesRequestedBy: ['carol'],
+               unstampedReviewers: [
+                  { login: 'carol', state: 'CHANGES_REQUESTED', date: 100 },
+                  { login: 'claude[bot]', state: 'CHANGES_REQUESTED', date: 900 },
+               ],
+               headPushedAt: 200,
+            },
+            me
+         )
+      ).toEqual({
+         action: null,
+         context: `waiting on carol to re-review · last commit ${ago(200)} ago`,
+      });
+   });
 });
 
 describe('parked (Cryogenic Storage) — asks nothing of anyone', () => {

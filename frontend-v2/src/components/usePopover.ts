@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from 'react';
 import { getSettings } from '../settings';
 
 /**
@@ -52,8 +52,18 @@ export function usePopover<Panel extends HTMLElement, Trigger extends HTMLElemen
       setOpen(!open);
    };
 
-   const onMouseEnter = () => {
-      if (!opts?.hover) return;
+   // Only touch is excluded from hover. Touch has no hover: a tap
+   // synthesizes pointerenter, which used to arm the open timer and fire the
+   // preview ~250ms LATER, after the tap's real action (a link navigation, a
+   // filter) had already run — an uninvited popover on top of the page you
+   // were just sent to. Gating on pointerType === 'touch' (rather than
+   // requiring 'mouse') keeps desktop hover intact, handles hybrid
+   // mouse+touch devices per interaction unlike a device-level (hover: hover)
+   // check, and lets a stylus ('pen') and any other non-touch pointer keep
+   // hover too. Button doors still open on tap via toggle() (a click), so
+   // touch keeps every tap-to-open popover.
+   const onPointerEnter = (e: ReactPointerEvent) => {
+      if (!opts?.hover || e.pointerType === 'touch') return;
       clearClose();
       // a short intent delay (a user setting): brushing the cursor across a row
       // of triggers shouldn't flash their panels open one after another. Read
@@ -64,8 +74,8 @@ export function usePopover<Panel extends HTMLElement, Trigger extends HTMLElemen
       if (delay <= 0) setOpen(true);
       else openTimer.current = setTimeout(() => setOpen(true), delay);
    };
-   const onMouseLeave = () => {
-      if (!opts?.hover) return;
+   const onPointerLeave = (e: ReactPointerEvent) => {
+      if (!opts?.hover || e.pointerType === 'touch') return;
       clearOpen();
       if (pinned.current) return;
       clearClose();
@@ -117,6 +127,6 @@ export function usePopover<Panel extends HTMLElement, Trigger extends HTMLElemen
       []
    );
 
-   const hoverProps = opts?.hover ? { onMouseEnter, onMouseLeave } : {};
+   const hoverProps = opts?.hover ? { onPointerEnter, onPointerLeave } : {};
    return { open, toggle, rootRef, panelRef, triggerRef, hoverProps };
 }

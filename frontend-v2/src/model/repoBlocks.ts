@@ -10,9 +10,12 @@ import type { DerivedPull } from '../../../shared/model/status';
  * monopolize the screen).
  *
  * Two guarantees survive the partition:
- * - Starved pulls pierce it. They lead the lane regardless of repo, in their
- *   existing rank order — the fairness backstop must not sit below a repo
- *   the viewer ranked last, or "surface the other repos" becomes a lie.
+ * - Starved pulls are surfaced as a highlight (returned separately, still in
+ *   rank order) AND kept in their own repo block — a starved pull from a
+ *   low-priority repo is never hidden by a higher-priority repo's block,
+ *   unlike an earlier version that extracted starved pulls out of the
+ *   blocks entirely and could bury one behind a high-volume repo's "show
+ *   more" fold.
  * - Order WITHIN a block is exactly the incoming order (stable partition),
  *   so teammates still lead and the score still ranks — the priority only
  *   decides which repo's run comes first, never which pull is "best".
@@ -31,9 +34,8 @@ export function repoBlocks(
    priority: string[]
 ): { starved: DerivedPull[]; blocks: RepoBlock[] } {
    const starved = queue.filter(p => p.starved);
-   const rest = queue.filter(p => !p.starved);
    const byRepo = new Map<string, DerivedPull[]>();
-   for (const p of rest) {
+   for (const p of queue) {
       const list = byRepo.get(p.data.repo);
       if (list) list.push(p);
       else byRepo.set(p.data.repo, [p]);

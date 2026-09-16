@@ -276,12 +276,17 @@ export function derive(
    // APPROVED review already lands as a CR signature server-side) plus
    // comment-only participants: the "engaged but no stamp to show for it"
    // pool rowNote draws "answer their review" / "in discussion with" from.
-   // isSuffixBot is enough here: this model module has no reason to depend on
-   // config.json's `bots` list, and a missed non-suffixed bot just shows up
-   // as a harmless extra name.
+   // changesRequestedBy (below) and engagedNoStamp both filter with
+   // isSuffixBot, not isBotLogin, by the shared model layer's deliberate
+   // convention (visibility.ts:30-36): this module has no reason to depend on
+   // config.json's `bots` list. That's not a live gap — the config-listed
+   // bots (ifixit-systems, Copilot) aren't reviewers, so they never appear in
+   // unstamped_reviewers to begin with.
    const unstampedReviewers = st.unstamped_reviewers ?? [];
    const changesRequestedBy = unique(
-      unstampedReviewers.filter(r => r.state === 'CHANGES_REQUESTED').map(r => r.login)
+      unstampedReviewers
+         .filter(r => r.state === 'CHANGES_REQUESTED' && !isSuffixBot(r.login))
+         .map(r => r.login)
    );
    const everStamped = new Set([
       ...st.allCR.map(s => s.data.user.login),

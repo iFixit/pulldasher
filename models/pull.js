@@ -5,6 +5,7 @@ import queue from '../lib/pull-queue.js';
 import debug from '../lib/debug.js';
 import DBPull from './db_pull.js';
 import getLogin from '../lib/get-user-login.js';
+import { isBot } from '../lib/review-model.js';
 
 const log = debug('pulldasher:pull');
 
@@ -204,6 +205,11 @@ class Pull {
          // participants/signature tagging but never shipped; the board only
          // needs these two facts (a "quiet since" signal), not the rows.
          comment_count: this.comments.length,
+         // Bot comments (a `[bot]` login or config.json's `bots` list) must
+         // never drive the human-review nudge or wake a snooze -- see
+         // lib/review-model.js's isBot for the shared bot check.
+         human_comment_count: this.comments.filter(comment => !isBot(comment.data.user.login))
+            .length,
          last_comment_at: this.comments.length
             ? new Date(Math.max(...this.comments.map(c => c.data.created_at.getTime())))
             : null,

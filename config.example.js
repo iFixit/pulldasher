@@ -93,8 +93,11 @@ module.exports = {
    // socket, and read by the /api/v1 endpoint. Both are optional.
    //
    // Bot logins beyond the `[bot]` suffix GitHub Apps carry (so pulldasher can
-   // fold/skip their PRs). Omit or [] for suffix-only detection.
-   bots: ['renovate-bot'],
+   // fold/skip their PRs). Omit or [] for suffix-only detection. ifixit-systems
+   // is our dependency-bumper and AI-agent account; Copilot is GitHub's coding
+   // agent (type Bot, no [bot] suffix). claude[bot] and the other suffixed apps
+   // are already detected without listing.
+   bots: ['renovate-bot', 'ifixit-systems', 'Copilot'],
    // Label title -> review-weight bucket (XS|S|M|L|XL). A PR carrying one of
    // these labels takes that weight instead of the diff-size guess, so an auto
    // weight label (and any manual override) drives the board and the API. Omit
