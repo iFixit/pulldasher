@@ -4,7 +4,7 @@ import bodyParser from 'body-parser';
 import expressSession from 'express-session';
 import authManager from './lib/authentication.js';
 import socketAuthenticator from './lib/socket-auth.js';
-import refresh from './lib/refresh.js';
+import refresh, { startRecentPullsSweep } from './lib/refresh.js';
 import pullManager from './lib/pull-manager.js';
 import git from './lib/git-manager.js';
 import dbManager from './lib/db-manager.js';
@@ -96,6 +96,7 @@ dbManager
    .then(function () {
       debug('Refreshing all open pulls from the API');
       refresh.openPulls();
+      startRecentPullsSweep(refresh, config.repos);
    })
    .done();
 
