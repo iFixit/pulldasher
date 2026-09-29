@@ -110,6 +110,23 @@ module.exports = {
       'size: XL': 'XL',
    },
 
+   // Projects (optional; leave it out and the Projects tab stays hidden). A PR
+   // joins a project through one label, `<labelPrefix><slug>`, for example
+   // `project:workbench`. Each project is an issue in `repo` carrying that same
+   // label: the title is its name, the assignee its lead, the milestone and its
+   // due date the rough target, `parent:<slug>` labels its parents (any number),
+   // and an `ongoing` label marks work with no end. Closing the issue as
+   // completed means done; as not planned, dropped or merged into another.
+   // Pulldasher only reads these; something else writes them. Give `repo` the
+   // same webhook as a tracked repo (Issues events). Without `repo`, PRs still
+   // group by label, just without names, leads or targets. Keep label names to
+   // 32 characters with no spaces: that's what the label table and the filter
+   // box hold.
+   projects: {
+      repo: 'owner/projects',
+      labelPrefix: 'project:',
+   },
+
    // The usual MySQL stuff. Like every other MySQL webapp, basically.
    // You will need to source the `schema.sql` file in the database to create
    // all the tables that Pulldasher expects.

@@ -143,6 +143,10 @@ export interface InitializePayload {
     * that omits them just means suffix-only bots and heuristic-only weights. */
    bots?: string[];
    weightLabels?: Record<string, string>;
+   /** the label prefix that files a PR into a project (`project:`), present
+    * only when the server is set up for projects; the Projects tab shows only
+    * then. See shared/model/projects.ts. */
+   projectLabelPrefix?: string;
 }
 
 export interface TokenResponse {

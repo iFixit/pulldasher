@@ -14,6 +14,8 @@ import hooksController from './controllers/githubHooks.js';
 import statsController from './controllers/stats.js';
 import userNamesController from './controllers/user-names.js';
 import apiController from './controllers/api.js';
+import projectsController from './controllers/projects.js';
+import { projectSettings } from './lib/projects.js';
 import apiAuth from './lib/api-auth.js';
 import Debug from './lib/debug.js';
 import { createServer } from 'http';
@@ -67,6 +69,7 @@ app.use('/', express.static(__dirname + '/frontend-v2/dist'));
 app.get('/token', mainController.getToken);
 app.get('/stats-history', statsController.getHistory);
 app.get('/user-names', userNamesController.getNames);
+app.get('/projects-data', projectsController.getBoardData);
 app.post('/hooks/main', hooksController.main);
 
 // /api/v1: machine-to-machine JSON for the review skills, Bearer-authed with
@@ -75,6 +78,8 @@ app.post('/hooks/main', hooksController.main);
 // session `auth` middleware doesn't run for them.
 app.get('/api/v1/me', apiAuth, apiController.getMe);
 app.get('/api/v1/pulls', apiAuth, apiController.getPulls);
+app.get('/api/v1/projects', apiAuth, projectsController.getProjects);
+app.get('/api/v1/people', apiAuth, projectsController.getPeople);
 
 // Warm the bot-login cache (used to tell a pulldasher claim apart from a
 // GitHub-UI self-request) before any webhook or socket traffic needs it.
@@ -96,19 +101,41 @@ dbManager
    .then(function () {
       debug('Refreshing all open pulls from the API');
       refresh.openPulls();
+      syncProjectIssues();
    })
    .done();
 
 // Webhooks get lost, and a lost `closed` left a PR open on the board until the
 // next restart (pulldasher#501 repairs it only at startup), which inflates every
 // backlog number. Once an hour, list each repo's open pulls and refresh just the
-// ones the DB has wrong.
+// ones the DB has wrong, and pick up project issues that changed.
 const RECONCILE_MS = 60 * 60 * 1000;
 setInterval(function () {
    refresh.reconcileOpenPulls().catch(function (err) {
       console.error('Hourly open-pull repair failed: %s', (err && err.message) || err);
    });
+   syncProjectIssues();
 }, RECONCILE_MS);
+
+// The project issues' repo is synced whole at startup, then only what changed.
+// `since` backs off a few minutes so GitHub's clock can't skip an update.
+let projectIssuesSyncedAt = null;
+function syncProjectIssues() {
+   const projects = projectSettings();
+   if (!projects || !projects.repo) return;
+   const startedAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+   refresh
+      .issuesChangedSince(projects.repo, projectIssuesSyncedAt)
+      .then(function (report) {
+         // move the marker only past a clean run, so a failed issue is retried
+         if (!report.failedRepos.length && !report.failedItems.length) {
+            projectIssuesSyncedAt = startedAt;
+         }
+      })
+      .catch(function (err) {
+         console.error('Project issue sync failed: %s', (err && err.message) || err);
+      });
+}
 
 //====================================================
 // Socket.IO

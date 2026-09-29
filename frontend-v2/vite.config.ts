@@ -18,6 +18,7 @@ export default defineConfig({
          '/socket.io': { target: 'http://localhost:3000', ws: true },
          '/stats-history': 'http://localhost:3000',
          '/user-names': 'http://localhost:3000',
+         '/projects-data': 'http://localhost:3000',
       },
    },
 });
