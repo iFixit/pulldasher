@@ -34,5 +34,20 @@ export type { CheckLedger } from './model/ci';
 
 export { isBotLogin } from './model/visibility';
 
+export {
+   buildToday,
+   dayStart,
+   projectOf,
+   projectSlugs,
+   utcDay,
+   windowStats,
+   DEFAULT_PROJECT_PREFIX,
+   LIVE_DAYS,
+   MISC_SLUG,
+   ONGOING_LABEL,
+   PARENT_PREFIX,
+} from './model/projects';
+export type { Project, PullSpan, Today, WindowStats } from './model/projects';
+
 export { epoch } from './format';
 export type { PullData, RepoSpec, Signature, CommitStatus, Label } from './types';
