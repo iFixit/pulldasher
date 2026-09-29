@@ -99,6 +99,17 @@ dbManager
    })
    .done();
 
+// Webhooks get lost, and a lost `closed` left a PR open on the board until the
+// next restart (pulldasher#501 repairs it only at startup), which inflates every
+// backlog number. Once an hour, list each repo's open pulls and refresh just the
+// ones the DB has wrong.
+const RECONCILE_MS = 60 * 60 * 1000;
+setInterval(function () {
+   refresh.reconcileOpenPulls().catch(function (err) {
+      console.error('Hourly open-pull repair failed: %s', (err && err.message) || err);
+   });
+}, RECONCILE_MS);
+
 //====================================================
 // Socket.IO
 const io = new Server(httpServer);
