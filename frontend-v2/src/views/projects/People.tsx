@@ -405,6 +405,7 @@ export function People({
                      weeks={data.window.weeks}
                      pick={w => [w.opened.developers, w.opened.non_developers]}
                      labels={['Developers', 'Non-developers']}
+                     unit="PRs opened each week"
                      ariaLabel="PRs opened each week, by developers and by non-developers"
                   />
                </ChartSlot>
@@ -416,6 +417,7 @@ export function People({
                      weeks={data.window.weeks}
                      pick={w => [w.reviews.on_developers, w.reviews.on_non_developers]}
                      labels={['On developers’ PRs', 'On non-developers’ PRs']}
+                     unit="CR and QA stamps given each week"
                      ariaLabel="Reviews given each week, split by whether a developer or a non-developer wrote the PR"
                   />
                </ChartSlot>

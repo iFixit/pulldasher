@@ -1,8 +1,6 @@
-import { useMemo } from 'react';
 import type { DerivedPull, Status } from '../../../../shared/model/status';
 import { n } from '../../../../shared/format';
 import type { DecideRow } from '../../../../shared/model/decide';
-import type { Today } from '../../../../shared/model/projects';
 import { Fold, FoldRows, RestGroup } from '../../components/Lane';
 import type { RowOptions } from '../../components/Row';
 import {
@@ -13,11 +11,12 @@ import {
    type ProjectsData,
    type Range,
 } from '../../model/projectData';
-import { roadmapShare, roadmapSlugs, type PortfolioItem } from '../../model/portfolio';
-import { useRoadmap } from '../../model/roadmapData';
-import { Segmented } from '../../components/bits';
+import { MISC_SLUG, type Today } from '../../../../shared/model/projects';
+import type { PortfolioItem } from '../../model/portfolio';
+import { groupRows, retroRows } from '../../model/retro';
+import { useRetroData } from '../../model/retroData';
 import { StatsCard } from '../stats/parts';
-import { AllocationChart, BacklogFlowChart, ChartSlot } from './lazyCharts';
+import { ChartSlot, FlowWeeksChart, OpenPrsChart } from './lazyCharts';
 import { Tile, versus, versusDays, type Navigate, type ProjectsNav } from './parts';
 import { Portfolio } from './Portfolio';
 import { PlansStanding } from './roadmapHealth';
@@ -121,100 +120,120 @@ function Headline({
    );
 }
 
-/** The backlog chart: at least 90 days ending on the range's last day,
- * the days before the range paled. */
+/**
+ * Is the backlog growing: the PRs open each day, and under it what arrived
+ * and what merged each week, over at least 90 days ending on the range's
+ * last day, the days before the range veiled.
+ */
 function BacklogCard({ range }: { range: Range }) {
    const shown = chartWindow(range);
    const data = useProjectsData(shown);
    return (
-      <StatsCard title="Backlog against throughput" sub={rangeWords(shown)}>
+      <StatsCard title="Is the backlog growing?" sub={rangeWords(shown)}>
          {data === null ? (
-            <p className="mt-3 text-[13px] text-ink-3">Couldn’t load the chart.</p>
+            <p className="mt-3 text-[13px] text-ink-3">Couldn’t load the charts.</p>
          ) : (
-            <div className="mt-3">
-               <ChartSlot height={220}>
-                  {data && <BacklogFlowChart days={data.window.days} picked={range} height={220} />}
+            <div className="mt-3 flex flex-col gap-4">
+               <ChartSlot height={200}>
+                  {data && <OpenPrsChart days={data.window.days} picked={range} />}
+               </ChartSlot>
+               <ChartSlot height={210}>
+                  {data && <FlowWeeksChart weeks={data.window.weeks} picked={range} />}
                </ChartSlot>
             </div>
          )}
-         <p className="mt-1 text-xs text-ink-3">
-            Green is what merged or closed since the first day; blue on top is what was still open,
-            so the blue band’s height is the backlog that day.
-         </p>
       </StatsCard>
    );
 }
 
-const pct = ({ planned, total }: { planned: number; total: number }) =>
-   total ? Math.round((planned / total) * 100) : null;
-
 /**
- * Where the merged work went, week by week: by project, or split by whether
- * the roadmap planned it (the share of work on the roadmap against the
- * unplanned rest: other projects, one-offs, and PRs in no project). Both
- * periods are measured against today's roadmap.
+ * Where the time went, the top of Look back: the projects that took the
+ * most developer-days in the range, most first, each bar labeled with its
+ * days and share so it needs no axis. A project opens its page; the rest
+ * is one click away in Look back.
  */
-function MergedWorkCard({
-   data,
-   prev,
+function TimeCard({
    range,
    nameOf,
-   nav,
    navigate,
 }: {
-   data: ProjectsData | null | undefined;
-   prev: ProjectsData | null | undefined;
    range: Range;
    nameOf: (slug: string) => string;
-   nav: ProjectsNav;
    navigate: Navigate;
 }) {
-   const { items: plan } = useRoadmap();
-   // null until the roadmap loads: a share against no roadmap would read 0%
-   const planned = useMemo(() => (plan ? roadmapSlugs(plan) : null), [plan]);
-   const byPlan = nav.split === 'roadmap';
-   const share = data && planned ? roadmapShare(data.window.weeks, planned) : null;
-   const before = prev && planned ? roadmapShare(prev.window.weeks, planned) : null;
+   const data = useRetroData(range);
+   const groups = data ? groupRows(retroRows(data), r => r.pr.project ?? '', data) : null;
+   const total = groups?.reduce((sum, g) => sum + g.days, 0) ?? 0;
+   const shown = groups?.slice(0, 7) ?? [];
+   const rest = groups?.slice(7) ?? [];
+   const most = shown[0]?.days ?? 1;
+   const days = (d: number) => `${d < 10 ? Math.round(d * 10) / 10 : Math.round(d)} days`;
+   const pct = (d: number) => `${total ? Math.round((100 * d) / total) : 0}%`;
    return (
       <StatsCard>
-         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h3 className="m-0 text-sm font-semibold text-ink">Where the merged work went</h3>
+         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <h3 className="m-0 text-sm font-semibold text-ink">Where the time went</h3>
             <span className="text-xs text-ink-3">{rangeWords(range)}</span>
             <span className="flex-1" />
-            <Segmented
-               ariaLabel="split the merged work"
-               value={byPlan ? 'roadmap' : 'project'}
-               options={[
-                  ['project', 'By project'],
-                  ['roadmap', 'Roadmap or not'],
-               ]}
-               onChange={split => navigate({ split })}
-            />
+            <button
+               type="button"
+               onClick={() => navigate({ view: 'retro' })}
+               className="pressable rounded border-0 bg-transparent p-0 text-xs text-ink-3 hover:text-brand hover:underline"
+            >
+               Look back at all of it
+            </button>
          </div>
-         <div className="mt-3">
-            <ChartSlot height={250}>
-               {data && (!byPlan || planned) && (
-                  <AllocationChart
-                     weeks={data.window.weeks}
-                     nameOf={nameOf}
-                     onPick={slug => navigate({ project: slug })}
-                     planned={byPlan ? planned ?? undefined : undefined}
-                  />
+         {data === null ? (
+            <p className="m-0 mt-3 text-[13px] text-ink-3">Couldn’t load the days.</p>
+         ) : !groups ? (
+            <p className="m-0 mt-3 text-[13px] text-ink-3">Adding up the days…</p>
+         ) : !groups.length ? (
+            <p className="m-0 mt-3 text-[13px] text-ink-3">No one touched a PR in these days.</p>
+         ) : (
+            <>
+               <p className="m-0 mt-1 text-xs text-ink-3">
+                  {days(total)} of developers’ time, by project. A day counts once per person, split
+                  across the PRs they touched that day.
+               </p>
+               <ul className="m-0 mt-3 flex list-none flex-col gap-2 p-0">
+                  {shown.map(g => {
+                     const name = g.key ? nameOf(g.key) : 'Not filed to a project';
+                     const opens = g.key && g.key !== MISC_SLUG;
+                     return (
+                        <li key={g.key} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3">
+                           {opens ? (
+                              <button
+                                 type="button"
+                                 onClick={() => navigate({ project: g.key })}
+                                 className="pressable min-w-0 truncate rounded border-0 bg-transparent p-0 text-left text-[13px] text-ink hover:text-brand hover:underline"
+                              >
+                                 {name}
+                              </button>
+                           ) : (
+                              <span className="min-w-0 truncate text-[13px] text-ink">{name}</span>
+                           )}
+                           <span className="text-xs text-ink-2 tabular-nums">
+                              {days(g.days)} · {pct(g.days)}
+                           </span>
+                           <span className="col-span-2 mt-0.5 h-1.5 rounded-full bg-muted">
+                              <span
+                                 className={`block h-full rounded-full ${
+                                    g.key ? 'bg-brand' : 'bg-ink-3/50'
+                                 }`}
+                                 style={{ width: `${Math.max((g.days / most) * 100, 1)}%` }}
+                              />
+                           </span>
+                        </li>
+                     );
+                  })}
+               </ul>
+               {rest.length > 0 && (
+                  <p className="m-0 mt-2 text-xs text-ink-3">
+                     and {n(rest.length, 'more project')}:{' '}
+                     {days(rest.reduce((sum, g) => sum + g.days, 0))}
+                  </p>
                )}
-            </ChartSlot>
-         </div>
-         {byPlan && share && (
-            <p className="m-0 mt-2 text-xs text-ink-3">
-               {share.total
-                  ? `${share.planned} of ${n(share.total, 'merged PR')} (${pct(
-                       share
-                    )}%) were in projects on the roadmap`
-                  : 'Nothing merged in the range'}
-               {before && pct(before) != null
-                  ? `, against ${pct(before)}% the ${rangeDays(range)} days before`
-                  : ''}
-               .
-            </p>
+            </>
          )}
       </StatsCard>
    );
@@ -282,14 +301,7 @@ export function Overview({
          <PlansStanding nav={nav} navigate={navigate} />
          <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(380px,1fr))]">
             <BacklogCard range={range} />
-            <MergedWorkCard
-               data={data}
-               prev={prev}
-               range={range}
-               nameOf={nameOf}
-               nav={nav}
-               navigate={navigate}
-            />
+            <TimeCard range={range} nameOf={nameOf} navigate={navigate} />
          </div>
          <Portfolio
             items={items}

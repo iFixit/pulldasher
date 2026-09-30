@@ -22,6 +22,8 @@ import {
    type RetroRow,
 } from '../../model/retro';
 import { useRetroData, type RetroData, type RetroPr } from '../../model/retroData';
+import { StatsCard } from '../stats/parts';
+import { ChartSlot, DaysWeeksChart } from './lazyCharts';
 import { PeopleStack, Tile, versus, type Navigate, type ProjectsNav } from './parts';
 
 type By = ProjectsNav['by'];
@@ -166,7 +168,10 @@ export function Retro({
          : null;
    const earlierTotal = earlierGroups ? [...earlierGroups.values()].reduce((a, b) => a + b, 0) : 0;
    const total = rows.reduce((sum, r) => sum + r.days, 0);
-   const [everyone] = groupRows(rows, () => 'all', data);
+   // each week's days, writing and reviewing, for the chart over the list
+   const writingWeeks = data.weeks.map(() => 0);
+   const reviewingWeeks = data.weeks.map(() => 0);
+   for (const r of rows) (r.own ? writingWeeks : reviewingWeeks)[r.week] += r.days;
    const top = Math.max(0.01, ...groups.flatMap(g => g.weekly));
    const spread = spreadByPerson(scoped);
    const label = (key: string) => labelOf(nav.by, key, nameOf);
@@ -293,69 +298,94 @@ export function Retro({
                </button>
             )}
          </div>
-         {everyone ? (
-            <Rows>
-               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 border-b border-line bg-muted/40 px-3.5 py-2.5">
-                  <span className="text-[13px] font-semibold text-ink">
-                     {narrowed ?? 'Everyone'}
-                     {kindWords}
-                     <span className="ml-2 text-xs font-normal text-ink-3">
-                        {rangeWords(range)}, by week
-                     </span>
-                  </span>
-                  <span className="flex items-center gap-3 text-xs text-ink-2 tabular-nums">
-                     <Weeks
-                        weekly={everyone.weekly}
-                        weeks={data.weeks}
-                        top={Math.max(...everyone.weekly, 0.01)}
-                     />
-                     <span className="w-16 text-right font-semibold text-ink">{days(total)}</span>
-                     <span className="w-10" />
-                     <span className="w-24" />
-                  </span>
-               </div>
-               {groups.map(g => {
-                  const prev = earlierGroups?.get(g.key);
-                  return (
-                     <GroupRow
-                        key={g.key}
-                        group={g}
-                        weeks={data.weeks}
-                        total={total}
-                        top={top}
-                        label={label(g.key)}
-                        onName={openOf(nav.by, g.key, navigate)}
-                        change={
-                           !earlierGroups
-                              ? null
-                              : prev == null
-                              ? 'new'
-                              : `was ${pct(prev, earlierTotal)}`
-                        }
-                        extra={
-                           nav.by === 'person'
-                              ? `${Math.round((spread.get(g.key) ?? 0) * 10) / 10} projects a week`
-                              : null
-                        }
-                        // with only writing or only reviewing days, the share says nothing
-                        showWriting={nav.kind === 'all'}
-                        open={open === g.key}
-                        onToggle={() => setOpen(open === g.key ? null : g.key)}
-                        detail={
-                           <Detail
+         {groups.length ? (
+            <>
+               <StatsCard
+                  title={`${narrowed ?? 'Everyone'}’s days, week by week${kindWords}`}
+                  sub={`${days(total)}, ${rangeWords(range)}`}
+               >
+                  <div className="mt-3">
+                     <ChartSlot height={190}>
+                        <DaysWeeksChart
+                           weeks={data.weeks}
+                           writing={writingWeeks}
+                           reviewing={reviewingWeeks}
+                        />
+                     </ChartSlot>
+                  </div>
+               </StatsCard>
+               <div className="mt-4">
+                  <Rows>
+                     {/* the list's column heads; the small bars share one scale and these weeks */}
+                     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-4 border-b border-line bg-muted/40 px-3.5 py-2 text-[11px] text-ink-3">
+                        <span className="font-medium text-ink-2">
+                           {BY_OPTIONS.find(([b]) => b === nav.by)?.[1]}
+                        </span>
+                        <span className="flex items-end gap-3 tabular-nums">
+                           <span
+                              className="flex w-28 justify-between"
+                              title={`Each week’s days, oldest first, all rows on one scale: the tallest bar is ${days(
+                                 top
+                              )}`}
+                           >
+                              <span>{data.weeks.length ? dayWords(data.weeks[0]) : ''}</span>
+                              <span>
+                                 {data.weeks.length > 1
+                                    ? dayWords(data.weeks[data.weeks.length - 1])
+                                    : ''}
+                              </span>
+                           </span>
+                           <span className="w-16 text-right">Days</span>
+                           <span className="w-10 text-right">Share</span>
+                           <span className="w-24">Before</span>
+                        </span>
+                     </div>
+                     {groups.map(g => {
+                        const prev = earlierGroups?.get(g.key);
+                        return (
+                           <GroupRow
+                              key={g.key}
                               group={g}
-                              by={nav.by}
-                              rows={rows}
-                              data={data}
-                              nameOf={nameOf}
-                              onPerson={login => navigate({ who: login, by: 'project' })}
-                              onProject={slug => navigate({ project: slug })}
+                              weeks={data.weeks}
+                              total={total}
+                              top={top}
+                              label={label(g.key)}
+                              onName={openOf(nav.by, g.key, navigate)}
+                              change={
+                                 !earlierGroups
+                                    ? null
+                                    : prev == null
+                                    ? 'new'
+                                    : `was ${pct(prev, earlierTotal)}`
+                              }
+                              extra={
+                                 nav.by === 'person'
+                                    ? `${
+                                         Math.round((spread.get(g.key) ?? 0) * 10) / 10
+                                      } projects a week`
+                                    : null
+                              }
+                              // with only writing or only reviewing days, the share says nothing
+                              showWriting={nav.kind === 'all'}
+                              open={open === g.key}
+                              onToggle={() => setOpen(open === g.key ? null : g.key)}
+                              detail={
+                                 <Detail
+                                    group={g}
+                                    by={nav.by}
+                                    rows={rows}
+                                    data={data}
+                                    nameOf={nameOf}
+                                    onPerson={login => navigate({ who: login, by: 'project' })}
+                                    onProject={slug => navigate({ project: slug })}
+                                 />
+                              }
                            />
-                        }
-                     />
-                  );
-               })}
-            </Rows>
+                        );
+                     })}
+                  </Rows>
+               </div>
+            </>
          ) : (
             <p className="m-0 text-[13px] text-ink-3">No one touched a PR in these days.</p>
          )}

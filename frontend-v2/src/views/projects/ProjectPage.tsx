@@ -23,7 +23,7 @@ import {
    type Range,
 } from '../../model/projectData';
 import { StatsCard } from '../stats/parts';
-import { BacklogFlowChart, ChartSlot } from './lazyCharts';
+import { ChartSlot, FlowWeeksChart, OpenPrsChart } from './lazyCharts';
 import {
    FlagWords,
    PeopleStack,
@@ -128,7 +128,7 @@ function ProjectFlow({
    const current = range.end >= dayOf(new Date());
    return (
       <section className="mb-7">
-         <GroupHeader title="Backlog against throughput" sub={rangeWords(shown)} />
+         <GroupHeader title="Is its backlog growing?" sub={rangeWords(shown)} />
          <StatsCard>
             {data === null ? (
                <p className="m-0 text-[13px] text-ink-3">Couldn’t load the chart.</p>
@@ -139,11 +139,14 @@ function ProjectFlow({
                         <Forecast group={group} days={data.window.days} dueOn={dueOn} />
                      </div>
                   )}
-                  <ChartSlot height={200}>
-                     {data && (
-                        <BacklogFlowChart days={data.window.days} picked={range} height={200} />
-                     )}
-                  </ChartSlot>
+                  <div className="flex flex-col gap-4">
+                     <ChartSlot height={200}>
+                        {data && <OpenPrsChart days={data.window.days} picked={range} />}
+                     </ChartSlot>
+                     <ChartSlot height={210}>
+                        {data && <FlowWeeksChart weeks={data.window.weeks} picked={range} />}
+                     </ChartSlot>
+                  </div>
                </>
             )}
          </StatsCard>

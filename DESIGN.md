@@ -319,6 +319,17 @@ icon with a class bolted on.
   sits exactly above the same weeks of every row.
 - **Charts don't animate.** Motion on this board means something changed,
   and a chart drawing itself in on load says nothing.
+- **Every chart says what it counts.** The unit sits over the y-axis
+  ("Open PRs", "Developer-days each week"), the x-axis names the days or
+  weeks, and hovering a mark gives its exact numbers; the load chart puts
+  its unit on its top gridline ("10 projects"). A list of small weekly
+  bars gets column heads that date its first and last week. Each chart
+  answers one question, said plainly in its title ("Is the backlog
+  growing?"): a cumulative flow chart was replaced by the open PRs each
+  day and the PRs opened and merged each week, because it needed a
+  paragraph to read, and "where the merged work went" gave way to where
+  the time went, since merged PRs count a one-line fix the same as a
+  month of work.
 - **One color vocabulary across Stats and Projects**: ink for opened, green
   for merged or finished, brand for what is still open, a paler ink for
   closed without merging.

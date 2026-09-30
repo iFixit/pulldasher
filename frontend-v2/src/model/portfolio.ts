@@ -8,7 +8,6 @@ import {
    type ProjectTarget,
    type ProjectWindow,
    type Today,
-   type WeekPoint,
 } from '../../../shared/model/projects';
 import {
    HEALTH_WORD,
@@ -323,29 +322,4 @@ export function portfolioCsv(items: readonly PortfolioItem[]): string {
       i.project ? `https://github.com/${i.project.repo}/issues/${i.project.number}` : null,
    ]);
    return [head, ...rows].map(r => r.map(csvCell).join(',')).join('\n') + '\n';
-}
-
-/** The project slugs the roadmap plans for: linked items not dropped. */
-export function roadmapSlugs(items: readonly RoadmapItem[]): Set<string> {
-   return new Set(items.flatMap(i => (i.project && i.status !== 'dropped' ? [i.project] : [])));
-}
-
-/**
- * Of the PRs merged over some weeks, how many were in a project on the
- * roadmap. One-offs and PRs in no project count toward the total only: they
- * are the unplanned work the share is measured against.
- */
-export function roadmapShare(
-   weeks: readonly WeekPoint[],
-   planned: ReadonlySet<string>
-): { planned: number; total: number } {
-   let onPlan = 0;
-   let total = 0;
-   for (const w of weeks) {
-      for (const [slug, count] of Object.entries(w.merged_by_project)) {
-         total += count;
-         if (planned.has(slug)) onPlan += count;
-      }
-   }
-   return { planned: onPlan, total };
 }

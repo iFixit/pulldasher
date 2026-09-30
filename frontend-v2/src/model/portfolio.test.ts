@@ -9,8 +9,6 @@ import {
    parseSort,
    portfolioCsv,
    portfolioItems,
-   roadmapShare,
-   roadmapSlugs,
    sortItems,
 } from './portfolio';
 import type { RoadmapItem } from '../../../shared/model/roadmap';
@@ -185,31 +183,6 @@ describe('portfolioCsv', () => {
       const [head, row] = csv.trim().split('\n');
       expect(head.startsWith('Project,Label slug,Status,Lead')).toBe(true);
       expect(row.startsWith('"Alpha, the first",alpha,Live,dana,October,')).toBe(true);
-   });
-});
-
-describe('roadmapShare', () => {
-   it('counts merges in projects the roadmap plans for, against every merge', () => {
-      const plan = [
-         { project: 'search', status: 'active' },
-         { project: 'checkout', status: 'dropped' },
-         { project: null, status: 'planned' },
-      ] as RoadmapItem[];
-      const planned = roadmapSlugs(plan);
-      expect([...planned]).toEqual(['search']);
-      const week = (merged_by_project: Record<string, number>) => ({
-         week: '2026-09-21',
-         opened: { developers: 0, non_developers: 0 },
-         merged: { developers: 0, non_developers: 0 },
-         merged_by_project,
-         reviews: { on_developers: 0, on_non_developers: 0 },
-      });
-      expect(
-         roadmapShare(
-            [week({ search: 3, checkout: 1, misc: 2 }), week({ search: 1, '': 3 })],
-            planned
-         )
-      ).toEqual({ planned: 4, total: 10 });
    });
 });
 

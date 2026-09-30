@@ -32,8 +32,6 @@ export interface ProjectsNav {
    scale: 'month' | 'quarter' | 'now';
    /** the roadmap item whose editor and updates are open */
    item: number | null;
-   /** how the overview splits the merged work: by project, or roadmap or not */
-   split: 'project' | 'roadmap';
    /** what the roadmap's timeline shows: everything in flight, only the
     * plans, or only the projects in flight with no plan */
    show: 'all' | 'plan' | 'unplanned';

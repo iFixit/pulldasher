@@ -24,6 +24,14 @@ const OVER_ZONE = 'color-mix(in oklab, var(--warn) 9%, transparent)';
 
 const total = (w: LoadWeek) => w.onPlan + w.offPlan;
 
+/** Round tick values from 0 to `top`, at most four, for the y-axis. */
+export function yTicks(top: number): number[] {
+   const step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500].find(s => top / s <= 4) ?? 1000;
+   const ticks: number[] = [];
+   for (let v = step; v <= top; v += step) ticks.push(v);
+   return ticks;
+}
+
 type OriginKey = RoadmapOrigin | 'unsaid';
 /** A count of plans from one origin, in words. */
 const ORIGIN_COUNT: Record<OriginKey, (count: number) => string> = {
@@ -231,6 +239,19 @@ export function LoadChart({
                      style={{ height: `${100 - (developers / top) * 100}%`, background: OVER_ZONE }}
                   />
                )}
+               {/* the y-axis: hairline gridlines at round counts, the unit on the top one */}
+               {yTicks(top).map((v, i, all) => (
+                  <span
+                     key={v}
+                     aria-hidden
+                     className="pointer-events-none absolute inset-x-0 border-t border-secondary"
+                     style={{ bottom: pct(v) }}
+                  >
+                     <span className="absolute left-0 z-10 -translate-y-1/2 bg-surface pr-1 text-[10px] leading-none text-ink-3 tabular-nums">
+                        {i === all.length - 1 ? n(v, 'project') : v}
+                     </span>
+                  </span>
+               ))}
                {weeks.map(w => {
                   const left = at(w.week);
                   const isPicked = w.week === picked;

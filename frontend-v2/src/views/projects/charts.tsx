@@ -5,6 +5,7 @@ import {
    Bar,
    BarChart,
    CartesianGrid,
+   Cell,
    ReferenceArea,
    ResponsiveContainer,
    Tooltip,
@@ -12,12 +13,7 @@ import {
    YAxis,
    type TooltipContentProps,
 } from 'recharts';
-import {
-   MISC_SLUG,
-   type DayPoint,
-   type WeekPoint,
-   type WindowCounts,
-} from '../../../../shared/model/projects';
+import type { DayPoint, WeekPoint } from '../../../../shared/model/projects';
 import { dayWords } from '../../model/projectData';
 
 /**
@@ -26,30 +22,66 @@ import { dayWords } from '../../model/projectData';
  * rule the hand-drawn Stats charts follow. This module is loaded lazily with
  * the views that chart, so the review board never downloads it.
  *
- * Color vocabulary, shared with the Stats tab: ink for opened, green for
- * merged or finished, brand for what is still open, a lighter ink for closed
- * without merging. No chart animates: on this board motion means something
- * changed.
+ * Every chart says what it counts: the unit sits over the y-axis, the
+ * x-axis names the days or weeks, and hovering a mark gives its exact
+ * numbers. Color vocabulary, shared with the Stats tab: ink for opened,
+ * green for merged, brand for what is still open. No chart animates: on
+ * this board motion means something changed.
  */
 
 const axisTick = { fill: 'var(--ink-3)', fontSize: 10 };
 const grid = <CartesianGrid stroke="var(--secondary)" vertical={false} />;
+const xAxisProps = {
+   tick: axisTick,
+   tickLine: false,
+   axisLine: { stroke: 'var(--border)' },
+} as const;
+const yAxisProps = {
+   tick: axisTick,
+   tickLine: false,
+   axisLine: false,
+   width: 40,
+   allowDecimals: false,
+} as const;
 
 type DayRange = { start: string; end: string };
+
+/** What a chart's y-axis counts, said over it where the eye starts. */
+function Unit({ children }: { children: ReactNode }) {
+   return <div className="mb-1 pl-1 text-[11px] font-medium text-ink-3">{children}</div>;
+}
+
+/** A chart's key, for two or more series: a swatch and a name each. */
+function Key({ series }: { series: [string, string, number][] }) {
+   return (
+      <ul className="m-0 mt-2 flex list-none flex-wrap gap-x-3 gap-y-1 p-0 text-[11px] text-ink-2">
+         {series.map(([name, color, opacity]) => (
+            <li key={name} className="inline-flex items-center gap-1.5">
+               <span
+                  aria-hidden
+                  className="h-2.5 w-2.5 rounded-sm"
+                  style={{ background: color, opacity }}
+               />
+               {name}
+            </li>
+         ))}
+      </ul>
+   );
+}
 
 /**
  * A veil over the days before the picked range: a chart draws at least 90
  * days so a short range still shows its trend, and the range the numbers
- * cover stays the bright part. On bars the veil stops at the day before the
- * range (each day is a band); on areas it runs to the range's first point.
+ * cover stays the bright part. (A bar chart fades its early bars instead,
+ * since Recharts draws a veil under bars.)
  */
-function veilBefore(days: { date: string }[], picked: DayRange | undefined, bands: boolean) {
+function veilBefore(days: DayPoint[], picked: DayRange | undefined) {
    const firstIn = picked ? days.findIndex(d => d.date >= picked.start) : -1;
    if (firstIn <= 0) return null;
    return (
       <ReferenceArea
          x1={days[0].date}
-         x2={days[bands ? firstIn - 1 : firstIn].date}
+         x2={days[firstIn].date}
          fill="var(--surface)"
          fillOpacity={0.7}
          strokeOpacity={0}
@@ -73,16 +105,24 @@ function TipCard({ title, lines }: { title: ReactNode; lines: [string, number, s
    );
 }
 
+/** A YYYY-MM-DD day plus some days. */
+function addDays(day: string, days: number): string {
+   return new Date(Date.parse(`${day}T00:00:00Z`) + days * 86400_000).toISOString().slice(0, 10);
+}
+
+/** "Sep 22": a week's label is its Monday. */
+function weekWords(week: string): string {
+   return dayWords(week);
+}
+
 /**
- * The backlog chart Sterling asked for: each day, the PRs merged or closed so
- * far, with the PRs still open stacked on top. The top edge is everything
- * that arrived (the starting backlog plus what opened since), so the height
- * of the blue band is the backlog on that day.
+ * The backlog, one point per day: the PRs still open at the end of each day.
+ * One line answers "is it growing?" without anyone having to subtract.
  */
-export function BacklogFlowChart({
+export function OpenPrsChart({
    days,
    picked,
-   height = 200,
+   height = 180,
 }: {
    days: DayPoint[];
    /** the range the page's numbers cover; the days before it are veiled */
@@ -95,377 +135,183 @@ export function BacklogFlowChart({
       return (
          <TipCard
             title={dayWords(String(label))}
-            lines={[
-               ['Open at the end of the day', d.backlog, 'var(--brand)'],
-               ['Merged or closed so far', d.departed, 'var(--ok)'],
-               ['Arrived so far, with the backlog', d.arrived, 'var(--ink-3)'],
-            ]}
+            lines={[['Open at the end of the day', d.backlog, 'var(--brand)']]}
          />
       );
    };
    return (
-      <div
-         role="img"
-         aria-label="PRs merged or closed so far, with the PRs still open stacked on top, one point per day"
-      >
+      <div role="img" aria-label="Open PRs at the end of each day">
+         <Unit>Open PRs</Unit>
          <ResponsiveContainer width="100%" height={height}>
-            <AreaChart data={days} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            <AreaChart data={days} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                {grid}
-               <XAxis
-                  dataKey="date"
-                  tickFormatter={dayWords}
-                  tick={axisTick}
-                  tickLine={false}
-                  axisLine={{ stroke: 'var(--border)' }}
-                  minTickGap={24}
-               />
-               <YAxis
-                  tick={axisTick}
-                  tickLine={false}
-                  axisLine={false}
-                  width={40}
-                  allowDecimals={false}
-               />
+               <XAxis dataKey="date" tickFormatter={dayWords} minTickGap={24} {...xAxisProps} />
+               <YAxis {...yAxisProps} />
                <Tooltip content={tip} cursor={{ stroke: 'var(--ring)', strokeDasharray: '3 3' }} />
                <Area
                   type="monotone"
-                  dataKey="departed"
-                  stackId="flow"
-                  stroke="var(--ok)"
-                  fill="var(--ok)"
-                  fillOpacity={0.18}
-                  isAnimationActive={false}
-               />
-               <Area
-                  type="monotone"
                   dataKey="backlog"
-                  stackId="flow"
                   stroke="var(--brand)"
+                  strokeWidth={2}
                   fill="var(--brand)"
-                  fillOpacity={0.22}
+                  fillOpacity={0.1}
                   isAnimationActive={false}
                />
-               {veilBefore(days, picked, false)}
+               {veilBefore(days, picked)}
             </AreaChart>
          </ResponsiveContainer>
       </div>
    );
 }
 
-/** Axis labels have a fixed width; a longer name ends in an ellipsis and
- * the tooltip gives it whole. */
-function clip(name: string, max: number): string {
-   return name.length > max ? `${name.slice(0, max - 1).trimEnd()}…` : name;
-}
-
-export interface BarRowData {
-   key: string;
-   name: string;
-   w: WindowCounts;
-}
-
 /**
- * One horizontal bar per project: what merged, what closed without merging,
- * and what was still open at the end, stacked so the bar's length is
- * everything the project touched. Click a bar for the project's page.
+ * What arrived and what left, week by week: PRs opened beside PRs merged.
+ * Merging fewer than arrive is what makes the backlog grow.
  */
-export function ProjectBars({
-   rows,
-   onPick,
-}: {
-   rows: BarRowData[];
-   onPick?: (key: string) => void;
-}) {
-   const data = rows.map(r => ({
-      key: r.key,
-      name: r.name,
-      merged: r.w.merged,
-      closed: r.w.closed,
-      open: r.w.backlog_end,
-   }));
-   type Row = typeof data[number];
-   const tip = ({ active, payload }: TooltipContentProps) => {
-      const d = payload?.[0]?.payload as Row | undefined;
-      if (!active || !d) return null;
-      return (
-         <TipCard
-            title={d.name}
-            lines={[
-               ['Merged', d.merged, 'var(--ok)'],
-               ['Closed without merging', d.closed, 'var(--ink-3)'],
-               ['Still open at the end', d.open, 'var(--brand)'],
-            ]}
-         />
-      );
-   };
-   const pick = onPick
-      ? (entry: { payload?: Row }) => entry.payload && onPick(entry.payload.key)
-      : undefined;
-   return (
-      <div role="img" aria-label="Per project: PRs merged, closed without merging, and still open">
-         <ResponsiveContainer width="100%" height={Math.max(80, data.length * 26 + 24)}>
-            <BarChart
-               data={data}
-               layout="vertical"
-               margin={{ top: 4, right: 12, bottom: 0, left: 0 }}
-            >
-               <CartesianGrid stroke="var(--secondary)" horizontal={false} />
-               <XAxis
-                  type="number"
-                  tick={axisTick}
-                  tickLine={false}
-                  axisLine={false}
-                  allowDecimals={false}
-               />
-               <YAxis
-                  type="category"
-                  dataKey="name"
-                  width={176}
-                  tickFormatter={(name: string) => clip(name, 28)}
-                  tick={{ ...axisTick, fontSize: 11, fill: 'var(--ink-2)' }}
-                  tickLine={false}
-                  axisLine={false}
-                  interval={0}
-               />
-               <Tooltip content={tip} cursor={{ fill: 'var(--muted)' }} />
-               <Bar
-                  dataKey="merged"
-                  stackId="p"
-                  fill="var(--ok)"
-                  isAnimationActive={false}
-                  onClick={pick}
-                  cursor={onPick ? 'pointer' : undefined}
-               />
-               <Bar
-                  dataKey="closed"
-                  stackId="p"
-                  fill="var(--ink-3)"
-                  fillOpacity={0.45}
-                  isAnimationActive={false}
-                  onClick={pick}
-                  cursor={onPick ? 'pointer' : undefined}
-               />
-               <Bar
-                  dataKey="open"
-                  stackId="p"
-                  fill="var(--brand)"
-                  fillOpacity={0.7}
-                  isAnimationActive={false}
-                  onClick={pick}
-                  cursor={onPick ? 'pointer' : undefined}
-               />
-            </BarChart>
-         </ResponsiveContainer>
-      </div>
-   );
-}
-
-/** One pair of bars per person: PRs opened and PRs merged in the range. */
-export function PeopleBars({ rows }: { rows: BarRowData[] }) {
-   const data = rows.map(r => ({ name: r.name, opened: r.w.opened, merged: r.w.merged }));
-   type Row = typeof data[number];
-   const tip = ({ active, payload }: TooltipContentProps) => {
-      const d = payload?.[0]?.payload as Row | undefined;
-      if (!active || !d) return null;
-      return (
-         <TipCard
-            title={d.name}
-            lines={[
-               ['Opened', d.opened, 'var(--ink-3)'],
-               ['Merged', d.merged, 'var(--ok)'],
-            ]}
-         />
-      );
-   };
-   return (
-      <div role="img" aria-label="Per person: PRs opened and PRs merged">
-         <ResponsiveContainer width="100%" height={Math.max(80, data.length * 30 + 24)}>
-            <BarChart
-               data={data}
-               layout="vertical"
-               margin={{ top: 4, right: 12, bottom: 0, left: 0 }}
-               barGap={1}
-            >
-               <CartesianGrid stroke="var(--secondary)" horizontal={false} />
-               <XAxis
-                  type="number"
-                  tick={axisTick}
-                  tickLine={false}
-                  axisLine={false}
-                  allowDecimals={false}
-               />
-               <YAxis
-                  type="category"
-                  dataKey="name"
-                  width={130}
-                  tickFormatter={(name: string) => clip(name, 20)}
-                  tick={{ ...axisTick, fontSize: 11, fill: 'var(--ink-2)' }}
-                  tickLine={false}
-                  axisLine={false}
-                  interval={0}
-               />
-               <Tooltip content={tip} cursor={{ fill: 'var(--muted)' }} />
-               <Bar
-                  dataKey="opened"
-                  fill="var(--ink-3)"
-                  fillOpacity={0.55}
-                  isAnimationActive={false}
-               />
-               <Bar dataKey="merged" fill="var(--ok)" isAnimationActive={false} />
-            </BarChart>
-         </ResponsiveContainer>
-      </div>
-   );
-}
-
-/** "Sep 22": a week's label is its Monday. */
-function weekWords(week: string): string {
-   return dayWords(week);
-}
-
-/** Brand shades for the projects that get their own color, strongest first:
- * one hue for "a project", told apart by depth and the tooltip, rather than a
- * rainbow whose colors would each claim a meaning the board already uses. */
-const PROJECT_SHADES = [1, 0.8, 0.64, 0.5, 0.38, 0.28];
-const OTHER = '__other';
-const NONE = '__none';
-
-const ROADMAP = '__roadmap';
-const ONE_OFFS = '__misc';
-
-/**
- * Where the merged work went, week by week: the projects with the most merges
- * in the range each get a shade of blue, the rest pool into "other projects",
- * and PRs with no project label sit on top in gray. Click a project's segment
- * for its page. Given the roadmap's projects (`planned`), it splits the same
- * merges by whether they were planned instead: projects on the roadmap, other
- * projects, one-offs, and PRs in no project.
- */
-export function AllocationChart({
+export function FlowWeeksChart({
    weeks,
-   nameOf,
-   onPick,
-   planned,
-   height = 220,
+   picked,
+   height = 160,
 }: {
    weeks: WeekPoint[];
-   nameOf: (slug: string) => string;
-   onPick?: (slug: string) => void;
-   planned?: ReadonlySet<string>;
+   picked?: DayRange;
    height?: number;
 }) {
-   const totals = new Map<string, number>();
-   for (const w of weeks)
-      for (const [slug, n] of Object.entries(w.merged_by_project))
-         if (slug) totals.set(slug, (totals.get(slug) ?? 0) + n);
-   const leaders = planned
-      ? []
-      : [...totals]
-           .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
-           .slice(0, PROJECT_SHADES.length)
-           .map(([slug]) => slug);
-   const keyOf = (slug: string) => {
-      if (slug === '') return NONE;
-      if (!planned) return leaders.includes(slug) ? slug : OTHER;
-      if (planned.has(slug)) return ROADMAP;
-      return slug === MISC_SLUG ? ONE_OFFS : OTHER;
-   };
-   const series: [string, string, string, number][] = planned
-      ? [
-           [ROADMAP, 'On the roadmap', 'var(--brand)', 1],
-           [OTHER, 'Other projects', 'var(--brand)', 0.38],
-           [ONE_OFFS, 'One-offs', 'var(--ink-3)', 0.6],
-           [NONE, 'Not in a project', 'var(--ink-3)', 0.3],
-        ]
-      : [
-           ...leaders.map((slug, i): [string, string, string, number] => [
-              slug,
-              nameOf(slug),
-              'var(--brand)',
-              PROJECT_SHADES[i],
-           ]),
-           [OTHER, 'Other projects', 'var(--brand)', 0.16],
-           [NONE, 'Not in a project', 'var(--ink-3)', 0.35],
-        ];
-   const data = weeks.map(w => {
-      const row: Record<string, number | string> = { week: w.week };
-      for (const [key] of series) row[key] = 0;
-      for (const [slug, n] of Object.entries(w.merged_by_project)) {
-         const key = keyOf(slug);
-         row[key] = (row[key] as number) + n;
-      }
-      return row;
-   });
-   // only a real project's segment opens a page
-   const pickable = (key: string) => !!onPick && !key.startsWith('__');
+   const data = weeks.map(w => ({
+      week: w.week,
+      opened: w.opened.developers + w.opened.non_developers,
+      merged: w.merged.developers + w.merged.non_developers,
+      // a week that ends before the picked range is faded, not hidden
+      before: !!picked && addDays(w.week, 6) < picked.start,
+   }));
    const tip = ({ active, payload, label }: TooltipContentProps) => {
-      const row = payload?.[0]?.payload as Record<string, number> | undefined;
+      const row = payload?.[0]?.payload as typeof data[number] | undefined;
       if (!active || !row) return null;
-      const lines = series
-         .filter(([key]) => row[key])
-         .map(([key, name, color]): [string, number, string] => [name, row[key], color]);
-      return <TipCard title={`Week of ${weekWords(String(label))}`} lines={lines} />;
+      return (
+         <TipCard
+            title={`Week of ${weekWords(String(label))}`}
+            lines={[
+               ['Opened', row.opened, 'var(--ink-3)'],
+               ['Merged', row.merged, 'var(--ok)'],
+            ]}
+         />
+      );
    };
    return (
       <div>
-         <div
-            role="img"
-            aria-label={
-               planned
-                  ? 'Merged PRs each week, split by whether their project is on the roadmap'
-                  : 'Merged PRs each week, split by project'
-            }
-         >
+         <div role="img" aria-label="PRs opened and PRs merged, each week">
+            <Unit>PRs each week</Unit>
             <ResponsiveContainer width="100%" height={height}>
-               <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+               <BarChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }} barGap={2}>
                   {grid}
-                  <XAxis
-                     dataKey="week"
-                     tickFormatter={weekWords}
-                     tick={axisTick}
-                     tickLine={false}
-                     axisLine={{ stroke: 'var(--border)' }}
-                     minTickGap={16}
-                  />
-                  <YAxis
-                     tick={axisTick}
-                     tickLine={false}
-                     axisLine={false}
-                     width={40}
-                     allowDecimals={false}
-                  />
+                  <XAxis dataKey="week" tickFormatter={weekWords} minTickGap={16} {...xAxisProps} />
+                  <YAxis {...yAxisProps} />
                   <Tooltip content={tip} cursor={{ fill: 'var(--muted)' }} />
-                  {series.map(([key, , color, opacity]) => (
-                     <Bar
-                        key={key}
-                        dataKey={key}
-                        stackId="w"
-                        fill={color}
-                        fillOpacity={opacity}
-                        stroke="var(--surface)"
-                        strokeWidth={1}
-                        isAnimationActive={false}
-                        cursor={pickable(key) ? 'pointer' : undefined}
-                        onClick={pickable(key) ? () => onPick?.(key) : undefined}
-                     />
-                  ))}
+                  <Bar
+                     dataKey="opened"
+                     fill="var(--ink-3)"
+                     radius={[4, 4, 0, 0]}
+                     isAnimationActive={false}
+                  >
+                     {data.map(d => (
+                        <Cell key={d.week} fillOpacity={d.before ? 0.2 : 0.55} />
+                     ))}
+                  </Bar>
+                  <Bar
+                     dataKey="merged"
+                     fill="var(--ok)"
+                     radius={[4, 4, 0, 0]}
+                     isAnimationActive={false}
+                  >
+                     {data.map(d => (
+                        <Cell key={d.week} fillOpacity={d.before ? 0.3 : 1} />
+                     ))}
+                  </Bar>
                </BarChart>
             </ResponsiveContainer>
          </div>
-         <ul className="m-0 mt-2 flex list-none flex-wrap gap-x-3 gap-y-1 p-0 text-[11px] text-ink-2">
-            {series
-               .filter(([key]) => key.startsWith('__') || totals.has(key))
-               .map(([key, name, color, opacity]) => (
-                  <li key={key} className="inline-flex items-center gap-1.5">
-                     <span
-                        aria-hidden
-                        className="h-2.5 w-2.5 rounded-sm"
-                        style={{ background: color, opacity }}
-                     />
-                     {name}
-                  </li>
-               ))}
-         </ul>
+         <Key
+            series={[
+               ['Opened', 'var(--ink-3)', 0.55],
+               ['Merged', 'var(--ok)', 1],
+            ]}
+         />
+      </div>
+   );
+}
+
+/**
+ * Developer-days each week, writing stacked under reviewing, for Look back:
+ * the shape of the whole range, on the same weeks as the rows below it.
+ */
+export function DaysWeeksChart({
+   weeks,
+   writing,
+   reviewing,
+   height = 150,
+}: {
+   /** each week's Monday */
+   weeks: string[];
+   writing: number[];
+   reviewing: number[];
+   height?: number;
+}) {
+   const round = (d: number) => Math.round(d * 10) / 10;
+   const data = weeks.map((week, i) => ({
+      week,
+      writing: round(writing[i]),
+      reviewing: round(reviewing[i]),
+   }));
+   const tip = ({ active, payload, label }: TooltipContentProps) => {
+      const row = payload?.[0]?.payload as typeof data[number] | undefined;
+      if (!active || !row) return null;
+      return (
+         <TipCard
+            title={`Week of ${weekWords(String(label))}`}
+            lines={[
+               ['Writing', row.writing, 'var(--brand)'],
+               ['Reviewing', row.reviewing, 'color-mix(in oklab, var(--brand) 40%, transparent)'],
+            ]}
+         />
+      );
+   };
+   return (
+      <div>
+         <div role="img" aria-label="Developer-days each week, writing and reviewing">
+            <Unit>Developer-days each week</Unit>
+            <ResponsiveContainer width="100%" height={height}>
+               <BarChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                  {grid}
+                  <XAxis dataKey="week" tickFormatter={weekWords} minTickGap={16} {...xAxisProps} />
+                  <YAxis {...yAxisProps} />
+                  <Tooltip content={tip} cursor={{ fill: 'var(--muted)' }} />
+                  <Bar
+                     dataKey="writing"
+                     stackId="d"
+                     fill="var(--brand)"
+                     stroke="var(--surface)"
+                     strokeWidth={2}
+                     isAnimationActive={false}
+                  />
+                  <Bar
+                     dataKey="reviewing"
+                     stackId="d"
+                     fill="var(--brand)"
+                     fillOpacity={0.4}
+                     stroke="var(--surface)"
+                     strokeWidth={2}
+                     radius={[4, 4, 0, 0]}
+                     isAnimationActive={false}
+                  />
+               </BarChart>
+            </ResponsiveContainer>
+         </div>
+         <Key
+            series={[
+               ['Writing, on their own PRs', 'var(--brand)', 1],
+               ['Reviewing, on others’', 'var(--brand)', 0.4],
+            ]}
+         />
       </div>
    );
 }
@@ -482,6 +328,7 @@ export function SplitWeeksChart({
    weeks,
    pick,
    labels,
+   unit,
    ariaLabel,
    height = 160,
 }: {
@@ -489,6 +336,8 @@ export function SplitWeeksChart({
    /** the week's two numbers: developers' first, non-developers' second */
    pick: (w: WeekPoint) => [number, number];
    labels: [string, string];
+   /** what the y-axis counts, e.g. "PRs opened each week" */
+   unit: string;
    ariaLabel: string;
    height?: number;
 }) {
@@ -512,30 +361,20 @@ export function SplitWeeksChart({
    return (
       <div>
          <div role="img" aria-label={ariaLabel}>
+            <Unit>{unit}</Unit>
             <ResponsiveContainer width="100%" height={height}>
-               <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+               <BarChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                   {grid}
-                  <XAxis
-                     dataKey="week"
-                     tickFormatter={weekWords}
-                     tick={axisTick}
-                     tickLine={false}
-                     axisLine={{ stroke: 'var(--border)' }}
-                     minTickGap={16}
-                  />
-                  <YAxis
-                     tick={axisTick}
-                     tickLine={false}
-                     axisLine={false}
-                     width={40}
-                     allowDecimals={false}
-                  />
+                  <XAxis dataKey="week" tickFormatter={weekWords} minTickGap={16} {...xAxisProps} />
+                  <YAxis {...yAxisProps} />
                   <Tooltip content={tip} cursor={{ fill: 'var(--muted)' }} />
                   <Bar
                      dataKey="a"
                      stackId="s"
                      fill={GROUP_COLORS.developers}
                      fillOpacity={0.75}
+                     stroke="var(--surface)"
+                     strokeWidth={2}
                      isAnimationActive={false}
                   />
                   <Bar
@@ -543,26 +382,20 @@ export function SplitWeeksChart({
                      stackId="s"
                      fill={GROUP_COLORS.non_developers}
                      fillOpacity={0.55}
+                     stroke="var(--surface)"
+                     strokeWidth={2}
+                     radius={[4, 4, 0, 0]}
                      isAnimationActive={false}
                   />
                </BarChart>
             </ResponsiveContainer>
          </div>
-         <ul className="m-0 mt-2 flex list-none gap-x-3 p-0 text-[11px] text-ink-2">
-            {labels.map((name, i) => (
-               <li key={name} className="inline-flex items-center gap-1.5">
-                  <span
-                     aria-hidden
-                     className="h-2.5 w-2.5 rounded-sm"
-                     style={{
-                        background: i ? GROUP_COLORS.non_developers : GROUP_COLORS.developers,
-                        opacity: i ? 0.55 : 0.75,
-                     }}
-                  />
-                  {name}
-               </li>
-            ))}
-         </ul>
+         <Key
+            series={[
+               [labels[0], GROUP_COLORS.developers, 0.75],
+               [labels[1], GROUP_COLORS.non_developers, 0.55],
+            ]}
+         />
       </div>
    );
 }
