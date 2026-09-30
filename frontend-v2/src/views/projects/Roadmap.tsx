@@ -620,6 +620,8 @@ function PlanRow({
    // it. Work still running past its plan ends no sooner than today.
    const target = stillPlanned ? linked?.target ?? null : null;
    const due = target?.due_on?.slice(0, 10) ?? null;
+   // a milestone by its title; a Target date on the issue is just a date
+   const targetName = target?.title ? `The milestone ${target.title}` : 'Its target';
    const expectedEnd = over ? today : end;
    const weeksLate =
       due && expectedEnd > due
@@ -728,9 +730,7 @@ function PlanRow({
             key="target"
             onClick={() => onOpenProject(project)}
             className="text-warn"
-            title={`The milestone ${target?.title} is due ${weekWords(
-               due
-            )}. Click to open the project.`}
+            title={`${targetName} is due ${weekWords(due)}. Click to open the project.`}
          >
             {due < today
                ? `missed its ${weekWords(due)} target`
@@ -854,9 +854,7 @@ function PlanRow({
                         // near the right edge, the words go on the flag's left
                         transform: place(due) > 80 ? 'translateX(-100%)' : undefined,
                      }}
-                     title={`The milestone ${target?.title}, due ${weekWords(
-                        due
-                     )}. Click to open the project.`}
+                     title={`${targetName}, due ${weekWords(due)}. Click to open the project.`}
                   >
                      <Icon icon={Flag} size={10} />
                      {weekWords(due)} target

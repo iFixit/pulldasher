@@ -1,6 +1,7 @@
 import { pullKey } from '../../../../shared/format';
 import {
    projectOf,
+   targetOf,
    type ProjectGroup,
    type ProjectWindow,
    type Today,
@@ -282,7 +283,7 @@ export function ProjectPage({
             range={range}
             group={live}
             ongoing={!!project?.ongoing}
-            dueOn={project?.target?.due_on ?? null}
+            dueOn={targetOf(project)?.due_on ?? null}
          />
       </>
    );

@@ -106,6 +106,7 @@ function projectRecords(projects, today, stats, prefix) {
          parents: p ? p.parents : [],
          lead: p ? p.lead : null,
          target: p ? p.target : null,
+         fields: p ? p.fields : null,
          // live and quiet come from Today; a closed issue with no open PR is
          // done or dropped; a slug seen only in the window's history is null
          standing: standing.get(slug) || closedAs,

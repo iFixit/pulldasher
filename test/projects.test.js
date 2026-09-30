@@ -16,6 +16,7 @@ import {
    MAX_WINDOW_DAYS,
 } from '../lib/projects.js';
 import projectsController from '../controllers/projects.js';
+import { fieldsFromNodes } from '../lib/git-manager.js';
 
 const DAY = 86400;
 // 2026-09-29 12:00 UTC
@@ -78,10 +79,41 @@ test('projectsFromRows reads name, lead, target, parents and ongoing off the iss
          parents: ['checkout', 'store'],
          lead: 'lee',
          target: { title: 'October', due_on: '2026-09-29T12:00:00.000Z' },
+         fields: { start: null, target: null, priority: null },
          created_at: null,
          closed_at: null,
       },
    ]);
+});
+
+test('projectsFromRows reads the issue fields GitHub keeps on the issue', () => {
+   const [p] = projectsFromRows(
+      [
+         issueRow({
+            number: 4,
+            field_start: '2026-10-05',
+            field_target: '2026-11-27',
+            field_priority: 'high',
+         }),
+      ],
+      [{ repo: 'test/projects', number: 4, title: 'project:delta' }],
+      'project:'
+   );
+   assert.deepEqual(p.fields, { start: '2026-10-05', target: '2026-11-27', priority: 'high' });
+});
+
+test('fieldsFromNodes keeps the start, target and priority, and nothing else', () => {
+   assert.deepEqual(
+      fieldsFromNodes([
+         { value: '2026-10-05', field: { name: 'Start date' } },
+         { value: '2026-11-27T00:00:00Z', field: { name: 'Target date' } },
+         { name: 'High', value: null, field: { name: 'Priority' } },
+         { name: 'Low', field: { name: 'Effort' } },
+         {},
+      ]),
+      { start: '2026-10-05', target: '2026-11-27', priority: 'high' }
+   );
+   assert.deepEqual(fieldsFromNodes(undefined), { start: null, target: null, priority: null });
 });
 
 test('projectsFromRows fills created_at and closed_at from the issue dates', () => {

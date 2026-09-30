@@ -1,4 +1,4 @@
-import { dayStart, firstOpenDay, utcDay, type Project, type Today } from './projects';
+import { dayStart, firstOpenDay, targetOf, utcDay, type Project, type Today } from './projects';
 import { healthStanding, isUnderWay, planEnd, type RoadmapItem } from './roadmap';
 
 /**
@@ -73,7 +73,7 @@ export function decideProjects(today: Pick<Today, 'live'>): DecideProject[] {
       lastActivity: g.lastActivity,
       open: g.open.length,
       prs: g.open.length + g.merged.length,
-      due: g.project?.target?.due_on?.slice(0, 10) ?? null,
+      due: targetOf(g.project)?.due_on?.slice(0, 10) ?? null,
    }));
 }
 

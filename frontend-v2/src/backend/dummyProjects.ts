@@ -48,6 +48,7 @@ const dummyProject = (
    parents: [],
    lead: null,
    target: null,
+   fields: { start: null, target: null, priority: null },
    created_at: inDays(-60 + number * 3),
    closed_at: over.state === 'closed' ? inDays(-number) : null,
    ...over,
@@ -72,9 +73,15 @@ const BASE_PROJECTS: Project[] = [
       lead: 'rjmccluskey',
       target: { title: 'Security review', due_on: inDays(-5) },
    }),
+   // dated the way GitHub's issue fields date an issue, with no milestone
    dummyProject(5, 'shopify-sync', 'Shopify product and order sync', {
       lead: 'zdmitchell',
       parents: ['store'],
+      fields: {
+         start: inDays(-40).slice(0, 10),
+         target: inDays(20).slice(0, 10),
+         priority: 'high',
+      },
    }),
    dummyProject(6, 'shipping-shelf-weight', 'Ship by shelf weight', {
       parents: ['store', 'warehouse'],

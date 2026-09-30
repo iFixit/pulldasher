@@ -104,7 +104,9 @@ or a job) files the PRs:
   repo or in a projects repo. The issue's title is the project's name, its
   assignee the lead, its milestone (and due date) the target,
   `parent:<slug>` labels its parents (any number), and an `ongoing` label
-  marks work with no end. Close it as completed when it's done, or as not
+  marks work with no end. GitHub's own issue fields show too: its Start
+  date, its Priority, and its Target date, which wins over a milestone,
+  since it's set on that one issue. Close it as completed when it's done, or as not
   planned when it's dropped or merged into another. Labeling an issue is
   also how a project starts before it has a PR. When several issues carry
   one label, the projects repo's wins, then an open one, then the oldest:

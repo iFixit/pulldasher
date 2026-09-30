@@ -116,13 +116,15 @@ module.exports = {
    // label, in any tracked repo or in `repo`: the title is its name, the
    // assignee its lead, the milestone and its due date the rough target,
    // `parent:<slug>` labels its parents (any number), and an `ongoing` label
-   // marks work with no end. Closing the issue as completed means done; as not
-   // planned, dropped or merged into another. When several issues carry one
-   // label, `repo`'s wins, then an open one, then the oldest. Pulldasher only
-   // reads these; something else writes them. `repo` is optional; give it the
-   // same webhook as a tracked repo, and send Issues events in both. Keep label
-   // names to 32 characters with no spaces: that's what the label table and
-   // the filter box hold.
+   // marks work with no end. Its Start date, Target date and Priority issue
+   // fields show too, the Target date ahead of the milestone; `github.token`
+   // above reads them over GraphQL. Closing the issue as completed means
+   // done; as not planned, dropped or merged into another. When several
+   // issues carry one label, `repo`'s wins, then an open one, then the
+   // oldest. Pulldasher only reads these; something else writes them. `repo`
+   // is optional; give it the same webhook as a tracked repo, and send Issues
+   // events in both. Keep label names to 32 characters with no spaces: that's
+   // what the label table and the filter box hold.
    projects: {
       repo: 'owner/projects',
       labelPrefix: 'project:',

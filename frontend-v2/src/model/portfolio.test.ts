@@ -31,6 +31,7 @@ function project(slug: string, over: Partial<Project> = {}): Project {
       parents: [],
       lead: null,
       target: null,
+      fields: { start: null, target: null, priority: null },
       created_at: null,
       closed_at: null,
       ...over,

@@ -2,9 +2,11 @@ import type { ReactNode } from 'react';
 import { issueUrl, shortRepo } from '../../../../shared/format';
 import {
    projectName,
+   targetOf,
    type Project,
    type ProjectFlag,
    type ProjectGroup,
+   type ProjectTarget,
    type WindowCounts,
 } from '../../../../shared/model/projects';
 import { ORIGIN_WORD, ROADMAP_ORIGINS, type RoadmapOrigin } from '../../../../shared/model/roadmap';
@@ -131,10 +133,10 @@ export function PeopleStack({ logins, size = 16 }: { logins: string[]; size?: nu
 }
 
 /** "Oct 31", or the milestone's title when it has no due date. */
-function targetWords(target: NonNullable<Project['target']>): string {
-   if (!target.due_on) return target.title;
+function targetWords(target: ProjectTarget): string {
+   if (!target.due_on) return target.title ?? '';
    const due = dayWords(target.due_on);
-   return target.title === due ? due : `${target.title}, due ${due}`;
+   return !target.title || target.title === due ? due : `${target.title}, due ${due}`;
 }
 
 /**
@@ -173,8 +175,14 @@ export function ProjectFacts({
             </span>
          );
       }
-      if (project.target)
-         facts.push(<span key="target">Target {targetWords(project.target)}</span>);
+      const target = targetOf(project);
+      if (target) facts.push(<span key="target">Target {targetWords(target)}</span>);
+      if (project.fields.start) {
+         facts.push(<span key="start">Starts {dayWords(project.fields.start)}</span>);
+      }
+      if (project.fields.priority) {
+         facts.push(<span key="priority">Priority {project.fields.priority}</span>);
+      }
       if (project.parents.length) {
          facts.push(<span key="parents">Part of {project.parents.join(', ')}</span>);
       }

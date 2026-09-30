@@ -7,6 +7,7 @@ import {
    projectOf,
    projectSlugs,
    windowStats,
+   targetOf,
    type Project,
    type PullSpan,
 } from '../../../shared/model/projects';
@@ -60,11 +61,26 @@ function project(over: Partial<Project> & { slug: string }): Project {
       parents: [],
       lead: null,
       target: null,
+      fields: { start: null, target: null, priority: null },
       created_at: null,
       closed_at: null,
       ...over,
    };
 }
+
+describe('targetOf', () => {
+   it('takes the issue’s Target date over its milestone', () => {
+      const milestone = { title: 'October', due_on: '2026-10-31T00:00:00Z' };
+      const fields = { start: null, target: null, priority: null };
+      expect(targetOf({ target: milestone, fields })).toBe(milestone);
+      expect(targetOf({ target: milestone, fields: { ...fields, target: '2026-11-27' } })).toEqual({
+         title: null,
+         due_on: '2026-11-27',
+      });
+      expect(targetOf({ target: null, fields })).toBeNull();
+      expect(targetOf(null)).toBeNull();
+   });
+});
 
 describe('projectSlugs / projectOf', () => {
    it('reads project labels in sorted order and skips the bare prefix', () => {

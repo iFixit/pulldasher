@@ -77,15 +77,17 @@ const num = (n: number | null | undefined) => (n == null ? '' : n);
 
 function targetCell(item: PortfolioItem): ReactNode {
    if (!item.target) return '';
-   const due = item.target.due_on ? dayWords(item.target.due_on) : item.target.title;
+   // a milestone by its title; a Target date on the issue is just a date
+   const name = item.target.title ?? 'the target date';
+   const due = item.target.due_on ? dayWords(item.target.due_on) : name;
    const open = item.status === 'live' || item.status === 'quiet';
    const late = open && item.dueInDays != null && item.dueInDays < 0;
    const when =
       item.dueInDays == null
-         ? item.target.title
+         ? name
          : late
-         ? `${-item.dueInDays} days past ${item.target.title}`
-         : `${item.target.title}, in ${item.dueInDays} days`;
+         ? `${-item.dueInDays} days past ${name}`
+         : `${name}, in ${item.dueInDays} days`;
    // past due on a project still open is the one thing here someone owes
    return (
       <span className={late ? 'text-warn' : undefined} title={when}>

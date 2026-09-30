@@ -42,10 +42,28 @@ export interface Project {
    ongoing: boolean;
    parents: string[];
    lead: string | null;
+   /** its milestone */
    target: { title: string; due_on: string | null } | null;
+   /** GitHub's issue fields on it: the Start date and Target date days
+    * (YYYY-MM-DD) and the Priority, lowercased; null for one not set */
+   fields: { start: string | null; target: string | null; priority: string | null };
    /** when the issue was opened and closed (ISO); null when not known or open */
    created_at: string | null;
    closed_at: string | null;
+}
+
+/** A project's target: its issue's Target date field, which says it for
+ * that one issue, or else its milestone. `title` is the milestone's, null
+ * for a Target date. */
+export interface ProjectTarget {
+   title: string | null;
+   due_on: string | null;
+}
+export function targetOf(
+   p: Pick<Project, 'target' | 'fields'> | null | undefined
+): ProjectTarget | null {
+   if (p?.fields?.target) return { title: null, due_on: p.fields.target };
+   return p?.target ?? null;
 }
 
 /** Every project slug a PR's labels name, sorted so every reader agrees. */

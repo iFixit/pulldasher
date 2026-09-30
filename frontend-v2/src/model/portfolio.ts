@@ -1,9 +1,11 @@
 import {
    MISC_SLUG,
    projectName,
+   targetOf,
    type Project,
    type ProjectFlag,
    type ProjectGroup,
+   type ProjectTarget,
    type ProjectWindow,
    type Today,
    type WeekPoint,
@@ -36,7 +38,8 @@ export interface PortfolioItem {
    group: ProjectGroup | null;
    status: ProjectStatus;
    lead: string | null;
-   target: Project['target'];
+   /** its issue's Target date, or else its milestone (projects.ts targetOf) */
+   target: ProjectTarget | null;
    /** whole days until the target's due date, negative once it's past */
    dueInDays: number | null;
    /** parent slugs, from the issue's parent: labels */
@@ -86,7 +89,8 @@ export function portfolioItems(
                : 'done'
             : 'quiet');
       const people = group?.people ?? [];
-      const due = project?.target?.due_on ? Date.parse(project.target.due_on) : NaN;
+      const target = targetOf(project);
+      const due = target?.due_on ? Date.parse(target.due_on) : NaN;
       return {
          slug,
          name: group ? projectName(group) : project?.name ?? slug,
@@ -94,7 +98,7 @@ export function portfolioItems(
          group,
          status,
          lead: project?.lead ?? null,
-         target: project?.target ?? null,
+         target,
          dueInDays: Number.isNaN(due) ? null : Math.ceil((due - now) / DAY_MS),
          parents: project?.parents ?? [],
          open: group?.open.length ?? 0,
