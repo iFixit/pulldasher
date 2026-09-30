@@ -187,7 +187,8 @@ export function buildToday(
       g.people = [...prs.keys()].sort(
          (a, b) => (prs.get(b) ?? 0) - (prs.get(a) ?? 0) || a.localeCompare(b)
       );
-      const updates = g.open.map(p => epoch(p.data.updated_at));
+      // real work only: updated_at moves on any label edit
+      const updates = g.open.map(p => epoch(p.data.status?.activity_at ?? p.data.updated_at));
       g.idleDays = updates.length ? Math.floor((now - Math.min(...updates)) / DAY) : null;
       const activity = [...updates, ...g.merged.map(p => epoch(p.merged_at ?? ''))];
       g.lastActivity = activity.length ? Math.max(...activity) : null;

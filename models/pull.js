@@ -218,9 +218,26 @@ class Pull {
          // frontends ignore unknown status fields, so this is safe to ship
          // unconditionally.
          unstamped_reviewers: this.collectUnstampedReviewers(),
+         activity_at: this.activityAt(),
       };
 
       return status;
+   }
+
+   /**
+    * The newest real work on this PR: opened, pushed, a person's comment,
+    * stamp or review, or merged. Not updated_at, which any label edit moves,
+    * so one labeling pass once read as every project moving that morning
+    * and hid every stall. Bots don't count.
+    */
+   activityAt() {
+      const times = [this.data.created_at, this.data.date_pushed, this.data.merged_at];
+      const people = list => list.filter(x => !isBot(x.data.user.login));
+      for (const c of people(this.comments)) times.push(c.data.created_at);
+      for (const s of people(this.signatures)) times.push(s.data.created_at);
+      for (const r of people(this.reviews)) times.push(r.data.submitted_at);
+      const epochs = times.map(t => (t ? new Date(t).getTime() : NaN)).filter(Number.isFinite);
+      return epochs.length ? new Date(Math.max(...epochs)) : null;
    }
 
    /**
@@ -273,6 +290,9 @@ class Pull {
          draft: data.draft,
          created_at: utils.fromDateString(data.created_at),
          updated_at: utils.fromDateString(data.updated_at),
+         // only a full refresh knows it (git-manager's parse); a webhook's
+         // body doesn't, and DBPull then keeps the stored one
+         date_pushed: utils.fromDateString(data.date_pushed),
          closed_at: utils.fromDateString(data.closed_at),
          mergeable: data.mergeable,
          merged_at: utils.fromDateString(data.merged_at),
@@ -381,6 +401,7 @@ class Pull {
          draft: data.draft === 1,
          created_at: utils.fromUnixTime(data.date),
          updated_at: utils.fromUnixTime(data.date_updated),
+         date_pushed: utils.fromUnixTime(data.date_pushed),
          closed_at: utils.fromUnixTime(data.date_closed),
          // mysql2 hands back tinyint(1) as a raw 0/1/null, but the wire
          // contract (and the shared derive, client and server) treats

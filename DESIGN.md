@@ -452,7 +452,10 @@ icon with a class bolted on.
   next row never slides under the pointer between two clicks; it stays
   after a trip to a project page and back. Every plan still under way is
   judged on its own, and closing a project's issue counts as a decision,
-  so the two records can't quietly disagree. Decide weighs every project
+  so the two records can't quietly disagree. Activity means real work (a
+  push, a person's comment, stamp or review, opening or merging), never
+  GitHub's updated_at: a label edit moves that, and one labeling pass once
+  made every project look worked on that morning and hid every stall. Decide weighs every project
   whatever the filter bar narrows the other views to, since a project
   whose PRs are filtered out would otherwise look finished. A team switch
   gives each team's lead their own rows. The tab's label counts what's

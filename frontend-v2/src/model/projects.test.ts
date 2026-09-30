@@ -25,6 +25,8 @@ function open(over: {
    status?: Status;
    ageDays?: number;
    idleDays?: number;
+   /** days since real work, when the server says (status.activity_at) */
+   workedDays?: number;
 }): DerivedPull {
    return {
       status: over.status ?? 'needs_cr',
@@ -35,6 +37,8 @@ function open(over: {
          labels: labels(...(over.labels ?? [])),
          created_at: iso(NOW - (over.ageDays ?? 1) * DAY),
          updated_at: iso(NOW - (over.idleDays ?? 0) * DAY),
+         status:
+            over.workedDays == null ? undefined : { activity_at: iso(NOW - over.workedDays * DAY) },
       },
    } as unknown as DerivedPull;
 }
@@ -111,6 +115,14 @@ describe('buildToday', () => {
          ['search', 1],
          ['workbench', 1],
       ]);
+   });
+
+   it('counts idle days from real work, not from a label edit that moved updated_at', () => {
+      // labeled this morning (updated_at today), last worked on 30 days ago
+      const pr = open({ labels: ['project:stale'], idleDays: 0, workedDays: 30 });
+      const [g] = buildToday([project({ slug: 'stale' })], [pr], [], P, NOW).live;
+      expect(g.idleDays).toBe(30);
+      expect(g.lastActivity).toBe(NOW - 30 * DAY);
    });
 
    it('keeps a project live on a merge in the last 14 days, but not an older one', () => {
