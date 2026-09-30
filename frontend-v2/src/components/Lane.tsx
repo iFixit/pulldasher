@@ -219,8 +219,9 @@ const expandedIds = new Set<string>();
 
 /**
  * The one truncation behavior: show `cap` items and a working "+ N more"
- * button. Every capped list in the app goes through this — a count the user
- * can see but not open is a lie.
+ * button, and once open, a "Show fewer" that folds them back. Every capped
+ * list in the app goes through this — a count the user can see but not open
+ * is a lie.
  */
 export function Truncated({
    children,
@@ -242,6 +243,11 @@ export function Truncated({
       setExpanded(true);
       setJustExpanded(true);
       if (id) expandedIds.add(id);
+   };
+   const collapse = () => {
+      setExpanded(false);
+      setJustExpanded(false);
+      if (id) expandedIds.delete(id);
    };
    const base = children.slice(0, cap);
    const extra = expanded ? children.slice(cap) : [];
@@ -266,6 +272,15 @@ export function Truncated({
                className="pressable block w-full border-t border-secondary bg-muted/50 px-3.5 py-[9px] text-left text-xs font-medium text-ink-2 hover:text-brand"
             >
                + {more} {label}
+            </button>
+         )}
+         {extra.length > 0 && (
+            <button
+               type="button"
+               onClick={collapse}
+               className="pressable block w-full border-t border-secondary bg-muted/50 px-3.5 py-[9px] text-left text-xs font-medium text-ink-2 hover:text-brand"
+            >
+               Show fewer
             </button>
          )}
       </>
