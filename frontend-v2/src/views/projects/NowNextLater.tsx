@@ -8,6 +8,7 @@ import {
 } from '../../../../shared/model/roadmap';
 import { eyebrowText } from '../../components/Lane';
 import type { PortfolioItem } from '../../model/portfolio';
+import { dayWords } from '../../model/projectData';
 import { healthWords, planWords } from './roadmapHealth';
 
 const BUCKETS: ['now' | 'next' | 'later', string, string][] = [
@@ -15,13 +16,6 @@ const BUCKETS: ['now' | 'next' | 'later', string, string][] = [
    ['next', 'Next', `Starting in the next ${NEXT_WEEKS} weeks`],
    ['later', 'Later', 'Further out'],
 ];
-
-const dayWords = (day: string) =>
-   new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      timeZone: 'UTC',
-   });
 
 function Card({
    item,

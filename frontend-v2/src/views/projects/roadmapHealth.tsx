@@ -12,7 +12,7 @@ import {
    type RoadmapUpdate,
 } from '../../../../shared/model/roadmap';
 import { Segmented } from '../../components/bits';
-import { dayOf, useProjectsData } from '../../model/projectData';
+import { dayOf, dayWords, useProjectsData } from '../../model/projectData';
 import { loadRoadmapUpdates, postRoadmapUpdate, useRoadmap } from '../../model/roadmapData';
 import { StatsCard } from '../stats/parts';
 import type { Navigate } from './parts';
@@ -26,14 +26,6 @@ export const HEALTH_WORD: Record<RoadmapHealth, string> = {
 /** An epoch-secs moment as its day, "Sep 22". */
 const when = (at: number) =>
    new Date(at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-
-/** A YYYY-MM-DD day in words, read as UTC so it never shifts a day. */
-const dayWords = (day: string) =>
-   new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      timeZone: 'UTC',
-   });
 
 export function planWords(plan: { start: string; weeks: number }): string {
    return `${dayWords(plan.start)} to ${dayWords(planEnd(plan))}, ${n(plan.weeks, 'week')}`;

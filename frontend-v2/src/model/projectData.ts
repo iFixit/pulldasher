@@ -68,6 +68,17 @@ export function dayOf(date: Date): string {
    return `${date.getFullYear()}-${m}-${d}`;
 }
 
+/** A YYYY-MM-DD day in words, "Sep 22", read as UTC so it never shifts a
+ * day. Milestone due dates go through here as their UTC day, the way the
+ * board has always shown them (StatePopover, the CSV). */
+export function dayWords(day: string): string {
+   return new Date(`${day.slice(0, 10)}T00:00:00Z`).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      timeZone: 'UTC',
+   });
+}
+
 /** A YYYY-MM-DD day as a local Date at midnight, for the calendar. */
 export function dateOf(day: string): Date {
    const [y, m, d] = day.split('-').map(Number);

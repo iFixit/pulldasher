@@ -18,6 +18,7 @@ import {
    type PortfolioItem,
    type SortKey,
 } from '../../model/portfolio';
+import { dayWords } from '../../model/projectData';
 import { FlagWords, PageLink, ProjectFacts, type Navigate, type ProjectsNav } from './parts';
 
 interface Column {
@@ -35,12 +36,7 @@ const num = (n: number | null | undefined) => (n == null ? '' : n);
 
 function targetCell(item: PortfolioItem): ReactNode {
    if (!item.target) return '';
-   const due = item.target.due_on
-      ? new Date(item.target.due_on).toLocaleDateString(undefined, {
-           month: 'short',
-           day: 'numeric',
-        })
-      : item.target.title;
+   const due = item.target.due_on ? dayWords(item.target.due_on) : item.target.title;
    const open = item.status === 'live' || item.status === 'quiet';
    const late = open && item.dueInDays != null && item.dueInDays < 0;
    const when =

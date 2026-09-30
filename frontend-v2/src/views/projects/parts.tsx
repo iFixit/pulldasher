@@ -9,6 +9,7 @@ import {
    type WindowCounts,
 } from '../../../../shared/model/projects';
 import { Avatar } from '../../components/identity';
+import { dayWords } from '../../model/projectData';
 
 /** What the Projects tab keeps in the URL hash, beside the lens. */
 export interface ProjectsNav {
@@ -102,10 +103,7 @@ export function PeopleStack({ logins, size = 16 }: { logins: string[]; size?: nu
 /** "Oct 31", or the milestone's title when it has no due date. */
 function targetWords(target: NonNullable<Project['target']>): string {
    if (!target.due_on) return target.title;
-   const due = new Date(target.due_on).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-   });
+   const due = dayWords(target.due_on);
    return target.title === due ? due : `${target.title}, due ${due}`;
 }
 

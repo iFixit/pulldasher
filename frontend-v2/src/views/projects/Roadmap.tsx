@@ -27,7 +27,7 @@ import { Segmented, textInputClass } from '../../components/bits';
 import { Icon } from '../../components/Icon';
 import { eyebrowText, Rows } from '../../components/Lane';
 import { useArmedConfirm } from '../../components/useArmedConfirm';
-import { dayOf, useProjectsData, type Range } from '../../model/projectData';
+import { dayOf, dayWords, useProjectsData, type Range } from '../../model/projectData';
 import { mainTeam, type PortfolioItem } from '../../model/portfolio';
 import {
    createRoadmapItem,
@@ -117,12 +117,7 @@ const BAR_STYLE: Record<RoadmapStatus, { background: string; borderColor: string
    },
 };
 
-const weekWords = (day: string) =>
-   new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      timeZone: 'UTC',
-   });
+const weekWords = dayWords;
 
 /** What a linked project's PRs actually did: first PR to last merge, or to
  * today while it's open. From the horizon's own history, so a project that

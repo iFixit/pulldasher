@@ -13,6 +13,7 @@ import {
    type TooltipContentProps,
 } from 'recharts';
 import type { DayPoint, WeekPoint, WindowCounts } from '../../../../shared/model/projects';
+import { dayWords } from '../../model/projectData';
 
 /**
  * The Projects tab's charts, on Recharts. It draws SVG, so every color here
@@ -49,14 +50,6 @@ function veilBefore(days: { date: string }[], picked: DayRange | undefined, band
          strokeOpacity={0}
       />
    );
-}
-
-export function dayWords(day: string): string {
-   return new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      timeZone: 'UTC',
-   });
 }
 
 /** The one tooltip look: the point's title, then a dot, a name and a number per line. */
