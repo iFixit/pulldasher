@@ -259,17 +259,27 @@ export function dismissRoadmapProblem(): void {
    store.set({ ...store.get(), problem: null });
 }
 
-/** The roadmap, loaded now and kept fresh while a view shows it. */
-export function useRoadmap(): RoadmapState {
-   useEffect(() => {
+// One refresh for however many views show the roadmap: the first to mount
+// loads it and starts the timer, the last to unmount stops it.
+let watchers = 0;
+let timer: number | undefined;
+const reload = () => void loadRoadmap();
+
+function watch(): () => void {
+   if (watchers++ === 0) {
       void loadRoadmap();
-      const every = setInterval(() => void loadRoadmap(), 60_000);
-      const onFocus = () => void loadRoadmap();
-      window.addEventListener('focus', onFocus);
-      return () => {
-         clearInterval(every);
-         window.removeEventListener('focus', onFocus);
-      };
-   }, []);
+      timer = window.setInterval(reload, 60_000);
+      window.addEventListener('focus', reload);
+   }
+   return () => {
+      if (--watchers > 0) return;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', reload);
+   };
+}
+
+/** The roadmap, loaded now and kept fresh while any view shows it. */
+export function useRoadmap(): RoadmapState {
+   useEffect(watch, []);
    return store.useValue();
 }
