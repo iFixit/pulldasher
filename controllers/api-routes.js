@@ -9,6 +9,7 @@ import {
    ROADMAP_STATUSES,
    DECIDE_MIN_PRS,
    STALL_DAYS,
+   UPDATE_DUE_DAYS,
    WAITS_ON_MAX,
 } from '../shared/dist/index.js';
 
@@ -45,6 +46,14 @@ export const API_ROUTES = [
       path: '/api/v1/people',
       handlers: [projectsController.getPeople],
       does: "Per person: team, the window's numbers, reviews given, live projects, open PRs; same ?start=&end=",
+   },
+   {
+      method: 'get',
+      path: '/api/v1/updates-owed',
+      handlers: [roadmapController.owed],
+      does:
+         'The leads who owe an update, each with the plans in progress they have not updated for ' +
+         `${UPDATE_DUE_DAYS} days, longest overdue first: what a reminder would send each of them`,
    },
    {
       method: 'get',

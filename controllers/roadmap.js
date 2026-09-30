@@ -10,7 +10,12 @@ import {
    reorderItems,
    updateItem,
 } from '../lib/roadmap.js';
-import { checkRoadmapFields, checkRoadmapUpdate, waitsOnProblem } from '../shared/dist/index.js';
+import {
+   checkRoadmapFields,
+   checkRoadmapUpdate,
+   updatesOwed,
+   waitsOnProblem,
+} from '../shared/dist/index.js';
 
 const FAKE_USER = process.env.MOCK_AUTH_AS_USER;
 
@@ -64,6 +69,33 @@ export default {
          res,
          listItems().then(items => ({ items })),
          'roadmap query failed'
+      );
+   },
+
+   /**
+    * GET /api/v1/updates-owed -- the leads who owe an update, each with the
+    * plans in progress they haven't updated for UPDATE_DUE_DAYS, longest
+    * overdue first: what a reminder would send each of them.
+    */
+   owed: function (req, res) {
+      const now = Math.floor(Date.now() / 1000);
+      respondOrError(
+         res,
+         listItems().then(items => ({
+            server_time: now,
+            leads: updatesOwed(items, now).map(({ lead, owed }) => ({
+               lead,
+               plans: owed.map(({ item, kind, days }) => ({
+                  id: item.id,
+                  name: item.name,
+                  project: item.project,
+                  // never updated, or not for a while
+                  owes: kind === 'missing' ? 'a first update' : 'a new update',
+                  days,
+               })),
+            })),
+         })),
+         'updates query failed'
       );
    },
 

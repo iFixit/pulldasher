@@ -87,6 +87,7 @@ function makeApp() {
       next();
    });
    app.get('/roadmap', roadmapController.list);
+   app.get('/updates-owed', roadmapController.owed);
    app.post('/roadmap', canWrite, roadmapController.create);
    app.put('/roadmap/order', canWrite, roadmapController.reorder);
    app.patch('/roadmap/:id', canWrite, roadmapController.update);
@@ -209,6 +210,40 @@ test('an edit changes only what was sent, and 404s an unknown item', async () =>
    assert.equal(edited.body.item.name, 'Grafana');
    assert.equal((await call('PATCH', '/roadmap/99', { weeks: 5 })).status, 404);
    assert.equal((await call('PATCH', '/roadmap/abc', { weeks: 5 })).status, 400);
+});
+
+test('updates-owed lists each lead’s plans in progress with no update for two weeks', async () => {
+   const old = Date.UTC(2026, 0, 5) / 1000;
+   const row = (id, lead, status) => ({
+      id,
+      name: `Plan ${id}`,
+      project: null,
+      team: null,
+      lead_login: lead,
+      status,
+      origin: null,
+      start: '2026-01-05',
+      weeks: 60,
+      priority: id,
+      notes: '',
+      waits_on: null,
+      updated_by: lead,
+      updated_at: old,
+      created_at: old,
+   });
+   rows.push(row(91, 'dana', 'active'), row(92, 'dana', 'planned'), row(93, null, 'active'));
+   const { status, body } = await call('GET', '/updates-owed');
+   assert.equal(status, 200);
+   const mine = body.leads.filter(l => l.plans.some(p => p.id >= 91));
+   // a plan not started yet owes nothing; one with no lead still owes, last
+   assert.deepEqual(
+      mine.map(l => [l.lead, l.plans.map(p => [p.id, p.owes])]),
+      [
+         ['dana', [[91, 'a first update']]],
+         [null, [[93, 'a first update']]],
+      ]
+   );
+   rows = rows.filter(r => r.id < 91);
 });
 
 test('origin says where the work came from, and null clears it', async () => {

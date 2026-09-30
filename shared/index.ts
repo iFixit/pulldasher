@@ -59,10 +59,12 @@ export {
    moveBefore,
    planEnd,
    planFor,
+   updatesOwed,
    MAX_WEEKS,
    ROADMAP_HEALTHS,
    ROADMAP_ORIGINS,
    ROADMAP_STATUSES,
+   UPDATE_DUE_DAYS,
    WAITS_ON_MAX,
    waitsOnProblem,
 } from './model/roadmap';

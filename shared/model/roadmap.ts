@@ -350,6 +350,43 @@ export type HealthStanding =
    | { kind: 'current'; update: RoadmapUpdate }
    | { kind: 'stale'; update: RoadmapUpdate; days: number };
 
+/** One plan whose lead owes an update: `days` since the last one, or since
+ * the plan started or was added when there's none. */
+export interface OwedUpdate {
+   item: RoadmapItem;
+   kind: 'missing' | 'stale';
+   days: number;
+}
+
+/**
+ * The updates owed now, by lead, for a reminder to send: every plan in
+ * progress with no update for UPDATE_DUE_DAYS (healthStanding's missing or
+ * stale), each lead's longest overdue first, and the lead owing the most
+ * first. Plans with no lead come last, under null: someone still owes them.
+ */
+export function updatesOwed(
+   items: readonly RoadmapItem[],
+   now: number
+): { lead: string | null; owed: OwedUpdate[] }[] {
+   const byLead = new Map<string | null, OwedUpdate[]>();
+   for (const item of items) {
+      const standing = healthStanding(item, now);
+      if (standing.kind !== 'missing' && standing.kind !== 'stale') continue;
+      const from = Math.max(dayStart(item.start) as number, item.created_at ?? 0);
+      const days = standing.kind === 'stale' ? standing.days : Math.floor((now - from) / DAY);
+      const lead = item.lead;
+      byLead.set(lead, [...(byLead.get(lead) ?? []), { item, kind: standing.kind, days }]);
+   }
+   return [...byLead]
+      .map(([lead, owed]) => ({ lead, owed: owed.sort((a, b) => b.days - a.days) }))
+      .sort(
+         (a, b) =>
+            Number(a.lead == null) - Number(b.lead == null) ||
+            b.owed.length - a.owed.length ||
+            (a.lead ?? '').localeCompare(b.lead ?? '')
+      );
+}
+
 export function healthStanding(
    item: Pick<RoadmapItem, 'status' | 'start' | 'update' | 'created_at'>,
    now: number = Date.now() / 1000

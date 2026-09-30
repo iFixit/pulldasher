@@ -14,6 +14,7 @@ import {
    planEnd,
    planFor,
    ROADMAP_ORIGINS,
+   updatesOwed,
    type RoadmapItem,
    type RoadmapUpdate,
    waitsOnProblem,
@@ -131,6 +132,65 @@ describe('updates', () => {
       expect(
          healthStanding({ ...active, created_at: now - 3 * 86400, update: null }, now).kind
       ).toBe('quiet');
+   });
+});
+
+describe('updatesOwed', () => {
+   const NOW = dayStart('2026-09-30') as number;
+   const DAY = 86400;
+   const item = (id: number, over: Partial<RoadmapItem>): RoadmapItem => ({
+      id,
+      name: `Item ${id}`,
+      project: null,
+      team: null,
+      lead: null,
+      status: 'active',
+      origin: null,
+      start: '2026-06-01',
+      weeks: 30,
+      priority: id,
+      notes: '',
+      waits_on: [],
+      updated_by: null,
+      updated_at: null,
+      created_at: null,
+      update: null,
+      ...over,
+   });
+   const update = (daysAgo: number) => ({
+      id: 1,
+      item_id: 1,
+      health: 'on_track' as const,
+      body: '',
+      plan_start: '2026-06-01',
+      plan_weeks: 30,
+      author: 'x',
+      at: NOW - daysAgo * DAY,
+   });
+
+   it('lists each lead’s overdue plans, the most owed first, no lead last', () => {
+      const owed = updatesOwed(
+         [
+            item(1, { lead: 'dana', update: update(20) }),
+            item(2, { lead: 'erin', update: update(30) }),
+            item(3, { lead: 'erin' }),
+            item(4, { lead: 'dana', update: update(3) }),
+            item(5, {}),
+            item(6, { lead: 'finn', status: 'planned' }),
+         ],
+         NOW
+      );
+      expect(owed.map(o => [o.lead, o.owed.map(x => [x.item.id, x.kind, x.days])])).toEqual([
+         [
+            'erin',
+            [
+               [3, 'missing', 121],
+               [2, 'stale', 30],
+            ],
+         ],
+         ['dana', [[1, 'stale', 20]]],
+         [null, [[5, 'missing', 121]]],
+      ]);
    });
 });
 

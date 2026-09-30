@@ -215,7 +215,12 @@ curl -s -H "Authorization: Bearer $(gh auth token)" https://pulldasher.example.c
   most 400), and `project=<slug>` narrows the numbers to one project.
 - `GET /api/v1/decide`: the calls owed now, worst first, each with its
   project, its roadmap item if it has one, and its reasons. `GET /api/v1`
-  says what each reason means and which write clears it.
+  says what each reason means and which write clears it. It also names who
+  runs Decide this week and next.
+- `GET /api/v1/updates-owed`: each lead who owes an update, with their
+  plans in progress that have gone 14 days without one, longest overdue
+  first. It's what a weekly reminder would send each lead; nothing sends
+  it yet.
 - `GET /api/v1/load`: projects in flight each week against the developer
   count, on the roadmap and not, with the weeks after this one counted as
   if nothing changes. `start` and `end` as above (default: 12 weeks back to
