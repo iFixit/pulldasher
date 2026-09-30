@@ -15,6 +15,7 @@ import statsController from './controllers/stats.js';
 import userNamesController from './controllers/user-names.js';
 import apiController from './controllers/api.js';
 import projectsController from './controllers/projects.js';
+import roadmapController, { canWrite } from './controllers/roadmap.js';
 import { projectSettings } from './lib/projects.js';
 import apiAuth from './lib/api-auth.js';
 import Debug from './lib/debug.js';
@@ -70,6 +71,13 @@ app.get('/token', mainController.getToken);
 app.get('/stats-history', statsController.getHistory);
 app.get('/user-names', userNamesController.getNames);
 app.get('/projects-data', projectsController.getBoardData);
+// the roadmap is the one part of the Projects tab people edit here: reads are
+// gated like the other board data (lib/authentication.js), writes by canWrite
+app.get('/roadmap', roadmapController.list);
+app.post('/roadmap', canWrite, roadmapController.create);
+app.put('/roadmap/order', canWrite, roadmapController.reorder);
+app.patch('/roadmap/:id', canWrite, roadmapController.update);
+app.delete('/roadmap/:id', canWrite, roadmapController.remove);
 app.post('/hooks/main', hooksController.main);
 
 // /api/v1: machine-to-machine JSON for the review skills, Bearer-authed with
@@ -80,6 +88,7 @@ app.get('/api/v1/me', apiAuth, apiController.getMe);
 app.get('/api/v1/pulls', apiAuth, apiController.getPulls);
 app.get('/api/v1/projects', apiAuth, projectsController.getProjects);
 app.get('/api/v1/people', apiAuth, projectsController.getPeople);
+app.get('/api/v1/roadmap', apiAuth, roadmapController.list);
 
 // Warm the bot-login cache (used to tell a pulldasher claim apart from a
 // GitHub-UI self-request) before any webhook or socket traffic needs it.
