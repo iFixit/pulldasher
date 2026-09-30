@@ -9,8 +9,14 @@ import { dayStart, utcDay } from './projects';
  * code yet. Pure, so the server's checks and the board's are the same code.
  */
 
-export type RoadmapStatus = 'planned' | 'active' | 'done' | 'dropped';
-export const ROADMAP_STATUSES: RoadmapStatus[] = ['planned', 'active', 'done', 'dropped'];
+/** parked: a decision to stop for now without dropping it; it leaves the
+ * load until someone picks it back up */
+export type RoadmapStatus = 'planned' | 'active' | 'parked' | 'done' | 'dropped';
+export const ROADMAP_STATUSES: RoadmapStatus[] = ['planned', 'active', 'parked', 'done', 'dropped'];
+
+/** No longer under way: finished, dropped, or parked for now. */
+export const isStopped = (status: RoadmapStatus) =>
+   status === 'done' || status === 'dropped' || status === 'parked';
 
 /** How the work is going, in the words a lead would use in standup. */
 export type RoadmapHealth = 'on_track' | 'at_risk' | 'off_track';
@@ -231,7 +237,9 @@ export function blockersOf(
       const other = byId.get(id);
       if (!other) return [];
       const clash =
-         other.status === 'dropped' || (other.status !== 'done' && item.start <= planEnd(other));
+         other.status === 'dropped' ||
+         other.status === 'parked' ||
+         (other.status !== 'done' && item.start <= planEnd(other));
       return [{ item: other, clash }];
    });
 }
@@ -283,7 +291,7 @@ export function healthStanding(
    item: Pick<RoadmapItem, 'status' | 'start' | 'update'>,
    now: number = Date.now() / 1000
 ): HealthStanding {
-   if (item.status === 'done' || item.status === 'dropped') return { kind: 'quiet' };
+   if (isStopped(item.status)) return { kind: 'quiet' };
    const active = item.status === 'active';
    const u = item.update;
    if (!u) {
@@ -343,7 +351,7 @@ export function bucketOf(
    item: Pick<RoadmapItem, 'status' | 'start'>,
    today: string
 ): 'now' | 'next' | 'later' | null {
-   if (item.status === 'done' || item.status === 'dropped') return null;
+   if (isStopped(item.status)) return null;
    if (item.status === 'active' || item.start <= today) return 'now';
    return item.start <= addWeeks(today, NEXT_WEEKS) ? 'next' : 'later';
 }

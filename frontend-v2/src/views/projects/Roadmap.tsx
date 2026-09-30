@@ -108,6 +108,10 @@ const BAR_STYLE: Record<RoadmapStatus, { background: string; borderColor: string
       background: 'color-mix(in oklab, var(--ink-3) 15%, transparent)',
       borderColor: 'color-mix(in oklab, var(--ink-3) 40%, transparent)',
    },
+   parked: {
+      background: 'transparent',
+      borderColor: 'color-mix(in oklab, var(--ink-3) 55%, transparent)',
+   },
 };
 
 const weekWords = dayWords;
@@ -551,6 +555,7 @@ const BAR_TEXT: Record<RoadmapStatus, string> = {
    active: 'var(--ink)',
    done: 'var(--ink)',
    dropped: 'var(--ink-3)',
+   parked: 'var(--ink-3)',
 };
 
 /**

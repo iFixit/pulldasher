@@ -145,6 +145,8 @@ The tab has three views and a page per project:
   - A linked plan still in flight past its end grows an amber "+3 wk over";
     its project's milestone is a flag with its date. An item can wait on
     others, and says so when its plan starts before one of them ends.
+    Parked work is stopped for now without being dropped, and leaves the
+    load.
   - Each item takes updates: on track, at risk or off track, and a note,
     kept as a history. Work in progress with no update for 14 days is
     flagged. The roadmap is the one thing the tab stores itself, in the

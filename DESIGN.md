@@ -337,8 +337,8 @@ icon with a class bolted on.
   its right edge to change the length. Every drag has a keyboard twin:
   arrows on the grip reorder, arrows on a focused bar move it a week, and
   Shift with them changes the length. A plan's bar says its status by form
-  (an outline while planned, a fill once under way, green when done, faint
-  when dropped) and its dates and weeks inside, when it has room. Editing opens inline
+  (an outline while planned, a fill once under way, green when done, a gray
+  outline when parked, faint when dropped) and its dates and weeks inside, when it has room. Editing opens inline
   under the row, not in a popover, since a half-typed plan shouldn't
   vanish on a stray click. Now, next and later is the same plan without
   week dates, for readers who want the order and not the weeks: a card in

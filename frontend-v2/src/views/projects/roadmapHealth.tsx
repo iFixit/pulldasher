@@ -3,6 +3,7 @@ import { n } from '../../../../shared/format';
 import {
    blockersOf,
    endShift,
+   isStopped,
    HEALTH_WORD,
    healthRank,
    healthStanding,
@@ -25,6 +26,7 @@ import { openPlan, type Navigate, type ProjectsNav } from './parts';
 export const PLAN_STATUS_WORD: Record<RoadmapStatus, string> = {
    planned: 'Planned',
    active: 'In progress',
+   parked: 'Parked',
    done: 'Done',
    dropped: 'Dropped',
 };
@@ -94,12 +96,12 @@ export function waitsWords(
    item: RoadmapItem,
    all: readonly RoadmapItem[]
 ): { text: string; warn: boolean; title: string } | null {
-   if (item.status === 'done' || item.status === 'dropped') return null;
+   if (isStopped(item.status)) return null;
    const blockers = blockersOf(item, all);
    if (!blockers.length) return null;
    const title = `Waits on ${blockers
       .map(({ item: b }) =>
-         b.status === 'done' || b.status === 'dropped'
+         isStopped(b.status)
             ? `${b.name} (${b.status})`
             : `${b.name} (planned to end ${dayWords(planEnd(b))})`
       )
@@ -111,8 +113,8 @@ export function waitsWords(
    const text =
       clashes.length > 1
          ? `${clashes.length} things it waits on don’t fit its plan`
-         : clashes[0].status === 'dropped'
-         ? `waits on ${clashes[0].name}, which was dropped`
+         : clashes[0].status === 'dropped' || clashes[0].status === 'parked'
+         ? `waits on ${clashes[0].name}, which was ${clashes[0].status}`
          : `starts before ${clashes[0].name} ends`;
    return { text, warn: true, title };
 }
