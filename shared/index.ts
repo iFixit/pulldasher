@@ -72,3 +72,6 @@ export type {
 
 export { epoch } from './format';
 export type { PullData, RepoSpec, Signature, CommitStatus, Label } from './types';
+
+export { checkDeveloperTeams } from './model/settings';
+export type { DeveloperTeams } from './model/settings';

@@ -227,6 +227,20 @@ CREATE TABLE IF NOT EXISTS `roadmap_updates` (
   KEY `roadmap_updates_item` (`item_id`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
+--
+-- Table structure for table `project_settings`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `project_settings` (
+  `name` varchar(64) COLLATE utf8mb4_general_ci NOT NULL,
+  `value` text COLLATE utf8mb4_general_ci NOT NULL,
+  `updated_by` varchar(39) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `updated_at` int unsigned DEFAULT NULL,
+  PRIMARY KEY (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 /*!50112 SET @disable_bulk_load = IF (@is_rocksdb_supported, 'SET SESSION rocksdb_bulk_load = @old_rocksdb_bulk_load', 'SET @dummy_rocksdb_bulk_load = 0') */;
 /*!50112 PREPARE s FROM @disable_bulk_load */;
 /*!50112 EXECUTE s */;

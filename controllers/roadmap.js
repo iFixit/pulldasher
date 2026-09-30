@@ -26,7 +26,7 @@ export function canWrite(req, res, next) {
    const signedIn = typeof req.isAuthenticated === 'function' && req.isAuthenticated();
    const login = req.apiUser?.login ?? (signedIn ? req.user.username : FAKE_USER);
    if (!login) {
-      return res.status(401).json({ error: 'sign in to change the roadmap' });
+      return res.status(401).json({ error: 'sign in to make changes' });
    }
    if (req.method !== 'DELETE' && !req.is('application/json')) {
       return res.status(415).json({ error: 'send the change as JSON' });

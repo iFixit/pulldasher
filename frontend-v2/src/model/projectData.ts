@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createMemoryStore } from '../storage';
 import { dateOf, dayOf } from './days';
 import { isDummy, loadDummy } from '../backend/dummy';
 import { DUMMY_PROJECTS, DUMMY_TEAMS } from '../backend/dummyProjects';
@@ -25,9 +26,11 @@ export interface ProjectsData {
    label_prefix: string;
    projects_repo: string | null;
    projects: Project[];
-   /** developer teams from the server's config: team name to logins.
-    * Anyone not listed is a non-developer. */
+   /** developer teams: team name to logins. Anyone not listed is a
+    * non-developer. */
    teams: Record<string, string[]>;
+   /** saved from the board or the API, or config.js's */
+   teams_from: 'saved' | 'config';
    window: WindowStats;
 }
 
@@ -188,8 +191,12 @@ async function dummyData({ start, end }: Range, project: string | null): Promise
       label_prefix: prefix,
       projects_repo: 'iFixit/projects',
       projects: DUMMY_PROJECTS,
-      teams: DUMMY_TEAMS,
-      window: windowStats(spans, start, end, { teamOf: teamLookup(DUMMY_TEAMS), reviews }),
+      teams: dummyTeams ?? DUMMY_TEAMS,
+      teams_from: dummyTeams ? 'saved' : 'config',
+      window: windowStats(spans, start, end, {
+         teamOf: teamLookup(dummyTeams ?? DUMMY_TEAMS),
+         reviews,
+      }),
    };
 }
 
@@ -212,11 +219,28 @@ const cache = new Map<string, { at: number; data: Promise<ProjectsData | null> }
  * while it loads, null if the fetch failed (the caller says so and moves on).
  * A failure isn't cached, so the next mount tries again.
  */
+// Bumped when the developer teams change, since every window's developer
+// counts do too: each loaded window is fetched again.
+const version = createMemoryStore({ n: 0 });
+
+/** Load every window again, after the developer teams change. */
+export function refreshProjectsData(): void {
+   cache.clear();
+   version.set({ n: version.get().n + 1 });
+}
+
+// the dummy board's saved teams, standing in for the server's table
+let dummyTeams: Record<string, string[]> | null = null;
+export function setDummyTeams(teams: Record<string, string[]> | null): void {
+   dummyTeams = teams;
+}
+
 export function useProjectsData(
    range: Range | null,
    project: string | null = null
 ): ProjectsData | null | undefined {
-   const key = range ? `${range.start}..${range.end}:${project ?? ''}` : '';
+   const { n } = version.useValue();
+   const key = range ? `${n}:${range.start}..${range.end}:${project ?? ''}` : '';
    const [got, setGot] = useState<{ key: string; data: ProjectsData | null }>();
    useEffect(() => {
       if (!range) return;

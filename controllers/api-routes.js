@@ -1,6 +1,7 @@
 import apiController from './api.js';
 import projectsController from './projects.js';
 import roadmapController, { canWrite } from './roadmap.js';
+import settingsController from './settings.js';
 import { MAX_WEEKS, ROADMAP_HEALTHS, ROADMAP_STATUSES, WAITS_ON_MAX } from '../shared/dist/index.js';
 
 /**
@@ -91,6 +92,18 @@ export const API_ROUTES = [
       handlers: [canWrite, roadmapController.postUpdate],
       does: 'Post an update: {health, body?}',
    },
+   {
+      method: 'get',
+      path: '/api/v1/settings',
+      handlers: [settingsController.get],
+      does: 'The settings people change, and whether each is saved or config.js’s',
+   },
+   {
+      method: 'patch',
+      path: '/api/v1/settings',
+      handlers: [canWrite, settingsController.update],
+      does: 'Replace the developer teams: {developer_teams}, or null to go back to config.js',
+   },
 ];
 
 /** GET /api/v1 -- the route table and the rules a roadmap write is checked
@@ -117,6 +130,10 @@ export function apiIndex(req, res) {
       update: {
          health: ROADMAP_HEALTHS,
          body: 'up to 2000 characters, may be empty',
+      },
+      settings: {
+         developer_teams:
+            'an object of team name to GitHub logins, {"Store": ["dana", "erin"]}; a login on one team at most',
       },
    });
 }

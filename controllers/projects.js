@@ -118,6 +118,7 @@ export default {
             label_prefix: settings.prefix,
             projects_repo: settings.repo,
             teams: settings.teams,
+            teams_from: settings.teamsFrom,
             projects,
             window: stats,
          })),

@@ -1,10 +1,169 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { Plus, X } from 'lucide-react';
+import { n } from '../../../../shared/format';
 import { projectName, type PersonWindow, type Today } from '../../../../shared/model/projects';
+import type { DeveloperTeams } from '../../../../shared/model/settings';
+import { textInputClass } from '../../components/bits';
+import { Icon } from '../../components/Icon';
 import { Rows, eyebrowText } from '../../components/Lane';
+import { useArmedConfirm } from '../../components/useArmedConfirm';
 import { rangeDays, rangeWords, type ProjectsData, type Range } from '../../model/projectData';
+import { saveDeveloperTeams } from '../../model/settingsData';
 import { PersonCell, StatsCard } from '../stats/parts';
 import { ChartSlot, SplitWeeksChart } from './lazyCharts';
 import { Tile, versus } from './parts';
+
+/**
+ * The developer teams, and the way to change them: who counts as a developer,
+ * and on which team, for every developer count in the tab and the load line
+ * on the roadmap. Saved here, they replace config.js's list for everyone;
+ * "Go back to config.js" drops them.
+ */
+function TeamsCard({ teams, from }: { teams: DeveloperTeams; from: 'saved' | 'config' }) {
+   // [name, members as typed], one per team, while editing
+   const [draft, setDraft] = useState<[string, string][] | null>(null);
+   const [error, setError] = useState<string | null>(null);
+   const [saving, setSaving] = useState(false);
+   const { armed, run } = useArmedConfirm();
+   const names = Object.keys(teams);
+   const save = async (value: DeveloperTeams | null) => {
+      setSaving(true);
+      const result = await saveDeveloperTeams(value);
+      setSaving(false);
+      if ('error' in result) return setError(result.error);
+      setError(null);
+      setDraft(null);
+   };
+   const typed = (): DeveloperTeams =>
+      Object.fromEntries(
+         (draft ?? [])
+            .filter(([name]) => name.trim())
+            .map(([name, members]) => [name, members.split(/[\s,]+/).filter(Boolean)])
+      );
+   const setRow = (i: number, row: [string, string]) =>
+      setDraft(d => (d ?? []).map((old, j) => (j === i ? row : old)));
+   return (
+      <StatsCard>
+         <div className="flex flex-wrap items-baseline gap-x-2">
+            <h3 className="m-0 text-sm font-semibold text-ink">Developer teams</h3>
+            <span className="text-xs text-ink-3">
+               {from === 'saved' ? 'saved here' : 'from config.js'}
+            </span>
+            <span className="flex-1" />
+            {!draft && (
+               <button
+                  type="button"
+                  onClick={() =>
+                     setDraft(names.length ? names.map(t => [t, teams[t].join(', ')]) : [['', '']])
+                  }
+                  className="hit pressable rounded border-0 bg-transparent p-0 text-xs font-medium text-brand hover:underline"
+               >
+                  Edit teams
+               </button>
+            )}
+         </div>
+         <p className="m-0 mt-1 text-xs text-ink-3">
+            Who counts as a developer, and on which team. Everyone else is a non-developer. The
+            teams set every developer count here and the developer line on the roadmap.
+         </p>
+         {!draft ? (
+            names.length ? (
+               <ul className="m-0 mt-3 flex list-none flex-col gap-1.5 p-0 text-[13px]">
+                  {names.map(team => (
+                     <li key={team}>
+                        <span className="font-medium text-ink">{team}</span>
+                        <span className="text-ink-3"> · {n(teams[team].length, 'developer')}</span>
+                        <span className="text-ink-2"> {teams[team].join(', ')}</span>
+                     </li>
+                  ))}
+               </ul>
+            ) : (
+               <p className="m-0 mt-3 text-[13px] text-ink-3">
+                  None yet, so everyone shows as a non-developer.
+               </p>
+            )
+         ) : (
+            <form
+               className="mt-3 flex flex-col gap-2"
+               onSubmit={e => {
+                  e.preventDefault();
+                  void save(typed());
+               }}
+            >
+               {draft.map(([name, members], i) => (
+                  <div key={i} className="flex flex-wrap items-start gap-2">
+                     <input
+                        aria-label="team name"
+                        className={`w-40 px-2.5 ${textInputClass}`}
+                        value={name}
+                        maxLength={64}
+                        placeholder="Team name"
+                        onChange={e => setRow(i, [e.target.value, members])}
+                     />
+                     <textarea
+                        aria-label={`${name || 'this team'}’s developers`}
+                        className="min-h-8 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px]"
+                        value={members}
+                        rows={1}
+                        placeholder="GitHub logins, separated by commas or spaces"
+                        onChange={e => setRow(i, [name, e.target.value])}
+                     />
+                     <button
+                        type="button"
+                        aria-label={`Remove ${name || 'this team'}`}
+                        title="Remove this team"
+                        onClick={() => setDraft(d => (d ?? []).filter((_, j) => j !== i))}
+                        className="hit pressable mt-1.5 rounded border-0 bg-transparent p-0 text-ink-3 hover:text-ink"
+                     >
+                        <Icon icon={X} size={14} />
+                     </button>
+                  </div>
+               ))}
+               <button
+                  type="button"
+                  onClick={() => setDraft(d => [...(d ?? []), ['', '']])}
+                  className="hit pressable inline-flex items-center gap-1 self-start rounded border-0 bg-transparent p-0 text-xs font-medium text-brand hover:underline"
+               >
+                  <Icon icon={Plus} size={13} />
+                  Add a team
+               </button>
+               <div className="mt-1 flex flex-wrap items-center gap-3">
+                  <button
+                     type="submit"
+                     disabled={saving}
+                     className="pressable rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-surface hover:bg-brand-700 disabled:opacity-40"
+                  >
+                     Save teams
+                  </button>
+                  <button
+                     type="button"
+                     onClick={() => {
+                        setDraft(null);
+                        setError(null);
+                     }}
+                     className="hit pressable rounded border-0 bg-transparent p-0 text-xs text-ink-3 hover:text-ink"
+                  >
+                     Cancel
+                  </button>
+                  {error && <span className="text-xs text-warn">{error}</span>}
+                  <span className="flex-1" />
+                  {from === 'saved' && (
+                     <button
+                        type="button"
+                        onClick={() => run(() => save(null))}
+                        className={`hit pressable rounded border-0 bg-transparent p-0 text-xs ${
+                           armed ? 'font-semibold text-warn' : 'text-ink-3 hover:text-ink'
+                        }`}
+                     >
+                        {armed ? 'Click again to use config.js’s teams' : 'Go back to config.js'}
+                     </button>
+                  )}
+               </div>
+            </form>
+         )}
+      </StatsCard>
+   );
+}
 
 /** Live projects one person can have work in before the list says so. */
 export const SPREAD_THIN = 4;
@@ -207,8 +366,8 @@ export function People({
       <div className="flex flex-col gap-5">
          {noTeams && (
             <p className="m-0 text-xs text-ink-3">
-               No developer teams are set up (config.js, projects.developerTeams), so everyone shows
-               as a non-developer.
+               No developer teams are set up yet, so everyone shows as a non-developer. Add them
+               under Developer teams, at the bottom of this page.
             </p>
          )}
          <StatsCard>
@@ -283,6 +442,7 @@ export function People({
                />
             </Rows>
          </section>
+         <TeamsCard teams={data.teams} from={data.teams_from} />
       </div>
    );
 }

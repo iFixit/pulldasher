@@ -109,7 +109,9 @@ or a job) files the PRs:
 Turn it on with the `projects` block in `config.js` (see
 `config.example.js`): the projects repo, and `developerTeams`, the teams
 whose members count as developers (anyone else with a PR is a
-non-developer, whose work needs a developer's review). Give the projects
+non-developer, whose work needs a developer's review). The teams can also
+be edited from the People view or the API; saved ones replace
+`developerTeams` until someone goes back to it. Give the projects
 repo the same webhook as a tracked repo (Issues events). Without a projects
 repo, PRs still group by label, just without names, leads or targets.
 
@@ -170,6 +172,9 @@ curl -s -H "Authorization: Bearer $(gh auth token)" https://pulldasher.example.c
   sending the whole order; `PUT /api/v1/roadmap/order` sets the whole order.
 - `GET` and `POST /api/v1/roadmap/:id/updates`: an item's updates, or a new
   one, `{"health": "at_risk", "body": "..."}`.
+- `GET` and `PATCH /api/v1/settings`: the developer teams and whether
+  they're saved or `config.js`'s. `{"developer_teams": {"Store": ["dana"]}}`
+  replaces them; `null` goes back to `config.js`.
 
 A write takes a JSON body and is recorded as the token's login. The board
 itself uses the same handlers through `/roadmap`, with its session.

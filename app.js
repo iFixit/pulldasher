@@ -16,6 +16,8 @@ import userNamesController from './controllers/user-names.js';
 import projectsController from './controllers/projects.js';
 import roadmapController, { canWrite } from './controllers/roadmap.js';
 import { API_ROUTES, apiIndex } from './controllers/api-routes.js';
+import settingsController from './controllers/settings.js';
+import { loadSettings } from './lib/settings.js';
 import { projectSettings } from './lib/projects.js';
 import apiAuth from './lib/api-auth.js';
 import Debug from './lib/debug.js';
@@ -80,6 +82,8 @@ app.patch('/roadmap/:id', canWrite, roadmapController.update);
 app.delete('/roadmap/:id', canWrite, roadmapController.remove);
 app.get('/roadmap/:id/updates', roadmapController.updates);
 app.post('/roadmap/:id/updates', canWrite, roadmapController.postUpdate);
+app.get('/settings', settingsController.get);
+app.patch('/settings', canWrite, settingsController.update);
 app.post('/hooks/main', hooksController.main);
 
 // /api/v1: machine-to-machine JSON for the review skills and scripts,
@@ -95,6 +99,10 @@ for (const { method, path, handlers } of API_ROUTES) app[method](path, apiAuth, 
 // Memoized in git-manager, so this just avoids the first caller paying for
 // the lookup.
 git.getBotLogin();
+
+// Saved settings (the developer teams) replace config.js's once loaded;
+// until then, and if the table can't be read, config.js's stand.
+loadSettings().catch(err => console.error('loading saved settings failed:', err));
 
 debug('Loading all recent pulls from the DB');
 dbManager
