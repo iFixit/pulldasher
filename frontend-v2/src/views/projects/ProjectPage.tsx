@@ -14,6 +14,7 @@ import type { RowOptions } from '../../components/Row';
 import {
    chartWindow,
    dayOf,
+   dayWords,
    rangeDays,
    rangeWords,
    useProjectsData,
@@ -76,8 +77,9 @@ function Forecast({
    const perWeek = finished / (PACE_DAYS / 7);
    const weeks = Math.max(1, Math.round(open / perWeek));
    const eta = Date.now() + weeks * 7 * DAY_MS;
-   const due = dueOn ? Date.parse(dueOn) : NaN;
-   const late = !Number.isNaN(due) && eta > due;
+   // the milestone's day as GitHub means it, the same day the facts row shows
+   const due = dueOn?.slice(0, 10) ?? null;
+   const late = due != null && dayOf(new Date(eta)) > due;
    return (
       <p
          className="m-0 text-xs text-ink-2"
@@ -86,10 +88,10 @@ function Forecast({
          At the last four weeks’ pace ({finished} finished, about {Math.round(perWeek * 10) / 10} a
          week), the {open} open PR{open === 1 ? '' : 's'} take about {weeks} week
          {weeks === 1 ? '' : 's'}: around {dateWords(eta)}.
-         {!Number.isNaN(due) && (
+         {due && (
             <span className={late ? 'text-warn' : undefined}>
                {' '}
-               That’s {late ? 'after' : 'before'} the {dateWords(due)} target.
+               That’s {late ? 'after' : 'before'} the {dayWords(due)} target.
             </span>
          )}
       </p>
