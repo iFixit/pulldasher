@@ -1,11 +1,10 @@
 import type { ReactNode } from 'react';
-import { issueUrl, n, shortRepo } from '../../../../shared/format';
+import { issueUrl, shortRepo } from '../../../../shared/format';
 import {
    projectName,
    type Project,
    type ProjectFlag,
    type ProjectGroup,
-   type Today,
    type WindowCounts,
 } from '../../../../shared/model/projects';
 import { Avatar } from '../../components/identity';
@@ -58,14 +57,9 @@ export function openPlan(nav: ProjectsNav, id: number): Partial<ProjectsNav> {
    };
 }
 
-/** How many other live projects `login` has work in, for the lead flag's words. */
-function otherLiveProjects(login: string, g: ProjectGroup, today: Today): number {
-   return today.live.filter(o => o !== g && o.people.includes(login)).length;
-}
-
 /** Each flag in words, with the sentence its hover gives. Flags appear only
  * when true, and read as amber text: someone owes the project something. */
-function flagText(flag: ProjectFlag, g: ProjectGroup, today: Today): [string, string] {
+function flagText(flag: ProjectFlag, g: ProjectGroup): [string, string] {
    switch (flag) {
       case 'one_person':
          return [
@@ -77,14 +71,6 @@ function flagText(flag: ProjectFlag, g: ProjectGroup, today: Today): [string, st
             'all waiting on review',
             'Every open PR here needs a CR or QA before it can move.',
          ];
-      case 'lead_spread': {
-         const lead = g.project?.lead ?? '';
-         const others = otherLiveProjects(lead, g, today);
-         return [
-            `lead in ${n(others, 'other project')}`,
-            `${lead} leads this and has PRs in ${n(others, 'other live project')}.`,
-         ];
-      }
       case 'issue_closed':
          return [
             'issue closed, PR still open',
@@ -93,12 +79,12 @@ function flagText(flag: ProjectFlag, g: ProjectGroup, today: Today): [string, st
    }
 }
 
-export function FlagWords({ g, today }: { g: ProjectGroup; today: Today }) {
+export function FlagWords({ g }: { g: ProjectGroup }) {
    if (!g.flags.length) return null;
    return (
       <>
          {g.flags.map(flag => {
-            const [word, gloss] = flagText(flag, g, today);
+            const [word, gloss] = flagText(flag, g);
             return (
                <span key={flag} className="whitespace-nowrap text-warn" title={gloss}>
                   {word}

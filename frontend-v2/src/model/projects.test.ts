@@ -174,21 +174,6 @@ describe('buildToday', () => {
       expect(flags.moving).toEqual([]);
    });
 
-   it('flags a lead who has work in three other live projects', () => {
-      const pulls = ['one', 'two', 'three'].map(s =>
-         open({ labels: [`project:${s}`], author: 'lee' })
-      );
-      const led = open({ labels: ['project:led'], author: 'sam' });
-      const today = buildToday(
-         [project({ slug: 'led', lead: 'lee' })],
-         [...pulls, led],
-         [],
-         P,
-         NOW
-      );
-      expect(today.live.find(g => g.slug === 'led')?.flags).toEqual(['lead_spread']);
-   });
-
    it('reports idle days from the stalest open PR and sorts the busiest first', () => {
       const today = buildToday(
          [],

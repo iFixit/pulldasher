@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ChevronRight, Download } from 'lucide-react';
-import type { Today } from '../../../../shared/model/projects';
 import { Segmented, textInputClass } from '../../components/bits';
 import { Icon } from '../../components/Icon';
 import { eyebrowText, FoldRows, laneShown, Rows } from '../../components/Lane';
@@ -232,14 +231,12 @@ const rowClass =
  */
 function PortfolioRow({
    item,
-   today,
    hasRepo,
    opts,
    nav,
    navigate,
 }: {
    item: PortfolioItem;
-   today: Today;
    hasRepo: boolean;
    opts: RowOptions;
    nav: ProjectsNav;
@@ -267,7 +264,7 @@ function PortfolioRow({
          </button>
          {!!item.group?.flags.length && (
             <span className="flex flex-wrap gap-x-2 text-[11px]">
-               <FlagWords g={item.group} today={today} />
+               <FlagWords g={item.group} />
             </span>
          )}
       </span>
@@ -361,7 +358,6 @@ function download(items: readonly PortfolioItem[]) {
  */
 export function Portfolio({
    items,
-   today,
    teamOf,
    nameOf,
    hasRepo,
@@ -370,7 +366,6 @@ export function Portfolio({
    opts,
 }: {
    items: PortfolioItem[];
-   today: Today;
    teamOf: (login: string) => string | null;
    nameOf: (slug: string) => string;
    hasRepo: boolean;
@@ -468,7 +463,6 @@ export function Portfolio({
                      <PortfolioRow
                         key={`${g.title}:${item.slug}`}
                         item={item}
-                        today={today}
                         hasRepo={hasRepo}
                         opts={opts}
                         nav={nav}

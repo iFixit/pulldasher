@@ -224,7 +224,7 @@ export function ProjectPage({
             <span className="text-xs text-ink-3">{prefix + slug}</span>
             {group && (
                <span className="flex items-center gap-3 text-xs">
-                  <FlagWords g={group} today={today} />
+                  <FlagWords g={group} />
                </span>
             )}
             {people.length > 0 && (

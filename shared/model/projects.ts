@@ -26,8 +26,6 @@ export const MISC_SLUG = 'misc';
 export const LIVE_DAYS = 14;
 /** fewest PRs before "one person" is worth saying; below it, one author is normal */
 export const ONE_PERSON_MIN_PRS = 3;
-/** other live projects a lead can be on before the lead reads as spread thin */
-export const LEAD_SPREAD_MIN = 3;
 
 const DAY = 86400;
 
@@ -65,7 +63,7 @@ export function projectOf(labels: readonly Pick<Label, 'title'>[], prefix: strin
    return slugs.find(s => s !== MISC_SLUG) ?? slugs[0] ?? null;
 }
 
-export type ProjectFlag = 'one_person' | 'waiting_on_review' | 'lead_spread' | 'issue_closed';
+export type ProjectFlag = 'one_person' | 'waiting_on_review' | 'issue_closed';
 
 export interface ProjectGroup {
    slug: string;
@@ -177,20 +175,11 @@ export function buildToday(
    today.live = [...groups.values()].filter(isLive);
    today.quiet = [...groups.values()].filter(g => !isLive(g) && g.project?.state === 'open');
 
-   // how many live projects each person has work in, for the lead check
-   const liveCount = new Map<string, number>();
-   for (const g of today.live)
-      for (const login of g.people) liveCount.set(login, (liveCount.get(login) ?? 0) + 1);
    for (const g of today.live) {
       if (g.people.length === 1 && g.open.length + g.merged.length >= ONE_PERSON_MIN_PRS)
          g.flags.push('one_person');
       if (g.open.length >= 2 && g.open.every(p => WAITING_ON_REVIEW.includes(p.status)))
          g.flags.push('waiting_on_review');
-      const lead = g.project?.lead;
-      if (lead) {
-         const elsewhere = (liveCount.get(lead) ?? 0) - (g.people.includes(lead) ? 1 : 0);
-         if (elsewhere >= LEAD_SPREAD_MIN) g.flags.push('lead_spread');
-      }
       if (g.project?.state === 'closed') g.flags.push('issue_closed');
    }
 

@@ -283,7 +283,6 @@ export function Overview({
          </div>
          <Portfolio
             items={items}
-            today={today}
             teamOf={teamOf}
             nameOf={nameOf}
             hasRepo={!!data?.projects_repo}
