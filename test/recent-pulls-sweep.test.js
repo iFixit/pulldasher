@@ -21,16 +21,18 @@ test("repoOwners lists each owner once, ignoring case", () => {
   assert.deepEqual(repoOwners(repos), ["ifixit", "other"]);
 });
 
-// Each window starts 5 minutes before the previous sweep started, and the
-// first one reaches back a full interval so it covers a short restart.
+// Each window starts an hour before the previous sweep started, and the first
+// one reaches back a full interval so it covers a short restart.
 test("the sweep refreshes every pull the search finds and advances its window", async (t) => {
   const searches = [];
   t.mock.method(gitManager, "searchUpdatedPulls", (owner, since) => {
     searches.push(`${owner} ${since.toISOString()}`);
+    // A new updated_at on every search, so each sweep re-reads both.
+    const updatedAt = new Date(now()).toISOString();
     return Promise.resolve(
       owner === "a"
-        ? [{ repo: "a/one", number: 1 }]
-        : [{ repo: "b/two", number: 2 }]
+        ? [{ repo: "a/one", number: 1, updatedAt }]
+        : [{ repo: "b/two", number: 2, updatedAt }]
     );
   });
   const refreshed = [];
@@ -48,10 +50,10 @@ test("the sweep refreshes every pull the search finds and advances its window", 
   await sweep();
 
   assert.deepEqual(searches, [
-    "a 2026-09-29T11:35:00.000Z",
-    "b 2026-09-29T11:35:00.000Z",
-    "a 2026-09-29T11:55:00.000Z",
-    "b 2026-09-29T11:55:00.000Z",
+    "a 2026-09-29T10:40:00.000Z",
+    "b 2026-09-29T10:40:00.000Z",
+    "a 2026-09-29T11:00:00.000Z",
+    "b 2026-09-29T11:00:00.000Z",
   ]);
   assert.deepEqual(refreshed, ["a/one#1", "b/two#2", "a/one#1", "b/two#2"]);
 });
@@ -77,13 +79,13 @@ test("a failed search keeps its window for the next sweep", async (t) => {
   await sweep();
 
   assert.deepEqual(searches, [
-    "2026-09-29T11:35:00.000Z",
-    "2026-09-29T11:35:00.000Z",
+    "2026-09-29T10:40:00.000Z",
+    "2026-09-29T10:40:00.000Z",
   ]);
 });
 
-// After an outage, the first window starts 5 minutes before the newest update
-// the DB held at boot, but never more than a day back.
+// After an outage, the first window starts an hour before the newest update
+// the DB held at boot, and its start is never more than a day back.
 test("the first sweep after a restart reaches back to the newest update the DB held", async (t) => {
   const searches = [];
   t.mock.method(gitManager, "searchUpdatedPulls", (owner, since) => {
@@ -102,10 +104,60 @@ test("the first sweep after a restart reaches back to the newest update the DB h
   await createRecentPullsSweep(refreshApi, ["a"], now, at("2026-09-29T14:59:00Z"))();
 
   assert.deepEqual(searches, [
-    "2026-09-29T10:23:56.000Z",
-    "2026-09-28T14:55:00.000Z",
-    "2026-09-29T14:35:00.000Z",
+    "2026-09-29T09:28:56.000Z",
+    "2026-09-28T14:00:00.000Z",
+    "2026-09-29T13:40:00.000Z",
   ]);
+});
+
+// The overlap finds the same hits again; only a new updated_at re-reads one.
+test("a hit already re-read at the same updated_at is skipped", async (t) => {
+  let hits = [
+    { repo: "a/one", number: 1, updatedAt: "2026-09-29T11:50:00Z" },
+    { repo: "a/one", number: 2, updatedAt: "2026-09-29T11:50:00Z" },
+  ];
+  t.mock.method(gitManager, "searchUpdatedPulls", () => Promise.resolve(hits));
+  const refreshed = [];
+  const refreshApi = {
+    pull: (repo, number) => {
+      refreshed.push(number);
+      return Promise.resolve();
+    },
+  };
+  const now = fakeClock(Date.parse("2026-09-29T12:00:00Z"));
+  const sweep = createRecentPullsSweep(refreshApi, ["a"], now);
+
+  await sweep();
+  hits = [hits[0], { ...hits[1], updatedAt: "2026-09-29T12:10:00Z" }];
+  now.advance(20 * MINUTE);
+  await sweep();
+
+  assert.deepEqual(refreshed, [1, 2, 2]);
+});
+
+test("a pull that failed to refresh is retried by the next sweep", async (t) => {
+  t.mock.method(gitManager, "searchUpdatedPulls", () =>
+    Promise.resolve([{ repo: "a/one", number: 1, updatedAt: "2026-09-29T11:50:00Z" }])
+  );
+  let fail = true;
+  const attempts = [];
+  const refreshApi = {
+    pull: (repo, number) => {
+      attempts.push(number);
+      return fail ? Promise.reject(new Error("transient 500")) : Promise.resolve();
+    },
+  };
+  const now = fakeClock(Date.parse("2026-09-29T12:00:00Z"));
+  const sweep = createRecentPullsSweep(refreshApi, ["a"], now);
+
+  await sweep();
+  fail = false;
+  now.advance(20 * MINUTE);
+  await sweep();
+  now.advance(20 * MINUTE);
+  await sweep();
+
+  assert.deepEqual(attempts, [1, 1]);
 });
 
 test("one pull failing to refresh doesn't stop the sweep", async (t) => {
