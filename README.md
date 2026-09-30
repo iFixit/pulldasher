@@ -122,7 +122,8 @@ The tab has three views and a page per project:
   week (by project, or split into work on the roadmap and everything
   else, with the roadmap's share against the days before), and every
   project on one list you can sort, group by parent, lead or team,
-  search, and download as CSV.
+  search, and download as CSV, each with how its roadmap plan is going.
+  A project's own page shows its plan and latest update too.
 - **Roadmap**: the plan, by month or by quarter, or as now, next and later
   without dates for readers outside engineering. Drag rows to set
   priority, drag a bar to move it and its edge to change its length; group

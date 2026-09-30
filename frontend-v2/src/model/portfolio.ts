@@ -8,7 +8,12 @@ import {
    type Today,
    type WeekPoint,
 } from '../../../shared/model/projects';
-import type { RoadmapItem } from '../../../shared/model/roadmap';
+import {
+   HEALTH_WORD,
+   healthRank,
+   healthStanding,
+   type RoadmapItem,
+} from '../../../shared/model/roadmap';
 import type { Status } from '../../../shared/model/status';
 
 /**
@@ -45,6 +50,9 @@ export interface PortfolioItem {
    window: ProjectWindow | null;
    idleDays: number | null;
    flags: ProjectFlag[];
+   /** the roadmap item tracking this project (the first by priority, not
+    * dropped); null when it isn't on the roadmap */
+   plan: RoadmapItem | null;
 }
 
 const WAITING: Status[] = ['needs_cr', 'needs_recr', 'needs_qa'];
@@ -57,7 +65,8 @@ export function portfolioItems(
    today: Today,
    window: Record<string, ProjectWindow>,
    teamOf: (login: string) => string | null,
-   now: number = Date.now()
+   now: number = Date.now(),
+   plans: readonly RoadmapItem[] = []
 ): PortfolioItem[] {
    const bySlug = new Map(projects.map(p => [p.slug, p]));
    const groups = new Map<string, [ProjectGroup, ProjectStatus]>();
@@ -94,6 +103,7 @@ export function portfolioItems(
          window: window[slug] ?? null,
          idleDays: group?.idleDays ?? null,
          flags: group?.flags ?? [],
+         plan: plans.find(p => p.project === slug && p.status !== 'dropped') ?? null,
       };
    });
 }
@@ -132,7 +142,8 @@ export type SortKey =
    | 'waiting'
    | 'merged'
    | 'toMerge'
-   | 'idle';
+   | 'idle'
+   | 'plan';
 
 const STATUS_RANK: Record<ProjectStatus, number> = { live: 0, quiet: 1, done: 2, dropped: 3 };
 
@@ -155,6 +166,13 @@ const SORTS: Record<SortKey, (a: PortfolioItem, b: PortfolioItem) => number> = {
          (x, y) => y - x
       ),
    idle: (a, b) => nullsLast(a.idleDays, b.idleDays, (x, y) => y - x),
+   // worst first, the way the overview's plan list reads
+   plan: (a, b) =>
+      nullsLast(
+         a.plan && healthRank(healthStanding(a.plan)),
+         b.plan && healthRank(healthStanding(b.plan)),
+         (x, y) => x - y
+      ),
 };
 
 function nullsLast<T>(a: T | null, b: T | null, cmp: (x: T, y: T) => number): number {
@@ -276,6 +294,7 @@ export function portfolioCsv(items: readonly PortfolioItem[]): string {
       'Closed in range',
       'Median days to merge',
       'Days the stalest PR sat',
+      'Roadmap health',
       'Issue',
    ];
    const rows = items.map(i => [
@@ -295,6 +314,7 @@ export function portfolioCsv(items: readonly PortfolioItem[]): string {
       i.window?.closed ?? 0,
       i.window?.median_days_to_merge ?? null,
       i.idleDays,
+      i.plan?.update ? HEALTH_WORD[i.plan.update.health] : null,
       i.project ? `https://github.com/${i.project.repo}/issues/${i.project.number}` : null,
    ]);
    return [head, ...rows].map(r => r.map(csvCell).join(',')).join('\n') + '\n';

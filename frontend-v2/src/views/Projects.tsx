@@ -15,6 +15,7 @@ import {
    type Range,
 } from '../model/projectData';
 import { portfolioItems } from '../model/portfolio';
+import { useRoadmap } from '../model/roadmapData';
 import { DateRangePicker } from './projects/DateRangePicker';
 import { Overview } from './projects/Overview';
 import { People } from './projects/People';
@@ -74,9 +75,18 @@ export function Projects({
       [data, pulls, closed, prefix]
    );
    const teamOf = useMemo(() => teamLookup(data?.teams ?? {}), [data]);
+   const { items: plans } = useRoadmap();
    const items = useMemo(
-      () => portfolioItems(data?.projects ?? [], today, data?.window.projects ?? {}, teamOf),
-      [data, today, teamOf]
+      () =>
+         portfolioItems(
+            data?.projects ?? [],
+            today,
+            data?.window.projects ?? {},
+            teamOf,
+            Date.now(),
+            plans ?? []
+         ),
+      [data, today, teamOf, plans]
    );
    const nameOf = useMemo(() => {
       const names = new Map(items.map(i => [i.slug, i.name]));
@@ -138,6 +148,7 @@ export function Projects({
                prefix={prefix}
                teamOf={teamOf}
                opts={opts}
+               navigate={navigate}
             />
          ) : nav.view === 'people' ? (
             <People

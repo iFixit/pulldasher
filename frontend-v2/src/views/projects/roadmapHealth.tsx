@@ -3,6 +3,8 @@ import { n } from '../../../../shared/format';
 import {
    blockersOf,
    endShift,
+   HEALTH_WORD,
+   healthRank,
    healthStanding,
    peakLoad,
    planEnd,
@@ -11,6 +13,7 @@ import {
    type HealthStanding,
    type RoadmapHealth,
    type RoadmapItem,
+   type RoadmapStatus,
    type RoadmapUpdate,
 } from '../../../../shared/model/roadmap';
 import { Segmented } from '../../components/bits';
@@ -19,10 +22,11 @@ import { loadRoadmapUpdates, postRoadmapUpdate, useRoadmap } from '../../model/r
 import { StatsCard } from '../stats/parts';
 import type { Navigate } from './parts';
 
-export const HEALTH_WORD: Record<RoadmapHealth, string> = {
-   on_track: 'On track',
-   at_risk: 'At risk',
-   off_track: 'Off track',
+export const PLAN_STATUS_WORD: Record<RoadmapStatus, string> = {
+   planned: 'Planned',
+   active: 'In progress',
+   done: 'Done',
+   dropped: 'Dropped',
 };
 
 /** An epoch-secs moment as its day, "Sep 22". */
@@ -41,7 +45,7 @@ export function shiftWords(weeks: number): string | null {
 
 const planOf = (u: RoadmapUpdate) => ({ start: u.plan_start, weeks: u.plan_weeks });
 
-const latestOf = (s: HealthStanding) =>
+export const latestOf = (s: HealthStanding) =>
    s.kind === 'current' || s.kind === 'stale' ? s.update : null;
 
 /**
@@ -270,15 +274,6 @@ export function UpdatesPanel({ item }: { item: RoadmapItem }) {
    );
 }
 
-/** Worst first: off track, at risk, an update owed, on track, then work
- * too new to owe one. */
-function rank(s: HealthStanding): number {
-   const u = latestOf(s);
-   if (!u) return s.kind === 'missing' ? 2 : 4;
-   const byHealth = { off_track: 0, at_risk: 1, on_track: 3 }[u.health];
-   return s.kind === 'stale' ? Math.min(byHealth, 2) : byHealth;
-}
-
 /**
  * Where the plans stand: every roadmap item in progress, and any plan
  * flagged at risk or off track before it starts, worst first, each with its
@@ -298,7 +293,10 @@ export function PlansStanding({ navigate }: { navigate: Navigate }) {
             (item.status === 'planned' && !!u && u.health !== 'on_track')
          );
       })
-      .sort((a, b) => rank(a.standing) - rank(b.standing) || a.item.priority - b.item.priority);
+      .sort(
+         (a, b) =>
+            healthRank(a.standing) - healthRank(b.standing) || a.item.priority - b.item.priority
+      );
    if (!rows.length) return null;
    const needLook = rows.filter(r => healthWords(r.standing)?.warn).length;
    const copy = () => {
@@ -378,5 +376,85 @@ export function PlansStanding({ navigate }: { navigate: Navigate }) {
             })}
          </div>
       </StatsCard>
+   );
+}
+
+/**
+ * A plan in a word or two for a table cell: its health, "No update" or
+ * "Update due" when one is owed (a stale "On track" reassures nobody), or
+ * else its status. Amber on the same terms as everywhere.
+ */
+export function planCellWords(plan: RoadmapItem): { text: string; warn: boolean; title: string } {
+   const standing = healthStanding(plan);
+   const words = healthWords(standing);
+   const u = latestOf(standing);
+   return {
+      text:
+         standing.kind === 'missing'
+            ? 'No update'
+            : standing.kind === 'stale' && standing.update.health === 'on_track'
+            ? 'Update due'
+            : u
+            ? HEALTH_WORD[u.health]
+            : PLAN_STATUS_WORD[plan.status],
+      warn: !!words?.warn,
+      title: `${plan.name}: ${PLAN_STATUS_WORD[plan.status].toLowerCase()}, ${planWords(plan)}${
+         words ? `. ${words.text}` : ''
+      }`,
+   };
+}
+
+/**
+ * A project's plan, as one row on its page: the planned weeks, the status,
+ * how it's going and the latest note, with the way to the roadmap. Says so
+ * when the project isn't on the roadmap at all.
+ */
+export function PlanFacts({ slug, navigate }: { slug: string; navigate: Navigate }) {
+   const { items } = useRoadmap();
+   if (!items) return null;
+   const plan = items.find(i => i.project === slug && i.status !== 'dropped');
+   const link = (label: string, patch: Parameters<Navigate>[0]) => (
+      <button
+         type="button"
+         onClick={() => navigate(patch)}
+         className="hit pressable ml-auto rounded border-0 bg-transparent p-0 text-xs font-medium text-brand hover:underline"
+      >
+         {label}
+      </button>
+   );
+   if (!plan) {
+      return (
+         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-secondary px-3.5 py-2 text-xs text-ink-3">
+            Not on the roadmap
+            {link('Open the roadmap', { project: null, view: 'roadmap', item: null })}
+         </div>
+      );
+   }
+   const standing = healthStanding(plan);
+   const health = healthWords(standing);
+   const u = latestOf(standing);
+   return (
+      <div className="border-t border-secondary px-3.5 py-2 text-xs text-ink-3">
+         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>
+               Planned <span className="font-medium text-ink-2">{planWords(plan)}</span>
+            </span>
+            <span>{PLAN_STATUS_WORD[plan.status]}</span>
+            {health && (
+               <span className={health.warn ? 'text-warn' : 'text-ink-2'} title={health.title}>
+                  {health.text}
+               </span>
+            )}
+            {link('Open on the roadmap', { project: null, view: 'roadmap', item: plan.id })}
+         </div>
+         {u?.body && (
+            <p className="m-0 mt-1 whitespace-pre-line text-[13px] text-ink-2">
+               {u.body}{' '}
+               <span className="text-xs text-ink-3">
+                  ({u.author}, {when(u.at)})
+               </span>
+            </p>
+         )}
+      </div>
    );
 }

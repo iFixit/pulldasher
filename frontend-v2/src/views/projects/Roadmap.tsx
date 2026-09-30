@@ -40,7 +40,13 @@ import {
 } from '../../model/roadmapData';
 import { NowNextLater } from './NowNextLater';
 import type { Navigate, ProjectsNav } from './parts';
-import { healthWords, loadWords, UpdatesPanel, waitsWords } from './roadmapHealth';
+import {
+   healthWords,
+   loadWords,
+   PLAN_STATUS_WORD as STATUS_WORD,
+   UpdatesPanel,
+   waitsWords,
+} from './roadmapHealth';
 
 const DAY = 86400;
 
@@ -92,13 +98,6 @@ function at(day: string, h: Horizon): number {
    const t = dayStart(day) ?? h.from;
    return Math.min(100, Math.max(0, ((t - h.from) / (h.to - h.from)) * 100));
 }
-
-const STATUS_WORD: Record<RoadmapStatus, string> = {
-   planned: 'Planned',
-   active: 'In progress',
-   done: 'Done',
-   dropped: 'Dropped',
-};
 
 /** How each plan's bar reads: an outline before work starts, a fill once it
  * has, green when it's done, faint when it was dropped. */

@@ -20,6 +20,7 @@ import {
 } from '../../model/portfolio';
 import { dayWords } from '../../model/projectData';
 import { FlagWords, PageLink, ProjectFacts, type Navigate, type ProjectsNav } from './parts';
+import { planCellWords } from './roadmapHealth';
 
 interface Column {
    key: SortKey;
@@ -60,6 +61,22 @@ const COLUMNS: Column[] = [
       title: 'Live: an open PR or a merge in the last 14 days. Quiet: open, nothing in flight.',
       width: 'w-16',
       cell: i => statusWord(i.status),
+   },
+   {
+      key: 'plan',
+      label: 'Plan',
+      title: 'How its roadmap item is going: the latest update, or its status. Blank when it isn’t on the roadmap.',
+      width: 'w-20',
+      hide: 'hidden md:block',
+      cell: i => {
+         if (!i.plan) return '';
+         const words = planCellWords(i.plan);
+         return (
+            <span className={words.warn ? 'text-warn' : undefined} title={words.title}>
+               {words.text}
+            </span>
+         );
+      },
    },
    {
       key: 'lead',

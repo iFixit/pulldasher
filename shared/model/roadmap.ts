@@ -15,6 +15,11 @@ export const ROADMAP_STATUSES: RoadmapStatus[] = ['planned', 'active', 'done', '
 /** How the work is going, in the words a lead would use in standup. */
 export type RoadmapHealth = 'on_track' | 'at_risk' | 'off_track';
 export const ROADMAP_HEALTHS: RoadmapHealth[] = ['on_track', 'at_risk', 'off_track'];
+export const HEALTH_WORD: Record<RoadmapHealth, string> = {
+   on_track: 'On track',
+   at_risk: 'At risk',
+   off_track: 'Off track',
+};
 
 /** the longest plan an item can carry, in weeks: two years */
 export const MAX_WEEKS = 104;
@@ -289,6 +294,15 @@ export function healthStanding(
    return active && days > UPDATE_DUE_DAYS
       ? { kind: 'stale', update: u, days }
       : { kind: 'current', update: u };
+}
+
+/** Worst first, for sorting: off track, at risk, an update owed, on track,
+ * then nothing to say. A stale update ranks no better than an owed one. */
+export function healthRank(s: HealthStanding): number {
+   if (s.kind === 'quiet') return 4;
+   if (s.kind === 'missing') return 2;
+   const byHealth = { off_track: 0, at_risk: 1, on_track: 3 }[s.update.health];
+   return s.kind === 'stale' ? Math.min(byHealth, 2) : byHealth;
 }
 
 /**

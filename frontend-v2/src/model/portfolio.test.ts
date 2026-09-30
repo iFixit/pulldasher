@@ -211,3 +211,57 @@ describe('roadmapShare', () => {
       ).toEqual({ planned: 4, total: 10 });
    });
 });
+
+describe('plans', () => {
+   const plan = (id: number, project: string, over: Partial<RoadmapItem> = {}): RoadmapItem => ({
+      id,
+      name: project,
+      project,
+      team: null,
+      lead: null,
+      status: 'active',
+      start: '2026-09-21',
+      weeks: 4,
+      priority: id,
+      notes: '',
+      waits_on: [],
+      updated_by: null,
+      updated_at: null,
+      update: null,
+      ...over,
+   });
+   const update = (health: 'on_track' | 'off_track') => ({
+      id: 1,
+      item_id: 1,
+      health,
+      body: '',
+      plan_start: '2026-09-21',
+      plan_weeks: 4,
+      author: 'dana',
+      at: NOW / 1000 - 86400,
+   });
+
+   it('links each project to its first plan that isn’t dropped, and sorts worst first', () => {
+      const withPlans = portfolioItems(
+         projects,
+         today,
+         { alpha: w(4, 2.5), shipped: w(7, 1) },
+         teamOf,
+         NOW,
+         [
+            plan(1, 'beta', { status: 'dropped' }),
+            plan(2, 'beta', { update: update('on_track') }),
+            plan(3, 'alpha', { update: update('off_track') }),
+         ]
+      );
+      const by = Object.fromEntries(withPlans.map(i => [i.slug, i]));
+      expect(by.beta.plan?.id).toBe(2);
+      expect(by.alpha.plan?.id).toBe(3);
+      expect(by.gone.plan).toBeNull();
+      expect(
+         sortItems(withPlans, 'plan')
+            .map(i => i.slug)
+            .slice(0, 2)
+      ).toEqual(['alpha', 'beta']);
+   });
+});
