@@ -306,6 +306,44 @@ icon with a class bolted on.
   refires only after you reclaim and lose the spot again); dedupe keys
   name the subject, not the tick.
 
+## Charts and dates
+
+- **Charts are Recharts, drawn in SVG, and colored only with the tokens.**
+  SVG takes `var(--ok)` in a fill, so dark mode costs no redraw, the same
+  rule the hand-drawn Stats charts follow. Canvas libraries (uPlot, Chart.js,
+  ECharts) were set aside for exactly that: every theme switch would need a
+  redraw with colors read out of CSS. Recharts is the heaviest thing on the
+  board, so it loads in its own chunk with the views that chart; the review
+  board never downloads it.
+- **Charts don't animate.** Motion on this board means something changed,
+  and a chart drawing itself in on load says nothing.
+- **One color vocabulary across Stats and Projects**: ink for opened, green
+  for merged or finished, brand for what is still open, a paler ink for
+  closed without merging.
+- **One date range per page, picked with one control**: the button that
+  names the range, opening the presets an analytics tool offers beside a
+  two-month calendar (react-day-picker, lazy with its stylesheet). A preset
+  applies on click; a hand-picked range applies with Apply. Rejected: a row
+  of segment buttons plus two date inputs (shaped for developers, not the
+  product manager reading the numbers), and a second control for the
+  chart's own window (two knobs on one concept). A chart instead shows at
+  least 90 days ending on the range's last day and pales the days before the
+  range, so a short range still shows its trend.
+- **The roadmap moves by direct manipulation, in whole weeks.** Drag a
+  row's grip to change its priority (the order is the priority; there's no
+  separate number to keep in sync), drag a bar to move the plan, and drag
+  its right edge to change the length. Every drag has a keyboard twin:
+  arrows on the grip reorder, arrows on a focused bar move it a week, and
+  Shift with them changes the length. A plan's bar says its status by form
+  (an outline while planned, a fill once under way, green when done, faint
+  when dropped); a linked project's real PR activity is a thin line under
+  it, amber only where a live project has run past its plan. Editing opens
+  inline under the row, not in a popover, since a half-typed plan shouldn't
+  vanish on a stray click.
+- **A comparison is words, not color.** Each count says how it compares with
+  the same number of days just before ("4 more than the 30 days before").
+  More merged isn't always good news, so no green or red.
+
 ## Copy rules (static text is part of the visual system)
 
 - **Say the thing, don't be clever.** Lane names state their contents

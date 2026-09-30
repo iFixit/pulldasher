@@ -1,4 +1,6 @@
 import type { InitializePayload, PullData } from '../../../shared/types';
+import { utcDay, type Project } from '../../../shared/model/projects';
+import { addWeeks, mondayOf, type RoadmapItem } from '../../../shared/model/roadmap';
 
 /**
  * Dummy mode: run the whole UI without a backend.
@@ -43,7 +45,9 @@ export async function loadDummy(): Promise<InitializePayload> {
    ];
    const withBody = (p: PullData, i: number): PullData =>
       p.body === 'pull request dummy body' ? { ...p, body: BODIES[i % BODIES.length] } : p;
-   const pulls = withSyntheticStacks(raw).map((p, i) => withBody(withSizes(redate(p, i), i), i));
+   const pulls = withSyntheticStacks(raw).map((p, i) =>
+      withProject(withBody(withSizes(redate(p, i), i), i), i)
+   );
    return {
       repos: [{ name: 'iFixit/ifixit' }],
       // config the live server delivers here too — a bot login and the weight
@@ -56,6 +60,7 @@ export async function loadDummy(): Promise<InitializePayload> {
          'size: L': 'L',
          'size: XL': 'XL',
       },
+      projectLabelPrefix: DUMMY_PROJECT_PREFIX,
       // The fixture carries almost no closed/merged pulls and no diff sizes, so
       // the Stats lens (merge-time-by-size, leaderboards over shipped work) has
       // nothing to show. Synthesize a fortnight of merged PRs across the size
@@ -63,6 +68,203 @@ export async function loadDummy(): Promise<InitializePayload> {
       pulls: [...pulls, ...synthMerged(pulls)],
    };
 }
+
+export const DUMMY_PROJECT_PREFIX = 'project:';
+
+// The Projects tab reads project labels off the pulls, and the fixture
+// predates them, so each pull gets one here by the theme its title already
+// has (the Grafana dashboards, the webdriver deflakes...), keyed by index like
+// everything else in this file. The picks keep every Today state on the bench:
+// one person on a project (the Grafana four), a project whose PRs all wait on
+// review (store-picker, its sign-offs cleared below), a lead with work in many
+// other projects (type-refresh), a closed issue with a PR still open
+// (akeneo-4), a label with no issue yet (core-primitives, the synthetic fork),
+// one-offs, PRs not sorted yet, and one PR with two project labels.
+// DUMMY_PROJECTS holds the issues behind them. synthMerged clones indexes
+// 0-15, labels included, so those projects get recent merges too.
+const DUMMY_PROJECT_PULLS: Record<string, number[]> = {
+   'webdriver-deflake': [0, 9, 17, 19, 32, 35, 48, 55],
+   'grafana-dashboards': [21, 30, 31, 41],
+   'training-periods': [8, 27, 37],
+   'release-gate-sso': [5, 6, 7],
+   // 10-12 are the viewer's stacked chain: one chain, one project
+   'shopify-sync': [10, 11, 12, 40],
+   'core-primitives': [13, 14, 15],
+   'shipping-shelf-weight': [26],
+   'mysql-8': [23, 34, 50],
+   'akeneo-4': [25, 56, 57],
+   'newsletter-promo': [44, 45],
+   'store-picker': [16, 36],
+   'type-refresh': [1, 24, 42],
+   misc: [3, 18, 20, 29, 43, 47, 53],
+};
+const SECOND_PROJECT: Record<number, string> = { 50: 'webdriver-deflake' };
+const ALL_WAITING_ON_REVIEW = new Set(DUMMY_PROJECT_PULLS['store-picker']);
+const projectsByIndex = new Map<number, string[]>();
+for (const [slug, indexes] of Object.entries(DUMMY_PROJECT_PULLS))
+   for (const i of indexes) projectsByIndex.set(i, [...(projectsByIndex.get(i) ?? []), slug]);
+for (const [i, slug] of Object.entries(SECOND_PROJECT))
+   projectsByIndex.set(Number(i), [...(projectsByIndex.get(Number(i)) ?? []), slug]);
+
+function withProject(pull: PullData, i: number): PullData {
+   const out: PullData = ALL_WAITING_ON_REVIEW.has(i)
+      ? {
+           ...pull,
+           draft: false,
+           status: { ...pull.status, allCR: [], allQA: [], dev_block: [], deploy_block: [] },
+        }
+      : pull;
+   const slugs = projectsByIndex.get(i);
+   if (!slugs) return out;
+   const labels = slugs.map(slug => ({
+      title: DUMMY_PROJECT_PREFIX + slug,
+      number: pull.number,
+      repo: pull.repo,
+      user: 'projects-bot[bot]',
+      created_at: pull.created_at,
+   }));
+   return { ...out, labels: [...out.labels, ...labels] };
+}
+
+const inDays = (days: number) => new Date(Date.now() + days * 86400_000).toISOString();
+
+/** Developer teams, as the server's config.js `projects.developerTeams` sends
+ * them. Everyone else in the fixture shows as a non-developer, so the People
+ * view and the developer split on every project demo both kinds. */
+export const DUMMY_TEAMS: Record<string, string[]> = {
+   Store: ['danielbeardsley', 'jarstelfox', 'sctice', 'zdmitchell'],
+   FixBot: ['mlahargou', 'ardelato', 'BaseInfinity'],
+   Community: ['rjmccluskey', 'sivadnor', 'hackalot805', 'djmetzle'],
+};
+const dummyProject = (
+   number: number,
+   slug: string,
+   name: string,
+   over: Partial<Project> = {}
+): Project => ({
+   slug,
+   name,
+   repo: 'iFixit/projects',
+   number,
+   state: 'open',
+   state_reason: null,
+   ongoing: false,
+   parents: [],
+   lead: null,
+   target: null,
+   created_at: inDays(-60 + number * 3),
+   closed_at: over.state === 'closed' ? inDays(-number) : null,
+   ...over,
+});
+
+/** The project issues behind the dummy labels, as /projects-data sends them.
+ * translations and onboarding-emails have no PRs (they land in quiet), and
+ * old-checkout was dropped, so Today never shows it. */
+export const DUMMY_PROJECTS: Project[] = [
+   dummyProject(1, 'webdriver-deflake', 'Deflake the webdriver tests', {
+      ongoing: true,
+      lead: 'mlahargou',
+      parents: ['ci'],
+   }),
+   dummyProject(2, 'grafana-dashboards', 'Grafana dashboards for content', { lead: 'sivadnor' }),
+   dummyProject(3, 'training-periods', 'Training periods', {
+      lead: 'hackalot805',
+      target: { title: 'October', due_on: inDays(30) },
+   }),
+   dummyProject(4, 'release-gate-sso', 'SSO approvals for releases', {
+      parents: ['security'],
+      lead: 'rjmccluskey',
+      target: { title: 'Security review', due_on: inDays(-5) },
+   }),
+   dummyProject(5, 'shopify-sync', 'Shopify product and order sync', {
+      lead: 'zdmitchell',
+      parents: ['store'],
+   }),
+   dummyProject(6, 'shipping-shelf-weight', 'Ship by shelf weight', {
+      parents: ['store', 'warehouse'],
+   }),
+   dummyProject(7, 'mysql-8', 'MySQL 8 upgrade', {
+      lead: 'evannoronha',
+      target: { title: 'Q4 infrastructure', due_on: inDays(75) },
+   }),
+   dummyProject(8, 'akeneo-4', 'Akeneo 4 migration', {
+      state: 'closed',
+      state_reason: 'completed',
+   }),
+   dummyProject(9, 'newsletter-promo', 'Newsletter promo page'),
+   dummyProject(10, 'store-picker', 'Store picker', { parents: ['store'] }),
+   dummyProject(11, 'type-refresh', 'Type and spacing refresh', { lead: 'danielbeardsley' }),
+   dummyProject(12, 'translations', 'Translations upkeep', { ongoing: true }),
+   dummyProject(13, 'onboarding-emails', 'Onboarding emails'),
+   dummyProject(14, 'old-checkout', 'Old checkout cleanup', {
+      state: 'closed',
+      state_reason: 'not_planned',
+   }),
+];
+
+/**
+ * The roadmap a project manager might have laid out, relative to this week:
+ * linked items whose PRs draw over the plan (SSO approvals ran past its
+ * plan, Akeneo 4 is done), plans with no PRs yet (Checkout redesign, Search
+ * relevance), and several live projects left off it, so the "not on the
+ * roadmap" list demos too.
+ */
+export const DUMMY_ROADMAP: RoadmapItem[] = (() => {
+   const monday = mondayOf(utcDay(Date.now() / 1000));
+   const at = (weeks: number) => addWeeks(monday, weeks);
+   const item = (
+      id: number,
+      name: string,
+      start: number,
+      weeks: number,
+      over: Partial<RoadmapItem>
+   ): RoadmapItem => ({
+      id,
+      name,
+      project: null,
+      team: null,
+      lead: null,
+      status: 'planned',
+      start: at(start),
+      weeks,
+      priority: id - 1,
+      notes: '',
+      updated_by: 'danielbeardsley',
+      updated_at: Math.floor(Date.now() / 1000) - id * 3600,
+      ...over,
+   });
+   return [
+      item(1, 'SSO approvals for releases', -8, 6, {
+         project: 'release-gate-sso',
+         team: 'Community',
+         lead: 'rjmccluskey',
+         status: 'active',
+         notes: 'Security asked for this before the audit.',
+      }),
+      item(2, 'Shopify product and order sync', -4, 7, {
+         project: 'shopify-sync',
+         team: 'Store',
+         lead: 'zdmitchell',
+         status: 'active',
+      }),
+      item(3, 'Deflake the webdriver tests', -6, 12, {
+         project: 'webdriver-deflake',
+         team: 'FixBot',
+         lead: 'mlahargou',
+         status: 'active',
+      }),
+      item(4, 'Checkout redesign', 3, 8, { team: 'Store', lead: 'jarstelfox' }),
+      item(5, 'MySQL 8 upgrade', -2, 12, {
+         project: 'mysql-8',
+         team: 'Community',
+         lead: 'evannoronha',
+         status: 'active',
+      }),
+      item(6, 'Search relevance', 7, 6, { team: 'FixBot' }),
+      item(7, 'Translations upkeep', -1, 26, { project: 'translations', team: 'Community' }),
+      item(8, 'Akeneo 4 migration', -11, 8, { project: 'akeneo-4', team: 'Store', status: 'done' }),
+   ];
+})();
 
 // The fixture's signature timestamps are as frozen as its pulls; spread them
 // across the given window so stamp-timeline stats (review pulse, first-CR

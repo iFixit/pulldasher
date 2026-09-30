@@ -968,3 +968,16 @@ input[type="checkbox"] {
   border: 1px solid var(--secondary);
   padding: 3px 8px;
 }
+
+/* The Projects date range calendar (react-day-picker). Its stylesheet takes
+   colors and sizes from --rdp-* variables, which RangeCalendar.tsx points at
+   the tokens above; these rules undo the two sizes it hard-codes, so picked
+   days and month names stay at the board's text size. */
+.pd-calendar .rdp-selected {
+  font-size: inherit;
+  font-weight: 600;
+}
+.pd-calendar .rdp-month_caption {
+  font-size: 13px;
+  font-weight: 600;
+}

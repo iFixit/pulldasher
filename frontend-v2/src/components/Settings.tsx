@@ -19,6 +19,8 @@ import { useArmedConfirm } from './useArmedConfirm';
 import { commitKeyHandler } from './useCommitOnEnter';
 
 const LENS_OPTIONS: [string, string][] = Object.entries(LENS_LABELS);
+// the Projects tab exists only on a server set up for projects
+const LENS_OPTIONS_NO_PROJECTS = LENS_OPTIONS.filter(([id]) => id !== 'projects');
 
 // Stats has no lanes, so it's left out of the per-lens lane-length list
 // (unlike LENS_OPTIONS above, which covers every tab including Stats) — the
@@ -116,7 +118,7 @@ export function Settings({
 }) {
    const [open, setOpen] = useState(false);
    const s = useSettings();
-   const { refreshProgress } = usePulldasher();
+   const { refreshProgress, projectLabelPrefix } = usePulldasher();
    const panelRef = useRef<HTMLDivElement>(null);
    const triggerRef = useRef<HTMLButtonElement>(null);
    const [refreshNote, setRefreshNote] = useState('');
@@ -252,7 +254,7 @@ export function Settings({
                            <Segmented
                               ariaLabel="default view"
                               value={s.defaultLens}
-                              options={LENS_OPTIONS}
+                              options={projectLabelPrefix ? LENS_OPTIONS : LENS_OPTIONS_NO_PROJECTS}
                               onChange={defaultLens => set({ defaultLens })}
                            />
                         </Field>

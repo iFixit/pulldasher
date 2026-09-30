@@ -1,4 +1,6 @@
 import {
+   lazy,
+   Suspense,
    useCallback,
    useDeferredValue,
    useEffect,
@@ -54,12 +56,18 @@ import { Team } from './views/Team';
 import { Classic } from './views/Classic';
 import { Ci } from './views/Ci';
 import { Stats } from './views/Stats';
+import type { ProjectsNav } from './views/Projects';
+import { DEFAULT_RANGE } from './model/projectData';
 import { Search } from './views/Search';
 import { Settings } from './components/Settings';
 
 export type { Lens };
 
-const LENSES: Lens[] = ['review', 'mine', 'team', 'classic', 'ci', 'stats'];
+// The Projects tab is for whoever plans the work; reviewers never open it, so
+// its code (and the chart and calendar chunks under it) loads only on demand.
+const Projects = lazy(() => import('./views/Projects').then(m => ({ default: m.Projects })));
+
+const LENSES: Lens[] = ['review', 'mine', 'team', 'projects', 'classic', 'ci', 'stats'];
 
 /** every actionState bucket, for validating the `state=` hash param against */
 const ACTION_STATE_KEYS: ActionStateKey[] = [
@@ -94,6 +102,9 @@ interface HashState {
    reveal: string[];
    /** session override of the drafts default (null = use the durable default) */
    drafts: 'mine' | 'all' | null;
+   /** the Projects tab's own state: the view, an open project page, the
+    * date range, and the list's and roadmap's controls */
+   projects: ProjectsNav;
 }
 
 /**
@@ -127,6 +138,16 @@ function readHash(): HashState {
       hidden: p.get('hidden') === '1',
       reveal: p.get('show')?.split(',').filter(Boolean) ?? [],
       drafts: p.get('drafts') === 'all' ? 'all' : p.get('drafts') === 'mine' ? 'mine' : null,
+      projects: {
+         view: p.get('view') === 'roadmap' ? 'roadmap' : p.get('view') === 'people' ? 'people' : 'overview',
+         project: p.get('project') || null,
+         range: p.get('range') || DEFAULT_RANGE,
+         status: p.get('status') || 'live',
+         group: p.get('group') || 'none',
+         sort: p.get('sort') || 'open',
+         find: p.get('find') ?? '',
+         scale: p.get('scale') === 'month' ? 'month' : 'quarter',
+      },
    };
 }
 
@@ -142,6 +163,14 @@ function buildHash(s: HashState): string {
    if (s.hidden) p.set('hidden', '1');
    if (s.reveal.length) p.set('show', s.reveal.join(','));
    if (s.drafts) p.set('drafts', s.drafts);
+   if (s.projects.view !== 'overview') p.set('view', s.projects.view);
+   if (s.projects.project) p.set('project', s.projects.project);
+   if (s.projects.range !== DEFAULT_RANGE) p.set('range', s.projects.range);
+   if (s.projects.status !== 'live') p.set('status', s.projects.status);
+   if (s.projects.group !== 'none') p.set('group', s.projects.group);
+   if (s.projects.sort !== 'open') p.set('sort', s.projects.sort);
+   if (s.projects.find) p.set('find', s.projects.find);
+   if (s.projects.scale !== 'quarter') p.set('scale', s.projects.scale);
    return p.toString();
 }
 
@@ -232,6 +261,7 @@ export function App() {
       lastSeen,
       refreshProgress,
       snoozed,
+      projectLabelPrefix,
    } = usePulldasher();
    // per-repo reviewer pools and whose turn each starved, unclaimed pull is —
    // computed ONCE over the whole board and shared by the rows (rowOpts),
@@ -306,6 +336,11 @@ export function App() {
    const [draftsMode, setDraftsMode] = useState<'mine' | 'all'>(
       () => urlState.drafts ?? getSettings().draftsMode
    );
+   const [projectsNav, setProjectsNav] = useState<ProjectsNav>(() => urlState.projects);
+   const navigateProjects = useCallback(
+      (patch: Partial<ProjectsNav>) => setProjectsNav(cur => ({ ...cur, ...patch })),
+      []
+   );
    // login-level twin of isBot, for row-level consumers (the avatar's square
    // bot tile) that hold a login rather than a DerivedPull
    const isBotAuthor = useCallback((login: string) => isBotLogin(login, extraBots), [extraBots]);
@@ -350,19 +385,37 @@ export function App() {
          hidden: showAll,
          reveal,
          drafts: draftsMode !== settings.draftsMode ? draftsMode : null,
+         projects: projectsNav,
       }),
-      [lens, query, scope, weightSel, stateSel, showAll, reveal, draftsMode, settings.draftsMode]
+      [
+         lens,
+         query,
+         scope,
+         weightSel,
+         stateSel,
+         showAll,
+         reveal,
+         draftsMode,
+         settings.draftsMode,
+         projectsNav,
+      ]
    );
-   // View changes (lens switches) earn a history entry so the back button
+   // View changes (lens switches, and opening or leaving a project page or
+   // the Projects tab's Date range) earn a history entry so the back button
    // navigates between boards; filter tweaks replace in place so typing a
    // query doesn't bury history under keystrokes.
-   const prevView = useRef({ lens });
+   const view = { lens, project: projectsNav.project, projectsView: projectsNav.view };
+   const prevView = useRef(view);
    useEffect(() => {
       const next = buildHash(hashState);
       if (next === location.hash.slice(1)) return;
       const prev = prevView.current;
-      prevView.current = { lens };
-      if (prev.lens !== lens) {
+      prevView.current = view;
+      if (
+         prev.lens !== view.lens ||
+         prev.project !== view.project ||
+         prev.projectsView !== view.projectsView
+      ) {
          if (next) {
             // fires hashchange; the listener below re-reads idempotently
             location.hash = next;
@@ -377,7 +430,8 @@ export function App() {
       }
       // buildHash's omission rule reads settings.defaultLens too (via
       // defaultLensFallback) even though it's not one of hashState's own
-      // fields, so it stays a separate dependency here.
+      // fields, so it stays a separate dependency here. `view` is built from
+      // hashState's own fields, so hashState covers it.
    }, [hashState, lens, settings.defaultLens]);
    useEffect(() => {
       const onHash = () => {
@@ -389,6 +443,7 @@ export function App() {
          setShowAll(h.hidden);
          setReveal(h.reveal);
          setDraftsMode(h.drafts ?? getSettings().draftsMode);
+         setProjectsNav(h.projects);
          // the hash is the whole view, scope included: applying a saved
          // search (or walking history) must land its repos/authors too.
          // Primed, not persisted — same rule as opening a shared link.
@@ -679,6 +734,29 @@ export function App() {
       extraBots,
    ]);
 
+   // The Projects tab counts every person's PR, drafts and hidden repos
+   // included: a project's size can't depend on one viewer's review
+   // preferences. The repo and people picks in the filter bar still narrow
+   // it, the way they narrow Stats. Bots are left out, as in the API.
+   const inProjectScope = useCallback(
+      (repo: string, login: string) =>
+         (!scope.repos.length || scope.repos.includes(repo)) &&
+         (!scope.authors.length || scope.authors.includes(login)) &&
+         !scope.notAuthors.includes(login),
+      [scope]
+   );
+   const projectPulls = useMemo(
+      () => pulls.filter(p => !isBot(p) && inProjectScope(p.data.repo, p.data.user.login)),
+      [pulls, isBot, inProjectScope]
+   );
+   const projectClosed = useMemo(
+      () =>
+         closed.filter(
+            p => !isBotLogin(p.user.login, extraBots) && inProjectScope(p.repo, p.user.login)
+         ),
+      [closed, extraBots, inProjectScope]
+   );
+
    // the hidden-PR ledger's numbers: stable per-category sizes (what each
    // rule covers, whether or not a session reveal currently shows it) plus
    // the live currently-hidden total for the trigger label
@@ -733,6 +811,8 @@ export function App() {
    const goToLens = useCallback((id: Lens) => {
       setQuery('');
       setLens(id);
+      // the Projects tab, clicked from a project page, goes back to the list
+      if (id === 'projects') setProjectsNav(cur => ({ ...cur, project: null }));
    }, []);
    // and the Team lens shows the result
    const onPerson = useCallback(
@@ -1028,6 +1108,7 @@ export function App() {
                      {tab('review', LENS_LABELS.review)}
                      {tab('mine', LENS_LABELS.mine, mineCount)}
                      {tab('team', LENS_LABELS.team)}
+                     {projectLabelPrefix && tab('projects', LENS_LABELS.projects)}
                      {tab('classic', LENS_LABELS.classic)}
                      {tab('ci', LENS_LABELS.ci)}
                      {tab('stats', LENS_LABELS.stats)}
@@ -1036,11 +1117,13 @@ export function App() {
                      className="sm:hidden"
                      lens={lens}
                      setLens={goToLens}
-                     options={LENSES.map(id => ({
-                        id,
-                        label: LENS_LABELS[id],
-                        count: id === 'mine' ? mineCount : undefined,
-                     }))}
+                     options={LENSES.filter(id => id !== 'projects' || projectLabelPrefix).map(
+                        id => ({
+                           id,
+                           label: LENS_LABELS[id],
+                           count: id === 'mine' ? mineCount : undefined,
+                        })
+                     )}
                   />
                </div>
             </div>
@@ -1220,6 +1303,26 @@ export function App() {
                <Classic pulls={scoped} opts={rowOpts} />
             )}
             {initialized && !searching && lens === 'ci' && <Ci pulls={ciPulls} opts={rowOpts} />}
+            {initialized && !searching && lens === 'projects' && (
+               <Suspense
+                  fallback={
+                     <div className="py-20 text-center text-sm text-ink-3" role="status">
+                        Loading projects…
+                     </div>
+                  }
+               >
+                  <Projects
+                  pulls={projectPulls}
+                  closed={projectClosed}
+                  prefix={projectLabelPrefix}
+                  nav={projectsNav}
+                  navigate={navigateProjects}
+                  opts={rowOpts}
+                  me={me}
+                  onPerson={onPerson}
+                  />
+               </Suspense>
+            )}
             {initialized && !searching && lens === 'stats' && (
                <Stats pulls={humans} closed={closed} me={me} onPerson={onPerson} />
             )}

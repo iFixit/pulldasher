@@ -90,6 +90,61 @@ Two query string parameters are available to filter the displayed pulls:
 
    `ex. https://pulldasher.example.com?milestone=site-redesign,12/5,12/19`
 
+### Projects
+
+An optional tab for whoever plans the work: which projects the open PRs
+serve, who is on each, how they are moving, and a roadmap to plan them on.
+Everything but the roadmap is read from GitHub; something else (a person,
+or a job) files the PRs:
+
+- A PR joins a project through one label, `project:<slug>`. PRs that fit no
+  project get `project:misc`. Keep a label to 32 characters with no spaces:
+  that's what Pulldasher's label table and filter box hold.
+- Each project is an issue in one repo, carrying the same label. The issue's
+  title is the project's name, its assignee the lead, its milestone (and due
+  date) the target, `parent:<slug>` labels its parents (any number), and an
+  `ongoing` label marks work with no end. Close it as completed when it's
+  done, or as not planned when it's dropped or merged into another.
+
+Turn it on with the `projects` block in `config.js` (see
+`config.example.js`): the projects repo, and `developerTeams`, the teams
+whose members count as developers (anyone else with a PR is a
+non-developer, whose work needs a developer's review). Give the projects
+repo the same webhook as a tracked repo (Issues events). Without a projects
+repo, PRs still group by label, just without names, leads or targets.
+
+The tab has three views and a page per project:
+
+- **Overview**: headline numbers for a date range (each compared with the
+  same number of days before), the backlog chart, where the merged work
+  went week by week, and every project on one list you can sort, group by
+  parent, lead or team, search, and download as CSV.
+- **Roadmap**: the plan, by month or by quarter. Drag rows to set priority,
+  drag a bar to move it and its edge to change its length; group into team
+  lanes. An item linked to a project label draws what its PRs actually did
+  under the plan. This is the one thing the tab stores itself, in the
+  `roadmap_items` table.
+- **People**: developers by team and everyone else: live projects each,
+  open PRs, PRs opened and merged, and reviews given, including how many
+  went to non-developers' PRs.
+
+The same data is in the API, Bearer-authed like `/api/v1/pulls`. The first
+two take `start` and `end` as `YYYY-MM-DD` days (default: the last 30 days,
+at most 400), and `project=<slug>` narrows the window's numbers to one
+project:
+
+- `GET /api/v1/projects`: each project's issue fields, where it stands today
+  (open PR ids, people, idle days, flags), and its numbers for the window,
+  plus the totals and one point per day for the backlog chart.
+- `GET /api/v1/people`: per person, their team, the window's numbers,
+  reviews given, the projects they had PRs in, the live projects they're on
+  today, and their open PRs.
+- `GET /api/v1/roadmap`: every roadmap item in priority order.
+
+Pulldasher also re-lists every tracked repo's open PRs once an hour and
+refreshes only the ones its database has wrong, so a lost webhook can't leave
+a merged PR counted as open.
+
 ## Architecture
 
 When first started, the Pulldasher server fetches information about the current

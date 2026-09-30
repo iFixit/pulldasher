@@ -22,6 +22,10 @@ export interface Snapshot {
    pulls: DerivedPull[];
    /** bot logins beyond the `[bot]` suffix, from server config (initialize) */
    extraBots: ReadonlySet<string>;
+   /** the label prefix that files a PR into a project, from server config
+    * (initialize); null when the server isn't set up for projects, which
+    * hides the Projects tab */
+   projectLabelPrefix: string | null;
    /** merged/closed in the last 14 days (the server's retention window) */
    closed: PullData[];
    me: string;
@@ -52,6 +56,7 @@ let repoSpecs: RepoSpec[] = [];
 // reference invalidates the derive cache so weights re-resolve when it arrives.
 let weightLabels: ReadonlyMap<string, Weight> = new Map();
 let extraBots: ReadonlySet<string> = new Set();
+let projectLabelPrefix: string | null = null;
 let me = '';
 let connection: ConnectionState = 'connecting';
 let initialized = false;
@@ -213,6 +218,7 @@ export function isSnoozed(
 let snapshot: Snapshot = {
    pulls: [],
    extraBots,
+   projectLabelPrefix,
    closed: [],
    me,
    connection,
@@ -271,6 +277,7 @@ function publish() {
             (a, b) => (Date.parse(b.closed_at ?? '') || 0) - (Date.parse(a.closed_at ?? '') || 0)
          ),
       extraBots,
+      projectLabelPrefix,
       me,
       connection,
       initialized,
@@ -322,6 +329,7 @@ function start() {
          // server-owned config rides with the board (see shared/types)
          weightLabels = parseWeightLabels(payload.weightLabels);
          extraBots = new Set(payload.bots ?? []);
+         projectLabelPrefix = payload.projectLabelPrefix || null;
          for (const p of payload.pulls) raw.set(pullKey(p), p);
          initialized = true;
          // a reconnect resends everything; counting it as refresh progress

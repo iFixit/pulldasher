@@ -106,6 +106,22 @@ seven-column layout.)
   first payload after load just primes the baseline, so it never alerts for the
   backlog already there, and a "send a test" button confirms the setup.
   `src/notifications.ts`.
+- **Projects.** An optional tab, shown when the server's `config.js` has a
+  `projects` block, for whoever plans the work: an Overview (headline
+  numbers against the period before, the backlog chart, where merged work
+  went, and every project on one sortable, groupable list), a Roadmap (the
+  plan by month or quarter; drag to set priority, timing and length, with
+  linked projects' real PR activity drawn under each bar), People
+  (developers by team and everyone else, with the reviews each gave), and a
+  page per project. Today is built on the board from the live socket pulls
+  by the same `shared/model/projects.ts` the server's `/api/v1/projects`
+  runs; the project issues and history come from `GET /projects-data`, the
+  roadmap from `/roadmap` (`model/roadmapData.ts` shows each change at once
+  and rolls it back if the server refuses). The tab, its charts (Recharts)
+  and its date picker (react-day-picker) are lazy chunks, so the review
+  board never downloads them (DESIGN.md § Charts and dates). The dummy board
+  files its pulls into projects, teams and a roadmap that show every state
+  (`backend/dummy.ts`).
 - **Keyboard:** `/` filter, `j`/`k` walk rows, `Enter` opens, `c` copies the
   focused row's branch.
 
