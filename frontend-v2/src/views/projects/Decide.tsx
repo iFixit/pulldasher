@@ -200,13 +200,14 @@ function Facts({
    return (
       <>
          {facts.map((fact, i) => (
+            // the dot trails its fact, so a wrapped line never starts with one
             <span key={i} className="inline-flex items-baseline gap-x-2">
-               {i > 0 && (
+               {fact}
+               {i < facts.length - 1 && (
                   <span aria-hidden className="text-xs text-ink-3">
                      ·
                   </span>
                )}
-               {fact}
             </span>
          ))}
       </>
@@ -405,6 +406,7 @@ export function Decide({
 }) {
    const { items: plans, loadFailed, problem } = useRoadmap();
    const [decided, setDecided] = useState(madeThisVisit);
+   const [copied, setCopied] = useState(false);
    const record = (next: (d: ReadonlyMap<string, Decided>) => ReadonlyMap<string, Decided>) =>
       setDecided(d => (madeThisVisit = next(d)));
    const day = dayOf(new Date());
@@ -469,6 +471,33 @@ export function Decide({
       );
    };
 
+   const nameOf = (row: DecideRow) =>
+      row.item?.name ?? projectOf(row)?.name ?? row.slug ?? 'A plan';
+   // the list as plain text, for the weekly meeting's notes or a chat post
+   const copy = () => {
+      const lines = SECTIONS.flatMap(([, title], index) => {
+         const inSection = owed.filter(row => sectionOf(row) === index);
+         if (!inSection.length) return [];
+         return [
+            title,
+            ...inSection.map(row => {
+               const lead = row.item?.lead ?? projectOf(row)?.lead;
+               const why = row.reasons.map(r => reasonWords(r, row.item)).join('; ');
+               return `- ${nameOf(row)}${lead ? ` (${lead})` : ''}: ${why}`;
+            }),
+         ];
+      });
+      const whose = !nav.team ? '' : nav.team === '(none)' ? ' with no team' : ` for ${nav.team}`;
+      void navigator.clipboard
+         ?.writeText(
+            [`${n(owed.length, 'decision')} to make${whose}, ${dayWords(day)}`, ...lines].join('\n')
+         )
+         .then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+         });
+   };
+
    // each team's decisions still owed, and its size, for the team switch
    const teams = Object.keys(teamMembers).sort();
    const owedBy = (team: string) =>
@@ -482,10 +511,22 @@ export function Decide({
    return (
       <section className="mb-7">
          <div className="mb-4">
-            <h2 className="m-0 text-base font-semibold leading-snug">
-               {owed.length ? `${n(owed.length, 'decision')} to make` : 'Nothing to decide'}
-               {nav.team && (nav.team === '(none)' ? ' with no team' : ` for ${nav.team}`)}
-            </h2>
+            <div className="flex flex-wrap items-baseline gap-x-3">
+               <h2 className="m-0 text-base font-semibold leading-snug">
+                  {owed.length ? `${n(owed.length, 'decision')} to make` : 'Nothing to decide'}
+                  {nav.team && (nav.team === '(none)' ? ' with no team' : ` for ${nav.team}`)}
+               </h2>
+               {owed.length > 0 && (
+                  <button
+                     type="button"
+                     onClick={copy}
+                     className="hit pressable rounded border-0 bg-transparent p-0 text-xs text-ink-3 hover:text-brand"
+                     title="Copy this list as plain text, for the meeting’s notes or a chat post"
+                  >
+                     {copied ? 'Copied' : 'Copy as text'}
+                  </button>
+               )}
+            </div>
             <p className="m-0 mt-1 max-w-[72ch] text-[13px] text-ink-2">
                {owed.length
                   ? 'Each needs a call: commit to it through a month or quarter, park it, finish it, or drop it. The roadmap keeps the call.'

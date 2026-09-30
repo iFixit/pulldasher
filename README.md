@@ -135,9 +135,9 @@ The tab has four views and a page per project:
   open, and parked work whose PRs moved. Each row says why it's there, with
   its team, size and target, and takes one click: commit through the end
   of a coming month or quarter, park, finish, or drop. A team's lead can
-  take just their team's rows. It weighs every project, whatever the
-  filter bar narrows the other views to. The tab's label counts what's
-  left.
+  take just their team's rows, and copy them as text for a meeting's
+  notes. It weighs every project, whatever the filter bar narrows the
+  other views to. The tab's label counts what's left.
 - **Roadmap**: the plan set against everything actually in flight. Across
   the top, how many projects were in flight each week (from their PRs)
   and, for the weeks ahead, the plans plus every project big enough to owe
