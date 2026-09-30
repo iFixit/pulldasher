@@ -332,7 +332,8 @@ function DecideRowView({
                            onClick={() =>
                               call(
                                  { status: 'active', start, weeks },
-                                 `Committed through the ${c.label.toLowerCase()}`
+                                 // "End of Q4" reads "the end of Q4"
+                                 `Committed through the ${c.label.replace(/^End/, 'end')}`
                               )
                            }
                            title={`Plan it from ${dayWords(start)} to ${dayWords(
