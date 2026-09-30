@@ -9,9 +9,15 @@ import {
 } from '../lib/projects.js';
 import { listItems } from '../lib/roadmap.js';
 import {
+   addWeeks,
    decideProjects,
    decideQueue,
+   loadByWeek,
+   mondayOf,
+   mondaysBetween,
+   peakFrom,
    planEnd,
+   spansFrom,
    utcDay,
    windowStats,
    MISC_SLUG,
@@ -109,6 +115,11 @@ function projectRecords(projects, today, stats, prefix) {
          window: stats.projects[slug] || null,
       };
    });
+}
+
+/** Where each live project's first open PR opened, by slug. */
+function liveStarts(today) {
+   return Object.fromEntries(decideProjects(today).map(p => [p.slug, p.firstOpened]));
 }
 
 export default {
@@ -294,6 +305,80 @@ export default {
             };
          }),
          'decide query failed'
+      );
+   },
+
+   /**
+    * GET /api/v1/load?start=&end= -- how loaded each week is, against the
+    * developers there are: projects in flight on the roadmap and not, from
+    * PRs through this week and, after it, as if nothing changes (the plans,
+    * plus every project still open with no decision). Default: the 12 weeks
+    * before this one through the 26 after.
+    */
+   getLoad: function (req, res) {
+      const settings = projectSettings();
+      if (!settings) {
+         res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
+         return;
+      }
+      const now = Date.now() / 1000;
+      const day = utcDay(now);
+      const thisWeek = mondayOf(day);
+      const window = parseWindow({
+         start: req.query.start ?? addWeeks(thisWeek, -12),
+         end: req.query.end ?? planEnd({ start: thisWeek, weeks: 27 }),
+      });
+      if (window.error) {
+         res.status(400).json({ error: window.error });
+         return;
+      }
+      // the PRs tell the weeks up to today; the plans tell the rest
+      const pastEnd = window.end < day ? window.end : day;
+      const history =
+         window.start <= pastEnd
+            ? loadWindow(settings, window.start, pastEnd).then(
+                 ({ spans, reviews }) =>
+                    windowStats(spans, window.start, pastEnd, { teamOf: settings.teamOf, reviews })
+                       .projects
+              )
+            : Promise.resolve({});
+      respondOrError(
+         res,
+         Promise.all([loadProjects(settings), listItems(), history]).then(
+            ([projects, items, past]) => {
+               const today = todayFromBoard(pullManager.getPulls(), projects, settings.prefix, now);
+               const spans = spansFrom(past, liveStarts(today), window.start);
+               const weeks = loadByWeek({
+                  weeks: mondaysBetween(window.start, addWeeks(mondayOf(window.end), 1)),
+                  today: day,
+                  plans: items,
+                  spans,
+               });
+               const developers = new Set(
+                  Object.values(settings.teams)
+                     .flat()
+                     .map(login => login.toLowerCase())
+               ).size;
+               const [current] = loadByWeek({ weeks: [thisWeek], today: day, plans: items, spans });
+               return {
+                  server_time: Math.floor(now),
+                  developers,
+                  this_week: {
+                     week: thisWeek,
+                     on_plan: current.onPlan,
+                     off_plan: current.offPlan,
+                  },
+                  peak: peakFrom(weeks, day),
+                  weeks: weeks.map(w => ({
+                     week: w.week,
+                     on_plan: w.onPlan,
+                     off_plan: w.offPlan,
+                     projected: w.projected,
+                  })),
+               };
+            }
+         ),
+         'load query failed'
       );
    },
 };

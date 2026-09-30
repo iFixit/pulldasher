@@ -182,6 +182,7 @@ function makeApp() {
    app.get('/api/v1/projects', projectsController.getProjects);
    app.get('/api/v1/people', projectsController.getPeople);
    app.get('/api/v1/decide', projectsController.getDecide);
+   app.get('/api/v1/load', projectsController.getLoad);
    return app;
 }
 
@@ -408,4 +409,30 @@ test('/api/v1/decide lists a live project with no plan as new, then a slipped pl
    const parked = await get('/api/v1/decide');
    assert.ok(!parked.body.decisions.some(d => d.project === 'alpha'));
    roadmapRows = [];
+});
+
+test('/api/v1/load counts this week and runs undecided projects ahead', async () => {
+   roadmapRows = [];
+   const { status, body } = await get('/api/v1/load');
+   assert.equal(status, 200);
+   assert.equal(body.developers, 1);
+   assert.deepEqual(
+      { on: body.this_week.on_plan, off: body.this_week.off_plan },
+      { on: 0, off: 1 }
+   );
+   // 12 weeks back, this one, and 26 ahead
+   assert.equal(body.weeks.length, 39);
+   const last = body.weeks.at(-1);
+   assert.equal(last.projected, true);
+   assert.equal(last.off_plan, 1);
+   assert.deepEqual(body.peak, { count: 1, week: body.this_week.week });
+
+   // once the roadmap has a word on it, the weeks ahead stop counting it
+   roadmapRows = [roadmapRow({ status: 'dropped' })];
+   const dropped = await get('/api/v1/load');
+   assert.equal(dropped.body.weeks.at(-1).off_plan, 0);
+   roadmapRows = [];
+
+   const bad = await get('/api/v1/load?start=nope');
+   assert.equal(bad.status, 400);
 });

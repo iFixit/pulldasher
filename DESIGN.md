@@ -352,8 +352,9 @@ icon with a class bolted on.
   in flight past its end grows an amber piece labeled "+3 wk over", a
   milestone is a flag with its date ("Dec 14 target"), a project with no
   plan is a dashed bar that says "since Aug 17, no plan", and the load
-  chart labels its two halves ("In flight, from PRs" and "Planned") and
-  its dashed line ("10 developers") instead of carrying a legend. Stripes
+  chart labels its two halves ("In flight, from PRs" and "Ahead, if nothing
+  changes") and its dashed line ("10 developers") instead of carrying a
+  legend. Stripes
   for projected weeks were cut the same way.
 - **The timeline is built for a hundred projects in flight.** Every live
   project shows, planned or not, since the load is the point; lanes fold,
@@ -387,6 +388,13 @@ icon with a class bolted on.
     the plan on the timeline
   The test for a new mark: what would someone expect clicking it to do?
   Build that.
+- **The weeks ahead count what nobody decided.** A chart that counted only
+  the plans after today would drop off a cliff at today and say the team
+  frees up next week, when nothing says so. Instead every project still
+  open with no decision keeps counting in the weeks ahead (a paler tint of
+  the same colors), a plan still in flight past its end keeps counting, and
+  parked, finished and dropped work stops. The only way to bring the
+  future down is a decision, which is the point.
 - **Decide is a list that empties.** With no product manager, the tool
   names the calls owed instead of waiting for someone to notice: new work
   with no decision, plans past their end, stalls, updates saying at risk

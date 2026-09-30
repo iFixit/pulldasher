@@ -18,7 +18,7 @@ import {
 } from '../../../../shared/model/roadmap';
 import { Segmented } from '../../components/bits';
 import { dayOf, dayWords, useProjectsData } from '../../model/projectData';
-import { peakFrom, type LoadWeek } from '../../model/roadmapLoad';
+import { peakFrom, type LoadWeek } from '../../../../shared/model/load';
 import { loadRoadmapUpdates, postRoadmapUpdate, useRoadmap } from '../../model/roadmapData';
 import { StatsCard } from '../stats/parts';
 import { openPlan, type Navigate, type ProjectsNav } from './parts';

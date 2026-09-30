@@ -135,7 +135,8 @@ The tab has four views and a page per project:
   label counts what's left.
 - **Roadmap**: the plan set against everything actually in flight. Across
   the top, how many projects were in flight each week (from their PRs)
-  and are planned for the weeks ahead, against a line at the number of
+  and, for the weeks ahead, the plans plus every project still open with
+  no decision, as if nothing changes, against a line at the number of
   developers. Below, the plans in priority order, then every live project
   with no plan, one click from being planned.
   - By month or by quarter; click a quarter or a month to fill the width
@@ -179,6 +180,10 @@ curl -s -H "Authorization: Bearer $(gh auth token)" https://pulldasher.example.c
 - `GET /api/v1/decide`: the calls owed now, worst first, each with its
   project, its roadmap item if it has one, and its reasons. `GET /api/v1`
   says what each reason means and which write clears it.
+- `GET /api/v1/load`: projects in flight each week against the developer
+  count, on the roadmap and not, with the weeks after this one counted as
+  if nothing changes. `start` and `end` as above (default: 12 weeks back to
+  26 ahead).
 - `GET /api/v1/roadmap` and `GET /api/v1/roadmap/:id`: the items in
   priority order, or one, each with its latest update.
 - `POST /api/v1/roadmap`, `PATCH` and `DELETE /api/v1/roadmap/:id`: add,

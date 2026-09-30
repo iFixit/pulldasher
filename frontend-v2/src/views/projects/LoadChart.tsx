@@ -3,20 +3,23 @@ import { n } from '../../../../shared/format';
 import { addWeeks } from '../../../../shared/model/roadmap';
 import { eyebrowText } from '../../components/Lane';
 import { dayWords } from '../../model/projectData';
-import type { LoadWeek } from '../../model/roadmapLoad';
+import type { LoadWeek } from '../../../../shared/model/load';
 
 /**
  * How loaded the weeks are, on the roadmap's own time axis so each week's
  * bar sits above the same weeks of every row. Every mark is labeled where
  * it is drawn, never in a legend: the weeks up to today say "In flight, from
- * PRs" (blue on the roadmap, gray with no plan), the weeks after say
- * "Planned", the dashed line says how many developers there are, and the
- * band above it is amber because there's more in flight than people.
+ * PRs" (blue on the roadmap, gray with no plan), the weeks after say "Ahead,
+ * if nothing changes" (the plans, and every project still open with no
+ * decision, in lighter tints), the dashed line says how many developers
+ * there are, and the band above it is amber because there's more in flight
+ * than people.
  */
 
 const ON_PLAN = 'var(--brand)';
 const NO_PLAN = 'color-mix(in oklab, var(--ink-3) 55%, transparent)';
 const PLANNED = 'color-mix(in oklab, var(--brand) 45%, transparent)';
+const NO_PLAN_AHEAD = 'color-mix(in oklab, var(--ink-3) 28%, transparent)';
 const OVER_ZONE = 'color-mix(in oklab, var(--warn) 9%, transparent)';
 
 const total = (w: LoadWeek) => w.onPlan + w.offPlan;
@@ -24,7 +27,9 @@ const total = (w: LoadWeek) => w.onPlan + w.offPlan;
 function weekWords(w: LoadWeek, developers: number): string {
    const people = developers ? `, for ${n(developers, 'developer')}` : '';
    return w.projected
-      ? `Week of ${dayWords(w.week)}: ${w.onPlan} planned${people}`
+      ? `Week of ${dayWords(w.week)}, if nothing changes: ${w.onPlan} planned and ${
+           w.offPlan
+        } still open with no decision${people}`
       : `Week of ${dayWords(w.week)}: ${total(w)} in flight, ${w.onPlan} on the roadmap and ${
            w.offPlan
         } with no plan${people}`;
@@ -130,16 +135,14 @@ export function LoadChart({
                <Swatch color={ON_PLAN} />
                {shown.onPlan} on the roadmap
             </CountButton>
-            {!shown.projected && (
-               <CountButton
-                  active={show === 'unplanned'}
-                  onClick={() => onShow(show === 'unplanned' ? 'all' : 'unplanned')}
-                  title="Show only the projects in flight with no plan"
-               >
-                  <Swatch color={NO_PLAN} />
-                  {shown.offPlan} with no plan
-               </CountButton>
-            )}
+            <CountButton
+               active={show === 'unplanned'}
+               onClick={() => onShow(show === 'unplanned' ? 'all' : 'unplanned')}
+               title="Show only the projects in flight with no plan"
+            >
+               <Swatch color={NO_PLAN} />
+               {shown.offPlan} with no plan
+            </CountButton>
             {each != null && (
                <button
                   type="button"
@@ -182,7 +185,7 @@ export function LoadChart({
                      className="absolute top-0 pl-1.5 whitespace-nowrap"
                      style={{ left: todayAt != null ? `calc(${todayAt}% + 1.5rem)` : 0 }}
                   >
-                     Planned
+                     Ahead, if nothing changes
                   </span>
                )}
             </div>
@@ -192,7 +195,7 @@ export function LoadChart({
                tabIndex={0}
                aria-label={`Projects in flight each week: ${total(now)} this week${
                   developers ? ` for ${n(developers, 'developer')}` : ''
-               }. Later weeks show what the roadmap plans. Click a week, or use the arrow keys, to show only what was in flight then; Escape shows every week.`}
+               }. Later weeks show the plans, and the projects with no decision, as if nothing changes. Click a week, or use the arrow keys, to show only what was in flight then; Escape shows every week.`}
                onKeyDown={e => {
                   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
                      e.preventDefault();
@@ -232,20 +235,19 @@ export function LoadChart({
                            developers
                         )}. Click to show only this week's projects.`}
                      >
-                        {w.projected ? (
-                           <span
-                              className="rounded-t-[1px]"
-                              style={{ height: pct(w.onPlan), background: PLANNED }}
-                           />
-                        ) : (
-                           <>
-                              <span style={{ height: pct(w.onPlan), background: ON_PLAN }} />
-                              <span
-                                 className="rounded-t-[1px]"
-                                 style={{ height: pct(w.offPlan), background: NO_PLAN }}
-                              />
-                           </>
-                        )}
+                        <span
+                           style={{
+                              height: pct(w.onPlan),
+                              background: w.projected ? PLANNED : ON_PLAN,
+                           }}
+                        />
+                        <span
+                           className="rounded-t-[1px]"
+                           style={{
+                              height: pct(w.offPlan),
+                              background: w.projected ? NO_PLAN_AHEAD : NO_PLAN,
+                           }}
+                        />
                      </button>
                   );
                })}

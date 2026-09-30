@@ -19,7 +19,7 @@ import {
    ZoomOut,
 } from 'lucide-react';
 import { n } from '../../../../shared/format';
-import { dayStart, MISC_SLUG, utcDay } from '../../../../shared/model/projects';
+import { dayStart, utcDay } from '../../../../shared/model/projects';
 import {
    addWeeks,
    checkRoadmapFields,
@@ -53,9 +53,10 @@ import {
 import {
    loadByWeek,
    mondaysBetween,
+   spansFrom,
    type InFlightSpan,
    type LoadWeek,
-} from '../../model/roadmapLoad';
+} from '../../../../shared/model/load';
 import {
    columnsFor,
    parseZoom,
@@ -1258,38 +1259,6 @@ function AxisHeader({
    );
 }
 
-/** Every project with PRs in the horizon, as a span: live ones run to
- * today; the rest end at their last merge or close. From the horizon's own
- * history, so a project that began months ago starts in the right place. */
-function inFlightSpans(
-   items: PortfolioItem[],
-   history: Record<string, { first_opened: string | null; last_closed: string | null }>,
-   horizonStart: string
-): InFlightSpan[] {
-   const spans: InFlightSpan[] = [];
-   const seen = new Set<string>();
-   for (const p of items) {
-      seen.add(p.slug);
-      const past = history[p.slug];
-      const firstOpen = p.group?.open.map(o => o.data.created_at.slice(0, 10)).sort()[0];
-      const start = past?.first_opened ?? p.window?.first_opened ?? firstOpen ?? null;
-      if (!start) continue;
-      if (p.status === 'live') spans.push({ slug: p.slug, start, end: null });
-      else {
-         const end = past?.last_closed ?? p.window?.last_closed ?? null;
-         if (end && end >= horizonStart) spans.push({ slug: p.slug, start, end });
-      }
-   }
-   // projects that were in flight earlier in the horizon and aren't anywhere
-   // else on the page
-   for (const [slug, w] of Object.entries(history)) {
-      if (seen.has(slug) || !slug || slug === MISC_SLUG || !w.first_opened || !w.last_closed)
-         continue;
-      spans.push({ slug, start: w.first_opened, end: w.last_closed });
-   }
-   return spans;
-}
-
 /**
  * The roadmap: the plan a project manager lays out, month by month or
  * quarter by quarter, set against everything actually in flight. Across the
@@ -1413,7 +1382,22 @@ export function Roadmap({
    const ids = ordered.map(i => i.id);
    const kept = ordered.filter(i => i.status !== 'dropped');
    const linkedSlugs = new Set(kept.flatMap(i => (i.project ? [i.project] : [])));
-   const spans = inFlightSpans(items, history, horizon.start);
+   // every project with PRs in the horizon, as a span: live ones run to
+   // today, the rest end at their last merge or close
+   const spans = spansFrom(
+      history,
+      Object.fromEntries(
+         items
+            .filter(i => i.status === 'live')
+            .map(i => [
+               i.slug,
+               i.window?.first_opened ??
+                  i.group?.open.map(o => o.data.created_at.slice(0, 10)).sort()[0] ??
+                  null,
+            ])
+      ),
+      horizon.start
+   );
    const spanBySlug = new Map(spans.map(s => [s.slug, s]));
    // live projects with no plan, the longest-running first
    const unplanned = items

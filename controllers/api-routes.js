@@ -52,6 +52,14 @@ export const API_ROUTES = [
    },
    {
       method: 'get',
+      path: '/api/v1/load',
+      handlers: [projectsController.getLoad],
+      does:
+         'Projects in flight each week against the developer count, on the roadmap and not; weeks after ' +
+         'this one as if nothing changes. ?start=&end= (default 12 weeks back to 26 ahead)',
+   },
+   {
+      method: 'get',
       path: '/api/v1/roadmap',
       handlers: [roadmapController.list],
       does: 'Every roadmap item in priority order (top first), each with its latest update',
