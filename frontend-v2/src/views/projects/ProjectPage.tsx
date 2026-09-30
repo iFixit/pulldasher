@@ -83,9 +83,9 @@ function Forecast({
          className="m-0 text-xs text-ink-2"
          title="A rough guide: it assumes the last four weeks' pace holds and no new PRs arrive."
       >
-         At the last four weeks’ pace ({finished} finished, about{' '}
-         {Math.round(perWeek * 10) / 10} a week), the {open} open PR{open === 1 ? '' : 's'} take
-         about {weeks} week{weeks === 1 ? '' : 's'}: around {dateWords(eta)}.
+         At the last four weeks’ pace ({finished} finished, about {Math.round(perWeek * 10) / 10} a
+         week), the {open} open PR{open === 1 ? '' : 's'} take about {weeks} week
+         {weeks === 1 ? '' : 's'}: around {dateWords(eta)}.
          {!Number.isNaN(due) && (
             <span className={late ? 'text-warn' : undefined}>
                {' '}
@@ -129,7 +129,9 @@ function ProjectFlow({
                      </div>
                   )}
                   <ChartSlot height={200}>
-                     {data && <BacklogFlowChart days={data.window.days} picked={range} height={200} />}
+                     {data && (
+                        <BacklogFlowChart days={data.window.days} picked={range} height={200} />
+                     )}
                   </ChartSlot>
                </>
             )}
@@ -176,7 +178,7 @@ export function ProjectPage({
    const merged =
       group?.merged ?? closed.filter(p => p.merged_at && projectOf(p.labels, prefix) === slug);
    const w: ProjectWindow | undefined = data?.window.projects[slug];
-   const before = prev === undefined ? undefined : (prev?.window.projects[slug] ?? ZERO);
+   const before = prev === undefined ? undefined : prev?.window.projects[slug] ?? ZERO;
    if (!group && !project && !w && !merged.length) {
       return data === undefined ? (
          <p className="text-[13px] text-ink-3">Loading the project…</p>
@@ -191,12 +193,12 @@ export function ProjectPage({
    const standing = live
       ? 'Live'
       : group
-        ? 'Quiet'
-        : project?.state === 'closed'
-          ? project.state_reason === 'not_planned'
-             ? 'Dropped'
-             : 'Done'
-          : 'Nothing in flight';
+      ? 'Quiet'
+      : project?.state === 'closed'
+      ? project.state_reason === 'not_planned'
+         ? 'Dropped'
+         : 'Done'
+      : 'Nothing in flight';
    const people = group?.people ?? [];
    const devs = people.filter(login => teamOf(login) != null);
    const others = people.filter(login => teamOf(login) == null);

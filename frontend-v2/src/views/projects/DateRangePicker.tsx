@@ -57,7 +57,9 @@ export function DateRangePicker({
                         aria-current={rangeKey === key ? 'true' : undefined}
                         onClick={() => pick(key)}
                         className={`pressable flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] whitespace-nowrap ${
-                           rangeKey === key ? 'bg-secondary text-ink' : 'text-ink-2 hover:text-brand'
+                           rangeKey === key
+                              ? 'bg-secondary text-ink'
+                              : 'text-ink-2 hover:text-brand'
                         }`}
                      >
                         {label}

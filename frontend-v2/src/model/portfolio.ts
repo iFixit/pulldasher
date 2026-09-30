@@ -77,7 +77,7 @@ export function portfolioItems(
       const due = project?.target?.due_on ? Date.parse(project.target.due_on) : NaN;
       return {
          slug,
-         name: group ? projectName(group) : (project?.name ?? slug),
+         name: group ? projectName(group) : project?.name ?? slug,
          project,
          group,
          status,

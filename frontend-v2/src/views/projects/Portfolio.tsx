@@ -36,7 +36,10 @@ const num = (n: number | null | undefined) => (n == null ? '' : n);
 function targetCell(item: PortfolioItem): ReactNode {
    if (!item.target) return '';
    const due = item.target.due_on
-      ? new Date(item.target.due_on).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      ? new Date(item.target.due_on).toLocaleDateString(undefined, {
+           month: 'short',
+           day: 'numeric',
+        })
       : item.target.title;
    const open = item.status === 'live' || item.status === 'quiet';
    const late = open && item.dueInDays != null && item.dueInDays < 0;
@@ -44,8 +47,8 @@ function targetCell(item: PortfolioItem): ReactNode {
       item.dueInDays == null
          ? item.target.title
          : late
-           ? `${-item.dueInDays} days past ${item.target.title}`
-           : `${item.target.title}, in ${item.dueInDays} days`;
+         ? `${-item.dueInDays} days past ${item.target.title}`
+         : `${item.target.title}, in ${item.dueInDays} days`;
    // past due on a project still open is the one thing here someone owes
    return (
       <span className={late ? 'text-warn' : undefined} title={when}>
@@ -81,8 +84,7 @@ const COLUMNS: Column[] = [
    {
       key: 'people',
       label: 'Devs · others',
-      title:
-         'People with an open PR or a merge in the last 14 days: on a developer team, and everyone else',
+      title: 'People with an open PR or a merge in the last 14 days: on a developer team, and everyone else',
       width: 'w-20',
       cell: i =>
          i.developers.length + i.nonDevelopers.length ? (

@@ -38,7 +38,7 @@ function group(slug: string, people: string[], statuses: string[] = [], p?: Proj
    return {
       slug,
       project: p ?? null,
-      open: statuses.map(status => ({ status }) as unknown as DerivedPull),
+      open: statuses.map(status => ({ status } as unknown as DerivedPull)),
       merged: [],
       people,
       idleDays: statuses.length ? 3 : null,
@@ -68,7 +68,10 @@ const alpha = project('alpha', {
    target: { title: 'October', due_on: new Date(NOW + 5 * 86_400_000).toISOString() },
 });
 const today: Today = {
-   live: [group('alpha', ['dana', 'kyle'], ['needs_cr', 'ready'], alpha), group('label-only', ['erin'], ['draft'])],
+   live: [
+      group('alpha', ['dana', 'kyle'], ['needs_cr', 'ready'], alpha),
+      group('label-only', ['erin'], ['draft']),
+   ],
    quiet: [group('beta', [], [], project('beta', { parents: ['store', 'warehouse'] }))],
    misc: [],
    unsorted: [],
@@ -91,7 +94,13 @@ const bySlug = Object.fromEntries(items.map(i => [i.slug, i]));
 
 describe('portfolioItems', () => {
    it('joins every source into one row per project, misc left out', () => {
-      expect(Object.keys(bySlug).sort()).toEqual(['alpha', 'beta', 'gone', 'label-only', 'shipped']);
+      expect(Object.keys(bySlug).sort()).toEqual([
+         'alpha',
+         'beta',
+         'gone',
+         'label-only',
+         'shipped',
+      ]);
       expect(bySlug.alpha).toMatchObject({
          status: 'live',
          lead: 'dana',
@@ -115,7 +124,11 @@ describe('portfolioItems', () => {
 
 describe('filters', () => {
    it('matches the status tabs', () => {
-      const pick = (f: string) => items.filter(i => matchesStatus(i, f)).map(i => i.slug).sort();
+      const pick = (f: string) =>
+         items
+            .filter(i => matchesStatus(i, f))
+            .map(i => i.slug)
+            .sort();
       expect(pick('live')).toEqual(['alpha', 'label-only']);
       expect(pick('quiet')).toEqual(['beta']);
       expect(pick('closed')).toEqual(['gone', 'shipped']);
@@ -130,7 +143,11 @@ describe('filters', () => {
 
 describe('sortItems', () => {
    it('sorts by a column, and reverses with a minus', () => {
-      expect(sortItems(items, 'merged').map(i => i.slug).slice(0, 2)).toEqual(['shipped', 'alpha']);
+      expect(
+         sortItems(items, 'merged')
+            .map(i => i.slug)
+            .slice(0, 2)
+      ).toEqual(['shipped', 'alpha']);
       expect(sortItems(items, '-merged').at(-1)?.slug).toBe('shipped');
       expect(parseSort('nonsense')).toEqual({ key: 'open', reversed: false });
    });

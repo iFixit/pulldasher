@@ -68,10 +68,9 @@ function project(over: Partial<Project> & { slug: string }): Project {
 
 describe('projectSlugs / projectOf', () => {
    it('reads project labels in sorted order and skips the bare prefix', () => {
-      expect(projectSlugs(labels('size: S', 'project:zeta', 'project:', 'project:alpha'), P)).toEqual([
-         'alpha',
-         'zeta',
-      ]);
+      expect(
+         projectSlugs(labels('size: S', 'project:zeta', 'project:', 'project:alpha'), P)
+      ).toEqual(['alpha', 'zeta']);
    });
 
    it('prefers a real project over misc, and is null with no project label', () => {
@@ -176,9 +175,17 @@ describe('buildToday', () => {
    });
 
    it('flags a lead who has work in three other live projects', () => {
-      const pulls = ['one', 'two', 'three'].map(s => open({ labels: [`project:${s}`], author: 'lee' }));
+      const pulls = ['one', 'two', 'three'].map(s =>
+         open({ labels: [`project:${s}`], author: 'lee' })
+      );
       const led = open({ labels: ['project:led'], author: 'sam' });
-      const today = buildToday([project({ slug: 'led', lead: 'lee' })], [...pulls, led], [], P, NOW);
+      const today = buildToday(
+         [project({ slug: 'led', lead: 'lee' })],
+         [...pulls, led],
+         [],
+         P,
+         NOW
+      );
       expect(today.live.find(g => g.slug === 'led')?.flags).toEqual(['lead_spread']);
    });
 
@@ -246,7 +253,12 @@ describe('windowStats', () => {
          merged: 1,
          closed: 1,
       });
-      const buckets = [w.totals, w.unsorted, ...Object.values(w.projects), ...Object.values(w.people)];
+      const buckets = [
+         w.totals,
+         w.unsorted,
+         ...Object.values(w.projects),
+         ...Object.values(w.people),
+      ];
       for (const c of buckets)
          expect(c.backlog_start + c.opened - c.merged - c.closed).toBe(c.backlog_end);
    });
@@ -287,7 +299,13 @@ describe('windowStats: teams, reviews, weeks', () => {
          // dana (a developer) opens and merges inside the first week: 2 days
          { author: 'dana', project: 'alpha', opened: from, closed: from + 2 * DAY, merged: true },
          // kyle (not a developer) opens in the second week, merged 4 days later
-         { author: 'kyle', project: 'alpha', opened: from + 7 * DAY, closed: from + 11 * DAY, merged: true },
+         {
+            author: 'kyle',
+            project: 'alpha',
+            opened: from + 7 * DAY,
+            closed: from + 11 * DAY,
+            merged: true,
+         },
          // kyle again, with no project label, still open
          { author: 'kyle', project: null, opened: from + 8 * DAY, closed: null, merged: false },
       ],
@@ -325,7 +343,12 @@ describe('windowStats: teams, reviews, weeks', () => {
    it('counts reviews given in the window on other people’s PRs, by whose PR', () => {
       expect(w.people.dana).toMatchObject({ team: 'Store', reviews: 1, reviews_on_non_dev: 1 });
       // erin reviewed but opened nothing: she still gets a row
-      expect(w.people.erin).toMatchObject({ team: null, reviews: 1, reviews_on_non_dev: 0, opened: 0 });
+      expect(w.people.erin).toMatchObject({
+         team: null,
+         reviews: 1,
+         reviews_on_non_dev: 0,
+         opened: 0,
+      });
       expect(w.weeks[0].reviews).toEqual({ on_developers: 1, on_non_developers: 0 });
       expect(w.weeks[1].reviews).toEqual({ on_developers: 0, on_non_developers: 1 });
    });

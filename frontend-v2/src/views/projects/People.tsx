@@ -62,7 +62,9 @@ function HeaderRow() {
       </span>
    );
    return (
-      <div className={`${cols} border-b border-line bg-muted/40 px-3.5 py-[7px] text-ink-3 ${eyebrowText}`}>
+      <div
+         className={`${cols} border-b border-line bg-muted/40 px-3.5 py-[7px] text-ink-3 ${eyebrowText}`}
+      >
          <span>Person</span>
          {head('Live projects', 'Live projects they have an open PR or a recent merge in')}
          {head('Open', 'Their open PRs now')}
@@ -88,7 +90,9 @@ function PersonLine({
       <span className={`text-right tabular-nums ${extra}`}>{n || ''}</span>
    );
    return (
-      <div className={`${cols} border-t border-secondary px-3.5 py-2 text-xs text-ink-2 first:border-t-0`}>
+      <div
+         className={`${cols} border-t border-secondary px-3.5 py-2 text-xs text-ink-2 first:border-t-0`}
+      >
          <span className="flex min-w-0 items-center gap-2 text-[13px]">
             <PersonCell login={row.login} me={me} onPerson={onPerson} />
          </span>
@@ -179,7 +183,11 @@ export function People({
    const rows = peopleRows(data, today, teamOf);
    const teams = Object.keys(data.teams);
    const period = `${rangeDays(range)} days before`;
-   const sum = (pick: (w: PersonWindow) => number, dev: boolean, d: ProjectsData | null | undefined) =>
+   const sum = (
+      pick: (w: PersonWindow) => number,
+      dev: boolean,
+      d: ProjectsData | null | undefined
+   ) =>
       Object.values(d?.window.people ?? {})
          .filter(w => (w.team != null) === dev)
          .reduce((s, w) => s + pick(w), 0);

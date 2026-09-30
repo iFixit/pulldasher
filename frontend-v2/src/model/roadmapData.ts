@@ -174,7 +174,9 @@ function settle(reply: Reply, doing: string, undo: () => void): boolean {
 }
 
 /** Add an item at the bottom. Resolves to it, or null when the server said no. */
-export async function createRoadmapItem(fields: Partial<RoadmapFields>): Promise<RoadmapItem | null> {
+export async function createRoadmapItem(
+   fields: Partial<RoadmapFields>
+): Promise<RoadmapItem | null> {
    const reply = await api.create(fields).catch((): Reply => ({ status: 0, json: {} }));
    // nothing was shown early, so there's nothing to take back
    if (!settle(reply, 'add it', () => undefined)) return null;
@@ -183,7 +185,10 @@ export async function createRoadmapItem(fields: Partial<RoadmapFields>): Promise
    return item;
 }
 
-export async function updateRoadmapItem(id: number, fields: Partial<RoadmapFields>): Promise<boolean> {
+export async function updateRoadmapItem(
+   id: number,
+   fields: Partial<RoadmapFields>
+): Promise<boolean> {
    const undo = optimistic(items => items.map(i => (i.id === id ? { ...i, ...fields } : i)));
    const reply = await api.update(id, fields).catch((): Reply => ({ status: 0, json: {} }));
    if (!settle(reply, 'save that', undo)) return false;

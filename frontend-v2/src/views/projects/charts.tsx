@@ -106,7 +106,10 @@ export function BacklogFlowChart({
       );
    };
    return (
-      <div role="img" aria-label="PRs merged or closed so far, with the PRs still open stacked on top, one point per day">
+      <div
+         role="img"
+         aria-label="PRs merged or closed so far, with the PRs still open stacked on top, one point per day"
+      >
          <ResponsiveContainer width="100%" height={height}>
             <AreaChart data={days} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                {grid}
@@ -118,7 +121,13 @@ export function BacklogFlowChart({
                   axisLine={{ stroke: 'var(--border)' }}
                   minTickGap={24}
                />
-               <YAxis tick={axisTick} tickLine={false} axisLine={false} width={40} allowDecimals={false} />
+               <YAxis
+                  tick={axisTick}
+                  tickLine={false}
+                  axisLine={false}
+                  width={40}
+                  allowDecimals={false}
+               />
                <Tooltip content={tip} cursor={{ stroke: 'var(--ring)', strokeDasharray: '3 3' }} />
                <Area
                   type="monotone"
@@ -176,7 +185,7 @@ export function ProjectBars({
       closed: r.w.closed,
       open: r.w.backlog_end,
    }));
-   type Row = (typeof data)[number];
+   type Row = typeof data[number];
    const tip = ({ active, payload }: TooltipContentProps) => {
       const d = payload?.[0]?.payload as Row | undefined;
       if (!active || !d) return null;
@@ -197,9 +206,19 @@ export function ProjectBars({
    return (
       <div role="img" aria-label="Per project: PRs merged, closed without merging, and still open">
          <ResponsiveContainer width="100%" height={Math.max(80, data.length * 26 + 24)}>
-            <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
+            <BarChart
+               data={data}
+               layout="vertical"
+               margin={{ top: 4, right: 12, bottom: 0, left: 0 }}
+            >
                <CartesianGrid stroke="var(--secondary)" horizontal={false} />
-               <XAxis type="number" tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
+               <XAxis
+                  type="number"
+                  tick={axisTick}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+               />
                <YAxis
                   type="category"
                   dataKey="name"
@@ -246,7 +265,7 @@ export function ProjectBars({
 /** One pair of bars per person: PRs opened and PRs merged in the range. */
 export function PeopleBars({ rows }: { rows: BarRowData[] }) {
    const data = rows.map(r => ({ name: r.name, opened: r.w.opened, merged: r.w.merged }));
-   type Row = (typeof data)[number];
+   type Row = typeof data[number];
    const tip = ({ active, payload }: TooltipContentProps) => {
       const d = payload?.[0]?.payload as Row | undefined;
       if (!active || !d) return null;
@@ -270,7 +289,13 @@ export function PeopleBars({ rows }: { rows: BarRowData[] }) {
                barGap={1}
             >
                <CartesianGrid stroke="var(--secondary)" horizontal={false} />
-               <XAxis type="number" tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
+               <XAxis
+                  type="number"
+                  tick={axisTick}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+               />
                <YAxis
                   type="category"
                   dataKey="name"
@@ -282,7 +307,12 @@ export function PeopleBars({ rows }: { rows: BarRowData[] }) {
                   interval={0}
                />
                <Tooltip content={tip} cursor={{ fill: 'var(--muted)' }} />
-               <Bar dataKey="opened" fill="var(--ink-3)" fillOpacity={0.55} isAnimationActive={false} />
+               <Bar
+                  dataKey="opened"
+                  fill="var(--ink-3)"
+                  fillOpacity={0.55}
+                  isAnimationActive={false}
+               />
                <Bar dataKey="merged" fill="var(--ok)" isAnimationActive={false} />
             </BarChart>
          </ResponsiveContainer>
@@ -368,7 +398,13 @@ export function AllocationChart({
                      axisLine={{ stroke: 'var(--border)' }}
                      minTickGap={16}
                   />
-                  <YAxis tick={axisTick} tickLine={false} axisLine={false} width={40} allowDecimals={false} />
+                  <YAxis
+                     tick={axisTick}
+                     tickLine={false}
+                     axisLine={false}
+                     width={40}
+                     allowDecimals={false}
+                  />
                   <Tooltip content={tip} cursor={{ fill: 'var(--muted)' }} />
                   {series.map(([key, , color, opacity]) => (
                      <Bar
@@ -460,10 +496,28 @@ export function SplitWeeksChart({
                      axisLine={{ stroke: 'var(--border)' }}
                      minTickGap={16}
                   />
-                  <YAxis tick={axisTick} tickLine={false} axisLine={false} width={40} allowDecimals={false} />
+                  <YAxis
+                     tick={axisTick}
+                     tickLine={false}
+                     axisLine={false}
+                     width={40}
+                     allowDecimals={false}
+                  />
                   <Tooltip content={tip} cursor={{ fill: 'var(--muted)' }} />
-                  <Bar dataKey="a" stackId="s" fill={GROUP_COLORS.developers} fillOpacity={0.75} isAnimationActive={false} />
-                  <Bar dataKey="b" stackId="s" fill={GROUP_COLORS.non_developers} fillOpacity={0.55} isAnimationActive={false} />
+                  <Bar
+                     dataKey="a"
+                     stackId="s"
+                     fill={GROUP_COLORS.developers}
+                     fillOpacity={0.75}
+                     isAnimationActive={false}
+                  />
+                  <Bar
+                     dataKey="b"
+                     stackId="s"
+                     fill={GROUP_COLORS.non_developers}
+                     fillOpacity={0.55}
+                     isAnimationActive={false}
+                  />
                </BarChart>
             </ResponsiveContainer>
          </div>

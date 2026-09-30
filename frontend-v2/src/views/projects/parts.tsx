@@ -47,7 +47,10 @@ function flagText(flag: ProjectFlag, g: ProjectGroup, today: Today): [string, st
             `Every PR here, open or merged in the last 14 days, is by ${g.people[0]}.`,
          ];
       case 'waiting_on_review':
-         return ['all waiting on review', 'Every open PR here needs a CR or QA before it can move.'];
+         return [
+            'all waiting on review',
+            'Every open PR here needs a CR or QA before it can move.',
+         ];
       case 'lead_spread': {
          const lead = g.project?.lead ?? '';
          const others = otherLiveProjects(lead, g, today);
@@ -145,7 +148,8 @@ export function ProjectFacts({
             </span>
          );
       }
-      if (project.target) facts.push(<span key="target">Target {targetWords(project.target)}</span>);
+      if (project.target)
+         facts.push(<span key="target">Target {targetWords(project.target)}</span>);
       if (project.parents.length) {
          facts.push(<span key="parents">Part of {project.parents.join(', ')}</span>);
       }
@@ -299,7 +303,11 @@ export function WindowTiles({
             value={days(w.median_days_to_merge)}
             label="Median days to merge"
             title="Median days from opened to merged, over the PRs merged in the range"
-            note={period ? versusDays(w.median_days_to_merge, prev?.median_days_to_merge, period) : null}
+            note={
+               period
+                  ? versusDays(w.median_days_to_merge, prev?.median_days_to_merge, period)
+                  : null
+            }
          />
          <Tile
             value={`${w.developers} · ${w.non_developers}`}
