@@ -82,6 +82,32 @@ test("a failed search keeps its window for the next sweep", async (t) => {
   ]);
 });
 
+// After an outage, the first window starts 5 minutes before the newest update
+// the DB held at boot, but never more than a day back.
+test("the first sweep after a restart reaches back to the newest update the DB held", async (t) => {
+  const searches = [];
+  t.mock.method(gitManager, "searchUpdatedPulls", (owner, since) => {
+    searches.push(since.toISOString());
+    return Promise.resolve([]);
+  });
+  const refreshApi = { pull: () => Promise.resolve() };
+  const now = fakeClock(Date.parse("2026-09-29T15:00:00Z"));
+  const at = (iso) => Date.parse(iso) / 1000;
+
+  // The 2026-09-29 cominor outage: nothing written after 10:28:56Z.
+  await createRecentPullsSweep(refreshApi, ["a"], now, at("2026-09-29T10:28:56Z"))();
+  // Down for three days: capped at a day.
+  await createRecentPullsSweep(refreshApi, ["a"], now, at("2026-09-26T15:00:00Z"))();
+  // Updated a minute before the restart: the usual 20-minute window.
+  await createRecentPullsSweep(refreshApi, ["a"], now, at("2026-09-29T14:59:00Z"))();
+
+  assert.deepEqual(searches, [
+    "2026-09-29T10:23:56.000Z",
+    "2026-09-28T14:55:00.000Z",
+    "2026-09-29T14:35:00.000Z",
+  ]);
+});
+
 test("one pull failing to refresh doesn't stop the sweep", async (t) => {
   t.mock.method(gitManager, "searchUpdatedPulls", () =>
     Promise.resolve([

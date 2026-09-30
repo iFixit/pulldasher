@@ -82,9 +82,17 @@ app.get('/api/v1/pulls', apiAuth, apiController.getPulls);
 // the lookup.
 git.getBotLogin();
 
-debug('Loading all recent pulls from the DB');
+// Read before webhooks and the startup refresh write any pull: the first sweep
+// reaches back to it, so events dropped while the server was down get re-read.
+let latestPullUpdate = null;
+
 dbManager
-   .getRecentPulls(pullManager.getOldestAllowedPullTimestamp())
+   .getLatestPullUpdate()
+   .then(function (latest) {
+      latestPullUpdate = latest;
+      debug('Loading all recent pulls from the DB');
+      return dbManager.getRecentPulls(pullManager.getOldestAllowedPullTimestamp());
+   })
    .then(function (pulls) {
       debug('Loaded %s pulls', pulls.length);
       pullQueue.pause();
@@ -96,7 +104,7 @@ dbManager
    .then(function () {
       debug('Refreshing all open pulls from the API');
       refresh.openPulls();
-      startRecentPullsSweep(refresh, config.repos);
+      startRecentPullsSweep(refresh, config.repos, latestPullUpdate);
    })
    .done();
 
