@@ -349,15 +349,33 @@ export function PlansStanding({ nav, navigate }: { nav: ProjectsNav; navigate: N
                         >
                            {item.name}
                         </button>
-                        <span
-                           className={`text-[13px] ${words?.warn ? 'text-warn' : 'text-ink-2'}`}
-                           title={words?.title}
+                        <button
+                           type="button"
+                           onClick={() => navigate(openPlan(nav, item.id))}
+                           className={`pressable rounded border-0 bg-transparent p-0 text-left text-[13px] hover:underline ${
+                              words?.warn ? 'text-warn' : 'text-ink-2'
+                           }`}
+                           title={`${words?.title ?? ''} Click to see its updates and post one.`}
                         >
                            {words?.text ?? 'No update yet'}
-                        </span>
-                        <span className="text-xs text-ink-3">
-                           {[item.team, item.lead].filter(Boolean).join(' · ')}
-                        </span>
+                        </button>
+                        {item.team && <span className="text-xs text-ink-3">{item.team}</span>}
+                        {item.lead && (
+                           <button
+                              type="button"
+                              onClick={() =>
+                                 navigate({
+                                    ...openPlan(nav, item.id),
+                                    item: null,
+                                    find: item.lead ?? '',
+                                 })
+                              }
+                              className="pressable rounded border-0 bg-transparent p-0 text-xs text-ink-3 hover:underline"
+                              title={`Show only ${item.lead}’s work on the roadmap`}
+                           >
+                              {item.lead}
+                           </button>
+                        )}
                      </div>
                      {u?.body && (
                         <p className="m-0 mt-1 whitespace-pre-line text-[13px] text-ink-2">

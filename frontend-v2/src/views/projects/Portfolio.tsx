@@ -389,7 +389,7 @@ export function Portfolio({
       `${label} ${found.filter(i => matchesStatus(i, key)).length}`,
    ]);
    return (
-      <section className="mb-7">
+      <section id="all-projects" className="mb-7 scroll-mt-24">
          <div className="sticky top-[var(--header-h,0px)] z-[5] flex flex-wrap items-center gap-x-3 gap-y-2 bg-[var(--canvas)] pb-2">
             <h2 className="m-0 text-base font-semibold leading-snug">All projects</h2>
             <Segmented

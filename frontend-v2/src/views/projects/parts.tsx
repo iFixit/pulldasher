@@ -232,18 +232,41 @@ export function Tile({
    label,
    title,
    note,
+   onClick,
 }: {
    value: ReactNode;
    label: string;
    title: string;
    note?: string | null;
+   /** where the number comes from: a tile with a place to go is a button */
+   onClick?: () => void;
 }) {
-   return (
-      <div title={title}>
-         <div className="text-xl font-semibold text-ink tabular-nums">{value}</div>
-         <div className="text-xs text-ink-3">{label}</div>
+   const body = (
+      <>
+         <div
+            className={`text-xl font-semibold tabular-nums ${
+               onClick ? 'text-ink group-hover:text-brand' : 'text-ink'
+            }`}
+         >
+            {value}
+         </div>
+         <div className={`text-xs text-ink-3 ${onClick ? 'group-hover:underline' : ''}`}>
+            {label}
+         </div>
          {note && <div className="mt-0.5 text-[11px] text-ink-3 tabular-nums">{note}</div>}
-      </div>
+      </>
+   );
+   return onClick ? (
+      <button
+         type="button"
+         onClick={onClick}
+         title={title}
+         className="group pressable rounded border-0 bg-transparent p-0 text-left"
+      >
+         {body}
+      </button>
+   ) : (
+      <div title={title}>{body}</div>
    );
 }
 

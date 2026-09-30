@@ -1342,6 +1342,7 @@ export function App() {
                   opts={rowOpts}
                   me={me}
                   onPerson={onPerson}
+                  onReview={() => goToLens('review')}
                   />
                </Suspense>
             )}

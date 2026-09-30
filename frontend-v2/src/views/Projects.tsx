@@ -52,6 +52,7 @@ export function Projects({
    opts,
    me,
    onPerson,
+   onReview,
 }: {
    /** people's open PRs, narrowed by the repo and people filters only */
    pulls: DerivedPull[];
@@ -64,6 +65,8 @@ export function Projects({
    opts: RowOptions;
    me: string;
    onPerson: (login: string) => void;
+   /** to the review board */
+   onReview: () => void;
 }) {
    const rangeKey = resolveRange(nav.range) ? nav.range : DEFAULT_RANGE;
    const range = resolveRange(rangeKey) as Range;
@@ -182,6 +185,7 @@ export function Projects({
                nav={nav}
                navigate={navigate}
                opts={opts}
+               onReview={onReview}
             />
          )}
       </>

@@ -32,6 +32,8 @@ function Headline({
    range,
    items,
    teamOf,
+   navigate,
+   onReview,
 }: {
    today: Today;
    data: ProjectsData;
@@ -39,6 +41,9 @@ function Headline({
    range: Range;
    items: PortfolioItem[];
    teamOf: (login: string) => string | null;
+   navigate: Navigate;
+   /** to the review board, where the PRs waiting on review are */
+   onReview: () => void;
 }) {
    const t = data.window.totals;
    const before = prev?.window.totals;
@@ -65,8 +70,12 @@ function Headline({
          <Tile
             value={today.live.length}
             label="Live projects"
-            title="Projects with an open PR, or a merge in the last 14 days"
+            title="Projects with an open PR, or a merge in the last 14 days. Click for the list."
             note={`${started.length} started, ${finished.length} finished in the range`}
+            onClick={() => {
+               navigate({ status: 'live' });
+               document.getElementById('all-projects')?.scrollIntoView({ block: 'start' });
+            }}
          />
          <Tile
             value={`${t.backlog_start} to ${t.backlog_end}`}
@@ -76,8 +85,9 @@ function Headline({
          <Tile
             value={waiting.length}
             label="Waiting on review now"
-            title="Open PRs that need a CR or QA before they can move"
+            title="Open PRs that need a CR or QA before they can move. Click for the review board."
             note={`${waitingOnOthers} by non-developers`}
+            onClick={onReview}
          />
          <Tile
             value={t.merged}
@@ -94,7 +104,8 @@ function Headline({
          <Tile
             value={`${t.developers} · ${t.non_developers}`}
             label="Developers · others"
-            title="People with a PR in the range: on a developer team, and everyone else"
+            onClick={() => navigate({ view: 'people', item: null })}
+            title="People with a PR in the range: on a developer team, and everyone else. Click for the People view."
             note={
                before ? `${before.developers} · ${before.non_developers} the ${period}` : undefined
             }
@@ -219,6 +230,7 @@ export function Overview({
    nav,
    navigate,
    opts,
+   onReview,
 }: {
    today: Today;
    data: ProjectsData | null | undefined;
@@ -231,6 +243,7 @@ export function Overview({
    nav: ProjectsNav;
    navigate: Navigate;
    opts: RowOptions;
+   onReview: () => void;
 }) {
    // two-label PRs already sit in a project, so they aren't "outside" ones
    const outside = today.misc.length + today.unsorted.length;
@@ -251,6 +264,8 @@ export function Overview({
                   range={range}
                   items={items}
                   teamOf={teamOf}
+                  navigate={navigate}
+                  onReview={onReview}
                />
             </StatsCard>
          )}
