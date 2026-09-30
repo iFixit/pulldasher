@@ -14,6 +14,7 @@ import {
    type RoadmapItem,
    type RoadmapUpdate,
    waitsOnProblem,
+   weeksThrough,
 } from '../../../shared/model/roadmap';
 import { dayStart } from '../../../shared/model/projects';
 
@@ -172,6 +173,17 @@ describe('waits on', () => {
          [2, false],
          [3, true],
       ]);
+   });
+});
+
+describe('weeksThrough', () => {
+   it('counts through the week holding the end, one week at least and two years at most', () => {
+      // Oct 31 is a Saturday, in the week of Oct 26: five weeks from Sep 28
+      expect(weeksThrough('2026-09-28', '2026-10-31')).toBe(5);
+      expect(planEnd({ start: '2026-09-28', weeks: 5 })).toBe('2026-11-01');
+      expect(weeksThrough('2026-09-28', '2026-09-28')).toBe(1);
+      expect(weeksThrough('2026-09-28', '2026-08-01')).toBe(1);
+      expect(weeksThrough('2026-09-28', '2031-01-01')).toBe(104);
    });
 });
 

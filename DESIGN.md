@@ -361,9 +361,9 @@ icon with a class bolted on.
   and remember it like every fold. A project with no plan is one line (its
   name, lead and open PRs), and a find box narrows the rows by name, label,
   lead or team while the load chart keeps counting everything. Planning one
-  takes one gesture: its plus opens a chooser under the row (the weeks its
-  PRs have run and two more, or this or next month or quarter), or drag
-  across its weeks on the timeline. Design it on the dummy board with
+  takes one gesture: its plus opens a chooser under the row (from the week
+  its PRs began through the end of a coming month or quarter, the same
+  calls Decide offers), or drag across its weeks on the timeline. Design it on the dummy board with
   `?projects=100`, not at a dozen rows. The header with the column names stays
   in place while the rows scroll, and month lines (quarter lines stronger)
   run through every row, so a span reads against the calendar anywhere on

@@ -100,6 +100,15 @@ export function addWeeks(day: string, weeks: number): string {
    return utcDay((dayStart(day) as number) + weeks * 7 * DAY);
 }
 
+/** The whole weeks from a Monday through the week holding `end`, as a
+ * plan's length: at least one, at most MAX_WEEKS. */
+export function weeksThrough(start: string, end: string): number {
+   const weeks =
+      Math.round(((dayStart(mondayOf(end)) as number) - (dayStart(start) as number)) / (7 * DAY)) +
+      1;
+   return Math.min(MAX_WEEKS, Math.max(1, weeks));
+}
+
 /** The last planned day of an item: its Sunday, `weeks` after it starts. */
 export function planEnd(item: Pick<RoadmapItem, 'start' | 'weeks'>): string {
    return utcDay((dayStart(item.start) as number) + (item.weeks * 7 - 1) * DAY);
@@ -332,11 +341,7 @@ export function periodPlan(
    const lastDay = utcDay(Date.UTC(year, first + size, 0) / 1000);
    const start =
       which === 'next' ? mondayOf(utcDay(Date.UTC(year, first, 1) / 1000)) : mondayOf(today);
-   const weeks =
-      Math.round(
-         ((dayStart(mondayOf(lastDay)) as number) - (dayStart(start) as number)) / (7 * DAY)
-      ) + 1;
-   return { start, weeks };
+   return { start, weeks: weeksThrough(start, lastDay) };
 }
 
 /** how far ahead the roadmap's "next" reaches, in weeks: one quarter */

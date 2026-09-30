@@ -9,11 +9,12 @@ import {
    type DecideReason,
    type DecideRow,
 } from '../../../../shared/model/decide';
-import { dayStart, type Today } from '../../../../shared/model/projects';
+import type { Today } from '../../../../shared/model/projects';
 import {
    HEALTH_WORD,
    mondayOf,
    planEnd,
+   weeksThrough,
    type RoadmapFields,
    type RoadmapItem,
 } from '../../../../shared/model/roadmap';
@@ -30,8 +31,6 @@ import {
    useRoadmap,
 } from '../../model/roadmapData';
 import { openPlan, type Navigate, type ProjectsNav } from './parts';
-
-const DAY = 86400;
 
 function queue(today: Today, items: readonly RoadmapItem[]): DecideRow[] {
    return decideQueue({
@@ -102,14 +101,6 @@ function startOf(row: DecideRow, today: string): string {
    const reason = row.reasons.find(r => r.kind === 'new');
    return mondayOf((reason?.kind === 'new' && reason.since) || today);
 }
-
-/** Whole weeks from a Monday through the week holding `end`. */
-const weeksThrough = (start: string, end: string) =>
-   Math.max(
-      1,
-      Math.round(((dayStart(mondayOf(end)) as number) - (dayStart(start) as number)) / (7 * DAY)) +
-         1
-   );
 
 /** A call made on this page, kept in the row's place so it doesn't vanish. */
 interface Decided {

@@ -35,6 +35,7 @@ import {
    type RoadmapItem,
    type RoadmapStatus,
    waitsOnProblem,
+   weeksThrough,
 } from '../../../../shared/model/roadmap';
 import { Segmented, textInputClass } from '../../components/bits';
 import { Icon } from '../../components/Icon';
@@ -59,6 +60,7 @@ import {
 } from '../../../../shared/model/load';
 import {
    columnsFor,
+   commitEnds,
    parseZoom,
    quarterOf,
    shiftZoom,
@@ -923,9 +925,7 @@ function InFlightRow({
    };
    const spanOf = (a: string, b: string): Span => {
       const [first, last] = a <= b ? [a, b] : [b, a];
-      const weeks =
-         Math.round(((dayStart(last) as number) - (dayStart(first) as number)) / (7 * DAY)) + 1;
-      return { start: first, weeks: Math.min(MAX_WEEKS, weeks) };
+      return { start: first, weeks: weeksThrough(first, last) };
    };
    // a drag across weeks plans it for them; a plain click opens the chooser
    const grab = (e: PointerEvent) => {
@@ -1054,16 +1054,22 @@ function InFlightRow({
  * weeks its PRs have run and two more, or this or next month or quarter.
  * Each one plans it in one click; the editor is there for anything else.
  */
+/**
+ * Planning a project already in flight: from the week its PRs began (the
+ * work so far is part of the plan) through the end of a coming month or
+ * quarter, the same calls Decide offers.
+ */
 function PlanChooser({
    item,
    today,
-   ranSoFar,
+   start,
    onPlan,
    onClose,
 }: {
    item: PortfolioItem;
    today: string;
-   ranSoFar: Span;
+   /** the Monday of the week its PRs began */
+   start: string;
    onPlan: (plan: Span) => void;
    onClose: () => void;
 }) {
@@ -1084,10 +1090,9 @@ function PlanChooser({
             if (e.key === 'Escape') onClose();
          }}
       >
-         Plan {item.name} for
-         {choice('The weeks its PRs have run, plus two', ranSoFar)}
-         {PERIODS.map(([kind, which, label]) => (
-            <span key={label}>{choice(label, periodPlan(kind, which, today))}</span>
+         Plan {item.name} from {weekWords(start)} through
+         {commitEnds(today).map(c => (
+            <span key={c.end}>{choice(c.label, { start, weeks: weeksThrough(start, c.end) })}</span>
          ))}
          <span>or drag across its weeks on the timeline.</span>
          <button
@@ -1504,15 +1509,9 @@ export function Roadmap({
       },
    });
 
-   // the weeks a project's PRs have run so far, and two more to finish
-   const ranSoFar = (p: PortfolioItem): Span => {
-      const actual = actualSpan(p.slug, p, history, today);
-      const start = mondayOf(actual?.start ?? today);
-      const weeksSoFar = Math.ceil(
-         ((dayStart(today) as number) - (dayStart(start) as number)) / (7 * DAY)
-      );
-      return { start, weeks: Math.min(MAX_WEEKS, Math.max(1, weeksSoFar + 2)) };
-   };
+   // the week a project's PRs began
+   const runStart = (p: PortfolioItem) =>
+      mondayOf(actualSpan(p.slug, p, history, today)?.start ?? today);
    const [choosing, setChoosing] = useState<string | null>(null);
    const planProject = (p: PortfolioItem, span: Span) => {
       setChoosing(null);
@@ -1590,7 +1589,7 @@ export function Roadmap({
                <PlanChooser
                   item={p}
                   today={today}
-                  ranSoFar={ranSoFar(p)}
+                  start={runStart(p)}
                   onPlan={span => planProject(p, span)}
                   onClose={() => setChoosing(null)}
                />
