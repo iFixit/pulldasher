@@ -369,6 +369,24 @@ icon with a class bolted on.
   the page. A column name zooms that quarter or month to the full width;
   the toolbar zooms back out one step and pages to the period before or
   after, and the browser's Back does the same, since the zoom is in the URL.
+- **Everything on the roadmap does what it names when clicked.** Nothing
+  a planner would reach for is inert:
+  - a week's bar in the load chart picks that week (arrow keys move the pick,
+    Escape clears it), and the rows narrow to what was in flight or planned
+    then, with the week banded through every row
+  - the chart's counts filter to what they count ("94 with no plan"), and
+    the developer count opens the teams
+  - a column or month name zooms in; while zoomed, Today comes back
+  - a plain click on a bar opens its editor, and only a drag moves it; on a
+    project with no plan, a plain click opens the chooser, and only a drag
+    plans it
+  - a lead narrows to their work, a health word opens the updates, "after X"
+    opens X, the milestone flag and a missed target open the project, the
+    amber overrun opens the plan
+  - a Now, next, later card, and the Plan cell in the project list, open
+    the plan on the timeline
+  The test for a new mark: what would someone expect clicking it to do?
+  Build that.
 - **What a plan waits on is words on its row, not lines across the
   timeline**: "after Search reindex", or, amber, "starts before Shopify
   sync ends". Linear draws dependency lines, but ours would cross team

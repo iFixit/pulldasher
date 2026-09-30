@@ -53,10 +53,17 @@ function Card({
    // still marked planned, though its start week has gone by
    const unstarted = item.status === 'planned' && item.start < mondayOf(today);
    return (
-      <li className="rounded-lg border border-line bg-surface px-3 py-2">
+      // the whole card opens the plan; the name is its keyboard door
+      <li
+         onClick={onOpen}
+         className="cursor-pointer rounded-lg border border-line bg-surface px-3 py-2 hover:border-brand"
+      >
          <button
             type="button"
-            onClick={onOpen}
+            onClick={e => {
+               e.stopPropagation();
+               onOpen();
+            }}
             className="hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium text-ink hover:text-brand"
             title="Open it on the timeline"
          >

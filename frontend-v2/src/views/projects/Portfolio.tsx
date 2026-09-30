@@ -19,7 +19,14 @@ import {
    type SortKey,
 } from '../../model/portfolio';
 import { dayWords } from '../../model/projectData';
-import { FlagWords, PageLink, ProjectFacts, type Navigate, type ProjectsNav } from './parts';
+import {
+   FlagWords,
+   openPlan,
+   PageLink,
+   ProjectFacts,
+   type Navigate,
+   type ProjectsNav,
+} from './parts';
 import { planCellWords } from './roadmapHealth';
 
 interface Column {
@@ -30,7 +37,41 @@ interface Column {
    width: string;
    /** narrow screens drop the columns a planner reads least */
    hide?: string;
-   cell: (item: PortfolioItem) => ReactNode;
+   cell: (item: PortfolioItem, act: CellActions) => ReactNode;
+}
+
+/** What a cell's words do when clicked, from inside a row that opens on click. */
+interface CellActions {
+   openPlan: (id: number) => void;
+   findLead: (lead: string) => void;
+}
+
+/** A cell's words as a button that does its own thing, not the row's. */
+function CellButton({
+   onClick,
+   title,
+   className = '',
+   children,
+}: {
+   onClick: () => void;
+   title: string;
+   className?: string;
+   children: ReactNode;
+}) {
+   return (
+      <button
+         type="button"
+         onClick={e => {
+            // inside the row's <summary>: don't also open the row
+            e.preventDefault();
+            onClick();
+         }}
+         title={title}
+         className={`pressable rounded border-0 bg-transparent p-0 text-xs hover:underline ${className}`}
+      >
+         {children}
+      </button>
+   );
 }
 
 const num = (n: number | null | undefined) => (n == null ? '' : n);
@@ -68,13 +109,18 @@ const COLUMNS: Column[] = [
       title: 'How its roadmap item is going: the latest update, or its status. Blank when it isn’t on the roadmap.',
       width: 'w-20',
       hide: 'hidden md:block',
-      cell: i => {
-         if (!i.plan) return '';
-         const words = planCellWords(i.plan);
+      cell: (i, act) => {
+         const plan = i.plan;
+         if (!plan) return '';
+         const words = planCellWords(plan);
          return (
-            <span className={words.warn ? 'text-warn' : undefined} title={words.title}>
+            <CellButton
+               onClick={() => act.openPlan(plan.id)}
+               className={words.warn ? 'text-warn' : 'text-ink-2'}
+               title={`${words.title}. Click to open it on the roadmap.`}
+            >
                {words.text}
-            </span>
+            </CellButton>
          );
       },
    },
@@ -84,7 +130,20 @@ const COLUMNS: Column[] = [
       title: 'The assignee on the project’s issue',
       width: 'w-24',
       hide: 'hidden md:block',
-      cell: i => (i.lead ? <span title={i.lead}>{i.lead}</span> : ''),
+      cell: (i, act) => {
+         const lead = i.lead;
+         return lead ? (
+            <CellButton
+               onClick={() => act.findLead(lead)}
+               className="text-ink-2"
+               title={`Show only ${lead}’s projects`}
+            >
+               {lead}
+            </CellButton>
+         ) : (
+            ''
+         );
+      },
    },
    {
       key: 'target',
@@ -148,7 +207,7 @@ const COLUMNS: Column[] = [
    },
 ];
 
-function Cells({ item }: { item: PortfolioItem }) {
+function Cells({ item, act }: { item: PortfolioItem; act: CellActions }) {
    return (
       <>
          {COLUMNS.map(c => (
@@ -156,7 +215,7 @@ function Cells({ item }: { item: PortfolioItem }) {
                key={c.key}
                className={`flex-none truncate text-right tabular-nums ${c.width} ${c.hide ?? ''}`}
             >
-               {c.cell(item)}
+               {c.cell(item, act)}
             </span>
          ))}
       </>
@@ -176,14 +235,20 @@ function PortfolioRow({
    today,
    hasRepo,
    opts,
+   nav,
    navigate,
 }: {
    item: PortfolioItem;
    today: Today;
    hasRepo: boolean;
    opts: RowOptions;
+   nav: ProjectsNav;
    navigate: Navigate;
 }) {
+   const act: CellActions = {
+      openPlan: id => navigate(openPlan(nav, id)),
+      findLead: lead => navigate({ find: lead }),
+   };
    // the name wraps rather than truncating (text never hides on this board),
    // and flags sit under it so they can't crowd it out
    const name = (
@@ -212,7 +277,7 @@ function PortfolioRow({
          <div className={`${rowClass} border-t border-secondary first:border-t-0`}>
             <span className="w-3 flex-none" aria-hidden />
             {name}
-            <Cells item={item} />
+            <Cells item={item} act={act} />
          </div>
       );
    }
@@ -227,7 +292,7 @@ function PortfolioRow({
                className="flex-none text-ink-3 transition-[rotate] duration-150 ease-out group-open:rotate-90 motion-reduce:transition-none"
             />
             {name}
-            <Cells item={item} />
+            <Cells item={item} act={act} />
          </summary>
          <div className="border-t border-secondary">
             <ProjectFacts g={item} project={item.project} hasRepo={hasRepo}>
@@ -406,6 +471,7 @@ export function Portfolio({
                         today={today}
                         hasRepo={hasRepo}
                         opts={opts}
+                        nav={nav}
                         navigate={navigate}
                      />
                   ))}

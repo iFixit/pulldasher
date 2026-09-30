@@ -149,7 +149,13 @@ function readHash(): HashState {
          item: Number(p.get('item')) || null,
          split: p.get('split') === 'roadmap' ? 'roadmap' : 'project',
          // not `show`, which the board already uses for revealed hidden groups
-         show: p.get('unplanned') === 'hide' ? 'plan' : 'all',
+         show:
+            p.get('unplanned') === 'hide'
+               ? 'plan'
+               : p.get('unplanned') === 'only'
+               ? 'unplanned'
+               : 'all',
+         week: /^\d{4}-\d{2}-\d{2}$/.test(p.get('week') ?? '') ? p.get('week') : null,
          zoom: ZOOM_KEY.test(p.get('zoom') ?? '') ? p.get('zoom') : null,
       },
    };
@@ -177,7 +183,8 @@ function buildHash(s: HashState): string {
    if (s.projects.scale !== 'quarter') p.set('scale', s.projects.scale);
    if (s.projects.item) p.set('item', String(s.projects.item));
    if (s.projects.split !== 'project') p.set('split', s.projects.split);
-   if (s.projects.show === 'plan') p.set('unplanned', 'hide');
+   if (s.projects.show !== 'all') p.set('unplanned', s.projects.show === 'plan' ? 'hide' : 'only');
+   if (s.projects.week) p.set('week', s.projects.week);
    if (s.projects.zoom) p.set('zoom', s.projects.zoom);
    return p.toString();
 }

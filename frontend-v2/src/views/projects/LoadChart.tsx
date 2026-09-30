@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { n } from '../../../../shared/format';
 import { addWeeks } from '../../../../shared/model/roadmap';
 import { eyebrowText } from '../../components/Lane';
@@ -29,6 +30,33 @@ function weekWords(w: LoadWeek, developers: number): string {
         } with no plan${people}`;
 }
 
+/** A count that filters the rows to what it counts, and back on a second click. */
+function CountButton({
+   active,
+   onClick,
+   title,
+   children,
+}: {
+   active: boolean;
+   onClick: () => void;
+   title: string;
+   children: ReactNode;
+}) {
+   return (
+      <button
+         type="button"
+         aria-pressed={active}
+         onClick={onClick}
+         title={title}
+         className={`pressable self-start rounded border-0 bg-transparent p-0 text-left text-[11px] hover:underline ${
+            active ? 'font-semibold text-ink' : 'text-ink-2'
+         }`}
+      >
+         {children}
+      </button>
+   );
+}
+
 function Swatch({ color }: { color: string }) {
    return (
       <span
@@ -47,6 +75,11 @@ export function LoadChart({
    todayAt,
    when,
    rowGrid,
+   picked,
+   onPick,
+   show,
+   onShow,
+   onPeople,
 }: {
    weeks: LoadWeek[];
    /** this week's load, whatever weeks the chart shows */
@@ -60,33 +93,64 @@ export function LoadChart({
    when: 'past' | 'future' | 'both';
    /** the roadmap's row grid, so the chart's track lines up with the rows' */
    rowGrid: string;
+   /** the week picked by clicking its bar, or null */
+   picked: string | null;
+   onPick: (week: string | null) => void;
+   /** what the rows show, which the counts switch */
+   show: 'all' | 'plan' | 'unplanned';
+   onShow: (show: 'all' | 'plan' | 'unplanned') => void;
+   /** to the developer teams */
+   onPeople: () => void;
 }) {
-   const inFlight = total(now);
+   // a picked week's numbers stand in for this week's
+   const shown = (picked && weeks.find(w => w.week === picked)) || now;
+   const inFlight = total(shown);
+   const step = (by: number) => {
+      const i = weeks.findIndex(w => w.week === (picked ?? now.week));
+      const next = weeks[Math.min(weeks.length - 1, Math.max(0, (i < 0 ? 0 : i) + by))];
+      if (next) onPick(next.week);
+   };
    const top = Math.max(developers, ...weeks.map(total), 1) * 1.15;
    const pct = (v: number) => `${(v / top) * 100}%`;
    const each = developers ? inFlight / developers : null;
    return (
       <div className={`${rowGrid} border-b border-line px-3.5 py-3`}>
          <div className="flex flex-col gap-0.5 self-start">
-            <span className={`text-ink-3 ${eyebrowText}`}>In flight this week</span>
+            <span className={`text-ink-3 ${eyebrowText}`}>
+               {picked ? `The week of ${dayWords(picked)}` : 'In flight this week'}
+            </span>
             <span className="text-2xl font-semibold leading-tight text-ink tabular-nums">
                {inFlight}
             </span>
-            <span className="text-[11px] text-ink-2">
+            <CountButton
+               active={show === 'plan'}
+               onClick={() => onShow(show === 'plan' ? 'all' : 'plan')}
+               title="Show only the plans on the roadmap"
+            >
                <Swatch color={ON_PLAN} />
-               {now.onPlan} on the roadmap
-            </span>
-            <span className="text-[11px] text-ink-2">
-               <Swatch color={NO_PLAN} />
-               {now.offPlan} with no plan
-            </span>
+               {shown.onPlan} on the roadmap
+            </CountButton>
+            {!shown.projected && (
+               <CountButton
+                  active={show === 'unplanned'}
+                  onClick={() => onShow(show === 'unplanned' ? 'all' : 'unplanned')}
+                  title="Show only the projects in flight with no plan"
+               >
+                  <Swatch color={NO_PLAN} />
+                  {shown.offPlan} with no plan
+               </CountButton>
+            )}
             {each != null && (
-               <span
-                  className={`text-[11px] ${each >= 1 ? 'text-warn' : 'text-ink-3'}`}
-                  title="In flight this week, per developer on a developer team"
+               <button
+                  type="button"
+                  onClick={onPeople}
+                  className={`pressable self-start rounded border-0 bg-transparent p-0 text-left text-[11px] hover:underline ${
+                     each >= 1 ? 'text-warn' : 'text-ink-3'
+                  }`}
+                  title="In flight, per developer on a developer team. Open the teams on the People view."
                >
                   {n(developers, 'developer')}, {each.toFixed(1)} each
-               </span>
+               </button>
             )}
          </div>
          <div className="min-w-0">
@@ -123,11 +187,18 @@ export function LoadChart({
                )}
             </div>
             <div
-               className="relative h-20"
-               role="img"
-               aria-label={`Projects in flight each week: ${inFlight} this week${
+               className="relative h-20 outline-none focus-visible:outline-2 focus-visible:outline-brand"
+               role="group"
+               tabIndex={0}
+               aria-label={`Projects in flight each week: ${total(now)} this week${
                   developers ? ` for ${n(developers, 'developer')}` : ''
-               }. Later weeks show what the roadmap plans.`}
+               }. Later weeks show what the roadmap plans. Click a week, or use the arrow keys, to show only what was in flight then; Escape shows every week.`}
+               onKeyDown={e => {
+                  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                     e.preventDefault();
+                     step(e.key === 'ArrowRight' ? 1 : -1);
+                  } else if (e.key === 'Escape') onPick(null);
+               }}
             >
                {developers > 0 && (
                   <span
@@ -138,12 +209,28 @@ export function LoadChart({
                )}
                {weeks.map(w => {
                   const left = at(w.week);
+                  const isPicked = w.week === picked;
                   return (
-                     <span
+                     // a week's column is the button that picks it; the chart
+                     // itself takes the keys, so the weeks aren't 78 tab stops
+                     <button
+                        type="button"
+                        tabIndex={-1}
                         key={w.week}
-                        className="absolute bottom-0 flex h-full flex-col-reverse px-px hover:opacity-80"
-                        style={{ left: `${left}%`, width: `${at(addWeeks(w.week, 1)) - left}%` }}
-                        title={weekWords(w, developers)}
+                        aria-pressed={isPicked}
+                        onClick={() => onPick(isPicked ? null : w.week)}
+                        className="absolute bottom-0 flex h-full cursor-pointer flex-col-reverse border-0 p-0 px-px hover:opacity-80"
+                        style={{
+                           left: `${left}%`,
+                           width: `${at(addWeeks(w.week, 1)) - left}%`,
+                           background: isPicked
+                              ? 'color-mix(in oklab, var(--ink) 12%, transparent)'
+                              : 'transparent',
+                        }}
+                        title={`${weekWords(
+                           w,
+                           developers
+                        )}. Click to show only this week's projects.`}
                      >
                         {w.projected ? (
                            <span
@@ -159,7 +246,7 @@ export function LoadChart({
                               />
                            </>
                         )}
-                     </span>
+                     </button>
                   );
                })}
                {developers > 0 && (

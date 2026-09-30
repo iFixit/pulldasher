@@ -44,6 +44,16 @@ export function shiftZoom(z: Zoom, by: number): Zoom {
    return { kind: z.kind, year: Math.floor(at / per), index: ((at % per) + per) % per };
 }
 
+/** The quarter or month a day falls in. */
+export function zoomAround(kind: Zoom['kind'], day: Date): Zoom {
+   const month = day.getMonth();
+   return {
+      kind,
+      year: day.getFullYear(),
+      index: kind === 'quarter' ? Math.floor(month / 3) : month,
+   };
+}
+
 /** The quarter a zoomed month is in. */
 export function quarterOf(z: Zoom): Zoom {
    return z.kind === 'quarter'

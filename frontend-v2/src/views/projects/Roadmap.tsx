@@ -23,6 +23,7 @@ import { dayStart, MISC_SLUG, utcDay } from '../../../../shared/model/projects';
 import {
    addWeeks,
    checkRoadmapFields,
+   blockersOf,
    healthStanding,
    MAX_WEEKS,
    mondayOf,
@@ -60,6 +61,7 @@ import {
    parseZoom,
    quarterOf,
    shiftZoom,
+   zoomAround,
    zoomKey,
    zoomWords,
    type Column,
@@ -474,6 +476,8 @@ interface Axis {
     * stronger) */
    lines: { left: number; strong: boolean }[];
    todayAt: number | null;
+   /** the week picked on the load chart, as a band through every row */
+   picked: { left: number; width: number } | null;
 }
 
 /** The axis's lines and today's dashed line, inside one row's track and
@@ -501,7 +505,43 @@ function Gridlines({ axis }: { axis: Axis }) {
                style={{ left: `${axis.todayAt}%`, borderColor: 'var(--brand)' }}
             />
          )}
+         {axis.picked && (
+            <span
+               aria-hidden
+               className="pointer-events-none absolute -top-[7px] -bottom-1.5"
+               style={{
+                  left: `${axis.picked.left}%`,
+                  width: `${axis.picked.width}%`,
+                  background: 'color-mix(in oklab, var(--ink) 7%, transparent)',
+               }}
+            />
+         )}
       </>
+   );
+}
+
+/** A word on a row that does what it names when clicked: a lead filters to
+ * their work, a health opens the updates, what it waits on opens that. */
+function RowWord({
+   onClick,
+   title,
+   className = '',
+   children,
+}: {
+   onClick: () => void;
+   title: string;
+   className?: string;
+   children: ReactNode;
+}) {
+   return (
+      <button
+         type="button"
+         onClick={onClick}
+         title={title}
+         className={`pressable rounded border-0 bg-transparent p-0 text-left text-[11px] hover:underline ${className}`}
+      >
+         {children}
+      </button>
    );
 }
 
@@ -531,6 +571,9 @@ function PlanRow({
    linked,
    editing,
    onEdit,
+   onFind,
+   onOpenItem,
+   onOpenProject,
    dragHandlers,
    dropHere,
 }: {
@@ -543,6 +586,10 @@ function PlanRow({
    linked: PortfolioItem | undefined;
    editing: boolean;
    onEdit: () => void;
+   /** narrow the roadmap to a lead's work */
+   onFind: (text: string) => void;
+   onOpenItem: (id: number) => void;
+   onOpenProject: (slug: string) => void;
    dragHandlers: {
       grip: Record<string, unknown>;
       row: Record<string, unknown>;
@@ -550,6 +597,8 @@ function PlanRow({
    dropHere: boolean;
 }) {
    const trackRef = useRef<HTMLSpanElement>(null);
+   // set while a drag moves the bar, so letting go isn't also a click
+   const dragged = useRef(false);
    const [preview, setPreview] = useState<{ start: string; weeks: number } | null>(null);
    const { horizon, at: place } = axis;
    const plan = preview ?? { start: item.start, weeks: item.weeks };
@@ -589,7 +638,9 @@ function PlanRow({
       const x0 = e.clientX;
       const from = { start: item.start, weeks: item.weeks };
       let latest = from;
+      dragged.current = false;
       const move = (ev: globalThis.PointerEvent) => {
+         if (Math.abs(ev.clientX - x0) > 4) dragged.current = true;
          const dw = Math.round((ev.clientX - x0) / pxPerWeek);
          latest =
             mode === 'move'
@@ -617,46 +668,70 @@ function PlanRow({
       );
    };
    // one line of what the planner acts on; PR counts live on the project list
-   const meta: ReactNode[] = [STATUS_WORD[item.status]];
+   const meta: ReactNode[] = [
+      <RowWord key="status" onClick={onEdit} title="Change its status or its plan">
+         {STATUS_WORD[item.status]}
+      </RowWord>,
+   ];
    if (health) {
       meta.push(
-         <span
+         <RowWord
             key="health"
+            onClick={onEdit}
             className={health.warn ? 'text-warn' : 'text-ink-2'}
-            title={health.title}
+            title={`${health.title} Click to see its updates and post one.`}
          >
             {health.text}
-         </span>
+         </RowWord>
       );
    }
-   if (item.lead) meta.push(item.lead);
-   if (waits) {
+   const lead = item.lead;
+   if (lead) {
       meta.push(
-         <span key="waits" className={waits.warn ? 'text-warn' : undefined} title={waits.title}>
+         <RowWord key="lead" onClick={() => onFind(lead)} title={`Show only ${lead}’s work`}>
+            {lead}
+         </RowWord>
+      );
+   }
+   // what it waits on opens that item: the one that clashes, else the first
+   const blockers = blockersOf(item, all);
+   const blocker = (blockers.find(b => b.clash) ?? blockers[0])?.item;
+   if (waits && blocker) {
+      meta.push(
+         <RowWord
+            key="waits"
+            onClick={() => onOpenItem(blocker.id)}
+            className={waits.warn ? 'text-warn' : ''}
+            title={`${waits.title}. Click to open ${blocker.name}.`}
+         >
             {waits.text}
-         </span>
+         </RowWord>
       );
    }
    if (over) {
       meta.push(
-         <span key="over" className="text-warn">
+         <RowWord key="over" onClick={onEdit} className="text-warn" title="Change its plan">
             {n(weeksOver, 'week')} past the plan
-         </span>
+         </RowWord>
       );
    }
    // an on-time milestone is only its flag on the track; a missed one is
    // said here too, since it asks for a new plan or a new date
-   if (due && weeksLate) {
+   const project = item.project;
+   if (due && weeksLate && project) {
       meta.push(
-         <span
+         <RowWord
             key="target"
+            onClick={() => onOpenProject(project)}
             className="text-warn"
-            title={`The milestone ${target?.title} is due ${weekWords(due)}`}
+            title={`The milestone ${target?.title} is due ${weekWords(
+               due
+            )}. Click to open the project.`}
          >
             {due < today
                ? `missed its ${weekWords(due)} target`
                : `ends ${n(weeksLate, 'week')} after its ${weekWords(due)} target`}
-         </span>
+         </RowWord>
       );
    }
    const span = `${weekWords(plan.start)} to ${weekWords(end)}`;
@@ -707,8 +782,12 @@ function PlanRow({
                   <button
                      type="button"
                      aria-label={`${item.name}: planned ${span}, ${plan.weeks} weeks. Left and right arrows move it a week; with Shift they change its length.`}
-                     title={`${span} · ${plan.weeks} weeks. Drag to move; drag the right edge to change the length.`}
+                     title={`${span} · ${plan.weeks} weeks. Click to edit; drag to move; drag the right edge to change the length.`}
                      onPointerDown={e => grab(e, 'move')}
+                     onClick={() => {
+                        if (dragged.current) dragged.current = false;
+                        else onEdit();
+                     }}
                      onKeyDown={keys}
                      className="@container absolute top-1.5 h-4 cursor-grab touch-none overflow-hidden rounded-md border p-0 text-left focus-visible:outline-2 focus-visible:outline-brand active:cursor-grabbing"
                      style={{
@@ -740,35 +819,44 @@ function PlanRow({
                   </button>
                )}
                {over && (
-                  <span
-                     className="@container absolute top-1.5 h-4 overflow-hidden rounded-r-md border border-l-0"
+                  <button
+                     type="button"
+                     onClick={onEdit}
+                     className="@container absolute top-1.5 h-4 cursor-pointer overflow-hidden rounded-r-md border border-l-0 p-0 text-left"
                      style={{
                         left: `${right}%`,
                         width: `${Math.max(0, place(today) - right)}%`,
                         background: 'color-mix(in oklab, var(--warn) 20%, transparent)',
                         borderColor: 'var(--warn)',
                      }}
-                     title={`Still in flight ${n(weeksOver, 'week')} past the plan`}
+                     title={`Still in flight ${n(
+                        weeksOver,
+                        'week'
+                     )} past the plan. Click to change the plan.`}
                   >
                      <span className="hidden px-1 text-[10px] leading-[14px] font-medium whitespace-nowrap text-warn @min-[4.5rem]:block">
                         +{weeksOver} wk over
                      </span>
-                  </span>
+                  </button>
                )}
-               {due && due >= horizon.start && due < horizon.end && (
-                  <span
-                     className="pointer-events-none absolute top-[23px] inline-flex items-center gap-0.5 text-[10px] leading-3 font-medium whitespace-nowrap"
+               {due && project && due >= horizon.start && due < horizon.end && (
+                  <button
+                     type="button"
+                     onClick={() => onOpenProject(project)}
+                     className="absolute top-[23px] inline-flex cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 text-[10px] leading-3 font-medium whitespace-nowrap hover:underline"
                      style={{
                         left: `${place(due)}%`,
                         color: weeksLate ? 'var(--warn)' : 'var(--ink-2)',
                         // near the right edge, the words go on the flag's left
                         transform: place(due) > 80 ? 'translateX(-100%)' : undefined,
                      }}
-                     title={`The milestone ${target?.title}, due ${weekWords(due)}`}
+                     title={`The milestone ${target?.title}, due ${weekWords(
+                        due
+                     )}. Click to open the project.`}
                   >
                      <Icon icon={Flag} size={10} />
                      {weekWords(due)} target
-                  </span>
+                  </button>
                )}
                {preview && (
                   <span
@@ -802,6 +890,7 @@ function InFlightRow({
    onChoose,
    onPlan,
    onOpen,
+   onFind,
 }: {
    item: PortfolioItem;
    span: InFlightSpan | null;
@@ -812,6 +901,7 @@ function InFlightRow({
    onChoose: () => void;
    onPlan: (plan: Span) => void;
    onOpen: () => void;
+   onFind: (text: string) => void;
 }) {
    const trackRef = useRef<HTMLSpanElement>(null);
    const [drag, setDrag] = useState<Span | null>(null);
@@ -831,13 +921,17 @@ function InFlightRow({
          Math.round(((dayStart(last) as number) - (dayStart(first) as number)) / (7 * DAY)) + 1;
       return { start: first, weeks: Math.min(MAX_WEEKS, weeks) };
    };
+   // a drag across weeks plans it for them; a plain click opens the chooser
    const grab = (e: PointerEvent) => {
       if (e.button !== 0 || !trackRef.current) return;
       e.preventDefault();
+      const x0 = e.clientX;
       const from = weekAt(e.clientX);
       let latest = spanOf(from, from);
-      setDrag(latest);
+      let moved = false;
       const move = (ev: globalThis.PointerEvent) => {
+         if (Math.abs(ev.clientX - x0) > 4) moved = true;
+         if (!moved) return;
          latest = spanOf(from, weekAt(ev.clientX));
          setDrag(latest);
       };
@@ -845,7 +939,8 @@ function InFlightRow({
          window.removeEventListener('pointermove', move);
          window.removeEventListener('pointerup', up);
          setDrag(null);
-         onPlan(latest);
+         if (moved) onPlan(latest);
+         else onChoose();
       };
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', up);
@@ -874,8 +969,23 @@ function InFlightRow({
                >
                   {item.name}
                </button>
-               <span className="ml-2 text-[11px] whitespace-nowrap text-ink-3">
-                  {[item.lead, n(item.open, 'open PR')].filter(Boolean).join(' · ')}
+               <span className="ml-2 inline-flex gap-x-1.5 text-[11px] whitespace-nowrap text-ink-3">
+                  {item.lead && (
+                     <RowWord
+                        onClick={() => onFind(item.lead as string)}
+                        title={`Show only ${item.lead}’s work`}
+                        className="text-ink-3"
+                     >
+                        {item.lead}
+                     </RowWord>
+                  )}
+                  <RowWord
+                     onClick={onOpen}
+                     title="Open the project and its PRs"
+                     className="text-ink-3"
+                  >
+                     {n(item.open, 'open PR')}
+                  </RowWord>
                </span>
             </span>
          </span>
@@ -883,7 +993,7 @@ function InFlightRow({
             ref={trackRef}
             onPointerDown={grab}
             className="relative block h-6 cursor-crosshair touch-none"
-            title="Drag across the weeks to plan it for them"
+            title="Drag across the weeks to plan it for them, or click for the choices"
          >
             <Gridlines axis={axis} />
             {span && now > left && (
@@ -1065,7 +1175,7 @@ function AxisHeader({
    onZoom,
 }: {
    columns: Column[];
-   ticks: { left: number; label: string }[];
+   ticks: { left: number; label: string; zoom?: string }[];
    axis: Axis;
    onZoom: (key: string) => void;
 }) {
@@ -1112,15 +1222,32 @@ function AxisHeader({
                   </span>
                );
             })}
-            {ticks.map(t => (
-               <span
-                  key={t.left}
-                  className="absolute bottom-0 hidden pl-1 text-[10px] text-ink-3 tabular-nums sm:block"
-                  style={{ left: `${t.left}%` }}
-               >
-                  {t.label}
-               </span>
-            ))}
+            {ticks.map(t => {
+               const zoom = t.zoom;
+               return zoom ? (
+                  <button
+                     key={t.left}
+                     type="button"
+                     onClick={() => onZoom(zoom)}
+                     title={`Zoom in: fill the width with ${dateOf(`${zoom}-01`).toLocaleDateString(
+                        undefined,
+                        { month: 'long', year: 'numeric' }
+                     )}`}
+                     className="pressable absolute bottom-0 hidden border-0 bg-transparent p-0 pl-1 text-[10px] text-ink-3 tabular-nums hover:text-brand hover:underline sm:block"
+                     style={{ left: `${t.left}%` }}
+                  >
+                     {t.label}
+                  </button>
+               ) : (
+                  <span
+                     key={t.left}
+                     className="absolute bottom-0 hidden pl-1 text-[10px] text-ink-3 tabular-nums sm:block"
+                     style={{ left: `${t.left}%` }}
+                  >
+                     {t.label}
+                  </span>
+               );
+            })}
          </span>
       </div>
    );
@@ -1245,6 +1372,12 @@ export function Roadmap({
                  ...columns.map(c => ({ left: place(c.start), strong: true })),
               ],
       todayAt: today >= horizon.start && today < horizon.end ? place(today) : null,
+      picked: nav.week
+         ? {
+              left: place(nav.week),
+              width: place(addWeeks(nav.week, 1)) - place(nav.week),
+           }
+         : null,
    };
    // under each column's name: its months, its Mondays' dates, or its days
    const ticks =
@@ -1252,6 +1385,7 @@ export function Roadmap({
          ? months.map(day => ({
               left: place(day),
               label: dateOf(day).toLocaleDateString(undefined, { month: 'short' }),
+              zoom: day.slice(0, 7),
            }))
          : level === 'months'
          ? weeks
@@ -1267,6 +1401,8 @@ export function Roadmap({
    const history = useProjectsData(pastRange)?.window.projects ?? {};
    const bySlug = new Map(items.map(i => [i.slug, i]));
    const lanes = nav.group === 'team';
+   // Show: every row, only the plans, or only the projects with no plan
+   const showPlans = nav.show !== 'unplanned';
    const everything = nav.show !== 'plan';
    const ordered = plan ?? [];
    const ids = ordered.map(i => i.id);
@@ -1288,12 +1424,29 @@ export function Roadmap({
    const q = nav.find.trim().toLowerCase();
    const matches = (...words: (string | null | undefined)[]) =>
       !q || words.some(w => w?.toLowerCase().includes(q));
-   const shownPlans = ordered.filter(i => matches(i.name, i.project, i.lead, i.team));
-   const shownUnplanned = unplanned.filter(p =>
-      matches(p.name, p.slug, p.lead, mainTeam(p, teamOf))
+   // a week picked on the load chart narrows them to what was in flight then:
+   // a plan whose weeks cover it, or a project whose PRs ran through it
+   const picked = nav.week;
+   const inWeek = (start: string, end: string | null) =>
+      !picked || (start <= planEnd({ start: picked, weeks: 1 }) && (end ?? today) >= picked);
+   const spanInWeek = (slug: string | null) => {
+      const span = slug ? spanBySlug.get(slug) : undefined;
+      return !!span && inWeek(span.start, span.end);
+   };
+   const shownPlans = showPlans
+      ? ordered.filter(
+           i =>
+              matches(i.name, i.project, i.lead, i.team) &&
+              (!picked ||
+                 (i.status !== 'dropped' && (inWeek(i.start, planEnd(i)) || spanInWeek(i.project))))
+        )
+      : [];
+   const shownUnplanned = unplanned.filter(
+      p => matches(p.name, p.slug, p.lead, mainTeam(p, teamOf)) && (!picked || spanInWeek(p.slug))
    );
+   const narrowed = !!(q || picked);
    const of = (shown: number, total: number, word: string) =>
-      q ? `${shown} of ${n(total, word)}` : n(total, word);
+      narrowed ? `${shown} of ${n(total, word)}` : n(total, word);
    const developers = new Set(
       Object.values(teamMembers)
          .flat()
@@ -1408,6 +1561,9 @@ export function Roadmap({
                   linked={linked}
                   editing={editing === item.id}
                   onEdit={() => openItem(editing === item.id ? null : item.id)}
+                  onFind={text => navigate({ find: text })}
+                  onOpenItem={id => navigate(openPlan(nav, id))}
+                  onOpenProject={slug => navigate({ project: slug })}
                   dragHandlers={handlersFor(item, index)}
                   dropHere={dropTarget === item.id && dragging !== item.id}
                />
@@ -1439,6 +1595,7 @@ export function Roadmap({
                onChoose={() => setChoosing(choosing === p.slug ? null : p.slug)}
                onPlan={span => planProject(p, span)}
                onOpen={() => navigate({ project: p.slug })}
+               onFind={text => navigate({ find: text })}
             />
             {choosing === p.slug && (
                <PlanChooser
@@ -1545,9 +1702,11 @@ export function Roadmap({
                {inFlightRows(shownUnplanned)}
             </Lane>
          )}
-         {q && !shownPlans.length && !(everything && shownUnplanned.length) && (
+         {narrowed && !shownPlans.length && !(everything && shownUnplanned.length) && (
             <div className="px-3.5 py-4 text-[13px] text-ink-3">
-               Nothing on the roadmap or in flight matches “{nav.find.trim()}”.
+               Nothing on the roadmap or in flight matches
+               {q ? ` “${nav.find.trim()}”` : ''}
+               {picked ? ` in the week of ${weekWords(picked)}` : ''}.
             </div>
          )}
       </>
@@ -1604,6 +1763,16 @@ export function Roadmap({
                      >
                         <Icon icon={ChevronRight} size={15} />
                      </button>
+                     {(today < horizon.start || today >= horizon.end) && (
+                        <button
+                           type="button"
+                           onClick={() => navigate({ zoom: zoomKey(zoomAround(zoom.kind, now)) })}
+                           title={`Zoom to this ${zoom.kind}`}
+                           className="hit pressable rounded-md border border-line bg-surface px-2 py-1 text-xs font-medium text-ink-2 hover:border-brand hover:text-brand"
+                        >
+                           Today
+                        </button>
+                     )}
                   </span>
                )}
                <label className="inline-flex items-center gap-2 text-xs text-ink-3">
@@ -1623,16 +1792,31 @@ export function Roadmap({
                      Show
                      <Segmented
                         ariaLabel="what the roadmap shows"
-                        value={everything ? 'all' : 'plan'}
+                        value={nav.show}
                         options={[
-                           ['all', 'Everything in flight'],
+                           ['all', 'Everything'],
                            ['plan', 'Only plans'],
+                           ['unplanned', 'No plan yet'],
                         ]}
                         onChange={show => navigate({ show })}
                      />
                   </label>
                )}
                <span className="flex-1" />
+               {timeline && picked && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md border border-brand bg-surface py-1 pr-1 pl-2 text-xs text-ink">
+                     Week of {weekWords(picked)}
+                     <button
+                        type="button"
+                        aria-label="Show every week"
+                        title="Show every week"
+                        onClick={() => navigate({ week: null })}
+                        className="hit pressable rounded border-0 bg-transparent p-0 text-ink-3 hover:text-ink"
+                     >
+                        <Icon icon={X} size={12} />
+                     </button>
+                  </span>
+               )}
                <input
                   type="search"
                   aria-label="Find a project, lead or team"
@@ -1693,6 +1877,11 @@ export function Roadmap({
                         today < horizon.start ? 'future' : today >= horizon.end ? 'past' : 'both'
                      }
                      rowGrid={rowGrid}
+                     picked={picked}
+                     onPick={week => navigate({ week })}
+                     show={nav.show}
+                     onShow={show => navigate({ show })}
+                     onPeople={() => navigate({ view: 'people', item: null })}
                   />
                   {adding && (
                      <Editor

@@ -135,6 +135,9 @@ The tab has three views and a page per project:
     with it, and zoom out or step to the next one from the toolbar. Or
     now, next and later, without week dates, for readers outside
     engineering.
+  - Click a week in the load chart to see only what was in flight then, or
+    a count to see only those ("with no plan"). Find narrows by name,
+    lead or team.
   - Drag rows to set priority, drag a bar to move it and its edge to change
     its length; the editor also plans a month or a quarter in one click.
     Team lanes say the most each team has in flight at once against its

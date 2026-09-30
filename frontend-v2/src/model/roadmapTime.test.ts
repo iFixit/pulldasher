@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { columnsFor, parseZoom, quarterOf, shiftZoom, zoomKey, type Zoom } from './roadmapTime';
+import {
+   columnsFor,
+   parseZoom,
+   quarterOf,
+   shiftZoom,
+   zoomAround,
+   zoomKey,
+   type Zoom,
+} from './roadmapTime';
 
 const z = (key: string) => parseZoom(key) as Zoom;
 
@@ -11,6 +19,11 @@ describe('zoom keys', () => {
       for (const bad of ['2026-Q5', '2026-13', '2026-1', 'Q4', '', null]) {
          expect(parseZoom(bad)).toBeNull();
       }
+   });
+
+   it('find the period a day falls in', () => {
+      expect(zoomKey(zoomAround('quarter', new Date(2026, 8, 30)))).toBe('2026-Q3');
+      expect(zoomKey(zoomAround('month', new Date(2026, 8, 30)))).toBe('2026-09');
    });
 
    it('step across year ends both ways, and find a month’s quarter', () => {
