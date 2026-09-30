@@ -23,6 +23,8 @@ export const MAX_WEEKS = 104;
 export const UPDATE_DUE_DAYS = 14;
 const NAME_MAX = 120;
 const NOTES_MAX = 2000;
+/** the most other items one can wait on */
+export const WAITS_ON_MAX = 10;
 const TEAM_MAX = 64;
 const DAY = 86400;
 
@@ -43,6 +45,8 @@ export interface RoadmapItem {
    /** its place in the order: lower comes first */
    priority: number;
    notes: string;
+   /** the ids of other items that have to finish before this one starts */
+   waits_on: number[];
    /** who last changed it and when (epoch secs); null before anyone has */
    updated_by: string | null;
    updated_at: number | null;
@@ -71,7 +75,7 @@ export interface RoadmapUpdate {
 /** The fields a person can set; the server owns id, priority and the audit fields. */
 export type RoadmapFields = Pick<
    RoadmapItem,
-   'name' | 'project' | 'team' | 'lead' | 'status' | 'start' | 'weeks' | 'notes'
+   'name' | 'project' | 'team' | 'lead' | 'status' | 'start' | 'weeks' | 'notes' | 'waits_on'
 >;
 
 /** The Monday on or before a YYYY-MM-DD day: plans move in whole weeks. */
@@ -161,7 +165,70 @@ export function checkRoadmapFields(input: unknown, { partial }: { partial: boole
          return { error: `keep the notes to ${NOTES_MAX} characters` };
       } else fields.notes = raw.notes.trim();
    }
+   if (has('waits_on')) {
+      const ids = raw.waits_on ?? [];
+      if (
+         !Array.isArray(ids) ||
+         !ids.every(id => Number.isInteger(id) && id > 0) ||
+         new Set(ids).size !== ids.length
+      ) {
+         return { error: 'waits_on is a list of other roadmap item ids, each once' };
+      }
+      if (ids.length > WAITS_ON_MAX) {
+         return { error: `an item can wait on at most ${WAITS_ON_MAX} others` };
+      }
+      fields.waits_on = ids as number[];
+   }
    return { fields };
+}
+
+/**
+ * What's wrong with item `id` (null for a new one) waiting on `waitsOn`,
+ * given every item: an id that isn't on the roadmap, the item itself, or a
+ * loop (A waits on B, which waits on A), which no plan could satisfy. Null
+ * when it's fine.
+ */
+export function waitsOnProblem(
+   id: number | null,
+   waitsOn: readonly number[],
+   items: readonly Pick<RoadmapItem, 'id' | 'waits_on'>[]
+): string | null {
+   const byId = new Map(items.map(i => [i.id, i]));
+   for (const other of waitsOn) {
+      if (other === id) return 'an item can’t wait on itself';
+      if (!byId.has(other)) return `there’s no roadmap item ${other}`;
+   }
+   if (id == null) return null;
+   // walk everything the new list waits on, directly or not
+   const seen = new Set<number>();
+   const next = [...waitsOn];
+   while (next.length) {
+      const at = next.pop() as number;
+      if (at === id) return 'that would make a loop: those items already wait on this one';
+      if (seen.has(at)) continue;
+      seen.add(at);
+      next.push(...(byId.get(at)?.waits_on ?? []));
+   }
+   return null;
+}
+
+/**
+ * The items `item` waits on, each with whether the plan clashes: the item
+ * starts before the other's planned end while that one isn't done, or the
+ * other was dropped. Ids no longer on the roadmap are skipped.
+ */
+export function blockersOf(
+   item: Pick<RoadmapItem, 'start' | 'waits_on'>,
+   items: readonly RoadmapItem[]
+): { item: RoadmapItem; clash: boolean }[] {
+   const byId = new Map(items.map(i => [i.id, i]));
+   return item.waits_on.flatMap(id => {
+      const other = byId.get(id);
+      if (!other) return [];
+      const clash =
+         other.status === 'dropped' || (other.status !== 'done' && item.start <= planEnd(other));
+      return [{ item: other, clash }];
+   });
 }
 
 /** Check what a person sent as an update: a health, and words up to the

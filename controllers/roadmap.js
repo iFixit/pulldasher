@@ -8,7 +8,7 @@ import {
    reorderItems,
    updateItem,
 } from '../lib/roadmap.js';
-import { checkRoadmapFields, checkRoadmapUpdate } from '../shared/dist/index.js';
+import { checkRoadmapFields, checkRoadmapUpdate, waitsOnProblem } from '../shared/dist/index.js';
 
 const FAKE_USER = process.env.MOCK_AUTH_AS_USER;
 
@@ -28,6 +28,17 @@ export function canWrite(req, res, next) {
    }
    req.roadmapLogin = signedIn ? req.user.username : FAKE_USER;
    next();
+}
+
+/**
+ * Why item `id` (null for a new one) can't wait on what `fields` says, in
+ * words; null when it can, or when the fields don't touch waits_on.
+ * ponytail: two people saving at once could still close a loop; it would
+ * only show both items as clashing, so no lock.
+ */
+async function waitsOnError(id, fields) {
+   if (!fields.waits_on) return null;
+   return waitsOnProblem(id, fields.waits_on, await listItems());
 }
 
 /** The :id param as a positive integer, or null. */
@@ -53,13 +64,17 @@ export default {
 
    /**
     * POST /roadmap {name, project?, team?, lead?, status?, start?, weeks?,
-    * notes?} -- a new item at the bottom of the order. 201 with the item.
+    * notes?, waits_on?} -- a new item at the bottom of the order. 201 with
+    * the item.
     */
    create: function (req, res) {
       const checked = checkRoadmapFields(req.body, { partial: false });
       if (checked.error) return res.status(400).json({ error: checked.error });
-      createItem(checked.fields, req.roadmapLogin)
-         .then(item => res.status(201).json({ item }))
+      waitsOnError(null, checked.fields)
+         .then(async error => {
+            if (error) return res.status(400).json({ error });
+            res.status(201).json({ item: await createItem(checked.fields, req.roadmapLogin) });
+         })
          .catch(err => {
             console.error('roadmap create failed:', err);
             res.status(500).json({ error: 'roadmap create failed' });
@@ -72,10 +87,13 @@ export default {
       if (!id) return res.status(400).json({ error: 'the id must be a positive whole number' });
       const checked = checkRoadmapFields(req.body, { partial: true });
       if (checked.error) return res.status(400).json({ error: checked.error });
-      updateItem(id, checked.fields, req.roadmapLogin)
-         .then(item =>
-            item ? res.json({ item }) : res.status(404).json({ error: 'no such roadmap item' })
-         )
+      waitsOnError(id, checked.fields)
+         .then(async error => {
+            if (error) return res.status(400).json({ error });
+            const item = await updateItem(id, checked.fields, req.roadmapLogin);
+            if (item) res.json({ item });
+            else res.status(404).json({ error: 'no such roadmap item' });
+         })
          .catch(err => {
             console.error('roadmap update failed:', err);
             res.status(500).json({ error: 'roadmap update failed' });

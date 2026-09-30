@@ -137,6 +137,7 @@ test('itemFromRow renames the lead and fills the blanks', () => {
          weeks: '6',
          priority: '2',
          notes: null,
+         waits_on: '1,4',
          updated_by: 'alice',
          updated_at: '1790000000',
       }),
@@ -151,6 +152,7 @@ test('itemFromRow renames the lead and fills the blanks', () => {
          weeks: 6,
          priority: 2,
          notes: '',
+         waits_on: [1, 4],
          updated_by: 'alice',
          updated_at: 1790000000,
          update: null,
@@ -228,6 +230,22 @@ test('a bad update is a 400; one on an unknown item a 404', async () => {
    assert.equal(bad.status, 400);
    assert.match(bad.body.error, /health/);
    assert.equal((await call('POST', '/roadmap/99/updates', { health: 'on_track' })).status, 404);
+});
+
+test('waits_on is stored as ids and refuses a loop', async () => {
+   const a = (await call('POST', '/roadmap', { name: 'A' })).body.item;
+   assert.deepEqual(a.waits_on, []);
+   const b = (await call('POST', '/roadmap', { name: 'B', waits_on: [a.id] })).body.item;
+   assert.deepEqual(b.waits_on, [a.id]);
+   assert.equal(rows.find(r => r.id === b.id).waits_on, String(a.id));
+   const loop = await call('PATCH', `/roadmap/${a.id}`, { waits_on: [b.id] });
+   assert.equal(loop.status, 400);
+   assert.match(loop.body.error, /loop/);
+   const missing = await call('POST', '/roadmap', { name: 'C', waits_on: [99] });
+   assert.equal(missing.status, 400);
+   const cleared = await call('PATCH', `/roadmap/${b.id}`, { waits_on: [] });
+   assert.deepEqual(cleared.body.item.waits_on, []);
+   assert.equal(rows.find(r => r.id === b.id).waits_on, null);
 });
 
 test('delete removes the item and its updates', async () => {

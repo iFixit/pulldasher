@@ -9,7 +9,7 @@ import {
 import { eyebrowText } from '../../components/Lane';
 import type { PortfolioItem } from '../../model/portfolio';
 import { dayWords } from '../../model/projectData';
-import { healthWords, planWords } from './roadmapHealth';
+import { healthWords, planWords, waitsWords } from './roadmapHealth';
 
 const BUCKETS: ['now' | 'next' | 'later', string, string][] = [
    ['now', 'Now', 'In progress, or its start has come'],
@@ -19,17 +19,20 @@ const BUCKETS: ['now' | 'next' | 'later', string, string][] = [
 
 function Card({
    item,
+   all,
    linked,
    today,
    onOpen,
 }: {
    item: RoadmapItem;
+   all: RoadmapItem[];
    linked: PortfolioItem | undefined;
    today: string;
    onOpen: () => void;
 }) {
    const bucket = bucketOf(item, today);
    const health = healthWords(healthStanding(item));
+   const waits = waitsWords(item, all);
    // still marked planned, though its start week has gone by
    const unstarted = item.status === 'planned' && item.start < mondayOf(today);
    return (
@@ -50,6 +53,11 @@ function Card({
                </span>
             )}
             {bucket !== 'now' && <span className="text-ink-3">{planWords(item)}</span>}
+            {waits && (
+               <span className={waits.warn ? 'text-warn' : 'text-ink-3'} title={waits.title}>
+                  {waits.text}
+               </span>
+            )}
             {[item.team, item.lead, linked?.open ? n(linked.open, 'open PR') : null]
                .filter(Boolean)
                .map(fact => (
@@ -112,6 +120,7 @@ export function NowNextLater({
                                     <Card
                                        key={item.id}
                                        item={item}
+                                       all={items}
                                        linked={item.project ? bySlug.get(item.project) : undefined}
                                        today={today}
                                        onOpen={() => onOpen(item.id)}

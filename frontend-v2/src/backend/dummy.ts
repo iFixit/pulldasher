@@ -280,6 +280,7 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
       weeks,
       priority: id - 1,
       notes: '',
+      waits_on: [],
       updated_by: 'danielbeardsley',
       updated_at: Math.floor(Date.now() / 1000) - id * 3600,
       update: updates.filter(u => u.item_id === id).at(-1) ?? null,
@@ -293,7 +294,7 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          status: 'active',
          notes: 'Security asked for this before the audit.',
       }),
-      item(2, 'Shopify product and order sync', -4, 7, {
+      item(2, 'Shopify product and order sync', -4, 8, {
          project: 'shopify-sync',
          team: 'Store',
          lead: 'zdmitchell',
@@ -305,14 +306,14 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          lead: 'mlahargou',
          status: 'active',
       }),
-      item(4, 'Checkout redesign', 3, 8, { team: 'Store', lead: 'jarstelfox' }),
+      item(4, 'Checkout redesign', 3, 8, { team: 'Store', lead: 'jarstelfox', waits_on: [2] }),
       item(5, 'MySQL 8 upgrade', -2, 12, {
          project: 'mysql-8',
          team: 'Community',
          lead: 'evannoronha',
          status: 'active',
       }),
-      item(6, 'Search relevance', 7, 6, { team: 'FixBot' }),
+      item(6, 'Search relevance', 7, 6, { team: 'FixBot', waits_on: [3] }),
       item(7, 'Translations upkeep', -1, 26, { project: 'translations', team: 'Community' }),
       item(8, 'Akeneo 4 migration', -11, 8, { project: 'akeneo-4', team: 'Store', status: 'done' }),
    ];

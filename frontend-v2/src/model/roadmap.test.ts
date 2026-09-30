@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
    addWeeks,
+   blockersOf,
    bucketOf,
    checkRoadmapFields,
    checkRoadmapUpdate,
@@ -9,7 +10,9 @@ import {
    mondayOf,
    moveBefore,
    planEnd,
+   type RoadmapItem,
    type RoadmapUpdate,
+   waitsOnProblem,
 } from '../../../shared/model/roadmap';
 import { dayStart } from '../../../shared/model/projects';
 
@@ -123,5 +126,50 @@ describe('bucketOf', () => {
       expect(bucketOf({ status: 'planned', start: '2026-12-28' }, today)).toBe('next');
       expect(bucketOf({ status: 'planned', start: '2027-01-04' }, today)).toBe('later');
       expect(bucketOf({ status: 'done', start: '2026-09-28' }, today)).toBeNull();
+   });
+});
+
+describe('waits on', () => {
+   const item = (id: number, over: Partial<RoadmapItem> = {}): RoadmapItem => ({
+      id,
+      name: `Item ${id}`,
+      project: null,
+      team: null,
+      lead: null,
+      status: 'planned',
+      start: '2026-09-07',
+      weeks: 4,
+      priority: id,
+      notes: '',
+      waits_on: [],
+      updated_by: null,
+      updated_at: null,
+      update: null,
+      ...over,
+   });
+
+   it('refuses itself, unknown ids, and loops, however long', () => {
+      const all = [item(1), item(2, { waits_on: [1] }), item(3, { waits_on: [2] })];
+      expect(waitsOnProblem(3, [1], all)).toBeNull();
+      expect(waitsOnProblem(null, [3], all)).toBeNull();
+      expect(waitsOnProblem(1, [1], all)).toMatch(/itself/);
+      expect(waitsOnProblem(1, [9], all)).toMatch(/no roadmap item 9/);
+      expect(waitsOnProblem(1, [3], all)).toMatch(/loop/);
+   });
+
+   it('clashes when it starts before what it waits on ends, or that was dropped', () => {
+      const all = [
+         item(1, { start: '2026-09-07', weeks: 4 }), // ends Oct 4
+         item(2, { status: 'done' }),
+         item(3, { status: 'dropped' }),
+      ];
+      const clash = (start: string, waits_on: number[]) =>
+         blockersOf({ start, waits_on }, all).map(b => [b.item.id, b.clash]);
+      expect(clash('2026-09-28', [1])).toEqual([[1, true]]);
+      expect(clash('2026-10-05', [1])).toEqual([[1, false]]);
+      expect(clash('2026-09-07', [2, 3, 9])).toEqual([
+         [2, false],
+         [3, true],
+      ]);
    });
 });

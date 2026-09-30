@@ -346,6 +346,12 @@ icon with a class bolted on.
   dates, for readers who want the order and not the weeks; its columns are
   derived from the dates, never set by hand, so the two layouts can't
   disagree.
+- **What a plan waits on is words on its row, not lines across the
+  timeline**: "after Search reindex", or, amber, "starts before Shopify
+  sync ends". Linear draws dependency lines, but ours would cross team
+  lanes and every row between the two ends, and the row's words already
+  say the one thing the planner acts on. The editor offers only choices
+  that can be saved: never the item itself, dropped work, or a loop.
 - **A plan's health is a word, amber only when someone owes something.**
   "On track" reads plain. "At risk", "Off track" and an overdue update are
   amber, because each asks someone to act: the planner to replan, the lead

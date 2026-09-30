@@ -5,6 +5,7 @@ import {
    checkRoadmapFields,
    mondayOf,
    checkRoadmapUpdate,
+   waitsOnProblem,
    type RoadmapFields,
    type RoadmapHealth,
    type RoadmapItem,
@@ -81,6 +82,8 @@ function dummyApi(): Api {
          const checked = checkRoadmapFields(fields, { partial: false });
          if ('error' in checked) return bad(checked.error);
          const f = checked.fields;
+         const loop = f.waits_on && waitsOnProblem(null, f.waits_on, rows);
+         if (loop) return bad(loop);
          const item: RoadmapItem = {
             id: nextId++,
             name: f.name ?? '',
@@ -91,6 +94,7 @@ function dummyApi(): Api {
             start: f.start ?? mondayOf(utcDay(Date.now() / 1000)),
             weeks: f.weeks ?? 4,
             notes: f.notes ?? '',
+            waits_on: f.waits_on ?? [],
             priority: Math.max(-1, ...rows.map(r => r.priority)) + 1,
             ...touch,
             update: null,
@@ -101,6 +105,8 @@ function dummyApi(): Api {
       update: (id, fields) => {
          const checked = checkRoadmapFields(fields, { partial: true });
          if ('error' in checked) return bad(checked.error);
+         const loop = checked.fields.waits_on && waitsOnProblem(id, checked.fields.waits_on, rows);
+         if (loop) return bad(loop);
          const row = rows.find(r => r.id === id);
          if (!row) return bad('no such roadmap item', 404);
          Object.assign(row, checked.fields, touch);

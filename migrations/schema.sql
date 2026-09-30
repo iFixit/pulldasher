@@ -199,6 +199,7 @@ CREATE TABLE IF NOT EXISTS `roadmap_items` (
   `weeks` smallint unsigned NOT NULL DEFAULT '4',
   `priority` int NOT NULL DEFAULT '0',
   `notes` text COLLATE utf8mb4_general_ci,
+  `waits_on` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `created_by` varchar(39) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `created_at` int unsigned DEFAULT NULL,
   `updated_by` varchar(39) COLLATE utf8mb4_general_ci DEFAULT NULL,

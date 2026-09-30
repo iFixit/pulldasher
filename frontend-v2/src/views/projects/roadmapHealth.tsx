@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { n } from '../../../../shared/format';
 import {
+   blockersOf,
    endShift,
    healthStanding,
    planEnd,
@@ -76,6 +77,39 @@ export function healthWords(
             } days ago.${s.update.body ? ` ${s.update.author}: ${s.update.body}` : ''}`,
          };
    }
+}
+
+/**
+ * What an item waits on, in words for its row: "after Search reindex", or,
+ * amber, how the plan clashes with it (the item starts before one of them
+ * ends, or one was dropped), since the planner then owes a new order. Null
+ * when it waits on nothing, or is done or dropped itself.
+ */
+export function waitsWords(
+   item: RoadmapItem,
+   all: readonly RoadmapItem[]
+): { text: string; warn: boolean; title: string } | null {
+   if (item.status === 'done' || item.status === 'dropped') return null;
+   const blockers = blockersOf(item, all);
+   if (!blockers.length) return null;
+   const title = `Waits on ${blockers
+      .map(({ item: b }) =>
+         b.status === 'done' || b.status === 'dropped'
+            ? `${b.name} (${b.status})`
+            : `${b.name} (planned to end ${dayWords(planEnd(b))})`
+      )
+      .join(', ')}`;
+   const clashes = blockers.filter(b => b.clash).map(b => b.item);
+   if (!clashes.length) {
+      return { text: `after ${blockers.map(b => b.item.name).join(', ')}`, warn: false, title };
+   }
+   const text =
+      clashes.length > 1
+         ? `${clashes.length} things it waits on don’t fit its plan`
+         : clashes[0].status === 'dropped'
+         ? `waits on ${clashes[0].name}, which was dropped`
+         : `starts before ${clashes[0].name} ends`;
+   return { text, warn: true, title };
 }
 
 /** What happened since the last update, to write the next one from: the

@@ -58,6 +58,7 @@ export {
    planEnd,
    MAX_WEEKS,
    ROADMAP_STATUSES,
+   waitsOnProblem,
 } from './model/roadmap';
 export type {
    RoadmapFields,

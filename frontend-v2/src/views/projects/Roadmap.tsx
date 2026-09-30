@@ -7,7 +7,7 @@ import {
    type PointerEvent,
    type ReactNode,
 } from 'react';
-import { GripVertical, Plus } from 'lucide-react';
+import { GripVertical, Plus, X } from 'lucide-react';
 import { n } from '../../../../shared/format';
 import { dayStart, utcDay } from '../../../../shared/model/projects';
 import {
@@ -22,6 +22,7 @@ import {
    type RoadmapFields,
    type RoadmapItem,
    type RoadmapStatus,
+   waitsOnProblem,
 } from '../../../../shared/model/roadmap';
 import { Segmented, textInputClass } from '../../components/bits';
 import { Icon } from '../../components/Icon';
@@ -39,7 +40,7 @@ import {
 } from '../../model/roadmapData';
 import { NowNextLater } from './NowNextLater';
 import type { Navigate, ProjectsNav } from './parts';
-import { healthWords, UpdatesPanel } from './roadmapHealth';
+import { healthWords, UpdatesPanel, waitsWords } from './roadmapHealth';
 
 const DAY = 86400;
 
@@ -141,6 +142,71 @@ const inputClass = `px-2.5 ${textInputClass}`;
 const selectClass = `px-2 ${textInputClass}`;
 
 /**
+ * What an item waits on: the chosen items, each with a way to drop it, and a
+ * list to add another. The list leaves out the item itself, dropped work, and
+ * anything that would make a loop, so every choice it offers can be saved.
+ */
+function WaitsOnField({
+   id,
+   value,
+   all,
+   onChange,
+}: {
+   /** the item being edited; null for a new one */
+   id: number | null;
+   value: number[];
+   all: RoadmapItem[];
+   onChange: (ids: number[]) => void;
+}) {
+   const byId = new Map(all.map(i => [i.id, i]));
+   const choices = all.filter(
+      i =>
+         i.id !== id &&
+         i.status !== 'dropped' &&
+         !value.includes(i.id) &&
+         !waitsOnProblem(id, [...value, i.id], all)
+   );
+   return (
+      <span className="flex flex-wrap items-center gap-1.5">
+         {value.map(other => {
+            const name = byId.get(other)?.name ?? `item ${other}`;
+            return (
+               <span
+                  key={other}
+                  className="inline-flex items-center gap-1 rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink"
+               >
+                  {name}
+                  <button
+                     type="button"
+                     aria-label={`Stop waiting on ${name}`}
+                     onClick={() => onChange(value.filter(x => x !== other))}
+                     className="hit pressable rounded border-0 bg-transparent p-0 text-ink-3 hover:text-ink"
+                  >
+                     <Icon icon={X} size={12} />
+                  </button>
+               </span>
+            );
+         })}
+         {choices.length > 0 && (
+            <select
+               aria-label="add something it waits on"
+               className={selectClass}
+               value=""
+               onChange={e => e.target.value && onChange([...value, Number(e.target.value)])}
+            >
+               <option value="">{value.length ? 'Add another' : 'Nothing'}</option>
+               {choices.map(i => (
+                  <option key={i.id} value={i.id}>
+                     {i.name}
+                  </option>
+               ))}
+            </select>
+         )}
+      </span>
+   );
+}
+
+/**
  * The editor for one item, open in the roadmap's own flow (work in progress
  * lives inline, never in a popover a stray click can close). The same form
  * adds a new item. Saves through the shared checks, so a mistake reads the
@@ -148,6 +214,7 @@ const selectClass = `px-2 ${textInputClass}`;
  */
 function Editor({
    item,
+   all,
    projects,
    teams,
    people,
@@ -155,6 +222,8 @@ function Editor({
 }: {
    /** null to add a new item */
    item: RoadmapItem | null;
+   /** every item on the roadmap, to choose what this one waits on */
+   all: RoadmapItem[];
    projects: { slug: string; name: string }[];
    teams: string[];
    people: string[];
@@ -171,6 +240,7 @@ function Editor({
               start: item.start,
               weeks: item.weeks,
               notes: item.notes,
+              waits_on: item.waits_on,
            }
          : {
               name: '',
@@ -181,6 +251,7 @@ function Editor({
               start: addWeeks(mondayOf(utcDay(Date.now() / 1000)), 1),
               weeks: 4,
               notes: '',
+              waits_on: [],
            }
    );
    const [error, setError] = useState<string | null>(null);
@@ -308,13 +379,23 @@ function Editor({
             </>
          )}
          {field(
+            'Waits on',
+            <WaitsOnField
+               id={item?.id ?? null}
+               value={draft.waits_on}
+               all={all}
+               onChange={waits_on => set({ waits_on })}
+            />,
+            true
+         )}
+         {field(
             'Notes',
             <textarea
                className="min-h-16 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px]"
                value={draft.notes}
                maxLength={2000}
                onChange={e => set({ notes: e.target.value })}
-               placeholder="Why it matters, what it waits on"
+               placeholder="Why it matters"
             />,
             true
          )}
@@ -367,9 +448,11 @@ const rowGrid = 'grid grid-cols-[minmax(0,17rem)_1fr] items-center gap-3';
  */
 function RoadmapRow({
    item,
+   all,
    rank,
    horizon,
    today,
+   todayAt,
    linked,
    actual,
    editing,
@@ -378,9 +461,13 @@ function RoadmapRow({
    dropHere,
 }: {
    item: RoadmapItem;
+   /** every item, for what this one waits on */
+   all: RoadmapItem[];
    rank: number;
    horizon: Horizon;
    today: string;
+   /** where today falls across the track, or null when it's off the horizon */
+   todayAt: number | null;
    linked: PortfolioItem | undefined;
    actual: { start: string; end: string } | null;
    editing: boolean;
@@ -479,6 +566,14 @@ function RoadmapRow({
       );
    }
    if (item.lead) meta.push(item.lead);
+   const waits = waitsWords(item, all);
+   if (waits) {
+      meta.push(
+         <span key="waits" className={waits.warn ? 'text-warn' : undefined} title={waits.title}>
+            {waits.text}
+         </span>
+      );
+   }
    if (!item.project) meta.push('no PRs linked');
    else if (linked) {
       meta.push(
@@ -553,6 +648,14 @@ function RoadmapRow({
                </span>
             </span>
             <span ref={trackRef} className="relative block h-9">
+               {/* today, drawn per row so an open editor doesn't get a line through it */}
+               {todayAt != null && (
+                  <span
+                     aria-hidden
+                     className="pointer-events-none absolute -top-[7px] -bottom-1.5 border-l border-dashed"
+                     style={{ left: `${todayAt}%`, borderColor: 'var(--brand)' }}
+                  />
+               )}
                {right > left && (
                   <button
                      type="button"
@@ -837,9 +940,11 @@ export function Roadmap({
             <div key={item.id} id={`roadmap-item-${item.id}`}>
                <RoadmapRow
                   item={item}
+                  all={ordered}
                   rank={index + 1}
                   horizon={horizon}
                   today={today}
+                  todayAt={todayAt}
                   linked={linked}
                   actual={actualSpan(item.project, linked, history, today)}
                   editing={editing === item.id}
@@ -851,6 +956,7 @@ export function Roadmap({
                   <>
                      <Editor
                         item={item}
+                        all={ordered}
                         projects={projectOptions}
                         teams={teams}
                         people={people}
@@ -956,6 +1062,7 @@ export function Roadmap({
                      <Rows>
                         <Editor
                            item={null}
+                           all={ordered}
                            projects={projectOptions}
                            teams={teams}
                            people={people}
@@ -981,23 +1088,10 @@ export function Roadmap({
                <Rows>
                   {header}
                   <div className="relative">
-                     {todayAt != null && (
-                        <div className={`pointer-events-none absolute inset-0 ${rowGrid} px-3.5`}>
-                           <span />
-                           <span className="relative block h-full">
-                              <span
-                                 className="absolute inset-y-0 border-l border-dashed"
-                                 style={{
-                                    left: `${todayAt}%`,
-                                    borderColor: 'var(--brand)',
-                                 }}
-                              />
-                           </span>
-                        </div>
-                     )}
                      {adding && (
                         <Editor
                            item={null}
+                           all={ordered}
                            projects={projectOptions}
                            teams={teams}
                            people={people}

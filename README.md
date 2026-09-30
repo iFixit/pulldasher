@@ -128,7 +128,8 @@ The tab has three views and a page per project:
   priority, drag a bar to move it and its edge to change its length; group
   into team lanes. An item linked to a project label draws what its PRs
   actually did under the plan, and marks the project's milestone, flagged
-  when the plan ends after it. Each item takes updates: on track, at risk or off track,
+  when the plan ends after it. An item can wait on others, and says so
+  when its plan starts before one of them ends. Each item takes updates: on track, at risk or off track,
   and a note, kept as a history. Work in progress with no update for 14
   days is flagged. The roadmap is the one thing the tab stores itself, in
   the `roadmap_items` and `roadmap_updates` tables.
