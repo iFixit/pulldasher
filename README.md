@@ -184,15 +184,26 @@ The tab has five views and a page per project:
 - **People**: developers by team and everyone else: live projects each,
   open PRs, PRs opened and merged, and reviews given, including how many
   went to non-developers' PRs.
-- **Look back**: where the time went over a date range, in developer-days
-  rather than PR counts, so a month of work outweighs a one-line fix. A
-  developer-day is a day someone opened, merged, commented on, stamped or
-  reviewed a PR, split across the PRs they touched that day, as writing
-  (their own) or reviewing (anyone else's). Split it by project, by where
-  the work came from, by team, by person or by repo; a project opens its
-  page, an origin its plans, and a team or person narrows the list to
-  their days. Commits aren't counted: in a sample of 60 merged PRs they
-  added about 4% more days, since PRs open and merge within a day or two.
+- **Look back**: where the time went over a date range, for a retro, in
+  developer-days rather than PR counts, so a month of work outweighs a
+  one-line fix. A developer-day is a day someone opened, merged, commented
+  on, stamped or reviewed a PR, split across the PRs they touched that
+  day, as writing (their own) or reviewing (anyone else's). Commits aren't
+  counted: in a sample of 60 merged PRs they added about 4% more days,
+  since PRs open and merge within a day or two.
+  - Tiles open it, each against the same number of days before: the
+    days, how much went to reviewing, to work on the roadmap, to fires,
+    to PRs filed to no project, and how many different projects each
+    person touched a week.
+  - One list splits the days by project, by where the work came from, by
+    whose PR it was (their own, other developers', non-developers',
+    bots'), by team, by person or by repo, and can keep only the writing
+    or the reviewing days. Each row draws its days week by week on one
+    scale, with its share then and now, and how many of its PRs merged.
+  - A row's name goes where it names: a project to its page, an origin to
+    its plans, a team or person to only their days. Anywhere else on the
+    row opens the PRs that took the most days and who spent them. It all
+    copies as text for the retro's notes.
 
 To put the plans where people already look, `bin/sync-issue-fields` copies
 each plan under way into its project issue's Start date, Target date and

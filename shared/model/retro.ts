@@ -1,4 +1,5 @@
 import { utcDay } from './projects';
+import { mondayOf } from './roadmap';
 
 /**
  * Where the time went, for the Projects tab's Look back view and GET
@@ -24,11 +25,13 @@ export interface Touch {
    owner: string;
 }
 
-/** A person's share of days on one PR over the range. */
+/** A person's share of days on one PR in one week. */
 export interface TimeRow {
    login: string;
    repo: string;
    number: number;
+   /** the Monday of the week, YYYY-MM-DD */
+   week: string;
    /** they wrote it: writing, not reviewing */
    own: boolean;
    days: number;
@@ -38,8 +41,8 @@ const keyOf = (t: Pick<Touch, 'repo' | 'number'>) => `${t.repo.toLowerCase()}#${
 
 /**
  * Each person's active days split across the PRs they touched, as one row
- * per person and PR. `counts` picks whose time is counted (the caller leaves
- * out bots and, when there are developer teams, everyone off them).
+ * per person, PR and week. `counts` picks whose time is counted (the caller
+ * leaves out bots and, when there are developer teams, everyone off them).
  */
 export function timeSpent(
    touches: readonly Touch[],
@@ -58,13 +61,15 @@ export function timeSpent(
    }
    const rows = new Map<string, TimeRow>();
    for (const [login, byDay] of days) {
-      for (const prs of byDay.values()) {
+      for (const [day, prs] of byDay) {
+         const week = mondayOf(day);
          for (const [key, t] of prs) {
-            const id = `${login}|${key}`;
+            const id = `${login}|${key}|${week}`;
             const row = rows.get(id) ?? {
                login,
                repo: t.repo,
                number: t.number,
+               week,
                own: t.owner.toLowerCase() === login.toLowerCase(),
                days: 0,
             };
@@ -74,38 +79,4 @@ export function timeSpent(
       }
    }
    return [...rows.values()];
-}
-
-/** One group of rows, in the view's words: its days, how many of them went
- * to writing, and who spent them. */
-export interface TimeGroup {
-   key: string;
-   days: number;
-   writing: number;
-   people: string[];
-}
-
-/** Rows grouped by `keyOf`, the most days first. */
-export function groupTime<R extends TimeRow>(
-   rows: readonly R[],
-   groupOf: (row: R) => string
-): TimeGroup[] {
-   const groups = new Map<string, { days: number; writing: number; people: Map<string, number> }>();
-   for (const row of rows) {
-      const key = groupOf(row);
-      const g = groups.get(key) ?? { days: 0, writing: 0, people: new Map<string, number>() };
-      groups.set(key, g);
-      g.days += row.days;
-      if (row.own) g.writing += row.days;
-      g.people.set(row.login, (g.people.get(row.login) ?? 0) + row.days);
-   }
-   return [...groups]
-      .map(([key, g]) => ({
-         key,
-         days: g.days,
-         writing: g.writing,
-         // the most days first
-         people: [...g.people].sort((a, b) => b[1] - a[1]).map(([login]) => login),
-      }))
-      .sort((a, b) => b.days - a.days || a.key.localeCompare(b.key));
 }

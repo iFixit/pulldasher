@@ -49,7 +49,9 @@ export interface ProjectsNav {
     * shows only the plans from there; null for every plan */
    origin: RoadmapOrigin | 'unsaid' | null;
    /** how Look back splits the days */
-   by: 'project' | 'origin' | 'team' | 'person' | 'repo';
+   by: 'project' | 'origin' | 'author' | 'team' | 'person' | 'repo';
+   /** which of Look back's days count: all, only writing, or only reviewing */
+   kind: 'all' | 'writing' | 'reviewing';
    /** a person picked in Look back: only their days count */
    who: string | null;
 }

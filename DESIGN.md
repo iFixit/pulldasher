@@ -405,8 +405,12 @@ icon with a class bolted on.
   day, so one person's week always adds up to the days they worked, and a
   project's share is the share of people's days it took. Writing and
   reviewing are split because review is where the time goes that nobody
-  plans for. Each split is one list with one bar color, since the bar is
-  a share, not a category: no legend to learn.
+  plans for, and "whose PR" says whose work it went to. Each split is one
+  list: every row draws its own weeks on the same scale in one color, so
+  the row's name labels its bars and there's no legend to learn, and the
+  first row is everyone's, for the shape of the whole range. The tiles
+  open on what a retro asks first, each against the days before; each one
+  clicks through to the split that explains it.
 - **A plan's dates go where people already look.** GitHub's issue fields
   show on a project's issue and on any board that lists it, so
   `bin/sync-issue-fields` copies each plan's dates and priority there,

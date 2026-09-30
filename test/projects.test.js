@@ -307,10 +307,10 @@ before(() => {
       }
       // loadTimeSpent: alice opens her PR 11 and comments on bob's 13 on one
       // day; carol (not a developer) comments on 11; a bot stamps it
-      if (sql.startsWith('SELECT repo, number, owner AS login, date AS at')) {
+      if (sql.startsWith('SELECT p.repo, p.number, p.owner AS login, p.date AS at')) {
          return [{ repo: 'test/repo-a', number: 11, login: 'alice', at: now - 2 * DAY, owner: 'alice' }];
       }
-      if (sql.startsWith('SELECT repo, number, owner AS login, date_merged AS at')) return [];
+      if (sql.startsWith('SELECT p.repo, p.number, p.owner AS login, p.date_merged AS at')) return [];
       if (sql.includes('FROM comments t')) {
          return [
             { repo: 'test/repo-a', number: 11, login: 'carol', at: now - 2 * DAY, owner: 'alice' },
@@ -453,14 +453,21 @@ test('/api/v1/retro splits a developer’s active day across the PRs they touche
    const { status, body } = await get('/api/v1/retro');
    assert.equal(status, 200);
    assert.equal(body.counted, 'developers');
-   const rows = body.rows
-      .map(r => [r.login, r.number, r.own, r.days, r.project])
-      .sort((a, b) => a[1] - b[1]);
    // carol isn't on a team and the bot is a bot, so only alice's day counts
+   assert.deepEqual(body.people, ['alice']);
+   assert.equal(body.weeks.length, 1);
+   const rows = body.rows
+      .map(([person, pr, week, days]) => {
+         const { number, owner, project } = body.prs[pr];
+         return [body.people[person], number, owner === body.people[person], week, days, project];
+      })
+      .sort((a, b) => a[1] - b[1]);
    assert.deepEqual(rows, [
-      ['alice', 11, true, 0.5, 'alpha'],
-      ['alice', 13, false, 0.5, null],
+      ['alice', 11, true, 0, 0.5, 'alpha'],
+      ['alice', 13, false, 0, 0.5, null],
    ]);
+   // only PRs a counted person touched come along
+   assert.deepEqual(body.prs.map(p => p.number).sort(), [11, 13]);
    assert.equal((await get('/api/v1/retro?start=2026-13-01')).status, 400);
 });
 

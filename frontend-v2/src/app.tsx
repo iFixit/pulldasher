@@ -162,8 +162,10 @@ function readHash(): HashState {
          team: p.get('team') || null,
          origin: ORIGIN_KEYS.find(o => o === p.get('origin')) ?? null,
          by:
-            (['origin', 'team', 'person', 'repo'] as const).find(b => b === p.get('by')) ??
-            'project',
+            (['origin', 'author', 'team', 'person', 'repo'] as const).find(
+               b => b === p.get('by')
+            ) ?? 'project',
+         kind: (['writing', 'reviewing'] as const).find(k => k === p.get('kind')) ?? 'all',
          who: p.get('who') || null,
       },
    };
@@ -197,6 +199,7 @@ function buildHash(s: HashState): string {
    if (s.projects.team) p.set('team', s.projects.team);
    if (s.projects.origin) p.set('origin', s.projects.origin);
    if (s.projects.by !== 'project') p.set('by', s.projects.by);
+   if (s.projects.kind !== 'all') p.set('kind', s.projects.kind);
    if (s.projects.who) p.set('who', s.projects.who);
    return p.toString();
 }

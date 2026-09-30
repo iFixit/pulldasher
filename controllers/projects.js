@@ -269,9 +269,9 @@ export default {
 
    /**
     * GET /retro-data (session) and /api/v1/retro (Bearer) ?start=&end= --
-    * where people's days went in the window: one row per person and PR with
-    * their share of active days on it (shared/model/retro.ts), whether they
-    * wrote it, and its project. Default: the last 30 days.
+    * where people's days went in the window, week by week: rows of [person,
+    * pr, week, days] pointing into the people, prs and weeks lists
+    * (lib/projects.js loadTimeSpent). Default: the last 30 days.
     */
    getRetro: function (req, res) {
       const settings = projectSettings();
@@ -286,12 +286,10 @@ export default {
       }
       respondOrError(
          res,
-         loadTimeSpent(settings, window.start, window.end).then(({ counted, rows }) => ({
+         loadTimeSpent(settings, window.start, window.end).then(spent => ({
             start: window.start,
             end: window.end,
-            // whose time: developers when there are teams, else everyone
-            counted,
-            rows: rows.map(row => ({ ...row, days: Math.round(row.days * 100) / 100 })),
+            ...spent,
          })),
          'retro query failed'
       );

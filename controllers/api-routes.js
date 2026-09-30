@@ -52,9 +52,10 @@ export const API_ROUTES = [
       path: '/api/v1/retro',
       handlers: [projectsController.getRetro],
       does:
-         'Where the days went in ?start=&end= (default the last 30): per person and PR, their share of ' +
-         'active days (a day they opened, merged, commented on, stamped or reviewed PRs, split across ' +
-         'them), whether they wrote it, and its project',
+         'Where the days went in ?start=&end= (default the last 30), week by week: rows of [person, ' +
+         'pr, week, days] into the people, prs (title, author, project, merged) and weeks lists. A ' +
+         'day is one a person opened, merged, commented on, stamped or reviewed PRs, split across ' +
+         'them; writing when they wrote the PR',
    },
    {
       method: 'get',

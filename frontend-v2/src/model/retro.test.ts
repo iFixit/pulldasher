@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { groupTime, timeSpent, type Touch } from '../../../shared/model/retro';
+import { timeSpent, type Touch } from '../../../shared/model/retro';
+import { groupRows, median, retroRows, spreadByPerson } from './retro';
+import type { RetroData } from './retroData';
 
 const DAY = 86400;
+// Monday 2026-09-28, mid-afternoon UTC
 const MON = Date.UTC(2026, 8, 28, 15) / 1000;
 const touch = (login: string, number: number, day: number, owner: string): Touch => ({
    login,
@@ -12,24 +15,23 @@ const touch = (login: string, number: number, day: number, owner: string): Touch
 });
 
 describe('timeSpent', () => {
-   it('splits each active day evenly across the PRs touched that day', () => {
+   it('splits each active day evenly across the PRs touched that day, week by week', () => {
       const rows = timeSpent([
          // Monday: dana opens her PR 1 and stamps erin's PR 2, twice
          touch('dana', 1, 0, 'dana'),
          touch('dana', 2, 0, 'erin'),
          touch('dana', 2, 0, 'erin'),
-         // Tuesday: only PR 1
+         // Tuesday: only PR 1; the next Monday, PR 1 again
          touch('dana', 1, 1, 'dana'),
-         // erin comments on her own PR on Monday
-         touch('erin', 2, 0, 'erin'),
+         touch('dana', 1, 7, 'dana'),
       ]);
-      const of = (login: string, number: number) =>
-         rows.find(r => r.login === login && r.number === number);
-      expect(of('dana', 1)).toMatchObject({ own: true, days: 1.5 });
-      expect(of('dana', 2)).toMatchObject({ own: false, days: 0.5 });
-      expect(of('erin', 2)).toMatchObject({ own: true, days: 1 });
-      // each person's rows add up to their active days
-      expect(rows.filter(r => r.login === 'dana').reduce((sum, r) => sum + r.days, 0)).toBe(2);
+      const of = (number: number, week: string) =>
+         rows.find(r => r.number === number && r.week === week);
+      expect(of(1, '2026-09-28')).toMatchObject({ own: true, days: 1.5 });
+      expect(of(2, '2026-09-28')).toMatchObject({ own: false, days: 0.5 });
+      expect(of(1, '2026-10-05')).toMatchObject({ days: 1 });
+      // a person's rows add up to their active days
+      expect(rows.reduce((sum, r) => sum + r.days, 0)).toBe(3);
    });
 
    it('counts only the people it’s told to', () => {
@@ -41,19 +43,68 @@ describe('timeSpent', () => {
    });
 });
 
-describe('groupTime', () => {
-   it('adds up days, writing, and people, the most days first', () => {
-      const rows = timeSpent([
-         touch('dana', 1, 0, 'dana'),
-         touch('erin', 1, 0, 'dana'),
-         touch('erin', 3, 1, 'erin'),
-         touch('finn', 3, 1, 'erin'),
-         touch('finn', 3, 2, 'erin'),
+describe('Look back’s groups', () => {
+   const pr = (number: number, project: string | null, owner: string, merged: number | null) => ({
+      repo: 'iFixit/ifixit',
+      number,
+      title: `PR ${number}`,
+      owner,
+      bot: false,
+      project,
+      state: merged ? ('closed' as const) : ('open' as const),
+      merged,
+   });
+   const data: RetroData = {
+      start: '2026-09-28',
+      end: '2026-10-11',
+      counted: 'developers',
+      weeks: ['2026-09-28', '2026-10-05'],
+      people: ['dana', 'erin'],
+      prs: [
+         pr(1, 'alpha', 'dana', MON + DAY),
+         pr(2, 'beta', 'erin', null),
+         pr(3, null, 'erin', null),
+      ],
+      rows: [
+         [0, 0, 0, 1.5],
+         [0, 1, 0, 0.5],
+         [1, 1, 0, 1],
+         [1, 1, 1, 2],
+         [1, 2, 1, 1],
+      ],
+   };
+   const rows = retroRows(data);
+
+   it('reads the compact rows back with who wrote each PR', () => {
+      expect(rows.map(r => [r.login, r.pr.number, r.own])).toEqual([
+         ['dana', 1, true],
+         ['dana', 2, false],
+         ['erin', 2, true],
+         ['erin', 2, true],
+         ['erin', 3, true],
       ]);
-      const project = (n: number) => (n === 1 ? 'alpha' : 'beta');
-      expect(groupTime(rows, r => project(r.number))).toEqual([
-         { key: 'beta', days: 3, writing: 1, people: ['finn', 'erin'] },
-         { key: 'alpha', days: 2, writing: 1, people: ['dana', 'erin'] },
+   });
+
+   it('adds up days, writing, weeks, people and PRs, the most days first', () => {
+      const groups = groupRows(rows, r => r.pr.project ?? '', data);
+      expect(groups.map(g => [g.key, g.days, g.writing, g.weekly, g.merged])).toEqual([
+         ['beta', 3.5, 3, [1.5, 2], 0],
+         ['alpha', 1.5, 1.5, [1.5, 0], 1],
+         ['', 1, 1, [0, 1], 0],
       ]);
+      expect(groups[0].people).toEqual([
+         ['erin', 3],
+         ['dana', 0.5],
+      ]);
+   });
+
+   it('says how many different projects each person touched in a week', () => {
+      // dana: alpha and beta in week one; erin: beta, then beta and an unfiled PR
+      expect([...spreadByPerson(rows)]).toEqual([
+         ['dana', 2],
+         ['erin', 1.5],
+      ]);
+      expect(median([3, 1, 2])).toBe(2);
+      expect(median([])).toBe(0);
    });
 });

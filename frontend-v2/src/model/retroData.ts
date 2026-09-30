@@ -3,17 +3,36 @@ import { isDummy, loadDummy } from '../backend/dummy';
 import { DUMMY_TEAMS } from '../backend/dummyProjects';
 import { epoch } from '../../../shared/format';
 import { dayStart, projectOf } from '../../../shared/model/projects';
-import { timeSpent, type TimeRow, type Touch } from '../../../shared/model/retro';
+import { timeSpent, type Touch } from '../../../shared/model/retro';
 import { isSuffixBot } from '../../../shared/model/visibility';
 import { teamLookup, type Range } from './projectData';
 
-/** GET /retro-data: where people's days went in a range (shared/model/retro.ts). */
+/** A PR someone spent days on, as GET /retro-data lists it. */
+export interface RetroPr {
+   repo: string;
+   number: number;
+   title: string;
+   owner: string;
+   bot: boolean;
+   project: string | null;
+   state: 'open' | 'closed';
+   /** epoch secs; null when not merged */
+   merged: number | null;
+}
+
+/** GET /retro-data: where people's days went in a range, week by week
+ * (lib/projects.js loadTimeSpent). Rows point into the lists by index. */
 export interface RetroData {
    start: string;
    end: string;
    /** whose time: developers when there are teams, else everyone */
    counted: 'developers' | 'everyone';
-   rows: (TimeRow & { project: string | null })[];
+   /** the Mondays of the weeks with any days, oldest first */
+   weeks: string[];
+   people: string[];
+   prs: RetroPr[];
+   /** [person, pr, week, days] */
+   rows: [number, number, number, number][];
 }
 
 /** The dummy board's answer, from its fixture PRs: opened, merged and stamped. */
@@ -35,15 +54,36 @@ async function dummyRetro({ start, end }: Range): Promise<RetroData> {
       ].filter(t => t.at >= from && t.at < to);
    });
    const teamOf = teamLookup(DUMMY_TEAMS);
-   const labels = new Map(pulls.map(p => [`${p.repo}#${p.number}`, p.labels]));
+   const rows = timeSpent(touches, login => !isSuffixBot(login) && teamOf(login) != null);
+   const byKey = new Map(pulls.map(p => [`${p.repo}#${p.number}`, p]));
+   const people = [...new Set(rows.map(r => r.login))].sort();
+   const weeks = [...new Set(rows.map(r => r.week))].sort();
+   const prKeys = [...new Set(rows.map(r => `${r.repo}#${r.number}`))];
    return {
       start,
       end,
       counted: 'developers',
-      rows: timeSpent(touches, login => !isSuffixBot(login) && teamOf(login) != null).map(row => ({
-         ...row,
-         project: projectOf(labels.get(`${row.repo}#${row.number}`) ?? [], prefix),
-      })),
+      weeks,
+      people,
+      prs: prKeys.map(key => {
+         const p = byKey.get(key) as typeof pulls[number];
+         return {
+            repo: p.repo,
+            number: p.number,
+            title: p.title,
+            owner: p.user.login,
+            bot: isSuffixBot(p.user.login),
+            project: projectOf(p.labels, prefix),
+            state: p.state === 'open' ? 'open' : 'closed',
+            merged: p.merged_at ? epoch(p.merged_at) : null,
+         };
+      }),
+      rows: rows.map(r => [
+         people.indexOf(r.login),
+         prKeys.indexOf(`${r.repo}#${r.number}`),
+         weeks.indexOf(r.week),
+         Math.round(r.days * 100) / 100,
+      ]),
    };
 }
 
