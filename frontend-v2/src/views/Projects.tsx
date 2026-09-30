@@ -17,7 +17,7 @@ import {
 import { portfolioItems } from '../model/portfolio';
 import { useRoadmap } from '../model/roadmapData';
 import { DateRangePicker } from './projects/DateRangePicker';
-import { Decide, decideCount } from './projects/Decide';
+import { Decide, decideRows } from './projects/Decide';
 import { Overview } from './projects/Overview';
 import { People } from './projects/People';
 import { ProjectPage } from './projects/ProjectPage';
@@ -87,10 +87,10 @@ export function Projects({
       [data, today, teamOf, plans]
    );
    // the calls owed, counted on the tab so they're seen from every view
-   const toDecide = useMemo(() => (plans ? decideCount(today, plans) : 0), [today, plans]);
+   const decisions = useMemo(() => (plans ? decideRows(today, plans) : null), [today, plans]);
    const views: [ProjectsNav['view'], string][] = [
       ['overview', 'Overview'],
-      ['decide', toDecide ? `Decide (${toDecide})` : 'Decide'],
+      ['decide', decisions?.length ? `Decide (${decisions.length})` : 'Decide'],
       ['roadmap', 'Roadmap'],
       ['people', 'People'],
    ];
@@ -192,6 +192,7 @@ export function Projects({
                navigate={navigate}
                opts={opts}
                onReview={onReview}
+               decisions={decisions}
             />
          )}
       </>

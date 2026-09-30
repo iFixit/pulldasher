@@ -119,10 +119,11 @@ The tab has four views and a page per project:
 
 - **Overview**: where the plans stand (the latest update on every item in
   progress, worst first, which copies as text for a status email),
-  headline numbers for a date range (each compared with the same number of
-  days before), the backlog chart, where the merged work went week by
-  week (by project, or split into work on the roadmap and everything
-  else, with the roadmap's share against the days before), and every
+  headline numbers (how many calls Decide has waiting, then a date
+  range's numbers, each compared with the same number of days before),
+  the backlog chart, where the merged work went week by week (by project,
+  or split into work on the roadmap and everything else, with the
+  roadmap's share against the days before), and every
   project on one list you can sort, group by parent, lead or team,
   search, and download as CSV, each with how its roadmap plan is going.
   A project's own page shows its plan and latest update too.

@@ -32,18 +32,15 @@ import {
 } from '../../model/roadmapData';
 import { openPlan, type Navigate, type ProjectsNav } from './parts';
 
-function queue(today: Today, items: readonly RoadmapItem[]): DecideRow[] {
+/** The decisions owed now, worst first, for this view, the tab's label and
+ * the Overview's tile. */
+export function decideRows(today: Today, items: readonly RoadmapItem[]): DecideRow[] {
    return decideQueue({
       live: decideProjects(today),
       items,
       today: dayOf(new Date()),
       now: Date.now() / 1000,
    });
-}
-
-/** How many decisions are owed now, for the tab's label. */
-export function decideCount(today: Today, items: readonly RoadmapItem[]): number {
-   return queue(today, items).length;
 }
 
 /** The queue's sections, worst first, as decide.ts ranks them. A row sits
@@ -326,7 +323,7 @@ export function Decide({
          </p>
       );
    }
-   const rows = queue(today, plans).filter(row => !decided.has(rowKey(row)));
+   const rows = decideRows(today, plans).filter(row => !decided.has(rowKey(row)));
    const commitTo = commitEnds(day);
    const decide = async (row: DecideRow, fields: Partial<RoadmapFields>, words: string) => {
       let id: number | null = null;

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { DerivedPull, Status } from '../../../../shared/model/status';
 import { n } from '../../../../shared/format';
+import type { DecideRow } from '../../../../shared/model/decide';
 import type { Today } from '../../../../shared/model/projects';
 import { Fold, FoldRows, RestGroup } from '../../components/Lane';
 import type { RowOptions } from '../../components/Row';
@@ -23,8 +24,8 @@ import { PlansStanding } from './roadmapHealth';
 
 const WAITING: Status[] = ['needs_cr', 'needs_recr', 'needs_qa'];
 
-/** The headline numbers: what's live, what's waiting, and how the range
- * compares with the same number of days before. */
+/** The headline numbers: the calls owed, what's live, what's waiting, and
+ * how the range compares with the same number of days before. */
 function Headline({
    today,
    data,
@@ -34,6 +35,7 @@ function Headline({
    teamOf,
    navigate,
    onReview,
+   decisions,
 }: {
    today: Today;
    data: ProjectsData;
@@ -44,6 +46,8 @@ function Headline({
    navigate: Navigate;
    /** to the review board, where the PRs waiting on review are */
    onReview: () => void;
+   /** the Decide queue; null until the roadmap loads */
+   decisions: DecideRow[] | null;
 }) {
    const t = data.window.totals;
    const before = prev?.window.totals;
@@ -65,8 +69,16 @@ function Headline({
          i.project.closed_at.slice(0, 10) >= range.start &&
          i.project.closed_at.slice(0, 10) <= range.end
    );
+   const neverDecided = decisions?.filter(d => d.reasons.some(r => r.kind === 'new')).length;
    return (
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-6">
+         <Tile
+            value={decisions ? decisions.length : '…'}
+            label="To decide"
+            title="Projects and plans that need a call: new work with no decision, plans past their end, stalls, and updates saying at risk or off track. Click to decide."
+            note={neverDecided != null ? `${neverDecided} never decided` : undefined}
+            onClick={() => navigate({ view: 'decide', item: null })}
+         />
          <Tile
             value={today.live.length}
             label="Live projects"
@@ -76,11 +88,6 @@ function Headline({
                navigate({ status: 'live' });
                document.getElementById('all-projects')?.scrollIntoView({ block: 'start' });
             }}
-         />
-         <Tile
-            value={`${t.backlog_start} to ${t.backlog_end}`}
-            label="Open PRs, start to end"
-            title="PRs open when the range began, and when it ended"
          />
          <Tile
             value={waiting.length}
@@ -231,6 +238,7 @@ export function Overview({
    navigate,
    opts,
    onReview,
+   decisions,
 }: {
    today: Today;
    data: ProjectsData | null | undefined;
@@ -244,6 +252,7 @@ export function Overview({
    navigate: Navigate;
    opts: RowOptions;
    onReview: () => void;
+   decisions: DecideRow[] | null;
 }) {
    // two-label PRs already sit in a project, so they aren't "outside" ones
    const outside = today.misc.length + today.unsorted.length;
@@ -266,6 +275,7 @@ export function Overview({
                   teamOf={teamOf}
                   navigate={navigate}
                   onReview={onReview}
+                  decisions={decisions}
                />
             </StatsCard>
          )}
