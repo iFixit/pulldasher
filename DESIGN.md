@@ -337,9 +337,15 @@ icon with a class bolted on.
   Shift with them changes the length. A plan's bar says its status by form
   (an outline while planned, a fill once under way, green when done, faint
   when dropped); a linked project's real PR activity is a thin line under
-  it, amber only where a live project has run past its plan. Editing opens
-  inline under the row, not in a popover, since a half-typed plan shouldn't
-  vanish on a stray click.
+  it, amber only where a live project has run past its plan. The linked
+  project's milestone is a short upright line on the row, named in the
+  row's words ("target Dec 14"), and both turn amber when the plan, or work
+  still running past it, ends after the milestone. Editing opens inline
+  under the row, not in a popover, since a half-typed plan shouldn't
+  vanish on a stray click. Now, next and later is the same plan without
+  dates, for readers who want the order and not the weeks; its columns are
+  derived from the dates, never set by hand, so the two layouts can't
+  disagree.
 - **A plan's health is a word, amber only when someone owes something.**
   "On track" reads plain. "At risk", "Off track" and an overdue update are
   amber, because each asks someone to act: the planner to replan, the lead

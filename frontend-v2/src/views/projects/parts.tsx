@@ -25,8 +25,8 @@ export interface ProjectsNav {
    sort: string;
    /** the list's find box */
    find: string;
-   /** the roadmap's columns: months or quarters */
-   scale: 'month' | 'quarter';
+   /** the roadmap's layout: month or quarter columns, or now, next and later */
+   scale: 'month' | 'quarter' | 'now';
    /** the roadmap item whose editor and updates are open */
    item: number | null;
 }

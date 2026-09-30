@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
    addWeeks,
+   bucketOf,
    checkRoadmapFields,
    checkRoadmapUpdate,
    endShift,
@@ -111,5 +112,16 @@ describe('updates', () => {
          'current'
       );
       expect(healthStanding({ ...active, status: 'done', update: null }, now).kind).toBe('quiet');
+   });
+});
+
+describe('bucketOf', () => {
+   it('puts work in progress and started plans now, the next quarter next, the rest later', () => {
+      const today = '2026-09-30';
+      expect(bucketOf({ status: 'active', start: '2026-12-07' }, today)).toBe('now');
+      expect(bucketOf({ status: 'planned', start: '2026-09-28' }, today)).toBe('now');
+      expect(bucketOf({ status: 'planned', start: '2026-12-28' }, today)).toBe('next');
+      expect(bucketOf({ status: 'planned', start: '2027-01-04' }, today)).toBe('later');
+      expect(bucketOf({ status: 'done', start: '2026-09-28' }, today)).toBeNull();
    });
 });

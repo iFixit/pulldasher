@@ -146,7 +146,7 @@ function readHash(): HashState {
          group: p.get('group') || 'none',
          sort: p.get('sort') || 'open',
          find: p.get('find') ?? '',
-         scale: p.get('scale') === 'month' ? 'month' : 'quarter',
+         scale: p.get('scale') === 'month' ? 'month' : p.get('scale') === 'now' ? 'now' : 'quarter',
          item: Number(p.get('item')) || null,
       },
    };

@@ -37,6 +37,7 @@ import {
    updateRoadmapItem,
    useRoadmap,
 } from '../../model/roadmapData';
+import { NowNextLater } from './NowNextLater';
 import type { Navigate, ProjectsNav } from './parts';
 import { healthWords, UpdatesPanel } from './roadmapHealth';
 
@@ -412,6 +413,15 @@ function RoadmapRow({
    const weeksOver = over
       ? Math.ceil(((dayStart(today) as number) - (dayStart(end) as number)) / (7 * DAY))
       : 0;
+   // the linked project's milestone, while the plan can still move to meet
+   // it. Work still running past its plan ends no sooner than today.
+   const target = stillPlanned ? linked?.target ?? null : null;
+   const due = target?.due_on?.slice(0, 10) ?? null;
+   const expectedEnd = over ? today : end;
+   const weeksLate =
+      due && expectedEnd > due
+         ? Math.ceil(((dayStart(expectedEnd) as number) - (dayStart(due) as number)) / (7 * DAY))
+         : 0;
    const health = healthWords(healthStanding(item));
 
    const commit = (next: { start: string; weeks: number }) => {
@@ -487,6 +497,25 @@ function RoadmapRow({
          </span>
       );
    }
+   if (due) {
+      meta.push(
+         weeksLate ? (
+            <span
+               key="target"
+               className="text-warn"
+               title={`The milestone ${target?.title} is due ${weekWords(due)}`}
+            >
+               {due < today
+                  ? `missed its ${weekWords(due)} target`
+                  : `ends ${n(weeksLate, 'week')} after its ${weekWords(due)} target`}
+            </span>
+         ) : (
+            <span key="target" title={`The milestone ${target?.title}`}>
+               target {weekWords(due)}
+            </span>
+         )
+      );
+   }
    return (
       <div
          {...dragHandlers.row}
@@ -555,6 +584,16 @@ function RoadmapRow({
                         className="absolute inset-y-0 right-0 w-2 cursor-ew-resize rounded-r-md"
                      />
                   </button>
+               )}
+               {due && due >= horizon.start && due < horizon.end && (
+                  <span
+                     aria-hidden
+                     className="pointer-events-none absolute top-0.5 h-6 border-l-2"
+                     style={{
+                        left: `${at(due, horizon)}%`,
+                        borderColor: weeksLate ? 'var(--warn)' : 'var(--ink-2)',
+                     }}
+                  />
                )}
                {preview && (
                   <span
@@ -684,7 +723,7 @@ export function Roadmap({
    const [dropTarget, setDropTarget] = useState<number | null>(null);
    const now = new Date();
    const today = dayOf(now);
-   const columns = columnsFor(nav.scale, now);
+   const columns = columnsFor(nav.scale === 'month' ? 'month' : 'quarter', now);
    const horizon: Horizon = {
       start: columns[0].start,
       end: columns[columns.length - 1].end,
@@ -868,6 +907,7 @@ export function Roadmap({
                options={[
                   ['month', 'Months'],
                   ['quarter', 'Quarters'],
+                  ['now', 'Now, next, later'],
                ]}
                onChange={scale => navigate({ scale })}
             />
@@ -914,62 +954,95 @@ export function Roadmap({
                Couldn’t load the roadmap. Try again in a minute.
             </p>
          )}
-         <Rows>
-            {header}
-            <div className="relative">
-               {todayAt != null && (
-                  <div className={`pointer-events-none absolute inset-0 ${rowGrid} px-3.5`}>
-                     <span />
-                     <span className="relative block h-full">
-                        <span
-                           className="absolute inset-y-0 border-l border-dashed"
-                           style={{
-                              left: `${todayAt}%`,
-                              borderColor: 'var(--brand)',
-                           }}
-                        />
-                     </span>
-                  </div>
-               )}
+         {nav.scale === 'now' ? (
+            <>
                {adding && (
-                  <Editor
-                     item={null}
-                     projects={projectOptions}
-                     teams={teams}
-                     people={people}
-                     onDone={() => setAdding(false)}
-                  />
-               )}
-               {plan && !plan.length && !adding && (
-                  <div className="px-3.5 py-4 text-[13px] text-ink-3">
-                     Nothing planned yet. Add a project, or add a live one from the list below.
+                  <div className="mb-3">
+                     <Rows>
+                        <Editor
+                           item={null}
+                           projects={projectOptions}
+                           teams={teams}
+                           people={people}
+                           onDone={() => setAdding(false)}
+                        />
+                     </Rows>
                   </div>
                )}
-               {lanes
-                  ? [...laneTitles, null].map(team => {
-                       const list = ordered.filter(i => (i.team ?? null) === team);
-                       if (!list.length) return null;
-                       return (
-                          <div key={team ?? '(none)'}>
-                             <div
-                                className={`border-t border-secondary bg-muted/40 px-3.5 py-[6px] text-ink-3 first:border-t-0 ${eyebrowText}`}
-                             >
-                                {team ?? 'No team'}{' '}
-                                <span className="tabular-nums">· {list.length}</span>
-                             </div>
-                             {renderRows(list)}
-                          </div>
-                       );
-                    })
-                  : renderRows(ordered)}
-            </div>
-         </Rows>
-         <p className="mt-2 text-xs text-ink-3">
-            Order is priority: drag a row’s grip (or use the arrow keys on it). Drag a bar to move
-            the plan and its right edge to change the length; with a bar focused, the arrow keys do
-            the same, Shift for length. The line under a bar is when the linked project’s PRs
-            actually ran: amber once a live project runs past its plan. The dashed line is today.
-         </p>
+               <NowNextLater
+                  items={ordered}
+                  bySlug={bySlug}
+                  laneTitles={lanes ? laneTitles : null}
+                  today={today}
+                  onOpen={id => navigate({ scale: 'quarter', item: id })}
+               />
+               <p className="mt-3 text-xs text-ink-3">
+                  Each column is in priority order. Done and dropped work isn’t shown. Open an item
+                  to change its plan on the timeline.
+               </p>
+            </>
+         ) : (
+            <>
+               <Rows>
+                  {header}
+                  <div className="relative">
+                     {todayAt != null && (
+                        <div className={`pointer-events-none absolute inset-0 ${rowGrid} px-3.5`}>
+                           <span />
+                           <span className="relative block h-full">
+                              <span
+                                 className="absolute inset-y-0 border-l border-dashed"
+                                 style={{
+                                    left: `${todayAt}%`,
+                                    borderColor: 'var(--brand)',
+                                 }}
+                              />
+                           </span>
+                        </div>
+                     )}
+                     {adding && (
+                        <Editor
+                           item={null}
+                           projects={projectOptions}
+                           teams={teams}
+                           people={people}
+                           onDone={() => setAdding(false)}
+                        />
+                     )}
+                     {plan && !plan.length && !adding && (
+                        <div className="px-3.5 py-4 text-[13px] text-ink-3">
+                           Nothing planned yet. Add a project, or add a live one from the list
+                           below.
+                        </div>
+                     )}
+                     {lanes
+                        ? [...laneTitles, null].map(team => {
+                             const list = ordered.filter(i => (i.team ?? null) === team);
+                             if (!list.length) return null;
+                             return (
+                                <div key={team ?? '(none)'}>
+                                   <div
+                                      className={`border-t border-secondary bg-muted/40 px-3.5 py-[6px] text-ink-3 first:border-t-0 ${eyebrowText}`}
+                                   >
+                                      {team ?? 'No team'}{' '}
+                                      <span className="tabular-nums">· {list.length}</span>
+                                   </div>
+                                   {renderRows(list)}
+                                </div>
+                             );
+                          })
+                        : renderRows(ordered)}
+                  </div>
+               </Rows>
+               <p className="mt-2 text-xs text-ink-3">
+                  Order is priority: drag a row’s grip (or use the arrow keys on it). Drag a bar to
+                  move the plan and its right edge to change the length; with a bar focused, the
+                  arrow keys do the same, Shift for length. The line under a bar is when the linked
+                  project’s PRs actually ran: amber once a live project runs past its plan. A short
+                  upright line is the linked project’s milestone. The dashed line is today.
+               </p>
+            </>
+         )}
          {unplanned.length > 0 && (
             <section className="mt-6">
                <h3 className="m-0 mb-2 text-sm font-semibold">
@@ -982,7 +1055,8 @@ export function Roadmap({
                         key={p.slug}
                         item={p}
                         horizon={horizon}
-                        actual={actualSpan(p.slug, p, history, today)}
+                        // the line only means something under the timeline's columns
+                        actual={nav.scale === 'now' ? null : actualSpan(p.slug, p, history, today)}
                         onAdd={() => add(p)}
                      />
                   ))}

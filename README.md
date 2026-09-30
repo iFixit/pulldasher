@@ -121,10 +121,12 @@ The tab has three views and a page per project:
   days before), the backlog chart, where the merged work went week by
   week, and every project on one list you can sort, group by parent, lead
   or team, search, and download as CSV.
-- **Roadmap**: the plan, by month or by quarter. Drag rows to set priority,
-  drag a bar to move it and its edge to change its length; group into team
-  lanes. An item linked to a project label draws what its PRs actually did
-  under the plan. Each item takes updates: on track, at risk or off track,
+- **Roadmap**: the plan, by month or by quarter, or as now, next and later
+  without dates for readers outside engineering. Drag rows to set
+  priority, drag a bar to move it and its edge to change its length; group
+  into team lanes. An item linked to a project label draws what its PRs
+  actually did under the plan, and marks the project's milestone, flagged
+  when the plan ends after it. Each item takes updates: on track, at risk or off track,
   and a note, kept as a history. Work in progress with no update for 14
   days is flagged. The roadmap is the one thing the tab stores itself, in
   the `roadmap_items` and `roadmap_updates` tables.

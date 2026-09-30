@@ -224,6 +224,23 @@ export function healthStanding(
       : { kind: 'current', update: u };
 }
 
+/** how far ahead the roadmap's "next" reaches, in weeks: one quarter */
+export const NEXT_WEEKS = 13;
+
+/**
+ * Which of now, next and later an item belongs in, for the roadmap's dateless
+ * layout: now is work in progress and plans whose start has come, next starts
+ * within NEXT_WEEKS, later is further out. Done and dropped work is in none.
+ */
+export function bucketOf(
+   item: Pick<RoadmapItem, 'status' | 'start'>,
+   today: string
+): 'now' | 'next' | 'later' | null {
+   if (item.status === 'done' || item.status === 'dropped') return null;
+   if (item.status === 'active' || item.start <= today) return 'now';
+   return item.start <= addWeeks(today, NEXT_WEEKS) ? 'next' : 'later';
+}
+
 /**
  * Move `id` to just before `beforeId` in an order of ids (to the end with
  * null), for a drag that drops one row onto another. Unknown ids leave the
