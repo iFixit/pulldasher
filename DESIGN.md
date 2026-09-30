@@ -430,7 +430,14 @@ icon with a class bolted on.
   amber once a week has as much in flight as the team has developers,
   because then at least one of them has one developer or none. With no effort
   estimates in this workflow, work in flight against people is the one
-  honest measure; the planner judges the rest.
+  honest measure; the planner judges the rest. The lane also draws the
+  point where its people run out: a dashed amber line before the row in
+  flight this week that's one more than the team has developers, counting
+  plans in priority order and then its projects with no plan. It says so
+  in words ("Below here: more in flight than Store's 6 developers can
+  staff"), turns the priority order into what to park, and opens Decide
+  on that team. It only shows with nothing narrowing the rows, since a
+  cut through a filtered list would mean nothing.
 - **A plan's health is a word, amber only when someone owes something.**
   "On track" reads plain. "At risk", "Off track" and an overdue update are
   amber, because each asks someone to act: the planner to replan, the lead

@@ -1091,6 +1091,33 @@ function PlanChooser({
 }
 
 /**
+ * The line in a team's lane where its people run out: the work in flight
+ * above it, in priority order, has a developer each; the work in flight
+ * below it doesn't. It turns the order into what to park. A click opens
+ * Decide on that team.
+ */
+function CapacityLine({
+   team,
+   developers,
+   onOpen,
+}: {
+   team: string;
+   developers: number;
+   onOpen: () => void;
+}) {
+   return (
+      <button
+         type="button"
+         onClick={onOpen}
+         className="pressable flex w-full items-center gap-2 border-0 border-t-2 border-dashed border-warn bg-transparent px-3.5 py-1 text-left text-[11px] font-medium text-warn hover:bg-muted"
+         title={`Work in flight above this line has one of ${team}’s developers each, in priority order; below it, there’s nobody left. Park or finish something, or move work below the line. Click for ${team}’s decisions.`}
+      >
+         Below here: more in flight than {team}’s {n(developers, 'developer')} can staff
+      </button>
+   );
+}
+
+/**
  * A lane's band: the button that folds it, its name, its counts, and, for a
  * team, the most it has in flight at once against its developers, in words.
  */
@@ -1600,13 +1627,34 @@ export function Roadmap({
             ? shownUnplanned.filter(p => inLane(mainTeam(p, teamOf)))
             : [];
          if (!shownPlanned.length && !shownLoose.length) return null;
-         const laneLoad = loadByWeek({
-            weeks,
-            today,
-            plans: planned,
-            spans: spans.filter(s => laneOfSlug(s.slug) === team),
-            ahead,
-         });
+         const laneSpans = spans.filter(s => laneOfSlug(s.slug) === team);
+         const laneLoad = loadByWeek({ weeks, today, plans: planned, spans: laneSpans, ahead });
+         const developers = team ? teamMembers[team]?.length ?? 0 : 0;
+         // where the team's people run out, in priority order: the row in
+         // flight this week that's one more than it has developers. Plans
+         // come first by priority; projects with no plan come after them all.
+         let cut = -1;
+         if (developers > 0 && !narrowed && everything) {
+            const now = weekMembers({ today, plans: planned, spans: laneSpans, ahead })(
+               mondayOf(today)
+            );
+            const inFlight = [
+               ...shownPlanned.map(
+                  i => now.plans.has(i.id) || (!!i.project && now.projects.get(i.project) === 'on')
+               ),
+               ...shownLoose.map(p => now.projects.get(p.slug) === 'off'),
+            ];
+            let seen = 0;
+            cut = inFlight.findIndex(going => going && ++seen > developers);
+         }
+         const line = cut >= 0 && (
+            <CapacityLine
+               team={team as string}
+               developers={developers}
+               onOpen={() => navigate({ view: 'decide', team, item: null })}
+            />
+         );
+         const split = shownPlanned.length;
          return (
             <Lane
                key={team ?? '(none)'}
@@ -1627,15 +1675,33 @@ export function Roadmap({
                         .filter(Boolean)
                         .join(' · ')}
                      load={laneLoad}
-                     developers={team ? teamMembers[team]?.length ?? 0 : 0}
+                     developers={developers}
                      today={today}
                      open={open}
                      onToggle={toggle}
                   />
                )}
             >
-               {planRows(shownPlanned)}
-               {inFlightRows(shownLoose)}
+               {cut >= 0 && cut < split ? (
+                  <>
+                     {planRows(shownPlanned.slice(0, cut))}
+                     {line}
+                     {planRows(shownPlanned.slice(cut))}
+                     {inFlightRows(shownLoose)}
+                  </>
+               ) : cut >= split ? (
+                  <>
+                     {planRows(shownPlanned)}
+                     {inFlightRows(shownLoose.slice(0, cut - split))}
+                     {line}
+                     {inFlightRows(shownLoose.slice(cut - split))}
+                  </>
+               ) : (
+                  <>
+                     {planRows(shownPlanned)}
+                     {inFlightRows(shownLoose)}
+                  </>
+               )}
             </Lane>
          );
       })

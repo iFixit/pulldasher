@@ -155,7 +155,8 @@ The tab has four views and a page per project:
   - Drag rows to set priority, drag a bar to move it and its edge to change
     its length; the editor also plans a month or a quarter in one click.
     Team lanes say the most each team has in flight at once against its
-    developers.
+    developers, and draw a dashed line where, in priority order, the work
+    in flight outnumbers them: what's below it is what to park.
   - A linked plan still in flight past its end grows an amber "+3 wk over";
     its project's milestone is a flag with its date. An item can wait on
     others, and says so when its plan starts before one of them ends.
