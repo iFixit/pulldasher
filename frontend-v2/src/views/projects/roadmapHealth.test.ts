@@ -69,10 +69,14 @@ describe('amber means someone owes something', () => {
       expect(waitsWords(item(1, { status: 'done', waits_on: [2] }), all)).toBeNull();
    });
 
-   it('on a lane: once a week has as many plans as developers', () => {
-      const plans = [item(1, { start: '2026-09-28' }), item(2, { start: '2026-09-28' })];
-      expect(loadWords(plans, 3, '2026-09-30', '2026-12-01')).toMatchObject({ warn: false });
-      expect(loadWords(plans, 2, '2026-09-30', '2026-12-01')?.warn).toBe(true);
-      expect(loadWords([], 2, '2026-09-30', '2026-12-01')).toBeNull();
+   it('on a lane: once a week has as much in flight as developers', () => {
+      const weeks = [
+         { week: '2026-09-28', onPlan: 1, offPlan: 1, projected: false },
+         { week: '2026-10-05', onPlan: 1, offPlan: 0, projected: true },
+      ];
+      expect(loadWords(weeks, 3, '2026-09-30')).toMatchObject({ warn: false });
+      expect(loadWords(weeks, 2, '2026-09-30')?.text).toMatch(/^2 at once in the week of/);
+      expect(loadWords(weeks, 2, '2026-09-30')?.warn).toBe(true);
+      expect(loadWords([], 2, '2026-09-30')).toBeNull();
    });
 });

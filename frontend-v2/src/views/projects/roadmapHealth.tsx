@@ -6,7 +6,6 @@ import {
    HEALTH_WORD,
    healthRank,
    healthStanding,
-   peakLoad,
    planEnd,
    ROADMAP_HEALTHS,
    UPDATE_DUE_DAYS,
@@ -18,6 +17,7 @@ import {
 } from '../../../../shared/model/roadmap';
 import { Segmented } from '../../components/bits';
 import { dayOf, dayWords, useProjectsData } from '../../model/projectData';
+import { peakFrom, type LoadWeek } from '../../model/roadmapLoad';
 import { loadRoadmapUpdates, postRoadmapUpdate, useRoadmap } from '../../model/roadmapData';
 import { StatsCard } from '../stats/parts';
 import { openPlan, type Navigate, type ProjectsNav } from './parts';
@@ -118,32 +118,31 @@ export function waitsWords(
 }
 
 /**
- * A team lane's load, for its header: the most plans it has running at once
- * from this week to the end of the horizon, against its developers. Amber
- * when there are as many plans as developers or more, since then at least
- * one plan has one developer or none (the worry the "one person" flag names
- * for live projects), and the planner owes the lane a new order.
+ * A lane's load in words, for its band: the most plans and projects it has
+ * in flight in any week from this one on, against its developers. Amber
+ * once that's as many as the developers or more, since then at least one
+ * has one developer or none (the worry the "one person" flag names for live
+ * projects), and the planner owes the lane a new order.
  */
 export function loadWords(
-   list: readonly RoadmapItem[],
+   weeks: readonly LoadWeek[],
    developers: number,
-   today: string,
-   until: string
+   today: string
 ): { text: string; warn: boolean; title: string } | null {
-   const peak = peakLoad(list, today, until);
-   if (!peak.week) return null;
+   const peak = peakFrom(weeks, today);
+   if (!peak) return null;
    const people = developers ? ` for ${n(developers, 'developer')}` : '';
    if (developers && peak.count >= developers) {
       return {
          text: `${peak.count} at once in the week of ${dayWords(peak.week)}${people}`,
          warn: true,
-         title: 'With as many plans as developers, at least one plan has one developer or none.',
+         title: 'With as much in flight as there are developers, at least one plan or project has one developer or none.',
       };
    }
    return {
       text: `at most ${peak.count} at once${people}`,
       warn: false,
-      title: 'The most plans this team runs in any one week, from this week on',
+      title: 'The most plans and projects in flight in any one week, from this week on',
    };
 }
 

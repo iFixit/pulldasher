@@ -290,6 +290,16 @@ export const eyebrowText = 'text-[11px] font-semibold tracking-wide uppercase';
  * (locality — the legend stays optional reading); clicking anywhere on the
  * band toggles the fold.
  */
+/** A band's open state and its setter, remembered with every <Fold>'s, for a
+ * band that isn't a <Fold> (the roadmap's lanes, which carry a chart). */
+export function useFoldState(id: string, defaultOpen: boolean): [boolean, (open: boolean) => void] {
+   const stored = foldOpenStore.useValue();
+   return [
+      stored[id] ?? defaultOpen,
+      open => foldOpenStore.set({ ...foldOpenStore.get(), [id]: open }),
+   ];
+}
+
 export function Fold({
    count,
    label,

@@ -12,7 +12,7 @@ import {
 import { ago, closedEpoch, n, pullKey, shortRepo } from '../../shared/format';
 import type { ActionStateKey } from './model/actions';
 import { actionState } from './model/actions';
-import { DEFAULT_RANGE, LENS_LABELS, type Lens } from './lens';
+import { DEFAULT_RANGE, LENS_LABELS, ZOOM_KEY, type Lens } from './lens';
 import type { DerivedPull } from '../../shared/model/status';
 import { matchesWeightFilter } from '../../shared/model/status';
 import { buildParentLookup } from './model/stack';
@@ -148,6 +148,9 @@ function readHash(): HashState {
          scale: p.get('scale') === 'month' ? 'month' : p.get('scale') === 'now' ? 'now' : 'quarter',
          item: Number(p.get('item')) || null,
          split: p.get('split') === 'roadmap' ? 'roadmap' : 'project',
+         // not `show`, which the board already uses for revealed hidden groups
+         show: p.get('unplanned') === 'hide' ? 'plan' : 'all',
+         zoom: ZOOM_KEY.test(p.get('zoom') ?? '') ? p.get('zoom') : null,
       },
    };
 }
@@ -174,6 +177,8 @@ function buildHash(s: HashState): string {
    if (s.projects.scale !== 'quarter') p.set('scale', s.projects.scale);
    if (s.projects.item) p.set('item', String(s.projects.item));
    if (s.projects.split !== 'project') p.set('split', s.projects.split);
+   if (s.projects.show === 'plan') p.set('unplanned', 'hide');
+   if (s.projects.zoom) p.set('zoom', s.projects.zoom);
    return p.toString();
 }
 
@@ -407,7 +412,13 @@ export function App() {
    // the Projects tab's Date range) earn a history entry so the back button
    // navigates between boards; filter tweaks replace in place so typing a
    // query doesn't bury history under keystrokes.
-   const view = { lens, project: projectsNav.project, projectsView: projectsNav.view };
+   const view = {
+      lens,
+      project: projectsNav.project,
+      projectsView: projectsNav.view,
+      // zooming the roadmap in or out is a view change too, so Back undoes it
+      zoom: projectsNav.zoom,
+   };
    const prevView = useRef(view);
    useEffect(() => {
       const next = buildHash(hashState);
@@ -417,7 +428,8 @@ export function App() {
       if (
          prev.lens !== view.lens ||
          prev.project !== view.project ||
-         prev.projectsView !== view.projectsView
+         prev.projectsView !== view.projectsView ||
+         prev.zoom !== view.zoom
       ) {
          if (next) {
             // fires hashchange; the listener below re-reads idempotently

@@ -32,6 +32,11 @@ export interface ProjectsNav {
    item: number | null;
    /** how the overview splits the merged work: by project, or roadmap or not */
    split: 'project' | 'roadmap';
+   /** what the roadmap's timeline shows: everything in flight, or only the plan */
+   show: 'all' | 'plan';
+   /** the quarter or month the timeline is zoomed into, "2026-Q4" or
+    * "2026-10" (model/roadmapTime.ts); null for the whole view */
+   zoom: string | null;
 }
 export type Navigate = (patch: Partial<ProjectsNav>) => void;
 

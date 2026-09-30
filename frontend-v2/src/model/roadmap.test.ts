@@ -9,7 +9,7 @@ import {
    healthStanding,
    mondayOf,
    moveBefore,
-   peakLoad,
+   periodPlan,
    planEnd,
    type RoadmapItem,
    type RoadmapUpdate,
@@ -175,21 +175,17 @@ describe('waits on', () => {
    });
 });
 
-describe('peakLoad', () => {
-   it('finds the week with the most plans running, from a day on', () => {
-      const plan = (start: string, weeks: number, status: 'planned' | 'done' = 'planned') => ({
-         status,
-         start,
-         weeks,
+describe('periodPlan', () => {
+   it('fills this or next month or quarter in whole weeks', () => {
+      const today = '2026-09-30'; // a Wednesday in the last week of Q3
+      expect(periodPlan('month', 'this', today)).toEqual({ start: '2026-09-28', weeks: 1 });
+      expect(periodPlan('month', 'next', today)).toEqual({ start: '2026-09-28', weeks: 5 });
+      expect(periodPlan('quarter', 'next', today)).toEqual({ start: '2026-09-28', weeks: 14 });
+      expect(periodPlan('quarter', 'this', '2026-08-12')).toEqual({
+         start: '2026-08-10',
+         weeks: 8,
       });
-      const items = [
-         plan('2026-09-28', 2), // Sep 28 to Oct 11
-         plan('2026-10-05', 3), // Oct 5 to Oct 25
-         plan('2026-10-05', 1, 'done'),
-         plan('2026-10-19', 1),
-      ];
-      expect(peakLoad(items, '2026-09-30', '2026-12-01')).toEqual({ count: 2, week: '2026-10-05' });
-      expect(peakLoad(items, '2026-10-12', '2026-12-01')).toEqual({ count: 2, week: '2026-10-19' });
-      expect(peakLoad([], '2026-10-12', '2026-12-01')).toEqual({ count: 0, week: null });
+      // December's next month is January of the next year
+      expect(periodPlan('month', 'next', '2026-12-10').start).toBe('2026-12-28');
    });
 });

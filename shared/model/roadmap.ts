@@ -306,22 +306,29 @@ export function healthRank(s: HealthStanding): number {
 }
 
 /**
- * The most items planned or in progress in any one week from `from` up to
- * `to`, and the first week that happens: how many things a team would be
- * juggling at once if the plan holds. Weeks start on Mondays.
+ * A plan that fills a calendar month or quarter, this one or the next, for
+ * organizing the roadmap by month or quarter. It runs from the week the
+ * period starts (this week, for the current one) to the week holding the
+ * period's last day, in whole weeks like every plan.
  */
-export function peakLoad(
-   items: readonly Pick<RoadmapItem, 'status' | 'start' | 'weeks'>[],
-   from: string,
-   to: string
-): { count: number; week: string | null } {
-   const live = items.filter(i => i.status === 'planned' || i.status === 'active');
-   let peak: { count: number; week: string | null } = { count: 0, week: null };
-   for (let week = mondayOf(from); week < to; week = addWeeks(week, 1)) {
-      const count = live.filter(i => i.start <= week && planEnd(i) >= week).length;
-      if (count > peak.count) peak = { count, week };
-   }
-   return peak;
+export function periodPlan(
+   kind: 'month' | 'quarter',
+   which: 'this' | 'next',
+   today: string
+): { start: string; weeks: number } {
+   const [year, month] = today.split('-').map(Number);
+   const size = kind === 'month' ? 1 : 3;
+   const first =
+      (kind === 'month' ? month - 1 : Math.floor((month - 1) / 3) * 3) +
+      (which === 'next' ? size : 0);
+   const lastDay = utcDay(Date.UTC(year, first + size, 0) / 1000);
+   const start =
+      which === 'next' ? mondayOf(utcDay(Date.UTC(year, first, 1) / 1000)) : mondayOf(today);
+   const weeks =
+      Math.round(
+         ((dayStart(mondayOf(lastDay)) as number) - (dayStart(start) as number)) / (7 * DAY)
+      ) + 1;
+   return { start, weeks };
 }
 
 /** how far ahead the roadmap's "next" reaches, in weeks: one quarter */
@@ -346,7 +353,11 @@ export function bucketOf(
  * null), for a drag that drops one row onto another. Unknown ids leave the
  * order as it was.
  */
-export function moveBefore(order: readonly number[], id: number, beforeId: number | null): number[] {
+export function moveBefore(
+   order: readonly number[],
+   id: number,
+   beforeId: number | null
+): number[] {
    if (!order.includes(id) || id === beforeId) return [...order];
    const rest = order.filter(x => x !== id);
    const at = beforeId == null ? -1 : rest.indexOf(beforeId);

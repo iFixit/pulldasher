@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { dateOf, dayOf } from './days';
 import { isDummy, loadDummy } from '../backend/dummy';
 import { DUMMY_PROJECTS, DUMMY_TEAMS } from '../backend/dummyProjects';
 import { epoch } from '../../../shared/format';
@@ -55,18 +56,12 @@ export const RANGE_PRESETS: [string, string][] = [
    ['ytd', 'Year to date'],
 ];
 export { DEFAULT_RANGE } from '../lens';
+export { dateOf, dayOf } from './days';
 
 export interface Range {
    /** first and last day, both counted */
    start: string;
    end: string;
-}
-
-/** A local Date's calendar day, YYYY-MM-DD. */
-export function dayOf(date: Date): string {
-   const m = String(date.getMonth() + 1).padStart(2, '0');
-   const d = String(date.getDate()).padStart(2, '0');
-   return `${date.getFullYear()}-${m}-${d}`;
 }
 
 /** A YYYY-MM-DD day in words, "Sep 22", read as UTC so it never shifts a
@@ -78,12 +73,6 @@ export function dayWords(day: string): string {
       day: 'numeric',
       timeZone: 'UTC',
    });
-}
-
-/** A YYYY-MM-DD day as a local Date at midnight, for the calendar. */
-export function dateOf(day: string): Date {
-   const [y, m, d] = day.split('-').map(Number);
-   return new Date(y, m - 1, d);
 }
 
 /** How many days a range covers, both ends counted. */

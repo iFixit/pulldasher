@@ -124,17 +124,26 @@ The tab has three views and a page per project:
   project on one list you can sort, group by parent, lead or team,
   search, and download as CSV, each with how its roadmap plan is going.
   A project's own page shows its plan and latest update too.
-- **Roadmap**: the plan, by month or by quarter, or as now, next and later
-  without dates for readers outside engineering. Drag rows to set
-  priority, drag a bar to move it and its edge to change its length; group
-  into team lanes, each saying the most plans it runs at once against its
-  developers. An item linked to a project label draws what its PRs
-  actually did under the plan, and marks the project's milestone, flagged
-  when the plan ends after it. An item can wait on others, and says so
-  when its plan starts before one of them ends. Each item takes updates: on track, at risk or off track,
-  and a note, kept as a history. Work in progress with no update for 14
-  days is flagged. The roadmap is the one thing the tab stores itself, in
-  the `roadmap_items` and `roadmap_updates` tables.
+- **Roadmap**: the plan set against everything actually in flight. Across
+  the top, how many projects were in flight each week (from their PRs)
+  and are planned for the weeks ahead, against a line at the number of
+  developers. Below, the plans in priority order, then every live project
+  with no plan, one click from being planned.
+  - By month or by quarter; click a quarter or a month to fill the width
+    with it, and zoom out or step to the next one from the toolbar. Or
+    now, next and later, without week dates, for readers outside
+    engineering.
+  - Drag rows to set priority, drag a bar to move it and its edge to change
+    its length; the editor also plans a month or a quarter in one click.
+    Team lanes say the most each team has in flight at once against its
+    developers.
+  - A linked plan still in flight past its end grows an amber "+3 wk over";
+    its project's milestone is a flag with its date. An item can wait on
+    others, and says so when its plan starts before one of them ends.
+  - Each item takes updates: on track, at risk or off track, and a note,
+    kept as a history. Work in progress with no update for 14 days is
+    flagged. The roadmap is the one thing the tab stores itself, in the
+    `roadmap_items` and `roadmap_updates` tables.
 - **People**: developers by team and everyone else: live projects each,
   open PRs, PRs opened and merged, and reviews given, including how many
   went to non-developers' PRs.

@@ -314,7 +314,9 @@ icon with a class bolted on.
   ECharts) were set aside for exactly that: every theme switch would need a
   redraw with colors read out of CSS. Recharts is the heaviest thing on the
   board, so it loads in its own chunk with the views that chart; the review
-  board never downloads it.
+  board never downloads it. The roadmap's load chart is the one exception:
+  plain positioned elements on the timeline's own axis, so each week's bar
+  sits exactly above the same weeks of every row.
 - **Charts don't animate.** Motion on this board means something changed,
   and a chart drawing itself in on load says nothing.
 - **One color vocabulary across Stats and Projects**: ink for opened, green
@@ -336,17 +338,31 @@ icon with a class bolted on.
   arrows on the grip reorder, arrows on a focused bar move it a week, and
   Shift with them changes the length. A plan's bar says its status by form
   (an outline while planned, a fill once under way, green when done, faint
-  when dropped); a linked project's real PR activity is a thin line under
-  it, amber only where a live project has run past its plan. The linked
-  project's milestone is a short upright line on the row, named in the
-  row's words ("target Dec 14"), and both turn amber when the plan, or work
-  still running past it, ends after the milestone. Editing opens inline
+  when dropped) and its dates and weeks inside, when it has room. Editing opens inline
   under the row, not in a popover, since a half-typed plan shouldn't
   vanish on a stray click. Now, next and later is the same plan without
   week dates, for readers who want the order and not the weeks: a card in
   Next or Later says only the month its work starts. The columns are
   derived from the dates, never set by hand, so the two layouts can't
   disagree.
+- **Every mark on the timeline says what it is, where it's drawn.** A
+  mark that needs a legend gets rethought, not explained: an unlabeled gray
+  line for a project's PR activity and an upright tick for its milestone
+  were tried and cut because nobody could read them cold. Now a plan still
+  in flight past its end grows an amber piece labeled "+3 wk over", a
+  milestone is a flag with its date ("Dec 14 target"), a project with no
+  plan is a dashed bar that says "since Aug 17, no plan", and the load
+  chart labels its two halves ("In flight, from PRs" and "Planned") and
+  its dashed line ("10 developers") instead of carrying a legend. Stripes
+  for projected weeks were cut the same way.
+- **The timeline is built for a hundred projects in flight.** Every live
+  project shows, planned or not, since the load is the point; lanes fold,
+  and remember it like every fold. The header with the column names stays
+  in place while the rows scroll, and month lines (quarter lines stronger)
+  run through every row, so a span reads against the calendar anywhere on
+  the page. A column name zooms that quarter or month to the full width;
+  the toolbar zooms back out one step and pages to the period before or
+  after, and the browser's Back does the same, since the zoom is in the URL.
 - **What a plan waits on is words on its row, not lines across the
   timeline**: "after Search reindex", or, amber, "starts before Shopify
   sync ends". Linear draws dependency lines, but ours would cross team
@@ -354,10 +370,11 @@ icon with a class bolted on.
   say the one thing the planner acts on. The editor offers only choices
   that can be saved: never the item itself, dropped work, or a loop.
 - **A team lane's load is one sentence in its header**: "at most 2 at once
-  for 4 developers", amber once a week has as many plans as developers,
-  because then at least one plan has one developer or none. With no effort
-  estimates in this workflow, plans against people is the one honest
-  measure; the planner judges the rest.
+  for 4 developers", counting its plans and its projects with no plan,
+  amber once a week has as much in flight as the team has developers,
+  because then at least one of them has one developer or none. With no effort
+  estimates in this workflow, work in flight against people is the one
+  honest measure; the planner judges the rest.
 - **A plan's health is a word, amber only when someone owes something.**
   "On track" reads plain. "At risk", "Off track" and an overdue update are
   amber, because each asks someone to act: the planner to replan, the lead
