@@ -462,7 +462,8 @@ function Editor({
 /** One grid for every part of the timeline, so the header, the load chart
  * and the rows put a day at the same x. On a phone the names stack above a
  * full-width track, since a track beside them would be too narrow to read. */
-const rowGrid = 'grid grid-cols-1 items-center gap-x-3 gap-y-1 sm:grid-cols-[minmax(0,17rem)_1fr]';
+const rowGrid =
+   'grid grid-cols-1 items-center gap-x-3 gap-y-1 sm:grid-cols-[minmax(0,17rem)_1fr] lg:grid-cols-[minmax(0,21rem)_1fr]';
 
 /** The time axis the timeline shares: where a day falls, and the lines
  * drawn through every row. */
@@ -783,67 +784,111 @@ function PlanRow({
    );
 }
 
+/** What planning an in-flight project sets: its first week and length. */
+type Span = { start: string; weeks: number };
+
 /**
- * A live project with no plan: its name (the door to its page), and a ghost
- * bar over the weeks its PRs have run, fading out past today since nothing
- * says when it ends. One click puts it on the roadmap with that span as its
- * plan.
+ * A live project with no plan, on one line: the plus that opens its chooser,
+ * its name (the door to its page), its lead and open PRs, and a dashed bar
+ * over the weeks its PRs have run, fading past today since nothing says when
+ * it ends. Dragging across its weeks plans it for them.
  */
 function InFlightRow({
    item,
    span,
    axis,
    today,
-   onAdd,
+   choosing,
+   onChoose,
+   onPlan,
    onOpen,
 }: {
    item: PortfolioItem;
    span: InFlightSpan | null;
    axis: Axis;
    today: string;
-   onAdd: () => void;
+   /** its chooser is open */
+   choosing: boolean;
+   onChoose: () => void;
+   onPlan: (plan: Span) => void;
    onOpen: () => void;
 }) {
-   const { at: place } = axis;
+   const trackRef = useRef<HTMLSpanElement>(null);
+   const [drag, setDrag] = useState<Span | null>(null);
+   const { at: place, horizon } = axis;
    const left = span ? place(span.start) : 0;
    const now = place(today);
    const tail = Math.min(100, place(addWeeks(today, 3))) - now;
+   // the Monday under the pointer
+   const weekAt = (x: number): string => {
+      const box = (trackRef.current as HTMLSpanElement).getBoundingClientRect();
+      const at = Math.min(1, Math.max(0, (x - box.left) / box.width));
+      return mondayOf(utcDay(horizon.from + at * (horizon.to - horizon.from)));
+   };
+   const spanOf = (a: string, b: string): Span => {
+      const [first, last] = a <= b ? [a, b] : [b, a];
+      const weeks =
+         Math.round(((dayStart(last) as number) - (dayStart(first) as number)) / (7 * DAY)) + 1;
+      return { start: first, weeks: Math.min(MAX_WEEKS, weeks) };
+   };
+   const grab = (e: PointerEvent) => {
+      if (e.button !== 0 || !trackRef.current) return;
+      e.preventDefault();
+      const from = weekAt(e.clientX);
+      let latest = spanOf(from, from);
+      setDrag(latest);
+      const move = (ev: globalThis.PointerEvent) => {
+         latest = spanOf(from, weekAt(ev.clientX));
+         setDrag(latest);
+      };
+      const up = () => {
+         window.removeEventListener('pointermove', move);
+         window.removeEventListener('pointerup', up);
+         setDrag(null);
+         onPlan(latest);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+   };
    return (
       <div
-         className={`${rowGrid} border-t border-secondary px-3.5 py-1.5 first:border-t-0 hover:bg-muted`}
+         className={`${rowGrid} border-t border-secondary px-3.5 py-1 first:border-t-0 hover:bg-muted`}
       >
-         <span className="flex min-w-0 items-center gap-2">
+         <span className="flex min-w-0 items-baseline gap-x-2">
             <button
                type="button"
-               onClick={onAdd}
-               aria-label={`Add ${item.name} to the roadmap`}
-               title={`Put ${item.name} on the roadmap, planned over the weeks its PRs have run and two more`}
-               className="hit pressable flex-none rounded-md border-0 bg-transparent p-0.5 text-brand hover:bg-brand-50"
+               onClick={onChoose}
+               aria-expanded={choosing}
+               aria-label={`Plan ${item.name}`}
+               title={`Put ${item.name} on the roadmap`}
+               className="hit pressable flex-none self-center rounded-md border-0 bg-transparent p-0.5 text-brand hover:bg-brand-50"
             >
                <Icon icon={Plus} size={13} />
             </button>
-            <span className="flex min-w-0 flex-col">
+            <span className="min-w-0 break-words">
                <button
                   type="button"
                   onClick={onOpen}
-                  className="hit pressable min-w-0 rounded border-0 bg-transparent p-0 text-left text-[13px] break-words text-ink hover:text-brand"
+                  className="hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] text-ink hover:text-brand"
                   title="Open the project's page"
                >
                   {item.name}
                </button>
-               <span className="flex flex-wrap gap-x-2 text-[11px] text-ink-3">
-                  <span>No plan</span>
-                  {item.lead && <span>{item.lead}</span>}
-                  <span>{n(item.open, 'open PR')}</span>
-                  {span && <span>since {weekWords(span.start)}</span>}
+               <span className="ml-2 text-[11px] whitespace-nowrap text-ink-3">
+                  {[item.lead, n(item.open, 'open PR')].filter(Boolean).join(' · ')}
                </span>
             </span>
          </span>
-         <span className="relative block h-7">
+         <span
+            ref={trackRef}
+            onPointerDown={grab}
+            className="relative block h-6 cursor-crosshair touch-none"
+            title="Drag across the weeks to plan it for them"
+         >
             <Gridlines axis={axis} />
             {span && now > left && (
                <span
-                  className="@container absolute top-1.5 h-4 overflow-hidden rounded-l-md border border-r-0 border-dashed"
+                  className="@container absolute top-1 h-4 overflow-hidden rounded-l-md border border-r-0 border-dashed"
                   style={{
                      left: `${left}%`,
                      width: `${now - left}%`,
@@ -860,7 +905,7 @@ function InFlightRow({
             {span && tail > 0 && (
                <span
                   aria-hidden
-                  className="pointer-events-none absolute top-1.5 h-4"
+                  className="pointer-events-none absolute top-1 h-4"
                   style={{
                      left: `${now}%`,
                      width: `${tail}%`,
@@ -869,7 +914,73 @@ function InFlightRow({
                   }}
                />
             )}
+            {drag && (
+               <span
+                  className="pointer-events-none absolute top-1 z-[1] h-4 rounded-md border border-dashed border-brand"
+                  style={{
+                     left: `${place(drag.start)}%`,
+                     width: `${place(addWeeks(drag.start, drag.weeks)) - place(drag.start)}%`,
+                     background: 'color-mix(in oklab, var(--brand) 15%, transparent)',
+                  }}
+               >
+                  <span className="absolute -top-4 left-0 rounded bg-surface px-1 text-[10px] whitespace-nowrap text-ink-2 shadow-sm tabular-nums">
+                     {weekWords(drag.start)} to {weekWords(planEnd(drag))} · {drag.weeks} wk
+                  </span>
+               </span>
+            )}
          </span>
+      </div>
+   );
+}
+
+/**
+ * The choices for planning an in-flight project, open under its row: the
+ * weeks its PRs have run and two more, or this or next month or quarter.
+ * Each one plans it in one click; the editor is there for anything else.
+ */
+function PlanChooser({
+   item,
+   today,
+   ranSoFar,
+   onPlan,
+   onClose,
+}: {
+   item: PortfolioItem;
+   today: string;
+   ranSoFar: Span;
+   onPlan: (plan: Span) => void;
+   onClose: () => void;
+}) {
+   const choice = (label: string, plan: Span) => (
+      <button
+         type="button"
+         onClick={() => onPlan(plan)}
+         title={`${weekWords(plan.start)} to ${weekWords(planEnd(plan))}, ${n(plan.weeks, 'week')}`}
+         className="hit pressable rounded-md border border-line bg-surface px-2 py-0.5 text-xs text-ink-2 hover:border-brand hover:text-brand"
+      >
+         {label}
+      </button>
+   );
+   return (
+      <div
+         className="flex flex-wrap items-center gap-2 border-t border-secondary bg-muted/40 px-3.5 py-2 text-xs text-ink-3"
+         onKeyDown={e => {
+            if (e.key === 'Escape') onClose();
+         }}
+      >
+         Plan {item.name} for
+         {choice('The weeks its PRs have run, plus two', ranSoFar)}
+         {PERIODS.map(([kind, which, label]) => (
+            <span key={label}>{choice(label, periodPlan(kind, which, today))}</span>
+         ))}
+         <span>or drag across its weeks on the timeline.</span>
+         <button
+            type="button"
+            onClick={onClose}
+            className="hit pressable rounded border-0 bg-transparent p-0 text-xs text-ink-3 hover:text-ink"
+         >
+            Cancel
+         </button>
       </div>
    );
 }
@@ -960,7 +1071,7 @@ function AxisHeader({
 }) {
    return (
       <div className={`${rowGrid} rounded-t-2xl border border-line bg-surface px-3.5 py-1.5`}>
-         <span className={`hidden text-ink-3 sm:block ${eyebrowText}`}>Priority</span>
+         <span className={`hidden text-ink-3 sm:block ${eyebrowText}`}>Project</span>
          <span className="relative block h-9">
             {columns.map(c => {
                const style = { left: `${axis.at(c.start)}%` };
@@ -1172,6 +1283,17 @@ export function Roadmap({
                spanBySlug.get(b.slug)?.start ?? today
             ) || a.name.localeCompare(b.name)
       );
+   // the find box narrows the rows to a name, label, lead or team; the load
+   // chart still counts everything
+   const q = nav.find.trim().toLowerCase();
+   const matches = (...words: (string | null | undefined)[]) =>
+      !q || words.some(w => w?.toLowerCase().includes(q));
+   const shownPlans = ordered.filter(i => matches(i.name, i.project, i.lead, i.team));
+   const shownUnplanned = unplanned.filter(p =>
+      matches(p.name, p.slug, p.lead, mainTeam(p, teamOf))
+   );
+   const of = (shown: number, total: number, word: string) =>
+      q ? `${shown} of ${n(total, word)}` : n(total, word);
    const developers = new Set(
       Object.values(teamMembers)
          .flat()
@@ -1240,21 +1362,26 @@ export function Roadmap({
       },
    });
 
-   const add = (p: PortfolioItem) => {
+   // the weeks a project's PRs have run so far, and two more to finish
+   const ranSoFar = (p: PortfolioItem): Span => {
       const actual = actualSpan(p.slug, p, history, today);
       const start = mondayOf(actual?.start ?? today);
       const weeksSoFar = Math.ceil(
          ((dayStart(today) as number) - (dayStart(start) as number)) / (7 * DAY)
       );
+      return { start, weeks: Math.min(MAX_WEEKS, Math.max(1, weeksSoFar + 2)) };
+   };
+   const [choosing, setChoosing] = useState<string | null>(null);
+   const planProject = (p: PortfolioItem, span: Span) => {
+      setChoosing(null);
       void createRoadmapItem({
          name: p.name,
          project: p.slug,
          team: laneOfSlug(p.slug),
          lead: p.lead,
-         status: 'active',
-         start,
-         // what it has taken so far, and two more weeks to finish
-         weeks: Math.min(MAX_WEEKS, Math.max(1, weeksSoFar + 2)),
+         // it has PRs in flight, so it's under way once its weeks have come
+         status: span.start <= today ? 'active' : 'planned',
+         ...span,
       });
    };
 
@@ -1302,15 +1429,27 @@ export function Roadmap({
       });
    const inFlightRows = (list: PortfolioItem[]) =>
       list.map(p => (
-         <InFlightRow
-            key={p.slug}
-            item={p}
-            span={spanBySlug.get(p.slug) ?? null}
-            axis={axis}
-            today={today}
-            onAdd={() => add(p)}
-            onOpen={() => navigate({ project: p.slug })}
-         />
+         <div key={p.slug}>
+            <InFlightRow
+               item={p}
+               span={spanBySlug.get(p.slug) ?? null}
+               axis={axis}
+               today={today}
+               choosing={choosing === p.slug}
+               onChoose={() => setChoosing(choosing === p.slug ? null : p.slug)}
+               onPlan={span => planProject(p, span)}
+               onOpen={() => navigate({ project: p.slug })}
+            />
+            {choosing === p.slug && (
+               <PlanChooser
+                  item={p}
+                  today={today}
+                  ranSoFar={ranSoFar(p)}
+                  onPlan={span => planProject(p, span)}
+                  onClose={() => setChoosing(null)}
+               />
+            )}
+         </div>
       ));
 
    const laneTitles = [
@@ -1318,18 +1457,20 @@ export function Roadmap({
    ];
    const body = lanes ? (
       [...laneTitles, null].map(team => {
-         const planned = ordered.filter(i => (i.team ?? null) === team);
-         const loose = everything
-            ? unplanned.filter(p => (mainTeam(p, teamOf) ?? null) === team)
+         const inLane = (t: string | null | undefined) => (t ?? null) === team;
+         const planned = ordered.filter(i => inLane(i.team));
+         const loose = everything ? unplanned.filter(p => inLane(mainTeam(p, teamOf))) : [];
+         const shownPlanned = shownPlans.filter(i => inLane(i.team));
+         const shownLoose = everything
+            ? shownUnplanned.filter(p => inLane(mainTeam(p, teamOf)))
             : [];
-         if (!planned.length && !loose.length) return null;
+         if (!shownPlanned.length && !shownLoose.length) return null;
          const laneLoad = loadByWeek({
             weeks,
             today,
             plans: planned,
             spans: spans.filter(s => laneOfSlug(s.slug) === team),
          });
-         const developerCount = team ? teamMembers[team]?.length ?? 0 : 0;
          return (
             <Lane
                key={team ?? '(none)'}
@@ -1338,60 +1479,40 @@ export function Roadmap({
                   <LaneBand
                      title={team ?? 'No developer team'}
                      counts={[
-                        n(planned.length, 'plan'),
-                        everything ? `${loose.length} in flight with no plan` : null,
+                        of(shownPlanned.length, planned.length, 'plan'),
+                        everything
+                           ? `${of(
+                                shownLoose.length,
+                                loose.length,
+                                'project'
+                             )} in flight with no plan`
+                           : null,
                      ]
                         .filter(Boolean)
                         .join(' · ')}
                      load={laneLoad}
-                     developers={developerCount}
+                     developers={team ? teamMembers[team]?.length ?? 0 : 0}
                      today={today}
                      open={open}
                      onToggle={toggle}
                   />
                )}
             >
-               {planRows(planned)}
-               {loose.length > 0 && inFlightRows(loose)}
+               {planRows(shownPlanned)}
+               {inFlightRows(shownLoose)}
             </Lane>
          );
       })
    ) : (
       <>
-         <Lane
-            id="roadmap:planned"
-            band={(open, toggle) => (
-               <LaneBand
-                  title="On the roadmap"
-                  counts={n(ordered.length, 'plan')}
-                  load={loadByWeek({
-                     weeks,
-                     today,
-                     plans: ordered,
-                     spans: spans.filter(s => linkedSlugs.has(s.slug)),
-                  })}
-                  developers={0}
-                  today={today}
-                  open={open}
-                  onToggle={toggle}
-               />
-            )}
-         >
-            {planRows(ordered)}
-         </Lane>
-         {everything && unplanned.length > 0 && (
+         {shownPlans.length > 0 && (
             <Lane
-               id="roadmap:unplanned"
+               id="roadmap:planned"
                band={(open, toggle) => (
                   <LaneBand
-                     title="In flight, not on the roadmap"
-                     counts={`${n(unplanned.length, 'live project')}, the longest-running first`}
-                     load={loadByWeek({
-                        weeks,
-                        today,
-                        plans: [],
-                        spans: spans.filter(s => !linkedSlugs.has(s.slug)),
-                     })}
+                     title="On the roadmap"
+                     counts={of(shownPlans.length, ordered.length, 'plan')}
+                     load={[]}
                      developers={0}
                      today={today}
                      open={open}
@@ -1399,8 +1520,35 @@ export function Roadmap({
                   />
                )}
             >
-               {inFlightRows(unplanned)}
+               {planRows(shownPlans)}
             </Lane>
+         )}
+         {everything && shownUnplanned.length > 0 && (
+            <Lane
+               id="roadmap:unplanned"
+               band={(open, toggle) => (
+                  <LaneBand
+                     title="In flight, not on the roadmap"
+                     counts={`${of(
+                        shownUnplanned.length,
+                        unplanned.length,
+                        'live project'
+                     )}, the longest-running first`}
+                     load={[]}
+                     developers={0}
+                     today={today}
+                     open={open}
+                     onToggle={toggle}
+                  />
+               )}
+            >
+               {inFlightRows(shownUnplanned)}
+            </Lane>
+         )}
+         {q && !shownPlans.length && !(everything && shownUnplanned.length) && (
+            <div className="px-3.5 py-4 text-[13px] text-ink-3">
+               Nothing on the roadmap or in flight matches “{nav.find.trim()}”.
+            </div>
          )}
       </>
    );
@@ -1478,13 +1626,21 @@ export function Roadmap({
                         value={everything ? 'all' : 'plan'}
                         options={[
                            ['all', 'Everything in flight'],
-                           ['plan', 'Only the plan'],
+                           ['plan', 'Only plans'],
                         ]}
                         onChange={show => navigate({ show })}
                      />
                   </label>
                )}
                <span className="flex-1" />
+               <input
+                  type="search"
+                  aria-label="Find a project, lead or team"
+                  placeholder="Find a project, lead or team"
+                  value={nav.find}
+                  onChange={e => navigate({ find: e.target.value })}
+                  className={`w-52 px-2.5 ${textInputClass}`}
+               />
                <button
                   type="button"
                   onClick={() => setAdding(a => !a)}
