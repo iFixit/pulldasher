@@ -231,13 +231,11 @@ const rowClass =
  */
 function PortfolioRow({
    item,
-   hasRepo,
    opts,
    nav,
    navigate,
 }: {
    item: PortfolioItem;
-   hasRepo: boolean;
    opts: RowOptions;
    nav: ProjectsNav;
    navigate: Navigate;
@@ -292,7 +290,7 @@ function PortfolioRow({
             <Cells item={item} act={act} />
          </summary>
          <div className="border-t border-secondary">
-            <ProjectFacts g={item} project={item.project} hasRepo={hasRepo}>
+            <ProjectFacts g={item} project={item.project}>
                <PageLink g={item} navigate={navigate} />
             </ProjectFacts>
             <FoldRows
@@ -360,7 +358,6 @@ export function Portfolio({
    items,
    teamOf,
    nameOf,
-   hasRepo,
    nav,
    navigate,
    opts,
@@ -368,7 +365,6 @@ export function Portfolio({
    items: PortfolioItem[];
    teamOf: (login: string) => string | null;
    nameOf: (slug: string) => string;
-   hasRepo: boolean;
    nav: ProjectsNav;
    navigate: Navigate;
    opts: RowOptions;
@@ -463,7 +459,6 @@ export function Portfolio({
                      <PortfolioRow
                         key={`${g.title}:${item.slug}`}
                         item={item}
-                        hasRepo={hasRepo}
                         opts={opts}
                         nav={nav}
                         navigate={navigate}

@@ -7,6 +7,7 @@ import Pull from '../models/pull.js';
 import Label from '../models/label.js';
 import pullManager from '../lib/pull-manager.js';
 import {
+   issueRepos,
    parseWindow,
    projectSettings,
    projectsFromRows,
@@ -57,11 +58,11 @@ test('projectsFromRows reads name, lead, target, parents and ongoing off the iss
          issueRow({ number: 2, title: 'Not a project' }),
       ],
       [
-         { number: 1, title: 'project:alpha' },
-         { number: 1, title: 'parent:store' },
-         { number: 1, title: 'parent:checkout' },
-         { number: 1, title: 'ongoing' },
-         { number: 2, title: 'bug' },
+         { repo: 'test/projects', number: 1, title: 'project:alpha' },
+         { repo: 'test/projects', number: 1, title: 'parent:store' },
+         { repo: 'test/projects', number: 1, title: 'parent:checkout' },
+         { repo: 'test/projects', number: 1, title: 'ongoing' },
+         { repo: 'test/projects', number: 2, title: 'bug' },
       ],
       'project:'
    );
@@ -86,7 +87,7 @@ test('projectsFromRows reads name, lead, target, parents and ongoing off the iss
 test('projectsFromRows fills created_at and closed_at from the issue dates', () => {
    const projects = projectsFromRows(
       [issueRow({ number: 9, date_created: 1700000000, date_closed: 1700100000 })],
-      [{ number: 9, title: 'project:gamma' }],
+      [{ repo: 'test/projects', number: 9, title: 'project:gamma' }],
       'project:'
    );
    assert.equal(projects[0].created_at, new Date(1700000000 * 1000).toISOString());
@@ -100,13 +101,61 @@ test('projectsFromRows keeps the open issue when two carry one label', () => {
          issueRow({ number: 3, title: 'Current' }),
       ],
       [
-         { number: 5, title: 'project:alpha' },
-         { number: 3, title: 'project:alpha' },
+         { repo: 'test/projects', number: 5, title: 'project:alpha' },
+         { repo: 'test/projects', number: 3, title: 'project:alpha' },
       ],
       'project:'
    );
    assert.equal(projects.length, 1);
    assert.equal(projects[0].name, 'Current');
+});
+
+test('projectsFromRows keeps the projects repo issue, then the oldest, when several carry one label', () => {
+   const rows = [
+      issueRow({ repo: 'test/repo-a', number: 40, title: 'Later work', date_created: 300 }),
+      issueRow({ repo: 'test/repo-a', number: 20, title: 'The epic', date_created: 100 }),
+      issueRow({ repo: 'test/projects', number: 2, title: 'Home', date_created: 900 }),
+   ];
+   const labels = [
+      { repo: 'test/repo-a', number: 40, title: 'project:alpha' },
+      { repo: 'test/repo-a', number: 20, title: 'project:alpha' },
+      { repo: 'TEST/projects', number: 2, title: 'project:alpha' },
+   ];
+   // label rows match their issue whatever the repo's case
+   assert.equal(projectsFromRows(rows, labels, 'project:', 'test/projects')[0].name, 'Home');
+   // with no projects repo, the first issue labeled is the project
+   assert.equal(projectsFromRows(rows, labels, 'project:')[0].name, 'The epic');
+   // the same number in two repos is two issues
+   const twoRepos = projectsFromRows(
+      [issueRow({ repo: 'test/repo-a', number: 7 }), issueRow({ repo: 'test/repo-b', number: 7 })],
+      [
+         { repo: 'test/repo-a', number: 7, title: 'project:alpha' },
+         { repo: 'test/repo-b', number: 7, title: 'project:beta' },
+      ],
+      'project:'
+   );
+   assert.deepEqual(
+      twoRepos.map(p => [p.slug, p.repo]),
+      [
+         ['alpha', 'test/repo-a'],
+         ['beta', 'test/repo-b'],
+      ]
+   );
+});
+
+test('issueRepos is the projects repo and every tracked repo, once each', () => {
+   assert.deepEqual(issueRepos({ repo: 'test/projects' }), [
+      'test/projects',
+      'test/repo-a',
+      'test/repo-b',
+      'test/repo-c',
+   ]);
+   assert.deepEqual(issueRepos({ repo: 'test/repo-b' }), [
+      'test/repo-b',
+      'test/repo-a',
+      'test/repo-c',
+   ]);
+   assert.deepEqual(issueRepos({ repo: null }), ['test/repo-a', 'test/repo-b', 'test/repo-c']);
 });
 
 test('spansFromRows files PRs by label, leaves bots out, falls back to the merge time', () => {
@@ -211,16 +260,16 @@ before(() => {
       label('project:alpha', 15),
    ]);
    mock.method(db, 'query', async sql => {
-      if (sql.startsWith('SELECT * FROM issues')) {
+      if (sql.startsWith('SELECT i.* FROM issues')) {
          return [
             issueRow({ number: 7, title: 'Alpha work', assignee: 'alice' }),
             issueRow({ number: 8, title: 'Beta', status: 'closed', state_reason: 'not_planned' }),
          ];
       }
-      if (sql.startsWith('SELECT number, title FROM pull_labels')) {
+      if (sql.startsWith('SELECT l.repo, l.number, l.title FROM pull_labels')) {
          return [
-            { number: 7, title: 'project:alpha' },
-            { number: 8, title: 'project:beta' },
+            { repo: 'test/projects', number: 7, title: 'project:alpha' },
+            { repo: 'test/projects', number: 8, title: 'project:beta' },
          ];
       }
       if (sql.startsWith('SELECT repo, number, owner')) {

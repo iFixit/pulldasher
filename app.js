@@ -18,7 +18,7 @@ import roadmapController, { canWrite } from './controllers/roadmap.js';
 import { API_ROUTES, apiIndex } from './controllers/api-routes.js';
 import settingsController from './controllers/settings.js';
 import { loadSettings } from './lib/settings.js';
-import { projectSettings } from './lib/projects.js';
+import { issueRepos, projectSettings } from './lib/projects.js';
 import apiAuth from './lib/api-auth.js';
 import Debug from './lib/debug.js';
 import { createServer } from 'http';
@@ -134,24 +134,34 @@ setInterval(function () {
    syncProjectIssues();
 }, RECONCILE_MS);
 
-// The project issues' repo is synced whole at startup, then only what changed.
+// Project issues can live in any tracked repo (lib/projects.js issueRepos).
+// The projects repo is synced whole at startup; a tracked repo only from
+// TRACKED_ISSUES_DAYS back, since listing every issue of a big repo costs
+// thousands of calls, and webhooks already keep its issues current. So an
+// issue labeled while webhooks were down for longer than that waits for its
+// next change (or bin/refresh-open-issues). After that, only what changed.
 // `since` backs off a few minutes so GitHub's clock can't skip an update.
-let projectIssuesSyncedAt = null;
+const TRACKED_ISSUES_DAYS = 7;
+const projectIssuesSyncedAt = new Map();
 function syncProjectIssues() {
    const projects = projectSettings();
-   if (!projects || !projects.repo) return;
+   if (!projects) return;
    const startedAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-   refresh
-      .issuesChangedSince(projects.repo, projectIssuesSyncedAt)
-      .then(function (report) {
-         // move the marker only past a clean run, so a failed issue is retried
-         if (!report.failedRepos.length && !report.failedItems.length) {
-            projectIssuesSyncedAt = startedAt;
-         }
-      })
-      .catch(function (err) {
-         console.error('Project issue sync failed: %s', (err && err.message) || err);
-      });
+   const lookback = new Date(Date.now() - TRACKED_ISSUES_DAYS * 86400 * 1000).toISOString();
+   for (const repo of issueRepos(projects)) {
+      const since = projectIssuesSyncedAt.get(repo) ?? (repo === projects.repo ? null : lookback);
+      refresh
+         .issuesChangedSince(repo, since)
+         .then(function (report) {
+            // move the marker only past a clean run, so a failed issue is retried
+            if (!report.failedRepos.length && !report.failedItems.length) {
+               projectIssuesSyncedAt.set(repo, startedAt);
+            }
+         })
+         .catch(function (err) {
+            console.error('Project issue sync failed in %s: %s', repo, (err && err.message) || err);
+         });
+   }
 }
 
 //====================================================

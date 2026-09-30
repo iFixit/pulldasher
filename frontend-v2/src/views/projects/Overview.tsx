@@ -295,7 +295,6 @@ export function Overview({
             items={items}
             teamOf={teamOf}
             nameOf={nameOf}
-            hasRepo={!!data?.projects_repo}
             nav={nav}
             navigate={navigate}
             opts={opts}

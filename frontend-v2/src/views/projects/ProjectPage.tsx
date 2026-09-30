@@ -244,7 +244,7 @@ export function ProjectPage({
          </div>
          <div className="mb-7">
             <Rows>
-               <ProjectFacts g={{ slug }} project={project} hasRepo={!!data?.projects_repo} />
+               <ProjectFacts g={{ slug }} project={project} />
                <PlanFacts slug={slug} nav={nav} navigate={navigate} />
                {group && group.open.length > 0 ? (
                   <FoldRows list={group.open} opts={opts} id={`project:${slug}:open`} />

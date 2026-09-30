@@ -100,20 +100,26 @@ or a job) files the PRs:
 - A PR joins a project through one label, `project:<slug>`. PRs that fit no
   project get `project:misc`. Keep a label to 32 characters with no spaces:
   that's what Pulldasher's label table and filter box hold.
-- Each project is an issue in one repo, carrying the same label. The issue's
-  title is the project's name, its assignee the lead, its milestone (and due
-  date) the target, `parent:<slug>` labels its parents (any number), and an
-  `ongoing` label marks work with no end. Close it as completed when it's
-  done, or as not planned when it's dropped or merged into another.
+- A project's record is an issue carrying the same label, in any tracked
+  repo or in a projects repo. The issue's title is the project's name, its
+  assignee the lead, its milestone (and due date) the target,
+  `parent:<slug>` labels its parents (any number), and an `ongoing` label
+  marks work with no end. Close it as completed when it's done, or as not
+  planned when it's dropped or merged into another. Labeling an issue is
+  also how a project starts before it has a PR. When several issues carry
+  one label, the projects repo's wins, then an open one, then the oldest:
+  the first issue labeled is the project, and later ones are work inside
+  it.
 
 Turn it on with the `projects` block in `config.js` (see
-`config.example.js`): the projects repo, and `developerTeams`, the teams
+`config.example.js`): a projects repo if you want one, and `developerTeams`, the teams
 whose members count as developers (anyone else with a PR is a
 non-developer, whose work needs a developer's review). The teams can also
 be edited from the People view or the API; saved ones replace
-`developerTeams` until someone goes back to it. Give the projects
-repo the same webhook as a tracked repo (Issues events). Without a projects
-repo, PRs still group by label, just without names, leads or targets.
+`developerTeams` until someone goes back to it. Send Issues events in the
+tracked repos' webhook, and give a projects repo the same webhook, so a
+newly labeled issue shows up right away; an hourly pass catches what a
+webhook missed.
 
 The tab has four views and a page per project:
 

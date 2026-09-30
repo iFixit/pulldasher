@@ -132,13 +132,10 @@ function targetWords(target: NonNullable<Project['target']>): string {
 export function ProjectFacts({
    g,
    project,
-   hasRepo,
    children,
 }: {
    g: Pick<ProjectGroup, 'slug'>;
    project: Project | null;
-   /** a projects repo is configured, so a missing issue is worth saying */
-   hasRepo: boolean;
    /** trailing controls, e.g. the project page link */
    children?: ReactNode;
 }) {
@@ -169,9 +166,12 @@ export function ProjectFacts({
          facts.push(<span key="parents">Part of {project.parents.join(', ')}</span>);
       }
       facts.push(<span key="kind">{project.ongoing ? 'Ongoing' : 'Has an end'}</span>);
-   } else if (hasRepo) {
+   } else {
       facts.push(
-         <span key="none" title={`PRs carry the ${g.slug} label, but no project issue has it yet`}>
+         <span
+            key="none"
+            title={`PRs carry the ${g.slug} label, but no issue has it yet. Give one issue in any tracked repo the same label to name the project and set its lead.`}
+         >
             No project issue yet
          </span>
       );
