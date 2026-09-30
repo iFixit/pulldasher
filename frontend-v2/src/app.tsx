@@ -138,7 +138,8 @@ function readHash(): HashState {
       reveal: p.get('show')?.split(',').filter(Boolean) ?? [],
       drafts: p.get('drafts') === 'all' ? 'all' : p.get('drafts') === 'mine' ? 'mine' : null,
       projects: {
-         view: p.get('view') === 'roadmap' ? 'roadmap' : p.get('view') === 'people' ? 'people' : 'overview',
+         view:
+            (['decide', 'roadmap', 'people'] as const).find(v => v === p.get('view')) ?? 'overview',
          project: p.get('project') || null,
          range: p.get('range') || DEFAULT_RANGE,
          status: p.get('status') || 'live',

@@ -76,7 +76,12 @@ function dummyApi(): Api {
    let updates = DUMMY_ROADMAP_UPDATES.map(u => ({ ...u }));
    const ok = (json: Record<string, unknown>, status = 200) => Promise.resolve({ status, json });
    const bad = (error: string, status = 400) => ok({ error }, status);
-   const touch = { updated_by: 'danielbeardsley', updated_at: Math.floor(Date.now() / 1000) };
+   // stamped at each write, the way the server does: the Decide queue
+   // compares it with PR activity and updates
+   const touch = () => ({
+      updated_by: 'danielbeardsley',
+      updated_at: Math.floor(Date.now() / 1000),
+   });
    return {
       list: () => ok({ items: byPriority(rows) }),
       create: fields => {
@@ -97,7 +102,7 @@ function dummyApi(): Api {
             notes: f.notes ?? '',
             waits_on: f.waits_on ?? [],
             priority: Math.max(-1, ...rows.map(r => r.priority)) + 1,
-            ...touch,
+            ...touch(),
             update: null,
          };
          rows.push(item);
@@ -110,7 +115,7 @@ function dummyApi(): Api {
          if (loop) return bad(loop);
          const row = rows.find(r => r.id === id);
          if (!row) return bad('no such roadmap item', 404);
-         Object.assign(row, checked.fields, touch);
+         Object.assign(row, checked.fields, touch());
          return ok({ item: { ...row } });
       },
       remove: id => {
@@ -133,7 +138,7 @@ function dummyApi(): Api {
             ...checked.fields,
             plan_start: row.start,
             plan_weeks: row.weeks,
-            author: touch.updated_by,
+            author: touch().updated_by,
             at: Math.floor(Date.now() / 1000),
          };
          updates.push(update);
@@ -208,7 +213,12 @@ export async function updateRoadmapItem(
    id: number,
    fields: Partial<RoadmapFields>
 ): Promise<boolean> {
-   const undo = optimistic(items => items.map(i => (i.id === id ? { ...i, ...fields } : i)));
+   // stamped now, as the server will: a decision shows as made right away
+   const undo = optimistic(items =>
+      items.map(i =>
+         i.id === id ? { ...i, ...fields, updated_at: Math.floor(Date.now() / 1000) } : i
+      )
+   );
    const reply = await api.update(id, fields).catch((): Reply => ({ status: 0, json: {} }));
    if (!settle(reply, 'save that', undo)) return false;
    const saved = reply.json.item as RoadmapItem;

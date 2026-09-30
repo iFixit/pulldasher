@@ -7,7 +7,16 @@ import {
    projectSettings,
    todayFromBoard,
 } from '../lib/projects.js';
-import { windowStats, MISC_SLUG } from '../shared/dist/index.js';
+import { listItems } from '../lib/roadmap.js';
+import {
+   decideProjects,
+   decideQueue,
+   planEnd,
+   utcDay,
+   windowStats,
+   MISC_SLUG,
+   STALL_DAYS,
+} from '../shared/dist/index.js';
 
 const key = d => `${d.repo}#${d.number}`;
 
@@ -234,6 +243,57 @@ export default {
             };
          }),
          'people query failed'
+      );
+   },
+
+   /**
+    * GET /api/v1/decide -- the decisions owed now, worst first: what the
+    * board's Decide view lists (shared/model/decide.ts). Each row names the
+    * project, its roadmap item if it has one, and why it needs a call. A
+    * roadmap write clears it: see `decide` in GET /api/v1.
+    */
+   getDecide: function (req, res) {
+      const settings = projectSettings();
+      if (!settings) {
+         res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
+         return;
+      }
+      respondOrError(
+         res,
+         Promise.all([loadProjects(settings), listItems()]).then(([projects, items]) => {
+            const now = Date.now() / 1000;
+            const today = todayFromBoard(pullManager.getPulls(), projects, settings.prefix, now);
+            const bySlug = new Map(projects.map(p => [p.slug, p]));
+            const open = new Map(today.live.map(g => [g.slug, g.open.length]));
+            const rows = decideQueue({
+               live: decideProjects(today),
+               items,
+               today: utcDay(now),
+               now,
+            });
+            return {
+               server_time: Math.floor(now),
+               stall_days: STALL_DAYS,
+               decisions: rows.map(({ slug, item, reasons }) => {
+                  const p = slug ? bySlug.get(slug) : undefined;
+                  return {
+                     project: slug,
+                     name: item?.name ?? p?.name ?? slug,
+                     lead: item?.lead ?? p?.lead ?? null,
+                     open: slug ? open.get(slug) ?? 0 : 0,
+                     item: item && {
+                        id: item.id,
+                        status: item.status,
+                        start: item.start,
+                        weeks: item.weeks,
+                        end: planEnd(item),
+                     },
+                     reasons,
+                  };
+               }),
+            };
+         }),
+         'decide query failed'
       );
    },
 };

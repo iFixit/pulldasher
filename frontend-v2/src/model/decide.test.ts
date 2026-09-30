@@ -1,0 +1,107 @@
+import { describe, expect, it } from 'vitest';
+import { dayStart } from '../../../shared/model/projects';
+import { decideQueue, type DecideProject } from '../../../shared/model/decide';
+import type { RoadmapItem, RoadmapUpdate } from '../../../shared/model/roadmap';
+
+const today = '2026-09-30';
+const NOW = dayStart(today) as number;
+const DAY = 86400;
+const ago = (days: number) => NOW - days * DAY;
+
+const item = (id: number, over: Partial<RoadmapItem>): RoadmapItem => ({
+   id,
+   name: `Plan ${id}`,
+   project: null,
+   team: null,
+   lead: null,
+   status: 'active',
+   start: '2026-09-07',
+   weeks: 8,
+   priority: id,
+   notes: '',
+   waits_on: [],
+   updated_by: null,
+   updated_at: ago(30),
+   update: null,
+   ...over,
+});
+const project = (slug: string, over: Partial<DecideProject> = {}): DecideProject => ({
+   slug,
+   firstOpened: '2026-09-21',
+   lastActivity: ago(1),
+   open: 2,
+   ...over,
+});
+const update = (health: RoadmapUpdate['health'], daysAgo: number): RoadmapUpdate => ({
+   id: 1,
+   item_id: 1,
+   health,
+   body: '',
+   plan_start: '2026-09-07',
+   plan_weeks: 8,
+   author: 'dana',
+   at: ago(daysAgo),
+});
+const kinds = (rows: ReturnType<typeof decideQueue>) =>
+   rows.map(r => [r.slug ?? `#${r.item?.id}`, ...r.reasons.map(x => x.kind)]);
+
+describe('decideQueue', () => {
+   it('asks for a first call on work with no decision, and for stalled work', () => {
+      const rows = decideQueue({
+         live: [project('fresh'), project('quiet', { lastActivity: ago(30) })],
+         items: [],
+         today,
+         now: NOW,
+      });
+      expect(kinds(rows)).toEqual([
+         ['quiet', 'new', 'stalled'],
+         ['fresh', 'new'],
+      ]);
+   });
+
+   it('flags plans past their end, open or not, and updates the plan hasn’t answered', () => {
+      const rows = decideQueue({
+         live: [project('late'), project('shaky')],
+         items: [
+            item(1, { project: 'late', start: '2026-08-03', weeks: 4 }),
+            item(2, { project: 'shaky', update: update('off_track', 2) }),
+            item(3, { project: 'gone', start: '2026-08-03', weeks: 2 }),
+            // replanned after its at-risk update: already answered
+            item(4, { project: 'answered', update: update('at_risk', 10), updated_at: ago(3) }),
+         ],
+         today,
+         now: NOW,
+      });
+      expect(kinds(rows)).toEqual([
+         ['shaky', 'off_track'],
+         ['late', 'over'],
+         ['gone', 'ended'],
+      ]);
+   });
+
+   it('takes decided work out, and brings it back when the PRs disagree', () => {
+      const rows = decideQueue({
+         live: [
+            project('parked'),
+            project('still-parked', { lastActivity: ago(20) }),
+            project('finished', { open: 2 }),
+            project('just-finished'),
+            project('committed', { lastActivity: ago(30) }),
+         ],
+         items: [
+            item(1, { project: 'parked', status: 'parked', updated_at: ago(5) }),
+            item(2, { project: 'still-parked', status: 'parked', updated_at: ago(5) }),
+            item(3, { project: 'finished', status: 'done', updated_at: ago(10) }),
+            item(4, { project: 'just-finished', status: 'done', updated_at: ago(2) }),
+            // decided a week ago: its stall stays quiet for three weeks
+            item(5, { project: 'committed', updated_at: ago(7) }),
+         ],
+         today,
+         now: NOW,
+      });
+      expect(kinds(rows)).toEqual([
+         ['finished', 'reopened'],
+         ['parked', 'moving'],
+      ]);
+   });
+});

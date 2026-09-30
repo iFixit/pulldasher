@@ -75,3 +75,6 @@ export type { PullData, RepoSpec, Signature, CommitStatus, Label } from './types
 
 export { checkDeveloperTeams } from './model/settings';
 export type { DeveloperTeams } from './model/settings';
+
+export { decideProjects, decideQueue, STALL_DAYS } from './model/decide';
+export type { DecideProject, DecideReason, DecideRow } from './model/decide';

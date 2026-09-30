@@ -13,7 +13,7 @@ import { dayWords } from '../../model/projectData';
 
 /** What the Projects tab keeps in the URL hash, beside the lens. */
 export interface ProjectsNav {
-   view: 'overview' | 'roadmap' | 'people';
+   view: 'overview' | 'decide' | 'roadmap' | 'people';
    /** a project's slug when its page is open */
    project: string | null;
    /** the date range's preset or custom key (model/projectData.ts) */

@@ -1,5 +1,5 @@
 import { ZOOM_KEY } from '../lens';
-import { dayOf } from './days';
+import { dateOf, dayOf } from './days';
 
 /**
  * The roadmap timeline's columns: six quarters or seven months across, or,
@@ -133,4 +133,31 @@ export function columnsFor(scale: 'month' | 'quarter', zoom: Zoom | null, now: D
          zoom: `${a.getFullYear()}-Q${quarter}`,
       };
    });
+}
+
+/**
+ * The ends of the coming months and quarters a plan can commit to, for the
+ * Decide view: the next two of each that are at least a week out, so a
+ * commitment is never to a period that is all but over, in date order.
+ */
+export function commitEnds(today: string): { label: string; end: string }[] {
+   const t = dateOf(today);
+   const soon = dayOf(new Date(t.getFullYear(), t.getMonth(), t.getDate() + 7));
+   const ends = (months: number, label: (last: Date) => string) => {
+      const out: { label: string; end: string }[] = [];
+      const first = Math.floor(t.getMonth() / months) * months;
+      for (let k = 1; out.length < 2; k++) {
+         const last = new Date(t.getFullYear(), first + k * months, 0);
+         if (dayOf(last) >= soon) out.push({ label: label(last), end: dayOf(last) });
+      }
+      return out;
+   };
+   // a month that ends a quarter goes by the quarter's name
+   const byEnd = new Map(
+      [
+         ...ends(1, last => `End of ${last.toLocaleDateString(undefined, { month: 'short' })}`),
+         ...ends(3, last => `End of Q${Math.floor(last.getMonth() / 3) + 1}`),
+      ].map(c => [c.end, c])
+   );
+   return [...byEnd.values()].sort((a, b) => a.end.localeCompare(b.end));
 }

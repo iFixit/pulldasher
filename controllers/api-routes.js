@@ -2,7 +2,13 @@ import apiController from './api.js';
 import projectsController from './projects.js';
 import roadmapController, { canWrite } from './roadmap.js';
 import settingsController from './settings.js';
-import { MAX_WEEKS, ROADMAP_HEALTHS, ROADMAP_STATUSES, WAITS_ON_MAX } from '../shared/dist/index.js';
+import {
+   MAX_WEEKS,
+   ROADMAP_HEALTHS,
+   ROADMAP_STATUSES,
+   STALL_DAYS,
+   WAITS_ON_MAX,
+} from '../shared/dist/index.js';
 
 /**
  * Every /api/v1 route in one table. app.js registers them from it, and
@@ -37,6 +43,12 @@ export const API_ROUTES = [
       path: '/api/v1/people',
       handlers: [projectsController.getPeople],
       does: "Per person: team, the window's numbers, reviews given, live projects, open PRs; same ?start=&end=",
+   },
+   {
+      method: 'get',
+      path: '/api/v1/decide',
+      handlers: [projectsController.getDecide],
+      does: 'The decisions owed now, worst first, each with its project, roadmap item, and reasons (see `decide`)',
    },
    {
       method: 'get',
@@ -130,6 +142,23 @@ export function apiIndex(req, res) {
       update: {
          health: ROADMAP_HEALTHS,
          body: 'up to 2000 characters, may be empty',
+      },
+      decide: {
+         reasons: {
+            new: 'in flight with no roadmap item; since = its first open PR’s day',
+            stalled: `open PRs with no activity for ${STALL_DAYS} days or more`,
+            over: 'its plan ended `weeks` ago and its project is still in flight',
+            ended: 'its plan ended `weeks` ago with nothing in flight: probably done',
+            off_track: 'its latest update says off track, and the plan hasn’t changed since',
+            at_risk: 'its latest update says at risk, and the plan hasn’t changed since',
+            reopened: 'done or dropped a week ago or more, but `open` PRs are still open',
+            moving: 'parked, but its PRs changed after it was parked',
+         },
+         to_clear:
+            'Make the call as a roadmap write. With no item: POST /api/v1/roadmap {name, project, status, ' +
+            'start, weeks}. With one: PATCH /api/v1/roadmap/:id with {status: "active", weeks} to commit, ' +
+            '{status: "parked"}, {status: "done"}, or {status: "dropped"}. Any PATCH to an item counts as ' +
+            `a decision, and quiets a stall for ${STALL_DAYS} days.`,
       },
       settings: {
          developer_teams:

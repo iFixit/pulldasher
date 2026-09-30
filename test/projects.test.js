@@ -171,6 +171,9 @@ function pullRow(number, owner, over = {}) {
    };
 }
 
+// the roadmap_items rows the stubbed db answers with; a test sets its own
+let roadmapRows = [];
+
 const label = (title, number) => new Label({ name: title }, number, 'test/repo-a', 'job-bot');
 
 function makeApp() {
@@ -178,6 +181,7 @@ function makeApp() {
    app.get('/projects-data', projectsController.getBoardData);
    app.get('/api/v1/projects', projectsController.getProjects);
    app.get('/api/v1/people', projectsController.getPeople);
+   app.get('/api/v1/decide', projectsController.getDecide);
    return app;
 }
 
@@ -243,6 +247,8 @@ before(() => {
             { reviewer: 'alice', repo: 'test/repo-a', number: 11, author: 'alice', at: now - DAY },
          ];
       }
+      if (sql.includes('FROM `roadmap_items`')) return roadmapRows;
+      if (sql.includes('FROM `roadmap_updates`')) return [];
       throw new Error(`unexpected query: ${sql}`);
    });
 });
@@ -350,4 +356,56 @@ test('the endpoints 404 when this install has no projects config', async () => {
    const { status } = await get('/api/v1/projects');
    config.projects = saved;
    assert.equal(status, 404);
+});
+
+/** A roadmap_items row, as lib/roadmap.js selects it. */
+function roadmapRow(over) {
+   return {
+      id: 1,
+      name: 'Alpha plan',
+      project: 'alpha',
+      team: null,
+      lead_login: 'alice',
+      status: 'active',
+      start: '2026-01-05',
+      weeks: 4,
+      priority: 0,
+      notes: '',
+      waits_on: null,
+      updated_by: 'alice',
+      updated_at: 1767600000,
+      ...over,
+   };
+}
+
+test('/api/v1/decide lists a live project with no plan as new, then a slipped plan as over', async () => {
+   roadmapRows = [];
+   const fresh = await get('/api/v1/decide');
+   assert.equal(fresh.status, 200);
+   const alpha = fresh.body.decisions.find(d => d.project === 'alpha');
+   assert.equal(alpha.name, 'Alpha work');
+   assert.equal(alpha.lead, 'alice');
+   assert.equal(alpha.open, 2);
+   assert.equal(alpha.item, null);
+   assert.equal(alpha.reasons[0].kind, 'new');
+
+   // a plan that ended in February, its project still in flight
+   roadmapRows = [roadmapRow()];
+   const slipped = await get('/api/v1/decide');
+   const row = slipped.body.decisions.find(d => d.project === 'alpha');
+   assert.equal(row.name, 'Alpha plan');
+   assert.deepEqual(row.item, {
+      id: 1,
+      status: 'active',
+      start: '2026-01-05',
+      weeks: 4,
+      end: '2026-02-01',
+   });
+   assert.ok(row.reasons.some(r => r.kind === 'over' && r.weeks > 0));
+
+   // parking it is a decision: nothing is owed until its PRs move again
+   roadmapRows = [roadmapRow({ status: 'parked', updated_at: Math.floor(Date.now() / 1000) })];
+   const parked = await get('/api/v1/decide');
+   assert.ok(!parked.body.decisions.some(d => d.project === 'alpha'));
+   roadmapRows = [];
 });

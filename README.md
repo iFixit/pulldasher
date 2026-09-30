@@ -115,7 +115,7 @@ be edited from the People view or the API; saved ones replace
 repo the same webhook as a tracked repo (Issues events). Without a projects
 repo, PRs still group by label, just without names, leads or targets.
 
-The tab has three views and a page per project:
+The tab has four views and a page per project:
 
 - **Overview**: where the plans stand (the latest update on every item in
   progress, worst first, which copies as text for a status email),
@@ -126,6 +126,13 @@ The tab has three views and a page per project:
   project on one list you can sort, group by parent, lead or team,
   search, and download as CSV, each with how its roadmap plan is going.
   A project's own page shows its plan and latest update too.
+- **Decide**: the calls owed now, as a list that empties: projects in
+  flight with no decision, plans past their end, stalls (open PRs with no
+  activity for 21 days), updates that say at risk or off track, work marked
+  done or dropped whose PRs are still open, and parked work whose PRs
+  moved. Each row says why it's there and takes one click: commit through
+  the end of a coming month or quarter, park, finish, or drop. The tab's
+  label counts what's left.
 - **Roadmap**: the plan set against everything actually in flight. Across
   the top, how many projects were in flight each week (from their PRs)
   and are planned for the weeks ahead, against a line at the number of
@@ -169,6 +176,9 @@ curl -s -H "Authorization: Bearer $(gh auth token)" https://pulldasher.example.c
   person with where they stand today and their numbers for a window. Both
   take `start` and `end` as `YYYY-MM-DD` days (default: the last 30 days, at
   most 400), and `project=<slug>` narrows the numbers to one project.
+- `GET /api/v1/decide`: the calls owed now, worst first, each with its
+  project, its roadmap item if it has one, and its reasons. `GET /api/v1`
+  says what each reason means and which write clears it.
 - `GET /api/v1/roadmap` and `GET /api/v1/roadmap/:id`: the items in
   priority order, or one, each with its latest update.
 - `POST /api/v1/roadmap`, `PATCH` and `DELETE /api/v1/roadmap/:id`: add,

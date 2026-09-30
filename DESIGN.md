@@ -387,6 +387,18 @@ icon with a class bolted on.
     the plan on the timeline
   The test for a new mark: what would someone expect clicking it to do?
   Build that.
+- **Decide is a list that empties.** With no product manager, the tool
+  names the calls owed instead of waiting for someone to notice: new work
+  with no decision, plans past their end, stalls, updates saying at risk
+  or off track, work marked done or dropped whose PRs are still open, and
+  parked work that moved. Each row says why it's there in words, and each
+  call is one click that writes the roadmap: commit through the end of a
+  coming month or quarter, park, finish, or drop (which asks twice). A
+  decided row stays where it was, the same height, saying what was
+  decided with a way to change it on the roadmap, so nothing vanishes
+  unexplained and the next row never slides under the pointer between two
+  clicks. The tab's label counts what's left, and `GET /api/v1/decide`
+  lists the same rows for a script or a Claude session.
 - **What a plan waits on is words on its row, not lines across the
   timeline**: "after Search reindex", or, amber, "starts before Shopify
   sync ends". Linear draws dependency lines, but ours would cross team

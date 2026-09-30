@@ -17,6 +17,7 @@ import {
 import { portfolioItems } from '../model/portfolio';
 import { useRoadmap } from '../model/roadmapData';
 import { DateRangePicker } from './projects/DateRangePicker';
+import { Decide, decideCount } from './projects/Decide';
 import { Overview } from './projects/Overview';
 import { People } from './projects/People';
 import { ProjectPage } from './projects/ProjectPage';
@@ -24,12 +25,6 @@ import { Roadmap } from './projects/Roadmap';
 import type { Navigate, ProjectsNav } from './projects/parts';
 
 export type { ProjectsNav } from './projects/parts';
-
-const VIEWS: [ProjectsNav['view'], string][] = [
-   ['overview', 'Overview'],
-   ['roadmap', 'Roadmap'],
-   ['people', 'People'],
-];
 
 const NO_TODAY: Today = { live: [], quiet: [], misc: [], unsorted: [], doubleLabeled: [] };
 
@@ -91,6 +86,14 @@ export function Projects({
          ),
       [data, today, teamOf, plans]
    );
+   // the calls owed, counted on the tab so they're seen from every view
+   const toDecide = useMemo(() => (plans ? decideCount(today, plans) : 0), [today, plans]);
+   const views: [ProjectsNav['view'], string][] = [
+      ['overview', 'Overview'],
+      ['decide', toDecide ? `Decide (${toDecide})` : 'Decide'],
+      ['roadmap', 'Roadmap'],
+      ['people', 'People'],
+   ];
    const nameOf = useMemo(() => {
       const names = new Map(items.map(i => [i.slug, i.name]));
       names.set(MISC_SLUG, 'One-offs');
@@ -123,12 +126,13 @@ export function Projects({
             <Segmented
                ariaLabel="projects view"
                value={nav.view}
-               options={VIEWS}
+               options={views}
                onChange={view => navigate({ view, item: null })}
             />
          )}
-         {/* the roadmap has its own months and quarters; the range is for numbers */}
-         {(nav.project || nav.view !== 'roadmap') && (
+         {/* the roadmap has its own months and quarters, and Decide is about
+             now; the range is for numbers */}
+         {(nav.project || nav.view === 'overview' || nav.view === 'people') && (
             <DateRangePicker
                rangeKey={rangeKey}
                range={range}
@@ -164,6 +168,8 @@ export function Projects({
                me={me}
                onPerson={onPerson}
             />
+         ) : nav.view === 'decide' ? (
+            <Decide today={today} items={items} teamOf={teamOf} nav={nav} navigate={navigate} />
          ) : nav.view === 'roadmap' ? (
             <Roadmap
                items={items}

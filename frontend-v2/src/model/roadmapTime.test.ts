@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
    columnsFor,
+   commitEnds,
    parseZoom,
    quarterOf,
    shiftZoom,
@@ -65,5 +66,23 @@ describe('columnsFor', () => {
       const months = columnsFor('month', null, now);
       expect(months[0]).toMatchObject({ start: '2026-08-01', zoom: '2026-08' });
       expect(months).toHaveLength(7);
+   });
+});
+
+describe('commitEnds', () => {
+   it('skips a period ending within a week, and crosses the year', () => {
+      expect(commitEnds('2026-09-29').map(c => [c.label, c.end])).toEqual([
+         ['End of Oct', '2026-10-31'],
+         ['End of Nov', '2026-11-30'],
+         ['End of Q4', '2026-12-31'],
+         ['End of Q1', '2027-03-31'],
+      ]);
+      // mid-month, the month and quarter at hand still count, and December
+      // goes by its quarter's name
+      expect(commitEnds('2026-11-10').map(c => [c.label, c.end])).toEqual([
+         ['End of Nov', '2026-11-30'],
+         ['End of Q4', '2026-12-31'],
+         ['End of Q1', '2027-03-31'],
+      ]);
    });
 });
