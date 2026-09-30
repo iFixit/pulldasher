@@ -95,6 +95,13 @@ export interface Today {
    doubleLabeled: DerivedPull[];
 }
 
+/** The day a group's earliest open PR opened, YYYY-MM-DD; null with none
+ * open. Where Decide and the roadmap's chooser start a plan for work already
+ * in flight. */
+export function firstOpenDay(g: Pick<ProjectGroup, 'open'>): string | null {
+   return g.open.map(p => p.data.created_at.slice(0, 10)).sort()[0] ?? null;
+}
+
 /** The name to show: the issue's title, or the bare slug before an issue exists. */
 export function projectName(g: Pick<ProjectGroup, 'slug' | 'project'>): string {
    return g.project?.name ?? g.slug;

@@ -6,6 +6,7 @@ import {
    MAX_WEEKS,
    ROADMAP_HEALTHS,
    ROADMAP_STATUSES,
+   DECIDE_MIN_PRS,
    STALL_DAYS,
    WAITS_ON_MAX,
 } from '../shared/dist/index.js';
@@ -153,13 +154,18 @@ export function apiIndex(req, res) {
       },
       decide: {
          reasons: {
-            new: 'in flight with no roadmap item; since = its first open PR’s day',
-            stalled: `open PRs with no activity for ${STALL_DAYS} days or more`,
-            over: 'its plan ended `weeks` ago and its project is still in flight',
-            ended: 'its plan ended `weeks` ago with nothing in flight: probably done',
+            new: `in flight with ${DECIDE_MIN_PRS} or more PRs (open, or merged in the last 14 days) and never a roadmap item; since = its first open PR’s day`,
+            stalled: `open PRs with no activity for ${STALL_DAYS} days or more, and no call since`,
+            over: 'a plan under way ended `weeks` ago and its project still has PRs open',
+            ended: 'a plan under way ended `weeks` ago with no PRs open: probably done',
+            missed:
+               'its target date `due` passed with `open` PRs open, and the plan hasn’t changed since',
             off_track: 'its latest update says off track, and the plan hasn’t changed since',
             at_risk: 'its latest update says at risk, and the plan hasn’t changed since',
-            reopened: 'done or dropped a week ago or more, but `open` PRs are still open',
+            issue_closed:
+               'its project issue was closed (`as` done or dropped, `on` a day) after the plan last changed, and the plan is still under way',
+            reopened:
+               'marked done or dropped a week ago or more (`by` the roadmap or by closing the issue), but `open` PRs are still open',
             moving: 'parked, but its PRs changed after it was parked',
          },
          to_clear:

@@ -40,13 +40,16 @@ export interface ProjectsNav {
    /** the quarter or month the timeline is zoomed into, "2026-Q4" or
     * "2026-10" (model/roadmapTime.ts); null for the whole view */
    zoom: string | null;
+   /** Decide's team: only its rows show; null for every team */
+   team: string | null;
 }
 export type Navigate = (patch: Partial<ProjectsNav>) => void;
 
 /**
  * The way to one roadmap item from anywhere in the tab: the roadmap with the
  * item open, on a timeline even when it was showing now, next and later,
- * since the item's editor lives on the timeline.
+ * since the item's editor lives on the timeline. The find box, a picked
+ * week and the show switch are cleared, since any of them could hide it.
  */
 export function openPlan(nav: ProjectsNav, id: number): Partial<ProjectsNav> {
    return {
@@ -54,6 +57,9 @@ export function openPlan(nav: ProjectsNav, id: number): Partial<ProjectsNav> {
       view: 'roadmap',
       item: id,
       scale: nav.scale === 'now' ? 'quarter' : nav.scale,
+      find: '',
+      week: null,
+      show: 'all',
    };
 }
 

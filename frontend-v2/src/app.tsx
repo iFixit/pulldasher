@@ -158,6 +158,7 @@ function readHash(): HashState {
                : 'all',
          week: /^\d{4}-\d{2}-\d{2}$/.test(p.get('week') ?? '') ? p.get('week') : null,
          zoom: ZOOM_KEY.test(p.get('zoom') ?? '') ? p.get('zoom') : null,
+         team: p.get('team') || null,
       },
    };
 }
@@ -187,6 +188,7 @@ function buildHash(s: HashState): string {
    if (s.projects.show !== 'all') p.set('unplanned', s.projects.show === 'plan' ? 'hide' : 'only');
    if (s.projects.week) p.set('week', s.projects.week);
    if (s.projects.zoom) p.set('zoom', s.projects.zoom);
+   if (s.projects.team) p.set('team', s.projects.team);
    return p.toString();
 }
 
@@ -768,16 +770,20 @@ export function App() {
          !scope.notAuthors.includes(login),
       [scope]
    );
+   // Decide writes the roadmap, so it sees every project whatever the
+   // filters: a project whose PRs are filtered out mustn't look finished
+   const allProjectPulls = useMemo(() => pulls.filter(p => !isBot(p)), [pulls, isBot]);
+   const allProjectClosed = useMemo(
+      () => closed.filter(p => !isBotLogin(p.user.login, extraBots)),
+      [closed, extraBots]
+   );
    const projectPulls = useMemo(
-      () => pulls.filter(p => !isBot(p) && inProjectScope(p.data.repo, p.data.user.login)),
-      [pulls, isBot, inProjectScope]
+      () => allProjectPulls.filter(p => inProjectScope(p.data.repo, p.data.user.login)),
+      [allProjectPulls, inProjectScope]
    );
    const projectClosed = useMemo(
-      () =>
-         closed.filter(
-            p => !isBotLogin(p.user.login, extraBots) && inProjectScope(p.repo, p.user.login)
-         ),
-      [closed, extraBots, inProjectScope]
+      () => allProjectClosed.filter(p => inProjectScope(p.repo, p.user.login)),
+      [allProjectClosed, inProjectScope]
    );
 
    // the hidden-PR ledger's numbers: stable per-category sizes (what each
@@ -1337,6 +1343,8 @@ export function App() {
                   <Projects
                   pulls={projectPulls}
                   closed={projectClosed}
+                  allPulls={allProjectPulls}
+                  allClosed={allProjectClosed}
                   prefix={projectLabelPrefix}
                   nav={projectsNav}
                   navigate={navigateProjects}

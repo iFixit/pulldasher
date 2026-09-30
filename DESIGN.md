@@ -390,23 +390,35 @@ icon with a class bolted on.
   Build that.
 - **The weeks ahead count what nobody decided.** A chart that counted only
   the plans after today would drop off a cliff at today and say the team
-  frees up next week, when nothing says so. Instead every project still
-  open with no decision keeps counting in the weeks ahead (a paler tint of
-  the same colors), a plan still in flight past its end keeps counting, and
-  parked, finished and dropped work stops. The only way to bring the
-  future down is a decision, which is the point.
-- **Decide is a list that empties.** With no product manager, the tool
-  names the calls owed instead of waiting for someone to notice: new work
-  with no decision, plans past their end, stalls, updates saying at risk
-  or off track, work marked done or dropped whose PRs are still open, and
-  parked work that moved. Each row says why it's there in words, and each
-  call is one click that writes the roadmap: commit through the end of a
-  coming month or quarter, park, finish, or drop (which asks twice). A
-  decided row stays where it was, the same height, saying what was
-  decided with a way to change it on the roadmap, so nothing vanishes
-  unexplained and the next row never slides under the pointer between two
-  clicks. The tab's label counts what's left, and `GET /api/v1/decide`
-  lists the same rows for a script or a Claude session.
+  frees up next week, when nothing says so. Instead every open project big
+  enough to owe a decision (the rule Decide uses) keeps counting in the
+  weeks ahead when it has none (a paler tint of the same colors), a plan
+  still in flight past its end keeps counting, and parked, finished and
+  dropped work stops. A project counts once, however many of its plans
+  run. The only way to bring the future down is a decision, which is the
+  point. A picked week's rows come from the same rule as its bar, so the
+  count and the rows always agree.
+- **Decide is a list that empties, sized for a Monday.** With no product
+  manager, the tool names the calls owed instead of waiting for someone to
+  notice: new work with no decision, plans past their end or their target,
+  stalls, updates saying at risk or off track, work marked done or dropped
+  whose PRs are still open, and parked work that moved. Work with fewer
+  than 3 PRs ships without a call unless it stalls, so the first visit
+  isn't a hundred rows. Each row says why it's there in words, with the
+  facts the call turns on (team, size, people, target), and each call is
+  one click that writes the roadmap: commit through the end of a coming
+  month or quarter, park, finish, or drop (which asks twice). A decided row
+  stays where it was, every line in place, dimmed and saying what was
+  decided, from the click on rather than when the save returns, so the
+  next row never slides under the pointer between two clicks; it stays
+  after a trip to a project page and back. Every plan still under way is
+  judged on its own, and closing a project's issue counts as a decision,
+  so the two records can't quietly disagree. Decide weighs every project
+  whatever the filter bar narrows the other views to, since a project
+  whose PRs are filtered out would otherwise look finished. A team switch
+  gives each team's lead their own rows. The tab's label counts what's
+  left, and `GET /api/v1/decide` lists the same rows for a script or a
+  Claude session.
 - **What a plan waits on is words on its row, not lines across the
   timeline**: "after Search reindex", or, amber, "starts before Shopify
   sync ends". Linear draws dependency lines, but ours would cross team

@@ -1,5 +1,5 @@
 import { MISC_SLUG } from './projects';
-import { addWeeks, mondayOf, planEnd, type RoadmapItem } from './roadmap';
+import { addWeeks, isUnderWay, mondayOf, planEnd, type RoadmapItem } from './roadmap';
 
 /**
  * How loaded each week is, for the roadmap's load chart, each team lane's
@@ -7,8 +7,9 @@ import { addWeeks, mondayOf, planEnd, type RoadmapItem } from './roadmap';
  * roadmap has decided on them. Weeks up to this one count what the PRs did.
  * Weeks ahead count, if nothing changes: each plan until its planned end
  * (one already past its end, with its project still open, keeps counting,
- * since nothing says it's done), and every open project with no decision
- * at all. Parked, finished and dropped work counts only in the past.
+ * since nothing says it's done), and every open project big enough to owe a
+ * decision that has none. Parked, finished and dropped work counts only in
+ * the past.
  */
 
 /** A project's real span: its first PR in the horizon to its last merge or
@@ -38,19 +39,33 @@ export function mondaysBetween(from: string, to: string): string[] {
 }
 
 const sunday = (week: string) => planEnd({ start: week, weeks: 1 });
-const underWay = (p: RoadmapItem) => p.status === 'planned' || p.status === 'active';
 
-export function loadByWeek({
-   weeks,
+/** What one week counts: the projects, and whether the roadmap has each,
+ * and the plans. */
+export interface WeekMembers {
+   projects: Map<string, 'on' | 'off'>;
+   /** plans running that week, or past their end with their project still open */
+   plans: Set<number>;
+}
+
+/**
+ * The rules above as a lookup from a week to what it counts, so the chart's
+ * numbers and a picked week's rows can't disagree. A project counts once,
+ * however many of its plans run that week. `ahead` names the projects with
+ * no plan to keep counting after this week (decide.ts's needsDecision);
+ * every open one when left out.
+ */
+export function weekMembers({
    today,
    plans,
    spans,
+   ahead,
 }: {
-   weeks: readonly string[];
    today: string;
    plans: readonly RoadmapItem[];
    spans: readonly InFlightSpan[];
-}): LoadWeek[] {
+   ahead?: ReadonlySet<string>;
+}): (week: string) => WeekMembers {
    const thisWeek = mondayOf(today);
    const kept = plans.filter(p => p.status !== 'dropped');
    // every project the roadmap has a word on, dropped included: a dropped
@@ -58,31 +73,66 @@ export function loadByWeek({
    const decided = new Set(plans.flatMap(p => (p.project ? [p.project] : [])));
    const onRoadmap = new Set(kept.flatMap(p => (p.project ? [p.project] : [])));
    const open = new Set(spans.filter(s => s.end == null).map(s => s.slug));
+   const undecided = [...(ahead ?? open)].filter(slug => open.has(slug) && !decided.has(slug));
    const running = (p: RoadmapItem, week: string) => p.start <= sunday(week) && planEnd(p) >= week;
-   return weeks.map(week => {
+   return week => {
+      const projects = new Map<string, 'on' | 'off'>();
+      const counted = new Set<number>();
       if (week <= thisWeek) {
-         const inFlight = spans.filter(s => s.start <= sunday(week) && (s.end ?? today) >= week);
-         const onPlan = inFlight.filter(s => onRoadmap.has(s.slug)).length;
+         for (const s of spans) {
+            if (s.start <= sunday(week) && (s.end ?? today) >= week) {
+               projects.set(s.slug, onRoadmap.has(s.slug) ? 'on' : 'off');
+            }
+         }
          // a plan with no PRs yet is still work in flight once it's under way
-         const planOnly = kept.filter(
-            p => !p.project && (p.status === 'active' || p.status === 'done') && running(p, week)
-         ).length;
-         return {
-            week,
-            onPlan: onPlan + planOnly,
-            offPlan: inFlight.filter(s => !onRoadmap.has(s.slug)).length,
-            projected: false,
-         };
+         for (const p of kept) {
+            if (!p.project && (p.status === 'active' || p.status === 'done') && running(p, week)) {
+               counted.add(p.id);
+            }
+         }
+         return { projects, plans: counted };
       }
-      const onPlan = kept.filter(
-         p =>
-            underWay(p) &&
-            (running(p, week) ||
-               // past its end already and still open: it keeps going
-               (!!p.project && open.has(p.project) && planEnd(p) < thisWeek))
-      ).length;
-      const offPlan = [...open].filter(slug => !decided.has(slug)).length;
-      return { week, onPlan, offPlan, projected: true };
+      for (const p of kept) {
+         if (!isUnderWay(p.status)) continue;
+         // past its end already and still open: it keeps going
+         const overrun = !!p.project && open.has(p.project) && planEnd(p) < thisWeek;
+         if (running(p, week) || overrun) {
+            counted.add(p.id);
+            if (p.project) projects.set(p.project, 'on');
+         }
+      }
+      for (const slug of undecided) projects.set(slug, 'off');
+      return { projects, plans: counted };
+   };
+}
+
+export function loadByWeek({
+   weeks,
+   today,
+   plans,
+   spans,
+   ahead,
+}: {
+   weeks: readonly string[];
+   today: string;
+   plans: readonly RoadmapItem[];
+   spans: readonly InFlightSpan[];
+   ahead?: ReadonlySet<string>;
+}): LoadWeek[] {
+   const members = weekMembers({ today, plans, spans, ahead });
+   const linked = new Set(plans.flatMap(p => (p.project ? [p.id] : [])));
+   const thisWeek = mondayOf(today);
+   return weeks.map(week => {
+      const m = members(week);
+      let onPlan = 0;
+      let offPlan = 0;
+      for (const standing of m.projects.values()) {
+         if (standing === 'on') onPlan++;
+         else offPlan++;
+      }
+      // a plan with a project counts as its project; one without, by itself
+      for (const id of m.plans) if (!linked.has(id)) onPlan++;
+      return { week, onPlan, offPlan, projected: week > thisWeek };
    });
 }
 

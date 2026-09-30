@@ -10,8 +10,10 @@ import {
 import { listItems } from '../lib/roadmap.js';
 import {
    addWeeks,
+   closedIssues,
    decideProjects,
    decideQueue,
+   needsDecision,
    loadByWeek,
    mondayOf,
    mondaysBetween,
@@ -117,9 +119,13 @@ function projectRecords(projects, today, stats, prefix) {
    });
 }
 
-/** Where each live project's first open PR opened, by slug. */
+/** Where each project with PRs open began, by slug: the spans that run to today. */
 function liveStarts(today) {
-   return Object.fromEntries(decideProjects(today).map(p => [p.slug, p.firstOpened]));
+   return Object.fromEntries(
+      decideProjects(today)
+         .filter(p => p.open > 0)
+         .map(p => [p.slug, p.firstOpened])
+   );
 }
 
 export default {
@@ -279,6 +285,7 @@ export default {
             const rows = decideQueue({
                live: decideProjects(today),
                items,
+               closed: closedIssues(projects),
                today: utcDay(now),
                now,
             });
@@ -312,8 +319,8 @@ export default {
     * GET /api/v1/load?start=&end= -- how loaded each week is, against the
     * developers there are: projects in flight on the roadmap and not, from
     * PRs through this week and, after it, as if nothing changes (the plans,
-    * plus every project still open with no decision). Default: the 12 weeks
-    * before this one through the 26 after.
+    * plus every open project big enough to owe a decision that has none).
+    * Default: the 12 weeks before this one through the 26 after.
     */
    getLoad: function (req, res) {
       const settings = projectSettings();
@@ -348,18 +355,32 @@ export default {
             ([projects, items, past]) => {
                const today = todayFromBoard(pullManager.getPulls(), projects, settings.prefix, now);
                const spans = spansFrom(past, liveStarts(today), window.start);
+               // the projects with no plan that owe a decision count ahead
+               const closed = closedIssues(projects);
+               const ahead = new Set(
+                  decideProjects(today)
+                     .filter(p => needsDecision(p, closed))
+                     .map(p => p.slug)
+               );
                const weeks = loadByWeek({
                   weeks: mondaysBetween(window.start, addWeeks(mondayOf(window.end), 1)),
                   today: day,
                   plans: items,
                   spans,
+                  ahead,
                });
                const developers = new Set(
                   Object.values(settings.teams)
                      .flat()
                      .map(login => login.toLowerCase())
                ).size;
-               const [current] = loadByWeek({ weeks: [thisWeek], today: day, plans: items, spans });
+               const [current] = loadByWeek({
+                  weeks: [thisWeek],
+                  today: day,
+                  plans: items,
+                  spans,
+                  ahead,
+               });
                return {
                   server_time: Math.floor(now),
                   developers,

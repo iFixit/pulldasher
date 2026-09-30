@@ -11,6 +11,7 @@ import {
    moveBefore,
    periodPlan,
    planEnd,
+   planFor,
    type RoadmapItem,
    type RoadmapUpdate,
    waitsOnProblem,
@@ -153,6 +154,18 @@ describe('waits on', () => {
       created_at: null,
       update: null,
       ...over,
+   });
+
+   it('picks the plan that speaks for a project: the first under way, or the latest call', () => {
+      const all = [
+         item(1, { project: 'a', status: 'done', updated_at: 100 }),
+         item(2, { project: 'a', status: 'active' }),
+         item(3, { project: 'b', status: 'done', updated_at: 100 }),
+         item(4, { project: 'b', status: 'dropped', updated_at: 200 }),
+      ];
+      expect(planFor('a', all)?.id).toBe(2);
+      expect(planFor('b', all)?.id).toBe(4);
+      expect(planFor('c', all)).toBeNull();
    });
 
    it('refuses itself, unknown ids, and loops, however long', () => {

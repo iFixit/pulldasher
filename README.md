@@ -127,17 +127,22 @@ The tab has four views and a page per project:
   project on one list you can sort, group by parent, lead or team,
   search, and download as CSV, each with how its roadmap plan is going.
   A project's own page shows its plan and latest update too.
-- **Decide**: the calls owed now, as a list that empties: projects in
-  flight with no decision, plans past their end, stalls (open PRs with no
-  activity for 21 days), updates that say at risk or off track, work marked
-  done or dropped whose PRs are still open, and parked work whose PRs
-  moved. Each row says why it's there and takes one click: commit through
-  the end of a coming month or quarter, park, finish, or drop. The tab's
-  label counts what's left.
+- **Decide**: the calls owed now, as a list that empties: projects with 3
+  or more PRs (open, or merged in the last 14 days) and no decision, plans
+  past their end or their target date, stalls (open PRs with no activity
+  for 21 days), updates that say at risk or off track, work marked done or
+  dropped (on the roadmap or by closing its issue) whose PRs are still
+  open, and parked work whose PRs moved. Each row says why it's there, with
+  its team, size and target, and takes one click: commit through the end
+  of a coming month or quarter, park, finish, or drop. A team's lead can
+  take just their team's rows. It weighs every project, whatever the
+  filter bar narrows the other views to. The tab's label counts what's
+  left.
 - **Roadmap**: the plan set against everything actually in flight. Across
   the top, how many projects were in flight each week (from their PRs)
-  and, for the weeks ahead, the plans plus every project still open with
-  no decision, as if nothing changes, against a line at the number of
+  and, for the weeks ahead, the plans plus every project big enough to owe
+  a decision that has none, as if nothing changes, against a line at the
+  number of
   developers. Below, the plans in priority order, then every live project
   with no plan, one click from being planned.
   - By month or by quarter; click a quarter or a month to fill the width

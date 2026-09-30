@@ -76,7 +76,14 @@ export type { PullData, RepoSpec, Signature, CommitStatus, Label } from './types
 export { checkDeveloperTeams } from './model/settings';
 export type { DeveloperTeams } from './model/settings';
 
-export { decideProjects, decideQueue, STALL_DAYS } from './model/decide';
-export type { DecideProject, DecideReason, DecideRow } from './model/decide';
+export {
+   closedIssues,
+   decideProjects,
+   decideQueue,
+   needsDecision,
+   DECIDE_MIN_PRS,
+   STALL_DAYS,
+} from './model/decide';
+export type { ClosedIssue, DecideProject, DecideReason, DecideRow } from './model/decide';
 export { loadByWeek, mondaysBetween, peakFrom, spansFrom } from './model/load';
 export type { InFlightSpan, LoadWeek } from './model/load';

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import type { DerivedPull } from '../../../shared/model/status';
 import type { PullData } from '../../../shared/types';
+import { closedIssues } from '../../../shared/model/decide';
 import { buildToday, MISC_SLUG, type Today } from '../../../shared/model/projects';
 import { EmptyState, Segmented } from '../components/bits';
 import { Icon } from '../components/Icon';
@@ -41,6 +42,8 @@ const NO_TODAY: Today = { live: [], quiet: [], misc: [], unsorted: [], doubleLab
 export function Projects({
    pulls,
    closed,
+   allPulls,
+   allClosed,
    prefix,
    nav,
    navigate,
@@ -53,6 +56,9 @@ export function Projects({
    pulls: DerivedPull[];
    /** people's PRs closed in the last 14 days, same narrowing */
    closed: PullData[];
+   /** the same two lists before the filters narrow them, for Decide */
+   allPulls: DerivedPull[];
+   allClosed: PullData[];
    /** the project label prefix; null when the server isn't set up for projects */
    prefix: string | null;
    nav: ProjectsNav;
@@ -86,8 +92,34 @@ export function Projects({
          ),
       [data, today, teamOf, plans]
    );
+   // Decide writes the roadmap, so it weighs every project: with the filter
+   // bar narrowing the rest of the tab, it builds its own Today and list
+   const scoped = allPulls.length !== pulls.length || allClosed.length !== closed.length;
+   const fullToday = useMemo(
+      () =>
+         prefix && scoped ? buildToday(data?.projects ?? [], allPulls, allClosed, prefix) : today,
+      [data, allPulls, allClosed, prefix, scoped, today]
+   );
+   const decideItems = useMemo(
+      () =>
+         scoped
+            ? portfolioItems(
+                 data?.projects ?? [],
+                 fullToday,
+                 data?.window.projects ?? {},
+                 teamOf,
+                 Date.now(),
+                 plans ?? []
+              )
+            : items,
+      [scoped, data, fullToday, teamOf, plans, items]
+   );
+   const closedProjects = useMemo(() => closedIssues(data?.projects ?? []), [data]);
    // the calls owed, counted on the tab so they're seen from every view
-   const decisions = useMemo(() => (plans ? decideRows(today, plans) : null), [today, plans]);
+   const decisions = useMemo(
+      () => (plans ? decideRows(fullToday, plans, closedProjects) : null),
+      [fullToday, plans, closedProjects]
+   );
    const views: [ProjectsNav['view'], string][] = [
       ['overview', 'Overview'],
       ['decide', decisions?.length ? `Decide (${decisions.length})` : 'Decide'],
@@ -169,7 +201,16 @@ export function Projects({
                onPerson={onPerson}
             />
          ) : nav.view === 'decide' ? (
-            <Decide today={today} items={items} teamOf={teamOf} nav={nav} navigate={navigate} />
+            <Decide
+               today={fullToday}
+               items={decideItems}
+               closed={closedProjects}
+               teamOf={teamOf}
+               teamMembers={data?.teams ?? {}}
+               scoped={scoped}
+               nav={nav}
+               navigate={navigate}
+            />
          ) : nav.view === 'roadmap' ? (
             <Roadmap
                items={items}

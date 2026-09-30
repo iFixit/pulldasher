@@ -1,24 +1,35 @@
-import { dayStart, type Today } from './projects';
-import { healthStanding, planEnd, type RoadmapItem } from './roadmap';
+import { dayStart, firstOpenDay, utcDay, type Project, type Today } from './projects';
+import { healthStanding, isUnderWay, planEnd, type RoadmapItem } from './roadmap';
 
 /**
  * The decisions owed this week, for the Decide view and GET /api/v1/decide:
  * the job a product manager would do in a weekly triage, as a queue that
- * empties. A project lands here when it needs a call:
- * - `new`: in flight with no decision on the roadmap yet
- * - `stalled`: open PRs with no activity for STALL_DAYS
- * - `over`: a plan past its end, its project still in flight
- * - `ended`: a plan past its end with nothing in flight: probably done
+ * empties. A row is a project, or one of its plans, that needs a call:
+ * - `new`: in flight with DECIDE_MIN_PRS or more PRs and never a plan;
+ *   smaller work just ships
+ * - `stalled`: open PRs with no activity for STALL_DAYS, and no call since
+ * - `over`: a plan past its end with PRs still open
+ * - `ended`: a plan past its end with none open: probably done
+ * - `missed`: its target date passed with PRs open, and nobody replanned
  * - `off_track` / `at_risk`: its latest update says so, and the plan hasn't
  *   changed since
- * - `reopened`: finished or dropped, but PRs are still open
- * - `moving`: parked, but its PRs moved after it was parked
- * A decision takes it out: commit (plan it), park, finish or drop, which
- * are roadmap writes. Reasons a decision can't clear, like a stall, stay
- * quiet for STALL_DAYS after one.
+ * - `issue_closed`: its issue was closed after the plan last changed, and
+ *   the plan still says it's going
+ * - `reopened`: finished or dropped, on the roadmap or by closing its issue,
+ *   a week or more ago, but PRs are still open
+ * - `moving`: parked, but its PRs changed after it was parked
+ * Every plan still under way is judged on its own, so a project's finished
+ * first phase can't hide its second running late. A call is a roadmap write
+ * (commit, park, finish, drop); any change to a plan counts as one.
  */
 
 export const STALL_DAYS = 21;
+/** open PRs plus merges in the last LIVE_DAYS below which a project ships
+ * without a roadmap call */
+export const DECIDE_MIN_PRS = 3;
+/** days a finished or dropped project can keep PRs open before it's asked
+ * about again */
+const REOPEN_DAYS = 7;
 const DAY = 86400;
 
 export type DecideReason =
@@ -26,9 +37,11 @@ export type DecideReason =
    | { kind: 'stalled'; days: number }
    | { kind: 'over'; weeks: number }
    | { kind: 'ended'; weeks: number }
+   | { kind: 'missed'; due: string; open: number }
    | { kind: 'off_track' }
    | { kind: 'at_risk' }
-   | { kind: 'reopened'; open: number }
+   | { kind: 'issue_closed'; as: 'done' | 'dropped'; on: string }
+   | { kind: 'reopened'; open: number; as: 'done' | 'dropped'; by: 'roadmap' | 'issue' }
    | { kind: 'moving' };
 
 /** What the queue needs to know about a live project. */
@@ -40,115 +53,198 @@ export interface DecideProject {
    lastActivity: number | null;
    /** its open PRs */
    open: number;
+   /** its PRs open now or merged in the last LIVE_DAYS: how big it is */
+   prs: number;
+   /** its target's due day, YYYY-MM-DD, or null */
+   due: string | null;
+}
+
+/** A closed project issue: GitHub's close reason, as done or dropped, and when. */
+export interface ClosedIssue {
+   as: 'done' | 'dropped';
+   at: number;
 }
 
 /** The queue's input from Today's live projects. */
 export function decideProjects(today: Pick<Today, 'live'>): DecideProject[] {
    return today.live.map(g => ({
       slug: g.slug,
-      firstOpened: g.open.map(p => p.data.created_at.slice(0, 10)).sort()[0] ?? null,
+      firstOpened: firstOpenDay(g),
       lastActivity: g.lastActivity,
       open: g.open.length,
+      prs: g.open.length + g.merged.length,
+      due: g.project?.target?.due_on?.slice(0, 10) ?? null,
    }));
+}
+
+/** The closed project issues by slug: closing one is a decision too. */
+export function closedIssues(
+   projects: readonly Pick<Project, 'slug' | 'state' | 'state_reason' | 'closed_at'>[]
+): Map<string, ClosedIssue> {
+   const out = new Map<string, ClosedIssue>();
+   for (const p of projects) {
+      if (p.state !== 'closed') continue;
+      out.set(p.slug, {
+         as: p.state_reason === 'not_planned' ? 'dropped' : 'done',
+         at: p.closed_at ? Date.parse(p.closed_at) / 1000 : 0,
+      });
+   }
+   return out;
+}
+
+/** Whether a project with no plan owes a first call: PRs open, big enough to
+ * plan, and its issue not closed. The load chart's weeks ahead count the
+ * same projects, so small work stops counting once today is past. */
+export function needsDecision(
+   p: DecideProject,
+   closed: ReadonlyMap<string, ClosedIssue> = new Map()
+): boolean {
+   return p.open > 0 && p.prs >= DECIDE_MIN_PRS && !closed.has(p.slug);
 }
 
 export interface DecideRow {
    /** the project; null for a plan with no project */
    slug: string | null;
-   /** the roadmap item that holds its decision, if any */
+   /** the roadmap item the call is about, if any */
    item: RoadmapItem | null;
    reasons: DecideReason[];
 }
 
-// worst first: work nobody should be doing, then plans that slipped, then
-// quiet work, then new work waiting for a first call
+// worst first: work nobody should be doing, then decisions two records
+// disagree on, then plans that slipped, then quiet work, then new work
+// waiting for a first call
 const RANK: Record<DecideReason['kind'], number> = {
    reopened: 0,
-   moving: 1,
-   off_track: 2,
-   over: 3,
-   ended: 4,
-   stalled: 5,
-   at_risk: 6,
-   new: 7,
+   issue_closed: 1,
+   moving: 2,
+   off_track: 3,
+   missed: 4,
+   over: 5,
+   ended: 6,
+   stalled: 7,
+   at_risk: 8,
+   new: 9,
 };
 
 export function decideQueue({
    live,
    items,
+   closed = new Map(),
    today,
    now,
 }: {
    live: readonly DecideProject[];
    items: readonly RoadmapItem[];
+   /** closed project issues, by slug */
+   closed?: ReadonlyMap<string, ClosedIssue>;
    today: string;
    now: number;
 }): DecideRow[] {
-   // each project's decision is its first item by priority
-   const itemFor = new Map<string, RoadmapItem>();
-   for (const item of [...items].sort((a, b) => a.priority - b.priority || a.id - b.id)) {
-      if (item.project && !itemFor.has(item.project)) itemFor.set(item.project, item);
+   const sorted = [...items].sort((a, b) => a.priority - b.priority || a.id - b.id);
+   const plansOf = new Map<string, RoadmapItem[]>();
+   for (const item of sorted) {
+      if (item.project) plansOf.set(item.project, [...(plansOf.get(item.project) ?? []), item]);
    }
+   const rows = new Map<string, DecideRow>();
+   const add = (slug: string | null, item: RoadmapItem | null, reason: DecideReason) => {
+      const key = `${slug ?? ''}:${item?.id ?? ''}`;
+      const row = rows.get(key) ?? { slug, item, reasons: [] };
+      row.reasons.push(reason);
+      rows.set(key, row);
+   };
+   const decidedAt = (item: RoadmapItem) => item.updated_at ?? 0;
    const weeksPast = (item: RoadmapItem) =>
       Math.ceil(((dayStart(today) as number) - (dayStart(planEnd(item)) as number)) / (7 * DAY));
-   const underWay = (item: RoadmapItem) => item.status === 'planned' || item.status === 'active';
-   const decidedAt = (item: RoadmapItem) => item.updated_at ?? 0;
-   const reasonsFor = (item: RoadmapItem, inFlight: boolean): DecideReason[] => {
-      const reasons: DecideReason[] = [];
-      if (!underWay(item)) return reasons;
+
+   // what a plan under way owes; `project` is its live project, if any
+   const planReasons = (item: RoadmapItem, project: DecideProject | null) => {
+      const issue = item.project ? closed.get(item.project) : undefined;
+      if (issue && issue.at > decidedAt(item)) {
+         // the closed issue is the news; the plan's other troubles follow from it
+         add(item.project, item, { kind: 'issue_closed', as: issue.as, on: utcDay(issue.at) });
+         return;
+      }
+      const open = project?.open ?? 0;
       if (planEnd(item) < today) {
-         reasons.push(
-            inFlight
-               ? { kind: 'over', weeks: weeksPast(item) }
-               : { kind: 'ended', weeks: weeksPast(item) }
-         );
+         add(item.project, item, { kind: open > 0 ? 'over' : 'ended', weeks: weeksPast(item) });
+      }
+      const due = project?.due;
+      // a replan after the target passed answers it
+      if (due && due < today && open > 0 && decidedAt(item) < (dayStart(due) as number) + DAY) {
+         add(item.project, item, { kind: 'missed', due, open });
       }
       const standing = healthStanding(item, now);
       const update =
          standing.kind === 'current' || standing.kind === 'stale' ? standing.update : null;
       // an update the plan already answered isn't owed a call again
       if (update && update.at > decidedAt(item)) {
-         if (update.health === 'off_track') reasons.push({ kind: 'off_track' });
-         else if (update.health === 'at_risk') reasons.push({ kind: 'at_risk' });
+         if (update.health === 'off_track') add(item.project, item, { kind: 'off_track' });
+         else if (update.health === 'at_risk') add(item.project, item, { kind: 'at_risk' });
       }
-      return reasons;
    };
 
-   const rows: DecideRow[] = [];
-   const liveSlugs = new Set(live.map(p => p.slug));
    for (const project of live) {
-      const item = itemFor.get(project.slug) ?? null;
-      const reasons: DecideReason[] = [];
-      if (!item) reasons.push({ kind: 'new', since: project.firstOpened });
-      else if (item.status === 'parked') {
-         if ((project.lastActivity ?? 0) > decidedAt(item)) reasons.push({ kind: 'moving' });
-      } else if (item.status === 'done' || item.status === 'dropped') {
-         if (project.open > 0 && now - decidedAt(item) >= 7 * DAY) {
-            reasons.push({ kind: 'reopened', open: project.open });
+      const plans = plansOf.get(project.slug) ?? [];
+      const going = plans.filter(p => isUnderWay(p.status));
+      for (const item of going) planReasons(item, project);
+      // with nothing under way, its latest plan is the decision, unless its
+      // issue was closed after that
+      const last = going.length
+         ? null
+         : plans.reduce<RoadmapItem | null>(
+              (a, i) => (!a || decidedAt(i) > decidedAt(a) ? i : a),
+              null
+           );
+      const issue = closed.get(project.slug);
+      if (!going.length) {
+         if (issue && issue.at > (last ? decidedAt(last) : 0)) {
+            if (project.open > 0 && now - issue.at >= REOPEN_DAYS * DAY) {
+               add(project.slug, last, {
+                  kind: 'reopened',
+                  open: project.open,
+                  as: issue.as,
+                  by: 'issue',
+               });
+            }
+         } else if (last?.status === 'parked') {
+            if ((project.lastActivity ?? 0) > decidedAt(last)) {
+               add(project.slug, last, { kind: 'moving' });
+            }
+         } else if (last) {
+            if (project.open > 0 && now - decidedAt(last) >= REOPEN_DAYS * DAY) {
+               add(project.slug, last, {
+                  kind: 'reopened',
+                  open: project.open,
+                  as: last.status === 'dropped' ? 'dropped' : 'done',
+                  by: 'roadmap',
+               });
+            }
+         } else if (needsDecision(project, closed)) {
+            add(project.slug, null, { kind: 'new', since: project.firstOpened });
          }
-      } else reasons.push(...reasonsFor(item, true));
+      }
+      // open PRs gone quiet, and no call in that time
       const idle =
          project.lastActivity == null ? null : Math.floor((now - project.lastActivity) / DAY);
-      const quietSinceDecision = !item || now - decidedAt(item) >= STALL_DAYS * DAY;
+      const lastCall = Math.max(0, ...plans.map(decidedAt), issue?.at ?? 0);
+      const holder = going[0] ?? last;
       if (
          project.open > 0 &&
          idle != null &&
          idle >= STALL_DAYS &&
-         quietSinceDecision &&
-         item?.status !== 'parked'
+         now - lastCall >= STALL_DAYS * DAY &&
+         holder?.status !== 'parked'
       ) {
-         reasons.push({ kind: 'stalled', days: idle });
+         add(project.slug, holder, { kind: 'stalled', days: idle });
       }
-      if (reasons.length) rows.push({ slug: project.slug, item, reasons });
    }
-   // plans whose project has nothing in flight, or that have no project
-   for (const item of items) {
+   // plans under way whose project has nothing in flight, or no project
+   const liveSlugs = new Set(live.map(p => p.slug));
+   for (const item of sorted) {
       if (item.project && liveSlugs.has(item.project)) continue;
-      if (item.project && itemFor.get(item.project) !== item) continue;
-      const reasons = reasonsFor(item, false);
-      if (reasons.length) rows.push({ slug: item.project, item, reasons });
+      if (isUnderWay(item.status)) planReasons(item, null);
    }
-   return rows.sort(compareRows);
+   return [...rows.values()].sort(compareRows);
 }
 
 const rank = (row: DecideRow) => Math.min(...row.reasons.map(r => RANK[r.kind]));
@@ -171,6 +267,7 @@ export function compareRows(a: DecideRow, b: DecideRow): number {
       rank(a) - rank(b) ||
       weight(b) - weight(a) ||
       since(a).localeCompare(since(b)) ||
-      (a.slug ?? '').localeCompare(b.slug ?? '')
+      (a.slug ?? '').localeCompare(b.slug ?? '') ||
+      (a.item?.id ?? 0) - (b.item?.id ?? 0)
    );
 }

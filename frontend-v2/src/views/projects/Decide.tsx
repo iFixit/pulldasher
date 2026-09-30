@@ -5,19 +5,23 @@ import {
    compareRows,
    decideProjects,
    decideQueue,
+   DECIDE_MIN_PRS,
    STALL_DAYS,
+   type ClosedIssue,
    type DecideReason,
    type DecideRow,
 } from '../../../../shared/model/decide';
-import type { Today } from '../../../../shared/model/projects';
+import { firstOpenDay, LIVE_DAYS, type Today } from '../../../../shared/model/projects';
 import {
    HEALTH_WORD,
    mondayOf,
    planEnd,
+   planFor,
    weeksThrough,
    type RoadmapFields,
    type RoadmapItem,
 } from '../../../../shared/model/roadmap';
+import { Segmented } from '../../components/bits';
 import { Icon } from '../../components/Icon';
 import { GroupHeader, Rows } from '../../components/Lane';
 import { useArmedConfirm } from '../../components/useArmedConfirm';
@@ -31,13 +35,19 @@ import {
    useRoadmap,
 } from '../../model/roadmapData';
 import { openPlan, type Navigate, type ProjectsNav } from './parts';
+import { PLAN_STATUS_WORD } from './roadmapHealth';
 
 /** The decisions owed now, worst first, for this view, the tab's label and
  * the Overview's tile. */
-export function decideRows(today: Today, items: readonly RoadmapItem[]): DecideRow[] {
+export function decideRows(
+   today: Today,
+   items: readonly RoadmapItem[],
+   closed: ReadonlyMap<string, ClosedIssue>
+): DecideRow[] {
    return decideQueue({
       live: decideProjects(today),
       items,
+      closed,
       today: dayOf(new Date()),
       now: Date.now() / 1000,
    });
@@ -45,21 +55,33 @@ export function decideRows(today: Today, items: readonly RoadmapItem[]): DecideR
 
 /** The queue's sections, worst first, as decide.ts ranks them. A row sits
  * in the first section any of its reasons names. */
-const SECTIONS: [DecideReason['kind'], string, string][] = [
-   ['reopened', 'Still open after a decision', 'Marked done or dropped a week ago or more'],
-   ['moving', 'Parked, but moving', 'PRs changed after it was parked'],
-   ['off_track', 'Off track', 'Its latest update says so'],
-   ['over', 'Past their plans', 'Still in flight after the planned end'],
-   ['ended', 'Plans that ended', 'Nothing in flight, so maybe done'],
-   ['stalled', 'Stalled', `Open PRs, no activity for ${STALL_DAYS} days`],
-   ['at_risk', 'At risk', 'Its latest update says so'],
-   ['new', 'New', 'In flight, never decided'],
+const SECTIONS: [DecideReason['kind'][], string, string][] = [
+   [
+      ['reopened'],
+      'Still open after a decision',
+      'Marked done or dropped a week ago or more, here or on its issue',
+   ],
+   [
+      ['issue_closed'],
+      'Issue closed, plan still going',
+      'Its issue closed after the plan last changed',
+   ],
+   [['moving'], 'Parked, but moving', 'Its PRs changed after it was parked'],
+   [['off_track'], 'Off track', 'Its latest update says so'],
+   [['missed'], 'Missed a target', 'The target date passed with PRs still open'],
+   [['over', 'ended'], 'Past their plans', 'The planned end has passed'],
+   [['stalled'], 'Stalled', `Open PRs, no activity for ${STALL_DAYS} days`],
+   [['at_risk'], 'At risk', 'Its latest update says so'],
+   [['new'], 'New', `In flight with ${DECIDE_MIN_PRS} or more PRs, never decided`],
 ];
 
 const sectionOf = (row: DecideRow) =>
-   SECTIONS.find(([kind]) => row.reasons.some(r => r.kind === kind))?.[0] ?? 'new';
+   SECTIONS.findIndex(([kinds]) => row.reasons.some(r => kinds.includes(r.kind)));
 
 const rowKey = (row: DecideRow) => `${row.slug ?? ''}:${row.item?.id ?? ''}`;
+const kindsOf = (row: DecideRow) => row.reasons.map(r => r.kind).join(',');
+
+const closedAs = (as: 'done' | 'dropped') => (as === 'done' ? 'completed' : 'not planned');
 
 /** Why a row is here, in the words of the call it needs. */
 function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
@@ -73,19 +95,27 @@ function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
       case 'over':
          return `Still in flight ${n(reason.weeks, 'week')} past its planned end`;
       case 'ended':
-         return `Its plan ended ${n(reason.weeks, 'week')} ago and nothing is in flight: done?`;
+         return `Its plan ended ${n(reason.weeks, 'week')} ago and no PRs are open: done?`;
+      case 'missed':
+         return `Missed its ${dayWords(reason.due)} target with ${n(reason.open, 'PR')} open`;
       case 'off_track':
       case 'at_risk': {
          const u = item?.update;
          const said = u?.body ? `: ${u.body.split('\n')[0]}` : '';
          return `${HEALTH_WORD[reason.kind]}, says ${u?.author ?? 'its lead'}${said}`;
       }
-      case 'reopened':
-         return `Marked ${item?.status === 'dropped' ? 'dropped' : 'done'}, but ${n(
-            reason.open,
-            'PR is',
-            'PRs are'
-         )} still open`;
+      case 'issue_closed':
+         return `Its issue was closed as ${closedAs(reason.as)} on ${dayWords(
+            reason.on
+         )}, but the plan still says ${
+            item ? PLAN_STATUS_WORD[item.status].toLowerCase() : 'going'
+         }`;
+      case 'reopened': {
+         const still = `${n(reason.open, 'PR is', 'PRs are')} still open`;
+         return reason.by === 'issue'
+            ? `Its issue was closed as ${closedAs(reason.as)}, but ${still}`
+            : `Marked ${reason.as} on the roadmap, but ${still}`;
+      }
       case 'moving':
          return 'Parked, but its PRs changed since';
    }
@@ -93,26 +123,101 @@ function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
 
 /** Where a plan the row makes starts: its item's start, or else the week
  * its first open PR opened. */
-function startOf(row: DecideRow, today: string): string {
+function startOf(row: DecideRow, project: PortfolioItem | undefined, today: string): string {
    if (row.item) return row.item.start;
-   const reason = row.reasons.find(r => r.kind === 'new');
-   return mondayOf((reason?.kind === 'new' && reason.since) || today);
+   return mondayOf((project?.group && firstOpenDay(project.group)) || today);
 }
 
 /** A call made on this page, kept in the row's place so it doesn't vanish. */
 interface Decided {
+   /** the row as it stood when the call was made */
    row: DecideRow;
    words: string;
-   /** the roadmap item holding the call */
-   id: number;
+   /** the roadmap item holding the call; null while a new one is saving */
+   id: number | null;
 }
+
+// the calls made since the page loaded, so a trip to a project's page and
+// back still shows them
+let madeThisVisit: ReadonlyMap<string, Decided> = new Map();
 
 const buttonClass =
    'hit pressable rounded-md border border-line bg-surface px-2 py-0.5 text-xs text-ink-2 hover:border-brand hover:text-brand disabled:opacity-40';
+const quietButton =
+   'pressable rounded border-0 bg-transparent p-0 text-left text-xs text-ink-3 hover:underline';
+
+/** Its facts, in words a decision turns on: team, size, people, target. */
+function Facts({
+   project,
+   team,
+   onTeam,
+   onProject,
+}: {
+   project: PortfolioItem | undefined;
+   team: string | null;
+   onTeam: (team: string) => void;
+   onProject: () => void;
+}) {
+   const merged = project?.group?.merged.length ?? 0;
+   const people = project ? [...project.developers, ...project.nonDevelopers] : [];
+   const size = project
+      ? [
+           project.open ? `${project.open} open` : null,
+           merged ? `${merged} merged in ${LIVE_DAYS} days` : null,
+           people.length ? n(people.length, 'person', 'people') : null,
+        ].filter(Boolean)
+      : [];
+   const due = project?.target?.due_on;
+   const facts = [
+      team && (
+         <button
+            type="button"
+            key="team"
+            onClick={() => onTeam(team)}
+            className={quietButton}
+            title={`Show only ${team}’s decisions`}
+         >
+            {team}
+         </button>
+      ),
+      size.length > 0 && (
+         <button
+            type="button"
+            key="size"
+            onClick={onProject}
+            className={quietButton}
+            title={`${people.join(', ')}. Open the project and its PRs.`}
+         >
+            {size.join(', ')}
+         </button>
+      ),
+      due && (
+         <span key="due" className="text-xs text-ink-3">
+            target {dayWords(due)}
+         </span>
+      ),
+   ].filter(Boolean);
+   return (
+      <>
+         {facts.map((fact, i) => (
+            <span key={i} className="inline-flex items-baseline gap-x-2">
+               {i > 0 && (
+                  <span aria-hidden className="text-xs text-ink-3">
+                     ·
+                  </span>
+               )}
+               {fact}
+            </span>
+         ))}
+      </>
+   );
+}
 
 function DecideRowView({
    row,
+   decided,
    project,
+   team,
    today,
    commitTo,
    decide,
@@ -120,172 +225,148 @@ function DecideRowView({
    navigate,
 }: {
    row: DecideRow;
+   /** the call made on it here, if any */
+   decided: Decided | undefined;
    project: PortfolioItem | undefined;
+   team: string | null;
    today: string;
    commitTo: { label: string; end: string }[];
-   decide: (row: DecideRow, fields: Partial<RoadmapFields>, words: string) => Promise<void>;
+   decide: (row: DecideRow, fields: Partial<RoadmapFields>, words: string) => void;
    nav: ProjectsNav;
    navigate: Navigate;
 }) {
    const { armed, run } = useArmedConfirm();
-   const [busy, setBusy] = useState(false);
    const name = row.item?.name ?? project?.name ?? row.slug ?? 'A plan';
    const lead = row.item?.lead ?? project?.lead ?? null;
-   const start = startOf(row, today);
-   const act = async (fields: Partial<RoadmapFields>, words: string) => {
-      setBusy(true);
-      await decide(row, fields, words);
-      setBusy(false);
-   };
+   const start = startOf(row, project, today);
    const { item } = row;
+   const openProject = () =>
+      row.slug ? navigate({ project: row.slug }) : item && navigate(openPlan(nav, item.id));
    return (
+      // a decided row keeps every line it had, so the rows below never slide
+      // under the pointer between two clicks
       <div className="border-t border-secondary px-3.5 py-2.5 first:border-t-0">
-         <div className="flex flex-wrap items-baseline gap-x-2">
-            <button
-               type="button"
-               onClick={() =>
-                  row.slug
-                     ? navigate({ project: row.slug })
-                     : item && navigate(openPlan(nav, item.id))
-               }
-               className="hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium text-ink hover:text-brand"
-               title={row.slug ? 'Open the project and its PRs' : 'Open its plan on the roadmap'}
-            >
-               {name}
-            </button>
-            {lead && (
+         <div className={decided ? 'opacity-60' : ''}>
+            <div className="flex flex-wrap items-baseline gap-x-2">
                <button
                   type="button"
-                  onClick={() => navigate({ view: 'roadmap', find: lead, item: null })}
-                  className="pressable rounded border-0 bg-transparent p-0 text-xs text-ink-3 hover:underline"
-                  title={`Show only ${lead}’s work on the roadmap`}
+                  onClick={openProject}
+                  className="hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium text-ink hover:text-brand"
+                  title={row.slug ? 'Open the project and its PRs' : 'Open its plan on the roadmap'}
                >
-                  {lead}
+                  {name}
                </button>
-            )}
-            {project && project.open > 0 && (
-               <span className="text-xs text-ink-3">{n(project.open, 'open PR')}</span>
-            )}
-         </div>
-         {row.reasons.map(reason =>
-            // a reason about the plan opens the plan, where its bar shows it
-            item ? (
-               <button
-                  type="button"
-                  key={reason.kind}
-                  onClick={() => navigate(openPlan(nav, item.id))}
-                  className="pressable block rounded border-0 bg-transparent p-0 text-left text-[13px] text-ink-2 hover:underline"
-                  title="Open its plan on the roadmap"
-               >
-                  {reasonWords(reason, item)}
-               </button>
-            ) : (
-               <p key={reason.kind} className="m-0 text-[13px] text-ink-2">
-                  {reasonWords(reason, item)}
-               </p>
-            )
-         )}
-         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-3">
-            Commit through
-            {commitTo.map(c => {
-               const weeks = weeksThrough(start, c.end);
-               const end = dayWords(planEnd({ start, weeks }));
-               return (
+               {lead && (
                   <button
                      type="button"
-                     key={c.end}
-                     disabled={busy}
-                     onClick={() =>
-                        void act(
-                           { status: 'active', start, weeks },
-                           `Committed through the ${c.label.toLowerCase()}`
-                        )
-                     }
-                     title={`Plan it from ${dayWords(start)} to ${end}`}
+                     onClick={() => navigate({ view: 'roadmap', find: lead, item: null })}
+                     className={quietButton}
+                     title={`Show only ${lead}’s work on the roadmap`}
+                  >
+                     {lead}
+                  </button>
+               )}
+               <Facts
+                  project={project}
+                  team={team}
+                  onTeam={t => navigate({ team: t })}
+                  onProject={openProject}
+               />
+            </div>
+            {row.reasons.map(reason =>
+               // a reason about the plan opens the plan, where its bar shows it
+               item ? (
+                  <button
+                     type="button"
+                     key={reason.kind}
+                     onClick={() => navigate(openPlan(nav, item.id))}
+                     className="pressable block rounded border-0 bg-transparent p-0 text-left text-[13px] text-ink-2 hover:underline"
+                     title="Open its plan on the roadmap"
+                  >
+                     {reasonWords(reason, item)}
+                  </button>
+               ) : (
+                  <p key={reason.kind} className="m-0 text-[13px] text-ink-2">
+                     {reasonWords(reason, item)}
+                  </p>
+               )
+            )}
+         </div>
+         <div className="mt-1.5 flex min-h-[22px] flex-wrap items-center gap-1.5 text-xs text-ink-3">
+            {decided ? (
+               <>
+                  <span className="inline-flex items-center gap-1.5 text-[13px] text-ink-2">
+                     <Icon icon={Check} size={14} />
+                     {decided.words}.
+                  </span>
+                  {decided.id == null ? (
+                     'Saving…'
+                  ) : (
+                     <button
+                        type="button"
+                        onClick={() => navigate(openPlan(nav, decided.id as number))}
+                        className="pressable rounded border-0 bg-transparent p-0 text-xs text-ink-3 underline hover:text-brand"
+                     >
+                        Change it on the roadmap
+                     </button>
+                  )}
+               </>
+            ) : (
+               <>
+                  Commit through
+                  {commitTo.map(c => {
+                     const weeks = weeksThrough(start, c.end);
+                     return (
+                        <button
+                           type="button"
+                           key={c.end}
+                           onClick={() =>
+                              decide(
+                                 row,
+                                 { status: 'active', start, weeks },
+                                 `Committed through the ${c.label.toLowerCase()}`
+                              )
+                           }
+                           title={`Plan it from ${dayWords(start)} to ${dayWords(
+                              planEnd({ start, weeks })
+                           )}`}
+                           className={buttonClass}
+                        >
+                           {c.label}
+                        </button>
+                     );
+                  })}
+                  <span className="mx-1">or</span>
+                  <button
+                     type="button"
+                     onClick={() => decide(row, { status: 'parked' }, 'Parked')}
+                     title="Stop for now without dropping it. It leaves the load until someone picks it up."
                      className={buttonClass}
                   >
-                     {c.label}
+                     Park
                   </button>
-               );
-            })}
-            <span className="mx-1">or</span>
-            <button
-               type="button"
-               disabled={busy}
-               onClick={() => void act({ status: 'parked' }, 'Parked')}
-               title="Stop for now without dropping it. It leaves the load until someone picks it up."
-               className={buttonClass}
-            >
-               Park
-            </button>
-            <button
-               type="button"
-               disabled={busy}
-               onClick={() => void act({ status: 'done' }, 'Finished')}
-               title="It’s done"
-               className={buttonClass}
-            >
-               Finish
-            </button>
-            <button
-               type="button"
-               disabled={busy}
-               onClick={() => run(() => void act({ status: 'dropped' }, 'Dropped'))}
-               title="We won’t do it"
-               className={
-                  armed
-                     ? 'hit pressable rounded-md border border-warn bg-surface px-2 py-0.5 text-xs font-semibold text-warn'
-                     : buttonClass
-               }
-            >
-               {armed ? 'Click again to drop it' : 'Drop'}
-            </button>
-         </div>
-      </div>
-   );
-}
-
-/** A decided row, the same height as it was, so the rows below don't
- * slide under the pointer between two clicks. */
-function DecidedRowView({
-   decided,
-   name,
-   nav,
-   navigate,
-}: {
-   decided: Decided;
-   name: string;
-   nav: ProjectsNav;
-   navigate: Navigate;
-}) {
-   return (
-      <div className="border-t border-secondary px-3.5 py-2.5 text-[13px] text-ink-3 first:border-t-0">
-         <button
-            type="button"
-            onClick={() =>
-               decided.row.slug
-                  ? navigate({ project: decided.row.slug })
-                  : navigate(openPlan(nav, decided.id))
-            }
-            className="hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] text-ink-3 hover:text-brand"
-            title={
-               decided.row.slug ? 'Open the project and its PRs' : 'Open its plan on the roadmap'
-            }
-         >
-            {name}
-         </button>
-         <p className="m-0 flex items-center gap-1.5 text-ink-2">
-            <Icon icon={Check} size={14} />
-            {decided.words}
-         </p>
-         <div className="mt-1.5 flex min-h-[22px] items-center">
-            <button
-               type="button"
-               onClick={() => navigate(openPlan(nav, decided.id))}
-               className="pressable rounded border-0 bg-transparent p-0 text-xs text-ink-3 underline hover:text-brand"
-            >
-               Change it on the roadmap
-            </button>
+                  <button
+                     type="button"
+                     onClick={() => decide(row, { status: 'done' }, 'Finished')}
+                     title="It’s done"
+                     className={buttonClass}
+                  >
+                     Finish
+                  </button>
+                  <button
+                     type="button"
+                     onClick={() => run(() => decide(row, { status: 'dropped' }, 'Dropped'))}
+                     title="We won’t do it"
+                     className={
+                        armed
+                           ? 'hit pressable rounded-md border border-warn bg-surface px-2 py-0.5 text-xs font-semibold text-warn'
+                           : buttonClass
+                     }
+                  >
+                     {armed ? 'Click again to drop it' : 'Drop'}
+                  </button>
+               </>
+            )}
          </div>
       </div>
    );
@@ -293,27 +374,39 @@ function DecidedRowView({
 
 /**
  * Decide: the weekly triage a product manager would run, as a queue that
- * empties. Every row is a project or plan that needs a call, and says why.
- * Each call (commit it through a month or quarter, park, finish, drop) is
- * one click that writes the roadmap; the row then turns into a line saying
- * what was decided, so nothing vanishes unexplained. Worst first.
+ * empties. Every row is a project or plan that needs a call, and says why,
+ * with the facts the call turns on. Each call (commit it through a month
+ * or quarter, park, finish, drop) is one click that writes the roadmap; the
+ * row stays in place saying what was decided, so nothing vanishes
+ * unexplained. It weighs every project, whatever the filter bar narrows
+ * the rest of the tab to. Worst first; a team's lead can take just theirs.
  */
 export function Decide({
    today,
    items,
+   closed,
    teamOf,
+   teamMembers,
+   scoped,
    nav,
    navigate,
 }: {
+   /** Today from every PR, not the filter bar's */
    today: Today;
-   /** the portfolio, for names, leads and teams */
+   /** the portfolio from the same, for names, leads, sizes and teams */
    items: PortfolioItem[];
+   closed: ReadonlyMap<string, ClosedIssue>;
    teamOf: (login: string) => string | null;
+   teamMembers: Record<string, string[]>;
+   /** whether the filter bar narrows the rest of the tab */
+   scoped: boolean;
    nav: ProjectsNav;
    navigate: Navigate;
 }) {
    const { items: plans, loadFailed, problem } = useRoadmap();
-   const [decided, setDecided] = useState<ReadonlyMap<string, Decided>>(new Map());
+   const [decided, setDecided] = useState(madeThisVisit);
+   const record = (next: (d: ReadonlyMap<string, Decided>) => ReadonlyMap<string, Decided>) =>
+      setDecided(d => (madeThisVisit = next(d)));
    const day = dayOf(new Date());
    const bySlug = new Map(items.map(i => [i.slug, i]));
    if (!plans) {
@@ -323,48 +416,110 @@ export function Decide({
          </p>
       );
    }
-   const rows = decideRows(today, plans).filter(row => !decided.has(rowKey(row)));
-   const commitTo = commitEnds(day);
-   const decide = async (row: DecideRow, fields: Partial<RoadmapFields>, words: string) => {
-      let id: number | null = null;
-      if (row.item) {
-         if (await updateRoadmapItem(row.item.id, fields)) id = row.item.id;
-      } else {
-         // a first decision records the work so far, from its first open
-         // PR's week through this one, unless it commits further
-         const project = row.slug ? bySlug.get(row.slug) : undefined;
-         const start = startOf(row, day);
-         const created = await createRoadmapItem({
-            name: project?.name ?? row.slug ?? 'A project',
-            project: row.slug,
-            team: project ? mainTeam(project, teamOf) : null,
-            lead: project?.lead ?? null,
-            start,
-            weeks: weeksThrough(start, day),
-            ...fields,
-         });
-         id = created?.id ?? null;
-      }
-      if (id != null) {
-         const made = { row, words, id };
-         setDecided(d => new Map(d).set(rowKey(row), made));
-      }
+   const projectOf = (row: DecideRow) => (row.slug ? bySlug.get(row.slug) : undefined);
+   // the team a row belongs to: its plan's, or the team most of its
+   // developers are on, as the roadmap's lanes split them
+   const teamOfRow = (row: DecideRow): string | null => {
+      const project = projectOf(row);
+      return row.item?.team ?? (project ? mainTeam(project, teamOf) : null);
    };
-   const nameOf = (row: DecideRow) =>
-      row.item?.name ?? (row.slug && bySlug.get(row.slug)?.name) ?? row.slug ?? 'A plan';
-   const all = [...rows, ...[...decided.values()].map(d => d.row)].sort(compareRows);
+   const queue = decideRows(today, plans, closed);
+   const byKey = new Map(queue.map(row => [rowKey(row), row]));
+   // a call made here shows as made, unless its row came back for a new reason
+   const settled = new Map(
+      [...decided].filter(([key, d]) => {
+         const again = byKey.get(key);
+         return !again || kindsOf(again) === kindsOf(d.row);
+      })
+   );
+   const rows = queue.filter(row => !settled.has(rowKey(row)));
+   const inTeam = (row: DecideRow) => !nav.team || (teamOfRow(row) ?? '(none)') === nav.team;
+   const all = [...rows, ...[...settled.values()].map(d => d.row)].filter(inTeam).sort(compareRows);
+   const owed = rows.filter(inTeam);
+   const commitTo = commitEnds(day);
+
+   const decide = (row: DecideRow, fields: Partial<RoadmapFields>, words: string) => {
+      const key = rowKey(row);
+      // shown as made at once, so nothing moves while it saves
+      record(d => new Map(d).set(key, { row, words, id: row.item?.id ?? null }));
+      const forget = () =>
+         record(d => {
+            const next = new Map(d);
+            next.delete(key);
+            return next;
+         });
+      if (row.item) {
+         void updateRoadmapItem(row.item.id, fields).then(ok => ok || forget());
+         return;
+      }
+      // a first decision records the work so far, from its first open PR's
+      // week through this one, unless it commits further
+      const project = projectOf(row);
+      const start = startOf(row, project, day);
+      void createRoadmapItem({
+         name: project?.name ?? row.slug ?? 'A project',
+         project: row.slug,
+         team: project ? mainTeam(project, teamOf) : null,
+         lead: project?.lead ?? null,
+         start,
+         weeks: weeksThrough(start, day),
+         ...fields,
+      }).then(created =>
+         created ? record(d => new Map(d).set(key, { row, words, id: created.id })) : forget()
+      );
+   };
+
+   // each team's decisions still owed, and its size, for the team switch
+   const teams = Object.keys(teamMembers).sort();
+   const owedBy = (team: string) =>
+      rows.filter(row => (teamOfRow(row) ?? '(none)') === team).length;
+   const liveIn = (team: string) =>
+      items.filter(
+         i =>
+            i.status === 'live' &&
+            (planFor(i.slug, plans)?.team ?? mainTeam(i, teamOf) ?? '(none)') === team
+      ).length;
    return (
       <section className="mb-7">
          <div className="mb-4">
             <h2 className="m-0 text-base font-semibold leading-snug">
-               {rows.length ? `${n(rows.length, 'decision')} to make` : 'Nothing to decide'}
+               {owed.length ? `${n(owed.length, 'decision')} to make` : 'Nothing to decide'}
+               {nav.team && (nav.team === '(none)' ? ' with no team' : ` for ${nav.team}`)}
             </h2>
-            <p className="m-0 mt-1 max-w-[70ch] text-[13px] text-ink-2">
-               {rows.length
-                  ? 'Each project here needs a call: commit to it through a month or quarter, park it, finish it, or drop it. The roadmap keeps the call, and the project leaves this list.'
+            <p className="m-0 mt-1 max-w-[72ch] text-[13px] text-ink-2">
+               {owed.length
+                  ? 'Each needs a call: commit to it through a month or quarter, park it, finish it, or drop it. The roadmap keeps the call.'
                   : 'New projects, stalls, and plans that slip or go off track show up here.'}{' '}
                Park stops work for now without dropping it, and takes it out of the roadmap’s load.
+               Work with fewer than {DECIDE_MIN_PRS} PRs, open or merged in the last {LIVE_DAYS}{' '}
+               days, ships without a call unless it stalls.
             </p>
+            {scoped && (
+               <p className="m-0 mt-1 max-w-[72ch] text-xs text-ink-3">
+                  The repo and people filters don’t narrow Decide: it weighs every project, so none
+                  looks finished just because its PRs are filtered out.
+               </p>
+            )}
+            {teams.length > 0 && (
+               <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <Segmented
+                     ariaLabel="team"
+                     value={nav.team ?? ''}
+                     options={[
+                        ['', `All teams (${rows.length})`],
+                        ...teams.map((t): [string, string] => [t, `${t} (${owedBy(t)})`]),
+                        ['(none)', `No team (${owedBy('(none)')})`],
+                     ]}
+                     onChange={t => navigate({ team: t || null })}
+                  />
+                  {nav.team && nav.team !== '(none)' && (
+                     <span className="text-xs text-ink-2">
+                        {nav.team} has {n(liveIn(nav.team), 'live project')} for{' '}
+                        {n(teamMembers[nav.team]?.length ?? 0, 'developer')}.
+                     </span>
+                  )}
+               </div>
+            )}
             {problem && (
                <div
                   className="mt-2 flex items-center gap-3 rounded-lg border border-warn bg-surface px-3 py-2 text-[13px]"
@@ -382,40 +537,31 @@ export function Decide({
                </div>
             )}
          </div>
-         {SECTIONS.map(([kind, title, sub]) => {
-            const shown = all.filter(row => sectionOf(row) === kind);
+         {SECTIONS.map(([kinds, title, sub], index) => {
+            const shown = all.filter(row => sectionOf(row) === index);
             if (!shown.length) return null;
             return (
-               <div key={kind} className="mb-5">
+               <div key={kinds[0]} className="mb-5">
                   <GroupHeader
                      title={title}
                      sub={sub}
-                     count={shown.filter(row => !decided.has(rowKey(row))).length}
+                     count={shown.filter(row => !settled.has(rowKey(row))).length}
                   />
                   <Rows>
-                     {shown.map(row => {
-                        const made = decided.get(rowKey(row));
-                        return made ? (
-                           <DecidedRowView
-                              key={rowKey(row)}
-                              decided={made}
-                              name={nameOf(row)}
-                              nav={nav}
-                              navigate={navigate}
-                           />
-                        ) : (
-                           <DecideRowView
-                              key={rowKey(row)}
-                              row={row}
-                              project={row.slug ? bySlug.get(row.slug) : undefined}
-                              today={day}
-                              commitTo={commitTo}
-                              decide={decide}
-                              nav={nav}
-                              navigate={navigate}
-                           />
-                        );
-                     })}
+                     {shown.map(row => (
+                        <DecideRowView
+                           key={rowKey(row)}
+                           row={row}
+                           decided={settled.get(rowKey(row))}
+                           project={projectOf(row)}
+                           team={teamOfRow(row)}
+                           today={day}
+                           commitTo={commitTo}
+                           decide={decide}
+                           nav={nav}
+                           navigate={navigate}
+                        />
+                     ))}
                   </Rows>
                </div>
             );

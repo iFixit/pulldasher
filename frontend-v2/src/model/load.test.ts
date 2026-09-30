@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { RoadmapItem } from '../../../shared/model/roadmap';
-import { loadByWeek, mondaysBetween, peakFrom, spansFrom } from '../../../shared/model/load';
+import {
+   loadByWeek,
+   mondaysBetween,
+   peakFrom,
+   spansFrom,
+   weekMembers,
+} from '../../../shared/model/load';
 
 const plan = (id: number, over: Partial<RoadmapItem>): RoadmapItem => ({
    id,
@@ -89,6 +95,34 @@ describe('loadByWeek', () => {
          ],
       });
       expect(ahead[0]).toEqual({ week: '2026-11-02', onPlan: 0, offPlan: 0, projected: true });
+   });
+
+   it('counts a project once however many of its plans run, and only named work ahead', () => {
+      const plans = [
+         plan(1, { project: 'a', status: 'active', start: '2026-10-05', weeks: 4 }),
+         plan(2, { project: 'a', start: '2026-10-12', weeks: 4 }),
+      ];
+      const spans = [
+         { slug: 'a', start: '2026-09-01', end: null },
+         { slug: 'big', start: '2026-09-01', end: null },
+         { slug: 'small', start: '2026-09-01', end: null },
+      ];
+      const [week] = loadByWeek({
+         weeks: ['2026-10-19'],
+         today,
+         plans,
+         spans,
+         ahead: new Set(['big']),
+      });
+      // a counts once for its two plans; small ships without a plan
+      expect(week).toEqual({ week: '2026-10-19', onPlan: 1, offPlan: 1, projected: true });
+      // a picked week's rows are exactly what it counts
+      const members = weekMembers({ today, plans, spans, ahead: new Set(['big']) })('2026-10-19');
+      expect([...members.projects]).toEqual([
+         ['a', 'on'],
+         ['big', 'off'],
+      ]);
+      expect([...members.plans]).toEqual([1, 2]);
    });
 });
 

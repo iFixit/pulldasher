@@ -8,6 +8,7 @@ import {
    healthRank,
    healthStanding,
    planEnd,
+   planFor,
    ROADMAP_HEALTHS,
    UPDATE_DUE_DAYS,
    type HealthStanding,
@@ -439,7 +440,7 @@ export function PlanFacts({
 }) {
    const { items } = useRoadmap();
    if (!items) return null;
-   const plan = items.find(i => i.project === slug && i.status !== 'dropped');
+   const plan = planFor(slug, items);
    const link = (label: string, patch: Parameters<Navigate>[0]) => (
       <button
          type="button"

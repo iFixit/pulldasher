@@ -19,7 +19,7 @@ import {
    ZoomOut,
 } from 'lucide-react';
 import { n } from '../../../../shared/format';
-import { dayStart, utcDay } from '../../../../shared/model/projects';
+import { dayStart, firstOpenDay, utcDay } from '../../../../shared/model/projects';
 import {
    addWeeks,
    checkRoadmapFields,
@@ -55,9 +55,11 @@ import {
    loadByWeek,
    mondaysBetween,
    spansFrom,
+   weekMembers,
    type InFlightSpan,
    type LoadWeek,
 } from '../../../../shared/model/load';
+import { closedIssues, decideProjects, needsDecision } from '../../../../shared/model/decide';
 import {
    columnsFor,
    commitEnds,
@@ -118,24 +120,6 @@ const BAR_STYLE: Record<RoadmapStatus, { background: string; borderColor: string
 };
 
 const weekWords = dayWords;
-
-/** What a linked project's PRs actually did: first PR to last merge, or to
- * today while it's open. From the horizon's own history, so a project that
- * began months ago still starts in the right place. */
-function actualSpan(
-   slug: string | null,
-   linked: PortfolioItem | undefined,
-   history: Record<string, { first_opened: string | null; last_closed: string | null }>,
-   today: string
-): { start: string; end: string } | null {
-   if (!slug) return null;
-   const past = history[slug];
-   const start = past?.first_opened ?? linked?.window?.first_opened ?? null;
-   if (!start) return null;
-   const open = linked && (linked.status === 'live' || linked.status === 'quiet');
-   const end = open ? today : past?.last_closed ?? linked?.window?.last_closed ?? start;
-   return { start, end };
-}
 
 /** The editor's one-click plans, for organizing by month or quarter. */
 const PERIODS: ['month' | 'quarter', 'this' | 'next', string][] = [
@@ -1387,21 +1371,24 @@ export function Roadmap({
    const ids = ordered.map(i => i.id);
    const kept = ordered.filter(i => i.status !== 'dropped');
    const linkedSlugs = new Set(kept.flatMap(i => (i.project ? [i.project] : [])));
-   // every project with PRs in the horizon, as a span: live ones run to
-   // today, the rest end at their last merge or close
+   // every project with PRs in the horizon, as a span: ones with PRs open
+   // run to today, the rest end at their last merge or close
    const spans = spansFrom(
       history,
       Object.fromEntries(
-         items
-            .filter(i => i.status === 'live')
-            .map(i => [
-               i.slug,
-               i.window?.first_opened ??
-                  i.group?.open.map(o => o.data.created_at.slice(0, 10)).sort()[0] ??
-                  null,
-            ])
+         items.flatMap(i => (i.open > 0 && i.group ? [[i.slug, firstOpenDay(i.group)]] : []))
       ),
       horizon.start
+   );
+   // the projects with no plan that owe a decision keep counting in the weeks
+   // ahead; smaller work ships (decide.ts)
+   const closedProjects = closedIssues(items.flatMap(i => (i.project ? [i.project] : [])));
+   const ahead = new Set(
+      decideProjects({
+         live: items.flatMap(i => (i.status === 'live' && i.group ? [i.group] : [])),
+      })
+         .filter(p => needsDecision(p, closedProjects))
+         .map(p => p.slug)
    );
    const spanBySlug = new Map(spans.map(s => [s.slug, s]));
    // live projects with no plan, the longest-running first
@@ -1418,25 +1405,23 @@ export function Roadmap({
    const q = nav.find.trim().toLowerCase();
    const matches = (...words: (string | null | undefined)[]) =>
       !q || words.some(w => w?.toLowerCase().includes(q));
-   // a week picked on the load chart narrows them to what was in flight then:
-   // a plan whose weeks cover it, or a project whose PRs ran through it
+   // a week picked on the load chart narrows them to exactly what that week
+   // counts, by the chart's own rule, so its numbers and its rows agree
    const picked = nav.week;
-   const inWeek = (start: string, end: string | null) =>
-      !picked || (start <= planEnd({ start: picked, weeks: 1 }) && (end ?? today) >= picked);
-   const spanInWeek = (slug: string | null) => {
-      const span = slug ? spanBySlug.get(slug) : undefined;
-      return !!span && inWeek(span.start, span.end);
-   };
+   const members = picked ? weekMembers({ today, plans: ordered, spans, ahead })(picked) : null;
    const shownPlans = showPlans
       ? ordered.filter(
            i =>
               matches(i.name, i.project, i.lead, i.team) &&
-              (!picked ||
-                 (i.status !== 'dropped' && (inWeek(i.start, planEnd(i)) || spanInWeek(i.project))))
+              (!members ||
+                 members.plans.has(i.id) ||
+                 (!!i.project && members.projects.get(i.project) === 'on'))
         )
       : [];
    const shownUnplanned = unplanned.filter(
-      p => matches(p.name, p.slug, p.lead, mainTeam(p, teamOf)) && (!picked || spanInWeek(p.slug))
+      p =>
+         matches(p.name, p.slug, p.lead, mainTeam(p, teamOf)) &&
+         (!members || members.projects.get(p.slug) === 'off')
    );
    const narrowed = !!(q || picked);
    const of = (shown: number, total: number, word: string) =>
@@ -1446,9 +1431,15 @@ export function Roadmap({
          .flat()
          .map(l => l.toLowerCase())
    ).size;
-   const load = loadByWeek({ weeks, today, plans: ordered, spans });
+   const load = loadByWeek({ weeks, today, plans: ordered, spans, ahead });
    // this week's, for the chart's headline wherever the timeline is zoomed
-   const [thisWeek] = loadByWeek({ weeks: [mondayOf(today)], today, plans: ordered, spans });
+   const [thisWeek] = loadByWeek({
+      weeks: [mondayOf(today)],
+      today,
+      plans: ordered,
+      spans,
+      ahead,
+   });
    // a project's lane: its plan's team, or else the team most of its
    // developers are on
    const planTeam = new Map(kept.flatMap(i => (i.project ? [[i.project, i.team ?? null]] : [])));
@@ -1510,8 +1501,7 @@ export function Roadmap({
    });
 
    // the week a project's PRs began
-   const runStart = (p: PortfolioItem) =>
-      mondayOf(actualSpan(p.slug, p, history, today)?.start ?? today);
+   const runStart = (p: PortfolioItem) => mondayOf((p.group && firstOpenDay(p.group)) || today);
    const [choosing, setChoosing] = useState<string | null>(null);
    const planProject = (p: PortfolioItem, span: Span) => {
       setChoosing(null);
@@ -1615,6 +1605,7 @@ export function Roadmap({
             today,
             plans: planned,
             spans: spans.filter(s => laneOfSlug(s.slug) === team),
+            ahead,
          });
          return (
             <Lane

@@ -18,6 +18,9 @@ export const ROADMAP_STATUSES: RoadmapStatus[] = ['planned', 'active', 'parked',
 export const isStopped = (status: RoadmapStatus) =>
    status === 'done' || status === 'dropped' || status === 'parked';
 
+/** Planned or in progress: a commitment still open. */
+export const isUnderWay = (status: RoadmapStatus) => !isStopped(status);
+
 /** How the work is going, in the words a lead would use in standup. */
 export type RoadmapHealth = 'on_track' | 'at_risk' | 'off_track';
 export const ROADMAP_HEALTHS: RoadmapHealth[] = ['on_track', 'at_risk', 'off_track'];
@@ -65,6 +68,25 @@ export interface RoadmapItem {
    created_at: number | null;
    /** the latest update on how it's going; null before the first */
    update: RoadmapUpdate | null;
+}
+
+/**
+ * The plan that speaks for a project when several track it: the first one
+ * under way, by priority, or else the one changed last, since a finished,
+ * parked or dropped plan is its latest decision. Null when no plan tracks
+ * it. Decide, the project list and a project's page all read it here.
+ */
+export function planFor(slug: string, items: readonly RoadmapItem[]): RoadmapItem | null {
+   const mine = items
+      .filter(i => i.project === slug)
+      .sort((a, b) => a.priority - b.priority || a.id - b.id);
+   return (
+      mine.find(i => isUnderWay(i.status)) ??
+      mine.reduce<RoadmapItem | null>(
+         (last, i) => (!last || (i.updated_at ?? 0) > (last.updated_at ?? 0) ? i : last),
+         null
+      )
+   );
 }
 
 /**

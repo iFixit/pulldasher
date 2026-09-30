@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dayStart } from '../../../shared/model/projects';
-import { decideQueue, type DecideProject } from '../../../shared/model/decide';
+import { closedIssues, decideQueue, type DecideProject } from '../../../shared/model/decide';
 import type { RoadmapItem, RoadmapUpdate } from '../../../shared/model/roadmap';
 
 const today = '2026-09-30';
@@ -31,7 +31,15 @@ const project = (slug: string, over: Partial<DecideProject> = {}): DecideProject
    firstOpened: '2026-09-21',
    lastActivity: ago(1),
    open: 2,
+   prs: 3,
+   due: null,
    ...over,
+});
+const closedOn = (slug: string, reason: string, daysAgo: number) => ({
+   slug,
+   state: 'closed' as const,
+   state_reason: reason,
+   closed_at: new Date(ago(daysAgo) * 1000).toISOString(),
 });
 const update = (health: RoadmapUpdate['health'], daysAgo: number): RoadmapUpdate => ({
    id: 1,
@@ -104,5 +112,74 @@ describe('decideQueue', () => {
          ['finished', 'reopened'],
          ['parked', 'moving'],
       ]);
+   });
+
+   it('judges each plan under way, so a finished first phase can’t hide a late second', () => {
+      const rows = decideQueue({
+         live: [project('two-phase')],
+         items: [
+            item(1, { project: 'two-phase', status: 'done', updated_at: ago(40) }),
+            item(2, { project: 'two-phase', start: '2026-08-03', weeks: 4 }),
+         ],
+         today,
+         now: NOW,
+      });
+      expect(kinds(rows)).toEqual([['two-phase', 'over']]);
+      expect(rows[0].item?.id).toBe(2);
+   });
+
+   it('says in flight only with PRs open, and asks a first call only of work big enough', () => {
+      const rows = decideQueue({
+         live: [
+            project('merged-only', { open: 0, prs: 2 }),
+            project('small', { open: 1, prs: 2 }),
+            project('small-stuck', { open: 1, prs: 1, lastActivity: ago(30) }),
+            project('merged-no-plan', { open: 0, prs: 4 }),
+         ],
+         items: [item(1, { project: 'merged-only', start: '2026-08-03', weeks: 4 })],
+         today,
+         now: NOW,
+      });
+      expect(kinds(rows)).toEqual([
+         ['merged-only', 'ended'],
+         ['small-stuck', 'stalled'],
+      ]);
+   });
+
+   it('counts a closed issue as a decision', () => {
+      const rows = decideQueue({
+         live: [project('closed-plan'), project('closed-open'), project('closed-fresh')],
+         items: [item(1, { project: 'closed-plan' })],
+         closed: closedIssues([
+            closedOn('closed-plan', 'completed', 3),
+            closedOn('closed-open', 'not_planned', 10),
+            closedOn('closed-fresh', 'completed', 2),
+         ]),
+         today,
+         now: NOW,
+      });
+      expect(kinds(rows)).toEqual([
+         ['closed-open', 'reopened'],
+         ['closed-plan', 'issue_closed'],
+      ]);
+      expect(rows[0].reasons[0]).toEqual({ kind: 'reopened', open: 2, as: 'dropped', by: 'issue' });
+      expect(rows[1].reasons[0]).toEqual({ kind: 'issue_closed', as: 'done', on: '2026-09-27' });
+   });
+
+   it('flags a missed target until someone replans', () => {
+      const rows = decideQueue({
+         live: [
+            project('missed', { due: '2026-09-25' }),
+            project('replanned', { due: '2026-09-25' }),
+         ],
+         items: [
+            item(1, { project: 'missed' }),
+            item(2, { project: 'replanned', updated_at: ago(2) }),
+         ],
+         today,
+         now: NOW,
+      });
+      expect(kinds(rows)).toEqual([['missed', 'missed']]);
+      expect(rows[0].reasons[0]).toEqual({ kind: 'missed', due: '2026-09-25', open: 2 });
    });
 });

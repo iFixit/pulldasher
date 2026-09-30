@@ -12,6 +12,7 @@ import {
    HEALTH_WORD,
    healthRank,
    healthStanding,
+   planFor,
    type RoadmapItem,
 } from '../../../shared/model/roadmap';
 import type { Status } from '../../../shared/model/status';
@@ -50,8 +51,8 @@ export interface PortfolioItem {
    window: ProjectWindow | null;
    idleDays: number | null;
    flags: ProjectFlag[];
-   /** the roadmap item tracking this project (the first by priority, not
-    * dropped); null when it isn't on the roadmap */
+   /** the plan that speaks for this project (roadmap.ts planFor): the first
+    * under way, or else its latest decision; null when it isn't on the roadmap */
    plan: RoadmapItem | null;
 }
 
@@ -103,7 +104,7 @@ export function portfolioItems(
          window: window[slug] ?? null,
          idleDays: group?.idleDays ?? null,
          flags: group?.flags ?? [],
-         plan: plans.find(p => p.project === slug && p.status !== 'dropped') ?? null,
+         plan: planFor(slug, plans),
       };
    });
 }
