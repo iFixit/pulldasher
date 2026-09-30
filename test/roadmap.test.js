@@ -139,6 +139,7 @@ test('itemFromRow renames the lead and fills the blanks', () => {
          team: 'Store',
          lead_login: 'dana',
          status: 'active',
+         origin: null,
          start: '2026-09-28',
          weeks: '6',
          priority: '2',
@@ -155,6 +156,7 @@ test('itemFromRow renames the lead and fills the blanks', () => {
          team: 'Store',
          lead: 'dana',
          status: 'active',
+         origin: null,
          start: '2026-09-28',
          weeks: 6,
          priority: 2,
@@ -173,6 +175,7 @@ test('a new item starts planned, four weeks from a Monday, at the bottom', async
    assert.equal(first.status, 201);
    assert.equal(first.body.item.name, 'Checkout redesign');
    assert.equal(first.body.item.status, 'planned');
+   assert.equal(first.body.item.origin, null);
    assert.equal(first.body.item.weeks, 4);
    assert.equal(new Date(`${first.body.item.start}T00:00:00Z`).getUTCDay(), 1);
    assert.equal(first.body.item.updated_by, 'alice');
@@ -206,6 +209,18 @@ test('an edit changes only what was sent, and 404s an unknown item', async () =>
    assert.equal(edited.body.item.name, 'Grafana');
    assert.equal((await call('PATCH', '/roadmap/99', { weeks: 5 })).status, 404);
    assert.equal((await call('PATCH', '/roadmap/abc', { weeks: 5 })).status, 400);
+});
+
+test('origin says where the work came from, and null clears it', async () => {
+   const { body } = await call('POST', '/roadmap', { name: 'Outage fix', origin: 'fire' });
+   assert.equal(body.item.origin, 'fire');
+   const picked = await call('PATCH', `/roadmap/${body.item.id}`, { origin: 'chosen' });
+   assert.equal(picked.body.item.origin, 'chosen');
+   const cleared = await call('PATCH', `/roadmap/${body.item.id}`, { origin: null });
+   assert.equal(cleared.body.item.origin, null);
+   const bad = await call('PATCH', `/roadmap/${body.item.id}`, { origin: 'boss' });
+   assert.equal(bad.status, 400);
+   assert.match(bad.body.error, /origin is one of asked, fire, chosen/);
 });
 
 test('an update keeps the plan beside it; the list shows each item’s latest', async () => {

@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 import { n } from '../../../../shared/format';
-import { addWeeks } from '../../../../shared/model/roadmap';
+import { addWeeks, type RoadmapOrigin } from '../../../../shared/model/roadmap';
 import { eyebrowText } from '../../components/Lane';
 import { dayWords } from '../../model/projectData';
-import type { LoadWeek } from '../../../../shared/model/load';
+import type { LoadWeek, OriginCounts } from '../../../../shared/model/load';
 
 /**
  * How loaded the weeks are, on the roadmap's own time axis so each week's
@@ -23,6 +23,21 @@ const NO_PLAN_AHEAD = 'color-mix(in oklab, var(--ink-3) 28%, transparent)';
 const OVER_ZONE = 'color-mix(in oklab, var(--warn) 9%, transparent)';
 
 const total = (w: LoadWeek) => w.onPlan + w.offPlan;
+
+type OriginKey = RoadmapOrigin | 'unsaid';
+/** A count of plans from one origin, in words. */
+const ORIGIN_COUNT: Record<OriginKey, (count: number) => string> = {
+   asked: c => `${c} asked for`,
+   fire: c => n(c, 'fire'),
+   chosen: c => n(c, 'team’s pick'),
+   unsaid: c => `${c} not said`,
+};
+const ORIGIN_TITLE: Record<OriginKey, string> = {
+   asked: 'Show only the plans asked for from above',
+   fire: 'Show only the plans that are fires to put out',
+   chosen: 'Show only the plans the team picked itself',
+   unsaid: 'Show only the plans nobody has said this about',
+};
 
 function weekWords(w: LoadWeek, developers: number): string {
    const people = developers ? `, for ${n(developers, 'developer')}` : '';
@@ -84,6 +99,8 @@ export function LoadChart({
    onPick,
    show,
    onShow,
+   origin,
+   onOrigin,
    onPeople,
 }: {
    weeks: LoadWeek[];
@@ -104,6 +121,9 @@ export function LoadChart({
    /** what the rows show, which the counts switch */
    show: 'all' | 'plan' | 'unplanned';
    onShow: (show: 'all' | 'plan' | 'unplanned') => void;
+   /** where the shown plans came from, picked from the counts; null for all */
+   origin: OriginKey | null;
+   onOrigin: (origin: OriginKey | null) => void;
    /** to the developer teams */
    onPeople: () => void;
 }) {
@@ -135,6 +155,7 @@ export function LoadChart({
                <Swatch color={ON_PLAN} />
                {shown.onPlan} on the roadmap
             </CountButton>
+            <OriginSplit counts={shown.origins} origin={origin} onOrigin={onOrigin} />
             <CountButton
                active={show === 'unplanned'}
                onClick={() => onShow(show === 'unplanned' ? 'all' : 'unplanned')}
@@ -272,5 +293,40 @@ export function LoadChart({
             </div>
          </div>
       </div>
+   );
+}
+
+/**
+ * The plans on the roadmap split by where their work came from, each count a
+ * filter like the ones above it. Until some plan says, there's nothing to
+ * split, so it stays out of the way.
+ */
+function OriginSplit({
+   counts,
+   origin,
+   onOrigin,
+}: {
+   counts: OriginCounts;
+   origin: OriginKey | null;
+   onOrigin: (origin: OriginKey | null) => void;
+}) {
+   // the picked one stays, even at none this week, so it can be turned off
+   const keys = (Object.keys(ORIGIN_COUNT) as OriginKey[]).filter(
+      k => counts[k] > 0 || k === origin
+   );
+   if (!origin && counts.asked + counts.fire + counts.chosen === 0) return null;
+   return (
+      <span className="flex flex-wrap gap-x-2 pl-3.5">
+         {keys.map(k => (
+            <CountButton
+               key={k}
+               active={origin === k}
+               onClick={() => onOrigin(origin === k ? null : k)}
+               title={ORIGIN_TITLE[k]}
+            >
+               {ORIGIN_COUNT[k](counts[k])}
+            </CountButton>
+         ))}
+      </span>
    );
 }

@@ -15,6 +15,7 @@ const item = (id: number, over: Partial<RoadmapItem> = {}): RoadmapItem => ({
    team: null,
    lead: null,
    status: 'active',
+   origin: null,
    start: '2026-09-07',
    weeks: 4,
    priority: id,
@@ -71,9 +72,10 @@ describe('amber means someone owes something', () => {
    });
 
    it('on a lane: once a week has as much in flight as developers', () => {
+      const origins = { asked: 0, fire: 0, chosen: 0, unsaid: 1 };
       const weeks = [
-         { week: '2026-09-28', onPlan: 1, offPlan: 1, projected: false },
-         { week: '2026-10-05', onPlan: 1, offPlan: 0, projected: true },
+         { week: '2026-09-28', onPlan: 1, origins, offPlan: 1, projected: false },
+         { week: '2026-10-05', onPlan: 1, origins, offPlan: 0, projected: true },
       ];
       expect(loadWords(weeks, 3, '2026-09-30')).toMatchObject({ warn: false });
       expect(loadWords(weeks, 2, '2026-09-30')?.text).toMatch(/^2 at once in the week of/);

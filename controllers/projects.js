@@ -387,12 +387,14 @@ export default {
                   this_week: {
                      week: thisWeek,
                      on_plan: current.onPlan,
+                     on_plan_by_origin: current.origins,
                      off_plan: current.offPlan,
                   },
                   peak: peakFrom(weeks, day),
                   weeks: weeks.map(w => ({
                      week: w.week,
                      on_plan: w.onPlan,
+                     on_plan_by_origin: w.origins,
                      off_plan: w.offPlan,
                      projected: w.projected,
                   })),

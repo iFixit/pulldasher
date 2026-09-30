@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ORIGIN_KEYS } from '../lens';
 import {
    addWeeks,
    blockersOf,
@@ -12,6 +13,7 @@ import {
    periodPlan,
    planEnd,
    planFor,
+   ROADMAP_ORIGINS,
    type RoadmapItem,
    type RoadmapUpdate,
    waitsOnProblem,
@@ -44,6 +46,12 @@ describe('checkRoadmapFields', () => {
       expect(checkRoadmapFields({ lead: '', project: null }, { partial: true })).toEqual({
          fields: { lead: null, project: null },
       });
+      expect(checkRoadmapFields({ origin: 'fire' }, { partial: true })).toEqual({
+         fields: { origin: 'fire' },
+      });
+      expect(checkRoadmapFields({ origin: '' }, { partial: true })).toEqual({
+         fields: { origin: null },
+      });
    });
 
    it('says what is wrong in words', () => {
@@ -52,6 +60,7 @@ describe('checkRoadmapFields', () => {
       expect(error({ weeks: 0 })).toMatch(/weeks/);
       expect(error({ weeks: 2.5 })).toMatch(/weeks/);
       expect(error({ status: 'someday' })).toMatch(/status/);
+      expect(error({ origin: 'boss' })).toMatch(/origin is one of asked, fire, chosen/);
       expect(error({ project: 'Not A Slug' })).toMatch(/slug/);
       expect(error({ lead: 'two words' })).toMatch(/login/);
       expect(error({ start: 'next week' })).toMatch(/YYYY-MM-DD/);
@@ -144,6 +153,7 @@ describe('waits on', () => {
       team: null,
       lead: null,
       status: 'planned',
+      origin: null,
       start: '2026-09-07',
       weeks: 4,
       priority: id,
@@ -217,5 +227,11 @@ describe('periodPlan', () => {
       });
       // December's next month is January of the next year
       expect(periodPlan('month', 'next', '2026-12-10').start).toBe('2026-12-28');
+   });
+});
+
+describe('origins', () => {
+   it('are the same in the URL as in the model, plus not said', () => {
+      expect([...ORIGIN_KEYS]).toEqual([...ROADMAP_ORIGINS, 'unsaid']);
    });
 });

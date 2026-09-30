@@ -21,6 +21,16 @@ export const isStopped = (status: RoadmapStatus) =>
 /** Planned or in progress: a commitment still open. */
 export const isUnderWay = (status: RoadmapStatus) => !isStopped(status);
 
+/** Where the work came from: asked for from above (top-down), or found by
+ * the team, as a fire to put out or its own pick (bottom-up). */
+export type RoadmapOrigin = 'asked' | 'fire' | 'chosen';
+export const ROADMAP_ORIGINS: RoadmapOrigin[] = ['asked', 'fire', 'chosen'];
+export const ORIGIN_WORD: Record<RoadmapOrigin, string> = {
+   asked: 'Asked for',
+   fire: 'Fire',
+   chosen: 'Team’s pick',
+};
+
 /** How the work is going, in the words a lead would use in standup. */
 export type RoadmapHealth = 'on_track' | 'at_risk' | 'off_track';
 export const ROADMAP_HEALTHS: RoadmapHealth[] = ['on_track', 'at_risk', 'off_track'];
@@ -52,6 +62,8 @@ export interface RoadmapItem {
    /** a GitHub login */
    lead: string | null;
    status: RoadmapStatus;
+   /** where the work came from; null until someone says */
+   origin: RoadmapOrigin | null;
    /** the Monday of the planned first week, YYYY-MM-DD */
    start: string;
    /** the planned length in whole weeks */
@@ -110,7 +122,16 @@ export interface RoadmapUpdate {
 /** The fields a person can set; the server owns id, priority and the audit fields. */
 export type RoadmapFields = Pick<
    RoadmapItem,
-   'name' | 'project' | 'team' | 'lead' | 'status' | 'start' | 'weeks' | 'notes' | 'waits_on'
+   | 'name'
+   | 'project'
+   | 'team'
+   | 'lead'
+   | 'status'
+   | 'origin'
+   | 'start'
+   | 'weeks'
+   | 'notes'
+   | 'waits_on'
 >;
 
 /** The Monday on or before a YYYY-MM-DD day: plans move in whole weeks. */
@@ -189,6 +210,12 @@ export function checkRoadmapFields(input: unknown, { partial }: { partial: boole
          return { error: `status is one of ${ROADMAP_STATUSES.join(', ')}` };
       }
       fields.status = raw.status as RoadmapStatus;
+   }
+   if (has('origin')) {
+      if (optional('origin')) fields.origin = null;
+      else if (!ROADMAP_ORIGINS.includes(raw.origin as RoadmapOrigin)) {
+         return { error: `origin is one of ${ROADMAP_ORIGINS.join(', ')}` };
+      } else fields.origin = raw.origin as RoadmapOrigin;
    }
    if (has('start')) {
       if (typeof raw.start !== 'string' || dayStart(raw.start) == null) {

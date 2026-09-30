@@ -97,6 +97,7 @@ function dummyApi(): Api {
             team: f.team ?? null,
             lead: f.lead ?? null,
             status: f.status ?? 'planned',
+            origin: f.origin ?? null,
             start: f.start ?? mondayOf(utcDay(Date.now() / 1000)),
             weeks: f.weeks ?? 4,
             notes: f.notes ?? '',

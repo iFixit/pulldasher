@@ -195,6 +195,7 @@ CREATE TABLE IF NOT EXISTS `roadmap_items` (
   `team` varchar(64) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `lead_login` varchar(39) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `status` enum('planned','active','parked','done','dropped') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'planned',
+  `origin` enum('asked','fire','chosen') COLLATE utf8mb4_general_ci DEFAULT NULL,
   `start` date NOT NULL,
   `weeks` smallint unsigned NOT NULL DEFAULT '4',
   `priority` int NOT NULL DEFAULT '0',

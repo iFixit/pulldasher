@@ -7,6 +7,7 @@ import {
    type ProjectGroup,
    type WindowCounts,
 } from '../../../../shared/model/projects';
+import { ORIGIN_WORD, ROADMAP_ORIGINS, type RoadmapOrigin } from '../../../../shared/model/roadmap';
 import { Avatar } from '../../components/identity';
 import { dayWords } from '../../model/projectData';
 
@@ -42,14 +43,25 @@ export interface ProjectsNav {
    zoom: string | null;
    /** Decide's team: only its rows show; null for every team */
    team: string | null;
+   /** where the work came from, picked on the load chart: the timeline
+    * shows only the plans from there; null for every plan */
+   origin: RoadmapOrigin | 'unsaid' | null;
 }
 export type Navigate = (patch: Partial<ProjectsNav>) => void;
+
+/** Where the work came from, as a switch's options; `unsaid` stands for a
+ * plan nobody has said it about. */
+export const ORIGIN_OPTIONS: [RoadmapOrigin | 'unsaid', string][] = [
+   ...ROADMAP_ORIGINS.map((o): [RoadmapOrigin, string] => [o, ORIGIN_WORD[o]]),
+   ['unsaid', 'Not said'],
+];
 
 /**
  * The way to one roadmap item from anywhere in the tab: the roadmap with the
  * item open, on a timeline even when it was showing now, next and later,
  * since the item's editor lives on the timeline. The find box, a picked
- * week and the show switch are cleared, since any of them could hide it.
+ * week, the show switch and a picked origin are cleared, since any of them
+ * could hide it.
  */
 export function openPlan(nav: ProjectsNav, id: number): Partial<ProjectsNav> {
    return {
@@ -60,6 +72,7 @@ export function openPlan(nav: ProjectsNav, id: number): Partial<ProjectsNav> {
       find: '',
       week: null,
       show: 'all',
+      origin: null,
    };
 }
 

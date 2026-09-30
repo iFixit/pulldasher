@@ -220,6 +220,7 @@ describe('plans', () => {
       team: null,
       lead: null,
       status: 'active',
+      origin: null,
       start: '2026-09-21',
       weeks: 4,
       priority: id,

@@ -9,6 +9,11 @@ export const DEFAULT_RANGE = '30d';
  * the same reason (model/roadmapTime.ts reads it). */
 export const ZOOM_KEY = /^(\d{4})-(?:Q([1-4])|(0[1-9]|1[0-2]))$/;
 
+/** The origins a roadmap filter can pick in the URL, kept here for the same
+ * reason: shared/model/roadmap.ts's ROADMAP_ORIGINS, plus `unsaid` (a test
+ * holds the two lists together). */
+export const ORIGIN_KEYS = ['asked', 'fire', 'chosen', 'unsaid'] as const;
+
 /** Canonical label for each lens — the single source every surface naming the
  * views reads from: the tab strip and phone dropdown (app.tsx /
  * LensMenu), saved-filter descriptions (model/savedFilters.ts), and the

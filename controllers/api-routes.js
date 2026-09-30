@@ -5,6 +5,7 @@ import settingsController from './settings.js';
 import {
    MAX_WEEKS,
    ROADMAP_HEALTHS,
+   ROADMAP_ORIGINS,
    ROADMAP_STATUSES,
    DECIDE_MIN_PRS,
    STALL_DAYS,
@@ -56,8 +57,9 @@ export const API_ROUTES = [
       path: '/api/v1/load',
       handlers: [projectsController.getLoad],
       does:
-         'Projects in flight each week against the developer count, on the roadmap and not; weeks after ' +
-         'this one as if nothing changes. ?start=&end= (default 12 weeks back to 26 ahead)',
+         'Projects in flight each week against the developer count, on the roadmap (split by where the ' +
+         'work came from) and not; weeks after this one as if nothing changes. ?start=&end= (default 12 ' +
+         'weeks back to 26 ahead)',
    },
    {
       method: 'get',
@@ -69,7 +71,7 @@ export const API_ROUTES = [
       method: 'post',
       path: '/api/v1/roadmap',
       handlers: [canWrite, roadmapController.create],
-      does: 'Add an item at the bottom: {name, project?, team?, lead?, status?, start?, weeks?, notes?, waits_on?}',
+      does: 'Add an item at the bottom: {name, project?, team?, lead?, status?, origin?, start?, weeks?, notes?, waits_on?}',
    },
    {
       method: 'put',
@@ -143,6 +145,12 @@ export function apiIndex(req, res) {
          team: 'a developer team name, or null',
          lead: 'a GitHub login, or null',
          status: ROADMAP_STATUSES,
+         origin: {
+            values: ROADMAP_ORIGINS,
+            means:
+               'where the work came from: asked for from above (top-down), or found by the team, ' +
+               'as a fire to put out or its own pick (bottom-up); null until someone says',
+         },
          start: 'YYYY-MM-DD; moved to its Monday',
          weeks: `a whole number, 1 to ${MAX_WEEKS}`,
          notes: 'up to 2000 characters',

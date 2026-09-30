@@ -12,7 +12,7 @@ import {
 import { ago, closedEpoch, n, pullKey, shortRepo } from '../../shared/format';
 import type { ActionStateKey } from './model/actions';
 import { actionState } from './model/actions';
-import { DEFAULT_RANGE, LENS_LABELS, ZOOM_KEY, type Lens } from './lens';
+import { DEFAULT_RANGE, LENS_LABELS, ORIGIN_KEYS, ZOOM_KEY, type Lens } from './lens';
 import type { DerivedPull } from '../../shared/model/status';
 import { matchesWeightFilter } from '../../shared/model/status';
 import { buildParentLookup } from './model/stack';
@@ -159,6 +159,7 @@ function readHash(): HashState {
          week: /^\d{4}-\d{2}-\d{2}$/.test(p.get('week') ?? '') ? p.get('week') : null,
          zoom: ZOOM_KEY.test(p.get('zoom') ?? '') ? p.get('zoom') : null,
          team: p.get('team') || null,
+         origin: ORIGIN_KEYS.find(o => o === p.get('origin')) ?? null,
       },
    };
 }
@@ -189,6 +190,7 @@ function buildHash(s: HashState): string {
    if (s.projects.week) p.set('week', s.projects.week);
    if (s.projects.zoom) p.set('zoom', s.projects.zoom);
    if (s.projects.team) p.set('team', s.projects.team);
+   if (s.projects.origin) p.set('origin', s.projects.origin);
    return p.toString();
 }
 

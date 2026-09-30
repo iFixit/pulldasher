@@ -188,6 +188,7 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
       team: null,
       lead: null,
       status: 'planned',
+      origin: null,
       start: at(start),
       weeks,
       priority: id - 1,

@@ -398,6 +398,14 @@ icon with a class bolted on.
   run. The only way to bring the future down is a decision, which is the
   point. A picked week's rows come from the same rule as its bar, so the
   count and the rows always agree.
+- **Where the work came from is words, not a color.** A plan can say it
+  was asked for from above, or found by the team, as a fire to put out or
+  its own pick, so a planner can see how much of the load anyone chose.
+  The load chart says it in words under its roadmap count ("1 fire, 4 not
+  said"), each a filter like the counts above it, and says nothing until
+  some plan does. The bars keep their two colors: a hue per origin would
+  need a legend. On Decide it rides along with the call, so saying it
+  alone never clears a row.
 - **Decide is a list that empties, sized for a Monday.** With no product
   manager, the tool names the calls owed instead of waiting for someone to
   notice: new work with no decision, plans past their end or their target,

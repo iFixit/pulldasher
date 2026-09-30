@@ -73,7 +73,7 @@ import {
 } from '../../model/roadmapTime';
 import { LoadChart } from './LoadChart';
 import { NowNextLater } from './NowNextLater';
-import { openPlan, type Navigate, type ProjectsNav } from './parts';
+import { openPlan, ORIGIN_OPTIONS, type Navigate, type ProjectsNav } from './parts';
 import {
    healthWords,
    loadWords,
@@ -230,6 +230,7 @@ function Editor({
               team: item.team,
               lead: item.lead,
               status: item.status,
+              origin: item.origin,
               start: item.start,
               weeks: item.weeks,
               notes: item.notes,
@@ -241,6 +242,7 @@ function Editor({
               team: null,
               lead: null,
               status: 'planned',
+              origin: null,
               start: addWeeks(mondayOf(utcDay(Date.now() / 1000)), 1),
               weeks: 4,
               notes: '',
@@ -311,6 +313,16 @@ function Editor({
                value={draft.status}
                options={ROADMAP_STATUSES.map(s => [s, STATUS_WORD[s]])}
                onChange={status => set({ status })}
+            />,
+            true
+         )}
+         {field(
+            'Where it came from',
+            <Segmented
+               ariaLabel="where it came from"
+               value={draft.origin ?? 'unsaid'}
+               options={ORIGIN_OPTIONS}
+               onChange={o => set({ origin: o === 'unsaid' ? null : o })}
             />,
             true
          )}
@@ -1436,21 +1448,27 @@ export function Roadmap({
    // counts, by the chart's own rule, so its numbers and its rows agree
    const picked = nav.week;
    const members = picked ? weekMembers({ today, plans: ordered, spans, ahead })(picked) : null;
+   // an origin picked on the load chart keeps only the plans from there;
+   // work with no plan has no origin to match
+   const fromOrigin = (i: RoadmapItem) => !nav.origin || (i.origin ?? 'unsaid') === nav.origin;
    const shownPlans = showPlans
       ? ordered.filter(
            i =>
               matches(i.name, i.project, i.lead, i.team) &&
+              fromOrigin(i) &&
               (!members ||
                  members.plans.has(i.id) ||
                  (!!i.project && members.projects.get(i.project) === 'on'))
         )
       : [];
-   const shownUnplanned = unplanned.filter(
-      p =>
-         matches(p.name, p.slug, p.lead, mainTeam(p, teamOf)) &&
-         (!members || members.projects.get(p.slug) === 'off')
-   );
-   const narrowed = !!(q || picked);
+   const shownUnplanned = nav.origin
+      ? []
+      : unplanned.filter(
+           p =>
+              matches(p.name, p.slug, p.lead, mainTeam(p, teamOf)) &&
+              (!members || members.projects.get(p.slug) === 'off')
+        );
+   const narrowed = !!(q || picked || nav.origin);
    const of = (shown: number, total: number, word: string) =>
       narrowed ? `${shown} of ${n(total, word)}` : n(total, word);
    const developers = new Set(
@@ -1926,6 +1944,8 @@ export function Roadmap({
                      onPick={week => navigate({ week })}
                      show={nav.show}
                      onShow={show => navigate({ show })}
+                     origin={nav.origin}
+                     onOrigin={origin => navigate({ origin })}
                      onPeople={() => navigate({ view: 'people', item: null })}
                   />
                   {adding && (

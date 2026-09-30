@@ -15,11 +15,14 @@ import { firstOpenDay, LIVE_DAYS, type Today } from '../../../../shared/model/pr
 import {
    HEALTH_WORD,
    mondayOf,
+   ORIGIN_WORD,
    planEnd,
    planFor,
+   ROADMAP_ORIGINS,
    weeksThrough,
    type RoadmapFields,
    type RoadmapItem,
+   type RoadmapOrigin,
 } from '../../../../shared/model/roadmap';
 import { Segmented } from '../../components/bits';
 import { Icon } from '../../components/Icon';
@@ -241,6 +244,11 @@ function DecideRowView({
    const lead = row.item?.lead ?? project?.lead ?? null;
    const start = startOf(row, project, today);
    const { item } = row;
+   // where the work came from rides along with the call, so saying it
+   // alone never counts as deciding
+   const [origin, setOrigin] = useState<RoadmapOrigin | null>(item?.origin ?? null);
+   const call = (fields: Partial<RoadmapFields>, words: string) =>
+      decide(row, { ...fields, origin }, words);
    const openProject = () =>
       row.slug ? navigate({ project: row.slug }) : item && navigate(openPlan(nav, item.id));
    return (
@@ -322,8 +330,7 @@ function DecideRowView({
                            type="button"
                            key={c.end}
                            onClick={() =>
-                              decide(
-                                 row,
+                              call(
                                  { status: 'active', start, weeks },
                                  `Committed through the ${c.label.toLowerCase()}`
                               )
@@ -340,7 +347,7 @@ function DecideRowView({
                   <span className="mx-1">or</span>
                   <button
                      type="button"
-                     onClick={() => decide(row, { status: 'parked' }, 'Parked')}
+                     onClick={() => call({ status: 'parked' }, 'Parked')}
                      title="Stop for now without dropping it. It leaves the load until someone picks it up."
                      className={buttonClass}
                   >
@@ -348,7 +355,7 @@ function DecideRowView({
                   </button>
                   <button
                      type="button"
-                     onClick={() => decide(row, { status: 'done' }, 'Finished')}
+                     onClick={() => call({ status: 'done' }, 'Finished')}
                      title="It’s done"
                      className={buttonClass}
                   >
@@ -356,7 +363,7 @@ function DecideRowView({
                   </button>
                   <button
                      type="button"
-                     onClick={() => run(() => decide(row, { status: 'dropped' }, 'Dropped'))}
+                     onClick={() => run(() => call({ status: 'dropped' }, 'Dropped'))}
                      title="We won’t do it"
                      className={
                         armed
@@ -366,6 +373,25 @@ function DecideRowView({
                   >
                      {armed ? 'Click again to drop it' : 'Drop'}
                   </button>
+                  <span
+                     className="ml-2 inline-flex flex-wrap items-baseline gap-x-1.5"
+                     title="Where the work came from. It’s saved with the call you make here."
+                  >
+                     came from
+                     {ROADMAP_ORIGINS.map(o => (
+                        <button
+                           type="button"
+                           key={o}
+                           aria-pressed={origin === o}
+                           onClick={() => setOrigin(origin === o ? null : o)}
+                           className={`pressable rounded border-0 bg-transparent p-0 text-xs hover:underline ${
+                              origin === o ? 'font-semibold text-ink' : 'text-ink-3'
+                           }`}
+                        >
+                           {ORIGIN_WORD[o].toLowerCase()}
+                        </button>
+                     ))}
+                  </span>
                </>
             )}
          </div>

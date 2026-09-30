@@ -58,6 +58,7 @@ export {
    planEnd,
    MAX_WEEKS,
    ROADMAP_HEALTHS,
+   ROADMAP_ORIGINS,
    ROADMAP_STATUSES,
    WAITS_ON_MAX,
    waitsOnProblem,
@@ -66,6 +67,7 @@ export type {
    RoadmapFields,
    RoadmapHealth,
    RoadmapItem,
+   RoadmapOrigin,
    RoadmapStatus,
    RoadmapUpdate,
 } from './model/roadmap';
@@ -86,4 +88,4 @@ export {
 } from './model/decide';
 export type { ClosedIssue, DecideProject, DecideReason, DecideRow } from './model/decide';
 export { loadByWeek, mondaysBetween, peakFrom, spansFrom } from './model/load';
-export type { InFlightSpan, LoadWeek } from './model/load';
+export type { InFlightSpan, LoadWeek, OriginCounts } from './model/load';

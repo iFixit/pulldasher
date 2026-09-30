@@ -1,5 +1,13 @@
 import { MISC_SLUG } from './projects';
-import { addWeeks, isUnderWay, mondayOf, planEnd, type RoadmapItem } from './roadmap';
+import {
+   addWeeks,
+   isUnderWay,
+   mondayOf,
+   planEnd,
+   planFor,
+   type RoadmapItem,
+   type RoadmapOrigin,
+} from './roadmap';
 
 /**
  * How loaded each week is, for the roadmap's load chart, each team lane's
@@ -20,11 +28,17 @@ export interface InFlightSpan {
    end: string | null;
 }
 
+/** How many of a week's projects on the roadmap came from where: `unsaid`
+ * for a plan nobody has said it about. */
+export type OriginCounts = Record<RoadmapOrigin | 'unsaid', number>;
+
 export interface LoadWeek {
    /** the Monday that starts it */
    week: string;
    /** on the roadmap: planned or decided on */
    onPlan: number;
+   /** onPlan, split by where each plan's work came from */
+   origins: OriginCounts;
    /** in flight with no plan or decision */
    offPlan: number;
    /** after this week, so counted from the plan rather than from PRs */
@@ -120,19 +134,33 @@ export function loadByWeek({
    ahead?: ReadonlySet<string>;
 }): LoadWeek[] {
    const members = weekMembers({ today, plans, spans, ahead });
+   const byId = new Map(plans.map(p => [p.id, p]));
    const linked = new Set(plans.flatMap(p => (p.project ? [p.id] : [])));
    const thisWeek = mondayOf(today);
+   // a project's origin is its speaking plan's, the same plan its row shows
+   const originOf = new Map<string, RoadmapOrigin | null>();
+   const projectOrigin = (slug: string) => {
+      if (!originOf.has(slug)) originOf.set(slug, planFor(slug, plans)?.origin ?? null);
+      return originOf.get(slug) ?? 'unsaid';
+   };
    return weeks.map(week => {
       const m = members(week);
       let onPlan = 0;
       let offPlan = 0;
-      for (const standing of m.projects.values()) {
-         if (standing === 'on') onPlan++;
-         else offPlan++;
+      const origins: OriginCounts = { asked: 0, fire: 0, chosen: 0, unsaid: 0 };
+      for (const [slug, standing] of m.projects) {
+         if (standing === 'on') {
+            onPlan++;
+            origins[projectOrigin(slug)]++;
+         } else offPlan++;
       }
       // a plan with a project counts as its project; one without, by itself
-      for (const id of m.plans) if (!linked.has(id)) onPlan++;
-      return { week, onPlan, offPlan, projected: week > thisWeek };
+      for (const id of m.plans) {
+         if (linked.has(id)) continue;
+         onPlan++;
+         origins[byId.get(id)?.origin ?? 'unsaid']++;
+      }
+      return { week, onPlan, origins, offPlan, projected: week > thisWeek };
    });
 }
 

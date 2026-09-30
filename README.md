@@ -140,7 +140,8 @@ The tab has four views and a page per project:
   dropped (on the roadmap or by closing its issue) whose PRs are still
   open, and parked work whose PRs moved. Each row says why it's there, with
   its team, size and target, and takes one click: commit through the end
-  of a coming month or quarter, park, finish, or drop. A team's lead can
+  of a coming month or quarter, park, finish, or drop. The row can also say
+  where the work came from, saved with the call. A team's lead can
   take just their team's rows, and copy them as text for a meeting's
   notes. It weighs every project, whatever the filter bar narrows the
   other views to. The tab's label counts what's left.
@@ -158,6 +159,10 @@ The tab has four views and a page per project:
   - Click a week in the load chart to see only what was in flight then, or
     a count to see only those ("with no plan"). Find narrows by name,
     lead or team.
+  - Each plan can say where its work came from: asked for from above
+    (top-down), or found by the team, as a fire to put out or its own pick
+    (bottom-up). The load chart splits its roadmap count that way, and a
+    click on one shows only those plans.
   - Drag rows to set priority, drag a bar to move it and its edge to change
     its length; the editor also plans a month or a quarter in one click.
     Team lanes say the most each team has in flight at once against its
