@@ -12,7 +12,12 @@ import {
    YAxis,
    type TooltipContentProps,
 } from 'recharts';
-import type { DayPoint, WeekPoint, WindowCounts } from '../../../../shared/model/projects';
+import {
+   MISC_SLUG,
+   type DayPoint,
+   type WeekPoint,
+   type WindowCounts,
+} from '../../../../shared/model/projects';
 import { dayWords } from '../../model/projectData';
 
 /**
@@ -325,50 +330,74 @@ const PROJECT_SHADES = [1, 0.8, 0.64, 0.5, 0.38, 0.28];
 const OTHER = '__other';
 const NONE = '__none';
 
+const ROADMAP = '__roadmap';
+const ONE_OFFS = '__misc';
+
 /**
  * Where the merged work went, week by week: the projects with the most merges
  * in the range each get a shade of blue, the rest pool into "other projects",
  * and PRs with no project label sit on top in gray. Click a project's segment
- * for its page.
+ * for its page. Given the roadmap's projects (`planned`), it splits the same
+ * merges by whether they were planned instead: projects on the roadmap, other
+ * projects, one-offs, and PRs in no project.
  */
 export function AllocationChart({
    weeks,
    nameOf,
    onPick,
+   planned,
    height = 220,
 }: {
    weeks: WeekPoint[];
    nameOf: (slug: string) => string;
    onPick?: (slug: string) => void;
+   planned?: ReadonlySet<string>;
    height?: number;
 }) {
    const totals = new Map<string, number>();
    for (const w of weeks)
       for (const [slug, n] of Object.entries(w.merged_by_project))
          if (slug) totals.set(slug, (totals.get(slug) ?? 0) + n);
-   const leaders = [...totals]
-      .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
-      .slice(0, PROJECT_SHADES.length)
-      .map(([slug]) => slug);
+   const leaders = planned
+      ? []
+      : [...totals]
+           .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
+           .slice(0, PROJECT_SHADES.length)
+           .map(([slug]) => slug);
+   const keyOf = (slug: string) => {
+      if (slug === '') return NONE;
+      if (!planned) return leaders.includes(slug) ? slug : OTHER;
+      if (planned.has(slug)) return ROADMAP;
+      return slug === MISC_SLUG ? ONE_OFFS : OTHER;
+   };
+   const series: [string, string, string, number][] = planned
+      ? [
+           [ROADMAP, 'On the roadmap', 'var(--brand)', 1],
+           [OTHER, 'Other projects', 'var(--brand)', 0.38],
+           [ONE_OFFS, 'One-offs', 'var(--ink-3)', 0.6],
+           [NONE, 'Not in a project', 'var(--ink-3)', 0.3],
+        ]
+      : [
+           ...leaders.map((slug, i): [string, string, string, number] => [
+              slug,
+              nameOf(slug),
+              'var(--brand)',
+              PROJECT_SHADES[i],
+           ]),
+           [OTHER, 'Other projects', 'var(--brand)', 0.16],
+           [NONE, 'Not in a project', 'var(--ink-3)', 0.35],
+        ];
    const data = weeks.map(w => {
-      const row: Record<string, number | string> = { week: w.week, [OTHER]: 0, [NONE]: 0 };
-      for (const slug of leaders) row[slug] = 0;
+      const row: Record<string, number | string> = { week: w.week };
+      for (const [key] of series) row[key] = 0;
       for (const [slug, n] of Object.entries(w.merged_by_project)) {
-         const key = slug === '' ? NONE : leaders.includes(slug) ? slug : OTHER;
+         const key = keyOf(slug);
          row[key] = (row[key] as number) + n;
       }
       return row;
    });
-   const series: [string, string, string, number][] = [
-      ...leaders.map((slug, i): [string, string, string, number] => [
-         slug,
-         nameOf(slug),
-         'var(--brand)',
-         PROJECT_SHADES[i],
-      ]),
-      [OTHER, 'Other projects', 'var(--brand)', 0.16],
-      [NONE, 'Not in a project', 'var(--ink-3)', 0.35],
-   ];
+   // only a real project's segment opens a page
+   const pickable = (key: string) => !!onPick && !key.startsWith('__');
    const tip = ({ active, payload, label }: TooltipContentProps) => {
       const row = payload?.[0]?.payload as Record<string, number> | undefined;
       if (!active || !row) return null;
@@ -379,7 +408,14 @@ export function AllocationChart({
    };
    return (
       <div>
-         <div role="img" aria-label="Merged PRs each week, split by project">
+         <div
+            role="img"
+            aria-label={
+               planned
+                  ? 'Merged PRs each week, split by whether their project is on the roadmap'
+                  : 'Merged PRs each week, split by project'
+            }
+         >
             <ResponsiveContainer width="100%" height={height}>
                <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                   {grid}
@@ -409,10 +445,8 @@ export function AllocationChart({
                         stroke="var(--surface)"
                         strokeWidth={1}
                         isAnimationActive={false}
-                        cursor={onPick && key !== OTHER && key !== NONE ? 'pointer' : undefined}
-                        onClick={
-                           onPick && key !== OTHER && key !== NONE ? () => onPick(key) : undefined
-                        }
+                        cursor={pickable(key) ? 'pointer' : undefined}
+                        onClick={pickable(key) ? () => onPick?.(key) : undefined}
                      />
                   ))}
                </BarChart>
@@ -420,7 +454,7 @@ export function AllocationChart({
          </div>
          <ul className="m-0 mt-2 flex list-none flex-wrap gap-x-3 gap-y-1 p-0 text-[11px] text-ink-2">
             {series
-               .filter(([key]) => key === OTHER || key === NONE || totals.has(key))
+               .filter(([key]) => key.startsWith('__') || totals.has(key))
                .map(([key, name, color, opacity]) => (
                   <li key={key} className="inline-flex items-center gap-1.5">
                      <span

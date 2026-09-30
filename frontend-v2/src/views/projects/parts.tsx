@@ -30,6 +30,8 @@ export interface ProjectsNav {
    scale: 'month' | 'quarter' | 'now';
    /** the roadmap item whose editor and updates are open */
    item: number | null;
+   /** how the overview splits the merged work: by project, or roadmap or not */
+   split: 'project' | 'roadmap';
 }
 export type Navigate = (patch: Partial<ProjectsNav>) => void;
 

@@ -119,8 +119,10 @@ The tab has three views and a page per project:
   progress, worst first, which copies as text for a status email),
   headline numbers for a date range (each compared with the same number of
   days before), the backlog chart, where the merged work went week by
-  week, and every project on one list you can sort, group by parent, lead
-  or team, search, and download as CSV.
+  week (by project, or split into work on the roadmap and everything
+  else, with the roadmap's share against the days before), and every
+  project on one list you can sort, group by parent, lead or team,
+  search, and download as CSV.
 - **Roadmap**: the plan, by month or by quarter, or as now, next and later
   without dates for readers outside engineering. Drag rows to set
   priority, drag a bar to move it and its edge to change its length; group

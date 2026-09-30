@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { DerivedPull, Status } from '../../../../shared/model/status';
 import { n } from '../../../../shared/format';
 import type { Today } from '../../../../shared/model/projects';
@@ -11,7 +12,9 @@ import {
    type ProjectsData,
    type Range,
 } from '../../model/projectData';
-import type { PortfolioItem } from '../../model/portfolio';
+import { roadmapShare, roadmapSlugs, type PortfolioItem } from '../../model/portfolio';
+import { useRoadmap } from '../../model/roadmapData';
+import { Segmented } from '../../components/bits';
 import { StatsCard } from '../stats/parts';
 import { AllocationChart, BacklogFlowChart, ChartSlot } from './lazyCharts';
 import { Tile, versus, versusDays, type Navigate, type ProjectsNav } from './parts';
@@ -124,6 +127,80 @@ function BacklogCard({ range }: { range: Range }) {
    );
 }
 
+const pct = ({ planned, total }: { planned: number; total: number }) =>
+   total ? Math.round((planned / total) * 100) : null;
+
+/**
+ * Where the merged work went, week by week: by project, or split by whether
+ * the roadmap planned it (the share of work on the roadmap against the
+ * unplanned rest: other projects, one-offs, and PRs in no project). Both
+ * periods are measured against today's roadmap.
+ */
+function MergedWorkCard({
+   data,
+   prev,
+   range,
+   nameOf,
+   nav,
+   navigate,
+}: {
+   data: ProjectsData | null | undefined;
+   prev: ProjectsData | null | undefined;
+   range: Range;
+   nameOf: (slug: string) => string;
+   nav: ProjectsNav;
+   navigate: Navigate;
+}) {
+   const { items: plan } = useRoadmap();
+   const planned = useMemo(() => roadmapSlugs(plan ?? []), [plan]);
+   const byPlan = nav.split === 'roadmap';
+   const share = data ? roadmapShare(data.window.weeks, planned) : null;
+   const before = prev ? roadmapShare(prev.window.weeks, planned) : null;
+   return (
+      <StatsCard>
+         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h3 className="m-0 text-sm font-semibold text-ink">Where the merged work went</h3>
+            <span className="text-xs text-ink-3">{rangeWords(range)}</span>
+            <span className="flex-1" />
+            <Segmented
+               ariaLabel="split the merged work"
+               value={byPlan ? 'roadmap' : 'project'}
+               options={[
+                  ['project', 'By project'],
+                  ['roadmap', 'Roadmap or not'],
+               ]}
+               onChange={split => navigate({ split })}
+            />
+         </div>
+         <div className="mt-3">
+            <ChartSlot height={250}>
+               {data && (
+                  <AllocationChart
+                     weeks={data.window.weeks}
+                     nameOf={nameOf}
+                     onPick={slug => navigate({ project: slug })}
+                     planned={byPlan ? planned : undefined}
+                  />
+               )}
+            </ChartSlot>
+         </div>
+         {byPlan && share && (
+            <p className="m-0 mt-2 text-xs text-ink-3">
+               {share.total
+                  ? `${share.planned} of ${n(share.total, 'merged PR')} (${pct(
+                       share
+                    )}%) were in projects on the roadmap`
+                  : 'Nothing merged in the range'}
+               {before && pct(before) != null
+                  ? `, against ${pct(before)}% the ${rangeDays(range)} days before`
+                  : ''}
+               .
+            </p>
+         )}
+      </StatsCard>
+   );
+}
+
 /**
  * The planner's overview: the headline numbers, where the backlog and the
  * merged work are going, and every project on one list. PRs outside any
@@ -179,19 +256,14 @@ export function Overview({
          <PlansStanding navigate={navigate} />
          <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(380px,1fr))]">
             <BacklogCard range={range} />
-            <StatsCard title="Where the merged work went" sub={rangeWords(range)}>
-               <div className="mt-3">
-                  <ChartSlot height={250}>
-                     {data && (
-                        <AllocationChart
-                           weeks={data.window.weeks}
-                           nameOf={nameOf}
-                           onPick={slug => navigate({ project: slug })}
-                        />
-                     )}
-                  </ChartSlot>
-               </div>
-            </StatsCard>
+            <MergedWorkCard
+               data={data}
+               prev={prev}
+               range={range}
+               nameOf={nameOf}
+               nav={nav}
+               navigate={navigate}
+            />
          </div>
          <Portfolio
             items={items}

@@ -148,6 +148,7 @@ function readHash(): HashState {
          find: p.get('find') ?? '',
          scale: p.get('scale') === 'month' ? 'month' : p.get('scale') === 'now' ? 'now' : 'quarter',
          item: Number(p.get('item')) || null,
+         split: p.get('split') === 'roadmap' ? 'roadmap' : 'project',
       },
    };
 }
@@ -173,6 +174,7 @@ function buildHash(s: HashState): string {
    if (s.projects.find) p.set('find', s.projects.find);
    if (s.projects.scale !== 'quarter') p.set('scale', s.projects.scale);
    if (s.projects.item) p.set('item', String(s.projects.item));
+   if (s.projects.split !== 'project') p.set('split', s.projects.split);
    return p.toString();
 }
 
