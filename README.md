@@ -139,21 +139,31 @@ The tab has three views and a page per project:
   open PRs, PRs opened and merged, and reviews given, including how many
   went to non-developers' PRs.
 
-The same data is in the API, Bearer-authed like `/api/v1/pulls`. The first
-two take `start` and `end` as `YYYY-MM-DD` days (default: the last 30 days,
-at most 400), and `project=<slug>` narrows the window's numbers to one
-project:
+Everything the tab shows, and every change the roadmap takes, is in the API,
+Bearer-authed with the caller's own GitHub token like `/api/v1/pulls`, so a
+script or a Claude session can read the projects and run the roadmap
+without a browser. `GET /api/v1` lists every route with what it does, and
+the rules a roadmap write is checked against:
 
-- `GET /api/v1/projects`: each project's issue fields, where it stands today
-  (open PR ids, people, idle days, flags), and its numbers for the window,
-  plus the totals and one point per day for the backlog chart.
-- `GET /api/v1/people`: per person, their team, the window's numbers,
-  reviews given, the projects they had PRs in, the live projects they're on
-  today, and their open PRs.
-- `GET /api/v1/roadmap`: every roadmap item in priority order, each with
-  its latest update.
-- `GET /api/v1/roadmap/:id/updates`: one item's updates, newest first,
-  each with the plan as it stood when it was posted.
+```sh
+curl -s -H "Authorization: Bearer $(gh auth token)" https://pulldasher.example.com/api/v1
+```
+
+- `GET /api/v1/projects` and `GET /api/v1/people`: each project and each
+  person with where they stand today and their numbers for a window. Both
+  take `start` and `end` as `YYYY-MM-DD` days (default: the last 30 days, at
+  most 400), and `project=<slug>` narrows the numbers to one project.
+- `GET /api/v1/roadmap` and `GET /api/v1/roadmap/:id`: the items in
+  priority order, or one, each with its latest update.
+- `POST /api/v1/roadmap`, `PATCH` and `DELETE /api/v1/roadmap/:id`: add,
+  change or remove an item. `POST /api/v1/roadmap/:id/move` with
+  `{"before": <id>}` (or `null` for the bottom) moves one item without
+  sending the whole order; `PUT /api/v1/roadmap/order` sets the whole order.
+- `GET` and `POST /api/v1/roadmap/:id/updates`: an item's updates, or a new
+  one, `{"health": "at_risk", "body": "..."}`.
+
+A write takes a JSON body and is recorded as the token's login. The board
+itself uses the same handlers through `/roadmap`, with its session.
 
 Pulldasher also re-lists every tracked repo's open PRs once an hour and
 refreshes only the ones its database has wrong, so a lost webhook can't leave

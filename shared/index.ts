@@ -57,7 +57,9 @@ export {
    moveBefore,
    planEnd,
    MAX_WEEKS,
+   ROADMAP_HEALTHS,
    ROADMAP_STATUSES,
+   WAITS_ON_MAX,
    waitsOnProblem,
 } from './model/roadmap';
 export type {

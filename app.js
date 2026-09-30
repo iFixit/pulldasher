@@ -13,9 +13,9 @@ import mainController from './controllers/main.js';
 import hooksController from './controllers/githubHooks.js';
 import statsController from './controllers/stats.js';
 import userNamesController from './controllers/user-names.js';
-import apiController from './controllers/api.js';
 import projectsController from './controllers/projects.js';
 import roadmapController, { canWrite } from './controllers/roadmap.js';
+import { API_ROUTES, apiIndex } from './controllers/api-routes.js';
 import { projectSettings } from './lib/projects.js';
 import apiAuth from './lib/api-auth.js';
 import Debug from './lib/debug.js';
@@ -82,16 +82,13 @@ app.get('/roadmap/:id/updates', roadmapController.updates);
 app.post('/roadmap/:id/updates', canWrite, roadmapController.postUpdate);
 app.post('/hooks/main', hooksController.main);
 
-// /api/v1: machine-to-machine JSON for the review skills, Bearer-authed with
-// the caller's own GitHub token (see lib/api-auth). Independent of the
-// cookie-session gate -- setupRoutes never registers these paths, so the
-// session `auth` middleware doesn't run for them.
-app.get('/api/v1/me', apiAuth, apiController.getMe);
-app.get('/api/v1/pulls', apiAuth, apiController.getPulls);
-app.get('/api/v1/projects', apiAuth, projectsController.getProjects);
-app.get('/api/v1/people', apiAuth, projectsController.getPeople);
-app.get('/api/v1/roadmap', apiAuth, roadmapController.list);
-app.get('/api/v1/roadmap/:id/updates', apiAuth, roadmapController.updates);
+// /api/v1: machine-to-machine JSON for the review skills and scripts,
+// Bearer-authed with the caller's own GitHub token (see lib/api-auth). Every
+// route is in controllers/api-routes.js, and GET /api/v1 lists them.
+// Independent of the cookie-session gate -- setupRoutes never registers these
+// paths, so the session `auth` middleware doesn't run for them.
+app.get('/api/v1', apiAuth, apiIndex);
+for (const { method, path, handlers } of API_ROUTES) app[method](path, apiAuth, ...handlers);
 
 // Warm the bot-login cache (used to tell a pulldasher claim apart from a
 // GitHub-UI self-request) before any webhook or socket traffic needs it.

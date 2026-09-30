@@ -5,6 +5,7 @@ import bodyParser from 'body-parser';
 import db from '../lib/db.js';
 import { itemFromRow } from '../lib/roadmap.js';
 import roadmapController, { canWrite } from '../controllers/roadmap.js';
+import { API_ROUTES } from '../controllers/api-routes.js';
 
 // In-memory roadmap_items and roadmap_updates tables behind a stubbed
 // db.query, so each write is visible to the next read the way it would be in
@@ -80,6 +81,9 @@ function makeApp() {
    app.use((req, res, next) => {
       req.isAuthenticated = () => signedIn;
       req.user = { username: 'alice' };
+      // stands in for lib/api-auth.js, which checks the token with GitHub
+      const bearer = req.get('authorization');
+      if (bearer) req.apiUser = { login: bearer.replace(/^Bearer /, '') };
       next();
    });
    app.get('/roadmap', roadmapController.list);
@@ -89,6 +93,8 @@ function makeApp() {
    app.delete('/roadmap/:id', canWrite, roadmapController.remove);
    app.get('/roadmap/:id/updates', roadmapController.updates);
    app.post('/roadmap/:id/updates', canWrite, roadmapController.postUpdate);
+   app.get('/roadmap/:id', roadmapController.get);
+   app.post('/roadmap/:id/move', canWrite, roadmapController.move);
    return app;
 }
 
@@ -282,4 +288,47 @@ test('writes need a signed-in person and a JSON body', async () => {
    });
    assert.equal(form.status, 415);
    assert.equal(rows.length, 0);
+});
+
+test('a Bearer caller can write with no session, as its own login', async () => {
+   signedIn = false;
+   const res = await call('POST', '/roadmap', { name: 'From the CLI' }, {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer carol',
+   });
+   assert.equal(res.status, 201);
+   assert.equal(rows[0].created_by, 'carol');
+});
+
+test('one item by id, and a move puts it just above another or at the bottom', async () => {
+   const ids = [];
+   for (const name of ['A', 'B', 'C']) ids.push((await call('POST', '/roadmap', { name })).body.item.id);
+   const one = await call('GET', `/roadmap/${ids[1]}`, undefined, {});
+   assert.equal(one.body.item.name, 'B');
+   assert.equal((await call('GET', '/roadmap/99', undefined, {})).status, 404);
+   const up = await call('POST', `/roadmap/${ids[2]}/move`, { before: ids[0] });
+   assert.deepEqual(
+      up.body.items.map(i => i.name),
+      ['C', 'A', 'B']
+   );
+   const down = await call('POST', `/roadmap/${ids[0]}/move`, { before: null });
+   assert.deepEqual(
+      down.body.items.map(i => i.name),
+      ['C', 'B', 'A']
+   );
+   assert.equal((await call('POST', `/roadmap/${ids[0]}/move`, { before: 99 })).status, 404);
+   assert.equal((await call('POST', `/roadmap/${ids[0]}/move`, {})).status, 400);
+});
+
+test('the API route table names each route once, with what it does', () => {
+   const seen = new Set();
+   for (const route of API_ROUTES) {
+      const key = `${route.method} ${route.path}`;
+      assert.ok(!seen.has(key), `${key} is listed twice`);
+      seen.add(key);
+      assert.ok(route.path.startsWith('/api/v1/'), key);
+      assert.ok(route.does && route.handlers.every(h => typeof h === 'function'), key);
+      // every write goes through the gate that records who made it
+      if (route.method !== 'get') assert.equal(route.handlers[0], canWrite, key);
+   }
 });

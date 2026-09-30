@@ -3,8 +3,10 @@ import {
    addUpdate,
    createItem,
    deleteItem,
+   getItem,
    listItems,
    listUpdates,
+   moveItem,
    reorderItems,
    updateItem,
 } from '../lib/roadmap.js';
@@ -13,20 +15,23 @@ import { checkRoadmapFields, checkRoadmapUpdate, waitsOnProblem } from '../share
 const FAKE_USER = process.env.MOCK_AUTH_AS_USER;
 
 /**
- * The gate on every roadmap write. A signed-in session is the only way in
- * (401 otherwise), and the body must be JSON (415 otherwise): a JSON write
- * from another site needs a CORS preflight, which this server never answers,
- * so a cross-site form post can't change the roadmap on someone's behalf.
+ * The gate on every roadmap write. The writer is the /api/v1 caller whose
+ * Bearer token lib/api-auth.js already checked, or else a signed-in board
+ * session (401 when neither). The body must be JSON (415 otherwise): a JSON
+ * write from another site needs a CORS preflight, which this server never
+ * answers, so a cross-site form post can't change the roadmap on someone's
+ * behalf.
  */
 export function canWrite(req, res, next) {
    const signedIn = typeof req.isAuthenticated === 'function' && req.isAuthenticated();
-   if (!signedIn && !FAKE_USER) {
+   const login = req.apiUser?.login ?? (signedIn ? req.user.username : FAKE_USER);
+   if (!login) {
       return res.status(401).json({ error: 'sign in to change the roadmap' });
    }
    if (req.method !== 'DELETE' && !req.is('application/json')) {
       return res.status(415).json({ error: 'send the change as JSON' });
    }
-   req.roadmapLogin = signedIn ? req.user.username : FAKE_USER;
+   req.roadmapLogin = login;
    next();
 }
 
@@ -78,6 +83,50 @@ export default {
          .catch(err => {
             console.error('roadmap create failed:', err);
             res.status(500).json({ error: 'roadmap create failed' });
+         });
+   },
+
+   /** GET /api/v1/roadmap/:id -- one item with its latest update. */
+   get: function (req, res) {
+      const id = idOf(req);
+      if (!id) return res.status(400).json({ error: 'the id must be a positive whole number' });
+      getItem(id)
+         .then(item =>
+            item ? res.json({ item }) : res.status(404).json({ error: 'no such roadmap item' })
+         )
+         .catch(err => {
+            console.error('roadmap get failed:', err);
+            res.status(500).json({ error: 'roadmap get failed' });
+         });
+   },
+
+   /**
+    * POST /api/v1/roadmap/:id/move {before} -- put the item just before
+    * item `before`, or at the bottom for `before: null`. 409 with the list
+    * as it is now if someone added or removed an item at the same moment.
+    */
+   move: function (req, res) {
+      const id = idOf(req);
+      if (!id) return res.status(400).json({ error: 'the id must be a positive whole number' });
+      const before = req.body ? req.body.before : undefined;
+      if (before !== null && !(Number.isInteger(before) && before > 0)) {
+         return res
+            .status(400)
+            .json({ error: 'send before as the id to move above, or null for the bottom' });
+      }
+      moveItem(id, before)
+         .then(result => {
+            if (result.missing) return res.status(404).json({ error: 'no such roadmap item' });
+            if (result.conflict) {
+               return res
+                  .status(409)
+                  .json({ error: 'the roadmap changed; here it is again', items: result.items });
+            }
+            res.json({ items: result.items });
+         })
+         .catch(err => {
+            console.error('roadmap move failed:', err);
+            res.status(500).json({ error: 'roadmap move failed' });
          });
    },
 
