@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { DUMMY_PROJECTS, DUMMY_TEAMS, isDummy, loadDummy } from '../backend/dummy';
+import { isDummy, loadDummy } from '../backend/dummy';
+import { DUMMY_PROJECTS, DUMMY_TEAMS } from '../backend/dummyProjects';
 import { epoch } from '../../../shared/format';
 import {
    dayStart,
@@ -53,7 +54,7 @@ export const RANGE_PRESETS: [string, string][] = [
    ['last-quarter', 'Last quarter'],
    ['ytd', 'Year to date'],
 ];
-export const DEFAULT_RANGE = '30d';
+export { DEFAULT_RANGE } from '../lens';
 
 export interface Range {
    /** first and last day, both counted */

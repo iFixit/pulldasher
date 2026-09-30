@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES, isDummy } from '../backend/dummy';
+import { isDummy } from '../backend/dummy';
+import { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } from '../backend/dummyProjects';
 import { createMemoryStore } from '../storage';
 import {
    checkRoadmapFields,

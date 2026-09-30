@@ -1,5 +1,10 @@
 export type Lens = 'review' | 'mine' | 'team' | 'projects' | 'classic' | 'ci' | 'stats';
 
+/** The Projects tab's default date range. It lives here, not in
+ * model/projectData.ts, so app.tsx can read and write the URL without
+ * pulling the tab's code into the review board's bundle. */
+export const DEFAULT_RANGE = '30d';
+
 /** Canonical label for each lens — the single source every surface naming the
  * views reads from: the tab strip and phone dropdown (app.tsx /
  * LensMenu), saved-filter descriptions (model/savedFilters.ts), and the

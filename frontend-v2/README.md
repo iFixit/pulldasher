@@ -120,8 +120,9 @@ seven-column layout.)
   and rolls it back if the server refuses). The tab, its charts (Recharts)
   and its date picker (react-day-picker) are lazy chunks, so the review
   board never downloads them (DESIGN.md § Charts and dates). The dummy board
-  files its pulls into projects, teams and a roadmap that show every state
-  (`backend/dummy.ts`).
+  files its pulls into projects (`backend/dummy.ts`), and
+  `backend/dummyProjects.ts` has the project issues, teams and roadmap
+  that show every state; only the lazy tab loads that second file.
 - **Keyboard:** `/` filter, `j`/`k` walk rows, `Enter` opens, `c` copies the
   focused row's branch.
 

@@ -12,7 +12,7 @@ import {
 import { ago, closedEpoch, n, pullKey, shortRepo } from '../../shared/format';
 import type { ActionStateKey } from './model/actions';
 import { actionState } from './model/actions';
-import { LENS_LABELS, type Lens } from './lens';
+import { DEFAULT_RANGE, LENS_LABELS, type Lens } from './lens';
 import type { DerivedPull } from '../../shared/model/status';
 import { matchesWeightFilter } from '../../shared/model/status';
 import { buildParentLookup } from './model/stack';
@@ -57,7 +57,6 @@ import { Classic } from './views/Classic';
 import { Ci } from './views/Ci';
 import { Stats } from './views/Stats';
 import type { ProjectsNav } from './views/Projects';
-import { DEFAULT_RANGE } from './model/projectData';
 import { Search } from './views/Search';
 import { Settings } from './components/Settings';
 
