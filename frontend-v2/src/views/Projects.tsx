@@ -207,6 +207,7 @@ export function Projects({
                closed={closedProjects}
                teamOf={teamOf}
                teamMembers={data?.teams ?? {}}
+               rotation={data?.decide_rotation ?? null}
                scoped={scoped}
                nav={nav}
                navigate={navigate}

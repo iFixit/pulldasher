@@ -8,6 +8,7 @@ import { projectSettings } from '../lib/projects.js';
 import { _resetSettings, loadSettings } from '../lib/settings.js';
 import settingsController from '../controllers/settings.js';
 import { canWrite } from '../controllers/roadmap.js';
+import { mondayOf, utcDay } from '../shared/dist/index.js';
 
 // an in-memory project_settings table behind a stubbed db.query
 let table = new Map();
@@ -72,8 +73,23 @@ test('teams come from config.js until someone saves them', async () => {
    const res = await fetch(`${base}/settings`);
    assert.deepEqual(await res.json(), {
       developer_teams: { Store: ['alice'] },
+      decide_rotation: null,
       from: { developer_teams: 'config' },
    });
+});
+
+test('who runs Decide takes turns from this week, first in the list first', async () => {
+   const saved = await patch({ decide_rotation: [' alice ', 'bo', 'Alice'] });
+   assert.equal(saved.status, 200);
+   const monday = mondayOf(utcDay(Date.now() / 1000));
+   assert.deepEqual(saved.body.decide_rotation, { logins: ['alice', 'bo'], from: monday });
+   assert.deepEqual(projectSettings().decideRotation, { logins: ['alice', 'bo'], from: monday });
+   // the teams weren't sent, so they stay
+   assert.equal(table.has('developer_teams'), false);
+   const bad = await patch({ decide_rotation: ['two words'] });
+   assert.equal(bad.status, 400);
+   assert.match(bad.body.error, /isn't a GitHub login/);
+   assert.equal((await patch({ decide_rotation: null })).body.decide_rotation, null);
 });
 
 test('saved teams replace config.js for every count, and null goes back', async () => {

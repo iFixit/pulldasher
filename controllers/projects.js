@@ -13,6 +13,7 @@ import {
    closedIssues,
    decideProjects,
    decideQueue,
+   decideTurn,
    needsDecision,
    loadByWeek,
    mondayOf,
@@ -146,6 +147,7 @@ export default {
             projects_repo: settings.repo,
             teams: settings.teams,
             teams_from: settings.teamsFrom,
+            decide_rotation: settings.decideRotation,
             projects,
             window: stats,
          })),
@@ -290,9 +292,13 @@ export default {
                today: utcDay(now),
                now,
             });
+            const day = utcDay(now);
             return {
                server_time: Math.floor(now),
                stall_days: STALL_DAYS,
+               // who takes their turn running this list, this week and next
+               runs_this_week: decideTurn(settings.decideRotation, day),
+               runs_next_week: decideTurn(settings.decideRotation, addWeeks(day, 1)),
                decisions: rows.map(({ slug, item, reasons }) => {
                   const p = slug ? bySlug.get(slug) : undefined;
                   return {

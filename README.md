@@ -143,7 +143,9 @@ The tab has four views and a page per project:
   open, and parked work whose PRs moved. Each row says why it's there, with
   its team, size and target, and takes one click: commit through the end
   of a coming month or quarter, park, finish, or drop. The row can also say
-  where the work came from, saved with the call. A team's lead can
+  where the work came from, saved with the call. People take turns running
+  the list, a week each: it names this week's and next week's, and the
+  turns can be changed in place or with `PATCH /api/v1/settings`. A team's lead can
   take just their team's rows, and copy them as text for a meeting's
   notes. It weighs every project, whatever the filter bar narrows the
   other views to. The tab's label counts what's left.

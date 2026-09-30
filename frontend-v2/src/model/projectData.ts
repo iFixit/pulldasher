@@ -3,6 +3,7 @@ import { createMemoryStore } from '../storage';
 import { dateOf, dayOf } from './days';
 import { isDummy, loadDummy } from '../backend/dummy';
 import { DUMMY_PROJECTS, DUMMY_TEAMS } from '../backend/dummyProjects';
+import type { DecideRotation } from '../../../shared/model/settings';
 import { epoch } from '../../../shared/format';
 import {
    dayStart,
@@ -31,6 +32,8 @@ export interface ProjectsData {
    teams: Record<string, string[]>;
    /** saved from the board or the API, or config.js's */
    teams_from: 'saved' | 'config';
+   /** who takes turns running Decide; null for nobody */
+   decide_rotation: DecideRotation | null;
    window: WindowStats;
 }
 
@@ -193,6 +196,7 @@ async function dummyData({ start, end }: Range, project: string | null): Promise
       projects: DUMMY_PROJECTS,
       teams: dummyTeams ?? DUMMY_TEAMS,
       teams_from: dummyTeams ? 'saved' : 'config',
+      decide_rotation: dummyRotation,
       window: windowStats(spans, start, end, {
          teamOf: teamLookup(dummyTeams ?? DUMMY_TEAMS),
          reviews,
@@ -229,10 +233,15 @@ export function refreshProjectsData(): void {
    version.set({ n: version.get().n + 1 });
 }
 
-// the dummy board's saved teams, standing in for the server's table
+// the dummy board's saved teams and Decide turns, standing in for the
+// server's table
 let dummyTeams: Record<string, string[]> | null = null;
 export function setDummyTeams(teams: Record<string, string[]> | null): void {
    dummyTeams = teams;
+}
+let dummyRotation: DecideRotation | null = null;
+export function setDummyRotation(rotation: DecideRotation | null): void {
+   dummyRotation = rotation;
 }
 
 export function useProjectsData(

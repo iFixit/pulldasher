@@ -12,7 +12,9 @@ import {
    type DecideRow,
 } from '../../../../shared/model/decide';
 import { firstOpenDay, LIVE_DAYS, type Today } from '../../../../shared/model/projects';
+import { decideTurn, type DecideRotation } from '../../../../shared/model/settings';
 import {
+   addWeeks,
    HEALTH_WORD,
    mondayOf,
    ORIGIN_WORD,
@@ -24,13 +26,14 @@ import {
    type RoadmapItem,
    type RoadmapOrigin,
 } from '../../../../shared/model/roadmap';
-import { Segmented } from '../../components/bits';
+import { Segmented, textInputClass } from '../../components/bits';
 import { Icon } from '../../components/Icon';
 import { GroupHeader, Rows } from '../../components/Lane';
 import { useArmedConfirm } from '../../components/useArmedConfirm';
 import { mainTeam, type PortfolioItem } from '../../model/portfolio';
 import { dayOf, dayWords } from '../../model/projectData';
 import { commitEnds } from '../../model/roadmapTime';
+import { saveDecideRotation } from '../../model/settingsData';
 import {
    createRoadmapItem,
    dismissRoadmapProblem,
@@ -401,6 +404,84 @@ function DecideRowView({
 }
 
 /**
+ * Who runs Decide this week: with no product manager, the list needs a name
+ * on it, so people take turns a week each. Changing the turns starts them
+ * over from the first name this week.
+ */
+function RunsDecide({ rotation, day }: { rotation: DecideRotation | null; day: string }) {
+   const [draft, setDraft] = useState<string | null>(null);
+   const [error, setError] = useState<string | null>(null);
+   const now = decideTurn(rotation, day);
+   const next = decideTurn(rotation, addWeeks(day, 1));
+   const close = () => {
+      setDraft(null);
+      setError(null);
+   };
+   const save = async () => {
+      const logins = (draft ?? '').split(/[\s,]+/).filter(Boolean);
+      const saved = await saveDecideRotation(logins.length ? logins : null);
+      if ('error' in saved) setError(saved.error);
+      else close();
+   };
+   if (draft == null) {
+      return (
+         <p className="m-0 mt-2 text-[13px] text-ink-2">
+            {now ? (
+               <>
+                  <span className="font-medium text-ink">{now}</span> runs Decide this week
+                  {next && next !== now ? `, ${next} next week` : ''}.
+               </>
+            ) : (
+               'Nobody runs Decide yet.'
+            )}{' '}
+            <button
+               type="button"
+               onClick={() => setDraft(rotation?.logins.join(', ') ?? '')}
+               className={quietButton}
+               title="People take turns running Decide, a week each"
+            >
+               {now ? 'Change the turns' : 'Name who takes turns'}
+            </button>
+         </p>
+      );
+   }
+   return (
+      <form
+         className="mt-2 flex flex-wrap items-end gap-2"
+         onSubmit={e => {
+            e.preventDefault();
+            void save();
+         }}
+         onKeyDown={e => {
+            if (e.key === 'Escape') close();
+         }}
+      >
+         <label className="flex min-w-[16rem] flex-1 flex-col gap-1 text-xs text-ink-3">
+            Who takes turns running Decide, a week each, the first one this week
+            <input
+               autoFocus
+               className={`px-2.5 ${textInputClass}`}
+               value={draft}
+               onChange={e => setDraft(e.target.value)}
+               placeholder="GitHub logins, separated by commas or spaces"
+            />
+         </label>
+         <button type="submit" className={buttonClass}>
+            Save
+         </button>
+         <button type="button" onClick={close} className={quietButton}>
+            Cancel
+         </button>
+         {error && (
+            <span role="alert" className="basis-full text-xs text-warn">
+               {error}
+            </span>
+         )}
+      </form>
+   );
+}
+
+/**
  * Decide: the weekly triage a product manager would run, as a queue that
  * empties. Every row is a project or plan that needs a call, and says why,
  * with the facts the call turns on. Each call (commit it through a month
@@ -415,6 +496,7 @@ export function Decide({
    closed,
    teamOf,
    teamMembers,
+   rotation,
    scoped,
    nav,
    navigate,
@@ -426,6 +508,8 @@ export function Decide({
    closed: ReadonlyMap<string, ClosedIssue>;
    teamOf: (login: string) => string | null;
    teamMembers: Record<string, string[]>;
+   /** who takes turns running this list; null for nobody */
+   rotation: DecideRotation | null;
    /** whether the filter bar narrows the rest of the tab */
    scoped: boolean;
    nav: ProjectsNav;
@@ -515,9 +599,14 @@ export function Decide({
          ];
       });
       const whose = !nav.team ? '' : nav.team === '(none)' ? ' with no team' : ` for ${nav.team}`;
+      const runner = decideTurn(rotation, day);
       void navigator.clipboard
          ?.writeText(
-            [`${n(owed.length, 'decision')} to make${whose}, ${dayWords(day)}`, ...lines].join('\n')
+            [
+               `${n(owed.length, 'decision')} to make${whose}, ${dayWords(day)}`,
+               ...(runner ? [`${runner} runs Decide this week`] : []),
+               ...lines,
+            ].join('\n')
          )
          .then(() => {
             setCopied(true);
@@ -562,6 +651,7 @@ export function Decide({
                Work with fewer than {DECIDE_MIN_PRS} PRs, open or merged in the last {LIVE_DAYS}{' '}
                days, ships without a call unless it stalls.
             </p>
+            <RunsDecide rotation={rotation} day={day} />
             {scoped && (
                <p className="m-0 mt-1 max-w-[72ch] text-xs text-ink-3">
                   The repo and people filters don’t narrow Decide: it weighs every project, so none

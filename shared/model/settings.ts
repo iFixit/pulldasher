@@ -1,9 +1,12 @@
+import { dayStart } from './projects';
+import { mondayOf } from './roadmap';
+
 /**
  * The settings people change from the board or the API, checked by the same
- * code on both sides. Today that's the developer teams: who counts as a
- * developer, and on which team, for every developer split and every load
- * line. Saved ones replace config.js's projects.developerTeams; null goes
- * back to config.js.
+ * code on both sides: the developer teams (who counts as a developer, and on
+ * which team, for every developer split and every load line; saved ones
+ * replace config.js's projects.developerTeams, and null goes back to
+ * config.js), and who takes turns running Decide.
  */
 
 const TEAM_MAX = 64;
@@ -53,4 +56,52 @@ export function checkDeveloperTeams(
       teams[name] = members;
    }
    return { teams };
+}
+
+const ROTATION_MAX = 50;
+const WEEK = 7 * 86400;
+
+/** Who takes turns running Decide, a week each, in this order; `from` is
+ * the Monday of the week the first of them runs. */
+export interface DecideRotation {
+   logins: string[];
+   from: string;
+}
+
+/**
+ * Check who takes turns running Decide, as a person sent it: GitHub logins
+ * in turn order. Logins are trimmed and one listed twice counts once. Null,
+ * or no one, means nobody runs it.
+ */
+export function checkDecideRotation(
+   input: unknown
+): { logins: string[] | null } | { error: string } {
+   if (input === null) return { logins: null };
+   if (!Array.isArray(input) || input.length > ROTATION_MAX) {
+      return {
+         error: `send decide_rotation as a list of up to ${ROTATION_MAX} GitHub logins, or null`,
+      };
+   }
+   const logins: string[] = [];
+   const seen = new Set<string>();
+   for (const raw of input) {
+      const login = typeof raw === 'string' ? raw.trim() : '';
+      if (!LOGIN.test(login)) return { error: `${String(raw)} isn't a GitHub login` };
+      if (seen.has(login.toLowerCase())) continue;
+      seen.add(login.toLowerCase());
+      logins.push(login);
+   }
+   return { logins: logins.length ? logins : null };
+}
+
+/** Whose turn it is to run Decide in the week holding `day`: every reader
+ * counts the same whole weeks from the rotation's first Monday. Null with
+ * nobody in it. */
+export function decideTurn(rotation: DecideRotation | null, day: string): string | null {
+   if (!rotation?.logins.length) return null;
+   const weeks = Math.round(
+      ((dayStart(mondayOf(day)) as number) - (dayStart(rotation.from) as number)) / WEEK
+   );
+   const count = rotation.logins.length;
+   return rotation.logins[((weeks % count) + count) % count];
 }

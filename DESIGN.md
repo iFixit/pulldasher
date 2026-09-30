@@ -433,7 +433,9 @@ icon with a class bolted on.
   whose PRs are filtered out would otherwise look finished. A team switch
   gives each team's lead their own rows. The tab's label counts what's
   left, and `GET /api/v1/decide` lists the same rows for a script or a
-  Claude session.
+  Claude session. A list nobody owns doesn't empty, so it names whose week
+  it is: people take turns, a week each, and every reader counts the same
+  weeks from the Monday the turns were set, so nothing assigns them.
 - **What a plan waits on is words on its row, not lines across the
   timeline**: "after Search reindex", or, amber, "starts before Shopify
   sync ends". Linear draws dependency lines, but ours would cross team

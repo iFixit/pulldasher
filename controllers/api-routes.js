@@ -125,7 +125,9 @@ export const API_ROUTES = [
       method: 'patch',
       path: '/api/v1/settings',
       handlers: [canWrite, settingsController.update],
-      does: 'Replace the developer teams: {developer_teams}, or null to go back to config.js',
+      does:
+         'Replace the developer teams, {developer_teams} (null goes back to config.js), or who ' +
+         'takes turns running Decide, {decide_rotation: [logins]}, the first this week (null for nobody)',
    },
 ];
 

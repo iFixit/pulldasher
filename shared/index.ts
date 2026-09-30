@@ -78,8 +78,8 @@ export type {
 export { epoch } from './format';
 export type { PullData, RepoSpec, Signature, CommitStatus, Label } from './types';
 
-export { checkDeveloperTeams } from './model/settings';
-export type { DeveloperTeams } from './model/settings';
+export { checkDecideRotation, checkDeveloperTeams, decideTurn } from './model/settings';
+export type { DecideRotation, DeveloperTeams } from './model/settings';
 
 export {
    closedIssues,
