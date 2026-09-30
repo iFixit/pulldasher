@@ -121,7 +121,8 @@ module.exports = {
    // above reads them over GraphQL. Closing the issue as completed means
    // done; as not planned, dropped or merged into another. When several
    // issues carry one label, `repo`'s wins, then an open one, then the
-   // oldest. Pulldasher only reads these; something else writes them. `repo`
+   // oldest. The server only reads these; something else writes them, and
+   // bin/sync-issue-fields can copy each plan into its issue's fields. `repo`
    // is optional; give it the same webhook as a tracked repo, and send Issues
    // events in both. Keep label names to 32 characters with no spaces: that's
    // what the label table and the filter box hold.

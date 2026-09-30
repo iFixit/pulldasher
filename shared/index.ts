@@ -51,11 +51,14 @@ export type { Project, PullSpan, ReviewSpan, Today, WindowStats } from './model/
 
 export {
    addWeeks,
+   bucketOf,
    checkRoadmapFields,
    checkRoadmapUpdate,
+   isUnderWay,
    mondayOf,
    moveBefore,
    planEnd,
+   planFor,
    MAX_WEEKS,
    ROADMAP_HEALTHS,
    ROADMAP_ORIGINS,

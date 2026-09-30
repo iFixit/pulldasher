@@ -183,6 +183,20 @@ The tab has four views and a page per project:
   open PRs, PRs opened and merged, and reviews given, including how many
   went to non-developers' PRs.
 
+To put the plans where people already look, `bin/sync-issue-fields` copies
+each plan under way into its project issue's Start date, Target date and
+Priority fields: the plan's first Monday and last day, and Urgent for a
+fire, else High, Medium or Low for work now, next or later. A team's project
+board shows those fields, and the issue's history keeps every change. It
+fills a field nobody has set, and changes one only if its own token set it
+last, so a date a person moved stays moved; it says so instead. It's a dry
+run unless given `--apply`, and its writes show as `github.token`'s account.
+
+```sh
+bin/sync-issue-fields           # what it would write
+bin/sync-issue-fields --apply   # write it
+```
+
 Everything the tab shows, and every change the roadmap takes, is in the API,
 Bearer-authed with the caller's own GitHub token like `/api/v1/pulls`, so a
 script or a Claude session can read the projects and run the roadmap

@@ -398,6 +398,13 @@ icon with a class bolted on.
   run. The only way to bring the future down is a decision, which is the
   point. A picked week's rows come from the same rule as its bar, so the
   count and the rows always agree.
+- **A plan's dates go where people already look.** GitHub's issue fields
+  show on a project's issue and on any board that lists it, so
+  `bin/sync-issue-fields` copies each plan's dates and priority there,
+  rather than asking a team to open another tool. A person's value always
+  wins: it fills blank fields and updates its own, and reports the rest.
+  Reading goes the other way on its own: a Target date set on the issue is
+  the project's target wherever one shows.
 - **Where the work came from is words, not a color.** A plan can say it
   was asked for from above, or found by the team, as a fire to put out or
   its own pick, so a planner can see how much of the load anyone chose.
