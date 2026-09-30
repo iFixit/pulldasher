@@ -1,4 +1,5 @@
 import {
+   useEffect,
    useRef,
    useState,
    type DragEvent,
@@ -7,10 +8,12 @@ import {
    type ReactNode,
 } from 'react';
 import { GripVertical, Plus } from 'lucide-react';
+import { n } from '../../../../shared/format';
 import { dayStart, utcDay } from '../../../../shared/model/projects';
 import {
    addWeeks,
    checkRoadmapFields,
+   healthStanding,
    MAX_WEEKS,
    mondayOf,
    moveBefore,
@@ -35,6 +38,7 @@ import {
    useRoadmap,
 } from '../../model/roadmapData';
 import type { Navigate, ProjectsNav } from './parts';
+import { healthWords, UpdatesPanel } from './roadmapHealth';
 
 const DAY = 86400;
 
@@ -133,7 +137,7 @@ function actualSpan(
    const start = past?.first_opened ?? linked?.window?.first_opened ?? null;
    if (!start) return null;
    const open = linked && (linked.status === 'live' || linked.status === 'quiet');
-   const end = open ? today : (past?.last_closed ?? linked?.window?.last_closed ?? start);
+   const end = open ? today : past?.last_closed ?? linked?.window?.last_closed ?? start;
    return { start, end };
 }
 
@@ -203,9 +207,10 @@ function Editor({
          {control}
       </label>
    );
-   const projectOptions = draft.project && !projects.some(p => p.slug === draft.project)
-      ? [...projects, { slug: draft.project, name: draft.project }]
-      : projects;
+   const projectOptions =
+      draft.project && !projects.some(p => p.slug === draft.project)
+         ? [...projects, { slug: draft.project, name: draft.project }]
+         : projects;
    return (
       <form
          className="grid gap-3 border-t border-secondary bg-muted/40 px-3.5 py-3 sm:grid-cols-4"
@@ -391,7 +396,10 @@ function RoadmapRow({
    dropHere: boolean;
 }) {
    const trackRef = useRef<HTMLSpanElement>(null);
-   const [preview, setPreview] = useState<{ start: string; weeks: number } | null>(null);
+   const [preview, setPreview] = useState<{
+      start: string;
+      weeks: number;
+   } | null>(null);
    const plan = preview ?? { start: item.start, weeks: item.weeks };
    const end = planEnd(plan);
    const left = at(plan.start, horizon);
@@ -404,6 +412,7 @@ function RoadmapRow({
    const weeksOver = over
       ? Math.ceil(((dayStart(today) as number) - (dayStart(end) as number)) / (7 * DAY))
       : 0;
+   const health = healthWords(healthStanding(item));
 
    const commit = (next: { start: string; weeks: number }) => {
       if (next.start !== item.start || next.weeks !== item.weeks) {
@@ -424,7 +433,10 @@ function RoadmapRow({
          latest =
             mode === 'move'
                ? { start: addWeeks(from.start, dw), weeks: from.weeks }
-               : { start: from.start, weeks: Math.min(MAX_WEEKS, Math.max(1, from.weeks + dw)) };
+               : {
+                    start: from.start,
+                    weeks: Math.min(MAX_WEEKS, Math.max(1, from.weeks + dw)),
+                 };
          setPreview(latest);
       };
       const up = () => {
@@ -442,20 +454,36 @@ function RoadmapRow({
       const step = e.key === 'ArrowRight' ? 1 : -1;
       commit(
          e.shiftKey
-            ? { start: item.start, weeks: Math.min(MAX_WEEKS, Math.max(1, item.weeks + step)) }
+            ? {
+                 start: item.start,
+                 weeks: Math.min(MAX_WEEKS, Math.max(1, item.weeks + step)),
+              }
             : { start: addWeeks(item.start, step), weeks: item.weeks }
       );
    };
    const meta: ReactNode[] = [STATUS_WORD[item.status]];
+   if (health) {
+      meta.push(
+         <span
+            key="health"
+            className={health.warn ? 'text-warn' : 'text-ink-2'}
+            title={health.title}
+         >
+            {health.text}
+         </span>
+      );
+   }
    if (item.lead) meta.push(item.lead);
    if (!item.project) meta.push('no PRs linked');
    else if (linked) {
-      meta.push(`${linked.open} open${linked.waiting ? `, ${linked.waiting} waiting on review` : ''}`);
+      meta.push(
+         `${linked.open} open${linked.waiting ? `, ${linked.waiting} waiting on review` : ''}`
+      );
    }
    if (over) {
       meta.push(
          <span key="over" className="text-warn">
-            {weeksOver} week{weeksOver === 1 ? '' : 's'} past the plan
+            {n(weeksOver, 'week')} past the plan
          </span>
       );
    }
@@ -478,7 +506,9 @@ function RoadmapRow({
                >
                   <Icon icon={GripVertical} size={13} />
                </span>
-               <span className="w-5 flex-none text-right text-xs text-ink-3 tabular-nums">{rank}</span>
+               <span className="w-5 flex-none text-right text-xs text-ink-3 tabular-nums">
+                  {rank}
+               </span>
                <span className="flex min-w-0 flex-col">
                   <button
                      type="button"
@@ -502,12 +532,22 @@ function RoadmapRow({
                {right > left && (
                   <button
                      type="button"
-                     aria-label={`${item.name}: planned ${weekWords(plan.start)} to ${weekWords(end)}, ${plan.weeks} weeks. Left and right arrows move it a week; with Shift they change its length.`}
-                     title={`${weekWords(plan.start)} to ${weekWords(end)} · ${plan.weeks} weeks. Drag to move; drag the right edge to change the length.`}
+                     aria-label={`${item.name}: planned ${weekWords(plan.start)} to ${weekWords(
+                        end
+                     )}, ${
+                        plan.weeks
+                     } weeks. Left and right arrows move it a week; with Shift they change its length.`}
+                     title={`${weekWords(plan.start)} to ${weekWords(end)} · ${
+                        plan.weeks
+                     } weeks. Drag to move; drag the right edge to change the length.`}
                      onPointerDown={e => grab(e, 'move')}
                      onKeyDown={keys}
                      className="absolute top-1.5 h-4 cursor-grab touch-none rounded-md border p-0 focus-visible:outline-2 focus-visible:outline-brand active:cursor-grabbing"
-                     style={{ left: `${left}%`, width: `max(${right - left}%, 6px)`, ...style }}
+                     style={{
+                        left: `${left}%`,
+                        width: `max(${right - left}%, 6px)`,
+                        ...style,
+                     }}
                   >
                      <span
                         aria-hidden
@@ -531,7 +571,9 @@ function RoadmapRow({
                         className="absolute top-[26px] h-[3px] rounded-full"
                         style={{
                            left: `${at(actual.start, horizon)}%`,
-                           width: `max(${at(actual.end, horizon) - at(actual.start, horizon)}%, 3px)`,
+                           width: `max(${
+                              at(actual.end, horizon) - at(actual.start, horizon)
+                           }%, 3px)`,
                            background: 'var(--ink-2)',
                            opacity: 0.55,
                         }}
@@ -570,7 +612,9 @@ function UnplannedRow({
    onAdd: () => void;
 }) {
    return (
-      <div className={`${rowGrid} border-t border-secondary px-3.5 py-1.5 first:border-t-0 hover:bg-muted`}>
+      <div
+         className={`${rowGrid} border-t border-secondary px-3.5 py-1.5 first:border-t-0 hover:bg-muted`}
+      >
          <span className="flex min-w-0 items-center gap-2">
             <button
                type="button"
@@ -632,7 +676,10 @@ export function Roadmap({
    navigate: Navigate;
 }) {
    const { items: plan, loadFailed, problem } = useRoadmap();
-   const [editing, setEditing] = useState<number | 'new' | null>(null);
+   // the open item is in the URL, so a link can open it; a new one is a draft
+   const editing = nav.item;
+   const openItem = (id: number | null) => navigate({ item: id });
+   const [adding, setAdding] = useState(false);
    const [dragging, setDragging] = useState<number | null>(null);
    const [dropTarget, setDropTarget] = useState<number | null>(null);
    const now = new Date();
@@ -646,7 +693,10 @@ export function Roadmap({
    };
    // the horizon's own history, so a linked project's real span starts where
    // its first PR did, not where the date range picker begins
-   const pastRange: Range = { start: horizon.start, end: today < horizon.end ? today : horizon.end };
+   const pastRange: Range = {
+      start: horizon.start,
+      end: today < horizon.end ? today : horizon.end,
+   };
    const history = useProjectsData(pastRange)?.window.projects ?? {};
    const bySlug = new Map(items.map(i => [i.slug, i]));
    const lanes = nav.group === 'team';
@@ -658,7 +708,10 @@ export function Roadmap({
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(i => ({ slug: i.slug, name: i.name }));
    const people = [
-      ...new Set([...items.flatMap(i => [...i.developers, ...i.nonDevelopers, i.lead ?? '']), ...teams]),
+      ...new Set([
+         ...items.flatMap(i => [...i.developers, ...i.nonDevelopers, i.lead ?? '']),
+         ...teams,
+      ]),
    ].filter(Boolean);
    // how much is planned or under way in each column
    const load = columns.map(
@@ -705,7 +758,8 @@ export function Roadmap({
             if (moved && moved.id !== item.id) {
                void reorderRoadmap(moveBefore(ids, moved.id, item.id));
                // in team lanes, dropping into another team's lane moves it there
-               if (lanes && moved.team !== item.team) void updateRoadmapItem(moved.id, { team: item.team });
+               if (lanes && moved.team !== item.team)
+                  void updateRoadmapItem(moved.id, { team: item.team });
             }
             setDragging(null);
             setDropTarget(null);
@@ -716,7 +770,9 @@ export function Roadmap({
    const add = (p: PortfolioItem) => {
       const actual = actualSpan(p.slug, p, history, today);
       const start = mondayOf(actual?.start ?? today);
-      const weeksSoFar = Math.ceil(((dayStart(today) as number) - (dayStart(start) as number)) / (7 * DAY));
+      const weeksSoFar = Math.ceil(
+         ((dayStart(today) as number) - (dayStart(start) as number)) / (7 * DAY)
+      );
       void createRoadmapItem({
          name: p.name,
          project: p.slug,
@@ -729,12 +785,22 @@ export function Roadmap({
       });
    };
 
+   // arriving from a link to one item: bring it into view once the plan loads
+   const arrived = useRef(false);
+   useEffect(() => {
+      if (arrived.current || !plan) return;
+      arrived.current = true;
+      if (nav.item != null) {
+         document.getElementById(`roadmap-item-${nav.item}`)?.scrollIntoView({ block: 'center' });
+      }
+   }, [plan, nav.item]);
+
    const renderRows = (list: RoadmapItem[]) =>
       list.map(item => {
          const index = ids.indexOf(item.id);
          const linked = item.project ? bySlug.get(item.project) : undefined;
          return (
-            <div key={item.id}>
+            <div key={item.id} id={`roadmap-item-${item.id}`}>
                <RoadmapRow
                   item={item}
                   rank={index + 1}
@@ -743,18 +809,21 @@ export function Roadmap({
                   linked={linked}
                   actual={actualSpan(item.project, linked, history, today)}
                   editing={editing === item.id}
-                  onEdit={() => setEditing(editing === item.id ? null : item.id)}
+                  onEdit={() => openItem(editing === item.id ? null : item.id)}
                   dragHandlers={handlersFor(item, index)}
                   dropHere={dropTarget === item.id && dragging !== item.id}
                />
                {editing === item.id && (
-                  <Editor
-                     item={item}
-                     projects={projectOptions}
-                     teams={teams}
-                     people={people}
-                     onDone={() => setEditing(null)}
-                  />
+                  <>
+                     <Editor
+                        item={item}
+                        projects={projectOptions}
+                        teams={teams}
+                        people={people}
+                        onDone={() => openItem(null)}
+                     />
+                     <UpdatesPanel item={item} />
+                  </>
                )}
             </div>
          );
@@ -775,7 +844,10 @@ export function Roadmap({
                      style={{ left: `${at(c.start, horizon)}%` }}
                   >
                      <span className={`text-ink-3 ${eyebrowText}`}>{c.label}</span>
-                     <span className="text-[11px] text-ink-3 tabular-nums" title="planned or in progress in this stretch">
+                     <span
+                        className="text-[11px] text-ink-3 tabular-nums"
+                        title="planned or in progress in this stretch"
+                     >
                         {load[columns.indexOf(c)] || ''}
                         {load[columns.indexOf(c)] ? ' planned' : ''}
                      </span>
@@ -814,7 +886,7 @@ export function Roadmap({
             <span className="flex-1" />
             <button
                type="button"
-               onClick={() => setEditing(editing === 'new' ? null : 'new')}
+               onClick={() => setAdding(a => !a)}
                className="pressable inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-surface hover:bg-brand-700"
             >
                <Icon icon={Plus} size={14} />
@@ -822,7 +894,10 @@ export function Roadmap({
             </button>
          </div>
          {problem && (
-            <div className="mb-2 flex items-center gap-3 rounded-lg border border-warn bg-surface px-3 py-2 text-[13px]" role="alert">
+            <div
+               className="mb-2 flex items-center gap-3 rounded-lg border border-warn bg-surface px-3 py-2 text-[13px]"
+               role="alert"
+            >
                <span className="text-ink-2">{problem}</span>
                <span className="flex-1" />
                <button
@@ -835,7 +910,9 @@ export function Roadmap({
             </div>
          )}
          {loadFailed && plan == null && (
-            <p className="text-[13px] text-ink-3">Couldn’t load the roadmap. Try again in a minute.</p>
+            <p className="text-[13px] text-ink-3">
+               Couldn’t load the roadmap. Try again in a minute.
+            </p>
          )}
          <Rows>
             {header}
@@ -846,21 +923,24 @@ export function Roadmap({
                      <span className="relative block h-full">
                         <span
                            className="absolute inset-y-0 border-l border-dashed"
-                           style={{ left: `${todayAt}%`, borderColor: 'var(--brand)' }}
+                           style={{
+                              left: `${todayAt}%`,
+                              borderColor: 'var(--brand)',
+                           }}
                         />
                      </span>
                   </div>
                )}
-               {editing === 'new' && (
+               {adding && (
                   <Editor
                      item={null}
                      projects={projectOptions}
                      teams={teams}
                      people={people}
-                     onDone={() => setEditing(null)}
+                     onDone={() => setAdding(false)}
                   />
                )}
-               {plan && !plan.length && editing !== 'new' && (
+               {plan && !plan.length && !adding && (
                   <div className="px-3.5 py-4 text-[13px] text-ink-3">
                      Nothing planned yet. Add a project, or add a live one from the list below.
                   </div>
@@ -874,7 +954,8 @@ export function Roadmap({
                              <div
                                 className={`border-t border-secondary bg-muted/40 px-3.5 py-[6px] text-ink-3 first:border-t-0 ${eyebrowText}`}
                              >
-                                {team ?? 'No team'} <span className="tabular-nums">· {list.length}</span>
+                                {team ?? 'No team'}{' '}
+                                <span className="tabular-nums">· {list.length}</span>
                              </div>
                              {renderRows(list)}
                           </div>
@@ -885,8 +966,8 @@ export function Roadmap({
          </Rows>
          <p className="mt-2 text-xs text-ink-3">
             Order is priority: drag a row’s grip (or use the arrow keys on it). Drag a bar to move
-            the plan and its right edge to change the length; with a bar focused, the arrow keys
-            do the same, Shift for length. The line under a bar is when the linked project’s PRs
+            the plan and its right edge to change the length; with a bar focused, the arrow keys do
+            the same, Shift for length. The line under a bar is when the linked project’s PRs
             actually ran: amber once a live project runs past its plan. The dashed line is today.
          </p>
          {unplanned.length > 0 && (

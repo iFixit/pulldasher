@@ -1,0 +1,325 @@
+import { useEffect, useState } from 'react';
+import { n } from '../../../../shared/format';
+import {
+   endShift,
+   healthStanding,
+   planEnd,
+   ROADMAP_HEALTHS,
+   UPDATE_DUE_DAYS,
+   type HealthStanding,
+   type RoadmapHealth,
+   type RoadmapItem,
+   type RoadmapUpdate,
+} from '../../../../shared/model/roadmap';
+import { Segmented } from '../../components/bits';
+import { dayOf, useProjectsData } from '../../model/projectData';
+import { loadRoadmapUpdates, postRoadmapUpdate, useRoadmap } from '../../model/roadmapData';
+import { StatsCard } from '../stats/parts';
+import type { Navigate } from './parts';
+
+export const HEALTH_WORD: Record<RoadmapHealth, string> = {
+   on_track: 'On track',
+   at_risk: 'At risk',
+   off_track: 'Off track',
+};
+
+/** An epoch-secs moment as its day, "Sep 22". */
+const when = (at: number) =>
+   new Date(at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+/** A YYYY-MM-DD day in words, read as UTC so it never shifts a day. */
+const dayWords = (day: string) =>
+   new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      timeZone: 'UTC',
+   });
+
+export function planWords(plan: { start: string; weeks: number }): string {
+   return `${dayWords(plan.start)} to ${dayWords(planEnd(plan))}, ${n(plan.weeks, 'week')}`;
+}
+
+/** Which way and how far a plan's end moved, "2 weeks later"; null when it didn't. */
+export function shiftWords(weeks: number): string | null {
+   if (!weeks) return null;
+   return `${n(Math.abs(weeks), 'week')} ${weeks > 0 ? 'later' : 'earlier'}`;
+}
+
+const planOf = (u: RoadmapUpdate) => ({ start: u.plan_start, weeks: u.plan_weeks });
+
+const latestOf = (s: HealthStanding) =>
+   s.kind === 'current' || s.kind === 'stale' ? s.update : null;
+
+/**
+ * An item's health in the words the roadmap row and the overview show, and
+ * whether they're amber: at risk, off track, or an update owed, since each
+ * means someone has something to do. Null when there's nothing to say.
+ */
+export function healthWords(
+   s: HealthStanding
+): { text: string; warn: boolean; title: string } | null {
+   switch (s.kind) {
+      case 'quiet':
+         return null;
+      case 'missing':
+         return {
+            text: 'No update yet',
+            warn: true,
+            title: `In progress for over ${UPDATE_DUE_DAYS} days by its plan, and nobody has posted an update on how it’s going.`,
+         };
+      case 'current':
+         return {
+            text: HEALTH_WORD[s.update.health],
+            warn: s.update.health !== 'on_track',
+            title: `${s.update.author} on ${when(s.update.at)}${
+               s.update.body ? `: ${s.update.body}` : ''
+            }`,
+         };
+      case 'stale':
+         return {
+            text: `${HEALTH_WORD[s.update.health]} · no update since ${when(s.update.at)}`,
+            warn: true,
+            title: `Work in progress gets an update every ${UPDATE_DUE_DAYS} days; the last was ${
+               s.days
+            } days ago.${s.update.body ? ` ${s.update.author}: ${s.update.body}` : ''}`,
+         };
+   }
+}
+
+/** What happened since the last update, to write the next one from: the
+ * linked project's PRs merged and opened, and how far the plan moved. */
+function SinceLast({ item, last }: { item: RoadmapItem; last: RoadmapUpdate }) {
+   const range = { start: dayOf(new Date(last.at * 1000)), end: dayOf(new Date()) };
+   const data = useProjectsData(item.project ? range : null, item.project);
+   const t = data?.window.totals;
+   const moved = shiftWords(endShift(planOf(last), item));
+   const parts: string[] = [];
+   if (t) {
+      parts.push(
+         t.merged || t.opened
+            ? `${n(t.merged, 'PR')} merged and ${t.opened} opened`
+            : 'no PRs merged or opened'
+      );
+   }
+   if (moved) parts.push(`the plan’s end moved ${moved}`);
+   if (!parts.length) return null;
+   return (
+      <p className="m-0 text-xs text-ink-3">
+         Since the last update on {when(last.at)}: {parts.join('; ')}.
+      </p>
+   );
+}
+
+/**
+ * An item's updates, under its editor: a form to post a new one (how it's
+ * going, and why), what changed since the last, and every update before,
+ * newest first, each with the plan as it stood then. The row's words change
+ * as soon as the server has the new one.
+ */
+export function UpdatesPanel({ item }: { item: RoadmapItem }) {
+   const [history, setHistory] = useState<RoadmapUpdate[] | 'failed' | null>(null);
+   const [health, setHealth] = useState<RoadmapHealth>(item.update?.health ?? 'on_track');
+   const [body, setBody] = useState('');
+   const [posting, setPosting] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+   useEffect(() => {
+      let live = true;
+      void loadRoadmapUpdates(item.id).then(list => {
+         if (live) setHistory(list ?? 'failed');
+      });
+      return () => {
+         live = false;
+      };
+   }, [item.id]);
+   const post = async () => {
+      setPosting(true);
+      const result = await postRoadmapUpdate(item.id, { health, body });
+      setPosting(false);
+      if ('error' in result) return setError(result.error);
+      setError(null);
+      setBody('');
+      setHistory(h => [result.update, ...(Array.isArray(h) ? h : [])]);
+   };
+   const list = Array.isArray(history) ? history : [];
+   return (
+      <div className="border-t border-secondary bg-muted/40 px-3.5 py-3">
+         <form
+            className="flex flex-col gap-2"
+            onSubmit={e => {
+               e.preventDefault();
+               void post();
+            }}
+         >
+            <div className="flex flex-wrap items-center gap-3">
+               <span className="text-xs font-semibold text-ink-2">How is it going?</span>
+               <Segmented
+                  ariaLabel="health"
+                  value={health}
+                  options={ROADMAP_HEALTHS.map(h => [h, HEALTH_WORD[h]])}
+                  onChange={setHealth}
+               />
+            </div>
+            <textarea
+               aria-label="update"
+               className="min-h-16 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px]"
+               value={body}
+               maxLength={2000}
+               onChange={e => setBody(e.target.value)}
+               placeholder="What changed, what’s in the way, what’s next"
+            />
+            {item.update && <SinceLast item={item} last={item.update} />}
+            <div className="flex flex-wrap items-center gap-3">
+               <button
+                  type="submit"
+                  disabled={posting}
+                  className="pressable rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-surface hover:bg-brand-700 disabled:opacity-40"
+               >
+                  Post update
+               </button>
+               {error && <span className="text-xs text-bad">{error}</span>}
+            </div>
+         </form>
+         {history === 'failed' && (
+            <p className="m-0 mt-3 text-xs text-ink-3">Couldn’t load the earlier updates.</p>
+         )}
+         {Array.isArray(history) && !history.length && (
+            <p className="m-0 mt-3 text-xs text-ink-3">No updates yet.</p>
+         )}
+         {list.length > 0 && (
+            <ol className="m-0 mt-3 flex list-none flex-col gap-3 border-t border-secondary p-0 pt-3">
+               {list.map((u, i) => {
+                  const before = list[i + 1];
+                  const moved = before && shiftWords(endShift(planOf(before), planOf(u)));
+                  return (
+                     <li key={u.id} className="text-[13px]">
+                        <span className="font-medium text-ink">{HEALTH_WORD[u.health]}</span>
+                        <span className="text-ink-3">
+                           {' '}
+                           · {when(u.at)} · {u.author}
+                        </span>
+                        {u.body && (
+                           <p className="m-0 mt-0.5 whitespace-pre-line text-ink-2">{u.body}</p>
+                        )}
+                        <p className="m-0 mt-0.5 text-xs text-ink-3">
+                           The plan then: {planWords(planOf(u))}
+                           {moved ? `; its end moved ${moved} since the update before` : ''}.
+                        </p>
+                     </li>
+                  );
+               })}
+            </ol>
+         )}
+      </div>
+   );
+}
+
+/** Worst first: off track, at risk, an update owed, on track, then work
+ * too new to owe one. */
+function rank(s: HealthStanding): number {
+   const u = latestOf(s);
+   if (!u) return s.kind === 'missing' ? 2 : 4;
+   const byHealth = { off_track: 0, at_risk: 1, on_track: 3 }[u.health];
+   return s.kind === 'stale' ? Math.min(byHealth, 2) : byHealth;
+}
+
+/**
+ * Where the plans stand: every roadmap item in progress, and any plan
+ * flagged at risk or off track before it starts, worst first, each with its
+ * latest update in full. The status report a project manager would otherwise
+ * collect by hand, with a button to copy it as text for an email or a chat.
+ */
+export function PlansStanding({ navigate }: { navigate: Navigate }) {
+   const { items } = useRoadmap();
+   const [copied, setCopied] = useState(false);
+   const now = Date.now() / 1000;
+   const rows = (items ?? [])
+      .map(item => ({ item, standing: healthStanding(item, now) }))
+      .filter(({ item, standing }) => {
+         const u = latestOf(standing);
+         return (
+            item.status === 'active' ||
+            (item.status === 'planned' && !!u && u.health !== 'on_track')
+         );
+      })
+      .sort((a, b) => rank(a.standing) - rank(b.standing) || a.item.priority - b.item.priority);
+   if (!rows.length) return null;
+   const needLook = rows.filter(r => healthWords(r.standing)?.warn).length;
+   const copy = () => {
+      const lines = rows.map(({ item, standing }) => {
+         const u = latestOf(standing);
+         if (!u) return `- ${item.name}: no update yet`;
+         const late = standing.kind === 'stale' ? ' (an update is overdue)' : '';
+         const said = u.body ? ` ${u.body.replace(/\s*\n\s*/g, ' ')}` : '';
+         return `- ${item.name}: ${HEALTH_WORD[u.health]}, ${u.author} on ${when(
+            u.at
+         )}${late}.${said}`;
+      });
+      void navigator.clipboard
+         ?.writeText([`Where the plans stand, ${when(now)}`, ...lines].join('\n'))
+         .then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+         });
+   };
+   return (
+      <StatsCard>
+         <div className="flex flex-wrap items-baseline gap-x-2">
+            <h3 className="m-0 text-sm font-semibold text-ink">Where the plans stand</h3>
+            <span className="text-xs text-ink-3">
+               {n(rows.length, 'plan')}
+               {needLook ? `, ${needLook} to look at` : ''}
+            </span>
+            <span className="flex-1" />
+            <button
+               type="button"
+               onClick={copy}
+               className="hit pressable rounded border-0 bg-transparent p-0 text-xs text-ink-3 hover:text-brand"
+               title="Copy this list as plain text, for an email or a chat post"
+            >
+               {copied ? 'Copied' : 'Copy as text'}
+            </button>
+         </div>
+         <div className="mt-2">
+            {rows.map(({ item, standing }) => {
+               const words = healthWords(standing);
+               const u = latestOf(standing);
+               const moved = u && shiftWords(endShift(planOf(u), item));
+               return (
+                  <div key={item.id} className="border-t border-secondary py-2.5 first:border-t-0">
+                     <div className="flex flex-wrap items-baseline gap-x-2">
+                        <button
+                           type="button"
+                           onClick={() => navigate({ view: 'roadmap', item: item.id })}
+                           className="hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium text-ink hover:text-brand"
+                           title="Open it on the roadmap"
+                        >
+                           {item.name}
+                        </button>
+                        <span
+                           className={`text-[13px] ${words?.warn ? 'text-warn' : 'text-ink-2'}`}
+                           title={words?.title}
+                        >
+                           {words?.text ?? 'No update yet'}
+                        </span>
+                        <span className="text-xs text-ink-3">
+                           {[item.team, item.lead].filter(Boolean).join(' · ')}
+                        </span>
+                     </div>
+                     {u?.body && (
+                        <p className="m-0 mt-1 whitespace-pre-line text-[13px] text-ink-2">
+                           {u.body}
+                        </p>
+                     )}
+                     {u && (
+                        <p className="m-0 mt-1 text-xs text-ink-3">
+                           {u.author} on {when(u.at)}
+                           {moved ? ` · since then, the plan’s end moved ${moved}` : ''}
+                        </p>
+                     )}
+                  </div>
+               );
+            })}
+         </div>
+      </StatsCard>
+   );
+}

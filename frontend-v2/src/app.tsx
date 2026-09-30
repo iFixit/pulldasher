@@ -147,6 +147,7 @@ function readHash(): HashState {
          sort: p.get('sort') || 'open',
          find: p.get('find') ?? '',
          scale: p.get('scale') === 'month' ? 'month' : 'quarter',
+         item: Number(p.get('item')) || null,
       },
    };
 }
@@ -171,6 +172,7 @@ function buildHash(s: HashState): string {
    if (s.projects.sort !== 'open') p.set('sort', s.projects.sort);
    if (s.projects.find) p.set('find', s.projects.find);
    if (s.projects.scale !== 'quarter') p.set('scale', s.projects.scale);
+   if (s.projects.item) p.set('item', String(s.projects.item));
    return p.toString();
 }
 

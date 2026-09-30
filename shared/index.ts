@@ -52,13 +52,20 @@ export type { Project, PullSpan, ReviewSpan, Today, WindowStats } from './model/
 export {
    addWeeks,
    checkRoadmapFields,
+   checkRoadmapUpdate,
    mondayOf,
    moveBefore,
    planEnd,
    MAX_WEEKS,
    ROADMAP_STATUSES,
 } from './model/roadmap';
-export type { RoadmapFields, RoadmapItem, RoadmapStatus } from './model/roadmap';
+export type {
+   RoadmapFields,
+   RoadmapHealth,
+   RoadmapItem,
+   RoadmapStatus,
+   RoadmapUpdate,
+} from './model/roadmap';
 
 export { epoch } from './format';
 export type { PullData, RepoSpec, Signature, CommitStatus, Label } from './types';

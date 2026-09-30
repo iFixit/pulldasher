@@ -2,10 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
    addWeeks,
    checkRoadmapFields,
+   checkRoadmapUpdate,
+   endShift,
+   healthStanding,
    mondayOf,
    moveBefore,
    planEnd,
+   type RoadmapUpdate,
 } from '../../../shared/model/roadmap';
+import { dayStart } from '../../../shared/model/projects';
 
 describe('roadmap dates', () => {
    it('moves any day to its week’s Monday and counts whole weeks from it', () => {
@@ -19,7 +24,9 @@ describe('roadmap dates', () => {
 
 describe('checkRoadmapFields', () => {
    it('needs a name on a new item, trims it, and snaps the start to Monday', () => {
-      expect(checkRoadmapFields({}, { partial: false })).toEqual({ error: 'a project needs a name' });
+      expect(checkRoadmapFields({}, { partial: false })).toEqual({
+         error: 'a project needs a name',
+      });
       expect(
          checkRoadmapFields({ name: '  Checkout  ', start: '2026-10-01' }, { partial: false })
       ).toEqual({ fields: { name: 'Checkout', start: '2026-09-28' } });
@@ -51,5 +58,58 @@ describe('moveBefore', () => {
       expect(moveBefore([1, 2, 3, 4], 1, 4)).toEqual([2, 3, 1, 4]);
       expect(moveBefore([1, 2, 3], 1, null)).toEqual([2, 3, 1]);
       expect(moveBefore([1, 2, 3], 9, 1)).toEqual([1, 2, 3]);
+   });
+});
+
+describe('updates', () => {
+   const DAY = 86400;
+   const now = dayStart('2026-09-30') as number;
+   const update = (
+      daysAgo: number,
+      health: RoadmapUpdate['health'] = 'on_track'
+   ): RoadmapUpdate => ({
+      id: 1,
+      item_id: 1,
+      health,
+      body: '',
+      plan_start: '2026-09-07',
+      plan_weeks: 4,
+      author: 'dana',
+      at: now - daysAgo * DAY,
+   });
+
+   it('checks the health and trims the words, which may be empty', () => {
+      expect(checkRoadmapUpdate({ health: 'at_risk', body: ' Slipping. ' })).toEqual({
+         fields: { health: 'at_risk', body: 'Slipping.' },
+      });
+      expect(checkRoadmapUpdate({ health: 'on_track' })).toEqual({
+         fields: { health: 'on_track', body: '' },
+      });
+      expect((checkRoadmapUpdate({ health: 'fine' }) as { error: string }).error).toMatch(/health/);
+   });
+
+   it('counts how far a plan’s end moved, later positive', () => {
+      const was = { start: '2026-09-07', weeks: 4 };
+      expect(endShift(was, { start: '2026-09-07', weeks: 6 })).toBe(2);
+      expect(endShift(was, { start: '2026-08-31', weeks: 4 })).toBe(-1);
+      expect(endShift(was, was)).toBe(0);
+   });
+
+   it('owes an update only on work in progress, after two weeks', () => {
+      const active = { status: 'active' as const, start: '2026-09-07' };
+      expect(healthStanding({ ...active, update: null }, now).kind).toBe('missing');
+      expect(healthStanding({ ...active, start: '2026-09-21', update: null }, now).kind).toBe(
+         'quiet'
+      );
+      expect(healthStanding({ ...active, update: update(3) }, now).kind).toBe('current');
+      expect(healthStanding({ ...active, update: update(15) }, now)).toMatchObject({
+         kind: 'stale',
+         days: 15,
+      });
+      // a plan that hasn't started, or finished work, owes nothing
+      expect(healthStanding({ ...active, status: 'planned', update: update(40) }, now).kind).toBe(
+         'current'
+      );
+      expect(healthStanding({ ...active, status: 'done', update: null }, now).kind).toBe('quiet');
    });
 });

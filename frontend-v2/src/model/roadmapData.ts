@@ -1,11 +1,14 @@
 import { useEffect } from 'react';
-import { DUMMY_ROADMAP, isDummy } from '../backend/dummy';
+import { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES, isDummy } from '../backend/dummy';
 import { createMemoryStore } from '../storage';
 import {
    checkRoadmapFields,
    mondayOf,
+   checkRoadmapUpdate,
    type RoadmapFields,
+   type RoadmapHealth,
    type RoadmapItem,
+   type RoadmapUpdate,
 } from '../../../shared/model/roadmap';
 import { utcDay } from '../../../shared/model/projects';
 
@@ -35,7 +38,11 @@ interface Api {
    update: (id: number, fields: Partial<RoadmapFields>) => Promise<Reply>;
    remove: (id: number) => Promise<Reply>;
    reorder: (ids: number[]) => Promise<Reply>;
+   updates: (id: number) => Promise<Reply>;
+   postUpdate: (id: number, fields: UpdateFields) => Promise<Reply>;
 }
+
+type UpdateFields = { health: RoadmapHealth; body: string };
 
 function liveApi(): Api {
    const send = async (method: string, path: string, body?: unknown): Promise<Reply> => {
@@ -54,6 +61,8 @@ function liveApi(): Api {
       update: (id, fields) => send('PATCH', `/roadmap/${id}`, fields),
       remove: id => send('DELETE', `/roadmap/${id}`),
       reorder: ids => send('PUT', '/roadmap/order', { ids }),
+      updates: id => send('GET', `/roadmap/${id}/updates`),
+      postUpdate: (id, fields) => send('POST', `/roadmap/${id}/updates`, fields),
    };
 }
 
@@ -62,6 +71,7 @@ function liveApi(): Api {
 function dummyApi(): Api {
    let rows = DUMMY_ROADMAP.map(item => ({ ...item }));
    let nextId = Math.max(0, ...rows.map(r => r.id)) + 1;
+   let updates = DUMMY_ROADMAP_UPDATES.map(u => ({ ...u }));
    const ok = (json: Record<string, unknown>, status = 200) => Promise.resolve({ status, json });
    const bad = (error: string, status = 400) => ok({ error }, status);
    const touch = { updated_by: 'danielbeardsley', updated_at: Math.floor(Date.now() / 1000) };
@@ -83,6 +93,7 @@ function dummyApi(): Api {
             notes: f.notes ?? '',
             priority: Math.max(-1, ...rows.map(r => r.priority)) + 1,
             ...touch,
+            update: null,
          };
          rows.push(item);
          return ok({ item }, 201);
@@ -98,7 +109,27 @@ function dummyApi(): Api {
       remove: id => {
          const before = rows.length;
          rows = rows.filter(r => r.id !== id);
+         updates = updates.filter(u => u.item_id !== id);
          return rows.length < before ? ok({ ok: true }) : bad('no such roadmap item', 404);
+      },
+      updates: id => ok({ updates: updates.filter(u => u.item_id === id).reverse() }),
+      postUpdate: (id, fields) => {
+         const checked = checkRoadmapUpdate(fields);
+         if ('error' in checked) return bad(checked.error);
+         const row = rows.find(r => r.id === id);
+         if (!row) return bad('no such roadmap item', 404);
+         const update: RoadmapUpdate = {
+            id: Math.max(0, ...updates.map(u => u.id)) + 1,
+            item_id: id,
+            ...checked.fields,
+            plan_start: row.start,
+            plan_weeks: row.weeks,
+            author: touch.updated_by,
+            at: Math.floor(Date.now() / 1000),
+         };
+         updates.push(update);
+         row.update = update;
+         return ok({ update }, 201);
       },
       reorder: ids => {
          ids.forEach((id, i) => {
@@ -188,6 +219,28 @@ export async function reorderRoadmap(ids: number[]): Promise<void> {
    if (settle(reply, 'save the new order', undo)) {
       store.set({ ...store.get(), items: reply.json.items as RoadmapItem[] });
    }
+}
+
+/** An item's updates, newest first; null when they couldn't be loaded. */
+export async function loadRoadmapUpdates(id: number): Promise<RoadmapUpdate[] | null> {
+   const reply = await api.updates(id).catch((): Reply => ({ status: 0, json: {} }));
+   return reply.status === 200 ? (reply.json.updates as RoadmapUpdate[]) : null;
+}
+
+/** Post an update. Once the server has it, the item's latest update changes
+ * everywhere the roadmap shows; a refusal comes back in words for the form. */
+export async function postRoadmapUpdate(
+   id: number,
+   fields: UpdateFields
+): Promise<{ update: RoadmapUpdate } | { error: string }> {
+   const reply = await api.postUpdate(id, fields).catch((): Reply => ({ status: 0, json: {} }));
+   if (reply.status !== 201) return { error: problemOf(reply, 'post the update') };
+   const update = reply.json.update as RoadmapUpdate;
+   store.set({
+      ...store.get(),
+      items: (store.get().items ?? []).map(i => (i.id === id ? { ...i, update } : i)),
+   });
+   return { update };
 }
 
 export function dismissRoadmapProblem(): void {

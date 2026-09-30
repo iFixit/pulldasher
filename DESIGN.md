@@ -340,6 +340,12 @@ icon with a class bolted on.
   it, amber only where a live project has run past its plan. Editing opens
   inline under the row, not in a popover, since a half-typed plan shouldn't
   vanish on a stray click.
+- **A plan's health is a word, amber only when someone owes something.**
+  "On track" reads plain. "At risk", "Off track" and an overdue update are
+  amber, because each asks someone to act: the planner to replan, the lead
+  to post. Red stays CI's. An update keeps the plan as it stood, so the
+  next one can say the end moved "2 weeks later" without anyone keeping a
+  baseline by hand.
 - **A comparison is words, not color.** Each count says how it compares with
   the same number of days just before ("4 more than the 30 days before").
   More merged isn't always good news, so no green or red.

@@ -1,6 +1,14 @@
 import { respondOrError } from '../lib/controller-utils.js';
-import { createItem, deleteItem, listItems, reorderItems, updateItem } from '../lib/roadmap.js';
-import { checkRoadmapFields } from '../shared/dist/index.js';
+import {
+   addUpdate,
+   createItem,
+   deleteItem,
+   listItems,
+   listUpdates,
+   reorderItems,
+   updateItem,
+} from '../lib/roadmap.js';
+import { checkRoadmapFields, checkRoadmapUpdate } from '../shared/dist/index.js';
 
 const FAKE_USER = process.env.MOCK_AUTH_AS_USER;
 
@@ -32,8 +40,8 @@ export default {
    /**
     * GET /roadmap (session) and GET /api/v1/roadmap (Bearer) -- every
     * roadmap item in priority order: the plan a project manager laid out,
-    * each with its first week, length in weeks, and an optional project label
-    * slug linking it to that project's PRs.
+    * each with its first week, length in weeks, an optional project label
+    * slug linking it to that project's PRs, and its latest update.
     */
    list: function (req, res) {
       respondOrError(
@@ -85,6 +93,39 @@ export default {
          .catch(err => {
             console.error('roadmap delete failed:', err);
             res.status(500).json({ error: 'roadmap delete failed' });
+         });
+   },
+
+   /** GET /roadmap/:id/updates (session) and /api/v1/roadmap/:id/updates
+    * (Bearer) -- the item's updates, newest first. */
+   updates: function (req, res) {
+      const id = idOf(req);
+      if (!id) return res.status(400).json({ error: 'the id must be a positive whole number' });
+      respondOrError(
+         res,
+         listUpdates(id).then(updates => ({ updates })),
+         'roadmap updates query failed'
+      );
+   },
+
+   /**
+    * POST /roadmap/:id/updates {health, body?} -- a new update on the item,
+    * with the plan as it stands kept beside it. 201 with the update.
+    */
+   postUpdate: function (req, res) {
+      const id = idOf(req);
+      if (!id) return res.status(400).json({ error: 'the id must be a positive whole number' });
+      const checked = checkRoadmapUpdate(req.body);
+      if (checked.error) return res.status(400).json({ error: checked.error });
+      addUpdate(id, checked.fields, req.roadmapLogin)
+         .then(update =>
+            update
+               ? res.status(201).json({ update })
+               : res.status(404).json({ error: 'no such roadmap item' })
+         )
+         .catch(err => {
+            console.error('roadmap update post failed:', err);
+            res.status(500).json({ error: 'roadmap update post failed' });
          });
    },
 

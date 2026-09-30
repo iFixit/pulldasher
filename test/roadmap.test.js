@@ -6,12 +6,39 @@ import db from '../lib/db.js';
 import { itemFromRow } from '../lib/roadmap.js';
 import roadmapController, { canWrite } from '../controllers/roadmap.js';
 
-// An in-memory roadmap_items table behind a stubbed db.query, so each write
-// is visible to the next read the way it would be in MySQL. It answers only
-// the statements lib/roadmap.js sends.
+// In-memory roadmap_items and roadmap_updates tables behind a stubbed
+// db.query, so each write is visible to the next read the way it would be in
+// MySQL. They answer only the statements lib/roadmap.js sends.
 let rows = [];
+let updates = [];
 let nextId = 1;
+let nextUpdateId = 1;
+function fakeUpdatesQuery(sql, params) {
+   if (sql.startsWith('INSERT INTO `roadmap_updates` SET ?')) {
+      const row = { id: nextUpdateId++, ...params[0] };
+      updates.push(row);
+      return { insertId: row.id, affectedRows: 1 };
+   }
+   if (sql.startsWith('DELETE FROM `roadmap_updates`')) {
+      const before = updates.length;
+      updates = updates.filter(u => u.item_id !== params[0]);
+      return { affectedRows: before - updates.length };
+   }
+   if (sql.includes('MAX(`id`)')) {
+      const latest = new Map();
+      for (const u of updates) if (!latest.has(u.item_id) || latest.get(u.item_id).id < u.id) latest.set(u.item_id, u);
+      return [...latest.values()];
+   }
+   if (sql.includes('WHERE `item_id` = ?')) {
+      return updates
+         .filter(u => u.item_id === params[0])
+         .sort((a, b) => b.id - a.id)
+         .slice(0, params[1]);
+   }
+   throw new Error(`unexpected query: ${sql}`);
+}
 function fakeQuery(sql, params = []) {
+   if (sql.includes('`roadmap_updates`')) return fakeUpdatesQuery(sql, params);
    const byOrder = () =>
       [...rows].sort((a, b) => a.priority - b.priority || a.id - b.id);
    if (sql.startsWith('SELECT MAX(`priority`)')) {
@@ -60,6 +87,8 @@ function makeApp() {
    app.put('/roadmap/order', canWrite, roadmapController.reorder);
    app.patch('/roadmap/:id', canWrite, roadmapController.update);
    app.delete('/roadmap/:id', canWrite, roadmapController.remove);
+   app.get('/roadmap/:id/updates', roadmapController.updates);
+   app.post('/roadmap/:id/updates', canWrite, roadmapController.postUpdate);
    return app;
 }
 
@@ -80,7 +109,9 @@ after(() => {
 });
 beforeEach(() => {
    rows = [];
+   updates = [];
    nextId = 1;
+   nextUpdateId = 1;
    signedIn = true;
 });
 
@@ -122,6 +153,7 @@ test('itemFromRow renames the lead and fills the blanks', () => {
          notes: '',
          updated_by: 'alice',
          updated_at: 1790000000,
+         update: null,
       }
    );
 });
@@ -166,10 +198,44 @@ test('an edit changes only what was sent, and 404s an unknown item', async () =>
    assert.equal((await call('PATCH', '/roadmap/abc', { weeks: 5 })).status, 400);
 });
 
-test('delete removes the item', async () => {
+test('an update keeps the plan beside it; the list shows each item’s latest', async () => {
+   const { body } = await call('POST', '/roadmap', { name: 'Search', start: '2026-09-28', weeks: 4 });
+   const id = body.item.id;
+   assert.equal(body.item.update, null);
+   const first = await call('POST', `/roadmap/${id}/updates`, { health: 'on_track', body: ' Fine. ' });
+   assert.equal(first.status, 201);
+   assert.equal(first.body.update.body, 'Fine.');
+   assert.equal(first.body.update.author, 'alice');
+   await call('PATCH', `/roadmap/${id}`, { weeks: 6 });
+   await call('POST', `/roadmap/${id}/updates`, { health: 'at_risk' });
+   const [item] = (await call('GET', '/roadmap', undefined, {})).body.items;
+   assert.equal(item.update.health, 'at_risk');
+   assert.equal(item.update.body, '');
+   assert.equal(item.update.plan_weeks, 6);
+   const history = (await call('GET', `/roadmap/${id}/updates`, undefined, {})).body.updates;
+   assert.deepEqual(
+      history.map(u => [u.health, u.plan_start, u.plan_weeks]),
+      [
+         ['at_risk', '2026-09-28', 6],
+         ['on_track', '2026-09-28', 4],
+      ]
+   );
+});
+
+test('a bad update is a 400; one on an unknown item a 404', async () => {
+   const { body } = await call('POST', '/roadmap', { name: 'X' });
+   const bad = await call('POST', `/roadmap/${body.item.id}/updates`, { health: 'fine' });
+   assert.equal(bad.status, 400);
+   assert.match(bad.body.error, /health/);
+   assert.equal((await call('POST', '/roadmap/99/updates', { health: 'on_track' })).status, 404);
+});
+
+test('delete removes the item and its updates', async () => {
    const { body } = await call('POST', '/roadmap', { name: 'Gone soon' });
+   await call('POST', `/roadmap/${body.item.id}/updates`, { health: 'off_track' });
    const res = await call('DELETE', `/roadmap/${body.item.id}`, undefined, {});
    assert.equal(res.status, 200);
+   assert.equal(updates.length, 0);
    assert.equal((await call('GET', '/roadmap', undefined, {})).body.items.length, 0);
    assert.equal((await call('DELETE', `/roadmap/${body.item.id}`, undefined, {})).status, 404);
 });

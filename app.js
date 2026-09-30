@@ -78,6 +78,8 @@ app.post('/roadmap', canWrite, roadmapController.create);
 app.put('/roadmap/order', canWrite, roadmapController.reorder);
 app.patch('/roadmap/:id', canWrite, roadmapController.update);
 app.delete('/roadmap/:id', canWrite, roadmapController.remove);
+app.get('/roadmap/:id/updates', roadmapController.updates);
+app.post('/roadmap/:id/updates', canWrite, roadmapController.postUpdate);
 app.post('/hooks/main', hooksController.main);
 
 // /api/v1: machine-to-machine JSON for the review skills, Bearer-authed with
@@ -89,6 +91,7 @@ app.get('/api/v1/pulls', apiAuth, apiController.getPulls);
 app.get('/api/v1/projects', apiAuth, projectsController.getProjects);
 app.get('/api/v1/people', apiAuth, projectsController.getPeople);
 app.get('/api/v1/roadmap', apiAuth, roadmapController.list);
+app.get('/api/v1/roadmap/:id/updates', apiAuth, roadmapController.updates);
 
 // Warm the bot-login cache (used to tell a pulldasher claim apart from a
 // GitHub-UI self-request) before any webhook or socket traffic needs it.

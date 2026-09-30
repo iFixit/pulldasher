@@ -111,7 +111,7 @@ export function Projects({
                ariaLabel="projects view"
                value={nav.view}
                options={VIEWS}
-               onChange={view => navigate({ view })}
+               onChange={view => navigate({ view, item: null })}
             />
          )}
          {/* the roadmap has its own months and quarters; the range is for numbers */}

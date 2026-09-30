@@ -115,15 +115,19 @@ repo, PRs still group by label, just without names, leads or targets.
 
 The tab has three views and a page per project:
 
-- **Overview**: headline numbers for a date range (each compared with the
-  same number of days before), the backlog chart, where the merged work
-  went week by week, and every project on one list you can sort, group by
-  parent, lead or team, search, and download as CSV.
+- **Overview**: where the plans stand (the latest update on every item in
+  progress, worst first, which copies as text for a status email),
+  headline numbers for a date range (each compared with the same number of
+  days before), the backlog chart, where the merged work went week by
+  week, and every project on one list you can sort, group by parent, lead
+  or team, search, and download as CSV.
 - **Roadmap**: the plan, by month or by quarter. Drag rows to set priority,
   drag a bar to move it and its edge to change its length; group into team
   lanes. An item linked to a project label draws what its PRs actually did
-  under the plan. This is the one thing the tab stores itself, in the
-  `roadmap_items` table.
+  under the plan. Each item takes updates: on track, at risk or off track,
+  and a note, kept as a history. Work in progress with no update for 14
+  days is flagged. The roadmap is the one thing the tab stores itself, in
+  the `roadmap_items` and `roadmap_updates` tables.
 - **People**: developers by team and everyone else: live projects each,
   open PRs, PRs opened and merged, and reviews given, including how many
   went to non-developers' PRs.
@@ -139,7 +143,10 @@ project:
 - `GET /api/v1/people`: per person, their team, the window's numbers,
   reviews given, the projects they had PRs in, the live projects they're on
   today, and their open PRs.
-- `GET /api/v1/roadmap`: every roadmap item in priority order.
+- `GET /api/v1/roadmap`: every roadmap item in priority order, each with
+  its latest update.
+- `GET /api/v1/roadmap/:id/updates`: one item's updates, newest first,
+  each with the plan as it stood when it was posted.
 
 Pulldasher also re-lists every tracked repo's open PRs once an hour and
 refreshes only the ones its database has wrong, so a lost webhook can't leave

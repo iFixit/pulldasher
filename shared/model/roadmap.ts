@@ -12,8 +12,15 @@ import { dayStart, utcDay } from './projects';
 export type RoadmapStatus = 'planned' | 'active' | 'done' | 'dropped';
 export const ROADMAP_STATUSES: RoadmapStatus[] = ['planned', 'active', 'done', 'dropped'];
 
+/** How the work is going, in the words a lead would use in standup. */
+export type RoadmapHealth = 'on_track' | 'at_risk' | 'off_track';
+export const ROADMAP_HEALTHS: RoadmapHealth[] = ['on_track', 'at_risk', 'off_track'];
+
 /** the longest plan an item can carry, in weeks: two years */
 export const MAX_WEEKS = 104;
+/** how long an update on work in progress stays current: after this many
+ * days without a new one, the lead owes the next */
+export const UPDATE_DUE_DAYS = 14;
 const NAME_MAX = 120;
 const NOTES_MAX = 2000;
 const TEAM_MAX = 64;
@@ -39,6 +46,26 @@ export interface RoadmapItem {
    /** who last changed it and when (epoch secs); null before anyone has */
    updated_by: string | null;
    updated_at: number | null;
+   /** the latest update on how it's going; null before the first */
+   update: RoadmapUpdate | null;
+}
+
+/**
+ * One update on an item: how it's going and why, from whoever posted it.
+ * Updates are kept as a history. Each keeps the plan as it stood when it was
+ * written, so the next can say how far the plan moved in between.
+ */
+export interface RoadmapUpdate {
+   id: number;
+   item_id: number;
+   health: RoadmapHealth;
+   body: string;
+   /** the item's start and length when this was posted */
+   plan_start: string;
+   plan_weeks: number;
+   author: string;
+   /** epoch secs */
+   at: number;
 }
 
 /** The fields a person can set; the server owns id, priority and the audit fields. */
@@ -135,6 +162,66 @@ export function checkRoadmapFields(input: unknown, { partial }: { partial: boole
       } else fields.notes = raw.notes.trim();
    }
    return { fields };
+}
+
+/** Check what a person sent as an update: a health, and words up to the
+ * notes' limit (none is fine: "on track" can say it all). */
+export function checkRoadmapUpdate(
+   input: unknown
+): { fields: { health: RoadmapHealth; body: string } } | { error: string } {
+   if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      return { error: 'send the update as a JSON object' };
+   }
+   const raw = input as Record<string, unknown>;
+   if (!ROADMAP_HEALTHS.includes(raw.health as RoadmapHealth)) {
+      return { error: `health is one of ${ROADMAP_HEALTHS.join(', ')}` };
+   }
+   const body = raw.body ?? '';
+   if (typeof body !== 'string' || body.length > NOTES_MAX) {
+      return { error: `keep the update to ${NOTES_MAX} characters` };
+   }
+   return { fields: { health: raw.health as RoadmapHealth, body: body.trim() } };
+}
+
+/** How many weeks a plan's end moved from one version to the next: positive
+ * is later. */
+export function endShift(
+   from: Pick<RoadmapItem, 'start' | 'weeks'>,
+   to: Pick<RoadmapItem, 'start' | 'weeks'>
+): number {
+   const diff = (dayStart(planEnd(to)) as number) - (dayStart(planEnd(from)) as number);
+   return Math.round(diff / (7 * DAY));
+}
+
+/**
+ * Where an item's updates stand, for the roadmap row and the overview:
+ * - `quiet`: nothing owed. Done or dropped, planned, or in progress for less
+ *   than UPDATE_DUE_DAYS by its plan without an update yet.
+ * - `missing`: in progress past UPDATE_DUE_DAYS by its plan, and never an update.
+ * - `current`: the latest update is recent enough, or the work hasn't started.
+ * - `stale`: in progress, and the latest update is older than UPDATE_DUE_DAYS.
+ */
+export type HealthStanding =
+   | { kind: 'quiet' }
+   | { kind: 'missing' }
+   | { kind: 'current'; update: RoadmapUpdate }
+   | { kind: 'stale'; update: RoadmapUpdate; days: number };
+
+export function healthStanding(
+   item: Pick<RoadmapItem, 'status' | 'start' | 'update'>,
+   now: number = Date.now() / 1000
+): HealthStanding {
+   if (item.status === 'done' || item.status === 'dropped') return { kind: 'quiet' };
+   const active = item.status === 'active';
+   const u = item.update;
+   if (!u) {
+      const started = (now - (dayStart(item.start) as number)) / DAY;
+      return active && started > UPDATE_DUE_DAYS ? { kind: 'missing' } : { kind: 'quiet' };
+   }
+   const days = Math.floor((now - u.at) / DAY);
+   return active && days > UPDATE_DUE_DAYS
+      ? { kind: 'stale', update: u, days }
+      : { kind: 'current', update: u };
 }
 
 /**

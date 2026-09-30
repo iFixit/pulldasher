@@ -27,6 +27,8 @@ export interface ProjectsNav {
    find: string;
    /** the roadmap's columns: months or quarters */
    scale: 'month' | 'quarter';
+   /** the roadmap item whose editor and updates are open */
+   item: number | null;
 }
 export type Navigate = (patch: Partial<ProjectsNav>) => void;
 

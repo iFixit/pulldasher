@@ -16,6 +16,7 @@ import { StatsCard } from '../stats/parts';
 import { AllocationChart, BacklogFlowChart, ChartSlot } from './lazyCharts';
 import { Tile, versus, versusDays, type Navigate, type ProjectsNav } from './parts';
 import { Portfolio } from './Portfolio';
+import { PlansStanding } from './roadmapHealth';
 
 const WAITING: Status[] = ['needs_cr', 'needs_recr', 'needs_qa'];
 
@@ -46,7 +47,9 @@ function Headline({
    ];
    const waiting = openNow.filter(p => WAITING.includes(p.status));
    const waitingOnOthers = waiting.filter(p => teamOf(p.data.user.login) == null).length;
-   const started = items.filter(i => i.window?.first_opened && i.window.first_opened >= range.start);
+   const started = items.filter(
+      i => i.window?.first_opened && i.window.first_opened >= range.start
+   );
    const finished = items.filter(
       i =>
          i.status === 'done' &&
@@ -90,9 +93,7 @@ function Headline({
             label="Developers · others"
             title="People with a PR in the range: on a developer team, and everyone else"
             note={
-               before
-                  ? `${before.developers} · ${before.non_developers} the ${period}`
-                  : undefined
+               before ? `${before.developers} · ${before.non_developers} the ${period}` : undefined
             }
          />
       </div>
@@ -116,8 +117,8 @@ function BacklogCard({ range }: { range: Range }) {
             </div>
          )}
          <p className="mt-1 text-xs text-ink-3">
-            Green is what merged or closed since the first day; blue on top is what was still
-            open, so the blue band’s height is the backlog that day.
+            Green is what merged or closed since the first day; blue on top is what was still open,
+            so the blue band’s height is the backlog that day.
          </p>
       </StatsCard>
    );
@@ -159,8 +160,8 @@ export function Overview({
       <div className="flex flex-col gap-5">
          {data === null && (
             <p className="m-0 text-xs text-ink-3">
-               Couldn’t load the project issues or the range’s numbers. Projects show by label
-               until they load.
+               Couldn’t load the project issues or the range’s numbers. Projects show by label until
+               they load.
             </p>
          )}
          {data && (
@@ -175,6 +176,7 @@ export function Overview({
                />
             </StatsCard>
          )}
+         <PlansStanding navigate={navigate} />
          <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(380px,1fr))]">
             <BacklogCard range={range} />
             <StatsCard title="Where the merged work went" sub={rangeWords(range)}>

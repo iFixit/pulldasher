@@ -1,6 +1,11 @@
 import type { InitializePayload, PullData } from '../../../shared/types';
 import { utcDay, type Project } from '../../../shared/model/projects';
-import { addWeeks, mondayOf, type RoadmapItem } from '../../../shared/model/roadmap';
+import {
+   addWeeks,
+   mondayOf,
+   type RoadmapItem,
+   type RoadmapUpdate,
+} from '../../../shared/model/roadmap';
 
 /**
  * Dummy mode: run the whole UI without a backend.
@@ -207,11 +212,57 @@ export const DUMMY_PROJECTS: Project[] = [
  * linked items whose PRs draw over the plan (SSO approvals ran past its
  * plan, Akeneo 4 is done), plans with no PRs yet (Checkout redesign, Search
  * relevance), and several live projects left off it, so the "not on the
- * roadmap" list demos too.
+ * roadmap" list demos too. The updates show every standing: SSO approvals
+ * slid from on track to off track as its plan grew, the webdriver work's
+ * last update is overdue, MySQL 8 never had one, and Checkout redesign is
+ * flagged at risk before it starts.
  */
-export const DUMMY_ROADMAP: RoadmapItem[] = (() => {
+export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
    const monday = mondayOf(utcDay(Date.now() / 1000));
    const at = (weeks: number) => addWeeks(monday, weeks);
+   const now = Math.floor(Date.now() / 1000);
+   let nextUpdate = 1;
+   const update = (
+      itemId: number,
+      daysAgo: number,
+      health: RoadmapUpdate['health'],
+      author: string,
+      plan: [number, number],
+      body: string
+   ): RoadmapUpdate => ({
+      id: nextUpdate++,
+      item_id: itemId,
+      health,
+      body,
+      plan_start: at(plan[0]),
+      plan_weeks: plan[1],
+      author,
+      at: now - daysAgo * 86400 - 3600,
+   });
+   // oldest first, the way they were posted
+   const updates = [
+      update(8, 60, 'on_track', 'zdmitchell', [-11, 8], 'Catalog import works end to end.'),
+      update(1, 30, 'on_track', 'rjmccluskey', [-8, 4], 'Design approved; building the approval step.'),
+      update(3, 24, 'on_track', 'mlahargou', [-6, 12], 'Down to four flaky tests.'),
+      update(
+         1,
+         16,
+         'at_risk',
+         'rjmccluskey',
+         [-8, 5],
+         'Security review found two gaps in the approval step. Fixing them first.'
+      ),
+      update(2, 5, 'on_track', 'zdmitchell', [-4, 7], 'Orders sync in staging; products are next.'),
+      update(
+         1,
+         3,
+         'off_track',
+         'rjmccluskey',
+         [-8, 6],
+         'The audit moved up a week, and the second approval path won’t make it.\nAsking to ship the first path alone.'
+      ),
+      update(4, 2, 'at_risk', 'jarstelfox', [3, 8], 'Waiting on the design review; the start may slip.'),
+   ];
    const item = (
       id: number,
       name: string,
@@ -231,9 +282,10 @@ export const DUMMY_ROADMAP: RoadmapItem[] = (() => {
       notes: '',
       updated_by: 'danielbeardsley',
       updated_at: Math.floor(Date.now() / 1000) - id * 3600,
+      update: updates.filter(u => u.item_id === id).at(-1) ?? null,
       ...over,
    });
-   return [
+   const items = [
       item(1, 'SSO approvals for releases', -8, 6, {
          project: 'release-gate-sso',
          team: 'Community',
@@ -264,6 +316,7 @@ export const DUMMY_ROADMAP: RoadmapItem[] = (() => {
       item(7, 'Translations upkeep', -1, 26, { project: 'translations', team: 'Community' }),
       item(8, 'Akeneo 4 migration', -11, 8, { project: 'akeneo-4', team: 'Store', status: 'done' }),
    ];
+   return { DUMMY_ROADMAP: items, DUMMY_ROADMAP_UPDATES: updates };
 })();
 
 // The fixture's signature timestamps are as frozen as its pulls; spread them
