@@ -459,10 +459,10 @@ function Editor({
    );
 }
 
-/** One grid for every part of the timeline, so the header, the load chart,
- * the lane strips and the rows put a day at the same x. */
-const rowGrid =
-   'grid grid-cols-[minmax(0,11rem)_1fr] items-center gap-3 sm:grid-cols-[minmax(0,17rem)_1fr]';
+/** One grid for every part of the timeline, so the header, the load chart
+ * and the rows put a day at the same x. On a phone the names stack above a
+ * full-width track, since a track beside them would be too narrow to read. */
+const rowGrid = 'grid grid-cols-1 items-center gap-x-3 gap-y-1 sm:grid-cols-[minmax(0,17rem)_1fr]';
 
 /** The time axis the timeline shares: where a day falls, and the lines
  * drawn through every row. */
@@ -960,7 +960,7 @@ function AxisHeader({
 }) {
    return (
       <div className={`${rowGrid} rounded-t-2xl border border-line bg-surface px-3.5 py-1.5`}>
-         <span className={`text-ink-3 ${eyebrowText}`}>Priority</span>
+         <span className={`hidden text-ink-3 sm:block ${eyebrowText}`}>Priority</span>
          <span className="relative block h-9">
             {columns.map(c => {
                const style = { left: `${axis.at(c.start)}%` };
@@ -987,7 +987,9 @@ function AxisHeader({
                      style={style}
                   >
                      {c.label}
-                     <Icon icon={ZoomIn} size={11} />
+                     <span className="hidden sm:inline">
+                        <Icon icon={ZoomIn} size={11} />
+                     </span>
                   </button>
                ) : (
                   <span
@@ -1002,7 +1004,7 @@ function AxisHeader({
             {ticks.map(t => (
                <span
                   key={t.left}
-                  className="absolute bottom-0 pl-1 text-[10px] text-ink-3 tabular-nums"
+                  className="absolute bottom-0 hidden pl-1 text-[10px] text-ink-3 tabular-nums sm:block"
                   style={{ left: `${t.left}%` }}
                >
                   {t.label}
