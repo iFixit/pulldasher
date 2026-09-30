@@ -123,7 +123,7 @@ tracked repos' webhook, and give a projects repo the same webhook, so a
 newly labeled issue shows up right away; an hourly pass catches what a
 webhook missed.
 
-The tab has four views and a page per project:
+The tab has five views and a page per project:
 
 - **Overview**: where the plans stand (the latest update on every item in
   progress, worst first, which copies as text for a status email),
@@ -184,6 +184,15 @@ The tab has four views and a page per project:
 - **People**: developers by team and everyone else: live projects each,
   open PRs, PRs opened and merged, and reviews given, including how many
   went to non-developers' PRs.
+- **Look back**: where the time went over a date range, in developer-days
+  rather than PR counts, so a month of work outweighs a one-line fix. A
+  developer-day is a day someone opened, merged, commented on, stamped or
+  reviewed a PR, split across the PRs they touched that day, as writing
+  (their own) or reviewing (anyone else's). Split it by project, by where
+  the work came from, by team, by person or by repo; a project opens its
+  page, an origin its plans, and a team or person narrows the list to
+  their days. Commits aren't counted: in a sample of 60 merged PRs they
+  added about 4% more days, since PRs open and merge within a day or two.
 
 To put the plans where people already look, `bin/sync-issue-fields` copies
 each plan under way into its project issue's Start date, Target date and
@@ -217,6 +226,9 @@ curl -s -H "Authorization: Bearer $(gh auth token)" https://pulldasher.example.c
   project, its roadmap item if it has one, and its reasons. `GET /api/v1`
   says what each reason means and which write clears it. It also names who
   runs Decide this week and next.
+- `GET /api/v1/retro`: where the days went in a window (`start`, `end`,
+  default the last 30 days): per person and PR, their share of active
+  days, whether they wrote it, and its project.
 - `GET /api/v1/updates-owed`: each lead who owes an update, with their
   plans in progress that have gone 14 days without one, longest overdue
   first. It's what a weekly reminder would send each lead; nothing sends

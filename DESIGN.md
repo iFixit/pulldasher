@@ -398,6 +398,15 @@ icon with a class bolted on.
   run. The only way to bring the future down is a decision, which is the
   point. A picked week's rows come from the same rule as its bar, so the
   count and the rows always agree.
+- **Look back counts days, not PRs.** "Where did our time go" can't be
+  read off merged PRs: a one-line fix and a month of work each count once.
+  A developer-day is a day someone did something on a PR (opened, merged,
+  commented, stamped, reviewed), split across the PRs they touched that
+  day, so one person's week always adds up to the days they worked, and a
+  project's share is the share of people's days it took. Writing and
+  reviewing are split because review is where the time goes that nobody
+  plans for. Each split is one list with one bar color, since the bar is
+  a share, not a category: no legend to learn.
 - **A plan's dates go where people already look.** GitHub's issue fields
   show on a project's issue and on any board that lists it, so
   `bin/sync-issue-fields` copies each plan's dates and priority there,

@@ -2,6 +2,7 @@ import pullManager from '../lib/pull-manager.js';
 import { respondOrError } from '../lib/controller-utils.js';
 import {
    loadProjects,
+   loadTimeSpent,
    loadWindow,
    parseWindow,
    projectSettings,
@@ -263,6 +264,36 @@ export default {
             };
          }),
          'people query failed'
+      );
+   },
+
+   /**
+    * GET /retro-data (session) and /api/v1/retro (Bearer) ?start=&end= --
+    * where people's days went in the window: one row per person and PR with
+    * their share of active days on it (shared/model/retro.ts), whether they
+    * wrote it, and its project. Default: the last 30 days.
+    */
+   getRetro: function (req, res) {
+      const settings = projectSettings();
+      if (!settings) {
+         res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
+         return;
+      }
+      const window = parseWindow(req.query);
+      if (window.error) {
+         res.status(400).json({ error: window.error });
+         return;
+      }
+      respondOrError(
+         res,
+         loadTimeSpent(settings, window.start, window.end).then(({ counted, rows }) => ({
+            start: window.start,
+            end: window.end,
+            // whose time: developers when there are teams, else everyone
+            counted,
+            rows: rows.map(row => ({ ...row, days: Math.round(row.days * 100) / 100 })),
+         })),
+         'retro query failed'
       );
    },
 

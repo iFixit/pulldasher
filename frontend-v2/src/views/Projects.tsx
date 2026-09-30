@@ -22,6 +22,7 @@ import { Decide, decideRows } from './projects/Decide';
 import { Overview } from './projects/Overview';
 import { People } from './projects/People';
 import { ProjectPage } from './projects/ProjectPage';
+import { Retro } from './projects/Retro';
 import { Roadmap } from './projects/Roadmap';
 import type { Navigate, ProjectsNav } from './projects/parts';
 
@@ -125,6 +126,7 @@ export function Projects({
       ['decide', decisions?.length ? `Decide (${decisions.length})` : 'Decide'],
       ['roadmap', 'Roadmap'],
       ['people', 'People'],
+      ['retro', 'Look back'],
    ];
    const nameOf = useMemo(() => {
       const names = new Map(items.map(i => [i.slug, i.name]));
@@ -164,7 +166,10 @@ export function Projects({
          )}
          {/* the roadmap has its own months and quarters, and Decide is about
              now; the range is for numbers */}
-         {(nav.project || nav.view === 'overview' || nav.view === 'people') && (
+         {(nav.project ||
+            nav.view === 'overview' ||
+            nav.view === 'people' ||
+            nav.view === 'retro') && (
             <DateRangePicker
                rangeKey={rangeKey}
                range={range}
@@ -209,6 +214,15 @@ export function Projects({
                teamMembers={data?.teams ?? {}}
                rotation={data?.decide_rotation ?? null}
                scoped={scoped}
+               nav={nav}
+               navigate={navigate}
+            />
+         ) : nav.view === 'retro' ? (
+            <Retro
+               range={range}
+               plans={plans ?? []}
+               teamOf={teamOf}
+               nameOf={nameOf}
                nav={nav}
                navigate={navigate}
             />

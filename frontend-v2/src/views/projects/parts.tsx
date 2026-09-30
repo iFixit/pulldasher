@@ -15,7 +15,7 @@ import { dayWords } from '../../model/projectData';
 
 /** What the Projects tab keeps in the URL hash, beside the lens. */
 export interface ProjectsNav {
-   view: 'overview' | 'decide' | 'roadmap' | 'people';
+   view: 'overview' | 'decide' | 'roadmap' | 'people' | 'retro';
    /** a project's slug when its page is open */
    project: string | null;
    /** the date range's preset or custom key (model/projectData.ts) */
@@ -48,6 +48,10 @@ export interface ProjectsNav {
    /** where the work came from, picked on the load chart: the timeline
     * shows only the plans from there; null for every plan */
    origin: RoadmapOrigin | 'unsaid' | null;
+   /** how Look back splits the days */
+   by: 'project' | 'origin' | 'team' | 'person' | 'repo';
+   /** a person picked in Look back: only their days count */
+   who: string | null;
 }
 export type Navigate = (patch: Partial<ProjectsNav>) => void;
 

@@ -139,7 +139,8 @@ function readHash(): HashState {
       drafts: p.get('drafts') === 'all' ? 'all' : p.get('drafts') === 'mine' ? 'mine' : null,
       projects: {
          view:
-            (['decide', 'roadmap', 'people'] as const).find(v => v === p.get('view')) ?? 'overview',
+            (['decide', 'roadmap', 'people', 'retro'] as const).find(v => v === p.get('view')) ??
+            'overview',
          project: p.get('project') || null,
          range: p.get('range') || DEFAULT_RANGE,
          status: p.get('status') || 'live',
@@ -160,6 +161,10 @@ function readHash(): HashState {
          zoom: ZOOM_KEY.test(p.get('zoom') ?? '') ? p.get('zoom') : null,
          team: p.get('team') || null,
          origin: ORIGIN_KEYS.find(o => o === p.get('origin')) ?? null,
+         by:
+            (['origin', 'team', 'person', 'repo'] as const).find(b => b === p.get('by')) ??
+            'project',
+         who: p.get('who') || null,
       },
    };
 }
@@ -191,6 +196,8 @@ function buildHash(s: HashState): string {
    if (s.projects.zoom) p.set('zoom', s.projects.zoom);
    if (s.projects.team) p.set('team', s.projects.team);
    if (s.projects.origin) p.set('origin', s.projects.origin);
+   if (s.projects.by !== 'project') p.set('by', s.projects.by);
+   if (s.projects.who) p.set('who', s.projects.who);
    return p.toString();
 }
 

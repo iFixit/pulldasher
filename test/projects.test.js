@@ -264,6 +264,7 @@ function makeApp() {
    app.get('/api/v1/people', projectsController.getPeople);
    app.get('/api/v1/decide', projectsController.getDecide);
    app.get('/api/v1/load', projectsController.getLoad);
+   app.get('/api/v1/retro', projectsController.getRetro);
    return app;
 }
 
@@ -304,6 +305,22 @@ before(() => {
             { repo: 'test/projects', number: 8, title: 'project:beta' },
          ];
       }
+      // loadTimeSpent: alice opens her PR 11 and comments on bob's 13 on one
+      // day; carol (not a developer) comments on 11; a bot stamps it
+      if (sql.startsWith('SELECT repo, number, owner AS login, date AS at')) {
+         return [{ repo: 'test/repo-a', number: 11, login: 'alice', at: now - 2 * DAY, owner: 'alice' }];
+      }
+      if (sql.startsWith('SELECT repo, number, owner AS login, date_merged AS at')) return [];
+      if (sql.includes('FROM comments t')) {
+         return [
+            { repo: 'test/repo-a', number: 11, login: 'carol', at: now - 2 * DAY, owner: 'alice' },
+            { repo: 'test/repo-a', number: 13, login: 'alice', at: now - 2 * DAY, owner: 'bob' },
+         ];
+      }
+      if (sql.includes('FROM pull_signatures t')) {
+         return [{ repo: 'test/repo-a', number: 11, login: 'fixture-bot', at: now - DAY, owner: 'alice' }];
+      }
+      if (sql.includes('FROM reviews t')) return [];
       if (sql.startsWith('SELECT repo, number, owner')) {
          return [
             { repo: 'test/repo-a', number: 11, owner: 'alice', date: now - 3 * DAY, date_closed: null, date_merged: null },
@@ -430,6 +447,21 @@ test('project= narrows the window to one project and rejects a repeated one', as
    assert.equal(one.body.window.people.carol.reviews_on_non_dev, 0);
    const bad = await get('/projects-data?project=a&project=b');
    assert.equal(bad.status, 400);
+});
+
+test('/api/v1/retro splits a developer’s active day across the PRs they touched', async () => {
+   const { status, body } = await get('/api/v1/retro');
+   assert.equal(status, 200);
+   assert.equal(body.counted, 'developers');
+   const rows = body.rows
+      .map(r => [r.login, r.number, r.own, r.days, r.project])
+      .sort((a, b) => a[1] - b[1]);
+   // carol isn't on a team and the bot is a bot, so only alice's day counts
+   assert.deepEqual(rows, [
+      ['alice', 11, true, 0.5, 'alpha'],
+      ['alice', 13, false, 0.5, null],
+   ]);
+   assert.equal((await get('/api/v1/retro?start=2026-13-01')).status, 400);
 });
 
 test('the endpoints 404 when this install has no projects config', async () => {

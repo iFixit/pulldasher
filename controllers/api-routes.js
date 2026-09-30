@@ -49,6 +49,15 @@ export const API_ROUTES = [
    },
    {
       method: 'get',
+      path: '/api/v1/retro',
+      handlers: [projectsController.getRetro],
+      does:
+         'Where the days went in ?start=&end= (default the last 30): per person and PR, their share of ' +
+         'active days (a day they opened, merged, commented on, stamped or reviewed PRs, split across ' +
+         'them), whether they wrote it, and its project',
+   },
+   {
+      method: 'get',
       path: '/api/v1/updates-owed',
       handlers: [roadmapController.owed],
       does:

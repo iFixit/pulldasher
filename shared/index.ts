@@ -94,3 +94,5 @@ export {
 export type { ClosedIssue, DecideProject, DecideReason, DecideRow } from './model/decide';
 export { loadByWeek, mondaysBetween, peakFrom, spansFrom } from './model/load';
 export type { InFlightSpan, LoadWeek, OriginCounts } from './model/load';
+export { groupTime, timeSpent } from './model/retro';
+export type { TimeGroup, TimeRow, Touch } from './model/retro';
