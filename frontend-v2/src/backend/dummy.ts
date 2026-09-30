@@ -46,6 +46,12 @@ export async function loadDummy(): Promise<InitializePayload> {
    const pulls = withSyntheticStacks(raw).map((p, i) =>
       withProject(withBody(withSizes(redate(p, i), i), i), i)
    );
+   // ?projects=100 adds that many projects in flight, to design at real size
+   const scaled = new URLSearchParams(location.search).has('projects')
+      ? await import('./dummyScale').then(m =>
+           m.scalePulls(pulls, m.scaleCount(), DUMMY_PROJECT_PREFIX)
+        )
+      : [];
    return {
       repos: [{ name: 'iFixit/ifixit' }],
       // config the live server delivers here too — a bot login and the weight
@@ -63,7 +69,7 @@ export async function loadDummy(): Promise<InitializePayload> {
       // the Stats lens (merge-time-by-size, leaderboards over shipped work) has
       // nothing to show. Synthesize a fortnight of merged PRs across the size
       // range so those panels demo. Dummy-only — real data carries this for real.
-      pulls: [...pulls, ...synthMerged(pulls)],
+      pulls: [...pulls, ...scaled, ...synthMerged(pulls)],
    };
 }
 

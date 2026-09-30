@@ -122,7 +122,10 @@ seven-column layout.)
   board never downloads them (DESIGN.md § Charts and dates). The dummy board
   files its pulls into projects (`backend/dummy.ts`), and
   `backend/dummyProjects.ts` has the project issues, teams and roadmap
-  that show every state; only the lazy tab loads that second file.
+  that show every state; only the lazy tab loads that second file. To see
+  the tab at a real team's size, add `?projects=100` to the dummy board's
+  URL (before the `#`): it adds that many projects in flight, a few of them
+  planned, and more developers (`backend/dummyScale.ts`).
 - **Keyboard:** `/` filter, `j`/`k` walk rows, `Enter` opens, `c` copies the
   focused row's branch.
 

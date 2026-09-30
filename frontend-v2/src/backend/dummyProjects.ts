@@ -5,6 +5,7 @@ import {
    type RoadmapItem,
    type RoadmapUpdate,
 } from '../../../shared/model/roadmap';
+import { SCALE_TEAM_ADDS, scaleCount, scaleProjects } from './dummyScale';
 
 // The dummy board's projects, teams and roadmap: what /projects-data and
 // /roadmap would send. They live apart from backend/dummy.ts, which the
@@ -15,11 +16,22 @@ const inDays = (days: number) => new Date(Date.now() + days * 86400_000).toISOSt
 /** Developer teams, as the server's config.js `projects.developerTeams` sends
  * them. Everyone else in the fixture shows as a non-developer, so the People
  * view and the developer split on every project demo both kinds. */
-export const DUMMY_TEAMS: Record<string, string[]> = {
+const BASE_TEAMS: Record<string, string[]> = {
    Store: ['danielbeardsley', 'jarstelfox', 'sctice', 'zdmitchell'],
    FixBot: ['mlahargou', 'ardelato'],
    Community: ['rjmccluskey', 'sivadnor', 'hackalot805', 'djmetzle'],
 };
+// a board scaled with ?projects= has a real-sized team too (dummyScale.ts)
+const SCALE = scaleCount();
+export const DUMMY_TEAMS: Record<string, string[]> = SCALE
+   ? Object.fromEntries(
+        Object.entries(BASE_TEAMS).map(([team, logins]) => [
+           team,
+           [...logins, ...(SCALE_TEAM_ADDS[team] ?? [])],
+        ])
+     )
+   : BASE_TEAMS;
+const SCALED = scaleProjects(SCALE);
 const dummyProject = (
    number: number,
    slug: string,
@@ -44,7 +56,7 @@ const dummyProject = (
 /** The project issues behind the dummy labels, as /projects-data sends them.
  * translations and onboarding-emails have no PRs (they land in quiet), and
  * old-checkout was dropped, so Today never shows it. */
-export const DUMMY_PROJECTS: Project[] = [
+const BASE_PROJECTS: Project[] = [
    dummyProject(1, 'webdriver-deflake', 'Deflake the webdriver tests', {
       ongoing: true,
       lead: 'mlahargou',
@@ -86,6 +98,13 @@ export const DUMMY_PROJECTS: Project[] = [
    }),
 ];
 
+export const DUMMY_PROJECTS: Project[] = [
+   ...BASE_PROJECTS,
+   ...SCALED.map((p, k) =>
+      dummyProject(100 + k, p.slug, p.name, { lead: p.lead, created_at: inDays(-p.startDaysAgo) })
+   ),
+];
+
 /**
  * The roadmap a project manager might have laid out, relative to this week:
  * linked items whose PRs draw over the plan (SSO approvals ran past its
@@ -121,7 +140,14 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
    // oldest first, the way they were posted
    const updates = [
       update(8, 60, 'on_track', 'zdmitchell', [-11, 8], 'Catalog import works end to end.'),
-      update(1, 30, 'on_track', 'rjmccluskey', [-8, 4], 'Design approved; building the approval step.'),
+      update(
+         1,
+         30,
+         'on_track',
+         'rjmccluskey',
+         [-8, 4],
+         'Design approved; building the approval step.'
+      ),
       update(3, 24, 'on_track', 'mlahargou', [-6, 12], 'Down to four flaky tests.'),
       update(
          1,
@@ -140,7 +166,14 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          [-8, 6],
          'The audit moved up a week, and the second approval path won’t make it.\nAsking to ship the first path alone.'
       ),
-      update(4, 2, 'at_risk', 'jarstelfox', [3, 8], 'Waiting on the design review; the start may slip.'),
+      update(
+         4,
+         2,
+         'at_risk',
+         'jarstelfox',
+         [3, 8],
+         'Waiting on the design review; the start may slip.'
+      ),
    ];
    const item = (
       id: number,
@@ -199,5 +232,21 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
       // overlaps the webdriver work, so its lane's load shows amber
       item(9, 'Visual regression checks', 1, 6, { team: 'FixBot', lead: 'ardelato' }),
    ];
+   // about one in eight scaled projects is planned: active since its first
+   // PR, in the lane of its lead's team
+   const teamOf = (login: string) =>
+      Object.keys(DUMMY_TEAMS).find(team => DUMMY_TEAMS[team].includes(login)) ?? null;
+   SCALED.forEach((p, k) => {
+      if (!p.planned) return;
+      const id = 100 + k;
+      items.push(
+         item(id, p.name, -Math.round(p.startDaysAgo / 7), 4 + (k % 9), {
+            project: p.slug,
+            team: teamOf(p.lead),
+            lead: p.lead,
+            status: 'active',
+         })
+      );
+   });
    return { DUMMY_ROADMAP: items, DUMMY_ROADMAP_UPDATES: updates };
 })();
