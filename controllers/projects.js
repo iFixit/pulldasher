@@ -2,7 +2,7 @@ import pullManager from '../lib/pull-manager.js';
 import { respondOrError } from '../lib/controller-utils.js';
 import {
    loadProjects,
-   loadSpans,
+   loadWindow,
    parseWindow,
    projectSettings,
    todayFromBoard,
@@ -13,7 +13,9 @@ const key = d => `${d.repo}#${d.number}`;
 
 /**
  * Validate the projects config and the requested window, then load the
- * projects and the window's PR history. Answers the request itself (404 when
+ * projects, the window's PR history and its CR/QA stamps. An optional
+ * `project` slug narrows the window's numbers and stamps to that project's
+ * PRs (the project list stays whole). Answers the request itself (404 when
  * projects aren't set up here, 400 for a bad window) and returns null, or
  * returns a promise of what the handler needs.
  */
@@ -24,17 +26,22 @@ function load(req, res) {
       return null;
    }
    const window = parseWindow(req.query);
-   if (window.error) {
-      res.status(400).json({ error: window.error });
+   const only = req.query.project;
+   const badProject = only !== undefined && (typeof only !== 'string' || !only || only.length > 64);
+   if (window.error || badProject) {
+      res.status(400).json({ error: window.error || 'project must be one project slug' });
       return null;
    }
    return Promise.all([
       loadProjects(settings),
-      loadSpans(settings, window.start, window.end),
-   ]).then(([projects, spans]) => ({
+      loadWindow(settings, window.start, window.end, only),
+   ]).then(([projects, { spans, reviews }]) => ({
       settings,
       projects,
-      stats: windowStats(spans, window.start, window.end),
+      stats: windowStats(spans, window.start, window.end, {
+         teamOf: settings.teamOf,
+         reviews,
+      }),
    }));
 }
 
@@ -97,10 +104,10 @@ function projectRecords(projects, today, stats, prefix) {
 
 export default {
    /**
-    * GET /projects-data?start=&end= -- the Projects tab's fetch: every project
-    * issue plus the window's numbers. The tab builds Today itself from the live
-    * socket pulls, so it moves with the board. Session-authed like
-    * /stats-history.
+    * GET /projects-data?start=&end=&project= -- the Projects tab's fetch:
+    * every project issue plus the window's numbers (one project's, with
+    * `project`). The tab builds Today itself from the live socket pulls, so
+    * it moves with the board. Session-authed like /stats-history.
     */
    getBoardData: function (req, res) {
       const loaded = load(req, res);
@@ -110,6 +117,7 @@ export default {
          loaded.then(({ settings, projects, stats }) => ({
             label_prefix: settings.prefix,
             projects_repo: settings.repo,
+            teams: settings.teams,
             projects,
             window: stats,
          })),
@@ -120,9 +128,11 @@ export default {
    /**
     * GET /api/v1/projects?start=&end= -- every project with its issue fields,
     * where it stands today (open PR ids, people, idle days, flags), and its
-    * numbers for the window (default: the last 30 days), plus the totals and
-    * one point per day for the backlog chart. Bearer-authed (lib/api-auth).
-    * Dates are YYYY-MM-DD UTC days, both counted.
+    * numbers for the window (default: the last 30 days) -- backlog, throughput,
+    * developers vs. non-developers, and median days to merge -- plus the
+    * totals and one point per day for the backlog chart. Bearer-authed
+    * (lib/api-auth). Dates are YYYY-MM-DD UTC days, both counted;
+    * `project=<slug>` narrows the window's numbers to that project's PRs.
     */
    getProjects: function (req, res) {
       const loaded = load(req, res);
@@ -153,10 +163,13 @@ export default {
    },
 
    /**
-    * GET /api/v1/people?start=&end= -- per person: the window's numbers, the
-    * projects they had PRs in during it, the live projects they're on today,
-    * and how many PRs they have open now. Most live projects first, which is
-    * how a reader spots someone spread thin. Bots are left out.
+    * GET /api/v1/people?start=&end= -- per person: their developer team (from
+    * config, null if unlisted), the window's numbers, the CR/QA stamps they
+    * gave in it and how many landed on a non-developer's PR, the projects
+    * they had PRs in during it, the live projects they're on today, and how
+    * many PRs they have open now. Someone who only reviewed in the window
+    * still gets a row. Most live projects first, which is how a reader spots
+    * someone spread thin. Bots are left out.
     */
    getPeople: function (req, res) {
       const loaded = load(req, res);
@@ -187,6 +200,7 @@ export default {
                const w = stats.people[login];
                return {
                   login,
+                  team: w ? w.team : settings.teamOf(login),
                   window: w
                      ? {
                           backlog_start: w.backlog_start,
@@ -201,6 +215,8 @@ export default {
                   projects_in_window: w ? w.projects : [],
                   live_projects: (live.get(login) || []).sort(),
                   open_now: openNow.get(login) || 0,
+                  reviews: w ? w.reviews : 0,
+                  reviews_on_non_dev: w ? w.reviews_on_non_dev : 0,
                };
             });
             people.sort(

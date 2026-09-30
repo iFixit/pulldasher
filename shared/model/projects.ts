@@ -45,6 +45,9 @@ export interface Project {
    parents: string[];
    lead: string | null;
    target: { title: string; due_on: string | null } | null;
+   /** when the issue was opened and closed (ISO); null when not known or open */
+   created_at: string | null;
+   closed_at: string | null;
 }
 
 /** Every project slug a PR's labels name, sorted so every reader agrees. */
@@ -210,6 +213,15 @@ export interface PullSpan {
    merged: boolean;
 }
 
+/** One CR or QA stamp, for counting who reviews whose work. */
+export interface ReviewSpan {
+   reviewer: string;
+   /** who wrote the PR the stamp is on */
+   author: string;
+   /** epoch secs the stamp was given */
+   at: number;
+}
+
 export interface WindowCounts {
    /** open at the start of the first day */
    backlog_start: number;
@@ -222,11 +234,29 @@ export interface WindowCounts {
    /** median age in days of the PRs open at each end; null with none open */
    median_age_start_days: number | null;
    median_age_end_days: number | null;
+   /** median days from opened to merged, over the PRs merged in the window */
+   median_days_to_merge: number | null;
+   /** distinct people with a PR in the window: on a developer team, or not */
+   developers: number;
+   non_developers: number;
+}
+
+export interface ProjectWindow extends WindowCounts {
+   /** the day its earliest PR in the window opened, which can be before the window */
+   first_opened: string | null;
+   /** the day of its latest merge or close in the window; null with none */
+   last_closed: string | null;
 }
 
 export interface PersonWindow extends WindowCounts {
    /** projects this person had a PR in during the window, misc left out */
    projects: string[];
+   /** their developer team from config; null for everyone else */
+   team: string | null;
+   /** CR and QA stamps they gave in the window, on other people's PRs */
+   reviews: number;
+   /** of those, stamps on a non-developer's PR */
+   reviews_on_non_dev: number;
 }
 
 export interface DayPoint {
@@ -240,18 +270,39 @@ export interface DayPoint {
    backlog: number;
 }
 
+/** One week of the window, Monday first; the first and last can be partial. */
+export interface WeekPoint {
+   /** the Monday that starts it, YYYY-MM-DD */
+   week: string;
+   opened: { developers: number; non_developers: number };
+   merged: { developers: number; non_developers: number };
+   /** merged PRs by project slug (misc included); '' for no project label */
+   merged_by_project: Record<string, number>;
+   /** stamps given that week, by who wrote the PR */
+   reviews: { on_developers: number; on_non_developers: number };
+}
+
 export interface WindowStats {
    /** first and last UTC day of the window, both counted */
    start: string;
    end: string;
    totals: WindowCounts;
    /** by project slug, misc included */
-   projects: Record<string, WindowCounts>;
+   projects: Record<string, ProjectWindow>;
    /** PRs with no project label */
    unsorted: WindowCounts;
    people: Record<string, PersonWindow>;
    /** one point per day, for the backlog chart */
    days: DayPoint[];
+   /** one point per week, for the charts that split work by project or by who did it */
+   weeks: WeekPoint[];
+}
+
+export interface WindowOptions {
+   /** a developer's team, from config; null for anyone else. Default: nobody is a developer. */
+   teamOf?: (login: string) => string | null;
+   /** CR and QA stamps to count; the caller leaves out bots and bots' PRs */
+   reviews?: readonly ReviewSpan[];
 }
 
 /** Epoch secs at the start of a YYYY-MM-DD UTC day, or null if it isn't one. */
@@ -268,23 +319,26 @@ export function utcDay(epochSecs: number): string {
 }
 
 interface Tally {
-   counts: WindowCounts;
+   counts: Omit<
+      WindowCounts,
+      | 'median_age_start_days'
+      | 'median_age_end_days'
+      | 'median_days_to_merge'
+      | 'developers'
+      | 'non_developers'
+   >;
    agesStart: number[];
    agesEnd: number[];
+   toMerge: number[];
+   authors: Set<string>;
 }
 
 const tally = (): Tally => ({
-   counts: {
-      backlog_start: 0,
-      backlog_end: 0,
-      opened: 0,
-      merged: 0,
-      closed: 0,
-      median_age_start_days: null,
-      median_age_end_days: null,
-   },
+   counts: { backlog_start: 0, backlog_end: 0, opened: 0, merged: 0, closed: 0 },
    agesStart: [],
    agesEnd: [],
+   toMerge: [],
+   authors: new Set(),
 });
 
 function median(xs: number[]): number | null {
@@ -295,29 +349,53 @@ function median(xs: number[]): number | null {
    return Math.round(m * 10) / 10;
 }
 
-const finish = ({ counts, agesStart, agesEnd }: Tally): WindowCounts => ({
-   ...counts,
-   median_age_start_days: median(agesStart),
-   median_age_end_days: median(agesEnd),
-});
-
 /**
  * Backlog and throughput for the UTC days `start` through `end`, overall, per
- * project and per person. Every bucket satisfies backlog_start + opened -
- * merged - closed = backlog_end, the check the history rebuild used. A PR is
- * counted under its current project label, which is exact unless it moved
- * between projects. Pass people's PRs only, and a valid start <= end.
+ * project and per person, plus a point per day and per week for the charts.
+ * Every bucket satisfies backlog_start + opened - merged - closed =
+ * backlog_end, the check the history rebuild used. A PR is counted under its
+ * current project label, which is exact unless it moved between projects.
+ * Pass people's PRs only, and a valid start <= end. With `teamOf`, people
+ * split into developers (on a team in config) and everyone else; with
+ * `reviews`, each person's stamps given in the window are counted too.
  */
-export function windowStats(spans: readonly PullSpan[], start: string, end: string): WindowStats {
+export function windowStats(
+   spans: readonly PullSpan[],
+   start: string,
+   end: string,
+   { teamOf = () => null, reviews = [] }: WindowOptions = {}
+): WindowStats {
    const from = dayStart(start) ?? 0;
    const to = (dayStart(end) ?? from) + DAY;
    const dayCount = Math.max(1, Math.round((to - from) / DAY));
+   const isDev = (login: string) => teamOf(login) != null;
    const totals = tally();
    const unsorted = tally();
-   const projects = new Map<string, Tally>();
-   const people = new Map<string, { t: Tally; projects: Set<string> }>();
+   const projects = new Map<string, Tally & { first: number; last: number | null }>();
+   const people = new Map<string, { t: Tally; projects: Set<string>; reviews: number; onNonDev: number }>();
+   const person = (login: string) => {
+      let p = people.get(login);
+      if (!p) {
+         p = { t: tally(), projects: new Set(), reviews: 0, onNonDev: 0 };
+         people.set(login, p);
+      }
+      return p;
+   };
    const openedOn = new Array<number>(dayCount).fill(0);
    const departedOn = new Array<number>(dayCount).fill(0);
+   // weeks start on the Monday on or before the first day
+   const monday = from - ((new Date(from * 1000).getUTCDay() + 6) % 7) * DAY;
+   const weeks: WeekPoint[] = Array.from(
+      { length: Math.max(1, Math.ceil((to - monday) / (7 * DAY))) },
+      (_, i) => ({
+         week: utcDay(monday + i * 7 * DAY),
+         opened: { developers: 0, non_developers: 0 },
+         merged: { developers: 0, non_developers: 0 },
+         merged_by_project: {},
+         reviews: { on_developers: 0, on_non_developers: 0 },
+      })
+   );
+   const weekOf = (t: number) => weeks[Math.floor((t - monday) / (7 * DAY))];
 
    for (const s of spans) {
       // skip PRs that never overlapped the window
@@ -325,18 +403,22 @@ export function windowStats(spans: readonly PullSpan[], start: string, end: stri
       const openAt = (t: number) => s.opened < t && (s.closed == null || s.closed >= t);
       const openedIn = s.opened >= from;
       const departedIn = s.closed != null && s.closed < to;
-      let byProject = s.project == null ? unsorted : projects.get(s.project);
-      if (!byProject) {
-         byProject = tally();
-         projects.set(s.project as string, byProject);
+      const group = isDev(s.author) ? 'developers' : 'non_developers';
+      let byProject: Tally = unsorted;
+      if (s.project != null) {
+         let p = projects.get(s.project);
+         if (!p) {
+            p = { ...tally(), first: s.opened, last: null };
+            projects.set(s.project, p);
+         }
+         p.first = Math.min(p.first, s.opened);
+         if (departedIn) p.last = Math.max(p.last ?? 0, s.closed as number);
+         byProject = p;
       }
-      let person = people.get(s.author);
-      if (!person) {
-         person = { t: tally(), projects: new Set() };
-         people.set(s.author, person);
-      }
-      if (s.project != null && s.project !== MISC_SLUG) person.projects.add(s.project);
-      for (const t of [totals, byProject, person.t]) {
+      const who = person(s.author);
+      if (s.project != null && s.project !== MISC_SLUG) who.projects.add(s.project);
+      for (const t of [totals, byProject, who.t]) {
+         t.authors.add(s.author);
          if (openAt(from)) {
             t.counts.backlog_start++;
             t.agesStart.push((from - s.opened) / DAY);
@@ -347,13 +429,47 @@ export function windowStats(spans: readonly PullSpan[], start: string, end: stri
          }
          if (openedIn) t.counts.opened++;
          if (departedIn) {
-            if (s.merged) t.counts.merged++;
-            else t.counts.closed++;
+            if (s.merged) {
+               t.counts.merged++;
+               t.toMerge.push(((s.closed as number) - s.opened) / DAY);
+            } else t.counts.closed++;
          }
       }
-      if (openedIn) openedOn[Math.floor((s.opened - from) / DAY)]++;
-      if (departedIn) departedOn[Math.floor(((s.closed as number) - from) / DAY)]++;
+      if (openedIn) {
+         openedOn[Math.floor((s.opened - from) / DAY)]++;
+         weekOf(s.opened).opened[group]++;
+      }
+      if (departedIn) {
+         departedOn[Math.floor(((s.closed as number) - from) / DAY)]++;
+         if (s.merged) {
+            const w = weekOf(s.closed as number);
+            w.merged[group]++;
+            const key = s.project ?? '';
+            w.merged_by_project[key] = (w.merged_by_project[key] ?? 0) + 1;
+         }
+      }
    }
+
+   for (const r of reviews) {
+      if (r.at < from || r.at >= to || r.reviewer === r.author) continue;
+      const who = person(r.reviewer);
+      const onDev = isDev(r.author);
+      who.reviews++;
+      if (!onDev) who.onNonDev++;
+      weekOf(r.at).reviews[onDev ? 'on_developers' : 'on_non_developers']++;
+   }
+
+   const finish = ({ counts, agesStart, agesEnd, toMerge, authors }: Tally): WindowCounts => {
+      const devs = [...authors].filter(isDev).length;
+      return {
+         ...counts,
+         median_age_start_days: median(agesStart),
+         median_age_end_days: median(agesEnd),
+         median_days_to_merge: median(toMerge),
+         developers: devs,
+         non_developers: authors.size - devs,
+      };
+   };
 
    let arrived = totals.counts.backlog_start;
    let departed = 0;
@@ -367,11 +483,30 @@ export function windowStats(spans: readonly PullSpan[], start: string, end: stri
       start,
       end,
       totals: finish(totals),
-      projects: Object.fromEntries([...projects].map(([slug, t]) => [slug, finish(t)])),
+      projects: Object.fromEntries(
+         [...projects].map(([slug, p]) => [
+            slug,
+            {
+               ...finish(p),
+               first_opened: utcDay(p.first),
+               last_closed: p.last == null ? null : utcDay(p.last),
+            },
+         ])
+      ),
       unsorted: finish(unsorted),
       people: Object.fromEntries(
-         [...people].map(([login, p]) => [login, { ...finish(p.t), projects: [...p.projects].sort() }])
+         [...people].map(([login, p]) => [
+            login,
+            {
+               ...finish(p.t),
+               projects: [...p.projects].sort(),
+               team: teamOf(login),
+               reviews: p.reviews,
+               reviews_on_non_dev: p.onNonDev,
+            },
+         ])
       ),
       days,
+      weeks,
    };
 }

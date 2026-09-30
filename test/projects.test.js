@@ -8,7 +8,9 @@ import Label from '../models/label.js';
 import pullManager from '../lib/pull-manager.js';
 import {
    parseWindow,
+   projectSettings,
    projectsFromRows,
+   reviewsFromRows,
    spansFromRows,
    MAX_WINDOW_DAYS,
 } from '../lib/projects.js';
@@ -75,8 +77,20 @@ test('projectsFromRows reads name, lead, target, parents and ongoing off the iss
          parents: ['checkout', 'store'],
          lead: 'lee',
          target: { title: 'October', due_on: '2026-09-29T12:00:00.000Z' },
+         created_at: null,
+         closed_at: null,
       },
    ]);
+});
+
+test('projectsFromRows fills created_at and closed_at from the issue dates', () => {
+   const projects = projectsFromRows(
+      [issueRow({ number: 9, date_created: 1700000000, date_closed: 1700100000 })],
+      [{ number: 9, title: 'project:gamma' }],
+      'project:'
+   );
+   assert.equal(projects[0].created_at, new Date(1700000000 * 1000).toISOString());
+   assert.equal(projects[0].closed_at, new Date(1700100000 * 1000).toISOString());
 });
 
 test('projectsFromRows keeps the open issue when two carry one label', () => {
@@ -108,6 +122,19 @@ test('spansFromRows files PRs by label, leaves bots out, falls back to the merge
    assert.deepEqual(spans, [
       { author: 'alice', project: 'alpha', opened: 100, closed: 200, merged: true },
       { author: 'bob', project: null, opened: 150, closed: 300, merged: true },
+   ]);
+});
+
+test('reviewsFromRows keeps repo and number, drops a bot on either side, leaves a self-stamp for windowStats to ignore', () => {
+   const reviews = reviewsFromRows([
+      { reviewer: 'carol', repo: 'test/repo-a', number: 11, author: 'alice', at: 100 },
+      { reviewer: 'fixture-bot', repo: 'test/repo-a', number: 12, author: 'alice', at: 100 },
+      { reviewer: 'carol', repo: 'test/repo-a', number: 14, author: 'fixture-bot', at: 100 },
+      { reviewer: 'alice', repo: 'test/repo-a', number: 11, author: 'alice', at: 100 },
+   ]);
+   assert.deepEqual(reviews, [
+      { reviewer: 'carol', author: 'alice', at: 100, repo: 'test/repo-a', number: 11 },
+      { reviewer: 'alice', author: 'alice', at: 100, repo: 'test/repo-a', number: 11 },
    ]);
 });
 
@@ -161,7 +188,11 @@ function listen(app) {
 }
 
 before(() => {
-   config.projects = { repo: 'test/projects' };
+   // Alice is on a developer team; Bob and Carol (a reviewer with no PRs of
+   // her own) aren't, so the window's dev/non-dev and review splits have
+   // something real to split. 'Alice' is capitalized on purpose: teamOf must
+   // still match the lowercase 'alice' pulls are seeded with.
+   config.projects = { repo: 'test/projects', developerTeams: { Store: ['Alice'] } };
    const now = Math.floor(Date.now() / 1000);
    // two open PRs in alpha (one person), one unsorted, one bot PR in alpha
    const seed = (row, labels) =>
@@ -200,6 +231,18 @@ before(() => {
             { repo: 'test/repo-a', number: 15, title: 'project:alpha' },
          ];
       }
+      if (sql.startsWith('SELECT s.user AS reviewer')) {
+         return [
+            // carol CRs alice's PR in alpha: a developer's PR
+            { reviewer: 'carol', repo: 'test/repo-a', number: 11, author: 'alice', at: now - 2 * DAY },
+            // carol QAs bob's unsorted PR: a non-developer's PR
+            { reviewer: 'carol', repo: 'test/repo-a', number: 13, author: 'bob', at: now - DAY },
+            // a bot's stamp, dropped by reviewsFromRows
+            { reviewer: 'fixture-bot', repo: 'test/repo-a', number: 11, author: 'alice', at: now - DAY },
+            // alice reviewing her own PR, dropped by windowStats (not reviewsFromRows)
+            { reviewer: 'alice', repo: 'test/repo-a', number: 11, author: 'alice', at: now - DAY },
+         ];
+      }
       throw new Error(`unexpected query: ${sql}`);
    });
 });
@@ -216,6 +259,14 @@ async function get(path) {
    server.close();
    return { status: res.status, body };
 }
+
+test('projectSettings.teamOf matches a listed login case-insensitively', () => {
+   const settings = projectSettings();
+   assert.equal(settings.teamOf('alice'), 'Store');
+   assert.equal(settings.teamOf('ALICE'), 'Store');
+   assert.equal(settings.teamOf('bob'), null);
+   assert.deepEqual(settings.teams, { Store: ['Alice'] });
+});
 
 test('/api/v1/projects lists each project with today and the window', async () => {
    const { status, body } = await get('/api/v1/projects');
@@ -249,6 +300,22 @@ test('/api/v1/people puts the live projects and open PRs beside the window', asy
    assert.ok(!body.people.some(p => p.login === 'fixture-bot'));
 });
 
+test('/api/v1/people carries team and review counts, and a reviewer with no PRs still appears', async () => {
+   const { status, body } = await get('/api/v1/people');
+   assert.equal(status, 200);
+   const alice = body.people.find(p => p.login === 'alice');
+   assert.equal(alice.team, 'Store');
+   const bob = body.people.find(p => p.login === 'bob');
+   assert.equal(bob.team, null);
+   const carol = body.people.find(p => p.login === 'carol');
+   assert.ok(carol, 'carol only reviewed in the window and has no PRs, but still gets a row');
+   assert.equal(carol.team, null);
+   // one CR on alice (a developer) and one QA on bob (not one); the bot's
+   // stamp and alice's self-stamp are both left out of the count
+   assert.equal(carol.reviews, 2);
+   assert.equal(carol.reviews_on_non_dev, 1);
+});
+
 test('/projects-data sends the registry and the window, and 400s a bad window', async () => {
    const ok = await get('/projects-data?start=2026-09-01&end=2026-09-29');
    assert.equal(ok.status, 200);
@@ -259,6 +326,21 @@ test('/projects-data sends the registry and the window, and 400s a bad window', 
    );
    assert.equal(ok.body.window.start, '2026-09-01');
    const bad = await get('/projects-data?start=2026-09-29&end=2026-09-01');
+   assert.equal(bad.status, 400);
+});
+
+test('project= narrows the window to one project and rejects a repeated one', async () => {
+   const one = await get('/projects-data?project=alpha');
+   assert.equal(one.status, 200);
+   // alpha holds #11 (open) and #15 (merged); bob's unsorted #13 drops out
+   assert.equal(one.body.window.totals.backlog_end, 1);
+   assert.equal(one.body.window.totals.merged, 1);
+   assert.deepEqual(Object.keys(one.body.window.people), ['alice', 'carol']);
+   // carol's CR on alice's #11 is in alpha and stays; her QA on bob's #13
+   // (unsorted) drops out along with the PR itself
+   assert.equal(one.body.window.people.carol.reviews, 1);
+   assert.equal(one.body.window.people.carol.reviews_on_non_dev, 0);
+   const bad = await get('/projects-data?project=a&project=b');
    assert.equal(bad.status, 400);
 });
 

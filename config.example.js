@@ -125,6 +125,12 @@ module.exports = {
    projects: {
       repo: 'owner/projects',
       labelPrefix: 'project:',
+      // Team name -> the GitHub logins on it. The Projects tab splits people
+      // into these teams; anyone who opens PRs without being listed here
+      // counts as a non-developer.
+      developerTeams: {
+         Store: ['login1', 'login2'],
+      },
    },
 
    // The usual MySQL stuff. Like every other MySQL webapp, basically.

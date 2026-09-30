@@ -60,6 +60,8 @@ function project(over: Partial<Project> & { slug: string }): Project {
       parents: [],
       lead: null,
       target: null,
+      created_at: null,
+      closed_at: null,
       ...over,
    };
 }
@@ -270,5 +272,61 @@ describe('windowStats', () => {
       expect(w.days[1]).toMatchObject({ arrived: 3, departed: 0 });
       expect(w.days[3]).toMatchObject({ arrived: 3, departed: 2, backlog: 1 });
       expect(w.days[9]).toMatchObject({ arrived: 4, departed: 2, backlog: w.totals.backlog_end });
+   });
+});
+
+describe('windowStats: teams, reviews, weeks', () => {
+   // Tue 2026-09-01 to Sun 2026-09-13: the weeks start Mon Aug 31, Sep 7
+   const start = '2026-09-01';
+   const end = '2026-09-13';
+   const from = dayStart(start) as number;
+   const teams: Record<string, string> = { dana: 'Store' };
+   const teamOf = (login: string) => teams[login] ?? null;
+   const w = windowStats(
+      [
+         // dana (a developer) opens and merges inside the first week: 2 days
+         { author: 'dana', project: 'alpha', opened: from, closed: from + 2 * DAY, merged: true },
+         // kyle (not a developer) opens in the second week, merged 4 days later
+         { author: 'kyle', project: 'alpha', opened: from + 7 * DAY, closed: from + 11 * DAY, merged: true },
+         // kyle again, with no project label, still open
+         { author: 'kyle', project: null, opened: from + 8 * DAY, closed: null, merged: false },
+      ],
+      start,
+      end,
+      {
+         teamOf,
+         reviews: [
+            { reviewer: 'dana', author: 'kyle', at: from + 9 * DAY },
+            { reviewer: 'dana', author: 'dana', at: from + DAY }, // her own PR: not a review
+            { reviewer: 'erin', author: 'dana', at: from + 3 * DAY },
+            { reviewer: 'dana', author: 'kyle', at: from - DAY }, // before the window
+         ],
+      }
+   );
+
+   it('buckets opened and merged by developer or not, week by week from Monday', () => {
+      expect(w.weeks.map(x => x.week)).toEqual(['2026-08-31', '2026-09-07']);
+      expect(w.weeks[0].opened).toEqual({ developers: 1, non_developers: 0 });
+      expect(w.weeks[1].opened).toEqual({ developers: 0, non_developers: 2 });
+      expect(w.weeks[0].merged_by_project).toEqual({ alpha: 1 });
+      expect(w.weeks[1].merged_by_project).toEqual({ alpha: 1 });
+   });
+
+   it('gives the median days to merge and the people split per bucket', () => {
+      expect(w.totals.median_days_to_merge).toBe(3);
+      expect(w.projects.alpha).toMatchObject({
+         developers: 1,
+         non_developers: 1,
+         first_opened: '2026-09-01',
+         last_closed: '2026-09-12',
+      });
+   });
+
+   it('counts reviews given in the window on other people’s PRs, by whose PR', () => {
+      expect(w.people.dana).toMatchObject({ team: 'Store', reviews: 1, reviews_on_non_dev: 1 });
+      // erin reviewed but opened nothing: she still gets a row
+      expect(w.people.erin).toMatchObject({ team: null, reviews: 1, reviews_on_non_dev: 0, opened: 0 });
+      expect(w.weeks[0].reviews).toEqual({ on_developers: 1, on_non_developers: 0 });
+      expect(w.weeks[1].reviews).toEqual({ on_developers: 0, on_non_developers: 1 });
    });
 });

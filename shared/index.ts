@@ -47,7 +47,7 @@ export {
    ONGOING_LABEL,
    PARENT_PREFIX,
 } from './model/projects';
-export type { Project, PullSpan, Today, WindowStats } from './model/projects';
+export type { Project, PullSpan, ReviewSpan, Today, WindowStats } from './model/projects';
 
 export { epoch } from './format';
 export type { PullData, RepoSpec, Signature, CommitStatus, Label } from './types';
