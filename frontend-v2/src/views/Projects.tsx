@@ -152,7 +152,7 @@ export function Projects({
          ) : nav.view === 'roadmap' ? (
             <Roadmap
                items={items}
-               teams={Object.keys(data?.teams ?? {})}
+               teamMembers={data?.teams ?? {}}
                teamOf={teamOf}
                nav={nav}
                navigate={navigate}

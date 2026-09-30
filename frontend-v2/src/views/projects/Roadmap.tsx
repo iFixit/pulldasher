@@ -40,7 +40,7 @@ import {
 } from '../../model/roadmapData';
 import { NowNextLater } from './NowNextLater';
 import type { Navigate, ProjectsNav } from './parts';
-import { healthWords, UpdatesPanel, waitsWords } from './roadmapHealth';
+import { healthWords, loadWords, UpdatesPanel, waitsWords } from './roadmapHealth';
 
 const DAY = 86400;
 
@@ -735,6 +735,38 @@ function RoadmapRow({
    );
 }
 
+/** A team lane's title, its plan count, and how many it runs at once. */
+function LaneHeader({
+   team,
+   list,
+   developers,
+   today,
+   until,
+}: {
+   team: string | null;
+   list: RoadmapItem[];
+   developers: number;
+   today: string;
+   until: string;
+}) {
+   const load = team ? loadWords(list, developers, today, until) : null;
+   return (
+      <div className="flex flex-wrap items-baseline gap-x-2 border-t border-secondary bg-muted/40 px-3.5 py-[6px] first:border-t-0">
+         <span className={`text-ink-3 ${eyebrowText}`}>
+            {team ?? 'No team'} <span className="tabular-nums">· {list.length}</span>
+         </span>
+         {load && (
+            <span
+               className={`text-[11px] ${load.warn ? 'text-warn' : 'text-ink-3'}`}
+               title={load.title}
+            >
+               {load.text}
+            </span>
+         )}
+      </div>
+   );
+}
+
 /** A live project nobody has put on the roadmap: its real span, and one
  * click to add it with that span as the plan. */
 function UnplannedRow({
@@ -800,19 +832,21 @@ function UnplannedRow({
  */
 export function Roadmap({
    items,
-   teams,
+   teamMembers,
    teamOf,
    nav,
    navigate,
 }: {
    /** the portfolio, for linking plans to projects and their PRs */
    items: PortfolioItem[];
-   teams: string[];
+   /** developer teams: name to logins */
+   teamMembers: Record<string, string[]>;
    teamOf: (login: string) => string | null;
    nav: ProjectsNav;
    navigate: Navigate;
 }) {
    const { items: plan, loadFailed, problem } = useRoadmap();
+   const teams = Object.keys(teamMembers);
    // the open item is in the URL, so a link can open it; a new one is a draft
    const editing = nav.item;
    const openItem = (id: number | null) => navigate({ item: id });
@@ -1110,12 +1144,13 @@ export function Roadmap({
                              if (!list.length) return null;
                              return (
                                 <div key={team ?? '(none)'}>
-                                   <div
-                                      className={`border-t border-secondary bg-muted/40 px-3.5 py-[6px] text-ink-3 first:border-t-0 ${eyebrowText}`}
-                                   >
-                                      {team ?? 'No team'}{' '}
-                                      <span className="tabular-nums">· {list.length}</span>
-                                   </div>
+                                   <LaneHeader
+                                      team={team}
+                                      list={list}
+                                      developers={team ? teamMembers[team]?.length ?? 0 : 0}
+                                      today={today}
+                                      until={horizon.end}
+                                   />
                                    {renderRows(list)}
                                 </div>
                              );

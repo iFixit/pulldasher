@@ -17,7 +17,7 @@ const inDays = (days: number) => new Date(Date.now() + days * 86400_000).toISOSt
  * view and the developer split on every project demo both kinds. */
 export const DUMMY_TEAMS: Record<string, string[]> = {
    Store: ['danielbeardsley', 'jarstelfox', 'sctice', 'zdmitchell'],
-   FixBot: ['mlahargou', 'ardelato', 'BaseInfinity'],
+   FixBot: ['mlahargou', 'ardelato'],
    Community: ['rjmccluskey', 'sivadnor', 'hackalot805', 'djmetzle'],
 };
 const dummyProject = (
@@ -195,6 +195,9 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
       item(6, 'Search relevance', 7, 6, { team: 'FixBot', waits_on: [3] }),
       item(7, 'Translations upkeep', -1, 26, { project: 'translations', team: 'Community' }),
       item(8, 'Akeneo 4 migration', -11, 8, { project: 'akeneo-4', team: 'Store', status: 'done' }),
+      // FixBot's two developers would each be alone on a plan while this
+      // overlaps the webdriver work, so its lane's load shows amber
+      item(9, 'Visual regression checks', 1, 6, { team: 'FixBot', lead: 'ardelato' }),
    ];
    return { DUMMY_ROADMAP: items, DUMMY_ROADMAP_UPDATES: updates };
 })();

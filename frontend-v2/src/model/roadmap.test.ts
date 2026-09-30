@@ -9,6 +9,7 @@ import {
    healthStanding,
    mondayOf,
    moveBefore,
+   peakLoad,
    planEnd,
    type RoadmapItem,
    type RoadmapUpdate,
@@ -171,5 +172,24 @@ describe('waits on', () => {
          [2, false],
          [3, true],
       ]);
+   });
+});
+
+describe('peakLoad', () => {
+   it('finds the week with the most plans running, from a day on', () => {
+      const plan = (start: string, weeks: number, status: 'planned' | 'done' = 'planned') => ({
+         status,
+         start,
+         weeks,
+      });
+      const items = [
+         plan('2026-09-28', 2), // Sep 28 to Oct 11
+         plan('2026-10-05', 3), // Oct 5 to Oct 25
+         plan('2026-10-05', 1, 'done'),
+         plan('2026-10-19', 1),
+      ];
+      expect(peakLoad(items, '2026-09-30', '2026-12-01')).toEqual({ count: 2, week: '2026-10-05' });
+      expect(peakLoad(items, '2026-10-12', '2026-12-01')).toEqual({ count: 2, week: '2026-10-19' });
+      expect(peakLoad([], '2026-10-12', '2026-12-01')).toEqual({ count: 0, week: null });
    });
 });

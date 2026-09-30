@@ -4,6 +4,7 @@ import {
    blockersOf,
    endShift,
    healthStanding,
+   peakLoad,
    planEnd,
    ROADMAP_HEALTHS,
    UPDATE_DUE_DAYS,
@@ -110,6 +111,36 @@ export function waitsWords(
          ? `waits on ${clashes[0].name}, which was dropped`
          : `starts before ${clashes[0].name} ends`;
    return { text, warn: true, title };
+}
+
+/**
+ * A team lane's load, for its header: the most plans it has running at once
+ * from this week to the end of the horizon, against its developers. Amber
+ * when there are as many plans as developers or more, since then at least
+ * one plan has one developer or none (the worry the "one person" flag names
+ * for live projects), and the planner owes the lane a new order.
+ */
+export function loadWords(
+   list: readonly RoadmapItem[],
+   developers: number,
+   today: string,
+   until: string
+): { text: string; warn: boolean; title: string } | null {
+   const peak = peakLoad(list, today, until);
+   if (!peak.week) return null;
+   const people = developers ? ` for ${n(developers, 'developer')}` : '';
+   if (developers && peak.count >= developers) {
+      return {
+         text: `${peak.count} at once in the week of ${dayWords(peak.week)}${people}`,
+         warn: true,
+         title: 'With as many plans as developers, at least one plan has one developer or none.',
+      };
+   }
+   return {
+      text: `at most ${peak.count} at once${people}`,
+      warn: false,
+      title: 'The most plans this team runs in any one week, from this week on',
+   };
 }
 
 /** What happened since the last update, to write the next one from: the

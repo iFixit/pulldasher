@@ -291,6 +291,25 @@ export function healthStanding(
       : { kind: 'current', update: u };
 }
 
+/**
+ * The most items planned or in progress in any one week from `from` up to
+ * `to`, and the first week that happens: how many things a team would be
+ * juggling at once if the plan holds. Weeks start on Mondays.
+ */
+export function peakLoad(
+   items: readonly Pick<RoadmapItem, 'status' | 'start' | 'weeks'>[],
+   from: string,
+   to: string
+): { count: number; week: string | null } {
+   const live = items.filter(i => i.status === 'planned' || i.status === 'active');
+   let peak: { count: number; week: string | null } = { count: 0, week: null };
+   for (let week = mondayOf(from); week < to; week = addWeeks(week, 1)) {
+      const count = live.filter(i => i.start <= week && planEnd(i) >= week).length;
+      if (count > peak.count) peak = { count, week };
+   }
+   return peak;
+}
+
 /** how far ahead the roadmap's "next" reaches, in weeks: one quarter */
 export const NEXT_WEEKS = 13;
 

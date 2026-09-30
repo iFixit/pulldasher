@@ -126,7 +126,8 @@ The tab has three views and a page per project:
 - **Roadmap**: the plan, by month or by quarter, or as now, next and later
   without dates for readers outside engineering. Drag rows to set
   priority, drag a bar to move it and its edge to change its length; group
-  into team lanes. An item linked to a project label draws what its PRs
+  into team lanes, each saying the most plans it runs at once against its
+  developers. An item linked to a project label draws what its PRs
   actually did under the plan, and marks the project's milestone, flagged
   when the plan ends after it. An item can wait on others, and says so
   when its plan starts before one of them ends. Each item takes updates: on track, at risk or off track,

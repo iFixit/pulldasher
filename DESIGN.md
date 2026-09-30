@@ -352,6 +352,11 @@ icon with a class bolted on.
   lanes and every row between the two ends, and the row's words already
   say the one thing the planner acts on. The editor offers only choices
   that can be saved: never the item itself, dropped work, or a loop.
+- **A team lane's load is one sentence in its header**: "at most 2 at once
+  for 4 developers", amber once a week has as many plans as developers,
+  because then at least one plan has one developer or none. With no effort
+  estimates in this workflow, plans against people is the one honest
+  measure; the planner judges the rest.
 - **A plan's health is a word, amber only when someone owes something.**
   "On track" reads plain. "At risk", "Off track" and an overdue update are
   amber, because each asks someone to act: the planner to replan, the lead
