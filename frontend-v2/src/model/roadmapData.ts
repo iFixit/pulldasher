@@ -115,7 +115,9 @@ function dummyApi(): Api {
       },
       remove: id => {
          const before = rows.length;
-         rows = rows.filter(r => r.id !== id);
+         rows = rows
+            .filter(r => r.id !== id)
+            .map(r => ({ ...r, waits_on: r.waits_on.filter(other => other !== id) }));
          updates = updates.filter(u => u.item_id !== id);
          return rows.length < before ? ok({ ok: true }) : bad('no such roadmap item', 404);
       },
@@ -156,18 +158,25 @@ function problemOf(reply: Reply, doing: string): string {
    return error ? `Couldn’t ${doing}: ${error}.` : `Couldn’t ${doing}. Try again in a minute.`;
 }
 
+// Counts writes, so a load that went out before one and answers after it
+// can't put the old plan back on screen; the next load brings the new one.
+let writes = 0;
+
 export async function loadRoadmap(): Promise<void> {
+   const seen = writes;
    try {
       const reply = await api.list();
       if (reply.status !== 200) throw new Error(String(reply.status));
+      if (seen !== writes) return;
       store.set({ ...store.get(), items: reply.json.items as RoadmapItem[], loadFailed: false });
    } catch {
-      store.set({ ...store.get(), loadFailed: true });
+      if (seen === writes) store.set({ ...store.get(), loadFailed: true });
    }
 }
 
 /** Change the items on screen now; hand back a way to put them back. */
 function optimistic(change: (items: RoadmapItem[]) => RoadmapItem[]): () => void {
+   writes++;
    const before = store.get().items;
    store.set({ ...store.get(), items: change(before ?? []), problem: null });
    return () => store.set({ ...store.get(), items: before });
@@ -184,11 +193,14 @@ function settle(reply: Reply, doing: string, undo: () => void): boolean {
 export async function createRoadmapItem(
    fields: Partial<RoadmapFields>
 ): Promise<RoadmapItem | null> {
+   writes++;
    const reply = await api.create(fields).catch((): Reply => ({ status: 0, json: {} }));
    // nothing was shown early, so there's nothing to take back
    if (!settle(reply, 'add it', () => undefined)) return null;
    const item = reply.json.item as RoadmapItem;
-   store.set({ ...store.get(), items: byPriority([...(store.get().items ?? []), item]) });
+   // a load that already had it mustn't make it show twice
+   const others = (store.get().items ?? []).filter(i => i.id !== item.id);
+   store.set({ ...store.get(), items: byPriority([...others, item]) });
    return item;
 }
 
@@ -208,7 +220,14 @@ export async function updateRoadmapItem(
 }
 
 export async function removeRoadmapItem(id: number): Promise<boolean> {
-   const undo = optimistic(items => items.filter(i => i.id !== id));
+   // the server takes it off what other items wait on; so does the screen
+   const undo = optimistic(items =>
+      items
+         .filter(i => i.id !== id)
+         .map(i =>
+            i.waits_on.includes(id) ? { ...i, waits_on: i.waits_on.filter(x => x !== id) } : i
+         )
+   );
    const reply = await api.remove(id).catch((): Reply => ({ status: 0, json: {} }));
    return settle(reply, 'remove it', undo);
 }
@@ -245,6 +264,7 @@ export async function postRoadmapUpdate(
    id: number,
    fields: UpdateFields
 ): Promise<{ update: RoadmapUpdate } | { error: string }> {
+   writes++;
    const reply = await api.postUpdate(id, fields).catch((): Reply => ({ status: 0, json: {} }));
    if (reply.status !== 201) return { error: problemOf(reply, 'post the update') };
    const update = reply.json.update as RoadmapUpdate;
@@ -253,6 +273,11 @@ export async function postRoadmapUpdate(
       items: (store.get().items ?? []).map(i => (i.id === id ? { ...i, update } : i)),
    });
    return { update };
+}
+
+/** The roadmap as the board has it now, outside React. */
+export function readRoadmap(): RoadmapState {
+   return store.get();
 }
 
 export function dismissRoadmapProblem(): void {

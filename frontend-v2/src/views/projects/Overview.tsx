@@ -152,10 +152,11 @@ function MergedWorkCard({
    navigate: Navigate;
 }) {
    const { items: plan } = useRoadmap();
-   const planned = useMemo(() => roadmapSlugs(plan ?? []), [plan]);
+   // null until the roadmap loads: a share against no roadmap would read 0%
+   const planned = useMemo(() => (plan ? roadmapSlugs(plan) : null), [plan]);
    const byPlan = nav.split === 'roadmap';
-   const share = data ? roadmapShare(data.window.weeks, planned) : null;
-   const before = prev ? roadmapShare(prev.window.weeks, planned) : null;
+   const share = data && planned ? roadmapShare(data.window.weeks, planned) : null;
+   const before = prev && planned ? roadmapShare(prev.window.weeks, planned) : null;
    return (
       <StatsCard>
          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -174,12 +175,12 @@ function MergedWorkCard({
          </div>
          <div className="mt-3">
             <ChartSlot height={250}>
-               {data && (
+               {data && (!byPlan || planned) && (
                   <AllocationChart
                      weeks={data.window.weeks}
                      nameOf={nameOf}
                      onPick={slug => navigate({ project: slug })}
-                     planned={byPlan ? planned : undefined}
+                     planned={byPlan ? planned ?? undefined : undefined}
                   />
                )}
             </ChartSlot>
@@ -253,7 +254,7 @@ export function Overview({
                />
             </StatsCard>
          )}
-         <PlansStanding navigate={navigate} />
+         <PlansStanding nav={nav} navigate={navigate} />
          <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(380px,1fr))]">
             <BacklogCard range={range} />
             <MergedWorkCard

@@ -23,7 +23,14 @@ import {
 } from '../../model/projectData';
 import { StatsCard } from '../stats/parts';
 import { BacklogFlowChart, ChartSlot } from './lazyCharts';
-import { FlagWords, PeopleStack, ProjectFacts, WindowTiles, type Navigate } from './parts';
+import {
+   FlagWords,
+   PeopleStack,
+   ProjectFacts,
+   WindowTiles,
+   type Navigate,
+   type ProjectsNav,
+} from './parts';
 import { PlanFacts } from './roadmapHealth';
 
 const DAY_MS = 86_400_000;
@@ -161,6 +168,7 @@ export function ProjectPage({
    prefix,
    teamOf,
    opts,
+   nav,
    navigate,
 }: {
    slug: string;
@@ -173,6 +181,7 @@ export function ProjectPage({
    prefix: string;
    teamOf: (login: string) => string | null;
    opts: RowOptions;
+   nav: ProjectsNav;
    navigate: Navigate;
 }) {
    const live = today.live.find(g => g.slug === slug);
@@ -236,7 +245,7 @@ export function ProjectPage({
          <div className="mb-7">
             <Rows>
                <ProjectFacts g={{ slug }} project={project} hasRepo={!!data?.projects_repo} />
-               <PlanFacts slug={slug} navigate={navigate} />
+               <PlanFacts slug={slug} nav={nav} navigate={navigate} />
                {group && group.open.length > 0 ? (
                   <FoldRows list={group.open} opts={opts} id={`project:${slug}:open`} />
                ) : (

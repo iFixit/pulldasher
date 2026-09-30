@@ -148,6 +148,7 @@ export function Projects({
                prefix={prefix}
                teamOf={teamOf}
                opts={opts}
+               nav={nav}
                navigate={navigate}
             />
          ) : nav.view === 'people' ? (

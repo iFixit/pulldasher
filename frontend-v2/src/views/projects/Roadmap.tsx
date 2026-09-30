@@ -39,7 +39,7 @@ import {
    useRoadmap,
 } from '../../model/roadmapData';
 import { NowNextLater } from './NowNextLater';
-import type { Navigate, ProjectsNav } from './parts';
+import { openPlan, type Navigate, type ProjectsNav } from './parts';
 import {
    healthWords,
    loadWords,
@@ -228,7 +228,9 @@ function Editor({
    people: string[];
    onDone: () => void;
 }) {
-   const [draft, setDraft] = useState<RoadmapFields>(() =>
+   // what the form started from: Save sends only the fields changed since,
+   // so a bar dragged while the editor is open keeps its new weeks
+   const [initial] = useState<RoadmapFields>(() =>
       item
          ? {
               name: item.name,
@@ -253,12 +255,22 @@ function Editor({
               waits_on: [],
            }
    );
+   const [draft, setDraft] = useState<RoadmapFields>(initial);
    const [error, setError] = useState<string | null>(null);
    const [saving, setSaving] = useState(false);
    const { armed, run } = useArmedConfirm();
    const set = (patch: Partial<RoadmapFields>) => setDraft(d => ({ ...d, ...patch }));
    const save = async () => {
-      const checked = checkRoadmapFields(draft, { partial: !!item });
+      const changed = item
+         ? (Object.fromEntries(
+              Object.entries(draft).filter(
+                 ([key, value]) =>
+                    JSON.stringify(value) !== JSON.stringify(initial[key as keyof RoadmapFields])
+              )
+           ) as Partial<RoadmapFields>)
+         : draft;
+      if (item && !Object.keys(changed).length) return onDone();
+      const checked = checkRoadmapFields(changed, { partial: !!item });
       if ('error' in checked) return setError(checked.error);
       setSaving(true);
       const ok = item
@@ -413,7 +425,7 @@ function Editor({
             >
                Cancel
             </button>
-            {error && <span className="text-xs text-bad">{error}</span>}
+            {error && <span className="text-xs text-warn">{error}</span>}
             <span className="flex-1" />
             {item && (
                <button
@@ -955,15 +967,13 @@ export function Roadmap({
       });
    };
 
-   // arriving from a link to one item: bring it into view once the plan loads
-   const arrived = useRef(false);
+   // bring the open item into view when it changes or the plan first loads;
+   // one already on screen stays put
+   const loaded = plan != null;
    useEffect(() => {
-      if (arrived.current || !plan) return;
-      arrived.current = true;
-      if (nav.item != null) {
-         document.getElementById(`roadmap-item-${nav.item}`)?.scrollIntoView({ block: 'center' });
-      }
-   }, [plan, nav.item]);
+      if (!loaded || nav.item == null) return;
+      document.getElementById(`roadmap-item-${nav.item}`)?.scrollIntoView({ block: 'nearest' });
+   }, [loaded, nav.item]);
 
    const renderRows = (list: RoadmapItem[]) =>
       list.map(item => {
@@ -1109,7 +1119,7 @@ export function Roadmap({
                   bySlug={bySlug}
                   laneTitles={lanes ? laneTitles : null}
                   today={today}
-                  onOpen={id => navigate({ scale: 'quarter', item: id })}
+                  onOpen={id => navigate(openPlan(nav, id))}
                />
                <p className="mt-3 text-xs text-ink-3">
                   Each column is in priority order. Done and dropped work isn’t shown. Open an item

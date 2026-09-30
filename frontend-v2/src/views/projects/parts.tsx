@@ -35,6 +35,20 @@ export interface ProjectsNav {
 }
 export type Navigate = (patch: Partial<ProjectsNav>) => void;
 
+/**
+ * The way to one roadmap item from anywhere in the tab: the roadmap with the
+ * item open, on a timeline even when it was showing now, next and later,
+ * since the item's editor lives on the timeline.
+ */
+export function openPlan(nav: ProjectsNav, id: number): Partial<ProjectsNav> {
+   return {
+      project: null,
+      view: 'roadmap',
+      item: id,
+      scale: nav.scale === 'now' ? 'quarter' : nav.scale,
+   };
+}
+
 /** How many other live projects `login` has work in, for the lead flag's words. */
 function otherLiveProjects(login: string, g: ProjectGroup, today: Today): number {
    return today.live.filter(o => o !== g && o.people.includes(login)).length;

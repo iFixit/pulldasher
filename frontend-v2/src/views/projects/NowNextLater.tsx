@@ -9,13 +9,30 @@ import {
 import { eyebrowText } from '../../components/Lane';
 import type { PortfolioItem } from '../../model/portfolio';
 import { dayWords } from '../../model/projectData';
-import { healthWords, planWords, waitsWords } from './roadmapHealth';
+import { healthWords, waitsWords } from './roadmapHealth';
 
 const BUCKETS: ['now' | 'next' | 'later', string, string][] = [
    ['now', 'Now', 'In progress, or its start has come'],
    ['next', 'Next', `Starting in the next ${NEXT_WEEKS} weeks`],
    ['later', 'Later', 'Further out'],
 ];
+
+/**
+ * The month a plan's work starts, "from October" (with the year when it
+ * isn't this one): the layout is for the order, not the weeks. A week
+ * belongs to the month its Thursday falls in, so a plan starting the week of
+ * Sep 28 reads October.
+ */
+function monthWords(start: string, today: string): string {
+   const thursday = new Date(`${start}T00:00:00Z`);
+   thursday.setUTCDate(thursday.getUTCDate() + 3);
+   const sameYear = thursday.getUTCFullYear() === Number(today.slice(0, 4));
+   return `from ${thursday.toLocaleDateString(undefined, {
+      month: 'long',
+      year: sameYear ? undefined : 'numeric',
+      timeZone: 'UTC',
+   })}`;
+}
 
 function Card({
    item,
@@ -52,7 +69,9 @@ function Card({
                   {health.text}
                </span>
             )}
-            {bucket !== 'now' && <span className="text-ink-3">{planWords(item)}</span>}
+            {bucket !== 'now' && (
+               <span className="text-ink-3">{monthWords(item.start, today)}</span>
+            )}
             {waits && (
                <span className={waits.warn ? 'text-warn' : 'text-ink-3'} title={waits.title}>
                   {waits.text}

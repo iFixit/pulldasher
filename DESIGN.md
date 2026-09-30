@@ -343,7 +343,8 @@ icon with a class bolted on.
   still running past it, ends after the milestone. Editing opens inline
   under the row, not in a popover, since a half-typed plan shouldn't
   vanish on a stray click. Now, next and later is the same plan without
-  dates, for readers who want the order and not the weeks; its columns are
+  week dates, for readers who want the order and not the weeks: a card in
+  Next or Later says only the month its work starts. The columns are
   derived from the dates, never set by hand, so the two layouts can't
   disagree.
 - **What a plan waits on is words on its row, not lines across the

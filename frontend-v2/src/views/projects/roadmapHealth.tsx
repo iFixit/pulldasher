@@ -20,7 +20,7 @@ import { Segmented } from '../../components/bits';
 import { dayOf, dayWords, useProjectsData } from '../../model/projectData';
 import { loadRoadmapUpdates, postRoadmapUpdate, useRoadmap } from '../../model/roadmapData';
 import { StatsCard } from '../stats/parts';
-import type { Navigate } from './parts';
+import { openPlan, type Navigate, type ProjectsNav } from './parts';
 
 export const PLAN_STATUS_WORD: Record<RoadmapStatus, string> = {
    planned: 'Planned',
@@ -237,7 +237,7 @@ export function UpdatesPanel({ item }: { item: RoadmapItem }) {
                >
                   Post update
                </button>
-               {error && <span className="text-xs text-bad">{error}</span>}
+               {error && <span className="text-xs text-warn">{error}</span>}
             </div>
          </form>
          {history === 'failed' && (
@@ -280,7 +280,7 @@ export function UpdatesPanel({ item }: { item: RoadmapItem }) {
  * latest update in full. The status report a project manager would otherwise
  * collect by hand, with a button to copy it as text for an email or a chat.
  */
-export function PlansStanding({ navigate }: { navigate: Navigate }) {
+export function PlansStanding({ nav, navigate }: { nav: ProjectsNav; navigate: Navigate }) {
    const { items } = useRoadmap();
    const [copied, setCopied] = useState(false);
    const now = Date.now() / 1000;
@@ -344,7 +344,7 @@ export function PlansStanding({ navigate }: { navigate: Navigate }) {
                      <div className="flex flex-wrap items-baseline gap-x-2">
                         <button
                            type="button"
-                           onClick={() => navigate({ view: 'roadmap', item: item.id })}
+                           onClick={() => navigate(openPlan(nav, item.id))}
                            className="hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium text-ink hover:text-brand"
                            title="Open it on the roadmap"
                         >
@@ -409,7 +409,15 @@ export function planCellWords(plan: RoadmapItem): { text: string; warn: boolean;
  * how it's going and the latest note, with the way to the roadmap. Says so
  * when the project isn't on the roadmap at all.
  */
-export function PlanFacts({ slug, navigate }: { slug: string; navigate: Navigate }) {
+export function PlanFacts({
+   slug,
+   nav,
+   navigate,
+}: {
+   slug: string;
+   nav: ProjectsNav;
+   navigate: Navigate;
+}) {
    const { items } = useRoadmap();
    if (!items) return null;
    const plan = items.find(i => i.project === slug && i.status !== 'dropped');
@@ -445,7 +453,7 @@ export function PlanFacts({ slug, navigate }: { slug: string; navigate: Navigate
                   {health.text}
                </span>
             )}
-            {link('Open on the roadmap', { project: null, view: 'roadmap', item: plan.id })}
+            {link('Open on the roadmap', openPlan(nav, plan.id))}
          </div>
          {u?.body && (
             <p className="m-0 mt-1 whitespace-pre-line text-[13px] text-ink-2">

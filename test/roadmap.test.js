@@ -254,6 +254,17 @@ test('waits_on is stored as ids and refuses a loop', async () => {
    assert.equal(rows.find(r => r.id === b.id).waits_on, null);
 });
 
+test('deleting an item takes it off what others wait on', async () => {
+   const a = (await call('POST', '/roadmap', { name: 'A' })).body.item;
+   const b = (await call('POST', '/roadmap', { name: 'B' })).body.item;
+   const c = (await call('POST', '/roadmap', { name: 'C', waits_on: [a.id, b.id] })).body.item;
+   await call('DELETE', `/roadmap/${a.id}`, undefined, {});
+   const after = (await call('GET', `/roadmap/${c.id}`, undefined, {})).body.item;
+   assert.deepEqual(after.waits_on, [b.id]);
+   // and it saves again
+   assert.equal((await call('PATCH', `/roadmap/${c.id}`, { waits_on: after.waits_on })).status, 200);
+});
+
 test('delete removes the item and its updates', async () => {
    const { body } = await call('POST', '/roadmap', { name: 'Gone soon' });
    await call('POST', `/roadmap/${body.item.id}/updates`, { health: 'off_track' });
