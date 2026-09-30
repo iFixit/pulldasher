@@ -195,6 +195,8 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
       waits_on: [],
       updated_by: 'danielbeardsley',
       updated_at: Math.floor(Date.now() / 1000) - id * 3600,
+      // made when they started, as far as updates go
+      created_at: null,
       update: updates.filter(u => u.item_id === id).at(-1) ?? null,
       ...over,
    });

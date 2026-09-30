@@ -102,7 +102,7 @@ describe('updates', () => {
    });
 
    it('owes an update only on work in progress, after two weeks', () => {
-      const active = { status: 'active' as const, start: '2026-09-07' };
+      const active = { status: 'active' as const, start: '2026-09-07', created_at: null };
       expect(healthStanding({ ...active, update: null }, now).kind).toBe('missing');
       expect(healthStanding({ ...active, start: '2026-09-21', update: null }, now).kind).toBe(
          'quiet'
@@ -117,6 +117,10 @@ describe('updates', () => {
          'current'
       );
       expect(healthStanding({ ...active, status: 'done', update: null }, now).kind).toBe('quiet');
+      // work begun weeks ago but put on the roadmap three days ago owes nothing yet
+      expect(
+         healthStanding({ ...active, created_at: now - 3 * 86400, update: null }, now).kind
+      ).toBe('quiet');
    });
 });
 
@@ -146,6 +150,7 @@ describe('waits on', () => {
       waits_on: [],
       updated_by: null,
       updated_at: null,
+      created_at: null,
       update: null,
       ...over,
    });

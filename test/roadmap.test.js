@@ -146,6 +146,7 @@ test('itemFromRow renames the lead and fills the blanks', () => {
          waits_on: '1,4',
          updated_by: 'alice',
          updated_at: '1790000000',
+         created_at: '1789000000',
       }),
       {
          id: 3,
@@ -161,6 +162,7 @@ test('itemFromRow renames the lead and fills the blanks', () => {
          waits_on: [1, 4],
          updated_by: 'alice',
          updated_at: 1790000000,
+         created_at: 1789000000,
          update: null,
       }
    );

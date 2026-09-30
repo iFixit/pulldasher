@@ -61,6 +61,8 @@ export interface RoadmapItem {
    /** who last changed it and when (epoch secs); null before anyone has */
    updated_by: string | null;
    updated_at: number | null;
+   /** when it was added to the roadmap (epoch secs); null when not known */
+   created_at: number | null;
    /** the latest update on how it's going; null before the first */
    update: RoadmapUpdate | null;
 }
@@ -285,8 +287,11 @@ export function endShift(
 /**
  * Where an item's updates stand, for the roadmap row and the overview:
  * - `quiet`: nothing owed. Done or dropped, planned, or in progress for less
- *   than UPDATE_DUE_DAYS by its plan without an update yet.
- * - `missing`: in progress past UPDATE_DUE_DAYS by its plan, and never an update.
+ *   than UPDATE_DUE_DAYS without an update yet. The days count from its
+ *   start or from when it was added, whichever is later, so a plan made
+ *   today for work begun in April doesn't owe an update the moment it's
+ *   made.
+ * - `missing`: in progress past UPDATE_DUE_DAYS that way, and never an update.
  * - `current`: the latest update is recent enough, or the work hasn't started.
  * - `stale`: in progress, and the latest update is older than UPDATE_DUE_DAYS.
  */
@@ -297,15 +302,16 @@ export type HealthStanding =
    | { kind: 'stale'; update: RoadmapUpdate; days: number };
 
 export function healthStanding(
-   item: Pick<RoadmapItem, 'status' | 'start' | 'update'>,
+   item: Pick<RoadmapItem, 'status' | 'start' | 'update' | 'created_at'>,
    now: number = Date.now() / 1000
 ): HealthStanding {
    if (isStopped(item.status)) return { kind: 'quiet' };
    const active = item.status === 'active';
    const u = item.update;
    if (!u) {
-      const started = (now - (dayStart(item.start) as number)) / DAY;
-      return active && started > UPDATE_DUE_DAYS ? { kind: 'missing' } : { kind: 'quiet' };
+      const from = Math.max(dayStart(item.start) as number, item.created_at ?? 0);
+      const days = (now - from) / DAY;
+      return active && days > UPDATE_DUE_DAYS ? { kind: 'missing' } : { kind: 'quiet' };
    }
    const days = Math.floor((now - u.at) / DAY);
    return active && days > UPDATE_DUE_DAYS

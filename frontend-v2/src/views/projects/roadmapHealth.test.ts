@@ -22,6 +22,7 @@ const item = (id: number, over: Partial<RoadmapItem> = {}): RoadmapItem => ({
    waits_on: [],
    updated_by: null,
    updated_at: null,
+   created_at: null,
    update: null,
    ...over,
 });

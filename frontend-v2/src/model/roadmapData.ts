@@ -103,6 +103,7 @@ function dummyApi(): Api {
             waits_on: f.waits_on ?? [],
             priority: Math.max(-1, ...rows.map(r => r.priority)) + 1,
             ...touch(),
+            created_at: Math.floor(Date.now() / 1000),
             update: null,
          };
          rows.push(item);
