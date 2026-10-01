@@ -368,8 +368,9 @@ function IssueLine({
                         opts={opts}
                         repoShown={repoShown(pr)}
                         asRow={rowOwner.get(issueKey(pr)) === key}
-                        // its only PR is the one the line's holder words are about
-                        whoSaid={issue.prs.length === 1}
+                        // its only PR is the one the line's holder words are about;
+                        // a closed issue's line names no holder
+                        whoSaid={issue.prs.length === 1 && standing.pull != null}
                      />
                   ))}
                </Truncated>

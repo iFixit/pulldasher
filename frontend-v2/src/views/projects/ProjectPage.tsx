@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from '
 import { issueUrl, n, pullKey } from '../../../../shared/format';
 import type { DecideRow } from '../../../../shared/model/decide';
 import {
+   dayStart,
    projectOf,
    targetOf,
    type DayPoint,
@@ -39,7 +40,13 @@ import {
 import { stageWord, type PortfolioItem } from '../../model/portfolio';
 import { useProjectWork } from '../../model/projectWork';
 import { setOngoing } from '../../model/settingsData';
-import { holderWords, prStage, STAGE_WORDS, type PrStage } from '../../model/stage';
+import {
+   holderWords,
+   prStage,
+   STAGE_WORDS,
+   withBoardStates,
+   type PrStage,
+} from '../../model/stage';
 import { StatsCard } from '../stats/parts';
 import { reasonWords } from './Decide';
 import { ChartSlot, FlowWeeksChart, OpenPrsChart } from './lazyCharts';
@@ -306,7 +313,7 @@ export function ProjectPage({
    // the chart's days, which the forecast reads too (fetched once, cached)
    const flow = useProjectsData(chartWindow(range), slug);
    // its issues and PRs, which the summary counts and the list shows
-   const page = useProjectWork(slug, plans);
+   const work = useProjectWork(slug, plans);
    // its rows are on this project's page, so their popover doesn't link here
    const rowOpts = useMemo(() => ({ ...opts, onProject: undefined }), [opts]);
    const live = today.live.find(g => g.slug === slug);
@@ -368,6 +375,8 @@ export function ProjectPage({
       live: ref => liveIndex.get(issueKey(ref)),
       known: ref => knownIndex.get(issueKey(ref)),
    };
+   // its PRs' states as the board knows them now, not as they were on load
+   const page = work && withBoardStates(work, pulls.live, pulls.known);
    const nameOf = (s: string) => data?.projects.find(p => p.slug === s)?.name ?? null;
    const parts = (data?.projects ?? [])
       .filter(p => p.parents.includes(slug))
@@ -405,7 +414,12 @@ export function ProjectPage({
          return /[.?!]$/.test(named) ? named : `${named}.`;
       })
    );
-   const decideClosed = asks.some(row => row.reasons.some(r => r.kind === 'issue_closed'));
+   // Decide asks about a closed issue as it is, or as one with PRs still open
+   const decideClosed = asks.some(row =>
+      row.reasons.some(
+         r => r.kind === 'issue_closed' || (r.kind === 'reopened' && r.by === 'issue')
+      )
+   );
    const owed: ReactNode[] = [];
    if (decideSaid.length) {
       owed.push(
@@ -486,6 +500,9 @@ export function ProjectPage({
    const target = targetOf(project);
    const due = target?.due_on?.slice(0, 10) ?? null;
    const missed = !!due && due < dayOf(new Date()) && openCount > 0;
+   // a replan after the target passed answers it, as Decide counts it
+   const replanned =
+      !!plan && !!due && (plan.updated_at ?? 0) >= (dayStart(due) ?? 0) + DAY_MS / 1000;
    // a pace only means something when the range runs up to today
    const current = range.end >= dayOf(new Date());
    const finished = project?.state === 'closed' || (!!plan && !isUnderWay(plan.status));
@@ -626,7 +643,13 @@ export function ProjectPage({
                      <dt className="text-xs leading-5 text-ink-3">Finish</dt>
                      <dd className="m-0 text-ink-2">
                         {target && (
-                           <span className={missed && !decideSaid.length ? 'text-warn' : undefined}>
+                           <span
+                              className={
+                                 missed && !replanned && !decideSaid.length
+                                    ? 'text-warn'
+                                    : undefined
+                              }
+                           >
                               {upper(targetText(target, due, missed))}
                            </span>
                         )}
@@ -649,6 +672,8 @@ export function ProjectPage({
                <dd className="m-0 text-ink-2">
                   {page === undefined ? (
                      'Counting…'
+                  ) : page === null ? (
+                     'Couldn’t load them'
                   ) : (
                      <>
                         {/* where the open ones stand */}
@@ -699,7 +724,9 @@ export function ProjectPage({
                </dd>
                <dt className="text-xs leading-5 text-ink-3">Issues</dt>
                <dd className="m-0 text-ink-2">
-                  {!counts ? (
+                  {page === null ? (
+                     'Couldn’t load them'
+                  ) : !counts ? (
                      'Counting…'
                   ) : !counts.total ? (
                      'None yet'

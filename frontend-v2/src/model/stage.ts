@@ -1,9 +1,10 @@
-import { pullKey } from '../../../shared/format';
+import { ago, pullKey } from '../../../shared/format';
 import { prStage, type PrStage } from '../../../shared/model/stage';
-import type { DerivedPull } from '../../../shared/model/status';
-import type { IssuePull, IssueRef, ProjectIssue } from '../../../shared/model/work';
-import { parked } from './actions';
-import { requestedReviewers } from './reviewers';
+import { CR_INCOMPLETE, type DerivedPull } from '../../../shared/model/status';
+import type { IssuePull, IssueRef, ProjectIssue, ProjectWork } from '../../../shared/model/work';
+import type { PullData } from '../../../shared/types';
+import { parked, STALE_CLAIM_SECS } from './actions';
+import { claimFor, requestedReviewers } from './reviewers';
 
 export { prStage, type PrStage };
 
@@ -114,11 +115,24 @@ function reviewWaits(p: DerivedPull, turn: string | null): string {
       if (p.qaingLogin) return `${p.qaingLogin} is testing it`;
       if (p.reqaBy.length) return `waiting on ${list(p.reqaBy)} to test again`;
    }
-   if (p.status === 'needs_recr' && p.recrBy.length) {
-      return `waiting on ${list(p.recrBy)} to look again`;
+   // the rest of code review's; once it's met, a leftover request for changes
+   // or a claim holds nobody up, as on the board
+   if (CR_INCOMPLETE.includes(p.status)) {
+      if (p.status === 'needs_recr' && p.recrBy.length) {
+         return `waiting on ${list(p.recrBy)} to look again`;
+      }
+      // changes were asked for and the author has pushed since
+      if (p.changesRequestedBy.length) {
+         return `waiting on ${list(p.changesRequestedBy)} to look again`;
+      }
+      // someone took it to review, in the row's words
+      const claim = claimFor(p.data);
+      if (claim) {
+         return claim.at != null && Date.now() / 1000 - claim.at > STALE_CLAIM_SECS
+            ? `${claim.login} claimed it ${ago(claim.at)} ago`
+            : `${claim.login} is reading it`;
+      }
    }
-   // changes were asked for and the author has pushed since
-   if (p.changesRequestedBy.length) return `waiting on ${list(p.changesRequestedBy)} to look again`;
    const asked = requestedReviewers(p);
    if (asked.length) return `waiting on ${list(asked)}`;
    if (p.engagedNoStamp.length) return `${list(p.engagedNoStamp)} looking`;
@@ -137,4 +151,26 @@ export function stageCounts(
       if (p) out[prStage(p)].push(p);
    }
    return out;
+}
+
+/**
+ * A project's page with each PR's state as the board knows it now. The page
+ * is read once, when it opens; the board hears each merge and close as it
+ * happens, so a PR that merged since then reads as merged, not open.
+ */
+export function withBoardStates(
+   page: ProjectWork,
+   live: (ref: IssueRef) => DerivedPull | undefined,
+   known: (ref: IssueRef) => PullData | undefined
+): ProjectWork {
+   const now = (pr: IssuePull): IssuePull => {
+      const gone = live(pr) ? undefined : known(pr);
+      const state = live(pr) ? 'open' : gone ? (gone.merged_at ? 'merged' : 'closed') : pr.state;
+      return state === pr.state ? pr : { ...pr, state };
+   };
+   return {
+      ...page,
+      issues: page.issues.map(issue => ({ ...issue, prs: issue.prs.map(now) })),
+      unlinked: page.unlinked.map(now),
+   };
 }

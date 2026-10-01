@@ -1,7 +1,8 @@
 import { epoch } from '../format';
 import type { PullData } from '../types';
-import type { DerivedPull, Status } from './status';
+import type { DerivedPull } from './status';
 import { MISC_SLUG, projectOf, projectSlugs } from './projectLabel';
+import { prStage } from './stage';
 
 export { MISC_SLUG, projectOf, projectSlugs } from './projectLabel';
 
@@ -111,8 +112,6 @@ export function projectName(g: Pick<ProjectGroup, 'slug' | 'project'>): string {
    return g.project?.name ?? g.slug;
 }
 
-const WAITING_ON_REVIEW: Status[] = ['needs_cr', 'needs_recr', 'needs_qa'];
-
 /**
  * Today: every project with work in flight, from the open PRs, the recently
  * merged ones (the server keeps LIVE_DAYS of them in memory), and the
@@ -190,7 +189,8 @@ export function buildToday(
    for (const g of today.live) {
       if (g.people.length === 1 && g.open.length + g.merged.length >= ONE_PERSON_MIN_PRS)
          g.flags.push('one_person');
-      if (g.open.length >= 2 && g.open.every(p => WAITING_ON_REVIEW.includes(p.status)))
+      // by the project page's stage rule, so the flag and its list agree
+      if (g.open.length >= 2 && g.open.every(p => prStage(p) === 'review'))
          g.flags.push('waiting_on_review');
       if (g.project?.state === 'closed') g.flags.push('issue_closed');
    }

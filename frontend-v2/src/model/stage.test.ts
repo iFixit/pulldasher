@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { DerivedPull, Status } from '../../../shared/model/status';
-import type { IssuePull } from '../../../shared/model/work';
-import { holderWords, issueStanding, prStage } from './stage';
+import type { IssuePull, ProjectWork } from '../../../shared/model/work';
+import type { PullData } from '../../../shared/types';
+import { holderWords, issueStanding, prStage, withBoardStates } from './stage';
 
 /** A DerivedPull with only the fields the stage rules read. */
 function dp(
@@ -18,6 +19,8 @@ function dp(
       ageDays: number;
       qaingLogin: string | null;
       recrBy: string[];
+      /** someone took it to review, at this epoch second */
+      claim: { login: string; at: number | null };
    }> = {}
 ): DerivedPull {
    const asked = o.changesRequestedAt != null;
@@ -26,6 +29,9 @@ function dp(
          repo: 'iFixit/ifixit',
          number,
          user: { login: o.author ?? 'dana' },
+         // a claim is a review request the reviewer made of themselves
+         requested_reviewers: o.claim ? [o.claim.login] : [],
+         review_requests: o.claim ? [{ ...o.claim, self: true }] : [],
          status: {
             unstamped_reviewers: asked
                ? [{ login: 'erin', state: 'CHANGES_REQUESTED', date: o.changesRequestedAt }]
@@ -74,12 +80,19 @@ describe('prStage', () => {
       expect(prStage(dp(1, 'ci_pending'))).toBe('ready');
       // a clean PR waiting on the one it's stacked on
       expect(prStage(dp(1, 'unmergeable'))).toBe('ready');
+      // signed off but in conflict, while CI runs: the board says Rebase
+      expect(prStage(dp(1, 'ci_pending', { conflict: true }))).toBe('work');
    });
 
    it('gives a PR back to its author while asked-for changes wait on them', () => {
       expect(prStage(dp(1, 'needs_cr', { changesRequestedAt: 100 }))).toBe('work');
       // pushed since: the reviewer's turn again
       expect(prStage(dp(1, 'needs_cr', { changesRequestedAt: 100, headPushedAt: 200 }))).toBe(
+         'review'
+      );
+      // on a re-review too: a stamp went stale, then changes were asked for
+      expect(prStage(dp(1, 'needs_recr', { changesRequestedAt: 100 }))).toBe('work');
+      expect(prStage(dp(1, 'needs_recr', { changesRequestedAt: 100, headPushedAt: 200 }))).toBe(
          'review'
       );
    });
@@ -141,5 +154,47 @@ describe('holderWords', () => {
          'with dana, PR open 38 days'
       );
       expect(holderWords(dp(1, 'draft', { ageDays: 3 }), { ageWarnDays: 14 })).toBe('with dana');
+   });
+
+   it('names who took a PR to review, as its row does', () => {
+      const now = Date.now() / 1000;
+      const turns = new Map([['iFixit/ifixit#2', 'erin']]);
+      expect(
+         holderWords(dp(2, 'needs_cr', { claim: { login: 'bob', at: now - 60 } }), { turns })
+      ).toBe('bob is reading it');
+      expect(holderWords(dp(2, 'needs_cr', { claim: { login: 'bob', at: now - 3 * 3600 } }))).toBe(
+         'bob claimed it 3h ago'
+      );
+   });
+
+   it('drops code review’s holders once code review is met', () => {
+      // a change request left over after enough others stamped it
+      expect(holderWords(dp(3, 'needs_qa', { changesRequestedAt: 100 }))).toBe('needs a tester');
+   });
+});
+
+describe('withBoardStates', () => {
+   const ref = (number: number, state: IssuePull['state']) => ({ ...pr(number, state) });
+   const page = {
+      issues: [
+         { ref: { repo: 'iFixit/ifixit', number: 50 }, prs: [ref(1, 'open'), ref(2, 'open')] },
+      ],
+      unlinked: [ref(3, 'closed'), ref(4, null)],
+   } as unknown as ProjectWork;
+   const board = new Map([[3, dp(3, 'needs_cr')]]);
+   const gone = new Map([
+      [1, { merged_at: '2026-10-01T00:00:00Z' } as PullData],
+      [2, { merged_at: null } as unknown as PullData],
+   ]);
+
+   it('reads each PR’s state off the board, newer than the page’s', () => {
+      const fresh = withBoardStates(
+         page,
+         r => board.get(r.number),
+         r => gone.get(r.number)
+      );
+      // merged and closed since the page loaded; reopened; and one the board never read
+      expect(fresh.issues[0].prs.map(p => p.state)).toEqual(['merged', 'closed']);
+      expect(fresh.unlinked.map(p => p.state)).toEqual(['open', null]);
    });
 });

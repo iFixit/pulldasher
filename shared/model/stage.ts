@@ -1,4 +1,4 @@
-import type { DerivedPull } from './status';
+import { CR_INCOMPLETE, type DerivedPull } from './status';
 import { isSuffixBot } from './visibility';
 
 /**
@@ -61,15 +61,17 @@ export function prStage(p: DerivedPull): PrStage {
    if (parked(p) || p.externalBlock || p.status === 'deploy_block') return 'hold';
    if (
       authorOwnsIt(p) ||
-      (p.status === 'unmergeable' && p.conflict) ||
-      // changes asked for and not answered yet: the author's move
-      (p.status === 'needs_cr' && p.changesRequestedBy.length > 0 && !feedbackAnswered(p))
+      // changes asked for and not answered yet: the author's move, as the
+      // board's note says ("Address feedback"), on a first review or a re-review
+      (CR_INCOMPLETE.includes(p.status) && p.changesRequestedBy.length > 0 && !feedbackAnswered(p))
    ) {
       return 'work';
    }
    if (p.status === 'needs_cr' || p.status === 'needs_recr' || p.status === 'needs_qa') {
       return 'review';
    }
+   // signed off but in conflict, whatever CI is doing: the author rebases
+   if (p.conflict) return 'work';
    // ready, CI running on a signed-off PR, or a clean PR waiting on the one it's stacked on
    return 'ready';
 }

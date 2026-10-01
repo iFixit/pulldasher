@@ -27,6 +27,8 @@ function open(over: {
    idleDays?: number;
    /** days since real work, when the server says (status.activity_at) */
    workedDays?: number;
+   /** a reviewer who asked for changes the author hasn't answered */
+   changesBy?: string;
 }): DerivedPull {
    return {
       status: over.status ?? 'needs_cr',
@@ -37,9 +39,12 @@ function open(over: {
          labels: labels(...(over.labels ?? [])),
          created_at: iso(NOW - (over.ageDays ?? 1) * DAY),
          updated_at: iso(NOW - (over.idleDays ?? 0) * DAY),
-         status:
-            over.workedDays == null ? undefined : { activity_at: iso(NOW - over.workedDays * DAY) },
+         status: {
+            ...(over.workedDays == null ? {} : { activity_at: iso(NOW - over.workedDays * DAY) }),
+            unstamped_reviewers: [],
+         },
       },
+      changesRequestedBy: over.changesBy ? [over.changesBy] : [],
    } as unknown as DerivedPull;
 }
 
@@ -200,6 +205,20 @@ describe('buildToday', () => {
       const flags = Object.fromEntries(today.live.map(g => [g.slug, g.flags]));
       expect(flags.stuck).toEqual(['waiting_on_review']);
       expect(flags.moving).toEqual([]);
+   });
+
+   it('leaves the flag off while an author owes an answer to asked-for changes', () => {
+      const today = buildToday(
+         [],
+         [
+            open({ labels: ['project:asked'], status: 'needs_cr', author: 'a', changesBy: 'c' }),
+            open({ labels: ['project:asked'], status: 'needs_qa', author: 'b' }),
+         ],
+         [],
+         P,
+         NOW
+      );
+      expect(today.live[0].flags).toEqual([]);
    });
 
    it('reports idle days from the stalest open PR and sorts the busiest first', () => {
