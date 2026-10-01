@@ -32,6 +32,10 @@ export interface Backend {
     * released, or removed on GitHub, same as any other review request. */
    claimReview: (repo: string, number: number) => void;
    releaseReview: (repo: string, number: number) => void;
+   /** Calls `handler` when something the Projects tab shows changed on the
+    * server (a roadmap write, an issue added, a setting, a sync), so open
+    * boards fetch it again; returns the unsubscribe. */
+   onProjectsChanged: (handler: () => void) => () => void;
 }
 
 function liveBackend(): Backend {
@@ -142,6 +146,13 @@ function liveBackend(): Backend {
          s.on('initialize', (data: InitializePayload) => handler(data));
          s.on('pullChange', (pull: PullData) => handler(pull));
       },
+      onProjectsChanged(handler) {
+         const s = getSocket();
+         s.on('projectsChanged', handler);
+         return () => {
+            s.off('projectsChanged', handler);
+         };
+      },
       onConnection(handler) {
          onState = handler;
          const s = getSocket();
@@ -194,6 +205,8 @@ function dummyBackend(): Backend {
    }
 
    return {
+      // one person on the dummy board: nobody else's writes to hear
+      onProjectsChanged: () => () => {},
       whoami: () => Promise.resolve(dummyUser()),
       onPulls(handler) {
          emit = handler;

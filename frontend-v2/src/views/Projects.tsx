@@ -1,9 +1,10 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import type { DerivedPull } from '../../../shared/model/status';
 import type { PullData } from '../../../shared/types';
 import { closedIssues } from '../../../shared/model/decide';
 import { buildToday, MISC_SLUG, type Today } from '../../../shared/model/projects';
+import { backend } from '../backend/socket';
 import { EmptyState, Segmented } from '../components/bits';
 import { Icon } from '../components/Icon';
 import type { RowOptions } from '../components/Row';
@@ -11,14 +12,18 @@ import {
    DEFAULT_RANGE,
    ongoingSlugs,
    previousRange,
+   refreshProjectsData,
    resolveRange,
    teamLookup,
    useProjectsData,
    type Range,
 } from '../model/projectData';
-import { useWorkData } from '../model/workData';
+import { useWorkData, workVersion } from '../model/workData';
 import { portfolioItems } from '../model/portfolio';
-import { useRoadmap } from '../model/roadmapData';
+import { loadRoadmap, useRoadmap } from '../model/roadmapData';
+
+/** how long a burst of changes on the server settles before one refetch */
+const CHANGE_SETTLE_MS = 2000;
 import { DateRangePicker } from './projects/DateRangePicker';
 import { Decide, decideRows } from './projects/Decide';
 import { Overview } from './projects/Overview';
@@ -82,6 +87,24 @@ export function Projects({
       (login: string) => navigate({ view: 'people', project: null, who: login }, { push: true }),
       [navigate]
    );
+   // a change made on the server (anyone's call, an issue added, a sync)
+   // reaches this board: what it shows is fetched again in the background,
+   // once a burst of changes settles, keeping the old numbers up meanwhile
+   useEffect(() => {
+      let wait: ReturnType<typeof setTimeout> | null = null;
+      const off = backend.onProjectsChanged(() => {
+         if (wait) clearTimeout(wait);
+         wait = setTimeout(() => {
+            refreshProjectsData();
+            workVersion.set({ n: workVersion.get().n + 1 });
+            void loadRoadmap();
+         }, CHANGE_SETTLE_MS);
+      });
+      return () => {
+         if (wait) clearTimeout(wait);
+         off();
+      };
+   }, []);
    // this tab shows hidden PRs anyway, so its rows don't offer to hide one
    const tabOpts = useMemo(
       () => ({ ...opts, noHide: true, onPerson: onPersonHere }),

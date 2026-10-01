@@ -131,6 +131,10 @@ export interface IssuePull {
    author: string | null;
    createdAt: number | null;
    state: 'open' | 'merged' | 'closed' | null;
+   /** on a PR that does none of the project's issues: the issues it does
+    * that other projects have (their slugs), so the page can say where the
+    * work may belong. Absent when there are none. */
+   elsewhere?: { ref: IssueRef; projects: string[] }[];
 }
 
 /** An issue on its project's page: with the PRs that link it, newest first. */
@@ -201,6 +205,10 @@ export interface WorkInputs {
    knownIssues?: ReadonlyMap<string, IssueHit>;
    /** issues never to suggest: every project's own issue */
    notIssues?: ReadonlySet<string>;
+   /** each project's own issue, by slug: a PR that links it ("Parts of
+    * iFixit/projects#12") joins the project the way one that links its
+    * issues does */
+   ownIssues?: ReadonlyMap<string, IssueRef>;
 }
 
 /** When a plan's status last changed; a plan saved before that was kept
@@ -251,14 +259,24 @@ export function issueCounts(
 
 /** Each project's PRs: the ones with its label, and the ones with no
  * project label that link one of its issues. */
-function pullsOf({ attached, pulls, unlabeled = [], links }: WorkInputs): Map<string, WorkPull[]> {
+function pullsOf({
+   attached,
+   pulls,
+   unlabeled = [],
+   links,
+   ownIssues,
+}: WorkInputs): Map<string, WorkPull[]> {
    const out = new Map([...pulls].map(([slug, list]) => [slug, [...list]]));
    // which projects each PR links, from both sides
    const linkedTo = new Map<string, Set<string>>();
    const note = (pr: string, slug: string) =>
       linkedTo.set(pr, new Set([...(linkedTo.get(pr) ?? []), slug]));
-   for (const [slug, issues] of attached) {
-      const keys = new Set(issues.map(i => issueKey(i.ref)));
+   for (const slug of new Set([...attached.keys(), ...(ownIssues?.keys() ?? [])])) {
+      const own = ownIssues?.get(slug);
+      const keys = new Set([
+         ...(attached.get(slug) ?? []).map(i => issueKey(i.ref)),
+         ...(own ? [issueKey(own)] : []),
+      ]);
       for (const k of keys) for (const pr of links.get(k) ?? []) note(issueKey(pr), slug);
       for (const pr of unlabeled) {
          if (pr.links.some(ref => keys.has(issueKey(ref)))) note(issueKey(pr), slug);
@@ -387,6 +405,9 @@ export function projectWork(
          if (keys.has(k) || inputs.notIssues?.has(k)) continue;
          // a PR's link to a PR isn't an issue to add
          if (known.has(k)) continue;
+         // an issue another project has belongs there (a phase moved on,
+         // V1 to V1.1): the PR's line says so instead of suggesting it back
+         if (elsewhere.has(k)) continue;
          const info = inputs.knownIssues?.get(k);
          if (info && info.state !== 'open' && (info.closedAt ?? 0) < since(SUGGEST_DAYS)) continue;
          suggested.set(k, {
@@ -404,7 +425,16 @@ export function projectWork(
       })),
       unlinked: mine
          .filter(pr => !linked.has(issueKey(pr)) && recent(pr, RECENT_DAYS))
-         .map(issuePull)
+         .map(pr => {
+            const there = new Map(
+               pr.links
+                  .filter(ref => elsewhere.has(issueKey(ref)))
+                  .map(ref => [issueKey(ref), { ref, projects: alsoIn(issueKey(ref)) }])
+            );
+            return there.size
+               ? { ...issuePull(pr), elsewhere: [...there.values()] }
+               : issuePull(pr);
+         })
          .sort((a, b) => Number(b.state === 'open') - Number(a.state === 'open') || newest(a, b)),
       suggested: [...suggested.values()],
       counts: issueCounts(issues),

@@ -267,8 +267,9 @@ export function useProjectsData(
    project: string | null = null
 ): ProjectsData | null | undefined {
    const { n } = version.useValue();
-   const key = range ? `${n}:${range.start}..${range.end}:${project ?? ''}` : '';
-   const [got, setGot] = useState<{ key: string; data: ProjectsData | null }>();
+   const base = range ? `${range.start}..${range.end}:${project ?? ''}` : '';
+   const key = range ? `${n}:${base}` : '';
+   const [got, setGot] = useState<{ key: string; base: string; data: ProjectsData | null }>();
    useEffect(() => {
       if (!range) return;
       let hit = cache.get(key);
@@ -279,7 +280,7 @@ export function useProjectsData(
       let live = true;
       hit.data.then(data => {
          if (data == null) cache.delete(key);
-         if (live) setGot({ key, data });
+         if (live) setGot({ key, base, data });
       });
       return () => {
          live = false;
@@ -287,5 +288,7 @@ export function useProjectsData(
       // keyed on the days, not the range object, which callers rebuild
       // every render
    }, [key]);
-   return got && got.key === key ? got.data : undefined;
+   // a refetch of the same days (after a change on the server) keeps the
+   // numbers it had on screen until the new ones land: no flash of loading
+   return got && (got.key === key || got.base === base) ? got.data : undefined;
 }

@@ -38,8 +38,9 @@ export const API_ROUTES = [
       path: '/api/v1/projects',
       handlers: [projectsController.getProjects],
       does:
-         'Every project: its issue fields, where it stands today, and its numbers for ?start=&end= ' +
-         '(YYYY-MM-DD days, default the last 30); ?project=<slug> narrows the numbers to one',
+         'Every project: its issue fields, where it stands today (`stages` counts its open PRs: ' +
+         'ready to merge, on hold, waiting on review, being worked on), and its numbers for ' +
+         '?start=&end= (YYYY-MM-DD days, default the last 30); ?project=<slug> narrows the numbers to one',
    },
    {
       method: 'get',

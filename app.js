@@ -19,7 +19,8 @@ import { API_ROUTES, apiIndex } from './controllers/api-routes.js';
 import settingsController from './controllers/settings.js';
 import { loadSettings } from './lib/settings.js';
 import { issueRepos, projectSettings } from './lib/projects.js';
-import { syncWork } from './lib/work.js';
+import { setOnWorkSynced, syncWork } from './lib/work.js';
+import { missingMigrations } from './lib/schema-check.js';
 import apiAuth from './lib/api-auth.js';
 import Debug from './lib/debug.js';
 import { createServer } from 'http';
@@ -78,6 +79,18 @@ app.get('/retro-data', projectsController.getRetro);
 app.get('/work-data', projectsController.getWork);
 app.get('/issue-search', projectsController.searchIssues);
 app.get('/project-work', projectsController.getProjectWork);
+// every write the Projects tab can see tells open boards to fetch again, so
+// one person's call shows on another's screen without a reload
+const PROJECT_WRITES = ['/project-issues', '/roadmap', '/settings', '/api/v1/project-issues', '/api/v1/roadmap', '/api/v1/settings'];
+app.use(PROJECT_WRITES, function (req, res, next) {
+   if (req.method !== 'GET') {
+      res.on('finish', function () {
+         if (res.statusCode < 300) pullManager.projectsChanged();
+      });
+   }
+   next();
+});
+setOnWorkSynced(() => pullManager.projectsChanged());
 app.post('/project-issues', canWrite, projectsController.attachIssue);
 app.delete('/project-issues', canWrite, projectsController.detachIssue);
 // the roadmap is the one part of the Projects tab people edit here: reads are
@@ -110,6 +123,20 @@ git.getBotLogin();
 // Saved settings (the developer teams) replace config.js's once loaded;
 // until then, and if the table can't be read, config.js's stand.
 loadSettings().catch(err => console.error('loading saved settings failed:', err));
+
+// Migrations run by hand, before a deploy (migrations/*.sql never run on
+// one). Say loudly at startup which are missing, since the board then
+// fails in pieces: pull refreshes, the issue syncs, roadmap reads.
+missingMigrations()
+   .then(missing => {
+      if (missing.length) {
+         console.error(
+            'The database is missing migrations, so parts of the board will fail. Run these by hand, in order: %s',
+            missing.join(', ')
+         );
+      }
+   })
+   .catch(err => console.error('Checking the schema failed: %s', (err && err.message) || err));
 
 debug('Loading all recent pulls from the DB');
 dbManager
@@ -175,6 +202,8 @@ function syncProjectIssues() {
             if (!report.failedRepos.length && !report.failedItems.length) {
                projectIssuesSyncedAt.set(repo, startedAt);
             }
+            // a project's name, target or state may have changed
+            pullManager.projectsChanged();
          })
          .catch(function (err) {
             console.error('Project issue sync failed in %s: %s', repo, (err && err.message) || err);

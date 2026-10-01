@@ -26,6 +26,7 @@ import {
    spansFrom,
    utcDay,
    windowStats,
+   prStage,
    MISC_SLUG,
    STALL_DAYS,
 } from '../shared/dist/index.js';
@@ -138,9 +139,18 @@ function projectRecords(projects, today, stats, prefix) {
          people: g ? g.people : [],
          idle_days: g ? g.idleDays : null,
          flags: g ? g.flags : [],
+         // its open PRs by where they stand, in the project page's words
+         stages: stageCounts(g ? g.open : []),
          window: stats.projects[slug] || null,
       };
    });
+}
+
+/** How many open PRs are at each stage (shared/model/stage.ts prStage). */
+function stageCounts(open) {
+   const out = { ready: 0, hold: 0, review: 0, work: 0 };
+   for (const d of open) out[prStage(d)]++;
+   return out;
 }
 
 /** Where each project with PRs open began, by slug: the spans that run to today. */

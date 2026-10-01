@@ -182,6 +182,10 @@ const OTHER_PULLS = [
    pullRow(207, 'ivy', '2026-09-28', { body: 'Parts of #106 and #111' }),
    // links nothing attached, so only the pulls table knows it's a PR
    pullRow(212, 'jo', '2026-09-01', merged('2026-09-02')),
+   // a coding agent's PR; linked only in the bot test below
+   pullRow(213, 'copilot-swe-agent[bot]', '2026-09-29'),
+   // cites the project's own issue; linked only in its test below
+   pullRow(214, 'kim', '2026-09-30'),
 ];
 
 function fakeQuery(sql, params) {
@@ -346,6 +350,33 @@ test('a project’s page lists each issue with its PRs, the PRs that link none, 
       ]
    );
    assert.deepEqual([work.counts.total, work.counts.open, work.counts.done], [3, 2, 1]);
+});
+
+test('a bot’s PR an issue links shows with its state, and never joins by link', async () => {
+   fresh();
+   await syncWork(settings);
+   // the issue's side names a bot's PR too: a coding agent's "Fixes #102"
+   tables.links.push(['iFixit/ifixit', 102, 'iFixit/ifixit', 213, 1]);
+   const work = await loadProjectWork(settings, 'workbench');
+   const issue = work.issues.find(i => i.ref.number === 102);
+   assert.deepEqual(
+      issue.prs.map(p => [p.number, p.state]),
+      [
+         [213, 'open'],
+         [203, 'merged'],
+      ]
+   );
+   assert.ok(!work.unlinked.some(p => p.number === 213));
+});
+
+test('a PR that links the project’s own issue joins it, with no issue of its own', async () => {
+   fresh();
+   await syncWork(settings);
+   // "Parts of test/projects#1", read off the project's own issue
+   tables.links.push(['test/projects', 1, 'iFixit/ifixit', 214, 0]);
+   const work = await loadProjectWork(settings, 'workbench');
+   assert.ok(work.unlinked.some(p => p.number === 214));
+   assert.ok(!work.issues.some(i => i.prs.some(p => p.number === 214)));
 });
 
 test('every plan’s PRs by the dates, with the PRs that link its project’s issues', async () => {

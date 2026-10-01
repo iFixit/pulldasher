@@ -49,6 +49,9 @@ export {
 } from './model/projects';
 export type { Project, PullSpan, ReviewSpan, Today, WindowStats } from './model/projects';
 
+export { prStage } from './model/stage';
+export type { PrStage } from './model/stage';
+
 export {
    addWeeks,
    bucketOf,

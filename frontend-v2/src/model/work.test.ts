@@ -441,9 +441,10 @@ describe('projectWork', () => {
          [100, ['labels', 'printing']],
          [101, []],
       ]);
-      expect(shared.suggested.map(s => [s.number, s.alsoIn])).toEqual([
-         [300, ['printing']],
-         [301, []],
+      // #300 is printing's: not suggested here, and the PR doing it says so
+      expect(shared.suggested.map(s => [s.number, s.alsoIn])).toEqual([[301, []]]);
+      expect(shared.unlinked.map(p => [p.number, p.elsewhere])).toEqual([
+         [200, [{ ref: ref(300), projects: ['printing'] }]],
       ]);
    });
 

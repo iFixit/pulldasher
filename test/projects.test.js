@@ -395,6 +395,8 @@ test('/api/v1/projects lists each project with today and the window', async () =
    assert.deepEqual(alpha.open, ['test/repo-a#11', 'test/repo-a#12']);
    assert.deepEqual(alpha.merged_recently, ['test/repo-a#15']);
    assert.deepEqual(alpha.flags, ['one_person', 'waiting_on_review']);
+   // both wait on a code review, in the project page's words
+   assert.deepEqual(alpha.stages, { ready: 0, hold: 0, review: 2, work: 0 });
    assert.equal(alpha.window.merged, 1);
    const beta = body.projects.find(p => p.slug === 'beta');
    assert.equal(beta.standing, 'dropped');
