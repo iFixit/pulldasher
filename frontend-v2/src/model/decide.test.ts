@@ -13,6 +13,7 @@ import type { RoadmapItem, RoadmapUpdate } from '../../../shared/model/roadmap';
 import {
    callWords,
    keepCalls,
+   reasonWords,
    teamLoad,
    whyNot,
    writeFor,
@@ -496,5 +497,18 @@ describe('Decide’s calls', () => {
          'older',
          'newer',
       ]);
+   });
+});
+
+describe('reasonWords', () => {
+   it('ends a sentence once when the update it quotes already ends', () => {
+      const said = (body: string) =>
+         reasonWords(
+            { kind: 'at_risk' },
+            item(1, { project: 'p', update: { ...update('at_risk', 2), body } })
+         );
+      expect(said('Not sure the import can land.')).toMatch(/can land\. New end\?$/);
+      expect(said('Can the import land?')).toMatch(/land\? New end\?$/);
+      expect(said('Waiting on the vendor')).toMatch(/vendor\. New end\?$/);
    });
 });

@@ -37,8 +37,9 @@ risk or off track health word, a call Decide asks for); the facts behind
 it (dates, targets, counts, durations) stay ink. A 2026-10 review counted
 one Decide call drawn as 0, 1, 2 and 5 amber marks on four views, and at
 100 projects amber sat on most rows, so it stopped meaning "look here."
-Decide's own rows carry none: being on Decide is the mark (position over
-color). Counts are never amber, however urgent what they count.
+On Decide, a row's question ("New end?") is its one amber mark, and the
+facts above it stay ink. Counts are never amber, however urgent what they
+count: a tile that counts what's owed puts the amber on its word.
 
 **Never a background wash for state.** A filled color area out-competes
 titles at any opacity — salience is form, not volume. Three progressively
@@ -303,14 +304,27 @@ icon with a class bolted on.
 - **A person clicked anywhere in Projects opens People with them
   picked.** It never leaves the tab or sets a filter.
 - **A view's picks stay with it.** Switching views clears the old view's
-  sort, team, person, week and narrowing, so one view never quietly
-  narrows the next; the date range, the find and the roadmap's zoom carry
-  over, each shown where it applies. The view switcher is a tab list:
-  arrows move focus, Enter switches, and Decide's count rides as a corner
-  badge so it can't widen the strip.
+  sort, team, person, week, narrowing, grouping and Show choice, so one
+  view never quietly narrows the next; the date range, the find and the
+  roadmap's zoom carry over, each shown where it applies. The view switcher
+  is a tab list drawn like the app's lens tabs (it goes somewhere; a pill
+  segmented control is for a choice within a view): arrows move focus,
+  Enter switches, and Decide's count rides as a corner badge so it can't
+  widen the strip.
 - **One word per shared fact, kept in `model/words.ts`** ("No plan",
   "Update due", "3 weeks past its end", "42 days" in a sentence and "42d"
-  in a cell). A new shared fact gets its word there first.
+  in a cell). A new shared fact gets its word there first. "In progress"
+  is only ever a plan's status; projects with PRs moving are "being worked
+  on", and every count of them names its window ("this week", "in the last
+  14 days"), since the same word over two windows gave two numbers.
+- **Text buttons and fact links have one look each** (`components/bits.tsx`).
+  `TextButton` is an action said in words (Undo, Try again, Copy as text) in
+  brand, or a step back (Cancel, Close) in quiet ink. `FactLink` is a fact
+  that goes somewhere when clicked (a count that jumps to its rows, a lead,
+  a plan): ink with a quiet underline, since it isn't an action.
+- **j and k move between a list's rows** wherever a list is long enough to
+  triage (`components/useRowKeys.ts`), opening a "+ N more" on the way past
+  so every row is reachable, the way they move between PRs on the board.
 - **One filled button, one failure line.** `PrimaryButton` ends a form;
   a failed load is `LoadFailed` (grey, with Try again: nobody owes a
   failed fetch, so never amber, and red stays CI's); a save confirms in

@@ -65,7 +65,12 @@ import {
    weekMembers,
    type InFlightSpan,
 } from '../../../../shared/model/load';
-import { closedIssues, decideProjects, needsDecision } from '../../../../shared/model/decide';
+import {
+   closedIssues,
+   decideProjects,
+   needsDecision,
+   type DecideRow,
+} from '../../../../shared/model/decide';
 import {
    columnsFor,
    commitEnds,
@@ -1604,6 +1609,9 @@ export function Roadmap({
    teamOf: (login: string) => string | null;
    nav: ProjectsNav;
    navigate: Navigate;
+   /** the calls Decide asks for now (null while they load), so a plan's row
+    * names the same call Decide and the Overview do */
+   decisions?: DecideRow[] | null;
 }) {
    const { items: plan, loadFailed, problem } = useRoadmap();
    const teams = Object.keys(teamMembers);

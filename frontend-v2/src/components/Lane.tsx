@@ -285,6 +285,8 @@ export function Truncated({
          {more > 0 && (
             <button
                type="button"
+               // j and k open it on the way past (components/useRowKeys.ts)
+               data-row-more
                onClick={expand}
                className="pressable block w-full border-t border-secondary bg-muted/50 px-3.5 py-[9px] text-left text-xs font-medium text-ink-2 hover:text-brand"
             >

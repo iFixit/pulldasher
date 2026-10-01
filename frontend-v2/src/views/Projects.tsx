@@ -21,6 +21,7 @@ import {
 import { useWorkData, workVersion } from '../model/workData';
 import { portfolioItems } from '../model/portfolio';
 import { loadRoadmap, useRoadmap } from '../model/roadmapData';
+import { ONE_OFFS } from '../model/words';
 
 /** how long a burst of changes on the server settles before one refetch */
 const CHANGE_SETTLE_MS = 2000;
@@ -162,7 +163,7 @@ export function Projects({
    ];
    const nameOf = useMemo(() => {
       const names = new Map(items.map(i => [i.slug, i.name]));
-      names.set(MISC_SLUG, 'One-offs');
+      names.set(MISC_SLUG, ONE_OFFS);
       return (slug: string) => names.get(slug) ?? slug;
    }, [items]);
 
@@ -294,6 +295,7 @@ export function Projects({
                teamOf={teamOf}
                nav={nav}
                navigate={navigate}
+               decisions={owedCalls}
             />
          ) : (
             <Overview

@@ -10,6 +10,7 @@ import {
 } from '../../../../shared/model/projects';
 import { ORIGIN_WORD, ROADMAP_ORIGINS, type RoadmapOrigin } from '../../../../shared/model/roadmap';
 import { ArrowDown, ArrowUp, ChevronRight, X } from 'lucide-react';
+import { FactLink } from '../../components/bits';
 import { Icon } from '../../components/Icon';
 import { Avatar } from '../../components/identity';
 import { eyebrowText } from '../../components/Lane';
@@ -88,6 +89,10 @@ export function switchView(view: ProjectsNav['view']): Partial<ProjectsNav> {
       origin: null,
       by: 'team',
       kind: 'all',
+      // the list's Group by and the roadmap's lanes share this key, and the
+      // roadmap's Show narrows its rows: neither carries into another view
+      group: 'none',
+      show: 'all',
    };
 }
 
@@ -196,7 +201,10 @@ export function PeopleStack({
    const more = logins.length - shown.length;
    return (
       <span className="inline-flex flex-none items-center gap-1" title={logins.join(', ')}>
-         <span className="inline-flex -space-x-1">
+         {/* side by side, not overlapped: each face's hit area reaches 4px
+             past its edge, so overlapped faces gave the first face's middle
+             to the second person */}
+         <span className="inline-flex gap-1">
             {shown.map(login => (
                <Avatar
                   key={login}
@@ -226,28 +234,6 @@ export interface FactLinks {
    nameOf: (slug: string) => string | null;
    /** the projects that name this one as their parent */
    parts: { slug: string; name: string }[];
-}
-
-/** A word in a facts line that goes somewhere when clicked. */
-function FactLink({
-   onClick,
-   title,
-   children,
-}: {
-   onClick: () => void;
-   title: string;
-   children: ReactNode;
-}) {
-   return (
-      <button
-         type="button"
-         onClick={onClick}
-         title={title}
-         className="hit pressable rounded border-0 bg-transparent p-0 font-medium text-ink-2 hover:text-brand hover:underline"
-      >
-         {children}
-      </button>
-   );
 }
 
 /**
@@ -470,17 +456,20 @@ export function Tile({
    note?: string | null;
    /** what it counts, opened: a tile with a place to go is a button */
    onClick?: () => void;
-   /** amber: someone owes what it counts */
+   /** someone owes what it counts: its label is amber, its number never */
    warn?: boolean;
 }) {
    const body = (
       <>
-         <span className={`text-xl font-semibold tabular-nums ${warn ? 'text-warn' : 'text-ink'}`}>
-            {value}
-         </span>
+         <span className="text-xl font-semibold text-ink tabular-nums">{value}</span>
+         {/* amber names what's owed, on the word: counts are never amber */}
          <span
             className={`inline-flex items-center gap-0.5 text-xs ${
-               onClick ? 'text-ink-2 group-hover:text-brand group-hover:underline' : 'text-ink-3'
+               warn
+                  ? 'text-warn group-hover:underline'
+                  : onClick
+                  ? 'text-ink-2 group-hover:text-brand group-hover:underline'
+                  : 'text-ink-3'
             }`}
          >
             {label}

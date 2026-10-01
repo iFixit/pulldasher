@@ -122,13 +122,7 @@ export function LoadFailed({ what, onRetry }: { what: string; onRetry?: () => vo
    return (
       <p className="m-0 text-[13px] text-ink-3">
          Couldn’t load {what}.{' '}
-         <button
-            type="button"
-            onClick={onRetry ?? (() => window.location.reload())}
-            className="hit pressable rounded border-0 bg-transparent p-0 text-[13px] font-medium text-brand hover:underline"
-         >
-            Try again
-         </button>
+         <TextButton onClick={onRetry ?? (() => window.location.reload())}>Try again</TextButton>
       </p>
    );
 }
@@ -150,6 +144,44 @@ export function QuietButton({
       <button
          type="button"
          className={`hit pressable border border-line bg-surface font-medium disabled:opacity-40 ${shape} ${text} hover:text-brand`}
+         {...props}
+      />
+   );
+}
+
+/**
+ * An action said in words inside a line: Undo, Try again, Copy as text,
+ * Show all. One recipe for the dozens of hand-copied borderless buttons a
+ * 2026-10 review counted, which drew Undo brand on one view and ink-3 on
+ * the next. `quiet` is a step back (Cancel, Close); everything else is an
+ * action, in brand. It takes its size from the line it sits in.
+ */
+export function TextButton({
+   tone = 'action',
+   className = '',
+   ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { tone?: 'action' | 'quiet' }) {
+   const text = tone === 'quiet' ? 'text-ink-2 hover:text-brand' : 'font-medium text-brand';
+   return (
+      <button
+         type="button"
+         className={`hit pressable rounded border-0 bg-transparent p-0 text-left hover:underline disabled:opacity-40 ${text} ${className}`}
+         {...props}
+      />
+   );
+}
+
+/**
+ * A fact that goes somewhere when clicked: a count that jumps to its rows,
+ * a lead who opens on People, a plan that opens on the roadmap. It reads as
+ * the fact (ink, not brand, since it isn't an action) with a quiet
+ * underline, so it never passes for plain text. Sized by its line.
+ */
+export function FactLink({ className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+   return (
+      <button
+         type="button"
+         className={`hit pressable rounded border-0 bg-transparent p-0 text-left text-ink-2 underline decoration-line underline-offset-2 hover:text-brand ${className}`}
          {...props}
       />
    );
@@ -393,7 +425,14 @@ export function Segmented<T extends string>({
       <div
          role={tabs ? 'tablist' : 'radiogroup'}
          aria-label={ariaLabel}
-         className="inline-flex flex-wrap gap-0.5 rounded-lg border border-line bg-muted p-0.5"
+         // as tabs it's drawn like the app's own lens tabs (no pill around
+         // it), so switching views reads as going somewhere, not as one more
+         // filter; tighter on a phone, so five views fit one line at 375px
+         className={
+            tabs
+               ? 'inline-flex flex-wrap gap-0 sm:gap-0.5'
+               : 'inline-flex flex-wrap gap-0.5 rounded-lg border border-line bg-muted p-0.5'
+         }
       >
          {options.map(([val, label], i) => {
             const count = counts?.[val];
@@ -407,8 +446,18 @@ export function Segmented<T extends string>({
                   tabIndex={value === val || (!hasSelection && i === 0) ? 0 : -1}
                   onClick={() => onChange(val)}
                   onKeyDown={e => moveSelection(e, i)}
-                  className={`pressable relative rounded-md px-2.5 py-1 text-xs font-medium ${
-                     value === val ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-brand'
+                  className={`pressable relative rounded-md font-medium ${
+                     tabs
+                        ? `border-0 px-1.5 py-1 text-xs sm:px-2.5 sm:text-[13px] ${
+                             value === val
+                                ? 'bg-secondary text-ink'
+                                : 'bg-transparent text-ink-2 hover:text-brand'
+                          }`
+                        : `px-2.5 py-1 text-xs ${
+                             value === val
+                                ? 'bg-surface text-ink shadow-sm'
+                                : 'text-ink-2 hover:text-brand'
+                          }`
                   }`}
                >
                   {label}

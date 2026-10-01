@@ -34,6 +34,7 @@ import {
 } from '../../components/bits';
 import { Icon } from '../../components/Icon';
 import { GroupHeader, Rows, SubDoor, Truncated } from '../../components/Lane';
+import { useRowKeys } from '../../components/useRowKeys';
 import { mainTeam, type PortfolioItem } from '../../model/portfolio';
 import { dayOf, dayWords } from '../../model/projectData';
 import { commitEnds } from '../../model/roadmapTime';
@@ -295,10 +296,14 @@ function reasonFacts(reason: DecideReason, item: RoadmapItem | null, bare = fals
    }
 }
 
+/** A sentence ended once: a reason that quotes an update ending in its own
+ * stop keeps that one ("can land. New end?", never "land.. New end?"). */
+const stop = (words: string) => (/[.!?…]$/.test(words) ? words : `${words}.`);
+
 /** Why a row is here and the question it asks, in a sentence that stands
  * alone (a project's page, where there's no section title). */
 export function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
-   return `${reasonFacts(reason, item)}. ${askOf(reason).question}`;
+   return `${stop(reasonFacts(reason, item))} ${askOf(reason).question}`;
 }
 
 /** A row under its section title, as plain text: the question its reason
@@ -306,8 +311,8 @@ export function reasonWords(reason: DecideReason, item: RoadmapItem | null): str
 function rowWords(row: DecideRow): string {
    const primary = primaryOf(row);
    return [
-      `${reasonFacts(primary, row.item, true)}. ${askOf(primary).question}`,
-      ...row.reasons.filter(r => r !== primary).map(r => `${reasonFacts(r, row.item)}.`),
+      `${stop(reasonFacts(primary, row.item, true))} ${askOf(primary).question}`,
+      ...row.reasons.filter(r => r !== primary).map(r => stop(reasonFacts(r, row.item))),
    ].join(' ');
 }
 
@@ -933,7 +938,7 @@ function DecideRowView({
    // about its issues or the PRs after its end opens the project page,
    // which lists them
    const reason = (r: DecideReason, bare: boolean) => {
-      const words = `${reasonFacts(r, item, bare)}.`;
+      const words = stop(reasonFacts(r, item, bare));
       if (!item) return words;
       const work = !!row.slug && aboutTheWork(r);
       return (
@@ -1221,40 +1226,6 @@ function RunsDecide({
    );
 }
 
-/** j and k move between rows, landing on each row's answer, or its Undo
- * once decided, the way they move between PRs on the board. */
-function useRowKeys() {
-   useEffect(() => {
-      const onKey = (e: KeyboardEvent) => {
-         if ((e.key !== 'j' && e.key !== 'k') || e.metaKey || e.ctrlKey || e.altKey) return;
-         const t = e.target as HTMLElement;
-         if (['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName) || t.isContentEditable) return;
-         const rows = [...document.querySelectorAll<HTMLElement>('[data-decide-row]')];
-         if (!rows.length) return;
-         const at = rows.findIndex(row => row.contains(document.activeElement));
-         const step = e.key === 'j' ? 1 : -1;
-         const to =
-            at === -1
-               ? step > 0
-                  ? 0
-                  : rows.length - 1
-               : Math.min(Math.max(at + step, 0), rows.length - 1);
-         e.preventDefault();
-         const row = rows[to];
-         row.querySelector<HTMLElement>('[data-decide-focus]')?.focus({ preventScroll: true });
-         // by hand: inside its section's rounded box (overflow hidden),
-         // scrollIntoView drops the row's scroll margin, which is what keeps
-         // it below the sticky headers
-         const { top, bottom } = row.getBoundingClientRect();
-         const under = parseFloat(getComputedStyle(row).scrollMarginTop) || 0;
-         if (top < under) window.scrollBy(0, top - under);
-         else if (bottom > window.innerHeight) window.scrollBy(0, bottom - window.innerHeight + 16);
-      };
-      document.addEventListener('keydown', onKey);
-      return () => document.removeEventListener('keydown', onKey);
-   }, []);
-}
-
 /**
  * Decide: the weekly triage a product manager would run, as a queue that
  * empties. Every row is a project or plan that needs a call, says why, with
@@ -1298,7 +1269,8 @@ export function Decide({
    const { items: plans, loadFailed } = useRoadmap();
    const { made } = calls.useValue();
    const [copied, setCopied] = useState<string | null>(null);
-   useRowKeys();
+   // j and k land on each row's answer, or its Undo once decided
+   useRowKeys('[data-decide-row]', '[data-decide-focus]');
    if (!plans) {
       return loadFailed ? (
          <LoadFailed what="the roadmap" onRetry={() => void loadRoadmap()} />

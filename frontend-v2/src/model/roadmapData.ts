@@ -102,7 +102,9 @@ function dummyApi(): Api {
       updated_at: Math.floor(Date.now() / 1000),
    });
    return {
-      list: () => ok({ items: byPriority(rows) }),
+      // copies, as a server's JSON would be: handing out its own rows let a
+      // later write change rows the page already held, under React's feet
+      list: () => ok({ items: byPriority(rows).map(r => ({ ...r })) }),
       create: fields => {
          const checked = checkRoadmapFields(fields, { partial: false });
          if ('error' in checked) return bad(checked.error);
@@ -128,7 +130,7 @@ function dummyApi(): Api {
             update: null,
          };
          rows.push(item);
-         return ok({ item }, 201);
+         return ok({ item: { ...item } }, 201);
       },
       update: (id, fields, restate, undo) => {
          const checked = checkRoadmapFields(fields, { partial: true });
@@ -178,7 +180,7 @@ function dummyApi(): Api {
             const row = rows.find(r => r.id === id);
             if (row) row.priority = i;
          });
-         return ok({ items: byPriority(rows) });
+         return ok({ items: byPriority(rows).map(r => ({ ...r })) });
       },
    };
 }
