@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import gitManager from "../lib/git-manager.js";
-import { createRecentPullsSweep, repoOwners } from "../lib/refresh.js";
+import dbManager from "../lib/db-manager.js";
+import { createRecentPullsSweep, createRefresh, repoOwners } from "../lib/refresh.js";
 
 const MINUTE = 60 * 1000;
 
@@ -158,6 +159,48 @@ test("a pull that failed to refresh is retried by the next sweep", async (t) => 
   await sweep();
 
   assert.deepEqual(attempts, [1, 1]);
+});
+
+// refreshApi.pull resolves after a failed parse or save, so the sweep learns
+// about it only through the onFailure it passes.
+test("a pull that failed to save is retried by the next sweep", async (t) => {
+  t.mock.method(gitManager, "searchUpdatedPulls", () =>
+    Promise.resolve([{ repo: "a/one", number: 1, updatedAt: "2026-09-29T11:50:00Z" }])
+  );
+  let fail = true;
+  const attempts = [];
+  const refreshApi = {
+    pull: (repo, number, onFailure) => {
+      attempts.push(number);
+      if (fail) onFailure(repo, number);
+      return Promise.resolve();
+    },
+  };
+  const now = fakeClock(Date.parse("2026-09-29T12:00:00Z"));
+  const sweep = createRecentPullsSweep(refreshApi, ["a"], now);
+
+  await sweep();
+  fail = false;
+  now.advance(20 * MINUTE);
+  await sweep();
+  now.advance(20 * MINUTE);
+  await sweep();
+
+  assert.deepEqual(attempts, [1, 1]);
+});
+
+test("refresh.pull reports a failed save to its onFailure and still resolves", async (t) => {
+  t.mock.method(gitManager, "getPull", (repo, number) =>
+    Promise.resolve({ number, base: { repo: { full_name: repo } } })
+  );
+  t.mock.method(gitManager, "parse", (response) => Promise.resolve(response));
+  t.mock.method(dbManager, "updateAllPullData", () => Promise.reject(new Error("db down")));
+  t.mock.method(console, "error", () => {});
+  const failures = [];
+
+  await createRefresh().pull("a/one", 1, (repo, number) => failures.push(`${repo}#${number}`));
+
+  assert.deepEqual(failures, ["a/one#1"]);
 });
 
 test("one pull failing to refresh doesn't stop the sweep", async (t) => {
