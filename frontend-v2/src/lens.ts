@@ -5,6 +5,10 @@ export type Lens = 'review' | 'mine' | 'team' | 'projects' | 'classic' | 'ci' | 
  * pulling the tab's code into the review board's bundle. */
 export const DEFAULT_RANGE = '30d';
 
+/** The project list's default sort, Last activity with the longest quiet
+ * first, kept here for the same reason (model/portfolio.ts reads it). */
+export const DEFAULT_SORT = 'idle';
+
 /** A roadmap zoom's key in the URL, "2026-Q4" or "2026-10", checked here for
  * the same reason (model/roadmapTime.ts reads it). */
 export const ZOOM_KEY = /^(\d{4})-(?:Q([1-4])|(0[1-9]|1[0-2]))$/;

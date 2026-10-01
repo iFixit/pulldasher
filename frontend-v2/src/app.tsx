@@ -12,7 +12,14 @@ import {
 import { ago, closedEpoch, n, pullKey, shortRepo } from '../../shared/format';
 import type { ActionStateKey } from './model/actions';
 import { actionState } from './model/actions';
-import { DEFAULT_RANGE, LENS_LABELS, ORIGIN_KEYS, ZOOM_KEY, type Lens } from './lens';
+import {
+   DEFAULT_RANGE,
+   DEFAULT_SORT,
+   LENS_LABELS,
+   ORIGIN_KEYS,
+   ZOOM_KEY,
+   type Lens,
+} from './lens';
 import type { DerivedPull } from '../../shared/model/status';
 import { matchesWeightFilter } from '../../shared/model/status';
 import { buildParentLookup } from './model/stack';
@@ -145,7 +152,7 @@ function readHash(): HashState {
          range: p.get('range') || DEFAULT_RANGE,
          status: p.get('status') || 'live',
          group: p.get('group') || 'none',
-         sort: p.get('sort') || 'open',
+         sort: p.get('sort') || DEFAULT_SORT,
          find: p.get('find') ?? '',
          scale: p.get('scale') === 'month' ? 'month' : p.get('scale') === 'now' ? 'now' : 'quarter',
          item: Number(p.get('item')) || null,
@@ -166,6 +173,8 @@ function readHash(): HashState {
             ) ?? 'project',
          kind: (['writing', 'reviewing'] as const).find(k => k === p.get('kind')) ?? 'all',
          who: p.get('who') || null,
+         only: p.get('only') || null,
+         psort: p.get('psort') ?? '',
       },
    };
 }
@@ -187,7 +196,7 @@ function buildHash(s: HashState): string {
    if (s.projects.range !== DEFAULT_RANGE) p.set('range', s.projects.range);
    if (s.projects.status !== 'live') p.set('status', s.projects.status);
    if (s.projects.group !== 'none') p.set('group', s.projects.group);
-   if (s.projects.sort !== 'open') p.set('sort', s.projects.sort);
+   if (s.projects.sort !== DEFAULT_SORT) p.set('sort', s.projects.sort);
    if (s.projects.find) p.set('find', s.projects.find);
    if (s.projects.scale !== 'quarter') p.set('scale', s.projects.scale);
    if (s.projects.item) p.set('item', String(s.projects.item));
@@ -199,6 +208,8 @@ function buildHash(s: HashState): string {
    if (s.projects.by !== 'project') p.set('by', s.projects.by);
    if (s.projects.kind !== 'all') p.set('kind', s.projects.kind);
    if (s.projects.who) p.set('who', s.projects.who);
+   if (s.projects.only) p.set('only', s.projects.only);
+   if (s.projects.psort) p.set('psort', s.projects.psort);
    return p.toString();
 }
 
@@ -1361,7 +1372,6 @@ export function App() {
                   opts={rowOpts}
                   me={me}
                   onPerson={onPerson}
-                  onReview={() => goToLens('review')}
                   />
                </Suspense>
             )}

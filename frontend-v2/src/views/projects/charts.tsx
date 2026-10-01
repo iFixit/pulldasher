@@ -6,6 +6,7 @@ import {
    BarChart,
    CartesianGrid,
    Cell,
+   LabelList,
    ReferenceArea,
    ResponsiveContainer,
    Tooltip,
@@ -13,6 +14,7 @@ import {
    YAxis,
    type TooltipContentProps,
 } from 'recharts';
+import { n } from '../../../../shared/format';
 import type { DayPoint, WeekPoint } from '../../../../shared/model/projects';
 import { dayWords } from '../../model/projectData';
 
@@ -396,6 +398,113 @@ export function SplitWeeksChart({
                [labels[1], GROUP_COLORS.non_developers, 0.55],
             ]}
          />
+      </div>
+   );
+}
+
+/** One bar of a bucket chart: its axis label, and the projects in it with
+ * the days each one is counted by. */
+export interface Bucket {
+   tick: string;
+   items: { name: string; days: number }[];
+   /** amber: everything in it is owed a look */
+   warn?: boolean;
+}
+
+/**
+ * How many projects fall in each bucket, such as how long they've been
+ * open: one series, the count printed on each bar, and every project in a
+ * bar named on hover. A click anywhere in a bar's column picks it; the
+ * picked bar stays bright and the rest fade.
+ */
+export function BucketChart({
+   buckets,
+   unit,
+   ariaLabel,
+   picked,
+   onPick,
+   height = 150,
+}: {
+   buckets: Bucket[];
+   /** what the y-axis counts */
+   unit: string;
+   ariaLabel: string;
+   /** the picked bar's index; null for none */
+   picked: number | null;
+   onPick: (index: number) => void;
+   height?: number;
+}) {
+   const data = buckets.map((b, i) => ({ tick: b.tick, count: b.items.length, i }));
+   const tip = ({ active, payload }: TooltipContentProps) => {
+      const row = payload?.[0]?.payload as typeof data[number] | undefined;
+      if (!active || !row) return null;
+      const b = buckets[row.i];
+      return (
+         <div className="max-w-[300px] rounded-lg border border-line bg-surface px-2.5 py-2 text-xs text-ink-2 shadow-sm">
+            <div className="mb-1 font-semibold text-ink">
+               {b.tick}: {n(b.items.length, 'project')}
+            </div>
+            {[...b.items]
+               .sort((x, y) => y.days - x.days || x.name.localeCompare(y.name))
+               .map(item => (
+                  <div key={item.name} className="flex items-baseline gap-3">
+                     <span className="min-w-0 truncate">{item.name}</span>
+                     <span className="ml-auto flex-none text-ink-3 tabular-nums">
+                        {n(item.days, 'day')}
+                     </span>
+                  </div>
+               ))}
+            {b.items.length > 0 && (
+               <div className="mt-1 text-[11px] text-ink-3">
+                  {row.i === picked
+                     ? 'Click to list every project again'
+                     : 'Click to list only these'}
+               </div>
+            )}
+         </div>
+      );
+   };
+   return (
+      // a click focuses one of Recharts' layers; the ring would box a few bars
+      <div role="img" aria-label={ariaLabel} className="[&_g:focus]:outline-none">
+         <Unit>{unit}</Unit>
+         <ResponsiveContainer width="100%" height={height}>
+            <BarChart
+               data={data}
+               margin={{ top: 16, right: 8, bottom: 0, left: 0 }}
+               onClick={state => {
+                  const i = Number(state.activeTooltipIndex);
+                  if (Number.isInteger(i) && buckets[i]?.items.length) onPick(i);
+               }}
+               style={{ cursor: 'pointer' }}
+            >
+               {grid}
+               <XAxis dataKey="tick" interval={0} {...xAxisProps} />
+               <YAxis {...yAxisProps} />
+               <Tooltip
+                  content={tip}
+                  cursor={{ fill: 'var(--muted)' }}
+                  allowEscapeViewBox={{ x: false, y: true }}
+                  wrapperStyle={{ zIndex: 20 }}
+               />
+               <Bar dataKey="count" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                  {data.map(d => (
+                     <Cell
+                        key={d.tick}
+                        fill={buckets[d.i].warn ? 'var(--warn)' : 'var(--brand)'}
+                        fillOpacity={picked == null || picked === d.i ? 1 : 0.3}
+                     />
+                  ))}
+                  <LabelList
+                     dataKey="count"
+                     position="top"
+                     fill="var(--ink-2)"
+                     fontSize={11}
+                     className="tabular-nums"
+                  />
+               </Bar>
+            </BarChart>
+         </ResponsiveContainer>
       </div>
    );
 }

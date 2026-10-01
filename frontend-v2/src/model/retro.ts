@@ -1,4 +1,4 @@
-import { dayStart } from '../../../shared/model/projects';
+import { dayStart, MISC_SLUG } from '../../../shared/model/projects';
 import type { RetroData, RetroPr } from './retroData';
 
 /**
@@ -106,6 +106,103 @@ export function spreadByPerson(rows: readonly RetroRow[]): Map<string, number> {
    return new Map(
       [...seen].map(([login, weeks]) => [login, median([...weeks.values()].map(s => s.size))])
    );
+}
+
+/** One person's days on one project: all of them, and how many were
+ * writing (the rest were reviewing). */
+export interface ProjectWorker {
+   login: string;
+   days: number;
+   writing: number;
+}
+
+/** A filed project: a real one, not one-offs (misc) and not unlabeled. */
+const filedProject = (row: RetroRow) =>
+   row.pr.project != null && row.pr.project !== MISC_SLUG ? row.pr.project : null;
+
+/** Days per person per filed project. */
+function byPersonProject(rows: readonly RetroRow[]): Map<string, Map<string, ProjectWorker>> {
+   const out = new Map<string, Map<string, ProjectWorker>>();
+   for (const row of rows) {
+      const slug = filedProject(row);
+      if (!slug) continue;
+      const mine = out.get(row.login) ?? new Map<string, ProjectWorker>();
+      out.set(row.login, mine);
+      const w = mine.get(slug) ?? { login: row.login, days: 0, writing: 0 };
+      mine.set(slug, w);
+      w.days += row.days;
+      if (row.own) w.writing += row.days;
+   }
+   return out;
+}
+
+/** Who worked on each filed project, most days first. */
+export function peopleByProject(rows: readonly RetroRow[]): Map<string, ProjectWorker[]> {
+   const out = new Map<string, ProjectWorker[]>();
+   for (const projects of byPersonProject(rows).values()) {
+      for (const [slug, w] of projects) out.set(slug, [...(out.get(slug) ?? []), w]);
+   }
+   for (const list of out.values()) {
+      list.sort((a, b) => b.days - a.days || a.login.localeCompare(b.login));
+   }
+   return out;
+}
+
+/** One person's spread over a window: their days, how many went to
+ * reviewing and to PRs with no project, and every filed project they
+ * worked on, most days first. */
+export interface PersonLoad {
+   login: string;
+   days: number;
+   reviewing: number;
+   unfiled: number;
+   /** filed projects, with the person's days and writing days on each */
+   projects: (ProjectWorker & { slug: string })[];
+   /** filed projects they wrote on, and ones they only reviewed on */
+   wrote: number;
+   reviewedOnly: number;
+   /** filed projects they reviewed on at all, writing or not */
+   reviewed: number;
+}
+
+/** Every login's load, in the order given, zeros included for anyone with no days. */
+export function loadByPerson(rows: readonly RetroRow[], logins: readonly string[]): PersonLoad[] {
+   const projects = byPersonProject(rows);
+   const totals = new Map<string, { days: number; reviewing: number; unfiled: number }>();
+   for (const row of rows) {
+      const t = totals.get(row.login) ?? { days: 0, reviewing: 0, unfiled: 0 };
+      totals.set(row.login, t);
+      t.days += row.days;
+      if (!row.own) t.reviewing += row.days;
+      if (row.pr.project == null) t.unfiled += row.days;
+   }
+   return logins.map(login => {
+      const list = [...(projects.get(login) ?? new Map<string, ProjectWorker>())]
+         .map(([slug, w]) => ({ ...w, slug }))
+         .sort((a, b) => b.days - a.days || a.slug.localeCompare(b.slug));
+      const wrote = list.filter(p => p.writing > 0).length;
+      return {
+         login,
+         ...(totals.get(login) ?? { days: 0, reviewing: 0, unfiled: 0 }),
+         projects: list,
+         wrote,
+         reviewedOnly: list.length - wrote,
+         reviewed: list.filter(p => p.days - p.writing > 0).length,
+      };
+   });
+}
+
+/** fewest filed projects in a window that ever reads as overloaded */
+export const OVERLOAD_MIN = 4;
+
+/**
+ * How many filed projects in a window make someone overloaded: at least
+ * OVERLOAD_MIN, and at least twice the median across developers (zeros
+ * included). Relative on purpose: while most PRs aren't filed yet, a fixed
+ * number would flag more people each week as filing catches up.
+ */
+export function overloadLine(counts: readonly number[]): number {
+   return Math.max(OVERLOAD_MIN, Math.ceil(2 * median(counts)));
 }
 
 export function median(values: readonly number[]): number {

@@ -1,254 +1,275 @@
-import type { DerivedPull, Status } from '../../../../shared/model/status';
+import { useMemo } from 'react';
 import { n } from '../../../../shared/format';
-import type { DecideRow } from '../../../../shared/model/decide';
-import { Fold, FoldRows, RestGroup } from '../../components/Lane';
+import { STALL_DAYS, type DecideRow } from '../../../../shared/model/decide';
+import type { Today } from '../../../../shared/model/projects';
+import { Fold, FoldRows, laneShown, RestGroup } from '../../components/Lane';
 import type { RowOptions } from '../../components/Row';
 import {
-   chartWindow,
-   rangeDays,
-   rangeWords,
-   useProjectsData,
-   type ProjectsData,
-   type Range,
-} from '../../model/projectData';
-import { MISC_SLUG, type Today } from '../../../../shared/model/projects';
-import type { PortfolioItem } from '../../model/portfolio';
-import { groupRows, retroRows } from '../../model/retro';
+   AGE_BUCKETS,
+   bucketDays,
+   bucketOf,
+   ENDS_SOON_DAYS,
+   IDLE_BUCKETS,
+   withWorkers,
+   type BucketDef,
+   type PortfolioItem,
+} from '../../model/portfolio';
+import { resolveRange, type ProjectsData, type Range } from '../../model/projectData';
+import { loadByPerson, median, overloadLine, peopleByProject, retroRows } from '../../model/retro';
 import { useRetroData } from '../../model/retroData';
 import { StatsCard } from '../stats/parts';
-import { ChartSlot, FlowWeeksChart, OpenPrsChart } from './lazyCharts';
-import { Tile, versus, versusDays, type Navigate, type ProjectsNav } from './parts';
+import type { Bucket } from './charts';
+import { BucketChart, ChartSlot } from './lazyCharts';
+import { Tile, type Navigate, type ProjectsNav } from './parts';
 import { Portfolio } from './Portfolio';
-import { PlansStanding } from './roadmapHealth';
+import { WHO_DAYS, WhoIsOnWhat, type WhoRow } from './WhoIsOnWhat';
 
-const WAITING: Status[] = ['needs_cr', 'needs_recr', 'needs_qa'];
+/** Scroll a section of the page into view, under the sticky header. */
+const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ block: 'start' });
 
-/** The headline numbers: the calls owed, what's live, what's waiting, and
- * how the range compares with the same number of days before. */
-function Headline({
-   today,
-   data,
-   prev,
-   range,
+/**
+ * The tiles: whether anything needs a look now. Each opens what it counts:
+ * the people table, or the project list narrowed or sorted to match.
+ */
+function Tiles({
    items,
-   teamOf,
-   navigate,
-   onReview,
+   today,
+   overloaded,
+   line,
    decisions,
+   navigate,
 }: {
-   today: Today;
-   data: ProjectsData;
-   prev: ProjectsData | null | undefined;
-   range: Range;
    items: PortfolioItem[];
-   teamOf: (login: string) => string | null;
-   navigate: Navigate;
-   /** to the review board, where the PRs waiting on review are */
-   onReview: () => void;
-   /** the Decide queue; null until the roadmap loads */
+   today: Today;
+   /** undefined while the last 14 days load, null when they failed */
+   overloaded: WhoRow[] | null | undefined;
+   line: number;
    decisions: DecideRow[] | null;
+   navigate: Navigate;
 }) {
-   const t = data.window.totals;
-   const before = prev?.window.totals;
-   const period = `${rangeDays(range)} days before`;
-   const openNow: DerivedPull[] = [
-      ...today.live.flatMap(g => g.open),
-      ...today.misc,
-      ...today.unsorted,
-   ];
-   const waiting = openNow.filter(p => WAITING.includes(p.status));
-   const waitingOnOthers = waiting.filter(p => teamOf(p.data.user.login) == null).length;
-   const started = items.filter(
-      i => i.window?.first_opened && i.window.first_opened >= range.start
-   );
-   const finished = items.filter(
-      i =>
-         i.status === 'done' &&
-         i.project?.closed_at &&
-         i.project.closed_at.slice(0, 10) >= range.start &&
-         i.project.closed_at.slice(0, 10) <= range.end
-   );
-   const neverDecided = decisions?.filter(d => d.reasons.some(r => r.kind === 'new')).length;
+   const progress = items.filter(i => i.stage === 'progress');
+   const ages = progress.map(i => i.ageDays).filter((d): d is number => d != null);
+   const middleAge = ages.length ? Math.round(median(ages)) : null;
+   const stalled = progress
+      .filter(i => i.stalled)
+      .sort((a, b) => (b.lastActivity?.days ?? 0) - (a.lastActivity?.days ?? 0));
+   const behind = items.filter(i => i.behind);
+   const ending = items.filter(i => i.endsSoon);
+   const filedOpen = today.live.reduce((sum, g) => sum + g.open.length, 0);
+   const allOpen = filedOpen + today.misc.length + today.unsorted.length;
+   const behindWords = (['off_track', 'past_end', 'missed'] as const)
+      .map(kind => [kind, behind.filter(i => i.planCell.kind === kind).length] as const)
+      .filter(([, count]) => count > 0)
+      .map(
+         ([kind, count]) =>
+            `${count} ${
+               kind === 'off_track'
+                  ? 'off track'
+                  : kind === 'past_end'
+                  ? 'past the plan’s end'
+                  : 'past the target'
+            }`
+      )
+      .join(', ');
+   const newWork = decisions?.filter(d => d.reasons.some(r => r.kind === 'new')).length;
+   const toList = (patch: Partial<ProjectsNav>) => {
+      navigate({ only: null, ...patch });
+      scrollTo('all-projects');
+   };
    return (
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-6">
          <Tile
+            value={overloaded === undefined ? '…' : overloaded === null ? '?' : overloaded.length}
+            label="Overloaded"
+            note={overloaded === null ? 'couldn’t load' : `on ${line} or more projects`}
+            warn={!!overloaded?.length}
+            title={`Developers who wrote or reviewed PRs on ${line} or more different projects in the last 14 days. Click to see who is on what.`}
+            onClick={() => scrollTo('who-is-on-what')}
+         />
+         <Tile
+            value={progress.length}
+            label="Projects in progress"
+            note={`holding ${filedOpen} of the ${allOpen} open PRs`}
+            title="Projects with an open PR or a merge in the last 14 days, and not parked, done or dropped on the roadmap. Click to list them."
+            onClick={() => toList({ status: 'live' })}
+         />
+         <Tile
+            value={middleAge == null ? 'none' : n(middleAge, 'day')}
+            label="Median time open"
+            note={`${ages.filter(d => d >= 90).length} open 90 days or more`}
+            title="How long the projects in progress have been open, from each one’s oldest open PR: half are newer than this, half older. Click to list them oldest first."
+            onClick={() => toList({ status: 'live', sort: 'age' })}
+         />
+         <Tile
+            value={stalled.length}
+            label="Stalled"
+            note={
+               stalled.length
+                  ? `longest ${stalled[0].name}, ${n(stalled[0].lastActivity?.days ?? 0, 'day')}`
+                  : `none untouched for ${STALL_DAYS} days`
+            }
+            warn={stalled.length > 0}
+            title={`Projects in progress with open PRs and no activity on any of them for ${STALL_DAYS} days or more: no push, comment, review, stamp or merge. Click to list them.`}
+            onClick={() => toList({ status: 'live', only: 'stalled' })}
+         />
+         <Tile
+            value={behind.length}
+            label="Behind plan"
+            note={
+               behind.length
+                  ? behindWords
+                  : `${n(ending.length, 'plan')} end in the next ${ENDS_SOON_DAYS} days`
+            }
+            warn={behind.length > 0}
+            title={`Projects whose latest update says off track, or that are past their plan’s end or their target date with PRs still open. Click to list ${
+               behind.length ? 'them' : `the plans ending in the next ${ENDS_SOON_DAYS} days`
+            }.`}
+            onClick={() => toList({ status: 'all', only: behind.length ? 'behind' : 'ending' })}
+         />
+         <Tile
             value={decisions ? decisions.length : '…'}
             label="To decide"
-            title="Projects and plans that need a call: new work with no decision, plans past their end, stalls, and updates saying at risk or off track. Click to decide."
-            note={neverDecided != null ? `${neverDecided} never decided` : undefined}
+            note={newWork != null ? `${newWork} new, with no plan yet` : undefined}
+            title="Projects and plans waiting on a decision: new work with no plan, plans past their end, stalled work, and updates that say at risk or off track. Click to decide them."
             onClick={() => navigate({ view: 'decide', item: null })}
-         />
-         <Tile
-            value={today.live.length}
-            label="Live projects"
-            title="Projects with an open PR, or a merge in the last 14 days. Click for the list."
-            note={`${started.length} started, ${finished.length} finished in the range`}
-            onClick={() => {
-               navigate({ status: 'live' });
-               document.getElementById('all-projects')?.scrollIntoView({ block: 'start' });
-            }}
-         />
-         <Tile
-            value={waiting.length}
-            label="Waiting on review now"
-            title="Open PRs that need a CR or QA before they can move. Click for the review board."
-            note={`${waitingOnOthers} by non-developers`}
-            onClick={onReview}
-         />
-         <Tile
-            value={t.merged}
-            label="Merged"
-            title="PRs merged in the range"
-            note={versus(t.merged, before?.merged, period)}
-         />
-         <Tile
-            value={t.median_days_to_merge ?? 'none'}
-            label="Median days to merge"
-            title="Median days from opened to merged, over the PRs merged in the range"
-            note={versusDays(t.median_days_to_merge, before?.median_days_to_merge, period)}
-         />
-         <Tile
-            value={`${t.developers} · ${t.non_developers}`}
-            label="Developers · others"
-            onClick={() => navigate({ view: 'people', item: null })}
-            title="People with a PR in the range: on a developer team, and everyone else. Click for the People view."
-            note={
-               before ? `${before.developers} · ${before.non_developers} the ${period}` : undefined
-            }
          />
       </div>
    );
 }
 
-/**
- * Is the backlog growing: the PRs open each day, and under it what arrived
- * and what merged each week, over at least 90 days ending on the range's
- * last day, the days before the range veiled.
- */
-function BacklogCard({ range }: { range: Range }) {
-   const shown = chartWindow(range);
-   const data = useProjectsData(shown);
-   return (
-      <StatsCard title="Is the backlog growing?" sub={rangeWords(shown)}>
-         {data === null ? (
-            <p className="mt-3 text-[13px] text-ink-3">Couldn’t load the charts.</p>
-         ) : (
-            <div className="mt-3 flex flex-col gap-4">
-               <ChartSlot height={200}>
-                  {data && <OpenPrsChart days={data.window.days} picked={range} />}
-               </ChartSlot>
-               <ChartSlot height={210}>
-                  {data && <FlowWeeksChart weeks={data.window.weeks} picked={range} />}
-               </ChartSlot>
-            </div>
-         )}
-      </StatsCard>
-   );
+/** The projects in progress, counted into one chart's bars. */
+function bucketsOf(items: PortfolioItem[], chart: 'age' | 'idle', defs: BucketDef[]): Bucket[] {
+   const buckets: Bucket[] = defs.map((d, i) => ({
+      tick: d.tick,
+      items: [],
+      // the last bar of the activity chart is the stalled one
+      warn: chart === 'idle' && i === defs.length - 1,
+   }));
+   for (const item of items) {
+      const days = bucketDays(item, chart);
+      if (days != null) buckets[bucketOf(days, defs)].items.push({ name: item.name, days });
+   }
+   return buckets;
 }
 
 /**
- * Where the time went, the top of Look back: the projects that took the
- * most developer-days in the range, most first, each bar labeled with its
- * days and share so it needs no axis. A project opens its page; the rest
- * is one click away in Look back.
+ * How long the projects in progress have been open, and when anyone last
+ * worked on them: one bar per bucket, and a click lists only that bar's
+ * projects in the table below. Parked projects are left out, and the line
+ * under each chart says so.
  */
-function TimeCard({
-   range,
-   nameOf,
+function AgeCharts({
+   items,
+   nav,
    navigate,
 }: {
-   range: Range;
-   nameOf: (slug: string) => string;
+   items: PortfolioItem[];
+   nav: ProjectsNav;
    navigate: Navigate;
 }) {
-   const data = useRetroData(range);
-   const groups = data ? groupRows(retroRows(data), r => r.pr.project ?? '', data) : null;
-   const total = groups?.reduce((sum, g) => sum + g.days, 0) ?? 0;
-   const shown = groups?.slice(0, 7) ?? [];
-   const rest = groups?.slice(7) ?? [];
-   const most = shown[0]?.days ?? 1;
-   const days = (d: number) => `${d < 10 ? Math.round(d * 10) / 10 : Math.round(d)} days`;
-   const pct = (d: number) => `${total ? Math.round((100 * d) / total) : 0}%`;
-   return (
-      <StatsCard>
-         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <h3 className="m-0 text-sm font-semibold text-ink">Where the time went</h3>
-            <span className="text-xs text-ink-3">{rangeWords(range)}</span>
-            <span className="flex-1" />
-            <button
-               type="button"
-               onClick={() => navigate({ view: 'retro' })}
-               className="pressable rounded border-0 bg-transparent p-0 text-xs text-ink-3 hover:text-brand hover:underline"
-            >
-               Look back at all of it
-            </button>
-         </div>
-         {data === null ? (
-            <p className="m-0 mt-3 text-[13px] text-ink-3">Couldn’t load the days.</p>
-         ) : !groups ? (
-            <p className="m-0 mt-3 text-[13px] text-ink-3">Adding up the days…</p>
-         ) : !groups.length ? (
-            <p className="m-0 mt-3 text-[13px] text-ink-3">No one touched a PR in these days.</p>
+   const progress = items.filter(i => i.stage === 'progress');
+   const parked = items.filter(i => i.stage === 'parked');
+   const pickedOf = (chart: 'age' | 'idle') => {
+      const bar = /^(age|idle)-(\d)$/.exec(nav.only ?? '');
+      return bar && bar[1] === chart ? Number(bar[2]) : null;
+   };
+   const pick = (chart: 'age' | 'idle', i: number) =>
+      navigate({ status: 'live', only: pickedOf(chart) === i ? null : `${chart}-${i}` });
+   const span = (days: number[]) => {
+      if (!days.length) return '';
+      const lo = Math.min(...days);
+      const hi = Math.max(...days);
+      return lo === hi ? n(lo, 'day') : `${lo} to ${hi} days`;
+   };
+   const notCounted = (chart: 'age' | 'idle') => {
+      const parkedDays = parked
+         .map(i => bucketDays(i, chart))
+         .filter((d): d is number => d != null);
+      const parts: string[] = [];
+      if (parked.length) {
+         const range = span(parkedDays);
+         parts.push(
+            `${n(parked.length, 'parked project')}${
+               range ? (chart === 'age' ? `, open ${range}` : `, last worked on ${range} ago`) : ''
+            }`
+         );
+      }
+      const none = progress.filter(i => bucketDays(i, chart) == null).length;
+      if (none) parts.push(`${none} with only merges and nothing open`);
+      if (!parts.length) return null;
+      const text = `Not counted: ${parts.join('; ')}.`;
+      return parked.length ? (
+         <button
+            type="button"
+            onClick={() => {
+               navigate({ status: 'parked', only: null });
+               scrollTo('all-projects');
+            }}
+            className="pressable mt-2 rounded border-0 bg-transparent p-0 text-left text-xs text-ink-3 hover:text-brand hover:underline"
+            title="List the parked projects"
+         >
+            {text}
+         </button>
+      ) : (
+         <p className="m-0 mt-2 text-xs text-ink-3">{text}</p>
+      );
+   };
+   const card = (
+      chart: 'age' | 'idle',
+      title: string,
+      sub: string,
+      defs: BucketDef[],
+      ariaLabel: string
+   ) => (
+      <StatsCard title={title} sub={sub}>
+         {progress.length ? (
+            <div className="mt-3">
+               <ChartSlot height={170}>
+                  <BucketChart
+                     buckets={bucketsOf(progress, chart, defs)}
+                     unit="Projects in progress"
+                     ariaLabel={ariaLabel}
+                     picked={pickedOf(chart)}
+                     onPick={i => pick(chart, i)}
+                  />
+               </ChartSlot>
+               {notCounted(chart)}
+            </div>
          ) : (
-            <>
-               <p className="m-0 mt-1 text-xs text-ink-3">
-                  {days(total)} of developers’ time, by project. A day counts once per person, split
-                  across the PRs they touched that day.
-               </p>
-               <ul className="m-0 mt-3 flex list-none flex-col gap-2 p-0">
-                  {shown.map(g => {
-                     const name = g.key ? nameOf(g.key) : 'Not filed to a project';
-                     const opens = g.key && g.key !== MISC_SLUG;
-                     return (
-                        <li key={g.key} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3">
-                           {opens ? (
-                              <button
-                                 type="button"
-                                 onClick={() => navigate({ project: g.key })}
-                                 className="pressable min-w-0 truncate rounded border-0 bg-transparent p-0 text-left text-[13px] text-ink hover:text-brand hover:underline"
-                              >
-                                 {name}
-                              </button>
-                           ) : (
-                              <span className="min-w-0 truncate text-[13px] text-ink">{name}</span>
-                           )}
-                           <span className="text-xs text-ink-2 tabular-nums">
-                              {days(g.days)} · {pct(g.days)}
-                           </span>
-                           <span className="col-span-2 mt-0.5 h-1.5 rounded-full bg-muted">
-                              <span
-                                 className={`block h-full rounded-full ${
-                                    g.key ? 'bg-brand' : 'bg-ink-3/50'
-                                 }`}
-                                 style={{ width: `${Math.max((g.days / most) * 100, 1)}%` }}
-                              />
-                           </span>
-                        </li>
-                     );
-                  })}
-               </ul>
-               {rest.length > 0 && (
-                  <p className="m-0 mt-2 text-xs text-ink-3">
-                     and {n(rest.length, 'more project')}:{' '}
-                     {days(rest.reduce((sum, g) => sum + g.days, 0))}
-                  </p>
-               )}
-            </>
+            <p className="m-0 mt-3 text-[13px] text-ink-3">Nothing in progress.</p>
          )}
       </StatsCard>
+   );
+   return (
+      <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(340px,1fr))]">
+         {card(
+            'age',
+            'How long they’ve been open',
+            'from each project’s oldest open PR',
+            AGE_BUCKETS,
+            'Projects in progress, by how long they have been open'
+         )}
+         {card(
+            'idle',
+            'When they were last worked on',
+            `${STALL_DAYS} days or more is stalled`,
+            IDLE_BUCKETS,
+            'Projects in progress, by how long since anyone worked on them'
+         )}
+      </div>
    );
 }
 
 /**
- * The planner's overview: the headline numbers, where the backlog and the
- * merged work are going, and every project on one list. PRs outside any
- * project close it out, since sorting them is someone's job too.
+ * The Overview: where the projects stand now. The tiles say whether
+ * anything needs a look; then who is on what over the last 14 days, how
+ * long projects have been open and when they last moved, and every project
+ * on one list. PRs outside any project close it out, since sorting them is
+ * someone's job too. Every number is as of now; Look back covers a range.
  */
 export function Overview({
    today,
    data,
-   prev,
-   range,
    prefix,
    items,
    teamOf,
@@ -256,13 +277,12 @@ export function Overview({
    nav,
    navigate,
    opts,
-   onReview,
    decisions,
+   me,
+   onPerson,
 }: {
    today: Today;
    data: ProjectsData | null | undefined;
-   prev: ProjectsData | null | undefined;
-   range: Range;
    prefix: string;
    items: PortfolioItem[];
    teamOf: (login: string) => string | null;
@@ -270,72 +290,129 @@ export function Overview({
    nav: ProjectsNav;
    navigate: Navigate;
    opts: RowOptions;
-   onReview: () => void;
    decisions: DecideRow[] | null;
+   me: string;
+   onPerson: (login: string) => void;
 }) {
+   const last14 = resolveRange(`${WHO_DAYS}d`) as Range;
+   const retro = useRetroData(last14);
+   const rows = useMemo(() => (retro ? retroRows(retro) : null), [retro]);
+   const listed = useMemo(
+      () => (rows ? withWorkers(items, peopleByProject(rows)) : items),
+      [items, rows]
+   );
+   const bySlug = useMemo(() => new Map(listed.map(i => [i.slug, i])), [listed]);
+   const who = useMemo((): WhoRow[] | null | undefined => {
+      if (retro === null) return null;
+      if (!retro || !rows) return undefined;
+      // every developer on a team, spelled the way their PRs spell them;
+      // with no teams, everyone with days
+      const spelled = new Map(retro.people.map(l => [l.toLowerCase(), l]));
+      const onTeams = Object.values(data?.teams ?? {}).flat();
+      const logins = onTeams.length
+         ? onTeams.map(l => spelled.get(l.toLowerCase()) ?? l)
+         : retro.people;
+      const unique = [...new Map(logins.map(l => [l.toLowerCase(), l])).values()];
+      const openBy = new Map<string, number>();
+      for (const p of [...today.live.flatMap(g => g.open), ...today.misc, ...today.unsorted]) {
+         const key = p.data.user.login.toLowerCase();
+         openBy.set(key, (openBy.get(key) ?? 0) + 1);
+      }
+      return loadByPerson(rows, unique).map(load => ({
+         ...load,
+         team: teamOf(load.login),
+         open: openBy.get(load.login.toLowerCase()) ?? 0,
+      }));
+   }, [retro, rows, data, today, teamOf]);
+   const counts = who?.map(r => r.projects.length) ?? [];
+   const line = overloadLine(counts);
    // two-label PRs already sit in a project, so they aren't "outside" ones
    const outside = today.misc.length + today.unsorted.length;
+   const allOpen = today.live.reduce((sum, g) => sum + g.open.length, 0) + outside;
    return (
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-6">
          {data === null && (
-            <p className="m-0 text-xs text-ink-3">
-               Couldn’t load the project issues or the range’s numbers. Projects show by label until
-               they load.
+            <p className="m-0 text-xs text-warn">
+               Couldn’t load the project issues, so projects show by their label. Reload to try
+               again.
             </p>
          )}
-         {data && (
-            <StatsCard>
-               <Headline
-                  today={today}
-                  data={data}
-                  prev={prev}
-                  range={range}
-                  items={items}
-                  teamOf={teamOf}
-                  navigate={navigate}
-                  onReview={onReview}
-                  decisions={decisions}
-               />
-            </StatsCard>
-         )}
-         <PlansStanding nav={nav} navigate={navigate} />
-         <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(380px,1fr))]">
-            <BacklogCard range={range} />
-            <TimeCard range={range} nameOf={nameOf} navigate={navigate} />
-         </div>
+         <StatsCard>
+            <Tiles
+               items={listed}
+               today={today}
+               overloaded={who && who.filter(r => r.projects.length >= line)}
+               line={line}
+               decisions={decisions}
+               navigate={navigate}
+            />
+         </StatsCard>
+         <WhoIsOnWhat
+            rows={who}
+            line={line}
+            middle={median(counts)}
+            items={bySlug}
+            nameOf={nameOf}
+            me={me}
+            onPerson={onPerson}
+            nav={nav}
+            navigate={navigate}
+         />
+         <AgeCharts items={listed} nav={nav} navigate={navigate} />
          <Portfolio
-            items={items}
-            teamOf={teamOf}
+            items={listed}
+            workersLoaded={rows != null}
             nameOf={nameOf}
             nav={nav}
             navigate={navigate}
             opts={opts}
+            onPerson={onPerson}
          />
          {outside + today.doubleLabeled.length > 0 && (
-            <RestGroup title="PRs outside projects" sub={n(outside, 'open PR')}>
+            <RestGroup
+               title="PRs outside projects"
+               sub={`${n(outside, 'open PR')}, ${
+                  allOpen ? Math.round((100 * outside) / allOpen) : 0
+               }% of all open PRs`}
+            >
                <Fold
                   count={today.misc.length}
                   label="One-offs"
-                  gloss={`PRs labeled ${prefix}misc: work with no project around it.`}
+                  gloss={`PRs labeled ${prefix}misc: small work with no project around it.`}
                   id="projects:misc"
                >
-                  <FoldRows list={today.misc} opts={opts} id="projects:misc" />
+                  <FoldRows
+                     list={today.misc}
+                     opts={opts}
+                     id="projects:misc"
+                     cap={laneShown(40, opts)}
+                  />
                </Fold>
                <Fold
                   count={today.unsorted.length}
                   label="Not in a project yet"
-                  gloss={`PRs with no ${prefix} label.`}
+                  gloss={`PRs with no ${prefix} label. Label one to count it toward a project.`}
                   id="projects:unsorted"
                >
-                  <FoldRows list={today.unsorted} opts={opts} id="projects:unsorted" />
+                  <FoldRows
+                     list={today.unsorted}
+                     opts={opts}
+                     id="projects:unsorted"
+                     cap={laneShown(40, opts)}
+                  />
                </Fold>
                <Fold
                   count={today.doubleLabeled.length}
                   label="Two project labels"
-                  gloss="A PR belongs to one project. These show under their first label until someone removes the other."
+                  gloss="A PR belongs to one project. These count under their first label until someone removes the other."
                   id="projects:double"
                >
-                  <FoldRows list={today.doubleLabeled} opts={opts} id="projects:double" />
+                  <FoldRows
+                     list={today.doubleLabeled}
+                     opts={opts}
+                     id="projects:double"
+                     cap={laneShown(40, opts)}
+                  />
                </Fold>
             </RestGroup>
          )}

@@ -7,10 +7,12 @@ import { Segmented } from '../../components/bits';
 import { Icon } from '../../components/Icon';
 import { Rows } from '../../components/Lane';
 import {
+   chartWindow,
    dayWords,
    previousRange,
    rangeDays,
    rangeWords,
+   useProjectsData,
    type Range,
 } from '../../model/projectData';
 import {
@@ -23,7 +25,7 @@ import {
 } from '../../model/retro';
 import { useRetroData, type RetroData, type RetroPr } from '../../model/retroData';
 import { StatsCard } from '../stats/parts';
-import { ChartSlot, DaysWeeksChart } from './lazyCharts';
+import { ChartSlot, DaysWeeksChart, FlowWeeksChart, OpenPrsChart } from './lazyCharts';
 import { PeopleStack, Tile, versus, type Navigate, type ProjectsNav } from './parts';
 
 type By = ProjectsNav['by'];
@@ -389,7 +391,50 @@ export function Retro({
          ) : (
             <p className="m-0 text-[13px] text-ink-3">No one touched a PR in these days.</p>
          )}
+         <div className="mt-6">
+            <BacklogCard range={range} />
+         </div>
       </section>
+   );
+}
+
+/**
+ * Is the backlog growing: the PRs open at the end of each day, and what
+ * arrived and what merged each week, over at least 90 days ending on the
+ * range's last day, with the days before the range faded. The line over the
+ * charts counts the picked range's PRs.
+ */
+function BacklogCard({ range }: { range: Range }) {
+   const shown = chartWindow(range);
+   const data = useProjectsData(shown);
+   const t = useProjectsData(range)?.window.totals;
+   return (
+      <StatsCard title="Is the backlog growing?" sub={rangeWords(shown)}>
+         {t && (
+            <p className="m-0 mt-1 text-xs text-ink-3">
+               {rangeWords(range)}: {n(t.opened, 'PR')} opened and {t.merged} merged
+               {t.median_days_to_merge != null
+                  ? `. Half of the merged ones merged within ${n(
+                       t.median_days_to_merge,
+                       'day'
+                    )} of opening`
+                  : ''}
+               .
+            </p>
+         )}
+         {data === null ? (
+            <p className="m-0 mt-3 text-[13px] text-ink-3">Couldn’t load the charts.</p>
+         ) : (
+            <div className="mt-3 flex flex-col gap-4">
+               <ChartSlot height={200}>
+                  {data && <OpenPrsChart days={data.window.days} picked={range} />}
+               </ChartSlot>
+               <ChartSlot height={210}>
+                  {data && <FlowWeeksChart weeks={data.window.weeks} picked={range} />}
+               </ChartSlot>
+            </div>
+         )}
+      </StatsCard>
    );
 }
 

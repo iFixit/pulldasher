@@ -51,7 +51,6 @@ export function Projects({
    opts,
    me,
    onPerson,
-   onReview,
 }: {
    /** people's open PRs, narrowed by the repo and people filters only */
    pulls: DerivedPull[];
@@ -67,8 +66,6 @@ export function Projects({
    opts: RowOptions;
    me: string;
    onPerson: (login: string) => void;
-   /** to the review board */
-   onReview: () => void;
 }) {
    const rangeKey = resolveRange(nav.range) ? nav.range : DEFAULT_RANGE;
    const range = resolveRange(rangeKey) as Range;
@@ -164,12 +161,9 @@ export function Projects({
                onChange={view => navigate({ view, item: null })}
             />
          )}
-         {/* the roadmap has its own months and quarters, and Decide is about
-             now; the range is for numbers */}
-         {(nav.project ||
-            nav.view === 'overview' ||
-            nav.view === 'people' ||
-            nav.view === 'retro') && (
+         {/* the Overview and Decide are about now, and the roadmap has its
+             own months and quarters; the range is for looking back */}
+         {(nav.project || nav.view === 'people' || nav.view === 'retro') && (
             <DateRangePicker
                rangeKey={rangeKey}
                range={range}
@@ -238,8 +232,6 @@ export function Projects({
             <Overview
                today={today}
                data={data}
-               prev={prev}
-               range={range}
                prefix={prefix}
                items={items}
                teamOf={teamOf}
@@ -247,8 +239,9 @@ export function Projects({
                nav={nav}
                navigate={navigate}
                opts={opts}
-               onReview={onReview}
                decisions={decisions}
+               me={me}
+               onPerson={onPerson}
             />
          )}
       </>

@@ -7,6 +7,7 @@ export const OpenPrsChart = lazy(() => charts().then(m => ({ default: m.OpenPrsC
 export const FlowWeeksChart = lazy(() => charts().then(m => ({ default: m.FlowWeeksChart })));
 export const DaysWeeksChart = lazy(() => charts().then(m => ({ default: m.DaysWeeksChart })));
 export const SplitWeeksChart = lazy(() => charts().then(m => ({ default: m.SplitWeeksChart })));
+export const BucketChart = lazy(() => charts().then(m => ({ default: m.BucketChart })));
 
 /** Holds a chart's space while its chunk loads, so nothing below it jumps. */
 export function ChartSlot({ height, children }: { height: number; children: ReactNode }) {

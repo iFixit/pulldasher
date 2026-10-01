@@ -10,7 +10,10 @@ import {
    type WindowCounts,
 } from '../../../../shared/model/projects';
 import { ORIGIN_WORD, ROADMAP_ORIGINS, type RoadmapOrigin } from '../../../../shared/model/roadmap';
+import { ArrowDown, ArrowUp } from 'lucide-react';
+import { Icon } from '../../components/Icon';
 import { Avatar } from '../../components/identity';
+import { eyebrowText } from '../../components/Lane';
 import { dayWords } from '../../model/projectData';
 
 /** What the Projects tab keeps in the URL hash, beside the lens. */
@@ -52,6 +55,12 @@ export interface ProjectsNav {
    kind: 'all' | 'writing' | 'reviewing';
    /** a person picked in Look back: only their days count */
    who: string | null;
+   /** what a tile or a chart's bar narrowed the project list to
+    * (model/portfolio.ts matchesOnly); null for nothing */
+   only: string | null;
+   /** the people table's sort column, `-` in front to reverse it; empty
+    * for the view's own default */
+   psort: string;
 }
 export type Navigate = (patch: Partial<ProjectsNav>) => void;
 
@@ -120,15 +129,24 @@ export function FlagWords({ g }: { g: ProjectGroup }) {
    );
 }
 
-/** Up to three faces, then "+N": who is on a project, without a people table. */
-export function PeopleStack({ logins, size = 16 }: { logins: string[]; size?: number }) {
+/** Up to three faces, then "+N": who is on a project, without a people
+ * table. With `onPerson`, a face opens that person's PRs. */
+export function PeopleStack({
+   logins,
+   size = 16,
+   onPerson,
+}: {
+   logins: string[];
+   size?: number;
+   onPerson?: (login: string) => void;
+}) {
    const shown = logins.slice(0, 3);
    const more = logins.length - shown.length;
    return (
       <span className="inline-flex flex-none items-center gap-1" title={logins.join(', ')}>
          <span className="inline-flex -space-x-1">
             {shown.map(login => (
-               <Avatar key={login} login={login} size={size} />
+               <Avatar key={login} login={login} size={size} onClick={onPerson} />
             ))}
          </span>
          {more > 0 && <span className="text-[11px] text-ink-3 tabular-nums">+{more}</span>}
@@ -250,6 +268,7 @@ export function Tile({
    title,
    note,
    onClick,
+   warn = false,
 }: {
    value: ReactNode;
    label: string;
@@ -257,12 +276,14 @@ export function Tile({
    note?: string | null;
    /** where the number comes from: a tile with a place to go is a button */
    onClick?: () => void;
+   /** amber: someone owes what it counts */
+   warn?: boolean;
 }) {
    const body = (
       <>
          <div
             className={`text-xl font-semibold tabular-nums ${
-               onClick ? 'text-ink group-hover:text-brand' : 'text-ink'
+               warn ? 'text-warn' : onClick ? 'text-ink group-hover:text-brand' : 'text-ink'
             }`}
          >
             {value}
@@ -284,6 +305,58 @@ export function Tile({
       </button>
    ) : (
       <div title={title}>{body}</div>
+   );
+}
+
+/** Parse a sort param against a table's columns: a column key, `-` in
+ * front to reverse it; anything else is the table's default. */
+export function readSort<K extends string>(
+   raw: string,
+   keys: readonly K[],
+   fallback: K
+): { key: K; reversed: boolean } {
+   const reversed = raw.startsWith('-');
+   const key = (reversed ? raw.slice(1) : raw) as K;
+   return keys.includes(key) ? { key, reversed } : { key: fallback, reversed: false };
+}
+
+/** A column header that sorts its table by that column; a second click
+ * reverses it. `sort` is what the table sorts by now. */
+export function SortHeader<K extends string>({
+   label,
+   title,
+   sortKey,
+   sort,
+   onSort,
+   className = '',
+}: {
+   label: string;
+   title: string;
+   sortKey: K;
+   sort: { key: K; reversed: boolean };
+   /** the new sort param: the key, `-` in front to reverse */
+   onSort: (param: string) => void;
+   className?: string;
+}) {
+   const active = sort.key === sortKey;
+   // the cell carries the column's width and hiding; the button only its words
+   return (
+      <span
+         className={className}
+         aria-sort={active ? (sort.reversed ? 'ascending' : 'descending') : undefined}
+      >
+         <button
+            type="button"
+            title={title}
+            onClick={() => onSort(active && !sort.reversed ? `-${sortKey}` : sortKey)}
+            className={`pressable inline-flex items-center gap-1 rounded border-0 bg-transparent p-0 text-left whitespace-nowrap ${eyebrowText} ${
+               active ? 'text-ink' : 'text-ink-3 hover:text-ink-2'
+            }`}
+         >
+            {label}
+            {active && <Icon icon={sort.reversed ? ArrowUp : ArrowDown} size={12} />}
+         </button>
+      </span>
    );
 }
 

@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { timeSpent, type Touch } from '../../../shared/model/retro';
-import { groupRows, median, retroRows, spreadByPerson } from './retro';
+import {
+   groupRows,
+   loadByPerson,
+   median,
+   overloadLine,
+   peopleByProject,
+   retroRows,
+   spreadByPerson,
+} from './retro';
 import type { RetroData } from './retroData';
 
 const DAY = 86400;
@@ -106,5 +114,37 @@ describe('Look back’s groups', () => {
       ]);
       expect(median([3, 1, 2])).toBe(2);
       expect(median([])).toBe(0);
+   });
+
+   it('says who worked on each filed project, and how', () => {
+      const by = peopleByProject(rows);
+      expect([...by.keys()].sort()).toEqual(['alpha', 'beta']);
+      expect(by.get('beta')).toEqual([
+         { login: 'erin', days: 3, writing: 3 },
+         { login: 'dana', days: 0.5, writing: 0 },
+      ]);
+   });
+
+   it('counts each person’s projects, writing and reviewing, zeros included', () => {
+      const [dana, erin, finn] = loadByPerson(rows, ['dana', 'erin', 'finn']);
+      expect(dana).toMatchObject({
+         days: 2,
+         reviewing: 0.5,
+         unfiled: 0,
+         wrote: 1,
+         reviewedOnly: 1,
+         reviewed: 1,
+      });
+      expect(dana.projects.map(p => p.slug)).toEqual(['alpha', 'beta']);
+      // erin's unlabeled PR counts toward her days but no project
+      expect(erin).toMatchObject({ days: 4, reviewing: 0, unfiled: 1, wrote: 1, reviewedOnly: 0 });
+      expect(finn).toMatchObject({ days: 0, projects: [], wrote: 0 });
+   });
+
+   it('draws the overload line at twice the median, and never under 4', () => {
+      // the counts from Sep 30: the median is 2.5, so the line is 5
+      expect(overloadLine([7, 6, 6, 6, 4, 4, 3, 3, 3, 2, 2, 1, 1, 1, 0, 0, 0, 0])).toBe(5);
+      expect(overloadLine([1, 1, 0])).toBe(4);
+      expect(overloadLine([])).toBe(4);
    });
 });

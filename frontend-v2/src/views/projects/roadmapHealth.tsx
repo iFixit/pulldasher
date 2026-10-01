@@ -5,7 +5,6 @@ import {
    endShift,
    isStopped,
    HEALTH_WORD,
-   healthRank,
    healthStanding,
    planEnd,
    planFor,
@@ -21,7 +20,6 @@ import { Segmented } from '../../components/bits';
 import { dayOf, dayWords, useProjectsData } from '../../model/projectData';
 import { peakFrom, type LoadWeek } from '../../../../shared/model/load';
 import { loadRoadmapUpdates, postRoadmapUpdate, useRoadmap } from '../../model/roadmapData';
-import { StatsCard } from '../stats/parts';
 import { openPlan, type Navigate, type ProjectsNav } from './parts';
 
 export const PLAN_STATUS_WORD: Record<RoadmapStatus, string> = {
@@ -273,129 +271,6 @@ export function UpdatesPanel({ item }: { item: RoadmapItem }) {
             </ol>
          )}
       </div>
-   );
-}
-
-/**
- * Where the plans stand: every roadmap item in progress, and any plan
- * flagged at risk or off track before it starts, worst first, each with its
- * latest update in full. The status report a project manager would otherwise
- * collect by hand, with a button to copy it as text for an email or a chat.
- */
-export function PlansStanding({ nav, navigate }: { nav: ProjectsNav; navigate: Navigate }) {
-   const { items } = useRoadmap();
-   const [copied, setCopied] = useState(false);
-   const now = Date.now() / 1000;
-   const rows = (items ?? [])
-      .map(item => ({ item, standing: healthStanding(item, now) }))
-      .filter(({ item, standing }) => {
-         const u = latestOf(standing);
-         return (
-            item.status === 'active' ||
-            (item.status === 'planned' && !!u && u.health !== 'on_track')
-         );
-      })
-      .sort(
-         (a, b) =>
-            healthRank(a.standing) - healthRank(b.standing) || a.item.priority - b.item.priority
-      );
-   if (!rows.length) return null;
-   const needLook = rows.filter(r => healthWords(r.standing)?.warn).length;
-   const copy = () => {
-      const lines = rows.map(({ item, standing }) => {
-         const u = latestOf(standing);
-         if (!u) return `- ${item.name}: no update yet`;
-         const late = standing.kind === 'stale' ? ' (an update is overdue)' : '';
-         const said = u.body ? ` ${u.body.replace(/\s*\n\s*/g, ' ')}` : '';
-         return `- ${item.name}: ${HEALTH_WORD[u.health]}, ${u.author} on ${when(
-            u.at
-         )}${late}.${said}`;
-      });
-      void navigator.clipboard
-         ?.writeText([`Where the plans stand, ${when(now)}`, ...lines].join('\n'))
-         .then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-         });
-   };
-   return (
-      <StatsCard>
-         <div className="flex flex-wrap items-baseline gap-x-2">
-            <h3 className="m-0 text-sm font-semibold text-ink">Where the plans stand</h3>
-            <span className="text-xs text-ink-3">
-               {n(rows.length, 'plan')}
-               {needLook ? `, ${needLook} to look at` : ''}
-            </span>
-            <span className="flex-1" />
-            <button
-               type="button"
-               onClick={copy}
-               className="hit pressable rounded border-0 bg-transparent p-0 text-xs text-ink-3 hover:text-brand"
-               title="Copy this list as plain text, for an email or a chat post"
-            >
-               {copied ? 'Copied' : 'Copy as text'}
-            </button>
-         </div>
-         <div className="mt-2">
-            {rows.map(({ item, standing }) => {
-               const words = healthWords(standing);
-               const u = latestOf(standing);
-               const moved = u && shiftWords(endShift(planOf(u), item));
-               return (
-                  <div key={item.id} className="border-t border-secondary py-2.5 first:border-t-0">
-                     <div className="flex flex-wrap items-baseline gap-x-2">
-                        <button
-                           type="button"
-                           onClick={() => navigate(openPlan(nav, item.id))}
-                           className="hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium text-ink hover:text-brand"
-                           title="Open it on the roadmap"
-                        >
-                           {item.name}
-                        </button>
-                        <button
-                           type="button"
-                           onClick={() => navigate(openPlan(nav, item.id))}
-                           className={`pressable rounded border-0 bg-transparent p-0 text-left text-[13px] hover:underline ${
-                              words?.warn ? 'text-warn' : 'text-ink-2'
-                           }`}
-                           title={`${words?.title ?? ''} Click to see its updates and post one.`}
-                        >
-                           {words?.text ?? 'No update yet'}
-                        </button>
-                        {item.team && <span className="text-xs text-ink-3">{item.team}</span>}
-                        {item.lead && (
-                           <button
-                              type="button"
-                              onClick={() =>
-                                 navigate({
-                                    ...openPlan(nav, item.id),
-                                    item: null,
-                                    find: item.lead ?? '',
-                                 })
-                              }
-                              className="pressable rounded border-0 bg-transparent p-0 text-xs text-ink-3 hover:underline"
-                              title={`Show only ${item.lead}’s work on the roadmap`}
-                           >
-                              {item.lead}
-                           </button>
-                        )}
-                     </div>
-                     {u?.body && (
-                        <p className="m-0 mt-1 whitespace-pre-line text-[13px] text-ink-2">
-                           {u.body}
-                        </p>
-                     )}
-                     {u && (
-                        <p className="m-0 mt-1 text-xs text-ink-3">
-                           {u.author} on {when(u.at)}
-                           {moved ? ` · since then, the plan’s end moved ${moved}` : ''}
-                        </p>
-                     )}
-                  </div>
-               );
-            })}
-         </div>
-      </StatsCard>
    );
 }
 
