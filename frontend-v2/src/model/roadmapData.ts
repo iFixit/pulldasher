@@ -185,7 +185,28 @@ function dummyApi(): Api {
    };
 }
 
-const api = isDummy() ? dummyApi() : liveApi();
+/**
+ * Failures on demand for the dummy board: `?fail=load` fails the roadmap's
+ * loads and `?fail=save` its writes, so a failed load or save can be
+ * designed and checked there like any other state.
+ */
+function failing(inner: Api): Api {
+   const fail = new URLSearchParams(window.location.search).get('fail');
+   const down = () => Promise.resolve({ status: 503, json: { error: 'the server didn’t answer' } });
+   if (fail === 'load') return { ...inner, list: down, updates: down };
+   if (fail === 'save')
+      return {
+         ...inner,
+         create: down,
+         update: down,
+         remove: down,
+         reorder: down,
+         postUpdate: down,
+      };
+   return inner;
+}
+
+const api = isDummy() ? failing(dummyApi()) : liveApi();
 
 function problemOf(reply: Reply, doing: string): string {
    if (reply.status === 401) return 'Your sign-in expired. Reload the page to sign in again.';

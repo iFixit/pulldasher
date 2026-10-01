@@ -93,7 +93,9 @@ const DUMMY_PROJECT_PULLS: Record<string, number[]> = {
    'release-gate-sso': [5, 6, 7],
    // the next phase: its one PR does an issue SSO approvals still has, so
    // its page says where that work may belong ("Does #35004, in …")
-   'release-gate-sso-second-path': [38],
+   // (24 characters at most, as a real label's slug: pull_labels.title is
+   // varchar(32) with the prefix in it)
+   'sso-second-path': [38],
    // 10-12 are the viewer's stacked chain: one chain, one project
    'shopify-sync': [10, 11, 12, 40],
    'core-primitives': [13, 14, 15],
@@ -106,6 +108,10 @@ const DUMMY_PROJECT_PULLS: Record<string, number[]> = {
    misc: [3, 18, 20, 29, 43, 47, 53],
 };
 const SECOND_PROJECT: Record<number, string> = { 50: 'webdriver-deflake' };
+// a project whose PRs all went quiet weeks ago (index to days since anyone
+// worked on them), so the Overview's Stalled tile and chart bar and Decide's
+// stall have one to show
+const QUIET_FOR_DAYS: Record<number, number> = { 26: 25 };
 const ALL_WAITING_ON_REVIEW = new Set(DUMMY_PROJECT_PULLS['store-picker']);
 const projectsByIndex = new Map<number, string[]>();
 for (const [slug, indexes] of Object.entries(DUMMY_PROJECT_PULLS))
@@ -113,7 +119,8 @@ for (const [slug, indexes] of Object.entries(DUMMY_PROJECT_PULLS))
 for (const [i, slug] of Object.entries(SECOND_PROJECT))
    projectsByIndex.set(Number(i), [...(projectsByIndex.get(Number(i)) ?? []), slug]);
 
-function withProject(pull: PullData, i: number): PullData {
+function withProject(given: PullData, i: number): PullData {
+   const pull = QUIET_FOR_DAYS[i] == null ? given : quietly(given, QUIET_FOR_DAYS[i]);
    const out: PullData = ALL_WAITING_ON_REVIEW.has(i)
       ? {
            ...pull,
@@ -131,6 +138,19 @@ function withProject(pull: PullData, i: number): PullData {
       created_at: pull.created_at,
    }));
    return { ...out, labels: [...out.labels, ...labels] };
+}
+
+// Nobody has touched it for `days`: its activity, last update and sign-offs
+// all fall before then, and it was opened at least two weeks before that.
+function quietly(pull: PullData, days: number): PullData {
+   const at = Date.now() - days * 86400_000;
+   const created = Math.min(Date.parse(pull.created_at), at - 14 * 86400_000);
+   return {
+      ...pull,
+      created_at: new Date(created).toISOString(),
+      updated_at: new Date(at).toISOString(),
+      status: { ...redateSigs(pull.status, created, at), activity_at: new Date(at).toISOString() },
+   };
 }
 
 // The fixture's signature timestamps are as frozen as its pulls; spread them

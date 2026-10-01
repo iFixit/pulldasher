@@ -101,7 +101,7 @@ const BASE_PROJECTS: Project[] = [
    dummyProject(12, 'translations', 'Translations upkeep', { ongoing: true }),
    dummyProject(13, 'onboarding-emails', 'Onboarding emails'),
    // the SSO plan ships its first path alone; the second is a phase of its own
-   dummyProject(15, 'release-gate-sso-second-path', 'SSO approvals: the second path', {
+   dummyProject(15, 'sso-second-path', 'SSO approvals: the second path', {
       lead: 'rjmccluskey',
       parents: ['release-gate-sso'],
    }),
@@ -238,6 +238,9 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          team: 'Community',
          lead: 'rjmccluskey',
          status: 'active',
+         // where the work came from, one plan of each kind, so the load
+         // chart's words and Look back's Fires tile and bands have words
+         origin: 'asked',
          notes: 'Security asked for this before the audit.',
       }),
       item(2, 'Shopify product and order sync', -4, 8, {
@@ -280,6 +283,7 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          team: 'Community',
          lead: 'hackalot805',
          status: 'active',
+         origin: 'chosen',
       }),
       // planned to start in two weeks: the list's "Starts" cell
       item(11, 'Newsletter promo page', 2, 4, {
@@ -304,6 +308,7 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          team: 'Store',
          lead: 'danielbeardsley',
          status: 'active',
+         origin: 'fire',
          updated_at: now - 6 * 86400,
       }),
    ];
