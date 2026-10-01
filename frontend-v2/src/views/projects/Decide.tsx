@@ -33,7 +33,8 @@ import { useArmedConfirm } from '../../components/useArmedConfirm';
 import { mainTeam, type PortfolioItem } from '../../model/portfolio';
 import { dayOf, dayWords } from '../../model/projectData';
 import { commitEnds } from '../../model/roadmapTime';
-import { saveDecideRotation } from '../../model/settingsData';
+import { saveDecideRotation, saveOngoingProjects } from '../../model/settingsData';
+import { scopeCounts, type PlanScope } from '../../../../shared/model/scope';
 import {
    createRoadmapItem,
    dismissRoadmapProblem,
@@ -48,12 +49,18 @@ import { PLAN_STATUS_WORD } from './roadmapHealth';
 export function decideRows(
    today: Today,
    items: readonly RoadmapItem[],
-   closed: ReadonlyMap<string, ClosedIssue>
+   closed: ReadonlyMap<string, ClosedIssue>,
+   scope: ReadonlyMap<number, PlanScope> | null | undefined = null,
+   ongoing: ReadonlySet<string> = new Set()
 ): DecideRow[] {
    return decideQueue({
       live: decideProjects(today),
       items,
       closed,
+      scope: new Map(
+         [...(scope ?? new Map<number, PlanScope>())].map(([id, s]) => [id, scopeCounts(s)])
+      ),
+      ongoing,
       today: dayOf(new Date()),
       now: Date.now() / 1000,
    });
@@ -64,8 +71,8 @@ export function decideRows(
 const SECTIONS: [DecideReason['kind'][], string, string][] = [
    [
       ['reopened'],
-      'Done or dropped, PRs still open',
-      'Marked done or dropped at least a week ago, on the roadmap or by closing its issue',
+      'Done or dropped, but work goes on',
+      'Marked done or dropped, on the roadmap or by closing its issue, but a PR is still open a week later or a new one opened more than a week after',
    ],
    [
       ['issue_closed'],
@@ -83,7 +90,16 @@ const SECTIONS: [DecideReason['kind'][], string, string][] = [
       'Missed its target date',
       'The target date passed with PRs still open, and the plan hasn’t changed since',
    ],
-   [['over', 'ended'], 'Past the plan’s end', 'The end date on its plan has passed'],
+   [
+      ['over', 'ended'],
+      'Past the plan’s end',
+      'The end date on its plan has passed. The ones still taking new PRs come first.',
+   ],
+   [
+      ['scope_done'],
+      'Spec done',
+      'Nothing in the issue that specs the plan is still open, and the plan hasn’t changed since. Finish it, or add what’s left to its spec.',
+   ],
    [
       ['stalled'],
       'Stalled',
@@ -115,9 +131,17 @@ function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
       case 'stalled':
          return `No PR activity for ${reason.days} days`;
       case 'over':
-         return `PRs still open ${n(reason.weeks, 'week')} past its plan’s end`;
+         return `PRs still open ${n(reason.weeks, 'week')} past its plan’s end${
+            reason.since ? `, and ${n(reason.since, 'PR')} opened since its end` : ''
+         }`;
       case 'ended':
-         return `Its plan ended ${n(reason.weeks, 'week')} ago and no PRs are open. Is it done?`;
+         return `Its plan ended ${n(reason.weeks, 'week')} ago and no PRs are open${
+            reason.since ? `, though ${n(reason.since, 'PR')} opened since its end` : ''
+         }. Is it done?`;
+      case 'scope_done':
+         return `Everything in its spec is closed: ${reason.done} done${
+            reason.dropped ? `, ${reason.dropped} dropped` : ''
+         }. Finish it?`;
       case 'missed':
          return `Missed its ${dayWords(reason.due)} target with ${n(reason.open, 'PR')} open`;
       case 'off_track':
@@ -133,7 +157,12 @@ function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
             item ? PLAN_STATUS_WORD[item.status].toLowerCase() : 'going'
          }`;
       case 'reopened': {
-         const still = `${n(reason.open, 'PR is', 'PRs are')} still open`;
+         const still = [
+            reason.open ? `${n(reason.open, 'PR is', 'PRs are')} still open` : null,
+            reason.late ? `${n(reason.late, 'PR')} opened more than a week later` : null,
+         ]
+            .filter(Boolean)
+            .join(' and ');
          return reason.by === 'issue'
             ? `Its issue was closed as ${closedAs(reason.as)}, but ${still}`
             : `Marked ${reason.as} on the roadmap, but ${still}`;
@@ -157,6 +186,8 @@ interface Decided {
    words: string;
    /** the roadmap item holding the call; null while a new one is saving */
    id: number | null;
+   /** a call kept as a setting, not on the roadmap: marked ongoing */
+   ongoing?: boolean;
 }
 
 // the calls made since the page loaded, so a trip to a project's page and
@@ -246,6 +277,7 @@ function DecideRowView({
    today,
    commitTo,
    decide,
+   markOngoing,
    nav,
    navigate,
 }: {
@@ -257,6 +289,9 @@ function DecideRowView({
    today: string;
    commitTo: { label: string; end: string }[];
    decide: (row: DecideRow, fields: Partial<RoadmapFields>, words: string) => void;
+   /** mark its project ongoing, or with false take that back; null when
+    * the row isn't asking for a first plan */
+   markOngoing: ((ongoing: boolean) => void) | null;
    nav: ProjectsNav;
    navigate: Navigate;
 }) {
@@ -329,7 +364,15 @@ function DecideRowView({
                      <Icon icon={Check} size={14} />
                      {decided.words}.
                   </span>
-                  {decided.id == null ? (
+                  {decided.ongoing ? (
+                     <button
+                        type="button"
+                        onClick={() => markOngoing?.(false)}
+                        className="pressable rounded border-0 bg-transparent p-0 text-xs text-ink-3 underline hover:text-brand"
+                     >
+                        Undo
+                     </button>
+                  ) : decided.id == null ? (
                      'Saving…'
                   ) : (
                      <button
@@ -395,6 +438,16 @@ function DecideRowView({
                   >
                      {armed ? 'Click again to drop it' : 'Drop'}
                   </button>
+                  {markOngoing && (
+                     <button
+                        type="button"
+                        onClick={() => markOngoing(true)}
+                        title="Mark it ongoing: work with no end, like upkeep, that never needs a plan. Decide stops asking it for one."
+                        className={buttonClass}
+                     >
+                        It’s ongoing
+                     </button>
+                  )}
                   <span
                      className="ml-2 inline-flex flex-wrap items-baseline gap-x-1.5"
                      title="Where the work came from. It’s saved when you click a decision on this row."
@@ -516,6 +569,9 @@ export function Decide({
    teamMembers,
    rotation,
    scoped,
+   scope,
+   ongoing,
+   ongoingSaved,
    nav,
    navigate,
 }: {
@@ -530,6 +586,11 @@ export function Decide({
    rotation: DecideRotation | null;
    /** whether the filter bar narrows the rest of the tab */
    scoped: boolean;
+   /** each plan's scope (model/scopeData.ts) */
+   scope: ReadonlyMap<number, PlanScope> | null | undefined;
+   /** every project with no end, and the ones marked so on the board */
+   ongoing: ReadonlySet<string>;
+   ongoingSaved: string[];
    nav: ProjectsNav;
    navigate: Navigate;
 }) {
@@ -556,7 +617,7 @@ export function Decide({
       const project = projectOf(row);
       return row.item?.team ?? (project ? mainTeam(project, teamOf) : null);
    };
-   const queue = decideRows(today, plans, closed);
+   const queue = decideRows(today, plans, closed, scope, ongoing);
    const byKey = new Map(queue.map(row => [rowKey(row), row]));
    // a call made here shows as made, unless its row came back for a new reason
    const settled = new Map(
@@ -600,6 +661,26 @@ export function Decide({
       }).then(created =>
          created ? record(d => new Map(d).set(key, { row, words, id: created.id })) : forget()
       );
+   };
+
+   // ongoing is a setting, not a plan: the row reads decided at once, and
+   // Undo takes it back
+   const markOngoing = (row: DecideRow) => (on: boolean) => {
+      const slug = row.slug;
+      if (!slug) return;
+      const key = rowKey(row);
+      const rest = ongoingSaved.filter(s => s !== slug);
+      if (on)
+         record(d =>
+            new Map(d).set(key, { row, words: 'Marked ongoing', id: null, ongoing: true })
+         );
+      else
+         record(d => {
+            const next = new Map(d);
+            next.delete(key);
+            return next;
+         });
+      void saveOngoingProjects(on ? [...rest, slug] : rest);
    };
 
    const nameOf = (row: DecideRow) =>
@@ -737,6 +818,11 @@ export function Decide({
                            today={day}
                            commitTo={commitTo}
                            decide={decide}
+                           markOngoing={
+                              row.slug && !row.item && row.reasons.some(r => r.kind === 'new')
+                                 ? markOngoing(row)
+                                 : null
+                           }
                            nav={nav}
                            navigate={navigate}
                         />

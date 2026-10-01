@@ -105,3 +105,25 @@ export function decideTurn(rotation: DecideRotation | null, day: string): string
    const count = rotation.logins.length;
    return rotation.logins[((weeks % count) + count) % count];
 }
+
+const SLUG = /^[a-z0-9][a-z0-9-]{0,23}$/;
+const ONGOING_MAX = 500;
+
+/** Check the projects marked ongoing as a person sent them: a list of
+ * project slugs (each once), or null for none. */
+export function checkOngoingProjects(
+   input: unknown
+): { slugs: string[] | null } | { error: string } {
+   if (input === null) return { slugs: null };
+   if (!Array.isArray(input) || input.length > ONGOING_MAX) {
+      return {
+         error: `send ongoing_projects as a list of up to ${ONGOING_MAX} project slugs, or null`,
+      };
+   }
+   for (const slug of input) {
+      if (typeof slug !== 'string' || !SLUG.test(slug)) {
+         return { error: `${String(slug)} isn't a project slug, like ups-access-points` };
+      }
+   }
+   return { slugs: [...new Set(input as string[])].sort() };
+}

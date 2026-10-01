@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { pullKey } from '../../../../shared/format';
 import {
    projectOf,
@@ -7,6 +8,8 @@ import {
    type Today,
    type WindowCounts,
 } from '../../../../shared/model/projects';
+import type { RoadmapItem } from '../../../../shared/model/roadmap';
+import type { PlanScope } from '../../../../shared/model/scope';
 import type { PullData } from '../../../../shared/types';
 import { EmptyState } from '../../components/bits';
 import { ClosedRow } from '../../components/ClosedRow';
@@ -33,6 +36,8 @@ import {
    type ProjectsNav,
 } from './parts';
 import { PlanFacts } from './roadmapHealth';
+import { ProjectSpecs } from './Spec';
+import { saveOngoingProjects } from '../../model/settingsData';
 import { stageWord, type PortfolioItem } from '../../model/portfolio';
 
 const DAY_MS = 86_400_000;
@@ -179,6 +184,9 @@ export function ProjectPage({
    nav,
    navigate,
    item,
+   plans,
+   scopes,
+   ongoingSaved,
 }: {
    slug: string;
    today: Today;
@@ -195,7 +203,15 @@ export function ProjectPage({
    /** its row on the project list, for its stage and name; missing for a
     * slug the list doesn't know */
    item: PortfolioItem | undefined;
+   /** the roadmap's plans, null while they load */
+   plans: readonly RoadmapItem[] | null;
+   /** every plan's scope by id: undefined while it loads, null if that failed */
+   scopes: ReadonlyMap<number, PlanScope> | null | undefined;
+   /** the projects marked ongoing on the board (not by label) */
+   ongoingSaved: string[];
 }) {
+   // the box flips at once; a failed save puts it back
+   const [want, setWant] = useState<boolean | null>(null);
    const live = today.live.find(g => g.slug === slug);
    const group = live ?? today.quiet.find(g => g.slug === slug);
    const project = group?.project ?? data?.projects.find(p => p.slug === slug) ?? null;
@@ -227,6 +243,15 @@ export function ProjectPage({
          ? 'Dropped'
          : 'Done'
       : 'Not in progress';
+   const byLabel = !!project?.ongoing;
+   const ongoing = byLabel || (want ?? ongoingSaved.includes(slug));
+   const markOngoing = (on: boolean) => {
+      setWant(on);
+      const rest = ongoingSaved.filter(s => s !== slug);
+      void saveOngoingProjects(on ? [...rest, slug] : rest).then(r => {
+         if ('error' in r) setWant(null);
+      });
+   };
    const people = group?.people ?? [];
    const devs = people.filter(login => teamOf(login) != null);
    const others = people.filter(login => teamOf(login) == null);
@@ -238,6 +263,23 @@ export function ProjectPage({
             </h2>
             <span className="text-xs text-ink-3">{standing}</span>
             <span className="text-xs text-ink-3">{prefix + slug}</span>
+            <label
+               className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-ink-3 has-[:disabled]:cursor-default"
+               title={
+                  byLabel
+                     ? 'Its issue has the ongoing label: take the label off to change this'
+                     : 'Work with no end, like upkeep: Decide stops asking it for a plan or to finish, and this page skips the finish forecast'
+               }
+            >
+               <input
+                  type="checkbox"
+                  checked={ongoing}
+                  disabled={byLabel}
+                  onChange={e => markOngoing(e.target.checked)}
+                  className="m-0 disabled:opacity-40"
+               />
+               Ongoing
+            </label>
             {group && (
                <span className="flex items-center gap-3 text-xs">
                   <FlagWords g={group} />
@@ -271,6 +313,7 @@ export function ProjectPage({
                )}
             </Rows>
          </div>
+         <ProjectSpecs slug={slug} plans={plans} scopes={scopes} nav={nav} navigate={navigate} />
          {merged.length > 0 && (
             <RestGroup>
                <Fold
@@ -297,7 +340,7 @@ export function ProjectPage({
             slug={slug}
             range={range}
             group={live}
-            ongoing={!!project?.ongoing}
+            ongoing={ongoing}
             dueOn={targetOf(project)?.due_on ?? null}
          />
       </>

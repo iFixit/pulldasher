@@ -21,6 +21,7 @@ import {
 } from '../../../shared/model/roadmap';
 import type { Status } from '../../../shared/model/status';
 import type { PullData } from '../../../shared/types';
+import type { PlanScope } from '../../../shared/model/scope';
 import { DEFAULT_SORT } from '../lens';
 import { dayOf } from './days';
 import { dayWords } from './projectData';
@@ -56,6 +57,7 @@ export interface PrRef {
  * first; `kind` sorts it. */
 export type PlanKind =
    | 'off_track'
+   | 'scope_done'
    | 'past_end'
    | 'missed'
    | 'at_risk'
@@ -119,6 +121,11 @@ export interface PortfolioItem {
     * under way, or else its latest decision; null when it isn't on the roadmap */
    plan: RoadmapItem | null;
    planCell: PlanCell;
+   /** its plan's scope (model/scope.ts): the spec's issues and lines, and
+    * the PRs after its end; null with no plan, or before the scopes load */
+   scope: PlanScope | null;
+   /** it runs with no end: marked on the board or by its issue's label */
+   ongoing: boolean;
    /** in progress, with open PRs and no activity for STALL_DAYS */
    stalled: boolean;
    /** off track, past its plan's end with PRs open, or past its target with PRs open */
@@ -156,7 +163,7 @@ export function planCell(
    item: Pick<
       PortfolioItem,
       'plan' | 'project' | 'stage' | 'open' | 'merged' | 'target' | 'dueInDays'
-   >,
+   > & { scope?: PlanScope | null },
    day: string,
    now: number
 ): PlanCell {
@@ -176,6 +183,11 @@ export function planCell(
       const end = planEnd(plan);
       if (update?.health === 'off_track')
          return { kind: 'off_track', text: 'Off track', warn: true };
+      // nothing left open in its spec: Decide asks whether it's done
+      const scope = item.scope;
+      if (scope && scope.open === 0 && scope.done + scope.dropped > 0) {
+         return { kind: 'scope_done', text: 'Spec done', warn: true };
+      }
       if (end < day) {
          const weeks = Math.ceil(
             ((dayStart(day) as number) - (dayStart(end) as number)) / (7 * DAY)
@@ -211,7 +223,9 @@ export function portfolioItems(
    window: Record<string, ProjectWindow>,
    teamOf: (login: string) => string | null,
    now: number = Date.now(),
-   plans: readonly RoadmapItem[] = []
+   plans: readonly RoadmapItem[] = [],
+   scopes: ReadonlyMap<number, PlanScope> | null = null,
+   ongoing: ReadonlySet<string> = new Set()
 ): PortfolioItem[] {
    const secs = now / 1000;
    const day = dayOf(new Date(now));
@@ -288,6 +302,8 @@ export function portfolioItems(
          flags: group?.flags ?? [],
          plan,
          planCell: { kind: 'no_plan', text: '', warn: false },
+         scope: (plan && scopes?.get(plan.id)) || null,
+         ongoing: ongoing.has(slug) || !!project?.ongoing,
          stalled: false,
          behind: false,
          endsSoon: false,
@@ -419,21 +435,23 @@ export type SortKey =
    | 'waiting'
    | 'merged'
    | 'plan'
+   | 'scope'
    | 'target';
 
 const STAGE_RANK: Record<Stage, number> = { progress: 0, parked: 1, quiet: 2, closed: 3 };
 const PLAN_RANK: Record<PlanKind, number> = {
    off_track: 0,
-   past_end: 1,
-   missed: 2,
-   at_risk: 3,
-   no_update: 4,
-   update_due: 5,
-   no_plan: 6,
-   on_track: 7,
-   ends: 8,
-   parked: 9,
-   stopped: 10,
+   scope_done: 1,
+   past_end: 2,
+   missed: 3,
+   at_risk: 4,
+   no_update: 5,
+   update_due: 6,
+   no_plan: 7,
+   on_track: 8,
+   ends: 9,
+   parked: 10,
+   stopped: 11,
 };
 
 // amber words first, worst first, then the rest
@@ -459,6 +477,9 @@ const SORTS: Record<SortKey, (a: PortfolioItem, b: PortfolioItem, dir: number) =
    waiting: (a, b, dir) => dir * (b.waiting - a.waiting),
    merged: (a, b, dir) => dir * (b.merged - a.merged),
    plan: (a, b, dir) => dir * (planOrder(a.planCell) - planOrder(b.planCell)),
+   // the most still open in its spec first
+   scope: (a, b, dir) =>
+      nullsLast(a.scope?.open ?? null, b.scope?.open ?? null, (x, y) => dir * (y - x)),
    target: (a, b, dir) => nullsLast(a.dueInDays, b.dueInDays, (x, y) => dir * (x - y)),
 };
 
@@ -586,6 +607,9 @@ export function portfolioCsv(items: readonly PortfolioItem[]): string {
       'Waiting on review',
       'Merged, last 14 days',
       'Plan',
+      'Spec done',
+      'Spec open',
+      'Spec dropped',
       'Target',
       'Target due',
       'Parents',
@@ -604,6 +628,9 @@ export function portfolioCsv(items: readonly PortfolioItem[]): string {
       i.waiting,
       i.merged,
       i.planCell.text,
+      i.scope ? i.scope.done : null,
+      i.scope ? i.scope.open : null,
+      i.scope ? i.scope.dropped : null,
       i.target?.title ?? null,
       i.target?.due_on?.slice(0, 10) ?? null,
       i.parents.join(' '),

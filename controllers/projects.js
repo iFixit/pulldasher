@@ -9,6 +9,7 @@ import {
    todayFromBoard,
 } from '../lib/projects.js';
 import { listItems } from '../lib/roadmap.js';
+import { loadScope } from '../lib/scope.js';
 import {
    addWeeks,
    closedIssues,
@@ -21,6 +22,7 @@ import {
    mondaysBetween,
    peakFrom,
    planEnd,
+   scopeCounts,
    spansFrom,
    utcDay,
    windowStats,
@@ -29,6 +31,12 @@ import {
 } from '../shared/dist/index.js';
 
 const key = d => `${d.repo}#${d.number}`;
+
+/** Projects that run with no end: marked on the board, or by the `ongoing`
+ * label on their issue. */
+function ongoingSlugs(settings, projects) {
+   return new Set([...settings.ongoing, ...projects.filter(p => p.ongoing).map(p => p.slug)]);
+}
 
 /**
  * Validate the projects config and the requested window, then load the
@@ -149,6 +157,7 @@ export default {
             teams: settings.teams,
             teams_from: settings.teamsFrom,
             decide_rotation: settings.decideRotation,
+            ongoing: settings.ongoing,
             projects,
             window: stats,
          })),
@@ -296,6 +305,27 @@ export default {
    },
 
    /**
+    * GET /scope-data (session) and /api/v1/scope (Bearer) -- every plan's
+    * scope: the issue that specs it, its sub-issues and checklist lines and
+    * the issues labeled into its project, each open, done or dropped; how
+    * many joined after the plan was made; and its project's PRs that opened
+    * after its end, or more than a week after it was marked done or
+    * dropped (shared/model/scope.ts).
+    */
+   getScope: function (req, res) {
+      const settings = projectSettings();
+      if (!settings) {
+         res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
+         return;
+      }
+      respondOrError(
+         res,
+         loadScope(settings).then(plans => ({ plans })),
+         'scope query failed'
+      );
+   },
+
+   /**
     * GET /api/v1/decide -- the decisions owed now, worst first: what the
     * board's Decide view lists (shared/model/decide.ts). Each row names the
     * project, its roadmap item if it has one, and why it needs a call. A
@@ -307,9 +337,10 @@ export default {
          res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
          return;
       }
+      const load = Promise.all([loadProjects(settings), listItems(), loadScope(settings)]);
       respondOrError(
          res,
-         Promise.all([loadProjects(settings), listItems()]).then(([projects, items]) => {
+         load.then(([projects, items, scopes]) => {
             const now = Date.now() / 1000;
             const today = todayFromBoard(pullManager.getPulls(), projects, settings.prefix, now);
             const bySlug = new Map(projects.map(p => [p.slug, p]));
@@ -318,6 +349,8 @@ export default {
                live: decideProjects(today),
                items,
                closed: closedIssues(projects),
+               scope: new Map(scopes.map(s => [s.planId, scopeCounts(s)])),
+               ongoing: ongoingSlugs(settings, projects),
                today: utcDay(now),
                now,
             });

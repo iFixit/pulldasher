@@ -4,9 +4,15 @@ import { mondayOf } from '../../../shared/model/roadmap';
 import {
    checkDecideRotation,
    checkDeveloperTeams,
+   checkOngoingProjects,
    type DeveloperTeams,
 } from '../../../shared/model/settings';
-import { refreshProjectsData, setDummyRotation, setDummyTeams } from './projectData';
+import {
+   refreshProjectsData,
+   setDummyOngoing,
+   setDummyRotation,
+   setDummyTeams,
+} from './projectData';
 
 /**
  * Saving the developer teams from the People view: PATCH /settings, which
@@ -43,6 +49,24 @@ export async function saveDecideRotation(
       return { ok: true };
    }
    return patchSettings({ decide_rotation: checked.logins }, 'who runs Decide');
+}
+
+/**
+ * Saving which projects are ongoing (no end, so Decide never asks them for
+ * a first plan): the whole list, as it should be after the change. The
+ * dummy board keeps it in memory.
+ */
+export async function saveOngoingProjects(
+   slugs: string[]
+): Promise<{ ok: true } | { error: string }> {
+   const checked = checkOngoingProjects(slugs);
+   if ('error' in checked) return checked;
+   if (isDummy()) {
+      setDummyOngoing(checked.slugs ?? []);
+      refreshProjectsData();
+      return { ok: true };
+   }
+   return patchSettings({ ongoing_projects: checked.slugs }, 'which projects are ongoing');
 }
 
 /** PATCH /settings, then load every window again. */

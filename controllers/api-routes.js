@@ -59,6 +59,16 @@ export const API_ROUTES = [
    },
    {
       method: 'get',
+      path: '/api/v1/scope',
+      handlers: [projectsController.getScope],
+      does:
+         "Every plan's scope: the issue that specs it (a plan's `spec`), its sub-issues and " +
+         'checklist lines plus the issues labeled into its project, each open, done or dropped ' +
+         '(closed as not planned or duplicate), when each joined, and the PRs that opened after ' +
+         "the plan's end or more than a week after it was marked done or dropped",
+   },
+   {
+      method: 'get',
       path: '/api/v1/updates-owed',
       handlers: [roadmapController.owed],
       does:

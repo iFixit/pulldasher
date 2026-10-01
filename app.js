@@ -19,6 +19,7 @@ import { API_ROUTES, apiIndex } from './controllers/api-routes.js';
 import settingsController from './controllers/settings.js';
 import { loadSettings } from './lib/settings.js';
 import { issueRepos, projectSettings } from './lib/projects.js';
+import { syncScope } from './lib/scope.js';
 import apiAuth from './lib/api-auth.js';
 import Debug from './lib/debug.js';
 import { createServer } from 'http';
@@ -74,6 +75,7 @@ app.get('/stats-history', statsController.getHistory);
 app.get('/user-names', userNamesController.getNames);
 app.get('/projects-data', projectsController.getBoardData);
 app.get('/retro-data', projectsController.getRetro);
+app.get('/scope-data', projectsController.getScope);
 // the roadmap is the one part of the Projects tab people edit here: reads are
 // gated like the other board data (lib/authentication.js), writes by canWrite
 app.get('/roadmap', roadmapController.list);
@@ -120,6 +122,7 @@ dbManager
       debug('Refreshing all open pulls from the API');
       refresh.openPulls();
       syncProjectIssues();
+      syncPlanScopes();
    })
    .done();
 
@@ -133,7 +136,17 @@ setInterval(function () {
       console.error('Hourly open-pull repair failed: %s', (err && err.message) || err);
    });
    syncProjectIssues();
+   syncPlanScopes();
 }, RECONCILE_MS);
+
+// Each plan's spec issue, its sub-issues and checklist, and which PRs link
+// each scope issue (lib/scope.js), read off GitHub once an hour; a plan's
+// spec change and a webhook on a scope issue read it sooner.
+function syncPlanScopes() {
+   syncScope(projectSettings()).catch(function (err) {
+      console.error('Scope sync failed: %s', (err && err.message) || err);
+   });
+}
 
 // Project issues can live in any tracked repo (lib/projects.js issueRepos).
 // The projects repo is synced whole at startup; a tracked repo only from

@@ -80,7 +80,12 @@ export type {
 export { epoch } from './format';
 export type { PullData, RepoSpec, Signature, CommitStatus, Label } from './types';
 
-export { checkDecideRotation, checkDeveloperTeams, decideTurn } from './model/settings';
+export {
+   checkDecideRotation,
+   checkDeveloperTeams,
+   checkOngoingProjects,
+   decideTurn,
+} from './model/settings';
 export type { DecideRotation, DeveloperTeams } from './model/settings';
 
 export {
@@ -96,3 +101,26 @@ export { loadByWeek, mondaysBetween, peakFrom, spansFrom } from './model/load';
 export type { InFlightSpan, LoadWeek, OriginCounts } from './model/load';
 export { timeSpent } from './model/retro';
 export type { TimeRow, Touch } from './model/retro';
+
+export {
+   afterEndOf,
+   issueKey,
+   itemState,
+   parseChecklist,
+   parseIssueRef,
+   planOfWork,
+   planScopes,
+   scopeCounts,
+   TAIL_DAYS,
+} from './model/scope';
+export type {
+   ChecklistLine,
+   IssueRef,
+   ItemState,
+   LinkedPull,
+   PlanScope,
+   ScopeCounts,
+   ScopeInputs,
+   ScopeItem,
+   WorkPull,
+} from './model/scope';

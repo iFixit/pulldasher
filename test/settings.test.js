@@ -74,6 +74,7 @@ test('teams come from config.js until someone saves them', async () => {
    assert.deepEqual(await res.json(), {
       developer_teams: { Store: ['alice'] },
       decide_rotation: null,
+      ongoing_projects: [],
       from: { developer_teams: 'config' },
    });
 });
@@ -106,6 +107,16 @@ test('saved teams replace config.js for every count, and null goes back', async 
    const reset = await patch({ developer_teams: null });
    assert.equal(reset.body.from.developer_teams, 'config');
    assert.equal(projectSettings().teamOf('bo'), null);
+});
+
+test('ongoing projects save as a sorted list, and an empty one clears the row', async () => {
+   const saved = await patch({ ongoing_projects: ['translations', 'docs', 'translations'] });
+   assert.equal(saved.status, 200);
+   assert.deepEqual(saved.body.ongoing_projects, ['docs', 'translations']);
+   assert.deepEqual(projectSettings().ongoing, ['docs', 'translations']);
+   assert.equal((await patch({ ongoing_projects: ['two words'] })).status, 400);
+   assert.deepEqual((await patch({ ongoing_projects: [] })).body.ongoing_projects, []);
+   assert.equal(table.has('ongoing_projects'), false);
 });
 
 test('a login on two teams, or a missing field, is a 400 that says why', async () => {

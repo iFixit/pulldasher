@@ -1,5 +1,6 @@
 import { dayStart, firstOpenDay, targetOf, utcDay, type Project, type Today } from './projects';
 import { healthStanding, isUnderWay, planEnd, type RoadmapItem } from './roadmap';
+import type { ScopeCounts } from './scope';
 
 /**
  * The decisions owed this week, for the Decide view and GET /api/v1/decide:
@@ -18,6 +19,8 @@ import { healthStanding, isUnderWay, planEnd, type RoadmapItem } from './roadmap
  * - `reopened`: finished or dropped, on the roadmap or by closing its issue,
  *   a week or more ago, but PRs are still open
  * - `moving`: parked, but its PRs changed after it was parked
+ * - `scope_done`: nothing in its spec is still open (model/scope.ts), and
+ *   the plan hasn't changed since the last item closed
  * Every plan still under way is judged on its own, so a project's finished
  * first phase can't hide its second running late. A call is a roadmap write
  * (commit, park, finish, drop); any change to a plan counts as one.
@@ -35,14 +38,23 @@ const DAY = 86400;
 export type DecideReason =
    | { kind: 'new'; since: string | null }
    | { kind: 'stalled'; days: number }
-   | { kind: 'over'; weeks: number }
-   | { kind: 'ended'; weeks: number }
+   /** `since`: its PRs opened after its end (model/scope.ts afterEnd) */
+   | { kind: 'over'; weeks: number; since: number }
+   | { kind: 'ended'; weeks: number; since: number }
    | { kind: 'missed'; due: string; open: number }
    | { kind: 'off_track' }
    | { kind: 'at_risk' }
    | { kind: 'issue_closed'; as: 'done' | 'dropped'; on: string }
-   | { kind: 'reopened'; open: number; as: 'done' | 'dropped'; by: 'roadmap' | 'issue' }
-   | { kind: 'moving' };
+   /** `late`: PRs opened more than a week after it was marked so */
+   | {
+        kind: 'reopened';
+        open: number;
+        late: number;
+        as: 'done' | 'dropped';
+        by: 'roadmap' | 'issue';
+     }
+   | { kind: 'moving' }
+   | { kind: 'scope_done'; done: number; dropped: number };
 
 /** What the queue needs to know about a live project. */
 export interface DecideProject {
@@ -121,15 +133,18 @@ const RANK: Record<DecideReason['kind'], number> = {
    missed: 4,
    over: 5,
    ended: 6,
-   stalled: 7,
-   at_risk: 8,
-   new: 9,
+   scope_done: 7,
+   stalled: 8,
+   at_risk: 9,
+   new: 10,
 };
 
 export function decideQueue({
    live,
    items,
    closed = new Map(),
+   scope = new Map(),
+   ongoing = new Set(),
    today,
    now,
 }: {
@@ -137,6 +152,10 @@ export function decideQueue({
    items: readonly RoadmapItem[];
    /** closed project issues, by slug */
    closed?: ReadonlyMap<string, ClosedIssue>;
+   /** each plan's scope (model/scope.ts scopeCounts), by plan id */
+   scope?: ReadonlyMap<number, ScopeCounts>;
+   /** projects that run with no end: they never owe a first plan */
+   ongoing?: ReadonlySet<string>;
    today: string;
    now: number;
 }): DecideRow[] {
@@ -165,8 +184,27 @@ export function decideQueue({
          return;
       }
       const open = project?.open ?? 0;
+      const counts = scope.get(item.id);
       if (planEnd(item) < today) {
-         add(item.project, item, { kind: open > 0 ? 'over' : 'ended', weeks: weeksPast(item) });
+         add(item.project, item, {
+            kind: open > 0 ? 'over' : 'ended',
+            weeks: weeksPast(item),
+            since: counts?.afterEnd ?? 0,
+         });
+      }
+      // a spec with nothing left open, unless the plan changed after the last
+      // item closed (a plain checklist line has no close time, so it asks)
+      if (
+         counts &&
+         counts.total - counts.done === 0 &&
+         counts.done + counts.dropped > 0 &&
+         (counts.lastClosedAt == null || counts.lastClosedAt > decidedAt(item))
+      ) {
+         add(item.project, item, {
+            kind: 'scope_done',
+            done: counts.done,
+            dropped: counts.dropped,
+         });
       }
       const due = project?.due;
       // a replan after the target passed answers it
@@ -202,6 +240,7 @@ export function decideQueue({
                add(project.slug, last, {
                   kind: 'reopened',
                   open: project.open,
+                  late: 0,
                   as: issue.as,
                   by: 'issue',
                });
@@ -211,15 +250,18 @@ export function decideQueue({
                add(project.slug, last, { kind: 'moving' });
             }
          } else if (last) {
-            if (project.open > 0 && now - decidedAt(last) >= REOPEN_DAYS * DAY) {
+            // PRs still open a week after the call, or new ones opened after it
+            const late = scope.get(last.id)?.afterDone ?? 0;
+            if ((project.open > 0 && now - decidedAt(last) >= REOPEN_DAYS * DAY) || late > 0) {
                add(project.slug, last, {
                   kind: 'reopened',
                   open: project.open,
+                  late,
                   as: last.status === 'dropped' ? 'dropped' : 'done',
                   by: 'roadmap',
                });
             }
-         } else if (needsDecision(project, closed)) {
+         } else if (needsDecision(project, closed) && !ongoing.has(project.slug)) {
             add(project.slug, null, { kind: 'new', since: project.firstOpened });
          }
       }
@@ -251,7 +293,8 @@ const rank = (row: DecideRow) => Math.min(...row.reasons.map(r => RANK[r.kind]))
 const weight = (row: DecideRow) =>
    row.reasons.reduce((sum, r) => {
       if (r.kind === 'stalled') return sum + r.days;
-      if (r.kind === 'over' || r.kind === 'ended') return sum + r.weeks * 7;
+      // past their end, the ones still taking new work come first
+      if (r.kind === 'over' || r.kind === 'ended') return sum + r.since * 1000 + r.weeks * 7;
       return sum;
    }, 0);
 const since = (row: DecideRow) => {

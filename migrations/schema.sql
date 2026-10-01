@@ -200,6 +200,8 @@ CREATE TABLE IF NOT EXISTS `roadmap_items` (
   `lead_login` varchar(39) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `status` enum('planned','active','parked','done','dropped') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'planned',
   `origin` enum('asked','fire','chosen') COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `spec_repo` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `spec_number` int unsigned DEFAULT NULL,
   `start` date NOT NULL,
   `weeks` smallint unsigned NOT NULL DEFAULT '4',
   `priority` int NOT NULL DEFAULT '0',
@@ -211,6 +213,48 @@ CREATE TABLE IF NOT EXISTS `roadmap_items` (
   `updated_at` int unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `roadmap_items_priority` (`priority`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for tables `scope_specs`, `scope_items` and `issue_pull_links`
+-- (a plan's spec issue, its sub-issues and checklist lines, and the PRs that
+-- close or mention each scope issue; lib/scope.js keeps them)
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `scope_specs` (
+  `repo` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+  `number` int unsigned NOT NULL,
+  `title` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `found` tinyint(1) NOT NULL DEFAULT '1',
+  `synced_at` int unsigned NOT NULL,
+  PRIMARY KEY (`repo`,`number`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `scope_items` (
+  `spec_repo` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+  `spec_number` int unsigned NOT NULL,
+  `position` smallint unsigned NOT NULL,
+  `source` enum('sub','check') COLLATE utf8mb4_general_ci NOT NULL,
+  `repo` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `number` int unsigned DEFAULT NULL,
+  `title` varchar(255) COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+  `state` enum('open','done','dropped') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'open',
+  `closed_at` int unsigned DEFAULT NULL,
+  `joined_at` int unsigned DEFAULT NULL,
+  PRIMARY KEY (`spec_repo`,`spec_number`,`position`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `issue_pull_links` (
+  `issue_repo` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+  `issue_number` int unsigned NOT NULL,
+  `pull_repo` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+  `pull_number` int unsigned NOT NULL,
+  `closes` tinyint(1) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`issue_repo`,`issue_number`,`pull_repo`,`pull_number`),
+  KEY `issue_pull_links_pull` (`pull_repo`,`pull_number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 --

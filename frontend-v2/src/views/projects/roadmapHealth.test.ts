@@ -16,6 +16,7 @@ const item = (id: number, over: Partial<RoadmapItem> = {}): RoadmapItem => ({
    lead: null,
    status: 'active',
    origin: null,
+   spec: null,
    start: '2026-09-07',
    weeks: 4,
    priority: id,

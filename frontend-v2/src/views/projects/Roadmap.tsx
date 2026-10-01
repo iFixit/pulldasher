@@ -60,6 +60,7 @@ import {
    type LoadWeek,
 } from '../../../../shared/model/load';
 import { closedIssues, decideProjects, needsDecision } from '../../../../shared/model/decide';
+import { issueKey, parseIssueRef } from '../../../../shared/model/issueRef';
 import {
    columnsFor,
    commitEnds,
@@ -231,6 +232,7 @@ function Editor({
               lead: item.lead,
               status: item.status,
               origin: item.origin,
+              spec: item.spec,
               start: item.start,
               weeks: item.weeks,
               notes: item.notes,
@@ -243,6 +245,7 @@ function Editor({
               lead: null,
               status: 'planned',
               origin: null,
+              spec: null,
               start: addWeeks(mondayOf(utcDay(Date.now() / 1000)), 1),
               weeks: 4,
               notes: '',
@@ -250,19 +253,26 @@ function Editor({
            }
    );
    const [draft, setDraft] = useState<RoadmapFields>(initial);
+   // the spec as typed: "owner/repo#123" or a link, read on save
+   const [specText, setSpecText] = useState(item?.spec ? issueKey(item.spec) : '');
    const [error, setError] = useState<string | null>(null);
    const [saving, setSaving] = useState(false);
    const { armed, run } = useArmedConfirm();
    const set = (patch: Partial<RoadmapFields>) => setDraft(d => ({ ...d, ...patch }));
    const save = async () => {
+      const spec = specText.trim() ? parseIssueRef(specText) : null;
+      if (specText.trim() && !spec) {
+         return setError('the spec issue is an "owner/repo#123" or a GitHub issue link');
+      }
+      const fields = { ...draft, spec };
       const changed = item
          ? (Object.fromEntries(
-              Object.entries(draft).filter(
+              Object.entries(fields).filter(
                  ([key, value]) =>
                     JSON.stringify(value) !== JSON.stringify(initial[key as keyof RoadmapFields])
               )
            ) as Partial<RoadmapFields>)
-         : draft;
+         : fields;
       if (item && !Object.keys(changed).length) return onDone();
       const checked = checkRoadmapFields(changed, { partial: !!item });
       if ('error' in checked) return setError(checked.error);
@@ -373,6 +383,16 @@ function Editor({
                   </option>
                ))}
             </select>
+         )}
+         {field(
+            'Spec issue',
+            <input
+               className={inputClass}
+               value={specText}
+               onChange={e => setSpecText(e.target.value)}
+               placeholder="owner/repo#123"
+               title="The issue that says what this plan delivers, usually an epic. Its sub-issues and checklist become the plan’s scope, and Decide asks “Done?” once they’re all closed."
+            />
          )}
          {field(
             'Team',

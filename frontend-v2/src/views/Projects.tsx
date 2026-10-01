@@ -9,12 +9,14 @@ import { Icon } from '../components/Icon';
 import type { RowOptions } from '../components/Row';
 import {
    DEFAULT_RANGE,
+   ongoingSlugs,
    previousRange,
    resolveRange,
    teamLookup,
    useProjectsData,
    type Range,
 } from '../model/projectData';
+import { useScopeData } from '../model/scopeData';
 import { portfolioItems } from '../model/portfolio';
 import { useRoadmap } from '../model/roadmapData';
 import { DateRangePicker } from './projects/DateRangePicker';
@@ -78,6 +80,10 @@ export function Projects({
    );
    const teamOf = useMemo(() => teamLookup(data?.teams ?? {}), [data]);
    const { items: plans } = useRoadmap();
+   // each plan's spec and what arrived after its end, and which projects
+   // run with no end
+   const scopes = useScopeData(plans);
+   const ongoing = useMemo(() => ongoingSlugs(data), [data]);
    const items = useMemo(
       () =>
          portfolioItems(
@@ -86,9 +92,11 @@ export function Projects({
             data?.window.projects ?? {},
             teamOf,
             Date.now(),
-            plans ?? []
+            plans ?? [],
+            scopes ?? null,
+            ongoing
          ),
-      [data, today, teamOf, plans]
+      [data, today, teamOf, plans, scopes, ongoing]
    );
    // Decide writes the roadmap, so it weighs every project: with the filter
    // bar narrowing the rest of the tab, it builds its own Today and list
@@ -107,16 +115,18 @@ export function Projects({
                  data?.window.projects ?? {},
                  teamOf,
                  Date.now(),
-                 plans ?? []
+                 plans ?? [],
+                 scopes ?? null,
+                 ongoing
               )
             : items,
-      [scoped, data, fullToday, teamOf, plans, items]
+      [scoped, data, fullToday, teamOf, plans, items, scopes, ongoing]
    );
    const closedProjects = useMemo(() => closedIssues(data?.projects ?? []), [data]);
    // the calls owed, counted on the tab so they're seen from every view
    const decisions = useMemo(
-      () => (plans ? decideRows(fullToday, plans, closedProjects) : null),
-      [fullToday, plans, closedProjects]
+      () => (plans ? decideRows(fullToday, plans, closedProjects, scopes, ongoing) : null),
+      [fullToday, plans, closedProjects, scopes, ongoing]
    );
    const views: [ProjectsNav['view'], string][] = [
       ['overview', 'Overview'],
@@ -177,6 +187,7 @@ export function Projects({
          {toolbar}
          {nav.project ? (
             <ProjectPage
+               key={nav.project}
                slug={nav.project}
                today={today}
                data={data}
@@ -189,6 +200,9 @@ export function Projects({
                nav={nav}
                navigate={navigate}
                item={items.find(i => i.slug === nav.project)}
+               plans={plans}
+               scopes={scopes}
+               ongoingSaved={data?.ongoing ?? []}
             />
          ) : nav.view === 'people' ? (
             <People
@@ -210,6 +224,9 @@ export function Projects({
                teamMembers={data?.teams ?? {}}
                rotation={data?.decide_rotation ?? null}
                scoped={scoped}
+               scope={scopes}
+               ongoing={ongoing}
+               ongoingSaved={data?.ongoing ?? []}
                nav={nav}
                navigate={navigate}
             />

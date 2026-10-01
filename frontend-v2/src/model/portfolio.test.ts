@@ -131,6 +131,7 @@ const plan = (id: number, slug: string | null, over: Partial<RoadmapItem> = {}):
    lead: null,
    status: 'active',
    origin: null,
+   spec: null,
    start: '2026-09-21',
    weeks: 4,
    priority: id,

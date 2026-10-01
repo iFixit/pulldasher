@@ -1,3 +1,4 @@
+import { parseIssueRef, type IssueRef } from './issueRef';
 import { dayStart, utcDay } from './projects';
 
 /**
@@ -64,6 +65,9 @@ export interface RoadmapItem {
    status: RoadmapStatus;
    /** where the work came from; null until someone says */
    origin: RoadmapOrigin | null;
+   /** the issue that specs it, usually an epic: its sub-issues and
+    * checklist are the plan's scope (model/scope.ts); null for none */
+   spec: IssueRef | null;
    /** the Monday of the planned first week, YYYY-MM-DD */
    start: string;
    /** the planned length in whole weeks */
@@ -128,6 +132,7 @@ export type RoadmapFields = Pick<
    | 'lead'
    | 'status'
    | 'origin'
+   | 'spec'
    | 'start'
    | 'weeks'
    | 'notes'
@@ -216,6 +221,24 @@ export function checkRoadmapFields(input: unknown, { partial }: { partial: boole
       else if (!ROADMAP_ORIGINS.includes(raw.origin as RoadmapOrigin)) {
          return { error: `origin is one of ${ROADMAP_ORIGINS.join(', ')}` };
       } else fields.origin = raw.origin as RoadmapOrigin;
+   }
+   if (has('spec')) {
+      // an "owner/repo#123" or a GitHub issue link, or {repo, number}
+      const spec = raw.spec;
+      const ref =
+         typeof spec === 'string'
+            ? parseIssueRef(spec)
+            : spec && typeof spec === 'object'
+            ? parseIssueRef(
+                 `${(spec as Record<string, unknown>).repo}#${
+                    (spec as Record<string, unknown>).number
+                 }`
+              )
+            : null;
+      if (optional('spec')) fields.spec = null;
+      else if (!ref || ref.number < 1) {
+         return { error: 'the spec issue is an "owner/repo#123" or a GitHub issue link' };
+      } else fields.spec = ref;
    }
    if (has('start')) {
       if (typeof raw.start !== 'string' || dayStart(raw.start) == null) {

@@ -3,6 +3,7 @@ import { saveSetting } from '../lib/settings.js';
 import {
    checkDecideRotation,
    checkDeveloperTeams,
+   checkOngoingProjects,
    mondayOf,
    utcDay,
 } from '../shared/dist/index.js';
@@ -13,6 +14,7 @@ function current() {
    return {
       developer_teams: settings.teams,
       decide_rotation: settings.decideRotation,
+      ongoing_projects: settings.ongoing,
       from: { developer_teams: settings.teamsFrom },
    };
 }
@@ -41,11 +43,16 @@ export default {
          return res.status(404).json({ error: 'projects are not set up in config.js' });
       }
       const body = req.body || {};
-      if (!has(body, 'developer_teams') && !has(body, 'decide_rotation')) {
+      if (
+         !has(body, 'developer_teams') &&
+         !has(body, 'decide_rotation') &&
+         !has(body, 'ongoing_projects')
+      ) {
          return res.status(400).json({
             error:
-               'send developer_teams (an object of team name to logins, or null) or ' +
-               'decide_rotation (a list of logins, or null)',
+               'send developer_teams (an object of team name to logins, or null), ' +
+               'decide_rotation (a list of logins, or null) or ongoing_projects (a list of ' +
+               'project slugs, or null)',
          });
       }
       const saves = [];
@@ -53,6 +60,14 @@ export default {
          const checked = checkDeveloperTeams(body.developer_teams);
          if (checked.error) return res.status(400).json({ error: checked.error });
          saves.push(['developer_teams', checked.teams]);
+      }
+      if (has(body, 'ongoing_projects')) {
+         const checked = checkOngoingProjects(body.ongoing_projects);
+         if (checked.error) return res.status(400).json({ error: checked.error });
+         saves.push([
+            'ongoing_projects',
+            checked.slugs && checked.slugs.length ? checked.slugs : null,
+         ]);
       }
       if (has(body, 'decide_rotation')) {
          const checked = checkDecideRotation(body.decide_rotation);

@@ -13,6 +13,8 @@ import getLogin from '../lib/get-user-login.js';
 import utils from '../lib/utils.js';
 import dbManager from '../lib/db-manager.js';
 import git from '../lib/git-manager.js';
+import { projectSettings } from '../lib/projects.js';
+import { scopeIssueTouched } from '../lib/scope.js';
 
 const hooksDebug = debug('pulldasher:hooks');
 
@@ -235,6 +237,10 @@ function handleIssueEvent(body) {
    hooksDebug('Webhook action: %s for issue #%s', body.action, body.issue.number);
 
    var doneHandling = handleLabelEvents(body);
+   // a spec issue or a scope issue changed: plans' scopes get read again soon
+   if (body.repository) {
+      scopeIssueTouched(projectSettings(), body.repository.full_name, body.issue.number);
+   }
 
    // Always refresh from the API rather than upserting the webhook body
    // directly. The body is just a subset of the fields (and for pull requests,

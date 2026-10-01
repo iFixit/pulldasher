@@ -60,6 +60,7 @@ interface CellActions {
    unplanned: () => void;
    /** whether the 14 days of who worked on what have loaded */
    workersLoaded: boolean;
+   openProject: (slug: string) => void;
 }
 
 /** A cell's words as a button that does its own thing, not the row's. */
@@ -254,6 +255,29 @@ const COLUMNS: Column[] = [
       },
    },
 ];
+
+const SPEC: Column = {
+   key: 'scope',
+   label: 'Spec',
+   title: 'How much of its plan’s spec is done: the spec issue’s sub-issues and checklist, and the issues carrying the project label. Dropped ones don’t count.',
+   width: 'w-16',
+   hide: 'hidden lg:block',
+   cell: (i, act) => {
+      const s = i.scope;
+      if (!s || !s.items.length) return '';
+      return (
+         <CellButton
+            onClick={() => act.openProject(i.slug)}
+            className={s.open === 0 ? 'text-warn' : 'text-ink-2'}
+            title={`${s.done} done, ${s.open} open${s.dropped ? `, ${s.dropped} dropped` : ''}${
+               s.specTitle ? ` in ${s.specTitle}` : ''
+            }. Click for the list.`}
+         >
+            {s.done} of {s.done + s.open}
+         </CellButton>
+      );
+   },
+};
 
 const TARGET: Column = {
    key: 'target',
@@ -509,7 +533,11 @@ export function Portfolio({
       key,
       `${label} ${found.filter(i => matchesStatus(i, key)).length}`,
    ]);
-   const columns = shown.some(i => i.target) ? [...COLUMNS, TARGET] : COLUMNS;
+   const columns = [
+      ...COLUMNS,
+      ...(shown.some(i => i.scope?.items.length) ? [SPEC] : []),
+      ...(shown.some(i => i.target) ? [TARGET] : []),
+   ];
    const sort = parseSort(nav.sort);
    const narrowed = onlyWords(nav.only);
    const act: CellActions = {
@@ -526,6 +554,7 @@ export function Portfolio({
             origin: null,
          }),
       workersLoaded,
+      openProject: slug => navigate({ project: slug }),
    };
    const copy = () => {
       void navigator.clipboard?.writeText(portfolioText(shown, dayOf(new Date()))).then(() => {

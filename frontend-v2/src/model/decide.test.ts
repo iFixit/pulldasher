@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { dayStart } from '../../../shared/model/projects';
 import { closedIssues, decideQueue, type DecideProject } from '../../../shared/model/decide';
+import type { ScopeCounts } from '../../../shared/model/scope';
 import type { RoadmapItem, RoadmapUpdate } from '../../../shared/model/roadmap';
 
 const today = '2026-09-30';
@@ -16,6 +17,7 @@ const item = (id: number, over: Partial<RoadmapItem>): RoadmapItem => ({
    lead: null,
    status: 'active',
    origin: null,
+   spec: null,
    start: '2026-09-07',
    weeks: 8,
    priority: id,
@@ -163,7 +165,13 @@ describe('decideQueue', () => {
          ['closed-open', 'reopened'],
          ['closed-plan', 'issue_closed'],
       ]);
-      expect(rows[0].reasons[0]).toEqual({ kind: 'reopened', open: 2, as: 'dropped', by: 'issue' });
+      expect(rows[0].reasons[0]).toEqual({
+         kind: 'reopened',
+         open: 2,
+         late: 0,
+         as: 'dropped',
+         by: 'issue',
+      });
       expect(rows[1].reasons[0]).toEqual({ kind: 'issue_closed', as: 'done', on: '2026-09-27' });
    });
 
@@ -182,5 +190,89 @@ describe('decideQueue', () => {
       });
       expect(kinds(rows)).toEqual([['missed', 'missed']]);
       expect(rows[0].reasons[0]).toEqual({ kind: 'missed', due: '2026-09-25', open: 2 });
+   });
+
+   it('asks "Done?" when nothing in a plan’s spec is open, until the plan changes after', () => {
+      const counts = (over: Partial<ScopeCounts> = {}): ScopeCounts => ({
+         total: 4,
+         done: 4,
+         dropped: 1,
+         lastClosedAt: ago(2),
+         afterEnd: 0,
+         afterDone: 0,
+         ...over,
+      });
+      const rows = decideQueue({
+         live: [project('shipped'), project('busy'), project('answered'), project('lines')],
+         items: [
+            item(1, { project: 'shipped' }),
+            item(2, { project: 'busy' }),
+            // the plan changed after its last item closed: already answered
+            item(3, { project: 'answered', updated_at: ago(1) }),
+            item(4, { project: 'lines' }),
+         ],
+         scope: new Map([
+            [1, counts()],
+            [2, counts({ done: 3 })],
+            [3, counts()],
+            // a checked plain line has no close time, so it asks
+            [4, counts({ lastClosedAt: null })],
+         ]),
+         today,
+         now: NOW,
+      });
+      expect(kinds(rows)).toEqual([
+         ['lines', 'scope_done'],
+         ['shipped', 'scope_done'],
+      ]);
+      expect(rows[1].reasons[0]).toEqual({ kind: 'scope_done', done: 4, dropped: 1 });
+   });
+
+   it('says how many PRs opened after a plan’s end, and puts the busiest first', () => {
+      const end = { start: '2026-08-03', weeks: 4 };
+      const rows = decideQueue({
+         live: [project('quiet-tail'), project('running-on')],
+         items: [
+            item(1, { project: 'quiet-tail', ...end }),
+            item(2, { project: 'running-on', ...end }),
+         ],
+         scope: new Map([
+            [1, { total: 0, done: 0, dropped: 0, lastClosedAt: null, afterEnd: 1, afterDone: 0 }],
+            [2, { total: 0, done: 0, dropped: 0, lastClosedAt: null, afterEnd: 9, afterDone: 0 }],
+         ]),
+         today,
+         now: NOW,
+      });
+      expect(rows.map(r => [r.slug, r.reasons[0]])).toEqual([
+         ['running-on', { kind: 'over', weeks: 5, since: 9 }],
+         ['quiet-tail', { kind: 'over', weeks: 5, since: 1 }],
+      ]);
+   });
+
+   it('reopens a finished plan when new work arrives more than a week after it', () => {
+      const rows = decideQueue({
+         // its PRs merged fast, so none is open now
+         live: [project('comeback', { open: 0 })],
+         items: [item(1, { project: 'comeback', status: 'done', updated_at: ago(100) })],
+         scope: new Map([
+            [1, { total: 0, done: 0, dropped: 0, lastClosedAt: null, afterEnd: 2, afterDone: 2 }],
+         ]),
+         today,
+         now: NOW,
+      });
+      expect(rows[0].reasons).toEqual([
+         { kind: 'reopened', open: 0, late: 2, as: 'done', by: 'roadmap' },
+      ]);
+   });
+
+   it('never asks an ongoing project for a first plan', () => {
+      const rows = decideQueue({
+         live: [project('upkeep'), project('feature')],
+         items: [],
+         ongoing: new Set(['upkeep']),
+         today,
+         now: NOW,
+      });
+      expect(kinds(rows)).toEqual([['feature', 'new']]);
    });
 });

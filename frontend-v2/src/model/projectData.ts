@@ -34,6 +34,10 @@ export interface ProjectsData {
    teams_from: 'saved' | 'config';
    /** who takes turns running Decide; null for nobody */
    decide_rotation: DecideRotation | null;
+   /** projects marked ongoing (no end) from the board; a project's issue can
+    * also say so with the `ongoing` label (Project.ongoing). Older servers
+    * omit it. */
+   ongoing?: string[];
    window: WindowStats;
 }
 
@@ -197,6 +201,7 @@ async function dummyData({ start, end }: Range, project: string | null): Promise
       teams: dummyTeams ?? DUMMY_TEAMS,
       teams_from: dummyTeams ? 'saved' : 'config',
       decide_rotation: dummyRotation,
+      ongoing: dummyOngoing,
       window: windowStats(spans, start, end, {
          teamOf: teamLookup(dummyTeams ?? DUMMY_TEAMS),
          reviews,
@@ -242,6 +247,19 @@ export function setDummyTeams(teams: Record<string, string[]> | null): void {
 let dummyRotation: DecideRotation | null = null;
 export function setDummyRotation(rotation: DecideRotation | null): void {
    dummyRotation = rotation;
+}
+let dummyOngoing: string[] = ['translations'];
+export function setDummyOngoing(slugs: string[]): void {
+   dummyOngoing = slugs;
+}
+
+/** Every project that runs with no end: marked on the board, or by the
+ * `ongoing` label on its issue. */
+export function ongoingSlugs(data: ProjectsData | null | undefined): ReadonlySet<string> {
+   return new Set([
+      ...(data?.ongoing ?? []),
+      ...(data?.projects ?? []).filter(p => p.ongoing).map(p => p.slug),
+   ]);
 }
 
 export function useProjectsData(
