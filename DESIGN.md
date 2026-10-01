@@ -31,6 +31,15 @@ obvious." Tokens are deliberately tempered (chroma below brand); dark-mode
 values are re-derived, not brightened (the old dark amber was highlighter
 yellow at 84% lightness).
 
+**One owed call, one amber mark per view.** Amber goes on the one word
+that names what someone owes (an update due, a plan past its end, an at
+risk or off track health word, a call Decide asks for); the facts behind
+it (dates, targets, counts, durations) stay ink. A 2026-10 review counted
+one Decide call drawn as 0, 1, 2 and 5 amber marks on four views, and at
+100 projects amber sat on most rows, so it stopped meaning "look here."
+Decide's own rows carry none: being on Decide is the mark (position over
+color). Counts are never amber, however urgent what they count.
+
 **Never a background wash for state.** A filled color area out-competes
 titles at any opacity — salience is form, not volume. Three progressively
 softer washes all failed before this became a rule: put the signal on the
@@ -269,9 +278,46 @@ icon with a class bolted on.
   no status dot (the rows inside carry their own pips — a second color
   code on the band was redundant weight). Clicking anywhere on the band
   toggles, including the label; hovering the label opens its
-  one-sentence gloss. Primary lanes greet you with groups open; ledger
+  one-sentence gloss. A screen reader hears the gloss with the band
+  (`aria-describedby`), and the hover target is not a second focus
+  stop. Primary lanes greet you with groups open; ledger
   groups rest closed, so a quiet stack of bands reads as a table of
   contents. An explicit open/closed choice is remembered per fold id.
+
+- **Focus is a solid 2px brand ring**, at least 3:1 against both themes'
+  surfaces (the old 50% gray glow measured about 1.5:1, and on a text
+  button it was the only sign of focus). A full-width band (a `summary`
+  in a clipped card) draws it inside its own edge. Never suppress it.
+- **Global element rules live in CSS layers** (`@layer base`, `@layer
+  components`), so a utility on the element wins: unlayered, the pointer
+  cursor beat the roadmap bars' `cursor-grab`, and `.hit`'s `position:
+  relative` pulled a corner Close back into the flow.
+
+## The Projects tab
+
+- **Every view counts every PR, whatever the filter bar narrows.** A
+  project whose PRs are filtered out would otherwise look quiet or
+  finished, and one click on a face (which set an author filter) dropped
+  "in progress" from 11 projects to 1. A quiet line says so while the bar
+  narrows.
+- **A person clicked anywhere in Projects opens People with them
+  picked.** It never leaves the tab or sets a filter.
+- **A view's picks stay with it.** Switching views clears the old view's
+  sort, team, person, week and narrowing, so one view never quietly
+  narrows the next; the date range, the find and the roadmap's zoom carry
+  over, each shown where it applies. The view switcher is a tab list:
+  arrows move focus, Enter switches, and Decide's count rides as a corner
+  badge so it can't widen the strip.
+- **One word per shared fact, kept in `model/words.ts`** ("No plan",
+  "Update due", "3 weeks past its end", "42 days" in a sentence and "42d"
+  in a cell). A new shared fact gets its word there first.
+- **One filled button, one failure line.** `PrimaryButton` ends a form;
+  a failed load is `LoadFailed` (grey, with Try again: nobody owes a
+  failed fetch, so never amber, and red stays CI's); a save confirms in
+  place, where the click was.
+- **Open boards stay current.** The server sends `projectsChanged` after
+  every Projects write and sync; the tab refetches once a burst settles,
+  keeping the old numbers on screen meanwhile.
 
 ## Settings & configuration
 
@@ -455,9 +501,9 @@ icon with a class bolted on.
   so the two records can't quietly disagree. Activity means real work (a
   push, a person's comment, stamp or review, opening or merging), never
   GitHub's updated_at: a label edit moves that, and one labeling pass once
-  made every project look worked on that morning and hid every stall. Decide weighs every project
-  whatever the filter bar narrows the other views to, since a project
-  whose PRs are filtered out would otherwise look finished. A team switch
+  made every project look worked on that morning and hid every stall. Every
+  Projects view weighs every project, whatever the filter bar narrows (see
+  "The Projects tab" below). A team switch
   gives each team's lead their own rows. The tab's label counts what's
   left, and `GET /api/v1/decide` lists the same rows for a script or a
   Claude session. A list nobody owns doesn't empty, so it names whose week
