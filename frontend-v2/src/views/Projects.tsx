@@ -216,10 +216,13 @@ export function Projects({
             <Retro
                range={range}
                plans={plans ?? []}
+               items={items}
+               teams={data?.teams ?? {}}
                teamOf={teamOf}
                nameOf={nameOf}
                nav={nav}
                navigate={navigate}
+               onPerson={onPerson}
             />
          ) : nav.view === 'roadmap' ? (
             <Roadmap

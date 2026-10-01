@@ -50,8 +50,9 @@ export interface ProjectsNav {
    /** where the work came from, picked on the load chart: the timeline
     * shows only the plans from there; null for every plan */
    origin: RoadmapOrigin | 'unsaid' | null;
-   /** how Look back splits the days */
-   by: 'project' | 'origin' | 'author' | 'team' | 'person' | 'repo';
+   /** how Look back's last list splits the days, beside its people and
+    * project tables */
+   by: 'team' | 'origin' | 'author' | 'repo';
    /** which of Look back's days count: all, only writing, or only reviewing */
    kind: 'all' | 'writing' | 'reviewing';
    /** a person picked in Look back: only their days count */

@@ -12,14 +12,7 @@ import {
 import { ago, closedEpoch, n, pullKey, shortRepo } from '../../shared/format';
 import type { ActionStateKey } from './model/actions';
 import { actionState } from './model/actions';
-import {
-   DEFAULT_RANGE,
-   DEFAULT_SORT,
-   LENS_LABELS,
-   ORIGIN_KEYS,
-   ZOOM_KEY,
-   type Lens,
-} from './lens';
+import { DEFAULT_RANGE, DEFAULT_SORT, LENS_LABELS, ORIGIN_KEYS, ZOOM_KEY, type Lens } from './lens';
 import type { DerivedPull } from '../../shared/model/status';
 import { matchesWeightFilter } from '../../shared/model/status';
 import { buildParentLookup } from './model/stack';
@@ -167,10 +160,7 @@ function readHash(): HashState {
          zoom: ZOOM_KEY.test(p.get('zoom') ?? '') ? p.get('zoom') : null,
          team: p.get('team') || null,
          origin: ORIGIN_KEYS.find(o => o === p.get('origin')) ?? null,
-         by:
-            (['origin', 'author', 'team', 'person', 'repo'] as const).find(
-               b => b === p.get('by')
-            ) ?? 'project',
+         by: (['origin', 'author', 'repo'] as const).find(b => b === p.get('by')) ?? 'team',
          kind: (['writing', 'reviewing'] as const).find(k => k === p.get('kind')) ?? 'all',
          who: p.get('who') || null,
          only: p.get('only') || null,
@@ -205,7 +195,7 @@ function buildHash(s: HashState): string {
    if (s.projects.zoom) p.set('zoom', s.projects.zoom);
    if (s.projects.team) p.set('team', s.projects.team);
    if (s.projects.origin) p.set('origin', s.projects.origin);
-   if (s.projects.by !== 'project') p.set('by', s.projects.by);
+   if (s.projects.by !== 'team') p.set('by', s.projects.by);
    if (s.projects.kind !== 'all') p.set('kind', s.projects.kind);
    if (s.projects.who) p.set('who', s.projects.who);
    if (s.projects.only) p.set('only', s.projects.only);

@@ -1,5 +1,15 @@
-import { dayStart, MISC_SLUG } from '../../../shared/model/projects';
+import {
+   dayStart,
+   MISC_SLUG,
+   utcDay,
+   type Project,
+   type ProjectWindow,
+} from '../../../shared/model/projects';
+import { planEnd, planFor, type RoadmapItem } from '../../../shared/model/roadmap';
+import { dayWords } from './projectData';
 import type { RetroData, RetroPr } from './retroData';
+
+const DAY = 86400;
 
 /**
  * Look back's numbers, from GET /retro-data's compact rows. Pure, so the
@@ -210,4 +220,130 @@ export function median(values: readonly number[]): number {
    const sorted = [...values].sort((a, b) => a - b);
    const mid = Math.floor(sorted.length / 2);
    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/** The most weeks in a row with no days, between a row's first and last
+ * week with any: how long the work sat. 0 when it never paused. */
+export function quietWeeks(weekly: readonly number[]): number {
+   const first = weekly.findIndex(d => d > 0);
+   if (first < 0) return 0;
+   const last = lastWeek(weekly);
+   let best = 0;
+   let run = 0;
+   for (let i = first; i <= last; i++) {
+      run = weekly[i] > 0 ? 0 : run + 1;
+      best = Math.max(best, run);
+   }
+   return best;
+}
+
+/** The index of a row's last week with any days; -1 with none. */
+export function lastWeek(weekly: readonly number[]): number {
+   for (let i = weekly.length - 1; i >= 0; i--) if (weekly[i] > 0) return i;
+   return -1;
+}
+
+/**
+ * How long a project's PRs ran, as of the range's end: still open then,
+ * and for how many days since its first PR in the range opened; or done,
+ * and how many days from that first PR to its last merge or close. Null
+ * with no numbers for the range.
+ */
+export function projectLength(
+   w: Pick<ProjectWindow, 'first_opened' | 'last_closed' | 'backlog_end'> | null | undefined,
+   rangeEnd: string
+): { open: boolean; days: number } | null {
+   if (!w?.first_opened) return null;
+   const from = dayStart(w.first_opened) as number;
+   if (w.backlog_end > 0) {
+      return { open: true, days: Math.round(((dayStart(rangeEnd) as number) + DAY - from) / DAY) };
+   }
+   if (!w.last_closed) return null;
+   return { open: false, days: Math.round(((dayStart(w.last_closed) as number) - from) / DAY) };
+}
+
+/** How a project's plan turned out, judged today, for Look back: worst
+ * last, since a retro reads what finished first. */
+export type RetroPlanKind =
+   | 'on_time'
+   | 'late'
+   | 'past_end'
+   | 'open'
+   | 'parked'
+   | 'dropped'
+   | 'none';
+export const RETRO_PLAN_RANK: Record<RetroPlanKind, number> = {
+   on_time: 0,
+   late: 1,
+   past_end: 2,
+   open: 3,
+   parked: 4,
+   dropped: 5,
+   none: 6,
+};
+
+/**
+ * A plan's outcome in a few words: "done on time", "done 2 wk late",
+ * "open, 3 wk past its end", "ends Oct 11", parked, dropped, or "no plan".
+ * A plan's finish day is the day it was last changed, which is when it was
+ * marked done unless someone edited it after.
+ */
+export function retroPlan(
+   plan: Pick<RoadmapItem, 'status' | 'start' | 'weeks' | 'updated_at'> | null,
+   today: string
+): { kind: RetroPlanKind; text: string } {
+   if (!plan) return { kind: 'none', text: 'no plan' };
+   const end = planEnd(plan);
+   const weeksAfter = (day: string) =>
+      Math.ceil(((dayStart(day) as number) - (dayStart(end) as number)) / (7 * DAY));
+   if (plan.status === 'done') {
+      const late = plan.updated_at == null ? 0 : weeksAfter(utcDay(plan.updated_at));
+      return late > 0
+         ? { kind: 'late', text: `done ${late} wk late` }
+         : { kind: 'on_time', text: 'done on time' };
+   }
+   if (plan.status === 'dropped') return { kind: 'dropped', text: 'dropped' };
+   if (plan.status === 'parked') return { kind: 'parked', text: 'parked' };
+   if (end < today) return { kind: 'past_end', text: `open, ${weeksAfter(today)} wk past its end` };
+   return {
+      kind: 'open',
+      text: plan.start > today ? `starts ${dayWords(plan.start)}` : `ends ${dayWords(end)}`,
+   };
+}
+
+/** A plan or project that finished in a range: on time by its plan's end,
+ * late, or null with no plan to judge it by. */
+export interface Finished {
+   key: string;
+   name: string;
+   onTime: boolean | null;
+}
+
+/**
+ * What finished in a range: plans marked done in it (by the day they were
+ * last changed), and project issues closed as completed in it that no
+ * finished plan already counts.
+ */
+export function finishedIn(
+   plans: readonly RoadmapItem[],
+   projects: readonly Project[],
+   range: { start: string; end: string }
+): Finished[] {
+   const inRange = (day: string) => day >= range.start && day <= range.end;
+   const out = new Map<string, Finished>();
+   for (const plan of plans) {
+      if (plan.status !== 'done' || plan.updated_at == null) continue;
+      const day = utcDay(plan.updated_at);
+      if (!inRange(day)) continue;
+      const key = plan.project ?? `plan:${plan.id}`;
+      out.set(key, { key, name: plan.name, onTime: day <= planEnd(plan) });
+   }
+   for (const p of projects) {
+      if (p.state !== 'closed' || p.state_reason === 'not_planned' || !p.closed_at) continue;
+      const day = p.closed_at.slice(0, 10);
+      if (!inRange(day) || out.has(p.slug)) continue;
+      const plan = planFor(p.slug, plans);
+      out.set(p.slug, { key: p.slug, name: p.name, onTime: plan ? day <= planEnd(plan) : null });
+   }
+   return [...out.values()];
 }
