@@ -255,10 +255,14 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
       }),
       item(6, 'Search relevance', 7, 6, { team: 'FixBot', waits_on: [3] }),
       item(7, 'Translations upkeep', -1, 26, { project: 'translations', team: 'Community' }),
+      // marked done three weeks ago; its issue closed later, with a PR still
+      // open, so Decide asks again (the "reopened" call, by its issue)
       item(8, 'Akeneo 4 migration', -11, 8, {
          project: 'akeneo-4',
          team: 'Store',
          status: 'done',
+         updated_at: now - 20 * 86400,
+         status_at: now - 20 * 86400,
       }),
       // FixBot's two developers would each be alone on a plan while this
       // overlaps the webdriver work, so its lane's load shows amber
