@@ -35,7 +35,7 @@ describe('roadmap dates', () => {
 describe('checkRoadmapFields', () => {
    it('needs a name on a new item, trims it, and snaps the start to Monday', () => {
       expect(checkRoadmapFields({}, { partial: false })).toEqual({
-         error: 'a project needs a name',
+         error: 'a plan needs a name',
       });
       expect(
          checkRoadmapFields({ name: '  Checkout  ', start: '2026-10-01' }, { partial: false })
@@ -243,7 +243,7 @@ describe('waits on', () => {
       expect(waitsOnProblem(3, [1], all)).toBeNull();
       expect(waitsOnProblem(null, [3], all)).toBeNull();
       expect(waitsOnProblem(1, [1], all)).toMatch(/itself/);
-      expect(waitsOnProblem(1, [9], all)).toMatch(/no roadmap item 9/);
+      expect(waitsOnProblem(1, [9], all)).toMatch(/no plan 9/);
       expect(waitsOnProblem(1, [3], all)).toMatch(/loop/);
    });
 

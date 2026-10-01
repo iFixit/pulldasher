@@ -442,7 +442,11 @@ function Editor({
             >
                Cancel
             </button>
-            {error && <span className="text-xs text-warn">{error}</span>}
+            {error && (
+               <span className="text-xs text-warn">
+                  {error.charAt(0).toUpperCase() + error.slice(1)}
+               </span>
+            )}
             <span className="flex-1" />
             {item && (
                <button

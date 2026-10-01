@@ -183,7 +183,7 @@ export function checkRoadmapFields(input: unknown, { partial }: { partial: boole
 
    if (has('name') || !partial) {
       const name = typeof raw.name === 'string' ? raw.name.trim() : '';
-      if (!name) return { error: 'a project needs a name' };
+      if (!name) return { error: 'a plan needs a name' };
       if (name.length > NAME_MAX) return { error: `keep the name to ${NAME_MAX} characters` };
       fields.name = name;
    }
@@ -246,7 +246,7 @@ export function checkRoadmapFields(input: unknown, { partial }: { partial: boole
          return { error: 'waits_on is a list of other roadmap item ids, each once' };
       }
       if (ids.length > WAITS_ON_MAX) {
-         return { error: `an item can wait on at most ${WAITS_ON_MAX} others` };
+         return { error: `a plan can wait on at most ${WAITS_ON_MAX} others` };
       }
       fields.waits_on = ids as number[];
    }
@@ -266,8 +266,8 @@ export function waitsOnProblem(
 ): string | null {
    const byId = new Map(items.map(i => [i.id, i]));
    for (const other of waitsOn) {
-      if (other === id) return 'an item can’t wait on itself';
-      if (!byId.has(other)) return `there’s no roadmap item ${other}`;
+      if (other === id) return 'a plan can’t wait on itself';
+      if (!byId.has(other)) return `there’s no plan ${other}`;
    }
    if (id == null) return null;
    // walk everything the new list waits on, directly or not
@@ -275,7 +275,7 @@ export function waitsOnProblem(
    const next = [...waitsOn];
    while (next.length) {
       const at = next.pop() as number;
-      if (at === id) return 'that would make a loop: those items already wait on this one';
+      if (at === id) return 'that would make a loop: those plans already wait on this one';
       if (seen.has(at)) continue;
       seen.add(at);
       next.push(...(byId.get(at)?.waits_on ?? []));
