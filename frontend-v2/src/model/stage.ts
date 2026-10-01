@@ -1,8 +1,11 @@
 import { pullKey } from '../../../shared/format';
+import { prStage, type PrStage } from '../../../shared/model/stage';
 import type { DerivedPull } from '../../../shared/model/status';
 import type { IssuePull, IssueRef, ProjectIssue } from '../../../shared/model/work';
-import { authorOwnsIt, feedbackAnswered, parked } from './actions';
+import { parked } from './actions';
 import { requestedReviewers } from './reviewers';
+
+export { prStage, type PrStage };
 
 /**
  * Where work stands, in a product manager's words rather than the board's
@@ -13,7 +16,6 @@ import { requestedReviewers } from './reviewers';
  * closed one is done or dropped whatever its PRs say.
  */
 
-export type PrStage = 'ready' | 'hold' | 'review' | 'work';
 export type IssueStage = PrStage | 'merged' | 'none' | 'done' | 'dropped';
 
 export const STAGE_WORDS: Record<IssueStage, string> = {
@@ -42,24 +44,6 @@ export const STAGE_ORDER: readonly IssueStage[] = [
 
 // an issue is as far along as its least finished open PR
 const LEAST_FINISHED: readonly PrStage[] = ['work', 'review', 'hold', 'ready'];
-
-/** Where an open PR stands. */
-export function prStage(p: DerivedPull): PrStage {
-   if (parked(p) || p.externalBlock || p.status === 'deploy_block') return 'hold';
-   if (
-      authorOwnsIt(p) ||
-      (p.status === 'unmergeable' && p.conflict) ||
-      // changes asked for and not answered yet: the author's move
-      (p.status === 'needs_cr' && p.changesRequestedBy.length > 0 && !feedbackAnswered(p))
-   ) {
-      return 'work';
-   }
-   if (p.status === 'needs_cr' || p.status === 'needs_recr' || p.status === 'needs_qa') {
-      return 'review';
-   }
-   // ready, CI running on a signed-off PR, or a clean PR waiting on the one it's stacked on
-   return 'ready';
-}
 
 /** An issue's stage, and the open PR that sets it (the least finished). */
 export interface IssueStanding {
