@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Plus, X } from 'lucide-react';
 import { n } from '../../../../shared/format';
-import { projectName, type PersonWindow, type Today } from '../../../../shared/model/projects';
+import type { PersonWindow, Today } from '../../../../shared/model/projects';
 import type { DeveloperTeams } from '../../../../shared/model/settings';
 import { textInputClass } from '../../components/bits';
 import { Icon } from '../../components/Icon';
@@ -12,6 +12,7 @@ import { saveDeveloperTeams } from '../../model/settingsData';
 import { PersonCell, StatsCard } from '../stats/parts';
 import { ChartSlot, SplitWeeksChart } from './lazyCharts';
 import { Tile, versus } from './parts';
+import { useWhoIsOnWhat, type WhoRow } from './WhoIsOnWhat';
 
 /**
  * The developer teams, and the way to change them: who counts as a developer,
@@ -165,14 +166,12 @@ function TeamsCard({ teams, from }: { teams: DeveloperTeams; from: 'saved' | 'co
    );
 }
 
-/** Live projects one person can have work in before the list says so. */
-export const SPREAD_THIN = 4;
-
 interface PersonRow {
    login: string;
    team: string | null;
-   /** live projects they have an open PR or a recent merge in, by name */
-   live: string[];
+   /** their last 14 days (WhoIsOnWhat); null for someone those days don't
+    * count, like a non-developer when there are teams */
+   load: WhoRow | null;
    openNow: number;
    w: PersonWindow | null;
 }
@@ -185,11 +184,9 @@ interface PersonRow {
 function peopleRows(
    data: ProjectsData,
    today: Today,
-   teamOf: (login: string) => string | null
+   teamOf: (login: string) => string | null,
+   loads: ReadonlyMap<string, WhoRow>
 ): PersonRow[] {
-   const live = new Map<string, string[]>();
-   for (const g of today.live)
-      for (const login of g.people) live.set(login, [...(live.get(login) ?? []), projectName(g)]);
    const openNow = new Map<string, number>();
    for (const p of [...today.live.flatMap(g => g.open), ...today.misc, ...today.unsorted])
       openNow.set(p.data.user.login, (openNow.get(p.data.user.login) ?? 0) + 1);
@@ -198,23 +195,23 @@ function peopleRows(
    for (const login of [
       ...Object.values(data.teams).flat(),
       ...Object.keys(data.window.people),
-      ...live.keys(),
+      ...[...loads.values()].map(l => l.login),
       ...openNow.keys(),
    ])
       if (!byKey.has(login.toLowerCase())) byKey.set(login.toLowerCase(), login);
    return [...byKey.values()].map(login => ({
       login,
       team: teamOf(login),
-      live: (live.get(login) ?? []).sort(),
+      load: loads.get(login.toLowerCase()) ?? null,
       openNow: openNow.get(login) ?? 0,
       w: data.window.people[login] ?? null,
    }));
 }
 
-const cols = 'grid grid-cols-[minmax(0,1fr)_6rem_4rem_4rem_4rem_5rem_6rem] items-center gap-3';
+const cols = 'grid grid-cols-[minmax(0,1fr)_8rem_4rem_4rem_4rem_5rem_6rem] items-center gap-3';
 const hideSmall = 'hidden sm:block';
 
-function HeaderRow() {
+function HeaderRow({ line }: { line: number }) {
    const head = (label: string, title: string, extra = '') => (
       <span className={`text-right ${extra}`} title={title}>
          {label}
@@ -225,26 +222,34 @@ function HeaderRow() {
          className={`${cols} border-b border-line bg-muted/40 px-3.5 py-[7px] text-ink-3 ${eyebrowText}`}
       >
          <span>Person</span>
-         {head('Live projects', 'Live projects they have an open PR or a recent merge in')}
+         {head(
+            'Projects, 14 days',
+            `Projects they wrote or reviewed PRs on in the last 14 days. ${line} or more is overloaded: twice the developers’ median, and never under 4.`
+         )}
          {head('Open', 'Their open PRs now')}
          {head('Opened', 'PRs they opened in the range', hideSmall)}
          {head('Merged', 'PRs of theirs merged in the range', hideSmall)}
          {head('Reviews', 'CR and QA stamps they gave on other people’s PRs in the range')}
-         {head('On others’', 'Of those reviews, the ones on non-developers’ PRs', hideSmall)}
+         {head('On non-devs’', 'Of their reviews, how many were on non-developers’ PRs', hideSmall)}
       </div>
    );
 }
 
 function PersonLine({
    row,
+   line,
+   nameOf,
    me,
    onPerson,
 }: {
    row: PersonRow;
+   line: number;
+   nameOf: (slug: string) => string;
    me: string;
    onPerson: (login: string) => void;
 }) {
-   const spread = row.live.length >= SPREAD_THIN;
+   const count = row.load?.projects.length ?? 0;
+   const over = count >= line;
    const num = (n: number | undefined, extra = '') => (
       <span className={`text-right tabular-nums ${extra}`}>{n || ''}</span>
    );
@@ -256,14 +261,18 @@ function PersonLine({
             <PersonCell login={row.login} me={me} onPerson={onPerson} />
          </span>
          <span
-            className={`truncate text-right tabular-nums ${spread ? 'text-warn' : ''}`}
+            className={`truncate text-right tabular-nums ${over ? 'font-semibold text-warn' : ''}`}
             title={
-               row.live.length
-                  ? `${row.live.join(', ')}${spread ? `. That's ${row.live.length} at once.` : ''}`
-                  : 'No live projects'
+               !row.load
+                  ? 'Not counted: the last 14 days count developers only'
+                  : count
+                  ? `${row.load.projects.map(p => nameOf(p.slug)).join(', ')}${
+                       over ? `. Overloaded: ${line} or more.` : ''
+                    }`
+                  : 'No work filed to a project in the last 14 days'
             }
          >
-            {row.live.length || ''}
+            {count || ''}
          </span>
          {num(row.openNow)}
          {num(row.w?.opened, hideSmall)}
@@ -277,18 +286,22 @@ function PersonLine({
 function Section({
    title,
    rows,
+   line,
+   nameOf,
    me,
    onPerson,
 }: {
    title: string;
    rows: PersonRow[];
+   line: number;
+   nameOf: (slug: string) => string;
    me: string;
    onPerson: (login: string) => void;
 }) {
    if (!rows.length) return null;
    const sorted = [...rows].sort(
       (a, b) =>
-         b.live.length - a.live.length ||
+         (b.load?.projects.length ?? 0) - (a.load?.projects.length ?? 0) ||
          b.openNow - a.openNow ||
          (b.w?.merged ?? 0) - (a.w?.merged ?? 0) ||
          a.login.localeCompare(b.login)
@@ -301,7 +314,14 @@ function Section({
             {title} <span className="tabular-nums">· {rows.length}</span>
          </div>
          {sorted.map(row => (
-            <PersonLine key={row.login} row={row} me={me} onPerson={onPerson} />
+            <PersonLine
+               key={row.login}
+               row={row}
+               line={line}
+               nameOf={nameOf}
+               me={me}
+               onPerson={onPerson}
+            />
          ))}
       </>
    );
@@ -312,7 +332,7 @@ function Section({
  * sit in their teams from config; everyone else with PRs is a non-developer,
  * whose work needs a developer's review. The two weekly charts show who
  * opened the PRs and whose PRs the reviews went to, and the list puts anyone
- * on four or more live projects in amber.
+ * overloaded in amber, on the Overview's rule (WhoIsOnWhat.tsx).
  */
 export function People({
    data,
@@ -320,6 +340,7 @@ export function People({
    today,
    range,
    teamOf,
+   nameOf,
    me,
    onPerson,
 }: {
@@ -328,9 +349,11 @@ export function People({
    today: Today;
    range: Range;
    teamOf: (login: string) => string | null;
+   nameOf: (slug: string) => string;
    me: string;
    onPerson: (login: string) => void;
 }) {
+   const { who, line } = useWhoIsOnWhat(data?.teams, today, teamOf);
    if (data === undefined) return <p className="text-[13px] text-ink-3">Loading the numbers…</p>;
    if (data === null) {
       return (
@@ -339,7 +362,8 @@ export function People({
          </p>
       );
    }
-   const rows = peopleRows(data, today, teamOf);
+   const loads = new Map((who ?? []).map(l => [l.login.toLowerCase(), l]));
+   const rows = peopleRows(data, today, teamOf, loads);
    const teams = Object.keys(data.teams);
    const period = `${rangeDays(range)} days before`;
    const sum = (
@@ -354,7 +378,7 @@ export function People({
    const openedByOthers = sum(w => w.opened, false, data);
    const reviews = sum(w => w.reviews, true, data);
    const reviewsOnOthers = sum(w => w.reviews_on_non_dev, true, data);
-   const spread = rows.filter(r => r.live.length >= SPREAD_THIN).length;
+   const overloaded = who?.filter(l => l.projects.length >= line).length;
    const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0);
    const noTeams = !teams.length;
    const card = (title: string, children: ReactNode) => (
@@ -391,9 +415,13 @@ export function People({
                   note={`${reviewsOnOthers} of ${reviews}`}
                />
                <Tile
-                  value={spread}
-                  label={`On ${SPREAD_THIN} or more live projects`}
-                  title="People with work in this many live projects at once"
+                  value={who === undefined ? '…' : who === null ? '?' : overloaded}
+                  label="Overloaded"
+                  note={
+                     who === null ? 'couldn’t load' : `on ${line} or more projects, last 14 days`
+                  }
+                  warn={!!overloaded}
+                  title={`Developers who wrote or reviewed PRs on ${line} or more different projects in the last 14 days: twice the developers’ median, and never under 4. The Overview uses the same rule.`}
                />
             </div>
          </StatsCard>
@@ -426,12 +454,14 @@ export function People({
          <section>
             <h2 className="m-0 mb-2 text-base font-semibold leading-snug">Everyone</h2>
             <Rows>
-               <HeaderRow />
+               <HeaderRow line={line} />
                {teams.map(team => (
                   <Section
                      key={team}
                      title={team}
                      rows={rows.filter(r => r.team === team)}
+                     line={line}
+                     nameOf={nameOf}
                      me={me}
                      onPerson={onPerson}
                   />
@@ -439,6 +469,8 @@ export function People({
                <Section
                   title="Non-developers"
                   rows={rows.filter(r => r.team == null)}
+                  line={line}
+                  nameOf={nameOf}
                   me={me}
                   onPerson={onPerson}
                />

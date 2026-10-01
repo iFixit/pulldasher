@@ -14,15 +14,14 @@ import {
    type BucketDef,
    type PortfolioItem,
 } from '../../model/portfolio';
-import { resolveRange, type ProjectsData, type Range } from '../../model/projectData';
-import { loadByPerson, median, overloadLine, peopleByProject, retroRows } from '../../model/retro';
-import { useRetroData } from '../../model/retroData';
+import type { ProjectsData } from '../../model/projectData';
+import { median, peopleByProject } from '../../model/retro';
 import { StatsCard } from '../stats/parts';
 import type { Bucket } from './charts';
 import { BucketChart, ChartSlot } from './lazyCharts';
 import { Tile, type Navigate, type ProjectsNav } from './parts';
 import { Portfolio } from './Portfolio';
-import { WHO_DAYS, WhoIsOnWhat, type WhoRow } from './WhoIsOnWhat';
+import { useWhoIsOnWhat, WhoIsOnWhat, type WhoRow } from './WhoIsOnWhat';
 
 /** Scroll a section of the page into view, under the sticky header. */
 const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ block: 'start' });
@@ -294,38 +293,12 @@ export function Overview({
    me: string;
    onPerson: (login: string) => void;
 }) {
-   const last14 = resolveRange(`${WHO_DAYS}d`) as Range;
-   const retro = useRetroData(last14);
-   const rows = useMemo(() => (retro ? retroRows(retro) : null), [retro]);
+   const { rows, who, line, middle } = useWhoIsOnWhat(data?.teams, today, teamOf);
    const listed = useMemo(
       () => (rows ? withWorkers(items, peopleByProject(rows)) : items),
       [items, rows]
    );
    const bySlug = useMemo(() => new Map(listed.map(i => [i.slug, i])), [listed]);
-   const who = useMemo((): WhoRow[] | null | undefined => {
-      if (retro === null) return null;
-      if (!retro || !rows) return undefined;
-      // every developer on a team, spelled the way their PRs spell them;
-      // with no teams, everyone with days
-      const spelled = new Map(retro.people.map(l => [l.toLowerCase(), l]));
-      const onTeams = Object.values(data?.teams ?? {}).flat();
-      const logins = onTeams.length
-         ? onTeams.map(l => spelled.get(l.toLowerCase()) ?? l)
-         : retro.people;
-      const unique = [...new Map(logins.map(l => [l.toLowerCase(), l])).values()];
-      const openBy = new Map<string, number>();
-      for (const p of [...today.live.flatMap(g => g.open), ...today.misc, ...today.unsorted]) {
-         const key = p.data.user.login.toLowerCase();
-         openBy.set(key, (openBy.get(key) ?? 0) + 1);
-      }
-      return loadByPerson(rows, unique).map(load => ({
-         ...load,
-         team: teamOf(load.login),
-         open: openBy.get(load.login.toLowerCase()) ?? 0,
-      }));
-   }, [retro, rows, data, today, teamOf]);
-   const counts = who?.map(r => r.projects.length) ?? [];
-   const line = overloadLine(counts);
    // two-label PRs already sit in a project, so they aren't "outside" ones
    const outside = today.misc.length + today.unsorted.length;
    const allOpen = today.live.reduce((sum, g) => sum + g.open.length, 0) + outside;
@@ -350,7 +323,7 @@ export function Overview({
          <WhoIsOnWhat
             rows={who}
             line={line}
-            middle={median(counts)}
+            middle={middle}
             items={bySlug}
             nameOf={nameOf}
             me={me}

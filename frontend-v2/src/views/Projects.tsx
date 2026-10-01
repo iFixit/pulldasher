@@ -197,6 +197,7 @@ export function Projects({
                today={today}
                range={range}
                teamOf={teamOf}
+               nameOf={nameOf}
                me={me}
                onPerson={onPerson}
             />
