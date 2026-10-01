@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { isDummy, loadDummy } from '../backend/dummy';
+import { createMemoryStore } from '../storage';
 import { DUMMY_TEAMS } from '../backend/dummyProjects';
 import { epoch } from '../../../shared/format';
 import { dayStart, projectOf } from '../../../shared/model/projects';
@@ -18,6 +19,9 @@ export interface RetroPr {
    state: 'open' | 'closed';
    /** epoch secs; null when not merged */
    merged: number | null;
+   /** epoch secs it closed, merged or not; null while open. Servers older
+    * than the field leave it out. */
+   closed?: number | null;
 }
 
 /** GET /retro-data: where people's days went in a range, week by week
@@ -76,6 +80,7 @@ async function dummyRetro({ start, end }: Range): Promise<RetroData> {
             project: projectOf(p.labels, prefix),
             state: p.state === 'open' ? 'open' : 'closed',
             merged: p.merged_at ? epoch(p.merged_at) : null,
+            closed: p.closed_at ? epoch(p.closed_at) : null,
          };
       }),
       rows: rows.map(r => [
@@ -90,6 +95,14 @@ async function dummyRetro({ start, end }: Range): Promise<RetroData> {
 // one fetch per range, reused for 5 minutes, as with /projects-data
 const TTL_MS = 5 * 60_000;
 const cache = new Map<string, { at: number; data: Promise<RetroData | null> }>();
+// bumped by a Try again: a failed range is never cached, so every hook
+// showing one asks again, and the ranges that loaded stay as they are
+const tries = createMemoryStore({ n: 0 });
+
+/** Ask again for every range whose load failed. */
+export function retryRetroData(): void {
+   tries.set({ n: tries.get().n + 1 });
+}
 
 function load(range: Range): Promise<RetroData | null> {
    if (isDummy()) return dummyRetro(range);
@@ -101,6 +114,7 @@ function load(range: Range): Promise<RetroData | null> {
 
 /** A range's time spent: undefined while it loads, null if the fetch failed. */
 export function useRetroData(range: Range): RetroData | null | undefined {
+   const { n } = tries.useValue();
    const key = `${range.start}..${range.end}`;
    const [got, setGot] = useState<{ key: string; data: RetroData | null }>();
    useEffect(() => {
@@ -119,6 +133,6 @@ export function useRetroData(range: Range): RetroData | null | undefined {
       };
       // keyed on the days, not the range object, which callers rebuild
       // every render
-   }, [key]);
+   }, [key, n]);
    return got && got.key === key ? got.data : undefined;
 }

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useId, useState } from 'react';
 import { CalendarDays, Check, ChevronDown } from 'lucide-react';
 import { Icon } from '../../components/Icon';
 import { Popover } from '../../components/Popover';
@@ -29,6 +29,12 @@ export function DateRangePicker({
       onChange(key);
       setPicks(p => p + 1);
    };
+   // the remount takes the focused preset or Apply with it: hand focus back
+   // to the button, which now names the range just picked
+   const id = useId();
+   useEffect(() => {
+      if (picks) document.getElementById(id)?.focus();
+   }, [picks, id]);
    return (
       <Popover
          key={picks}
@@ -38,12 +44,17 @@ export function DateRangePicker({
          trigger={t => (
             <button
                {...t}
+               id={id}
                type="button"
                className="pressable inline-flex h-8 items-center gap-2 rounded-lg border border-line bg-surface px-2.5 text-[13px] text-ink hover:border-ring"
             >
                <Icon icon={CalendarDays} size={14} className="text-ink-3" />
                <span className="font-medium">{rangeName(rangeKey)}</span>
-               <span className="hidden text-ink-3 tabular-nums sm:inline">{rangeWords(range)}</span>
+               <span className="hidden text-ink-3 tabular-nums sm:inline">
+                  {/* the comma is for the ear: "Last 30 days, Sep 2 to Oct 1" */}
+                  <span className="sr-only">, </span>
+                  {rangeWords(range)}
+               </span>
                <Icon icon={ChevronDown} size={12} className="text-ink-3" />
             </button>
          )}

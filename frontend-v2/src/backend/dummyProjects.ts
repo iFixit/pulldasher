@@ -197,6 +197,14 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          [3, 8],
          'Waiting on the design review; the start may slip.'
       ),
+      update(
+         13,
+         2,
+         'at_risk',
+         'danielbeardsley',
+         [-3, 8],
+         'The type scale needs a design pass before the spacing can land.'
+      ),
    ];
    const item = (
       id: number,
@@ -273,6 +281,31 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          lead: 'hackalot805',
          status: 'active',
       }),
+      // planned to start in two weeks: the list's "Starts" cell
+      item(11, 'Newsletter promo page', 2, 4, {
+         project: 'newsletter-promo',
+         team: 'Store',
+         lead: 'zdmitchell',
+      }),
+      // parked twelve days ago while its PRs kept moving: "Parked, still
+      // worked on", which Decide asks about
+      item(12, 'Store picker', -5, 6, {
+         project: 'store-picker',
+         team: 'Store',
+         lead: 'sctice',
+         status: 'parked',
+         updated_at: now - 12 * 86400,
+         status_at: now - 12 * 86400,
+      }),
+      // under way, and its lead says at risk since the plan last changed:
+      // the at-risk call
+      item(13, 'Type and spacing refresh', -3, 8, {
+         project: 'type-refresh',
+         team: 'Store',
+         lead: 'danielbeardsley',
+         status: 'active',
+         updated_at: now - 6 * 86400,
+      }),
    ];
    // about one in eight scaled projects is planned: active since its first
    // PR, in the lane of its lead's team
@@ -326,37 +359,42 @@ export const DUMMY_ATTACHED: Record<string, AttachedIssue[]> = (() => {
    });
    return {
       'release-gate-sso': [
+         // the spec it was planned with (its plan started 59 days ago); the
+         // second path's flip came later
          issue(35001, 'Require a second approver on release gates', 'done', {
-            joined: 60,
+            joined: 65,
             closed: 40,
          }),
          issue(35002, 'Make the release-gate signoffs user editable', 'done', {
-            joined: 60,
+            joined: 65,
             closed: 20,
          }),
-         issue(35003, 'Audit log for approvals', 'done', { joined: 58, closed: 15 }),
+         issue(35003, 'Audit log for approvals', 'done', { joined: 65, closed: 15 }),
          issue(35004, 'Flip the default for the second approval path', 'open', { joined: 30 }),
-         issue(35005, 'Email approvers when a gate waits', 'dropped', { joined: 50, closed: 25 }),
+         issue(35005, 'Email approvers when a gate waits', 'dropped', { joined: 65, closed: 25 }),
          { ...gateTests, via: ['hand'], attachedAt: now - 5 * day, addedBy: 'rjmccluskey' },
       ],
       'shopify-sync': [
-         issue(35401, 'Sync products nightly', 'done', { joined: 28, closed: 12 }),
-         issue(35402, 'Sync orders as they land', 'done', { joined: 28, closed: 6 }),
+         // planned with these two; the backfill and the alert came later
+         issue(35401, 'Sync products nightly', 'done', { joined: 35, closed: 12 }),
+         issue(35402, 'Sync orders as they land', 'done', { joined: 35, closed: 6 }),
          issue(35403, 'Backfill a year of orders', 'done', { joined: 20, closed: 3 }),
          issue(35404, 'Alert on sync drift', 'dropped', { joined: 20, closed: 4 }),
       ],
       'webdriver-deflake': [
          // by its label and added by hand too: its line says both
          {
+            // the first three were the plan (it started 45 days ago); the
+            // rest came as new flakes turned up
             ...issue(35801, 'Retry the network-bound steps once', 'done', {
-               joined: 42,
+               joined: 50,
                closed: 30,
             }),
             via: ['label', 'hand'],
             addedBy: 'mlahargou',
          },
-         issue(35802, 'Quarantine the five flakiest tests', 'done', { joined: 42, closed: 21 }),
-         issue(35803, 'Run IE11 tests in parallel', 'open', { joined: 42 }),
+         issue(35802, 'Quarantine the five flakiest tests', 'done', { joined: 50, closed: 21 }),
+         issue(35803, 'Run IE11 tests in parallel', 'open', { joined: 50 }),
          issue(35804, 'Record a video on failure', 'open', { joined: 10 }),
          issue(35805, 'Seed the test store once per run', 'open', { joined: 8 }),
          // its PR merged and it's still open: the "PRs merged" band
@@ -366,8 +404,8 @@ export const DUMMY_ATTACHED: Record<string, AttachedIssue[]> = (() => {
       // its one PR is signed off: the "Ready to merge" band
       'core-primitives': [issue(36301, 'Ship core primitives 1.2', 'open', { joined: 14 })],
       'akeneo-4': [
-         issue(36201, 'Upgrade the connector', 'done', { joined: 77, closed: 50 }),
-         issue(36202, 'Move the attribute mapping', 'done', { joined: 77, closed: 45 }),
+         issue(36201, 'Upgrade the connector', 'done', { joined: 85, closed: 50 }),
+         issue(36202, 'Move the attribute mapping', 'done', { joined: 85, closed: 45 }),
       ],
    };
 })();
@@ -396,6 +434,8 @@ export const DUMMY_LINKS: Record<string, IssueRef[]> = {
    'iFixit/ifixit#90005': [{ repo: 'iFixit/ifixit', number: 35004 }],
    'iFixit/ifixit#90009': [{ repo: 'iFixit/ifixit', number: 35807 }],
    'iFixit/ifixit#35249': [{ repo: 'iFixit/ifixit', number: 36301 }],
+   // the second path's PR does an issue SSO approvals still has
+   'iFixit/ifixit#35553': [{ repo: 'iFixit/ifixit', number: 35004 }],
 };
 
 /** Issues the dummy board's issue search finds that no project has, for

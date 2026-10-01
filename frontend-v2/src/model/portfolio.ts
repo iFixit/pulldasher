@@ -1,11 +1,5 @@
 import { epoch, n } from '../../../shared/format';
-import {
-   closedIssues,
-   DECIDE_MIN_PRS,
-   STALL_DAYS,
-   issuesAllClosed,
-   planRunningToday,
-} from '../../../shared/model/decide';
+import { RANK, STALL_DAYS, type DecideReason, type DecideRow } from '../../../shared/model/decide';
 import {
    dayStart,
    MISC_SLUG,
@@ -19,6 +13,7 @@ import {
    type Today,
 } from '../../../shared/model/projects';
 import {
+   HEALTH_WORD,
    healthStanding,
    isUnderWay,
    planEnd,
@@ -28,10 +23,10 @@ import {
 import type { Status } from '../../../shared/model/status';
 import type { PullData } from '../../../shared/types';
 import type { IssueCounts } from '../../../shared/model/work';
-import { DEFAULT_SORT } from '../lens';
 import { dayOf } from './days';
 import { dayWords } from './projectData';
 import type { ProjectWorker } from './retro';
+import { NO_PLAN, NO_UPDATE_YET, pastEnd, UPDATE_DUE } from './words';
 
 /**
  * The portfolio: one row per project, for the person who plans the work
@@ -59,13 +54,24 @@ export interface PrRef {
    title: string;
 }
 
-/** A project's plan in a few words for its table cell, the worst thing
- * first; `kind` sorts it. */
+/** A call Decide asks about a project: why, and the plan it's about (null
+ * for work with no plan). */
+export interface Ask {
+   reason: DecideReason;
+   item: RoadmapItem | null;
+}
+
+/** A project's plan in a few words for its table cell: the worst call
+ * Decide asks, or else what its plan says. */
 export type PlanKind =
+   | 'reopened'
+   | 'issue_closed'
+   | 'moving'
    | 'off_track'
-   | 'issues_done'
-   | 'past_end'
    | 'missed'
+   | 'past_end'
+   | 'issues_done'
+   | 'stalled'
    | 'at_risk'
    | 'no_update'
    | 'update_due'
@@ -76,9 +82,12 @@ export type PlanKind =
    | 'stopped';
 export interface PlanCell {
    kind: PlanKind;
+   /** empty for work with no plan that needs none yet */
    text: string;
-   /** amber: someone owes the project something */
+   /** amber, the row's one mark: someone owes a call or an update */
    warn: boolean;
+   /** the plan the words are about, which a click opens */
+   planId: number | null;
 }
 
 export interface PortfolioItem {
@@ -127,6 +136,8 @@ export interface PortfolioItem {
     * under way, or else its latest decision; null when it isn't on the roadmap */
    plan: RoadmapItem | null;
    planCell: PlanCell;
+   /** the calls Decide asks about it (withCalls); empty until those load */
+   asks: Ask[];
    /** how the issues attached to it stand (shared/model/work.ts); null
     * with none attached, or before they load */
    issues: IssueCounts | null;
@@ -134,8 +145,10 @@ export interface PortfolioItem {
    ongoing: boolean;
    /** in progress, with open PRs and no activity for STALL_DAYS */
    stalled: boolean;
-   /** off track, past its plan's end with PRs open, or past its target with PRs open */
-   behind: boolean;
+   /** how it's behind, the first that holds: its latest update says off
+    * track and the plan hasn't changed since, it's past its plan's end with
+    * PRs open, or past its target with PRs open; null when it isn't */
+   behind: 'off_track' | 'past_end' | 'missed' | null;
    /** its plan under way ends within the next ENDS_SOON_DAYS */
    endsSoon: boolean;
 }
@@ -159,64 +172,99 @@ function stageOf(
    return closedIssue || stopped ? 'closed' : 'quiet';
 }
 
+/** Whole weeks from a plan's last day to `day`. */
+const weeksPast = (end: string, day: string) =>
+   Math.ceil(((dayStart(day) as number) - (dayStart(end) as number)) / (7 * DAY));
+
+/** A call Decide asks, in the few words a table cell has room for. */
+function callWords(reason: DecideReason): Pick<PlanCell, 'kind' | 'text'> {
+   switch (reason.kind) {
+      case 'reopened':
+         return {
+            kind: 'reopened',
+            text: `${reason.as === 'dropped' ? 'Dropped' : 'Done'}, still taking PRs`,
+         };
+      case 'issue_closed':
+         return { kind: 'issue_closed', text: 'Issue closed, plan open' };
+      case 'moving':
+         return { kind: 'moving', text: 'Parked, still worked on' };
+      case 'off_track':
+      case 'at_risk':
+         return { kind: reason.kind, text: HEALTH_WORD[reason.kind] };
+      case 'missed':
+         return { kind: 'missed', text: `Missed ${dayWords(reason.due)} target` };
+      case 'over':
+      case 'ended':
+         return { kind: 'past_end', text: pastEnd(reason.weeks) };
+      case 'issues_done':
+         return { kind: 'issues_done', text: 'Issues all closed' };
+      case 'stalled':
+         return { kind: 'stalled', text: 'Stalled' };
+      case 'new':
+         return { kind: 'no_plan', text: NO_PLAN };
+   }
+}
+
 /**
- * The plan's words for a project, the worst first: off track, its issues
- * all closed, past its plan's end, a missed target, at risk, an update owed,
- * on track, when it starts or ends, parked, and no plan. Amber on Decide's
- * terms: "No plan" only once Decide would ask for one (DECIDE_MIN_PRS or
- * more PRs, some open), and "Issues all closed" only when Decide asks
- * (`issuesAsked`): it asks the plan running today, which needn't be `plan`.
+ * A project's plan in a few words, carrying the row's one amber mark. When
+ * Decide asks about it (`asks`), the worst call it asks, in Decide's order.
+ * Otherwise what the plan says, amber only where someone still owes
+ * something: off track, past its end, at risk, or an update owed. A project
+ * with no plan that Decide doesn't ask about says nothing, since small work
+ * ships without one.
  */
 export function planCell(
-   item: Pick<
-      PortfolioItem,
-      'plan' | 'project' | 'stage' | 'open' | 'merged' | 'target' | 'dueInDays'
-   > & { issuesAsked?: boolean; ongoing?: boolean },
+   item: Pick<PortfolioItem, 'plan' | 'project'> & { asks?: readonly Ask[] },
    day: string,
    now: number
 ): PlanCell {
-   const { plan } = item;
-   const missed =
-      item.stage !== 'closed' &&
-      item.open > 0 &&
-      item.dueInDays != null &&
-      item.dueInDays < 0 &&
-      item.target?.due_on
-         ? item.target.due_on
-         : null;
+   const { plan, asks = [] } = item;
+   if (asks.length) {
+      const worst = asks.reduce((a, b) =>
+         // Decide's own order, worst first, so the cell names the call
+         // Decide puts first
+         RANK[b.reason.kind] < RANK[a.reason.kind] ? b : a
+      );
+      return {
+         ...callWords(worst.reason),
+         warn: true,
+         planId: (worst.item ?? plan)?.id ?? null,
+      };
+   }
    if (plan && isUnderWay(plan.status)) {
       const standing = healthStanding(plan, now);
       const update =
          standing.kind === 'current' || standing.kind === 'stale' ? standing.update : null;
       const end = planEnd(plan);
+      const owed = { warn: true, planId: plan.id };
       if (update?.health === 'off_track')
-         return { kind: 'off_track', text: 'Off track', warn: true };
-      if (item.issuesAsked) return { kind: 'issues_done', text: 'Issues all closed', warn: true };
-      if (end < day) {
-         const weeks = Math.ceil(
-            ((dayStart(day) as number) - (dayStart(end) as number)) / (7 * DAY)
-         );
-         return { kind: 'past_end', text: `${weeks} wk past its end`, warn: true };
-      }
-      if (missed) return { kind: 'missed', text: `Missed ${dayWords(missed)} target`, warn: true };
-      if (update?.health === 'at_risk') return { kind: 'at_risk', text: 'At risk', warn: true };
-      if (standing.kind === 'missing') return { kind: 'no_update', text: 'No update', warn: true };
-      if (standing.kind === 'stale') return { kind: 'update_due', text: 'Update due', warn: true };
-      if (update) return { kind: 'on_track', text: 'On track', warn: false };
+         return { kind: 'off_track', text: HEALTH_WORD.off_track, ...owed };
+      if (end < day) return { kind: 'past_end', text: pastEnd(weeksPast(end, day)), ...owed };
+      if (update?.health === 'at_risk')
+         return { kind: 'at_risk', text: HEALTH_WORD.at_risk, ...owed };
+      if (standing.kind === 'missing') return { kind: 'no_update', text: NO_UPDATE_YET, ...owed };
+      if (standing.kind === 'stale') return { kind: 'update_due', text: UPDATE_DUE, ...owed };
+      const calm = { warn: false, planId: plan.id };
+      if (update) return { kind: 'on_track', text: HEALTH_WORD.on_track, ...calm };
       return plan.start > day
-         ? { kind: 'ends', text: `Starts ${dayWords(plan.start)}`, warn: false }
-         : { kind: 'ends', text: `Ends ${dayWords(end)}`, warn: false };
+         ? { kind: 'ends', text: `Starts ${dayWords(plan.start)}`, ...calm }
+         : { kind: 'ends', text: `Ends ${dayWords(end)}`, ...calm };
    }
-   if (missed) return { kind: 'missed', text: `Missed ${dayWords(missed)} target`, warn: true };
-   if (plan?.status === 'parked') return { kind: 'parked', text: 'Parked', warn: false };
+   if (plan?.status === 'parked') {
+      return { kind: 'parked', text: 'Parked', warn: false, planId: plan.id };
+   }
    if (plan || item.project?.state === 'closed') {
       const dropped = plan
          ? plan.status === 'dropped'
          : item.project?.state_reason === 'not_planned';
-      return { kind: 'stopped', text: dropped ? 'Dropped' : 'Done', warn: false };
+      return {
+         kind: 'stopped',
+         text: dropped ? 'Dropped' : 'Done',
+         warn: false,
+         planId: plan?.id ?? null,
+      };
    }
-   const owed = !item.ongoing && item.open > 0 && item.open + item.merged >= DECIDE_MIN_PRS;
-   return { kind: 'no_plan', text: 'No plan', warn: owed };
+   return { kind: 'no_plan', text: '', warn: false, planId: null };
 }
 
 /** Every project the tab knows about: issues, live or quiet groups, and
@@ -236,7 +284,6 @@ export function portfolioItems(
    const soon = utcDay((dayStart(day) as number) + (ENDS_SOON_DAYS - 1) * DAY);
    const daysSince = (at: number) => Math.max(0, Math.floor((secs - at) / DAY));
    const bySlug = new Map(projects.map(p => [p.slug, p]));
-   const closed = closedIssues(projects);
    const groups = new Map<string, [ProjectGroup, 'live' | 'quiet']>();
    for (const g of today.live) groups.set(g.slug, [g, 'live']);
    for (const g of today.quiet) groups.set(g.slug, [g, 'quiet']);
@@ -306,29 +353,60 @@ export function portfolioItems(
             : null,
          flags: group?.flags ?? [],
          plan,
-         planCell: { kind: 'no_plan', text: '', warn: false },
+         // what Decide asks comes in later (withCalls)
+         planCell: planCell({ plan, project }, day, secs),
+         asks: [],
          issues: issues?.get(slug) ?? null,
          ongoing: ongoing.has(slug) || !!project?.ongoing,
          stalled: false,
-         behind: false,
+         behind: null,
          endsSoon: false,
       };
       item.team = plan?.team ?? mainTeam(item, teamOf);
-      const asked = planRunningToday(slug, plans, day);
-      // a project issue closed since the plan's last change is Decide's
-      // first question about it, as decide.ts asks it
-      const issueClosed = (closed.get(slug)?.at ?? 0) > (asked?.updated_at ?? 0);
-      const issuesAsked =
-         !!asked && !!item.issues && !issueClosed && issuesAllClosed(asked, item.issues);
-      item.planCell = planCell({ ...item, issuesAsked }, day, secs);
-      const kind = item.planCell.kind;
+      const underWay = plan && isUnderWay(plan.status) ? plan : null;
+      const standing = underWay && healthStanding(underWay, secs);
+      // an off-track update the plan has changed since is answered, as
+      // Decide reads it, so the tile's words agree with the row's
+      const offTrack =
+         !!standing &&
+         (standing.kind === 'current' || standing.kind === 'stale') &&
+         standing.update.health === 'off_track' &&
+         standing.update.at > (underWay?.updated_at ?? 0);
       item.stalled =
          stage === 'progress' && item.open > 0 && (item.lastActivity?.days ?? 0) >= STALL_DAYS;
-      item.behind =
-         kind === 'off_track' || kind === 'missed' || (kind === 'past_end' && item.open > 0);
-      item.endsSoon =
-         !!plan && isUnderWay(plan.status) && planEnd(plan) >= day && planEnd(plan) <= soon;
+      item.behind = offTrack
+         ? 'off_track'
+         : underWay && planEnd(underWay) < day && item.open > 0
+         ? 'past_end'
+         : stage !== 'closed' && item.open > 0 && (item.dueInDays ?? 0) < 0 && target?.due_on
+         ? 'missed'
+         : null;
+      item.endsSoon = !!underWay && planEnd(underWay) >= day && planEnd(underWay) <= soon;
       return item;
+   });
+}
+
+/**
+ * The items with the calls Decide asks about each, so a row's Plan cell
+ * names the worst one and wears the row's one amber mark. Without Decide's
+ * rows (the roadmap still loading) the cells say only what each plan says.
+ */
+export function withCalls(
+   items: readonly PortfolioItem[],
+   decisions: readonly DecideRow[] | null,
+   now: number = Date.now()
+): PortfolioItem[] {
+   const asks = new Map<string, Ask[]>();
+   for (const row of decisions ?? []) {
+      if (!row.slug) continue;
+      const list = asks.get(row.slug) ?? [];
+      list.push(...row.reasons.map(reason => ({ reason, item: row.item })));
+      asks.set(row.slug, list);
+   }
+   const day = dayOf(new Date(now));
+   return items.map(i => {
+      const a = asks.get(i.slug);
+      return a ? { ...i, asks: a, planCell: planCell({ ...i, asks: a }, day, now / 1000) } : i;
    });
 }
 
@@ -402,7 +480,7 @@ export function bucketDays(item: PortfolioItem, chart: 'age' | 'idle'): number |
  */
 export function matchesOnly(item: PortfolioItem, only: string | null): boolean {
    if (only === 'stalled') return item.stalled;
-   if (only === 'behind') return item.behind;
+   if (only === 'behind') return !!item.behind;
    if (only === 'ending') return item.endsSoon;
    const bar = /^(age|idle)-(\d)$/.exec(only ?? '');
    if (!bar) return true;
@@ -437,9 +515,10 @@ export interface FindFields {
 /**
  * The find box read once, for every view that narrows by it: null when it's
  * empty, else a test for a row. Words match anywhere in the name, slug,
- * lead, team or parents; "lead:", "team:" or "parent:" before a name
- * matches that field exactly, which is what a click on a lead, a team or a
- * parent puts in the box.
+ * lead, team or parents. "lead:" or "team:" before a name matches the
+ * leads or teams it starts, so "lead:mla" finds mlahargou's before the
+ * login is typed out; "parent:" matches a parent exactly, which is what a
+ * click on a parent puts in the box.
  */
 export function findFilter(find: string): ((row: FindFields) => boolean) | null {
    const q = find.trim().toLowerCase();
@@ -448,7 +527,7 @@ export function findFilter(find: string): ((row: FindFields) => boolean) | null 
    if (exact) {
       const [, field, name] = exact;
       if (field === 'parent') return row => row.parents.some(p => p.toLowerCase() === name);
-      return row => (row[field as 'lead' | 'team'] ?? '').toLowerCase() === name;
+      return row => (row[field as 'lead' | 'team'] ?? '').toLowerCase().startsWith(name);
    }
    return row =>
       [row.name, row.slug, row.lead, row.team, ...row.parents].some(s =>
@@ -462,12 +541,15 @@ export function matchesFind(item: PortfolioItem, find: string): boolean {
    return !filter || filter(item);
 }
 
+/** The list's columns by sort key. Last activity is `last`, not the `idle`
+ * it once was, since `idle` is what the URL holds when nothing was picked
+ * (lens.ts DEFAULT_SORT), and that now means the list's default order. */
 export type SortKey =
    | 'name'
    | 'lead'
    | 'team'
    | 'age'
-   | 'idle'
+   | 'last'
    | 'people'
    | 'open'
    | 'waiting'
@@ -477,34 +559,18 @@ export type SortKey =
    | 'target';
 
 const STAGE_RANK: Record<Stage, number> = { progress: 0, parked: 1, quiet: 2, closed: 3 };
-const PLAN_RANK: Record<PlanKind, number> = {
-   off_track: 0,
-   issues_done: 1,
-   past_end: 2,
-   missed: 3,
-   at_risk: 4,
-   no_update: 5,
-   update_due: 6,
-   no_plan: 7,
-   on_track: 8,
-   ends: 9,
-   parked: 10,
-   stopped: 11,
-};
 
-// amber words first, worst first, then the rest
-const planOrder = (cell: PlanCell) => PLAN_RANK[cell.kind] + (cell.warn ? 0 : 20);
-
-/** Each column's natural order: names A to Z, the soonest target first, the
- * plan's worst words first, and the biggest number first everywhere else,
- * so Last activity leads with the longest quiet. `dir` is -1 to reverse;
- * blanks sink either way. */
+/** Each column's natural order: names A to Z, the soonest target first, and
+ * the biggest number first everywhere else, so Last activity leads with the
+ * longest quiet. The Plan column, the default, puts amber first, whatever
+ * someone owes, then the longest quiet. `dir` is -1 to reverse; blanks sink
+ * either way. */
 const SORTS: Record<SortKey, (a: PortfolioItem, b: PortfolioItem, dir: number) => number> = {
    name: (a, b, dir) => dir * a.name.localeCompare(b.name),
    lead: (a, b, dir) => nullsLast(a.lead, b.lead, (x, y) => dir * x.localeCompare(y)),
    team: (a, b, dir) => nullsLast(a.team, b.team, (x, y) => dir * x.localeCompare(y)),
    age: (a, b, dir) => nullsLast(a.ageDays, b.ageDays, (x, y) => dir * (y - x)),
-   idle: (a, b, dir) =>
+   last: (a, b, dir) =>
       nullsLast(
          a.lastActivity?.days ?? null,
          b.lastActivity?.days ?? null,
@@ -514,7 +580,8 @@ const SORTS: Record<SortKey, (a: PortfolioItem, b: PortfolioItem, dir: number) =
    open: (a, b, dir) => dir * (b.open - a.open),
    waiting: (a, b, dir) => dir * (b.waiting - a.waiting),
    merged: (a, b, dir) => dir * (b.merged - a.merged),
-   plan: (a, b, dir) => dir * (planOrder(a.planCell) - planOrder(b.planCell)),
+   plan: (a, b, dir) =>
+      dir * (Number(b.planCell.warn) - Number(a.planCell.warn)) || SORTS.last(a, b, dir),
    // the most issues still open first
    issues: (a, b, dir) =>
       nullsLast(a.issues?.open ?? null, b.issues?.open ?? null, (x, y) => dir * (y - x)),
@@ -527,11 +594,12 @@ function nullsLast<T>(a: T | null, b: T | null, cmp: (x: T, y: T) => number): nu
    return cmp(a, b);
 }
 
-/** Parse a sort param: a column key, `-` in front to reverse it. */
+/** Parse a sort param: a column key, `-` in front to reverse it. Anything
+ * else, the URL's nothing-picked `idle` included, is the default order. */
 export function parseSort(raw: string | null): { key: SortKey; reversed: boolean } {
    const reversed = !!raw?.startsWith('-');
    const key = (reversed ? (raw as string).slice(1) : raw) as SortKey;
-   return key in SORTS ? { key, reversed } : { key: DEFAULT_SORT as SortKey, reversed: false };
+   return key in SORTS ? { key, reversed } : { key: 'plan', reversed: false };
 }
 
 /** Sort a copy: the chosen column, then in progress before the rest, then
@@ -576,8 +644,9 @@ export function mainTeam(
 
 /**
  * Split sorted items into titled groups, keeping each group's order. A
- * project with two parents shows under both, since it serves both. Groups
- * come in name order, with the no-value group last.
+ * project with two parents shows under both, since it serves both, and a
+ * parent heads its own group, ahead of its parts, rather than sitting under
+ * "No parent". Groups come in name order, with the no-value group last.
  */
 export function groupItems(
    items: readonly PortfolioItem[],
@@ -591,10 +660,12 @@ export function groupItems(
       if (!groups.has(title)) groups.set(title, []);
       groups.get(title)?.push(item);
    };
+   const parents = new Set(by === 'parent' ? items.flatMap(i => i.parents) : []);
+   for (const item of items) if (parents.has(item.slug)) add(nameOf(item.slug), item);
    for (const item of items) {
       if (by === 'parent') {
-         if (item.parents.length) for (const p of item.parents) add(nameOf(p), item);
-         else add(none, item);
+         for (const p of item.parents) add(nameOf(p), item);
+         if (!item.parents.length && !parents.has(item.slug)) add(none, item);
       } else add((by === 'lead' ? item.lead : item.team) ?? none, item);
    }
    return [...groups]
@@ -626,7 +697,10 @@ export function agoWords(days: number): string {
 }
 
 function csvCell(value: string | number | null): string {
-   const text = value == null ? '' : String(value);
+   const raw = value == null ? '' : String(value);
+   // a title that starts like a formula (=, +, -, @) runs as one in a
+   // spreadsheet; a leading quote keeps it text
+   const text = typeof value === 'string' && /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
@@ -665,7 +739,8 @@ export function portfolioCsv(items: readonly PortfolioItem[]): string {
       i.open,
       i.waiting,
       i.merged,
-      i.planCell.text,
+      // the table leaves a plan nobody needs blank; a sheet says so
+      i.planCell.text || NO_PLAN,
       i.issues ? i.issues.open : null,
       i.issues ? i.issues.done : null,
       i.issues ? i.issues.dropped : null,
@@ -685,7 +760,8 @@ export function portfolioText(items: readonly PortfolioItem[], day: string): str
       const by = u ? ` (${u.author}, ${dayWords(utcDay(u.at))})` : '';
       const moved = i.lastActivity ? `last activity ${agoWords(i.lastActivity.days)}` : 'no PRs';
       const said = u?.body ? ` ${u.body.replace(/\s*\n\s*/g, ' ')}` : '';
-      return `- ${i.name}: ${i.planCell.text}${by}. ${n(i.open, 'open PR')}, ${moved}.${said}`;
+      const plan = i.planCell.text || NO_PLAN;
+      return `- ${i.name}: ${plan}${by}. ${n(i.open, 'open PR')}, ${moved}.${said}`;
    });
    return [`Where the projects stand, ${dayWords(day)}`, ...lines].join('\n');
 }

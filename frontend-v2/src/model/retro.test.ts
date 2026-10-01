@@ -3,18 +3,24 @@ import { timeSpent, type Touch } from '../../../shared/model/retro';
 import type { Project } from '../../../shared/model/projects';
 import type { RoadmapItem } from '../../../shared/model/roadmap';
 import {
+   beforeWords,
+   chartWeeks,
    finishedIn,
+   finishedOn,
    groupRows,
    lastWeek,
    loadByPerson,
    median,
+   mergeSpeed,
    overloadLine,
    peopleByProject,
    projectLength,
    quietWeeks,
+   retroCsv,
    retroPlan,
    retroRows,
    spreadByPerson,
+   weeklyBy,
 } from './retro';
 import type { RetroData } from './retroData';
 
@@ -100,17 +106,28 @@ describe('Look back’s groups', () => {
       ]);
    });
 
-   it('adds up days, writing, weeks, people and PRs, the most days first', () => {
-      const groups = groupRows(rows, r => r.pr.project ?? '', data);
-      expect(groups.map(g => [g.key, g.days, g.writing, g.weekly, g.merged])).toEqual([
-         ['beta', 3.5, 3, [1.5, 2], 0],
-         ['alpha', 1.5, 1.5, [1.5, 0], 1],
-         ['', 1, 1, [0, 1], 0],
+   it('adds up days, people and PRs, the most days first', () => {
+      const groups = groupRows(rows, r => r.pr.project ?? '');
+      expect(groups.map(g => [g.key, g.days])).toEqual([
+         ['beta', 3.5],
+         ['alpha', 1.5],
+         ['', 1],
       ]);
       expect(groups[0].people).toEqual([
          ['erin', 3],
          ['dana', 0.5],
       ]);
+   });
+
+   it('draws every week of the chart, the empty ones too, by each week’s Monday', () => {
+      // the chart starts a week before the data's first week, with nothing in it
+      const weeks = chartWeeks(
+         { start: '2026-09-21', end: '2026-10-11' },
+         { start: '2026-09-28', end: '2026-10-11' }
+      );
+      const weekly = weeklyBy(rows, r => r.pr.project ?? '', data, weeks);
+      expect(weekly.get('beta')).toEqual([0, 1.5, 2]);
+      expect(weekly.get('')).toEqual([0, 0, 1]);
    });
 
    it('says how many different projects each person touched in a week', () => {
@@ -197,18 +214,18 @@ describe('Look back’s project columns', () => {
    // the plan ends Sunday, Aug 30
    const at = (day: string) => Date.parse(`${day}T12:00:00Z`) / 1000;
 
-   it('judges each plan’s outcome as of today', () => {
+   it('judges each plan’s outcome as of today, in the tab’s words', () => {
       const today = '2026-09-30';
       expect(retroPlan(plan({ status: 'done', updated_at: at('2026-08-28') }), today).text).toBe(
-         'done on time'
+         'Done on time'
       );
       expect(retroPlan(plan({ status: 'done', updated_at: at('2026-09-10') }), today).text).toBe(
-         'done 2 wk late'
+         'Done 2 weeks late'
       );
-      expect(retroPlan(plan({}), today).text).toBe('open, 5 wk past its end');
-      expect(retroPlan(plan({ start: '2026-09-28' }), today).text).toBe('ends Oct 25');
+      expect(retroPlan(plan({}), today).text).toBe('5 weeks past its end');
+      expect(retroPlan(plan({ start: '2026-09-28' }), today).text).toBe('Ends Oct 25');
       expect(retroPlan(plan({ status: 'parked' }), today).kind).toBe('parked');
-      expect(retroPlan(null, today).text).toBe('no plan');
+      expect(retroPlan(null, today).text).toBe('No plan');
    });
 
    it('dates a finish by when it was marked done, not by a later edit', () => {
@@ -219,7 +236,7 @@ describe('Look back’s project columns', () => {
          status_at: at('2026-08-28'),
          updated_at: at('2026-09-10'),
       });
-      expect(retroPlan(edited, today).text).toBe('done on time');
+      expect(retroPlan(edited, today).text).toBe('Done on time');
       expect(finishedIn([edited], [], { start: '2026-09-01', end: '2026-09-30' })).toEqual([]);
    });
 
@@ -254,5 +271,78 @@ describe('Look back’s project columns', () => {
          { key: 'workbench', name: 'Workbench', onTime: false },
          { key: 'search', name: 'search', onTime: null },
       ]);
+   });
+
+   it('counts a team’s finished plans as the ones it worked on', () => {
+      const done = [
+         { key: 'alpha', name: 'Alpha', onTime: true },
+         { key: 'gamma', name: 'Gamma', onTime: false },
+      ];
+      const pr = {
+         repo: 'r',
+         number: 1,
+         title: '',
+         owner: 'dana',
+         bot: false,
+         state: 'open' as const,
+         merged: null,
+      };
+      const rows = [
+         { login: 'dana', pr: { ...pr, project: 'alpha' }, week: 0, days: 1, own: true },
+      ];
+      expect(finishedOn(done, rows).map(f => f.key)).toEqual(['alpha']);
+   });
+});
+
+describe('Look back’s words', () => {
+   it('compares a one-day range with the day before, not "the 1 days before"', () => {
+      expect(beforeWords(1)).toBe('day before');
+      expect(beforeWords(30)).toBe('30 days before');
+   });
+
+   it('says "half" of the merged PRs only when there are several', () => {
+      expect(mergeSpeed(1, 2)).toBe('It merged 2 days after opening');
+      expect(mergeSpeed(16, 1.6)).toBe('Half of them merged within 1.6 days of opening');
+      expect(mergeSpeed(0, null)).toBeNull();
+   });
+});
+
+describe('the weeks a chart draws', () => {
+   it('fills every Monday from the first day, pales the ones before the range, and counts cut-off days', () => {
+      // 90 days to Thursday Oct 1: the window starts Friday Jul 4
+      const weeks = chartWeeks(
+         { start: '2026-07-04', end: '2026-10-01' },
+         { start: '2026-09-25', end: '2026-10-01' }
+      );
+      expect(weeks).toHaveLength(14);
+      expect(weeks[0]).toEqual({ week: '2026-06-29', days: 2, before: true });
+      // Sep 21 to 27 holds the range's first three days, so it's not before it
+      expect(weeks[12]).toEqual({ week: '2026-09-21', days: 7, before: false });
+      expect(weeks[11].before).toBe(true);
+      expect(weeks[13]).toEqual({ week: '2026-09-28', days: 4, before: false });
+   });
+});
+
+describe('the CSV', () => {
+   it('writes a line per person, PR and week, defusing a title that reads as a formula', () => {
+      const pr = {
+         repo: 'iFixit/ifixit',
+         number: 7,
+         title: '=HYPERLINK("x"), then more',
+         owner: 'dana',
+         bot: false,
+         project: 'alpha',
+         state: 'open' as const,
+         merged: null,
+      };
+      const csv = retroCsv(
+         [{ login: 'erin', pr, week: 0, days: 0.5, own: false }],
+         { weeks: ['2026-09-28'] },
+         login => (login === 'erin' ? 'Store' : null),
+         slug => (slug === 'alpha' ? 'Alpha' : slug)
+      );
+      expect(csv.split('\n')[1]).toBe(
+         '2026-09-28,erin,Store,reviewing,0.5,iFixit/ifixit#7,"\'=HYPERLINK(""x""), then more",Alpha'
+      );
    });
 });

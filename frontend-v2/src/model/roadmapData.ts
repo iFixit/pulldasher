@@ -38,7 +38,12 @@ interface Api {
    list: () => Promise<Reply>;
    create: (fields: Partial<RoadmapFields>) => Promise<Reply>;
    /** `restate`: a status sent as it already was is a call made again */
-   update: (id: number, fields: Partial<RoadmapFields>, restate?: boolean) => Promise<Reply>;
+   update: (
+      id: number,
+      fields: Partial<RoadmapFields>,
+      restate?: boolean,
+      undo?: UndoTimes
+   ) => Promise<Reply>;
    remove: (id: number) => Promise<Reply>;
    reorder: (ids: number[]) => Promise<Reply>;
    updates: (id: number) => Promise<Reply>;
@@ -46,6 +51,14 @@ interface Api {
 }
 
 type UpdateFields = { health: RoadmapHealth; body: string };
+
+/** The times an Undo puts back with the fields, so the plan reads as if the
+ * call it takes back never happened (stamped now, that call would count as
+ * answered after a reload). */
+export interface UndoTimes {
+   updated_at: number;
+   status_at: number | null;
+}
 
 function liveApi(): Api {
    const send = async (method: string, path: string, body?: unknown): Promise<Reply> => {
@@ -61,8 +74,12 @@ function liveApi(): Api {
    return {
       list: () => send('GET', '/roadmap'),
       create: fields => send('POST', '/roadmap', fields),
-      update: (id, fields, restate) =>
-         send('PATCH', `/roadmap/${id}`, restate ? { ...fields, restate } : fields),
+      update: (id, fields, restate, undo) =>
+         send('PATCH', `/roadmap/${id}`, {
+            ...fields,
+            ...(restate ? { restate } : {}),
+            ...(undo ? { undo } : {}),
+         }),
       remove: id => send('DELETE', `/roadmap/${id}`),
       reorder: ids => send('PUT', '/roadmap/order', { ids }),
       updates: id => send('GET', `/roadmap/${id}/updates`),
@@ -113,7 +130,7 @@ function dummyApi(): Api {
          rows.push(item);
          return ok({ item }, 201);
       },
-      update: (id, fields, restate) => {
+      update: (id, fields, restate, undo) => {
          const checked = checkRoadmapFields(fields, { partial: true });
          if ('error' in checked) return bad(checked.error);
          const loop = checked.fields.waits_on && waitsOnProblem(id, checked.fields.waits_on, rows);
@@ -125,7 +142,8 @@ function dummyApi(): Api {
          const moved =
             checked.fields.status != null && (checked.fields.status !== row.status || !!restate);
          Object.assign(row, checked.fields, touch());
-         if (moved) row.status_at = row.updated_at;
+         if (undo) Object.assign(row, undo);
+         else if (moved) row.status_at = row.updated_at;
          return ok({ item: { ...row } });
       },
       remove: id => {
@@ -213,8 +231,16 @@ export async function createRoadmapItem(
    // nothing was shown early, so there's nothing to take back
    if (!settle(reply, 'add the plan', () => undefined)) return null;
    const item = reply.json.item as RoadmapItem;
+   const before = store.get().items;
+   // never loaded (still loading, or the load failed): a list of just this
+   // one would read as the whole roadmap, every other project with no plan,
+   // so the full list is fetched instead
+   if (before == null) {
+      void loadRoadmap();
+      return item;
+   }
    // a load that already had it mustn't make it show twice
-   const others = (store.get().items ?? []).filter(i => i.id !== item.id);
+   const others = before.filter(i => i.id !== item.id);
    store.set({ ...store.get(), items: byPriority([...others, item]) });
    return item;
 }
@@ -222,11 +248,11 @@ export async function createRoadmapItem(
 export async function updateRoadmapItem(
    id: number,
    fields: Partial<RoadmapFields>,
-   { restate = false }: { restate?: boolean } = {}
+   { restate = false, undo }: { restate?: boolean; undo?: UndoTimes } = {}
 ): Promise<boolean> {
    // stamped now, as the server will: a decision shows as made right away
    const now = Math.floor(Date.now() / 1000);
-   const undo = optimistic(items =>
+   const takeBack = optimistic(items =>
       items.map(i =>
          i.id === id
             ? {
@@ -236,14 +262,15 @@ export async function updateRoadmapItem(
                  ...(fields.status && (fields.status !== i.status || restate)
                     ? { status_at: now }
                     : {}),
+                 ...(undo ?? {}),
               }
             : i
       )
    );
    const reply = await api
-      .update(id, fields, restate)
+      .update(id, fields, restate, undo)
       .catch((): Reply => ({ status: 0, json: {} }));
-   if (!settle(reply, 'save the plan', undo)) return false;
+   if (!settle(reply, 'save the plan', takeBack)) return false;
    const saved = reply.json.item as RoadmapItem;
    store.set({
       ...store.get(),
@@ -265,9 +292,10 @@ export async function removeRoadmapItem(id: number): Promise<boolean> {
    return settle(reply, 'remove the plan', undo);
 }
 
-/** Put the items in this order, top first. If someone else changed the
- * roadmap meanwhile, the server's list wins and the person hears why. */
-export async function reorderRoadmap(ids: number[]): Promise<void> {
+/** Put the items in this order, top first; resolves to whether it saved. If
+ * someone else changed the roadmap meanwhile, the server's list wins and
+ * the person hears why. */
+export async function reorderRoadmap(ids: number[]): Promise<boolean> {
    const undo = optimistic(items =>
       byPriority(items.map(i => ({ ...i, priority: ids.indexOf(i.id) })))
    );
@@ -279,11 +307,11 @@ export async function reorderRoadmap(ids: number[]): Promise<void> {
          problem:
             'Someone else just added or removed a plan, so your new order wasn’t saved. This is the order now; try again.',
       });
-      return;
+      return false;
    }
-   if (settle(reply, 'save the new order', undo)) {
-      store.set({ ...store.get(), items: reply.json.items as RoadmapItem[] });
-   }
+   if (!settle(reply, 'save the new order', undo)) return false;
+   store.set({ ...store.get(), items: reply.json.items as RoadmapItem[] });
+   return true;
 }
 
 /** An item's updates, newest first; null when they couldn't be loaded. */

@@ -5,8 +5,10 @@ export type Lens = 'review' | 'mine' | 'team' | 'projects' | 'classic' | 'ci' | 
  * pulling the tab's code into the review board's bundle. */
 export const DEFAULT_RANGE = '30d';
 
-/** The project list's default sort, Last activity with the longest quiet
- * first, kept here for the same reason (model/portfolio.ts reads it). */
+/** What the URL holds when nobody picked the project list's sort, which the
+ * list reads as its default order: what's owed first, then the rest (the
+ * Plan column's order). Kept here for the same reason (model/portfolio.ts
+ * reads it); Last activity's own key is `last`. */
 export const DEFAULT_SORT = 'idle';
 
 /** A roadmap zoom's key in the URL, "2026-Q4" or "2026-10", checked here for

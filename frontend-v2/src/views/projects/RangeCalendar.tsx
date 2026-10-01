@@ -4,6 +4,7 @@ import { DayPicker, type DateRange } from 'react-day-picker';
 // reason vite.config.ts disables this for @tailwindcss/vite); Vite resolves it.
 // eslint-disable-next-line import/no-unresolved
 import 'react-day-picker/style.css';
+import { PrimaryButton } from '../../components/bits';
 import {
    dateOf,
    dayOf,
@@ -12,6 +13,18 @@ import {
    rangeWords,
    type Range,
 } from '../../model/projectData';
+
+/**
+ * The first month a calendar of `months` months opens on. Its last month
+ * holds the range's end, or the day two weeks ago when that's earlier, so a
+ * calendar opened early in a month shows days that can be picked rather
+ * than a month still mostly to come. The arrows reach this month.
+ */
+export function openingMonth(end: Date, today: Date, months: number): Date {
+   const twoWeeksAgo = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 14);
+   const last = end < twoWeeksAgo ? end : twoWeeksAgo;
+   return new Date(last.getFullYear(), last.getMonth() - (months - 1), 1);
+}
 
 // DayPicker styles itself through these variables; point them at the
 // board's tokens so the calendar matches both themes without its own CSS
@@ -33,10 +46,11 @@ const CALENDAR_VARS = {
 } as CSSProperties;
 
 /**
- * Two months of calendar for picking a range by hand: click the first day,
- * then the last, then Apply. Clicking again starts a new range. Days after
- * today can't be picked, and a range stops at the server's 400-day cap.
- * Loaded lazily with the picker's panel, stylesheet included.
+ * Two months of calendar for picking a range by hand (one on a phone, so the
+ * panel and its Apply fit the screen): click the first day, then the last,
+ * then Apply. Clicking again starts a new range. Days after today can't be
+ * picked, and a range stops at the server's 400-day cap. Loaded lazily with
+ * the picker's panel, stylesheet included.
  */
 export default function RangeCalendar({
    range,
@@ -49,8 +63,9 @@ export default function RangeCalendar({
       from: dateOf(range.start),
       to: dateOf(range.end),
    });
+   // read once: the panel mounts afresh each time it opens
+   const [months] = useState(() => (matchMedia('(min-width: 640px)').matches ? 2 : 1));
    const today = new Date();
-   const end = dateOf(range.end);
    const picked =
       draft?.from && draft.to ? { start: dayOf(draft.from), end: dayOf(draft.to) } : null;
    return (
@@ -61,8 +76,8 @@ export default function RangeCalendar({
             onSelect={setDraft}
             resetOnSelect
             max={MAX_RANGE_DAYS}
-            numberOfMonths={2}
-            defaultMonth={new Date(end.getFullYear(), end.getMonth() - 1, 1)}
+            numberOfMonths={months}
+            defaultMonth={openingMonth(dateOf(range.end), today, months)}
             endMonth={today}
             disabled={{ after: today }}
             style={CALENDAR_VARS}
@@ -75,14 +90,13 @@ export default function RangeCalendar({
                   : `Click the first day, then the last (at most ${MAX_RANGE_DAYS} days)`}
             </span>
             <span className="flex-1" />
-            <button
+            <PrimaryButton
                type="button"
                disabled={!picked}
                onClick={() => picked && onApply(picked)}
-               className="pressable rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-surface hover:bg-brand-700 disabled:opacity-40"
             >
                Apply
-            </button>
+            </PrimaryButton>
          </div>
       </div>
    );

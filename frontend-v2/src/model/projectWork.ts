@@ -110,6 +110,11 @@ export function useProjectWork(
    return got?.slug === slug ? got.work : undefined;
 }
 
+/** Load every project page again: the way back from one that failed. */
+export function reloadProjectWork(): void {
+   workVersion.set({ n: workVersion.get().n + 1 });
+}
+
 /** Add an issue to a project by hand, or take one added by hand off it. */
 export async function changeProjectIssue(
    slug: string,
@@ -145,7 +150,7 @@ export async function changeProjectIssue(
               ]
             : rest
       );
-      workVersion.set({ n: workVersion.get().n + 1 });
+      reloadProjectWork();
       return { ok: true };
    }
    const res = await (add
@@ -168,12 +173,9 @@ export async function changeProjectIssue(
       // the server's reasons for a 404 or 409 read well; a 500's doesn't
       const json = (await res.json().catch(() => ({}))) as { error?: string };
       return {
-         error:
-            res.status < 500 && json.error
-               ? json.error
-               : 'Couldn’t save that. Try again in a minute.',
+         error: res.status < 500 && json.error ? json.error : 'Couldn’t save that.',
       };
    }
-   workVersion.set({ n: workVersion.get().n + 1 });
+   reloadProjectWork();
    return { ok: true };
 }

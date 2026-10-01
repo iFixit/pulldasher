@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest';
+import type { RoadmapItem } from '../../../shared/model/roadmap';
 import type { DerivedPull, Status } from '../../../shared/model/status';
 import type { IssuePull, ProjectWork } from '../../../shared/model/work';
 import type { PullData } from '../../../shared/types';
-import { holderWords, issueStanding, prStage, withBoardStates } from './stage';
+import {
+   addedLater,
+   holderWords,
+   issueForecast,
+   issueStanding,
+   lateWords,
+   plannedAt,
+   prStage,
+   withBoardStates,
+} from './stage';
 
 /** A DerivedPull with only the fields the stage rules read. */
 function dp(
@@ -170,6 +180,133 @@ describe('holderWords', () => {
    it('drops code review’s holders once code review is met', () => {
       // a change request left over after enough others stamped it
       expect(holderWords(dp(3, 'needs_qa', { changesRequestedAt: 100 }))).toBe('needs a tester');
+   });
+
+   it('starts a line with a capital, but never changes a login', () => {
+      const turns = new Map([['iFixit/ifixit#2', 'andyg0808']]);
+      expect(holderWords(dp(1, 'draft', { author: 'mlahargou' }), { line: true })).toBe(
+         'With mlahargou'
+      );
+      expect(holderWords(dp(3, 'needs_cr'), { line: true })).toBe('Needs a reviewer');
+      expect(holderWords(dp(2, 'needs_cr'), { turns, line: true })).toBe('andyg0808’s turn');
+      expect(holderWords(dp(3, 'needs_qa', { qaingLogin: 'jrodger312' }), { line: true })).toBe(
+         'jrodger312 is testing it'
+      );
+   });
+});
+
+const DAY = 86400;
+const plan = (o: Partial<RoadmapItem>): RoadmapItem =>
+   ({
+      id: 1,
+      project: 'p',
+      status: 'active',
+      start: '2026-08-03',
+      weeks: 4,
+      status_at: null,
+      updated_at: null,
+      created_at: null,
+      ...o,
+   } as RoadmapItem);
+// noon UTC on a day, as epoch secs
+const at = (day: string) => Date.parse(`${day}T12:00:00Z`) / 1000;
+
+describe('lateWords', () => {
+   it('says a PR opened after its plan ended', () => {
+      const plans = [plan({})];
+      // the plan's last day is Aug 30
+      expect(lateWords(at('2026-08-30'), plans)).toBeNull();
+      expect(lateWords(at('2026-09-02'), plans)).toBe('opened after the plan ended');
+      expect(lateWords(null, plans)).toBeNull();
+   });
+
+   it('says it opened after the plan was marked done, not after it ended', () => {
+      const done = plan({ status: 'done', status_at: at('2026-09-10') });
+      expect(lateWords(at('2026-09-05'), [done])).toBe('opened after the plan ended');
+      expect(lateWords(at('2026-09-12'), [done])).toBe('opened after it was marked done');
+      expect(lateWords(at('2026-09-12'), [{ ...done, status: 'dropped' }])).toBe(
+         'opened after it was dropped'
+      );
+   });
+
+   it('goes by the project’s closed issue when no plan says it’s finished', () => {
+      const issue = { as: 'done' as const, at: at('2026-08-20') };
+      expect(lateWords(at('2026-08-25'), [], issue)).toBe('opened after it was marked done');
+      expect(lateWords(at('2026-08-25'), [plan({ weeks: 8 })], issue)).toBe(
+         'opened after it was marked done'
+      );
+      // a close time nobody knows says nothing
+      expect(lateWords(at('2026-08-25'), [], { as: 'done', at: 0 })).toBeNull();
+   });
+});
+
+describe('addedLater', () => {
+   it('counts from the plan’s start, or from when it was made if that’s later', () => {
+      const started = plannedAt(plan({}));
+      expect(started).toBe(Date.parse('2026-08-03T00:00:00Z') / 1000);
+      expect(plannedAt(plan({ created_at: at('2026-08-10') }))).toBe(at('2026-08-10'));
+      expect(addedLater({ attachedAt: at('2026-08-01') }, started)).toBe(false);
+      expect(addedLater({ attachedAt: at('2026-08-04') }, started)).toBe(true);
+      expect(addedLater({ attachedAt: null }, started)).toBe(false);
+      expect(addedLater({ attachedAt: at('2026-08-04') }, null)).toBe(false);
+   });
+});
+
+describe('issueForecast', () => {
+   const now = at('2026-10-01');
+   const ago = (n: number) => now - n * DAY;
+   const open = (attached: number | null = 60) => ({
+      state: 'open' as const,
+      closedAt: null,
+      attachedAt: attached == null ? null : ago(attached),
+   });
+   const closed = (daysAgo: number) => ({
+      state: 'done' as const,
+      closedAt: ago(daysAgo),
+      attachedAt: ago(60),
+   });
+   const day = (secs: number) =>
+      new Date(secs * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+   it('runs the open issues at the last four weeks’ pace, closes less adds', () => {
+      // 4 closed, 3 added: one fewer every four weeks, so 2 open take 8 weeks
+      const issues = [
+         ...[1, 2, 3, 4].map(closed),
+         open(),
+         open(5),
+         open(10),
+         // added in the window and already dropped
+         { state: 'dropped' as const, closedAt: ago(2), attachedAt: ago(20) },
+      ];
+      // the dropped one counts as closed too: 5 closed, 3 added, 3 open
+      expect(issueForecast(issues, null, now)?.text).toBe(
+         `5 closed, 3 added in four weeks: done around ${day(now + 6 * 7 * DAY)}`
+      );
+      // a close before the four weeks doesn't set the pace
+      expect(issueForecast([closed(40), closed(3), open()], null, now)?.text).toBe(
+         `1 closed, none added in four weeks: done around ${day(now + 4 * 7 * DAY)}`
+      );
+   });
+
+   it('says when the target falls before it', () => {
+      expect(issueForecast([closed(3), open()], '2026-10-15', now)?.text).toMatch(
+         /done around .+, after the target$/
+      );
+      expect(issueForecast([closed(3), open()], '2026-12-31', now)?.text).not.toMatch(/target/);
+   });
+
+   it('gives no day when issues arrive as fast as they close, or nothing moves', () => {
+      expect(issueForecast([closed(3), open(3)], null, now)?.text).toBe(
+         '1 closed, 1 added in four weeks: issues arrive as fast as they close'
+      );
+      expect(issueForecast([open(3), open(9)], null, now)?.text).toBe(
+         'none closed, 2 added in four weeks: issues arrive faster than they close'
+      );
+      expect(issueForecast([open(), open(null)], null, now)?.text).toBe(
+         'no issue closed or added in four weeks'
+      );
+      // nothing open: no forecast
+      expect(issueForecast([closed(3)], null, now)).toBeNull();
    });
 });
 

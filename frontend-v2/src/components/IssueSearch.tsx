@@ -155,7 +155,7 @@ export function IssueSearch({
             aria-controls={listId}
             aria-autocomplete="list"
             aria-activedescendant={shown && pickable ? optionId(at) : undefined}
-            className="w-full rounded-lg border border-line bg-surface py-1.5 pl-8 pr-2.5 text-[13px] text-ink placeholder:text-ink-3 focus:border-brand focus:outline-none"
+            className="w-full rounded-lg border border-line bg-surface py-1.5 pl-8 pr-2.5 text-[13px] text-ink placeholder:text-ink-3 focus:border-brand"
          />
          <span role="status" aria-live="polite" className="sr-only">
             {status}

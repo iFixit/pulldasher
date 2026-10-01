@@ -315,6 +315,17 @@ icon with a class bolted on.
   a failed load is `LoadFailed` (grey, with Try again: nobody owes a
   failed fetch, so never amber, and red stays CI's); a save confirms in
   place, where the click was.
+- **People is the tab's one person table**, and every column on it follows
+  the picked range. Overload says so in words, the word in amber, the count
+  in ink. The Overview's Overloaded tile opens it on the same 14 days.
+- **The Overview opens on what's owed**: rows Decide asks about first, then
+  the rest. A tile or chart pick that narrows the list shows as a chip in
+  the list's sticky bar, with its own way out.
+- **A project's page answers in place.** Decide's call strip sits under
+  its "Decide asks" line; each PR count says where those PRs are on the
+  page and opens them; its range numbers are one sentence under the
+  backlog chart, not tiles that open nothing; and its finish forecast
+  comes from issues closed and added, or there's none.
 - **Open boards stay current.** The server sends `projectsChanged` after
   every Projects write and sync; the tab refetches once a burst settles,
   keeping the old numbers on screen meanwhile.
@@ -406,19 +417,25 @@ icon with a class bolted on.
   mark that needs a legend gets rethought, not explained: an unlabeled gray
   line for a project's PR activity and an upright tick for its milestone
   were tried and cut because nobody could read them cold. Now a plan still
-  in flight past its end grows an amber piece labeled "+3 wk over", a
+  in flight past its end grows a piece labeled "+3 wk over" (amber only
+  when it's the plan's worst call, and faded past today), a
   milestone is a flag with its date ("Dec 14 target"), a project with no
   plan is a dashed bar that says "since Aug 17, no plan", and the load
   chart labels its two halves ("In progress, from PRs" and "Ahead, if nothing
-  changes") and its dashed line ("10 developers") instead of carrying a
-  legend. Stripes
-  for projected weeks were cut the same way.
+  changes") and its dashed line ("10 developers", ink until a week from
+  this one on crosses it; the wash above it was cut as a state wash)
+  instead of carrying a legend. Stripes for projected weeks were cut the
+  same way, and so were the count words' colored squares: each count word
+  takes its bars' color instead. A bar says it can be dragged with the
+  grab cursor and a resize edge that shows on hover and focus; one
+  sentence under the heading says how, not a footer.
 - **The timeline is built for a hundred projects in flight.** Every live
   project shows, planned or not, since the load is the point; lanes fold,
   and remember it like every fold. A project with no plan is one line (its
   name, lead and open PRs), and a find box narrows the rows by name, label,
   lead or team while the load chart keeps counting everything. Planning one
-  takes one gesture: its plus opens a chooser under the row (from the week
+  takes one gesture: its plus (shown on row hover or focus, always on
+  touch) opens a chooser under the row (from the week
   its PRs began through the end of a coming month or quarter, the same
   calls Decide offers), or drag across its weeks on the timeline. Design it on the dummy board with
   `?projects=100`, not at a dozen rows. The header with the column names stays
@@ -437,10 +454,12 @@ icon with a class bolted on.
   - a column or month name zooms in; while zoomed, Today comes back
   - a plain click on a bar opens its editor, and only a drag moves it; on a
     project with no plan, a plain click opens the chooser, and only a drag
-    plans it
-  - a lead narrows to their work, a health word opens the updates, "after X"
-    opens X, the milestone flag and a missed target open the project, the
-    amber overrun opens the plan
+    plans it. Escape cancels a drag, a saved move offers Undo in place, and
+    arrow keys reorder within the list on screen (lanes too), said aloud
+  - a plan's name opens its project's page, a lead opens their row on
+    People, a health word opens the updates on their own with focus in
+    them, "after X" opens X, the milestone flag and a missed target open the
+    project, the overrun opens the plan
   - a Now, next, later card, and the Plan cell in the project list, open
     the plan on the timeline
   The test for a new mark: what would someone expect clicking it to do?
@@ -465,9 +484,15 @@ icon with a class bolted on.
   plans for, and "whose PR" says whose work it went to. Each split is one
   list: every row draws its own weeks on the same scale in one color, so
   the row's name labels its bars and there's no legend to learn, and the
-  first row is everyone's, for the shape of the whole range. The tiles
-  open on what a retro asks first, each against the days before; each one
-  clicks through to the split that explains it.
+  first row is everyone's, for the shape of the whole range. People sit in
+  their teams, sorted by name, so a retro opens on the shape of the work
+  rather than a leaderboard; a column sorts within the teams. Every PR is a
+  board row with its days as a footnote. The tiles open on what a retro
+  asks first, each against the days before; each one clicks through to the
+  split that explains it. The weekly charts plot every week of the chart's
+  window, zero-filled, and a week the range cuts off says so ("4 of 7
+  days") rather than reading as a slow week. Developer-days are ink:
+  brand means "still open" on every chart.
 - **A plan's dates go where people already look.** GitHub's issue fields
   show on a project's issue and on any board that lists it, so
   `bin/sync-issue-fields` copies each plan's dates and priority there,
@@ -481,8 +506,8 @@ icon with a class bolted on.
   The load chart says it in words under its roadmap count ("1 fire, 4 not
   said"), each a filter like the counts above it, and says nothing until
   some plan does. The bars keep their two colors: a hue per origin would
-  need a legend. On Decide it rides along with the call, so saying it
-  alone never clears a row.
+  need a legend. On Decide it's asked in the receipt, after the call, so
+  saying it alone never clears a row.
 - **Decide is a list that empties, sized for a Monday.** With no product
   manager, the tool names the calls owed instead of waiting for someone to
   notice: new work with no decision, plans past their end or their target,
@@ -492,7 +517,14 @@ icon with a class bolted on.
   isn't a hundred rows. Each row says why it's there in words, with the
   facts the call turns on (team, size, people, target), and each call is
   one click that writes the roadmap: commit through the end of a coming
-  month or quarter, park, finish, or drop (which asks twice). A decided row
+  month or quarter, park, mark done, or drop. Each row's reason asks one
+  question ("Done?", "New end?"), in amber, the row's one amber mark, and
+  its answer is the one outlined button; the dates are one quiet group and
+  the rest are text buttons. Every receipt says what happens next and
+  offers Undo, which puts the plan back with the times the call replaced,
+  so the row is asked again after a reload too; a failed save says so in
+  the row. j and k move between rows. The same strip runs on a project's
+  page under its "Decide asks" line. A decided row
   stays where it was, every line in place, dimmed and saying what was
   decided, from the click on rather than when the save returns, so the
   next row never slides under the pointer between two clicks; it stays

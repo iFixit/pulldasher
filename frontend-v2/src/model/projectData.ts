@@ -57,6 +57,7 @@ export const MAX_RANGE_DAYS = 400;
 /** The presets a date picker in any analytics tool offers, in its order. */
 export const RANGE_PRESETS: [string, string][] = [
    ['7d', 'Last 7 days'],
+   ['14d', 'Last 14 days'],
    ['30d', 'Last 30 days'],
    ['90d', 'Last 90 days'],
    ['month', 'This month'],

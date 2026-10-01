@@ -1,3 +1,4 @@
+import { n } from '../../../shared/format';
 import {
    dayStart,
    MISC_SLUG,
@@ -5,9 +6,16 @@ import {
    type Project,
    type ProjectWindow,
 } from '../../../shared/model/projects';
-import { planEnd, planFor, type RoadmapItem } from '../../../shared/model/roadmap';
-import { dayWords } from './projectData';
+import {
+   addWeeks,
+   mondayOf,
+   planEnd,
+   planFor,
+   type RoadmapItem,
+} from '../../../shared/model/roadmap';
+import { dayWords, type Range } from './projectData';
 import type { RetroData, RetroPr } from './retroData';
+import { days, NO_PLAN, pastEnd } from './words';
 
 const DAY = 86400;
 
@@ -35,53 +43,31 @@ export function retroRows(data: RetroData): RetroRow[] {
    });
 }
 
-/** Rows grouped one way: the days, how many were writing, each week's days,
- * who spent them and on which PRs (most first), and how many of its PRs
- * merged in the range. */
+/** Rows grouped one way: the days, and who spent them on which PRs, most
+ * first. */
 export interface RetroGroup {
    key: string;
    days: number;
-   writing: number;
-   /** days per week, one entry per RetroData.weeks */
-   weekly: number[];
    people: [string, number][];
    prs: [RetroPr, number][];
-   merged: number;
 }
 
 export function groupRows(
    rows: readonly RetroRow[],
-   keyOf: (row: RetroRow) => string,
-   data: Pick<RetroData, 'weeks' | 'start' | 'end'>
+   keyOf: (row: RetroRow) => string
 ): RetroGroup[] {
-   const from = dayStart(data.start) ?? 0;
-   const to = (dayStart(data.end) ?? from) + 86400;
    const groups = new Map<
       string,
-      {
-         days: number;
-         writing: number;
-         weekly: number[];
-         people: Map<string, number>;
-         prs: Map<RetroPr, number>;
-      }
+      { days: number; people: Map<string, number>; prs: Map<RetroPr, number> }
    >();
    for (const row of rows) {
       const key = keyOf(row);
       let g = groups.get(key);
       if (!g) {
-         g = {
-            days: 0,
-            writing: 0,
-            weekly: data.weeks.map(() => 0),
-            people: new Map(),
-            prs: new Map(),
-         };
+         g = { days: 0, people: new Map(), prs: new Map() };
          groups.set(key, g);
       }
       g.days += row.days;
-      if (row.own) g.writing += row.days;
-      g.weekly[row.week] += row.days;
       g.people.set(row.login, (g.people.get(row.login) ?? 0) + row.days);
       g.prs.set(row.pr, (g.prs.get(row.pr) ?? 0) + row.days);
    }
@@ -90,15 +76,65 @@ export function groupRows(
       .map(([key, g]) => ({
          key,
          days: g.days,
-         writing: g.writing,
-         weekly: g.weekly,
          people: most(g.people),
          prs: most(g.prs),
-         merged: [...g.prs.keys()].filter(
-            p => p.merged != null && p.merged >= from && p.merged < to
-         ).length,
       }))
       .sort((a, b) => b.days - a.days || a.key.localeCompare(b.key));
+}
+
+/**
+ * A week as the charts draw it: its Monday, how many of its seven days the
+ * chart's days hold (fewer only at either end, as for this week so far), and
+ * whether it ends before the picked range, which the charts draw paler.
+ */
+export interface ChartWeek {
+   week: string;
+   days: number;
+   before: boolean;
+}
+
+/** One Monday's week against the days a chart covers and the picked range.
+ * With no days given, the week counts whole. */
+export function chartWeek(week: string, shown?: Range, picked?: Range): ChartWeek {
+   const sunday = utcDay((dayStart(week) as number) + 6 * DAY);
+   const from = shown && shown.start > week ? shown.start : week;
+   const to = shown && shown.end < sunday ? shown.end : sunday;
+   return {
+      week,
+      days: Math.round(((dayStart(to) as number) - (dayStart(from) as number)) / DAY) + 1,
+      before: !!picked && sunday < picked.start,
+   };
+}
+
+/** Every week a chart draws for its days, the empty ones too, oldest first:
+ * the bars keep their place in time however few weeks had any work. */
+export function chartWeeks(shown: Range, picked: Range): ChartWeek[] {
+   const weeks: ChartWeek[] = [];
+   for (let w = mondayOf(shown.start); w <= shown.end; w = addWeeks(w, 1)) {
+      weeks.push(chartWeek(w, shown, picked));
+   }
+   return weeks;
+}
+
+/** Each group's days in each of `weeks`, zeros included. The rows come from
+ * `data` and land in the week their Monday names. */
+export function weeklyBy(
+   rows: readonly RetroRow[],
+   keyOf: (row: RetroRow) => string,
+   data: Pick<RetroData, 'weeks'>,
+   weeks: readonly ChartWeek[]
+): Map<string, number[]> {
+   const at = new Map(weeks.map((w, i) => [w.week, i]));
+   const out = new Map<string, number[]>();
+   for (const row of rows) {
+      const i = at.get(data.weeks[row.week]);
+      if (i === undefined) continue;
+      const key = keyOf(row);
+      const list = out.get(key) ?? weeks.map(() => 0);
+      out.set(key, list);
+      list[i] += row.days;
+   }
+   return out;
 }
 
 /** How spread out each person was: the median, over the weeks they worked,
@@ -283,8 +319,8 @@ export const RETRO_PLAN_RANK: Record<RetroPlanKind, number> = {
 };
 
 /**
- * A plan's outcome in a few words: "done on time", "done 2 wk late",
- * "open, 3 wk past its end", "ends Oct 11", parked, dropped, or "no plan".
+ * A plan's outcome in a few words: "Done on time", "Done 2 weeks late",
+ * "3 weeks past its end", "Ends Oct 11", parked, dropped, or "No plan".
  * A plan's finish day is the day it was marked done (status_at), whatever
  * edits came after; a plan saved before status_at existed falls back to its
  * last change.
@@ -293,7 +329,7 @@ export function retroPlan(
    plan: Pick<RoadmapItem, 'status' | 'start' | 'weeks' | 'updated_at' | 'status_at'> | null,
    today: string
 ): { kind: RetroPlanKind; text: string } {
-   if (!plan) return { kind: 'none', text: 'no plan' };
+   if (!plan) return { kind: 'none', text: NO_PLAN };
    const end = planEnd(plan);
    const weeksAfter = (day: string) =>
       Math.ceil(((dayStart(day) as number) - (dayStart(end) as number)) / (7 * DAY));
@@ -302,15 +338,15 @@ export function retroPlan(
       const at = plan.status_at ?? plan.updated_at;
       const late = at == null ? 0 : weeksAfter(utcDay(at));
       return late > 0
-         ? { kind: 'late', text: `done ${late} wk late` }
-         : { kind: 'on_time', text: 'done on time' };
+         ? { kind: 'late', text: `Done ${n(late, 'week')} late` }
+         : { kind: 'on_time', text: 'Done on time' };
    }
-   if (plan.status === 'dropped') return { kind: 'dropped', text: 'dropped' };
-   if (plan.status === 'parked') return { kind: 'parked', text: 'parked' };
-   if (end < today) return { kind: 'past_end', text: `open, ${weeksAfter(today)} wk past its end` };
+   if (plan.status === 'dropped') return { kind: 'dropped', text: 'Dropped' };
+   if (plan.status === 'parked') return { kind: 'parked', text: 'Parked' };
+   if (end < today) return { kind: 'past_end', text: pastEnd(weeksAfter(today)) };
    return {
       kind: 'open',
-      text: plan.start > today ? `starts ${dayWords(plan.start)}` : `ends ${dayWords(end)}`,
+      text: plan.start > today ? `Starts ${dayWords(plan.start)}` : `Ends ${dayWords(end)}`,
    };
 }
 
@@ -350,4 +386,68 @@ export function finishedIn(
       out.set(p.slug, { key: p.slug, name: p.name, onTime: plan ? day <= planEnd(plan) : null });
    }
    return [...out.values()];
+}
+
+/** What finished, narrowed to the projects these rows spent days on: a
+ * team's or a person's finished plans are the ones they worked on. */
+export function finishedOn(finished: readonly Finished[], rows: readonly RetroRow[]): Finished[] {
+   const worked = new Set(rows.map(r => r.pr.project));
+   return finished.filter(f => worked.has(f.key));
+}
+
+/** What a comparison compares with: "30 days before", or "day before" for
+ * one day, so a note reads "1 more than the day before". */
+export function beforeWords(rangeDays: number): string {
+   return rangeDays === 1 ? 'day before' : `${rangeDays} days before`;
+}
+
+/** How quickly the merged PRs merged: half of several merged within the
+ * median, and one merged PR has only its own time. Null with none merged. */
+export function mergeSpeed(merged: number, medianDays: number | null): string | null {
+   if (!merged || medianDays == null) return null;
+   return merged === 1
+      ? `It merged ${days(medianDays)} after opening`
+      : `Half of them merged within ${days(medianDays)} of opening`;
+}
+
+/**
+ * A spreadsheet cell: quoted when it holds a comma, a quote or a line break,
+ * and a title that starts like a formula (=, +, -, @) gets a leading
+ * apostrophe, since a PR's title is anyone's text and a sheet would run it.
+ */
+function csvCell(value: string | number): string {
+   const text =
+      typeof value === 'string' && /^[=+\-@\t\r]/.test(value) ? `'${value}` : String(value);
+   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/** The rows as CSV: one line per person, PR and week, so a sheet can split
+ * the days any way the page doesn't. */
+export function retroCsv(
+   rows: readonly RetroRow[],
+   data: Pick<RetroData, 'weeks'>,
+   teamOf: (login: string) => string | null,
+   nameOf: (slug: string) => string
+): string {
+   const head = [
+      'Week of',
+      'Person',
+      'Team',
+      'Writing or reviewing',
+      'Days',
+      'PR',
+      'Title',
+      'Project',
+   ];
+   const lines = rows.map(r => [
+      data.weeks[r.week],
+      r.login,
+      teamOf(r.login) ?? '',
+      r.own ? 'writing' : 'reviewing',
+      r.days,
+      `${r.pr.repo}#${r.pr.number}`,
+      r.pr.title,
+      r.pr.project ? nameOf(r.pr.project) : '',
+   ]);
+   return [head, ...lines].map(l => l.map(csvCell).join(',')).join('\n') + '\n';
 }

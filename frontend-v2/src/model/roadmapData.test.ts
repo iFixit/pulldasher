@@ -79,6 +79,35 @@ describe('the roadmap store', () => {
       expect(data.readRoadmap().items?.map(i => i.id)).toEqual([1, 2]);
    });
 
+   it('fetches the whole roadmap after an add before the first load, rather than a list of one', async () => {
+      const { answer } = scriptedFetch();
+      const data = await load();
+      const create = data.createRoadmapItem({ name: 'Item 2' });
+      answer({ item: item(2) }, 201);
+      await create;
+      // every other plan would read as missing, so nothing shows yet
+      expect(data.readRoadmap().items).toBeNull();
+      answer({ items: [item(1), item(2)] }); // the load it asked for
+      await settled();
+      expect(data.readRoadmap().items?.map(i => i.id)).toEqual([1, 2]);
+   });
+
+   it('sends an Undo’s times and shows them at once, so the plan reads as never decided', async () => {
+      const { answer } = scriptedFetch();
+      const data = await load();
+      const first = data.loadRoadmap();
+      answer({ items: [item(1, { status: 'done', updated_at: 5000, status_at: 5000 })] });
+      await first;
+      const undo = { updated_at: 2000, status_at: 1000 };
+      const save = data.updateRoadmapItem(1, { status: 'active' }, { undo });
+      // on screen before the server answers, with the old times, not now
+      expect(data.readRoadmap().items?.[0]).toMatchObject({ status: 'active', ...undo });
+      const sent = JSON.parse(String(vi.mocked(fetch).mock.calls[1][1]?.body));
+      expect(sent).toEqual({ status: 'active', undo });
+      answer({ item: item(1, { status: 'active', ...undo }) });
+      expect(await save).toBe(true);
+   });
+
    it('takes a removed item off what others wait on, and puts it all back on a refusal', async () => {
       const { answer } = scriptedFetch();
       const data = await load();

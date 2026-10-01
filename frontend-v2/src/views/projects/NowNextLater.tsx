@@ -1,15 +1,8 @@
 import { n } from '../../../../shared/format';
-import {
-   bucketOf,
-   healthStanding,
-   mondayOf,
-   NEXT_WEEKS,
-   type RoadmapItem,
-} from '../../../../shared/model/roadmap';
-import { eyebrowText } from '../../components/Lane';
+import { bucketOf, NEXT_WEEKS, type RoadmapItem } from '../../../../shared/model/roadmap';
+import { Fold, GroupHeader, Rows } from '../../components/Lane';
 import type { PortfolioItem } from '../../model/portfolio';
-import { dayWords } from '../../model/projectData';
-import { healthWords, waitsWords } from './roadmapHealth';
+import { planWarnings, SaidWords, type Said } from './roadmapHealth';
 
 const BUCKETS: ['now' | 'next' | 'later', string, string][] = [
    ['now', 'Now', 'In progress, or its start week has begun'],
@@ -39,24 +32,36 @@ function Card({
    all,
    linked,
    today,
+   team,
    onOpen,
 }: {
    item: RoadmapItem;
    all: RoadmapItem[];
    linked: PortfolioItem | undefined;
    today: string;
+   /** say its team: not when a team's fold already does */
+   team: boolean;
    onOpen: () => void;
 }) {
    const bucket = bucketOf(item, today);
-   const health = healthWords(healthStanding(item));
-   const waits = waitsWords(item, all);
-   // still marked planned, though its start week has gone by
-   const unstarted = item.status === 'planned' && item.start < mondayOf(today);
+   // the timeline's own warnings, in its words and with its one amber piece
+   const w = planWarnings(
+      item,
+      all,
+      today,
+      linked ? { live: linked.status === 'live', target: linked.target } : null
+   );
+   const words = (s: Said | null, tone = '') =>
+      s && (
+         <span className={tone} title={s.title}>
+            <SaidWords said={s} />
+         </span>
+      );
    return (
-      // the whole card opens the plan; the name is its keyboard door
+      // the whole row opens the plan; the name is its keyboard door
       <li
          onClick={onOpen}
-         className="cursor-pointer rounded-lg border border-line bg-surface px-3 py-2 hover:border-brand"
+         className="cursor-pointer border-t border-secondary px-3.5 py-2 first:border-t-0 hover:bg-muted"
       >
          <button
             type="button"
@@ -69,31 +74,17 @@ function Card({
          >
             {item.name}
          </button>
-         <div className="flex flex-wrap gap-x-2 text-xs">
-            {unstarted && (
-               <span className="text-warn">
-                  Was to start {dayWords(item.start)}, still marked Planned
-               </span>
-            )}
-            {health && (
-               <span className={health.warn ? 'text-warn' : 'text-ink-2'} title={health.title}>
-                  {health.text}
-               </span>
-            )}
-            {bucket !== 'now' && (
-               <span className="text-ink-3">{monthWords(item.start, today)}</span>
-            )}
-            {waits && (
-               <span className={waits.warn ? 'text-warn' : 'text-ink-3'} title={waits.title}>
-                  {waits.text}
-               </span>
-            )}
-            {[item.team, item.lead, linked?.open ? n(linked.open, 'open PR') : null]
+         <div className="flex flex-wrap gap-x-2 text-xs text-ink-3">
+            {words(w.status)}
+            {words(w.health, 'text-ink-2')}
+            {words(w.over)}
+            {words(w.target)}
+            {bucket !== 'now' && <span>{monthWords(item.start, today)}</span>}
+            {words(w.waits)}
+            {[team ? item.team : null, item.lead, linked?.open ? n(linked.open, 'open PR') : null]
                .filter(Boolean)
                .map(fact => (
-                  <span key={fact} className="text-ink-3">
-                     {fact}
-                  </span>
+                  <span key={fact}>{fact}</span>
                ))}
          </div>
       </li>
@@ -103,69 +94,77 @@ function Card({
 /**
  * The roadmap without dates, for readers who want the order and not the
  * weeks: what's happening now, what's next, and what's later, each in
- * priority order. Opening an item switches to the timeline with it open, since
- * that's where its plan changes.
+ * priority order and each split by team when the roadmap is. Opening an item
+ * switches to the timeline with it open, since that's where its plan
+ * changes.
  */
 export function NowNextLater({
    items,
+   all,
    bySlug,
    laneTitles,
    today,
    onOpen,
 }: {
+   /** the plans to show, as the find box narrows them, in priority order */
    items: RoadmapItem[];
+   /** every plan, for what one waits on */
+   all: RoadmapItem[];
    bySlug: Map<string, PortfolioItem>;
    /** team names when the roadmap is split into team lanes, else null */
    laneTitles: string[] | null;
    today: string;
    onOpen: (id: number) => void;
 }) {
-   const groups = laneTitles
-      ? [...laneTitles, null]
-           .map(team => ({ team, list: items.filter(i => (i.team ?? null) === team) }))
-           .filter(g => g.list.some(i => bucketOf(i, today)))
-      : [{ team: null, list: items }];
-   return (
-      <div className="flex flex-col gap-5">
-         {groups.map(g => (
-            <section key={g.team ?? '(none)'}>
-               {laneTitles && (
-                  <h3 className={`m-0 mb-2 text-ink-3 ${eyebrowText}`}>{g.team ?? 'No team'}</h3>
-               )}
-               <div className="grid gap-4 sm:grid-cols-3">
-                  {BUCKETS.map(([bucket, title, sub]) => {
-                     const list = g.list.filter(i => bucketOf(i, today) === bucket);
-                     return (
-                        <div key={bucket} className="flex min-w-0 flex-col gap-2">
-                           <div>
-                              <span className="text-sm font-semibold text-ink">{title}</span>{' '}
-                              <span className="text-xs text-ink-3 tabular-nums">
-                                 · {list.length}
-                              </span>
-                              <div className="text-xs text-ink-3">{sub}</div>
-                           </div>
-                           {list.length ? (
-                              <ol className="m-0 flex list-none flex-col gap-2 p-0">
-                                 {list.map(item => (
-                                    <Card
-                                       key={item.id}
-                                       item={item}
-                                       all={items}
-                                       linked={item.project ? bySlug.get(item.project) : undefined}
-                                       today={today}
-                                       onOpen={() => onOpen(item.id)}
-                                    />
-                                 ))}
-                              </ol>
-                           ) : (
-                              <p className="m-0 text-xs text-ink-3">No plans.</p>
-                           )}
-                        </div>
-                     );
-                  })}
-               </div>
-            </section>
+   const cards = (list: RoadmapItem[]) => (
+      <ol className="m-0 list-none p-0">
+         {list.map(item => (
+            <Card
+               key={item.id}
+               item={item}
+               all={all}
+               linked={item.project ? bySlug.get(item.project) : undefined}
+               today={today}
+               team={!laneTitles}
+               onOpen={() => onOpen(item.id)}
+            />
          ))}
+      </ol>
+   );
+   return (
+      <div className="grid gap-x-4 gap-y-6 sm:grid-cols-3">
+         {BUCKETS.map(([bucket, title, sub]) => {
+            const list = items.filter(i => bucketOf(i, today) === bucket);
+            const lanes =
+               laneTitles &&
+               [...laneTitles, null]
+                  .map(team => ({ team, list: list.filter(i => (i.team ?? null) === team) }))
+                  .filter(lane => lane.list.length);
+            return (
+               <section key={bucket} className="min-w-0">
+                  <GroupHeader title={title} sub={sub} count={list.length} level={3} compact />
+                  {list.length ? (
+                     <Rows>
+                        {lanes
+                           ? lanes.map(lane => (
+                                <Fold
+                                   key={lane.team ?? '(none)'}
+                                   id={`roadmap:nnl:${bucket}:${lane.team ?? '(none)'}`}
+                                   defaultOpen
+                                   label={lane.team ?? 'No team'}
+                                   count={lane.list.length}
+                                >
+                                   {cards(lane.list)}
+                                </Fold>
+                             ))
+                           : cards(list)}
+                     </Rows>
+                  ) : (
+                     <p className="m-0 text-xs text-ink-3">No plans.</p>
+                  )}
+               </section>
+            );
+         })}
       </div>
    );
 }

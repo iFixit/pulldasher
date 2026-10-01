@@ -75,14 +75,20 @@ describe('commitEnds', () => {
          ['End of Oct', '2026-10-31'],
          ['End of Nov', '2026-11-30'],
          ['End of Q4', '2026-12-31'],
-         ['End of Q1', '2027-03-31'],
+         ['End of Q1 2027', '2027-03-31'],
+      ]);
+      // a month next year says its year too
+      expect(commitEnds('2026-12-01').map(c => c.label)).toEqual([
+         'End of Q4',
+         'End of Jan 2027',
+         'End of Q1 2027',
       ]);
       // mid-month, the month and quarter at hand still count, and December
       // goes by its quarter's name
       expect(commitEnds('2026-11-10').map(c => [c.label, c.end])).toEqual([
          ['End of Nov', '2026-11-30'],
          ['End of Q4', '2026-12-31'],
-         ['End of Q1', '2027-03-31'],
+         ['End of Q1 2027', '2027-03-31'],
       ]);
    });
 });

@@ -384,11 +384,13 @@ export function Fold({
       if (foldOpenStore.get()[id] !== next)
          foldOpenStore.set({ ...foldOpenStore.get(), [id]: next });
    };
+   // the label and its count stay on one line: on a phone a long detail
+   // beside them split "FIXBOT · 3" across two
    const labelInner = (
-      <>
+      <span className="shrink-0 whitespace-nowrap">
          <span className={tone === 'do' ? 'text-brand-700' : 'text-ink-3'}>{label}</span>
          {showCount && <span className="tabular-nums text-ink-3"> · {count}</span>}
-      </>
+      </span>
    );
    return (
       <details

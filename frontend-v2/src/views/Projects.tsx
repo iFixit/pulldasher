@@ -25,13 +25,13 @@ import { loadRoadmap, useRoadmap } from '../model/roadmapData';
 /** how long a burst of changes on the server settles before one refetch */
 const CHANGE_SETTLE_MS = 2000;
 import { DateRangePicker } from './projects/DateRangePicker';
-import { Decide, decideRows } from './projects/Decide';
+import { Decide, decideRows, useKeptCalls } from './projects/Decide';
 import { Overview } from './projects/Overview';
 import { People } from './projects/People';
 import { ProjectPage } from './projects/ProjectPage';
 import { Retro } from './projects/Retro';
 import { Roadmap } from './projects/Roadmap';
-import type { Navigate, ProjectsNav } from './projects/parts';
+import { switchView, type Navigate, type ProjectsNav } from './projects/parts';
 
 export type { ProjectsNav } from './projects/parts';
 
@@ -84,7 +84,7 @@ export function Projects({
    // a person clicked anywhere on this tab opens their row on People, so the
    // click stays in Projects and sets no filter that would change its counts
    const onPersonHere = useCallback(
-      (login: string) => navigate({ view: 'people', project: null, who: login }, { push: true }),
+      (login: string) => navigate({ ...switchView('people'), who: login }, { push: true }),
       [navigate]
    );
    // a change made on the server (anyone's call, an issue added, a sync)
@@ -149,6 +149,10 @@ export function Projects({
       () => (plans ? decideRows(today, plans, closedProjects, work, ongoing) : null),
       [today, plans, closedProjects, work, ongoing]
    );
+   // a call made this visit stays with its row (a receipt and Undo) on
+   // Decide and on the project's page; the badge counts what's still owed
+   const kept = useKeptCalls(decisions ?? []);
+   const owedCalls = decisions ? kept.owed : null;
    const views: [ProjectsNav['view'], string][] = [
       ['overview', 'Overview'],
       ['decide', 'Decide'],
@@ -197,24 +201,12 @@ export function Projects({
                ariaLabel="projects view"
                value={nav.view}
                options={views}
-               counts={{ decide: decisions?.length }}
+               counts={{ decide: owedCalls?.length }}
                tabs
                // a view's own picks (its sort, team, person, week) stay with it,
                // so one view never quietly narrows the next; the range, the find
                // and the roadmap's zoom carry over, each shown where it applies
-               onChange={view =>
-                  navigate({
-                     view,
-                     item: null,
-                     sort: '',
-                     psort: '',
-                     team: null,
-                     who: null,
-                     only: null,
-                     week: null,
-                     origin: null,
-                  })
-               }
+               onChange={view => navigate(switchView(view))}
             />
          )}
          {/* the Overview and Decide are about now, and the roadmap has its
@@ -251,7 +243,8 @@ export function Projects({
                ongoingSaved={data?.ongoing ?? []}
                opts={tabOpts}
                onPerson={onPersonHere}
-               asks={(decisions ?? []).filter(row => row.slug === nav.project)}
+               asks={kept.owed.filter(row => row.slug === nav.project)}
+               calls={kept.all.filter(row => row.slug === nav.project)}
                rangePicker={rangePicker}
             />
          ) : nav.view === 'people' ? (
@@ -263,7 +256,9 @@ export function Projects({
                teamOf={teamOf}
                nameOf={nameOf}
                me={me}
-               onPerson={onPersonHere}
+               items={items}
+               nav={nav}
+               navigate={navigate}
             />
          ) : nav.view === 'decide' ? (
             <Decide
@@ -277,6 +272,7 @@ export function Projects({
                ongoing={ongoing}
                nav={nav}
                navigate={navigate}
+               onPerson={onPersonHere}
             />
          ) : nav.view === 'retro' ? (
             <Retro
@@ -289,6 +285,7 @@ export function Projects({
                nav={nav}
                navigate={navigate}
                onPerson={onPersonHere}
+               opts={tabOpts}
             />
          ) : nav.view === 'roadmap' ? (
             <Roadmap
@@ -309,7 +306,7 @@ export function Projects({
                nav={nav}
                navigate={navigate}
                opts={tabOpts}
-               decisions={decisions}
+               decisions={owedCalls}
                me={me}
                onPerson={onPersonHere}
             />

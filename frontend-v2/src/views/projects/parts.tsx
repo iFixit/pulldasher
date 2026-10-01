@@ -7,13 +7,13 @@ import {
    type ProjectFlag,
    type ProjectGroup,
    type ProjectTarget,
-   type WindowCounts,
 } from '../../../../shared/model/projects';
 import { ORIGIN_WORD, ROADMAP_ORIGINS, type RoadmapOrigin } from '../../../../shared/model/roadmap';
-import { ArrowDown, ArrowUp } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronRight, X } from 'lucide-react';
 import { Icon } from '../../components/Icon';
 import { Avatar } from '../../components/identity';
 import { eyebrowText } from '../../components/Lane';
+import { DEFAULT_SORT } from '../../lens';
 import { dayWords } from '../../model/projectData';
 
 /** What the Projects tab keeps in the URL hash, beside the lens. */
@@ -54,7 +54,7 @@ export interface ProjectsNav {
    by: 'team' | 'origin' | 'author' | 'repo';
    /** which of Look back's days count: all, only writing, or only reviewing */
    kind: 'all' | 'writing' | 'reviewing';
-   /** a person picked in Look back: only their days count */
+   /** a person picked: People opens their row; Look back counts only their days */
    who: string | null;
    /** what a tile or a chart's bar narrowed the project list to
     * (model/portfolio.ts matchesOnly); null for nothing */
@@ -69,6 +69,55 @@ export interface ProjectsNav {
  * for any other change a click made, such as a find a click sets (typing
  * replaces the entry instead). */
 export type Navigate = (patch: Partial<ProjectsNav>, opts?: { push?: boolean }) => void;
+
+/** Another view, opened the way the view switch opens it: the view's own
+ * picks (a sort, a team, a person, a week, a narrowing) stay behind, so one
+ * view never quietly narrows the next. */
+export function switchView(view: ProjectsNav['view']): Partial<ProjectsNav> {
+   return {
+      view,
+      project: null,
+      item: null,
+      // the list's own "nothing picked", so no empty sort= lands in the URL
+      sort: DEFAULT_SORT,
+      psort: '',
+      team: null,
+      who: null,
+      only: null,
+      week: null,
+      origin: null,
+      by: 'team',
+      kind: 'all',
+   };
+}
+
+/** What narrows a list, as a chip beside its find box with its own way
+ * out: the roadmap's picked week, a tile's or a bar's pick on the project
+ * list. `clear` names what the × does. */
+export function NarrowChip({
+   label,
+   clear,
+   onClear,
+}: {
+   label: string;
+   clear: string;
+   onClear: () => void;
+}) {
+   return (
+      <span className="inline-flex items-center gap-1.5 rounded-md border border-brand bg-surface py-1 pr-1 pl-2 text-xs text-ink">
+         {label}
+         <button
+            type="button"
+            aria-label={clear}
+            title={clear}
+            onClick={onClear}
+            className="hit pressable rounded border-0 bg-transparent p-0 text-ink-3 hover:text-ink"
+         >
+            <Icon icon={X} size={12} />
+         </button>
+      </span>
+   );
+}
 
 /** Where the work came from, as a switch's options; `unsaid` stands for a
  * plan nobody has said it about. */
@@ -97,8 +146,6 @@ export function openPlan(nav: ProjectsNav, id: number): Partial<ProjectsNav> {
    };
 }
 
-/** Each flag in words, with the sentence its hover gives. Flags appear only
- * when true, and read as amber text: someone owes the project something. */
 /** A project flag's words and the sentence behind them. */
 export function flagText(flag: ProjectFlag, g: ProjectGroup): [string, string] {
    switch (flag) {
@@ -108,13 +155,12 @@ export function flagText(flag: ProjectFlag, g: ProjectGroup): [string, string] {
             `${ONE_PERSON_MIN_PRS} or more PRs here, open or merged in the last 14 days, and every one is by ${g.people[0]}.`,
          ];
       case 'waiting_on_review':
-         return [
-            'all waiting on review',
-            'All of its open PRs (2 or more) are waiting on a CR or QA.',
-         ];
+         return ['all waiting on review', 'All of its open PRs (2 or more) are waiting on review.'];
    }
 }
 
+/** Each flag in words, with the sentence its hover gives. Flags appear only
+ * when true, in quiet ink: a row's one amber mark is its Plan cell. */
 export function FlagWords({ g }: { g: ProjectGroup }) {
    if (!g.flags.length) return null;
    return (
@@ -122,7 +168,7 @@ export function FlagWords({ g }: { g: ProjectGroup }) {
          {g.flags.map(flag => {
             const [word, gloss] = flagText(flag, g);
             return (
-               <span key={flag} className="whitespace-nowrap text-warn" title={gloss}>
+               <span key={flag} className="whitespace-nowrap text-ink-3" title={gloss}>
                   {word}
                </span>
             );
@@ -132,15 +178,19 @@ export function FlagWords({ g }: { g: ProjectGroup }) {
 }
 
 /** Up to three faces, then "+N": who is on a project, without a people
- * table. With `onPerson`, a face opens that person's PRs. */
+ * table. With `onPerson`, a face opens that person; with `me`, yours wears
+ * your star. */
 export function PeopleStack({
    logins,
    size = 16,
    onPerson,
+   me,
 }: {
    logins: string[];
    size?: number;
    onPerson?: (login: string) => void;
+   /** the viewer's login */
+   me?: string;
 }) {
    const shown = logins.slice(0, 3);
    const more = logins.length - shown.length;
@@ -148,7 +198,13 @@ export function PeopleStack({
       <span className="inline-flex flex-none items-center gap-1" title={logins.join(', ')}>
          <span className="inline-flex -space-x-1">
             {shown.map(login => (
-               <Avatar key={login} login={login} size={size} onClick={onPerson} />
+               <Avatar
+                  key={login}
+                  login={login}
+                  size={size}
+                  onClick={onPerson}
+                  you={!!me && login.toLowerCase() === me.toLowerCase()}
+               />
             ))}
          </span>
          {more > 0 && <span className="text-[11px] text-ink-3 tabular-nums">+{more}</span>}
@@ -197,9 +253,9 @@ function FactLink({
 /**
  * The facts a project's issue gives it, on one quiet line: the issue link,
  * lead, target, the projects it's part of (and, on a parent, the ones that
- * are part of it), and whether it has an end. Editing the issue's facts
- * means editing the issue on GitHub; with `links`, the lead and the other
- * projects go to their pages here.
+ * are part of it), and whether it runs with no end. Editing the issue's
+ * facts means editing the issue on GitHub; with `links`, the lead opens
+ * their row on People and the other projects their pages here.
  */
 export function ProjectFacts({
    g,
@@ -243,8 +299,7 @@ export function ProjectFacts({
                   ? go?.({ project: parent })
                   : go?.(
                        {
-                          project: null,
-                          view: 'overview',
+                          ...switchView('overview'),
                           status: 'all',
                           group: 'parent',
                           find: `parent:${parent}`,
@@ -280,14 +335,10 @@ export function ProjectFacts({
             <span key="lead">
                Lead{' '}
                {go ? (
+                  // a person clicked anywhere in the tab opens their row on People
                   <FactLink
-                     onClick={() =>
-                        go(
-                           { project: null, view: 'overview', find: `lead:${lead}` },
-                           { push: true }
-                        )
-                     }
-                     title={`List only the projects ${lead} leads`}
+                     onClick={() => go({ ...switchView('people'), who: lead }, { push: true })}
+                     title={`Open ${lead}’s row on People`}
                   >
                      {lead}
                   </FactLink>
@@ -300,7 +351,14 @@ export function ProjectFacts({
       const target = inline ? null : targetOf(project);
       if (target) facts.push(<span key="target">Target {targetWords(target)}</span>);
       if (project.fields.start) {
-         facts.push(<span key="start">Starts {dayWords(project.fields.start)}</span>);
+         // the issue's own field, which can differ from its plan's dates on a
+         // page that shows both, so it says where it comes from there
+         facts.push(
+            <span key="start">
+               Starts {dayWords(project.fields.start)}
+               {inline ? ' (on its issue)' : ''}
+            </span>
+         );
       }
       if (project.fields.priority) {
          facts.push(<span key="priority">Priority {project.fields.priority}</span>);
@@ -318,7 +376,7 @@ export function ProjectFacts({
             key="none"
             title={`PRs carry the ${prefix}${g.slug} label, but no issue has it yet. Give one issue in any tracked repo the same label to name the project and set its lead.`}
          >
-            No project issue yet
+            No issue names it yet
          </span>
       );
    }
@@ -364,8 +422,9 @@ export function ProjectFacts({
             Ongoing, no end
          </label>
       );
-   } else if (project) {
-      facts.push(<span key="kind">{isOngoing ? 'Ongoing' : 'Has an end'}</span>);
+   } else if (isOngoing) {
+      // having an end is the usual case, so only the exception is said
+      facts.push(<span key="kind">Ongoing</span>);
    }
    return (
       <div
@@ -393,7 +452,10 @@ export function PageLink({ g, navigate }: { g: Pick<ProjectGroup, 'slug'>; navig
 }
 
 /** One number with its label under it, the Stats tab's big-number style,
- * and an optional quiet line comparing it with the period before. */
+ * and an optional quiet line under that. The number sits at the top
+ * whatever its neighbors' notes run to. A tile should open what it counts:
+ * with `onClick` it's a button and looks like one, its label in ink with a
+ * chevron and the whole tile lit on hover. */
 export function Tile({
    value,
    label,
@@ -406,37 +468,43 @@ export function Tile({
    label: string;
    title: string;
    note?: string | null;
-   /** where the number comes from: a tile with a place to go is a button */
+   /** what it counts, opened: a tile with a place to go is a button */
    onClick?: () => void;
    /** amber: someone owes what it counts */
    warn?: boolean;
 }) {
    const body = (
       <>
-         <div
-            className={`text-xl font-semibold tabular-nums ${
-               warn ? 'text-warn' : onClick ? 'text-ink group-hover:text-brand' : 'text-ink'
+         <span className={`text-xl font-semibold tabular-nums ${warn ? 'text-warn' : 'text-ink'}`}>
+            {value}
+         </span>
+         <span
+            className={`inline-flex items-center gap-0.5 text-xs ${
+               onClick ? 'text-ink-2 group-hover:text-brand group-hover:underline' : 'text-ink-3'
             }`}
          >
-            {value}
-         </div>
-         <div className={`text-xs text-ink-3 ${onClick ? 'group-hover:underline' : ''}`}>
             {label}
-         </div>
-         {note && <div className="mt-0.5 text-[11px] text-ink-3 tabular-nums">{note}</div>}
+            {onClick && <Icon icon={ChevronRight} size={12} className="flex-none" />}
+         </span>
+         {note && <span className="mt-0.5 text-[11px] text-ink-3 tabular-nums">{note}</span>}
       </>
    );
+   const box = 'flex flex-col items-start text-left';
    return onClick ? (
       <button
          type="button"
          onClick={onClick}
          title={title}
-         className="group pressable rounded border-0 bg-transparent p-0 text-left"
+         // the padding lights a target on hover; the margin keeps the tiles
+         // where they'd sit without it
+         className={`group pressable -m-2 rounded-lg border-0 bg-transparent p-2 transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none ${box}`}
       >
          {body}
       </button>
    ) : (
-      <div title={title}>{body}</div>
+      <div title={title} className={box}>
+         {body}
+      </div>
    );
 }
 
@@ -453,7 +521,9 @@ export function readSort<K extends string>(
 }
 
 /** A column header that sorts its table by that column; a second click
- * reverses it. `sort` is what the table sorts by now. */
+ * reverses it. `sort` is what the table sorts by now. It's the header cell
+ * itself (role columnheader, with aria-sort), so its row needs role row in
+ * a role table. */
 export function SortHeader<K extends string>({
    label,
    title,
@@ -461,6 +531,7 @@ export function SortHeader<K extends string>({
    sort,
    onSort,
    className = '',
+   order = 'descending',
 }: {
    label: string;
    title: string;
@@ -469,13 +540,18 @@ export function SortHeader<K extends string>({
    /** the new sort param: the key, `-` in front to reverse */
    onSort: (param: string) => void;
    className?: string;
+   /** the column's first-click order: biggest first for most, ascending for
+    * names A to Z and dates soonest first */
+   order?: 'ascending' | 'descending';
 }) {
    const active = sort.key === sortKey;
+   const flipped = order === 'ascending' ? 'descending' : 'ascending';
    // the cell carries the column's width and hiding; the button only its words
    return (
       <span
+         role="columnheader"
          className={className}
-         aria-sort={active ? (sort.reversed ? 'ascending' : 'descending') : undefined}
+         aria-sort={active ? (sort.reversed ? flipped : order) : undefined}
       >
          <button
             type="button"
@@ -492,8 +568,6 @@ export function SortHeader<K extends string>({
    );
 }
 
-const days = (d: number | null) => (d == null ? 'none' : `${d}`);
-
 /** "4 more than the 30 days before", or null while there's nothing to compare. */
 export function versus(
    now: number,
@@ -504,84 +578,4 @@ export function versus(
    const d = now - before;
    if (d === 0) return `same as the ${period}`;
    return `${Math.abs(d)} ${d > 0 ? 'more' : 'fewer'} than the ${period}`;
-}
-
-/** "1.5 days quicker than the 30 days before", for a median time. */
-export function versusDays(
-   now: number | null,
-   before: number | null | undefined,
-   period: string
-): string | null {
-   if (now == null || before == null) return null;
-   const d = Math.round((now - before) * 10) / 10;
-   if (d === 0) return `same as the ${period}`;
-   return `${Math.abs(d)} days ${d < 0 ? 'quicker' : 'slower'} than the ${period}`;
-}
-
-/**
- * A window's numbers as tiles. The median age is there on purpose: over a
- * month the backlog can shrink while the PRs left in it get older, and the
- * count alone hides that. With `prev` (the same number of days just before),
- * each count says how it compares, in words: more is not always better, so
- * no color.
- */
-export function WindowTiles({
-   w,
-   prev,
-   period,
-}: {
-   w: WindowCounts;
-   prev?: WindowCounts | null;
-   /** what `prev` covers, e.g. "30 days before" */
-   period?: string;
-}) {
-   const vs = (key: 'opened' | 'merged' | 'closed') =>
-      prev && period ? versus(w[key], prev[key], period) : null;
-   return (
-      <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4 lg:grid-cols-7">
-         <Tile
-            value={`${w.backlog_start} to ${w.backlog_end}`}
-            label="Open PRs, start to end"
-            title="PRs open when the first day began, and when the last day ended"
-         />
-         <Tile
-            value={w.opened}
-            label="Opened"
-            title="PRs opened during the range"
-            note={vs('opened')}
-         />
-         <Tile
-            value={w.merged}
-            label="Merged"
-            title="PRs merged during the range"
-            note={vs('merged')}
-         />
-         <Tile
-            value={w.closed}
-            label="Closed without merging"
-            title="PRs closed during the range without a merge"
-            note={vs('closed')}
-         />
-         <Tile
-            value={`${days(w.median_age_start_days)} to ${days(w.median_age_end_days)}`}
-            label="Median age in days"
-            title="Median age of the open PRs at the start and at the end"
-         />
-         <Tile
-            value={days(w.median_days_to_merge)}
-            label="Median days to merge"
-            title="Median days from opened to merged, over the PRs merged in the range"
-            note={
-               period
-                  ? versusDays(w.median_days_to_merge, prev?.median_days_to_merge, period)
-                  : null
-            }
-         />
-         <Tile
-            value={`${w.developers} · ${w.non_developers}`}
-            label="Developers · non-developers"
-            title="People with a PR in the range: on a developer team, and everyone else"
-         />
-      </div>
-   );
 }

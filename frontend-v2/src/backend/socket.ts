@@ -205,8 +205,9 @@ function dummyBackend(): Backend {
    }
 
    return {
-      // one person on the dummy board: nobody else's writes to hear
-      onProjectsChanged: () => () => {},
+      // one person on the dummy board: nobody else's writes to hear, so
+      // nothing to unsubscribe from either
+      onProjectsChanged: () => () => undefined,
       whoami: () => Promise.resolve(dummyUser()),
       onPulls(handler) {
          emit = handler;

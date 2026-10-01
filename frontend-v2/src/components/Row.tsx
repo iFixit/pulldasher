@@ -644,6 +644,7 @@ function RowImpl({
    pull,
    opts,
    depth = 0,
+   footnote,
 }: {
    pull: DerivedPull;
    opts: RowOptions;
@@ -651,6 +652,10 @@ function RowImpl({
     * or not rendered through a stack-aware list). Per-row data, not an
     * option — it varies row to row within the same list. */
    depth?: number;
+   /** a line the context adds under the meta (who holds it, why it's
+    * here): inside the row, so it sits above the age line instead of under
+    * it. A control in it wears .pd-raise to sit over the row's click layer. */
+   footnote?: ReactNode;
 }) {
    const d = pull.data;
    const key = pullKey(d);
@@ -773,6 +778,9 @@ function RowImpl({
                   </Popover>
                )}
                <RowDetails flags={rowFlags(pull, showIterating, depth, orphanParent)} />
+               {/* a line of its own, and the last one, even in compact's one
+                   flowing line, where the rail comes before it */}
+               {footnote && <span className="order-last basis-full">{footnote}</span>}
             </>
          }
          rail={<MetricRail pull={pull} opts={opts} claim={claim} />}
@@ -818,5 +826,6 @@ export const Row = memo(
       a.opts.turns === b.opts.turns &&
       a.opts.isBotAuthor === b.opts.isBotAuthor &&
       a.opts.onProject === b.opts.onProject &&
-      a.opts.noHide === b.opts.noHide
+      a.opts.noHide === b.opts.noHide &&
+      a.footnote === b.footnote
 );

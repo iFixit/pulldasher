@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { closedIssues, decideProjects, decideQueue } from '../../../shared/model/decide';
+import {
+   closedIssues,
+   decideProjects,
+   decideQueue,
+   type DecideReason,
+} from '../../../shared/model/decide';
 import type { DerivedPull } from '../../../shared/model/status';
 import type { Project, ProjectGroup, ProjectWindow, Today } from '../../../shared/model/projects';
 import type { RoadmapItem, RoadmapUpdate } from '../../../shared/model/roadmap';
@@ -21,6 +26,7 @@ import {
    portfolioItems,
    portfolioText,
    sortItems,
+   withCalls,
    withWorkers,
    type PortfolioItem,
 } from './portfolio';
@@ -252,31 +258,23 @@ describe('portfolioItems', () => {
 describe('planCell', () => {
    const day = '2026-09-29';
    const now = NOW / 1000;
-   const base = {
-      project: null,
-      stage: 'progress' as const,
-      open: 2,
-      merged: 0,
-      target: null,
-      dueInDays: null,
-   };
    const cell = (over: Partial<Parameters<typeof planCell>[0]>) =>
-      planCell({ ...base, plan: null, ...over }, day, now);
+      planCell({ plan: null, project: null, ...over }, day, now);
 
-   it('says the worst thing first', () => {
+   it('says what the plan owes when Decide asks nothing, the worst first', () => {
       const offTrack = plan(1, 'a', { update: update('off_track', 1), start: '2026-08-03' });
-      expect(cell({ plan: offTrack }).text).toBe('Off track');
-      expect(cell({ plan: plan(1, 'a', { start: '2026-08-03' }) }).text).toBe('5 wk past its end');
-      expect(
-         cell({
-            plan: plan(1, 'a'),
-            target: { title: null, due_on: '2026-09-20' },
-            dueInDays: -9,
-         })
-      ).toEqual({ kind: 'missed', text: 'Missed Sep 20 target', warn: true });
+      expect(cell({ plan: offTrack })).toEqual({
+         kind: 'off_track',
+         text: 'Off track',
+         warn: true,
+         planId: 1,
+      });
+      expect(cell({ plan: plan(1, 'a', { start: '2026-08-03' }) }).text).toBe(
+         '5 weeks past its end'
+      );
       expect(cell({ plan: plan(1, 'a', { update: update('at_risk', 1) }) }).text).toBe('At risk');
       expect(cell({ plan: plan(1, 'a', { start: '2026-09-07', weeks: 6 }) }).text).toBe(
-         'No update'
+         'No update yet'
       );
       expect(
          cell({
@@ -285,11 +283,12 @@ describe('planCell', () => {
       ).toBe('Update due');
    });
 
-   it('reads calm when nothing is owed', () => {
+   it('reads calm when nothing is owed, and blank with no plan nobody asks for', () => {
       expect(cell({ plan: plan(1, 'a', { update: update('on_track', 1) }) })).toEqual({
          kind: 'on_track',
          text: 'On track',
          warn: false,
+         planId: 1,
       });
       expect(cell({ plan: plan(1, 'a') }).text).toBe('Ends Oct 18');
       expect(cell({ plan: plan(1, 'a', { status: 'planned', start: '2026-10-12' }) }).text).toBe(
@@ -300,19 +299,33 @@ describe('planCell', () => {
       expect(
          cell({ project: project('x', { state: 'closed', state_reason: 'completed' }) }).text
       ).toBe('Done');
+      // small work ships without a plan, so the cell says nothing at all
+      expect(cell({})).toEqual({ kind: 'no_plan', text: '', warn: false, planId: null });
    });
 
-   it('asks for a plan only once Decide would: 3 or more PRs, some open', () => {
-      expect(cell({ open: 2, merged: 1 })).toEqual({
-         kind: 'no_plan',
-         text: 'No plan',
-         warn: true,
-      });
-      expect(cell({ open: 1, merged: 0 }).warn).toBe(false);
-      expect(cell({ open: 0, merged: 3 }).warn).toBe(false);
+   it('names the worst call Decide asks, in amber, about the plan it asks', () => {
+      const done = plan(7, 'a', { status: 'done' });
+      const asked = (...reasons: DecideReason[]) =>
+         cell({ plan: done, asks: reasons.map(reason => ({ reason, item: done })) });
+      expect(asked({ kind: 'new', since: null })).toMatchObject({ text: 'No plan', warn: true });
+      // a finished plan Decide asks about again, whatever else it asks
+      expect(
+         asked(
+            { kind: 'stalled', days: 30 },
+            { kind: 'reopened', open: 2, late: 0, as: 'done', by: 'roadmap' }
+         )
+      ).toEqual({ kind: 'reopened', text: 'Done, still taking PRs', warn: true, planId: 7 });
+      expect(asked({ kind: 'over', weeks: 3, since: 0 }).text).toBe('3 weeks past its end');
+      expect(asked({ kind: 'missed', due: '2026-09-20', open: 2 }).text).toBe(
+         'Missed Sep 20 target'
+      );
+      // a call about no plan opens the work with no plan
+      expect(cell({ asks: [{ reason: { kind: 'stalled', days: 25 }, item: null }] })).toMatchObject(
+         { text: 'Stalled', planId: null }
+      );
    });
 
-   it('says the issues are all closed only of the plan Decide asks, one that has started', () => {
+   it('says the issues are all closed exactly when Decide asks, as Decide asks it', () => {
       const closed: IssueCounts = {
          total: 2,
          open: 0,
@@ -322,31 +335,34 @@ describe('planCell', () => {
       };
       const issues = new Map([['alpha', closed]]);
       // [the cell says so, Decide asks]
-      const flags = (alphaPlans: RoadmapItem[]) => [
-         portfolioItems(projects, today, {}, teamOf, NOW, alphaPlans, issues).find(
-            i => i.slug === 'alpha'
-         )?.planCell.kind === 'issues_done',
-         decideQueue({
+      const flags = (alphaPlans: RoadmapItem[], all: Project[] = projects) => {
+         const rows = decideQueue({
             live: decideProjects(today),
             items: alphaPlans,
+            closed: closedIssues(all),
             issues,
             today: day,
             now,
-         }).some(r => r.slug === 'alpha' && r.reasons.some(x => x.kind === 'issues_done')),
-      ];
+         });
+         const items = withCalls(
+            portfolioItems(all, today, {}, teamOf, NOW, alphaPlans, issues),
+            rows,
+            NOW
+         );
+         return [
+            items.find(i => i.slug === 'alpha')?.planCell.kind === 'issues_done',
+            rows.some(r => r.slug === 'alpha' && r.reasons.some(x => x.kind === 'issues_done')),
+         ];
+      };
       // its one plan starts next month
       expect(flags([plan(3, 'alpha', { status: 'planned', start: '2026-10-12' })])).toEqual([
          false,
          false,
       ]);
-      // the cell shows the first plan by priority; Decide asks the one started last
       const first = plan(3, 'alpha', { start: '2026-09-07', weeks: 8 });
-      const second = plan(4, 'alpha');
-      const answered = { updated_at: now - 86400 };
-      expect(flags([first, { ...second, ...answered }])).toEqual([false, false]);
-      expect(flags([{ ...first, ...answered }, second])).toEqual([true, true]);
+      expect(flags([first])).toEqual([true, true]);
       // its own issue closed since the plan last changed: Decide asks about
-      // that first, so the cell doesn't say the issues are all closed
+      // that first, so the cell says so instead
       const shut = projects.map(p =>
          p.slug === 'alpha'
             ? {
@@ -357,23 +373,7 @@ describe('planCell', () => {
               }
             : p
       );
-      expect(flags([first])).toEqual([true, true]);
-      expect(
-         portfolioItems(shut, today, {}, teamOf, NOW, [first], issues).find(i => i.slug === 'alpha')
-            ?.planCell.kind
-      ).not.toBe('issues_done');
-      expect(
-         decideQueue({
-            live: decideProjects(today),
-            items: [first],
-            closed: closedIssues(shut),
-            issues,
-            today: day,
-            now,
-         })
-            .find(r => r.slug === 'alpha')
-            ?.reasons.map(r => r.kind)
-      ).toEqual(['issue_closed']);
+      expect(flags([first], shut)).toEqual([false, false]);
    });
 
    it('counts a project behind when off track, or past its end or target with PRs open', () => {
@@ -383,10 +383,20 @@ describe('planCell', () => {
          plan(5, 'beta', { start: '2026-09-21', weeks: 2 }),
       ]);
       const by = Object.fromEntries(behind.map(i => [i.slug, i]));
-      expect(by.alpha.behind).toBe(true);
+      expect(by.alpha.behind).toBe('past_end');
       // past its end, but nothing open: Decide asks to finish it, not to catch up
-      expect(by['merges-only'].behind).toBe(false);
+      expect(by['merges-only'].behind).toBeNull();
       expect(by.beta.endsSoon).toBe(true);
+      // off track counts until the plan changes after the update, as Decide reads it
+      const offTrack = (changedDaysAgo: number) =>
+         portfolioItems(projects, today, {}, teamOf, NOW, [
+            plan(3, 'alpha', {
+               update: update('off_track', 2),
+               updated_at: now - changedDaysAgo * 86400,
+            }),
+         ]).find(i => i.slug === 'alpha')?.behind;
+      expect(offTrack(5)).toBe('off_track');
+      expect(offTrack(1)).toBeNull();
    });
 });
 
@@ -425,37 +435,49 @@ describe('the list’s filters', () => {
       expect(items.filter(i => matchesFind(i, 'fixbot')).map(i => i.slug)).toEqual(['label-only']);
    });
 
-   it('matches a lead, team or parent exactly after "lead:", "team:" or "parent:"', () => {
+   it('matches a lead or team it starts after "lead:" or "team:", a parent exactly', () => {
       const find = (f: string) =>
          items
             .filter(i => matchesFind(i, f))
             .map(i => i.slug)
             .sort();
-      // what a click on a parent, a lead or a team puts in the box
+      // what a click on a parent or a team puts in the box
       expect(find('parent:store')).toEqual(['alpha', 'beta']);
       expect(find('parent:Warehouse')).toEqual(['beta']);
       expect(find('lead:dana')).toEqual(['alpha']);
       expect(find('team:fixbot')).toEqual(['label-only']);
-      // part of a name isn't the name
+      // a lead or team is found before it's typed out
+      expect(find('lead:dan')).toEqual(['alpha']);
+      expect(find('team:Fix')).toEqual(['label-only']);
+      expect(find('lead:ana')).toEqual([]);
+      // part of a parent isn't the parent
       expect(find('parent:stor')).toEqual([]);
-      expect(find('lead:dan')).toEqual([]);
       // without the prefix, a word still matches inside any of them
       expect(find('stor')).toEqual(expect.arrayContaining(['alpha', 'beta']));
    });
 });
 
 describe('sortItems', () => {
-   it('leads with the longest since any activity, and sinks projects with none', () => {
-      expect(sortItems(items, '').map(i => i.slug)).toEqual([
+   it('puts what’s owed first by default, then the longest quiet, and sinks no activity', () => {
+      const owed = withCalls(
+         items,
+         [{ slug: 'alpha', item: null, reasons: [{ kind: 'new', since: null }] }],
+         NOW
+      );
+      expect(sortItems(owed, '').map(i => i.slug)).toEqual([
+         'alpha',
          'paused',
          'label-only',
          'merges-only',
-         'alpha',
          'beta',
          'gone',
          'shipped',
       ]);
-      expect(parseSort('nonsense')).toEqual({ key: 'idle', reversed: false });
+      // the URL's nothing-picked value and an unknown key are the default too
+      expect(parseSort('idle')).toEqual({ key: 'plan', reversed: false });
+      expect(parseSort('nonsense')).toEqual({ key: 'plan', reversed: false });
+      // Last activity alone
+      expect(sortItems(owed, 'last')[0].slug).toBe('paused');
    });
 
    it('sorts by a column, and reverses with a minus', () => {
@@ -471,19 +493,6 @@ describe('sortItems', () => {
          null,
       ]);
       expect(sortItems(items, 'target')[0].slug).toBe('alpha');
-   });
-
-   it('puts amber plan words first, the worst first', () => {
-      expect(sortItems(items, 'plan').map(i => [i.slug, i.planCell.text])).toEqual([
-         // 3 PRs and no plan: Decide asks for one
-         ['alpha', 'No plan'],
-         ['merges-only', 'No plan'],
-         ['beta', 'No plan'],
-         ['label-only', 'Ends Oct 18'],
-         ['paused', 'Parked'],
-         ['gone', 'Dropped'],
-         ['shipped', 'Done'],
-      ]);
    });
 
    it('sorts by who worked on it once those days load', () => {
@@ -505,6 +514,16 @@ describe('groupItems', () => {
       ]);
    });
 
+   it('puts a parent at the top of its own group, not under no parent', () => {
+      const store = { ...bySlug.gone, slug: 'store', name: 'Store' };
+      const groups = groupItems(sortItems([...items, store], 'name'), 'parent');
+      expect(groups.map(g => [g.title, g.items.map(i => i.slug)])).toEqual([
+         ['store', ['store', 'alpha', 'beta']],
+         ['warehouse', ['beta']],
+         ['No parent', ['gone', 'label-only', 'merges-only', 'paused', 'shipped']],
+      ]);
+   });
+
    it('groups by the plan’s team, or else the team most of its developers are on', () => {
       expect(mainTeam(bySlug.alpha, teamOf)).toBe('Store');
       const groups = groupItems(items, 'team');
@@ -518,6 +537,11 @@ describe('the list as text', () => {
       const [head, row] = csv.trim().split('\n');
       expect(head.startsWith('Project,Label slug,Stage,Lead,Team,Open since')).toBe(true);
       expect(row.startsWith('"Alpha, the first",alpha,In progress,dana,Store,')).toBe(true);
+   });
+
+   it('keeps a name that starts like a formula as text', () => {
+      const csv = portfolioCsv([{ ...bySlug.alpha, name: '=HYPERLINK("x")' }]);
+      expect(csv.trim().split('\n')[1].startsWith('"\'=HYPERLINK(""x"")",alpha,')).toBe(true);
    });
 
    it('copies each project’s plan words and when it last moved', () => {

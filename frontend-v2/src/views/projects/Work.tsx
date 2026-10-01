@@ -1,21 +1,20 @@
 import { ChevronRight } from 'lucide-react';
-import { Fragment, useEffect, useRef, useState, type MouseEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { issueUrl, n, shortRepo } from '../../../../shared/format';
+import type { ClosedIssue } from '../../../../shared/model/decide';
 import type { RoadmapItem } from '../../../../shared/model/roadmap';
 import type { DerivedPull } from '../../../../shared/model/status';
 import type { PullData } from '../../../../shared/types';
 import {
-   afterEndOf,
    issueKey,
-   planOfWork,
    type IssueHit,
    type IssuePull,
    type IssueRef,
-   type ItemState,
    type ProjectIssue,
    type ProjectWork,
 } from '../../../../shared/model/work';
+import { LoadFailed } from '../../components/bits';
 import { ClosedRow } from '../../components/ClosedRow';
 import { RefChip } from '../../components/GitHubRef';
 import { Icon } from '../../components/Icon';
@@ -23,6 +22,7 @@ import { IssueSearch } from '../../components/IssueSearch';
 import {
    Fold,
    GroupHeader,
+   openFold,
    Rows,
    SubDoor,
    Truncated,
@@ -31,10 +31,12 @@ import {
 } from '../../components/Lane';
 import { Row, type RowOptions } from '../../components/Row';
 import { dayOf, dayWords } from '../../model/projectData';
-import { changeProjectIssue } from '../../model/projectWork';
+import { changeProjectIssue, reloadProjectWork } from '../../model/projectWork';
 import {
+   addedLater,
    holderWords,
    issueStanding,
+   lateWords,
    prStage,
    STAGE_ORDER,
    STAGE_WORDS,
@@ -42,6 +44,8 @@ import {
    type IssueStanding,
    type PrStage,
 } from '../../model/stage';
+import { byHandOnly } from '../../model/workData';
+import { LAST_14_DAYS } from '../../model/words';
 import type { Navigate } from './parts';
 
 // a time as the day it fell on here, like the rest of the tab
@@ -52,6 +56,13 @@ const LIST_CAP = 40;
 
 /** how long a confirmation stays; an error stays until dismissed */
 const NOTE_MS = 8000;
+
+/** a word in a quiet line that goes somewhere when clicked */
+const quietLink =
+   'hit pressable rounded border-0 bg-transparent p-0 text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-brand';
+/** an action in a section's header or on a line */
+const actionLink =
+   'hit pressable rounded border-0 bg-transparent p-0 text-xs font-medium text-brand hover:underline';
 
 /** what each stage's band means, on hovering its name */
 const STAGE_GLOSS: Record<IssueStage, string> = {
@@ -78,6 +89,46 @@ const PR_GLOSS: Record<PrStage, string> = {
 export interface PullLookup {
    live: (ref: IssueRef) => DerivedPull | undefined;
    known: (ref: IssueRef) => PullData | undefined;
+}
+
+/** Which band of "PRs with no issue here" a PR sits in: an open one by
+ * where it stands (one the board can't read counts as being worked on),
+ * and the merged and closed ones together. */
+const unlinkedBand = (pr: IssuePull, live: PullLookup['live']): PrStage | 'closed' => {
+   const p = live(pr);
+   return p ? prStage(p) : pr.state === 'open' ? 'work' : 'closed';
+};
+
+/** The store id that remembers whether an issue's PRs are shown. */
+const prsFoldId = (slug: string, key: string) => `work:${slug}:prs:${key}`;
+
+/**
+ * Bring some of a page's PRs into view from its summary's counts: open the
+ * bands and issue lines that hold them, then scroll to the first one on
+ * the page and put focus on it.
+ */
+export function showPulls(
+   slug: string,
+   page: ProjectWork,
+   live: PullLookup['live'],
+   keys: ReadonlySet<string>
+): void {
+   for (const issue of page.issues) {
+      if (!issue.prs.some(pr => keys.has(issueKey(pr)))) continue;
+      openFold(`work:${slug}:${issueStanding(issue, live).stage}`);
+      openFold(prsFoldId(slug, issueKey(issue.ref)));
+   }
+   for (const pr of page.unlinked) {
+      if (keys.has(issueKey(pr))) openFold(`work:${slug}:unlinked:${unlinkedBand(pr, live)}`);
+   }
+   // once the folds have opened, so the rows are in place
+   requestAnimationFrame(() => {
+      const row = [...document.querySelectorAll<HTMLElement>('[data-pull]')].find(el =>
+         keys.has(el.dataset.pull ?? '')
+      );
+      row?.scrollIntoView({ block: 'center' });
+      row?.querySelector<HTMLElement>('a[href]')?.focus({ preventScroll: true });
+   });
 }
 
 /** A PR the board hasn't read (it closed long ago, or it's in a repo the
@@ -107,10 +158,53 @@ function PullLine({ pr, repoShown }: { pr: IssuePull; repoShown: boolean }) {
 }
 
 /**
+ * The issues a PR does that other projects have, and where: "Does #35004,
+ * in SSO approvals: the second path". The work may belong there, so each
+ * project is a link to its page. `lead` when the words start the note.
+ */
+function Elsewhere({
+   pr,
+   lead,
+   repoShown,
+   nameOf,
+   navigate,
+}: {
+   pr: IssuePull;
+   lead: boolean;
+   repoShown: (ref: IssueRef) => boolean;
+   nameOf: (slug: string) => string;
+   navigate: Navigate;
+}) {
+   return (
+      <>
+         {(pr.elsewhere ?? []).map(({ ref, projects }, i) => (
+            <Fragment key={issueKey(ref)}>
+               {i > 0 ? '; ' : lead ? 'Does ' : 'does '}
+               {repoShown(ref) ? shortRepo(ref.repo) : ''}#{ref.number}, in{' '}
+               {projects.map((slug, j) => (
+                  <Fragment key={slug}>
+                     {j > 0 && ', '}
+                     <button
+                        type="button"
+                        onClick={() => navigate({ project: slug })}
+                        // over the row's click layer, which opens the PR
+                        className={`pd-raise ${quietLink}`}
+                     >
+                        {nameOf(slug)}
+                     </button>
+                  </Fragment>
+               ))}
+            </Fragment>
+         ))}
+      </>
+   );
+}
+
+/**
  * A PR as the board draws it everywhere else: its row while it's open, its
- * closed row once it merged or closed in the last two weeks, or a plain
- * line for one the board hasn't read. One that opened after its plan ended
- * says so under it.
+ * closed row once it merged or closed in the last 14 days, or a plain line
+ * for one the board hasn't read. Its footnote says who holds it, why it
+ * stands out against the plan, and the issues it does in other projects.
  */
 function PullItem({
    pr,
@@ -118,15 +212,19 @@ function PullItem({
    late,
    opts,
    repoShown,
+   nameOf,
+   navigate,
    asRow = true,
    whoSaid = false,
 }: {
    pr: IssuePull;
    pulls: PullLookup;
-   /** it opened after the end of the plan it counts toward */
-   late: boolean;
+   /** why it stands out against its plan (lateWords), or null */
+   late: string | null;
    opts: RowOptions;
-   repoShown: boolean;
+   repoShown: (ref: IssueRef) => boolean;
+   nameOf: (slug: string) => string;
+   navigate: Navigate;
    /** the issue's line above it says who holds it already */
    whoSaid?: boolean;
    /** false where it's a second sighting (it links two issues here): the
@@ -135,43 +233,77 @@ function PullItem({
 }) {
    const live = asRow ? pulls.live(pr) : undefined;
    const known = live || !asRow ? undefined : pulls.known(pr);
-   // who holds an open one, in the words the issue's line uses
-   const note = [
-      live && !whoSaid
-         ? holderWords(live, { turns: opts.turns, ageWarnDays: opts.ageWarnDays })
-         : '',
-      late ? 'opened after the plan ended' : '',
-   ]
-      .filter(Boolean)
-      .join(' · ');
+   // who holds an open one, in the words the issue's line uses, starting
+   // the note: a login never takes a capital
+   const parts: ReactNode[] = [];
+   if (live && !whoSaid) {
+      parts.push(
+         holderWords(live, { turns: opts.turns, ageWarnDays: opts.ageWarnDays, line: true })
+      );
+   }
+   if (late) parts.push(parts.length ? late : late[0].toUpperCase() + late.slice(1));
+   if (pr.elsewhere?.length) {
+      parts.push(
+         <Elsewhere
+            key="elsewhere"
+            pr={pr}
+            lead={!parts.length}
+            repoShown={repoShown}
+            nameOf={nameOf}
+            navigate={navigate}
+         />
+      );
+   }
+   const note = parts.length
+      ? parts.map((part, i) => (
+           <Fragment key={i}>
+              {i > 0 && ' · '}
+              {part}
+           </Fragment>
+        ))
+      : null;
    return (
-      // the divider rides on this wrapper, so a note stays with its row
-      <div className="border-t border-secondary first:border-t-0">
+      // the divider rides on this wrapper, so a note stays with its row; the
+      // summary's counts find the row by its key
+      <div data-pull={issueKey(pr)} className="border-t border-secondary first:border-t-0">
          {live ? (
-            <Row pull={live} opts={opts} />
-         ) : known ? (
-            <ClosedRow pull={known} lastSeen={opts.lastSeen} />
+            <Row pull={live} opts={opts} footnote={note} />
          ) : (
-            <PullLine pr={pr} repoShown={repoShown} />
-         )}
-         {note && (
-            <p className="m-0 -mt-1 pb-1.5 pl-[45px] pr-3.5 text-xs text-ink-3">
-               {note[0].toUpperCase() + note.slice(1)}
-            </p>
+            <>
+               {known ? (
+                  <ClosedRow pull={known} lastSeen={opts.lastSeen} />
+               ) : (
+                  <PullLine pr={pr} repoShown={repoShown(pr)} />
+               )}
+               {/* these have no age line to keep clear of */}
+               {note && (
+                  <p
+                     className={`m-0 -mt-1 pb-1.5 pr-3.5 text-xs text-ink-3 ${
+                        known ? 'pl-[45px]' : 'pl-3.5'
+                     }`}
+                  >
+                     {note}
+                  </p>
+               )}
+            </>
          )}
       </div>
    );
 }
 
-/** How an issue added here came to be here, in words. Nothing for one its
- * label brought, the usual case the section's sub-line explains. */
-function viaWords(issue: ProjectIssue): string {
-   if (!issue.via.includes('hand')) return '';
-   const added = `added${issue.addedBy ? ` by ${issue.addedBy}` : ' here'}${
-      issue.attachedAt != null ? ` on ${dayOfEpoch(issue.attachedAt)}` : ''
-   }`;
+/**
+ * How an issue came to be here, when that's worth a word: added after its
+ * plan took effect (scope that grew along the way), or added by hand, and
+ * by whom when that's known. Nothing for one its label brought before the
+ * plan, the usual case the section's sub-line explains.
+ */
+function addedWords(issue: ProjectIssue, planned: number | null): string {
+   const hand = issue.via.includes('hand');
+   if (!hand && !addedLater(issue, planned)) return '';
+   const when = issue.attachedAt != null ? ` ${dayOfEpoch(issue.attachedAt)}` : hand ? ' here' : '';
+   const added = `added${when}${issue.addedBy ? ` by ${issue.addedBy}` : ''}`;
    // with the label too, taking it off here wouldn't take it out
-   return issue.via.includes('label') ? `${added}, and has the label` : added;
+   return hand && issue.via.includes('label') ? `${added}, and has the label` : added;
 }
 
 /** The other projects an issue is in, each a link to its page. */
@@ -194,7 +326,7 @@ function AlsoIn({
                <button
                   type="button"
                   onClick={() => navigate({ project: slug })}
-                  className="hit pressable rounded border-0 bg-transparent p-0 text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-brand"
+                  className={quietLink}
                >
                   {nameOf(slug)}
                </button>
@@ -203,9 +335,6 @@ function AlsoIn({
       </span>
    );
 }
-
-/** The store id that remembers whether an issue's PRs are shown. */
-const prsFoldId = (slug: string, key: string) => `work:${slug}:prs:${key}`;
 
 /**
  * One issue on one line: what it is, who holds it now, and how many PRs do
@@ -217,7 +346,8 @@ function IssueLine({
    issue,
    standing,
    pulls,
-   isLate,
+   lateOf,
+   planned,
    fresh,
    onRemove,
    opts,
@@ -225,12 +355,16 @@ function IssueLine({
    nameOf,
    navigate,
    rowOwner,
+   all,
 }: {
    slug: string;
    issue: ProjectIssue;
    standing: IssueStanding;
    pulls: PullLookup;
-   isLate: (pr: IssuePull) => boolean;
+   /** why each PR stands out against the plan (lateWords), or null */
+   lateOf: (pr: IssuePull) => string | null;
+   /** when its plan took effect; null with no plan */
+   planned: number | null;
    /** just added: it flashes once */
    fresh: boolean;
    /** take it off the project; only for one added here and not labeled */
@@ -241,12 +375,23 @@ function IssueLine({
    navigate: Navigate;
    /** which shown issue draws each PR's board row: its first on the page */
    rowOwner: ReadonlyMap<string, string>;
+   /** the section's last "Show all PRs" or "Hide all PRs", which every
+    * line follows */
+   all: { open: boolean } | null;
 }) {
    const key = issueKey(issue.ref);
    const [shown, setShown] = useFoldState(prsFoldId(slug, key), false);
-   const via = viaWords(issue);
-   const late = issue.prs.filter(isLate).length;
    const has = issue.prs.length > 0;
+   useEffect(() => {
+      if (all && has && shown !== all.open) setShown(all.open);
+   }, [all]);
+   const added = addedWords(issue, planned);
+   // its PRs that opened late, counted by why
+   const late = new Map<string, number>();
+   for (const pr of issue.prs) {
+      const words = lateOf(pr);
+      if (words) late.set(words, (late.get(words) ?? 0) + 1);
+   }
    // the PR count, and the stages its band doesn't already say
    const others = new Map<string, number>();
    for (const pr of issue.prs) {
@@ -309,36 +454,48 @@ function IssueLine({
                >
                   {issue.title}
                </a>
-               {via && <span className="text-xs text-ink-3">{via}</span>}
+               {added && (
+                  <span className="text-xs text-ink-3">
+                     {added}
+                     {onRemove && (
+                        // beside the words that say it was added by hand, away
+                        // from who holds it; it shows on this line's hover or
+                        // focus, as a row's verbs do, and always on touch and
+                        // narrow screens
+                        <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover/issue:opacity-100 max-[719px]:opacity-100 [@media(hover:none)]:opacity-100">
+                           <span aria-hidden> · </span>
+                           <button
+                              type="button"
+                              onClick={onRemove}
+                              aria-label={`Remove #${issue.ref.number} from this project`}
+                              className={actionLink}
+                           >
+                              Remove
+                           </button>
+                        </span>
+                     )}
+                  </span>
+               )}
                <AlsoIn slugs={issue.alsoIn} nameOf={nameOf} navigate={navigate} />
                {issue.state !== 'open' && issue.closedAt != null && (
                   <span className="text-xs text-ink-3">
                      {issue.state} {dayOfEpoch(issue.closedAt)}
                   </span>
                )}
-               {late > 0 && (
-                  <span className="text-xs text-ink-3">
-                     {n(late, 'PR')} opened after the plan ended
+               {[...late].map(([words, count]) => (
+                  <span key={words} className="text-xs text-ink-3">
+                     {n(count, 'PR')} {words}
                   </span>
-               )}
-               {onRemove && (
-                  <button
-                     type="button"
-                     onClick={onRemove}
-                     // last, so unseen it pushes nothing along; it shows on this
-                     // line's hover or focus, as a row's menu does, and always on
-                     // touch and narrow screens
-                     className="hit pressable ml-auto rounded border-0 bg-transparent p-0 text-xs text-ink-3 opacity-0 transition-opacity hover:text-ink focus-visible:opacity-100 group-hover/issue:opacity-100 max-[719px]:opacity-100 [@media(hover:none)]:opacity-100"
-                  >
-                     Remove
-                  </button>
-               )}
+               ))}
             </div>
             <span className="text-xs text-ink-2">{who}</span>
             {has ? (
                <button
                   type="button"
                   aria-expanded={shown}
+                  // named for its issue, since a list of "1 PR" buttons can't be
+                  // told apart out of context
+                  aria-label={`${door}, for #${issue.ref.number} ${issue.title}`}
                   onClick={() => setShown(!shown)}
                   className="hit pressable inline-flex items-center gap-1 justify-self-start rounded border-0 bg-transparent p-0 text-left text-xs text-ink-3 hover:text-brand @min-[720px]:justify-self-end"
                >
@@ -364,9 +521,11 @@ function IssueLine({
                         key={issueKey(pr)}
                         pr={pr}
                         pulls={pulls}
-                        late={isLate(pr)}
+                        late={lateOf(pr)}
                         opts={opts}
-                        repoShown={repoShown(pr)}
+                        repoShown={repoShown}
+                        nameOf={nameOf}
+                        navigate={navigate}
                         asRow={rowOwner.get(issueKey(pr)) === key}
                         // its only PR is the one the line's holder words are about;
                         // a closed issue's line names no holder
@@ -382,10 +541,15 @@ function IssueLine({
 
 interface Note {
    text: string;
-   error?: boolean;
    /** still saving: it stays */
    busy?: boolean;
    undo?: () => void;
+   /** what Undo undoes, for its name */
+   undoLabel?: string;
+   /** it failed: the same change again (an error stays until dismissed) */
+   retry?: () => void;
+   /** the button that made the change went with it, so focus moves here */
+   focus?: boolean;
 }
 
 /**
@@ -399,6 +563,8 @@ export function ProjectWorkSections({
    slug,
    label,
    plans,
+   planned,
+   closed,
    page,
    pulls,
    opts,
@@ -409,6 +575,10 @@ export function ProjectWorkSections({
    /** the project's label in full */
    label: string;
    plans: readonly RoadmapItem[] | null;
+   /** when its plan took effect (model/stage.ts plannedAt); null with no plan */
+   planned: number | null;
+   /** its project's issue, when it's closed: a finish of its own */
+   closed: ClosedIssue | null;
    /** its issues and PRs: undefined while they load, null if that failed */
    page: ProjectWork | null | undefined;
    pulls: PullLookup;
@@ -419,40 +589,57 @@ export function ProjectWorkSections({
    navigate: Navigate;
 }) {
    const [note, setNote] = useState<Note | null>(null);
-   // the note waits while the pointer is on it
-   const [held, setHeld] = useState(false);
+   // the note waits while the pointer or the focus is on it
+   const [hovered, setHovered] = useState(false);
+   const [focused, setFocused] = useState(false);
+   const noteRef = useRef<HTMLSpanElement>(null);
    const [adding, setAdding] = useState(false);
    // the issue just added, to bring into view and flash once it shows
    const [landed, setLanded] = useState<string | null>(null);
    const scrolled = useRef<string | null>(null);
+   // the last "Show all PRs" or "Hide all PRs"
+   const [all, setAll] = useState<{ open: boolean } | null>(null);
    const choices = useFoldChoices();
    const mine = (plans ?? []).filter(p => p.project === slug);
-   const isLate = (pr: IssuePull) => {
-      if (pr.createdAt == null) return false;
-      const plan = planOfWork(mine, pr.createdAt);
-      return !!plan && pr.createdAt >= afterEndOf(plan);
-   };
-   const change = (issue: IssueRef & { state?: ItemState }, add: boolean) => {
-      const ref = { repo: issue.repo, number: issue.number };
+   const lateOf = (pr: IssuePull) => lateWords(pr.createdAt, mine, closed);
+   /** Add an issue or take it off. `focus` when the button clicked goes
+    * with the change (Remove takes its line along), so focus moves to the
+    * note's own button. */
+   const change = (ref: IssueRef, add: boolean, focus: boolean) => {
+      const name = `#${ref.number}`;
       setLanded(null);
-      setHeld(false);
       scrolled.current = null;
-      setNote({ text: `${add ? 'Adding' : 'Removing'} #${ref.number}…`, busy: true });
-      void changeProjectIssue(slug, ref, add).then(r => {
-         if ('error' in r) setNote({ text: r.error, error: true });
-         else if (!add)
-            setNote({ text: `Removed #${ref.number}.`, undo: () => change(issue, true) });
-         else {
-            setLanded(issueKey(ref));
-            setNote({ text: `Added #${ref.number}.`, undo: () => change(issue, false) });
+      setNote({ text: `${add ? 'Adding' : 'Removing'} ${name}…`, busy: true });
+      void changeProjectIssue(slug, { repo: ref.repo, number: ref.number }, add).then(r => {
+         if ('error' in r) {
+            setNote({ text: r.error, retry: () => change(ref, add, focus), focus });
+            return;
          }
+         if (add) setLanded(issueKey(ref));
+         setNote({
+            text: `${add ? 'Added' : 'Removed'} ${name}.`,
+            undo: () => change(ref, !add, true),
+            undoLabel: `Undo ${add ? 'adding' : 'removing'} ${name}`,
+            focus,
+         });
       });
    };
    useEffect(() => {
-      if (!note || note.busy || note.error || held) return;
+      if (!note || note.busy || note.retry || hovered || focused) return;
       const wait = setTimeout(() => setNote(null), NOTE_MS);
       return () => clearTimeout(wait);
-   }, [note, held]);
+   }, [note, hovered, focused]);
+   useEffect(() => {
+      if (note?.focus) noteRef.current?.querySelector('button')?.focus();
+   }, [note]);
+   // a button in the note takes the note away, from under the pointer and
+   // the focus alike: neither says it left
+   const act = (then?: () => void) => () => {
+      setNote(null);
+      setHovered(false);
+      setFocused(false);
+      then?.();
+   };
    // an added issue: open the band it's in and bring it into view
    useEffect(() => {
       if (!landed || scrolled.current === landed) return;
@@ -502,12 +689,17 @@ export function ProjectWorkSections({
          }
       }
    }
+   // every issue's PRs at once, once two or more issues have any
+   // ponytail: a line past its band's cap isn't drawn, so it follows the
+   // click only once "+ N more" shows it; until then the toggle offers Show
+   const withPrs = issues.filter(i => i.prs.length > 0);
+   const allShown = withPrs.every(i => choices[prsFoldId(slug, issueKey(i.ref))] ?? false);
    const isOpenPr = (pr: IssuePull) => (pulls.live(pr) ? true : pr.state === 'open');
    const band = ({ stage, list }: { stage: IssueStage; list: ProjectIssue[] }) => {
       // a closed issue with a PR still open is work still moving, so its
       // band starts open and says so; a PR under two of them counts once
-      const closed = stage === 'done' || stage === 'dropped';
-      const open = closed
+      const isClosed = stage === 'done' || stage === 'dropped';
+      const open = isClosed
          ? new Set(list.flatMap(i => i.prs.filter(isOpenPr).map(issueKey))).size
          : 0;
       return (
@@ -517,7 +709,7 @@ export function ProjectWorkSections({
             label={STAGE_WORDS[stage]}
             gloss={STAGE_GLOSS[stage]}
             id={`work:${slug}:${stage}`}
-            defaultOpen={!closed || open > 0}
+            defaultOpen={!isClosed || open > 0}
             detail={open ? `${n(open, 'PR')} still open` : undefined}
          >
             <Truncated cap={LIST_CAP} id={`work:${slug}:${stage}`} label="more issues">
@@ -528,18 +720,16 @@ export function ProjectWorkSections({
                      issue={issue}
                      standing={standings.get(issueKey(issue.ref)) ?? { stage: 'none', pull: null }}
                      pulls={pulls}
-                     isLate={isLate}
+                     lateOf={lateOf}
+                     planned={planned}
                      fresh={landed === issueKey(issue.ref)}
-                     onRemove={
-                        issue.via.length === 1 && issue.via[0] === 'hand'
-                           ? () => change({ ...issue.ref, state: issue.state }, false)
-                           : null
-                     }
+                     onRemove={byHandOnly(issue) ? () => change(issue.ref, false, true) : null}
                      opts={opts}
                      repoShown={repoShown}
                      nameOf={nameOf}
                      navigate={navigate}
                      rowOwner={rowOwner}
+                     all={all}
                   />
                ))}
             </Truncated>
@@ -555,28 +745,26 @@ export function ProjectWorkSections({
    const openIssues = issues.filter(i => i.state === 'open').length;
    // its PRs with no issue, by stage: open ones by where they stand, and the
    // ones merged or closed lately together
-   const unlinkedBands: { id: string; word: string; gloss: string; list: IssuePull[] }[] = [
+   const unlinkedBands = [
       ...(['ready', 'hold', 'review', 'work'] as PrStage[]).map(stage => ({
-         id: stage,
+         id: stage as PrStage | 'closed',
          word: STAGE_WORDS[stage],
          gloss: PR_GLOSS[stage],
-         list: unlinked.filter(pr => {
-            const live = pulls.live(pr);
-            return live ? prStage(live) === stage : stage === 'work' && pr.state === 'open';
-         }),
       })),
       {
-         id: 'closed',
-         word: 'Merged or closed in the last 2 weeks',
-         gloss: 'Its PRs that merged or closed in the last 2 weeks',
-         list: unlinked.filter(pr => !pulls.live(pr) && pr.state !== 'open'),
+         id: 'closed' as const,
+         word: `Merged or closed in the ${LAST_14_DAYS}`,
+         gloss: `Its PRs that merged or closed in the ${LAST_14_DAYS}`,
       },
-   ].filter(b => b.list.length > 0);
+   ]
+      .map(b => ({ ...b, list: unlinked.filter(pr => unlinkedBand(pr, pulls.live) === b.id) }))
+      .filter(b => b.list.length > 0);
    const unlinkedOpen = unlinked.filter(isOpenPr).length;
    return (
       <>
          <section id="project-issues" className="mb-7 scroll-mt-28">
             <GroupHeader
+               level={3}
                title="Issues"
                sub={
                   // the sub-line is the door to how the list is built; an empty
@@ -585,7 +773,7 @@ export function ProjectWorkSections({
                      <SubDoor label="What’s on this list" text="by where they stand">
                         <p className="m-0">
                            Its issues are the ones with the {label} label on GitHub and the ones
-                           added here.
+                           added here. One added after its plan started says when.
                         </p>
                         <p className="m-0">
                            Each one is as far along as its least finished open PR: ready to merge,
@@ -596,14 +784,25 @@ export function ProjectWorkSections({
                   ) : undefined
                }
                headerExtra={
-                  <button
-                     type="button"
-                     onClick={() => setAdding(!adding)}
-                     aria-expanded={adding}
-                     className="hit pressable rounded border-0 bg-transparent p-0 text-xs font-medium text-brand hover:underline"
-                  >
-                     {adding ? 'Done adding' : 'Add an issue'}
-                  </button>
+                  <span className="flex items-center gap-4">
+                     {withPrs.length > 1 && (
+                        <button
+                           type="button"
+                           onClick={() => setAll({ open: !allShown })}
+                           className={actionLink}
+                        >
+                           {allShown ? 'Hide all PRs' : 'Show all PRs'}
+                        </button>
+                     )}
+                     <button
+                        type="button"
+                        onClick={() => setAdding(!adding)}
+                        aria-expanded={adding}
+                        className={actionLink}
+                     >
+                        {adding ? 'Done adding' : 'Add an issue'}
+                     </button>
+                  </span>
                }
             />
             {adding && (
@@ -611,7 +810,8 @@ export function ProjectWorkSections({
                   <IssueSearch
                      label="Add an issue to this project"
                      placeholder="Find an issue: title words, #123, or a link"
-                     onPick={hit => change(hit, true)}
+                     // the box stays, ready for the next one: focus stays in it
+                     onPick={hit => change(hit, true, false)}
                      taken={new Set(issues.map(i => issueKey(i.ref)))}
                      takenWords="in this project already"
                      whereIs={whereIs}
@@ -622,9 +822,7 @@ export function ProjectWorkSections({
             {page === undefined ? (
                <p className="m-0 text-[13px] text-ink-3">Loading its issues…</p>
             ) : page === null ? (
-               <p className="m-0 text-[13px] text-ink-3">
-                  Couldn’t load its issues and PRs. Try again in a minute.
-               </p>
+               <LoadFailed what="its issues and PRs" onRetry={reloadProjectWork} />
             ) : issues.length ? (
                <Rows>{bands.map(band)}</Rows>
             ) : (
@@ -652,6 +850,7 @@ export function ProjectWorkSections({
          {unlinkedBands.length > 0 && (
             <section className="mb-7">
                <GroupHeader
+                  level={3}
                   title={issues.length ? 'PRs with no issue here' : 'Its PRs'}
                   sub={
                      <SubDoor
@@ -659,7 +858,9 @@ export function ProjectWorkSections({
                         text={[
                            unlinkedOpen ? `${unlinkedOpen} open` : '',
                            unlinked.length - unlinkedOpen
-                              ? `${unlinked.length - unlinkedOpen} merged or closed lately`
+                              ? `${
+                                   unlinked.length - unlinkedOpen
+                                } merged or closed in the ${LAST_14_DAYS}`
                               : '',
                         ]
                            .filter(Boolean)
@@ -668,12 +869,13 @@ export function ProjectWorkSections({
                         <p className="m-0">
                            The PRs with the {label} label
                            {issues.length ? ' that link none of its issues' : ''}: the open ones,
-                           and the ones merged or closed in the last 2 weeks.
+                           and the ones merged or closed in the {LAST_14_DAYS}.
                         </p>
                         {issues.length > 0 && (
                            <p className="m-0">
                               Add the issue each one does (“Parts of #N” in its description), or
-                              check it belongs here.
+                              check it belongs here. One that does an issue of another project says
+                              which.
                            </p>
                         )}
                      </SubDoor>
@@ -700,9 +902,11 @@ export function ProjectWorkSections({
                                  key={issueKey(pr)}
                                  pr={pr}
                                  pulls={pulls}
-                                 late={isLate(pr)}
+                                 late={lateOf(pr)}
                                  opts={opts}
-                                 repoShown={repoShown(pr)}
+                                 repoShown={repoShown}
+                                 nameOf={nameOf}
+                                 navigate={navigate}
                               />
                            ))}
                         </Truncated>
@@ -713,7 +917,11 @@ export function ProjectWorkSections({
          )}
          {(page?.suggested.length ?? 0) > 0 && (
             <section className="mb-7">
-               <GroupHeader title="Issues its PRs link" sub="not in this project yet" />
+               <GroupHeader
+                  level={3}
+                  title="Issues linked from its PRs"
+                  sub="not in this project yet"
+               />
                <Rows>
                   <Truncated cap={LIST_CAP} id={`work:${slug}:suggested`} label="more issues">
                      {(page?.suggested ?? []).map(issue => (
@@ -752,11 +960,12 @@ export function ProjectWorkSections({
                                  </Fragment>
                               ))}
                            </span>
-                           <AlsoIn slugs={issue.alsoIn} nameOf={nameOf} navigate={navigate} />
                            <button
                               type="button"
-                              onClick={() => change(issue, true)}
-                              className="hit pressable ml-auto rounded border-0 bg-transparent p-0 text-xs font-medium text-brand hover:underline"
+                              // its line goes once it's added, so focus moves to the note
+                              onClick={() => change(issue, true, true)}
+                              aria-label={`Add #${issue.number} to this project`}
+                              className={`ml-auto ${actionLink}`}
                            >
                               Add
                            </button>
@@ -776,27 +985,46 @@ export function ProjectWorkSections({
             >
                {note && (
                   <span
-                     onMouseEnter={() => setHeld(true)}
-                     onMouseLeave={() => setHeld(false)}
-                     className={`pointer-events-auto flex max-w-[560px] items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] shadow-md ${
-                        note.error ? 'text-bad' : 'text-ink'
-                     }`}
+                     ref={noteRef}
+                     onMouseEnter={() => setHovered(true)}
+                     onMouseLeave={() => setHovered(false)}
+                     onFocus={() => setFocused(true)}
+                     onBlur={e => {
+                        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                           setFocused(false);
+                        }
+                     }}
+                     // ink, never red: a failed save is nobody's alarm
+                     className="pointer-events-auto flex max-w-[560px] items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-ink shadow-md"
                   >
                      <span>{note.text}</span>
-                     {(note.undo || note.error) && (
+                     {note.undo && (
                         <button
                            type="button"
-                           onClick={() => {
-                              const undo = note.undo;
-                              setNote(null);
-                              // it leaves from under the pointer: no mouseleave comes
-                              setHeld(false);
-                              undo?.();
-                           }}
-                           className="hit pressable flex-none rounded border-0 bg-transparent p-0 text-xs font-medium text-brand hover:underline"
+                           onClick={act(note.undo)}
+                           aria-label={note.undoLabel}
+                           className={`flex-none ${actionLink}`}
                         >
-                           {note.undo ? 'Undo' : 'Dismiss'}
+                           Undo
                         </button>
+                     )}
+                     {note.retry && (
+                        <>
+                           <button
+                              type="button"
+                              onClick={act(note.retry)}
+                              className={`flex-none ${actionLink}`}
+                           >
+                              Try again
+                           </button>
+                           <button
+                              type="button"
+                              onClick={act()}
+                              className="hit pressable flex-none rounded border-0 bg-transparent p-0 text-xs text-ink-3 hover:text-ink"
+                           >
+                              Dismiss
+                           </button>
+                        </>
                      )}
                   </span>
                )}

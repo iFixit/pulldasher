@@ -4,10 +4,20 @@ import {
    closedIssues,
    decideQueue,
    type DecideProject,
+   type DecideReason,
+   type DecideRow,
    type PlanCounts,
 } from '../../../shared/model/decide';
 import type { IssueCounts } from '../../../shared/model/work';
 import type { RoadmapItem, RoadmapUpdate } from '../../../shared/model/roadmap';
+import {
+   callWords,
+   keepCalls,
+   teamLoad,
+   whyNot,
+   writeFor,
+   type Made,
+} from '../views/projects/Decide';
 
 const today = '2026-09-30';
 const NOW = dayStart(today) as number;
@@ -332,5 +342,159 @@ describe('decideQueue', () => {
          now: NOW,
       });
       expect(kinds(rows)).toEqual([['feature', 'new']]);
+   });
+});
+
+describe('Decide’s calls', () => {
+   const done = item(7, { project: 'sso', status: 'done', start: '2026-08-03' });
+   const reopened: DecideRow = {
+      slug: 'sso',
+      item: done,
+      reasons: [{ kind: 'reopened', open: 2, late: 0, as: 'done', by: 'roadmap' }],
+   };
+
+   it('says done or dropped again on a plan already marked so, to accept the PRs after it', () => {
+      expect(writeFor({ kind: 'done' }, reopened, undefined, today)).toEqual({
+         id: 7,
+         fields: { status: 'done' },
+         restate: true,
+      });
+      expect(writeFor({ kind: 'drop' }, reopened, undefined, today)).toMatchObject({
+         restate: true,
+      });
+      // a commit keeps the plan's start and runs through the end it names
+      expect(
+         writeFor(
+            { kind: 'commit', label: 'End of Oct', end: '2026-10-31' },
+            reopened,
+            undefined,
+            today
+         )
+      ).toEqual({
+         id: 7,
+         fields: { status: 'active', start: '2026-08-03', weeks: 13 },
+         restate: false,
+      });
+   });
+
+   it('records work with no plan as a new one, from its week through this one', () => {
+      const fresh: DecideRow = {
+         slug: 'fresh',
+         item: null,
+         reasons: [{ kind: 'new', since: null }],
+      };
+      expect(writeFor({ kind: 'park' }, fresh, undefined, today)).toEqual({
+         id: null,
+         fields: {
+            name: 'fresh',
+            project: 'fresh',
+            team: null,
+            lead: null,
+            start: '2026-09-28',
+            weeks: 1,
+            status: 'parked',
+         },
+      });
+   });
+
+   it('says what was decided and when Decide asks again', () => {
+      const quiet = { open: 0, ongoing: false };
+      expect(callWords({ kind: 'done' }, reopened, quiet, today)).toBe(
+         'Marked done. Decide asks again if a PR opens after Oct 7.'
+      );
+      expect(callWords({ kind: 'drop' }, reopened, { ...quiet, open: 2 }, today)).toBe(
+         'Dropped. Decide asks again if a PR is still open on Oct 7, or a new one opens after.'
+      );
+      // work with no end goes on after its plans, so nothing comes back
+      expect(callWords({ kind: 'done' }, reopened, { open: 2, ongoing: true }, today)).toBe(
+         'Marked done.'
+      );
+      expect(
+         callWords(
+            { kind: 'commit', label: 'End of Q1 2027', end: '2027-03-31' },
+            reopened,
+            quiet,
+            today
+         )
+      ).toBe('Committed through the end of Q1 2027. Decide asks again if it runs past that.');
+   });
+
+   it('says why a call didn’t save, in the row, without repeating “couldn’t save”', () => {
+      expect(whyNot('Couldn’t save the plan: no such roadmap item.')).toBe(
+         ' No such roadmap item.'
+      );
+      expect(whyNot('Your sign-in expired. Reload the page to sign in again.')).toBe(
+         ' Your sign-in expired. Reload the page to sign in again.'
+      );
+      // a plain failure: the receipt's "Didn’t save. Try again" says it all
+      expect(whyNot('Couldn’t save the plan. Try again in a minute.')).toBe('');
+   });
+
+   it('keeps a call in its row’s place until the row comes back for a new reason', () => {
+      const row = (slug: string, reason: DecideReason): DecideRow => ({
+         slug,
+         item: null,
+         reasons: [reason],
+      });
+      const fresh: DecideReason = { kind: 'new', since: null };
+      const made = (slug: string, state: Made['state']): [string, Made] => [
+         `${slug}:`,
+         {
+            row: row(slug, fresh),
+            call: { kind: 'park' },
+            words: 'Parked.',
+            state,
+            origin: null,
+            token: 1,
+         },
+      ];
+      const { owed, all } = keepCalls(
+         [row('back', { kind: 'stalled', days: 30 }), row('other', fresh)],
+         new Map([
+            // its row left the queue: decided, still in its place
+            made('gone', 'made'),
+            // back for a new reason: owed again
+            made('back', 'made'),
+            // taken back, though the queue dropped it: owed again
+            made('undone', 'undone'),
+         ])
+      );
+      expect(owed.map(r => r.slug)).toEqual(['back', 'other', 'undone']);
+      expect(all.map(r => r.slug)).toEqual(['back', 'gone', 'other', 'undone']);
+   });
+
+   it('counts a team’s work in flight in priority order: plans, then work with no plan', () => {
+      const project = (slug: string, open: number, openSince = '2026-09-01', team = 'Store') => ({
+         slug,
+         name: slug,
+         team,
+         open,
+         openSince,
+      });
+      const plans = [
+         item(1, { name: 'Second', team: 'Store', project: 'b', priority: 2 }),
+         item(2, { name: 'First', team: 'Store', project: 'a', priority: 1 }),
+         // no PRs open: nothing in flight
+         item(3, { name: 'Quiet', team: 'Store', project: 'q', priority: 0 }),
+         item(4, { name: 'Parked', team: 'Store', project: 'p', status: 'parked' }),
+         item(5, { name: 'Theirs', team: 'Other', project: 'o' }),
+         // a second plan of a project already counted
+         item(6, { name: 'Again', team: 'Store', project: 'a', priority: 3 }),
+      ];
+      const items = [
+         project('a', 2),
+         project('b', 1),
+         project('q', 0),
+         project('p', 3),
+         project('o', 1, '2026-09-01', 'Other'),
+         project('newer', 1, '2026-09-20'),
+         project('older', 2, '2026-08-01'),
+      ];
+      expect(teamLoad('Store', plans, items, today).map(w => w.name)).toEqual([
+         'First',
+         'Second',
+         'older',
+         'newer',
+      ]);
    });
 });

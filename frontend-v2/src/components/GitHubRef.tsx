@@ -6,17 +6,18 @@ import {
    GitPullRequest,
    GitPullRequestClosed,
 } from 'lucide-react';
-import type { Ref } from 'react';
 import { issueUrl, n, shortRepo } from '../../../shared/format';
+import { daysShort } from '../model/words';
 import { Icon, type LucideComponent } from './Icon';
 import { Avatar } from './identity';
 import { Popover } from './Popover';
 
 /**
- * An issue or PR named the way Claude and GitHub show one: a small link
- * (its state's icon, #number, repo) that opens it on GitHub, and on hover a
- * card with its state, repo and number, age, title, author, and for a PR
- * its size. Whatever isn't known is left off the card.
+ * An issue or PR named the way Claude and GitHub show one: a small chip
+ * (its state's icon, #number, repo) that opens a card with its state, repo
+ * and number, age, title, author, and for a PR its size, the way a board
+ * row's repo#number opens its state. The card links it on GitHub. Whatever
+ * isn't known is left off the card.
  */
 
 export interface GitHubRefData {
@@ -59,7 +60,7 @@ export function sinceWords(epochSecs: number, now: number = Date.now() / 1000): 
    const s = Math.max(0, now - epochSecs);
    if (s < 3600) return `${Math.max(1, Math.round(s / 60))}m ago`;
    if (s < 48 * 3600) return `${Math.round(s / 3600)}h ago`;
-   if (s < 60 * 86400) return `${Math.round(s / 86400)}d ago`;
+   if (s < 60 * 86400) return `${daysShort(Math.round(s / 86400))} ago`;
    if (s < 730 * 86400) return `${Math.round(s / (30 * 86400))}mo ago`;
    return `${Math.round(s / (365 * 86400))}y ago`;
 }
@@ -96,9 +97,15 @@ export function RefCard({ data }: { data: GitHubRefData }) {
       <span className="block text-left">
          <span className="flex items-center gap-2 text-xs text-ink-3">
             <StatePill data={data} />
-            <span className="min-w-0 truncate">
+            {/* the way to it on GitHub, whether or not its title is known */}
+            <a
+               href={issueUrl(data.repo, data.number)}
+               target="_blank"
+               rel="noopener noreferrer"
+               className="min-w-0 truncate hover:text-brand hover:underline"
+            >
                {data.repo} #{data.number}
-            </span>
+            </a>
             {data.createdAt != null && (
                <span className="ml-auto flex-none">{sinceWords(data.createdAt)}</span>
             )}
@@ -129,41 +136,37 @@ export function RefCard({ data }: { data: GitHubRefData }) {
 }
 
 /**
- * The small link: the state's icon, #number, and the repo when it isn't
+ * The small chip: the state's icon, #number, and the repo when it isn't
  * the page's usual one; a PR's says "PR" and its state too, so it reads
  * without the card. The icon's shape tells the state; where it sits (an
- * Open or Done fold) already says so, so it stays ink. A click opens it on
- * GitHub; a hover shows its card.
+ * Open or Done fold) already says so, so it stays ink. Like a row's
+ * repo#number, hovering shows its card and a click pins it; the title
+ * beside it is what opens it on GitHub.
  */
 export function RefChip({ data, repoShown = true }: { data: GitHubRefData; repoShown?: boolean }) {
    const look = lookOf(data);
    const fallback = data.kind === 'pr' ? GitPullRequest : CircleDot;
    return (
       <Popover
-         label={`${data.repo} #${data.number}`}
+         label={`${data.kind === 'pr' ? 'PR' : 'Issue'} ${data.repo} #${data.number}`}
          hover
-         hoverTriggerOnly
          rootClass="relative inline-flex min-w-0"
          width="w-[320px] max-w-[calc(100vw-2rem)]"
          panelClass="p-3"
-         // a click opens it on GitHub, so the card only opens on hover
          trigger={t => (
-            <a
-               ref={t.ref as unknown as Ref<HTMLAnchorElement>}
-               onPointerEnter={t.onPointerEnter}
-               onPointerLeave={t.onPointerLeave}
-               href={issueUrl(data.repo, data.number)}
-               target="_blank"
-               rel="noopener noreferrer"
-               className="inline-flex min-w-0 items-baseline gap-1 rounded text-xs text-ink-3 hover:text-brand"
+            <button
+               {...t}
+               type="button"
+               className="group/ref hit pressable inline-flex min-w-0 items-baseline gap-1 rounded border-0 bg-transparent p-0 text-left text-xs text-ink-3 hover:text-ink-2"
             >
                <Icon icon={look?.icon ?? fallback} size={12} className="flex-none self-center" />
-               <span className="font-medium text-ink-2 underline decoration-line underline-offset-2">
+               {/* the row's door look: no underline until hovered, then dotted */}
+               <span className="font-medium text-ink-2 underline-offset-2 group-hover/ref:underline group-hover/ref:decoration-dotted">
                   {data.kind === 'pr' ? 'PR ' : ''}#{data.number}
                </span>
                {repoShown && <span className="truncate">{shortRepo(data.repo)}</span>}
                {data.kind === 'pr' && look && <span>{look.word.toLowerCase()}</span>}
-            </a>
+            </button>
          )}
       >
          <RefCard data={data} />

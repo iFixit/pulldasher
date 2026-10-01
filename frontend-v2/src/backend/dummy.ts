@@ -91,6 +91,9 @@ const DUMMY_PROJECT_PULLS: Record<string, number[]> = {
    'grafana-dashboards': [21, 30, 31, 41],
    'training-periods': [8, 27, 37],
    'release-gate-sso': [5, 6, 7],
+   // the next phase: its one PR does an issue SSO approvals still has, so
+   // its page says where that work may belong ("Does #35004, in …")
+   'release-gate-sso-second-path': [38],
    // 10-12 are the viewer's stacked chain: one chain, one project
    'shopify-sync': [10, 11, 12, 40],
    'core-primitives': [13, 14, 15],

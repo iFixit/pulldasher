@@ -694,8 +694,9 @@ export function Donut({
 }
 
 /**
- * Avatar + login, the current user tinted brand and tagged "you" — the leading
- * cell the leaderboard and starvation cards render the same way.
+ * Avatar + login, the current user tinted brand, tagged "you" and wearing the
+ * board's you-star — the leading cell the leaderboard and starvation cards
+ * render the same way, and People's rows.
  */
 export function PersonCell({
    login,
@@ -706,16 +707,21 @@ export function PersonCell({
    me?: string;
    onPerson?: (login: string) => void;
 }) {
-   const mine = login === me;
+   // logins compare without case, as on GitHub
+   const mine = !!me && login.toLowerCase() === me.toLowerCase();
+   const face = <Avatar login={login} size={20} onClick={onPerson} you={mine} />;
    return (
       <>
-         <Avatar login={login} size={20} onClick={onPerson} />
-         {/* min-w-0 + truncate, not flex-none: a long GitHub login (up to 39
-             chars) must yield to the bar/trail instead of overflowing the card
-             into page-level horizontal scroll on a phone */}
-         <span className="min-w-0 flex-1 truncate font-semibold text-ink" title={login}>
+         {/* a face that isn't a button only repeats the name beside it, so a
+             screen reader hears the name once, without the star's "yours" */}
+         {onPerson ? face : <span aria-hidden className="inline-flex flex-none">{face}</span>}
+         {/* min-w-0 + break-words, not flex-none: a long GitHub login (up to
+             39 chars) wraps rather than overflowing the card into page-level
+             horizontal scroll on a phone, and never hides behind an ellipsis */}
+         <span className="min-w-0 flex-1 font-semibold break-words text-ink">
             {mine ? <span className="text-brand">{login}</span> : login}
-            {mine && <span className="ml-1 text-ink-3">you</span>}
+            {/* the comma is for the ear: "danielbeardsley, you" */}
+            {mine && <><span className="sr-only">,</span> <span className="text-ink-3">you</span></>}
          </span>
       </>
    );

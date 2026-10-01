@@ -129,7 +129,7 @@ export interface DecideRow {
 // worst first: work nobody should be doing, then decisions two records
 // disagree on, then plans that slipped, then quiet work, then new work
 // waiting for a first call
-const RANK: Record<DecideReason['kind'], number> = {
+export const RANK: Record<DecideReason['kind'], number> = {
    reopened: 0,
    issue_closed: 1,
    moving: 2,
