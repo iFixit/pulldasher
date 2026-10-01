@@ -641,7 +641,7 @@ export function Decide({
    const liveIn = (team: string) =>
       items.filter(
          i =>
-            i.status === 'live' &&
+            i.stage === 'progress' &&
             (planFor(i.slug, plans)?.team ?? mainTeam(i, teamOf) ?? '(none)') === team
       ).length;
    return (

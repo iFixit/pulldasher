@@ -33,6 +33,7 @@ import {
    type ProjectsNav,
 } from './parts';
 import { PlanFacts } from './roadmapHealth';
+import { stageWord, type PortfolioItem } from '../../model/portfolio';
 
 const DAY_MS = 86_400_000;
 /** how many trailing days set the pace a forecast runs on */
@@ -177,6 +178,7 @@ export function ProjectPage({
    opts,
    nav,
    navigate,
+   item,
 }: {
    slug: string;
    today: Today;
@@ -190,6 +192,9 @@ export function ProjectPage({
    opts: RowOptions;
    nav: ProjectsNav;
    navigate: Navigate;
+   /** its row on the project list, for its stage and name; missing for a
+    * slug the list doesn't know */
+   item: PortfolioItem | undefined;
 }) {
    const live = today.live.find(g => g.slug === slug);
    const group = live ?? today.quiet.find(g => g.slug === slug);
@@ -211,7 +216,9 @@ export function ProjectPage({
          />
       );
    }
-   const standing = live
+   const standing = item
+      ? stageWord(item)
+      : live
       ? 'In progress'
       : group
       ? 'Quiet'
@@ -226,7 +233,9 @@ export function ProjectPage({
    return (
       <>
          <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h2 className="m-0 text-base font-semibold leading-snug">{project?.name ?? slug}</h2>
+            <h2 className="m-0 text-base font-semibold leading-snug">
+               {item?.name ?? project?.name ?? slug}
+            </h2>
             <span className="text-xs text-ink-3">{standing}</span>
             <span className="text-xs text-ink-3">{prefix + slug}</span>
             {group && (
@@ -251,7 +260,7 @@ export function ProjectPage({
          </div>
          <div className="mb-7">
             <Rows>
-               <ProjectFacts g={{ slug }} project={project} />
+               <ProjectFacts g={{ slug }} project={project} prefix={prefix} />
                <PlanFacts slug={slug} nav={nav} navigate={navigate} />
                {group && group.open.length > 0 ? (
                   <FoldRows list={group.open} opts={opts} id={`project:${slug}:open`} />

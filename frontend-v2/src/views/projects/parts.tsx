@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { issueUrl, shortRepo } from '../../../../shared/format';
 import {
+   ONE_PERSON_MIN_PRS,
    projectName,
    targetOf,
    type Project,
@@ -97,13 +98,13 @@ function flagText(flag: ProjectFlag, g: ProjectGroup): [string, string] {
    switch (flag) {
       case 'one_person':
          return [
-            'one person',
-            `Every PR here, open or merged in the last 14 days, is by ${g.people[0]}.`,
+            'only one person',
+            `${ONE_PERSON_MIN_PRS} or more PRs here, open or merged in the last 14 days, and every one is by ${g.people[0]}.`,
          ];
       case 'waiting_on_review':
          return [
             'all waiting on review',
-            'Every open PR here needs a CR or QA before it can move.',
+            'All of its open PRs (2 or more) are waiting on a CR or QA.',
          ];
       case 'issue_closed':
          return [
@@ -169,10 +170,13 @@ function targetWords(target: ProjectTarget): string {
 export function ProjectFacts({
    g,
    project,
+   prefix,
    children,
 }: {
    g: Pick<ProjectGroup, 'slug'>;
    project: Project | null;
+   /** the project label prefix, to name the label in full */
+   prefix: string;
    /** trailing controls, e.g. the project page link */
    children?: ReactNode;
 }) {
@@ -213,7 +217,7 @@ export function ProjectFacts({
       facts.push(
          <span
             key="none"
-            title={`PRs carry the ${g.slug} label, but no issue has it yet. Give one issue in any tracked repo the same label to name the project and set its lead.`}
+            title={`PRs carry the ${prefix}${g.slug} label, but no issue has it yet. Give one issue in any tracked repo the same label to name the project and set its lead.`}
          >
             No project issue yet
          </span>
@@ -447,7 +451,7 @@ export function WindowTiles({
          />
          <Tile
             value={`${w.developers} · ${w.non_developers}`}
-            label="Developers · others"
+            label="Developers · non-developers"
             title="People with a PR in the range: on a developer team, and everyone else"
          />
       </div>

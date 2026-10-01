@@ -291,12 +291,14 @@ function Cells({
  * lately, the open PR gone longest without activity, and its PRs. */
 function RowDetail({
    item,
+   prefix,
    opts,
    nav,
    navigate,
    onPerson,
 }: {
    item: PortfolioItem;
+   prefix: string;
    opts: RowOptions;
    nav: ProjectsNav;
    navigate: Navigate;
@@ -307,7 +309,7 @@ function RowDetail({
    const heading = `m-0 px-3.5 pt-2.5 pb-1 text-ink-3 ${eyebrowText}`;
    return (
       <div className="border-t border-secondary">
-         <ProjectFacts g={item} project={item.project}>
+         <ProjectFacts g={item} project={item.project} prefix={prefix}>
             <PageLink g={item} navigate={navigate} />
          </ProjectFacts>
          <PlanFacts slug={item.slug} nav={nav} navigate={navigate} />
@@ -396,6 +398,7 @@ const rowClass =
  */
 function PortfolioRow({
    item,
+   prefix,
    columns,
    act,
    opts,
@@ -403,6 +406,7 @@ function PortfolioRow({
    navigate,
 }: {
    item: PortfolioItem;
+   prefix: string;
    columns: Column[];
    act: CellActions;
    opts: RowOptions;
@@ -442,7 +446,14 @@ function PortfolioRow({
             </span>
             <Cells item={item} act={act} columns={columns} />
          </summary>
-         <RowDetail item={item} opts={opts} nav={nav} navigate={navigate} onPerson={act.onPerson} />
+         <RowDetail
+            item={item}
+            prefix={prefix}
+            opts={opts}
+            nav={nav}
+            navigate={navigate}
+            onPerson={act.onPerson}
+         />
       </details>
    );
 }
@@ -468,6 +479,7 @@ const quietButton =
  */
 export function Portfolio({
    items,
+   prefix,
    workersLoaded,
    nameOf,
    nav,
@@ -476,6 +488,8 @@ export function Portfolio({
    onPerson,
 }: {
    items: PortfolioItem[];
+   /** the project label prefix */
+   prefix: string;
    workersLoaded: boolean;
    nameOf: (slug: string) => string;
    nav: ProjectsNav;
@@ -635,6 +649,7 @@ export function Portfolio({
                         <PortfolioRow
                            key={`${g.title}:${item.slug}`}
                            item={item}
+                           prefix={prefix}
                            columns={columns}
                            act={act}
                            opts={opts}

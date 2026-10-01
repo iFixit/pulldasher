@@ -550,6 +550,17 @@ const STAGE_WORD: Record<Stage, string> = {
    closed: 'Done or dropped',
 };
 
+/** A project's stage in a word or two, for its page: a closed one says
+ * done or dropped. */
+export function stageWord(item: Pick<PortfolioItem, 'stage' | 'project' | 'plan'>): string {
+   if (item.stage !== 'closed') return STAGE_WORD[item.stage];
+   const dropped =
+      item.project?.state === 'closed'
+         ? item.project.state_reason === 'not_planned'
+         : item.plan?.status === 'dropped';
+   return dropped ? 'Dropped' : 'Done';
+}
+
 /** "today", "1 day ago", "12 days ago". */
 export function agoWords(days: number): string {
    return days === 0 ? 'today' : `${n(days, 'day')} ago`;

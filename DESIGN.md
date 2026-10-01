@@ -363,7 +363,7 @@ icon with a class bolted on.
   in flight past its end grows an amber piece labeled "+3 wk over", a
   milestone is a flag with its date ("Dec 14 target"), a project with no
   plan is a dashed bar that says "since Aug 17, no plan", and the load
-  chart labels its two halves ("In flight, from PRs" and "Ahead, if nothing
+  chart labels its two halves ("In progress, from PRs" and "Ahead, if nothing
   changes") and its dashed line ("10 developers") instead of carrying a
   legend. Stripes
   for projected weeks were cut the same way.
@@ -478,7 +478,7 @@ icon with a class bolted on.
   point where its people run out: a dashed amber line before the row in
   flight this week that's one more than the team has developers, counting
   plans in priority order and then its projects with no plan. It says so
-  in words ("Below here: more in flight than Store's 6 developers can
+  in words ("Below here: more in progress than Store's 6 developers can
   staff"), turns the priority order into what to park, and opens Decide
   on that team. It only shows with nothing narrowing the rows, since a
   cut through a filtered list would mean nothing.

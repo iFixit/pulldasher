@@ -78,7 +78,7 @@ describe('amber means someone owes something', () => {
          { week: '2026-10-05', onPlan: 1, origins, offPlan: 0, projected: true },
       ];
       expect(loadWords(weeks, 3, '2026-09-30')).toMatchObject({ warn: false });
-      expect(loadWords(weeks, 2, '2026-09-30')?.text).toMatch(/^2 at once in the week of/);
+      expect(loadWords(weeks, 2, '2026-09-30')?.text).toMatch(/^2 in progress the week of/);
       expect(loadWords(weeks, 2, '2026-09-30')?.warn).toBe(true);
       expect(loadWords([], 2, '2026-09-30')).toBeNull();
    });

@@ -64,23 +64,28 @@ export function healthWords(
          return {
             text: 'No update yet',
             warn: true,
-            title: `In progress for over ${UPDATE_DUE_DAYS} days by its plan, and nobody has posted an update on how it’s going.`,
+            title: `In progress for more than ${UPDATE_DUE_DAYS} days (counted from its start, or from when it was added if that’s later) with no update yet. Its lead owes one.`,
          };
-      case 'current':
+      case 'current': {
+         // a full sentence, since callers add "Click to …" after it
+         const said = s.update.body ? `: ${s.update.body.trim()}` : '';
          return {
             text: HEALTH_WORD[s.update.health],
             warn: s.update.health !== 'on_track',
-            title: `${s.update.author} on ${when(s.update.at)}${
-               s.update.body ? `: ${s.update.body}` : ''
+            title: `${s.update.author} on ${when(s.update.at)}${said}${
+               /[.!?]$/.test(said) ? '' : '.'
             }`,
          };
+      }
       case 'stale':
          return {
             text: `${HEALTH_WORD[s.update.health]} · no update since ${when(s.update.at)}`,
             warn: true,
-            title: `Work in progress gets an update every ${UPDATE_DUE_DAYS} days; the last was ${
+            title: `A plan in progress needs an update every ${UPDATE_DUE_DAYS} days; the last was ${
                s.days
-            } days ago.${s.update.body ? ` ${s.update.author}: ${s.update.body}` : ''}`,
+            } days ago, so its lead owes one.${
+               s.update.body ? ` ${s.update.author}: ${s.update.body}` : ''
+            }`,
          };
    }
 }
@@ -120,7 +125,7 @@ export function waitsWords(
 
 /**
  * A lane's load in words, for its band: the most plans and projects it has
- * in flight in any week from this one on, against its developers. Amber
+ * in progress in any week from this one on, against its developers. Amber
  * once that's as many as the developers or more, since then at least one
  * has one developer or none (the worry the "one person" flag names for live
  * projects), and the planner owes the lane a new order.
@@ -135,15 +140,15 @@ export function loadWords(
    const people = developers ? ` for ${n(developers, 'developer')}` : '';
    if (developers && peak.count >= developers) {
       return {
-         text: `${peak.count} at once in the week of ${dayWords(peak.week)}${people}`,
+         text: `${peak.count} in progress the week of ${dayWords(peak.week)}${people}`,
          warn: true,
-         title: 'With as much in flight as there are developers, at least one plan or project has one developer or none.',
+         title: 'With as many plans and projects in progress as developers, at least one has one developer or none.',
       };
    }
    return {
-      text: `at most ${peak.count} at once${people}`,
+      text: `at most ${peak.count} in progress at once${people}`,
       warn: false,
-      title: 'The most plans and projects in flight in any one week, from this week on',
+      title: 'The most plans and projects in progress in any one week, from this week on',
    };
 }
 
@@ -340,7 +345,7 @@ export function PlanFacts({
       <div className="border-t border-secondary px-3.5 py-2 text-xs text-ink-3">
          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>
-               Planned <span className="font-medium text-ink-2">{planWords(plan)}</span>
+               Plan <span className="font-medium text-ink-2">{planWords(plan)}</span>
             </span>
             <span>{PLAN_STATUS_WORD[plan.status]}</span>
             {health && (

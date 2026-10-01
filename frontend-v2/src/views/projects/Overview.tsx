@@ -361,6 +361,7 @@ export function Overview({
          <AgeCharts items={listed} nav={nav} navigate={navigate} />
          <Portfolio
             items={listed}
+            prefix={prefix}
             workersLoaded={rows != null}
             nameOf={nameOf}
             nav={nav}

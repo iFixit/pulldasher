@@ -188,6 +188,7 @@ export function Projects({
                opts={opts}
                nav={nav}
                navigate={navigate}
+               item={items.find(i => i.slug === nav.project)}
             />
          ) : nav.view === 'people' ? (
             <People
