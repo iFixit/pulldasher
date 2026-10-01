@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { decideProjects, decideQueue } from '../../../shared/model/decide';
 import type { DerivedPull } from '../../../shared/model/status';
 import type { Project, ProjectGroup, ProjectWindow, Today } from '../../../shared/model/projects';
 import type { RoadmapItem, RoadmapUpdate } from '../../../shared/model/roadmap';
+import type { IssueCounts } from '../../../shared/model/work';
 import type { PullData } from '../../../shared/types';
 import {
    bucketOf,
@@ -308,6 +310,41 @@ describe('planCell', () => {
       });
       expect(cell({ open: 1, merged: 0 }).warn).toBe(false);
       expect(cell({ open: 0, merged: 3 }).warn).toBe(false);
+   });
+
+   it('says the issues are all closed only of the plan Decide asks, one that has started', () => {
+      const closed: IssueCounts = {
+         total: 2,
+         open: 0,
+         done: 2,
+         dropped: 0,
+         lastClosedAt: now - 2 * 86400,
+      };
+      const issues = new Map([['alpha', closed]]);
+      // [the cell says so, Decide asks]
+      const flags = (alphaPlans: RoadmapItem[]) => [
+         portfolioItems(projects, today, {}, teamOf, NOW, alphaPlans, issues).find(
+            i => i.slug === 'alpha'
+         )?.planCell.kind === 'issues_done',
+         decideQueue({
+            live: decideProjects(today),
+            items: alphaPlans,
+            issues,
+            today: day,
+            now,
+         }).some(r => r.slug === 'alpha' && r.reasons.some(x => x.kind === 'issues_done')),
+      ];
+      // its one plan starts next month
+      expect(flags([plan(3, 'alpha', { status: 'planned', start: '2026-10-12' })])).toEqual([
+         false,
+         false,
+      ]);
+      // the cell shows the first plan by priority; Decide asks the one started last
+      const first = plan(3, 'alpha', { start: '2026-09-07', weeks: 8 });
+      const second = plan(4, 'alpha');
+      const answered = { updated_at: now - 86400 };
+      expect(flags([first, { ...second, ...answered }])).toEqual([false, false]);
+      expect(flags([{ ...first, ...answered }, second])).toEqual([true, true]);
    });
 
    it('counts a project behind when off track, or past its end or target with PRs open', () => {

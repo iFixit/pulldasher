@@ -1,6 +1,6 @@
 import { MAX_ISSUE_NUMBER, REPO_PATTERN, issueKey, parseIssueRef, type IssueRef } from './issueRef';
 import { dayStart } from './projects';
-import { planEnd, type RoadmapItem } from './roadmap';
+import { isStopped, planEnd, type RoadmapItem } from './roadmap';
 
 export { issueKey, issueText, parseIssueRef, type IssueRef } from './issueRef';
 
@@ -136,6 +136,8 @@ export interface IssuePull {
 /** An issue on its project's page: with the PRs that link it, newest first. */
 export interface ProjectIssue extends AttachedIssue {
    prs: IssuePull[];
+   /** the other projects it's attached to, by slug */
+   alsoIn: string[];
 }
 
 /** How a project's issues stand, for Decide and the project list. */
@@ -153,6 +155,8 @@ export interface IssueCounts {
  * knows of it (just its number when it has never seen it), and the PRs. */
 export interface SuggestedIssue extends IssueHit {
    linkedBy: IssueRef[];
+   /** the projects it's attached to already, by slug */
+   alsoIn: string[];
 }
 
 /** A project's page: its issues with their PRs, its PRs that link none of
@@ -199,17 +203,23 @@ export interface WorkInputs {
    notIssues?: ReadonlySet<string>;
 }
 
+/** When a plan's status last changed; a plan saved before that was kept
+ * goes by its last change of any kind. */
+const statusAt = (plan: RoadmapItem) => plan.status_at ?? plan.updated_at;
+
 /**
  * Which of a project's plans a PR belongs to: the latest one that had
- * started when it opened, skipping plans already marked done or dropped by
+ * started when it opened, skipping plans already parked, done or dropped by
  * then while another still runs; or the earliest plan when it came before
  * them all. Null for a project with no plans.
  */
 export function planOfWork(plans: readonly RoadmapItem[], at: number): RoadmapItem | null {
    const sorted = [...plans].sort((a, b) => a.start.localeCompare(b.start) || a.id - b.id);
    const started = sorted.filter(p => (dayStart(p.start) as number) <= at);
-   const stopped = (p: RoadmapItem) =>
-      (p.status === 'done' || p.status === 'dropped') && p.updated_at != null && p.updated_at <= at;
+   const stopped = (p: RoadmapItem) => {
+      const since = statusAt(p);
+      return isStopped(p.status) && since != null && since <= at;
+   };
    const running = started.filter(p => !stopped(p));
    // with every started plan stopped, the latest still takes it: that's how
    // work after a finished plan shows up (PlanWork.afterDone)
@@ -283,11 +293,8 @@ export function planWork(inputs: WorkInputs): PlanWork[] {
          if (pr.state === 'open') openPulls.set(plan.id, (openPulls.get(plan.id) ?? 0) + 1);
          if (pr.createdAt >= afterEndOf(plan)) push(afterEnd, plan.id, pr);
          const stopped = plan.status === 'done' || plan.status === 'dropped';
-         if (
-            stopped &&
-            plan.updated_at != null &&
-            pr.createdAt > plan.updated_at + TAIL_DAYS * DAY
-         ) {
+         const since = statusAt(plan);
+         if (stopped && since != null && pr.createdAt > since + TAIL_DAYS * DAY) {
             push(afterDone, plan.id, pr);
          }
       }
@@ -330,6 +337,15 @@ export function projectWork(
 ): ProjectWork {
    const issues = inputs.attached.get(slug) ?? [];
    const keys = new Set(issues.map(i => issueKey(i.ref)));
+   // the other projects that have each issue, by label or by hand
+   const elsewhere = new Map<string, string[]>();
+   for (const [other, list] of inputs.attached) {
+      if (other === slug) continue;
+      for (const i of list) {
+         elsewhere.set(issueKey(i.ref), [...(elsewhere.get(issueKey(i.ref)) ?? []), other]);
+      }
+   }
+   const alsoIn = (k: string) => [...(elsewhere.get(k) ?? [])].sort();
    const mine = pullsOf(inputs).get(slug) ?? [];
    const known = new Map([
       ...(inputs.knownPulls ?? []),
@@ -376,6 +392,7 @@ export function projectWork(
          suggested.set(k, {
             ...(info ?? { ...ref, title: '', state: 'open', author: null, createdAt: null }),
             linkedBy: [{ repo: pr.repo, number: pr.number }],
+            alsoIn: alsoIn(k),
          });
       }
    }
@@ -383,6 +400,7 @@ export function projectWork(
       issues: issues.map(issue => ({
          ...issue,
          prs: [...(prsOf.get(issueKey(issue.ref))?.values() ?? [])].sort(newest),
+         alsoIn: alsoIn(issueKey(issue.ref)),
       })),
       unlinked: mine
          .filter(pr => !linked.has(issueKey(pr)) && recent(pr, RECENT_DAYS))

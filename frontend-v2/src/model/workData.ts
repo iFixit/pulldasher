@@ -141,9 +141,14 @@ export function useWorkData(plans: readonly RoadmapItem[] | null): WorkData | nu
    const [got, setGot] = useState<WorkData | null | undefined>(undefined);
    const { n: version } = workVersion.useValue();
    // what the plans' PRs depend on: each plan's project, dates, status, and
-   // when it last changed (a done plan's late PRs count from then)
+   // when its status changed (a done plan's late PRs count from then)
    const key = plans
-      ?.map(p => `${p.id}:${p.project}:${p.start}:${p.weeks}:${p.status}:${p.updated_at ?? ''}`)
+      ?.map(
+         p =>
+            `${p.id}:${p.project}:${p.start}:${p.weeks}:${p.status}:${
+               p.status_at ?? p.updated_at ?? ''
+            }`
+      )
       .join(',');
    useEffect(() => {
       if (!plans) return;

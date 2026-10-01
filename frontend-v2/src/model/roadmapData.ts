@@ -105,6 +105,7 @@ function dummyApi(): Api {
             priority: Math.max(-1, ...rows.map(r => r.priority)) + 1,
             ...touch(),
             created_at: Math.floor(Date.now() / 1000),
+            status_at: Math.floor(Date.now() / 1000),
             update: null,
          };
          rows.push(item);
@@ -117,7 +118,10 @@ function dummyApi(): Api {
          if (loop) return bad(loop);
          const row = rows.find(r => r.id === id);
          if (!row) return bad('no such roadmap item', 404);
+         // when it stopped is when its status changed, not its last edit
+         const moved = checked.fields.status != null && checked.fields.status !== row.status;
          Object.assign(row, checked.fields, touch());
+         if (moved) row.status_at = row.updated_at;
          return ok({ item: { ...row } });
       },
       remove: id => {

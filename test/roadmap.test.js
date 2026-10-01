@@ -149,6 +149,7 @@ test('itemFromRow renames the lead and fills the blanks', () => {
          updated_by: 'alice',
          updated_at: '1790000000',
          created_at: '1789000000',
+         status_at: '1789500000',
       }),
       {
          id: 3,
@@ -166,9 +167,27 @@ test('itemFromRow renames the lead and fills the blanks', () => {
          updated_by: 'alice',
          updated_at: 1790000000,
          created_at: 1789000000,
+         status_at: 1789500000,
          update: null,
       }
    );
+});
+
+test('status_at says when the status changed, and an edit that keeps it leaves it', async () => {
+   const { body } = await call('POST', '/roadmap', { name: 'Search' });
+   const id = body.item.id;
+   assert.ok(body.item.status_at > 0);
+   assert.equal(body.item.status_at, body.item.created_at);
+   // an old time, so a write that moves it shows
+   rows.find(r => r.id === id).status_at = 1000;
+   const notes = await call('PATCH', `/roadmap/${id}`, { notes: 'Bigger than it looked' });
+   assert.equal(notes.body.item.status_at, 1000);
+   // the status it already has isn't a change
+   const same = await call('PATCH', `/roadmap/${id}`, { status: 'planned', weeks: 6 });
+   assert.equal(same.body.item.status_at, 1000);
+   const done = await call('PATCH', `/roadmap/${id}`, { status: 'done' });
+   assert.equal(done.body.item.status_at, done.body.item.updated_at);
+   assert.ok(done.body.item.status_at > 1000);
 });
 
 test('a new item starts planned, four weeks from a Monday, at the bottom', async () => {

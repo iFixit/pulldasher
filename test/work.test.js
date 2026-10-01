@@ -170,8 +170,9 @@ const LABELED_PULLS = [
    pullRow(202, 'erin', '2026-09-10', { body: 'Parts of #101' }),
    // links an issue no one attached, twice: one suggestion, linked once
    pullRow(204, 'faye', '2026-09-25', { body: 'Parts of #110. Closes #110' }),
-   // links no issue: #212 is a PR, never an issue to suggest
-   pullRow(208, 'gus', '2026-09-26', { body: 'Fixes #212' }),
+   // links no issue to suggest: #212 is a PR, and other/thing is outside
+   // the tracked organizations, so adding it would be refused
+   pullRow(208, 'gus', '2026-09-26', { body: 'Fixes #212. Fixes other/thing#5' }),
    pullRow(209, 'renovate[bot]', '2026-09-27'),
 ];
 // PRs with no project label
@@ -420,9 +421,11 @@ test('searchIssues finds an issue by link, by number in any tracked repo, or by 
       ['test/repo-a#5']
    );
    assert.match(searches[0], /^stickers is:issue org:iFixit org:test$/);
-   // answered again from what it kept
-   await searchIssues(settings, 'stickers');
+   // answered again from what it kept, with the projects read fresh
+   await attachIssue(settings, 'workbench', { repo: 'test/repo-a', number: 5 }, 'dana');
+   const [kept] = await searchIssues(settings, 'stickers');
    assert.equal(searches.length, 1);
+   assert.deepEqual(kept.projects, ['workbench']);
    // a number too big for GitHub is no search at all
    assert.deepEqual(await searchIssues(settings, '#30000000000'), []);
    assert.deepEqual(await searchIssues(settings, ' '), []);

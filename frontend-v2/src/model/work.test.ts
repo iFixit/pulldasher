@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { decideQueue } from '../../../shared/model/decide';
 import type { RoadmapItem } from '../../../shared/model/roadmap';
 import {
    bodyLinks,
@@ -151,6 +152,37 @@ describe('planOfWork', () => {
       const done = plan(3, { start: '2026-07-06', status: 'done', updated_at: at('2026-08-20') });
       expect(planOfWork([done], at('2026-09-14'))?.id).toBe(3);
    });
+
+   it('skips a parked plan too, so an earlier one can’t take the work after a later', () => {
+      const launch = plan(1, { start: '2026-07-06', weeks: 6 });
+      // started Aug 3, parked Aug 20
+      const extra = plan(2, {
+         start: '2026-08-03',
+         status: 'parked',
+         updated_at: at('2026-08-20'),
+      });
+      expect(planOfWork([launch, extra], at('2026-09-14'))?.id).toBe(1);
+      // parked Jul 20, then a plan from Aug 3 done Sep 1: the work after is the done plan's
+      const parked = plan(3, {
+         start: '2026-07-06',
+         status: 'parked',
+         updated_at: at('2026-07-20'),
+      });
+      const done = plan(4, { start: '2026-08-03', status: 'done', updated_at: at('2026-09-01') });
+      expect(planOfWork([parked, done], at('2026-09-14'))?.id).toBe(4);
+   });
+
+   it('goes by when a plan’s status changed, not by a later edit', () => {
+      const launch = plan(1, { start: '2026-07-06', weeks: 6 });
+      // dropped Aug 20, its notes edited Sep 20
+      const extra = plan(2, {
+         start: '2026-08-03',
+         status: 'dropped',
+         status_at: at('2026-08-20'),
+         updated_at: at('2026-09-20'),
+      });
+      expect(planOfWork([launch, extra], at('2026-09-14'))?.id).toBe(1);
+   });
 });
 
 describe('issueCounts', () => {
@@ -231,6 +263,64 @@ describe('planWork', () => {
       expect(ids(work[2].afterEnd)).toEqual([10, 11]);
       expect(ids(work[2].afterDone)).toEqual([11]);
       expect(ids(work[0].afterDone)).toEqual([]);
+   });
+
+   it('counts from when it was marked done, not from a later edit', () => {
+      // done Sep 1, its notes edited Sep 20
+      const edited = { ...tool, status_at: at('2026-09-01'), updated_at: at('2026-09-20') };
+      const [late] = planWork({
+         plans: [edited],
+         attached: new Map(),
+         pulls: new Map([['tool', [pull(11, '2026-09-10')]]]),
+         links: new Map(),
+      });
+      expect(ids(late.afterDone)).toEqual([11]);
+   });
+
+   it('leaves the work after a done plan to it, so Decide still reopens it', () => {
+      // parked Jul 20; a later plan was done Sep 1, and a PR opened Sep 14
+      const parked = plan(5, {
+         start: '2026-07-06',
+         status: 'parked',
+         updated_at: at('2026-07-20'),
+      });
+      const done = plan(6, { start: '2026-08-03', status: 'done', updated_at: at('2026-09-01') });
+      const after = planWork({
+         plans: [parked, done],
+         attached: new Map(),
+         pulls: new Map([['workbench', [pull(20, '2026-09-14', merged('2026-09-15'))]]]),
+         links: new Map(),
+      });
+      expect(after.map(w => [w.planId, ids(w.afterDone)])).toEqual([
+         [5, []],
+         [6, [20]],
+      ]);
+      const rows = decideQueue({
+         live: [
+            {
+               slug: 'workbench',
+               firstOpened: null,
+               lastActivity: at('2026-09-15'),
+               open: 0,
+               prs: 1,
+               due: null,
+            },
+         ],
+         items: [parked, done],
+         planCounts: new Map(
+            after.map(w => [
+               w.planId,
+               {
+                  openPulls: w.openPulls,
+                  afterEnd: w.afterEnd.length,
+                  afterDone: w.afterDone.length,
+               },
+            ])
+         ),
+         today: '2026-09-30',
+         now: NOW,
+      });
+      expect(rows.map(r => [r.item?.id, r.reasons.map(x => x.kind)])).toEqual([[6, ['reopened']]]);
    });
 });
 
@@ -328,6 +418,33 @@ describe('projectWork', () => {
          dropped: 1,
          lastClosedAt: at('2026-09-20'),
       });
+   });
+
+   it('says which other projects have each issue, by label or by hand', () => {
+      const shared = projectWork(
+         {
+            plans: [],
+            attached: new Map([
+               ['workbench', [issue(100), issue(101)]],
+               ['printing', [issue(100), issue(300, { via: ['hand'] })]],
+               ['labels', [issue(100, { via: ['label', 'hand'] })]],
+            ]),
+            pulls: new Map([
+               ['workbench', [pull(200, '2026-09-25', { links: [ref(300), ref(301)] })]],
+            ]),
+            links: new Map(),
+         },
+         'workbench',
+         NOW
+      );
+      expect(shared.issues.map(i => [i.ref.number, i.alsoIn])).toEqual([
+         [100, ['labels', 'printing']],
+         [101, []],
+      ]);
+      expect(shared.suggested.map(s => [s.number, s.alsoIn])).toEqual([
+         [300, ['printing']],
+         [301, []],
+      ]);
    });
 
    it('lists nothing for a project with no issues and no PRs', () => {

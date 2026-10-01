@@ -1,5 +1,10 @@
 import { epoch, n } from '../../../shared/format';
-import { DECIDE_MIN_PRS, STALL_DAYS, issuesAllClosed } from '../../../shared/model/decide';
+import {
+   DECIDE_MIN_PRS,
+   STALL_DAYS,
+   issuesAllClosed,
+   planRunningToday,
+} from '../../../shared/model/decide';
 import {
    dayStart,
    MISC_SLUG,
@@ -154,16 +159,18 @@ function stageOf(
 }
 
 /**
- * The plan's words for a project, the worst first: off track, past its
- * plan's end, a missed target, at risk, an update owed, on track, when it
- * starts or ends, parked, and no plan. Amber on Decide's terms: "No plan"
- * only once Decide would ask for one (DECIDE_MIN_PRS or more PRs, some open).
+ * The plan's words for a project, the worst first: off track, its issues
+ * all closed, past its plan's end, a missed target, at risk, an update owed,
+ * on track, when it starts or ends, parked, and no plan. Amber on Decide's
+ * terms: "No plan" only once Decide would ask for one (DECIDE_MIN_PRS or
+ * more PRs, some open), and "Issues all closed" only when Decide asks
+ * (`issuesAsked`): it asks the plan running today, which needn't be `plan`.
  */
 export function planCell(
    item: Pick<
       PortfolioItem,
       'plan' | 'project' | 'stage' | 'open' | 'merged' | 'target' | 'dueInDays'
-   > & { issues?: IssueCounts | null; ongoing?: boolean },
+   > & { issuesAsked?: boolean; ongoing?: boolean },
    day: string,
    now: number
 ): PlanCell {
@@ -183,10 +190,7 @@ export function planCell(
       const end = planEnd(plan);
       if (update?.health === 'off_track')
          return { kind: 'off_track', text: 'Off track', warn: true };
-      // every issue attached to it closed, and no call since: Decide asks whether it's done
-      if (item.issues && issuesAllClosed(plan, item.issues)) {
-         return { kind: 'issues_done', text: 'Issues all closed', warn: true };
-      }
+      if (item.issuesAsked) return { kind: 'issues_done', text: 'Issues all closed', warn: true };
       if (end < day) {
          const weeks = Math.ceil(
             ((dayStart(day) as number) - (dayStart(end) as number)) / (7 * DAY)
@@ -308,7 +312,9 @@ export function portfolioItems(
          endsSoon: false,
       };
       item.team = plan?.team ?? mainTeam(item, teamOf);
-      item.planCell = planCell(item, day, secs);
+      const asked = planRunningToday(slug, plans, day);
+      const issuesAsked = !!asked && !!item.issues && issuesAllClosed(asked, item.issues);
+      item.planCell = planCell({ ...item, issuesAsked }, day, secs);
       const kind = item.planCell.kind;
       item.stalled =
          stage === 'progress' && item.open > 0 && (item.lastActivity?.days ?? 0) >= STALL_DAYS;

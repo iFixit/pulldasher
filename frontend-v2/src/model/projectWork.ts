@@ -19,7 +19,8 @@ import { dummyHand, dummyWorkInputs, workVersion } from './workData';
  * or taking one off loads the work and the page again.
  */
 
-/** Every issue the dummy board's search can find. */
+/** Every issue the dummy board's search can find, once each: an issue in
+ * two projects is in two lists. */
 function dummyCorpus(): IssueHit[] {
    const attached = Object.values(DUMMY_ATTACHED)
       .flat()
@@ -31,7 +32,7 @@ function dummyCorpus(): IssueHit[] {
          createdAt: issue.createdAt,
          closedAt: issue.closedAt,
       }));
-   return [...attached, ...DUMMY_ISSUES];
+   return [...new Map([...attached, ...DUMMY_ISSUES].map(hit => [issueKey(hit), hit])).values()];
 }
 
 /** What the dummy board's search finds: the way the server's does, from

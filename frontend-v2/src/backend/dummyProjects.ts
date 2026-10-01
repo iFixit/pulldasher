@@ -272,6 +272,8 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
  * The dummy board's issues attached to projects, by slug (model/workData.ts):
  * SSO approvals has work left, Shopify sync has every issue closed (so
  * Decide asks "Done?"), the webdriver work is midway, and Akeneo is done.
+ * One webdriver issue was added to SSO approvals by hand too, so both pages
+ * say it's in the other.
  */
 export const DUMMY_ATTACHED: Record<string, AttachedIssue[]> = (() => {
    const day = 86400;
@@ -293,6 +295,10 @@ export const DUMMY_ATTACHED: Record<string, AttachedIssue[]> = (() => {
       attachedAt: daysAgo.joined == null ? null : now - daysAgo.joined * day,
       addedBy: null,
    });
+   // its flaky tests hold up the release gates
+   const gateTests = issue(35806, 'Deflake the release-gate approval tests', 'open', {
+      joined: 9,
+   });
    return {
       'release-gate-sso': [
          issue(35001, 'Require a second approver on release gates', 'done', {
@@ -306,6 +312,7 @@ export const DUMMY_ATTACHED: Record<string, AttachedIssue[]> = (() => {
          issue(35003, 'Audit log for approvals', 'done', { joined: 58, closed: 15 }),
          issue(35004, 'Flip the default for the second approval path', 'open', { joined: 30 }),
          issue(35005, 'Email approvers when a gate waits', 'dropped', { joined: 50, closed: 25 }),
+         { ...gateTests, via: ['hand'], attachedAt: now - 5 * day, addedBy: 'rjmccluskey' },
       ],
       'shopify-sync': [
          issue(35401, 'Sync products nightly', 'done', { joined: 28, closed: 12 }),
@@ -319,6 +326,7 @@ export const DUMMY_ATTACHED: Record<string, AttachedIssue[]> = (() => {
          issue(35803, 'Run IE11 tests in parallel', 'open', { joined: 42 }),
          issue(35804, 'Record a video on failure', 'open', { joined: 10 }),
          issue(35805, 'Seed the test store once per run', 'open', { joined: 8 }),
+         gateTests,
       ],
       'akeneo-4': [
          issue(36201, 'Upgrade the connector', 'done', { joined: 77, closed: 50 }),

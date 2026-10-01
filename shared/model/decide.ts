@@ -57,7 +57,7 @@ export type DecideReason =
         by: 'roadmap' | 'issue';
      }
    | { kind: 'moving' }
-   /** `open`: the plan's PRs still open, which no closed issue accounts for */
+   /** `open`: the plan's PRs still open */
    | { kind: 'issues_done'; done: number; dropped: number; open: number };
 
 /** What the queue needs to know about a live project. */
@@ -165,6 +165,23 @@ export function issuesAllClosed(item: RoadmapItem, counts: IssueCounts): boolean
    );
 }
 
+/**
+ * The plan Decide asks about a project's issues: its plan under way that has
+ * started, the latest start (the higher id on a tie). The issues are the
+ * project's, so only that one is asked. Null when none has started.
+ */
+export function planRunningToday(
+   slug: string,
+   items: readonly RoadmapItem[],
+   today: string
+): RoadmapItem | null {
+   return (
+      items
+         .filter(p => p.project === slug && isUnderWay(p.status) && p.start <= today)
+         .sort((a, b) => b.start.localeCompare(a.start) || b.id - a.id)[0] ?? null
+   );
+}
+
 export function decideQueue({
    live,
    items,
@@ -228,11 +245,11 @@ export function decideQueue({
          });
       }
       const attached = item.project ? issues.get(item.project) : undefined;
-      // the issues are the project's, so only its plan running today is asked
-      const runningNow = (plansOf.get(item.project ?? '') ?? [])
-         .filter(p => isUnderWay(p.status) && p.start <= today)
-         .sort((a, b) => b.start.localeCompare(a.start) || b.id - a.id)[0];
-      if (attached && runningNow?.id === item.id && issuesAllClosed(item, attached)) {
+      if (
+         attached &&
+         planRunningToday(item.project ?? '', items, today)?.id === item.id &&
+         issuesAllClosed(item, attached)
+      ) {
          add(item.project, item, {
             kind: 'issues_done',
             done: attached.done,

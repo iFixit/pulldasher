@@ -62,6 +62,8 @@ export interface RoadmapItem {
    /** a GitHub login */
    lead: string | null;
    status: RoadmapStatus;
+   /** when its status last changed (epoch secs); null when not known */
+   status_at?: number | null;
    /** where the work came from; null until someone says */
    origin: RoadmapOrigin | null;
    /** the Monday of the planned first week, YYYY-MM-DD */
