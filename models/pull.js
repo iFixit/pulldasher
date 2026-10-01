@@ -441,6 +441,10 @@ class Pull {
          requested_reviewers: data.requested_reviewers ?? [],
          cr_req: data.cr_req,
          qa_req: data.qa_req,
+         // read back with cr_req, or the constructor skips the body parse
+         // that would have found them and they'd be lost on every reload
+         closes: data.closes ?? null,
+         connects: data.connects ?? null,
       };
 
       return new Pull(pullData, signatures, comments, reviews, commitStatuses, labels);
