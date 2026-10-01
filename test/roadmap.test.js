@@ -158,7 +158,6 @@ test('itemFromRow renames the lead and fills the blanks', () => {
          lead: 'dana',
          status: 'active',
          origin: null,
-         spec: null,
          start: '2026-09-28',
          weeks: 6,
          priority: 2,
@@ -211,26 +210,6 @@ test('an edit changes only what was sent, and 404s an unknown item', async () =>
    assert.equal(edited.body.item.name, 'Grafana');
    assert.equal((await call('PATCH', '/roadmap/99', { weeks: 5 })).status, 404);
    assert.equal((await call('PATCH', '/roadmap/abc', { weeks: 5 })).status, 400);
-});
-
-test('a plan’s spec takes an issue link or owner/repo#N, and null clears it', async () => {
-   const { body } = await call('POST', '/roadmap', { name: 'Workbench', weeks: 6 });
-   const path = `/roadmap/${body.item.id}`;
-   const linked = await call('PATCH', path, {
-      spec: 'https://github.com/iFixit/ifixit/issues/63681',
-   });
-   assert.equal(linked.status, 200);
-   assert.deepEqual(linked.body.item.spec, { repo: 'iFixit/ifixit', number: 63681 });
-   assert.equal(rows[0].spec_repo, 'iFixit/ifixit');
-   assert.deepEqual((await call('PATCH', path, { spec: 'iFixit/ops#12' })).body.item.spec, {
-      repo: 'iFixit/ops',
-      number: 12,
-   });
-   const bad = await call('PATCH', path, { spec: 'the launch epic' });
-   assert.equal(bad.status, 400);
-   assert.match(bad.body.error, /spec issue/);
-   assert.equal((await call('PATCH', path, { spec: null })).body.item.spec, null);
-   assert.equal(rows[0].spec_number, null);
 });
 
 test('updates-owed lists each lead’s plans in progress with no update for two weeks', async () => {

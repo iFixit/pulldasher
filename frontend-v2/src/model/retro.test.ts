@@ -183,7 +183,6 @@ describe('Look back’s project columns', () => {
       lead: null,
       status: 'active',
       origin: null,
-      spec: null,
       start: '2026-08-03',
       weeks: 4,
       priority: 1,

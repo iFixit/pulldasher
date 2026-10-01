@@ -19,7 +19,7 @@ import { API_ROUTES, apiIndex } from './controllers/api-routes.js';
 import settingsController from './controllers/settings.js';
 import { loadSettings } from './lib/settings.js';
 import { issueRepos, projectSettings } from './lib/projects.js';
-import { syncScope } from './lib/scope.js';
+import { syncWork } from './lib/work.js';
 import apiAuth from './lib/api-auth.js';
 import Debug from './lib/debug.js';
 import { createServer } from 'http';
@@ -75,9 +75,9 @@ app.get('/stats-history', statsController.getHistory);
 app.get('/user-names', userNamesController.getNames);
 app.get('/projects-data', projectsController.getBoardData);
 app.get('/retro-data', projectsController.getRetro);
-app.get('/scope-data', projectsController.getScope);
+app.get('/work-data', projectsController.getWork);
 app.get('/issue-search', projectsController.searchIssues);
-app.get('/project-issues', projectsController.getProjectIssues);
+app.get('/project-work', projectsController.getProjectWork);
 app.post('/project-issues', canWrite, projectsController.attachIssue);
 app.delete('/project-issues', canWrite, projectsController.detachIssue);
 // the roadmap is the one part of the Projects tab people edit here: reads are
@@ -126,7 +126,7 @@ dbManager
       debug('Refreshing all open pulls from the API');
       refresh.openPulls();
       syncProjectIssues();
-      syncPlanScopes();
+      syncAttachedIssues();
    })
    .done();
 
@@ -140,15 +140,15 @@ setInterval(function () {
       console.error('Hourly open-pull repair failed: %s', (err && err.message) || err);
    });
    syncProjectIssues();
-   syncPlanScopes();
+   syncAttachedIssues();
 }, RECONCILE_MS);
 
-// Each plan's spec issue, its sub-issues and checklist, and which PRs link
-// each scope issue (lib/scope.js), read off GitHub once an hour; a plan's
-// spec change and a webhook on a scope issue read it sooner.
-function syncPlanScopes() {
-   syncScope(projectSettings()).catch(function (err) {
-      console.error('Scope sync failed: %s', (err && err.message) || err);
+// The issues added to projects by hand, and which PRs link each issue a
+// project has (lib/work.js), read off GitHub once an hour; a webhook on one
+// of those issues reads them sooner.
+function syncAttachedIssues() {
+   syncWork(projectSettings()).catch(function (err) {
+      console.error('Work sync failed: %s', (err && err.message) || err);
    });
 }
 

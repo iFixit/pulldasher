@@ -115,8 +115,8 @@ function targetCell(item: PortfolioItem): ReactNode {
 }
 
 function planTitle(item: PortfolioItem): string {
-   if (item.planCell.kind === 'scope_done') {
-      return 'Everything in its spec is closed, and the plan hasn’t changed since, so Decide asks whether it’s done. Click to open the plan.';
+   if (item.planCell.kind === 'issues_done') {
+      return 'Every issue attached to it is closed, and the plan hasn’t changed since, so Decide asks whether it’s done. Click to open the plan.';
    }
    if (item.plan) return `${planCellWords(item.plan).title}. Click to open the plan.`;
    if (item.planCell.kind === 'missed') {
@@ -259,26 +259,25 @@ const COLUMNS: Column[] = [
    },
 ];
 
-const SPEC: Column = {
-   key: 'scope',
-   label: 'Spec done',
-   title: 'How much of its plan’s spec issue is done: its sub-issues, its checklist, and the issues labeled into the project. Dropped ones and ones moved to a later plan don’t count.',
+const ISSUES: Column = {
+   key: 'issues',
+   label: 'Issues open',
+   title: 'How many of the issues attached to it are still open, by its label or added on its page',
    width: 'w-16',
    hide: 'hidden lg:block',
    cell: (i, act) => {
-      const s = i.scope;
-      if (!s?.spec || !s.items.length) return '';
-      const total = s.done + s.open;
+      const s = i.issues;
+      if (!s?.total) return '';
       return (
          <CellButton
             onClick={() => act.openProject(i.slug)}
             // amber only while Decide asks whether it's done
-            className={i.planCell.kind === 'scope_done' ? 'text-warn' : 'text-ink-2'}
-            title={`${s.done} done, ${s.open} open${s.dropped ? `, ${s.dropped} dropped` : ''}${
-               s.specTitle ? ` in ${s.specTitle}` : ''
+            className={i.planCell.kind === 'issues_done' ? 'text-warn' : 'text-ink-2'}
+            title={`${s.open} open, ${s.done} done${
+               s.dropped ? `, ${s.dropped} dropped` : ''
             }. Click for the list.`}
          >
-            {total ? `${s.done} of ${total}` : 'All dropped'}
+            {s.open ? `${s.open} of ${s.total}` : 'All closed'}
          </CellButton>
       );
    },
@@ -540,7 +539,7 @@ export function Portfolio({
    ]);
    const columns = [
       ...COLUMNS,
-      ...(shown.some(i => i.scope?.items.length) ? [SPEC] : []),
+      ...(shown.some(i => i.issues?.total) ? [ISSUES] : []),
       ...(shown.some(i => i.target) ? [TARGET] : []),
    ];
    const sort = parseSort(nav.sort);

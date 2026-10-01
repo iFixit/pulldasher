@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { dayStart } from '../../../shared/model/projects';
-import { closedIssues, decideQueue, type DecideProject } from '../../../shared/model/decide';
-import type { ScopeCounts } from '../../../shared/model/scope';
+import {
+   closedIssues,
+   decideQueue,
+   type DecideProject,
+   type PlanCounts,
+} from '../../../shared/model/decide';
+import type { IssueCounts } from '../../../shared/model/work';
 import type { RoadmapItem, RoadmapUpdate } from '../../../shared/model/roadmap';
 
 const today = '2026-09-30';
@@ -17,7 +22,6 @@ const item = (id: number, over: Partial<RoadmapItem>): RoadmapItem => ({
    lead: null,
    status: 'active',
    origin: null,
-   spec: null,
    start: '2026-09-07',
    weeks: 8,
    priority: id,
@@ -192,62 +196,45 @@ describe('decideQueue', () => {
       expect(rows[0].reasons[0]).toEqual({ kind: 'missed', due: '2026-09-25', open: 2 });
    });
 
-   it('asks "Done?" when nothing in a plan’s spec is open, until the plan changes after', () => {
-      const counts = (over: Partial<ScopeCounts> = {}): ScopeCounts => ({
-         total: 4,
+   it('asks "Done?" when every issue attached is closed, until the plan changes after', () => {
+      const counts = (over: Partial<IssueCounts> = {}): IssueCounts => ({
+         total: 5,
+         open: 0,
          done: 4,
          dropped: 1,
          lastClosedAt: ago(2),
-         afterEnd: 0,
-         afterDone: 0,
-         openPulls: 2,
          ...over,
       });
-      const spec = { repo: 'iFixit/ifixit', number: 100 };
       const rows = decideQueue({
-         live: [
-            project('shipped'),
-            project('busy'),
-            project('answered'),
-            project('lines'),
-            project('labels-only'),
-         ],
+         live: ['shipped', 'busy', 'answered', 'unknown', 'none'].map(slug => project(slug)),
          items: [
-            item(1, { project: 'shipped', spec }),
-            item(2, { project: 'busy', spec }),
-            // the plan changed after its last item closed: already answered
-            item(3, { project: 'answered', spec, updated_at: ago(1) }),
-            item(4, { project: 'lines', spec }),
-            // no spec: its labeled issues don't say what the plan delivers
-            item(5, { project: 'labels-only' }),
+            item(1, { project: 'shipped' }),
+            item(2, { project: 'busy' }),
+            // the plan changed after its last issue closed: already answered
+            item(3, { project: 'answered', updated_at: ago(1) }),
+            item(4, { project: 'unknown' }),
+            item(5, { project: 'none' }),
          ],
-         scope: new Map([
-            [1, counts()],
-            [2, counts({ done: 3 })],
-            [3, counts()],
+         issues: new Map([
+            ['shipped', counts()],
+            ['busy', counts({ open: 1, done: 3 })],
+            ['answered', counts()],
             // no close time known: it asks
-            [4, counts({ lastClosedAt: null })],
-            [5, counts()],
+            ['unknown', counts({ lastClosedAt: null })],
+            // nothing attached: nothing to be done with
+            ['none', counts({ total: 0, done: 0, dropped: 0, lastClosedAt: null })],
          ]),
          today,
          now: NOW,
       });
       expect(kinds(rows)).toEqual([
-         ['lines', 'scope_done'],
-         ['shipped', 'scope_done'],
+         ['shipped', 'issues_done'],
+         ['unknown', 'issues_done'],
       ]);
-      expect(rows[1].reasons[0]).toEqual({ kind: 'scope_done', done: 4, dropped: 1 });
+      expect(rows[0].reasons[0]).toEqual({ kind: 'issues_done', done: 4, dropped: 1 });
    });
 
-   const noScope: ScopeCounts = {
-      total: 0,
-      done: 0,
-      dropped: 0,
-      lastClosedAt: null,
-      afterEnd: 0,
-      afterDone: 0,
-      openPulls: 0,
-   };
+   const noPulls: PlanCounts = { openPulls: 0, afterEnd: 0, afterDone: 0 };
 
    it('says how many PRs opened after a plan’s end, and puts the busiest first', () => {
       const end = { start: '2026-08-03', weeks: 4 };
@@ -257,9 +244,9 @@ describe('decideQueue', () => {
             item(1, { project: 'quiet-tail', ...end }),
             item(2, { project: 'running-on', ...end }),
          ],
-         scope: new Map([
-            [1, { ...noScope, afterEnd: 1, openPulls: 2 }],
-            [2, { ...noScope, afterEnd: 9, openPulls: 2 }],
+         planCounts: new Map([
+            [1, { ...noPulls, afterEnd: 1, openPulls: 2 }],
+            [2, { ...noPulls, afterEnd: 9, openPulls: 2 }],
          ]),
          today,
          now: NOW,
@@ -275,7 +262,7 @@ describe('decideQueue', () => {
          // its PRs merged fast, so none is open now
          live: [project('comeback', { open: 0 })],
          items: [item(1, { project: 'comeback', status: 'done', updated_at: ago(100) })],
-         scope: new Map([[1, { ...noScope, afterEnd: 2, afterDone: 2 }]]),
+         planCounts: new Map([[1, { ...noPulls, afterEnd: 2, afterDone: 2 }]]),
          today,
          now: NOW,
       });
@@ -291,10 +278,10 @@ describe('decideQueue', () => {
             item(1, { project: 'workbench', start: '2026-05-18', weeks: 15 }),
             item(2, { project: 'workbench', start: '2026-09-21', weeks: 12 }),
          ],
-         scope: new Map([
+         planCounts: new Map([
             // the three open PRs are the feedback round's
-            [1, { ...noScope, afterEnd: 2 }],
-            [2, { ...noScope, openPulls: 3 }],
+            [1, { ...noPulls, afterEnd: 2 }],
+            [2, { ...noPulls, openPulls: 3 }],
          ]),
          today,
          now: NOW,

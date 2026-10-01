@@ -1,5 +1,3 @@
-import { projectSettings } from '../lib/projects.js';
-import { syncScope } from '../lib/scope.js';
 import { respondOrError } from '../lib/controller-utils.js';
 import {
    addUpdate,
@@ -18,13 +16,6 @@ import {
    updatesOwed,
    waitsOnProblem,
 } from '../shared/dist/index.js';
-
-/** A plan's spec changed: read its scope off GitHub now, not at the hour. */
-function rereadScope() {
-   syncScope(projectSettings()).catch(err =>
-      console.error('Scope sync after a plan change failed: %s', (err && err.message) || err)
-   );
-}
 
 const FAKE_USER = process.env.MOCK_AUTH_AS_USER;
 
@@ -120,7 +111,6 @@ export default {
          .then(async error => {
             if (error) return res.status(400).json({ error });
             res.status(201).json({ item: await createItem(checked.fields, req.roadmapLogin) });
-            if (checked.fields.spec) rereadScope();
          })
          .catch(err => {
             console.error('roadmap create failed:', err);
@@ -184,7 +174,6 @@ export default {
             const item = await updateItem(id, checked.fields, req.roadmapLogin);
             if (item) res.json({ item });
             else res.status(404).json({ error: 'no such roadmap item' });
-            if (item && 'spec' in checked.fields) rereadScope();
          })
          .catch(err => {
             console.error('roadmap update failed:', err);

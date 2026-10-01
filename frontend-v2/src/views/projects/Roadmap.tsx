@@ -60,9 +60,6 @@ import {
    type LoadWeek,
 } from '../../../../shared/model/load';
 import { closedIssues, decideProjects, needsDecision } from '../../../../shared/model/decide';
-import { issueText, parseIssueRef } from '../../../../shared/model/issueRef';
-import { RefChip } from '../../components/GitHubRef';
-import { IssueSearch } from '../../components/IssueSearch';
 import {
    columnsFor,
    commitEnds,
@@ -234,7 +231,6 @@ function Editor({
               lead: item.lead,
               status: item.status,
               origin: item.origin,
-              spec: item.spec,
               start: item.start,
               weeks: item.weeks,
               notes: item.notes,
@@ -247,7 +243,6 @@ function Editor({
               lead: null,
               status: 'planned',
               origin: null,
-              spec: null,
               start: addWeeks(mondayOf(utcDay(Date.now() / 1000)), 1),
               weeks: 4,
               notes: '',
@@ -255,27 +250,19 @@ function Editor({
            }
    );
    const [draft, setDraft] = useState<RoadmapFields>(initial);
-   // the spec as typed: "owner/repo#123" or a link, read on save
-   const [specText, setSpecText] = useState(item?.spec ? issueText(item.spec) : '');
-   const specRef = specText.trim() ? parseIssueRef(specText) : null;
    const [error, setError] = useState<string | null>(null);
    const [saving, setSaving] = useState(false);
    const { armed, run } = useArmedConfirm();
    const set = (patch: Partial<RoadmapFields>) => setDraft(d => ({ ...d, ...patch }));
    const save = async () => {
-      const spec = specText.trim() ? parseIssueRef(specText) : null;
-      if (specText.trim() && !spec) {
-         return setError('the spec issue is an "owner/repo#123" or a GitHub issue link');
-      }
-      const fields = { ...draft, spec };
       const changed = item
          ? (Object.fromEntries(
-              Object.entries(fields).filter(
+              Object.entries(draft).filter(
                  ([key, value]) =>
                     JSON.stringify(value) !== JSON.stringify(initial[key as keyof RoadmapFields])
               )
            ) as Partial<RoadmapFields>)
-         : fields;
+         : draft;
       if (item && !Object.keys(changed).length) return onDone();
       const checked = checkRoadmapFields(changed, { partial: !!item });
       if ('error' in checked) return setError(checked.error);
@@ -387,31 +374,6 @@ function Editor({
                ))}
             </select>
          )}
-         <div className="flex flex-col gap-1 text-xs text-ink-3 sm:col-span-2">
-            <span>Spec issue</span>
-            {specRef ? (
-               <span className="flex min-h-[30px] flex-wrap items-center gap-x-2 gap-y-1">
-                  <RefChip data={{ kind: 'issue', ...specRef }} />
-                  <button
-                     type="button"
-                     onClick={() => setSpecText('')}
-                     className="hit pressable rounded border-0 bg-transparent p-0 text-xs font-medium text-brand hover:underline"
-                  >
-                     Change
-                  </button>
-               </span>
-            ) : (
-               <IssueSearch
-                  label="Spec issue"
-                  placeholder="Find its epic: words from the title, #123, or its link"
-                  onPick={hit => setSpecText(issueText(hit))}
-               />
-            )}
-            <span>
-               The issue that says what this plan delivers, usually an epic. Decide asks whether the
-               plan is done once everything in it is closed.
-            </span>
-         </div>
          {field(
             'Team',
             <select

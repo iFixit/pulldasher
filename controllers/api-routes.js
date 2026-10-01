@@ -59,13 +59,12 @@ export const API_ROUTES = [
    },
    {
       method: 'get',
-      path: '/api/v1/scope',
-      handlers: [projectsController.getScope],
+      path: '/api/v1/work',
+      handlers: [projectsController.getWork],
       does:
-         "Every plan's scope: the issue that specs it (a plan's `spec`), its sub-issues and " +
-         'checklist lines plus the issues attached to its project by label or by hand, each open, ' +
-         'done or dropped (closed as not planned or duplicate), when each joined, and the PRs that ' +
-         "opened after the plan's end or more than a week after it was marked done or dropped",
+         "Every plan's PRs by the dates (how many are open, the ones opened after its end, and " +
+         'for a plan marked done or dropped the ones opened more than a week after), and how each ' +
+         "project's attached issues stand, by slug",
    },
    {
       method: 'get',
@@ -77,11 +76,12 @@ export const API_ROUTES = [
    },
    {
       method: 'get',
-      path: '/api/v1/project-issues',
-      handlers: [projectsController.getProjectIssues],
+      path: '/api/v1/project-work',
+      handlers: [projectsController.getProjectWork],
       does:
-         "Every issue attached to ?project=slug: its plans' scope items and the issues attached by " +
-         'its label or by hand, each once, with how it is attached, its plans and the PRs that link it',
+         'A project page for ?project=slug: each issue attached to it (by its label or by hand) with ' +
+         'the PRs that link it, its PRs that link none of them, and the issues its PRs link that are ' +
+         'not attached',
    },
    {
       method: 'post',
@@ -89,7 +89,7 @@ export const API_ROUTES = [
       handlers: [canWrite, projectsController.attachIssue],
       does:
          'Add an issue to a project by hand: {project, issue} with issue as owner/repo#123 or a link. ' +
-         'A missing issue, or a PR, is a 404',
+         "A missing issue, or a PR, is a 404; a project's own issue a 409",
    },
    {
       method: 'delete',

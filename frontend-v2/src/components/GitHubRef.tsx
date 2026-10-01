@@ -105,9 +105,14 @@ export function RefCard({ data }: { data: GitHubRefData }) {
             )}
          </span>
          {data.title && (
-            <span className="mt-2 block text-[13px] font-semibold leading-snug text-ink">
+            <a
+               href={issueUrl(data.repo, data.number)}
+               target="_blank"
+               rel="noopener noreferrer"
+               className="mt-2 block text-[13px] font-semibold leading-snug text-ink hover:text-brand hover:underline"
+            >
                {data.title}
-            </span>
+            </a>
          )}
          {(data.author || size) && (
             <span className="mt-2.5 flex items-center gap-2 text-xs text-ink-3">
@@ -125,8 +130,9 @@ export function RefCard({ data }: { data: GitHubRefData }) {
 }
 
 /**
- * The small link: the state's icon in its color, #number, and the repo. A
- * click opens it on GitHub; a hover shows its card.
+ * The small link: the state's icon in its color, #number, and the repo; a
+ * PR's says "PR" and its state too, so it reads without the card. A click
+ * opens it on GitHub; a hover shows its card.
  */
 export function RefChip({ data, repoShown = true }: { data: GitHubRefData; repoShown?: boolean }) {
    const look = lookOf(data);
@@ -143,8 +149,6 @@ export function RefChip({ data, repoShown = true }: { data: GitHubRefData; repoS
          trigger={t => (
             <a
                ref={t.ref as unknown as Ref<HTMLAnchorElement>}
-               aria-haspopup={t['aria-haspopup']}
-               aria-expanded={t['aria-expanded']}
                onPointerEnter={t.onPointerEnter}
                onPointerLeave={t.onPointerLeave}
                href={issueUrl(data.repo, data.number)}
@@ -159,9 +163,10 @@ export function RefChip({ data, repoShown = true }: { data: GitHubRefData; repoS
                   style={look ? { color: look.color } : undefined}
                />
                <span className="font-medium text-ink-2 underline decoration-line underline-offset-2">
-                  #{data.number}
+                  {data.kind === 'pr' ? 'PR ' : ''}#{data.number}
                </span>
                {repoShown && <span className="truncate">{shortRepo(data.repo)}</span>}
+               {data.kind === 'pr' && look && <span>{look.word.toLowerCase()}</span>}
             </a>
          )}
       >

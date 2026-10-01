@@ -1,6 +1,6 @@
 /**
  * An issue's (or a PR's) address, and how people write one. Its own module
- * so the roadmap's field checks and the scope model can both use it.
+ * so the board's search and the work model can both use it.
  */
 
 /** An issue's (or a PR's) address. */

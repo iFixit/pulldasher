@@ -16,7 +16,7 @@ import {
    useProjectsData,
    type Range,
 } from '../model/projectData';
-import { useScopeData } from '../model/scopeData';
+import { useWorkData } from '../model/workData';
 import { portfolioItems } from '../model/portfolio';
 import { useRoadmap } from '../model/roadmapData';
 import { DateRangePicker } from './projects/DateRangePicker';
@@ -80,9 +80,9 @@ export function Projects({
    );
    const teamOf = useMemo(() => teamLookup(data?.teams ?? {}), [data]);
    const { items: plans } = useRoadmap();
-   // each plan's spec and what arrived after its end, and which projects
-   // run with no end
-   const scopes = useScopeData(plans);
+   // each plan's PRs by the dates, each project's issues, and which
+   // projects run with no end
+   const work = useWorkData(plans);
    const ongoing = useMemo(() => ongoingSlugs(data), [data]);
    const items = useMemo(
       () =>
@@ -93,10 +93,10 @@ export function Projects({
             teamOf,
             Date.now(),
             plans ?? [],
-            scopes ?? null,
+            work?.projects ?? null,
             ongoing
          ),
-      [data, today, teamOf, plans, scopes, ongoing]
+      [data, today, teamOf, plans, work, ongoing]
    );
    // Decide writes the roadmap, so it weighs every project: with the filter
    // bar narrowing the rest of the tab, it builds its own Today and list
@@ -116,17 +116,17 @@ export function Projects({
                  teamOf,
                  Date.now(),
                  plans ?? [],
-                 scopes ?? null,
+                 work?.projects ?? null,
                  ongoing
               )
             : items,
-      [scoped, data, fullToday, teamOf, plans, items, scopes, ongoing]
+      [scoped, data, fullToday, teamOf, plans, items, work, ongoing]
    );
    const closedProjects = useMemo(() => closedIssues(data?.projects ?? []), [data]);
    // the calls owed, counted on the tab so they're seen from every view
    const decisions = useMemo(
-      () => (plans ? decideRows(fullToday, plans, closedProjects, scopes, ongoing) : null),
-      [fullToday, plans, closedProjects, scopes, ongoing]
+      () => (plans ? decideRows(fullToday, plans, closedProjects, work, ongoing) : null),
+      [fullToday, plans, closedProjects, work, ongoing]
    );
    const views: [ProjectsNav['view'], string][] = [
       ['overview', 'Overview'],
@@ -196,12 +196,11 @@ export function Projects({
                closed={closed}
                prefix={prefix}
                teamOf={teamOf}
-               opts={opts}
                nav={nav}
                navigate={navigate}
                item={items.find(i => i.slug === nav.project)}
                plans={plans}
-               scopes={scopes}
+               work={work}
                ongoingSaved={data?.ongoing ?? []}
             />
          ) : nav.view === 'people' ? (
@@ -224,7 +223,7 @@ export function Projects({
                teamMembers={data?.teams ?? {}}
                rotation={data?.decide_rotation ?? null}
                scoped={scoped}
-               scope={scopes}
+               work={work}
                ongoing={ongoing}
                nav={nav}
                navigate={navigate}

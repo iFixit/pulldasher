@@ -9,13 +9,7 @@ import {
    todayFromBoard,
 } from '../lib/projects.js';
 import { listItems } from '../lib/roadmap.js';
-import {
-   attachIssue,
-   detachIssue,
-   loadProjectIssues,
-   loadScope,
-   searchIssues,
-} from '../lib/scope.js';
+import { attachIssue, detachIssue, loadProjectWork, loadWork, searchIssues } from '../lib/work.js';
 import {
    addWeeks,
    closedIssues,
@@ -29,7 +23,6 @@ import {
    mondaysBetween,
    peakFrom,
    planEnd,
-   scopeCounts,
    spansFrom,
    utcDay,
    windowStats,
@@ -325,24 +318,19 @@ export default {
    },
 
    /**
-    * GET /scope-data (session) and /api/v1/scope (Bearer) -- every plan's
-    * scope: the issue that specs it, its sub-issues and checklist lines and
-    * the issues attached to its project by label or by hand, each open,
-    * done or dropped; how many joined after its end; and its project's PRs
-    * that opened after its end, or more than a week after it was marked done
-    * or dropped (shared/model/scope.ts).
+    * GET /work-data (session) and /api/v1/work (Bearer) -- every plan's PRs
+    * by the dates: how many are still open, the ones that opened after its
+    * end, and for a plan marked done or dropped, the ones opened more than a
+    * week after; and how every project's attached issues stand, by slug
+    * (shared/model/work.ts).
     */
-   getScope: function (req, res) {
+   getWork: function (req, res) {
       const settings = projectSettings();
       if (!settings) {
          res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
          return;
       }
-      respondOrError(
-         res,
-         loadScope(settings).then(plans => ({ plans })),
-         'scope query failed'
-      );
+      respondOrError(res, loadWork(settings), 'work query failed');
    },
 
    /**
@@ -370,12 +358,13 @@ export default {
    },
 
    /**
-    * GET /project-issues?project=slug (session) and /api/v1/project-issues
-    * (Bearer) -- every issue attached to a project: its plans' scope items
-    * and the issues attached by its label or by hand, each once, with how
-    * it's attached, its plans and the PRs that link it.
+    * GET /project-work?project=slug (session) and /api/v1/project-work
+    * (Bearer) -- a project's page: every issue attached to it (by its label
+    * or by hand) with the PRs that link it, its PRs that link none of them,
+    * and the issues its PRs link that aren't attached (shared/model/work.ts
+    * projectWork).
     */
-   getProjectIssues: function (req, res) {
+   getProjectWork: function (req, res) {
       const settings = projectSettings();
       if (!settings) {
          res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
@@ -386,11 +375,7 @@ export default {
          res.status(400).json({ error: 'send project, a project label’s slug' });
          return;
       }
-      respondOrError(
-         res,
-         loadProjectIssues(settings, slug).then(issues => ({ issues })),
-         'project issues query failed'
-      );
+      respondOrError(res, loadProjectWork(settings, slug), 'project work query failed');
    },
 
    /**
@@ -463,11 +448,11 @@ export default {
          return;
       }
       const load = Promise.all([loadProjects(settings), listItems()]).then(([projects, plans]) =>
-         loadScope(settings, { plans, projects }).then(scopes => [projects, plans, scopes])
+         loadWork(settings, { plans, projects }).then(work => [projects, plans, work])
       );
       respondOrError(
          res,
-         load.then(([projects, items, scopes]) => {
+         load.then(([projects, items, work]) => {
             const now = Date.now() / 1000;
             const today = todayFromBoard(pullManager.getPulls(), projects, settings.prefix, now);
             const bySlug = new Map(projects.map(p => [p.slug, p]));
@@ -476,7 +461,17 @@ export default {
                live: decideProjects(today),
                items,
                closed: closedIssues(projects),
-               scope: new Map(scopes.map(s => [s.planId, scopeCounts(s)])),
+               planCounts: new Map(
+                  work.plans.map(p => [
+                     p.planId,
+                     {
+                        openPulls: p.openPulls,
+                        afterEnd: p.afterEnd.length,
+                        afterDone: p.afterDone.length,
+                     },
+                  ])
+               ),
+               issues: new Map(Object.entries(work.projects)),
                ongoing: ongoingSlugs(settings, projects),
                today: utcDay(now),
                now,

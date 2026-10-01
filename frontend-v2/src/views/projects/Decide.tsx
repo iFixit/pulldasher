@@ -34,7 +34,7 @@ import { mainTeam, type PortfolioItem } from '../../model/portfolio';
 import { dayOf, dayWords } from '../../model/projectData';
 import { commitEnds } from '../../model/roadmapTime';
 import { saveDecideRotation, setOngoing } from '../../model/settingsData';
-import { scopeCounts, type PlanScope } from '../../../../shared/model/scope';
+import type { WorkData } from '../../model/workData';
 import {
    createRoadmapItem,
    dismissRoadmapProblem,
@@ -50,16 +50,20 @@ export function decideRows(
    today: Today,
    items: readonly RoadmapItem[],
    closed: ReadonlyMap<string, ClosedIssue>,
-   scope: ReadonlyMap<number, PlanScope> | null | undefined = null,
+   work: WorkData | null | undefined = null,
    ongoing: ReadonlySet<string> = new Set()
 ): DecideRow[] {
    return decideQueue({
       live: decideProjects(today),
       items,
       closed,
-      scope: new Map(
-         [...(scope ?? new Map<number, PlanScope>())].map(([id, s]) => [id, scopeCounts(s)])
+      planCounts: new Map(
+         [...(work?.plans ?? [])].map(([id, w]) => [
+            id,
+            { openPulls: w.openPulls, afterEnd: w.afterEnd.length, afterDone: w.afterDone.length },
+         ])
       ),
+      issues: work?.projects,
       ongoing,
       today: dayOf(new Date()),
       now: Date.now() / 1000,
@@ -96,9 +100,9 @@ const SECTIONS: [DecideReason['kind'][], string, string][] = [
       'The end date on its plan has passed. The ones still taking new PRs come first.',
    ],
    [
-      ['scope_done'],
-      'Everything in its spec is closed',
-      'Nothing in its spec issue is still open, and the plan hasn’t changed since. Finish it, or add what’s left to its spec.',
+      ['issues_done'],
+      'Every issue attached is closed',
+      'Every issue attached to the project is closed, and the plan hasn’t changed since. Finish it, or add the issues still to do.',
    ],
    [
       ['stalled'],
@@ -138,12 +142,12 @@ function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
          return `Its plan ended ${n(reason.weeks, 'week')} ago and no PRs are open${
             reason.since ? `, though ${n(reason.since, 'PR')} opened since its end` : ''
          }. Is it done?`;
-      case 'scope_done':
+      case 'issues_done':
          return reason.done
-            ? `Everything in its spec is closed: ${reason.done} done${
+            ? `Every issue attached is closed: ${reason.done} done${
                  reason.dropped ? `, ${reason.dropped} dropped` : ''
               }. Finish it?`
-            : `Everything in its spec was dropped (${reason.dropped}). Drop the plan?`;
+            : `Every issue attached was dropped (${reason.dropped}). Drop the plan?`;
       case 'missed':
          return `Missed its ${dayWords(reason.due)} target with ${n(reason.open, 'PR')} open`;
       case 'off_track':
@@ -174,10 +178,10 @@ function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
    }
 }
 
-/** A reason the project page shows better than the roadmap: its spec, or
- * the PRs that opened after its end. */
+/** A reason the project page shows better than the roadmap: its issues,
+ * or the PRs that opened after its end. */
 const aboutTheWork = (reason: DecideReason) =>
-   reason.kind === 'scope_done' ||
+   reason.kind === 'issues_done' ||
    (reason.kind === 'reopened' && reason.late > 0) ||
    ((reason.kind === 'over' || reason.kind === 'ended') && reason.since > 0);
 
@@ -349,8 +353,8 @@ function DecideRowView({
             </div>
             {row.reasons.map(reason =>
                // a reason about the plan opens the plan, where its bar shows it;
-               // one about its spec or the PRs after its end opens the project
-               // page, which lists them
+               // one about its issues or the PRs after its end opens the
+               // project page, which lists them
                item ? (
                   <button
                      type="button"
@@ -363,7 +367,7 @@ function DecideRowView({
                      className="pressable block rounded border-0 bg-transparent p-0 text-left text-[13px] text-ink-2 hover:underline"
                      title={
                         row.slug && aboutTheWork(reason)
-                           ? 'Open the project: its spec and the PRs opened after its end'
+                           ? 'Open the project: its issues and their PRs'
                            : 'Open its plan on the roadmap'
                      }
                   >
@@ -588,7 +592,7 @@ export function Decide({
    teamMembers,
    rotation,
    scoped,
-   scope,
+   work,
    ongoing,
    nav,
    navigate,
@@ -604,8 +608,8 @@ export function Decide({
    rotation: DecideRotation | null;
    /** whether the filter bar narrows the rest of the tab */
    scoped: boolean;
-   /** each plan's scope (model/scopeData.ts) */
-   scope: ReadonlyMap<number, PlanScope> | null | undefined;
+   /** each plan's PRs by the dates, and each project's issues (model/workData.ts) */
+   work: WorkData | null | undefined;
    /** every project with no end, and the ones marked so on the board */
    ongoing: ReadonlySet<string>;
    nav: ProjectsNav;
@@ -635,7 +639,7 @@ export function Decide({
       const project = projectOf(row);
       return row.item?.team ?? (project ? mainTeam(project, teamOf) : null);
    };
-   const queue = decideRows(today, plans, closed, scope, ongoing);
+   const queue = decideRows(today, plans, closed, work, ongoing);
    const byKey = new Map(queue.map(row => [rowKey(row), row]));
    // a call made here shows as made, unless its row came back for a new reason
    const settled = new Map(

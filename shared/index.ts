@@ -93,11 +93,17 @@ export {
    decideProjects,
    decideQueue,
    needsDecision,
-   specAllClosed,
+   issuesAllClosed,
    DECIDE_MIN_PRS,
    STALL_DAYS,
 } from './model/decide';
-export type { ClosedIssue, DecideProject, DecideReason, DecideRow } from './model/decide';
+export type {
+   ClosedIssue,
+   DecideProject,
+   DecideReason,
+   DecideRow,
+   PlanCounts,
+} from './model/decide';
 export { loadByWeek, mondaysBetween, peakFrom, spansFrom } from './model/load';
 export type { InFlightSpan, LoadWeek, OriginCounts } from './model/load';
 export { timeSpent } from './model/retro';
@@ -106,29 +112,32 @@ export type { TimeRow, Touch } from './model/retro';
 export {
    afterEndOf,
    bodyLinks,
+   issueCounts,
    issueKey,
    issueQuery,
    issueText,
    itemState,
-   parseChecklist,
    parseIssueRef,
    planOfWork,
-   planScopes,
-   projectIssues,
-   scopeCounts,
+   planWork,
+   projectCounts,
+   projectWork,
+   RECENT_DAYS,
+   SUGGEST_DAYS,
    TAIL_DAYS,
-} from './model/scope';
+} from './model/work';
 export type {
-   ChecklistLine,
+   AttachedIssue,
+   IssueCounts,
    IssueHit,
+   IssuePull,
    IssueQuery,
    IssueRef,
    ItemState,
-   LinkedPull,
-   PlanScope,
+   PlanWork,
    ProjectIssue,
-   ScopeCounts,
-   ScopeInputs,
-   ScopeItem,
+   ProjectWork,
+   SuggestedIssue,
+   WorkInputs,
    WorkPull,
-} from './model/scope';
+} from './model/work';

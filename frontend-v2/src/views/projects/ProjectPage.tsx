@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { pullKey } from '../../../../shared/format';
 import {
    projectOf,
    targetOf,
@@ -9,12 +8,9 @@ import {
    type WindowCounts,
 } from '../../../../shared/model/projects';
 import type { RoadmapItem } from '../../../../shared/model/roadmap';
-import type { PlanScope } from '../../../../shared/model/scope';
 import type { PullData } from '../../../../shared/types';
 import { EmptyState } from '../../components/bits';
-import { ClosedRow } from '../../components/ClosedRow';
-import { Fold, FoldRows, GroupHeader, Rows } from '../../components/Lane';
-import type { RowOptions } from '../../components/Row';
+import { GroupHeader, Rows } from '../../components/Lane';
 import {
    chartWindow,
    dayOf,
@@ -36,9 +32,9 @@ import {
    type ProjectsNav,
 } from './parts';
 import { PlanFacts } from './roadmapHealth';
-import { ProjectSpecs } from './Spec';
-import { ProjectIssuesSection } from './Issues';
-import { issueKey } from '../../../../shared/model/scope';
+import { ProjectWorkSection, type PullLookup } from './Work';
+import { issueKey } from '../../../../shared/model/work';
+import type { WorkData } from '../../model/workData';
 import { setOngoing } from '../../model/settingsData';
 import { stageWord, type PortfolioItem } from '../../model/portfolio';
 
@@ -182,12 +178,11 @@ export function ProjectPage({
    closed,
    prefix,
    teamOf,
-   opts,
    nav,
    navigate,
    item,
    plans,
-   scopes,
+   work,
    ongoingSaved,
 }: {
    slug: string;
@@ -199,7 +194,6 @@ export function ProjectPage({
    closed: PullData[];
    prefix: string;
    teamOf: (login: string) => string | null;
-   opts: RowOptions;
    nav: ProjectsNav;
    navigate: Navigate;
    /** its row on the project list, for its stage and name; missing for a
@@ -207,8 +201,9 @@ export function ProjectPage({
    item: PortfolioItem | undefined;
    /** the roadmap's plans, null while they load */
    plans: readonly RoadmapItem[] | null;
-   /** every plan's scope by id: undefined while it loads, null if that failed */
-   scopes: ReadonlyMap<number, PlanScope> | null | undefined;
+   /** every plan's PRs by the dates and every project's issue counts:
+    * undefined while they load, null if that failed */
+   work: WorkData | null | undefined;
    /** the projects marked ongoing on the board (not by label) */
    ongoingSaved: string[];
 }) {
@@ -257,11 +252,22 @@ export function ProjectPage({
          setSaveError(r.error);
       });
    };
-   // what the board knows of each PR, for a PR chip's card
-   const pullIndex = new Map(
-      [...(group?.open ?? []).map(p => p.data), ...merged, ...closed].map(p => [issueKey(p), p])
+   // what the board knows of each PR: open ones live on the board (in any
+   // project, or none), and the last two weeks' merges
+   const liveIndex = new Map(
+      [
+         ...today.live.flatMap(g => g.open),
+         ...today.quiet.flatMap(g => g.open),
+         ...today.misc,
+         ...today.unsorted,
+         ...today.doubleLabeled,
+      ].map(p => [issueKey(p.data), p])
    );
-   const pullOf = (repo: string, number: number) => pullIndex.get(issueKey({ repo, number }));
+   const knownIndex = new Map([...merged, ...closed].map(p => [issueKey(p), p]));
+   const pulls: PullLookup = {
+      live: ref => liveIndex.get(issueKey(ref)),
+      known: ref => knownIndex.get(issueKey(ref)),
+   };
    const people = group?.people ?? [];
    const devs = people.filter(login => teamOf(login) != null);
    const others = people.filter(login => teamOf(login) == null);
@@ -317,31 +323,13 @@ export function ProjectPage({
                <PlanFacts slug={slug} nav={nav} navigate={navigate} />
             </Rows>
          </div>
-         <section className="mb-7">
-            <GroupHeader
-               title="Pull requests"
-               sub={`${group?.open.length ?? 0} open, ${merged.length} merged in the last 14 days`}
-            />
-            <Rows>
-               {group && group.open.length > 0 ? (
-                  <FoldRows list={group.open} opts={opts} id={`project:${slug}:open`} />
-               ) : (
-                  <div className="px-3.5 py-3 text-[13px] text-ink-3">No open PRs.</div>
-               )}
-               <Fold
-                  count={merged.length}
-                  label="Merged in the last 14 days"
-                  id={`project:${slug}:merged`}
-                  defaultOpen
-               >
-                  {merged.map(p => (
-                     <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />
-                  ))}
-               </Fold>
-            </Rows>
-         </section>
-         <ProjectIssuesSection slug={slug} label={prefix + slug} plans={plans} pullOf={pullOf} />
-         <ProjectSpecs slug={slug} plans={plans} scopes={scopes} nav={nav} navigate={navigate} />
+         <ProjectWorkSection
+            slug={slug}
+            label={prefix + slug}
+            plans={plans}
+            work={work}
+            pulls={pulls}
+         />
          {w && (
             <section className="mb-7">
                <GroupHeader title="In the date range" sub={rangeWords(range)} />

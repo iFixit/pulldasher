@@ -1,5 +1,5 @@
 import { epoch, n } from '../../../shared/format';
-import { DECIDE_MIN_PRS, STALL_DAYS, specAllClosed } from '../../../shared/model/decide';
+import { DECIDE_MIN_PRS, STALL_DAYS, issuesAllClosed } from '../../../shared/model/decide';
 import {
    dayStart,
    MISC_SLUG,
@@ -21,7 +21,7 @@ import {
 } from '../../../shared/model/roadmap';
 import type { Status } from '../../../shared/model/status';
 import type { PullData } from '../../../shared/types';
-import { scopeCounts, type PlanScope } from '../../../shared/model/scope';
+import type { IssueCounts } from '../../../shared/model/work';
 import { DEFAULT_SORT } from '../lens';
 import { dayOf } from './days';
 import { dayWords } from './projectData';
@@ -57,7 +57,7 @@ export interface PrRef {
  * first; `kind` sorts it. */
 export type PlanKind =
    | 'off_track'
-   | 'scope_done'
+   | 'issues_done'
    | 'past_end'
    | 'missed'
    | 'at_risk'
@@ -121,9 +121,9 @@ export interface PortfolioItem {
     * under way, or else its latest decision; null when it isn't on the roadmap */
    plan: RoadmapItem | null;
    planCell: PlanCell;
-   /** its plan's scope (model/scope.ts): the spec's issues and lines, and
-    * the PRs after its end; null with no plan, or before the scopes load */
-   scope: PlanScope | null;
+   /** how the issues attached to it stand (shared/model/work.ts); null
+    * with none attached, or before they load */
+   issues: IssueCounts | null;
    /** it runs with no end: marked on the board or by its issue's label */
    ongoing: boolean;
    /** in progress, with open PRs and no activity for STALL_DAYS */
@@ -163,7 +163,7 @@ export function planCell(
    item: Pick<
       PortfolioItem,
       'plan' | 'project' | 'stage' | 'open' | 'merged' | 'target' | 'dueInDays'
-   > & { scope?: PlanScope | null; ongoing?: boolean },
+   > & { issues?: IssueCounts | null; ongoing?: boolean },
    day: string,
    now: number
 ): PlanCell {
@@ -183,9 +183,9 @@ export function planCell(
       const end = planEnd(plan);
       if (update?.health === 'off_track')
          return { kind: 'off_track', text: 'Off track', warn: true };
-      // nothing left open in its spec, and no call since: Decide asks whether it's done
-      if (item.scope && specAllClosed(plan, scopeCounts(item.scope))) {
-         return { kind: 'scope_done', text: 'Spec all closed', warn: true };
+      // every issue attached to it closed, and no call since: Decide asks whether it's done
+      if (item.issues && issuesAllClosed(plan, item.issues)) {
+         return { kind: 'issues_done', text: 'Issues all closed', warn: true };
       }
       if (end < day) {
          const weeks = Math.ceil(
@@ -223,7 +223,7 @@ export function portfolioItems(
    teamOf: (login: string) => string | null,
    now: number = Date.now(),
    plans: readonly RoadmapItem[] = [],
-   scopes: ReadonlyMap<number, PlanScope> | null = null,
+   issues: ReadonlyMap<string, IssueCounts> | null = null,
    ongoing: ReadonlySet<string> = new Set()
 ): PortfolioItem[] {
    const secs = now / 1000;
@@ -301,7 +301,7 @@ export function portfolioItems(
          flags: group?.flags ?? [],
          plan,
          planCell: { kind: 'no_plan', text: '', warn: false },
-         scope: (plan && scopes?.get(plan.id)) || null,
+         issues: issues?.get(slug) ?? null,
          ongoing: ongoing.has(slug) || !!project?.ongoing,
          stalled: false,
          behind: false,
@@ -434,13 +434,13 @@ export type SortKey =
    | 'waiting'
    | 'merged'
    | 'plan'
-   | 'scope'
+   | 'issues'
    | 'target';
 
 const STAGE_RANK: Record<Stage, number> = { progress: 0, parked: 1, quiet: 2, closed: 3 };
 const PLAN_RANK: Record<PlanKind, number> = {
    off_track: 0,
-   scope_done: 1,
+   issues_done: 1,
    past_end: 2,
    missed: 3,
    at_risk: 4,
@@ -476,9 +476,9 @@ const SORTS: Record<SortKey, (a: PortfolioItem, b: PortfolioItem, dir: number) =
    waiting: (a, b, dir) => dir * (b.waiting - a.waiting),
    merged: (a, b, dir) => dir * (b.merged - a.merged),
    plan: (a, b, dir) => dir * (planOrder(a.planCell) - planOrder(b.planCell)),
-   // the most still open in its spec first
-   scope: (a, b, dir) =>
-      nullsLast(a.scope?.open ?? null, b.scope?.open ?? null, (x, y) => dir * (y - x)),
+   // the most issues still open first
+   issues: (a, b, dir) =>
+      nullsLast(a.issues?.open ?? null, b.issues?.open ?? null, (x, y) => dir * (y - x)),
    target: (a, b, dir) => nullsLast(a.dueInDays, b.dueInDays, (x, y) => dir * (x - y)),
 };
 
@@ -606,9 +606,9 @@ export function portfolioCsv(items: readonly PortfolioItem[]): string {
       'Waiting on review',
       'Merged, last 14 days',
       'Plan',
-      'Spec done',
-      'Spec open',
-      'Spec dropped',
+      'Issues open',
+      'Issues done',
+      'Issues dropped',
       'Target',
       'Target due',
       'Parents',
@@ -627,9 +627,9 @@ export function portfolioCsv(items: readonly PortfolioItem[]): string {
       i.waiting,
       i.merged,
       i.planCell.text,
-      i.scope ? i.scope.done : null,
-      i.scope ? i.scope.open : null,
-      i.scope ? i.scope.dropped : null,
+      i.issues ? i.issues.open : null,
+      i.issues ? i.issues.done : null,
+      i.issues ? i.issues.dropped : null,
       i.target?.title ?? null,
       i.target?.due_on?.slice(0, 10) ?? null,
       i.parents.join(' '),
