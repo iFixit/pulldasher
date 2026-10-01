@@ -42,6 +42,15 @@ const NO_TODAY: Today = { live: [], quiet: [], misc: [], unsorted: [], doubleLab
  * socket pulls, so it moves with the board; the project issues and the
  * history come from /projects-data.
  */
+/** The way back from a project's page, named for where it goes. */
+const BACK_WORDS: Record<ProjectsNav['view'], string> = {
+   overview: 'All projects',
+   decide: 'Decide',
+   roadmap: 'Roadmap',
+   people: 'People',
+   retro: 'Look back',
+};
+
 export function Projects({
    pulls,
    closed,
@@ -155,13 +164,14 @@ export function Projects({
    const toolbar = (
       <div className="mb-4 flex flex-wrap items-center gap-3">
          {nav.project ? (
+            // named for where it goes: the view the page was opened from
             <button
                type="button"
                onClick={() => navigate({ project: null })}
                className="hit pressable inline-flex items-center gap-1 rounded border-0 bg-transparent p-0 text-[13px] font-medium text-ink-2 hover:text-brand"
             >
                <Icon icon={ChevronLeft} size={14} />
-               All projects
+               {BACK_WORDS[nav.view]}
             </button>
          ) : (
             <Segmented
@@ -200,8 +210,10 @@ export function Projects({
                navigate={navigate}
                item={items.find(i => i.slug === nav.project)}
                plans={plans}
-               work={work}
                ongoingSaved={data?.ongoing ?? []}
+               opts={opts}
+               onPerson={onPerson}
+               asks={(decisions ?? []).filter(row => row.slug === nav.project)}
             />
          ) : nav.view === 'people' ? (
             <People

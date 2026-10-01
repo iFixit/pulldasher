@@ -37,17 +37,18 @@ export interface GitHubRefData {
 interface Look {
    icon: LucideComponent;
    word: string;
-   /** a color token: green open, violet done or merged, slate closed */
+   /** a color token, by the board's one color rule (DESIGN.md): green is
+    * the quiet confirmation (done, merged), ink everything else */
    color: string;
 }
 
 const LOOKS: Record<string, Look> = {
-   'issue:open': { icon: CircleDot, word: 'Open', color: 'var(--ok)' },
-   'issue:done': { icon: CircleCheck, word: 'Done', color: 'var(--violet)' },
-   'issue:dropped': { icon: CircleSlash, word: 'Dropped', color: 'var(--slate)' },
-   'pr:open': { icon: GitPullRequest, word: 'Open', color: 'var(--ok)' },
-   'pr:merged': { icon: GitMerge, word: 'Merged', color: 'var(--violet)' },
-   'pr:closed': { icon: GitPullRequestClosed, word: 'Closed', color: 'var(--slate)' },
+   'issue:open': { icon: CircleDot, word: 'Open', color: 'var(--ink-2)' },
+   'issue:done': { icon: CircleCheck, word: 'Done', color: 'var(--ok)' },
+   'issue:dropped': { icon: CircleSlash, word: 'Dropped', color: 'var(--ink-3)' },
+   'pr:open': { icon: GitPullRequest, word: 'Open', color: 'var(--ink-2)' },
+   'pr:merged': { icon: GitMerge, word: 'Merged', color: 'var(--ok)' },
+   'pr:closed': { icon: GitPullRequestClosed, word: 'Closed', color: 'var(--ink-3)' },
 };
 
 const lookOf = (ref: GitHubRefData): Look | null =>
@@ -63,17 +64,15 @@ export function sinceWords(epochSecs: number, now: number = Date.now() / 1000): 
    return `${Math.round(s / (365 * 86400))}y ago`;
 }
 
-/** The state as a tinted pill: its icon and word. */
+/** The state in words, with its icon; no wash behind it (a filled area
+ * outshouts the title). */
 export function StatePill({ data }: { data: GitHubRefData }) {
    const look = lookOf(data);
    if (!look) return null;
    return (
       <span
-         className="inline-flex flex-none items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium"
-         style={{
-            color: look.color,
-            background: `color-mix(in oklch, ${look.color} 14%, transparent)`,
-         }}
+         className="inline-flex flex-none items-center gap-1 text-xs font-medium"
+         style={{ color: look.color }}
       >
          <Icon icon={look.icon} size={13} />
          {look.word}
@@ -130,9 +129,11 @@ export function RefCard({ data }: { data: GitHubRefData }) {
 }
 
 /**
- * The small link: the state's icon in its color, #number, and the repo; a
- * PR's says "PR" and its state too, so it reads without the card. A click
- * opens it on GitHub; a hover shows its card.
+ * The small link: the state's icon, #number, and the repo when it isn't
+ * the page's usual one; a PR's says "PR" and its state too, so it reads
+ * without the card. The icon's shape tells the state; where it sits (an
+ * Open or Done fold) already says so, so it stays ink. A click opens it on
+ * GitHub; a hover shows its card.
  */
 export function RefChip({ data, repoShown = true }: { data: GitHubRefData; repoShown?: boolean }) {
    const look = lookOf(data);
@@ -156,12 +157,7 @@ export function RefChip({ data, repoShown = true }: { data: GitHubRefData; repoS
                rel="noopener noreferrer"
                className="inline-flex min-w-0 items-baseline gap-1 rounded text-xs text-ink-3 hover:text-brand"
             >
-               <Icon
-                  icon={look?.icon ?? fallback}
-                  size={12}
-                  className="flex-none self-center"
-                  style={look ? { color: look.color } : undefined}
-               />
+               <Icon icon={look?.icon ?? fallback} size={12} className="flex-none self-center" />
                <span className="font-medium text-ink-2 underline decoration-line underline-offset-2">
                   {data.kind === 'pr' ? 'PR ' : ''}#{data.number}
                </span>

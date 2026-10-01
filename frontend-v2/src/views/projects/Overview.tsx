@@ -320,18 +320,6 @@ export function Overview({
                navigate={navigate}
             />
          </StatsCard>
-         <WhoIsOnWhat
-            rows={who}
-            line={line}
-            middle={middle}
-            items={bySlug}
-            nameOf={nameOf}
-            me={me}
-            onPerson={onPerson}
-            nav={nav}
-            navigate={navigate}
-         />
-         <AgeCharts items={listed} nav={nav} navigate={navigate} />
          <Portfolio
             items={listed}
             prefix={prefix}
@@ -390,6 +378,18 @@ export function Overview({
                </Fold>
             </RestGroup>
          )}
+         <WhoIsOnWhat
+            rows={who}
+            line={line}
+            middle={middle}
+            items={bySlug}
+            nameOf={nameOf}
+            me={me}
+            onPerson={onPerson}
+            nav={nav}
+            navigate={navigate}
+         />
+         <AgeCharts items={listed} nav={nav} navigate={navigate} />
       </div>
    );
 }

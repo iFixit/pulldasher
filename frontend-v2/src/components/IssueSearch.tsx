@@ -176,7 +176,8 @@ export function IssueSearch({
                   <div id={listId} role="listbox" aria-label="Issues found">
                      {hits.map((hit, i) => {
                         const off = isTaken(hit);
-                        const where = off ? takenWords : whereIs?.(hit);
+                        // when every hit is taken, the line above says so once
+                        const where = off ? (pickable ? takenWords : null) : whereIs?.(hit);
                         return (
                            <div
                               key={issueKey(hit)}
@@ -198,7 +199,7 @@ export function IssueSearch({
                                     #{hit.number}
                                  </span>
                                  <span className="flex-none">{shortRepo(hit.repo)}</span>
-                                 {where && <span className="min-w-0 truncate">{where}</span>}
+                                 {where && <span className="min-w-0">{where}</span>}
                                  {hit.createdAt != null && (
                                     <span className="ml-auto flex-none">
                                        {sinceWords(hit.createdAt)}

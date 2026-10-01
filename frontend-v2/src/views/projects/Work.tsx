@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { epoch, issueUrl, n, shortRepo } from '../../../../shared/format';
+import { issueUrl, n, shortRepo } from '../../../../shared/format';
 import type { RoadmapItem } from '../../../../shared/model/roadmap';
 import type { DerivedPull } from '../../../../shared/model/status';
 import type { PullData } from '../../../../shared/types';
@@ -14,13 +14,14 @@ import {
    type ItemState,
    type ProjectIssue,
 } from '../../../../shared/model/work';
-import { RefChip, type GitHubRefData } from '../../components/GitHubRef';
+import { ClosedRow } from '../../components/ClosedRow';
+import { RefChip } from '../../components/GitHubRef';
 import { IssueSearch } from '../../components/IssueSearch';
-import { Fold, GroupHeader, Rows, Truncated } from '../../components/Lane';
-import { CiStatus } from '../../components/pips';
+import { Fold, GroupHeader, Rows, SubDoor, Truncated } from '../../components/Lane';
+import { Row, type RowOptions } from '../../components/Row';
 import { dayOf, dayWords } from '../../model/projectData';
 import { changeProjectIssue, useProjectWork } from '../../model/projectWork';
-import type { WorkData } from '../../model/workData';
+import type { Navigate } from './parts';
 
 // a time as the day it fell on here, like the rest of the tab
 const dayOfEpoch = (at: number) => dayWords(dayOf(new Date(at * 1000)));
@@ -45,93 +46,111 @@ export interface PullLookup {
    known: (ref: IssueRef) => PullData | undefined;
 }
 
-/** A PR as its chip shows it, with what the board knows of it. */
-function pullRef(pr: IssuePull, known: PullData | undefined): GitHubRefData {
-   return {
-      kind: 'pr',
-      repo: pr.repo,
-      number: pr.number,
-      title: known?.title ?? pr.title,
-      state: known
-         ? known.merged_at
-            ? 'merged'
-            : known.state === 'open'
-            ? 'open'
-            : 'closed'
-         : pr.state,
-      author: known?.user.login ?? pr.author,
-      createdAt: known ? epoch(known.created_at) : pr.createdAt,
-      additions: known?.additions ?? null,
-      deletions: known?.deletions ?? null,
-      files: known?.changed_files ?? null,
-   };
-}
-
-/** A PR's line: its chip, title, sign-offs while it's open, who opened it
- * and when, whether that was after the plan ended, and its CI. */
-function PullLine({
-   pr,
-   pulls,
-   late,
-   nested,
-}: {
-   pr: IssuePull;
-   pulls: PullLookup;
-   /** it opened after the end of the plan it counts toward */
-   late: boolean;
-   /** under an issue */
-   nested: boolean;
-}) {
-   const live = pulls.live(pr);
-   const data = pullRef(pr, live?.data ?? pulls.known(pr));
-   const signoffs = live
-      ? [
-           live.data.status.cr_req ? `CR ${live.crHave}/${live.data.status.cr_req}` : '',
-           live.data.status.qa_req ? `QA ${live.qaHave}/${live.data.status.qa_req}` : '',
-        ].filter(Boolean)
-      : [];
+/** A PR the board hasn't read (it closed long ago, or it's in a repo the
+ * board doesn't track): its chip, title, author and day, as far as known. */
+function PullLine({ pr, repoShown }: { pr: IssuePull; repoShown: boolean }) {
    return (
-      <div
-         // pd-row: a passing CI shows on hover, as on the board's rows
-         className={`pd-row flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5 pr-3.5 text-[13px] ${
-            nested ? 'pl-9' : 'border-t border-secondary pl-3.5 first:border-t-0'
-         }`}
-      >
-         <RefChip data={data} />
-         {data.title && (
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3.5 py-1.5 text-[13px]">
+         <RefChip data={{ kind: 'pr', ...pr }} repoShown={repoShown} />
+         {pr.title && (
             <a
                href={issueUrl(pr.repo, pr.number)}
                target="_blank"
                rel="noopener noreferrer"
                className="min-w-0 break-words text-ink hover:text-brand hover:underline"
             >
-               {data.title}
+               {pr.title}
             </a>
          )}
-         {signoffs.length > 0 && <span className="text-xs text-ink-3">{signoffs.join(' · ')}</span>}
          <span className="text-xs text-ink-3">
-            {[
-               data.author,
-               data.createdAt != null ? `opened ${dayOfEpoch(data.createdAt)}` : '',
-               late ? 'after the plan ended' : '',
-            ]
+            {[pr.author, pr.createdAt != null ? `opened ${dayOfEpoch(pr.createdAt)}` : '']
                .filter(Boolean)
                .join(', ')}
          </span>
-         {live && <CiStatus pull={live} />}
+      </div>
+   );
+}
+
+/**
+ * A PR as the board draws it everywhere else: its row while it's open, its
+ * closed row once it merged or closed in the last two weeks, or a plain
+ * line for one the board hasn't read. One that opened after its plan ended
+ * says so under it.
+ */
+function PullItem({
+   pr,
+   pulls,
+   late,
+   opts,
+   repoShown,
+}: {
+   pr: IssuePull;
+   pulls: PullLookup;
+   /** it opened after the end of the plan it counts toward */
+   late: boolean;
+   opts: RowOptions;
+   repoShown: boolean;
+}) {
+   const live = pulls.live(pr);
+   const known = live ? undefined : pulls.known(pr);
+   return (
+      // the divider rides on this wrapper, so a note stays with its row
+      <div className="border-t border-secondary first:border-t-0">
+         {live ? (
+            <Row pull={live} opts={opts} />
+         ) : known ? (
+            <ClosedRow pull={known} lastSeen={opts.lastSeen} />
+         ) : (
+            <PullLine pr={pr} repoShown={repoShown} />
+         )}
+         {late && (
+            <p className="m-0 -mt-1 pb-1.5 pl-[45px] pr-3.5 text-xs text-ink-3">
+               Opened after the plan ended.
+            </p>
+         )}
       </div>
    );
 }
 
 /** How an issue added here came to be here, in words. Nothing for one its
- * label brought, the usual case the line above the list explains. */
+ * label brought, the usual case the list's sub-line explains. */
 function viaWords(issue: ProjectIssue): string {
    if (!issue.via.includes('hand')) return '';
-   const added = `added here${issue.addedBy ? ` by ${issue.addedBy}` : ''}${
+   const added = `added${issue.addedBy ? ` by ${issue.addedBy}` : ' here'}${
       issue.attachedAt != null ? ` on ${dayOfEpoch(issue.attachedAt)}` : ''
    }`;
    // with the label too, taking it off here wouldn't take it out
    return issue.via.includes('label') ? `${added}, and has the label` : added;
+}
+
+/** The other projects an issue is in, each a link to its page. */
+function AlsoIn({
+   slugs,
+   nameOf,
+   navigate,
+}: {
+   slugs: string[];
+   nameOf: (slug: string) => string;
+   navigate: Navigate;
+}) {
+   if (!slugs.length) return null;
+   return (
+      <span className="text-xs text-ink-3">
+         also in{' '}
+         {slugs.map((slug, i) => (
+            <Fragment key={slug}>
+               {i > 0 && ', '}
+               <button
+                  type="button"
+                  onClick={() => navigate({ project: slug })}
+                  className="hit pressable rounded border-0 bg-transparent p-0 text-xs text-ink-2 underline decoration-line underline-offset-2 hover:text-brand"
+               >
+                  {nameOf(slug)}
+               </button>
+            </Fragment>
+         ))}
+      </span>
+   );
 }
 
 /** An issue with the PRs that link it under it. */
@@ -141,6 +160,10 @@ function IssueBlock({
    isLate,
    fresh,
    onRemove,
+   opts,
+   repoShown,
+   nameOf,
+   navigate,
 }: {
    issue: ProjectIssue;
    pulls: PullLookup;
@@ -149,6 +172,10 @@ function IssueBlock({
    fresh: boolean;
    /** take it off the project; only for one added here and not labeled */
    onRemove: (() => void) | null;
+   opts: RowOptions;
+   repoShown: (ref: IssueRef) => boolean;
+   nameOf: (slug: string) => string;
+   navigate: Navigate;
 }) {
    const via = viaWords(issue);
    return (
@@ -156,7 +183,8 @@ function IssueBlock({
          data-issue={issueKey(issue.ref)}
          className={`border-t border-secondary first:border-t-0 ${fresh ? 'row-fresh' : ''}`}
       >
-         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 px-3.5 pb-1 pt-2 text-[13px]">
+         {/* pd-row: Remove shows on this line's hover, as a row's kebab does */}
+         <div className="pd-row flex flex-wrap items-baseline gap-x-2 gap-y-1 px-3.5 pb-1 pt-2 text-[13px]">
             <RefChip
                data={{
                   kind: 'issue',
@@ -166,6 +194,7 @@ function IssueBlock({
                   author: issue.author,
                   createdAt: issue.createdAt,
                }}
+               repoShown={repoShown(issue.ref)}
             />
             <a
                href={issueUrl(issue.ref.repo, issue.ref.number)}
@@ -176,6 +205,7 @@ function IssueBlock({
                {issue.title}
             </a>
             {via && <span className="text-xs text-ink-3">{via}</span>}
+            <AlsoIn slugs={issue.alsoIn} nameOf={nameOf} navigate={navigate} />
             {issue.state !== 'open' && issue.closedAt != null && (
                <span className="text-xs text-ink-3">
                   {issue.state} {dayOfEpoch(issue.closedAt)}
@@ -185,17 +215,25 @@ function IssueBlock({
                <button
                   type="button"
                   onClick={onRemove}
-                  className="hit pressable ml-auto rounded border-0 bg-transparent p-0 text-xs text-ink-3 hover:text-bad"
+                  className="pd-kebab hit pressable ml-auto rounded border-0 bg-transparent p-0 text-xs text-ink-3 hover:text-ink"
                >
                   Remove
                </button>
             )}
          </div>
          {issue.prs.length > 0 ? (
-            <div className="pb-1">
+            // indented under the issue they do
+            <div className="ml-6 pb-1">
                <Truncated cap={LIST_CAP} id={`work-prs:${issueKey(issue.ref)}`} label="more PRs">
                   {issue.prs.map(pr => (
-                     <PullLine key={issueKey(pr)} pr={pr} pulls={pulls} late={isLate(pr)} nested />
+                     <PullItem
+                        key={issueKey(pr)}
+                        pr={pr}
+                        pulls={pulls}
+                        late={isLate(pr)}
+                        opts={opts}
+                        repoShown={repoShown(pr)}
+                     />
                   ))}
                </Truncated>
             </div>
@@ -217,27 +255,30 @@ interface Note {
 }
 
 /**
- * A project's work on its page: its issues, each with the PRs that link it
- * under it; then its PRs that link none of its issues; then the issues its
- * PRs link that aren't in it, to add. The search adds an issue by hand.
+ * A project's work on its page: its open issues, each with the PRs that
+ * link it under it; its PRs that link none of its issues; its done and
+ * dropped issues; and the issues its PRs link that aren't in it, to add.
+ * The search adds an issue by hand.
  */
 export function ProjectWorkSection({
    slug,
    label,
    plans,
-   work,
    pulls,
+   opts,
    nameOf,
+   navigate,
 }: {
    slug: string;
    /** the project's label in full */
    label: string;
    plans: readonly RoadmapItem[] | null;
-   /** every plan's PRs by the dates, for how many opened after the end */
-   work: WorkData | null | undefined;
    pulls: PullLookup;
+   /** how the board draws its PR rows */
+   opts: RowOptions;
    /** a project's name, by slug */
    nameOf: (slug: string) => string;
+   navigate: Navigate;
 }) {
    const page = useProjectWork(slug, plans);
    const [note, setNote] = useState<Note | null>(null);
@@ -285,29 +326,54 @@ export function ProjectWorkSection({
    }, [landed, page]);
    const issues = page?.issues ?? [];
    const by = (state: ItemState) => issues.filter(i => i.state === state);
-   const blocks = (list: ProjectIssue[], id: string) => (
-      <Truncated cap={LIST_CAP} id={`work:${slug}:${id}`} label="more issues">
-         {list.map(issue => (
-            <IssueBlock
-               key={issueKey(issue.ref)}
-               issue={issue}
-               pulls={pulls}
-               isLate={isLate}
-               fresh={landed === issueKey(issue.ref)}
-               onRemove={
-                  issue.via.length === 1 && issue.via[0] === 'hand'
-                     ? () => change({ ...issue.ref, state: issue.state }, false)
-                     : null
-               }
-            />
-         ))}
-      </Truncated>
-   );
+   // the repo most of the page is in goes unsaid on its chips (the hover
+   // card still names it), so one from elsewhere stands out
+   const repos = new Map<string, number>();
+   for (const ref of [
+      ...issues.flatMap(i => [i.ref, ...i.prs]),
+      ...(page?.unlinked ?? []),
+      ...(page?.suggested ?? []),
+   ]) {
+      repos.set(ref.repo.toLowerCase(), (repos.get(ref.repo.toLowerCase()) ?? 0) + 1);
+   }
+   const mainRepo = [...repos].sort((a, b) => b[1] - a[1])[0]?.[0];
+   const repoShown = (ref: IssueRef) => ref.repo.toLowerCase() !== mainRepo;
+   const blocks = (list: ProjectIssue[], id: string) => {
+      // a just-added issue leads its list, so a long one can't hide it
+      const ordered = landed
+         ? [
+              ...list.filter(i => issueKey(i.ref) === landed),
+              ...list.filter(i => issueKey(i.ref) !== landed),
+           ]
+         : list;
+      return (
+         <Truncated cap={LIST_CAP} id={`work:${slug}:${id}`} label="more issues">
+            {ordered.map(issue => (
+               <IssueBlock
+                  key={issueKey(issue.ref)}
+                  issue={issue}
+                  pulls={pulls}
+                  isLate={isLate}
+                  fresh={landed === issueKey(issue.ref)}
+                  onRemove={
+                     issue.via.length === 1 && issue.via[0] === 'hand'
+                        ? () => change({ ...issue.ref, state: issue.state }, false)
+                        : null
+                  }
+                  opts={opts}
+                  repoShown={repoShown}
+                  nameOf={nameOf}
+                  navigate={navigate}
+               />
+            ))}
+         </Truncated>
+      );
+   };
    // a closed issue with a PR still open is work still moving, so its fold
-   // starts open and says so
+   // starts open and says so; a PR under two of them counts once
    const closedFold = (state: 'done' | 'dropped', gloss?: string) => {
       const list = by(state);
-      const open = list.reduce((sum, i) => sum + i.prs.filter(isOpenPr).length, 0);
+      const open = new Set(list.flatMap(i => i.prs.filter(isOpenPr).map(issueKey))).size;
       return (
          <Fold
             count={list.length}
@@ -326,7 +392,6 @@ export function ProjectWorkSection({
       [...issues.flatMap(i => i.prs), ...(page?.unlinked ?? [])].map(pr => [issueKey(pr), pr])
    );
    const openPrs = [...shownPrs.values()].filter(isOpenPr).length;
-   const afterEnd = mine.reduce((sum, p) => sum + (work?.plans.get(p.id)?.afterEnd.length ?? 0), 0);
    const whereIs = (hit: IssueHit) => {
       const others = (hit.projects ?? []).filter(s => s !== slug);
       return others.length ? `in ${others.map(nameOf).join(', ')}` : null;
@@ -359,28 +424,33 @@ export function ProjectWorkSection({
                   >
                      {blocks(by('open'), 'open')}
                   </Fold>
-                  {closedFold('done')}
-                  {closedFold('dropped', 'Closed as not planned or as a duplicate')}
                   <Fold
                      count={page.unlinked.length}
-                     label="PRs that link no issue here"
-                     gloss="This project’s PRs that no issue here is linked to. Add the issue each one does, or check it belongs."
-                     detail="open, or closed in the last 2 weeks"
+                     label={issues.length ? 'PRs with no issue here' : 'Its PRs'}
+                     gloss={`This project’s PRs${
+                        issues.length ? ' that link none of its issues' : ''
+                     }: the open ones, and the ones closed in the last 2 weeks.${
+                        issues.length ? ' Add the issue each one does, or check it belongs.' : ''
+                     }`}
                      id={`work:${slug}:unlinked`}
-                     defaultOpen
+                     // a ledger of merged PRs can wait; an open one can't
+                     defaultOpen={page.unlinked.some(isOpenPr)}
                   >
                      <Truncated cap={LIST_CAP} id={`work:${slug}:unlinked`} label="more PRs">
                         {page.unlinked.map(pr => (
-                           <PullLine
+                           <PullItem
                               key={issueKey(pr)}
                               pr={pr}
                               pulls={pulls}
                               late={isLate(pr)}
-                              nested={false}
+                              opts={opts}
+                              repoShown={repoShown(pr)}
                            />
                         ))}
                      </Truncated>
                   </Fold>
+                  {closedFold('done')}
+                  {closedFold('dropped', 'Closed as not planned or as a duplicate')}
                   <Fold
                      count={page.suggested.length}
                      label="Issues its PRs link, not added yet"
@@ -394,7 +464,10 @@ export function ProjectWorkSection({
                               key={issueKey(issue)}
                               className="flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-secondary px-3.5 py-2 text-[13px] first:border-t-0"
                            >
-                              <RefChip data={{ kind: 'issue', ...issue }} />
+                              <RefChip
+                                 data={{ kind: 'issue', ...issue }}
+                                 repoShown={repoShown(issue)}
+                              />
                               {issue.title && (
                                  <a
                                     href={issueUrl(issue.repo, issue.number)}
@@ -422,6 +495,7 @@ export function ProjectWorkSection({
                                     </Fragment>
                                  ))}
                               </span>
+                              <AlsoIn slugs={issue.alsoIn} nameOf={nameOf} navigate={navigate} />
                               <button
                                  type="button"
                                  onClick={() => change(issue, true)}
@@ -450,15 +524,22 @@ export function ProjectWorkSection({
          <GroupHeader
             title="Issues and PRs"
             sub={
-               page
-                  ? [
-                       issueWords,
-                       `${n(openPrs, 'PR')} open`,
-                       afterEnd ? `${n(afterEnd, 'PR')} opened after the plan ended` : '',
-                    ]
-                       .filter(Boolean)
-                       .join(' · ')
-                  : undefined
+               page ? (
+                  // the sub-line is the door to how the list is built
+                  <SubDoor
+                     label="What’s on this list"
+                     text={`${issueWords} · ${n(openPrs, 'PR')} open`}
+                  >
+                     <p className="m-0">
+                        Its issues are the ones with the {label} label on GitHub and the ones added
+                        here.
+                     </p>
+                     <p className="m-0">
+                        A PR shows under every issue it links (“Parts of #N”, “closes #N”). One that
+                        links none of them shows under PRs with no issue here.
+                     </p>
+                  </SubDoor>
+               ) : undefined
             }
          />
          <div className="mb-2">
@@ -471,10 +552,6 @@ export function ProjectWorkSection({
                whereIs={whereIs}
             />
          </div>
-         <p className="m-0 mb-2 max-w-[72ch] text-xs text-ink-3">
-            Its issues are the ones with the {label} label on GitHub and the ones added here. A PR
-            shows under every issue it links (“Parts of #N”, “closes #N”).
-         </p>
          {body}
          {createPortal(
             // confirmations and errors, drawn over the page so they're seen

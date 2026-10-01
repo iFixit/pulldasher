@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { issueUrl, shortRepo } from '../../../../shared/format';
 import {
    ONE_PERSON_MIN_PRS,
-   projectName,
    targetOf,
    type Project,
    type ProjectFlag,
@@ -64,7 +63,10 @@ export interface ProjectsNav {
     * for the view's own default */
    psort: string;
 }
-export type Navigate = (patch: Partial<ProjectsNav>) => void;
+/** Change the tab's view. A change of view (lens, project, view, zoom) gets
+ * a history entry so Back undoes it; `push` asks for one for any other
+ * change a click made (typing replaces the entry instead). */
+export type Navigate = (patch: Partial<ProjectsNav>, opts?: { push?: boolean }) => void;
 
 /** Where the work came from, as a switch's options; `unsaid` stands for a
  * plan nobody has said it about. */
@@ -163,16 +165,52 @@ function targetWords(target: ProjectTarget): string {
    return !target.title || target.title === due ? due : `${target.title}, due ${due}`;
 }
 
+/** Where a facts line's words go: the lead, and the other projects. */
+export interface FactLinks {
+   navigate: Navigate;
+   /** a project's name by slug; null when no project issue has that slug */
+   nameOf: (slug: string) => string | null;
+   /** the projects that name this one as their parent */
+   parts: { slug: string; name: string }[];
+}
+
+/** A word in a facts line that goes somewhere when clicked. */
+function FactLink({
+   onClick,
+   title,
+   children,
+}: {
+   onClick: () => void;
+   title: string;
+   children: ReactNode;
+}) {
+   return (
+      <button
+         type="button"
+         onClick={onClick}
+         title={title}
+         className="hit pressable rounded border-0 bg-transparent p-0 font-medium text-ink-2 hover:text-brand hover:underline"
+      >
+         {children}
+      </button>
+   );
+}
+
 /**
  * The facts a project's issue gives it, on one quiet line: the issue link,
- * lead, target, parents, and whether it has an end. Editing any of them means
- * editing the issue on GitHub, so every fact here is read-only.
+ * lead, target, the projects it's part of (and, on a parent, the ones that
+ * are part of it), and whether it has an end. Editing the issue's facts
+ * means editing the issue on GitHub; with `links`, the lead and the other
+ * projects go to their pages here.
  */
 export function ProjectFacts({
    g,
    project,
    prefix,
    ongoing,
+   links,
+   onOngoing,
+   ongoingByLabel = false,
    children,
 }: {
    g: Pick<ProjectGroup, 'slug'>;
@@ -182,9 +220,42 @@ export function ProjectFacts({
    /** marked ongoing on the board or by its issue's label; the label alone
     * when not given */
    ongoing?: boolean;
+   /** where the lead and the other projects go; without it they're words */
+   links?: FactLinks;
+   /** set whether it runs with no end; without it the line only says so */
+   onOngoing?: (ongoing: boolean) => void;
+   /** its issue's label says it's ongoing, so only the label can change it */
+   ongoingByLabel?: boolean;
    /** trailing controls, e.g. the project page link */
    children?: ReactNode;
 }) {
+   const go = links?.navigate;
+   // a parent that's a project opens its page; a parent that's only a label
+   // opens the list split by parent, where its projects sit together
+   const parentLink = (parent: string) => {
+      const name = links?.nameOf(parent);
+      return (
+         <FactLink
+            key={parent}
+            onClick={() =>
+               name
+                  ? go?.({ project: parent })
+                  : go?.({
+                       project: null,
+                       view: 'overview',
+                       status: 'all',
+                       group: 'parent',
+                       find: parent,
+                    })
+            }
+            title={name ? `Open ${name}` : `The projects that are part of ${parent}`}
+         >
+            {name ?? parent}
+         </FactLink>
+      );
+   };
+   const list = (nodes: ReactNode[]) =>
+      nodes.flatMap((node, i) => (i ? [<span key={`and${i}`}>, </span>, node] : [node]));
    const facts: ReactNode[] = [];
    if (project) {
       facts.push(
@@ -200,9 +271,20 @@ export function ProjectFacts({
          </a>
       );
       if (project.lead) {
+         const lead = project.lead;
          facts.push(
             <span key="lead">
-               Lead <span className="font-medium text-ink-2">{project.lead}</span>
+               Lead{' '}
+               {go ? (
+                  <FactLink
+                     onClick={() => go({ project: null, view: 'overview', find: lead })}
+                     title={`Find the projects ${lead} is on`}
+                  >
+                     {lead}
+                  </FactLink>
+               ) : (
+                  <span className="font-medium text-ink-2">{lead}</span>
+               )}
             </span>
          );
       }
@@ -215,9 +297,12 @@ export function ProjectFacts({
          facts.push(<span key="priority">Priority {project.fields.priority}</span>);
       }
       if (project.parents.length) {
-         facts.push(<span key="parents">Part of {project.parents.join(', ')}</span>);
+         facts.push(
+            <span key="parents">
+               Part of {go ? list(project.parents.map(parentLink)) : project.parents.join(', ')}
+            </span>
+         );
       }
-      facts.push(<span key="kind">{ongoing ?? project.ongoing ? 'Ongoing' : 'Has an end'}</span>);
    } else {
       facts.push(
          <span
@@ -227,6 +312,49 @@ export function ProjectFacts({
             No project issue yet
          </span>
       );
+   }
+   if (go && links.parts.length) {
+      facts.push(
+         <span key="parts">
+            Parent of{' '}
+            {list(
+               links.parts.map(p => (
+                  <FactLink
+                     key={p.slug}
+                     onClick={() => go({ project: p.slug })}
+                     title={`Open ${p.name}`}
+                  >
+                     {p.name}
+                  </FactLink>
+               ))
+            )}
+         </span>
+      );
+   }
+   const isOngoing = ongoing ?? !!project?.ongoing;
+   if (onOngoing) {
+      facts.push(
+         <label
+            key="kind"
+            className="inline-flex cursor-pointer items-center gap-1.5 has-[:disabled]:cursor-default"
+            title={
+               ongoingByLabel
+                  ? 'Its issue’s ongoing label says so; take the label off to change it'
+                  : 'Decide stops asking it for a first plan, a finished plan of its stays finished as the work goes on, and its page skips the finish forecast'
+            }
+         >
+            <input
+               type="checkbox"
+               checked={isOngoing}
+               disabled={ongoingByLabel}
+               onChange={e => onOngoing(e.target.checked)}
+               className="m-0 disabled:opacity-40"
+            />
+            Ongoing, no end
+         </label>
+      );
+   } else if (project) {
+      facts.push(<span key="kind">{isOngoing ? 'Ongoing' : 'Has an end'}</span>);
    }
    return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3.5 py-2 text-xs text-ink-3">
@@ -246,26 +374,6 @@ export function PageLink({ g, navigate }: { g: Pick<ProjectGroup, 'slug'>; navig
       >
          Project page
       </button>
-   );
-}
-
-/** An open project with nothing in flight: the name (its page's door), its
- * kind, and its lead. No rows to fold, so it's a plain line. */
-export function QuietRow({ g, navigate }: { g: ProjectGroup; navigate: Navigate }) {
-   return (
-      <div className="flex items-center gap-3 border-t border-secondary px-3.5 py-2 text-[13px] first:border-t-0">
-         <button
-            type="button"
-            onClick={() => navigate({ project: g.slug })}
-            className="hit pressable min-w-0 truncate rounded border-0 bg-transparent p-0 text-left font-medium text-ink hover:text-brand"
-         >
-            {projectName(g)}
-         </button>
-         <span className="text-xs text-ink-3">{g.project?.ongoing ? 'ongoing' : 'has an end'}</span>
-         <span className="ml-auto flex items-center gap-2 text-xs text-ink-3">
-            {g.project?.lead && <PeopleStack logins={[g.project.lead]} />}
-         </span>
-      </div>
    );
 }
 

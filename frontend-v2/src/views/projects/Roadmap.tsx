@@ -73,7 +73,7 @@ import {
 } from '../../model/roadmapTime';
 import { LoadChart } from './LoadChart';
 import { NowNextLater } from './NowNextLater';
-import { openPlan, ORIGIN_OPTIONS, type Navigate, type ProjectsNav } from './parts';
+import { openPlan, ORIGIN_OPTIONS, PageLink, type Navigate, type ProjectsNav } from './parts';
 import {
    healthWords,
    loadWords,
@@ -209,6 +209,7 @@ function Editor({
    projects,
    teams,
    people,
+   navigate,
    onDone,
 }: {
    /** null to add a new item */
@@ -218,6 +219,7 @@ function Editor({
    projects: { slug: string; name: string }[];
    teams: string[];
    people: string[];
+   navigate: Navigate;
    onDone: () => void;
 }) {
    // what the form started from: Save sends only the fields changed since,
@@ -361,18 +363,21 @@ function Editor({
          </div>
          {field(
             'Project it tracks',
-            <select
-               className={selectClass}
-               value={draft.project ?? ''}
-               onChange={e => set({ project: e.target.value || null })}
-            >
-               <option value="">No project yet</option>
-               {projectOptions.map(p => (
-                  <option key={p.slug} value={p.slug}>
-                     {p.name}
-                  </option>
-               ))}
-            </select>
+            <span className="flex items-center gap-2">
+               <select
+                  className={`flex-1 ${selectClass}`}
+                  value={draft.project ?? ''}
+                  onChange={e => set({ project: e.target.value || null })}
+               >
+                  <option value="">No project yet</option>
+                  {projectOptions.map(p => (
+                     <option key={p.slug} value={p.slug}>
+                        {p.name}
+                     </option>
+                  ))}
+               </select>
+               {draft.project && <PageLink g={{ slug: draft.project }} navigate={navigate} />}
+            </span>
          )}
          {field(
             'Team',
@@ -1611,6 +1616,7 @@ export function Roadmap({
                         projects={projectOptions}
                         teams={teams}
                         people={people}
+                        navigate={navigate}
                         onDone={() => openItem(null)}
                      />
                      <UpdatesPanel item={item} />
@@ -1968,6 +1974,7 @@ export function Roadmap({
                         projects={projectOptions}
                         teams={teams}
                         people={people}
+                        navigate={navigate}
                         onDone={() => setAdding(false)}
                      />
                   )}
@@ -1999,6 +2006,7 @@ export function Roadmap({
                            projects={projectOptions}
                            teams={teams}
                            people={people}
+                           navigate={navigate}
                            onDone={() => setAdding(false)}
                         />
                      </Rows>

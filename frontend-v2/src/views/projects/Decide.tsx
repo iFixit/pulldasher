@@ -102,7 +102,7 @@ const SECTIONS: [DecideReason['kind'][], string, string][] = [
    [
       ['issues_done'],
       'All its issues are closed',
-      'Every issue in the project is closed, and the plan hasn’t changed since. Finish it, or add the issues still to do.',
+      'Every issue in the project is closed, and the plan hasn’t changed since.',
    ],
    [
       ['stalled'],
@@ -126,7 +126,7 @@ const kindsOf = (row: DecideRow) => row.reasons.map(r => r.kind).join(',');
 const closedAs = (as: 'done' | 'dropped') => (as === 'done' ? 'completed' : 'not planned');
 
 /** Why a row is here, in the words of the call it needs. */
-function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
+export function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
    switch (reason.kind) {
       case 'new':
          return reason.since
@@ -136,11 +136,11 @@ function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
          return `No PR activity for ${reason.days} days`;
       case 'over':
          return `PRs still open ${n(reason.weeks, 'week')} past its plan’s end${
-            reason.since ? `, and ${n(reason.since, 'PR')} opened since its end` : ''
+            reason.since ? `, and ${n(reason.since, 'PR')} opened after the plan ended` : ''
          }`;
       case 'ended':
          return `Its plan ended ${n(reason.weeks, 'week')} ago and no PRs are open${
-            reason.since ? `, though ${n(reason.since, 'PR')} opened since its end` : ''
+            reason.since ? `, though ${n(reason.since, 'PR')} opened after the plan ended` : ''
          }. Is it done?`;
       case 'issues_done': {
          const tally = reason.done
@@ -453,7 +453,16 @@ function DecideRowView({
                   <button
                      type="button"
                      onClick={() => call({ status: 'done' }, 'Marked done')}
-                     title="Mark it Done: the work is finished"
+                     title={
+                        // still has open PRs: say so instead of claiming the
+                        // work is finished (shared/model/decide.ts REOPEN_DAYS)
+                        project && project.open > 0
+                           ? `Mark it Done. It still has ${n(
+                                project.open,
+                                'open PR'
+                             )}, so Decide asks again if they’re still open in a week.`
+                           : 'Mark it Done: the work is finished'
+                     }
                      className={buttonClass}
                   >
                      Finish

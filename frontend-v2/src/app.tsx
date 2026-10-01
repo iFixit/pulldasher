@@ -366,8 +366,15 @@ export function App() {
       () => urlState.drafts ?? getSettings().draftsMode
    );
    const [projectsNav, setProjectsNav] = useState<ProjectsNav>(() => urlState.projects);
+   // a click that narrows by find (a lead, a team cell) wants its own history
+   // entry even though find itself isn't tracked below (typing must keep
+   // replacing) — recorded here, spent once by the history effect
+   const pushRequested = useRef(false);
    const navigateProjects = useCallback(
-      (patch: Partial<ProjectsNav>) => setProjectsNav(cur => ({ ...cur, ...patch })),
+      (patch: Partial<ProjectsNav>, opts?: { push?: boolean }) => {
+         if (opts?.push) pushRequested.current = true;
+         setProjectsNav(cur => ({ ...cur, ...patch }));
+      },
       []
    );
    // login-level twin of isBot, for row-level consumers (the avatar's square
@@ -429,16 +436,25 @@ export function App() {
          projectsNav,
       ]
    );
-   // View changes (lens switches, and opening or leaving a project page or
-   // the Projects tab's Date range) earn a history entry so the back button
-   // navigates between boards; filter tweaks replace in place so typing a
-   // query doesn't bury history under keystrokes.
+   // View changes (lens switches, opening or leaving a project page, and
+   // picks that land somewhere new — a tile, a chart bar, a Decide team, a
+   // picked week) earn a history entry so the back button navigates between
+   // boards; filter tweaks and typing replace in place so a query doesn't
+   // bury history under keystrokes.
    const view = {
       lens,
       project: projectsNav.project,
       projectsView: projectsNav.view,
       // zooming the roadmap in or out is a view change too, so Back undoes it
       zoom: projectsNav.zoom,
+      only: projectsNav.only,
+      team: projectsNav.team,
+      week: projectsNav.week,
+      origin: projectsNav.origin,
+      item: projectsNav.item,
+      // Look back's person and split picks
+      who: projectsNav.who,
+      by: projectsNav.by,
    };
    const prevView = useRef(view);
    useEffect(() => {
@@ -446,12 +462,21 @@ export function App() {
       if (next === location.hash.slice(1)) return;
       const prev = prevView.current;
       prevView.current = view;
-      if (
+      const viewChanged =
          prev.lens !== view.lens ||
          prev.project !== view.project ||
          prev.projectsView !== view.projectsView ||
-         prev.zoom !== view.zoom
-      ) {
+         prev.zoom !== view.zoom ||
+         prev.only !== view.only ||
+         prev.team !== view.team ||
+         prev.week !== view.week ||
+         prev.origin !== view.origin ||
+         prev.item !== view.item ||
+         prev.who !== view.who ||
+         prev.by !== view.by;
+      const push = viewChanged || pushRequested.current;
+      pushRequested.current = false;
+      if (push) {
          if (next) {
             // fires hashchange; the listener below re-reads idempotently
             location.hash = next;

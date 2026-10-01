@@ -31,6 +31,7 @@ import {
    PageLink,
    PeopleStack,
    ProjectFacts,
+   type FactLinks,
    SortHeader,
    type Navigate,
    type ProjectsNav,
@@ -55,12 +56,16 @@ interface Column {
 interface CellActions {
    openPlan: (id: number) => void;
    findLead: (lead: string) => void;
+   findTeam: (team: string) => void;
    onPerson: (login: string) => void;
-   /** the roadmap's list of work with no plan, where a plan starts */
-   unplanned: () => void;
+   /** the roadmap's list of work with no plan, where a plan starts, narrowed
+    * to this project */
+   unplanned: (slug: string) => void;
    /** whether the 14 days of who worked on what have loaded */
    workersLoaded: boolean;
    openProject: (slug: string) => void;
+   /** where a row's facts line goes: its lead and its related projects */
+   factLinks: (item: PortfolioItem) => FactLinks;
 }
 
 /** A cell's words as a button that does its own thing, not the row's. */
@@ -116,7 +121,7 @@ function targetCell(item: PortfolioItem): ReactNode {
 
 function planTitle(item: PortfolioItem): string {
    if (item.planCell.kind === 'issues_done') {
-      return 'All its issues are closed, and the plan hasn’t changed since, so Decide asks whether it’s done. Click to open the plan.';
+      return 'All its issues are closed, and the plan hasn’t changed since, so Decide asks whether it’s done. Click to open the project page.';
    }
    if (item.plan) return `${planCellWords(item.plan).title}. Click to open the plan.`;
    if (item.planCell.kind === 'missed') {
@@ -156,7 +161,20 @@ const COLUMNS: Column[] = [
       title: 'Its plan’s team, or else the team most of its developers are on',
       width: 'w-20',
       hide: 'hidden 2xl:block',
-      cell: i => i.team ?? '',
+      cell: (i, act) => {
+         const team = i.team;
+         return team ? (
+            <CellButton
+               onClick={() => act.findTeam(team)}
+               className="text-ink-2"
+               title={`List only the projects on the ${team} team`}
+            >
+               {team}
+            </CellButton>
+         ) : (
+            ''
+         );
+      },
    },
    {
       key: 'age',
@@ -248,7 +266,13 @@ const COLUMNS: Column[] = [
          const plan = i.plan;
          return (
             <CellButton
-               onClick={() => (plan ? act.openPlan(plan.id) : act.unplanned())}
+               onClick={() =>
+                  i.planCell.kind === 'issues_done'
+                     ? act.openProject(i.slug)
+                     : plan
+                     ? act.openPlan(plan.id)
+                     : act.unplanned(i.slug)
+               }
                className={i.planCell.warn ? 'text-warn' : 'text-ink-2'}
                title={planTitle(i)}
             >
@@ -277,7 +301,7 @@ const ISSUES: Column = {
                s.dropped ? `, ${s.dropped} dropped` : ''
             }. Click for the list.`}
          >
-            {s.open ? `${s.open} of ${s.total}` : 'All closed'}
+            {`${s.open} of ${s.total}`}
          </CellButton>
       );
    },
@@ -324,6 +348,7 @@ function RowDetail({
    nav,
    navigate,
    onPerson,
+   links,
 }: {
    item: PortfolioItem;
    prefix: string;
@@ -331,13 +356,20 @@ function RowDetail({
    nav: ProjectsNav;
    navigate: Navigate;
    onPerson: (login: string) => void;
+   links: FactLinks;
 }) {
    const stalest = item.stalest;
    const days = (d: number) => n(Math.round(d * 10) / 10, 'day');
    const heading = `m-0 px-3.5 pt-2.5 pb-1 text-ink-3 ${eyebrowText}`;
    return (
       <div className="border-t border-secondary">
-         <ProjectFacts g={item} project={item.project} prefix={prefix} ongoing={item.ongoing}>
+         <ProjectFacts
+            g={item}
+            project={item.project}
+            prefix={prefix}
+            ongoing={item.ongoing}
+            links={links}
+         >
             <PageLink g={item} navigate={navigate} />
          </ProjectFacts>
          <PlanFacts slug={item.slug} nav={nav} navigate={navigate} />
@@ -481,6 +513,7 @@ function PortfolioRow({
             nav={nav}
             navigate={navigate}
             onPerson={act.onPerson}
+            links={act.factLinks(item)}
          />
       </details>
    );
@@ -544,11 +577,13 @@ export function Portfolio({
    ];
    const sort = parseSort(nav.sort);
    const narrowed = onlyWords(nav.only);
+   const findText = (text: string) => navigate({ find: text }, { push: true });
    const act: CellActions = {
       openPlan: id => navigate(openPlan(nav, id)),
-      findLead: lead => navigate({ find: lead }),
+      findLead: findText,
+      findTeam: findText,
       onPerson,
-      unplanned: () =>
+      unplanned: slug =>
          navigate({
             project: null,
             view: 'roadmap',
@@ -556,9 +591,17 @@ export function Portfolio({
             item: null,
             week: null,
             origin: null,
+            find: slug,
          }),
       workersLoaded,
       openProject: slug => navigate({ project: slug }),
+      factLinks: item => ({
+         navigate,
+         nameOf: slug => items.find(i => i.slug === slug)?.name ?? null,
+         parts: items
+            .filter(i => i.project?.parents.includes(item.slug))
+            .map(i => ({ slug: i.slug, name: i.name })),
+      }),
    };
    const copy = () => {
       void navigator.clipboard?.writeText(portfolioText(shown, dayOf(new Date()))).then(() => {

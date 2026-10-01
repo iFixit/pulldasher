@@ -1,6 +1,9 @@
 import { epoch } from '../format';
-import type { Label, PullData } from '../types';
+import type { PullData } from '../types';
 import type { DerivedPull, Status } from './status';
+import { MISC_SLUG, projectOf, projectSlugs } from './projectLabel';
+
+export { MISC_SLUG, projectOf, projectSlugs } from './projectLabel';
 
 /**
  * Projects: what the open PRs add up to. A PR joins a project through one
@@ -20,8 +23,6 @@ import type { DerivedPull, Status } from './status';
 export const DEFAULT_PROJECT_PREFIX = 'project:';
 export const PARENT_PREFIX = 'parent:';
 export const ONGOING_LABEL = 'ongoing';
-/** the slug for one-off PRs that fit no project */
-export const MISC_SLUG = 'misc';
 /** a merge this recent keeps a project on Today */
 export const LIVE_DAYS = 14;
 /** fewest PRs before "one person" is worth saying; below it, one author is normal */
@@ -64,21 +65,6 @@ export function targetOf(
 ): ProjectTarget | null {
    if (p?.fields?.target) return { title: null, due_on: p.fields.target };
    return p?.target ?? null;
-}
-
-/** Every project slug a PR's labels name, sorted so every reader agrees. */
-export function projectSlugs(labels: readonly Pick<Label, 'title'>[], prefix: string): string[] {
-   return labels
-      .filter(l => l.title.startsWith(prefix) && l.title.length > prefix.length)
-      .map(l => l.title.slice(prefix.length))
-      .sort();
-}
-
-/** A PR's project: a real project before misc when it carries both, else
- * the first label alphabetically; null with no project label at all. */
-export function projectOf(labels: readonly Pick<Label, 'title'>[], prefix: string): string | null {
-   const slugs = projectSlugs(labels, prefix);
-   return slugs.find(s => s !== MISC_SLUG) ?? slugs[0] ?? null;
 }
 
 export type ProjectFlag = 'one_person' | 'waiting_on_review' | 'issue_closed';

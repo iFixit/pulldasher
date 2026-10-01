@@ -1,9 +1,12 @@
 import type { ReactNode } from 'react';
 import { headStatuses, type DerivedPull } from '../../../shared/model/status';
+// the small module, so the board's rows don't load the projects model
+import { MISC_SLUG, projectOf } from '../../../shared/model/projectLabel';
 import type { Claim, RowNote } from '../model/actions';
 import { rowNote } from '../model/actions';
 import type { PullData } from '../../../shared/types';
 import { ago, closedEpoch, epoch, githubUrl, issueUrl, signatureUrl } from '../../../shared/format';
+import { usePulldasher } from '../store';
 import { ClosedBadge, STATUS_LABEL } from './bits';
 import { Avatar } from './identity';
 import { Popover } from './Popover';
@@ -124,6 +127,11 @@ function FactsSection({
    poolSize?: number;
 }) {
    const d = pull.data;
+   // the name isn't cheaply available here (only the live socket snapshot
+   // is, via usePulldasher; the project list is a separate fetch), so the
+   // link shows the slug
+   const { projectLabelPrefix } = usePulldasher();
+   const slug = projectLabelPrefix ? projectOf(d.labels, projectLabelPrefix) : null;
    const crReq = d.status.cr_req;
    const qaReq = d.status.qa_req;
    const ciWord =
@@ -216,6 +224,17 @@ function FactsSection({
                {d.milestone.due_on && (
                   <span className="text-ink-3"> · due {d.milestone.due_on.slice(0, 10)}</span>
                )}
+            </p>
+         )}
+         {slug && slug !== MISC_SLUG && (
+            <p>
+               project{' '}
+               <a
+                  href={`#lens=projects&project=${slug}`}
+                  className="font-medium text-brand hover:underline"
+               >
+                  {slug}
+               </a>
             </p>
          )}
          {/* a claim always trumps the rotation guess — same precedence as
