@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { ChevronLeft } from 'lucide-react';
 import type { DerivedPull } from '../../../shared/model/status';
 import type { PullData } from '../../../shared/types';
@@ -61,7 +61,6 @@ export function Projects({
    navigate,
    opts,
    me,
-   onPerson,
 }: {
    /** people's open PRs, narrowed by the repo and people filters only */
    pulls: DerivedPull[];
@@ -76,19 +75,31 @@ export function Projects({
    navigate: Navigate;
    opts: RowOptions;
    me: string;
-   onPerson: (login: string) => void;
 }) {
+   // a person clicked anywhere on this tab opens their row on People, so the
+   // click stays in Projects and sets no filter that would change its counts
+   const onPersonHere = useCallback(
+      (login: string) => navigate({ view: 'people', project: null, who: login }, { push: true }),
+      [navigate]
+   );
    // this tab shows hidden PRs anyway, so its rows don't offer to hide one
-   const tabOpts = useMemo(() => ({ ...opts, noHide: true }), [opts]);
+   const tabOpts = useMemo(
+      () => ({ ...opts, noHide: true, onPerson: onPersonHere }),
+      [opts, onPersonHere]
+   );
    const rangeKey = resolveRange(nav.range) ? nav.range : DEFAULT_RANGE;
    const range = resolveRange(rangeKey) as Range;
    const data = useProjectsData(prefix ? range : null);
    // the same days just before the range, for every "compared with" line
    const prev = useProjectsData(prefix ? previousRange(range) : null);
+   // every view counts every PR, whatever the filter bar narrows: a project
+   // whose PRs are filtered out would otherwise look quiet or finished, and a
+   // click on a face would rewrite the planner's numbers
    const today = useMemo(
-      () => (prefix ? buildToday(data?.projects ?? [], pulls, closed, prefix) : NO_TODAY),
-      [data, pulls, closed, prefix]
+      () => (prefix ? buildToday(data?.projects ?? [], allPulls, allClosed, prefix) : NO_TODAY),
+      [data, allPulls, allClosed, prefix]
    );
+   const scoped = allPulls.length !== pulls.length || allClosed.length !== closed.length;
    const teamOf = useMemo(() => teamLookup(data?.teams ?? {}), [data]);
    const { items: plans } = useRoadmap();
    // each plan's PRs by the dates, each project's issues, and which
@@ -109,39 +120,15 @@ export function Projects({
          ),
       [data, today, teamOf, plans, work, ongoing]
    );
-   // Decide writes the roadmap, so it weighs every project: with the filter
-   // bar narrowing the rest of the tab, it builds its own Today and list
-   const scoped = allPulls.length !== pulls.length || allClosed.length !== closed.length;
-   const fullToday = useMemo(
-      () =>
-         prefix && scoped ? buildToday(data?.projects ?? [], allPulls, allClosed, prefix) : today,
-      [data, allPulls, allClosed, prefix, scoped, today]
-   );
-   const decideItems = useMemo(
-      () =>
-         scoped
-            ? portfolioItems(
-                 data?.projects ?? [],
-                 fullToday,
-                 data?.window.projects ?? {},
-                 teamOf,
-                 Date.now(),
-                 plans ?? [],
-                 work?.projects ?? null,
-                 ongoing
-              )
-            : items,
-      [scoped, data, fullToday, teamOf, plans, items, work, ongoing]
-   );
    const closedProjects = useMemo(() => closedIssues(data?.projects ?? []), [data]);
    // the calls owed, counted on the tab so they're seen from every view
    const decisions = useMemo(
-      () => (plans ? decideRows(fullToday, plans, closedProjects, work, ongoing) : null),
-      [fullToday, plans, closedProjects, work, ongoing]
+      () => (plans ? decideRows(today, plans, closedProjects, work, ongoing) : null),
+      [today, plans, closedProjects, work, ongoing]
    );
    const views: [ProjectsNav['view'], string][] = [
       ['overview', 'Overview'],
-      ['decide', decisions?.length ? `Decide (${decisions.length})` : 'Decide'],
+      ['decide', 'Decide'],
       ['roadmap', 'Roadmap'],
       ['people', 'People'],
       ['retro', 'Look back'],
@@ -187,13 +174,35 @@ export function Projects({
                ariaLabel="projects view"
                value={nav.view}
                options={views}
-               onChange={view => navigate({ view, item: null })}
+               counts={{ decide: decisions?.length }}
+               tabs
+               // a view's own picks (its sort, team, person, week) stay with it,
+               // so one view never quietly narrows the next; the range, the find
+               // and the roadmap's zoom carry over, each shown where it applies
+               onChange={view =>
+                  navigate({
+                     view,
+                     item: null,
+                     sort: '',
+                     psort: '',
+                     team: null,
+                     who: null,
+                     only: null,
+                     week: null,
+                     origin: null,
+                  })
+               }
             />
          )}
          {/* the Overview and Decide are about now, and the roadmap has its
              own months and quarters; the range is for looking back. A
              project's page puts it beside the numbers it sets. */}
          {!nav.project && (nav.view === 'people' || nav.view === 'retro') && rangePicker}
+         {scoped && (
+            <span className="text-xs text-ink-3">
+               Projects counts every PR, whatever the filter bar narrows.
+            </span>
+         )}
       </div>
    );
    return (
@@ -205,7 +214,7 @@ export function Projects({
             <ProjectPage
                key={nav.project}
                slug={nav.project}
-               today={fullToday}
+               today={today}
                data={data}
                prev={prev}
                range={range}
@@ -214,11 +223,11 @@ export function Projects({
                teamOf={teamOf}
                nav={nav}
                navigate={navigate}
-               item={decideItems.find(i => i.slug === nav.project)}
+               item={items.find(i => i.slug === nav.project)}
                plans={plans}
                ongoingSaved={data?.ongoing ?? []}
                opts={tabOpts}
-               onPerson={onPerson}
+               onPerson={onPersonHere}
                asks={(decisions ?? []).filter(row => row.slug === nav.project)}
                rangePicker={rangePicker}
             />
@@ -231,17 +240,16 @@ export function Projects({
                teamOf={teamOf}
                nameOf={nameOf}
                me={me}
-               onPerson={onPerson}
+               onPerson={onPersonHere}
             />
          ) : nav.view === 'decide' ? (
             <Decide
-               today={fullToday}
-               items={decideItems}
+               today={today}
+               items={items}
                closed={closedProjects}
                teamOf={teamOf}
                teamMembers={data?.teams ?? {}}
                rotation={data?.decide_rotation ?? null}
-               scoped={scoped}
                work={work}
                ongoing={ongoing}
                nav={nav}
@@ -257,7 +265,7 @@ export function Projects({
                nameOf={nameOf}
                nav={nav}
                navigate={navigate}
-               onPerson={onPerson}
+               onPerson={onPersonHere}
             />
          ) : nav.view === 'roadmap' ? (
             <Roadmap
@@ -280,7 +288,7 @@ export function Projects({
                opts={tabOpts}
                decisions={decisions}
                me={me}
-               onPerson={onPerson}
+               onPerson={onPersonHere}
             />
          )}
       </>

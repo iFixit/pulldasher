@@ -1403,7 +1403,6 @@ export function App() {
                   navigate={navigateProjects}
                   opts={rowOpts}
                   me={me}
-                  onPerson={onPerson}
                   />
                </Suspense>
             )}

@@ -414,12 +414,6 @@ export function ProjectPage({
          return /[.?!]$/.test(named) ? named : `${named}.`;
       })
    );
-   // Decide asks about a closed issue as it is, or as one with PRs still open
-   const decideClosed = asks.some(row =>
-      row.reasons.some(
-         r => r.kind === 'issue_closed' || (r.kind === 'reopened' && r.by === 'issue')
-      )
-   );
    const owed: ReactNode[] = [];
    if (decideSaid.length) {
       owed.push(
@@ -464,8 +458,6 @@ export function ProjectPage({
       );
    }
    for (const flag of group?.flags ?? []) {
-      // Decide already asks about a closed issue
-      if (flag === 'issue_closed' && decideClosed) continue;
       const [word, why] = flagText(flag, group as ProjectGroup);
       const lone = group?.people[0];
       const action =
@@ -479,15 +471,6 @@ export function ProjectPage({
                pulls={byStage.get('review') ?? []}
                opts={rowOpts}
             />
-         ) : flag === 'issue_closed' && project ? (
-            <a
-               href={issueUrl(project.repo, project.number)}
-               target="_blank"
-               rel="noopener noreferrer"
-               className={linkClass}
-            >
-               Open its issue
-            </a>
          ) : undefined;
       owed.push(
          <Owed key={flag} word={upper(word)} action={action}>

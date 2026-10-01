@@ -157,7 +157,9 @@ describe('buildToday', () => {
          NOW
       );
       expect(today.live.map(g => g.slug)).toEqual(['reopenme']);
-      expect(today.live[0].flags).toContain('issue_closed');
+      // no flag of its own: Decide asks about a closed issue with PRs still
+      // open, after a week's grace, so the call is said once
+      expect(today.live[0].flags).toEqual([]);
       expect(today.quiet).toEqual([]);
    });
 

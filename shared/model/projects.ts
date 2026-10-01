@@ -68,7 +68,7 @@ export function targetOf(
    return p?.target ?? null;
 }
 
-export type ProjectFlag = 'one_person' | 'waiting_on_review' | 'issue_closed';
+export type ProjectFlag = 'one_person' | 'waiting_on_review';
 
 export interface ProjectGroup {
    slug: string;
@@ -192,7 +192,6 @@ export function buildToday(
       // by the project page's stage rule, so the flag and its list agree
       if (g.open.length >= 2 && g.open.every(p => prStage(p) === 'review'))
          g.flags.push('waiting_on_review');
-      if (g.project?.state === 'closed') g.flags.push('issue_closed');
    }
 
    const byName = (a: ProjectGroup, b: ProjectGroup) => projectName(a).localeCompare(projectName(b));

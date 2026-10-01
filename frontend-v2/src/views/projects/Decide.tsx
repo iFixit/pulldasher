@@ -601,8 +601,9 @@ function RunsDecide({ rotation, day }: { rotation: DecideRotation | null; day: s
  * with the facts the call turns on. Each call (commit it through a month
  * or quarter, park, finish, drop) is one click that writes the roadmap; the
  * row stays in place saying what was decided, so nothing vanishes
- * unexplained. It weighs every project, whatever the filter bar narrows
- * the rest of the tab to. Worst first; a team's lead can take just theirs.
+ * unexplained. Like every view on the tab, it weighs every project,
+ * whatever the filter bar narrows. Worst first; a team's lead can take
+ * just theirs.
  */
 export function Decide({
    today,
@@ -611,7 +612,6 @@ export function Decide({
    teamOf,
    teamMembers,
    rotation,
-   scoped,
    work,
    ongoing,
    nav,
@@ -626,8 +626,6 @@ export function Decide({
    teamMembers: Record<string, string[]>;
    /** who takes turns running this list; null for nobody */
    rotation: DecideRotation | null;
-   /** whether the filter bar narrows the rest of the tab */
-   scoped: boolean;
    /** each plan's PRs by the dates, and each project's issues (model/workData.ts) */
    work: WorkData | null | undefined;
    /** every project with no end, and the ones marked so on the board */
@@ -802,12 +800,6 @@ export function Decide({
                upkeep, never need one.
             </p>
             <RunsDecide rotation={rotation} day={day} />
-            {scoped && (
-               <p className="m-0 mt-1 max-w-[72ch] text-xs text-ink-3">
-                  Decide ignores the repo and people filters and counts every project, so none looks
-                  finished just because its PRs are filtered out.
-               </p>
-            )}
             {teams.length > 0 && (
                <div className="mt-3 flex flex-wrap items-center gap-3">
                   <Segmented

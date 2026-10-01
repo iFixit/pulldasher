@@ -10,7 +10,7 @@ export { prStage, type PrStage };
 
 /**
  * Where work stands, in a product manager's words rather than the board's
- * CR and QA ones. An open PR is ready to ship, on hold, waiting on review,
+ * CR and QA ones. An open PR is ready to merge, on hold, waiting on review,
  * or being worked on. An open issue is as far along as its least finished
  * open PR; with none open, either its PRs merged and the issue is still
  * open, or no PR does it yet. Closing an issue is a person's call, so a
@@ -20,7 +20,7 @@ export { prStage, type PrStage };
 export type IssueStage = PrStage | 'merged' | 'none' | 'done' | 'dropped';
 
 export const STAGE_WORDS: Record<IssueStage, string> = {
-   ready: 'Ready to ship',
+   ready: 'Ready to merge',
    hold: 'On hold',
    review: 'Waiting on review',
    work: 'Being worked on',
@@ -75,7 +75,7 @@ export function issueStanding(
 
 /**
  * Who holds an open PR right now, in a few words: its author while it's
- * being worked on or ready to ship, whose turn it is to review, or what
+ * being worked on or ready to merge, whose turn it is to review, or what
  * holds it. Says how long it's been open once that's past `ageWarnDays`,
  * the board's own age warning.
  */

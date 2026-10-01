@@ -588,8 +588,8 @@ export function ProjectWorkSections({
                            added here.
                         </p>
                         <p className="m-0">
-                           Each one is as far along as its least finished open PR: ready to ship, on
-                           hold, waiting on review, or being worked on. Click an issue to see its
+                           Each one is as far along as its least finished open PR: ready to merge,
+                           on hold, waiting on review, or being worked on. Click an issue to see its
                            PRs.
                         </p>
                      </SubDoor>

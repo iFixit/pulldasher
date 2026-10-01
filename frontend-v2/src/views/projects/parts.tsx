@@ -112,11 +112,6 @@ export function flagText(flag: ProjectFlag, g: ProjectGroup): [string, string] {
             'all waiting on review',
             'All of its open PRs (2 or more) are waiting on a CR or QA.',
          ];
-      case 'issue_closed':
-         return [
-            'issue closed, PR still open',
-            'The project’s issue is closed, but a PR labeled for it is still open.',
-         ];
    }
 }
 

@@ -128,5 +128,7 @@ export function usePopover<Panel extends HTMLElement, Trigger extends HTMLElemen
    );
 
    const hoverProps = opts?.hover ? { onPointerEnter, onPointerLeave } : {};
-   return { open, toggle, rootRef, panelRef, triggerRef, hoverProps };
+   /** a click or key opened it, so focus belongs in the panel */
+   const isPinned = () => pinned.current;
+   return { open, toggle, rootRef, panelRef, triggerRef, hoverProps, isPinned };
 }

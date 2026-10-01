@@ -359,7 +359,7 @@ export const DUMMY_ATTACHED: Record<string, AttachedIssue[]> = (() => {
          issue(35807, 'Drop the cloud search test’s outside dependency', 'open', { joined: 12 }),
          gateTests,
       ],
-      // its one PR is signed off: the "Ready to ship" band
+      // its one PR is signed off: the "Ready to merge" band
       'core-primitives': [issue(36301, 'Ship core primitives 1.2', 'open', { joined: 14 })],
       'akeneo-4': [
          issue(36201, 'Upgrade the connector', 'done', { joined: 77, closed: 50 }),

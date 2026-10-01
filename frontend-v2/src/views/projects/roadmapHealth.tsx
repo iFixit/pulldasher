@@ -182,7 +182,14 @@ function SinceLast({ item, last }: { item: RoadmapItem; last: RoadmapUpdate }) {
  * newest first, each with the plan as it stood then. The row's words change
  * as soon as the server has the new one.
  */
-export function UpdatesPanel({ item }: { item: RoadmapItem }) {
+export function UpdatesPanel({
+   item,
+   bare = false,
+}: {
+   item: RoadmapItem;
+   /** no rule of its own on top: it sits in a box that already has an edge */
+   bare?: boolean;
+}) {
    const [history, setHistory] = useState<RoadmapUpdate[] | 'failed' | null>(null);
    const [health, setHealth] = useState<RoadmapHealth>(item.update?.health ?? 'on_track');
    const [body, setBody] = useState('');
@@ -208,7 +215,7 @@ export function UpdatesPanel({ item }: { item: RoadmapItem }) {
    };
    const list = Array.isArray(history) ? history : [];
    return (
-      <div className="border-t border-secondary bg-muted/40 px-3.5 py-3">
+      <div className={`${bare ? '' : 'border-t border-secondary'} bg-muted/40 px-3.5 py-3`}>
          <form
             className="flex flex-col gap-2"
             onSubmit={e => {

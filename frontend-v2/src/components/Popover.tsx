@@ -1,5 +1,6 @@
 import {
    type PointerEvent as ReactPointerEvent,
+   useEffect,
    useLayoutEffect,
    useState,
    type ReactNode,
@@ -115,6 +116,13 @@ export function Popover({
          window.removeEventListener('resize', place);
       };
    }, [pop.open, side]);
+
+   // the panel mounts a render after it opens, once its place is measured,
+   // so usePopover's own focus call finds nothing: focus it when it's there
+   const shown = pop.open && pos != null;
+   useEffect(() => {
+      if (shown && pop.isPinned()) pop.panelRef.current?.focus();
+   }, [shown]);
 
    return (
       <span className={rootClass} ref={pop.rootRef} {...(hoverTriggerOnly ? {} : pop.hoverProps)}>

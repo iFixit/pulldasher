@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode, type SyntheticEvent } from 'react';
+import { useId, useRef, useState, type ReactNode, type SyntheticEvent } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { pullKey } from '../../../shared/format';
 import type { DerivedPull } from '../../../shared/model/status';
@@ -95,6 +95,7 @@ export function GroupHeader({
    count,
    compact,
    headerExtra,
+   level = 2,
 }: {
    title: string;
    /** plain string for most lanes; a ReactNode when the sub-line itself is
@@ -104,21 +105,30 @@ export function GroupHeader({
    count?: number;
    compact?: boolean;
    headerExtra?: ReactNode;
+   /** 3 for a section under a page's own title (a project's page) */
+   level?: 2 | 3;
 }) {
+   const Heading = level === 3 ? 'h3' : 'h2';
    return (
       // sticky just under the app header (top from the measured --header-h),
       // opaque over the canvas so long lanes keep their context while rows
       // scroll beneath; the old margin-below became padding so the spacing
       // itself is part of the opaque surface
+      // the sub-line wraps under the title on a narrow screen rather than
+      // squeezing the title into a column of words
       <div
-         className={`sticky top-[var(--header-h,0px)] z-[5] flex items-baseline gap-2.5 bg-[var(--canvas)] ${
+         className={`sticky top-[var(--header-h,0px)] z-[5] flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 bg-[var(--canvas)] ${
             compact ? 'pb-1' : 'pb-2'
          }`}
       >
-         <h2 className={`m-0 font-semibold leading-snug ${compact ? 'text-sm' : 'text-base'}`}>
+         <Heading
+            className={`m-0 shrink-0 font-semibold leading-snug ${
+               compact ? 'text-sm' : 'text-base'
+            }`}
+         >
             {title}
-         </h2>
-         {sub && <span className="text-xs text-ink-3">{sub}</span>}
+         </Heading>
+         {sub && <span className="min-w-0 text-xs text-ink-3">{sub}</span>}
          {/* an empty section earns a title, never a "0" — the count only
              appears once there's something to count; headerExtra alone can
              still earn the right-aligned slot on an otherwise count-less lane */}
@@ -356,6 +366,7 @@ export function Fold({
    children: ReactNode;
 }) {
    const detailsRef = useRef<HTMLDetailsElement>(null);
+   const glossId = useId();
    const stored = foldOpenStore.useValue();
    if (!count) return null;
    const explicit = id ? stored[id] : undefined;
@@ -389,6 +400,9 @@ export function Fold({
          onToggle={id ? onToggle : undefined}
       >
          <summary
+            // the band is the one focus stop; a screen reader hears the gloss
+            // with it, the way a mouse gets it on hover
+            aria-describedby={gloss ? glossId : undefined}
             className={`flex cursor-pointer list-none items-center gap-2 bg-muted/40 px-3.5 py-[6px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none [&::-webkit-details-marker]:hidden ${
                caps ? eyebrowText : 'text-[11px] font-semibold'
             }`}
@@ -410,6 +424,11 @@ export function Fold({
                      <button
                         {...t}
                         type="button"
+                        // the hover target only: not a second focus stop, and
+                        // no dialog to announce (the summary carries the gloss)
+                        tabIndex={-1}
+                        aria-haspopup={undefined}
+                        aria-expanded={undefined}
                         // a button inside <summary> captures the click, so the
                         // band's promise (click anywhere toggles) is honored
                         // here by hand — the gloss itself stays hover-only
@@ -438,6 +457,11 @@ export function Fold({
                </span>
             )}
          </summary>
+         {gloss && (
+            <span id={glossId} className="sr-only">
+               {gloss}
+            </span>
+         )}
          <div className="border-t border-secondary">{children}</div>
       </details>
    );
