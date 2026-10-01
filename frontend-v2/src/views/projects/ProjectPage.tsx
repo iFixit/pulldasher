@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { issueUrl, n, pullKey } from '../../../../shared/format';
 import type { DecideRow } from '../../../../shared/model/decide';
 import {
    projectOf,
@@ -10,16 +11,21 @@ import {
    type WindowCounts,
 } from '../../../../shared/model/projects';
 import {
+   HEALTH_WORD,
    healthStanding,
    isUnderWay,
    planFor,
+   UPDATE_DUE_DAYS,
    type RoadmapItem,
 } from '../../../../shared/model/roadmap';
+import type { DerivedPull } from '../../../../shared/model/status';
 import { issueKey } from '../../../../shared/model/work';
 import type { PullData } from '../../../../shared/types';
 import { EmptyState } from '../../components/bits';
-import { GroupHeader, Rows } from '../../components/Lane';
-import type { RowOptions } from '../../components/Row';
+import { ClosedRow } from '../../components/ClosedRow';
+import { foldDomId, GroupHeader, openFold } from '../../components/Lane';
+import { Popover } from '../../components/Popover';
+import { Row, type RowOptions } from '../../components/Row';
 import {
    chartWindow,
    dayOf,
@@ -31,20 +37,24 @@ import {
    type Range,
 } from '../../model/projectData';
 import { stageWord, type PortfolioItem } from '../../model/portfolio';
+import { useProjectWork } from '../../model/projectWork';
 import { setOngoing } from '../../model/settingsData';
+import { holderWords, prStage, STAGE_WORDS, type PrStage } from '../../model/stage';
 import { StatsCard } from '../stats/parts';
 import { reasonWords } from './Decide';
 import { ChartSlot, FlowWeeksChart, OpenPrsChart } from './lazyCharts';
 import {
-   FlagWords,
+   flagText,
+   openPlan,
    PeopleStack,
    ProjectFacts,
+   targetWords,
    WindowTiles,
    type Navigate,
    type ProjectsNav,
 } from './parts';
-import { PLAN_STATUS_WORD, PlanFacts } from './roadmapHealth';
-import { ProjectWorkSection, type PullLookup } from './Work';
+import { PLAN_STATUS_WORD, planWords, UpdatesPanel, when } from './roadmapHealth';
+import { ProjectWorkSections, type PullLookup } from './Work';
 
 const DAY_MS = 86_400_000;
 /** how many trailing days set the pace a forecast runs on */
@@ -64,136 +74,177 @@ const ZERO: WindowCounts = {
    non_developers: 0,
 };
 
+/** words that start a line, with a capital */
+const upper = (s: string) => s[0].toUpperCase() + s.slice(1);
+
 const dateWords = (ms: number) =>
    new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+/** the order a project's open PRs are counted in: nearest to shipping first */
+const PR_STAGES: readonly PrStage[] = ['ready', 'hold', 'review', 'work'];
 
 /**
  * A rough finish date for a project with an end: its open PRs divided by how
  * many it finished (merged or closed) a week over the last four. New PRs
- * keep arriving, so it's a guide, and it says so; set against the target,
- * it answers "will this land in time?" in one sentence. A late finish is
- * amber only when the plan's health isn't already asking for the call.
+ * keep arriving, so it's a guide, and its hover says how it's worked out.
  */
-function Forecast({
-   group,
-   days,
-   dueOn,
-   asked,
-}: {
-   group: ProjectGroup;
-   days: DayPoint[];
-   dueOn: string | null;
-   /** the plan's own health already says it's in trouble */
-   asked: boolean;
-}) {
+function forecastOf(
+   group: ProjectGroup,
+   days: DayPoint[],
+   dueOn: string | null
+): { text: string; late: boolean; title?: string } | null {
    const open = group.open.length;
    if (!open || days.length < 2) return null;
    const last = days[days.length - 1].departed;
    const before = days[Math.max(0, days.length - 1 - PACE_DAYS)].departed;
    const finished = last - before;
    if (finished <= 0) {
-      return (
-         <p className="m-0 text-xs text-ink-3">
-            No PR here merged or closed in the last four weeks, so there’s no pace to estimate a
-            finish date from.
-         </p>
-      );
+      return { text: 'nothing merged or closed in four weeks to set a pace from', late: false };
    }
    const perWeek = finished / (PACE_DAYS / 7);
    const weeks = Math.max(1, Math.round(open / perWeek));
    const eta = Date.now() + weeks * 7 * DAY_MS;
-   // the milestone's day as GitHub means it, the same day the facts row shows
+   // the milestone's day as GitHub means it, the same day the target shows
    const due = dueOn?.slice(0, 10) ?? null;
    const late = due != null && dayOf(new Date(eta)) > due;
+   return {
+      text: `at the last four weeks’ pace, done around ${dateWords(eta)}${
+         late ? ', after the target' : ''
+      }`,
+      late,
+      title: `${finished} merged or closed in four weeks, about ${
+         Math.round(perWeek * 10) / 10
+      } a week, so the ${n(open, 'open PR')} take about ${n(
+         weeks,
+         'week'
+      )}. A rough guide: it assumes the pace holds and no new PRs arrive.`,
+   };
+}
+
+/** A count that opens the list of what it counts: the board's own rows,
+ * each with who holds it under it. */
+function CountList({
+   words,
+   pulls,
+   opts,
+}: {
+   words: string;
+   pulls: DerivedPull[];
+   opts: RowOptions;
+}) {
    return (
-      <p
-         className="m-0 text-xs text-ink-2"
-         title="A rough guide: it assumes the last four weeks’ pace holds and no new PRs arrive."
-      >
-         At the last four weeks’ pace ({finished} merged or closed, about{' '}
-         {Math.round(perWeek * 10) / 10} a week), the {open} open PR{open === 1 ? '' : 's'} take
-         about {weeks} week
-         {weeks === 1 ? '' : 's'}: around {dateWords(eta)}.
-         {due && (
-            <span className={late && !asked ? 'text-warn' : undefined}>
-               {' '}
-               That’s {late ? 'after' : 'on or before'} the {dayWords(due)} target.
-            </span>
+      <Popover
+         label={`The PRs ${words}`}
+         width="w-[460px] max-w-[calc(100vw-2rem)]"
+         panelClass="p-1"
+         trigger={t => (
+            <button
+               {...t}
+               type="button"
+               className="hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] text-ink-2 underline decoration-dotted underline-offset-2 hover:text-brand"
+            >
+               {pulls.length} {words}
+            </button>
          )}
-      </p>
-   );
-}
-
-/** The project's own backlog chart, on at least 90 days ending on the
- * range's last day. */
-function ProjectFlow({ data, range }: { data: ProjectsData | null | undefined; range: Range }) {
-   return (
-      <section className="mb-7">
-         <GroupHeader title="Is its backlog growing?" sub={rangeWords(chartWindow(range))} />
-         <StatsCard>
-            {data === null ? (
-               <p className="m-0 text-[13px] text-ink-3">
-                  Couldn’t load the chart. Try again in a minute.
-               </p>
-            ) : (
-               <div className="flex flex-col gap-4">
-                  <ChartSlot height={200}>
-                     {data && <OpenPrsChart days={data.window.days} picked={range} />}
-                  </ChartSlot>
-                  <ChartSlot height={210}>
-                     {data && <FlowWeeksChart weeks={data.window.weeks} picked={range} />}
-                  </ChartSlot>
+      >
+         {pulls.map(p => {
+            const who = holderWords(p, { turns: opts.turns, ageWarnDays: opts.ageWarnDays });
+            return (
+               <div key={pullKey(p.data)} className="border-t border-secondary first:border-t-0">
+                  <Row pull={p} opts={opts} />
+                  <p className="m-0 -mt-1 pb-1.5 pl-[45px] pr-3.5 text-xs text-ink-3">
+                     {upper(who)}
+                  </p>
                </div>
-            )}
-         </StatsCard>
-      </section>
+            );
+         })}
+      </Popover>
    );
 }
 
-/**
- * What Decide asks about this project, in Decide's words, so the page
- * answers the question it was opened for. Its plan's health already shows
- * an at-risk or off-track call, so those aren't repeated.
- */
-/** Decide's reasons the page shows: all but the plan health's own. */
-const asksOf = (rows: DecideRow[]) =>
-   rows.flatMap(row =>
-      row.reasons
-         .filter(r => r.kind !== 'off_track' && r.kind !== 'at_risk')
-         .map(r => ({ row, reason: r }))
-   );
-
-function DecideAsks({ rows, navigate }: { rows: DecideRow[]; navigate: Navigate }) {
-   // each reason a sentence, so two don't run together
-   const said = asksOf(rows).map(({ row, reason }) => {
-      const words = reasonWords(reason, row.item);
-      const named = rows.length > 1 && row.item ? `${row.item.name}: ${words}` : words;
-      return /[.?!]$/.test(named) ? named : `${named}.`;
-   });
-   if (!said.length) return null;
+/** The PRs merged lately, as the board's closed rows. */
+function MergedList({ pulls, lastSeen }: { pulls: PullData[]; lastSeen: number }) {
    return (
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-secondary px-3.5 py-2 text-xs">
-         <span className="font-medium text-warn">Decide asks</span>
-         <span className="min-w-0 text-ink-2">{said.join(' ')}</span>
-         <button
-            type="button"
-            // every team's rows, so this one is there
-            onClick={() => navigate({ project: null, view: 'decide', team: null })}
-            className="hit pressable ml-auto rounded border-0 bg-transparent p-0 text-xs font-medium text-brand hover:underline"
-         >
-            Make the call in Decide
-         </button>
-      </div>
+      <Popover
+         label="Merged in the last 2 weeks"
+         width="w-[460px] max-w-[calc(100vw-2rem)]"
+         panelClass="p-1"
+         trigger={t => (
+            <button
+               {...t}
+               type="button"
+               className="hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] text-ink-2 underline decoration-dotted underline-offset-2 hover:text-brand"
+            >
+               {pulls.length} merged in the last 2 weeks
+            </button>
+         )}
+      >
+         {pulls.map(p => (
+            <ClosedRow key={pullKey(p)} pull={p} lastSeen={lastSeen} />
+         ))}
+      </Popover>
+   );
+}
+
+/** Something someone owes on this project, as a row of the summary: the
+ * word in amber, then the why, and the way to do it right after it. */
+function Owed({
+   word,
+   children,
+   action,
+}: {
+   word: string;
+   children: ReactNode;
+   action?: ReactNode;
+}) {
+   return (
+      <>
+         <dt className="font-medium text-warn">{word}</dt>
+         <dd className="m-0 text-ink-2">
+            {children}
+            {action && <> {action}</>}
+         </dd>
+      </>
+   );
+}
+
+const linkClass =
+   'hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium text-brand hover:underline';
+const factClass =
+   'hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] text-ink-2 hover:text-brand hover:underline';
+
+/** A target in the plan's words: its name when it has one, and its day. */
+function targetText(
+   target: NonNullable<ReturnType<typeof targetOf>>,
+   due: string | null,
+   missed: boolean
+): string {
+   if (!due) return `target ${targetWords(target)}`;
+   const day = dayWords(due);
+   const name = target.title && target.title !== day ? target.title : null;
+   if (missed) return name ? `missed the ${name} target, ${day}` : `missed the ${day} target`;
+   return name ? `${name} target, ${day}` : `target ${day}`;
+}
+
+/** Open a fold below and bring it into view. */
+function jumpTo(foldId: string | null, sectionId: string) {
+   if (foldId) openFold(foldId);
+   // after the fold opens, so its height is in place
+   requestAnimationFrame(() =>
+      document
+         .getElementById(foldId ? foldDomId(foldId) : sectionId)
+         ?.scrollIntoView({ block: 'start' })
    );
 }
 
 /**
- * One project's page: its name, standing and who is on it; one card with
- * its issue's facts, its plan, what Decide asks about it, and when it might
- * finish; its issues with the PRs that link them; its numbers for the range
- * against the days before; and its backlog chart. The issue holds the name,
- * lead, target and parents, and the labels hold the PRs, so those are
- * edited on GitHub.
+ * One project's page, read top to bottom: who it is, then what's owed on
+ * it and where it stands (its latest update, its plan and finish, its PRs
+ * by where they stand, its issues), then its issues by stage, its PRs that
+ * do none of them, the issues its PRs link that aren't in it, its numbers
+ * for a range, and its backlog chart. The issue holds the name, lead,
+ * target and parents, and the labels hold the PRs, so those are edited on
+ * GitHub.
  */
 export function ProjectPage({
    slug,
@@ -212,6 +263,7 @@ export function ProjectPage({
    opts,
    onPerson,
    asks,
+   rangePicker,
 }: {
    slug: string;
    today: Today;
@@ -237,12 +289,24 @@ export function ProjectPage({
    onPerson: (login: string) => void;
    /** Decide's rows about this project */
    asks: DecideRow[];
+   /** the date range's picker, beside the numbers it sets */
+   rangePicker?: ReactNode;
 }) {
    // the box flips at once; a failed save puts it back and says why
    const [want, setWant] = useState<boolean | null>(null);
    const [saveError, setSaveError] = useState<string | null>(null);
+   const [posting, setPosting] = useState(false);
+   // a posted update is the plan's new latest one: the form's job is done
+   const latestAt = (plans ? planFor(slug, plans) : null)?.update?.at ?? null;
+   const formFrom = useRef(latestAt);
+   useEffect(() => {
+      if (posting && latestAt !== formFrom.current) setPosting(false);
+      formFrom.current = latestAt;
+   }, [latestAt, posting]);
    // the chart's days, which the forecast reads too (fetched once, cached)
    const flow = useProjectsData(chartWindow(range), slug);
+   // its issues and PRs, which the summary counts and the list shows
+   const page = useProjectWork(slug, plans);
    // its rows are on this project's page, so their popover doesn't link here
    const rowOpts = useMemo(() => ({ ...opts, onProject: undefined }), [opts]);
    const live = today.live.find(g => g.slug === slug);
@@ -265,6 +329,7 @@ export function ProjectPage({
          />
       );
    }
+   const plan = plans ? planFor(slug, plans) : null;
    const standing = item
       ? stageWord(item)
       : live
@@ -287,30 +352,6 @@ export function ProjectPage({
          setSaveError(r.error);
       });
    };
-   const plan = plans ? planFor(slug, plans) : null;
-   const planHealth = plan ? healthStanding(plan) : null;
-   const update =
-      planHealth?.kind === 'current' || planHealth?.kind === 'stale' ? planHealth.update : null;
-   // a call someone owes already shows amber: the plan's off-track or
-   // at-risk health, or Decide's line; a late forecast then stays plain
-   const callShown =
-      (!!plan &&
-         isUnderWay(plan.status) &&
-         (update?.health === 'off_track' || update?.health === 'at_risk')) ||
-      asksOf(asks).length > 0;
-   // a finished project has nothing left to forecast
-   const finished = project?.state === 'closed' || (!!plan && !isUnderWay(plan.status));
-   // a pace only means something when the range runs up to today
-   const current = range.end >= dayOf(new Date());
-   const forecast =
-      live && !ongoing && !finished && current && flow ? (
-         <Forecast
-            group={live}
-            days={flow.window.days}
-            dueOn={targetOf(project)?.due_on ?? null}
-            asked={callShown}
-         />
-      ) : null;
    // what the board knows of each PR: open ones live on the board (in any
    // project, or none), and the last two weeks' merges
    const liveIndex = new Map(
@@ -334,39 +375,159 @@ export function ProjectPage({
    const people = group?.people ?? [];
    const devs = people.filter(login => teamOf(login) != null);
    const others = people.filter(login => teamOf(login) == null);
+
+   // its open PRs by where they stand, from the same list the page shows
+   const onPage = new Map(
+      [...(page?.issues.flatMap(i => i.prs) ?? []), ...(page?.unlinked ?? [])].map(pr => [
+         issueKey(pr),
+         pr,
+      ])
+   );
+   const byStage = new Map<PrStage, DerivedPull[]>(PR_STAGES.map(s => [s, []]));
+   let unread = 0;
+   const mergedLately: PullData[] = [];
+   for (const pr of onPage.values()) {
+      const p = pulls.live(pr);
+      const known = p ? undefined : pulls.known(pr);
+      if (p) byStage.get(prStage(p))?.push(p);
+      else if (pr.state === 'open') unread++;
+      else if (known?.merged_at) mergedLately.push(known);
+   }
+   // what's owed on it: Decide's question, an update its lead owes, and the
+   // flags the board raises, each in amber with the way to answer it
+   const planHealth = plan && isUnderWay(plan.status) ? healthStanding(plan) : null;
+   const update =
+      planHealth?.kind === 'current' || planHealth?.kind === 'stale' ? planHealth.update : null;
+   const decideSaid = asks.flatMap(row =>
+      row.reasons.map(reason => {
+         const words = reasonWords(reason, row.item);
+         const named = asks.length > 1 && row.item ? `${row.item.name}: ${words}` : words;
+         return /[.?!]$/.test(named) ? named : `${named}.`;
+      })
+   );
+   const decideClosed = asks.some(row => row.reasons.some(r => r.kind === 'issue_closed'));
+   const owed: ReactNode[] = [];
+   if (decideSaid.length) {
+      owed.push(
+         <Owed
+            key="decide"
+            word="Decide asks"
+            action={
+               <button
+                  type="button"
+                  // every team's rows, so this one is there
+                  onClick={() => navigate({ project: null, view: 'decide', team: null })}
+                  className={linkClass}
+               >
+                  Make the call in Decide
+               </button>
+            }
+         >
+            {decideSaid.join(' ')}
+         </Owed>
+      );
+   }
+   if (plan && (planHealth?.kind === 'missing' || planHealth?.kind === 'stale')) {
+      owed.push(
+         <Owed
+            key="update"
+            word={planHealth.kind === 'missing' ? 'No update' : 'Update due'}
+            action={
+               <button
+                  type="button"
+                  onClick={() => setPosting(!posting)}
+                  aria-expanded={posting}
+                  className={linkClass}
+               >
+                  {posting ? 'Close' : 'Post an update'}
+               </button>
+            }
+         >
+            {planHealth.kind === 'stale'
+               ? `${planHealth.update.author}’s last update was ${planHealth.days} days ago; one is due every ${UPDATE_DUE_DAYS} days.`
+               : `None since it started; one is due every ${UPDATE_DUE_DAYS} days.`}
+         </Owed>
+      );
+   }
+   for (const flag of group?.flags ?? []) {
+      // Decide already asks about a closed issue
+      if (flag === 'issue_closed' && decideClosed) continue;
+      const [word, why] = flagText(flag, group as ProjectGroup);
+      const lone = group?.people[0];
+      const action =
+         flag === 'one_person' && lone ? (
+            <button type="button" onClick={() => onPerson(lone)} className={linkClass}>
+               See their PRs
+            </button>
+         ) : flag === 'waiting_on_review' ? (
+            <CountList
+               words="waiting on review"
+               pulls={byStage.get('review') ?? []}
+               opts={rowOpts}
+            />
+         ) : flag === 'issue_closed' && project ? (
+            <a
+               href={issueUrl(project.repo, project.number)}
+               target="_blank"
+               rel="noopener noreferrer"
+               className={linkClass}
+            >
+               Open its issue
+            </a>
+         ) : undefined;
+      owed.push(
+         <Owed key={flag} word={upper(word)} action={action}>
+            {why}
+         </Owed>
+      );
+   }
+
+   const openCount = [...byStage.values()].reduce((sum, l) => sum + l.length, 0) + unread;
+   const target = targetOf(project);
+   const due = target?.due_on?.slice(0, 10) ?? null;
+   const missed = !!due && due < dayOf(new Date()) && openCount > 0;
+   // a pace only means something when the range runs up to today
+   const current = range.end >= dayOf(new Date());
+   const finished = project?.state === 'closed' || (!!plan && !isUnderWay(plan.status));
+   const forecast =
+      live && !ongoing && !finished && current && flow
+         ? // past a missed target, "after the target" goes without saying
+           forecastOf(live, flow.window.days, missed ? null : target?.due_on ?? null)
+         : null;
+   const lastActivity = item?.lastActivity ?? null;
+   const counted = PR_STAGES.filter(s => byStage.get(s)?.length);
+   const counts = page?.counts;
+
    return (
       <>
-         <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h2 className="m-0 text-base font-semibold leading-snug">
-               {item?.name ?? project?.name ?? slug}
-            </h2>
-            {/* the plan row says it when it's the same word */}
-            {standing !== (plan ? PLAN_STATUS_WORD[plan.status] : null) && (
-               <span className="text-xs text-ink-3">{standing}</span>
-            )}
-            <span className="text-xs text-ink-3">{prefix + slug}</span>
-            {group && (
-               <span className="flex items-center gap-3 text-xs">
-                  <FlagWords g={group} />
-               </span>
-            )}
-            {people.length > 0 && (
-               <span className="ml-auto flex items-center gap-3 text-xs text-ink-3">
-                  {devs.length > 0 && (
-                     <span className="inline-flex items-center gap-1.5">
-                        Developers <PeopleStack logins={devs} size={20} onPerson={onPerson} />
-                     </span>
-                  )}
-                  {others.length > 0 && (
-                     <span className="inline-flex items-center gap-1.5">
-                        Non-developers <PeopleStack logins={others} size={20} onPerson={onPerson} />
-                     </span>
-                  )}
-               </span>
-            )}
-         </div>
-         <div className="mb-7">
-            <Rows>
+         {/* who it is */}
+         <div className="mb-5">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+               <h2 className="m-0 text-lg font-semibold leading-snug">
+                  {item?.name ?? project?.name ?? slug}
+               </h2>
+               {/* the plan says it when it's the same word */}
+               {standing !== (plan ? PLAN_STATUS_WORD[plan.status] : null) && (
+                  <span className="text-xs text-ink-3">{standing}</span>
+               )}
+               {people.length > 0 && (
+                  <span className="flex items-center gap-3 text-xs text-ink-3 sm:ml-auto">
+                     {devs.length > 0 && (
+                        <span className="inline-flex items-center gap-1.5">
+                           Developers <PeopleStack logins={devs} size={20} onPerson={onPerson} />
+                        </span>
+                     )}
+                     {others.length > 0 && (
+                        <span className="inline-flex items-center gap-1.5">
+                           Non-developers{' '}
+                           <PeopleStack logins={others} size={20} onPerson={onPerson} />
+                        </span>
+                     )}
+                  </span>
+               )}
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3">
+               <span>{prefix + slug}</span>
                <ProjectFacts
                   g={{ slug }}
                   project={project}
@@ -375,17 +536,217 @@ export function ProjectPage({
                   links={{ navigate, nameOf, parts }}
                   onOngoing={markOngoing}
                   ongoingByLabel={byLabel}
+                  inline
                />
-               <PlanFacts slug={slug} nav={nav} navigate={navigate} live={!!live} />
-               <DecideAsks rows={asks} navigate={navigate} />
-               {forecast && <div className="border-t border-secondary px-3.5 py-2">{forecast}</div>}
-            </Rows>
+            </div>
             {saveError && <p className="m-0 mt-1 text-xs text-warn">{saveError}</p>}
          </div>
-         <ProjectWorkSection
+
+         {/* what's owed on it, and where it stands */}
+         <div className="mb-8 flex flex-col gap-4">
+            {owed.length > 0 && (
+               <dl className="m-0 grid grid-cols-[5.5rem_minmax(0,1fr)] items-start leading-5 sm:grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-[13px]">
+                  {owed}
+               </dl>
+            )}
+            {posting && plan && (
+               <div className="relative rounded-xl border border-line bg-surface">
+                  <button
+                     type="button"
+                     onClick={() => setPosting(false)}
+                     className={`${linkClass} absolute right-3.5 top-2.5`}
+                  >
+                     Close
+                  </button>
+                  <UpdatesPanel item={plan} />
+               </div>
+            )}
+            <dl className="m-0 grid grid-cols-[5.5rem_minmax(0,1fr)] items-start leading-5 sm:grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-2.5 text-[13px]">
+               {update && (
+                  <>
+                     <dt className="text-xs leading-5 text-ink-3">Update</dt>
+                     <dd className="m-0">
+                        <span className="text-ink-2">
+                           <button
+                              type="button"
+                              onClick={() => plan && navigate(openPlan(nav, plan.id))}
+                              className={`${factClass} font-medium`}
+                              title="Open its plan and every update on the roadmap"
+                           >
+                              {HEALTH_WORD[update.health]}
+                           </button>
+                           {' · '}
+                           {when(update.at)} · {update.author}
+                        </span>
+                        {update.body && (
+                           <p className="m-0 mt-1 whitespace-pre-line border-l-2 border-line pl-2.5 text-ink-2">
+                              {update.body}
+                           </p>
+                        )}
+                     </dd>
+                  </>
+               )}
+               <dt className="text-xs leading-5 text-ink-3">Plan</dt>
+               <dd className="m-0 text-ink-2">
+                  {plan ? (
+                     <button
+                        type="button"
+                        onClick={() => navigate(openPlan(nav, plan.id))}
+                        className={factClass}
+                        title="Open it on the roadmap"
+                     >
+                        {PLAN_STATUS_WORD[plan.status]}, {planWords(plan)}
+                     </button>
+                  ) : finished ? (
+                     'Not on the roadmap'
+                  ) : (
+                     <>
+                        Not on the roadmap{' · '}
+                        <button
+                           type="button"
+                           // narrowed to it when the roadmap lists it (work in flight)
+                           onClick={() =>
+                              navigate({
+                                 project: null,
+                                 view: 'roadmap',
+                                 item: null,
+                                 find: live ? slug : '',
+                              })
+                           }
+                           className={linkClass}
+                        >
+                           Plan it
+                        </button>
+                     </>
+                  )}
+               </dd>
+               {/* when it's meant to finish, and when its pace says it will */}
+               {(target || forecast) && (
+                  <>
+                     <dt className="text-xs leading-5 text-ink-3">Finish</dt>
+                     <dd className="m-0 text-ink-2">
+                        {target && (
+                           <span className={missed && !decideSaid.length ? 'text-warn' : undefined}>
+                              {upper(targetText(target, due, missed))}
+                           </span>
+                        )}
+                        {target && forecast && ' · '}
+                        {forecast && (
+                           <span
+                              // a late finish is amber only when Decide isn't asking already
+                              className={
+                                 forecast.late && !decideSaid.length ? 'text-warn' : undefined
+                              }
+                              title={forecast.title}
+                           >
+                              {target ? forecast.text : upper(forecast.text)}
+                           </span>
+                        )}
+                     </dd>
+                  </>
+               )}
+               <dt className="text-xs leading-5 text-ink-3">PRs</dt>
+               <dd className="m-0 text-ink-2">
+                  {page === undefined ? (
+                     'Counting…'
+                  ) : (
+                     <>
+                        {/* where the open ones stand */}
+                        <span className="block">
+                           {openCount ? `${openCount} open: ` : 'None open'}
+                           {counted.map((s, i) => (
+                              <Fragment key={s}>
+                                 {i > 0 && ' '}
+                                 {/* its comma stays with it, so no line starts with one */}
+                                 <span className="whitespace-nowrap">
+                                    <CountList
+                                       words={STAGE_WORDS[s].toLowerCase()}
+                                       pulls={byStage.get(s) ?? []}
+                                       opts={rowOpts}
+                                    />
+                                    {i < counted.length - 1 || unread > 0 ? ',' : ''}
+                                 </span>
+                              </Fragment>
+                           ))}
+                           {unread > 0 && ` ${unread} the board hasn’t read`}
+                        </span>
+                        {/* and how lately they moved */}
+                        {mergedLately.length > 0 && (
+                           // the dot stays with the count too
+                           <span className="whitespace-nowrap">
+                              <MergedList pulls={mergedLately} lastSeen={rowOpts.lastSeen} />
+                              {lastActivity && ' ·'}
+                           </span>
+                        )}
+                        {lastActivity && (
+                           <>
+                              {mergedLately.length > 0 ? ' last activity ' : 'Last activity '}
+                              <a
+                                 href={issueUrl(lastActivity.pr.repo, lastActivity.pr.number)}
+                                 target="_blank"
+                                 rel="noopener noreferrer"
+                                 className="text-ink-2 hover:text-brand hover:underline"
+                                 title={`#${lastActivity.pr.number} ${lastActivity.pr.title}`}
+                              >
+                                 {lastActivity.days === 0
+                                    ? 'today'
+                                    : `${n(lastActivity.days, 'day')} ago`}
+                              </a>
+                           </>
+                        )}
+                     </>
+                  )}
+               </dd>
+               <dt className="text-xs leading-5 text-ink-3">Issues</dt>
+               <dd className="m-0 text-ink-2">
+                  {!counts ? (
+                     'Counting…'
+                  ) : !counts.total ? (
+                     'None yet'
+                  ) : (
+                     <>
+                        <button
+                           type="button"
+                           onClick={() => jumpTo(null, 'project-issues')}
+                           className={factClass}
+                        >
+                           {counts.open} of {n(counts.total, 'issue')} open
+                        </button>
+                        {counts.done > 0 && (
+                           <>
+                              {' · '}
+                              <button
+                                 type="button"
+                                 onClick={() => jumpTo(`work:${slug}:done`, 'project-issues')}
+                                 className={factClass}
+                              >
+                                 {counts.done} done
+                              </button>
+                           </>
+                        )}
+                        {counts.dropped > 0 && (
+                           <>
+                              {' · '}
+                              <button
+                                 type="button"
+                                 onClick={() => jumpTo(`work:${slug}:dropped`, 'project-issues')}
+                                 className={factClass}
+                              >
+                                 {counts.dropped} dropped
+                              </button>
+                           </>
+                        )}
+                     </>
+                  )}
+               </dd>
+            </dl>
+         </div>
+
+         <ProjectWorkSections
             slug={slug}
             label={prefix + slug}
             plans={plans}
+            page={page}
             pulls={pulls}
             opts={rowOpts}
             nameOf={s => nameOf(s) ?? s}
@@ -393,13 +754,36 @@ export function ProjectPage({
          />
          {w && (
             <section className="mb-7">
-               <GroupHeader title="In the date range" sub={rangeWords(range)} />
+               <GroupHeader
+                  title="In the date range"
+                  // the picker names the range itself
+                  sub={rangePicker ? undefined : rangeWords(range)}
+                  headerExtra={rangePicker}
+               />
                <StatsCard>
                   <WindowTiles w={w} prev={before} period={`${rangeDays(range)} days before`} />
                </StatsCard>
             </section>
          )}
-         <ProjectFlow data={flow} range={range} />
+         <section className="mb-7">
+            <GroupHeader title="Is its backlog growing?" sub={rangeWords(chartWindow(range))} />
+            <StatsCard>
+               {flow === null ? (
+                  <p className="m-0 text-[13px] text-ink-3">
+                     Couldn’t load the chart. Try again in a minute.
+                  </p>
+               ) : (
+                  <div className="flex flex-col gap-4">
+                     <ChartSlot height={200}>
+                        {flow && <OpenPrsChart days={flow.window.days} picked={range} />}
+                     </ChartSlot>
+                     <ChartSlot height={210}>
+                        {flow && <FlowWeeksChart weeks={flow.window.weeks} picked={range} />}
+                     </ChartSlot>
+                  </div>
+               )}
+            </StatsCard>
+         </section>
       </>
    );
 }

@@ -24,6 +24,13 @@ export function foldDomId(id: string): string {
    return `fold-${id.replace(/:/g, '-')}`;
 }
 
+/** Every fold's remembered open or closed choice, by store id, for a list
+ * that needs to know which of its folds are open (one issue's PRs drawn in
+ * full only where they're expanded). */
+export function useFoldChoices(): Record<string, boolean> {
+   return foldOpenStore.useValue();
+}
+
 /** Open a fold from outside Lane.tsx — e.g. the "N merged since your last
  * look" banner jumping straight to the shipped fold — by writing the same
  * store its own toggle reads. A no-op if it's already open. */
@@ -376,7 +383,8 @@ export function Fold({
       <details
          ref={detailsRef}
          id={id ? foldDomId(id) : undefined}
-         className="group border-t border-secondary first:border-t-0"
+         // a jump to it lands below the sticky headers
+         className="group scroll-mt-36 border-t border-secondary first:border-t-0"
          open={id ? open : undefined}
          onToggle={id ? onToggle : undefined}
       >

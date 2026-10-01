@@ -31,7 +31,7 @@ export const PLAN_STATUS_WORD: Record<RoadmapStatus, string> = {
 };
 
 /** An epoch-secs moment as its day, "Sep 22". */
-const when = (at: number) =>
+export const when = (at: number) =>
    new Date(at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
 export function planWords(plan: { start: string; weeks: number }): string {

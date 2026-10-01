@@ -99,7 +99,8 @@ export function openPlan(nav: ProjectsNav, id: number): Partial<ProjectsNav> {
 
 /** Each flag in words, with the sentence its hover gives. Flags appear only
  * when true, and read as amber text: someone owes the project something. */
-function flagText(flag: ProjectFlag, g: ProjectGroup): [string, string] {
+/** A project flag's words and the sentence behind them. */
+export function flagText(flag: ProjectFlag, g: ProjectGroup): [string, string] {
    switch (flag) {
       case 'one_person':
          return [
@@ -161,7 +162,7 @@ export function PeopleStack({
 }
 
 /** "Oct 31", or the milestone's title when it has no due date. */
-function targetWords(target: ProjectTarget): string {
+export function targetWords(target: ProjectTarget): string {
    if (!target.due_on) return target.title ?? '';
    const due = dayWords(target.due_on);
    return !target.title || target.title === due ? due : `${target.title}, due ${due}`;
@@ -213,6 +214,7 @@ export function ProjectFacts({
    links,
    onOngoing,
    ongoingByLabel = false,
+   inline = false,
    children,
 }: {
    g: Pick<ProjectGroup, 'slug'>;
@@ -228,6 +230,8 @@ export function ProjectFacts({
    onOngoing?: (ongoing: boolean) => void;
    /** its issue's label says it's ongoing, so only the label can change it */
    ongoingByLabel?: boolean;
+   /** a line of the page's own, not a row in a box; its dates go to the plan */
+   inline?: boolean;
    /** trailing controls, e.g. the project page link */
    children?: ReactNode;
 }) {
@@ -298,7 +302,7 @@ export function ProjectFacts({
             </span>
          );
       }
-      const target = targetOf(project);
+      const target = inline ? null : targetOf(project);
       if (target) facts.push(<span key="target">Target {targetWords(target)}</span>);
       if (project.fields.start) {
          facts.push(<span key="start">Starts {dayWords(project.fields.start)}</span>);
@@ -369,7 +373,11 @@ export function ProjectFacts({
       facts.push(<span key="kind">{isOngoing ? 'Ongoing' : 'Has an end'}</span>);
    }
    return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3.5 py-2 text-xs text-ink-3">
+      <div
+         className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3 ${
+            inline ? '' : 'px-3.5 py-2'
+         }`}
+      >
          {facts}
          {children && <span className="ml-auto flex items-center gap-3">{children}</span>}
       </div>

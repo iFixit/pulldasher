@@ -170,6 +170,16 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          [-8, 5],
          'Security review found two gaps in the approval step. Fixing them first.'
       ),
+      // on track by its lead's word, while its pace says it finishes after
+      // its October target: the forecast's amber
+      update(
+         10,
+         6,
+         'on_track',
+         'hackalot805',
+         [-6, 10],
+         'Payroll export works; leave balances next.'
+      ),
       update(2, 5, 'on_track', 'zdmitchell', [-4, 7], 'Orders sync in staging; products are next.'),
       update(
          1,
@@ -253,6 +263,12 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
       // FixBot's two developers would each be alone on a plan while this
       // overlaps the webdriver work, so its lane's load shows amber
       item(9, 'Visual regression checks', 1, 6, { team: 'FixBot', lead: 'ardelato' }),
+      item(10, 'Training periods', -6, 10, {
+         project: 'training-periods',
+         team: 'Community',
+         lead: 'hackalot805',
+         status: 'active',
+      }),
    ];
    // about one in eight scaled projects is planned: active since its first
    // PR, in the lane of its lead's team
@@ -326,13 +342,25 @@ export const DUMMY_ATTACHED: Record<string, AttachedIssue[]> = (() => {
          issue(35404, 'Alert on sync drift', 'dropped', { joined: 20, closed: 4 }),
       ],
       'webdriver-deflake': [
-         issue(35801, 'Retry the network-bound steps once', 'done', { joined: 42, closed: 30 }),
+         // by its label and added by hand too: its line says both
+         {
+            ...issue(35801, 'Retry the network-bound steps once', 'done', {
+               joined: 42,
+               closed: 30,
+            }),
+            via: ['label', 'hand'],
+            addedBy: 'mlahargou',
+         },
          issue(35802, 'Quarantine the five flakiest tests', 'done', { joined: 42, closed: 21 }),
          issue(35803, 'Run IE11 tests in parallel', 'open', { joined: 42 }),
          issue(35804, 'Record a video on failure', 'open', { joined: 10 }),
          issue(35805, 'Seed the test store once per run', 'open', { joined: 8 }),
+         // its PR merged and it's still open: the "PRs merged" band
+         issue(35807, 'Drop the cloud search test’s outside dependency', 'open', { joined: 12 }),
          gateTests,
       ],
+      // its one PR is signed off: the "Ready to ship" band
+      'core-primitives': [issue(36301, 'Ship core primitives 1.2', 'open', { joined: 14 })],
       'akeneo-4': [
          issue(36201, 'Upgrade the connector', 'done', { joined: 77, closed: 50 }),
          issue(36202, 'Move the attribute mapping', 'done', { joined: 77, closed: 45 }),
@@ -358,6 +386,12 @@ export const DUMMY_LINKS: Record<string, IssueRef[]> = {
    'iFixit/ifixit#35154': [{ repo: 'iFixit/ifixit', number: 35802 }],
    // no project label: it joins webdriver-deflake by linking its issue
    'iFixit/ifixit#35501': [{ repo: 'iFixit/ifixit', number: 35805 }],
+   // held for a deploy: its issue sits On hold
+   'iFixit/ifixit#35258': [{ repo: 'iFixit/ifixit', number: 35804 }],
+   // merged after the plan ended: its issue's line says so
+   'iFixit/ifixit#90005': [{ repo: 'iFixit/ifixit', number: 35004 }],
+   'iFixit/ifixit#90009': [{ repo: 'iFixit/ifixit', number: 35807 }],
+   'iFixit/ifixit#35249': [{ repo: 'iFixit/ifixit', number: 36301 }],
 };
 
 /** Issues the dummy board's issue search finds that no project has, for

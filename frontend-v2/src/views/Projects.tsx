@@ -161,6 +161,13 @@ export function Projects({
          />
       );
    }
+   const rangePicker = (
+      <DateRangePicker
+         rangeKey={rangeKey}
+         range={range}
+         onChange={key => navigate({ range: key })}
+      />
+   );
    // one toolbar for the tab: the way back or the view switch, and the date
    // range picker wherever the page shows numbers for a range
    const toolbar = (
@@ -184,38 +191,36 @@ export function Projects({
             />
          )}
          {/* the Overview and Decide are about now, and the roadmap has its
-             own months and quarters; the range is for looking back */}
-         {(nav.project || nav.view === 'people' || nav.view === 'retro') && (
-            <DateRangePicker
-               rangeKey={rangeKey}
-               range={range}
-               onChange={key => navigate({ range: key })}
-            />
-         )}
+             own months and quarters; the range is for looking back. A
+             project's page puts it beside the numbers it sets. */}
+         {!nav.project && (nav.view === 'people' || nav.view === 'retro') && rangePicker}
       </div>
    );
    return (
       <>
          {toolbar}
          {nav.project ? (
+            // a project's page counts all of its PRs, whatever the filter bar
+            // narrows elsewhere, as Decide does
             <ProjectPage
                key={nav.project}
                slug={nav.project}
-               today={today}
+               today={fullToday}
                data={data}
                prev={prev}
                range={range}
-               closed={closed}
+               closed={allClosed}
                prefix={prefix}
                teamOf={teamOf}
                nav={nav}
                navigate={navigate}
-               item={items.find(i => i.slug === nav.project)}
+               item={decideItems.find(i => i.slug === nav.project)}
                plans={plans}
                ongoingSaved={data?.ongoing ?? []}
                opts={tabOpts}
                onPerson={onPerson}
                asks={(decisions ?? []).filter(row => row.slug === nav.project)}
+               rangePicker={rangePicker}
             />
          ) : nav.view === 'people' ? (
             <People
