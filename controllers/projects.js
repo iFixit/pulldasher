@@ -397,7 +397,8 @@ export default {
     * POST /project-issues and /api/v1/project-issues {project, issue} --
     * add an issue to a project by hand: `issue` is "owner/repo#123", a link,
     * or {repo, number}. It's read off GitHub, so a missing issue (or a PR)
-    * is a 404. Adding one that's already there changes nothing.
+    * is a 404, and a project's own issue or a plan's spec issue a 409.
+    * Adding one that's already there changes nothing.
     */
    attachIssue: function (req, res) {
       const body = req.body || {};
@@ -408,12 +409,17 @@ export default {
          });
          return;
       }
-      attachIssue(body.project, ref, req.roadmapLogin)
-         .then(issue =>
-            issue
-               ? res.status(201).json({ issue })
-               : res.status(404).json({ error: 'GitHub has no issue by that name' })
-         )
+      const settings = projectSettings();
+      if (!settings) {
+         res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
+         return;
+      }
+      attachIssue(settings, body.project, ref, req.roadmapLogin)
+         .then(({ issue, missing, refused }) => {
+            if (issue) res.status(201).json({ issue });
+            else if (missing) res.status(404).json({ error: 'GitHub has no issue by that name.' });
+            else res.status(409).json({ error: refused });
+         })
          .catch(err => {
             console.error('adding an issue to a project failed:', err);
             res.status(500).json({ error: 'adding the issue failed' });

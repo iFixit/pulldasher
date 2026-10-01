@@ -1,4 +1,4 @@
-import { REPO_PATTERN, issueKey, parseIssueRef, type IssueRef } from './issueRef';
+import { MAX_ISSUE_NUMBER, REPO_PATTERN, issueKey, parseIssueRef, type IssueRef } from './issueRef';
 import { dayStart } from './projects';
 import { planEnd, type RoadmapItem } from './roadmap';
 
@@ -281,16 +281,21 @@ function build({
    }
    for (const [slug, issues] of attached) {
       const mine = byProject.get(slug) ?? [];
-      for (const issue of issues) {
+      // the same issue labeled and added by hand is one item, in the plan
+      // that was running when it was first attached
+      const placed = new Set<string>();
+      const earliest = [...issues].sort((a, b) => (a.joinedAt ?? 0) - (b.joinedAt ?? 0));
+      for (const issue of earliest) {
          const k = issue.ref ? issueKey(issue.ref) : '';
+         if (k && placed.has(k)) continue;
          if ([...(specPlans.get(k) ?? [])].some(id => byId.get(id)?.project === slug)) continue;
          const plan = planOfWork(mine, issue.joinedAt ?? 0);
          if (!plan) continue;
-         // the same issue labeled and added by hand is one item
-         const list = items.get(plan.id) ?? [];
-         if (k && list.some(i => i.ref && issueKey(i.ref) === k)) continue;
-         list.push(issue);
-         if (k) hold(heldBy, k, plan.id);
+         items.get(plan.id)?.push(issue);
+         if (k) {
+            placed.add(k);
+            hold(heldBy, k, plan.id);
+         }
       }
    }
    // the plans a PR links: the ones holding an issue it links,
@@ -482,7 +487,10 @@ export function issueQuery(text: string): IssueQuery | null {
    const ref = parseIssueRef(s);
    if (ref) return { kind: 'ref', ref };
    const n = /^#?(\d+)$/.exec(s);
-   if (n) return { kind: 'number', number: Number(n[1]) };
+   if (n) {
+      const number = Number(n[1]);
+      return number > 0 && number <= MAX_ISSUE_NUMBER ? { kind: 'number', number } : null;
+   }
    return s.length >= 2 ? { kind: 'words', words: s } : null;
 }
 

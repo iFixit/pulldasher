@@ -16,6 +16,14 @@ export const issueText = (ref: IssueRef): string => `${ref.repo}#${ref.number}`;
  * type them both ways, so the key does too. */
 export const issueKey = (ref: IssueRef): string => issueText(ref).toLowerCase();
 
+/** the largest number GitHub's API takes for an issue (a 32-bit Int) */
+export const MAX_ISSUE_NUMBER = 2 ** 31 - 1;
+
+const issueNumber = (digits: string): number | null => {
+   const number = Number(digits);
+   return number > 0 && number <= MAX_ISSUE_NUMBER ? number : null;
+};
+
 /** an "owner/repo" name, as a regex source */
 export const REPO_PATTERN = '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+';
 
@@ -30,10 +38,10 @@ export function parseIssueRef(text: string, defaultRepo: string | null = null): 
       `^https?://github\\.com/(${REPO_PATTERN})/(?:issues|pull)/(\\d+)/?(?:[#?].*)?$`,
       'i'
    ).exec(s);
-   if (m) return { repo: m[1], number: Number(m[2]) };
+   if (m) return issueNumber(m[2]) ? { repo: m[1], number: Number(m[2]) } : null;
    m = new RegExp(`^(${REPO_PATTERN})#(\\d+)$`).exec(s);
-   if (m) return { repo: m[1], number: Number(m[2]) };
+   if (m) return issueNumber(m[2]) ? { repo: m[1], number: Number(m[2]) } : null;
    m = /^#?(\d+)$/.exec(s);
-   if (m && defaultRepo) return { repo: defaultRepo, number: Number(m[1]) };
+   if (m && defaultRepo && issueNumber(m[1])) return { repo: defaultRepo, number: Number(m[1]) };
    return null;
 }

@@ -89,6 +89,38 @@ const STATES = {
       repository: repo('iFixit/ops'),
       parent: null,
    },
+   // the spec epic and the project's own issue, which can't be added by hand
+   'ifixit/ifixit#100': {
+      __typename: 'Issue',
+      number: 100,
+      title: 'Workbench launch',
+      state: 'OPEN',
+      stateReason: null,
+      closedAt: null,
+      repository: ifixit,
+      parent: null,
+   },
+   'test/projects#1': {
+      __typename: 'Issue',
+      number: 1,
+      title: 'Workbench',
+      state: 'OPEN',
+      stateReason: null,
+      closedAt: null,
+      repository: repo('test/projects'),
+      parent: null,
+   },
+   // an issue in a tracked repo the word search finds
+   'test/repo-a#5': {
+      __typename: 'Issue',
+      number: 5,
+      title: 'Print stickers for the bench',
+      state: 'OPEN',
+      stateReason: null,
+      closedAt: null,
+      repository: repo('test/repo-a'),
+      parent: null,
+   },
    // an issue someone adds by hand, and a PR, which can't be added
    'ifixit/ifixit#106': {
       __typename: 'Issue',
@@ -147,6 +179,13 @@ const LINKS = {
          ],
       },
    },
+   'ifixit/ifixit#106': {
+      __typename: 'Issue',
+      closedByPullRequestsReferences: { nodes: [] },
+      timelineItems: {
+         nodes: [{ source: { __typename: 'PullRequest', ...pr(207, 'Parts of #106') } }],
+      },
+   },
    // "Parts of #100": the spec epic itself
    'ifixit/ifixit#100': {
       __typename: 'Issue',
@@ -167,7 +206,13 @@ function fakeGraphql(query, variables) {
    }
    if (variables?.q) {
       searches.push(variables.q);
-      const nodes = /stickers/.test(variables.q) ? [STATES['ifixit/ifixit#106']] : [];
+      // a tracked repo's issue, and one from an org the board doesn't track
+      const nodes = /stickers/.test(variables.q)
+         ? [
+              STATES['test/repo-a#5'],
+              { ...STATES['ifixit/ifixit#106'], repository: repo('other/thing') },
+           ]
+         : [];
       return Promise.resolve({ search: { nodes } });
    }
    if (variables) {
@@ -443,7 +488,8 @@ test('an issue added by hand joins the project’s list, and taking it off remov
    mock.method(git, 'graphql', fakeGraphql);
    mock.method(db, 'query', async (sql, params) => fakeQuery(sql, params));
    await syncScope(settings);
-   const added = await attachIssue(
+   const { issue: added } = await attachIssue(
+      settings,
       'workbench',
       { repo: 'ifixit/ifixit', number: 106 },
       'dana',
@@ -453,17 +499,20 @@ test('an issue added by hand joins the project’s list, and taking it off remov
    assert.equal(added.addedBy, 'dana');
    // GitHub's spelling, not the one typed
    assert.equal(tables.hand[0].repo, 'iFixit/ifixit');
+   const add = number =>
+      attachIssue(settings, 'workbench', { repo: 'iFixit/ifixit', number }, 'dana');
    // a PR, or an issue GitHub doesn't have, can't be added
-   assert.equal(
-      await attachIssue('workbench', { repo: 'iFixit/ifixit', number: 201 }, 'dana'),
-      null
-   );
-   assert.equal(
-      await attachIssue('workbench', { repo: 'iFixit/ifixit', number: 999 }, 'dana'),
-      null
+   assert.deepEqual(await add(201), { missing: true });
+   assert.deepEqual(await add(999), { missing: true });
+   // nor a plan's spec issue, or a project's own issue
+   assert.match((await add(100)).refused, /spec issue/);
+   assert.match(
+      (await attachIssue(settings, 'workbench', { repo: 'test/projects', number: 1 }, 'dana'))
+         .refused,
+      /project’s own issue/
    );
    // adding it again keeps who added it first
-   await attachIssue('workbench', { repo: 'iFixit/ifixit', number: 106 }, 'erin');
+   await attachIssue(settings, 'workbench', { repo: 'iFixit/ifixit', number: 106 }, 'erin');
    assert.deepEqual(
       tables.hand.map(h => h.added_by),
       ['dana']
@@ -471,6 +520,11 @@ test('an issue added by hand joins the project’s list, and taking it off remov
    const list = await loadProjectIssues(settings, 'workbench');
    const row = list.find(i => i.ref?.number === 106);
    assert.deepEqual([row.via, row.plans, row.author], [['hand'], [1], 'gus']);
+   // its PRs show at once, before the next sync
+   assert.deepEqual(
+      row.prs.map(p => p.number),
+      [207]
+   );
    // the project's own issue isn't one of its issues
    assert.ok(!list.some(i => i.ref?.repo === 'test/projects'));
    // the hourly sync keeps a hand-added issue's title current
@@ -493,8 +547,13 @@ test('searchIssues finds an issue by link, by number in any tracked repo, or by 
    );
    // a PR isn't an issue to pick
    assert.deepEqual(await searchIssues(settings, 'iFixit/ifixit#201'), []);
-   const [byWords] = await searchIssues(settings, 'stickers');
-   assert.equal(byWords.number, 106);
+   // only issues in the tracked repos' organizations, whatever the words ask
+   assert.deepEqual(
+      (await searchIssues(settings, 'stickers')).map(h => `${h.repo}#${h.number}`),
+      ['test/repo-a#5']
+   );
+   // a number too big for GitHub is no search at all
+   assert.deepEqual(await searchIssues(settings, '#30000000000'), []);
    // issues only, in the tracked repos' organizations
    assert.match(searches[0], /^stickers is:issue org:test/);
    // answered again from what it kept
