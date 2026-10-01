@@ -285,11 +285,12 @@ export const RETRO_PLAN_RANK: Record<RetroPlanKind, number> = {
 /**
  * A plan's outcome in a few words: "done on time", "done 2 wk late",
  * "open, 3 wk past its end", "ends Oct 11", parked, dropped, or "no plan".
- * A plan's finish day is the day it was last changed, which is when it was
- * marked done unless someone edited it after.
+ * A plan's finish day is the day it was marked done (status_at), whatever
+ * edits came after; a plan saved before status_at existed falls back to its
+ * last change.
  */
 export function retroPlan(
-   plan: Pick<RoadmapItem, 'status' | 'start' | 'weeks' | 'updated_at'> | null,
+   plan: Pick<RoadmapItem, 'status' | 'start' | 'weeks' | 'updated_at' | 'status_at'> | null,
    today: string
 ): { kind: RetroPlanKind; text: string } {
    if (!plan) return { kind: 'none', text: 'no plan' };
@@ -297,7 +298,9 @@ export function retroPlan(
    const weeksAfter = (day: string) =>
       Math.ceil(((dayStart(day) as number) - (dayStart(end) as number)) / (7 * DAY));
    if (plan.status === 'done') {
-      const late = plan.updated_at == null ? 0 : weeksAfter(utcDay(plan.updated_at));
+      // from when it was marked done, not its last edit
+      const at = plan.status_at ?? plan.updated_at;
+      const late = at == null ? 0 : weeksAfter(utcDay(at));
       return late > 0
          ? { kind: 'late', text: `done ${late} wk late` }
          : { kind: 'on_time', text: 'done on time' };
@@ -321,7 +324,7 @@ export interface Finished {
 
 /**
  * What finished in a range: plans marked done in it (by the day they were
- * last changed), and project issues closed as completed in it that no
+ * marked so), and project issues closed as completed in it that no
  * finished plan already counts.
  */
 export function finishedIn(
@@ -332,8 +335,9 @@ export function finishedIn(
    const inRange = (day: string) => day >= range.start && day <= range.end;
    const out = new Map<string, Finished>();
    for (const plan of plans) {
-      if (plan.status !== 'done' || plan.updated_at == null) continue;
-      const day = utcDay(plan.updated_at);
+      const at = plan.status_at ?? plan.updated_at;
+      if (plan.status !== 'done' || at == null) continue;
+      const day = utcDay(at);
       if (!inRange(day)) continue;
       const key = plan.project ?? `plan:${plan.id}`;
       out.set(key, { key, name: plan.name, onTime: day <= planEnd(plan) });

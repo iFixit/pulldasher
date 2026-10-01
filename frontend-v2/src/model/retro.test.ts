@@ -211,6 +211,18 @@ describe('Look back’s project columns', () => {
       expect(retroPlan(null, today).text).toBe('no plan');
    });
 
+   it('dates a finish by when it was marked done, not by a later edit', () => {
+      const today = '2026-09-30';
+      // done Aug 28, its notes edited Sep 10
+      const edited = plan({
+         status: 'done',
+         status_at: at('2026-08-28'),
+         updated_at: at('2026-09-10'),
+      });
+      expect(retroPlan(edited, today).text).toBe('done on time');
+      expect(finishedIn([edited], [], { start: '2026-09-01', end: '2026-09-30' })).toEqual([]);
+   });
+
    it('counts what finished in a range, once each, on time or late', () => {
       const project = (slug: string, closed: string | null, reason = 'completed'): Project => ({
          slug,

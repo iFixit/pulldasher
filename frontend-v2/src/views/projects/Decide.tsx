@@ -685,7 +685,10 @@ export function Decide({
             return next;
          });
       if (row.item) {
-         void updateRoadmapItem(row.item.id, fields).then(ok => ok || forget());
+         // Finish or Drop on a plan already marked so says it again, which
+         // accepts the PRs that came after it, until a new one comes
+         const restate = fields.status === 'done' || fields.status === 'dropped';
+         void updateRoadmapItem(row.item.id, fields, { restate }).then(ok => ok || forget());
          return;
       }
       // a first decision records the work so far, from its first open PR's

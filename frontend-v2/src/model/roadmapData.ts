@@ -37,7 +37,8 @@ type Reply = { status: number; json: Record<string, unknown> };
 interface Api {
    list: () => Promise<Reply>;
    create: (fields: Partial<RoadmapFields>) => Promise<Reply>;
-   update: (id: number, fields: Partial<RoadmapFields>) => Promise<Reply>;
+   /** `restate`: a status sent as it already was is a call made again */
+   update: (id: number, fields: Partial<RoadmapFields>, restate?: boolean) => Promise<Reply>;
    remove: (id: number) => Promise<Reply>;
    reorder: (ids: number[]) => Promise<Reply>;
    updates: (id: number) => Promise<Reply>;
@@ -60,7 +61,8 @@ function liveApi(): Api {
    return {
       list: () => send('GET', '/roadmap'),
       create: fields => send('POST', '/roadmap', fields),
-      update: (id, fields) => send('PATCH', `/roadmap/${id}`, fields),
+      update: (id, fields, restate) =>
+         send('PATCH', `/roadmap/${id}`, restate ? { ...fields, restate } : fields),
       remove: id => send('DELETE', `/roadmap/${id}`),
       reorder: ids => send('PUT', '/roadmap/order', { ids }),
       updates: id => send('GET', `/roadmap/${id}/updates`),
@@ -111,15 +113,17 @@ function dummyApi(): Api {
          rows.push(item);
          return ok({ item }, 201);
       },
-      update: (id, fields) => {
+      update: (id, fields, restate) => {
          const checked = checkRoadmapFields(fields, { partial: true });
          if ('error' in checked) return bad(checked.error);
          const loop = checked.fields.waits_on && waitsOnProblem(id, checked.fields.waits_on, rows);
          if (loop) return bad(loop);
          const row = rows.find(r => r.id === id);
          if (!row) return bad('no such roadmap item', 404);
-         // when it stopped is when its status changed, not its last edit
-         const moved = checked.fields.status != null && checked.fields.status !== row.status;
+         // when it stopped is when its status changed (or a call restated
+         // it), not its last edit
+         const moved =
+            checked.fields.status != null && (checked.fields.status !== row.status || !!restate);
          Object.assign(row, checked.fields, touch());
          if (moved) row.status_at = row.updated_at;
          return ok({ item: { ...row } });
@@ -217,15 +221,28 @@ export async function createRoadmapItem(
 
 export async function updateRoadmapItem(
    id: number,
-   fields: Partial<RoadmapFields>
+   fields: Partial<RoadmapFields>,
+   { restate = false }: { restate?: boolean } = {}
 ): Promise<boolean> {
    // stamped now, as the server will: a decision shows as made right away
+   const now = Math.floor(Date.now() / 1000);
    const undo = optimistic(items =>
       items.map(i =>
-         i.id === id ? { ...i, ...fields, updated_at: Math.floor(Date.now() / 1000) } : i
+         i.id === id
+            ? {
+                 ...i,
+                 ...fields,
+                 updated_at: now,
+                 ...(fields.status && (fields.status !== i.status || restate)
+                    ? { status_at: now }
+                    : {}),
+              }
+            : i
       )
    );
-   const reply = await api.update(id, fields).catch((): Reply => ({ status: 0, json: {} }));
+   const reply = await api
+      .update(id, fields, restate)
+      .catch((): Reply => ({ status: 0, json: {} }));
    if (!settle(reply, 'save the plan', undo)) return false;
    const saved = reply.json.item as RoadmapItem;
    store.set({

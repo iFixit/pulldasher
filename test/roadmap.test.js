@@ -188,6 +188,11 @@ test('status_at says when the status changed, and an edit that keeps it leaves i
    const done = await call('PATCH', `/roadmap/${id}`, { status: 'done' });
    assert.equal(done.body.item.status_at, done.body.item.updated_at);
    assert.ok(done.body.item.status_at > 1000);
+   // Finish again on Decide restates it: the PRs before now are accepted
+   rows.find(r => r.id === id).status_at = 1000;
+   const again = await call('PATCH', `/roadmap/${id}`, { status: 'done', restate: true });
+   assert.equal(again.body.item.status_at, again.body.item.updated_at);
+   assert.ok(again.body.item.status_at > 1000);
 });
 
 test('a new item starts planned, four weeks from a Monday, at the bottom', async () => {

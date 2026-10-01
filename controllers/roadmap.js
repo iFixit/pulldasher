@@ -171,7 +171,13 @@ export default {
       waitsOnError(id, checked.fields)
          .then(async error => {
             if (error) return res.status(400).json({ error });
-            const item = await updateItem(id, checked.fields, req.roadmapLogin);
+            const item = await updateItem(
+               id,
+               checked.fields,
+               req.roadmapLogin,
+               undefined,
+               req.body?.restate === true
+            );
             if (item) res.json({ item });
             else res.status(404).json({ error: 'no such roadmap item' });
          })
