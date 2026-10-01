@@ -64,21 +64,37 @@ export function decideRows(
 const SECTIONS: [DecideReason['kind'][], string, string][] = [
    [
       ['reopened'],
-      'Still open after a decision',
-      'Marked done or dropped a week ago or more, here or on its issue',
+      'Done or dropped, PRs still open',
+      'Marked done or dropped at least a week ago, on the roadmap or by closing its issue',
    ],
    [
       ['issue_closed'],
-      'Issue closed, plan still going',
-      'Its issue closed after the plan last changed',
+      'Issue closed, plan still open',
+      'Its issue was closed after the plan last changed',
    ],
-   [['moving'], 'Parked, but moving', 'Its PRs changed after it was parked'],
-   [['off_track'], 'Off track', 'Its latest update says so'],
-   [['missed'], 'Missed a target', 'The target date passed with PRs still open'],
-   [['over', 'ended'], 'Past their plans', 'The planned end has passed'],
-   [['stalled'], 'Stalled', `Open PRs, no activity for ${STALL_DAYS} days`],
-   [['at_risk'], 'At risk', 'Its latest update says so'],
-   [['new'], 'New', `In flight with ${DECIDE_MIN_PRS} or more PRs, never decided`],
+   [['moving'], 'Parked, but still being worked on', 'Its PRs had activity after it was parked'],
+   [
+      ['off_track'],
+      'Off track',
+      'Its latest update says off track, and the plan hasn’t changed since',
+   ],
+   [
+      ['missed'],
+      'Missed its target date',
+      'The target date passed with PRs still open, and the plan hasn’t changed since',
+   ],
+   [['over', 'ended'], 'Past the plan’s end', 'The end date on its plan has passed'],
+   [
+      ['stalled'],
+      'Stalled',
+      `PRs still open, no PR activity for ${STALL_DAYS} days or more, and no decision in that time`,
+   ],
+   [['at_risk'], 'At risk', 'Its latest update says at risk, and the plan hasn’t changed since'],
+   [
+      ['new'],
+      'Needs a plan',
+      `${DECIDE_MIN_PRS} or more PRs open or merged in the last ${LIVE_DAYS} days, some still open, and no plan yet`,
+   ],
 ];
 
 const sectionOf = (row: DecideRow) =>
@@ -94,14 +110,14 @@ function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
    switch (reason.kind) {
       case 'new':
          return reason.since
-            ? `In flight since ${dayWords(reason.since)} with no decision`
-            : 'In flight with no decision';
+            ? `PRs open since ${dayWords(reason.since)}, and no plan yet`
+            : 'PRs open, and no plan yet';
       case 'stalled':
          return `No PR activity for ${reason.days} days`;
       case 'over':
-         return `Still in flight ${n(reason.weeks, 'week')} past its planned end`;
+         return `PRs still open ${n(reason.weeks, 'week')} past its plan’s end`;
       case 'ended':
-         return `Its plan ended ${n(reason.weeks, 'week')} ago and no PRs are open: done?`;
+         return `Its plan ended ${n(reason.weeks, 'week')} ago and no PRs are open. Is it done?`;
       case 'missed':
          return `Missed its ${dayWords(reason.due)} target with ${n(reason.open, 'PR')} open`;
       case 'off_track':
@@ -123,7 +139,7 @@ function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
             : `Marked ${reason.as} on the roadmap, but ${still}`;
       }
       case 'moving':
-         return 'Parked, but its PRs changed since';
+         return 'Parked, but its PRs have had activity since';
    }
 }
 
@@ -168,8 +184,8 @@ function Facts({
    const people = project ? [...project.developers, ...project.nonDevelopers] : [];
    const size = project
       ? [
-           project.open ? `${project.open} open` : null,
-           merged ? `${merged} merged in ${LIVE_DAYS} days` : null,
+           project.open ? n(project.open, 'open PR') : null,
+           merged ? `${merged} merged in the last ${LIVE_DAYS} days` : null,
            people.length ? n(people.length, 'person', 'people') : null,
         ].filter(Boolean)
       : [];
@@ -192,7 +208,9 @@ function Facts({
             key="size"
             onClick={onProject}
             className={quietButton}
-            title={`${people.join(', ')}. Open the project and its PRs.`}
+            title={`People with a PR open or merged in the last ${LIVE_DAYS} days: ${people.join(
+               ', '
+            )}. Click to open the project and its PRs.`}
          >
             {size.join(', ')}
          </button>
@@ -339,9 +357,9 @@ function DecideRowView({
                                  `Committed through the ${c.label.replace(/^End/, 'end')}`
                               )
                            }
-                           title={`Plan it from ${dayWords(start)} to ${dayWords(
-                              planEnd({ start, weeks })
-                           )}`}
+                           title={`Mark it In progress, planned from ${dayWords(
+                              start
+                           )} to ${dayWords(planEnd({ start, weeks }))}`}
                            className={buttonClass}
                         >
                            {c.label}
@@ -352,15 +370,15 @@ function DecideRowView({
                   <button
                      type="button"
                      onClick={() => call({ status: 'parked' }, 'Parked')}
-                     title="Stop for now without dropping it. It leaves the load until someone picks it up."
+                     title="Mark it Parked: stop for now without dropping it. It stops counting in the roadmap’s weeks ahead until someone picks it back up."
                      className={buttonClass}
                   >
                      Park
                   </button>
                   <button
                      type="button"
-                     onClick={() => call({ status: 'done' }, 'Finished')}
-                     title="It’s done"
+                     onClick={() => call({ status: 'done' }, 'Marked done')}
+                     title="Mark it Done: the work is finished"
                      className={buttonClass}
                   >
                      Finish
@@ -368,7 +386,7 @@ function DecideRowView({
                   <button
                      type="button"
                      onClick={() => run(() => call({ status: 'dropped' }, 'Dropped'))}
-                     title="We won’t do it"
+                     title="Mark it Dropped: we won’t do it. Asks you to click twice."
                      className={
                         armed
                            ? 'hit pressable rounded-md border border-warn bg-surface px-2 py-0.5 text-xs font-semibold text-warn'
@@ -379,7 +397,7 @@ function DecideRowView({
                   </button>
                   <span
                      className="ml-2 inline-flex flex-wrap items-baseline gap-x-1.5"
-                     title="Where the work came from. It’s saved with the call you make here."
+                     title="Where the work came from. It’s saved when you click a decision on this row."
                   >
                      came from
                      {ROADMAP_ORIGINS.map(o => (
@@ -525,7 +543,9 @@ export function Decide({
    if (!plans) {
       return (
          <p className="text-[13px] text-ink-3">
-            {loadFailed ? 'Couldn’t load the roadmap. Try again in a minute.' : 'Loading…'}
+            {loadFailed
+               ? 'Couldn’t load the roadmap. Try again in a minute.'
+               : 'Loading the roadmap…'}
          </p>
       );
    }
@@ -645,17 +665,17 @@ export function Decide({
             </div>
             <p className="m-0 mt-1 max-w-[72ch] text-[13px] text-ink-2">
                {owed.length
-                  ? 'Each needs a call: commit to it through a month or quarter, park it, finish it, or drop it. The roadmap keeps the call.'
-                  : 'New projects, stalls, and plans that slip or go off track show up here.'}{' '}
-               Park stops work for now without dropping it, and takes it out of the roadmap’s load.
-               Work with fewer than {DECIDE_MIN_PRS} PRs, open or merged in the last {LIVE_DAYS}{' '}
-               days, ships without a call unless it stalls.
+                  ? 'Each needs a decision: commit to it through the end of a month or quarter, park it, finish it, or drop it. Each decision is saved to the roadmap.'
+                  : 'Rows show up here when a project needs a plan or stalls, when a plan runs past its end or target date or its latest update says at risk or off track, and when the roadmap disagrees with the project’s issue or PRs.'}{' '}
+               Parking stops work for now without dropping it, so it stops counting in the roadmap’s
+               weeks ahead. Projects with fewer than {DECIDE_MIN_PRS} PRs, open or merged in the
+               last {LIVE_DAYS} days, don’t need a plan unless they stall.
             </p>
             <RunsDecide rotation={rotation} day={day} />
             {scoped && (
                <p className="m-0 mt-1 max-w-[72ch] text-xs text-ink-3">
-                  The repo and people filters don’t narrow Decide: it weighs every project, so none
-                  looks finished just because its PRs are filtered out.
+                  Decide ignores the repo and people filters and counts every project, so none looks
+                  finished just because its PRs are filtered out.
                </p>
             )}
             {teams.length > 0 && (
@@ -672,7 +692,8 @@ export function Decide({
                   />
                   {nav.team && nav.team !== '(none)' && (
                      <span className="text-xs text-ink-2">
-                        {nav.team} has {n(liveIn(nav.team), 'live project')} for{' '}
+                        {nav.team} has{' '}
+                        {n(liveIn(nav.team), 'project in progress', 'projects in progress')} for{' '}
                         {n(teamMembers[nav.team]?.length ?? 0, 'developer')}.
                      </span>
                   )}

@@ -72,7 +72,7 @@ export default function RangeCalendar({
             <span className="tabular-nums">
                {picked
                   ? `${rangeWords(picked)} · ${rangeDays(picked)} days`
-                  : 'Click the first day, then the last'}
+                  : `Click the first day, then the last (at most ${MAX_RANGE_DAYS} days)`}
             </span>
             <span className="flex-1" />
             <button

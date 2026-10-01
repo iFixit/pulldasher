@@ -12,13 +12,13 @@ import { dayWords } from '../../model/projectData';
 import { healthWords, waitsWords } from './roadmapHealth';
 
 const BUCKETS: ['now' | 'next' | 'later', string, string][] = [
-   ['now', 'Now', 'In progress, or its start has come'],
-   ['next', 'Next', `Starting in the next ${NEXT_WEEKS} weeks`],
-   ['later', 'Later', 'Further out'],
+   ['now', 'Now', 'In progress, or its start week has begun'],
+   ['next', 'Next', `Starts in the next ${NEXT_WEEKS} weeks`],
+   ['later', 'Later', `Starts more than ${NEXT_WEEKS} weeks from now`],
 ];
 
 /**
- * The month a plan's work starts, "from October" (with the year when it
+ * The month a plan's work starts, "starts in October" (with the year when it
  * isn't this one): the layout is for the order, not the weeks. A week
  * belongs to the month its Thursday falls in, so a plan starting the week of
  * Sep 28 reads October.
@@ -27,7 +27,7 @@ function monthWords(start: string, today: string): string {
    const thursday = new Date(`${start}T00:00:00Z`);
    thursday.setUTCDate(thursday.getUTCDate() + 3);
    const sameYear = thursday.getUTCFullYear() === Number(today.slice(0, 4));
-   return `from ${thursday.toLocaleDateString(undefined, {
+   return `starts in ${thursday.toLocaleDateString(undefined, {
       month: 'long',
       year: sameYear ? undefined : 'numeric',
       timeZone: 'UTC',
@@ -70,7 +70,11 @@ function Card({
             {item.name}
          </button>
          <div className="flex flex-wrap gap-x-2 text-xs">
-            {unstarted && <span className="text-warn">Was to start {dayWords(item.start)}</span>}
+            {unstarted && (
+               <span className="text-warn">
+                  Was to start {dayWords(item.start)}, still marked Planned
+               </span>
+            )}
             {health && (
                <span className={health.warn ? 'text-warn' : 'text-ink-2'} title={health.title}>
                   {health.text}
@@ -154,7 +158,7 @@ export function NowNextLater({
                                  ))}
                               </ol>
                            ) : (
-                              <p className="m-0 text-xs text-ink-3">Nothing here.</p>
+                              <p className="m-0 text-xs text-ink-3">No plans.</p>
                            )}
                         </div>
                      );

@@ -203,7 +203,7 @@ export async function createRoadmapItem(
    writes++;
    const reply = await api.create(fields).catch((): Reply => ({ status: 0, json: {} }));
    // nothing was shown early, so there's nothing to take back
-   if (!settle(reply, 'add it', () => undefined)) return null;
+   if (!settle(reply, 'add the plan', () => undefined)) return null;
    const item = reply.json.item as RoadmapItem;
    // a load that already had it mustn't make it show twice
    const others = (store.get().items ?? []).filter(i => i.id !== item.id);
@@ -222,7 +222,7 @@ export async function updateRoadmapItem(
       )
    );
    const reply = await api.update(id, fields).catch((): Reply => ({ status: 0, json: {} }));
-   if (!settle(reply, 'save that', undo)) return false;
+   if (!settle(reply, 'save the plan', undo)) return false;
    const saved = reply.json.item as RoadmapItem;
    store.set({
       ...store.get(),
@@ -241,7 +241,7 @@ export async function removeRoadmapItem(id: number): Promise<boolean> {
          )
    );
    const reply = await api.remove(id).catch((): Reply => ({ status: 0, json: {} }));
-   return settle(reply, 'remove it', undo);
+   return settle(reply, 'remove the plan', undo);
 }
 
 /** Put the items in this order, top first. If someone else changed the
@@ -255,7 +255,8 @@ export async function reorderRoadmap(ids: number[]): Promise<void> {
       store.set({
          ...store.get(),
          items: reply.json.items as RoadmapItem[],
-         problem: 'Someone changed the roadmap while you were dragging; this is it now.',
+         problem:
+            'Someone else just added or removed a plan, so your new order wasn’t saved. This is the order now; try again.',
       });
       return;
    }

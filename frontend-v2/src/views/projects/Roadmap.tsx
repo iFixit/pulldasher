@@ -160,7 +160,7 @@ function WaitsOnField({
    return (
       <span className="flex flex-wrap items-center gap-1.5">
          {value.map(other => {
-            const name = byId.get(other)?.name ?? `item ${other}`;
+            const name = byId.get(other)?.name ?? `plan ${other}`;
             return (
                <span
                   key={other}
@@ -180,7 +180,7 @@ function WaitsOnField({
          })}
          {choices.length > 0 && (
             <select
-               aria-label="add something it waits on"
+               aria-label="Add a plan it waits on"
                className={selectClass}
                value=""
                onChange={e => e.target.value && onChange([...value, Number(e.target.value)])}
@@ -360,7 +360,7 @@ function Editor({
             ))}
          </div>
          {field(
-            'Tracks the PRs of',
+            'Project it tracks',
             <select
                className={selectClass}
                value={draft.project ?? ''}
@@ -685,7 +685,7 @@ function PlanRow({
             key="health"
             onClick={onEdit}
             className={health.warn ? 'text-warn' : 'text-ink-2'}
-            title={`${health.title} Click to see its updates and post one.`}
+            title={`${health.title}\nClick to see its updates and post one.`}
          >
             {health.text}
          </RowWord>
@@ -716,8 +716,16 @@ function PlanRow({
    }
    if (over) {
       meta.push(
-         <RowWord key="over" onClick={onEdit} className="text-warn" title="Change its plan">
-            {n(weeksOver, 'week')} past the plan
+         <RowWord
+            key="over"
+            onClick={onEdit}
+            className="text-warn"
+            title={`Still in progress ${n(
+               weeksOver,
+               'week'
+            )} after its plan’s end. Click to change the plan.`}
+         >
+            {n(weeksOver, 'week')} past its end
          </RowWord>
       );
    }
@@ -753,7 +761,7 @@ function PlanRow({
                   tabIndex={0}
                   draggable
                   aria-label={`${item.name}: priority ${rank}. Drag, or use the up and down arrow keys, to change its place`}
-                  title="drag to change its priority"
+                  title="Drag to change its priority"
                   className="flex-none cursor-grab touch-none text-ink-3 hover:text-ink focus-visible:text-brand active:cursor-grabbing"
                >
                   <Icon icon={GripVertical} size={13} />
@@ -767,7 +775,7 @@ function PlanRow({
                      aria-expanded={editing}
                      onClick={onEdit}
                      className="hit pressable min-w-0 rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium break-words text-ink hover:text-brand"
-                     title="edit this item and its updates"
+                     title="Edit this plan and see its updates"
                   >
                      {item.name}
                   </button>
@@ -833,10 +841,10 @@ function PlanRow({
                         background: 'color-mix(in oklab, var(--warn) 20%, transparent)',
                         borderColor: 'var(--warn)',
                      }}
-                     title={`Still in flight ${n(
+                     title={`Still in progress ${n(
                         weeksOver,
                         'week'
-                     )} past the plan. Click to change the plan.`}
+                     )} after its plan’s end. Click to change the plan.`}
                   >
                      <span className="hidden px-1 text-[10px] leading-[14px] font-medium whitespace-nowrap text-warn @min-[4.5rem]:block">
                         +{weeksOver} wk over
@@ -965,7 +973,7 @@ function InFlightRow({
                   type="button"
                   onClick={onOpen}
                   className="hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] text-ink hover:text-brand"
-                  title="Open the project's page"
+                  title="Open the project’s page"
                >
                   {item.name}
                </button>
@@ -993,7 +1001,7 @@ function InFlightRow({
             ref={trackRef}
             onPointerDown={grab}
             className="relative block h-6 cursor-crosshair touch-none"
-            title="Drag across the weeks to plan it for them, or click for the choices"
+            title="Drag across weeks to plan it for them, or click to pick an end date"
          >
             <Gridlines axis={axis} />
             {span && now > left && (
@@ -1120,9 +1128,12 @@ function CapacityLine({
          type="button"
          onClick={onOpen}
          className="pressable flex w-full items-center gap-2 border-0 border-t-2 border-dashed border-warn bg-transparent px-3.5 py-1 text-left text-[11px] font-medium text-warn hover:bg-muted"
-         title={`Work in flight above this line has one of ${team}’s developers each, in priority order; below it, there’s nobody left. Park or finish something, or move work below the line. Click for ${team}’s decisions.`}
+         title={`${team} has ${n(
+            developers,
+            'developer'
+         )}. Above this line, in priority order, are the first ${developers} plans and projects in progress this week; below it, anything in progress has nobody left to staff it. Park or finish something, or drag what matters less below the line. Click to see ${team}’s decisions.`}
       >
-         Below here: more in flight than {team}’s {n(developers, 'developer')} can staff
+         Below here: more in progress than {team}’s {n(developers, 'developer')} can staff
       </button>
    );
 }
@@ -1677,7 +1688,7 @@ export function Roadmap({
                id={`roadmap:lane:${team ?? '(none)'}`}
                band={(open, toggle) => (
                   <LaneBand
-                     title={team ?? 'No developer team'}
+                     title={team ?? 'No team'}
                      counts={[
                         of(shownPlanned.length, planned.length, 'plan'),
                         everything
@@ -1685,7 +1696,7 @@ export function Roadmap({
                                 shownLoose.length,
                                 loose.length,
                                 'project'
-                             )} in flight with no plan`
+                             )} in progress with no plan`
                            : null,
                      ]
                         .filter(Boolean)
@@ -1746,12 +1757,12 @@ export function Roadmap({
                id="roadmap:unplanned"
                band={(open, toggle) => (
                   <LaneBand
-                     title="In flight, not on the roadmap"
+                     title="In progress, not on the roadmap"
                      counts={`${of(
                         shownUnplanned.length,
                         unplanned.length,
-                        'live project'
-                     )}, the longest-running first`}
+                        'project'
+                     )}, longest-running first`}
                      load={[]}
                      developers={0}
                      today={today}
@@ -1765,7 +1776,7 @@ export function Roadmap({
          )}
          {narrowed && !shownPlans.length && !(everything && shownUnplanned.length) && (
             <div className="px-3.5 py-4 text-[13px] text-ink-3">
-               Nothing on the roadmap or in flight matches
+               Nothing on the roadmap or in progress matches
                {q ? ` “${nav.find.trim()}”` : ''}
                {picked ? ` in the week of ${weekWords(picked)}` : ''}.
             </div>
@@ -1958,17 +1969,19 @@ export function Roadmap({
                   )}
                   {plan && !plan.length && !unplanned.length && !adding ? (
                      <div className="px-3.5 py-4 text-[13px] text-ink-3">
-                        Nothing planned or in flight yet. Add a project to start the plan.
+                        Nothing on the roadmap yet, and no projects in progress. Click Add to the
+                        roadmap to start a plan.
                      </div>
                   ) : (
                      body
                   )}
                </div>
                <p className="mt-2 text-xs text-ink-3">
-                  Order is priority: drag a plan’s grip, or use the arrow keys on it. Drag a bar to
-                  move it, or its right edge to change its length; with a bar focused, the arrow
-                  keys do the same, Shift for length. The plus beside a project with no plan puts it
-                  on the roadmap over the weeks its PRs have run.
+                  Top to bottom is priority order: drag a plan’s grip, or use the up and down arrow
+                  keys on it. Drag a bar to move it, or its right edge to change its length; with a
+                  bar focused, the left and right arrow keys do the same, with Shift for length. To
+                  plan a project that has no plan, click its plus and pick an end date, or drag
+                  across its weeks.
                </p>
             </>
          ) : (
@@ -1995,8 +2008,8 @@ export function Roadmap({
                   onOpen={id => navigate(openPlan(nav, id))}
                />
                <p className="mt-3 text-xs text-ink-3">
-                  Each column is in priority order. Done and dropped work isn’t shown. Open an item
-                  to change its plan on the timeline.
+                  Each column is in priority order. Done, dropped and parked plans aren’t shown.
+                  Click a plan to change it on the timeline.
                </p>
             </>
          )}

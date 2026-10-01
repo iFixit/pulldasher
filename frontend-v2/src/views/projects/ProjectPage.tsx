@@ -78,8 +78,8 @@ function Forecast({
    if (finished <= 0) {
       return (
          <p className="m-0 text-xs text-ink-3">
-            Nothing here merged or closed in the last four weeks, so there’s no pace to guess a
-            finish from.
+            No PR here merged or closed in the last four weeks, so there’s no pace to estimate a
+            finish date from.
          </p>
       );
    }
@@ -92,15 +92,16 @@ function Forecast({
    return (
       <p
          className="m-0 text-xs text-ink-2"
-         title="A rough guide: it assumes the last four weeks' pace holds and no new PRs arrive."
+         title="A rough guide: it assumes the last four weeks’ pace holds and no new PRs arrive."
       >
-         At the last four weeks’ pace ({finished} finished, about {Math.round(perWeek * 10) / 10} a
-         week), the {open} open PR{open === 1 ? '' : 's'} take about {weeks} week
+         At the last four weeks’ pace ({finished} merged or closed, about{' '}
+         {Math.round(perWeek * 10) / 10} a week), the {open} open PR{open === 1 ? '' : 's'} take
+         about {weeks} week
          {weeks === 1 ? '' : 's'}: around {dateWords(eta)}.
          {due && (
             <span className={late ? 'text-warn' : undefined}>
                {' '}
-               That’s {late ? 'after' : 'before'} the {dayWords(due)} target.
+               That’s {late ? 'after' : 'on or before'} the {dayWords(due)} target.
             </span>
          )}
       </p>
@@ -131,7 +132,9 @@ function ProjectFlow({
          <GroupHeader title="Is its backlog growing?" sub={rangeWords(shown)} />
          <StatsCard>
             {data === null ? (
-               <p className="m-0 text-[13px] text-ink-3">Couldn’t load the chart.</p>
+               <p className="m-0 text-[13px] text-ink-3">
+                  Couldn’t load the chart. Try again in a minute.
+               </p>
             ) : (
                <>
                   {data && group && !ongoing && current && (
@@ -204,19 +207,19 @@ export function ProjectPage({
          <EmptyState
             variant="search"
             title="No project by that name"
-            sub={`Nothing open, merged lately, or on an issue carries ${prefix}${slug}.`}
+            sub={`No issue or PR (open, merged in the last 14 days, or in the date range) carries the ${prefix}${slug} label.`}
          />
       );
    }
    const standing = live
-      ? 'Live'
+      ? 'In progress'
       : group
       ? 'Quiet'
       : project?.state === 'closed'
       ? project.state_reason === 'not_planned'
          ? 'Dropped'
          : 'Done'
-      : 'Nothing in flight';
+      : 'Not in progress';
    const people = group?.people ?? [];
    const devs = people.filter(login => teamOf(login) != null);
    const others = people.filter(login => teamOf(login) == null);
@@ -240,7 +243,7 @@ export function ProjectPage({
                   )}
                   {others.length > 0 && (
                      <span className="inline-flex items-center gap-1.5">
-                        Others <PeopleStack logins={others} size={20} />
+                        Non-developers <PeopleStack logins={others} size={20} />
                      </span>
                   )}
                </span>

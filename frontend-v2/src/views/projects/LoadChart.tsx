@@ -8,8 +8,8 @@ import type { LoadWeek, OriginCounts } from '../../../../shared/model/load';
 /**
  * How loaded the weeks are, on the roadmap's own time axis so each week's
  * bar sits above the same weeks of every row. Every mark is labeled where
- * it is drawn, never in a legend: the weeks up to today say "In flight, from
- * PRs" (blue on the roadmap, gray with no plan), the weeks after say "Ahead,
+ * it is drawn, never in a legend: the weeks up to today say "In progress,
+ * from PRs" (blue on the roadmap, gray with no plan), the weeks after say "Ahead,
  * if nothing changes" (the plans, and every project still open with no
  * decision, in lighter tints), the dashed line says how many developers
  * there are, and the band above it is amber because there's more in flight
@@ -44,16 +44,16 @@ const ORIGIN_TITLE: Record<OriginKey, string> = {
    asked: 'Show only the plans asked for from above',
    fire: 'Show only the plans that are fires to put out',
    chosen: 'Show only the plans the team picked itself',
-   unsaid: 'Show only the plans nobody has said this about',
+   unsaid: 'Show only the plans with no word on where the work came from',
 };
 
 function weekWords(w: LoadWeek, developers: number): string {
    const people = developers ? `, for ${n(developers, 'developer')}` : '';
    return w.projected
-      ? `Week of ${dayWords(w.week)}, if nothing changes: ${w.onPlan} planned and ${
-           w.offPlan
-        } still open with no decision${people}`
-      : `Week of ${dayWords(w.week)}: ${total(w)} in flight, ${w.onPlan} on the roadmap and ${
+      ? `Week of ${dayWords(w.week)}, if nothing changes: ${total(w)} in progress, ${
+           w.onPlan
+        } on the roadmap and ${w.offPlan} with no plan that need one${people}`
+      : `Week of ${dayWords(w.week)}: ${total(w)} in progress, ${w.onPlan} on the roadmap and ${
            w.offPlan
         } with no plan${people}`;
 }
@@ -150,7 +150,7 @@ export function LoadChart({
       <div className={`${rowGrid} border-b border-line px-3.5 py-3`}>
          <div className="flex flex-col gap-0.5 self-start">
             <span className={`text-ink-3 ${eyebrowText}`}>
-               {picked ? `The week of ${dayWords(picked)}` : 'In flight this week'}
+               {picked ? `The week of ${dayWords(picked)}` : 'In progress this week'}
             </span>
             <span className="text-2xl font-semibold leading-tight text-ink tabular-nums">
                {inFlight}
@@ -167,7 +167,7 @@ export function LoadChart({
             <CountButton
                active={show === 'unplanned'}
                onClick={() => onShow(show === 'unplanned' ? 'all' : 'unplanned')}
-               title="Show only the projects in flight with no plan"
+               title="Show only the projects in progress with no plan"
             >
                <Swatch color={NO_PLAN} />
                {shown.offPlan} with no plan
@@ -179,9 +179,9 @@ export function LoadChart({
                   className={`pressable self-start rounded border-0 bg-transparent p-0 text-left text-[11px] hover:underline ${
                      each >= 1 ? 'text-warn' : 'text-ink-3'
                   }`}
-                  title="In flight, per developer on a developer team. Open the teams on the People view."
+                  title="Plans and projects in progress in the week shown, per person on a developer team. At 1.0 or more, some work has one developer or none. Click to see the teams on People."
                >
-                  {n(developers, 'developer')}, {each.toFixed(1)} each
+                  {n(developers, 'developer')}, {each.toFixed(1)} projects each
                </button>
             )}
          </div>
@@ -198,7 +198,7 @@ export function LoadChart({
                            : { left: 0 }
                      }
                   >
-                     In flight, from PRs
+                     In progress, from PRs
                   </span>
                )}
                {todayAt != null && (
@@ -222,9 +222,9 @@ export function LoadChart({
                className="relative h-20 outline-none focus-visible:outline-2 focus-visible:outline-brand"
                role="group"
                tabIndex={0}
-               aria-label={`Projects in flight each week: ${total(now)} this week${
+               aria-label={`Plans and projects in progress each week: ${total(now)} this week${
                   developers ? ` for ${n(developers, 'developer')}` : ''
-               }. Later weeks show the plans, and the projects with no decision, as if nothing changes. Click a week, or use the arrow keys, to show only what was in flight then; Escape shows every week.`}
+               }. Weeks after this one count the plans, and the projects with no plan that need one, as if nothing changes. Click a week, or use the arrow keys, to show only what was in progress then; Escape shows every week.`}
                onKeyDown={e => {
                   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
                      e.preventDefault();
@@ -275,7 +275,7 @@ export function LoadChart({
                         title={`${weekWords(
                            w,
                            developers
-                        )}. Click to show only this week's projects.`}
+                        )}. Click to show only that week’s plans and projects.`}
                      >
                         <span
                            style={{

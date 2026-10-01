@@ -42,7 +42,7 @@ export async function saveDecideRotation(
       refreshProjectsData();
       return { ok: true };
    }
-   return patchSettings({ decide_rotation: checked.logins }, 'the turns');
+   return patchSettings({ decide_rotation: checked.logins }, 'who runs Decide');
 }
 
 /** PATCH /settings, then load every window again. */
