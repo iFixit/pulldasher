@@ -9,7 +9,13 @@ import {
    todayFromBoard,
 } from '../lib/projects.js';
 import { listItems } from '../lib/roadmap.js';
-import { loadScope } from '../lib/scope.js';
+import {
+   attachIssue,
+   detachIssue,
+   loadProjectIssues,
+   loadScope,
+   searchIssues,
+} from '../lib/scope.js';
 import {
    addWeeks,
    closedIssues,
@@ -17,6 +23,7 @@ import {
    decideQueue,
    decideTurn,
    needsDecision,
+   parseIssueRef,
    loadByWeek,
    mondayOf,
    mondaysBetween,
@@ -31,6 +38,19 @@ import {
 } from '../shared/dist/index.js';
 
 const key = d => `${d.repo}#${d.number}`;
+
+/** a project label's slug: what follows the prefix */
+const SLUG = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+
+/** The issue a request names, as {repo, number} or "owner/repo#123" (or a
+ * link), from the body or the query string; null when it names none. */
+function issueOfRequest(from) {
+   if (from?.repo && from?.number) {
+      const number = Number(from.number);
+      return Number.isInteger(number) && number > 0 ? { repo: String(from.repo), number } : null;
+   }
+   return typeof from?.issue === 'string' ? parseIssueRef(from.issue) : null;
+}
 
 /** Projects that run with no end: marked on the board, or by the `ongoing`
  * label on their issue. */
@@ -307,10 +327,10 @@ export default {
    /**
     * GET /scope-data (session) and /api/v1/scope (Bearer) -- every plan's
     * scope: the issue that specs it, its sub-issues and checklist lines and
-    * the issues labeled into its project, each open, done or dropped; how
-    * many joined after the plan was made; and its project's PRs that opened
-    * after its end, or more than a week after it was marked done or
-    * dropped (shared/model/scope.ts).
+    * the issues attached to its project by label or by hand, each open,
+    * done or dropped; how many joined after its end; and its project's PRs
+    * that opened after its end, or more than a week after it was marked done
+    * or dropped (shared/model/scope.ts).
     */
    getScope: function (req, res) {
       const settings = projectSettings();
@@ -323,6 +343,105 @@ export default {
          loadScope(settings).then(plans => ({ plans })),
          'scope query failed'
       );
+   },
+
+   /**
+    * GET /issue-search?q= (session) and /api/v1/issue-search (Bearer) --
+    * issues to pick from for what someone typed: the issue a link or
+    * "owner/repo#123" names, the issues with a number ("#123") in every
+    * tracked repo, or GitHub's search for words in issue titles and bodies.
+    */
+   searchIssues: function (req, res) {
+      const settings = projectSettings();
+      if (!settings) {
+         res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
+         return;
+      }
+      const q = typeof req.query.q === 'string' ? req.query.q : '';
+      if (q.length > 200) {
+         res.status(400).json({ error: 'q is at most 200 characters' });
+         return;
+      }
+      respondOrError(
+         res,
+         searchIssues(settings, q).then(issues => ({ issues })),
+         'issue search failed'
+      );
+   },
+
+   /**
+    * GET /project-issues?project=slug (session) and /api/v1/project-issues
+    * (Bearer) -- every issue attached to a project: its plans' scope items
+    * and the issues attached by its label or by hand, each once, with how
+    * it's attached, its plans and the PRs that link it.
+    */
+   getProjectIssues: function (req, res) {
+      const settings = projectSettings();
+      if (!settings) {
+         res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
+         return;
+      }
+      const slug = req.query.project;
+      if (typeof slug !== 'string' || !SLUG.test(slug)) {
+         res.status(400).json({ error: 'send project, a project label’s slug' });
+         return;
+      }
+      respondOrError(
+         res,
+         loadProjectIssues(settings, slug).then(issues => ({ issues })),
+         'project issues query failed'
+      );
+   },
+
+   /**
+    * POST /project-issues and /api/v1/project-issues {project, issue} --
+    * add an issue to a project by hand: `issue` is "owner/repo#123", a link,
+    * or {repo, number}. It's read off GitHub, so a missing issue (or a PR)
+    * is a 404. Adding one that's already there changes nothing.
+    */
+   attachIssue: function (req, res) {
+      const body = req.body || {};
+      const ref = issueOfRequest(typeof body.issue === 'object' ? body.issue : body);
+      if (typeof body.project !== 'string' || !SLUG.test(body.project) || !ref) {
+         res.status(400).json({
+            error: 'send project (a project label’s slug) and issue ("owner/repo#123" or a link)',
+         });
+         return;
+      }
+      attachIssue(body.project, ref, req.roadmapLogin)
+         .then(issue =>
+            issue
+               ? res.status(201).json({ issue })
+               : res.status(404).json({ error: 'GitHub has no issue by that name' })
+         )
+         .catch(err => {
+            console.error('adding an issue to a project failed:', err);
+            res.status(500).json({ error: 'adding the issue failed' });
+         });
+   },
+
+   /**
+    * DELETE /project-issues?project=slug&repo=owner/repo&number=123 and
+    * /api/v1/project-issues -- take an issue added by hand off a project.
+    * One attached by label stays until the label comes off it.
+    */
+   detachIssue: function (req, res) {
+      const { project } = req.query;
+      const ref = issueOfRequest(req.query);
+      if (typeof project !== 'string' || !SLUG.test(project) || !ref) {
+         res.status(400).json({ error: 'send project, repo and number' });
+         return;
+      }
+      detachIssue(project, ref)
+         .then(gone =>
+            gone
+               ? res.json({ ok: true })
+               : res.status(404).json({ error: 'no issue by that name was added by hand' })
+         )
+         .catch(err => {
+            console.error('taking an issue off a project failed:', err);
+            res.status(500).json({ error: 'taking the issue off failed' });
+         });
    },
 
    /**

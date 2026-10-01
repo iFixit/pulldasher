@@ -241,10 +241,26 @@ CREATE TABLE IF NOT EXISTS `scope_items` (
   `repo` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `number` int unsigned DEFAULT NULL,
   `title` varchar(255) COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+  `author` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `created_at` int unsigned DEFAULT NULL,
   `state` enum('open','done','dropped') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'open',
   `closed_at` int unsigned DEFAULT NULL,
   `joined_at` int unsigned DEFAULT NULL,
   PRIMARY KEY (`spec_repo`,`spec_number`,`position`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `project_issues` (
+  `project` varchar(64) COLLATE utf8mb4_general_ci NOT NULL,
+  `repo` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+  `number` int unsigned NOT NULL,
+  `title` varchar(255) COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+  `state` enum('open','done','dropped') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'open',
+  `closed_at` int unsigned DEFAULT NULL,
+  `author` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `created_at` int unsigned DEFAULT NULL,
+  `added_by` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `added_at` int unsigned NOT NULL,
+  PRIMARY KEY (`project`,`repo`,`number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS `issue_pull_links` (

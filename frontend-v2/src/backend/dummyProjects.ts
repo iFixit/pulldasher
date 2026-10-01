@@ -5,7 +5,7 @@ import {
    type RoadmapItem,
    type RoadmapUpdate,
 } from '../../../shared/model/roadmap';
-import type { IssueRef, ScopeItem } from '../../../shared/model/scope';
+import type { IssueHit, IssueRef, ScopeItem } from '../../../shared/model/scope';
 import { SCALE_TEAM_ADDS, scaleCount, scaleProjects } from './dummyScale';
 
 // The dummy board's projects, teams and roadmap: what /projects-data and
@@ -294,6 +294,9 @@ export const DUMMY_SPECS: Record<string, { title: string; items: ScopeItem[] }> 
       state,
       closedAt: daysAgo.closed == null ? null : now - daysAgo.closed * day,
       joinedAt: daysAgo.joined == null ? null : now - daysAgo.joined * day,
+      // opened a couple of days before it joined the spec
+      author: number % 2 ? 'danielbeardsley' : 'zdmitchell',
+      createdAt: now - ((daysAgo.joined ?? 30) + 2) * day,
    });
    const line = (title: string, done: boolean): ScopeItem => ({
       source: 'check',
@@ -363,3 +366,61 @@ export const DUMMY_LINKS: Record<string, IssueRef[]> = {
    'iFixit/ifixit#33495': [{ repo: 'iFixit/ifixit', number: 35803 }],
    'iFixit/ifixit#35154': [{ repo: 'iFixit/ifixit', number: 35802 }],
 };
+
+/** Issues the dummy board's issue search finds that no spec lists, for
+ * adding one by hand (model/projectIssues.ts). */
+export const DUMMY_ISSUES: IssueHit[] = (() => {
+   const day = 86400;
+   const now = Math.floor(Date.now() / 1000);
+   const hit = (
+      repo: string,
+      number: number,
+      title: string,
+      state: IssueHit['state'],
+      author: string,
+      daysAgo: number
+   ): IssueHit => ({ repo, number, title, state, author, createdAt: now - daysAgo * day });
+   return [
+      hit(
+         'iFixit/ifixit',
+         35410,
+         'Shopify: retry an order sync that failed',
+         'open',
+         'zdmitchell',
+         3
+      ),
+      hit(
+         'iFixit/ifixit',
+         35411,
+         'Shopify: log sync drift per store',
+         'open',
+         'danielbeardsley',
+         9
+      ),
+      hit(
+         'iFixit/ifixit',
+         35020,
+         'SSO: show who approved a release gate',
+         'done',
+         'rjmccluskey',
+         40
+      ),
+      hit('iFixit/ops', 812, 'Webdriver: keep failure videos for a week', 'open', 'mlahargou', 12),
+      hit(
+         'iFixit/ifixit',
+         36210,
+         'Akeneo: drop the old attribute sync job',
+         'dropped',
+         'danielbeardsley',
+         70
+      ),
+      hit(
+         'iFixit/ifixit',
+         35415,
+         'Translations: flag strings nobody has reviewed',
+         'open',
+         'sctice',
+         5
+      ),
+   ];
+})();

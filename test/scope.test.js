@@ -2,7 +2,15 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import db from '../lib/db.js';
 import git from '../lib/git-manager.js';
-import { fetchSpec, loadScope, syncScope } from '../lib/scope.js';
+import {
+   attachIssue,
+   detachIssue,
+   fetchSpec,
+   loadProjectIssues,
+   loadScope,
+   searchIssues,
+   syncScope,
+} from '../lib/scope.js';
 
 const at = day => Date.parse(`${day}T12:00:00Z`) / 1000;
 const iso = day => `${day}T12:00:00Z`;
@@ -81,6 +89,28 @@ const STATES = {
       repository: repo('iFixit/ops'),
       parent: null,
    },
+   // an issue someone adds by hand, and a PR, which can't be added
+   'ifixit/ifixit#106': {
+      __typename: 'Issue',
+      number: 106,
+      title: 'Print stickers',
+      state: 'OPEN',
+      stateReason: null,
+      closedAt: null,
+      createdAt: iso('2026-09-02'),
+      author: { login: 'gus' },
+      repository: ifixit,
+      parent: null,
+   },
+   'ifixit/ifixit#201': {
+      __typename: 'PullRequest',
+      number: 201,
+      title: 'PR 201',
+      state: 'MERGED',
+      merged: true,
+      closedAt: iso('2026-08-19'),
+      repository: ifixit,
+   },
    // a sub-issue of #101, which the spec already holds
    'ifixit/ifixit#104': {
       __typename: 'Issue',
@@ -130,9 +160,15 @@ const LINKS = {
 /** Answer a query the way GitHub would, from the tables above: repo names
  * in any case, and a missing issue as an error beside the data. */
 let failStates = false;
+let searches = [];
 function fakeGraphql(query, variables) {
    if (failStates && !variables && !query.includes('closedByPullRequestsReferences')) {
       return Promise.reject(new Error('Bad gateway'));
+   }
+   if (variables?.q) {
+      searches.push(variables.q);
+      const nodes = /stickers/.test(variables.q) ? [STATES['ifixit/ifixit#106']] : [];
+      return Promise.resolve({ search: { nodes } });
    }
    if (variables) {
       const key = `${variables.owner}/${variables.name}#${variables.number}`.toLowerCase();
@@ -255,6 +291,35 @@ function fakeQuery(sql, params) {
       }
       return {};
    }
+   const sameIssue = (h, repo, number) =>
+      h.repo.toLowerCase() === String(repo).toLowerCase() && Number(h.number) === Number(number);
+   if (sql.startsWith('SELECT DISTINCT `repo`, `number` FROM `project_issues`')) {
+      return tables.hand.map(({ repo, number }) => ({ repo, number }));
+   }
+   if (sql.startsWith('INSERT IGNORE INTO `project_issues`')) {
+      const row = params[0];
+      const there = tables.hand.some(
+         h => h.project === row.project && sameIssue(h, row.repo, row.number)
+      );
+      if (!there) tables.hand.push({ ...row });
+      return {};
+   }
+   if (sql.startsWith('SELECT') && sql.includes('FROM `project_issues` WHERE `project` = ?')) {
+      return tables.hand.filter(h => h.project === params[0] && sameIssue(h, params[1], params[2]));
+   }
+   if (sql.startsWith('DELETE FROM `project_issues`')) {
+      const before = tables.hand.length;
+      tables.hand = tables.hand.filter(
+         h => !(h.project === params[0] && sameIssue(h, params[1], params[2]))
+      );
+      return { affectedRows: before - tables.hand.length };
+   }
+   if (sql.startsWith('UPDATE `project_issues` SET ?')) {
+      for (const h of tables.hand)
+         if (sameIssue(h, params[1], params[2])) Object.assign(h, params[0]);
+      return {};
+   }
+   if (sql.includes('FROM `project_issues`')) return tables.hand;
    // specs no plan names: there are none here
    if (sql.startsWith('DELETE FROM')) return {};
    if (sql.includes('FROM `scope_specs`')) return tables.specs;
@@ -262,7 +327,9 @@ function fakeQuery(sql, params) {
       const names = ['spec_repo', 'spec_number', 'position', 'source', 'repo', 'number'];
       return tables.items.map(row =>
          Object.fromEntries(
-            [...names, 'title', 'state', 'closed_at', 'joined_at'].map((name, i) => [name, row[i]])
+            [...names, 'title', 'author', 'created_at', 'state', 'closed_at', 'joined_at'].map(
+               (name, i) => [name, row[i]]
+            )
          )
       );
    }
@@ -326,7 +393,7 @@ test('a failed read of a spec’s checklist issues fails the spec, so its stored
 });
 
 test('a sync stores each spec and its links, and loadScope builds the plan’s scope from them', async () => {
-   tables = { items: [], specs: [], links: [] };
+   tables = { items: [], specs: [], links: [], hand: [] };
    planReads = 0;
    mock.method(git, 'graphql', fakeGraphql);
    mock.method(db, 'query', async (sql, params) => fakeQuery(sql, params));
@@ -359,7 +426,7 @@ test('a sync stores each spec and its links, and loadScope builds the plan’s s
 });
 
 test('a sync asked for while one runs runs again after it', async () => {
-   tables = { items: [], specs: [], links: [] };
+   tables = { items: [], specs: [], links: [], hand: [] };
    planReads = 0;
    mock.method(git, 'graphql', fakeGraphql);
    mock.method(db, 'query', async (sql, params) => fakeQuery(sql, params));
@@ -368,4 +435,70 @@ test('a sync asked for while one runs runs again after it', async () => {
    const second = syncScope(settings);
    await Promise.all([first, second]);
    assert.equal(planReads, 2);
+});
+
+test('an issue added by hand joins the project’s list, and taking it off removes it', async () => {
+   tables = { items: [], specs: [], links: [], hand: [] };
+   planReads = 0;
+   mock.method(git, 'graphql', fakeGraphql);
+   mock.method(db, 'query', async (sql, params) => fakeQuery(sql, params));
+   await syncScope(settings);
+   const added = await attachIssue(
+      'workbench',
+      { repo: 'ifixit/ifixit', number: 106 },
+      'dana',
+      at('2026-09-20')
+   );
+   assert.equal(added.title, 'Print stickers');
+   assert.equal(added.addedBy, 'dana');
+   // GitHub's spelling, not the one typed
+   assert.equal(tables.hand[0].repo, 'iFixit/ifixit');
+   // a PR, or an issue GitHub doesn't have, can't be added
+   assert.equal(
+      await attachIssue('workbench', { repo: 'iFixit/ifixit', number: 201 }, 'dana'),
+      null
+   );
+   assert.equal(
+      await attachIssue('workbench', { repo: 'iFixit/ifixit', number: 999 }, 'dana'),
+      null
+   );
+   // adding it again keeps who added it first
+   await attachIssue('workbench', { repo: 'iFixit/ifixit', number: 106 }, 'erin');
+   assert.deepEqual(
+      tables.hand.map(h => h.added_by),
+      ['dana']
+   );
+   const list = await loadProjectIssues(settings, 'workbench');
+   const row = list.find(i => i.ref?.number === 106);
+   assert.deepEqual([row.via, row.plans, row.author], [['hand'], [1], 'gus']);
+   // the project's own issue isn't one of its issues
+   assert.ok(!list.some(i => i.ref?.repo === 'test/projects'));
+   // the hourly sync keeps a hand-added issue's title current
+   STATES['ifixit/ifixit#106'].title = 'Print the stickers';
+   await syncScope(settings);
+   assert.equal(tables.hand[0].title, 'Print the stickers');
+   assert.equal(await detachIssue('workbench', { repo: 'iFixit/ifixit', number: 106 }), true);
+   assert.equal(await detachIssue('workbench', { repo: 'iFixit/ifixit', number: 106 }), false);
+   assert.ok(!(await loadProjectIssues(settings, 'workbench')).some(i => i.ref?.number === 106));
+});
+
+test('searchIssues finds an issue by link, by number in any tracked repo, or by words', async () => {
+   mock.method(git, 'graphql', fakeGraphql);
+   searches = [];
+   const hit = { repo: 'iFixit/ifixit', number: 106, title: 'Print the stickers', state: 'open' };
+   const [byLink] = await searchIssues(settings, 'https://github.com/iFixit/ifixit/issues/106');
+   assert.deepEqual(
+      { repo: byLink.repo, number: byLink.number, title: byLink.title, state: byLink.state },
+      hit
+   );
+   // a PR isn't an issue to pick
+   assert.deepEqual(await searchIssues(settings, 'iFixit/ifixit#201'), []);
+   const [byWords] = await searchIssues(settings, 'stickers');
+   assert.equal(byWords.number, 106);
+   // issues only, in the tracked repos' organizations
+   assert.match(searches[0], /^stickers is:issue org:test/);
+   // answered again from what it kept
+   await searchIssues(settings, 'stickers');
+   assert.equal(searches.length, 1);
+   assert.deepEqual(await searchIssues(settings, ' '), []);
 });

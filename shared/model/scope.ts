@@ -111,8 +111,9 @@ export function itemState(state: string | null, reason: string | null): ItemStat
 
 /** One thing in a plan's scope. */
 export interface ScopeItem {
-   /** how it's in: a sub-issue of the spec, a checklist line, or the project label */
-   source: 'sub' | 'check' | 'label';
+   /** how it's in: a sub-issue of the spec, a checklist line, the project
+    * label, or added by hand on the board */
+   source: 'sub' | 'check' | 'label' | 'hand';
    /** the issue; null for a plain checklist line */
    ref: IssueRef | null;
    title: string;
@@ -121,6 +122,12 @@ export interface ScopeItem {
    closedAt: number | null;
    /** epoch secs it joined the scope; null when not known (a checklist line) */
    joinedAt: number | null;
+   /** who opened the issue; null when not known */
+   author?: string | null;
+   /** epoch secs the issue was opened; null when not known */
+   createdAt?: number | null;
+   /** who added it by hand on the board */
+   addedBy?: string | null;
    /** the PRs that link it: close it, or name it after a linking phrase
     * (bodyLinks); planScopes fills these in */
    prs?: LinkedPull[];
@@ -206,8 +213,9 @@ export interface ScopeInputs {
    plans: readonly RoadmapItem[];
    /** each spec issue's items, by issueKey(spec) */
    specs: ReadonlyMap<string, { title: string | null; found: boolean; items: ScopeItem[] }>;
-   /** issues carrying a project's label, by slug, the label's time as joinedAt */
-   labeled: ReadonlyMap<string, ScopeItem[]>;
+   /** issues attached to a project, by slug: the ones carrying its label
+    * and the ones added by hand on the board, each attached at joinedAt */
+   attached: ReadonlyMap<string, ScopeItem[]>;
    /** a project's PRs (people's, not bots'), by slug */
    pulls: ReadonlyMap<string, WorkPull[]>;
    /** the scope issues each PR links, by issueKey(pr) */
@@ -217,48 +225,72 @@ export interface ScopeInputs {
    unlabeled?: readonly WorkPull[];
 }
 
+/** An issue attached to a project, as its page lists them: a plan's
+ * scope item, or an issue attached by label or by hand. */
+export interface ProjectIssue extends ScopeItem {
+   /** the project's plans whose scope holds it, by id, earliest first */
+   plans: number[];
+   /** every way it's attached: a plan's spec (a sub-issue or a checklist
+    * line), the project label, or by hand */
+   via: ScopeItem['source'][];
+}
+
 /**
- * Every plan's scope. Labeled issues go to the plan that had started when
- * they were labeled (an issue already in one of the project's specs stays
- * there). A PR goes to the plan whose scope it links, a spec issue
- * included, else by its opening date (planOfWork).
+ * Every plan's scope, and every project's issues. An attached issue (by
+ * label or by hand) goes to the plan that had started when it was attached;
+ * one already in a spec of its project stays there. A PR goes to the plan
+ * whose scope it links (a spec issue or an attached issue included), else
+ * by its opening date (planOfWork).
  */
-export function planScopes({
+function build({
    plans,
    specs: specsIn,
-   labeled,
+   attached,
    pulls,
    links: linksIn,
    unlabeled = [],
-}: ScopeInputs): PlanScope[] {
+}: ScopeInputs): { plans: PlanScope[]; projects: Map<string, ProjectIssue[]> } {
    // keys ignore case (issueKey), however the caller spelled them
    const specs = new Map([...specsIn].map(([k, v]) => [k.toLowerCase(), v]));
    const links = new Map([...linksIn].map(([k, v]) => [k.toLowerCase(), v]));
    const byId = new Map(plans.map(p => [p.id, p]));
+   const byStart = (a: RoadmapItem, b: RoadmapItem) =>
+      a.start.localeCompare(b.start) || a.id - b.id;
    const byProject = new Map<string, RoadmapItem[]>();
    for (const plan of plans) {
       if (plan.project) byProject.set(plan.project, [...(byProject.get(plan.project) ?? []), plan]);
    }
    // which plans hold each issue through a spec (the spec issue itself
-   // included), for links and for keeping a labeled issue where a spec has it
+   // included), for keeping an attached issue where a spec has it, and for
+   // what moved to a later plan
    const specPlans = new Map<string, Set<number>>();
-   const hold = (k: string, id: number) =>
-      specPlans.set(k, new Set([...(specPlans.get(k) ?? []), id]));
+   // and through a spec or an attachment, for links
+   const heldBy = new Map<string, Set<number>>();
+   const hold = (m: Map<string, Set<number>>, k: string, id: number) =>
+      m.set(k, new Set([...(m.get(k) ?? []), id]));
    const items = new Map<number, ScopeItem[]>();
    for (const plan of plans) {
       const spec = plan.spec ? specs.get(issueKey(plan.spec)) : undefined;
       const list = spec ? [...spec.items] : [];
       items.set(plan.id, list);
-      if (plan.spec) hold(issueKey(plan.spec), plan.id);
-      for (const item of list) if (item.ref) hold(issueKey(item.ref), plan.id);
+      const keys = [plan.spec, ...list.map(i => i.ref)].filter((r): r is IssueRef => !!r);
+      for (const k of keys.map(issueKey)) {
+         hold(specPlans, k, plan.id);
+         hold(heldBy, k, plan.id);
+      }
    }
-   for (const [slug, issues] of labeled) {
+   for (const [slug, issues] of attached) {
       const mine = byProject.get(slug) ?? [];
       for (const issue of issues) {
          const k = issue.ref ? issueKey(issue.ref) : '';
          if ([...(specPlans.get(k) ?? [])].some(id => byId.get(id)?.project === slug)) continue;
          const plan = planOfWork(mine, issue.joinedAt ?? 0);
-         if (plan) items.get(plan.id)?.push(issue);
+         if (!plan) continue;
+         // the same issue labeled and added by hand is one item
+         const list = items.get(plan.id) ?? [];
+         if (k && list.some(i => i.ref && issueKey(i.ref) === k)) continue;
+         list.push(issue);
+         if (k) hold(heldBy, k, plan.id);
       }
    }
    // the plans a PR links: the ones holding an issue it links,
@@ -266,7 +298,7 @@ export function planScopes({
    const linkedPlans = (pr: IssueRef): Set<number> => {
       const ids = new Set(specPlans.get(issueKey(pr)) ?? []);
       for (const ref of links.get(issueKey(pr)) ?? []) {
-         for (const id of specPlans.get(issueKey(ref)) ?? []) ids.add(id);
+         for (const id of heldBy.get(issueKey(ref)) ?? []) ids.add(id);
       }
       return ids;
    };
@@ -306,7 +338,7 @@ export function planScopes({
       }
    }
    const byTime = (a: WorkPull, b: WorkPull) => a.createdAt - b.createdAt || a.number - b.number;
-   // each scope issue's PRs, with titles and states for the projects' own
+   // each linked issue's PRs, with titles and states for the projects' own
    const known = new Map([...prsOfProject.values()].flat().map(p => [issueKey(p), p]));
    const prsOf = new Map<string, LinkedPull[]>();
    for (const [k, issues] of links) {
@@ -331,14 +363,16 @@ export function planScopes({
                p.project === plan.project &&
                (p.start > plan.start || (p.start === plan.start && p.id > plan.id))
          )
-         .sort((a, b) => a.start.localeCompare(b.start) || a.id - b.id)[0]?.id;
-   return plans.map(plan => {
+         .sort(byStart)[0]?.id;
+   const withPrs = (item: ScopeItem): ScopeItem =>
+      item.ref ? { ...item, prs: prsOf.get(issueKey(item.ref)) ?? [] } : item;
+   const scopes = plans.map((plan): PlanScope => {
       const spec = plan.spec ? specs.get(issueKey(plan.spec)) : undefined;
       const list = (items.get(plan.id) ?? []).map(item => {
          if (!item.ref) return item;
-         const k = issueKey(item.ref);
-         const later = item.state === 'open' && plan.project ? movedTo(plan, k) : undefined;
-         return { ...item, prs: prsOf.get(k) ?? [], ...(later != null ? { movedTo: later } : {}) };
+         const later =
+            item.state === 'open' && plan.project ? movedTo(plan, issueKey(item.ref)) : undefined;
+         return { ...withPrs(item), ...(later != null ? { movedTo: later } : {}) };
       });
       const count = (state: ItemState) =>
          list.filter(i => i.state === state && i.movedTo == null).length;
@@ -359,6 +393,97 @@ export function planScopes({
          afterDone: (afterDone.get(plan.id) ?? []).sort(byTime),
       };
    });
+   // each project's issues: its plans' items, earliest plan first, then
+   // what's attached and in no plan (a project with no plans yet)
+   const projects = new Map<string, Map<string, ProjectIssue>>();
+   const row = (slug: string, k: string, item: ScopeItem, planId: number | null) => {
+      const rows = projects.get(slug) ?? new Map<string, ProjectIssue>();
+      projects.set(slug, rows);
+      const was = rows.get(k);
+      const via = [...new Set([...(was?.via ?? []), item.source])];
+      rows.set(k, {
+         ...(was ?? {}),
+         ...item,
+         addedBy: item.addedBy ?? was?.addedBy ?? null,
+         plans: [...(was?.plans ?? []), ...(planId != null ? [planId] : [])],
+         via,
+      });
+   };
+   const scopeOf = new Map(scopes.map(s => [s.planId, s]));
+   for (const plan of [...plans].sort(byStart)) {
+      if (!plan.project) continue;
+      (scopeOf.get(plan.id)?.items ?? []).forEach((item, i) => {
+         row(
+            plan.project as string,
+            item.ref ? issueKey(item.ref) : `${plan.id}:line:${i}`,
+            item,
+            plan.id
+         );
+      });
+   }
+   for (const [slug, issues] of attached) {
+      for (const issue of issues) {
+         if (!issue.ref) continue;
+         const k = issueKey(issue.ref);
+         const was = projects.get(slug)?.get(k);
+         if (!was) {
+            row(slug, k, withPrs(issue), null);
+            continue;
+         }
+         // already listed through a plan: note how else it's attached
+         projects.get(slug)?.set(k, {
+            ...was,
+            via: [...new Set([...was.via, issue.source])],
+            addedBy: was.addedBy ?? issue.addedBy ?? null,
+         });
+      }
+   }
+   return {
+      plans: scopes,
+      projects: new Map([...projects].map(([slug, rows]) => [slug, [...rows.values()]])),
+   };
+}
+
+/** Every plan's scope (build). */
+export function planScopes(inputs: ScopeInputs): PlanScope[] {
+   return build(inputs).plans;
+}
+
+/** Every issue attached to one project: its plans' scope items and the
+ * issues attached to it by label or by hand, each once (build). */
+export function projectIssues(inputs: ScopeInputs, slug: string): ProjectIssue[] {
+   return build(inputs).projects.get(slug) ?? [];
+}
+
+/** An issue as a search finds it, for picking one. */
+export interface IssueHit {
+   repo: string;
+   number: number;
+   title: string;
+   state: ItemState;
+   author: string | null;
+   /** epoch secs it was opened */
+   createdAt: number | null;
+}
+
+/**
+ * What a person typed into an issue search: an issue's link or
+ * "owner/repo#123", a number ("#123" or "123") that could be in any tracked
+ * repo, or words to search titles and bodies for.
+ */
+export type IssueQuery =
+   | { kind: 'ref'; ref: IssueRef }
+   | { kind: 'number'; number: number }
+   | { kind: 'words'; words: string };
+
+export function issueQuery(text: string): IssueQuery | null {
+   const s = text.trim();
+   if (!s) return null;
+   const ref = parseIssueRef(s);
+   if (ref) return { kind: 'ref', ref };
+   const n = /^#?(\d+)$/.exec(s);
+   if (n) return { kind: 'number', number: Number(n[1]) };
+   return s.length >= 2 ? { kind: 'words', words: s } : null;
 }
 
 /** What Decide needs from a plan's scope. */

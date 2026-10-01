@@ -76,6 +76,10 @@ app.get('/user-names', userNamesController.getNames);
 app.get('/projects-data', projectsController.getBoardData);
 app.get('/retro-data', projectsController.getRetro);
 app.get('/scope-data', projectsController.getScope);
+app.get('/issue-search', projectsController.searchIssues);
+app.get('/project-issues', projectsController.getProjectIssues);
+app.post('/project-issues', canWrite, projectsController.attachIssue);
+app.delete('/project-issues', canWrite, projectsController.detachIssue);
 // the roadmap is the one part of the Projects tab people edit here: reads are
 // gated like the other board data (lib/authentication.js), writes by canWrite
 app.get('/roadmap', roadmapController.list);

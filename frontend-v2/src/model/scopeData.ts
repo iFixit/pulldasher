@@ -4,8 +4,16 @@ import { DUMMY_LINKS, DUMMY_SPECS } from '../backend/dummyProjects';
 import { epoch } from '../../../shared/format';
 import { projectOf } from '../../../shared/model/projects';
 import type { RoadmapItem } from '../../../shared/model/roadmap';
-import { issueKey, planScopes, type PlanScope, type WorkPull } from '../../../shared/model/scope';
+import {
+   issueKey,
+   planScopes,
+   type PlanScope,
+   type ScopeInputs,
+   type ScopeItem,
+   type WorkPull,
+} from '../../../shared/model/scope';
 import { isSuffixBot } from '../../../shared/model/visibility';
+import { createMemoryStore } from '../storage';
 
 /**
  * Every plan's scope (shared/model/scope.ts), by plan id: GET /scope-data on
@@ -15,8 +23,17 @@ import { isSuffixBot } from '../../../shared/model/visibility';
  * later, when that read has landed.
  */
 
-/** The dummy board's scopes, built the way the server builds them. */
-async function dummyScopes(plans: readonly RoadmapItem[]): Promise<PlanScope[]> {
+/** Bumped when an issue is added to a project or taken off, so every
+ * scope and issue list loads again. */
+export const scopeVersion = createMemoryStore({ n: 0 });
+
+/** The issues added by hand on the dummy board, by slug, standing in for
+ * the server's table. */
+export const dummyHand = new Map<string, ScopeItem[]>();
+
+/** What the dummy board's scopes are built from, the way the server builds
+ * them (lib/scope.js scopeInputs). */
+export async function dummyScopeInputs(plans: readonly RoadmapItem[]): Promise<ScopeInputs> {
    const { pulls, projectLabelPrefix } = await loadDummy();
    const prefix = projectLabelPrefix ?? 'project:';
    const byProject = new Map<string, WorkPull[]>();
@@ -41,18 +58,18 @@ async function dummyScopes(plans: readonly RoadmapItem[]): Promise<PlanScope[]> 
    const specs = new Map(
       Object.entries(DUMMY_SPECS).map(([k, spec]) => [k, { ...spec, found: true }])
    );
-   return planScopes({
+   return {
       plans,
       specs,
-      labeled: new Map(),
+      attached: dummyHand,
       pulls: byProject,
       links: new Map(Object.entries(DUMMY_LINKS)),
       unlabeled,
-   });
+   };
 }
 
 async function load(plans: readonly RoadmapItem[]): Promise<PlanScope[] | null> {
-   if (isDummy()) return dummyScopes(plans);
+   if (isDummy()) return planScopes(await dummyScopeInputs(plans));
    return fetch('/scope-data')
       .then(r => (r.ok ? (r.json() as Promise<{ plans: PlanScope[] }>) : null))
       .then(body => body?.plans ?? null)
@@ -70,6 +87,7 @@ export function useScopeData(
    plans: readonly RoadmapItem[] | null
 ): ReadonlyMap<number, PlanScope> | null | undefined {
    const [got, setGot] = useState<PlanScope[] | null | undefined>(undefined);
+   const { n: version } = scopeVersion.useValue();
    // what each plan's scope depends on: its spec, dates, status, and when it
    // last changed (a done plan's late PRs count from then)
    const key = plans
@@ -95,7 +113,7 @@ export function useScopeData(
       };
       // keyed on what the scopes depend on, not the list object, which the
       // roadmap rebuilds on every change
-   }, [key]);
+   }, [key, version]);
    const byPlan = useMemo(() => got && new Map(got.map(s => [s.planId, s])), [got]);
    return plans ? byPlan : undefined;
 }

@@ -5,8 +5,10 @@ import {
    itemState,
    parseChecklist,
    parseIssueRef,
+   issueQuery,
    planOfWork,
    planScopes,
+   projectIssues,
    scopeCounts,
    type ScopeItem,
    type WorkPull,
@@ -223,7 +225,7 @@ describe('planScopes', () => {
    const scopes = planScopes({
       plans: [launch, feedback],
       specs,
-      labeled: new Map([
+      attached: new Map([
          [
             'workbench',
             [
@@ -300,7 +302,7 @@ describe('planScopes', () => {
       const [s] = planScopes({
          plans: [done],
          specs: new Map(),
-         labeled: new Map(),
+         attached: new Map(),
          pulls: new Map([
             [
                'trusted-shops',
@@ -349,7 +351,7 @@ describe('planScopes, between back-to-back plans', () => {
    const scopes = planScopes({
       plans: [v1, v2],
       specs,
-      labeled: new Map(),
+      attached: new Map(),
       pulls: new Map([['workbench', [pull(1, '2026-09-25')]]]),
       links: new Map([
          // "Parts of #100": the v1.0 epic itself
@@ -401,10 +403,81 @@ describe('scopeCounts', () => {
                },
             ],
          ]),
-         labeled: new Map(),
+         attached: new Map(),
          pulls: new Map(),
          links: new Map(),
       });
       expect(scopeCounts(s).lastClosedAt).toBe(at('2026-08-01'));
+   });
+});
+
+describe('projectIssues', () => {
+   const launch = plan(1, {
+      spec: { repo: 'iFixit/ifixit', number: 100 },
+      start: '2026-05-18',
+      weeks: 15,
+   });
+   const inputs = {
+      plans: [launch],
+      specs: new Map([
+         [
+            'iFixit/ifixit#100',
+            {
+               title: 'Launch',
+               found: true,
+               items: [
+                  item(101),
+                  item(102, { state: 'done' as const, closedAt: at('2026-08-01') }),
+               ],
+            },
+         ],
+      ]),
+      attached: new Map([
+         [
+            'workbench',
+            [
+               // in the spec and labeled too: listed once
+               item(101, { source: 'label', joinedAt: at('2026-08-10') }),
+               // added by hand on the board
+               item(103, { source: 'hand', joinedAt: at('2026-09-01'), addedBy: 'dana' }),
+            ],
+         ],
+         // a project with no plans yet still lists its issues
+         ['docs', [item(7, { source: 'label', joinedAt: at('2026-09-02') })]],
+      ]),
+      pulls: new Map(),
+      links: new Map([['iFixit/ifixit#5', [{ repo: 'iFixit/ifixit', number: 103 }]]]),
+   };
+
+   it('lists a project’s spec items and attached issues once, with how each is attached', () => {
+      const rows = projectIssues(inputs, 'workbench');
+      expect(rows.map(r => [r.ref?.number, r.via, r.plans])).toEqual([
+         [101, ['sub', 'label'], [1]],
+         [102, ['sub'], [1]],
+         [103, ['hand'], [1]],
+      ]);
+      expect(rows[2].addedBy).toBe('dana');
+      // a PR that links an issue added by hand
+      expect(rows[2].prs?.map(p => p.number)).toEqual([5]);
+   });
+
+   it('lists the issues of a project with no plans', () => {
+      expect(projectIssues(inputs, 'docs').map(r => [r.ref?.number, r.plans])).toEqual([[7, []]]);
+   });
+});
+
+describe('issueQuery', () => {
+   it('tells an issue link, a number and words apart', () => {
+      expect(issueQuery('https://github.com/iFixit/ifixit/issues/64797')).toEqual({
+         kind: 'ref',
+         ref: { repo: 'iFixit/ifixit', number: 64797 },
+      });
+      expect(issueQuery(' #64797 ')).toEqual({ kind: 'number', number: 64797 });
+      expect(issueQuery('workbench feedback')).toEqual({
+         kind: 'words',
+         words: 'workbench feedback',
+      });
+      expect(issueQuery('w')).toBeNull();
+      expect(issueQuery('  ')).toBeNull();
    });
 });

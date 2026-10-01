@@ -63,9 +63,39 @@ export const API_ROUTES = [
       handlers: [projectsController.getScope],
       does:
          "Every plan's scope: the issue that specs it (a plan's `spec`), its sub-issues and " +
-         'checklist lines plus the issues labeled into its project, each open, done or dropped ' +
-         '(closed as not planned or duplicate), when each joined, and the PRs that opened after ' +
-         "the plan's end or more than a week after it was marked done or dropped",
+         'checklist lines plus the issues attached to its project by label or by hand, each open, ' +
+         'done or dropped (closed as not planned or duplicate), when each joined, and the PRs that ' +
+         "opened after the plan's end or more than a week after it was marked done or dropped",
+   },
+   {
+      method: 'get',
+      path: '/api/v1/issue-search',
+      handlers: [projectsController.searchIssues],
+      does:
+         'Issues to pick from for ?q=: the issue a link or owner/repo#123 names, the issues with a ' +
+         "number (#123) in every tracked repo, or GitHub's search for words in issue titles and bodies",
+   },
+   {
+      method: 'get',
+      path: '/api/v1/project-issues',
+      handlers: [projectsController.getProjectIssues],
+      does:
+         "Every issue attached to ?project=slug: its plans' scope items and the issues attached by " +
+         'its label or by hand, each once, with how it is attached, its plans and the PRs that link it',
+   },
+   {
+      method: 'post',
+      path: '/api/v1/project-issues',
+      handlers: [canWrite, projectsController.attachIssue],
+      does:
+         'Add an issue to a project by hand: {project, issue} with issue as owner/repo#123 or a link. ' +
+         'A missing issue, or a PR, is a 404',
+   },
+   {
+      method: 'delete',
+      path: '/api/v1/project-issues',
+      handlers: [canWrite, projectsController.detachIssue],
+      does: 'Take an issue added by hand off a project: ?project=slug&repo=owner/repo&number=123',
    },
    {
       method: 'get',

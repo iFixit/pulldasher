@@ -13,7 +13,7 @@ import type { PlanScope } from '../../../../shared/model/scope';
 import type { PullData } from '../../../../shared/types';
 import { EmptyState } from '../../components/bits';
 import { ClosedRow } from '../../components/ClosedRow';
-import { Fold, FoldRows, GroupHeader, RestGroup, Rows } from '../../components/Lane';
+import { Fold, FoldRows, GroupHeader, Rows } from '../../components/Lane';
 import type { RowOptions } from '../../components/Row';
 import {
    chartWindow,
@@ -37,6 +37,8 @@ import {
 } from './parts';
 import { PlanFacts } from './roadmapHealth';
 import { ProjectSpecs } from './Spec';
+import { ProjectIssuesSection } from './Issues';
+import { issueKey } from '../../../../shared/model/scope';
 import { setOngoing } from '../../model/settingsData';
 import { stageWord, type PortfolioItem } from '../../model/portfolio';
 
@@ -255,6 +257,11 @@ export function ProjectPage({
          setSaveError(r.error);
       });
    };
+   // what the board knows of each PR, for a PR chip's card
+   const pullIndex = new Map(
+      [...(group?.open ?? []).map(p => p.data), ...merged, ...closed].map(p => [issueKey(p), p])
+   );
+   const pullOf = (repo: string, number: number) => pullIndex.get(issueKey({ repo, number }));
    const people = group?.people ?? [];
    const devs = people.filter(login => teamOf(login) != null);
    const others = people.filter(login => teamOf(login) == null);
@@ -308,25 +315,19 @@ export function ProjectPage({
             <Rows>
                <ProjectFacts g={{ slug }} project={project} prefix={prefix} ongoing={ongoing} />
                <PlanFacts slug={slug} nav={nav} navigate={navigate} />
+            </Rows>
+         </div>
+         <section className="mb-7">
+            <GroupHeader
+               title="Pull requests"
+               sub={`${group?.open.length ?? 0} open, ${merged.length} merged in the last 14 days`}
+            />
+            <Rows>
                {group && group.open.length > 0 ? (
                   <FoldRows list={group.open} opts={opts} id={`project:${slug}:open`} />
                ) : (
-                  <div className="border-t border-secondary px-3.5 py-3 text-[13px] text-ink-3">
-                     No open PRs.
-                  </div>
+                  <div className="px-3.5 py-3 text-[13px] text-ink-3">No open PRs.</div>
                )}
-            </Rows>
-         </div>
-         <ProjectSpecs
-            slug={slug}
-            label={prefix + slug}
-            plans={plans}
-            scopes={scopes}
-            nav={nav}
-            navigate={navigate}
-         />
-         {merged.length > 0 && (
-            <RestGroup>
                <Fold
                   count={merged.length}
                   label="Merged in the last 14 days"
@@ -337,8 +338,10 @@ export function ProjectPage({
                      <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />
                   ))}
                </Fold>
-            </RestGroup>
-         )}
+            </Rows>
+         </section>
+         <ProjectIssuesSection slug={slug} label={prefix + slug} plans={plans} pullOf={pullOf} />
+         <ProjectSpecs slug={slug} plans={plans} scopes={scopes} nav={nav} navigate={navigate} />
          {w && (
             <section className="mb-7">
                <GroupHeader title="In the date range" sub={rangeWords(range)} />

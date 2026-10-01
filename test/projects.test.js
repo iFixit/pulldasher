@@ -348,11 +348,13 @@ before(() => {
       }
       if (sql.includes('FROM `roadmap_items`')) return roadmapRows;
       if (sql.includes('FROM `roadmap_updates`')) return [];
-      // no plan names a spec here, and no issue carries a project label
+      // no plan names a spec here, and no issue carries a project label or
+      // was added by hand
       if (
          sql.includes('FROM `scope_specs`') ||
          sql.includes('FROM `scope_items`') ||
          sql.includes('FROM `issue_pull_links`') ||
+         sql.includes('FROM `project_issues`') ||
          sql.includes('l.title AS labeled_at') ||
          sql.includes('l.date AS labeled_at') ||
          sql.includes('FROM pulls p JOIN pull_labels l')
