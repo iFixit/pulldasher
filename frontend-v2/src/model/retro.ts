@@ -15,7 +15,8 @@ import {
 } from '../../../shared/model/roadmap';
 import { dayWords, type Range } from './projectData';
 import type { RetroData, RetroPr } from './retroData';
-import { days, NO_PLAN, pastEnd } from './words';
+import { durationWords } from './stage';
+import { NO_PLAN, pastEnd } from './words';
 
 const DAY = 86400;
 
@@ -84,14 +85,22 @@ export function groupRows(
 
 /**
  * A week as the charts draw it: its Monday, how many of its seven days the
- * chart's days hold (fewer only at either end, as for this week so far), and
- * whether it ends before the picked range, which the charts draw paler.
+ * chart's days hold (fewer only at either end, as for this week so far), how
+ * many of those the picked range counts, and whether it ends before the
+ * range, which the charts draw paler.
  */
 export interface ChartWeek {
    week: string;
    days: number;
+   /** all of `days` inside the range, none before it, and some for the
+    * week the range starts in, whose earlier days the charts draw paler */
+   counted: number;
    before: boolean;
 }
+
+/** Days from one day to another, both counted; 0 when `to` comes first. */
+const daysFrom = (from: string, to: string) =>
+   to < from ? 0 : Math.round(((dayStart(to) as number) - (dayStart(from) as number)) / DAY) + 1;
 
 /** One Monday's week against the days a chart covers and the picked range.
  * With no days given, the week counts whole. */
@@ -99,11 +108,66 @@ export function chartWeek(week: string, shown?: Range, picked?: Range): ChartWee
    const sunday = utcDay((dayStart(week) as number) + 6 * DAY);
    const from = shown && shown.start > week ? shown.start : week;
    const to = shown && shown.end < sunday ? shown.end : sunday;
+   const days = daysFrom(from, to);
    return {
       week,
-      days: Math.round(((dayStart(to) as number) - (dayStart(from) as number)) / DAY) + 1,
+      days,
+      counted: picked
+         ? daysFrom(picked.start > from ? picked.start : from, picked.end < to ? picked.end : to)
+         : days,
       before: !!picked && sunday < picked.start,
    };
+}
+
+/**
+ * "Week of Sep 28", and how much of it a bar counts: "4 of 7 days" where
+ * the chart's days stop, "5 of 7 days in the range" for the week the range
+ * starts in, and "before the range" for a paler week.
+ */
+export function weekTitle(w: ChartWeek): string {
+   const head = `Week of ${dayWords(w.week)}`;
+   if (w.before) return `${head}${w.days < 7 ? `, ${w.days} of 7 days` : ''}, before the range`;
+   if (w.counted < w.days) return `${head}, ${w.counted} of 7 days in the range`;
+   return w.days < 7 ? `${head}, ${w.days} of 7 days` : head;
+}
+
+/** A week's Monday in words, with its year when that isn't this one, so a
+ * year-long chart's first week can't read as this year's: "Sep 29, 2025". */
+export function weekWords(week: string, now: number = Date.now() / 1000): string {
+   const year = week.slice(0, 4);
+   return year === String(new Date(now * 1000).getFullYear())
+      ? dayWords(week)
+      : `${dayWords(week)}, ${year}`;
+}
+
+/** A row's bars, week by week: what the picked range counts, drawn in full,
+ * and the days before the range, drawn paler. */
+export interface WeekBars {
+   counted: number[];
+   before: number[];
+}
+
+/**
+ * Each week's number split at the picked range's start. `whole` counts every
+ * day the chart holds; `inRange` only the range's days (the range's own
+ * numbers), so the week the range starts in splits in two instead of
+ * counting its days before the range as the range's. Without `inRange`, that
+ * week counts whole.
+ */
+export function weekBars(
+   whole: readonly number[] | undefined,
+   inRange: readonly number[] | undefined,
+   weeks: readonly ChartWeek[]
+): WeekBars {
+   const counted = weeks.map((w, i) => (w.before ? 0 : (inRange ?? whole)?.[i] ?? 0));
+   const before = weeks.map((w, i) =>
+      w.before
+         ? whole?.[i] ?? 0
+         : w.counted < w.days
+         ? Math.max(0, (whole?.[i] ?? 0) - counted[i])
+         : 0
+   );
+   return { counted, before };
 }
 
 /** Every week a chart draws for its days, the empty ones too, oldest first:
@@ -283,7 +347,8 @@ export function lastWeek(weekly: readonly number[]): number {
  * How long a project's PRs ran, as of the range's end: still open then,
  * and for how many days since its first PR in the range opened; or done,
  * and how many days from that first PR to its last merge or close. Null
- * with no numbers for the range.
+ * with no numbers for the range. It counts the days gone by, not the days
+ * touched, as the Overview counts a project's age, so the two say the same.
  */
 export function projectLength(
    w: Pick<ProjectWindow, 'first_opened' | 'last_closed' | 'backlog_end'> | null | undefined,
@@ -292,7 +357,7 @@ export function projectLength(
    if (!w?.first_opened) return null;
    const from = dayStart(w.first_opened) as number;
    if (w.backlog_end > 0) {
-      return { open: true, days: Math.round(((dayStart(rangeEnd) as number) + DAY - from) / DAY) };
+      return { open: true, days: Math.round(((dayStart(rangeEnd) as number) - from) / DAY) };
    }
    if (!w.last_closed) return null;
    return { open: false, days: Math.round(((dayStart(w.last_closed) as number) - from) / DAY) };
@@ -401,13 +466,15 @@ export function beforeWords(rangeDays: number): string {
    return rangeDays === 1 ? 'day before' : `${rangeDays} days before`;
 }
 
-/** How quickly the merged PRs merged: half of several merged within the
- * median, and one merged PR has only its own time. Null with none merged. */
+/** How quickly the merged PRs merged, said after their count ("16 merged,
+ * half of them within about 7 hours of opening"): half of several merged
+ * within the median, and one merged PR has only its own time. Null with
+ * none merged. */
 export function mergeSpeed(merged: number, medianDays: number | null): string | null {
    if (!merged || medianDays == null) return null;
    return merged === 1
-      ? `It merged ${days(medianDays)} after opening`
-      : `Half of them merged within ${days(medianDays)} of opening`;
+      ? `${durationWords(medianDays)} after it opened`
+      : `half of them within ${durationWords(medianDays)} of opening`;
 }
 
 /**

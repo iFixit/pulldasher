@@ -1,5 +1,11 @@
 import { epoch, n } from '../../../shared/format';
-import { RANK, STALL_DAYS, type DecideReason, type DecideRow } from '../../../shared/model/decide';
+import {
+   compareRows,
+   RANK,
+   STALL_DAYS,
+   type DecideReason,
+   type DecideRow,
+} from '../../../shared/model/decide';
 import {
    dayStart,
    MISC_SLUG,
@@ -26,7 +32,16 @@ import type { IssueCounts } from '../../../shared/model/work';
 import { dayOf } from './days';
 import { dayWords } from './projectData';
 import type { ProjectWorker } from './retro';
-import { NO_PLAN, NO_UPDATE_YET, pastEnd, UPDATE_DUE } from './words';
+import {
+   ALL_ISSUES_CLOSED,
+   BEING_WORKED_ON,
+   LAST_14_DAYS,
+   missedTarget,
+   NO_PLAN,
+   NO_UPDATE_YET,
+   pastEnd,
+   UPDATE_DUE,
+} from './words';
 
 /**
  * The portfolio: one row per project, for the person who plans the work
@@ -37,14 +52,22 @@ import { NO_PLAN, NO_UPDATE_YET, pastEnd, UPDATE_DUE } from './words';
  * the CSV export can't disagree.
  */
 
-/** Where a project is: in progress (an open PR or a merge in the last 14
- * days, and not parked, done or dropped on the roadmap), parked, quiet
- * (open, nothing in flight), or closed (done or dropped). */
+/** Words written for the middle of a sentence ("being worked on") as a
+ * label that starts with them. */
+export const upperFirst = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
+/** Words written to start a line ("No PR activity") in the middle of one. */
+export const lowerFirst = (words: string) => words.charAt(0).toLowerCase() + words.slice(1);
+
+/** Where a project is: being worked on (an open PR or a merge in the last
+ * 14 days, and not parked, done or dropped on the roadmap), parked, quiet
+ * (open, nothing in flight), or closed (done or dropped). "In progress" is
+ * only ever a plan's status. */
 export type Stage = 'progress' | 'parked' | 'quiet' | 'closed';
 
 /** Whether it has work in flight by its PRs alone: live (an open PR or a
  * merge in the last 14 days), quiet, or its issue closed as done or dropped.
- * The roadmap and Decide read this; the list reads `stage`. */
+ * The roadmap and Decide read this; the list reads `stage`, and both
+ * (beingWorkedOn). */
 export type ProjectStatus = 'live' | 'quiet' | 'done' | 'dropped';
 
 /** Enough of a PR to name and link it. */
@@ -143,7 +166,8 @@ export interface PortfolioItem {
    issues: IssueCounts | null;
    /** it runs with no end: marked on the board or by its issue's label */
    ongoing: boolean;
-   /** in progress, with open PRs and no activity for STALL_DAYS */
+   /** being worked on (stage progress), with open PRs and no activity for
+    * STALL_DAYS */
    stalled: boolean;
    /** how it's behind, the first that holds: its latest update says off
     * track and the plan hasn't changed since, it's past its plan's end with
@@ -192,12 +216,12 @@ function callWords(reason: DecideReason): Pick<PlanCell, 'kind' | 'text'> {
       case 'at_risk':
          return { kind: reason.kind, text: HEALTH_WORD[reason.kind] };
       case 'missed':
-         return { kind: 'missed', text: `Missed ${dayWords(reason.due)} target` };
+         return { kind: 'missed', text: missedTarget(dayWords(reason.due)) };
       case 'over':
       case 'ended':
          return { kind: 'past_end', text: pastEnd(reason.weeks) };
       case 'issues_done':
-         return { kind: 'issues_done', text: 'Issues all closed' };
+         return { kind: 'issues_done', text: ALL_ISSUES_CLOSED };
       case 'stalled':
          return { kind: 'stalled', text: 'Stalled' };
       case 'new':
@@ -386,6 +410,26 @@ export function portfolioItems(
    });
 }
 
+/** How a project is behind (`behind`), in the words its row uses: "Off
+ * track", "3 weeks past its end", "Missed its Sep 26 target"; null when it
+ * isn't. */
+export function behindWords(
+   item: Pick<PortfolioItem, 'behind' | 'plan' | 'target'>,
+   day: string
+): string | null {
+   switch (item.behind) {
+      case 'off_track':
+         return HEALTH_WORD.off_track;
+      case 'past_end':
+         // `behind` reads the plan under way, which is the one planFor gives
+         return item.plan && pastEnd(weeksPast(planEnd(item.plan), day));
+      case 'missed':
+         return item.target?.due_on ? missedTarget(dayWords(item.target.due_on)) : null;
+      default:
+         return null;
+   }
+}
+
 /**
  * The items with the calls Decide asks about each, so a row's Plan cell
  * names the worst one and wears the row's one amber mark. Without Decide's
@@ -418,10 +462,21 @@ export function withWorkers(
    return items.map(i => ({ ...i, workers: workers.get(i.slug) ?? [] }));
 }
 
-/** The tabs over the list, in the order they show. `live` is in progress,
- * named for the URLs shared before parked had a tab of its own. */
+/**
+ * Whether its PRs are moving on work that's going: being worked on, or
+ * parked, done or dropped work Decide asks about because its PRs still
+ * move, which belongs on the list a Monday opens to. The Overview's first
+ * tab, its tile and its charts count these, so they agree.
+ */
+export function beingWorkedOn(item: Pick<PortfolioItem, 'stage' | 'status' | 'asks'>): boolean {
+   return item.stage === 'progress' || (item.status === 'live' && item.asks.length > 0);
+}
+
+/** The tabs over the list, in the order they show. `live` is the projects
+ * being worked on, named for the URLs shared before parked had a tab of
+ * its own. Parked or finished work Decide asks about shows in two. */
 export const STATUS_FILTERS: [string, string][] = [
-   ['live', 'In progress'],
+   ['live', `${upperFirst(BEING_WORKED_ON)}, ${LAST_14_DAYS}`],
    ['parked', 'Parked'],
    ['quiet', 'Quiet'],
    ['closed', 'Done or dropped'],
@@ -430,7 +485,8 @@ export const STATUS_FILTERS: [string, string][] = [
 
 export function matchesStatus(item: PortfolioItem, filter: string): boolean {
    if (filter === 'all') return true;
-   return item.stage === (filter === 'live' ? 'progress' : filter);
+   if (filter === 'live') return beingWorkedOn(item);
+   return item.stage === filter;
 }
 
 /** One bar of the Overview's charts: its axis label, the same in words for
@@ -441,7 +497,7 @@ export interface BucketDef {
    under: number;
 }
 
-/** How long in-progress projects have been open, from their oldest open PR. */
+/** How long the projects being worked on have been open, from their oldest open PR. */
 export const AGE_BUCKETS: BucketDef[] = [
    { tick: 'Under 2 wk', words: 'open under 2 weeks', under: 14 },
    { tick: '2-4 wk', words: 'open 2 to 4 weeks', under: 28 },
@@ -451,7 +507,7 @@ export const AGE_BUCKETS: BucketDef[] = [
    { tick: '6+ mo', words: 'open 6 months or more', under: Infinity },
 ];
 
-/** How long since anyone worked on an in-progress project; the last bar is stalled. */
+/** How long since anyone worked on a project being worked on; the last bar is stalled. */
 export const IDLE_BUCKETS: BucketDef[] = [
    { tick: 'Last 7 days', words: 'last worked on in the last 7 days', under: 7 },
    { tick: '1-2 wk ago', words: 'last worked on 1 to 2 weeks ago', under: 14 },
@@ -487,7 +543,7 @@ export function matchesOnly(item: PortfolioItem, only: string | null): boolean {
    const chart = bar[1] as 'age' | 'idle';
    const days = bucketDays(item, chart);
    return (
-      item.stage === 'progress' &&
+      beingWorkedOn(item) &&
       days != null &&
       bucketOf(days, chart === 'age' ? AGE_BUCKETS : IDLE_BUCKETS) === Number(bar[2])
    );
@@ -560,11 +616,24 @@ export type SortKey =
 
 const STAGE_RANK: Record<Stage, number> = { progress: 0, parked: 1, quiet: 2, closed: 3 };
 
+/** A row's place in the default order: a call Decide asks, then an update
+ * its lead owes (amber too, but nobody decides it), then the rest. */
+const owedRank = (i: PortfolioItem) => (i.asks.length ? 0 : i.planCell.warn ? 1 : 2);
+
+/** The calls asked about a project as one of Decide's rows, for Decide's
+ * own order (decide.ts compareRows). */
+const asRow = (i: PortfolioItem): DecideRow => ({
+   slug: i.slug,
+   item: null,
+   reasons: i.asks.map(a => a.reason),
+});
+
 /** Each column's natural order: names A to Z, the soonest target first, and
  * the biggest number first everywhere else, so Last activity leads with the
- * longest quiet. The Plan column, the default, puts amber first, whatever
- * someone owes, then the longest quiet. `dir` is -1 to reverse; blanks sink
- * either way. */
+ * longest quiet. The Plan column, the default, puts what's owed first: the
+ * calls Decide asks in Decide's own order, so its worst call tops both
+ * lists, then the updates owed, then the rest, each by the longest quiet.
+ * `dir` is -1 to reverse; blanks sink either way. */
 const SORTS: Record<SortKey, (a: PortfolioItem, b: PortfolioItem, dir: number) => number> = {
    name: (a, b, dir) => dir * a.name.localeCompare(b.name),
    lead: (a, b, dir) => nullsLast(a.lead, b.lead, (x, y) => dir * x.localeCompare(y)),
@@ -581,7 +650,10 @@ const SORTS: Record<SortKey, (a: PortfolioItem, b: PortfolioItem, dir: number) =
    waiting: (a, b, dir) => dir * (b.waiting - a.waiting),
    merged: (a, b, dir) => dir * (b.merged - a.merged),
    plan: (a, b, dir) =>
-      dir * (Number(b.planCell.warn) - Number(a.planCell.warn)) || SORTS.last(a, b, dir),
+      dir *
+         (owedRank(a) - owedRank(b) ||
+            (a.asks.length && b.asks.length ? compareRows(asRow(a), asRow(b)) : 0)) ||
+      SORTS.last(a, b, dir),
    // the most issues still open first
    issues: (a, b, dir) =>
       nullsLast(a.issues?.open ?? null, b.issues?.open ?? null, (x, y) => dir * (y - x)),
@@ -602,8 +674,9 @@ export function parseSort(raw: string | null): { key: SortKey; reversed: boolean
    return key in SORTS ? { key, reversed } : { key: 'plan', reversed: false };
 }
 
-/** Sort a copy: the chosen column, then in progress before the rest, then
- * more open PRs, then the name, so ties never shuffle between renders. */
+/** Sort a copy: the chosen column, then work being worked on before the
+ * rest, then more open PRs, then the name, so ties never shuffle between
+ * renders. */
 export function sortItems(items: readonly PortfolioItem[], sort: string): PortfolioItem[] {
    const { key, reversed } = parseSort(sort);
    return [...items].sort(
@@ -646,14 +719,19 @@ export function mainTeam(
  * Split sorted items into titled groups, keeping each group's order. A
  * project with two parents shows under both, since it serves both, and a
  * parent heads its own group, ahead of its parts, rather than sitting under
- * "No parent". Groups come in name order, with the no-value group last.
+ * "No parent". Groups come in name order, teams in their configured order
+ * (`teams`, as settings list them) and then any other by name, with the
+ * no-value group last. `repeats` holds the projects an earlier group
+ * already showed, so one call isn't drawn in amber twice.
  */
 export function groupItems(
    items: readonly PortfolioItem[],
    by: string,
-   nameOf: (slug: string) => string = slug => slug
-): { title: string; items: PortfolioItem[] }[] {
-   if (by !== 'parent' && by !== 'lead' && by !== 'team') return [{ title: '', items: [...items] }];
+   nameOf: (slug: string) => string = slug => slug,
+   teams: readonly string[] = []
+): { title: string; items: PortfolioItem[]; repeats: ReadonlySet<string> }[] {
+   if (by !== 'parent' && by !== 'lead' && by !== 'team')
+      return [{ title: '', items: [...items], repeats: new Set() }];
    const none = { parent: 'No parent', lead: 'No lead', team: 'No team' }[by];
    const groups = new Map<string, PortfolioItem[]>();
    const add = (title: string, item: PortfolioItem) => {
@@ -668,13 +746,25 @@ export function groupItems(
          if (!item.parents.length && !parents.has(item.slug)) add(none, item);
       } else add((by === 'lead' ? item.lead : item.team) ?? none, item);
    }
+   // a team settings don't list sorts after the ones they do
+   const place = (title: string) => {
+      const at = by === 'team' ? teams.indexOf(title) : -1;
+      return at === -1 ? teams.length : at;
+   };
+   const seen = new Set<string>();
    return [...groups]
-      .sort(([a], [b]) => (a === none ? 1 : b === none ? -1 : a.localeCompare(b)))
-      .map(([title, list]) => ({ title, items: list }));
+      .sort(([a], [b]) =>
+         a === none ? 1 : b === none ? -1 : place(a) - place(b) || a.localeCompare(b)
+      )
+      .map(([title, list]) => {
+         const repeats = new Set(list.filter(i => seen.has(i.slug)).map(i => i.slug));
+         for (const i of list) seen.add(i.slug);
+         return { title, items: list, repeats };
+      });
 }
 
 const STAGE_WORD: Record<Stage, string> = {
-   progress: 'In progress',
+   progress: upperFirst(BEING_WORKED_ON),
    parked: 'Parked',
    quiet: 'Quiet',
    closed: 'Done or dropped',

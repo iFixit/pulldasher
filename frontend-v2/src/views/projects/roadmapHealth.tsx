@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { n } from '../../../../shared/format';
+import type { DecideReason } from '../../../../shared/model/decide';
 import { dayStart, type ProjectTarget } from '../../../../shared/model/projects';
 import {
    blockersOf,
@@ -19,11 +20,14 @@ import {
    type RoadmapStatus,
    type RoadmapUpdate,
 } from '../../../../shared/model/roadmap';
-import { PrimaryButton, Segmented } from '../../components/bits';
+import { PrimaryButton, Segmented, TextButton } from '../../components/bits';
 import { dayOf, dayWords, useProjectsData } from '../../model/projectData';
-import { peakFrom, type LoadWeek } from '../../../../shared/model/load';
+import type { LoadWeek } from '../../../../shared/model/load';
 import { loadRoadmapUpdates, postRoadmapUpdate, useRoadmap } from '../../model/roadmapData';
 import {
+   BEING_WORKED_ON,
+   IN_PROGRESS,
+   missedTarget,
    NO_PLAN,
    NO_UPDATE_YET,
    pastEnd,
@@ -35,9 +39,11 @@ import { openPlan, type Navigate, type ProjectsNav } from './parts';
 
 const DAY = 86400;
 
+/** A plan's status in a word. Only `active` has its word in words.ts so far:
+ * "In progress" is only ever a plan's status. */
 export const PLAN_STATUS_WORD: Record<RoadmapStatus, string> = {
    planned: 'Planned',
-   active: 'In progress',
+   active: IN_PROGRESS,
    parked: 'Parked',
    done: 'Done',
    dropped: 'Dropped',
@@ -119,6 +125,23 @@ export function SaidWords({ said: s }: { said: Said }) {
                <Fragment key={i}>{p.text}</Fragment>
             )
          )}
+      </>
+   );
+}
+
+/** A row's words in a line, a dot between each, the dot trailing its word
+ * so a wrapped line never starts with one, as on Decide's rows. Each word
+ * keeps to one line. */
+export function Dotted({ children }: { children: ReactNode[] }) {
+   const shown = children.filter(Boolean);
+   return (
+      <>
+         {shown.map((child, i) => (
+            <span key={i} className="inline-flex items-baseline gap-x-1.5 whitespace-nowrap">
+               {child}
+               {i < shown.length - 1 && <span aria-hidden>·</span>}
+            </span>
+         ))}
       </>
    );
 }
@@ -215,9 +238,25 @@ export interface Tracked {
    target: ProjectTarget | null;
 }
 
+/**
+ * A call Decide asks about a plan or a project (Decide.tsx), as the
+ * roadmap's rows say it: its reason in the few words the Overview's Plan
+ * cell uses, and its question.
+ */
+export interface PlanCall {
+   kind: DecideReason['kind'];
+   /** "Parked, still worked on" */
+   text: string;
+   /** "Back on?" */
+   question: string;
+   /** Decide's own sentence, the reason and the question, for the hover */
+   title: string;
+}
+
 /** A plan's warnings, each where its words go on a row. */
 export interface PlanWarnings {
-   /** in the status word's place, when the status is out of date */
+   /** in the status word's place: Decide's call, or the status when it's
+    * out of date */
    status: Said | null;
    health: Said | null;
    /** still in progress past its end: the words, and the timeline's own
@@ -226,22 +265,28 @@ export interface PlanWarnings {
    /** a missed target, or an end planned after it */
    target: (Said & { due: string }) | null;
    waits: (Said & { opens: RoadmapItem }) | null;
+   /** the call Decide asks about it, said in one of the places above */
+   call: PlanCall | null;
 }
 
 /**
  * Everything a plan's row warns of, in the same words on the timeline and
- * in now, next and later, with one amber piece at most: the worst thing it
- * asks for (OWED), since one call gets one mark and the facts behind it
- * (dates, targets, lengths) stay ink. A plan running past its end, while its
- * project has work in flight, keeps counting; a target is only weighed while
- * the plan is under way.
+ * in now, next and later, with one amber piece at most, since one call gets
+ * one mark and the facts behind it (dates, targets, lengths) stay ink. When
+ * Decide asks about the plan (`call`), that's its question, said after the
+ * words that hold its reason (an off-track update, a missed target) or else
+ * in the status word's place, as the Overview's Plan cell names it.
+ * Otherwise it's the worst thing the plan asks for (OWED). A plan running
+ * past its end, while its project has work in flight, keeps counting; a
+ * target is only weighed while the plan is under way.
  */
 export function planWarnings(
    item: RoadmapItem,
    all: readonly RoadmapItem[],
    today: string,
    project: Tracked | null,
-   now?: number
+   now?: number,
+   call: PlanCall | null = null
 ): PlanWarnings {
    const end = planEnd(item);
    const under = item.status === 'planned' || item.status === 'active';
@@ -253,7 +298,7 @@ export function planWarnings(
       ? {
            ...said(
               [{ text: pastEnd(weeks), owed: 'over' }],
-              `Still in progress ${n(weeks, 'week')} after its plan’s end.`
+              `Still ${BEING_WORKED_ON} ${n(weeks, 'week')} after its plan’s end.`
            ),
            weeks,
            mark: pastEndMark(weeks),
@@ -269,12 +314,15 @@ export function planWarnings(
       const title = `${name} is due ${dayWords(due)}.`;
       // a replan after the target passed answers it, as Decide counts it
       const replanned = (item.updated_at ?? 0) >= (dayStart(due) as number) + DAY;
+      // "Missed its Sep 26 target", the amber (when it's owed) on its verb
+      const missed = missedTarget(dayWords(due));
+      const verb = missed.slice(0, missed.indexOf(' '));
       target = {
          ...(due < today
             ? said(
                  [
-                    { text: 'Missed', owed: replanned ? undefined : 'missed' },
-                    { text: ` ${dayWords(due)} target` },
+                    { text: verb, owed: replanned ? undefined : 'missed' },
+                    { text: missed.slice(verb.length) },
                  ],
                  title
               )
@@ -291,24 +339,57 @@ export function planWarnings(
          due,
       };
    }
-   const status =
+   let status =
       item.status === 'planned' && item.start < mondayOf(today)
          ? said(
               [
                  { text: `Was to start ${dayWords(item.start)}, ` },
                  { text: 'still marked Planned', owed: 'unstarted' },
               ],
-              'Its start week has gone by and it’s still marked Planned: mark it In progress, or move it.'
+              `Its start week has gone by and it’s still marked Planned: mark it ${IN_PROGRESS}, or move it.`
            )
          : null;
-   const health = healthWords(healthStanding(item, now), item.updated_at);
+   let health = healthWords(healthStanding(item, now), item.updated_at);
    const waits = waitsWords(item, all);
+   if (call) {
+      // Decide's question is the row's one amber mark, after its reason
+      const ask: Piece[] = [{ text: ' · ' }, { text: call.question, amber: true }];
+      const decide = `Decide asks: ${call.title}`;
+      if ((call.kind === 'off_track' || call.kind === 'at_risk') && health) {
+         health = said([...health.pieces, ...ask], `${health.title}\n${decide}`);
+      } else if (call.kind === 'missed' && target) {
+         target = {
+            ...said([...target.pieces, ...ask], `${target.title} ${decide}`),
+            due: target.due,
+         };
+      } else {
+         status = said([{ text: call.text }, ...ask], decide);
+      }
+      return { status, health, over, target, waits, call };
+   }
    const worst = [status, health, over, target, waits]
       .flatMap(w => w?.pieces ?? [])
       .filter(p => p.owed)
       .sort((a, b) => OWED.indexOf(a.owed as Owed) - OWED.indexOf(b.owed as Owed))[0];
    if (worst) worst.amber = true;
-   return { status, health, over, target, waits };
+   return { status, health, over, target, waits, call };
+}
+
+/**
+ * The owed words a change takes away, for its receipt: the worst one the
+ * plan said before and doesn't after. A week's nudge can do it without
+ * anyone meaning to ("No update yet", when the start moves past the days an
+ * update was owed for), so the receipt says so beside its Undo. Null when
+ * nothing owed went away.
+ */
+export function clearedBy(before: PlanWarnings, after: PlanWarnings): string | null {
+   const owed = (w: PlanWarnings) =>
+      [w.status, w.health, w.over, w.target, w.waits]
+         .flatMap(s => s?.pieces ?? [])
+         .filter(p => p.owed)
+         .sort((a, b) => OWED.indexOf(a.owed as Owed) - OWED.indexOf(b.owed as Owed));
+   const still = new Set(owed(after).map(p => p.owed));
+   return owed(before).find(p => !still.has(p.owed))?.text ?? null;
 }
 
 /** The same words with no amber piece, where another mark already says it. */
@@ -317,37 +398,30 @@ export const inInk = (s: Said): Said => ({
    pieces: s.pieces.map(p => ({ ...p, amber: false })),
 });
 
+/** What a team lane counts as being worked on this week, for its hover and
+ * the roadmap's help (model/teamLoad.ts). */
+export const TEAM_LOAD_RULE =
+   'plans under way with PRs open, done or parked plans whose PRs still moved in the last week, and projects with PRs open and no plan';
+
 /**
- * A lane's load in words, for its band: the most plans and projects it has
- * in progress in any week from this one on, against its developers. Once
- * that's as many as the developers or more, at least one has one developer
- * or none (the worry the "one person" flag names for live projects), so the
+ * A team lane's load in words, for its band: what its developers have on
+ * this week (model/teamLoad.ts, the count Decide's team sentence uses too),
+ * against how many there are. Once that's as many as the developers or
+ * more, at least one piece of work has one developer or none, so the
  * planner owes the lane a new order: the reason is said, in amber, after
- * the facts.
+ * the facts. Null with nothing being worked on.
  */
-export function loadWords(
-   weeks: readonly LoadWeek[],
-   developers: number,
-   today: string
-): Said | null {
-   const peak = peakFrom(weeks, today);
-   if (!peak) return null;
-   const people = developers ? ` for ${n(developers, 'developer')}` : '';
-   if (developers && peak.count >= developers) {
-      return said(
-         [
-            { text: `${peak.count} in progress the week of ${dayWords(peak.week)}${people} · ` },
-            {
-               text: peak.count > developers ? 'more than it can staff' : 'no one to spare',
-               amber: true,
-            },
-         ],
-         'With as many plans and projects in progress as developers, at least one has one developer or none.'
-      );
-   }
+export function capacityWords(count: number, developers: number): Said | null {
+   if (!count) return null;
+   const facts = `${count} ${BEING_WORKED_ON} this week, for ${n(developers, 'developer')}`;
+   const rule = `Counts ${TEAM_LOAD_RULE}.`;
+   if (count < developers) return said([{ text: facts }], rule);
    return said(
-      [{ text: `at most ${peak.count} in progress at once${people}` }],
-      'The most plans and projects in progress in any one week, from this week on'
+      [
+         { text: `${facts} · ` },
+         { text: count > developers ? 'more than it can staff' : 'no one to spare', amber: true },
+      ],
+      `With as much ${BEING_WORKED_ON} as there are developers, at least one piece of work has one developer or none. ${rule}`
    );
 }
 
@@ -426,6 +500,7 @@ export function UpdatesPanel({
    bare = false,
    autoFocus = false,
    actions,
+   onClose,
 }: {
    item: RoadmapItem;
    /** no rule of its own on top: it sits in a box that already has an edge */
@@ -434,6 +509,8 @@ export function UpdatesPanel({
    autoFocus?: boolean;
    /** more ways out, beside Post update */
    actions?: ReactNode;
+   /** Escape closes it, once nothing's typed in the box */
+   onClose?: () => void;
 }) {
    const [history, setHistory] = useState<RoadmapUpdate[] | 'failed' | null>(null);
    const [health, setHealth] = useState<RoadmapHealth>(item.update?.health ?? 'on_track');
@@ -467,7 +544,15 @@ export function UpdatesPanel({
    };
    const list = Array.isArray(history) ? history : [];
    return (
-      <div className={`${bare ? '' : 'border-t border-secondary'} bg-muted/40 px-3.5 py-3`}>
+      <div
+         className={`${bare ? '' : 'border-t border-secondary'} bg-muted/40 px-3.5 py-3`}
+         onKeyDown={e => {
+            if (e.key !== 'Escape' || !onClose) return;
+            // a stray Escape mustn't throw away an update half written
+            if (body.trim()) setError('Post the update, or empty the box to close it.');
+            else onClose();
+         }}
+      >
          <form
             className="flex flex-col gap-2"
             onSubmit={e => {
@@ -588,13 +673,9 @@ export function PlanFacts({
    if (!items) return null;
    const plan = planFor(slug, items);
    const link = (label: string, patch: Parameters<Navigate>[0]) => (
-      <button
-         type="button"
-         onClick={() => navigate(patch)}
-         className="hit pressable ml-auto rounded border-0 bg-transparent p-0 text-xs font-medium text-brand hover:underline"
-      >
+      <TextButton className="ml-auto" onClick={() => navigate(patch)}>
          {label}
-      </button>
+      </TextButton>
    );
    if (!plan) {
       return (

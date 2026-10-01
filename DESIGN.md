@@ -330,11 +330,18 @@ icon with a class bolted on.
   failed fetch, so never amber, and red stays CI's); a save confirms in
   place, where the click was.
 - **People is the tab's one person table**, and every column on it follows
-  the picked range. Overload says so in words, the word in amber, the count
-  in ink. The Overview's Overloaded tile opens it on the same 14 days.
-- **The Overview opens on what's owed**: rows Decide asks about first, then
-  the rest. A tile or chart pick that narrows the list shows as a chip in
-  the list's sticky bar, with its own way out.
+  the picked range. One header serves every team's fold and sticks, so a
+  person clicked anywhere lands on labeled numbers; changing the range
+  keeps the old numbers up, dimmed, until the new ones arrive. Overload
+  says so in words, the word in amber, the count in ink. The Overview's
+  Overloaded tile opens it on the same 14 days.
+- **The Overview opens on what's owed**: rows Decide asks about first, in
+  Decide's own order, then updates owed, then the rest, so its top rows and
+  Decide's list can't disagree. Its first tab counts projects being worked
+  on in the last 14 days, plus asked parked or finished work whose PRs
+  still move. A tile or chart pick that narrows the list is a toggle,
+  outlined like the chip it puts in the list's sticky bar; letting it go
+  returns to that tab. The column names stay in view as the rows scroll.
 - **A project's page answers in place.** Decide's call strip sits under
   its "Decide asks" line; each PR count says where those PRs are on the
   page and opens them; its range numbers are one sentence under the
@@ -434,9 +441,10 @@ icon with a class bolted on.
   in flight past its end grows a piece labeled "+3 wk over" (amber only
   when it's the plan's worst call, and faded past today), a
   milestone is a flag with its date ("Dec 14 target"), a project with no
-  plan is a dashed bar that says "since Aug 17, no plan", and the load
-  chart labels its two halves ("In progress, from PRs" and "Ahead, if nothing
-  changes") and its dashed line ("10 developers", ink until a week from
+  plan is a dashed bar that says "since Aug 17, no plan" (a short one says
+  "since Sep 7" past its end), and the load chart labels its two halves
+  ("Being worked on, from PRs" and "Ahead, if nothing changes · 39 ship
+  without a plan", which names the drop at today) and its dashed line ("10 developers", ink until a week from
   this one on crosses it; the wash above it was cut as a state wash)
   instead of carrying a legend. Stripes for projected weeks were cut the
   same way, and so were the count words' colored squares: each count word
@@ -450,8 +458,11 @@ icon with a class bolted on.
   lead or team while the load chart keeps counting everything. Planning one
   takes one gesture: its plus (shown on row hover or focus, always on
   touch) opens a chooser under the row (from the week
-  its PRs began through the end of a coming month or quarter, the same
-  calls Decide offers), or drag across its weeks on the timeline. Design it on the dummy board with
+  its PRs began, "Commit through" the end of a coming month or quarter, the
+  nearest outlined, the same calls Decide offers), or drag across its weeks
+  on the timeline. Projects with no plan sit in two folds: "Needs a plan"
+  (big enough to owe a decision, by Decide's rule) and "Ships without one",
+  folded. Design it on the dummy board with
   `?projects=100`, not at a dozen rows. The header with the column names stays
   in place while the rows scroll, and month lines (quarter lines stronger)
   run through every row, so a span reads against the calendar anywhere on
@@ -463,8 +474,9 @@ icon with a class bolted on.
   - a week's bar in the load chart picks that week (arrow keys move the pick,
     Escape clears it), and the rows narrow to what was in flight or planned
     then, with the week banded through every row
-  - the chart's counts filter to what they count ("94 with no plan"), and
-    the developer count opens the teams
+  - the chart's counts filter to what they count ("94 with no plan") and
+    pick their week, so a count and its rows agree, and the developer count
+    opens the teams
   - a column or month name zooms in; while zoomed, Today comes back
   - a plain click on a bar opens its editor, and only a drag moves it; on a
     project with no plan, a plain click opens the chooser, and only a drag
@@ -495,17 +507,26 @@ icon with a class bolted on.
   day, so one person's week always adds up to the days they worked, and a
   project's share is the share of people's days it took. Writing and
   reviewing are split because review is where the time goes that nobody
-  plans for, and "whose PR" says whose work it went to. Each split is one
-  list: every row draws its own weeks on the same scale in one color, so
-  the row's name labels its bars and there's no legend to learn, and the
-  first row is everyone's, for the shape of the whole range. People sit in
+  plans for, and "whose PR" says whose work it went to. Everyone's weeks
+  are one chart of two named strips, writing over reviewing, each name over
+  its own bars, so there's no legend to learn (three greys and two
+  swatches couldn't be told apart). Each split is one list: every row draws
+  its own weeks on the same scale in one color, and its name opens the row;
+  anything that leaves the view (count only this team, show it on the
+  roadmap) is inside the opened row. The table heads stick under the
+  section title. People sit in
   their teams, sorted by name, so a retro opens on the shape of the work
   rather than a leaderboard; a column sorts within the teams. Every PR is a
   board row with its days as a footnote. The tiles open on what a retro
-  asks first, each against the days before; each one clicks through to the
-  split that explains it. The weekly charts plot every week of the chart's
-  window, zero-filled, and a week the range cuts off says so ("4 of 7
-  days") rather than reading as a slow week. Developer-days are ink:
+  asks first, each against the days before, and count every day; each one
+  clicks through to the split that explains it, its rows banded under the
+  tile's word ("Reviewing · 55%"). The Writing and Reviewing switch sits on
+  the weekly chart it changes. The weekly charts plot every week of the
+  chart's window, zero-filled, and a week the range cuts off says so ("4 of
+  7 days") rather than reading as a slow week; the week the range starts in
+  splits, its days in the range drawn full and its earlier days paler on
+  top, so no bar counts days before the range. "Is the backlog growing?"
+  is one `BacklogSection`, on Look back and on a project's page. Developer-days are ink:
   brand means "still open" on every chart.
 - **A plan's dates go where people already look.** GitHub's issue fields
   show on a project's issue and on any board that lists it, so
@@ -532,14 +553,18 @@ icon with a class bolted on.
   facts the call turns on (team, size, people, target), and each call is
   one click that writes the roadmap: commit through the end of a coming
   month or quarter, park, mark done, or drop. Each row's reason asks one
-  question ("Done?", "New end?"), in amber, the row's one amber mark, and
-  its answer is the one outlined button; the dates are one quiet group and
-  the rest are text buttons. Every receipt says what happens next and
+  question ("Done?", "New end?", "Commit to it?"), in amber, the row's one
+  amber mark. Its answer comes first on every row, the one outlined button,
+  so it sits in the same place down the list; a divider, then the other
+  ends and calls in quiet ink. After a call, focus lands on the receipt's
+  words, with Undo the next Tab, so an extra Enter never undoes it. The
+  roadmap names the same call on the plan's row, the question in amber. Every receipt says what happens next and
   offers Undo, which puts the plan back with the times the call replaced,
   so the row is asked again after a reload too; a failed save says so in
   the row. j and k move between rows. The same strip runs on a project's
   page under its "Decide asks" line. A decided row
-  stays where it was, every line in place, dimmed and saying what was
+  stays where it was, every line in place, in quiet ink (not dimmed:
+  opacity took its text under the contrast floor) and saying what was
   decided, from the click on rather than when the save returns, so the
   next row never slides under the pointer between two clicks; it stays
   after a trip to a project page and back. Every plan still under way is
@@ -561,17 +586,21 @@ icon with a class bolted on.
   lanes and every row between the two ends, and the row's words already
   say the one thing the planner acts on. The editor offers only choices
   that can be saved: never the item itself, dropped work, or a loop.
-- **A team lane's load is one sentence in its header**: "at most 2 at once
-  for 4 developers", counting its plans and its projects with no plan,
-  amber once a week has as much in flight as the team has developers,
-  because then at least one of them has one developer or none. With no effort
+- **A team lane's load is one sentence in its header**: "5 being worked on
+  this week, for 4 developers", amber in its last words ("more than it can
+  staff") once that's as many as the team has developers, because then at
+  least one piece has one developer or none. It counts what takes people
+  this week: plans under way, projects with PRs open and no plan, and done
+  or parked plans whose PRs still moved in the last week. Decide's team
+  sentence uses the same count (`model/teamLoad.ts`), so the two can't
+  disagree, and offers a Park beside each of the lowest in priority. With no effort
   estimates in this workflow, work in flight against people is the one
   honest measure; the planner judges the rest. The lane also draws the
   point where its people run out: a dashed amber line before the row in
   flight this week that's one more than the team has developers, counting
   plans in priority order and then its projects with no plan. It says so
-  in words ("Below here: more in progress than Store's 6 developers can
-  staff"), turns the priority order into what to park, and opens Decide
+  in words ("Below here: more being worked on this week than Store's 4
+  developers can staff"), turns the priority order into what to park, and opens Decide
   on that team. It only shows with nothing narrowing the rows, since a
   cut through a filtered list would mean nothing.
 - **A plan's health is a word, amber only when someone owes something.**

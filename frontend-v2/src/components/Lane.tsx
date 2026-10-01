@@ -1,4 +1,11 @@
-import { useId, useRef, useState, type ReactNode, type SyntheticEvent } from 'react';
+import {
+   useId,
+   useRef,
+   useState,
+   type MouseEvent,
+   type ReactNode,
+   type SyntheticEvent,
+} from 'react';
 import { ChevronRight } from 'lucide-react';
 import { pullKey } from '../../../shared/format';
 import type { DerivedPull } from '../../../shared/model/status';
@@ -82,7 +89,10 @@ export function SubDoor({
 
 export function Rows({ children }: { children: ReactNode }) {
    return (
-      <div className="overflow-hidden rounded-2xl border border-line bg-surface">{children}</div>
+      // clip, not hidden: it rounds the rows off the same way without making
+      // a scroll box, so a header inside can stick to the page and
+      // scrollIntoView keeps a row's scroll margin
+      <div className="overflow-clip rounded-2xl border border-line bg-surface">{children}</div>
    );
 }
 
@@ -256,10 +266,21 @@ export function Truncated({
    // don't stagger a fold that was already open on mount (a lens revisit this
    // session): the reveal animation is earned only on the click that opens it
    const [justExpanded, setJustExpanded] = useState(false);
-   const expand = () => {
+   const expand = (e: MouseEvent<HTMLButtonElement>) => {
       setExpanded(true);
       setJustExpanded(true);
       if (id) expandedIds.add(id);
+      // the button goes away as the rows arrive: hand focus to the first new
+      // row, where the button was, rather than dropping it to the page
+      const last = e.currentTarget.previousElementSibling;
+      requestAnimationFrame(() => {
+         const first = last?.nextElementSibling;
+         const target =
+            first?.querySelector<HTMLElement>(
+               'a[href]:not([tabindex="-1"]), button:not([tabindex="-1"]), summary, [tabindex="0"]'
+            ) ?? (first instanceof HTMLElement ? first : null);
+         target?.focus({ preventScroll: true });
+      });
    };
    const collapse = () => {
       setExpanded(false);

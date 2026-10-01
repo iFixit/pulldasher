@@ -198,7 +198,10 @@ export function Legend() {
                }
                def="walk down / up the rows"
             />
-            <Item term={<Kbd>↵</Kbd>} def="open the selected PR" />
+            <Item
+               term={<Kbd>↵</Kbd>}
+               def="open the selected PR or project; on Decide, make the call"
+            />
             <Item term={<Kbd>c</Kbd>} def="copy the selected branch name" />
          </Group>
       </Popover>

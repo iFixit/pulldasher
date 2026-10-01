@@ -56,3 +56,5 @@ export const noPrActivity = (count: number) => `No PR activity for ${days(count)
 /** names in a sentence, in the order given: "a", "a and b", "a, b and c" */
 export const andList = (names: readonly string[]) =>
    names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+/** developer-days as every table prints them: a tenth under 10, whole above */
+export const devDays = (d: number) => (d < 10 ? Math.round(d * 10) / 10 : Math.round(d));

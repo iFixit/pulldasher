@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { shortRepo } from '../../../shared/format';
 import { issueKey, issueQuery, type IssueHit } from '../../../shared/model/work';
 import { searchIssues } from '../model/projectWork';
-import { StatePill, sinceWords } from './GitHubRef';
+import { openedWords, StatePill } from './GitHubRef';
 import { Icon } from './Icon';
 import { Avatar } from './identity';
 
@@ -202,7 +202,7 @@ export function IssueSearch({
                                  {where && <span className="min-w-0">{where}</span>}
                                  {hit.createdAt != null && (
                                     <span className="ml-auto flex-none">
-                                       {sinceWords(hit.createdAt)}
+                                       {openedWords(hit.createdAt)}
                                     </span>
                                  )}
                               </span>

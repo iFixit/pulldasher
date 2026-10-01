@@ -9,7 +9,8 @@ import { type RefObject, useEffect, useLayoutEffect } from 'react';
 export function useBoardHotkeys(searchRef: RefObject<HTMLInputElement | null>) {
    useEffect(() => {
       const onKey = (e: KeyboardEvent) => {
-         if (e.metaKey || e.ctrlKey || e.altKey) return;
+         // a view's own list keys (components/useRowKeys.ts) got there first
+         if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
          const t = e.target as HTMLElement;
          if (['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName) || t.isContentEditable) return;
          if (e.key === '/') {

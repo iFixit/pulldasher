@@ -18,7 +18,14 @@ import {
 import { n } from '../../../../shared/format';
 import type { DayPoint, WeekPoint } from '../../../../shared/model/projects';
 import { dayWords } from '../../model/projectData';
-import { chartWeek, type ChartWeek } from '../../model/retro';
+import {
+   chartWeek,
+   weekBars,
+   weekTitle,
+   weekWords,
+   type ChartWeek,
+   type WeekBars,
+} from '../../model/retro';
 import { yTicks } from './LoadChart';
 
 /**
@@ -29,13 +36,15 @@ import { yTicks } from './LoadChart';
  *
  * Every chart says what it counts: the unit sits over the y-axis, the
  * x-axis names the days or weeks, and hovering a mark gives its exact
- * numbers; a screen reader gets the same numbers as a table. Color
- * vocabulary, shared with the Stats tab: ink for opened, green for merged,
- * brand for what is still open; anything else (Look back's days, who
- * opened what) is ink, so brand never means two things on one page. A week
- * before the picked range is drawn paler, and a week the chart's days cut
- * off says how many of its days count. No chart animates: on this board
- * motion means something changed.
+ * numbers; a screen reader gets the same numbers as a table. Every mark is
+ * named where it's drawn, never in a key: a strip's name sits over its bars,
+ * and two series' words take their bars' colors. Color vocabulary, shared
+ * with the Stats tab: ink for opened, green for merged, brand for what is
+ * still open; anything else (Look back's days, who opened what) is ink, so
+ * brand never means two things on one page. The days before the picked
+ * range are drawn paler, the week the range starts in split in two, and a
+ * week the chart's days cut off says how many of its days count. No chart
+ * animates: on this board motion means something changed.
  */
 
 const axisTick = { fill: 'var(--ink-3)', fontSize: 10 };
@@ -55,34 +64,14 @@ const yAxisProps = {
 
 type DayRange = { start: string; end: string };
 
-/** Look back's two kinds of day: writing in the ink a count wears, reviewing
- * in a paler ink that still clears 3:1 against the card in both themes. */
-const WRITING = 'var(--ink-2)';
-const REVIEWING = 'color-mix(in oklab, var(--ink-2) 62%, var(--surface))';
-/** how much of its color a week before the picked range keeps */
+/** a strip's one ink: the strip's name labels it, so it needs no hue */
+const STRIP = 'var(--ink-3)';
+/** how much of its color a day before the picked range keeps */
 const BEFORE = 0.35;
 
 /** What a chart's y-axis counts, said over it where the eye starts. */
 function Unit({ children }: { children: ReactNode }) {
-   return <div className="mb-1 pl-1 text-[11px] font-medium text-ink-3">{children}</div>;
-}
-
-/** A chart's key, for two or more series: a swatch and a name each. */
-function Key({ series }: { series: [string, string, number][] }) {
-   return (
-      <ul className="m-0 mt-2 flex list-none flex-wrap gap-x-3 gap-y-1 p-0 text-[11px] text-ink-2">
-         {series.map(([name, color, opacity]) => (
-            <li key={name} className="inline-flex items-center gap-1.5">
-               <span
-                  aria-hidden
-                  className="h-2.5 w-2.5 rounded-sm"
-                  style={{ background: color, opacity }}
-               />
-               {name}
-            </li>
-         ))}
-      </ul>
-   );
+   return <div className="mb-1 pl-1 text-xs font-medium text-ink-3">{children}</div>;
 }
 
 /** A chart's numbers as a table only a screen reader reads: the picture
@@ -129,7 +118,7 @@ function SrTable({
 /**
  * A veil over the days before the picked range: a chart draws at least 90
  * days so a short range still shows its trend, and the range the numbers
- * cover stays the bright part. (A bar chart fades its early bars instead,
+ * cover stays the bright part. (A bar chart pales its early bars instead,
  * since Recharts draws a veil under bars.)
  */
 function veilBefore(days: DayPoint[], picked: DayRange | undefined) {
@@ -146,25 +135,44 @@ function veilBefore(days: DayPoint[], picked: DayRange | undefined) {
    );
 }
 
-/** The one tooltip look: the point's title, then a dot, a name and a number per line. */
-function TipCard({ title, lines }: { title: ReactNode; lines: [string, number, string][] }) {
+/** A tooltip line: its name, its number, and its dot's color (none for a
+ * line that adds the others up). */
+type TipLine = [string, number | string, string | null];
+
+/**
+ * The one tooltip look: the point's title, then a dot, a name and a number
+ * per line, and a quiet note under them. It's a status region, so the arrow
+ * keys moving a focused chart from week to week are heard, not only seen.
+ */
+function TipCard({
+   title,
+   lines,
+   note,
+}: {
+   title: ReactNode;
+   lines: TipLine[];
+   note?: string | null;
+}) {
    return (
-      <div className="rounded-lg border border-line bg-surface px-2.5 py-2 text-xs text-ink-2 shadow-sm">
+      <div
+         role="status"
+         className="rounded-lg border border-line bg-surface px-2.5 py-2 text-xs text-ink-2 shadow-sm"
+      >
          <div className="mb-1 font-semibold text-ink">{title}</div>
          {lines.map(([name, value, color]) => (
             <div key={name} className="flex items-center gap-2">
-               <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: color }} />
+               <span
+                  aria-hidden
+                  className="h-2 w-2 rounded-full"
+                  style={{ background: color ?? 'transparent' }}
+               />
                {name}
                <b className="ml-auto pl-4 font-semibold text-ink tabular-nums">{value}</b>
             </div>
          ))}
+         {note && <div className="mt-1 text-ink-3">{note}</div>}
       </div>
    );
-}
-
-/** "Week of Sep 28", with how many of its days count when it's cut off. */
-function weekTitle(w: ChartWeek): string {
-   return `Week of ${dayWords(w.week)}${w.days < 7 ? `, ${w.days} of 7 days` : ''}`;
 }
 
 /** What Recharts hands a custom tick; it sends more, and these are all we read. */
@@ -176,11 +184,12 @@ interface TickProps {
 }
 
 /**
- * The x-axis tick for a week: its Monday and, under a week of the range the
- * chart's days cut off (this one so far, or the first of a long range), how
- * many of its days count, so a short bar at either end doesn't read as a
- * slow week. Such a week sits at an end, so its words anchor to that edge of
- * the plot instead of running off it.
+ * The x-axis tick for a week: its Monday and, under a week the range or the
+ * chart's days cut off (the range's first week, this one so far), how many
+ * of its days count, so a short bar at either end doesn't read as a slow
+ * week. Such a week sits at an end, so its words anchor to that edge of the
+ * plot instead of running off it. The first week says its year when that
+ * isn't this one.
  */
 function weekTick(weeks: readonly ChartWeek[]) {
    return function WeekTick({ x = 0, y = 0, width = 0, payload }: TickProps) {
@@ -188,7 +197,7 @@ function weekTick(weeks: readonly ChartWeek[]) {
       if (i < 0) return <g />;
       const w = weeks[i];
       // a paler week before the range is context, not a slow week to explain
-      const cut = w.days < 7 && !w.before;
+      const cut = w.counted < 7 && !w.before;
       const half = Number(width) / weeks.length / 2;
       const anchor = !cut
          ? 'middle'
@@ -201,11 +210,11 @@ function weekTick(weeks: readonly ChartWeek[]) {
       return (
          <text x={at} y={Number(y)} textAnchor={anchor} fill="var(--ink-3)" fontSize={10}>
             <tspan x={at} dy="0.71em">
-               {dayWords(w.week)}
+               {i === 0 ? weekWords(w.week) : dayWords(w.week)}
             </tspan>
             {cut && (
                <tspan x={at} dy="1.3em">
-                  {w.days} of 7 days
+                  {w.counted} of 7 days
                </tspan>
             )}
          </text>
@@ -229,9 +238,41 @@ function weekAxis(weeks: readonly ChartWeek[]) {
    );
 }
 
-/** A week's row in a chart's screen-reader table. */
-function srWeek(w: ChartWeek): string {
-   return `${weekTitle(w)}${w.before ? ', before the range' : ''}`;
+/** A window's weeks as the charts draw them. Without the picked range's own
+ * weeks, the week the range starts in can't split, so its bar counts the
+ * whole week, and it doesn't claim "5 of 7 days" under a bar holding all
+ * seven. */
+function weekFacts(
+   weeks: readonly WeekPoint[],
+   shown: DayRange | undefined,
+   picked: DayRange | undefined,
+   split: boolean
+): ChartWeek[] {
+   return weeks.map(w => {
+      const f = chartWeek(w.week, shown, picked);
+      return split || f.before ? f : { ...f, counted: f.days };
+   });
+}
+
+/** Each week's number from the picked range's own weeks, by Monday, for
+ * splitting the week the range starts in; 0 for a week they don't have. */
+function rangeValues(
+   facts: readonly ChartWeek[],
+   rangeWeeks: readonly WeekPoint[] | undefined,
+   pick: (w: WeekPoint) => number
+): number[] | undefined {
+   if (!rangeWeeks) return undefined;
+   const byWeek = new Map(rangeWeeks.map(w => [w.week, w]));
+   return facts.map(f => {
+      const w = byWeek.get(f.week);
+      return w ? pick(w) : 0;
+   });
+}
+
+/** "Before the range: 3", or "Before the range: 2 opened, 1 merged", under a
+ * tooltip for the week the range starts in; null for any other week. */
+function beforeNote(w: ChartWeek, said: string | null): string | null {
+   return !w.before && w.counted < w.days && said ? `Before the range: ${said}` : null;
 }
 
 /**
@@ -305,43 +346,80 @@ export function OpenPrsChart({
 
 /**
  * What arrived and what left, week by week: PRs opened beside PRs merged.
- * Merging fewer than arrive is what makes the backlog grow.
+ * Merging fewer than arrive is what makes the backlog grow. The two words
+ * over the plot take their bars' colors, so they label the bars without a
+ * key, the way the roadmap's load chart labels its own.
  */
 export function FlowWeeksChart({
    weeks,
+   rangeWeeks,
    picked,
    shown,
    height = 160,
 }: {
    weeks: WeekPoint[];
+   /** the picked range's own weeks: the week the range starts in draws its
+    * days before the range paler, instead of counting them as the range's */
+   rangeWeeks?: WeekPoint[];
    /** the range the page's numbers cover; the weeks before it are paler */
    picked?: DayRange;
    /** the days the weeks were counted over, so a week they cut off says so */
    shown?: DayRange;
    height?: number;
 }) {
-   const facts = weeks.map(w => chartWeek(w.week, shown, picked));
-   const data = weeks.map((w, i) => ({
-      ...facts[i],
-      opened: w.opened.developers + w.opened.non_developers,
-      merged: w.merged.developers + w.merged.non_developers,
+   const facts = weekFacts(weeks, shown, picked, !!rangeWeeks);
+   const both = ({ developers, non_developers }: WeekPoint['opened']) =>
+      developers + non_developers;
+   const split = (pick: (w: WeekPoint) => number) =>
+      weekBars(weeks.map(pick), rangeValues(facts, rangeWeeks, pick), facts);
+   const opened = split(w => both(w.opened));
+   const merged = split(w => both(w.merged));
+   const data = facts.map((f, i) => ({
+      ...f,
+      opened: opened.counted[i],
+      openedBefore: opened.before[i],
+      merged: merged.counted[i],
+      mergedBefore: merged.before[i],
    }));
+   // a week before the range is all pale: its numbers are the pale ones
+   const shownOf = (d: typeof data[number]) =>
+      d.before ? [d.openedBefore, d.mergedBefore] : [d.opened, d.merged];
    const tip = ({ active, payload }: TooltipContentProps) => {
       const row = payload?.[0]?.payload as typeof data[number] | undefined;
       if (!active || !row) return null;
+      const [o, m] = shownOf(row);
       return (
          <TipCard
             title={weekTitle(row)}
             lines={[
-               ['Opened', row.opened, 'var(--ink-3)'],
-               ['Merged', row.merged, 'var(--ok)'],
+               ['Opened', o, 'var(--ink-3)'],
+               ['Merged', m, 'var(--ok)'],
             ]}
+            note={beforeNote(
+               row,
+               row.openedBefore || row.mergedBefore
+                  ? `${row.openedBefore} opened, ${row.mergedBefore} merged`
+                  : null
+            )}
          />
       );
    };
+   const bar = (key: keyof typeof data[number], fill: string, opacity: number, stack: string) => (
+      <Bar
+         dataKey={key}
+         stackId={stack}
+         fill={fill}
+         fillOpacity={opacity}
+         radius={[4, 4, 0, 0]}
+         isAnimationActive={false}
+      />
+   );
    return (
       <div>
-         <Unit>PRs each week</Unit>
+         <Unit>
+            PRs each week, <span className="font-semibold text-ink-2">opened</span> and{' '}
+            <span className="font-semibold text-ok">merged</span>
+         </Unit>
          <ResponsiveContainer width="100%" height={height}>
             <BarChart
                data={data}
@@ -354,135 +432,189 @@ export function FlowWeeksChart({
                {weekAxis(facts)}
                <YAxis {...yAxisProps} />
                <Tooltip content={tip} cursor={{ fill: 'var(--muted)' }} />
-               <Bar
-                  dataKey="opened"
-                  fill="var(--ink-3)"
-                  radius={[4, 4, 0, 0]}
-                  isAnimationActive={false}
-               >
-                  {data.map(d => (
-                     <Cell key={d.week} fillOpacity={d.before ? 0.2 : 0.55} />
-                  ))}
-               </Bar>
-               <Bar
-                  dataKey="merged"
-                  fill="var(--ok)"
-                  radius={[4, 4, 0, 0]}
-                  isAnimationActive={false}
-               >
-                  {data.map(d => (
-                     <Cell key={d.week} fillOpacity={d.before ? 0.3 : 1} />
-                  ))}
-               </Bar>
+               {/* each series stacks the range's days under the paler days
+                   before it, which only the week the range starts in has */}
+               {bar('opened', 'var(--ink-3)', 0.55, 'opened')}
+               {bar('openedBefore', 'var(--ink-3)', 0.2, 'opened')}
+               {bar('merged', 'var(--ok)', 1, 'merged')}
+               {bar('mergedBefore', 'var(--ok)', 0.3, 'merged')}
             </BarChart>
          </ResponsiveContainer>
-         <Key
-            series={[
-               ['Opened', 'var(--ink-3)', 0.55],
-               ['Merged', 'var(--ok)', 1],
-            ]}
-         />
          <SrTable
             caption="PRs opened and merged each week"
             head={['Week', 'Opened', 'Merged']}
-            rows={data.map(d => [srWeek(d), d.opened, d.merged])}
+            rows={data.map(d => {
+               const note = beforeNote(
+                  d,
+                  d.openedBefore || d.mergedBefore
+                     ? `${d.openedBefore} opened, ${d.mergedBefore} merged`
+                     : null
+               );
+               return [`${weekTitle(d)}${note ? `. ${note}` : ''}`, ...shownOf(d)];
+            })}
          />
       </div>
    );
 }
 
+/** One strip of a strip chart: its name, over its own bars, and its weeks. */
+export interface Strip {
+   name: string;
+   bars: WeekBars;
+}
+
 /**
- * Developer-days each week, writing stacked under reviewing, for Look back:
- * the shape of the whole range, on the same weeks as the rows below it. A
- * kind the page doesn't count is left out, bars and key both.
+ * Groups' weeks, such as writing and reviewing days, or PRs opened by
+ * developers and by everyone else: one strip of bars per group, one over the
+ * other on the same scale and in the same ink, each named over its own bars,
+ * so there's no key to learn. A week before the picked range is paler, and
+ * so are the days before the range in the week it starts in, stacked on the
+ * range's own days in that week's bar.
  */
-export function DaysWeeksChart({
+export function StripsChart({
    weeks,
-   writing,
-   reviewing,
-   height = 150,
+   strips,
+   unit,
+   ariaLabel,
+   total,
+   format = v => v,
+   height = 160,
 }: {
    /** every week of the chart's days, oldest first */
    weeks: ChartWeek[];
-   /** each week's days on people's own PRs; absent when they don't count */
-   writing?: number[];
-   /** each week's days on other people's PRs; absent when they don't count */
-   reviewing?: number[];
+   strips: Strip[];
+   /** what the y-axis counts, e.g. "PRs opened each week" */
+   unit: string;
+   ariaLabel: string;
+   /** the tooltip's line adding up every strip, e.g. "All days" */
+   total?: string;
+   /** a number as the tooltip and the screen reader say it */
+   format?: (value: number) => number | string;
    height?: number;
 }) {
-   const round = (d: number) => Math.round(d * 10) / 10;
    const data = weeks.map((w, i) => ({
       ...w,
-      writing: round(writing?.[i] ?? 0),
-      reviewing: round(reviewing?.[i] ?? 0),
+      ...Object.fromEntries(
+         strips.flatMap((s, k) => [
+            [`in${k}`, s.bars.counted[i]],
+            [`before${k}`, s.bars.before[i]],
+         ])
+      ),
    }));
-   // each kind counted: its key, its name, its name in the key, its color
-   const series = [
-      writing && (['writing', 'Writing', 'Writing, on their own PRs', WRITING] as const),
-      reviewing && (['reviewing', 'Reviewing', 'Reviewing, on others’', REVIEWING] as const),
-   ].filter(s => !!s);
+   // one scale for every strip, gridlines at round counts
+   const top = Math.max(
+      1,
+      ...weeks.flatMap((_, i) => strips.map(s => s.bars.counted[i] + s.bars.before[i]))
+   );
+   const ticks = [0, ...yTicks(top)];
+   const strip = Math.max(40, Math.round((height - 32) / strips.length));
+   // a week before the range is all pale: its numbers are the pale ones
+   const valueOf = (s: Strip, w: ChartWeek, i: number) =>
+      w.before ? s.bars.before[i] : s.bars.counted[i];
+   const paleOf = (i: number) => strips.reduce((sum, s) => sum + s.bars.before[i], 0);
    const tip = ({ active, payload }: TooltipContentProps) => {
-      const row = payload?.[0]?.payload as typeof data[number] | undefined;
-      if (!active || !row) return null;
+      const w = payload?.[0]?.payload as ChartWeek | undefined;
+      if (!active || !w) return null;
+      const i = weeks.findIndex(x => x.week === w.week);
+      const pale = paleOf(i);
       return (
          <TipCard
-            title={weekTitle(row)}
-            lines={series.map(([key, name, , color]) => [name, row[key], color])}
+            title={weekTitle(w)}
+            lines={[
+               ...strips.map((s): TipLine => [s.name, format(valueOf(s, w, i)), STRIP]),
+               ...(total && strips.length > 1
+                  ? [
+                       [
+                          total,
+                          format(strips.reduce((sum, s) => sum + valueOf(s, w, i), 0)),
+                          null,
+                       ] as TipLine,
+                    ]
+                  : []),
+            ]}
+            note={beforeNote(w, pale ? String(format(pale)) : null)}
          />
+      );
+   };
+   const plot = (s: Strip, k: number) => {
+      // the weeks are named under the last strip; the others keep a baseline
+      const axis = k === strips.length - 1;
+      return (
+         <div key={s.name}>
+            {/* the name sits over its own bars, where the plot starts */}
+            <div className="pl-10 text-xs text-ink-2">{s.name}</div>
+            <ResponsiveContainer width="100%" height={axis ? strip + 32 : strip}>
+               <BarChart
+                  data={data}
+                  margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
+                  role="img"
+                  title={`${s.name}: ${unit}`}
+                  // one keyboard stop for the chart: the first strip's
+                  // tooltip says every strip's week
+                  accessibilityLayer={k === 0}
+               >
+                  {grid}
+                  {axis ? (
+                     weekAxis(weeks)
+                  ) : (
+                     <XAxis
+                        dataKey="week"
+                        tick={false}
+                        tickLine={false}
+                        axisLine={{ stroke: 'var(--border)' }}
+                        height={1}
+                     />
+                  )}
+                  <YAxis {...yAxisProps} domain={[0, top]} ticks={ticks} />
+                  <Tooltip content={tip} cursor={{ fill: 'var(--muted)' }} />
+                  <Bar
+                     dataKey={`in${k}`}
+                     stackId="week"
+                     fill={STRIP}
+                     radius={[3, 3, 0, 0]}
+                     isAnimationActive={false}
+                  />
+                  <Bar
+                     dataKey={`before${k}`}
+                     stackId="week"
+                     fill={STRIP}
+                     fillOpacity={BEFORE}
+                     radius={[3, 3, 0, 0]}
+                     isAnimationActive={false}
+                  />
+               </BarChart>
+            </ResponsiveContainer>
+         </div>
       );
    };
    return (
       <div>
-         <Unit>Developer-days each week</Unit>
-         <ResponsiveContainer width="100%" height={height}>
-            <BarChart
-               data={data}
-               margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
-               role="img"
-               title="Developer-days each week"
-            >
-               {grid}
-               {weekAxis(weeks)}
-               <YAxis {...yAxisProps} />
-               <Tooltip content={tip} cursor={{ fill: 'var(--muted)' }} />
-               {series.map(([key, , , color], i) => (
-                  <Bar
-                     key={key}
-                     dataKey={key}
-                     stackId="d"
-                     fill={color}
-                     stroke="var(--surface)"
-                     strokeWidth={2}
-                     // the top of the stack is rounded, whichever kind it is
-                     radius={i === series.length - 1 ? [4, 4, 0, 0] : 0}
-                     isAnimationActive={false}
-                  >
-                     {data.map(d => (
-                        <Cell key={d.week} fillOpacity={d.before ? BEFORE : 1} />
-                     ))}
-                  </Bar>
-               ))}
-            </BarChart>
-         </ResponsiveContainer>
-         {series.length > 1 && (
-            <Key series={series.map(([, , keyName, color]) => [keyName, color, 1])} />
-         )}
+         <Unit>{unit}</Unit>
+         <div className="flex flex-col gap-1">{strips.map(plot)}</div>
          <SrTable
-            caption="Developer-days each week"
-            head={['Week', ...series.map(([, name]) => name)]}
-            rows={data.map(d => [srWeek(d), ...series.map(([key]) => d[key])])}
+            caption={ariaLabel}
+            head={['Week', ...strips.map(s => s.name)]}
+            rows={weeks.map((w, i) => {
+               const pale = paleOf(i);
+               const note = beforeNote(w, pale ? String(format(pale)) : null);
+               return [
+                  `${weekTitle(w)}${note ? `. ${note}` : ''}`,
+                  ...strips.map(s => format(valueOf(s, w, i))),
+               ];
+            })}
          />
       </div>
    );
 }
 
 /**
- * Two groups' weeks, such as PRs opened by developers and by everyone else:
- * one strip of bars per group, one over the other on the same scale and in
- * the same ink, each named over its own bars, so there's no key to learn.
+ * Two groups' weeks from a window's numbers, such as PRs opened by
+ * developers and by everyone else, as two strips (StripsChart). With the
+ * picked range's own weeks, the week the range starts in splits too.
  */
 export function SplitWeeksChart({
    weeks,
+   rangeWeeks,
    pick,
    labels,
    unit,
@@ -492,6 +624,9 @@ export function SplitWeeksChart({
    height = 160,
 }: {
    weeks: WeekPoint[];
+   /** the picked range's own weeks: the week the range starts in draws its
+    * days before the range paler, instead of counting them as the range's */
+   rangeWeeks?: WeekPoint[];
    /** the week's two numbers: developers' first, non-developers' second */
    pick: (w: WeekPoint) => [number, number];
    labels: [string, string];
@@ -504,81 +639,23 @@ export function SplitWeeksChart({
    shown?: DayRange;
    height?: number;
 }) {
-   const facts = weeks.map(w => chartWeek(w.week, shown, picked));
-   const data = weeks.map((w, i) => {
-      const [a, b] = pick(w);
-      return { ...facts[i], a, b };
+   const facts = weekFacts(weeks, shown, picked, !!rangeWeeks);
+   const strip = (k: 0 | 1): Strip => ({
+      name: labels[k],
+      bars: weekBars(
+         weeks.map(w => pick(w)[k]),
+         rangeValues(facts, rangeWeeks, w => pick(w)[k]),
+         facts
+      ),
    });
-   // one scale for both strips, gridlines at round counts
-   const top = Math.max(1, ...data.flatMap(d => [d.a, d.b]));
-   const ticks = [0, ...yTicks(top)];
-   const strip = Math.max(40, Math.round((height - 32) / 2));
-   const tip = ({ active, payload }: TooltipContentProps) => {
-      const row = payload?.[0]?.payload as typeof data[number] | undefined;
-      if (!active || !row) return null;
-      return (
-         <TipCard
-            title={weekTitle(row)}
-            lines={[
-               [labels[0], row.a, 'var(--ink-3)'],
-               [labels[1], row.b, 'var(--ink-3)'],
-            ]}
-         />
-      );
-   };
-   const bars = (key: 'a' | 'b', name: string, axis: boolean) => (
-      <div>
-         {/* the name sits over its own bars, where the plot starts */}
-         <div className="pl-10 text-[11px] text-ink-2">{name}</div>
-         <ResponsiveContainer width="100%" height={axis ? strip + 32 : strip}>
-            <BarChart
-               data={data}
-               margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
-               role="img"
-               title={`${name}: ${unit}`}
-            >
-               {grid}
-               {axis ? (
-                  weekAxis(facts)
-               ) : (
-                  // the upper strip's baseline, its weeks named under the lower one
-                  <XAxis
-                     dataKey="week"
-                     tick={false}
-                     tickLine={false}
-                     axisLine={{ stroke: 'var(--border)' }}
-                     height={1}
-                  />
-               )}
-               <YAxis {...yAxisProps} domain={[0, top]} ticks={ticks} />
-               <Tooltip content={tip} cursor={{ fill: 'var(--muted)' }} />
-               <Bar
-                  dataKey={key}
-                  fill="var(--ink-3)"
-                  radius={[3, 3, 0, 0]}
-                  isAnimationActive={false}
-               >
-                  {data.map(d => (
-                     <Cell key={d.week} fillOpacity={d.before ? BEFORE : 1} />
-                  ))}
-               </Bar>
-            </BarChart>
-         </ResponsiveContainer>
-      </div>
-   );
    return (
-      <div>
-         <Unit>{unit}</Unit>
-         <div className="flex flex-col gap-1">
-            {bars('a', labels[0], false)}
-            {bars('b', labels[1], true)}
-         </div>
-         <SrTable
-            caption={ariaLabel}
-            head={['Week', ...labels]}
-            rows={data.map(d => [srWeek(d), d.a, d.b])}
-         />
-      </div>
+      <StripsChart
+         weeks={facts}
+         strips={[strip(0), strip(1)]}
+         unit={unit}
+         ariaLabel={ariaLabel}
+         height={height}
+      />
    );
 }
 
@@ -661,7 +738,7 @@ export function BucketChart({
                   </div>
                ))}
             {b.items.length > 0 && (
-               <div className="mt-1 text-[11px] text-ink-3">
+               <div className="mt-1 text-xs text-ink-3">
                   {row.i === picked
                      ? 'Click to list every project again'
                      : 'Click to list only these'}

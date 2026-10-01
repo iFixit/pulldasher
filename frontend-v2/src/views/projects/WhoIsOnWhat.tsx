@@ -18,6 +18,25 @@ export interface WhoRow extends PersonLoad {
    team: string | null;
    /** their open PRs now, drafts included */
    open: number;
+   /** their filed projects, each with the Monday of the last week they had
+    * days on it */
+   projects: (PersonLoad['projects'][number] & { last: string | null })[];
+}
+
+/** The Monday of each person's last week with days on each project, keyed
+ * by lowercase login and slug ("login slug"). The days come by the week, so
+ * the week is as close as it gets to their last day there. */
+export function lastWeeks(
+   rows: readonly RetroRow[],
+   weeks: readonly string[]
+): Map<string, string> {
+   const last = new Map<string, string>();
+   for (const r of rows) {
+      const key = `${r.login.toLowerCase()} ${r.pr.project}`;
+      const week = weeks[r.week];
+      if (r.pr.project != null && r.days > 0 && week > (last.get(key) ?? '')) last.set(key, week);
+   }
+   return last;
 }
 
 /**
@@ -55,10 +74,15 @@ export function useWhoIsOnWhat(
          const key = p.data.user.login.toLowerCase();
          openBy.set(key, (openBy.get(key) ?? 0) + 1);
       }
+      const last = lastWeeks(rows, retro.weeks);
       return loadByPerson(rows, unique).map(load => ({
          ...load,
          team: teamOf(load.login),
          open: openBy.get(load.login.toLowerCase()) ?? 0,
+         projects: load.projects.map(p => ({
+            ...p,
+            last: last.get(`${load.login.toLowerCase()} ${p.slug}`) ?? null,
+         })),
       }));
    }, [retro, rows, teams, today, teamOf]);
    const counts = who?.map(r => r.projects.length) ?? [];

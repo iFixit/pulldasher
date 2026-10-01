@@ -5,7 +5,7 @@ import { lazy, Suspense, type ReactNode } from 'react';
 const charts = () => import('./charts');
 export const OpenPrsChart = lazy(() => charts().then(m => ({ default: m.OpenPrsChart })));
 export const FlowWeeksChart = lazy(() => charts().then(m => ({ default: m.FlowWeeksChart })));
-export const DaysWeeksChart = lazy(() => charts().then(m => ({ default: m.DaysWeeksChart })));
+export const StripsChart = lazy(() => charts().then(m => ({ default: m.StripsChart })));
 export const SplitWeeksChart = lazy(() => charts().then(m => ({ default: m.SplitWeeksChart })));
 export const BucketChart = lazy(() => charts().then(m => ({ default: m.BucketChart })));
 

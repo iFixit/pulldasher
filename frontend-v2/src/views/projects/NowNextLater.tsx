@@ -1,11 +1,14 @@
+import type { MouseEvent } from 'react';
 import { n } from '../../../../shared/format';
 import { bucketOf, NEXT_WEEKS, type RoadmapItem } from '../../../../shared/model/roadmap';
+import { FactLink } from '../../components/bits';
 import { Fold, GroupHeader, Rows } from '../../components/Lane';
 import type { PortfolioItem } from '../../model/portfolio';
-import { planWarnings, SaidWords, type Said } from './roadmapHealth';
+import { IN_PROGRESS } from '../../model/words';
+import { Dotted, planWarnings, SaidWords, type PlanCall, type Said } from './roadmapHealth';
 
 const BUCKETS: ['now' | 'next' | 'later', string, string][] = [
-   ['now', 'Now', 'In progress, or its start week has begun'],
+   ['now', 'Now', `${IN_PROGRESS}, or its start week has come`],
    ['next', 'Next', `Starts in the next ${NEXT_WEEKS} weeks`],
    ['later', 'Later', `Starts more than ${NEXT_WEEKS} weeks from now`],
 ];
@@ -27,13 +30,24 @@ function monthWords(start: string, today: string): string {
    })}`;
 }
 
+/** A word on a card that does what it does on the timeline; the card's own
+ * click, which opens the plan, doesn't fire too. */
+const only = (then: () => void) => (e: MouseEvent) => {
+   e.stopPropagation();
+   then();
+};
+
 function Card({
    item,
    all,
    linked,
    today,
    team,
+   call,
    onOpen,
+   onUpdates,
+   onOpenItem,
+   onPerson,
 }: {
    item: RoadmapItem;
    all: RoadmapItem[];
@@ -41,7 +55,14 @@ function Card({
    today: string;
    /** say its team: not when a team's fold already does */
    team: boolean;
+   /** the call Decide asks about it */
+   call: PlanCall | null;
    onOpen: () => void;
+   /** its updates, on the timeline */
+   onUpdates: () => void;
+   /** another plan, on the timeline */
+   onOpenItem: (id: number) => void;
+   onPerson: (login: string) => void;
 }) {
    const bucket = bucketOf(item, today);
    // the timeline's own warnings, in its words and with its one amber piece
@@ -49,43 +70,73 @@ function Card({
       item,
       all,
       today,
-      linked ? { live: linked.status === 'live', target: linked.target } : null
+      linked ? { live: linked.status === 'live', target: linked.target } : null,
+      undefined,
+      call
    );
-   const words = (s: Said | null, tone = '') =>
+   const words = (s: Said | null, key: string) =>
       s && (
-         <span className={tone} title={s.title}>
+         <span key={key} title={s.title}>
             <SaidWords said={s} />
          </span>
       );
+   const { health, waits } = w;
+   const lead = item.lead;
    return (
-      // the whole row opens the plan; the name is its keyboard door
+      // the whole card opens the plan; the name is its keyboard door
       <li
+         data-roadmap-row
          onClick={onOpen}
-         className="cursor-pointer border-t border-secondary px-3.5 py-2 first:border-t-0 hover:bg-muted"
+         className="cursor-pointer scroll-mt-[calc(var(--header-h,0px)_+_0.5rem)] border-t border-secondary px-3.5 py-2 first:border-t-0 hover:bg-muted"
       >
          <button
             type="button"
-            onClick={e => {
-               e.stopPropagation();
-               onOpen();
-            }}
+            data-roadmap-focus
+            onClick={only(onOpen)}
             className="hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium text-ink hover:text-brand"
             title="Open it on the timeline"
          >
             {item.name}
          </button>
-         <div className="flex flex-wrap gap-x-2 text-xs text-ink-3">
-            {words(w.status)}
-            {words(w.health, 'text-ink-2')}
-            {words(w.over)}
-            {words(w.target)}
-            {bucket !== 'now' && <span>{monthWords(item.start, today)}</span>}
-            {words(w.waits)}
-            {[team ? item.team : null, item.lead, linked?.open ? n(linked.open, 'open PR') : null]
-               .filter(Boolean)
-               .map(fact => (
-                  <span key={fact}>{fact}</span>
-               ))}
+         <div className="flex flex-wrap gap-x-1.5 text-xs text-ink-3">
+            <Dotted>
+               {[
+                  words(w.status, 'status'),
+                  health && (
+                     <FactLink
+                        key="health"
+                        onClick={only(onUpdates)}
+                        title={`${health.title}\nClick to see its updates and post one.`}
+                     >
+                        <SaidWords said={health} />
+                     </FactLink>
+                  ),
+                  // past its end, Decide's call already says so
+                  w.call?.kind !== 'over' && words(w.over, 'over'),
+                  words(w.target, 'target'),
+                  bucket !== 'now' && <span key="month">{monthWords(item.start, today)}</span>,
+                  waits && (
+                     <FactLink
+                        key="waits"
+                        onClick={only(() => onOpenItem(waits.opens.id))}
+                        title={`${waits.title}. Click to open ${waits.opens.name}.`}
+                     >
+                        <SaidWords said={waits} />
+                     </FactLink>
+                  ),
+                  team && item.team && <span key="team">{item.team}</span>,
+                  lead && (
+                     <FactLink
+                        key="lead"
+                        onClick={only(() => onPerson(lead))}
+                        title={`Open ${lead}’s row on People`}
+                     >
+                        {lead}
+                     </FactLink>
+                  ),
+                  !!linked?.open && <span key="open">{n(linked.open, 'open PR')}</span>,
+               ]}
+            </Dotted>
          </div>
       </li>
    );
@@ -104,7 +155,10 @@ export function NowNextLater({
    bySlug,
    laneTitles,
    today,
+   calls,
    onOpen,
+   onUpdates,
+   onPerson,
 }: {
    /** the plans to show, as the find box narrows them, in priority order */
    items: RoadmapItem[];
@@ -114,7 +168,13 @@ export function NowNextLater({
    /** team names when the roadmap is split into team lanes, else null */
    laneTitles: string[] | null;
    today: string;
+   /** the calls Decide asks, by plan */
+   calls: ReadonlyMap<number, PlanCall>;
+   /** a plan, open on the timeline */
    onOpen: (id: number) => void;
+   /** a plan's updates, open on the timeline */
+   onUpdates: (id: number) => void;
+   onPerson: (login: string) => void;
 }) {
    const cards = (list: RoadmapItem[]) => (
       <ol className="m-0 list-none p-0">
@@ -126,7 +186,11 @@ export function NowNextLater({
                linked={item.project ? bySlug.get(item.project) : undefined}
                today={today}
                team={!laneTitles}
+               call={calls.get(item.id) ?? null}
                onOpen={() => onOpen(item.id)}
+               onUpdates={() => onUpdates(item.id)}
+               onOpenItem={onOpen}
+               onPerson={onPerson}
             />
          ))}
       </ol>

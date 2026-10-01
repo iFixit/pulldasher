@@ -232,7 +232,6 @@ export function Projects({
                slug={nav.project}
                today={today}
                data={data}
-               prev={prev}
                range={range}
                closed={allClosed}
                prefix={prefix}
@@ -292,7 +291,6 @@ export function Projects({
             <Roadmap
                items={items}
                teamMembers={data?.teams ?? {}}
-               teamOf={teamOf}
                nav={nav}
                navigate={navigate}
                decisions={owedCalls}

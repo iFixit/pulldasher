@@ -1,23 +1,24 @@
-import { useState, type MouseEvent, type ReactNode } from 'react';
+import {
+   useEffect,
+   useLayoutEffect,
+   useRef,
+   useState,
+   type KeyboardEvent,
+   type MouseEvent,
+   type ReactNode,
+} from 'react';
 import { ArrowDown, ArrowUp, ChevronRight } from 'lucide-react';
 import { n, pullKey, shortRepo } from '../../../../shared/format';
 import { MISC_SLUG } from '../../../../shared/model/projects';
 import { ORIGIN_WORD, planFor, type RoadmapItem } from '../../../../shared/model/roadmap';
 import type { DerivedPull } from '../../../../shared/model/status';
 import type { PullData } from '../../../../shared/types';
-import { LoadFailed, QuietButton, Segmented } from '../../components/bits';
+import { FactLink, LoadFailed, QuietButton, Segmented, TextButton } from '../../components/bits';
 import { ClosedRow } from '../../components/ClosedRow';
 import { Icon } from '../../components/Icon';
-import { Avatar } from '../../components/identity';
-import {
-   eyebrowText,
-   GroupHeader,
-   Rows,
-   SubDoor,
-   Truncated,
-   useFoldState,
-} from '../../components/Lane';
+import { eyebrowText, GroupHeader, SubDoor, Truncated, useFoldState } from '../../components/Lane';
 import { Row, type RowOptions } from '../../components/Row';
+import { useRowKeys } from '../../components/useRowKeys';
 import type { PortfolioItem } from '../../model/portfolio';
 import {
    chartWindow,
@@ -26,8 +27,6 @@ import {
    previousRange,
    rangeDays,
    rangeWords,
-   refreshProjectsData,
-   useProjectsData,
    type Range,
 } from '../../model/projectData';
 import {
@@ -39,7 +38,6 @@ import {
    lastWeek,
    loadByPerson,
    median,
-   mergeSpeed,
    projectLength,
    quietWeeks,
    RETRO_PLAN_RANK,
@@ -47,18 +45,34 @@ import {
    retroPlan,
    retroRows,
    spreadByPerson,
+   weekBars,
    weeklyBy,
+   weekTitle,
+   weekWords,
    type ChartWeek,
    type PersonLoad,
    type RetroGroup,
    type RetroRow,
+   type WeekBars,
 } from '../../model/retro';
 import { retryRetroData, useRetroData, type RetroPr } from '../../model/retroData';
-import { days as daysOf, daysShort, NO_PLAN, NOT_IN_A_PROJECT } from '../../model/words';
-import { usePulldasher } from '../../store';
-import { StatsCard } from '../stats/parts';
-import { ChartSlot, DaysWeeksChart, FlowWeeksChart, OpenPrsChart } from './lazyCharts';
 import {
+   COPY_AS_TEXT,
+   days as daysOf,
+   daysShort,
+   devDays,
+   NO_PLAN,
+   NOT_IN_A_PROJECT,
+   NOT_SAID,
+   ONE_OFFS,
+} from '../../model/words';
+import { createMemoryStore } from '../../storage';
+import { usePulldasher } from '../../store';
+import { PersonCell, StatsCard } from '../stats/parts';
+import { BacklogSection } from './BacklogSection';
+import { ChartSlot, StripsChart } from './lazyCharts';
+import {
+   NarrowChip,
    openPlan,
    PeopleStack,
    readSort,
@@ -104,24 +118,44 @@ const AUTHOR_WORDS: Record<string, string> = {
    bot: 'Bots’ PRs',
 };
 
+/**
+ * The splits whose groups make up a tile's number, banded under the tile's
+ * word with the band's share, so the tile's click lands on the number it
+ * showed ("Reviewing 55%"), not on its parts.
+ */
+const BANDS: Partial<Record<Split, { names: string[]; of: (key: string) => string }>> = {
+   author: {
+      names: ['Writing', 'Reviewing'],
+      of: key => (key === 'own' ? 'Writing' : 'Reviewing'),
+   },
+   origin: {
+      names: ['On the roadmap', 'Not on the roadmap'],
+      of: key => (key === NOT_FILED || key === UNPLANNED ? 'Not on the roadmap' : 'On the roadmap'),
+   },
+};
+
 /** the long-list rule: this many rows, then "+ N more" */
 const LIST_CAP = 40;
 
-/** Another view, opened the way the view switch opens it, Look back's own
- * split and kind left behind with the rest of its picks. */
-const leaveFor = (view: ProjectsNav['view']): Partial<ProjectsNav> => ({
-   ...switchView(view),
-   by: 'team',
-   kind: 'all',
-});
-
-/** Days as the tables print them: a tenth under 10, whole above. */
-const num = (d: number) => (d < 10 ? Math.round(d * 10) / 10 : Math.round(d));
 /** "2.5 days", in a sentence */
-const dayCount = (d: number) => daysOf(num(d));
+const dayCount = (d: number) => daysOf(devDays(d));
 const pct = (part: number, whole: number) => `${whole ? Math.round((100 * part) / whole) : 0}%`;
 const upper = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+
+/** a zero in a table cell: blank, as on People, and still 0 to a screen reader */
+const ZERO = <span className="sr-only">0</span>;
+
+const SECTION = 'scroll-mt-[var(--header-h,0px)]';
+/** a column head's opaque tint and its bottom line: a border would stay
+ * behind when the head sticks, since a collapsed border doesn't move with it */
+const HEAD =
+   'bg-[color-mix(in_oklab,var(--muted)_40%,var(--surface))] shadow-[inset_0_-1px_0_var(--border)]';
+
+// the rows opened in place, by "person:", "project:" or "split:" and key,
+// kept while the tab is open, so a trip to a project's page or to People and
+// back finds them as they were
+const openRows = createMemoryStore<{ keys: readonly string[] }>({ keys: [] });
 
 /**
  * Bring a section into view and put focus on its heading, so a tile's jump
@@ -180,7 +214,7 @@ function splitLabel(split: Split, key: string): string {
    if (split === 'origin') {
       if (key === NOT_FILED) return NOT_IN_A_PROJECT;
       if (key === UNPLANNED) return NO_PLAN;
-      if (key === UNSAID) return 'Not said';
+      if (key === UNSAID) return NOT_SAID;
       return ORIGIN_WORD[key as keyof typeof ORIGIN_WORD] ?? key;
    }
    if (split === 'author') return AUTHOR_WORDS[key] ?? key;
@@ -189,8 +223,8 @@ function splitLabel(split: Split, key: string): string {
 }
 
 /** One of Look back's table columns: its sort key (null for one that
- * doesn't sort), its head, the sentence its head explains it with, and
- * its width and the screens it shows on. */
+ * doesn't sort), its head, the sentence that says what it counts, and its
+ * width and the screens it shows on. */
 interface Column<K extends string> {
    key: K | null;
    label: string;
@@ -236,9 +270,11 @@ function Th<K extends string>({
          scope="col"
          aria-sort={active ? (ascending ? 'ascending' : 'descending') : undefined}
          title={key != null && onSort ? undefined : col.title}
-         className={`py-[7px] align-bottom font-semibold text-ink-3 ${eyebrowText} ${col.width} ${
-            col.hide ?? ''
-         } ${first ? 'pl-[34px] text-left' : 'pl-1.5 text-right'} ${last ? 'pr-3.5' : 'pr-1.5'}`}
+         className={`py-[7px] align-bottom font-semibold text-ink-3 ${eyebrowText} ${HEAD} ${
+            col.width
+         } ${col.hide ?? ''} ${first ? 'pl-[34px] text-left' : 'pl-1.5 text-right'} ${
+            last ? 'pr-3.5' : 'pr-1.5'
+         }`}
       >
          {key != null && sort && onSort ? (
             <button
@@ -256,6 +292,20 @@ function Th<K extends string>({
             col.label
          )}
       </th>
+   );
+}
+
+/** What each column counts, where a touch or a screen reader finds it too,
+ * not only in a head's hover. */
+function ColumnWords({ cols }: { cols: Column<string>[] }) {
+   return (
+      <div className="flex flex-col gap-0.5">
+         {cols.map(c => (
+            <p key={c.label} className="m-0">
+               <span className="font-semibold">{c.label}</span>: {c.title}
+            </p>
+         ))}
+      </div>
    );
 }
 
@@ -293,26 +343,24 @@ const WEEKS_COL: Column<string> = {
 };
 
 /** The weeks column's head: the first and last week, so the bars need no
- * axis, a week of the range that's cut off saying how many of its days
- * count, as the chart's axis does; a screen reader hears what the column
- * holds instead. */
-function WeeksTh({ weeks, top }: { weeks: ChartWeek[]; top: number }) {
+ * axis, a week that's cut off saying how many of its days count, as the
+ * chart's axis does; a screen reader hears what the column holds instead. */
+function WeeksTh({ weeks }: { weeks: ChartWeek[] }) {
    const ends = weeks.length > 1 ? [weeks[0], weeks[weeks.length - 1]] : weeks;
    return (
       <th
          scope="col"
-         className={`px-1.5 py-[7px] align-bottom font-semibold text-ink-3 ${eyebrowText} ${WEEKS_COL.width} ${WEEKS_COL.hide}`}
-         title={`Each week’s days, oldest first, every row on one scale: the tallest bar is ${dayCount(
-            top
-         )}. The weeks before the range are paler.`}
+         className={`px-1.5 py-[7px] align-bottom font-semibold text-ink-3 ${eyebrowText} ${HEAD} ${WEEKS_COL.width} ${WEEKS_COL.hide}`}
       >
          <span aria-hidden className="flex justify-between">
             {ends.map((w, i) => (
                <span key={w.week} className={i ? 'text-right' : ''}>
-                  {dayWords(w.week)}
-                  {w.days < 7 && !w.before && (
-                     <span className="block font-normal tracking-normal normal-case">
-                        {w.days} of 7 days
+                  {weekWords(w.week)}
+                  {/* part of the head, in its size, on one line so a year
+                      range's two ends still fit the column */}
+                  {!w.before && w.counted < 7 && (
+                     <span className="block font-normal tracking-normal whitespace-nowrap normal-case">
+                        {w.counted} of 7 days
                      </span>
                   )}
                </span>
@@ -323,43 +371,59 @@ function WeeksTh({ weeks, top }: { weeks: ChartWeek[]; top: number }) {
    );
 }
 
-/** Each week's days as a bar, on the scale `top`, the oldest week first; a
- * screen reader hears the weeks that had any. */
+/** A week's days in words: "Week of Aug 31, 5 of 7 days in the range: 3
+ * days, and 1 day before the range". */
+function weekNote(w: ChartWeek, counted: number, before: number): string {
+   if (w.before) return `${weekTitle(w)}: ${dayCount(before)}`;
+   return `${weekTitle(w)}: ${dayCount(counted)}${
+      before > 0 ? `, and ${dayCount(before)} before the range` : ''
+   }`;
+}
+
+/** Each week's days as a bar, on the scale `top`, the oldest week first:
+ * the range's own days in full, its days before the range paler on top of
+ * them. A screen reader hears the weeks that had any. */
 function WeeksTd({
-   weekly,
+   bars,
    weeks,
    top,
 }: {
-   weekly: number[] | undefined;
+   bars: WeekBars | undefined;
    weeks: ChartWeek[];
    top: number;
 }) {
-   const values = weekly ?? weeks.map(() => 0);
-   const said = weeks.flatMap((w, i) =>
-      values[i] > 0
-         ? [
-              `${dayWords(w.week)}${w.days < 7 ? `, ${w.days} of 7 days` : ''}${
-                 w.before ? ', before the range' : ''
-              }: ${num(values[i])}`,
-           ]
-         : []
-   );
+   const at = (i: number) => [bars?.counted[i] ?? 0, bars?.before[i] ?? 0];
+   const said = weeks.flatMap((w, i) => {
+      const [c, b] = at(i);
+      return c + b > 0 ? [weekNote(w, c, b)] : [];
+   });
+   const height = (d: number) => `${Math.max(d > 0 ? 8 : 0, (d / top) * 100)}%`;
    return (
       <td className={`px-1.5 py-2 ${WEEKS_COL.width} ${WEEKS_COL.hide}`}>
          <span aria-hidden className="flex h-5 items-end gap-px">
-            {values.map((d, i) => (
-               <span
-                  key={weeks[i].week}
-                  className="min-w-0 flex-1 rounded-t-[1px] bg-ink-3"
-                  style={{
-                     height: `${Math.max(d > 0 ? 8 : 0, (d / top) * 100)}%`,
-                     opacity: d ? (weeks[i].before ? 0.35 : 1) : 0,
-                  }}
-                  title={`Week of ${dayWords(weeks[i].week)}${
-                     weeks[i].days < 7 ? `, ${weeks[i].days} of 7 days` : ''
-                  }: ${dayCount(d)}`}
-               />
-            ))}
+            {weeks.map((w, i) => {
+               const [c, b] = at(i);
+               return (
+                  <span
+                     key={w.week}
+                     className="flex h-full min-w-0 flex-1 flex-col justify-end"
+                     title={c + b > 0 ? weekNote(w, c, b) : undefined}
+                  >
+                     {b > 0 && (
+                        <span
+                           className="rounded-t-[1px] bg-ink-3 opacity-35"
+                           style={{ height: height(b) }}
+                        />
+                     )}
+                     {c > 0 && (
+                        <span
+                           className={`bg-ink-3 ${b > 0 ? '' : 'rounded-t-[1px]'}`}
+                           style={{ height: height(c) }}
+                        />
+                     )}
+                  </span>
+               );
+            })}
          </span>
          <span className="sr-only">{said.length ? `By week: ${said.join('; ')}` : 'No days'}</span>
       </td>
@@ -367,9 +431,13 @@ function WeeksTd({
 }
 
 /**
- * A table row that opens in place. Its arrow is the button, saying whether
- * it's open; a click anywhere else on the row that isn't a link or a button
- * does the same, for the mouse. What opens spans the table under it.
+ * A table row that opens in place, in a body of its own with what it opens,
+ * so j and k move by whole rows. Its arrow opens it, saying whether it's
+ * open, and so does a click anywhere on the row that isn't a link or a
+ * button. A keyboard gets one Tab stop a row, as on the Overview: the name
+ * when the name goes somewhere (Enter goes there, Space opens the row here,
+ * as `hint` says), else the arrow. The row's other controls leave the Tab
+ * order; what it opens offers the same places. That spans the table under it.
  */
 function TableRow({
    id,
@@ -378,6 +446,7 @@ function TableRow({
    open,
    onToggle,
    lead,
+   hint,
    cells,
    detail,
 }: {
@@ -389,29 +458,65 @@ function TableRow({
    cols: number;
    open: boolean;
    onToggle: () => void;
+   /** the name; a button in it is the row's Tab stop */
    lead: ReactNode;
+   /** the id of the words saying what Enter and Space do on a name that
+    * goes somewhere */
+   hint?: string;
    cells: ReactNode;
    detail: ReactNode;
 }) {
    const detailId = `${id}-detail`;
+   const rowRef = useRef<HTMLTableRowElement>(null);
+   const arrowRef = useRef<HTMLButtonElement>(null);
+   // by hand, since the faces and the name are other components' buttons;
+   // after every render, so a control that redraws stays out of the order
+   useEffect(() => {
+      const row = rowRef.current;
+      const stop =
+         row?.querySelector<HTMLElement>('[data-retro-lead] button, [data-retro-lead] a') ??
+         arrowRef.current;
+      if (!row || !stop) return;
+      for (const el of row.querySelectorAll<HTMLElement>('button, a')) {
+         el.tabIndex = el === stop ? 0 : -1;
+         el.toggleAttribute('data-retro-focus', el === stop);
+      }
+      if (hint && stop !== arrowRef.current) stop.setAttribute('aria-describedby', hint);
+   });
    return (
-      <>
+      // a row j or k lands on stops under the sticky title and column names
+      <tbody
+         data-retro-row
+         className="scroll-mt-[calc(var(--header-h,0px)_+_var(--head-h,0px)_+_3rem)]"
+      >
          <tr
+            ref={rowRef}
             className="cursor-pointer border-t border-secondary text-ink-2 hover:bg-muted/40"
             onClick={(e: MouseEvent) => {
                if (!(e.target as HTMLElement).closest('a, button')) onToggle();
             }}
+            onKeyDown={(e: KeyboardEvent) => {
+               // Space on a name that goes somewhere opens the row here;
+               // Enter, like a click, goes where the name goes
+               const on = e.target as HTMLElement;
+               if (e.key !== ' ' || on === arrowRef.current || !on.hasAttribute('data-retro-focus'))
+                  return;
+               e.preventDefault();
+               onToggle();
+            }}
          >
-            <th scope="row" className="py-2 pr-1.5 pl-3.5 text-left font-normal">
-               <span className="flex min-w-0 items-center gap-2">
+            <th scope="row" className="py-2 pr-1.5 pl-3 text-left font-normal">
+               <span className="flex min-w-0 items-center gap-1.5">
                   <button
+                     ref={arrowRef}
                      type="button"
                      id={id}
                      aria-expanded={open}
                      aria-controls={open ? detailId : undefined}
                      aria-label={`Details for ${name}`}
                      onClick={onToggle}
-                     className="hit pressable flex-none rounded border-0 bg-transparent p-0 text-ink-3 hover:text-brand"
+                     // a 16px box, which .hit widens to the 24px target floor
+                     className="hit pressable inline-flex h-4 w-4 flex-none items-center justify-center rounded border-0 bg-transparent p-0 text-ink-3 hover:text-brand"
                   >
                      <Icon
                         icon={ChevronRight}
@@ -421,7 +526,9 @@ function TableRow({
                         }`}
                      />
                   </button>
-                  {lead}
+                  <span data-retro-lead className="min-w-0">
+                     {lead}
+                  </span>
                </span>
             </th>
             {cells}
@@ -433,34 +540,7 @@ function TableRow({
                </td>
             </tr>
          )}
-      </>
-   );
-}
-
-/** Words in a row that go somewhere of their own: a project's page, a
- * person on People, a team narrowing the page. */
-function LeadButton({
-   onClick,
-   title,
-   label,
-   children,
-}: {
-   onClick: () => void;
-   title: string;
-   /** the button's name, when its words alone don't say where it goes */
-   label?: string;
-   children: ReactNode;
-}) {
-   return (
-      <button
-         type="button"
-         onClick={onClick}
-         title={title}
-         aria-label={label}
-         className="hit pressable inline-flex min-w-0 items-center gap-2 rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium break-words text-ink hover:text-brand hover:underline"
-      >
-         {children}
-      </button>
+      </tbody>
    );
 }
 
@@ -482,65 +562,135 @@ function MoreRow({
 }) {
    if (!more) return null;
    return (
-      <tr>
-         <td colSpan={cols} className="border-t border-secondary p-0">
-            <button
-               type="button"
-               onClick={onToggle}
-               className="pressable block w-full border-0 bg-muted/50 px-3.5 py-[9px] text-left text-xs font-medium text-ink-2 hover:text-brand"
-            >
-               {all ? 'Show fewer' : `+ ${more} ${label}`}
-            </button>
-         </td>
-      </tr>
+      <tbody>
+         <tr>
+            <td colSpan={cols} className="border-t border-secondary p-0">
+               <button
+                  type="button"
+                  onClick={onToggle}
+                  // j and k open it on the way past, like Truncated's
+                  data-row-more={all ? undefined : true}
+                  className="pressable block w-full border-0 bg-muted/50 px-3.5 py-[9px] text-left text-xs font-medium text-ink-2 hover:text-brand"
+               >
+                  {all ? 'Show fewer' : `+ ${more} ${label}`}
+               </button>
+            </td>
+         </tr>
+      </tbody>
    );
 }
 
-/** A team's band in the people table: the Fold's look and its remembered
- * open state, as a row of the table, since a <details> can't hold rows. */
-function TeamBody({
-   team,
-   count,
+/** A band of a table's rows under one word, a team or the tile word a
+ * split's groups make up: the Fold's look and its remembered open state, as
+ * a header row of its own, since a <details> can't hold rows. */
+function Band({
+   id,
+   label,
+   note,
    cols,
    children,
 }: {
-   team: string;
-   count: number;
+   /** where its open state is remembered */
+   id: string;
+   label: string;
+   /** after the "·": how many rows, or the band's share */
+   note: string;
    cols: number;
    children: ReactNode;
 }) {
-   const [open, setOpen] = useFoldState(`retro-team:${team}`, true);
+   const [open, setOpen] = useFoldState(id, true);
    return (
-      <tbody>
-         <tr>
-            {/* inset by the ring's width, so the card's edge can't clip it */}
-            <th
-               scope="rowgroup"
-               colSpan={cols}
-               className="border-t border-secondary bg-muted/40 p-0.5 text-left font-normal"
-            >
-               <button
-                  type="button"
-                  aria-expanded={open}
-                  onClick={() => setOpen(!open)}
-                  className={`flex w-full items-center gap-2 rounded border-0 bg-transparent px-3 py-1 text-left text-ink-3 transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none ${eyebrowText}`}
+      <>
+         <tbody>
+            <tr>
+               {/* inset by the ring's width, so the card's edge can't clip it */}
+               <th
+                  colSpan={cols}
+                  className="border-t border-secondary bg-muted/40 p-0.5 text-left font-normal"
                >
-                  <Icon
-                     icon={ChevronRight}
-                     size={12}
-                     className={`flex-none transition-[rotate] duration-150 ease-out motion-reduce:transition-none ${
-                        open ? 'rotate-90' : ''
-                     }`}
-                  />
-                  <span>
-                     {team === NO_TEAM ? 'No team' : team}
-                     <span className="tabular-nums"> · {count}</span>
-                  </span>
-               </button>
-            </th>
-         </tr>
+                  <button
+                     type="button"
+                     aria-expanded={open}
+                     onClick={() => setOpen(!open)}
+                     className={`flex w-full items-center gap-2 rounded border-0 bg-transparent px-3 py-1 text-left text-ink-3 transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none ${eyebrowText}`}
+                  >
+                     <Icon
+                        icon={ChevronRight}
+                        size={12}
+                        className={`flex-none transition-[rotate] duration-150 ease-out motion-reduce:transition-none ${
+                           open ? 'rotate-90' : ''
+                        }`}
+                     />
+                     <span>
+                        {label}
+                        <span className="tabular-nums"> · {note}</span>
+                     </span>
+                  </button>
+               </th>
+            </tr>
+         </tbody>
          {open && children}
-      </tbody>
+      </>
+   );
+}
+
+/**
+ * A section holding one of Look back's tables. Its column names stay in
+ * view: the head sticks under the section's own sticky title, whose height
+ * (it wraps on a phone) this publishes as --head-h, the way the app header
+ * publishes --header-h.
+ */
+function TableSection({
+   id,
+   header,
+   caption,
+   head,
+   hint,
+   children,
+}: {
+   id: string;
+   /** the section's GroupHeader */
+   header: ReactNode;
+   caption: string;
+   /** the head's one row */
+   head: ReactNode;
+   /** what Enter and Space do on a row's name, for a screen reader; its
+    * rows point to it as `${id}-hint` */
+   hint?: string;
+   children: ReactNode;
+}) {
+   const ref = useRef<HTMLElement>(null);
+   useLayoutEffect(() => {
+      const section = ref.current;
+      const title = section?.firstElementChild;
+      if (!section || !title) return;
+      const publish = () =>
+         section.style.setProperty('--head-h', `${title.getBoundingClientRect().height}px`);
+      publish();
+      const watch = new ResizeObserver(publish);
+      watch.observe(title);
+      return () => watch.disconnect();
+   }, []);
+   return (
+      <section id={id} ref={ref} className={SECTION}>
+         {header}
+         {hint && (
+            <span id={`${id}-hint`} className="sr-only">
+               {hint}
+            </span>
+         )}
+         {/* clipped, not hidden: an overflow that hides would keep the head
+             from sticking to the page */}
+         <div className="overflow-clip rounded-2xl border border-line bg-surface">
+            <table className="w-full border-collapse text-xs">
+               <caption className="sr-only">{caption}</caption>
+               <thead className="sticky top-[calc(var(--header-h,0px)_+_var(--head-h,0px))] z-[4]">
+                  {head}
+               </thead>
+               {children}
+            </table>
+         </div>
+      </section>
    );
 }
 
@@ -579,7 +729,8 @@ function receipt(pr: RetroPr, rangeEnd: string): PullData {
 
 /**
  * PRs as the board draws them everywhere else, most days first, each with
- * its days under it. A PR still open that the board doesn't hold (only
+ * its days under it, flush in the opened row rather than boxed inside the
+ * table's own card. A PR still open that the board doesn't hold (only
  * while the two disagree for a moment) has nothing to draw it from, so it
  * waits; its days still count in every number.
  */
@@ -600,7 +751,7 @@ function PrList({
    });
    if (!shown.length) return null;
    return (
-      <Rows>
+      <div className="border-y border-secondary">
          <Truncated cap={8} label="more PRs">
             {shown.map(({ pr, d, live, closed }) => (
                // the divider rides on this wrapper, so a note stays with its row
@@ -616,48 +767,26 @@ function PrList({
                </div>
             ))}
          </Truncated>
-      </Rows>
-   );
-}
-
-/** A person's name and face, opening them on People like every person in
- * the tab. */
-function PersonButton({
-   login,
-   me,
-   onPerson,
-   size = 20,
-}: {
-   login: string;
-   me: string;
-   onPerson: (login: string) => void;
-   size?: number;
-}) {
-   const you = login.toLowerCase() === me.toLowerCase();
-   return (
-      <LeadButton
-         onClick={() => onPerson(login)}
-         title={`Open ${login} on People`}
-         label={`${login}${you ? ' (you)' : ''}: open on People`}
-      >
-         <Avatar login={login} size={size} you={you} />
-         <span className="min-w-0 break-words">{login}</span>
-      </LeadButton>
+      </div>
    );
 }
 
 /** Where a group's days went: every PR, most days first, and everyone who
- * spent them. */
+ * spent them, then anything more the row offers. */
 function SpentOn({
    group,
    source,
    me,
    onPerson,
+   actions,
 }: {
    group: RetroGroup;
    source: PullSource;
    me: string;
    onPerson: (login: string) => void;
+   /** what else the opened row offers: counting only a team's days, a
+    * split's plans on the roadmap */
+   actions?: ReactNode;
 }) {
    return (
       <div className="grid gap-4 px-3.5 py-3 text-xs sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
@@ -671,10 +800,17 @@ function SpentOn({
             <h4 className="m-0 mb-1.5 text-xs font-semibold text-ink-2">Who spent them</h4>
             {group.people.map(([login, d]) => (
                <div key={login} className="flex items-center justify-between gap-3 py-0.5">
-                  <PersonButton login={login} me={me} onPerson={onPerson} size={16} />
+                  <PersonCell
+                     login={login}
+                     me={me}
+                     onClick={() => onPerson(login)}
+                     action="open on People"
+                     size={16}
+                  />
                   <span className="flex-none text-ink-3 tabular-nums">{dayCount(d)}</span>
                </div>
             ))}
+            {actions && <div className="mt-3 flex flex-col items-start gap-2">{actions}</div>}
          </div>
       </div>
    );
@@ -703,7 +839,7 @@ function PersonDetail({
    const filed = load.projects.reduce((sum, p) => sum + p.days, 0);
    const rest = [
       load.days - filed - load.unfiled >= 0.05
-         ? `${dayCount(load.days - filed - load.unfiled)} on one-offs`
+         ? `${dayCount(load.days - filed - load.unfiled)} on ${lower(ONE_OFFS)}`
          : null,
       load.unfiled >= 0.05 ? `${dayCount(load.unfiled)} not in a project` : null,
    ].filter(Boolean);
@@ -714,14 +850,13 @@ function PersonDetail({
             <h4 className="m-0 mb-1.5 text-xs font-semibold text-ink-2">Their projects</h4>
             {load.projects.map(p => (
                <div key={p.slug} className="flex items-baseline justify-between gap-3 py-0.5">
-                  <button
-                     type="button"
+                  <FactLink
                      onClick={() => navigate({ project: p.slug })}
-                     className="hit pressable min-w-0 rounded border-0 bg-transparent p-0 text-left text-xs break-words text-ink hover:text-brand hover:underline"
+                     className="min-w-0 break-words"
                      title={`Open the ${nameOf(p.slug)} page`}
                   >
                      {nameOf(p.slug)}
-                  </button>
+                  </FactLink>
                   <span className="flex-none text-ink-3 tabular-nums">
                      {p.writing <= 0
                         ? 'reviewed'
@@ -735,13 +870,12 @@ function PersonDetail({
             {!load.projects.length && <p className="m-0 text-ink-3">None in a project.</p>}
             {rest.length > 0 && <p className="m-0 mt-1.5 text-ink-3">Also {rest.join(' and ')}.</p>}
             {!narrowedToThem && (
-               <button
-                  type="button"
+               <TextButton
                   onClick={() => navigate({ who: load.login, team: null })}
-                  className="hit pressable mt-3 rounded border-0 bg-transparent p-0 text-left text-xs font-medium text-brand hover:underline"
+                  className="mt-3"
                >
                   Count only {load.login}’s days on this page
-               </button>
+               </TextButton>
             )}
          </div>
          <div className="min-w-0">
@@ -811,7 +945,7 @@ const PROJECT_ORDER: Record<ProjectKey, [string, string]> = {
    length: ['Longest first', 'Shortest first'],
    quiet: ['Longest pause first', 'Shortest pause first'],
    last: ['Most recently worked on first', 'Longest since worked on first'],
-   plan: ['Finished plans first', 'No plan first'],
+   plan: ['Done plans first', 'No plan first'],
    before: ['Most days before first', 'Fewest days before first'],
 };
 
@@ -823,13 +957,15 @@ const PROJECT_ORDER: Record<ProjectKey, [string, string]> = {
  * the way it did in people's weeks.
  *
  * The tiles say the few numbers a retro opens with, each against the same
- * number of days before, and each opens the list that explains it. Then
- * everyone's weeks, who worked on what by team, every project's days,
- * length, pauses and plan, the days split one more way, and whether the
- * backlog grew. Each week's days are drawn in a row on one scale per table
- * over the chart's weeks, so a row is its own label. A name does what it
- * does everywhere in the tab (a person opens People, a project its page);
- * the arrow opens a row in place, its PRs drawn as the board's own rows.
+ * number of days before, and each opens the list that explains it, over
+ * every day as the tiles count them. Then everyone's weeks, whose switch
+ * picks which days count from there down; who worked on what by team; every
+ * project's days, length, pauses and plan; the days split one more way; and
+ * whether the backlog grew. Each week's days are drawn in a row on one scale
+ * per table over the chart's weeks, so a row is its own label. A person's
+ * name opens People and a project's its page, as everywhere in the tab; the
+ * arrow opens a row in place, its PRs drawn as the board's own rows, and
+ * anything else the row offers sits in what it opens.
  */
 export function Retro({
    range,
@@ -866,21 +1002,21 @@ export function Retro({
    const shown = chartWindow(range);
    const drawn = useRetroData(shown);
    const board = usePulldasher();
-   // the rows opened in place, by "person:", "project:" or "split:" and key
-   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
+   const { keys: openKeys } = openRows.useValue();
    const [copied, setCopied] = useState<'copied' | 'failed' | null>(null);
    const [allProjects, setAllProjects] = useState(false);
    const [allSplit, setAllSplit] = useState(false);
+   // j and k move through every table's rows, top to bottom
+   useRowKeys('[data-retro-row]', '[data-retro-focus]');
    if (data === undefined) {
       return <p className="m-0 text-[13px] text-ink-3">Adding up the days…</p>;
    }
    if (data === null) return <LoadFailed what="the days" onRetry={retryRetroData} />;
-   const toggle = (key: string) =>
-      setOpen(was => {
-         const next = new Set(was);
-         if (!next.delete(key)) next.add(key);
-         return next;
-      });
+   const open = new Set(openKeys);
+   const toggle = (key: string) => {
+      const keys = openRows.get().keys;
+      openRows.set({ keys: keys.includes(key) ? keys.filter(k => k !== key) : [...keys, key] });
+   };
    const live = new Map(board.pulls.map(p => [pullKey(p.data), p]));
    const gone = new Map(board.closed.map(p => [pullKey(p), p]));
    const source: PullSource = {
@@ -898,6 +1034,7 @@ export function Retro({
    const rows = scoped.filter(inKind);
    const earlierScoped = before ? retroRows(before).filter(inScope) : null;
    const earlier = earlierScoped?.filter(inKind) ?? null;
+   // the tiles count every day, whichever kind the lists below count
    const now = measure(scoped, plans);
    const then = earlierScoped && measure(earlierScoped, plans);
    const period = beforeWords(rangeDays(range));
@@ -914,13 +1051,16 @@ export function Retro({
    const narrowed =
       nav.who ?? (nav.team ? (nav.team === NO_TEAM ? 'people on no team' : nav.team) : null);
    const kindWords = nav.kind === 'all' ? '' : nav.kind === 'writing' ? ', writing' : ', reviewing';
-   const allFinished = finishedIn(
-      plans,
-      items.flatMap(i => (i.project ? [i.project] : [])),
-      range
-   );
-   // narrowed, the plans finished are the ones they worked on
+   // on each list's sub-line while the switch narrows the days
+   const kindOnly = nav.kind === 'all' ? '' : `, ${nav.kind} days only`;
+   const issues = items.flatMap(i => (i.project ? [i.project] : []));
+   const allFinished = finishedIn(plans, issues, range);
+   const allFinishedBefore = finishedIn(plans, issues, previousRange(range));
+   // narrowed, the plans done are the ones they worked on
    const finished = narrowed ? finishedOn(allFinished, scoped) : allFinished;
+   const finishedBefore = narrowed
+      ? earlierScoped && finishedOn(allFinishedBefore, earlierScoped)
+      : allFinishedBefore;
    const onTime = finished.filter(f => f.onTime === true).length;
    const late = finished.filter(f => f.onTime === false).length;
    const unjudged = finished.length - onTime - late;
@@ -931,16 +1071,37 @@ export function Retro({
    const byDays = (list: RetroGroup[] | null) =>
       list ? new Map(list.map(g => [g.key, g.days])) : null;
 
-   // every week of the chart's days, and each row's days in them
+   // every week of the chart's days. A row's bars draw the range's own days
+   // in full and the chart's days before the range paler, so the week the
+   // range starts in never counts days the numbers don't
    const weeks = chartWeeks(shown, range);
    const drawnRows = drawn ? retroRows(drawn).filter(inScope).filter(inKind) : null;
-   const weeklyOf = (keyOf: (r: RetroRow) => string) =>
-      drawn && drawnRows ? weeklyBy(drawnRows, keyOf, drawn, weeks) : null;
-   const byKind = weeklyOf(r => (r.own ? 'writing' : 'reviewing'));
-   const kindWeeks = (kind: 'writing' | 'reviewing') =>
-      nav.kind !== 'all' && nav.kind !== kind ? undefined : byKind?.get(kind) ?? weeks.map(() => 0);
-   const topOf = (weekly: Map<string, number[]> | null) =>
-      Math.max(0.01, ...[...(weekly?.values() ?? [])].flat());
+   const zeros = weeks.map(() => 0);
+   const noBars: WeekBars = { counted: zeros, before: zeros };
+   const barsBy = (keyOf: (r: RetroRow) => string) => {
+      const bars = new Map<string, WeekBars>();
+      // until the chart's days load the bars wait, so none jumps when they do
+      if (!drawn || !drawnRows) return { bars, top: 1 };
+      const inRange = weeklyBy(rows, keyOf, data, weeks);
+      const whole = weeklyBy(drawnRows, keyOf, drawn, weeks);
+      for (const key of new Set([...inRange.keys(), ...whole.keys()])) {
+         bars.set(key, weekBars(whole.get(key), inRange.get(key) ?? zeros, weeks));
+      }
+      const top = Math.max(
+         0.01,
+         ...[...bars.values()].flatMap(b => b.counted.map((c, i) => c + b.before[i]))
+      );
+      return { bars, top };
+   };
+   const byKind = barsBy(r => (r.own ? 'writing' : 'reviewing'));
+   const strips = [
+      ...(nav.kind !== 'reviewing'
+         ? [{ name: 'Writing, on their own PRs', bars: byKind.bars.get('writing') ?? noBars }]
+         : []),
+      ...(nav.kind !== 'writing'
+         ? [{ name: 'Reviewing, on others’', bars: byKind.bars.get('reviewing') ?? noBars }]
+         : []),
+   ];
    // the range's own weeks, for its pauses and its last week worked
    const rangeWeeks = chartWeeks(range, range);
 
@@ -964,8 +1125,7 @@ export function Retro({
         ];
    const personGroups = new Map(groupRows(rows, r => r.login).map(g => [g.key, g]));
    const personBefore = earlier ? byDays(groupRows(earlier, r => r.login)) : null;
-   const personWeekly = weeklyOf(r => r.login);
-   const personTop = topOf(personWeekly);
+   const personBars = barsBy(r => r.login);
    const spread = spreadByPerson(rows);
    const psort = readSort<PersonKey>(nav.psort, PERSON_KEYS, 'name');
    const share = (part: number, whole: number) => (whole ? part / whole : 0);
@@ -1005,8 +1165,7 @@ export function Retro({
 
    // every project's days in the range, with its length, pauses and plan
    const projectBefore = earlier ? byDays(groupRows(earlier, r => r.pr.project ?? '')) : null;
-   const projectWeekly = weeklyOf(r => r.pr.project ?? '');
-   const projectTop = topOf(projectWeekly);
+   const projectBars = barsBy(r => r.pr.project ?? '');
    const inRange = weeklyBy(rows, r => r.pr.project ?? '', data, rangeWeeks);
    const sort = readSort<ProjectKey>(nav.sort, PROJECT_KEYS, 'days');
    const projectRows = groupRows(rows, r => r.pr.project ?? '').map(g => {
@@ -1077,28 +1236,45 @@ export function Retro({
       repo: r => r.pr.repo,
    };
    const splitGroups = groupRows(rows, keyOf[nav.by]);
+   if (nav.by === 'team') {
+      // the teams in their configured order, as the people are, and anyone
+      // on none last
+      const rank = (key: string) => {
+         const at = teamNames.indexOf(key);
+         return key === NO_TEAM ? teamNames.length + 1 : at < 0 ? teamNames.length : at;
+      };
+      splitGroups.sort((a, b) => rank(a.key) - rank(b.key) || a.key.localeCompare(b.key));
+   }
    const splitBefore = earlier ? byDays(groupRows(earlier, keyOf[nav.by])) : null;
-   const splitWeekly = weeklyOf(keyOf[nav.by]);
-   const splitTop = topOf(splitWeekly);
+   const splitBars = barsBy(keyOf[nav.by]);
    const splitName = SPLIT_OPTIONS.find(([s]) => s === nav.by)?.[1] ?? '';
+   const band = BANDS[nav.by];
    const splitShown = allSplit ? splitGroups : splitGroups.slice(0, LIST_CAP);
-   /** What clicking a split group's name does, or null when there's
-    * nowhere natural to go and the row only opens in place. */
-   const openSplit = (key: string): [() => void, string] | null => {
-      if (nav.by === 'origin') {
-         // the roadmap filters its plans by where they came from; work with
-         // no plan has none to show
-         if (key === NOT_FILED || key === UNPLANNED) return null;
-         return [
-            () => navigate({ ...leaveFor('roadmap'), origin: key as ProjectsNav['origin'] }),
-            'Show these plans on the roadmap',
-         ];
+   /** What a split group's opened row offers beyond its PRs and people:
+    * counting only that team's days here, or its plans on the roadmap. Its
+    * name only opens the row, so a click on a name never leaves the view. */
+   const splitAction = (key: string): ReactNode => {
+      if (nav.by === 'team' && nav.team !== key) {
+         return (
+            <TextButton onClick={() => navigate({ team: key, who: null })}>
+               {key === NO_TEAM
+                  ? 'Count only the days of people on no team'
+                  : `Count only ${key}’s days on this page`}
+            </TextButton>
+         );
       }
-      if (nav.by === 'team') {
-         return [
-            () => navigate({ team: key, who: null }),
-            'Count only this team’s days on this page',
-         ];
+      // the roadmap filters its plans by where they came from; work with no
+      // plan has none to show
+      if (nav.by === 'origin' && key !== NOT_FILED && key !== UNPLANNED) {
+         return (
+            <TextButton
+               onClick={() =>
+                  navigate({ ...switchView('roadmap'), origin: key as ProjectsNav['origin'] })
+               }
+            >
+               Show these plans on the roadmap
+            </TextButton>
+         );
       }
       return null;
    };
@@ -1116,39 +1292,42 @@ export function Retro({
       ]
          .filter(Boolean)
          .join(', ');
-   // the retro's notes, as plain text: everything the page lists
+   // the retro's notes, as plain text: everything the page lists, people
+   // in their teams as the table has them
    const notes = () =>
       [
          `Where the time went${narrowed ? `, ${narrowed}` : ''}${kindWords}, ${rangeWords(
             range
-         )}: ${n(num(total), 'developer-day')} from ${n(
+         )}: ${n(devDays(total), 'developer-day')} from ${n(
             new Set(rows.map(r => r.login)).size,
             'person',
             'people'
          )}${earlier ? ` (${versus(Math.round(total), Math.round(earlierTotal), period)})` : ''}`,
          `${shares(now)}${then?.total ? `; in the ${period}, ${shares(then)}` : ''}`,
-         `Plans finished: ${finished.length}${plansNote ? ` (${plansNote})` : ''}`,
+         `Plans done: ${finished.length}${plansNote ? ` (${plansNote})` : ''}`,
          `Week by week: ${rangeWeeks
             .map(
                (w, i) =>
-                  `${dayWords(w.week)}${w.days < 7 ? ` (${w.days} of 7 days)` : ''} ${num(
+                  `${dayWords(w.week)}${w.days < 7 ? ` (${w.days} of 7 days)` : ''} ${devDays(
                      rangeWeekly[i] ?? 0
                   )}`
             )
             .join(', ')}`,
          '',
          'Who worked on what:',
-         ...people.map(
-            p =>
-               `- ${p.login}${teamOf(p.login) ? ` (${teamOf(p.login)})` : ''}: ${dayCount(
-                  p.days
-               )}, ${pct(p.reviewing, p.days)} reviewing, wrote on ${n(
-                  p.wrote,
-                  'project'
-               )}, reviewed on ${p.reviewed}${versusBefore(
-                  personBefore && (personBefore.get(p.login) ?? 0)
-               )}`
-         ),
+         ...bands
+            .flatMap(([, list]) => list)
+            .map(
+               p =>
+                  `- ${p.login}${teamOf(p.login) ? ` (${teamOf(p.login)})` : ''}: ${dayCount(
+                     p.days
+                  )}, ${pct(p.reviewing, p.days)} reviewing, wrote on ${n(
+                     p.wrote,
+                     'project'
+                  )}, reviewed on ${p.reviewed}${versusBefore(
+                     personBefore && (personBefore.get(p.login) ?? 0)
+                  )}`
+            ),
          '',
          'Projects:',
          ...[...projects, ...(unfiledRow ? [unfiledRow] : [])].map(
@@ -1193,6 +1372,13 @@ export function Retro({
       URL.revokeObjectURL(url);
    };
 
+   // a tile opens the list that explains it, counting every day as the
+   // tile does, so the switch below can't hide the tile's own number
+   const go = (patch: Partial<ProjectsNav>, section: string) => {
+      const all = nav.kind === 'all' ? patch : { ...patch, kind: 'all' as const };
+      if (Object.keys(all).length) navigate(all);
+      jumpTo(section);
+   };
    const tiles = [
       <Tile
          key="days"
@@ -1202,7 +1388,7 @@ export function Retro({
             range
          )}. A day counts once per person, split across the PRs they touched that day. Click to see who spent them.`}
          note={then ? versus(Math.round(now.total), Math.round(then.total), period) : null}
-         onClick={() => jumpTo('retro-people')}
+         onClick={() => go({}, 'retro-people')}
       />,
       <Tile
          key="reviewing"
@@ -1210,10 +1396,7 @@ export function Retro({
          label="Reviewing"
          title="Of the days, the share on other people’s PRs. Click to split the days by whose PR it was."
          note={was(m => m.total - m.writing)}
-         onClick={() => {
-            navigate({ by: 'author' });
-            jumpTo('retro-split');
-         }}
+         onClick={() => go({ by: 'author' }, 'retro-split')}
       />,
       <Tile
          key="roadmap"
@@ -1221,10 +1404,7 @@ export function Retro({
          label="On the roadmap"
          title="Of the days, the share on projects with a plan. Click to split the days by where the work came from."
          note={was(m => m.planned)}
-         onClick={() => {
-            navigate({ by: 'origin' });
-            jumpTo('retro-split');
-         }}
+         onClick={() => go({ by: 'origin' }, 'retro-split')}
       />,
       anyOrigin && (
          <Tile
@@ -1233,10 +1413,7 @@ export function Retro({
             label="Fires"
             title="Of the days, the share on plans marked as a fire to put out. Click to split the days by where the work came from."
             note={was(m => m.fires)}
-            onClick={() => {
-               navigate({ by: 'origin' });
-               jumpTo('retro-split');
-            }}
+            onClick={() => go({ by: 'origin' }, 'retro-split')}
          />
       ),
       <Tile
@@ -1246,34 +1423,40 @@ export function Retro({
          title="Of the days, the share on PRs with no project label. Click for the PRs that took the most."
          note={was(m => m.unfiled)}
          onClick={() => {
-            if (!unfiledRow) return jumpTo('retro-projects');
-            setOpen(o => new Set(o).add('project:'));
+            if (nav.kind !== 'all') navigate({ kind: 'all' });
+            if (!now.unfiled) return jumpTo('retro-projects');
+            if (!open.has('project:')) toggle('project:');
             jumpToRow('retro-row-project:');
          }}
       />,
       <Tile
          key="spread"
          value={now.spread}
-         label="Projects per person, a week"
+         // "a week" only once the range holds one, and "per person" only
+         // while it counts more than one
+         label={`${nav.who ? 'Projects' : 'Projects per person'}${
+            rangeDays(range) < 7 ? '' : nav.who ? ' a week' : ', a week'
+         }`}
          title="The median, across people, of how many different projects each touched in a week they worked. A PR with no project counts on its own. Click to sort the people by it."
          note={then ? `${then.spread} in the ${period}` : null}
-         onClick={() => {
-            navigate({ psort: 'spread' });
-            jumpTo('retro-people');
-         }}
+         onClick={() => go({ psort: 'spread' }, 'retro-people')}
       />,
       <Tile
          key="finished"
          value={finished.length}
-         label="Plans finished"
+         label="Plans done"
          title={`Plans marked done in these days, and project issues closed as completed, each judged against its plan’s end${
             narrowed ? `; only the ones ${narrowed} worked on` : ''
          }. Click to sort the projects by their plan.`}
-         note={plansNote}
-         onClick={() => {
-            navigate({ sort: 'plan' });
-            jumpTo('retro-projects');
-         }}
+         note={
+            [
+               plansNote,
+               finishedBefore ? versus(finished.length, finishedBefore.length, period) : null,
+            ]
+               .filter(Boolean)
+               .join('; ') || null
+         }
+         onClick={() => go({ sort: 'plan' }, 'retro-projects')}
       />,
    ].filter(Boolean);
 
@@ -1398,6 +1581,7 @@ export function Retro({
 
    const personRow = (p: PersonLoad) => {
       const earlierDays = personBefore ? personBefore.get(p.login) ?? 0 : null;
+      const spreadOf = spread.get(p.login);
       return (
          <TableRow
             key={p.login}
@@ -1406,22 +1590,30 @@ export function Retro({
             cols={personSpan}
             open={open.has(`person:${p.login}`)}
             onToggle={() => toggle(`person:${p.login}`)}
-            lead={<PersonButton login={p.login} me={board.me} onPerson={onPerson} />}
+            hint="retro-people-hint"
+            lead={
+               <span className="min-w-0 text-[13px]">
+                  <PersonCell
+                     login={p.login}
+                     me={board.me}
+                     onClick={() => onPerson(p.login)}
+                     action="open on People"
+                  />
+               </span>
+            }
             cells={
                <>
-                  <WeeksTd weekly={personWeekly?.get(p.login)} weeks={weeks} top={personTop} />
+                  <WeeksTd bars={personBars.bars.get(p.login)} weeks={weeks} top={personBars.top} />
                   <Td col={personCols[0]} strong>
-                     {num(p.days)}
+                     {p.days ? devDays(p.days) : ZERO}
                   </Td>
-                  <Td col={personCols[1]}>{p.days ? pct(p.reviewing, p.days) : ''}</Td>
-                  <Td col={personCols[2]}>{p.days ? p.wrote : ''}</Td>
-                  <Td col={personCols[3]}>{p.days ? p.reviewed : ''}</Td>
-                  <Td col={personCols[4]}>
-                     {spread.has(p.login) ? Math.round((spread.get(p.login) ?? 0) * 10) / 10 : ''}
-                  </Td>
-                  <Td col={personCols[5]}>{p.days ? pct(p.unfiled, p.days) : ''}</Td>
+                  <Td col={personCols[1]}>{p.reviewing ? pct(p.reviewing, p.days) : ZERO}</Td>
+                  <Td col={personCols[2]}>{p.wrote || ZERO}</Td>
+                  <Td col={personCols[3]}>{p.reviewed || ZERO}</Td>
+                  <Td col={personCols[4]}>{spreadOf ? Math.round(spreadOf * 10) / 10 : ZERO}</Td>
+                  <Td col={personCols[5]}>{p.unfiled ? pct(p.unfiled, p.days) : ZERO}</Td>
                   <Td col={personCols[6]} last>
-                     {earlierDays != null ? num(earlierDays) : ''}
+                     {earlierDays == null ? '' : earlierDays ? devDays(earlierDays) : ZERO}
                   </Td>
                </>
             }
@@ -1439,81 +1631,108 @@ export function Retro({
       );
    };
 
-   const projectRow = (r: ProjectRow) => (
-      <TableRow
-         key={r.g.key || 'not-in-a-project'}
-         id={`retro-row-project:${r.g.key}`}
-         name={r.label}
-         cols={projectSpan}
-         open={open.has(`project:${r.g.key}`)}
-         onToggle={() => toggle(`project:${r.g.key}`)}
-         lead={
-            r.filed ? (
-               <LeadButton
-                  onClick={() => navigate({ project: r.g.key })}
-                  title="Open the project page"
-               >
-                  {r.label}
-               </LeadButton>
-            ) : (
-               <span className="min-w-0 text-[13px] font-medium break-words text-ink">
-                  {r.label}
-               </span>
-            )
-         }
-         cells={
-            <>
-               <WeeksTd weekly={projectWeekly?.get(r.g.key)} weeks={weeks} top={projectTop} />
-               <Td col={projectCols[0]} strong>
-                  {num(r.g.days)}
-               </Td>
-               <Td col={projectCols[1]}>{pct(r.g.days, total)}</Td>
-               <Td col={projectCols[2]}>
-                  <span className="inline-flex">
-                     <PeopleStack logins={r.g.people.map(([login]) => login)} onPerson={onPerson} />
+   const projectRow = (r: ProjectRow) => {
+      const planId = r.planItem?.id;
+      // the plan's outcome opens it on the roadmap; one still running past
+      // its end is owed a call, so it wears the amber the Overview gives it
+      const planWords =
+         r.plan && planId != null ? (
+            <FactLink
+               onClick={() =>
+                  navigate({ ...switchView('roadmap'), ...openPlan(nav, planId) }, { push: true })
+               }
+               title={`Open the plan for ${r.label} on the roadmap`}
+               className="text-right"
+            >
+               {r.plan.kind === 'past_end' ? (
+                  <span className="text-warn">{r.plan.text}</span>
+               ) : (
+                  r.plan.text
+               )}
+            </FactLink>
+         ) : (
+            // a fact, not a call: quieter than the outcomes a retro reads
+            r.plan && <span className="text-ink-3">{r.plan.text}</span>
+         );
+      return (
+         <TableRow
+            key={r.g.key || 'not-in-a-project'}
+            id={`retro-row-project:${r.g.key}`}
+            name={r.label}
+            cols={projectSpan}
+            open={open.has(`project:${r.g.key}`)}
+            onToggle={() => toggle(`project:${r.g.key}`)}
+            hint="retro-projects-hint"
+            lead={
+               r.filed ? (
+                  <FactLink
+                     onClick={() => navigate({ project: r.g.key })}
+                     title="Open the project page"
+                     className="min-w-0 text-[13px] font-medium break-words"
+                  >
+                     {r.label}
+                  </FactLink>
+               ) : (
+                  <span className="min-w-0 text-[13px] font-medium break-words text-ink">
+                     {r.label}
                   </span>
-               </Td>
-               <Td col={projectCols[3]}>
-                  {r.length ? `${r.length.open ? 'open' : 'took'} ${daysShort(r.length.days)}` : ''}
-               </Td>
-               <Td col={projectCols[4]}>{r.quiet ? `${r.quiet} wk` : ''}</Td>
-               <Td col={projectCols[5]}>
-                  {r.last >= 0 ? `week of ${dayWords(rangeWeeks[r.last].week)}` : ''}
-               </Td>
-               <Td col={projectCols[6]}>
-                  {r.plan && r.planItem ? (
-                     <button
-                        type="button"
-                        onClick={() =>
-                           navigate(
-                              {
-                                 ...leaveFor('roadmap'),
-                                 ...openPlan(nav, (r.planItem as RoadmapItem).id),
-                              },
-                              { push: true }
-                           )
-                        }
-                        title={`Open the plan for ${r.label} on the roadmap`}
-                        className="hit pressable rounded border-0 bg-transparent p-0 text-right text-xs text-ink-2 hover:text-brand hover:underline"
-                     >
-                        {r.plan.text}
-                     </button>
-                  ) : (
-                     // a fact, not a call: quieter than the outcomes a retro reads
-                     r.plan && <span className="text-ink-3">{r.plan.text}</span>
-                  )}
-               </Td>
-               <Td col={projectCols[7]} last>
-                  {r.before != null ? num(r.before) : ''}
-               </Td>
-            </>
-         }
-         detail={<SpentOn group={r.g} source={source} me={board.me} onPerson={onPerson} />}
-      />
-   );
+               )
+            }
+            cells={
+               <>
+                  <WeeksTd
+                     bars={projectBars.bars.get(r.g.key)}
+                     weeks={weeks}
+                     top={projectBars.top}
+                  />
+                  <Td col={projectCols[0]} strong>
+                     {devDays(r.g.days)}
+                  </Td>
+                  <Td col={projectCols[1]}>{pct(r.g.days, total)}</Td>
+                  <Td col={projectCols[2]}>
+                     <span className="inline-flex">
+                        <PeopleStack
+                           logins={r.g.people.map(([login]) => login)}
+                           onPerson={onPerson}
+                           me={board.me}
+                        />
+                     </span>
+                  </Td>
+                  <Td col={projectCols[3]}>
+                     {r.length
+                        ? `${r.length.open ? 'open' : 'took'} ${daysShort(r.length.days)}`
+                        : ''}
+                  </Td>
+                  <Td col={projectCols[4]}>{r.quiet ? `${r.quiet} wk` : ZERO}</Td>
+                  <Td col={projectCols[5]}>
+                     {r.last >= 0 ? `week of ${dayWords(rangeWeeks[r.last].week)}` : ''}
+                  </Td>
+                  <Td col={projectCols[6]}>{planWords}</Td>
+                  <Td col={projectCols[7]} last>
+                     {r.before == null ? '' : r.before ? devDays(r.before) : ZERO}
+                  </Td>
+               </>
+            }
+            detail={
+               <SpentOn
+                  group={r.g}
+                  source={source}
+                  me={board.me}
+                  onPerson={onPerson}
+                  // the plan once more, for a keyboard (the row's own plan
+                  // words are out of its Tab order) and a phone, whose
+                  // narrow table drops the Plan column
+                  actions={
+                     planId != null &&
+                     planWords && <span className="text-ink-3">Plan: {planWords}</span>
+                  }
+               />
+            }
+         />
+      );
+   };
 
    const splitRow = (g: RetroGroup) => {
-      const go = openSplit(g.key);
       const label = splitLabel(nav.by, g.key);
       const prev = splitBefore ? splitBefore.get(g.key) ?? 0 : null;
       return (
@@ -1525,29 +1744,29 @@ export function Retro({
             open={open.has(`split:${nav.by}:${g.key}`)}
             onToggle={() => toggle(`split:${nav.by}:${g.key}`)}
             lead={
-               go ? (
-                  <LeadButton onClick={go[0]} title={go[1]}>
-                     {label}
-                  </LeadButton>
-               ) : (
-                  <span className="min-w-0 text-[13px] font-medium break-words text-ink">
-                     {label}
-                  </span>
-               )
+               <span className="min-w-0 text-[13px] font-medium break-words text-ink">{label}</span>
             }
             cells={
                <>
-                  <WeeksTd weekly={splitWeekly?.get(g.key)} weeks={weeks} top={splitTop} />
+                  <WeeksTd bars={splitBars.bars.get(g.key)} weeks={weeks} top={splitBars.top} />
                   <Td col={splitCols[0]} strong>
-                     {num(g.days)}
+                     {devDays(g.days)}
                   </Td>
                   <Td col={splitCols[1]}>{pct(g.days, total)}</Td>
                   <Td col={splitCols[2]} last>
-                     {prev != null ? num(prev) : ''}
+                     {prev == null ? '' : prev ? devDays(prev) : ZERO}
                   </Td>
                </>
             }
-            detail={<SpentOn group={g} source={source} me={board.me} onPerson={onPerson} />}
+            detail={
+               <SpentOn
+                  group={g}
+                  source={source}
+                  me={board.me}
+                  onPerson={onPerson}
+                  actions={splitAction(g.key)}
+               />
+            }
          />
       );
    };
@@ -1564,11 +1783,6 @@ export function Retro({
          first
       />
    );
-   // the number columns keep their widths and the name column, with none,
-   // takes what's left; a fixed layout can't, since a band's or a detail's
-   // span over the columns a phone hides would count them as real ones
-   const tableClass = 'w-full border-collapse text-xs';
-   const sectionClass = 'scroll-mt-[var(--header-h,0px)]';
    const whose = nav.who
       ? `${nav.who}’s`
       : nav.team === NO_TEAM
@@ -1584,14 +1798,20 @@ export function Retro({
       : nav.team
       ? `No one on ${nav.team} worked on a PR`
       : 'No one worked on a PR';
+   const chartDays = `${rangeWords(shown)}${
+      shown.start < range.start ? `, paler before ${dayWords(range.start)}` : ''
+   }`;
 
    return (
       <div className="flex flex-col gap-7">
          <section>
             <GroupHeader
-               title={`Where the time went${narrowed ? `, ${narrowed}` : ''}`}
+               title="Where the time went"
                sub={
-                  <SubDoor label="What a developer-day is" text="Counted in developer-days">
+                  <SubDoor
+                     label="What a developer-day is"
+                     text={`${rangeWords(range)}, in developer-days`}
+                  >
                      <p className="m-0">
                         A developer-day is a day someone opened, merged, commented on, stamped or
                         reviewed a PR, split evenly across the PRs they touched that day. A day on
@@ -1605,8 +1825,48 @@ export function Retro({
                         Commits aren’t counted, since Pulldasher doesn’t keep them. In one sample of
                         60 merged PRs, their commit days would have added about 4%.
                      </p>
-                     <p className="m-0">Each tile compares with the {period}.</p>
+                     <p className="m-0">Each tile counts every day, compared with the {period}.</p>
                   </SubDoor>
+               }
+               headerExtra={
+                  (narrowed || rows.length > 0) && (
+                     <span className="flex flex-wrap items-center gap-2">
+                        {narrowed && (
+                           <NarrowChip
+                              label={nav.who ?? (nav.team === NO_TEAM ? 'No team' : narrowed)}
+                              clear="Show everyone’s days"
+                              onClear={() => navigate({ who: null, team: null })}
+                           />
+                        )}
+                        {rows.length > 0 && (
+                           <>
+                              <QuietButton
+                                 onClick={copy}
+                                 title="Copy everything below as plain text, for the retro’s notes"
+                              >
+                                 {copied === 'copied'
+                                    ? 'Copied'
+                                    : copied === 'failed'
+                                    ? 'Couldn’t copy'
+                                    : COPY_AS_TEXT}
+                              </QuietButton>
+                              <QuietButton
+                                 onClick={download}
+                                 title="Download these days as a spreadsheet file (CSV): one line per person, PR and week"
+                              >
+                                 CSV
+                              </QuietButton>
+                           </>
+                        )}
+                        <span role="status" className="sr-only">
+                           {copied === 'copied'
+                              ? 'Copied the retro’s notes'
+                              : copied === 'failed'
+                              ? 'Couldn’t copy: the browser didn’t allow it'
+                              : ''}
+                        </span>
+                     </span>
+                  )
                }
             />
             {now.total > 0 ? (
@@ -1620,338 +1880,302 @@ export function Retro({
                   </div>
                </StatsCard>
             ) : (
-               <p className="m-0 text-[13px] text-ink-3">
-                  {nobody} in these days
-                  {then?.total
-                     ? `; the ${period} had ${n(num(then.total), 'developer-day')}.`
-                     : '.'}
-               </p>
-            )}
-            {(now.total > 0 || narrowed) && (
-               <div className="mt-4 flex flex-wrap items-center gap-3">
-                  {now.total > 0 && (
-                     <Segmented
-                        ariaLabel="which days count"
-                        value={nav.kind}
-                        options={KIND_OPTIONS}
-                        onChange={kind => navigate({ kind })}
-                     />
+               <div className="flex flex-col items-start gap-1.5">
+                  <p className="m-0 max-w-[70ch] text-[13px] text-ink-3">
+                     {nobody} in these days
+                     {then?.total
+                        ? `; the ${period} had ${n(devDays(then.total), 'developer-day')}.`
+                        : '.'}
+                  </p>
+                  {/* narrowed, the chip is the way out; else a longer look */}
+                  {!narrowed && rangeDays(range) < 90 && (
+                     <TextButton onClick={() => navigate({ range: '90d' })} className="text-[13px]">
+                        Look back over the last 90 days
+                     </TextButton>
                   )}
-                  {narrowed && (
-                     <QuietButton onClick={() => navigate({ who: null, team: null })}>
-                        Show everyone’s days
-                     </QuietButton>
-                  )}
-                  <span className="flex-1" />
-                  {rows.length > 0 && (
-                     // the two ways out wrap together on a phone
-                     <span className="flex gap-2">
-                        <QuietButton
-                           onClick={download}
-                           title="Download these days as a spreadsheet file (CSV): one line per person, PR and week"
-                        >
-                           CSV
-                        </QuietButton>
-                        <QuietButton
-                           onClick={copy}
-                           title="Copy everything below as plain text, for the retro’s notes"
-                        >
-                           {copied === 'copied'
-                              ? 'Copied'
-                              : copied === 'failed'
-                              ? 'Couldn’t copy'
-                              : 'Copy as text'}
-                        </QuietButton>
-                     </span>
-                  )}
-                  <span role="status" className="sr-only">
-                     {copied === 'copied'
-                        ? 'Copied the retro’s notes'
-                        : copied === 'failed'
-                        ? 'Couldn’t copy: the browser didn’t allow it'
-                        : ''}
-                  </span>
                </div>
             )}
          </section>
 
-         {now.total > 0 && !rows.length && (
-            <p className="m-0 text-[13px] text-ink-3">
-               {nav.kind === 'writing'
-                  ? 'No writing days in these days: every one went to reviewing.'
-                  : 'No reviewing days in these days: every one went to writing.'}
-            </p>
+         {now.total > 0 && (
+            <section id="retro-days" className={SECTION}>
+               <GroupHeader
+                  level={3}
+                  title={`${whose} ${nav.kind === 'all' ? '' : `${nav.kind} `}days, week by week`}
+                  sub={
+                     <SubDoor label="How the weeks are drawn" text={chartDays}>
+                        <p className="m-0">
+                           The chart draws at least 90 days, ending on the range’s last day, so a
+                           short range still shows its trend. The days before{' '}
+                           {dayWords(range.start)} are paler, the week the range starts in split in
+                           two; only the range’s days count in the numbers.
+                        </p>
+                        <p className="m-0">
+                           A week the chart’s days cut off, such as this one so far, says how many
+                           of its days count.
+                        </p>
+                        <p className="m-0">
+                           Writing or Reviewing counts only those days here and in every list below.
+                           The tiles above always count every day.
+                        </p>
+                     </SubDoor>
+                  }
+                  // the switch sits over what it changes: the weeks and the
+                  // lists below, never the tiles above
+                  headerExtra={
+                     <Segmented
+                        ariaLabel="which days count, from here down"
+                        value={nav.kind}
+                        options={KIND_OPTIONS}
+                        onChange={kind => navigate({ kind })}
+                     />
+                  }
+               />
+               <StatsCard>
+                  {!rows.length ? (
+                     <p className="m-0 max-w-[70ch] text-[13px] text-ink-3">
+                        {nav.kind === 'writing'
+                           ? 'No writing days in these days: every one went to reviewing.'
+                           : 'No reviewing days in these days: every one went to writing.'}
+                     </p>
+                  ) : drawn === null ? (
+                     <LoadFailed what="the weeks" onRetry={retryRetroData} />
+                  ) : (
+                     <ChartSlot height={strips.length > 1 ? 240 : 220}>
+                        {drawn && (
+                           <StripsChart
+                              weeks={weeks}
+                              strips={strips}
+                              unit="Developer-days each week"
+                              ariaLabel="Developer-days each week"
+                              total="All days"
+                              format={devDays}
+                              height={180}
+                           />
+                        )}
+                     </ChartSlot>
+                  )}
+               </StatsCard>
+            </section>
          )}
 
          {rows.length > 0 && (
             <>
-               <section id="retro-days" className={sectionClass}>
-                  <GroupHeader
-                     level={3}
-                     title={`${whose} days, week by week${kindWords}`}
-                     sub={
-                        <SubDoor
-                           label="How the weeks are drawn"
-                           text={`${n(num(total), 'developer-day')}, ${rangeWords(range)}`}
-                        >
-                           <p className="m-0">
-                              The chart draws at least 90 days, ending on the range’s last day, so a
-                              short range still shows its trend. The weeks before{' '}
-                              {dayWords(range.start)} are paler; only the range’s days count in the
-                              numbers.
-                           </p>
-                           <p className="m-0">
-                              A week the chart’s days cut off, such as this one so far, says how
-                              many of its days it holds.
-                           </p>
-                        </SubDoor>
-                     }
-                  />
-                  <StatsCard>
-                     {drawn === null ? (
-                        <LoadFailed what="the weeks" onRetry={retryRetroData} />
-                     ) : (
-                        <ChartSlot height={200}>
-                           {drawn && (
-                              <DaysWeeksChart
-                                 weeks={weeks}
-                                 writing={kindWeeks('writing')}
-                                 reviewing={kindWeeks('reviewing')}
-                              />
-                           )}
-                        </ChartSlot>
-                     )}
-                  </StatsCard>
-               </section>
-
-               <section id="retro-people" className={sectionClass}>
-                  <GroupHeader
-                     level={3}
-                     title="Who worked on what"
-                     sub={
-                        <SubDoor
-                           label="How to read who worked on what"
-                           text={upper(
-                              `${teamNames.length ? 'by team, then ' : ''}${
-                                 PERSON_ORDER[psort.key][psort.reversed ? 1 : 0]
-                              }`
-                           )}
-                        >
-                           <p className="m-0">
-                              Every developer, and anyone else with days in the range. A name opens
-                              that person on People; the arrow opens their projects and PRs here.
-                           </p>
-                           <p className="m-0">
-                              The bars are each week’s days, every row on one scale. A column’s head
-                              sorts by it; hovering a head says what it counts.
-                           </p>
-                        </SubDoor>
-                     }
-                  />
-                  <Rows>
-                     <table className={tableClass}>
-                        <caption className="sr-only">
-                           Who worked on what, {rangeWords(range)}
-                        </caption>
-                        <thead className="border-b border-line bg-muted/40">
-                           <tr>
-                              {nameTh(
-                                 'Person',
-                                 'Developers, and anyone else with days in the range',
-                                 {
-                                    sort: psort,
-                                    onSort: s => navigate({ psort: s }),
-                                 }
+               <TableSection
+                  id="retro-people"
+                  hint="Enter opens them on People; Space shows their details here."
+                  header={
+                     <GroupHeader
+                        level={3}
+                        title="Who worked on what"
+                        sub={
+                           <SubDoor
+                              label="How to read who worked on what"
+                              text={upper(
+                                 `${teamNames.length ? 'by team, then ' : ''}${
+                                    PERSON_ORDER[psort.key][psort.reversed ? 1 : 0]
+                                 }${kindOnly}`
                               )}
-                              <WeeksTh weeks={weeks} top={personTop} />
-                              {personCols.map((c, i) => (
-                                 <Th
-                                    key={c.key}
-                                    col={c}
-                                    sort={psort}
-                                    onSort={s => navigate({ psort: s })}
-                                    last={i === personCols.length - 1}
-                                 />
-                              ))}
-                           </tr>
-                        </thead>
-                        {bands.map(([team, list]) =>
-                           team == null ? (
-                              <tbody key="everyone">{list.map(personRow)}</tbody>
-                           ) : (
-                              <TeamBody
-                                 key={team}
-                                 team={team}
-                                 count={list.length}
-                                 cols={personSpan}
-                              >
-                                 {list.map(personRow)}
-                              </TeamBody>
-                           )
-                        )}
-                     </table>
-                  </Rows>
-               </section>
-
-               <section id="retro-projects" className={sectionClass}>
-                  <GroupHeader
-                     level={3}
-                     title="Projects in this range"
-                     sub={
-                        <SubDoor
-                           label="How to read the projects"
-                           text={PROJECT_ORDER[sort.key][sort.reversed ? 1 : 0]}
-                        >
-                           <p className="m-0">
-                              Every project’s developer-days, how long its PRs ran, its longest
-                              pause, and how its plan turned out. The days on PRs with no project
-                              come last, as {NOT_IN_A_PROJECT}.
-                           </p>
-                           <p className="m-0">
-                              A name opens the project’s page; the arrow opens its PRs and who spent
-                              the days here. A column’s head sorts by it.
-                           </p>
-                           {unfiledShare > 0.5 && (
+                           >
                               <p className="m-0">
-                                 Most of these days ({pct(unfiledShare, 1)}) went to PRs with no
-                                 project label, so the project rows undercount.
+                                 Every developer, and anyone else with days in the range. A name
+                                 opens that person on People; the arrow opens their projects and PRs
+                                 here.
                               </p>
-                           )}
-                        </SubDoor>
-                     }
-                  />
-                  <Rows>
-                     <table className={tableClass}>
-                        <caption className="sr-only">
-                           Projects in this range, {rangeWords(range)}
-                        </caption>
-                        <thead className="border-b border-line bg-muted/40">
-                           <tr>
-                              {nameTh('Project', 'The project’s name', {
-                                 sort,
-                                 onSort: s => navigate({ sort: s }),
-                              })}
-                              <WeeksTh weeks={weeks} top={projectTop} />
-                              {projectCols.map((c, i) => (
-                                 <Th
-                                    key={c.key ?? c.label}
-                                    col={c}
-                                    sort={sort}
-                                    onSort={c.key ? s => navigate({ sort: s }) : undefined}
-                                    last={i === projectCols.length - 1}
-                                 />
-                              ))}
-                           </tr>
-                        </thead>
-                        <tbody>
-                           {projectsShown.map(projectRow)}
-                           {unfiledRow && projectRow(unfiledRow)}
-                           <MoreRow
-                              cols={projectSpan}
-                              more={Math.max(0, projects.length - LIST_CAP)}
-                              all={allProjects}
-                              onToggle={() => setAllProjects(!allProjects)}
-                              label="more projects"
+                              <p className="m-0">
+                                 The bars are each week’s days, every row on one scale, the days
+                                 before the range paler. A column’s head sorts by it.
+                              </p>
+                              <ColumnWords cols={personCols} />
+                           </SubDoor>
+                        }
+                     />
+                  }
+                  caption={`Who worked on what, ${rangeWords(range)}`}
+                  head={
+                     <tr>
+                        {nameTh('Person', 'Developers, and anyone else with days in the range', {
+                           sort: psort,
+                           onSort: s => navigate({ psort: s }),
+                        })}
+                        <WeeksTh weeks={weeks} />
+                        {personCols.map((c, i) => (
+                           <Th
+                              key={c.key}
+                              col={c}
+                              sort={psort}
+                              onSort={s => navigate({ psort: s })}
+                              last={i === personCols.length - 1}
                            />
-                        </tbody>
-                     </table>
-                  </Rows>
-               </section>
+                        ))}
+                     </tr>
+                  }
+               >
+                  {bands.map(([team, list]) =>
+                     team == null ? (
+                        list.map(personRow)
+                     ) : (
+                        <Band
+                           key={team}
+                           id={`retro-team:${team}`}
+                           label={team === NO_TEAM ? 'No team' : team}
+                           note={String(list.length)}
+                           cols={personSpan}
+                        >
+                           {list.map(personRow)}
+                        </Band>
+                     )
+                  )}
+               </TableSection>
 
-               <section id="retro-split" className={sectionClass}>
-                  <GroupHeader
-                     level={3}
-                     title="Split another way"
-                     sub={SPLIT_WORDS[nav.by]}
-                     headerExtra={
-                        <Segmented
-                           ariaLabel="split the days by"
-                           value={nav.by}
-                           options={SPLIT_OPTIONS}
-                           onChange={by => navigate({ by })}
-                        />
-                     }
-                  />
-                  <Rows>
-                     <table className={tableClass}>
-                        <caption className="sr-only">
-                           The days {lower(SPLIT_WORDS[nav.by])}, {rangeWords(range)}
-                        </caption>
-                        <thead className="border-b border-line bg-muted/40">
-                           <tr>
-                              {nameTh(splitName, SPLIT_WORDS[nav.by])}
-                              <WeeksTh weeks={weeks} top={splitTop} />
-                              {splitCols.map((c, i) => (
-                                 <Th key={c.label} col={c} last={i === splitCols.length - 1} />
-                              ))}
-                           </tr>
-                        </thead>
-                        <tbody>
-                           {splitShown.map(splitRow)}
-                           <MoreRow
-                              cols={splitSpan}
-                              more={Math.max(0, splitGroups.length - LIST_CAP)}
-                              all={allSplit}
-                              onToggle={() => setAllSplit(!allSplit)}
-                              label="more"
+               <TableSection
+                  id="retro-projects"
+                  hint="Enter opens its page; Space shows its details here."
+                  header={
+                     <GroupHeader
+                        level={3}
+                        title="Projects in this range"
+                        sub={
+                           <SubDoor
+                              label="How to read the projects"
+                              text={`${PROJECT_ORDER[sort.key][sort.reversed ? 1 : 0]}${kindOnly}`}
+                           >
+                              <p className="m-0">
+                                 Every project’s developer-days, how long its PRs ran, its longest
+                                 pause, and how its plan turned out. The days on PRs with no project
+                                 come last, as {NOT_IN_A_PROJECT}.
+                              </p>
+                              <p className="m-0">
+                                 A name opens the project’s page; the arrow opens its PRs and who
+                                 spent the days here. A column’s head sorts by it.
+                              </p>
+                              {unfiledShare > 0.5 && (
+                                 <p className="m-0">
+                                    Most of these days ({pct(unfiledShare, 1)}) went to PRs with no
+                                    project label, so the project rows undercount.
+                                 </p>
+                              )}
+                              <ColumnWords cols={projectCols} />
+                           </SubDoor>
+                        }
+                     />
+                  }
+                  caption={`Projects in this range, ${rangeWords(range)}`}
+                  head={
+                     <tr>
+                        {nameTh('Project', 'The project’s name', {
+                           sort,
+                           onSort: s => navigate({ sort: s }),
+                        })}
+                        <WeeksTh weeks={weeks} />
+                        {projectCols.map((c, i) => (
+                           <Th
+                              key={c.key ?? c.label}
+                              col={c}
+                              sort={sort}
+                              onSort={c.key ? s => navigate({ sort: s }) : undefined}
+                              last={i === projectCols.length - 1}
                            />
-                        </tbody>
-                     </table>
-                  </Rows>
-               </section>
+                        ))}
+                     </tr>
+                  }
+               >
+                  {projectsShown.map(projectRow)}
+                  <MoreRow
+                     cols={projectSpan}
+                     more={Math.max(0, projects.length - LIST_CAP)}
+                     all={allProjects}
+                     onToggle={() => setAllProjects(!allProjects)}
+                     label="more projects"
+                  />
+                  {unfiledRow && projectRow(unfiledRow)}
+               </TableSection>
+
+               <TableSection
+                  id="retro-split"
+                  header={
+                     <GroupHeader
+                        level={3}
+                        title="Split another way"
+                        sub={
+                           <SubDoor
+                              label="How to read the split"
+                              text={`${SPLIT_WORDS[nav.by]}${kindOnly}`}
+                           >
+                              <p className="m-0">
+                                 The same days, split one more way. A name opens its PRs and who
+                                 spent the days here, with anything more it offers, such as counting
+                                 only a team’s days.
+                              </p>
+                              {band && (
+                                 <p className="m-0">
+                                    Its groups sit under the tile words they add up to, each with
+                                    its share.
+                                 </p>
+                              )}
+                              <ColumnWords cols={splitCols} />
+                           </SubDoor>
+                        }
+                        headerExtra={
+                           <Segmented
+                              ariaLabel="split the days by"
+                              value={nav.by}
+                              options={SPLIT_OPTIONS}
+                              onChange={by => navigate({ by })}
+                           />
+                        }
+                     />
+                  }
+                  caption={`The days ${lower(SPLIT_WORDS[nav.by])}, ${rangeWords(range)}`}
+                  head={
+                     <tr>
+                        {nameTh(splitName, SPLIT_WORDS[nav.by])}
+                        <WeeksTh weeks={weeks} />
+                        {splitCols.map((c, i) => (
+                           <Th key={c.label} col={c} last={i === splitCols.length - 1} />
+                        ))}
+                     </tr>
+                  }
+               >
+                  {band ? (
+                     band.names.map(name => {
+                        const list = splitGroups.filter(g => band.of(g.key) === name);
+                        if (!list.length) return null;
+                        const days = list.reduce((sum, g) => sum + g.days, 0);
+                        return (
+                           <Band
+                              key={name}
+                              id={`retro-band:${nav.by}:${name}`}
+                              label={name}
+                              note={pct(days, total)}
+                              cols={splitSpan}
+                           >
+                              {list.map(splitRow)}
+                           </Band>
+                        );
+                     })
+                  ) : (
+                     <>
+                        {splitShown.map(splitRow)}
+                        <MoreRow
+                           cols={splitSpan}
+                           more={Math.max(0, splitGroups.length - LIST_CAP)}
+                           all={allSplit}
+                           onToggle={() => setAllSplit(!allSplit)}
+                           label="more"
+                        />
+                     </>
+                  )}
+               </TableSection>
             </>
          )}
 
-         <BacklogSection range={range} everyone={!!narrowed} />
-      </div>
-   );
-}
-
-/**
- * Is the backlog growing: the PRs open at the end of each day, and what
- * arrived and what merged each week, over at least 90 days ending on the
- * range's last day, with the days before the range faded. The line over the
- * charts counts the picked range's PRs. It counts every PR, whoever the
- * page is narrowed to, and says so then.
- */
-function BacklogSection({ range, everyone }: { range: Range; everyone: boolean }) {
-   const shown = chartWindow(range);
-   const data = useProjectsData(shown);
-   const t = useProjectsData(range)?.window.totals;
-   const speed = t ? mergeSpeed(t.merged, t.median_days_to_merge) : null;
-   return (
-      <section id="retro-backlog" className="scroll-mt-[var(--header-h,0px)]">
-         <GroupHeader
-            level={3}
+         <BacklogSection
+            range={range}
+            id="retro-backlog"
             title="Is the backlog growing?"
-            sub={`${everyone ? 'Everyone’s PRs, ' : ''}${rangeWords(shown)}`}
+            everyone={!!narrowed}
          />
-         <StatsCard>
-            {t && (
-               <p className="m-0 mb-3 text-xs text-ink-3">
-                  {rangeWords(range)}: {n(t.opened, 'PR')} opened and {t.merged} merged
-                  {speed ? `. ${speed}` : ''}.
-               </p>
-            )}
-            {data === null ? (
-               <LoadFailed what="the charts" onRetry={refreshProjectsData} />
-            ) : (
-               <div className="flex flex-col gap-4">
-                  <ChartSlot height={200}>
-                     {data && <OpenPrsChart days={data.window.days} picked={range} />}
-                  </ChartSlot>
-                  <ChartSlot height={210}>
-                     {data && (
-                        <FlowWeeksChart
-                           weeks={data.window.weeks}
-                           picked={range}
-                           shown={data.window}
-                        />
-                     )}
-                  </ChartSlot>
-               </div>
-            )}
-         </StatsCard>
-      </section>
+      </div>
    );
 }

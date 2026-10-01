@@ -35,7 +35,9 @@ export function StatsCard({
          {title && (
             <h3 className="m-0 text-sm font-semibold text-ink">
                {title}
-               {sub && <span className="ml-2 text-xs text-ink-3">{sub}</span>}
+               {/* regular weight, like GroupHeader's sub-line: the title is
+                   the heading, the sub-line only qualifies it */}
+               {sub && <span className="ml-2 text-xs font-normal text-ink-3">{sub}</span>}
             </h3>
          )}
          {children}
@@ -695,34 +697,76 @@ export function Donut({
 
 /**
  * Avatar + login, the current user tinted brand, tagged "you" and wearing the
- * board's you-star — the leading cell the leaderboard and starvation cards
- * render the same way, and People's rows.
+ * board's you-star: the one person cell, on the Stats cards, People's rows
+ * and Look back's tables. Three ways to click it:
+ * - neither prop: words only, for a caller whose own button wraps it (a
+ *   People row's toggle);
+ * - `onPerson`: the face alone is a button, with its hover card (Stats);
+ * - `onClick`: face and name are one button, named by `action` ("open on
+ *   People"), its name underlining on hover.
+ * It takes its text size from its line, and lays out as two flex items, so
+ * the line spaces them (gap-2) unless it's the `onClick` button.
  */
 export function PersonCell({
    login,
    me,
    onPerson,
+   onClick,
+   action,
+   size = 20,
 }: {
    login: string;
    me?: string;
    onPerson?: (login: string) => void;
+   /** makes face and name one button; not with `onPerson` */
+   onClick?: () => void;
+   /** what `onClick` does, for the button's name and hover: "open on People" */
+   action?: string;
+   /** the face's size in px */
+   size?: number;
 }) {
    // logins compare without case, as on GitHub
    const mine = !!me && login.toLowerCase() === me.toLowerCase();
-   const face = <Avatar login={login} size={20} onClick={onPerson} you={mine} />;
+   // never a button inside the onClick one
+   const face = (
+      <Avatar login={login} size={size} onClick={onClick ? undefined : onPerson} you={mine} />
+   );
+   // min-w-0 + break-words, not flex-none: a long GitHub login (up to 39
+   // chars) wraps rather than overflowing the card into page-level
+   // horizontal scroll on a phone, and never hides behind an ellipsis
+   const name = (
+      <span
+         className={`min-w-0 flex-1 font-semibold break-words text-ink ${
+            onClick ? 'group-hover:underline' : ''
+         }`}
+      >
+         {mine ? <span className="text-brand">{login}</span> : login}
+         {/* the comma is for the ear: "danielbeardsley, you" */}
+         {mine && <><span className="sr-only">,</span> <span className="text-ink-3">you</span></>}
+      </span>
+   );
+   // a face that isn't a button only repeats the name beside it, so a
+   // screen reader hears the name once, without the star's "yours"
+   const quietFace = <span aria-hidden className="inline-flex flex-none">{face}</span>;
+   if (onClick) {
+      const named = `${login}${mine ? ' (you)' : ''}`;
+      return (
+         <button
+            type="button"
+            onClick={onClick}
+            title={action && `${login}: ${action}`}
+            aria-label={action && `${named}: ${action}`}
+            className="group hit pressable inline-flex max-w-full min-w-0 items-center gap-2 rounded border-0 bg-transparent p-0 text-left"
+         >
+            {quietFace}
+            {name}
+         </button>
+      );
+   }
    return (
       <>
-         {/* a face that isn't a button only repeats the name beside it, so a
-             screen reader hears the name once, without the star's "yours" */}
-         {onPerson ? face : <span aria-hidden className="inline-flex flex-none">{face}</span>}
-         {/* min-w-0 + break-words, not flex-none: a long GitHub login (up to
-             39 chars) wraps rather than overflowing the card into page-level
-             horizontal scroll on a phone, and never hides behind an ellipsis */}
-         <span className="min-w-0 flex-1 font-semibold break-words text-ink">
-            {mine ? <span className="text-brand">{login}</span> : login}
-            {/* the comma is for the ear: "danielbeardsley, you" */}
-            {mine && <><span className="sr-only">,</span> <span className="text-ink-3">you</span></>}
-         </span>
+         {onPerson ? face : quietFace}
+         {name}
       </>
    );
 }

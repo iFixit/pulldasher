@@ -5,6 +5,8 @@ import type { IssuePull, ProjectWork } from '../../../shared/model/work';
 import type { PullData } from '../../../shared/types';
 import {
    addedLater,
+   dateWords,
+   durationWords,
    holderWords,
    issueForecast,
    issueStanding,
@@ -193,6 +195,19 @@ describe('holderWords', () => {
          'jrodger312 is testing it'
       );
    });
+
+   it('says nothing its own row shows, under that row', () => {
+      const onRow = { onRow: true, ageWarnDays: 14 };
+      // the face is the author, the "external" flag says it, the rail its age
+      expect(holderWords(dp(1, 'draft', { ageDays: 38 }), onRow)).toBe('');
+      expect(holderWords(dp(1, 'needs_cr', { externalBlock: true }), onRow)).toBe('');
+      // who it waits on, and what holds it, the row doesn't say
+      const turns = new Map([['iFixit/ifixit#2', 'erin']]);
+      expect(holderWords(dp(2, 'needs_cr', { ageDays: 38 }), { ...onRow, turns })).toBe(
+         'erin’s turn'
+      );
+      expect(holderWords(dp(5, 'ready', { cryo: true }), onRow)).toBe('parked');
+   });
 });
 
 const DAY = 86400;
@@ -265,8 +280,7 @@ describe('issueForecast', () => {
       closedAt: ago(daysAgo),
       attachedAt: ago(60),
    });
-   const day = (secs: number) =>
-      new Date(secs * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+   const day = (secs: number) => dateWords(secs, now);
 
    it('runs the open issues at the last four weeks’ pace, closes less adds', () => {
       // 4 closed, 3 added: one fewer every four weeks, so 2 open take 8 weeks
@@ -299,14 +313,44 @@ describe('issueForecast', () => {
       expect(issueForecast([closed(3), open(3)], null, now)?.text).toBe(
          '1 closed, 1 added in four weeks: issues arrive as fast as they close'
       );
-      expect(issueForecast([open(3), open(9)], null, now)?.text).toBe(
-         'none closed, 2 added in four weeks: issues arrive faster than they close'
+      expect(issueForecast([closed(3), open(3), open(9)], null, now)?.text).toBe(
+         '1 closed, 2 added in four weeks: issues arrive faster than they close'
       );
       expect(issueForecast([open(), open(null)], null, now)?.text).toBe(
          'no issue closed or added in four weeks'
       );
       // nothing open: no forecast
       expect(issueForecast([closed(3)], null, now)).toBeNull();
+   });
+
+   it('only counts when nothing has closed yet, with no pace to compare', () => {
+      // a project whose issues all just arrived isn't losing ground
+      expect(issueForecast([open(3), open(9)], null, now)?.text).toBe(
+         'none closed, 2 added in four weeks'
+      );
+   });
+});
+
+describe('dateWords', () => {
+   const now = at('2026-10-01');
+
+   it('says a day as one phrase, with its year only when it isn’t this one', () => {
+      const thisYear = dateWords(at('2026-09-21'), now);
+      expect(thisYear).not.toMatch(/2026| /);
+      expect(thisYear).toMatch(/21/);
+      const before = dateWords(at('2024-03-03'), now);
+      expect(before).toMatch(/2024/);
+      expect(before).not.toMatch(/ /);
+   });
+});
+
+describe('durationWords', () => {
+   it('says a median the way a person would, never "0.3 days"', () => {
+      expect(durationWords(0.01)).toBe('under an hour');
+      expect(durationWords(0.04)).toBe('about an hour');
+      expect(durationWords(0.3)).toBe('about 7 hours');
+      expect(durationWords(6.1)).toBe('6 days');
+      expect(durationWords(27.6)).toBe('28 days');
    });
 });
 

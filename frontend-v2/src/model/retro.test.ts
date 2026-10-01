@@ -20,7 +20,10 @@ import {
    retroPlan,
    retroRows,
    spreadByPerson,
+   weekBars,
    weeklyBy,
+   weekTitle,
+   weekWords,
 } from './retro';
 import type { RetroData } from './retroData';
 
@@ -185,9 +188,10 @@ describe('Look back’s project columns', () => {
    it('says how long a project ran: open at the range’s end, or done', () => {
       const w = { first_opened: '2026-08-01', last_closed: '2026-09-15', backlog_end: 0 };
       expect(projectLength(w, '2026-09-30')).toEqual({ open: false, days: 45 });
+      // the days gone by, as the Overview counts its age: not 61, the days touched
       expect(projectLength({ ...w, backlog_end: 2 }, '2026-09-30')).toEqual({
          open: true,
-         days: 61,
+         days: 60,
       });
       expect(projectLength(null, '2026-09-30')).toBeNull();
    });
@@ -301,8 +305,9 @@ describe('Look back’s words', () => {
    });
 
    it('says "half" of the merged PRs only when there are several', () => {
-      expect(mergeSpeed(1, 2)).toBe('It merged 2 days after opening');
-      expect(mergeSpeed(16, 1.6)).toBe('Half of them merged within 1.6 days of opening');
+      expect(mergeSpeed(1, 2)).toBe('2 days after it opened');
+      // in the words a person says a time, as the project page does
+      expect(mergeSpeed(16, 0.3)).toBe('half of them within about 7 hours of opening');
       expect(mergeSpeed(0, null)).toBeNull();
    });
 });
@@ -315,11 +320,38 @@ describe('the weeks a chart draws', () => {
          { start: '2026-09-25', end: '2026-10-01' }
       );
       expect(weeks).toHaveLength(14);
-      expect(weeks[0]).toEqual({ week: '2026-06-29', days: 2, before: true });
-      // Sep 21 to 27 holds the range's first three days, so it's not before it
-      expect(weeks[12]).toEqual({ week: '2026-09-21', days: 7, before: false });
+      expect(weeks[0]).toEqual({ week: '2026-06-29', days: 2, counted: 0, before: true });
+      // Sep 21 to 27 holds the range's first three days: not before it, and
+      // only those three count
+      expect(weeks[12]).toEqual({ week: '2026-09-21', days: 7, counted: 3, before: false });
       expect(weeks[11].before).toBe(true);
-      expect(weeks[13]).toEqual({ week: '2026-09-28', days: 4, before: false });
+      expect(weeks[13]).toEqual({ week: '2026-09-28', days: 4, counted: 4, before: false });
+      expect(weeks.map(weekTitle).slice(11)).toEqual([
+         'Week of Sep 14, before the range',
+         'Week of Sep 21, 3 of 7 days in the range',
+         'Week of Sep 28, 4 of 7 days',
+      ]);
+   });
+
+   it('draws the days before the range paler, the week the range starts in split in two', () => {
+      const weeks = chartWeeks(
+         { start: '2026-07-04', end: '2026-10-01' },
+         { start: '2026-09-25', end: '2026-10-01' }
+      ).slice(11);
+      // the chart's days count 9, 28 and 6 a week; the range's own, 14 and 6
+      const bars = weekBars([9, 28, 6], [0, 14, 6], weeks);
+      expect(bars).toEqual({ counted: [0, 14, 6], before: [9, 14, 0] });
+      // without the range's own numbers, a week the range cuts counts whole
+      expect(weekBars([9, 28, 6], undefined, weeks)).toEqual({
+         counted: [0, 28, 6],
+         before: [9, 0, 0],
+      });
+   });
+
+   it('gives a week its year when it isn’t this one', () => {
+      const oct1 = Date.UTC(2026, 9, 1, 12) / 1000;
+      expect(weekWords('2025-09-29', oct1)).toBe('Sep 29, 2025');
+      expect(weekWords('2026-09-28', oct1)).toBe('Sep 28');
    });
 });
 

@@ -11,6 +11,7 @@ import type { RoadmapItem, RoadmapUpdate } from '../../../shared/model/roadmap';
 import type { IssueCounts } from '../../../shared/model/work';
 import type { PullData } from '../../../shared/types';
 import {
+   behindWords,
    bucketOf,
    groupItems,
    IDLE_BUCKETS,
@@ -26,6 +27,7 @@ import {
    portfolioItems,
    portfolioText,
    sortItems,
+   STATUS_FILTERS,
    withCalls,
    withWorkers,
    type PortfolioItem,
@@ -317,7 +319,7 @@ describe('planCell', () => {
       ).toEqual({ kind: 'reopened', text: 'Done, still taking PRs', warn: true, planId: 7 });
       expect(asked({ kind: 'over', weeks: 3, since: 0 }).text).toBe('3 weeks past its end');
       expect(asked({ kind: 'missed', due: '2026-09-20', open: 2 }).text).toBe(
-         'Missed Sep 20 target'
+         'Missed its Sep 20 target'
       );
       // a call about no plan opens the work with no plan
       expect(cell({ asks: [{ reason: { kind: 'stalled', days: 25 }, item: null }] })).toMatchObject(
@@ -398,10 +400,24 @@ describe('planCell', () => {
       expect(offTrack(5)).toBe('off_track');
       expect(offTrack(1)).toBeNull();
    });
+
+   it('says how a project is behind in its row’s words', () => {
+      const day = '2026-09-29';
+      const late = portfolioItems(projects, today, {}, teamOf, NOW, [
+         plan(3, 'alpha', { start: '2026-08-03' }),
+      ]).find(i => i.slug === 'alpha') as PortfolioItem;
+      expect(behindWords(late, day)).toBe('5 weeks past its end');
+      const due = { title: null, due_on: '2026-09-20T00:00:00Z' };
+      expect(behindWords({ behind: 'missed', plan: null, target: due }, day)).toBe(
+         'Missed its Sep 20 target'
+      );
+      expect(behindWords({ behind: 'off_track', plan: null, target: null }, day)).toBe('Off track');
+      expect(behindWords(bySlug.beta, day)).toBeNull();
+   });
 });
 
 describe('the list’s filters', () => {
-   it('matches the tabs, in progress by default', () => {
+   it('matches the tabs, being worked on by default', () => {
       const pick = (f: string) =>
          items
             .filter(i => matchesStatus(i, f))
@@ -412,6 +428,25 @@ describe('the list’s filters', () => {
       expect(pick('quiet')).toEqual(['beta']);
       expect(pick('closed')).toEqual(['gone', 'shipped']);
       expect(pick('all')).toHaveLength(7);
+   });
+
+   it('counts parked or finished work Decide asks about as being worked on while its PRs move', () => {
+      const asked = withCalls(
+         items,
+         [
+            { slug: 'paused', item: plans[0], reasons: [{ kind: 'moving' }] },
+            // asked, but nothing of it moves
+            { slug: 'beta', item: null, reasons: [{ kind: 'stalled', days: 30 }] },
+         ],
+         NOW
+      );
+      const tabs = (slug: string) => {
+         const item = asked.find(i => i.slug === slug) as PortfolioItem;
+         return STATUS_FILTERS.map(([key]) => key).filter(key => matchesStatus(item, key));
+      };
+      // in the list a Monday opens to, and still in its own tab
+      expect(tabs('paused')).toEqual(['live', 'parked', 'all']);
+      expect(tabs('beta')).toEqual(['quiet', 'all']);
    });
 
    it('narrows to what a tile or a bar picked, and says so', () => {
@@ -473,6 +508,34 @@ describe('sortItems', () => {
          'gone',
          'shipped',
       ]);
+      // Decide's calls in Decide's order, worst first, whatever was quieter;
+      // then an update owed, which nobody decides
+      const asked = withCalls(
+         items,
+         [
+            { slug: 'alpha', item: null, reasons: [{ kind: 'new', since: null }] },
+            { slug: 'label-only', item: null, reasons: [{ kind: 'stalled', days: 25 }] },
+            { slug: 'paused', item: plans[0], reasons: [{ kind: 'moving' }] },
+         ],
+         NOW
+      ).map(i =>
+         i.slug === 'merges-only'
+            ? {
+                 ...i,
+                 planCell: {
+                    kind: 'update_due' as const,
+                    text: 'Update due',
+                    warn: true,
+                    planId: 9,
+                 },
+              }
+            : i
+      );
+      expect(
+         sortItems(asked, '')
+            .slice(0, 4)
+            .map(i => i.slug)
+      ).toEqual(['paused', 'label-only', 'alpha', 'merges-only']);
       // the URL's nothing-picked value and an unknown key are the default too
       expect(parseSort('idle')).toEqual({ key: 'plan', reversed: false });
       expect(parseSort('nonsense')).toEqual({ key: 'plan', reversed: false });
@@ -529,6 +592,22 @@ describe('groupItems', () => {
       const groups = groupItems(items, 'team');
       expect(groups.map(g => g.title)).toEqual(['FixBot', 'Store', 'No team']);
    });
+
+   it('puts the teams in their configured order, then any other by name', () => {
+      const titles = (teams: string[]) =>
+         groupItems(items, 'team', undefined, teams).map(g => g.title);
+      expect(titles(['Store', 'FixBot'])).toEqual(['Store', 'FixBot', 'No team']);
+      expect(titles(['Store'])).toEqual(['Store', 'FixBot', 'No team']);
+   });
+
+   it('marks a project an earlier group already showed, so its call is drawn once', () => {
+      const groups = groupItems(sortItems(items, 'name'), 'parent');
+      expect(groups.map(g => [g.title, [...g.repeats]])).toEqual([
+         ['store', []],
+         ['warehouse', ['beta']],
+         ['No parent', []],
+      ]);
+   });
 });
 
 describe('the list as text', () => {
@@ -536,7 +615,7 @@ describe('the list as text', () => {
       const csv = portfolioCsv([{ ...bySlug.alpha, name: 'Alpha, the first' }]);
       const [head, row] = csv.trim().split('\n');
       expect(head.startsWith('Project,Label slug,Stage,Lead,Team,Open since')).toBe(true);
-      expect(row.startsWith('"Alpha, the first",alpha,In progress,dana,Store,')).toBe(true);
+      expect(row.startsWith('"Alpha, the first",alpha,Being worked on,dana,Store,')).toBe(true);
    });
 
    it('keeps a name that starts like a formula as text', () => {

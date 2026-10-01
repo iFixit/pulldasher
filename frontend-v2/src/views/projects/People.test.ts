@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { PersonWindow } from '../../../../shared/model/projects';
 import { teamLookup } from '../../model/projectData';
-import { peopleRows, sortPeople, type PersonRow } from './People';
+import type { PortfolioItem } from '../../model/portfolio';
+import { findFilter } from '../../model/portfolio';
+import type { RetroRow } from '../../model/retro';
+import { overloadedPeople, peopleRows, personMatches, sortPeople, type PersonRow } from './People';
 import { openingMonth } from './RangeCalendar';
-import type { WhoRow } from './WhoIsOnWhat';
+import { lastWeeks, type WhoRow } from './WhoIsOnWhat';
 
 const load = (login: string, projects: number, days: number): WhoRow => ({
    login,
@@ -15,6 +18,7 @@ const load = (login: string, projects: number, days: number): WhoRow => ({
       slug: `p${i}`,
       days: 1,
       writing: 1,
+      last: null,
    })),
    wrote: projects,
    reviewedOnly: 0,
@@ -79,6 +83,79 @@ describe('sortPeople', () => {
    it('sorts names A to Z', () => {
       const sorted = sortPeople(rows, { key: 'name', reversed: false });
       expect(sorted.map(r => r.login)).toEqual(['ann', 'bob', 'cat', 'dan']);
+   });
+});
+
+describe('overloadedPeople', () => {
+   const row = (login: string, projects: number): PersonRow => ({
+      login,
+      team: 'Store',
+      load: load(login, projects, projects),
+      w: null,
+   });
+
+   it('names the most projects first, and ties by login, as the Overview does', () => {
+      const rows = [row('zed', 4), row('amy', 6), row('bob', 4), row('cal', 3)];
+      expect(overloadedPeople(rows, 4).map(r => r.login)).toEqual(['amy', 'bob', 'zed']);
+   });
+});
+
+describe('personMatches', () => {
+   const items = new Map([
+      [
+         'webdriver',
+         {
+            slug: 'webdriver',
+            name: 'Deflake the webdriver tests',
+            lead: 'zdmitchell',
+            team: 'FixBot',
+            parents: ['ci'],
+         } as unknown as PortfolioItem,
+      ],
+   ]);
+   const dan: PersonRow = {
+      login: 'danielbeardsley',
+      team: 'Store',
+      load: { ...load('danielbeardsley', 0, 2), projects: [] },
+      w: stats({ projects: ['webdriver'] }),
+   };
+   const matches = (find: string) => personMatches(dan, findFilter(find), items);
+
+   it('finds a person by login or team, and an empty find keeps everyone', () => {
+      expect(matches('')).toBe(true);
+      expect(matches('Beard')).toBe(true);
+      expect(matches('store')).toBe(true);
+      expect(matches('team:sto')).toBe(true);
+      expect(matches('lead:daniel')).toBe(true);
+   });
+
+   it('finds the people on a project the find names, by its name or its parent', () => {
+      expect(matches('webdriver')).toBe(true);
+      expect(matches('parent:ci')).toBe(true);
+   });
+
+   it('reads a login or a team as the person’s, not their projects’', () => {
+      // the project's lead and team aren't dan's
+      expect(matches('zdmitchell')).toBe(false);
+      expect(matches('fixbot')).toBe(false);
+      expect(matches('team:fixbot')).toBe(false);
+      expect(matches('lead:zd')).toBe(false);
+   });
+});
+
+describe('lastWeeks', () => {
+   const row = (login: string, project: string | null, week: number): RetroRow =>
+      ({ login, pr: { project }, week, days: 1, own: true } as unknown as RetroRow);
+
+   it('keeps each person’s latest week on each project, whatever case their login comes in', () => {
+      const weeks = ['2026-09-07', '2026-09-14', '2026-09-21'];
+      const last = lastWeeks(
+         [row('Dan', 'sso', 2), row('dan', 'sso', 0), row('dan', 'akeneo', 1), row('dan', null, 2)],
+         weeks
+      );
+      expect(last.get('dan sso')).toBe('2026-09-21');
+      expect(last.get('dan akeneo')).toBe('2026-09-14');
+      expect(last.size).toBe(2);
    });
 });
 

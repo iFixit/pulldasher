@@ -7,7 +7,7 @@ import {
    GitPullRequestClosed,
 } from 'lucide-react';
 import { issueUrl, n, shortRepo } from '../../../shared/format';
-import { daysShort } from '../model/words';
+import { dateWords } from '../model/stage';
 import { Icon, type LucideComponent } from './Icon';
 import { Avatar } from './identity';
 import { Popover } from './Popover';
@@ -15,9 +15,9 @@ import { Popover } from './Popover';
 /**
  * An issue or PR named the way Claude and GitHub show one: a small chip
  * (its state's icon, #number, repo) that opens a card with its state, repo
- * and number, age, title, author, and for a PR its size, the way a board
- * row's repo#number opens its state. The card links it on GitHub. Whatever
- * isn't known is left off the card.
+ * and number, the day it opened, title, author, and for a PR its size, the
+ * way a board row's repo#number opens its state. The card links it on
+ * GitHub. Whatever isn't known is left off the card.
  */
 
 export interface GitHubRefData {
@@ -55,15 +55,8 @@ const LOOKS: Record<string, Look> = {
 const lookOf = (ref: GitHubRefData): Look | null =>
    ref.state ? LOOKS[`${ref.kind}:${ref.state}`] ?? null : null;
 
-/** "34m ago", "5h ago", "3d ago", "2mo ago", "1y ago". */
-export function sinceWords(epochSecs: number, now: number = Date.now() / 1000): string {
-   const s = Math.max(0, now - epochSecs);
-   if (s < 3600) return `${Math.max(1, Math.round(s / 60))}m ago`;
-   if (s < 48 * 3600) return `${Math.round(s / 3600)}h ago`;
-   if (s < 60 * 86400) return `${daysShort(Math.round(s / 86400))} ago`;
-   if (s < 730 * 86400) return `${Math.round(s / (30 * 86400))}mo ago`;
-   return `${Math.round(s / (365 * 86400))}y ago`;
-}
+/** When it was opened, as the tab says a day: "opened Sep 21". */
+export const openedWords = (epochSecs: number) => `opened ${dateWords(epochSecs)}`;
 
 /** The state in words, with its icon; no wash behind it (a filled area
  * outshouts the title). */
@@ -81,7 +74,8 @@ export function StatePill({ data }: { data: GitHubRefData }) {
    );
 }
 
-/** The hover card: state, repo and number, age, title, author, PR size. */
+/** The hover card: state, repo and number, the day it opened, title,
+ * author, PR size. */
 export function RefCard({ data }: { data: GitHubRefData }) {
    const size =
       data.kind === 'pr' && data.additions != null && data.deletions != null ? (
@@ -107,7 +101,7 @@ export function RefCard({ data }: { data: GitHubRefData }) {
                {data.repo} #{data.number}
             </a>
             {data.createdAt != null && (
-               <span className="ml-auto flex-none">{sinceWords(data.createdAt)}</span>
+               <span className="ml-auto flex-none">{openedWords(data.createdAt)}</span>
             )}
          </span>
          {data.title && (
@@ -141,9 +135,18 @@ export function RefCard({ data }: { data: GitHubRefData }) {
  * without the card. The icon's shape tells the state; where it sits (an
  * Open or Done fold) already says so, so it stays ink. Like a row's
  * repo#number, hovering shows its card and a click pins it; the title
- * beside it is what opens it on GitHub.
+ * beside it is what opens it on GitHub. `tabStop` false where that title
+ * is the line's way in for a keyboard: one stop for the issue, not two.
  */
-export function RefChip({ data, repoShown = true }: { data: GitHubRefData; repoShown?: boolean }) {
+export function RefChip({
+   data,
+   repoShown = true,
+   tabStop = true,
+}: {
+   data: GitHubRefData;
+   repoShown?: boolean;
+   tabStop?: boolean;
+}) {
    const look = lookOf(data);
    const fallback = data.kind === 'pr' ? GitPullRequest : CircleDot;
    return (
@@ -157,6 +160,7 @@ export function RefChip({ data, repoShown = true }: { data: GitHubRefData; repoS
             <button
                {...t}
                type="button"
+               tabIndex={tabStop ? undefined : -1}
                className="group/ref hit pressable inline-flex min-w-0 items-baseline gap-1 rounded border-0 bg-transparent p-0 text-left text-xs text-ink-3 hover:text-ink-2"
             >
                <Icon icon={look?.icon ?? fallback} size={12} className="flex-none self-center" />

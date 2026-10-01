@@ -5,7 +5,12 @@ import { useEffect } from 'react';
  * board: focus lands on each row's `target` (its answer, its name), and the
  * row scrolls clear of the sticky headers above it. A "+ N more" between two
  * rows (Truncated's, marked `data-row-more`) opens first, so j reaches every
- * row and not only the ones drawn. Typing in a field never moves.
+ * row and not only the ones drawn. Rows hidden in a closed fold are
+ * skipped. Typing in a field never moves.
+ *
+ * It listens before the board's own j and k (useBoardHotkeys, which steps
+ * between PR links) and claims the key, so a list's rows win wherever both
+ * would answer: an opened Overview row shows board rows inside it.
  */
 export function useRowKeys(row: string, target: string) {
    useEffect(() => {
@@ -23,7 +28,10 @@ export function useRowKeys(row: string, target: string) {
          if ((e.key !== 'j' && e.key !== 'k') || e.metaKey || e.ctrlKey || e.altKey) return;
          const t = e.target as HTMLElement;
          if (['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName) || t.isContentEditable) return;
-         const rows = [...document.querySelectorAll<HTMLElement>(row)];
+         // drawn rows only: one in a closed fold has no box to land on
+         const drawn = () =>
+            [...document.querySelectorAll<HTMLElement>(row)].filter(r => r.getClientRects().length);
+         const rows = drawn();
          if (!rows.length) return;
          const at = rows.findIndex(r => r.contains(document.activeElement));
          const step = e.key === 'j' ? 1 : -1;
@@ -41,7 +49,7 @@ export function useRowKeys(row: string, target: string) {
             if (more) {
                more.click();
                requestAnimationFrame(() => {
-                  const now = [...document.querySelectorAll<HTMLElement>(row)];
+                  const now = drawn();
                   const from = now.indexOf(rows[at]);
                   const to = now[from + 1];
                   if (to) focusRow(to);
@@ -57,7 +65,9 @@ export function useRowKeys(row: string, target: string) {
                : Math.min(Math.max(at + step, 0), rows.length - 1);
          focusRow(rows[to]);
       };
-      document.addEventListener('keydown', onKey);
-      return () => document.removeEventListener('keydown', onKey);
+      // capture: ahead of the board's hotkeys, which stand down for a key
+      // claimed here (hooks.ts checks defaultPrevented)
+      document.addEventListener('keydown', onKey, true);
+      return () => document.removeEventListener('keydown', onKey, true);
    }, [row, target]);
 }

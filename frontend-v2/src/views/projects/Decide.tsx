@@ -1,4 +1,11 @@
-import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import {
+   useEffect,
+   useId,
+   useRef,
+   useState,
+   type KeyboardEvent as ReactKeyboardEvent,
+   type ReactNode,
+} from 'react';
 import { Check } from 'lucide-react';
 import { n } from '../../../../shared/format';
 import {
@@ -16,7 +23,6 @@ import { decideTurn, type DecideRotation } from '../../../../shared/model/settin
 import {
    addWeeks,
    HEALTH_WORD,
-   isUnderWay,
    mondayOf,
    planEnd,
    weeksThrough,
@@ -26,20 +32,35 @@ import {
 } from '../../../../shared/model/roadmap';
 import {
    EmptyState,
+   FactLink,
    LoadFailed,
    PrimaryButton,
    QuietButton,
    Segmented,
+   TextButton,
    textInputClass,
 } from '../../components/bits';
 import { Icon } from '../../components/Icon';
 import { GroupHeader, Rows, SubDoor, Truncated } from '../../components/Lane';
 import { useRowKeys } from '../../components/useRowKeys';
 import { mainTeam, type PortfolioItem } from '../../model/portfolio';
+import { teamLoad, type InFlight } from '../../model/teamLoad';
 import { dayOf, dayWords } from '../../model/projectData';
 import { commitEnds } from '../../model/roadmapTime';
 import { saveDecideRotation, setOngoing } from '../../model/settingsData';
-import { days, LAST_14_DAYS, NO_PLAN, pastEnd, PLAN_IT } from '../../model/words';
+import {
+   ALL_ISSUES_CLOSED,
+   BEING_WORKED_ON,
+   COMMIT_THROUGH,
+   COPY_AS_TEXT,
+   LAST_14_DAYS,
+   missedTarget,
+   NO_PLAN,
+   noPrActivity,
+   ONGOING,
+   pastEnd,
+   targetOn,
+} from '../../model/words';
 import type { WorkData } from '../../model/workData';
 import {
    createRoadmapItem,
@@ -50,8 +71,15 @@ import {
    updateRoadmapItem,
    useRoadmap,
 } from '../../model/roadmapData';
-import { createMemoryStore } from '../../storage';
-import { openPlan, ORIGIN_OPTIONS, PeopleStack, type Navigate, type ProjectsNav } from './parts';
+import { createMemoryStore, readSessionStorage, writeSessionStorage } from '../../storage';
+import {
+   openPlan,
+   ORIGIN_OPTIONS,
+   PeopleStack,
+   targetWords,
+   type Navigate,
+   type ProjectsNav,
+} from './parts';
 import { PLAN_STATUS_WORD, when } from './roadmapHealth';
 
 /** The decisions owed now, worst first, for this view, the tab's label and
@@ -80,14 +108,17 @@ export function decideRows(
    });
 }
 
-/** What "It’s ongoing" is for, on the button and where No plan explains
- * itself. */
-const ONGOING_HELP =
-   'for upkeep with no finish line. Work that ends but can’t be sized: commit through a month, and Decide checks in when it ends.';
+const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+
+/** What "It’s ongoing" is for, said where each section that offers it
+ * explains itself, since a title on the button is missed by touch and
+ * screen readers. */
+const ONGOING_HELP = `${ONGOING} is for upkeep with no finish line. Work that ends but can’t be sized: commit through a month, and Decide checks in when it ends.`;
 
 /** The queue's sections, worst first, as decide.ts ranks them: the reasons
- * each holds, its title, the line under it, and what that line opens to. A
- * row sits in the first section any of its reasons names. */
+ * each holds, its title, the line under it (how its rows are ordered, where
+ * they are, else what they share), and what that line opens to. A row sits
+ * in the first section any of its reasons names. */
 const SECTIONS: { kinds: DecideReason['kind'][]; title: string; sub: string; more: string[] }[] = [
    {
       kinds: ['reopened'],
@@ -95,6 +126,7 @@ const SECTIONS: { kinds: DecideReason['kind'][]; title: string; sub: string; mor
       sub: 'A week after the call',
       more: [
          'Marked done or dropped, on the roadmap or by closing its issue, but a week later a PR is still open, or a new PR opened more than a week after it was marked.',
+         ONGOING_HELP,
       ],
    },
    {
@@ -130,14 +162,14 @@ const SECTIONS: { kinds: DecideReason['kind'][]; title: string; sub: string; mor
    {
       kinds: ['over', 'ended'],
       title: 'Past its end',
-      sub: 'Still taking PRs first',
+      sub: 'Still taking PRs first, then the longest overdue',
       more: [
          'The end date on its plan has passed. The ones still taking new PRs come first, then the longest overdue.',
       ],
    },
    {
       kinds: ['issues_done'],
-      title: 'All its issues are closed',
+      title: ALL_ISSUES_CLOSED,
       sub: 'Since the plan last changed',
       more: [
          'Every issue in the project is closed, and the plan hasn’t changed since the last one closed.',
@@ -146,10 +178,10 @@ const SECTIONS: { kinds: DecideReason['kind'][]; title: string; sub: string; mor
    {
       kinds: ['stalled'],
       title: 'Stalled',
-      sub: `No PR activity for ${days(STALL_DAYS)}`,
+      sub: `${noPrActivity(STALL_DAYS)} or more, the longest quiet first`,
       more: [
-         `PRs still open, no PR activity for ${days(
-            STALL_DAYS
+         `PRs still open, ${lowerFirst(
+            noPrActivity(STALL_DAYS)
          )} or more, and no call in that time. Activity is real work: a push, a person’s comment, stamp or review, opening or merging. The longest quiet come first.`,
       ],
    },
@@ -162,10 +194,10 @@ const SECTIONS: { kinds: DecideReason['kind'][]; title: string; sub: string; mor
    {
       kinds: ['new'],
       title: NO_PLAN,
-      sub: `${DECIDE_MIN_PRS} or more PRs, some open`,
+      sub: `${DECIDE_MIN_PRS} or more PRs, the longest open first`,
       more: [
          `${DECIDE_MIN_PRS} or more PRs open or merged in the ${LAST_14_DAYS}, some still open, and no plan yet. Smaller work ships without one unless it stalls. The ones open longest come first.`,
-         `It’s ongoing is ${ONGOING_HELP}`,
+         ONGOING_HELP,
       ],
    },
 ];
@@ -194,10 +226,11 @@ export type Call =
    | { kind: 'ongoing' };
 
 /** The question a reason asks, and the call that answers yes. */
-function askOf(reason: DecideReason): { question: string; call: Call['kind'] } {
+export function askOf(reason: DecideReason): { question: string; call: Call['kind'] } {
    switch (reason.kind) {
       case 'new':
-         return { question: `${PLAN_IT}?`, call: 'commit' };
+         // asked in the answer's own verb: "Commit through End of Oct"
+         return { question: 'Commit to it?', call: 'commit' };
       case 'stalled':
          return { question: 'Park it?', call: 'park' };
       case 'over':
@@ -235,7 +268,7 @@ function reasonFacts(reason: DecideReason, item: RoadmapItem | null, bare = fals
          return bare ? since : `${since}, and no plan yet`;
       }
       case 'stalled':
-         return `No PR activity for ${days(reason.days)}`;
+         return noPrActivity(reason.days);
       case 'over': {
          const after = reason.since ? `, and ${n(reason.since, 'PR')} opened after it ended` : '';
          return bare && item
@@ -251,9 +284,11 @@ function reasonFacts(reason: DecideReason, item: RoadmapItem | null, bare = fals
             : `${upperFirst(pastEnd(reason.weeks))}, and no PRs are open${after}`;
       }
       case 'missed':
+         // under "Missed its target", the target is the fact; elsewhere the
+         // miss is what's owed
          return bare
-            ? `The target was ${dayWords(reason.due)}, with ${n(reason.open, 'PR')} still open`
-            : `Missed its ${dayWords(reason.due)} target with ${n(reason.open, 'PR')} open`;
+            ? `${targetOn(dayWords(reason.due))}, with ${n(reason.open, 'PR')} still open`
+            : `${missedTarget(dayWords(reason.due))} with ${n(reason.open, 'PR')} open`;
       case 'off_track':
       case 'at_risk': {
          const u = item?.update;
@@ -300,10 +335,20 @@ function reasonFacts(reason: DecideReason, item: RoadmapItem | null, bare = fals
  * stop keeps that one ("can land. New end?", never "land.. New end?"). */
 const stop = (words: string) => (/[.!?…]$/.test(words) ? words : `${words}.`);
 
+/** Why a row is here and the question it asks, as two pieces, for a page
+ * that sets them apart (the question in amber, after every reason's facts). */
+export function reasonParts(
+   reason: DecideReason,
+   item: RoadmapItem | null
+): { facts: string; question: string } {
+   return { facts: stop(reasonFacts(reason, item)), question: askOf(reason).question };
+}
+
 /** Why a row is here and the question it asks, in a sentence that stands
  * alone (a project's page, where there's no section title). */
 export function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
-   return `${stop(reasonFacts(reason, item))} ${askOf(reason).question}`;
+   const { facts, question } = reasonParts(reason, item);
+   return `${facts} ${question}`;
 }
 
 /** A row under its section title, as plain text: the question its reason
@@ -445,7 +490,8 @@ function patchMade(key: string, token: number, state: Made['state'], patch: Part
  * The queue with this visit's calls kept in place: a row called here stays,
  * among `all` but not `owed`, until it comes back for a new reason. A row
  * taken back with Undo is owed again, even where the undo itself counted as
- * a change to the plan.
+ * a change to the plan, unless it was never asked: work parked from a team's
+ * load.
  */
 export function keepCalls(
    queue: readonly DecideRow[],
@@ -457,7 +503,7 @@ export function keepCalls(
    for (const [key, m] of made) {
       const again = byKey.get(key);
       if (m.state !== 'made') {
-         if (!again) back.push(m.row);
+         if (!again && m.row.reasons.length) back.push(m.row);
       } else if (!again || kindsOf(again) === kindsOf(m.row)) {
          settled.set(key, m);
       }
@@ -470,6 +516,19 @@ export function keepCalls(
 /** keepCalls on this visit's calls, for a view that lists Decide's rows. */
 export function useKeptCalls(queue: readonly DecideRow[]) {
    return keepCalls(queue, calls.useValue().made);
+}
+
+/** How many of a section's rows to draw before its "+ N more": enough for
+ * `owed` rows still owed, so the rows decided here ride along without
+ * taking the slots, and deciding never hides what's left. */
+export function capOwed(
+   rows: readonly DecideRow[],
+   decided: (row: DecideRow) => boolean,
+   owed: number
+): number {
+   let left = owed;
+   const past = rows.findIndex(row => !decided(row) && --left < 0);
+   return past < 0 ? rows.length : past;
 }
 
 // each row's writes run one after another, so an Undo or a "where it came
@@ -592,12 +651,22 @@ function sayOrigin(key: string, origin: RoadmapOrigin | null): void {
    });
 }
 
-/** a call or a fact that does something, as plain words */
-const textButton =
-   'hit pressable rounded border-0 bg-transparent p-0 text-left text-xs text-ink-2 hover:text-brand hover:underline';
-/** the way on after a call: Undo, Try again */
-const linkButton =
-   'hit pressable rounded border-0 bg-transparent p-0 text-xs font-medium text-brand hover:underline';
+/** Left and right, Home and End move the focus among a group's buttons, so
+ * the group is one Tab stop: the button with tabIndex 0. */
+function arrowsAmong(e: ReactKeyboardEvent<HTMLElement>): void {
+   const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+   if (!step && e.key !== 'Home' && e.key !== 'End') return;
+   const buttons = [...e.currentTarget.querySelectorAll<HTMLElement>('button')];
+   const at = buttons.indexOf(document.activeElement as HTMLElement);
+   const to =
+      e.key === 'Home'
+         ? 0
+         : e.key === 'End'
+         ? buttons.length - 1
+         : (at + step + buttons.length) % buttons.length;
+   e.preventDefault();
+   buttons[to]?.focus();
+}
 
 /** Words or controls in a line, a dot between each, the dot trailing its
  * word so a wrapped line never starts with one. */
@@ -644,93 +713,87 @@ export function DecideCall({
    const name = nameOf(row, project);
    const rootRef = useRef<HTMLDivElement>(null);
    const refocus = useRef(false);
+   // the height the row had when a click here changed it, kept as the least
+   // it has, so the rows below never slide under the pointer, a phone's
+   // wrapped lines included
+   const [held, setHeld] = useState<number>();
    const view = shown?.state ?? 'ask';
    const before = useRef(view);
-   // after a click here, focus lands on what replaced the button: Undo,
-   // Try again, or the row's answer; a save that fails later takes the
-   // focus only from the Undo it removed
+   // after a click here, focus lands on what replaced the button: what was
+   // decided, Try again, or the row's answer; a save or an Undo that fails
+   // later takes the focus only when it removed the focused control
    useEffect(() => {
       if (before.current === view) return;
       before.current = view;
-      const lost = document.activeElement === document.body && view === 'failed';
+      const lost = document.activeElement === document.body && view !== 'ask';
       if (!refocus.current && !lost) return;
       refocus.current = false;
       rootRef.current?.querySelector<HTMLElement>('[data-decide-focus]')?.focus();
    }, [view]);
    const act = (fn: () => void) => () => {
       refocus.current = true;
+      setHeld(rootRef.current?.offsetHeight);
       fn();
    };
+   // a call made here is read where the focus lands, so only what changes
+   // later is said here: a failure, an Undo, a part that didn't save
    const said = !mine
       ? ''
       : mine.state === 'made'
-      ? `${mine.words}${mine.why ? ` ${mine.why}` : ''}`
+      ? mine.why ?? ''
       : mine.state === 'failed'
       ? `Didn’t save the call on ${name}.${mine.why ?? ''}`
       : `Took back the call on ${name}.`;
    return (
-      <div ref={rootRef} className="mt-1.5">
-         {/* the receipt as a screen reader hears it, said as it changes; the
-             words on screen are hidden from it, so it's read once */}
+      <div ref={rootRef} className="mt-1.5" style={{ minHeight: held }}>
          <span className="sr-only" aria-live="polite">
             {said}
          </span>
          {shown?.state === 'failed' ? (
-            <p className="m-0 flex min-h-[30px] flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-ink-2">
+            <p className="m-0 flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-2">
                <span aria-hidden>Didn’t save.{shown.why}</span>
-               <Dotted>
-                  {[
-                     <button
-                        key="again"
-                        type="button"
-                        data-decide-focus
-                        onClick={act(() => makeCall(shown.row, shown.call, project))}
-                        aria-label={`Try the call on ${name} again`}
-                        className={linkButton}
-                     >
-                        Try again
-                     </button>,
-                     <button
-                        key="cancel"
-                        type="button"
-                        onClick={act(() => setMade(rowKey(row), null))}
-                        aria-label={`Cancel the call on ${name}`}
-                        className={textButton}
-                     >
-                        Cancel
-                     </button>,
-                  ]}
-               </Dotted>
+               <TextButton
+                  data-decide-focus
+                  onClick={act(() => makeCall(shown.row, shown.call, project))}
+                  aria-label={`Try the call on ${name} again`}
+               >
+                  Try again
+               </TextButton>
+               <TextButton
+                  tone="quiet"
+                  onClick={act(() => setMade(rowKey(row), null))}
+                  aria-label={`Cancel the call on ${name}`}
+               >
+                  Cancel
+               </TextButton>
             </p>
          ) : shown ? (
             <div className="flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-2">
-               <span className="inline-flex items-baseline gap-1.5">
-                  <Icon icon={Check} size={14} className="flex-none self-center" />
-                  <span aria-hidden>
+               {/* one run of text, so Undo shares the words' last line and
+                   the receipt is no taller than the calls it replaced */}
+               <span>
+                  <Icon icon={Check} size={14} className="mr-1.5 inline-block align-[-2px]" />
+                  {/* the focus lands on what was decided, not on Undo, so an
+                      extra Enter after a call, or j then Enter on a decided
+                      row, never takes it back: Undo is the next Tab */}
+                  <span data-decide-focus tabIndex={-1} className="rounded">
                      {shown.words}
                      {shown.why && ` ${shown.why}`}
-                  </span>
+                  </span>{' '}
+                  <TextButton
+                     onClick={act(() => undoCall(rowKey(row)))}
+                     aria-label={`Undo the call on ${name}`}
+                  >
+                     Undo
+                  </TextButton>
                </span>
-               <button
-                  type="button"
-                  data-decide-focus
-                  onClick={act(() => undoCall(rowKey(row)))}
-                  aria-label={`Undo the call on ${name}`}
-                  className={linkButton}
-               >
-                  Undo
-               </button>
                {shown.call.kind !== 'ongoing' && (
                   // optional, after the call: saying it alone never clears a row
-                  <span className="inline-flex flex-wrap items-center gap-2 text-xs text-ink-3">
-                     Where it came from
-                     <Segmented
-                        ariaLabel={`Where ${name} came from`}
-                        value={shown.origin ?? 'unsaid'}
-                        options={ORIGIN_OPTIONS}
-                        onChange={o => sayOrigin(rowKey(row), o === 'unsaid' ? null : o)}
-                     />
-                  </span>
+                  <OriginRun
+                     name={name}
+                     origin={shown.origin}
+                     onChange={o => sayOrigin(rowKey(row), o)}
+                  />
                )}
             </div>
          ) : (
@@ -745,8 +808,62 @@ export function DecideCall({
    );
 }
 
-/** The calls, before one is made: the row's answer outlined, the rest as
- * words, the dates together. */
+/** Where a decided plan's work came from, as a run of words rather than a
+ * switch that outweighs the call: one Tab stop, the arrow keys between the
+ * choices, the one picked in ink. */
+function OriginRun({
+   name,
+   origin,
+   onChange,
+}: {
+   name: string;
+   origin: RoadmapOrigin | null;
+   onChange: (origin: RoadmapOrigin | null) => void;
+}) {
+   const value = origin ?? 'unsaid';
+   return (
+      <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-3">
+         Where it came from
+         <span
+            role="radiogroup"
+            aria-label={`Where ${name} came from`}
+            onKeyDown={arrowsAmong}
+            className="inline-flex flex-wrap items-center gap-x-2 gap-y-1"
+         >
+            <Dotted>
+               {ORIGIN_OPTIONS.map(([o, word]) => (
+                  <button
+                     key={o}
+                     type="button"
+                     role="radio"
+                     aria-checked={o === value}
+                     tabIndex={o === value ? 0 : -1}
+                     onClick={() => onChange(o === 'unsaid' ? null : o)}
+                     className={`hit pressable rounded border-0 bg-transparent p-0 ${
+                        o === value ? 'font-medium text-ink' : 'text-ink-3 hover:text-brand'
+                     }`}
+                  >
+                     {word}
+                  </button>
+               ))}
+            </Dotted>
+         </span>
+      </span>
+   );
+}
+
+/** One call a row can get, in words. */
+interface Option {
+   call: Call;
+   label: string;
+   /** what it does to which row, for a screen reader */
+   ariaLabel: string;
+}
+
+/** The calls, before one is made: the row's answer first, outlined, in the
+ * same place on every row; then, past a divider and in quieter ink, the
+ * other ends and the other calls. One Tab stop, the answer; the arrow keys
+ * reach the rest. */
 function CallStrip({
    row,
    name,
@@ -758,76 +875,84 @@ function CallStrip({
    describedBy?: string;
    onCall: (call: Call) => void;
 }) {
-   const answer = askOf(primaryOf(row)).call;
-   const ends = commitEnds(dayOf(new Date()));
+   // a park made from a team's load and taken back has no reason to answer
+   const answer = row.reasons.length ? askOf(primaryOf(row)).call : 'park';
    // ongoing answers new work, and finished work that keeps going
    const ongoing =
       !!row.slug &&
       row.reasons.some(r => r.kind === 'new' || (r.kind === 'reopened' && r.by === 'roadmap'));
-   const button = (call: Call, label: string, ariaLabel: string, isAnswer: boolean) =>
-      isAnswer ? (
-         <QuietButton
-            key={label}
-            data-decide-focus
-            onClick={() => onCall(call)}
-            aria-label={ariaLabel}
-            aria-describedby={describedBy}
+   const dates: Option[] = commitEnds(dayOf(new Date())).map(c => ({
+      call: { kind: 'commit', ...c },
+      label: c.label,
+      ariaLabel: `Commit ${name} through the ${c.label.replace(/^End/, 'end')}`,
+   }));
+   const others: Option[] = [
+      { call: { kind: 'park' }, label: 'Park', ariaLabel: `Park ${name}` },
+      { call: { kind: 'done' }, label: 'Mark done', ariaLabel: `Mark ${name} done` },
+      { call: { kind: 'drop' }, label: 'Drop', ariaLabel: `Drop ${name}` },
+      ...(ongoing
+         ? [
+              {
+                 call: { kind: 'ongoing' } as Call,
+                 label: ONGOING,
+                 ariaLabel: `Mark ${name} ongoing`,
+              },
+           ]
+         : []),
+   ];
+   // a commit's answer is the nearest end
+   const first =
+      answer === 'commit' ? dates[0] : others.find(o => o.call.kind === answer) ?? others[0];
+   const other = (o: Option) =>
+      o !== first && (
+         <TextButton
+            key={o.label}
+            tone="quiet"
+            tabIndex={-1}
+            onClick={() => onCall(o.call)}
+            aria-label={o.ariaLabel}
          >
-            {label}
-         </QuietButton>
-      ) : (
-         <button
-            key={label}
-            type="button"
-            onClick={() => onCall(call)}
-            aria-label={ariaLabel}
-            className={textButton}
-         >
-            {label}
-         </button>
+            {o.label}
+         </TextButton>
       );
    return (
-      <div className="flex min-h-[30px] flex-wrap items-center gap-x-5 gap-y-1 text-xs text-ink-3">
+      <div
+         role="toolbar"
+         aria-label={`Calls on ${name}`}
+         onKeyDown={arrowsAmong}
+         className="flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3"
+      >
+         {/* first on every row, so the eye finds it in one place; the
+             question above says what it answers */}
+         <QuietButton
+            data-decide-focus
+            onClick={() => onCall(first.call)}
+            aria-label={first.ariaLabel}
+            aria-describedby={describedBy}
+         >
+            {first.label}
+         </QuietButton>
+         {/* on a phone the rest wraps to lines of their own, which part
+             them from the answer already */}
+         <span aria-hidden className="hidden h-4 w-px bg-line sm:block" />
          <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-            Commit through
-            <Dotted>
-               {ends.map((c, i) =>
-                  button(
-                     { kind: 'commit', ...c },
-                     c.label,
-                     `Commit ${name} through the ${c.label.replace(/^End/, 'end')}`,
-                     answer === 'commit' && i === 0
-                  )
-               )}
-            </Dotted>
+            {COMMIT_THROUGH}
+            <Dotted>{dates.map(other)}</Dotted>
          </span>
-         <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-            <Dotted>
-               {[
-                  button({ kind: 'park' }, 'Park', `Park ${name}`, answer === 'park'),
-                  button({ kind: 'done' }, 'Mark done', `Mark ${name} done`, answer === 'done'),
-                  button({ kind: 'drop' }, 'Drop', `Drop ${name}`, answer === 'drop'),
-                  ongoing && (
-                     <button
-                        key="ongoing"
-                        type="button"
-                        onClick={() => onCall({ kind: 'ongoing' })}
-                        aria-label={`Mark ${name} ongoing`}
-                        title={upperFirst(ONGOING_HELP)}
-                        className={textButton}
-                     >
-                        It’s ongoing
-                     </button>
-                  ),
-               ]}
-            </Dotted>
+         {/* wider apart than the words within either run, so the ends and
+             the other calls read as two groups */}
+         <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 sm:ml-5">
+            <Dotted>{others.map(other)}</Dotted>
          </span>
       </div>
    );
 }
 
 /** Its facts, in words a decision turns on: lead, team, people and size,
- * target. Each does what it names when clicked. */
+ * target. Each does what it names when clicked. From the keyboard, the
+ * row's name opens the project whose page has the same lead and target,
+ * and the team switch above picks the team, so these are mouse shortcuts
+ * and the row keeps its few Tab stops. */
 function RowFacts({
    row,
    project,
@@ -853,38 +978,38 @@ function RowFacts({
            .filter(Boolean)
            .join(', ')
       : '';
-   const due = project?.target?.due_on?.slice(0, 10);
    // a missed target is the row's reason already
-   const target = due && !row.reasons.some(r => r.kind === 'missed') ? due : null;
+   const target =
+      project?.target && !row.reasons.some(r => r.kind === 'missed') ? project.target : null;
    return (
       <Dotted>
          {[
             lead &&
                (onPerson ? (
-                  <button
+                  <FactLink
                      key="lead"
-                     type="button"
+                     tabIndex={-1}
                      onClick={() => onPerson(lead)}
                      title={`See ${lead} on People`}
-                     className={textButton}
+                     className="text-xs"
                   >
                      {lead}
-                  </button>
+                  </FactLink>
                ) : (
                   <span key="lead" className="text-xs text-ink-2">
                      {lead}
                   </span>
                )),
             team && (
-               <button
+               <FactLink
                   key="team"
-                  type="button"
+                  tabIndex={-1}
                   onClick={() => onTeam(team)}
                   aria-label={`Show only ${team}’s decisions`}
-                  className={textButton}
+                  className="text-xs"
                >
                   {team}
-               </button>
+               </FactLink>
             ),
             (people.length > 0 || size) && (
                <span key="size" className="inline-flex items-center gap-1.5 text-xs text-ink-3">
@@ -893,21 +1018,44 @@ function RowFacts({
                </span>
             ),
             target && (
-               <button
+               <FactLink
                   key="target"
-                  type="button"
+                  tabIndex={-1}
                   onClick={onProject}
                   title="Open the project"
-                  className={textButton}
+                  className="text-xs"
                >
-                  {target < dayOf(new Date())
-                     ? `target was ${dayWords(target)}`
-                     : `target ${dayWords(target)}`}
-               </button>
+                  {targetOn(targetWords(target))}
+               </FactLink>
             ),
          ]}
       </Dotted>
    );
+}
+
+/** The row a trip to a project's page or a plan left from, kept for this
+ * tab, so coming back lands on it rather than the top of the list. */
+const BACK_TO = 'pd2.decide.backTo';
+
+/** On coming back to the list, scroll to the row the trip left from and
+ * put the focus on its answer. */
+function useBackToRow(ready: boolean) {
+   useEffect(() => {
+      if (!ready || !readSessionStorage(BACK_TO)) return;
+      // a frame later: the tab scrolls to the top on a change of view
+      // (app.tsx), after this view's own effects
+      const frame = requestAnimationFrame(() => {
+         const key = readSessionStorage(BACK_TO);
+         writeSessionStorage(BACK_TO, '');
+         const row = [...document.querySelectorAll<HTMLElement>('[data-decide-row]')].find(
+            r => r.dataset.decideRow === key
+         );
+         if (!row) return;
+         row.scrollIntoView({ block: 'center' });
+         row.querySelector<HTMLElement>('[data-decide-focus]')?.focus({ preventScroll: true });
+      });
+      return () => cancelAnimationFrame(frame);
+   }, [ready]);
 }
 
 function DecideRowView({
@@ -932,169 +1080,254 @@ function DecideRowView({
    const whyId = useId();
    const { item } = row;
    const primary = primaryOf(row);
+   const key = rowKey(row);
+   // a trip from the row remembers it, for the way back
+   const go = (patch: Partial<ProjectsNav>) => {
+      writeSessionStorage(BACK_TO, key);
+      navigate(patch);
+   };
    const openProject = () =>
-      row.slug ? navigate({ project: row.slug }) : item && navigate(openPlan(nav, item.id));
+      row.slug ? go({ project: row.slug }) : item && go(openPlan(nav, item.id));
    // a reason about the plan opens the plan, where its bar shows it; one
    // about its issues or the PRs after its end opens the project page,
-   // which lists them
+   // which lists them. Decided, it's words in the same box, so no line
+   // moves: the call is made.
    const reason = (r: DecideReason, bare: boolean) => {
       const words = stop(reasonFacts(r, item, bare));
       if (!item) return words;
       const work = !!row.slug && aboutTheWork(r);
+      // a quoted update runs long, and a link is one box that can't share
+      // its last line: only who said it links, so the question follows the
+      // quote on its line
+      const quote = (r.kind === 'at_risk' || r.kind === 'off_track') && !!item.update?.body;
+      const cut = quote ? words.indexOf(': ') : -1;
+      const head = cut > 0 ? words.slice(0, cut) : words;
       return (
-         <button
-            type="button"
-            onClick={() =>
-               work ? navigate({ project: row.slug as string }) : navigate(openPlan(nav, item.id))
-            }
-            className="pressable rounded border-0 bg-transparent p-0 text-left text-[13px] text-ink-2 hover:underline"
-            title={
-               work ? 'Open the project: its issues and their PRs' : 'Open its plan on the roadmap'
-            }
-         >
-            {words}
-         </button>
+         <>
+            {decided ? (
+               <span className="inline-block">{head}</span>
+            ) : (
+               <FactLink
+                  // from the keyboard, the name opens the project, and its page the plan
+                  tabIndex={-1}
+                  onClick={() =>
+                     work ? go({ project: row.slug as string }) : go(openPlan(nav, item.id))
+                  }
+                  title={
+                     work
+                        ? 'Open the project: its issues and their PRs'
+                        : 'Open its plan on the roadmap'
+                  }
+               >
+                  {head}
+               </FactLink>
+            )}
+            {cut > 0 && words.slice(cut)}
+         </>
       );
    };
    return (
       // a decided row keeps every line it had, so the rows below never slide
-      // under the pointer between two clicks
+      // under the pointer between two clicks; it steps down to the quiet ink
+      // and its question loses the amber, rather than fading below what
+      // can be read
       <div
          role="group"
          aria-labelledby={nameId}
-         data-decide-row
-         className="scroll-mt-36 scroll-mb-4 border-t border-secondary px-3.5 py-2.5 first:border-t-0"
+         data-decide-row={key}
+         className={`scroll-mt-36 scroll-mb-4 border-t border-secondary px-3.5 py-2.5 first:border-t-0 ${
+            decided ? 'text-ink-3' : 'text-ink-2'
+         }`}
       >
-         <div className={decided ? 'opacity-60' : ''}>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-               <button
-                  id={nameId}
-                  type="button"
-                  onClick={openProject}
-                  className="hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium text-ink hover:text-brand"
-                  title={row.slug ? 'Open the project and its PRs' : 'Open its plan on the roadmap'}
-               >
-                  {nameOf(row, project)}
-               </button>
-               <RowFacts
-                  row={row}
-                  project={project}
-                  team={team}
-                  onTeam={t => navigate({ team: t })}
-                  onPerson={onPerson}
-                  onProject={openProject}
-               />
-            </div>
-            <p id={whyId} className="m-0 mt-0.5 text-[13px] text-ink-2">
-               {reason(primary, true)} {/* the one thing owed on the row, until it's answered */}
-               <span className={decided ? '' : 'text-warn'}>{askOf(primary).question}</span>
-               {primary.kind === 'issues_done' && primary.open > 0 && row.slug && !decided && (
-                  <>
-                     {' '}
-                     <button
-                        type="button"
-                        onClick={() => navigate({ project: row.slug as string })}
-                        className={linkButton}
-                     >
-                        Or add issues for those PRs
-                     </button>
-                  </>
-               )}
-            </p>
-            {row.reasons
-               .filter(r => r !== primary)
-               .map(r => (
-                  <p key={r.kind} className="m-0 text-[13px] text-ink-2">
-                     {reason(r, false)}
-                  </p>
-               ))}
+         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <button
+               id={nameId}
+               type="button"
+               onClick={openProject}
+               className={`hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium hover:text-brand ${
+                  decided ? 'text-ink-3' : 'text-ink'
+               }`}
+               title={row.slug ? 'Open the project and its PRs' : 'Open its plan on the roadmap'}
+            >
+               {nameOf(row, project)}
+            </button>
+            <RowFacts
+               row={row}
+               project={project}
+               team={team}
+               onTeam={t => navigate({ team: t })}
+               onPerson={onPerson}
+               onProject={openProject}
+            />
          </div>
+         <p id={whyId} className="m-0 mt-0.5 max-w-[70ch] text-[13px]">
+            {reason(primary, true)} {/* the one thing owed on the row, until it's answered */}
+            <span className={decided ? '' : 'text-warn'}>{askOf(primary).question}</span>
+            {primary.kind === 'issues_done' && primary.open > 0 && row.slug && (
+               <>
+                  {' '}
+                  <TextButton
+                     // the name opens the same page from the keyboard; decided,
+                     // it keeps its place unseen, so no line moves
+                     tabIndex={-1}
+                     disabled={decided}
+                     className={decided ? 'invisible' : ''}
+                     onClick={() => go({ project: row.slug as string })}
+                  >
+                     Or add issues for those PRs
+                  </TextButton>
+               </>
+            )}
+         </p>
+         {row.reasons
+            .filter(r => r !== primary)
+            .map(r => (
+               <p key={r.kind} className="m-0 max-w-[70ch] text-[13px]">
+                  {reason(r, false)}
+               </p>
+            ))}
          <DecideCall row={row} project={project} describedBy={whyId} />
       </div>
    );
 }
 
-/** One piece of a team's work in flight. */
-export interface InFlight {
-   name: string;
-   slug: string | null;
-   /** its plan, when the roadmap has it */
-   id: number | null;
-}
-
-/**
- * A team's work in flight now, in priority order, the way the roadmap's
- * capacity line counts it: its plans under way by the roadmap's order (one
- * per project), then its projects with PRs open and no plan, the
- * longest-running first. Past the team's developers, the rest have nobody
- * left to staff them.
- */
-export function teamLoad(
-   team: string,
-   plans: readonly RoadmapItem[],
-   items: readonly Pick<PortfolioItem, 'slug' | 'name' | 'team' | 'open' | 'openSince'>[],
-   today: string
-): InFlight[] {
-   const open = new Map(items.map(i => [i.slug, i.open]));
-   const counted = new Set<string>();
-   const planned: InFlight[] = [];
-   for (const p of [...plans].sort((a, b) => a.priority - b.priority || a.id - b.id)) {
-      if (p.team !== team || !isUnderWay(p.status)) continue;
-      const going = p.project
-         ? (open.get(p.project) ?? 0) > 0 && !counted.has(p.project)
-         : p.status === 'active' && p.start <= today && planEnd(p) >= today;
-      if (!going) continue;
-      if (p.project) counted.add(p.project);
-      planned.push({ name: p.name, slug: p.project, id: p.id });
-   }
-   // a dropped plan is no plan: its project is in flight without one
-   const kept = new Set(
-      plans.flatMap(p => (p.project && p.status !== 'dropped' ? [p.project] : []))
-   );
-   const loose = items
-      .filter(i => i.team === team && i.open > 0 && !kept.has(i.slug))
-      .sort(
-         (a, b) =>
-            (a.openSince ?? today).localeCompare(b.openSince ?? today) ||
-            a.name.localeCompare(b.name)
-      )
-      .map(i => ({ name: i.name, slug: i.slug, id: null }));
-   return [...planned, ...loose];
-}
-
-/** A team's work in flight against its developers, in the roadmap's words,
- * naming what nobody is left to staff. */
+/** A team's work in flight against its developers, in the roadmap's words.
+ * Past what they can staff, it names the lowest in priority order, each
+ * with its Park: the roadmap's capacity line sends a planner here to park
+ * something, so here is where it's one click. */
 function TeamLoad({
    team,
    developers,
    load,
+   rowOf,
+   projectOf,
    onOpen,
 }: {
    team: string;
    developers: number;
    load: InFlight[];
+   /** the work's row on this list, or a row to park it by */
+   rowOf: (work: InFlight) => DecideRow;
+   projectOf: (row: DecideRow) => PortfolioItem | undefined;
    onOpen: (work: InFlight) => void;
 }) {
+   // once one is parked the names hold still, so each keeps its place and
+   // its Undo while the count above them moves
+   const [held, setHeld] = useState<InFlight[] | null>(null);
    if (!developers) return null;
    const over = load.length - developers;
-   const said = `${team} has ${load.length} in progress for ${n(developers, 'developer')}`;
-   if (over <= 0) return <p className="m-0 mt-2 text-xs text-ink-2">{said}.</p>;
    // the lowest in the order are the ones to park first
-   const lowest = load.slice(-Math.min(3, over));
+   const lowest = held ?? (over > 0 ? load.slice(-Math.min(3, over)) : []);
    return (
-      <p className="m-0 mt-2 text-xs text-ink-2">
-         {said}: <span className="text-warn">more than they can staff</span>. Lowest in priority
-         order:{' '}
-         {lowest.map((work, i) => (
-            <Fragment key={`${work.slug}:${work.id}`}>
-               {i > 0 && (i === lowest.length - 1 ? ' and ' : ', ')}
-               <button type="button" onClick={() => onOpen(work)} className={textButton}>
-                  {work.name}
-               </button>
-            </Fragment>
-         ))}
-         . {over === 1 ? 'Park it' : 'Park one'}, or finish something.
-      </p>
+      <div className="mt-2 max-w-[70ch] text-xs text-ink-2">
+         <p className="m-0">
+            {team} has {n(load.length, 'project')} {BEING_WORKED_ON} this week, for{' '}
+            {n(developers, 'developer')}
+            {over > 0 ? (
+               <>
+                  , {over} <span className="text-warn">more than they can staff</span>.
+               </>
+            ) : (
+               '.'
+            )}
+            {lowest.length > 0 && ' The lowest in priority order, the first to park:'}
+         </p>
+         {lowest.length > 0 && (
+            <ul className="m-0 mt-1 flex list-none flex-col gap-1 p-0">
+               {lowest.map(work => {
+                  const row = rowOf(work);
+                  return (
+                     <ParkLine
+                        key={rowKey(row)}
+                        name={work.name}
+                        row={row}
+                        project={projectOf(row)}
+                        onOpen={() => onOpen(work)}
+                        onPark={() => setHeld(lowest)}
+                     />
+                  );
+               })}
+            </ul>
+         )}
+      </div>
+   );
+}
+
+/** One piece of a team's work with its Park, then what was decided and
+ * Undo, in place; the same call its row below makes, if it has one. */
+function ParkLine({
+   name,
+   row,
+   project,
+   onOpen,
+   onPark,
+}: {
+   name: string;
+   row: DecideRow;
+   project: PortfolioItem | undefined;
+   onOpen: () => void;
+   onPark: () => void;
+}) {
+   const key = rowKey(row);
+   const made = calls.useValue().made.get(key);
+   const parked = made?.call.kind === 'park' ? made : undefined;
+   const state = parked && parked.state !== 'undone' ? parked.state : 'ask';
+   const rootRef = useRef<HTMLLIElement>(null);
+   const refocus = useRef(false);
+   const before = useRef(state);
+   // after a click here, focus lands on what replaced the button, and a
+   // save that fails later takes it only from the words it removed
+   useEffect(() => {
+      if (before.current === state) return;
+      before.current = state;
+      const lost = document.activeElement === document.body && state !== 'ask';
+      if (!refocus.current && !lost) return;
+      refocus.current = false;
+      rootRef.current?.querySelector<HTMLElement>('[data-park-focus]')?.focus();
+   }, [state]);
+   const act = (fn: () => void) => () => {
+      refocus.current = true;
+      fn();
+   };
+   const park = act(() => {
+      onPark();
+      makeCall(row, { kind: 'park' }, project);
+   });
+   return (
+      <li ref={rootRef} className="flex flex-wrap items-center gap-x-2">
+         <FactLink onClick={onOpen} title="Open it">
+            {name}
+         </FactLink>
+         <span aria-hidden>·</span>
+         {state === 'made' ? (
+            <>
+               <span data-park-focus tabIndex={-1} className="rounded">
+                  Parked.
+               </span>
+               <TextButton onClick={act(() => undoCall(key))} aria-label={`Undo parking ${name}`}>
+                  Undo
+               </TextButton>
+            </>
+         ) : state === 'failed' ? (
+            <>
+               <span aria-hidden>Didn’t save.{parked?.why}</span>
+               <TextButton data-park-focus onClick={park} aria-label={`Try parking ${name} again`}>
+                  Try again
+               </TextButton>
+            </>
+         ) : (
+            <TextButton data-park-focus onClick={park} aria-label={`Park ${name}`}>
+               Park
+            </TextButton>
+         )}
+         <span className="sr-only" aria-live="polite">
+            {state === 'failed'
+               ? `Didn’t park ${name}.${parked?.why ?? ''}`
+               : parked?.state === 'undone'
+               ? `Took back parking ${name}.`
+               : parked?.why ?? ''}
+         </span>
+      </li>
    );
 }
 
@@ -1134,14 +1367,9 @@ function RunsDecide({
    };
    const person = (login: string) =>
       onPerson ? (
-         <button
-            type="button"
-            onClick={() => onPerson(login)}
-            title={`See ${login} on People`}
-            className="hit pressable rounded border-0 bg-transparent p-0 text-[13px] font-medium text-ink hover:text-brand"
-         >
+         <FactLink onClick={() => onPerson(login)} title={`See ${login} on People`}>
             {login}
-         </button>
+         </FactLink>
       ) : (
          <span className="font-medium text-ink">{login}</span>
       );
@@ -1156,13 +1384,9 @@ function RunsDecide({
             ) : (
                'Nobody runs Decide yet.'
             )}{' '}
-            <button
-               type="button"
-               onClick={() => setDraft(rotation?.logins.join(', ') ?? '')}
-               className={linkButton}
-            >
+            <TextButton onClick={() => setDraft(rotation?.logins.join(', ') ?? '')}>
                {now ? 'Change the turns' : 'Name who takes turns'}
-            </button>
+            </TextButton>
          </p>
       );
    }
@@ -1192,28 +1416,21 @@ function RunsDecide({
             <PrimaryButton disabled={saving} aria-label="Save the turns">
                Save
             </PrimaryButton>
-            <button
-               type="button"
-               onClick={close}
-               aria-label="Cancel changing the turns"
-               className={textButton}
-            >
+            <TextButton tone="quiet" onClick={close} aria-label="Cancel changing the turns">
                Cancel
-            </button>
+            </TextButton>
          </span>
          {left.length > 0 && (
             <p className="m-0 flex basis-full flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-3">
                Add
                {left.map(login => (
-                  <button
+                  <TextButton
                      key={login}
-                     type="button"
                      onClick={() => setDraft([...chosen, login].join(', '))}
                      aria-label={`Add ${login} to the turns`}
-                     className={textButton}
                   >
                      {login}
-                  </button>
+                  </TextButton>
                ))}
             </p>
          )}
@@ -1224,6 +1441,13 @@ function RunsDecide({
          )}
       </form>
    );
+}
+
+/** The teams the switch offers: the configured ones in their own order,
+ * then any other a row names, by name; "No team" comes after these. */
+export function teamOrder(configured: readonly string[], named: readonly (string | null)[]) {
+   const others = named.filter((t): t is string => !!t && !configured.includes(t));
+   return [...configured, ...[...new Set(others)].sort()];
 }
 
 /**
@@ -1269,8 +1493,9 @@ export function Decide({
    const { items: plans, loadFailed } = useRoadmap();
    const { made } = calls.useValue();
    const [copied, setCopied] = useState<string | null>(null);
-   // j and k land on each row's answer, or its Undo once decided
+   // j and k land on each row's answer, or on what was decided once it is
    useRowKeys('[data-decide-row]', '[data-decide-focus]');
+   useBackToRow(!!plans);
    if (!plans) {
       return loadFailed ? (
          <LoadFailed what="the roadmap" onRetry={() => void loadRoadmap()} />
@@ -1292,12 +1517,20 @@ export function Decide({
    const owed = kept.owed.filter(inTeam);
    const shown = kept.all.filter(inTeam);
    const decidedHere = [...kept.settled.values()].filter(m => inTeam(m.row));
-   const whose = !nav.team ? '' : nav.team === '(none)' ? ' with no team' : ` for ${nav.team}`;
+   const whose = !nav.team
+      ? ''
+      : nav.team === '(none)'
+      ? ' for work with no team'
+      : ` for ${nav.team}`;
    const heading = owed.length
       ? `${n(owed.length, 'decision')} to make`
       : decidedHere.length
       ? 'Nothing left to decide'
       : 'Nothing to decide';
+   const leadOf = (row: DecideRow) => {
+      const lead = row.item?.lead ?? projectOf(row)?.lead;
+      return lead ? ` (${lead})` : '';
+   };
 
    // the list as plain text, for the weekly meeting's notes or a chat post:
    // what's left, and the calls made here
@@ -1307,16 +1540,18 @@ export function Decide({
          if (!inSection.length) return [];
          return [
             section.title,
-            ...inSection.map(row => {
-               const lead = row.item?.lead ?? projectOf(row)?.lead;
-               return `- ${nameOf(row, projectOf(row))}${lead ? ` (${lead})` : ''}: ${rowWords(
-                  row
-               )}`;
-            }),
+            ...inSection.map(
+               row => `- ${nameOf(row, projectOf(row))}${leadOf(row)}: ${rowWords(row)}`
+            ),
          ];
       });
       const decided = decidedHere.length
-         ? ['Decided', ...decidedHere.map(m => `- ${nameOf(m.row, projectOf(m.row))}: ${m.words}`)]
+         ? [
+              'Decided',
+              ...decidedHere.map(
+                 m => `- ${nameOf(m.row, projectOf(m.row))}${leadOf(m.row)}: ${m.words}`
+              ),
+           ]
          : [];
       const runner = decideTurn(rotation, day);
       const text = [
@@ -1338,38 +1573,68 @@ export function Decide({
 
    // each team's decisions still owed, for the team switch: "Store · 2",
    // never a zero
-   const teams = Object.keys(teamMembers).sort();
+   const teams = teamOrder(Object.keys(teamMembers), kept.owed.map(teamOfRow));
    const owedBy = (team: string) =>
       kept.owed.filter(row => (teamOfRow(row) ?? '(none)') === team).length;
    const counted = (label: string, count: number) => (count ? `${label} · ${count}` : label);
    const people = [...new Set(Object.values(teamMembers).flat())].sort();
+   // a team's load counts its work in flight; the row each one has here
+   // makes its Park the same call
+   const rowOf = (w: InFlight): DecideRow =>
+      kept.all.find(row => rowKey(row) === `${w.slug ?? ''}:${w.id ?? ''}`) ?? {
+         slug: w.slug,
+         item: plans.find(p => p.id === w.id) ?? null,
+         reasons: [],
+      };
    return (
       <section className="mb-7">
          <div className="mb-4">
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-               <h2 className="m-0 text-lg font-semibold leading-snug">
-                  {heading}
-                  {whose}
-               </h2>
-               {(owed.length > 0 || decidedHere.length > 0) && (
-                  <button
-                     type="button"
-                     onClick={copy}
-                     className={`${textButton} ml-auto`}
-                     title="Copy what’s left and the calls made here as plain text, for the meeting’s notes or a chat post"
-                  >
-                     {copied ?? 'Copy as text'}
-                  </button>
-               )}
-               <span role="status" className="sr-only">
-                  {copied ?? ''}
-               </span>
-            </div>
-            {owed.length > 0 && (
-               <p className="m-0 mt-1 text-[13px] text-ink-2">
-                  Worst first. Each call saves to the roadmap when you click it.
-               </p>
-            )}
+            <GroupHeader
+               title={`${heading}${whose}`}
+               sub={
+                  owed.length > 0 && (
+                     <SubDoor
+                        label="How Decide is ordered"
+                        text="Records that disagree first, new work last"
+                     >
+                        <p className="m-0">
+                           Each row is a call the roadmap is owed. The sections run from what costs
+                           most to leave alone to what costs least: work marked done, dropped or
+                           parked that’s still being worked on, and plans their own issue disagrees
+                           with; then plans that slipped past an update, a target or an end; then
+                           plans whose issues are all closed; then quiet work, and plans whose lead
+                           says at risk; then new work waiting for a plan.
+                        </p>
+                        <p className="m-0">
+                           {ALL_ISSUES_CLOSED} comes before at risk: that plan is probably done, but
+                           until someone says so it still counts in its team’s load, while at risk
+                           only warns that a plan might slip.
+                        </p>
+                        <p className="m-0">
+                           Each call saves to the roadmap when you click it, and its row says what
+                           happens next, with Undo.
+                        </p>
+                        <p className="m-0">
+                           From the keyboard, j and k move between the rows, the left and right
+                           arrow keys between a row’s calls, and Enter makes the call.
+                        </p>
+                     </SubDoor>
+                  )
+               }
+               headerExtra={
+                  (owed.length > 0 || decidedHere.length > 0) && (
+                     <QuietButton
+                        onClick={copy}
+                        title="Copy what’s left and the calls made here as plain text, for the meeting’s notes or a chat post"
+                     >
+                        {copied ?? COPY_AS_TEXT}
+                     </QuietButton>
+                  )
+               }
+            />
+            <span role="status" className="sr-only">
+               {copied ?? ''}
+            </span>
             <RunsDecide rotation={rotation} day={day} people={people} onPerson={onPerson} />
             {teams.length > 0 && (
                <div className="mt-3">
@@ -1385,9 +1650,12 @@ export function Decide({
                   />
                   {nav.team && nav.team !== '(none)' && (
                      <TeamLoad
+                        key={nav.team}
                         team={nav.team}
                         developers={teamMembers[nav.team]?.length ?? 0}
                         load={teamLoad(nav.team, plans, items, day)}
+                        rowOf={rowOf}
+                        projectOf={projectOf}
                         onOpen={w =>
                            w.slug
                               ? navigate({ project: w.slug })
@@ -1398,7 +1666,9 @@ export function Decide({
                </div>
             )}
          </div>
-         {!shown.length && (
+         {/* the check is earned by clearing the list too, above the calls
+             that cleared it */}
+         {!owed.length && (
             <>
                <EmptyState
                   title={
@@ -1411,18 +1681,16 @@ export function Decide({
                   sub={
                      nav.team && kept.owed.length
                         ? 'The other teams have calls waiting.'
+                        : decidedHere.length
+                        ? `${n(decidedHere.length, 'call')} made here. Each says what happens next.`
                         : 'Rows show up here when work needs a plan or stalls, runs past its end or target, or its records disagree.'
                   }
                />
                {nav.team && kept.owed.length > 0 && (
-                  <p className="m-0 text-center">
-                     <button
-                        type="button"
-                        onClick={() => navigate({ team: null })}
-                        className={linkButton}
-                     >
+                  <p className="m-0 mb-6 text-center text-[13px]">
+                     <TextButton onClick={() => navigate({ team: null })}>
                         Show all teams
-                     </button>
+                     </TextButton>
                   </p>
                )}
             </>
@@ -1430,10 +1698,12 @@ export function Decide({
          {SECTIONS.map((section, index) => {
             const here = shown.filter(row => sectionOf(row) === index);
             if (!here.length) return null;
+            const decided = (row: DecideRow) => kept.settled.has(rowKey(row));
             return (
                <div key={section.kinds[0]} className="mb-6">
                   <GroupHeader
                      level={3}
+                     compact
                      title={section.title}
                      sub={
                         <SubDoor label={`What lands in ${section.title}`} text={section.sub}>
@@ -1444,15 +1714,15 @@ export function Decide({
                            ))}
                         </SubDoor>
                      }
-                     count={here.filter(row => !kept.settled.has(rowKey(row))).length}
+                     count={here.filter(row => !decided(row)).length}
                   />
                   <Rows>
-                     <Truncated cap={10} id={`decide:${section.kinds[0]}`}>
+                     <Truncated cap={capOwed(here, decided, 10)} id={`decide:${section.kinds[0]}`}>
                         {here.map(row => (
                            <DecideRowView
                               key={rowKey(row)}
                               row={row}
-                              decided={kept.settled.has(rowKey(row))}
+                              decided={decided(row)}
                               project={projectOf(row)}
                               team={teamOfRow(row)}
                               nav={nav}

@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
-import { issueUrl, shortRepo } from '../../../../shared/format';
+import { issueUrl, n, shortRepo } from '../../../../shared/format';
 import {
-   ONE_PERSON_MIN_PRS,
    targetOf,
    type Project,
    type ProjectFlag,
@@ -10,12 +9,13 @@ import {
 } from '../../../../shared/model/projects';
 import { ORIGIN_WORD, ROADMAP_ORIGINS, type RoadmapOrigin } from '../../../../shared/model/roadmap';
 import { ArrowDown, ArrowUp, ChevronRight, X } from 'lucide-react';
-import { FactLink } from '../../components/bits';
+import { FactLink, TextButton } from '../../components/bits';
 import { Icon } from '../../components/Icon';
 import { Avatar } from '../../components/identity';
-import { eyebrowText } from '../../components/Lane';
+import { eyebrowText, SubDoor } from '../../components/Lane';
 import { DEFAULT_SORT } from '../../lens';
 import { dayWords } from '../../model/projectData';
+import { LAST_14_DAYS, NOT_SAID, targetOn } from '../../model/words';
 
 /** What the Projects tab keeps in the URL hash, beside the lens. */
 export interface ProjectsNav {
@@ -128,7 +128,7 @@ export function NarrowChip({
  * plan nobody has said it about. */
 export const ORIGIN_OPTIONS: [RoadmapOrigin | 'unsaid', string][] = [
    ...ROADMAP_ORIGINS.map((o): [RoadmapOrigin, string] => [o, ORIGIN_WORD[o]]),
-   ['unsaid', 'Not said'],
+   ['unsaid', NOT_SAID],
 ];
 
 /**
@@ -155,12 +155,19 @@ export function openPlan(nav: ProjectsNav, id: number): Partial<ProjectsNav> {
 export function flagText(flag: ProjectFlag, g: ProjectGroup): [string, string] {
    switch (flag) {
       case 'one_person':
+         // the real counts, not the flag's threshold
          return [
             'only one person',
-            `${ONE_PERSON_MIN_PRS} or more PRs here, open or merged in the last 14 days, and every one is by ${g.people[0]}.`,
+            `${n(
+               g.open.length + g.merged.length,
+               'PR'
+            )} here, open or merged in the ${LAST_14_DAYS}, and every one is by ${g.people[0]}.`,
          ];
       case 'waiting_on_review':
-         return ['all waiting on review', 'All of its open PRs (2 or more) are waiting on review.'];
+         return [
+            'all waiting on review',
+            `All ${g.open.length} of its open PRs are waiting on review.`,
+         ];
    }
 }
 
@@ -335,7 +342,7 @@ export function ProjectFacts({
          );
       }
       const target = inline ? null : targetOf(project);
-      if (target) facts.push(<span key="target">Target {targetWords(target)}</span>);
+      if (target) facts.push(<span key="target">{targetOn(targetWords(target))}</span>);
       if (project.fields.start) {
          // the issue's own field, which can differ from its plan's dates on a
          // page that shows both, so it says where it comes from there
@@ -358,12 +365,12 @@ export function ProjectFacts({
       }
    } else {
       facts.push(
-         <span
-            key="none"
-            title={`PRs carry the ${prefix}${g.slug} label, but no issue has it yet. Give one issue in any tracked repo the same label to name the project and set its lead.`}
-         >
-            No issue names it yet
-         </span>
+         // a door, not a title: touch and screen readers never get a title
+         <SubDoor key="none" label="Why no issue names it" text="No issue names it yet">
+            PRs carry the {prefix}
+            {g.slug} label, but no issue has it yet. Give one issue in any tracked repo the same
+            label to name the project and set its lead.
+         </SubDoor>
       );
    }
    if (go && links.parts.length) {
@@ -426,22 +433,16 @@ export function ProjectFacts({
 
 /** The link from a project's band or row to its own page. */
 export function PageLink({ g, navigate }: { g: Pick<ProjectGroup, 'slug'>; navigate: Navigate }) {
-   return (
-      <button
-         type="button"
-         onClick={() => navigate({ project: g.slug })}
-         className="hit pressable rounded border-0 bg-transparent p-0 text-xs font-medium text-brand hover:underline"
-      >
-         Project page
-      </button>
-   );
+   return <TextButton onClick={() => navigate({ project: g.slug })}>Project page</TextButton>;
 }
 
 /** One number with its label under it, the Stats tab's big-number style,
  * and an optional quiet line under that. The number sits at the top
  * whatever its neighbors' notes run to. A tile should open what it counts:
  * with `onClick` it's a button and looks like one, its label in ink with a
- * chevron and the whole tile lit on hover. */
+ * chevron and the whole tile lit on hover. A tile that narrows a list is a
+ * toggle (`picked`): picked, it's outlined like the chip the list shows
+ * for it, and a second click lets the list go. */
 export function Tile({
    value,
    label,
@@ -449,6 +450,7 @@ export function Tile({
    note,
    onClick,
    warn = false,
+   picked,
 }: {
    value: ReactNode;
    label: string;
@@ -458,13 +460,18 @@ export function Tile({
    onClick?: () => void;
    /** someone owes what it counts: its label is amber, its number never */
    warn?: boolean;
+   /** whether the list it narrows is narrowed to it now; undefined for a
+    * tile that only goes somewhere */
+   picked?: boolean;
 }) {
    const body = (
       <>
          <span className="text-xl font-semibold text-ink tabular-nums">{value}</span>
          {/* amber names what's owed, on the word: counts are never amber */}
+         {/* inline, not a flex row: a label that wraps on a phone keeps its
+             chevron after its last word instead of out at the edge */}
          <span
-            className={`inline-flex items-center gap-0.5 text-xs ${
+            className={`text-xs ${
                warn
                   ? 'text-warn group-hover:underline'
                   : onClick
@@ -473,7 +480,9 @@ export function Tile({
             }`}
          >
             {label}
-            {onClick && <Icon icon={ChevronRight} size={12} className="flex-none" />}
+            {onClick && (
+               <Icon icon={ChevronRight} size={12} className="ml-0.5 inline-block align-[-2px]" />
+            )}
          </span>
          {note && <span className="mt-0.5 text-[11px] text-ink-3 tabular-nums">{note}</span>}
       </>
@@ -484,9 +493,13 @@ export function Tile({
          type="button"
          onClick={onClick}
          title={title}
-         // the padding lights a target on hover; the margin keeps the tiles
-         // where they'd sit without it
-         className={`group pressable -m-2 rounded-lg border-0 bg-transparent p-2 transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none ${box}`}
+         aria-pressed={picked}
+         // the padding lights a target on hover, and the border is there
+         // unseen so a pick outlines it without moving it; the margin keeps
+         // the tiles where they'd sit without either
+         className={`group pressable -m-2 rounded-lg border bg-transparent p-[7px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none ${
+            picked ? 'border-brand' : 'border-transparent'
+         } ${box}`}
       >
          {body}
       </button>
@@ -535,13 +548,10 @@ export function SortHeader<K extends string>({
 }) {
    const active = sort.key === sortKey;
    const flipped = order === 'ascending' ? 'descending' : 'ascending';
+   const dir = sort.reversed ? flipped : order;
    // the cell carries the column's width and hiding; the button only its words
    return (
-      <span
-         role="columnheader"
-         className={className}
-         aria-sort={active ? (sort.reversed ? flipped : order) : undefined}
-      >
+      <span role="columnheader" className={className} aria-sort={active ? dir : undefined}>
          <button
             type="button"
             title={title}
@@ -551,7 +561,9 @@ export function SortHeader<K extends string>({
             }`}
          >
             {label}
-            {active && <Icon icon={sort.reversed ? ArrowUp : ArrowDown} size={12} />}
+            {/* the arrow says the order the cell's aria-sort does: up for A to Z
+                and soonest first, down for most first */}
+            {active && <Icon icon={dir === 'ascending' ? ArrowUp : ArrowDown} size={12} />}
          </button>
       </span>
    );

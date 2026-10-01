@@ -49,8 +49,9 @@ const CALENDAR_VARS = {
  * Two months of calendar for picking a range by hand (one on a phone, so the
  * panel and its Apply fit the screen): click the first day, then the last,
  * then Apply. Clicking again starts a new range. Days after today can't be
- * picked, and a range stops at the server's 400-day cap. Loaded lazily with
- * the picker's panel, stylesheet included.
+ * picked, and a range stops at the server's 400-day cap. Weeks start on
+ * Monday, as the charts' weeks do. Loaded lazily with the picker's panel,
+ * stylesheet included.
  */
 export default function RangeCalendar({
    range,
@@ -75,6 +76,7 @@ export default function RangeCalendar({
             selected={draft}
             onSelect={setDraft}
             resetOnSelect
+            weekStartsOn={1}
             max={MAX_RANGE_DAYS}
             numberOfMonths={months}
             defaultMonth={openingMonth(dateOf(range.end), today, months)}

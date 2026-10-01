@@ -12,13 +12,15 @@ import type { IssueCounts } from '../../../shared/model/work';
 import type { RoadmapItem, RoadmapUpdate } from '../../../shared/model/roadmap';
 import {
    callWords,
+   capOwed,
    keepCalls,
    reasonWords,
-   teamLoad,
+   teamOrder,
    whyNot,
    writeFor,
    type Made,
 } from '../views/projects/Decide';
+import { teamLoad } from './teamLoad';
 
 const today = '2026-09-30';
 const NOW = dayStart(today) as number;
@@ -464,6 +466,46 @@ describe('Decide’s calls', () => {
       expect(all.map(r => r.slug)).toEqual(['back', 'gone', 'other', 'undone']);
    });
 
+   it('never asks again about work parked from a team’s load and taken back', () => {
+      // parked from the team's load: a row Decide never asked about
+      const parked: DecideRow = { slug: 'side', item: null, reasons: [] };
+      const made = (state: Made['state']) =>
+         new Map<string, Made>([
+            [
+               'side:',
+               {
+                  row: parked,
+                  call: { kind: 'park' },
+                  words: 'Parked.',
+                  state,
+                  origin: null,
+                  token: 1,
+               },
+            ],
+         ]);
+      expect(keepCalls([], made('made')).all.map(r => r.slug)).toEqual(['side']);
+      expect(keepCalls([], made('undone')).owed).toEqual([]);
+      expect(keepCalls([], made('failed')).owed).toEqual([]);
+   });
+
+   it('draws a section’s rows until ten are owed, so decided rows never take a slot', () => {
+      const rows = ['a', 'b', 'c', 'd', 'e', 'f'].map(
+         (slug): DecideRow => ({ slug, item: null, reasons: [{ kind: 'new', since: null }] })
+      );
+      const decided = (row: DecideRow) => row.slug === 'a' || row.slug === 'd';
+      // two owed wanted: a (decided), b, c, d (decided), then e would be the third
+      expect(capOwed(rows, decided, 2)).toBe(4);
+      // fewer owed than the cap: every row is drawn
+      expect(capOwed(rows, decided, 10)).toBe(6);
+      expect(capOwed(rows, () => true, 2)).toBe(6);
+   });
+
+   it('offers the teams in their configured order, then any other by name', () => {
+      expect(
+         teamOrder(['Store', 'FixBot', 'Community'], ['Old', null, 'Community', 'Ads', 'Old'])
+      ).toEqual(['Store', 'FixBot', 'Community', 'Ads', 'Old']);
+   });
+
    it('counts a team’s work in flight in priority order: plans, then work with no plan', () => {
       const project = (slug: string, open: number, openSince = '2026-09-01', team = 'Store') => ({
          slug,
@@ -510,5 +552,11 @@ describe('reasonWords', () => {
       expect(said('Not sure the import can land.')).toMatch(/can land\. New end\?$/);
       expect(said('Can the import land?')).toMatch(/land\? New end\?$/);
       expect(said('Waiting on the vendor')).toMatch(/vendor\. New end\?$/);
+   });
+
+   it('asks new work in the verb its answer uses', () => {
+      expect(reasonWords({ kind: 'new', since: '2026-08-30' }, null)).toBe(
+         'PRs open since Aug 30, and no plan yet. Commit to it?'
+      );
    });
 });

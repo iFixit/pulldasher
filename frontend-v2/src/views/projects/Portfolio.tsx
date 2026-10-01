@@ -1,22 +1,29 @@
-import { useId, useState, type MouseEvent, type ReactNode } from 'react';
-import { ChevronRight, Download } from 'lucide-react';
+import {
+   useEffect,
+   useId,
+   useLayoutEffect,
+   useRef,
+   useState,
+   type MouseEvent,
+   type ReactNode,
+} from 'react';
+import { ChevronRight } from 'lucide-react';
 import { issueUrl, pullKey, shortRepo } from '../../../../shared/format';
 import { STALL_DAYS } from '../../../../shared/model/decide';
 import { utcDay } from '../../../../shared/model/projects';
 import { planEnd } from '../../../../shared/model/roadmap';
-import { QuietButton, Segmented, textInputClass } from '../../components/bits';
+import {
+   FactLink,
+   QuietButton,
+   Segmented,
+   TextButton,
+   textInputClass,
+} from '../../components/bits';
 import { ClosedRow } from '../../components/ClosedRow';
 import { Icon } from '../../components/Icon';
-import {
-   Fold,
-   FoldRows,
-   GroupHeader,
-   laneShown,
-   Rows,
-   SubDoor,
-   Truncated,
-} from '../../components/Lane';
+import { Fold, FoldRows, GroupHeader, laneShown, SubDoor, Truncated } from '../../components/Lane';
 import type { RowOptions } from '../../components/Row';
+import { useRowKeys } from '../../components/useRowKeys';
 import { DEFAULT_SORT } from '../../lens';
 import {
    GROUPINGS,
@@ -30,12 +37,22 @@ import {
    portfolioText,
    sortItems,
    STATUS_FILTERS,
+   upperFirst,
+   type Ask,
    type PortfolioItem,
    type PrRef,
    type SortKey,
 } from '../../model/portfolio';
 import { dayOf, dayWords } from '../../model/projectData';
-import { days, daysShort, LAST_14_DAYS } from '../../model/words';
+import {
+   andList,
+   BEING_WORKED_ON,
+   COPY_AS_TEXT,
+   days,
+   daysShort,
+   devDays,
+   LAST_14_DAYS,
+} from '../../model/words';
 import { reasonWords } from './Decide';
 import {
    FlagWords,
@@ -55,6 +72,14 @@ import { PlanFacts } from './roadmapHealth';
 /** the long-list rule: this many rows, then "+ N more" */
 const LIST_CAP = 40;
 
+/** The list as the Overview opens it: the projects being worked on, with
+ * nothing narrowing them. Letting a tile's or a bar's pick go comes back
+ * here, since the pick may have moved the tab. */
+export const AS_OPENED: Partial<ProjectsNav> = { status: 'live', only: null };
+
+/** Whether who worked on what in the last 14 days has come in. */
+type Workers = 'loading' | 'loaded' | 'failed';
+
 interface Column {
    key: SortKey;
    label: string;
@@ -65,7 +90,8 @@ interface Column {
    hide?: string;
    /** the first click's order, when it isn't biggest first */
    order?: 'ascending';
-   cell: (item: PortfolioItem, act: CellActions) => ReactNode;
+   /** `repeat`: an earlier band already showed the row */
+   cell: (item: PortfolioItem, act: CellActions, repeat: boolean) => ReactNode;
 }
 
 /** What a cell's words do when clicked. */
@@ -78,35 +104,10 @@ interface CellActions {
    /** the roadmap's list of work with no plan, where a plan starts, narrowed
     * to this project when the list has it (work in flight) */
    unplanned: (item: PortfolioItem) => void;
-   /** whether the 14 days of who worked on what have loaded */
-   workersLoaded: boolean;
+   workers: Workers;
    openProject: (slug: string) => void;
    /** where a row's facts line goes: its lead and its related projects */
    factLinks: (item: PortfolioItem) => FactLinks;
-}
-
-/** A cell's words as a button. */
-function CellButton({
-   onClick,
-   title,
-   className = '',
-   children,
-}: {
-   onClick: () => void;
-   title: string;
-   className?: string;
-   children: ReactNode;
-}) {
-   return (
-      <button
-         type="button"
-         onClick={onClick}
-         title={title}
-         className={`pressable rounded border-0 bg-transparent p-0 text-xs hover:underline ${className}`}
-      >
-         {children}
-      </button>
-   );
 }
 
 const prWords = (pr: PrRef) => `${shortRepo(pr.repo)}#${pr.number} ${pr.title}`;
@@ -127,18 +128,38 @@ function targetCell(item: PortfolioItem): ReactNode {
    return <span title={when}>{due}</span>;
 }
 
-/** The calls Decide asks about a project, in Decide's own words, as one
- * sentence: "Is it done?" already ends one. */
-function asked(item: PortfolioItem): string {
+/** Calls Decide asks, in Decide's own words, as one sentence: "Is it
+ * done?" already ends one. */
+function asked(asks: readonly Ask[]): string {
    // each reason is a sentence ending in its question
-   const said = item.asks.map(a => reasonWords(a.reason, a.item)).join(' ');
+   const said = asks.map(a => reasonWords(a.reason, a.item)).join(' ');
    return /[.?!]$/.test(said) ? said : `${said}.`;
+}
+
+/** Whether the plan's own line in an opened row (PlanFacts) already says
+ * what a call is about: that there's no plan, the plan's health and its
+ * update, or its weeks past the end. Said once is enough, and that line's
+ * link is then the one way to answer. */
+function toldByPlan(a: Ask, item: PortfolioItem): boolean {
+   if ((a.item?.id ?? null) !== (item.plan?.id ?? null)) return false;
+   switch (a.reason.kind) {
+      case 'new':
+      case 'at_risk':
+      case 'off_track':
+         return true;
+      case 'over':
+      case 'ended':
+         // it counts the weeks over only while the project has work in flight
+         return item.status === 'live';
+      default:
+         return false;
+   }
 }
 
 function planTitle(item: PortfolioItem): string {
    const plan = item.plan;
    if (item.asks.length) {
-      return `Decide asks: ${asked(item)} Click to open ${
+      return `Decide asks: ${asked(item.asks)} Click to open ${
          item.planCell.kind === 'issues_done'
             ? 'the project page'
             : item.planCell.planId != null
@@ -153,14 +174,24 @@ function planTitle(item: PortfolioItem): string {
    return '';
 }
 
-/** The Plan cell's words as the button they are: the plan opens on the
- * roadmap, "Issues all closed" opens the project page where they're listed,
- * and "No plan" opens the roadmap's work with no plan, where one starts. */
-function PlanButton({ item, act }: { item: PortfolioItem; act: CellActions }) {
+/** The Plan cell's words as the link they are: the plan opens on the
+ * roadmap, "All issues closed" opens the project page where they're
+ * listed, and "No plan" opens the roadmap's work with no plan, where one
+ * starts. A project an earlier band already showed draws them in ink, so
+ * one call wears one amber mark. */
+function PlanButton({
+   item,
+   act,
+   repeat,
+}: {
+   item: PortfolioItem;
+   act: CellActions;
+   repeat: boolean;
+}) {
    const cell = item.planCell;
    if (!cell.text) return null;
    return (
-      <CellButton
+      <FactLink
          onClick={() =>
             cell.kind === 'issues_done'
                ? act.openProject(item.slug)
@@ -168,11 +199,11 @@ function PlanButton({ item, act }: { item: PortfolioItem; act: CellActions }) {
                ? act.openPlan(cell.planId)
                : act.unplanned(item)
          }
-         className={`text-left md:text-right ${cell.warn ? 'text-warn' : 'text-ink-2'}`}
+         className={`md:text-right ${cell.warn && !repeat ? 'text-warn' : ''}`}
          title={planTitle(item)}
       >
          {cell.text}
-      </CellButton>
+      </FactLink>
    );
 }
 
@@ -187,13 +218,13 @@ const COLUMNS: Column[] = [
       cell: (i, act) => {
          const lead = i.lead;
          return lead ? (
-            <CellButton
+            <FactLink
                onClick={() => act.onPerson(lead)}
-               className="break-words text-right text-ink-2"
+               className="break-words"
                title={`Open ${lead}’s row on People`}
             >
                {lead}
-            </CellButton>
+            </FactLink>
          ) : (
             ''
          );
@@ -209,13 +240,12 @@ const COLUMNS: Column[] = [
       cell: (i, act) => {
          const team = i.team;
          return team ? (
-            <CellButton
+            <FactLink
                onClick={() => act.findTeam(team)}
-               className="text-ink-2"
                title={`List only the projects on the ${team} team`}
             >
                {team}
-            </CellButton>
+            </FactLink>
          ) : (
             ''
          );
@@ -257,7 +287,7 @@ const COLUMNS: Column[] = [
       width: 'w-20',
       hide: 'hidden lg:block',
       cell: (i, act) =>
-         !act.workersLoaded ? (
+         act.workers === 'loading' ? (
             '…'
          ) : i.workers.length ? (
             <PeopleStack logins={i.workers.map(w => w.login)} onPerson={act.onPerson} me={act.me} />
@@ -295,7 +325,7 @@ const COLUMNS: Column[] = [
       title: 'The call Decide asks about it, or else what its plan says. Amber when someone owes something: a call Decide asks for, or an update its lead owes. Blank when it has no plan and needs none yet. Sorting by it, the default, puts amber first.',
       width: 'w-36',
       hide: 'hidden md:block',
-      cell: (i, act) => <PlanButton item={i} act={act} />,
+      cell: (i, act, repeat) => <PlanButton item={i} act={act} repeat={repeat} />,
    },
 ];
 
@@ -309,15 +339,14 @@ const ISSUES: Column = {
       const s = i.issues;
       if (!s?.total) return '';
       return (
-         <CellButton
+         <FactLink
             onClick={() => act.openProject(i.slug)}
-            className="text-ink-2"
             title={`${s.open} open, ${s.done} done${
                s.dropped ? `, ${s.dropped} dropped` : ''
             }. Click for the list.`}
          >
             {`${s.open} of ${s.total}`}
-         </CellButton>
+         </FactLink>
       );
    },
 };
@@ -332,9 +361,48 @@ const TARGET: Column = {
    cell: targetCell,
 };
 
-/** Everything a project row opens to: its facts and plan, the call Decide
+/** Who worked on a project lately, in words: its developers, or else that
+ * none did, and whose PRs are there instead, so a Last activity of today
+ * beside it never reads as a contradiction. */
+function workedOnWords(item: PortfolioItem, onPerson: (login: string) => void): ReactNode {
+   if (item.workers.length) {
+      return (
+         <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span>Worked on it in the {LAST_14_DAYS}:</span>
+            {item.workers.map(w => (
+               <span key={w.login}>
+                  <FactLink
+                     onClick={() => onPerson(w.login)}
+                     title={`Open ${w.login}’s row on People`}
+                  >
+                     {w.login}
+                  </FactLink>{' '}
+                  {w.writing <= 0
+                     ? 'reviewed'
+                     : w.writing >= w.days - 0.005
+                     ? 'wrote'
+                     : 'wrote and reviewed'}
+                  , {days(devDays(w.days))}
+               </span>
+            ))}
+         </span>
+      );
+   }
+   const others = item.nonDevelopers;
+   return `No developer worked on it in the ${LAST_14_DAYS}.${
+      others.length
+         ? ` Its PRs are by ${andList(others)}, ${
+              others.length > 1 ? 'non-developers' : 'a non-developer'
+           }.`
+         : ''
+   }`;
+}
+
+/** Everything a project row opens to: its facts and plan, what else Decide
  * asks of it, who worked on it lately, the open PR gone longest without
- * activity, and its PRs. */
+ * activity, and its PRs. Each fact is said once: the row's Plan cell names
+ * the call, the plan's line says its state, and the Decide line only what
+ * those two don't. */
 function RowDetail({
    item,
    prefix,
@@ -343,6 +411,7 @@ function RowDetail({
    navigate,
    onPerson,
    links,
+   workers,
 }: {
    item: PortfolioItem;
    prefix: string;
@@ -351,9 +420,13 @@ function RowDetail({
    navigate: Navigate;
    onPerson: (login: string) => void;
    links: FactLinks;
+   workers: Workers;
 }) {
    const stalest = item.stalest;
    const line = 'm-0 border-t border-secondary px-3.5 py-2 text-xs';
+   // the band runs the row's width; its sentence stops at a readable length
+   const prose = 'block max-w-[70ch]';
+   const untold = item.asks.filter(a => !toldByPlan(a, item));
    return (
       <div className="border-t border-secondary bg-muted/30">
          <ProjectFacts
@@ -366,67 +439,47 @@ function RowDetail({
             <PageLink g={item} navigate={navigate} />
          </ProjectFacts>
          <PlanFacts slug={item.slug} nav={nav} navigate={navigate} live={item.status === 'live'} />
-         {item.asks.length > 0 && (
+         {untold.length > 0 && (
             // the call in Decide's own words, and the way to make it; the
             // row's Plan cell already carries its amber
             <p className={`${line} text-ink-2`}>
-               Decide asks: {asked(item)}{' '}
-               <button
-                  type="button"
-                  onClick={() =>
-                     navigate(
-                        { ...switchView('decide'), team: item.team ?? '(none)' },
-                        { push: true }
-                     )
-                  }
-                  className="hit pressable rounded border-0 bg-transparent p-0 text-xs font-medium text-brand hover:underline"
-               >
-                  Make the call on Decide
-               </button>
+               <span className={prose}>
+                  Decide asks: {asked(untold)}{' '}
+                  <TextButton
+                     onClick={() =>
+                        navigate(
+                           { ...switchView('decide'), team: item.team ?? '(none)' },
+                           { push: true }
+                        )
+                     }
+                  >
+                     Make the call on Decide
+                  </TextButton>
+               </span>
             </p>
          )}
-         <div className={`${line} text-ink-3`}>
-            {item.workers.length ? (
-               <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <span>Worked on it in the {LAST_14_DAYS}:</span>
-                  {item.workers.map(w => (
-                     <button
-                        key={w.login}
-                        type="button"
-                        onClick={() => onPerson(w.login)}
-                        className="pressable rounded border-0 bg-transparent p-0 text-xs text-ink-2 hover:text-brand hover:underline"
-                        title={`Open ${w.login}’s row on People`}
-                     >
-                        {w.login}{' '}
-                        <span className="text-ink-3">
-                           {w.writing <= 0
-                              ? 'reviewed'
-                              : w.writing >= w.days - 0.005
-                              ? 'wrote'
-                              : 'wrote and reviewed'}
-                           , {days(Math.round(w.days * 10) / 10)}
-                        </span>
-                     </button>
-                  ))}
-               </span>
-            ) : (
-               `No developer worked on it in the ${LAST_14_DAYS}.`
-            )}
-         </div>
+         {/* said once the days are in: before then "nobody" would be a guess */}
+         {workers === 'loaded' && (
+            <div className={`${line} text-ink-3`}>
+               <span className={prose}>{workedOnWords(item, onPerson)}</span>
+            </div>
+         )}
          {stalest && stalest.days >= STALL_DAYS && (
             <p className={`${line} text-ink-3`}>
-               Longest without activity:{' '}
-               <a
-                  href={issueUrl(stalest.pr.repo, stalest.pr.number)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-ink-2 hover:text-brand hover:underline"
-               >
-                  {prWords(stalest.pr)}
-               </a>
-               {stalest.opened
-                  ? `, nothing since it opened ${days(stalest.days)} ago.`
-                  : `, nothing for ${days(stalest.days)}.`}
+               <span className={prose}>
+                  Longest without activity:{' '}
+                  <a
+                     href={issueUrl(stalest.pr.repo, stalest.pr.number)}
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     className="text-ink-2 hover:text-brand hover:underline"
+                  >
+                     {prWords(stalest.pr)}
+                  </a>
+                  {stalest.opened
+                     ? `, nothing since it opened ${days(stalest.days)} ago.`
+                     : `, nothing for ${days(stalest.days)}.`}
+               </span>
             </p>
          )}
          {item.group && (item.group.open.length > 0 || item.group.merged.length > 0) && (
@@ -448,6 +501,7 @@ function RowDetail({
                <Fold
                   count={item.group.merged.length}
                   label={`Merged in the ${LAST_14_DAYS}`}
+                  gloss={`Its PRs merged in the ${LAST_14_DAYS}, newest first`}
                   id={`portfolio-merged:${item.slug}`}
                >
                   <Truncated cap={8} id={`portfolio-merged:${item.slug}`}>
@@ -463,9 +517,11 @@ function RowDetail({
 }
 
 /**
- * One project on one line, a table row. Its name opens the project page,
- * its plan words the plan, its lead and faces their rows on People; the
- * chevron, or a click anywhere else on the row, opens the row in place.
+ * One project on one line, a table row. Its name is the row's one Tab
+ * stop: a click or Enter opens the project page, and Space opens the row in
+ * place, as the chevron or a click anywhere else on it does. Its plan words
+ * open the plan, its lead and faces their rows on People; those are a
+ * mouse's shortcuts, since the opened row holds each of them.
  */
 function PortfolioRow({
    item,
@@ -475,6 +531,8 @@ function PortfolioRow({
    opts,
    nav,
    navigate,
+   hint,
+   repeat,
 }: {
    item: PortfolioItem;
    prefix: string;
@@ -483,25 +541,44 @@ function PortfolioRow({
    opts: RowOptions;
    nav: ProjectsNav;
    navigate: Navigate;
+   /** the id of the words that tell a keyboard what Enter and Space do */
+   hint: string;
+   /** an earlier band already showed it */
+   repeat: boolean;
 }) {
    const [open, setOpen] = useState(false);
    const detailId = useId();
-   // a mouse can open the row from anywhere on it; the chevron is the one
-   // control for a keyboard. A click on a control in the row, or inside a
-   // popover a face opened, isn't the row's
+   const rowRef = useRef<HTMLDivElement>(null);
+   // one Tab stop a row: every control but the name leaves the Tab order,
+   // so a keyboard walks 40 rows in 40 stops, not 300
+   useEffect(() => {
+      rowRef.current
+         ?.querySelectorAll<HTMLElement>('button:not([data-portfolio-focus]), a')
+         .forEach(el => (el.tabIndex = -1));
+   });
+   // a mouse can open the row from anywhere on it. A click on a control in
+   // the row, or inside a popover a face opened, isn't the row's
    const onRowClick = (e: MouseEvent<HTMLDivElement>) => {
       const target = e.target as Element;
       if (!e.currentTarget.contains(target) || target.closest('button, a')) return;
       setOpen(o => !o);
    };
+   const cell = item.planCell;
    // flags, and on a phone the plan words its hidden column would hold
-   const under = !!item.group?.flags.length || !!item.planCell.text;
+   const under = !!item.group?.flags.length || !!cell.text;
    return (
-      <>
+      // the row and what it opens to are one row for j and k, and its
+      // scroll margin keeps it clear of the sticky bar and column names
+      <div
+         role="none"
+         data-portfolio-row
+         className="scroll-mt-[calc(var(--header-h,0px)_+_var(--bar-h,0px)_+_2.75rem)] border-t border-secondary first:border-t-0"
+      >
          <div
+            ref={rowRef}
             role="row"
             onClick={onRowClick}
-            className="flex cursor-pointer items-center gap-3 border-t border-secondary px-3.5 py-2 text-xs text-ink-2 transition-[background-color] duration-150 ease-out first:border-t-0 hover:bg-muted motion-reduce:transition-none"
+            className="flex cursor-pointer items-center gap-3 px-3.5 py-2 text-xs text-ink-2 transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none"
          >
             {/* a cell of its own, so the row header is the name alone */}
             <span role="cell" className="flex w-3 flex-none">
@@ -527,7 +604,15 @@ function PortfolioRow({
             <span role="rowheader" className="flex min-w-0 flex-1 flex-col items-start">
                <button
                   type="button"
+                  data-portfolio-focus
+                  aria-describedby={hint}
                   onClick={() => navigate({ project: item.slug })}
+                  onKeyDown={e => {
+                     if (e.key !== ' ') return;
+                     // Space opens the row here; Enter, like a click, opens its page
+                     e.preventDefault();
+                     setOpen(o => !o);
+                  }}
                   className="hit pressable min-w-0 rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium break-words text-ink hover:text-brand"
                   title="Open the project page"
                >
@@ -536,9 +621,13 @@ function PortfolioRow({
                {under && (
                   <span className="flex flex-wrap items-baseline gap-x-2 text-[11px]">
                      {item.group && <FlagWords g={item.group} />}
-                     <span className="md:hidden">
-                        <PlanButton item={item} act={act} />
-                     </span>
+                     {/* words, not a link: on a phone a tap on the row opens
+                         it, and the plan's own line inside goes to the plan */}
+                     {cell.text && (
+                        <span className={`md:hidden ${cell.warn && !repeat ? 'text-warn' : ''}`}>
+                           {cell.text}
+                        </span>
+                     )}
                   </span>
                )}
             </span>
@@ -550,7 +639,7 @@ function PortfolioRow({
                      c.hide ?? ''
                   }`}
                >
-                  {c.cell(item, act)}
+                  {c.cell(item, act, repeat)}
                </span>
             ))}
          </div>
@@ -565,11 +654,12 @@ function PortfolioRow({
                      navigate={navigate}
                      onPerson={act.onPerson}
                      links={act.factLinks(item)}
+                     workers={act.workers}
                   />
                </div>
             </div>
          )}
-      </>
+      </div>
    );
 }
 
@@ -612,6 +702,8 @@ function ProjectTable({
          {more > 0 && (
             <button
                type="button"
+               // j and k open it on the way past (components/useRowKeys.ts)
+               data-row-more={all ? undefined : true}
                onClick={toggle}
                className="pressable block w-full border-t border-secondary bg-muted/50 px-3.5 py-[9px] text-left text-xs font-medium text-ink-2 hover:text-brand"
             >
@@ -631,22 +723,34 @@ function download(items: readonly PortfolioItem[]) {
    URL.revokeObjectURL(url);
 }
 
-const capitalized = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
+/** A band's gloss when the list is grouped: what put its projects there. */
+function bandGloss(by: string, title: string): string {
+   if (title.startsWith('No ')) return `Projects with ${title.toLowerCase()}`;
+   if (by === 'parent') return `${title}, and the projects that are part of it`;
+   if (by === 'lead') return `Projects ${title} leads`;
+   return `Projects on the ${title} team: its plan’s team, or else the team most of its developers are on`;
+}
+
+/** the column names' place while the rows scroll: under the app's header
+ * and the list's own sticky bar, opaque, and above the rows' controls */
+const STUCK =
+   'sticky top-[calc(var(--header-h,0px)_+_var(--bar-h,0px))] z-[4] bg-[color-mix(in_oklab,var(--muted)_40%,var(--surface))]';
 
 /**
- * Every project on one list. Tabs pick which (in progress by default), and
- * each counts what it would show; a column header sorts, what's owed first
- * by default; grouping splits by parent, lead or team; the find box narrows
- * by name, parent, lead or team; and a tile or a chart's bar narrows it
- * further, said by a chip in the bar that clears it. What's listed is what
- * the CSV and the copied text hold. All of it rides in the URL, so a view
- * can be shared.
+ * Every project on one list. Tabs pick which (the ones being worked on by
+ * default), and each counts what it would show; a column header sorts,
+ * what's owed first by default; grouping splits by parent, lead or team;
+ * the find box narrows by name, parent, lead or team; and a tile or a
+ * chart's bar narrows it further, said by a chip in the bar that clears it.
+ * What's listed is what the CSV and the copied text hold. All of it rides
+ * in the URL, so a view can be shared.
  */
 export function Portfolio({
    items,
    prefix,
-   workersLoaded,
+   workers,
    nameOf,
+   teams,
    nav,
    navigate,
    opts,
@@ -656,8 +760,10 @@ export function Portfolio({
    items: PortfolioItem[];
    /** the project label prefix */
    prefix: string;
-   workersLoaded: boolean;
+   workers: Workers;
    nameOf: (slug: string) => string;
+   /** the team names in their configured order */
+   teams: readonly string[];
    nav: ProjectsNav;
    navigate: Navigate;
    opts: RowOptions;
@@ -665,22 +771,47 @@ export function Portfolio({
    me: string;
 }) {
    const [copied, setCopied] = useState(false);
+   const hint = useId();
+   const barRef = useRef<HTMLDivElement>(null);
+   // j and k move between the projects, landing on each one's name
+   useRowKeys('[data-portfolio-row]', '[data-portfolio-focus]');
+   // the column names stick under the list's own sticky bar, which is as
+   // tall as its toolbar wraps to, and doesn't stick on a phone (below)
+   useLayoutEffect(() => {
+      const wrap = barRef.current;
+      const bar = wrap?.firstElementChild;
+      const section = wrap?.parentElement;
+      if (!wrap || !bar || !section) return;
+      const publish = () =>
+         section.style.setProperty(
+            '--bar-h',
+            getComputedStyle(wrap).display === 'contents'
+               ? `${bar.getBoundingClientRect().height}px`
+               : '0px'
+         );
+      publish();
+      const ro = new ResizeObserver(publish);
+      ro.observe(bar);
+      return () => ro.disconnect();
+   }, []);
    const narrowed = items.filter(i => matchesFind(i, nav.find) && matchesOnly(i, nav.only));
    const shown = sortItems(
       narrowed.filter(i => matchesStatus(i, nav.status)),
       nav.sort
    );
-   const groups = groupItems(shown, nav.group, nameOf);
+   const groups = groupItems(shown, nav.group, nameOf, teams);
    // each tab counts what it would show with the find and a tile's pick, so
    // the tab that's on always says how many rows are below it
    const statusOptions: [string, string][] = STATUS_FILTERS.map(([key, label]) => {
       const count = narrowed.filter(i => matchesStatus(i, key)).length;
       return [key, count ? `${label} · ${count}` : label];
    });
+   // from every project, not the tab's: columns that come and go with the
+   // tab would move the ones a reader was following
    const columns = [
       ...COLUMNS,
-      ...(shown.some(i => i.issues?.total) ? [ISSUES] : []),
-      ...(shown.some(i => i.target) ? [TARGET] : []),
+      ...(items.some(i => i.issues?.total) ? [ISSUES] : []),
+      ...(items.some(i => i.target) ? [TARGET] : []),
    ];
    const sort = parseSort(nav.sort);
    const onSort = (s: string) => navigate({ sort: s });
@@ -705,7 +836,7 @@ export function Portfolio({
             // the roadmap lists only work in flight; a quiet project isn't there
             find: item.status === 'live' ? item.slug : '',
          }),
-      workersLoaded,
+      workers,
       openProject: slug => navigate({ project: slug }),
       factLinks: item => ({
          navigate,
@@ -721,7 +852,7 @@ export function Portfolio({
          setTimeout(() => setCopied(false), 2000);
       });
    };
-   const row = (item: PortfolioItem) => (
+   const row = (item: PortfolioItem, repeat = false) => (
       <PortfolioRow
          key={item.slug}
          item={item}
@@ -731,18 +862,20 @@ export function Portfolio({
          opts={opts}
          nav={nav}
          navigate={navigate}
+         hint={hint}
+         repeat={repeat}
       />
    );
    const grouped = groups.length > 1 || !!groups[0]?.title;
    // the visible header row sorts; a group's own table repeats its names for
    // a screen reader, so each cell keeps its column's name
    const head = (visible: boolean) => (
-      <div role="rowgroup">
+      <div role="rowgroup" className={visible && !grouped ? STUCK : undefined}>
          {visible ? (
             <div
                role="row"
                // grouped, the first band's own rule sits under it
-               className={`flex items-center gap-3 bg-muted/40 px-3.5 py-[7px] ${
+               className={`flex items-center gap-3 px-3.5 py-[7px] ${
                   grouped ? '' : 'border-b border-line'
                }`}
             >
@@ -813,9 +946,9 @@ export function Portfolio({
          />
          {only && (
             <NarrowChip
-               label={capitalized(only)}
-               clear={`Show every project, not only ${only}`}
-               onClear={() => navigate({ only: null })}
+               label={upperFirst(only)}
+               clear={`Show every project ${BEING_WORKED_ON}, not only ${only}`}
+               onClear={() => navigate(AS_OPENED)}
             />
          )}
       </div>
@@ -825,20 +958,17 @@ export function Portfolio({
    const actions = (
       <span className="inline-flex items-center gap-2">
          <QuietButton
-            size="md"
             onClick={copy}
             disabled={!shown.length}
             title="Copy the projects listed here as plain text, for an email or a chat post: each one’s plan, its latest update, and when it last moved"
          >
-            {copied ? 'Copied' : 'Copy status'}
+            {copied ? 'Copied' : COPY_AS_TEXT}
          </QuietButton>
          <QuietButton
-            size="md"
             onClick={() => download(shown)}
             disabled={!shown.length}
             title="Download the projects listed here as a spreadsheet file (CSV)"
          >
-            <Icon icon={Download} size={14} className="mr-1.5" />
             CSV
          </QuietButton>
          <span className="sr-only" aria-live="polite">
@@ -851,29 +981,37 @@ export function Portfolio({
          <p className="m-0">
             Amber Plan words name what someone owes: a call Decide asks for, such as a first plan, a
             plan past its end or its target, a stall, or work marked done that still takes PRs; or
-            an update its lead owes. Those rows come first, then the rest, each by how long since
-            anyone worked on it.
+            an update its lead owes. Decide’s calls come first, in Decide’s own order, then the
+            updates owed, then the rest, each by how long since anyone worked on it.
          </p>
          <p className="m-0">
-            In progress means an open PR or a merge in the {LAST_14_DAYS}, and not parked, done or
-            dropped on the roadmap. Quiet is an open project with nothing in flight.
+            {upperFirst(BEING_WORKED_ON)} means an open PR or a merge in the {LAST_14_DAYS}, and not
+            parked, done or dropped on the roadmap, unless Decide asks about it because its PRs
+            still move. Quiet is an open project with nothing in flight.
          </p>
          <p className="m-0">
-            A tile or a chart’s bar narrows the list; its chip in the bar says how, and the × shows
-            everything again.
+            Open for counts from its oldest open PR. Last activity is real work: a push, a comment,
+            review or stamp, opening or merging. People and Merged count the {LAST_14_DAYS};
+            Waiting, the open PRs waiting on a CR or QA.
+         </p>
+         <p className="m-0">
+            The find box matches a project, lead, team or parent; “lead:”, “team:” or “parent:”
+            before a name matches only that.
+         </p>
+         <p className="m-0">
+            A tile or a chart’s bar narrows the list; its chip in the bar says how, and the × lets
+            it go.
+         </p>
+         <p className="m-0">
+            j and k move between projects. On a project’s name, Enter opens its page and Space opens
+            it here.
          </p>
       </SubDoor>
    ) : (
       <span>
          Sorted by {sortedBy}
          {sort.reversed ? ', reversed' : ''}.{' '}
-         <button
-            type="button"
-            onClick={() => onSort(DEFAULT_SORT)}
-            className="hit pressable rounded border-0 bg-transparent p-0 text-xs font-medium text-brand hover:underline"
-         >
-            Put what’s owed first
-         </button>
+         <TextButton onClick={() => onSort(DEFAULT_SORT)}>Put what’s owed first</TextButton>
       </span>
    );
    return (
@@ -882,7 +1020,7 @@ export function Portfolio({
              it scrolls away: this box is exactly its height, leaving it no
              room to stick. From sm up the box drops out and it sticks
              through the list */}
-         <div className="sm:contents">
+         <div ref={barRef} className="sm:contents">
             <GroupHeader
                title="All projects"
                sub={sub}
@@ -894,10 +1032,15 @@ export function Portfolio({
                }
             />
          </div>
-         <Rows>
+         <span id={hint} className="sr-only">
+            Enter opens its page; Space shows its details here.
+         </span>
+         {/* clipped, not hidden: overflow hidden would end the column names'
+             stick at this box */}
+         <div className="overflow-clip rounded-2xl border border-line bg-surface">
             {grouped ? (
                <>
-                  <div role="table" aria-label="Sort the projects">
+                  <div role="table" aria-label="Sort the projects" className={STUCK}>
                      {head(true)}
                   </div>
                   {groups.map(g => (
@@ -905,6 +1048,7 @@ export function Portfolio({
                         key={g.title}
                         count={g.items.length}
                         label={g.title}
+                        gloss={bandGloss(nav.group, g.title)}
                         // logins keep their case
                         caps={nav.group !== 'lead'}
                         id={`portfolio:${nav.group}:${g.title.replace(/\s+/g, '-')}`}
@@ -916,7 +1060,7 @@ export function Portfolio({
                            head={head(false)}
                            items={g.items}
                            id={`portfolio:${nav.status}:${g.title}`}
-                           row={row}
+                           row={item => row(item, g.repeats.has(item.slug))}
                         />
                      </Fold>
                   ))}
@@ -928,7 +1072,7 @@ export function Portfolio({
                   head={head(true)}
                   items={shown}
                   id={`portfolio:${nav.status}:`}
-                  row={row}
+                  row={item => row(item)}
                />
             )}
             {!shown.length && (
@@ -936,20 +1080,16 @@ export function Portfolio({
                   {nav.find || nav.only ? (
                      <>
                         No project matches that.{' '}
-                        <button
-                           type="button"
-                           onClick={() => navigate({ find: '', only: null })}
-                           className="hit pressable rounded border-0 bg-transparent p-0 text-[13px] font-medium text-brand hover:underline"
-                        >
+                        <TextButton onClick={() => navigate({ find: '', only: null })}>
                            Show all
-                        </button>
+                        </TextButton>
                      </>
                   ) : (
                      'No projects here.'
                   )}
                </div>
             )}
-         </Rows>
+         </div>
       </section>
    );
 }

@@ -6,14 +6,16 @@ import {
    type RoadmapUpdate,
 } from '../../../../shared/model/roadmap';
 import {
+   capacityWords,
+   clearedBy,
    crossesLine,
    healthWords,
-   loadWords,
    moveWords,
    planCellWords,
    planWarnings,
    stepWithin,
    waitsWords,
+   type PlanCall,
    type PlanWarnings,
    type Said,
 } from './roadmapHealth';
@@ -51,7 +53,7 @@ const update = (daysAgo: number, health: RoadmapUpdate['health']): RoadmapUpdate
 });
 /** the pieces said in amber, across all of a plan's words */
 const amber = (w: PlanWarnings) =>
-   Object.values(w)
+   [w.status, w.health, w.over, w.target, w.waits]
       .flatMap((s: Said | null) => s?.pieces ?? [])
       .filter(p => p.amber)
       .map(p => p.text);
@@ -106,20 +108,14 @@ describe('amber means someone owes something', () => {
       expect(waitsWords(item(1, { status: 'done', waits_on: [2] }), all)).toBeNull();
    });
 
-   it('on a lane: once a week has as much in flight as developers, its reason and not its counts', () => {
-      const origins = { asked: 0, fire: 0, chosen: 0, unsaid: 1 };
-      const weeks = [
-         { week: '2026-09-28', onPlan: 1, origins, offPlan: 1, projected: false },
-         { week: '2026-10-05', onPlan: 1, origins, offPlan: 0, projected: true },
-      ];
-      expect(loadWords(weeks, 3, TODAY)?.pieces.some(p => p.amber)).toBe(false);
-      const full = loadWords(weeks, 2, TODAY);
-      expect(full?.text).toMatch(
-         /^2 in progress the week of .+ for 2 developers · no one to spare$/
-      );
+   it('on a lane: once this week has as much being worked on as developers, its reason and not its counts', () => {
+      expect(capacityWords(3, 4)?.text).toBe('3 being worked on this week, for 4 developers');
+      expect(capacityWords(3, 4)?.pieces.some(p => p.amber)).toBe(false);
+      const full = capacityWords(4, 4);
+      expect(full?.text).toBe('4 being worked on this week, for 4 developers · no one to spare');
       expect(full?.pieces.filter(p => p.amber).map(p => p.text)).toEqual(['no one to spare']);
-      expect(loadWords(weeks, 1, TODAY)?.text).toMatch(/more than it can staff$/);
-      expect(loadWords([], 2, TODAY)).toBeNull();
+      expect(capacityWords(5, 4)?.text).toMatch(/· more than it can staff$/);
+      expect(capacityWords(0, 4)).toBeNull();
    });
 
    it('on the load chart: the developer line, once a week from this one on crosses it', () => {
@@ -151,7 +147,7 @@ describe('one owed call, one amber mark', () => {
       expect(amber(w)).toEqual(['Off track']);
       expect(w.over?.text).toBe('3 weeks past its end');
       expect(w.over?.mark).toBe('+3 wk over');
-      expect(w.target?.text).toBe('Missed Sep 25 target');
+      expect(w.target?.text).toBe('Missed its Sep 25 target');
    });
 
    it('past its end when nothing worse is owed', () => {
@@ -189,6 +185,72 @@ describe('one owed call, one amber mark', () => {
    });
 });
 
+describe('Decide’s call on a plan’s row', () => {
+   const call = (kind: PlanCall['kind'], text: string, question: string): PlanCall => ({
+      kind,
+      text,
+      question,
+      title: `${text}. ${question}`,
+   });
+   const sso = item(1, {
+      project: 'release-gate-sso',
+      start: '2026-08-03',
+      weeks: 6,
+      update: update(3, 'off_track'),
+   });
+   const project = { live: true, target: { title: 'Security review', due_on: '2026-09-25' } };
+
+   it('asks its question after the words that hold its reason, the row’s one amber mark', () => {
+      const w = planWarnings(
+         sso,
+         [sso],
+         TODAY,
+         project,
+         NOW,
+         call('off_track', 'Off track', 'New end?')
+      );
+      expect(w.health?.text).toBe('Off track · New end?');
+      expect(amber(w)).toEqual(['New end?']);
+      // the facts it would have warned of stay, in ink
+      expect(w.target?.text).toBe('Missed its Sep 25 target');
+      const missed = planWarnings(
+         { ...sso, update: null },
+         [sso],
+         TODAY,
+         project,
+         NOW,
+         call('missed', 'Missed Sep 25 target', 'New end?')
+      );
+      expect(missed.target?.text).toBe('Missed its Sep 25 target · New end?');
+      expect(amber(missed)).toEqual(['New end?']);
+   });
+
+   it('says a call no other word holds where the status goes', () => {
+      const parked = item(1, { project: 'store-picker', status: 'parked' });
+      const w = planWarnings(
+         parked,
+         [parked],
+         TODAY,
+         { live: true, target: null },
+         NOW,
+         call('moving', 'Parked, still worked on', 'Back on?')
+      );
+      expect(w.status?.text).toBe('Parked, still worked on · Back on?');
+      expect(amber(w)).toEqual(['Back on?']);
+      // past its end: the call says it, and the bar's piece stays ink
+      const over = planWarnings(
+         { ...sso, update: null },
+         [sso],
+         TODAY,
+         { live: true, target: null },
+         NOW,
+         call('over', '3 weeks past its end', 'New end?')
+      );
+      expect(over.status?.text).toBe('3 weeks past its end · New end?');
+      expect(amber(over)).toEqual(['New end?']);
+   });
+});
+
 describe('moving plans', () => {
    it('moves past the neighbor on screen, leaving the hidden ones in place', () => {
       // 2 and 4 are hidden by the find box
@@ -196,6 +258,16 @@ describe('moving plans', () => {
       expect(stepWithin([1, 2, 3, 4], [1, 3], 3, -1)).toEqual([3, 1, 2, 4]);
       expect(stepWithin([1, 2, 3, 4], [1, 3], 3, 1)).toBeNull();
       expect(stepWithin([1, 2, 3, 4], [1, 3], 1, -1)).toBeNull();
+   });
+
+   it('says what owed word a move clears, so a week’s nudge can’t hide one', () => {
+      // in progress since Sep 14 with no update: one owes after 14 days
+      const mysql = item(1, { start: '2026-09-14', weeks: 12 });
+      const warnings = (start: string) =>
+         planWarnings({ ...mysql, start }, [mysql], TODAY, null, NOW);
+      expect(amber(warnings('2026-09-14'))).toEqual(['No update yet']);
+      expect(clearedBy(warnings('2026-09-14'), warnings('2026-09-21'))).toBe('No update yet');
+      expect(clearedBy(warnings('2026-09-14'), warnings('2026-09-07'))).toBeNull();
    });
 
    it('says a move or a resize, and nothing when it ended where it began', () => {

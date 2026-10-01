@@ -1,4 +1,4 @@
-import { ago, pullKey } from '../../../shared/format';
+import { ago, n, pullKey } from '../../../shared/format';
 import type { ClosedIssue } from '../../../shared/model/decide';
 import { dayStart } from '../../../shared/model/projects';
 import type { RoadmapItem } from '../../../shared/model/roadmap';
@@ -24,7 +24,7 @@ export { prStage, type PrStage };
 /**
  * Where work stands, in a product manager's words rather than the board's
  * CR and QA ones. An open PR is ready to merge, on hold, waiting on review,
- * or being worked on. An open issue is as far along as its least finished
+ * or in development. An open issue is as far along as its least finished
  * open PR; with none open, either its PRs merged and the issue is still
  * open, or no PR does it yet. Closing an issue is a person's call, so a
  * closed one is done or dropped whatever its PRs say.
@@ -36,7 +36,9 @@ export const STAGE_WORDS: Record<IssueStage, string> = {
    ready: 'Ready to merge',
    hold: 'On hold',
    review: 'Waiting on review',
-   work: 'Being worked on',
+   // not "being worked on": the tab says that of a project whose PRs moved
+   // lately (words.ts BEING_WORKED_ON), which a PR waiting on review is too
+   work: 'In development',
    merged: 'PRs merged, issue still open',
    none: 'No PR yet',
    done: 'Done',
@@ -88,14 +90,23 @@ export function issueStanding(
 
 /**
  * Who holds an open PR right now, in a few words: its author while it's
- * being worked on or ready to merge, whose turn it is to review, or what
+ * in development or ready to merge, whose turn it is to review, or what
  * holds it. Says how long it's been open once that's past `ageWarnDays`,
  * the board's own age warning. With `line`, the words start a line: they
  * take a capital, unless they start with a login, which is never changed.
+ * With `onRow`, the words sit under the PR's own row, so they leave out
+ * what the row already shows: its author (the face), an outside block (its
+ * "external" flag) and its age (the rail); with nothing left, they're
+ * empty.
  */
 export function holderWords(
    p: DerivedPull,
-   opts: { turns?: ReadonlyMap<string, string>; ageWarnDays?: number; line?: boolean } = {}
+   opts: {
+      turns?: ReadonlyMap<string, string>;
+      ageWarnDays?: number;
+      line?: boolean;
+      onRow?: boolean;
+   } = {}
 ): string {
    // the board's own words, which a line's start capitalizes
    const own = (words: string) => (opts.line ? words[0].toUpperCase() + words.slice(1) : words);
@@ -103,7 +114,7 @@ export function holderWords(
    let who: string;
    if (stage === 'hold') {
       if (parked(p)) who = own('parked');
-      else if (p.externalBlock) who = own('blocked outside the repo');
+      else if (p.externalBlock) who = opts.onRow ? '' : own('blocked outside the repo');
       else
          who = own(
             p.deployBlockedBy.length
@@ -113,10 +124,10 @@ export function holderWords(
    } else if (stage === 'review') {
       who = reviewWaits(p, opts.turns?.get(pullKey(p.data)) ?? null, own);
    } else {
-      who = own(`with ${p.data.user.login}`);
+      who = opts.onRow ? '' : own(`with ${p.data.user.login}`);
    }
    const age = Math.floor(p.ageDays);
-   return opts.ageWarnDays != null && age >= opts.ageWarnDays
+   return !opts.onRow && opts.ageWarnDays != null && age >= opts.ageWarnDays
       ? `${who}, PR open ${days(age)}`
       : who;
 }
@@ -200,40 +211,68 @@ export const addedLater = (issue: Pick<AttachedIssue, 'attachedAt'>, planned: nu
 /** how many trailing days set the pace an issue forecast runs on */
 const PACE_DAYS = 28;
 
-const dateWords = (at: number) =>
-   new Date(at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+/**
+ * The day a time fell on here, the way the tab says a day: "Sep 21", with
+ * its year when that isn't this one ("Mar 3, 2024"). One unbreakable
+ * phrase, so a narrow line never leaves "Sep" at its end and "21" on the
+ * next.
+ */
+export function dateWords(at: number, now: number = Date.now() / 1000): string {
+   const date = new Date(at * 1000);
+   const thisYear = date.getFullYear() === new Date(now * 1000).getFullYear();
+   return date
+      .toLocaleDateString(undefined, {
+         month: 'short',
+         day: 'numeric',
+         year: thisYear ? undefined : 'numeric',
+      })
+      .replace(/ /g, '\u00a0');
+}
+
+/** A median time in the words a person says it: hours under a day ("about
+ * 7 hours"), whole days from there ("6 days"), never "0.3 days". */
+export function durationWords(d: number): string {
+   const hours = Math.round(d * 24);
+   if (hours < 1) return 'under an hour';
+   if (hours === 1) return 'about an hour';
+   return hours < 24 ? `about ${n(hours, 'hour')}` : days(Math.round(d));
+}
 
 /**
  * A rough finish for a project's issues: how many closed (done or
  * dropped) and how many were added over the last four weeks set a pace,
  * and the open ones at that pace give a day, or the words that there's no
- * end in sight. `due` (YYYY-MM-DD) adds "after the target" to a day past
- * it. The title says how it's worked out. Null when no issue is open.
+ * end in sight. With none closed there's no pace to compare, so it only
+ * counts. `due` (YYYY-MM-DD) adds "after the target" to a day past it.
+ * `how` says how it's worked out. Null when no issue is open.
  */
 export function issueForecast(
    issues: readonly Pick<ProjectIssue, 'state' | 'closedAt' | 'attachedAt'>[],
    due: string | null,
    now: number = Date.now() / 1000
-): { text: string; title: string } | null {
+): { text: string; how: string } | null {
    const open = issues.filter(i => i.state === 'open').length;
    if (!open) return null;
    const since = now - PACE_DAYS * DAY;
    const closed = issues.filter(i => i.state !== 'open' && (i.closedAt ?? 0) >= since).length;
    const added = issues.filter(i => (i.attachedAt ?? 0) >= since).length;
-   const title = `In the last four weeks ${closed} of its issues closed (done or dropped) and ${added} were added; ${open} are open. A rough guide: it assumes that pace holds.`;
-   if (!closed && !added) return { text: 'no issue closed or added in four weeks', title };
+   const how = `In the last four weeks ${closed} of its issues closed (done or dropped) and ${added} were added; ${open} are open. A rough guide: it assumes that pace holds.`;
+   if (!closed && !added) return { text: 'no issue closed or added in four weeks', how };
    const tally = `${closed || 'none'} closed, ${added || 'none'} added in four weeks`;
+   // a young project's issues all arrived lately: "faster than they close"
+   // would say it's losing ground before anything had a chance to close
+   if (!closed) return { text: tally, how };
    if (closed <= added) {
       const pace = closed === added ? 'as fast as' : 'faster than';
-      return { text: `${tally}: issues arrive ${pace} they close`, title };
+      return { text: `${tally}: issues arrive ${pace} they close`, how };
    }
    const weeks = Math.ceil((open * PACE_DAYS) / 7 / (closed - added));
    const eta = now + weeks * 7 * DAY;
    // the milestone's day as GitHub means it, the same day the target shows
    const late = due != null && dayOf(new Date(eta * 1000)) > due.slice(0, 10);
    return {
-      text: `${tally}: done around ${dateWords(eta)}${late ? ', after the target' : ''}`,
-      title,
+      text: `${tally}: done around ${dateWords(eta, now)}${late ? ', after the target' : ''}`,
+      how,
    };
 }
 
