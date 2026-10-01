@@ -223,7 +223,7 @@ function lastChangesRequestedAt(p: DerivedPull): number | null {
  * (and, for the reviewer who asked, an actionable "Re-review"). False when
  * the review can't be dated: nagging beats wrongly absolving.
  */
-function feedbackAnswered(p: DerivedPull): boolean {
+export function feedbackAnswered(p: DerivedPull): boolean {
    const at = lastChangesRequestedAt(p);
    return at != null && p.headPushedAt != null && p.headPushedAt > at;
 }
