@@ -193,6 +193,18 @@ test('status_at says when the status changed, and an edit that keeps it leaves i
    const again = await call('PATCH', `/roadmap/${id}`, { status: 'done', restate: true });
    assert.equal(again.body.item.status_at, again.body.item.updated_at);
    assert.ok(again.body.item.status_at > 1000);
+   // Undo puts the old status back with the times the call replaced
+   const undone = await call('PATCH', `/roadmap/${id}`, {
+      status: 'planned',
+      undo: { updated_at: 2000, status_at: 1000 },
+   });
+   assert.equal(undone.body.item.status, 'planned');
+   assert.equal(undone.body.item.updated_at, 2000);
+   assert.equal(undone.body.item.status_at, 1000);
+   // a time from the future isn't put back: the write stamps now instead
+   const later = Math.floor(Date.now() / 1000) + 3600;
+   const bad = await call('PATCH', `/roadmap/${id}`, { notes: 'x', undo: { updated_at: later } });
+   assert.ok(bad.body.item.updated_at < later);
 });
 
 test('a new item starts planned, four weeks from a Monday, at the bottom', async () => {

@@ -57,6 +57,19 @@ function idOf(req) {
    return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+/**
+ * The times an Undo puts back: whole seconds, none in the future (a time from
+ * the future would hide every call until it passed). Null when the body
+ * sends none or they don't check out.
+ */
+function undoTimes(undo, now = Math.floor(Date.now() / 1000)) {
+   if (!undo || typeof undo !== 'object') return null;
+   const ok = t => Number.isInteger(t) && t > 0 && t <= now;
+   if (!ok(undo.updated_at)) return null;
+   if (undo.status_at != null && !ok(undo.status_at)) return null;
+   return { updated_at: undo.updated_at, status_at: undo.status_at ?? null };
+}
+
 export default {
    /**
     * GET /roadmap (session) and GET /api/v1/roadmap (Bearer) -- every
@@ -162,7 +175,10 @@ export default {
          });
    },
 
-   /** PATCH /roadmap/:id with any of the item's fields -- changes just those. */
+   /** PATCH /roadmap/:id with any of the item's fields -- changes just those.
+    * `restate: true` says a status sent as it already was is a call made
+    * again; `undo: { updated_at, status_at }` puts back the times a call
+    * replaced. */
    update: function (req, res) {
       const id = idOf(req);
       if (!id) return res.status(400).json({ error: 'the id must be a positive whole number' });
@@ -171,13 +187,10 @@ export default {
       waitsOnError(id, checked.fields)
          .then(async error => {
             if (error) return res.status(400).json({ error });
-            const item = await updateItem(
-               id,
-               checked.fields,
-               req.roadmapLogin,
-               undefined,
-               req.body?.restate === true
-            );
+            const item = await updateItem(id, checked.fields, req.roadmapLogin, {
+               restate: req.body?.restate === true,
+               undo: undoTimes(req.body?.undo),
+            });
             if (item) res.json({ item });
             else res.status(404).json({ error: 'no such roadmap item' });
          })
