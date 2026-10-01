@@ -1,5 +1,5 @@
 import { epoch, n } from '../../../shared/format';
-import { DECIDE_MIN_PRS, STALL_DAYS } from '../../../shared/model/decide';
+import { DECIDE_MIN_PRS, STALL_DAYS, specAllClosed } from '../../../shared/model/decide';
 import {
    dayStart,
    MISC_SLUG,
@@ -21,7 +21,7 @@ import {
 } from '../../../shared/model/roadmap';
 import type { Status } from '../../../shared/model/status';
 import type { PullData } from '../../../shared/types';
-import type { PlanScope } from '../../../shared/model/scope';
+import { scopeCounts, type PlanScope } from '../../../shared/model/scope';
 import { DEFAULT_SORT } from '../lens';
 import { dayOf } from './days';
 import { dayWords } from './projectData';
@@ -163,7 +163,7 @@ export function planCell(
    item: Pick<
       PortfolioItem,
       'plan' | 'project' | 'stage' | 'open' | 'merged' | 'target' | 'dueInDays'
-   > & { scope?: PlanScope | null },
+   > & { scope?: PlanScope | null; ongoing?: boolean },
    day: string,
    now: number
 ): PlanCell {
@@ -183,10 +183,9 @@ export function planCell(
       const end = planEnd(plan);
       if (update?.health === 'off_track')
          return { kind: 'off_track', text: 'Off track', warn: true };
-      // nothing left open in its spec: Decide asks whether it's done
-      const scope = item.scope;
-      if (scope && scope.open === 0 && scope.done + scope.dropped > 0) {
-         return { kind: 'scope_done', text: 'Spec done', warn: true };
+      // nothing left open in its spec, and no call since: Decide asks whether it's done
+      if (item.scope && specAllClosed(plan, scopeCounts(item.scope))) {
+         return { kind: 'scope_done', text: 'Spec all closed', warn: true };
       }
       if (end < day) {
          const weeks = Math.ceil(
@@ -211,7 +210,7 @@ export function planCell(
          : item.project?.state_reason === 'not_planned';
       return { kind: 'stopped', text: dropped ? 'Dropped' : 'Done', warn: false };
    }
-   const owed = item.open > 0 && item.open + item.merged >= DECIDE_MIN_PRS;
+   const owed = !item.ongoing && item.open > 0 && item.open + item.merged >= DECIDE_MIN_PRS;
    return { kind: 'no_plan', text: 'No plan', warn: owed };
 }
 

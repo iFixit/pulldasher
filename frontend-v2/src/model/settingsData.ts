@@ -9,7 +9,7 @@ import {
 } from '../../../shared/model/settings';
 import {
    refreshProjectsData,
-   setDummyOngoing,
+   markDummyOngoing,
    setDummyRotation,
    setDummyTeams,
 } from './projectData';
@@ -52,21 +52,23 @@ export async function saveDecideRotation(
 }
 
 /**
- * Saving which projects are ongoing (no end, so Decide never asks them for
- * a first plan): the whole list, as it should be after the change. The
- * dummy board keeps it in memory.
+ * Mark one project ongoing (no end, so Decide never asks it for a first
+ * plan), or with false take that back. The server changes its list one
+ * project at a time, so two quick clicks keep each other. The dummy board
+ * keeps the list in memory.
  */
-export async function saveOngoingProjects(
-   slugs: string[]
+export async function setOngoing(
+   slug: string,
+   ongoing: boolean
 ): Promise<{ ok: true } | { error: string }> {
-   const checked = checkOngoingProjects(slugs);
+   const checked = checkOngoingProjects([slug]);
    if ('error' in checked) return checked;
    if (isDummy()) {
-      setDummyOngoing(checked.slugs ?? []);
+      markDummyOngoing(slug, ongoing);
       refreshProjectsData();
       return { ok: true };
    }
-   return patchSettings({ ongoing_projects: checked.slugs }, 'which projects are ongoing');
+   return patchSettings({ ongoing_project: { slug, ongoing } }, 'whether it’s ongoing');
 }
 
 /** PATCH /settings, then load every window again. */

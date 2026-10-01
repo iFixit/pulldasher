@@ -237,7 +237,7 @@ export function checkRoadmapFields(input: unknown, { partial }: { partial: boole
             : null;
       if (optional('spec')) fields.spec = null;
       else if (!ref || ref.number < 1) {
-         return { error: 'the spec issue is an "owner/repo#123" or a GitHub issue link' };
+         return { error: 'the spec issue must be owner/repo#123 or a link to the issue' };
       } else fields.spec = ref;
    }
    if (has('start')) {

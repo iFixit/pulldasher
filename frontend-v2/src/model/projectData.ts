@@ -249,8 +249,8 @@ export function setDummyRotation(rotation: DecideRotation | null): void {
    dummyRotation = rotation;
 }
 let dummyOngoing: string[] = ['translations'];
-export function setDummyOngoing(slugs: string[]): void {
-   dummyOngoing = slugs;
+export function markDummyOngoing(slug: string, ongoing: boolean): void {
+   dummyOngoing = [...dummyOngoing.filter(s => s !== slug), ...(ongoing ? [slug] : [])];
 }
 
 /** Every project that runs with no end: marked on the board, or by the

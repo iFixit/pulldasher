@@ -1,8 +1,8 @@
-import { REPO_PATTERN, issueKey, type IssueRef } from './issueRef';
+import { REPO_PATTERN, issueKey, parseIssueRef, type IssueRef } from './issueRef';
 import { dayStart } from './projects';
 import { planEnd, type RoadmapItem } from './roadmap';
 
-export { issueKey, parseIssueRef, type IssueRef } from './issueRef';
+export { issueKey, issueText, parseIssueRef, type IssueRef } from './issueRef';
 
 /**
  * A plan's scope: the issues that say what the plan delivers. A plan names
@@ -11,7 +11,9 @@ export { issueKey, parseIssueRef, type IssueRef } from './issueRef';
  * label. A project with several plans over time (a launch, then its
  * feedback round) splits its work between them by date: a PR or an issue
  * belongs to the latest plan that had started when it arrived, unless it
- * links an issue in another plan's scope.
+ * links the scope of one plan that had started by then. An open issue that
+ * a later plan's spec lists too has moved there, so it no longer holds the
+ * earlier plan open.
  *
  * Done is a person's call. The scope only tells Decide when to ask
  * ("Done?") and the project page what arrived after the plan's end.
@@ -25,20 +27,47 @@ const DAY = 86400;
  * dropped is its tail, not a comeback (decide.ts REOPEN_DAYS agrees). */
 export const TAIL_DAYS = 7;
 
-/** The first issue a line of text names: a URL, "owner/repo#123", or
- * "#123" in `repo`. Null when it names none. */
-function firstRef(text: string, repo: string): IssueRef | null {
-   const found = [
-      new RegExp(`https?://github\\.com/(${REPO_PATTERN})/(?:issues|pull)/(\\d+)`, 'i').exec(text),
-      new RegExp(`(?:^|[\\s(\\[])(${REPO_PATTERN})#(\\d+)\\b`).exec(text),
-      /(?:^|[\s([])#(\d+)\b/.exec(text),
-   ]
-      .filter((m): m is RegExpExecArray => m != null)
-      .sort((a, b) => a.index - b.index)[0];
-   if (!found) return null;
-   return found.length === 3
-      ? { repo: found[1], number: Number(found[2]) }
-      : { repo, number: Number(found[1]) };
+/** The issue a checklist line stands for: the one its words start with,
+ * past any bold or link markup, so "#63236 (PR up: #63445)" stands for
+ * #63236. A line that names an issue further in ("keeping the row from
+ * #63064") is a plain line: there the issue is context, not the task. */
+function leadRef(text: string, repo: string): IssueRef | null {
+   const s = text.replace(/^[\s*_`[(]+/, '');
+   const m =
+      new RegExp(`^https?://github\\.com/(${REPO_PATTERN})/(?:issues|pull)/(\\d+)`, 'i').exec(s) ??
+      new RegExp(`^(${REPO_PATTERN})#(\\d+)\\b`).exec(s);
+   if (m) return { repo: m[1], number: Number(m[2]) };
+   const bare = /^#(\d+)\b/.exec(s);
+   return bare ? { repo, number: Number(bare[1]) } : null;
+}
+
+// the phrases that make a PR body's mention of an issue a link: iFixit's
+// "Parts of #N", and the closing and connecting words GitHub and
+// Pulldasher's own body tags read
+const LINK_WORDS =
+   'parts? of|clos(?:e[sd]?|ing)|fix(?:e[sd]|ing)?|resolv(?:e[sd]?|ing)|connect(?:s|ed)?(?: to)?';
+const ONE_REF = `(?:https?://github\\.com/${REPO_PATTERN}/(?:issues|pull)/\\d+|(?:${REPO_PATTERN})?#\\d+)`;
+
+/**
+ * The issues a PR's body links on purpose: each one named right after a
+ * linking phrase ("Parts of #62502", "fixes iFixit/ops#12", "closes" and
+ * an issue link), several after one phrase too ("Parts of #1, #2 and #3").
+ * A bare "#N" is in `repo`, the PR's. A passing mention ("unlike #63000")
+ * isn't a link.
+ */
+export function bodyLinks(body: string | null, repo: string): IssueRef[] {
+   const phrase = new RegExp(
+      `\\b(?:${LINK_WORDS}):?\\s+(${ONE_REF}(?:\\s*(?:,|and|&)\\s*${ONE_REF})*)`,
+      'gi'
+   );
+   const refs: IssueRef[] = [];
+   for (const m of (body ?? '').matchAll(phrase)) {
+      for (const one of m[1].matchAll(new RegExp(ONE_REF, 'gi'))) {
+         const ref = parseIssueRef(one[0], repo);
+         if (ref) refs.push(ref);
+      }
+   }
+   return refs;
 }
 
 /** One line of a spec issue's checklist. */
@@ -52,9 +81,9 @@ export interface ChecklistLine {
 
 /**
  * The checklist in an issue's body: every "- [ ]" or "- [x]" line ("*" and
- * "+" too), outside fenced code. A line naming an issue stands for that
- * issue, the first one named: "- [x] #63236 (PR up: #63445)" stands for
- * #63236. Every other line is a plain line, done when checked.
+ * "+" too), outside fenced code. A line that starts with an issue stands
+ * for that issue (leadRef); every other line is a plain line, done when
+ * checked.
  */
 export function parseChecklist(body: string | null, repo: string): ChecklistLine[] {
    const lines: ChecklistLine[] = [];
@@ -64,7 +93,7 @@ export function parseChecklist(body: string | null, repo: string): ChecklistLine
       if (fenced) continue;
       const m = /^\s*[-*+]\s+\[([ xX])\]\s+(.*\S)\s*$/.exec(raw);
       if (!m) continue;
-      lines.push({ checked: m[1] !== ' ', text: m[2], ref: firstRef(m[2], repo) });
+      lines.push({ checked: m[1] !== ' ', text: m[2], ref: leadRef(m[2], repo) });
    }
    return lines;
 }
@@ -92,8 +121,11 @@ export interface ScopeItem {
    closedAt: number | null;
    /** epoch secs it joined the scope; null when not known (a checklist line) */
    joinedAt: number | null;
-   /** the PRs that close or mention it (planScopes fills these in) */
+   /** the PRs that link it: close it, or name it after a linking phrase
+    * (bodyLinks); planScopes fills these in */
    prs?: LinkedPull[];
+   /** still open, and a later plan's spec lists it too: that plan's id */
+   movedTo?: number;
 }
 
 /** A PR linked to a scope item: its title and state when it's one of the
@@ -119,21 +151,22 @@ export interface WorkPull {
 
 /**
  * Which of a project's plans a piece of work belongs to: the one plan whose
- * scope it links, if exactly one; else the latest plan that had started by
- * `at`, or the earliest plan when it came before them all. Null for a
- * project with no plans.
+ * scope it links, if exactly one had started by `at`; else the latest plan
+ * that had started by `at`, or the earliest plan when it came before them
+ * all. A link into a plan that hadn't started yet doesn't count: work done
+ * before a plan began belongs to the one running then. Null for a project
+ * with no plans.
  */
 export function planOfWork(
    plans: readonly RoadmapItem[],
    at: number,
    linked: ReadonlySet<number> = new Set()
 ): RoadmapItem | null {
-   const mine = plans.filter(p => linked.has(p.id));
-   if (mine.length === 1) return mine[0];
-   const pool = mine.length ? mine : plans;
-   const sorted = [...pool].sort((a, b) => a.start.localeCompare(b.start) || a.id - b.id);
+   const sorted = [...plans].sort((a, b) => a.start.localeCompare(b.start) || a.id - b.id);
    const started = sorted.filter(p => (dayStart(p.start) as number) <= at);
-   return started[started.length - 1] ?? sorted[0] ?? null;
+   const mine = started.filter(p => linked.has(p.id));
+   const pool = mine.length ? mine : started;
+   return pool[pool.length - 1] ?? sorted[0] ?? null;
 }
 
 /** The first moment after a plan's last planned day. */
@@ -153,10 +186,15 @@ export interface PlanScope {
    items: ScopeItem[];
    done: number;
    dropped: number;
+   /** still open, not counting the ones moved to a later plan */
    open: number;
-   /** items that joined after the plan was made */
-   added: number;
-   /** its project's PRs that belong to it and opened after its end, oldest first */
+   /** still open, and a later plan's spec lists them too */
+   moved: number;
+   /** items that joined after the plan's end */
+   addedAfterEnd: number;
+   /** its PRs still open */
+   openPulls: number;
+   /** its PRs that opened after its end, oldest first */
    afterEnd: WorkPull[];
    /** of those (or any of its PRs, for a plan marked done or dropped), the
     * ones opened more than TAIL_DAYS after it was marked so */
@@ -174,89 +212,136 @@ export interface ScopeInputs {
    pulls: ReadonlyMap<string, WorkPull[]>;
    /** the scope issues each PR links, by issueKey(pr) */
    links: ReadonlyMap<string, IssueRef[]>;
+   /** people's PRs with no project label: each counts toward the plans
+    * whose scope it links, of those that had started when it opened */
+   unlabeled?: readonly WorkPull[];
 }
 
 /**
  * Every plan's scope. Labeled issues go to the plan that had started when
- * they were labeled (an issue already in some plan's spec stays there). A
- * PR goes to the plan whose scope it links, else by its opening date.
+ * they were labeled (an issue already in one of the project's specs stays
+ * there). A PR goes to the plan whose scope it links, a spec issue
+ * included, else by its opening date (planOfWork).
  */
-export function planScopes({ plans, specs, labeled, pulls, links }: ScopeInputs): PlanScope[] {
+export function planScopes({
+   plans,
+   specs: specsIn,
+   labeled,
+   pulls,
+   links: linksIn,
+   unlabeled = [],
+}: ScopeInputs): PlanScope[] {
+   // keys ignore case (issueKey), however the caller spelled them
+   const specs = new Map([...specsIn].map(([k, v]) => [k.toLowerCase(), v]));
+   const links = new Map([...linksIn].map(([k, v]) => [k.toLowerCase(), v]));
+   const byId = new Map(plans.map(p => [p.id, p]));
    const byProject = new Map<string, RoadmapItem[]>();
    for (const plan of plans) {
       if (plan.project) byProject.set(plan.project, [...(byProject.get(plan.project) ?? []), plan]);
    }
-   // which plans each issue is in through a spec, for links and for keeping
-   // a labeled issue in the spec that already holds it
+   // which plans hold each issue through a spec (the spec issue itself
+   // included), for links and for keeping a labeled issue where a spec has it
    const specPlans = new Map<string, Set<number>>();
+   const hold = (k: string, id: number) =>
+      specPlans.set(k, new Set([...(specPlans.get(k) ?? []), id]));
    const items = new Map<number, ScopeItem[]>();
    for (const plan of plans) {
       const spec = plan.spec ? specs.get(issueKey(plan.spec)) : undefined;
       const list = spec ? [...spec.items] : [];
       items.set(plan.id, list);
-      for (const item of list) {
-         if (!item.ref) continue;
-         const k = issueKey(item.ref);
-         specPlans.set(k, new Set([...(specPlans.get(k) ?? []), plan.id]));
-      }
+      if (plan.spec) hold(issueKey(plan.spec), plan.id);
+      for (const item of list) if (item.ref) hold(issueKey(item.ref), plan.id);
    }
    for (const [slug, issues] of labeled) {
       const mine = byProject.get(slug) ?? [];
       for (const issue of issues) {
          const k = issue.ref ? issueKey(issue.ref) : '';
-         const inSpec = [...(specPlans.get(k) ?? [])].some(id => mine.some(p => p.id === id));
-         if (inSpec) continue;
+         if ([...(specPlans.get(k) ?? [])].some(id => byId.get(id)?.project === slug)) continue;
          const plan = planOfWork(mine, issue.joinedAt ?? 0);
          if (plan) items.get(plan.id)?.push(issue);
       }
    }
+   // the plans a PR links: the ones holding an issue it links,
+   // and the ones whose spec lists the PR itself
+   const linkedPlans = (pr: IssueRef): Set<number> => {
+      const ids = new Set(specPlans.get(issueKey(pr)) ?? []);
+      for (const ref of links.get(issueKey(pr)) ?? []) {
+         for (const id of specPlans.get(issueKey(ref)) ?? []) ids.add(id);
+      }
+      return ids;
+   };
+   const prsOfProject = new Map([...pulls].map(([slug, list]) => [slug, [...list]]));
+   // a PR with no project label is the project's only through a link, so
+   // only a link into a plan that had started brings it in (planOfWork)
+   for (const pr of unlabeled) {
+      const slugs = new Set(
+         [...linkedPlans(pr)]
+            .map(id => byId.get(id) as RoadmapItem)
+            .filter(p => p.project && (dayStart(p.start) as number) <= pr.createdAt)
+            .map(p => p.project as string)
+      );
+      for (const slug of slugs) prsOfProject.set(slug, [...(prsOfProject.get(slug) ?? []), pr]);
+   }
    const afterEnd = new Map<number, WorkPull[]>();
    const afterDone = new Map<number, WorkPull[]>();
-   for (const [slug, prs] of pulls) {
+   const openPulls = new Map<number, number>();
+   const push = (m: Map<number, WorkPull[]>, id: number, pr: WorkPull) =>
+      m.set(id, [...(m.get(id) ?? []), pr]);
+   for (const [slug, prs] of prsOfProject) {
       const mine = byProject.get(slug) ?? [];
       if (!mine.length) continue;
       for (const pr of prs) {
-         const linked = new Set<number>();
-         for (const ref of links.get(issueKey(pr)) ?? []) {
-            for (const id of specPlans.get(issueKey(ref)) ?? []) linked.add(id);
-         }
-         const plan = planOfWork(mine, pr.createdAt, linked);
+         const plan = planOfWork(mine, pr.createdAt, linkedPlans(pr));
          if (!plan) continue;
-         if (pr.createdAt >= afterEndOf(plan)) {
-            afterEnd.set(plan.id, [...(afterEnd.get(plan.id) ?? []), pr]);
-         }
+         if (pr.state === 'open') openPulls.set(plan.id, (openPulls.get(plan.id) ?? 0) + 1);
+         if (pr.createdAt >= afterEndOf(plan)) push(afterEnd, plan.id, pr);
          const stopped = plan.status === 'done' || plan.status === 'dropped';
          if (
             stopped &&
             plan.updated_at != null &&
             pr.createdAt > plan.updated_at + TAIL_DAYS * DAY
          ) {
-            afterDone.set(plan.id, [...(afterDone.get(plan.id) ?? []), pr]);
+            push(afterDone, plan.id, pr);
          }
       }
    }
    const byTime = (a: WorkPull, b: WorkPull) => a.createdAt - b.createdAt || a.number - b.number;
    // each scope issue's PRs, with titles and states for the projects' own
-   const known = new Map([...pulls.values()].flat().map(p => [issueKey(p), p]));
+   const known = new Map([...prsOfProject.values()].flat().map(p => [issueKey(p), p]));
    const prsOf = new Map<string, LinkedPull[]>();
-   for (const [pr, issues] of links) {
-      const p = known.get(pr);
-      const at = pr.lastIndexOf('#');
+   for (const [k, issues] of links) {
+      const p = known.get(k);
+      const at = k.lastIndexOf('#');
       const linked: LinkedPull = {
-         repo: pr.slice(0, at),
-         number: Number(pr.slice(at + 1)),
+         repo: p?.repo ?? k.slice(0, at),
+         number: p?.number ?? Number(k.slice(at + 1)),
          title: p?.title ?? null,
          state: !p ? null : p.mergedAt != null ? 'merged' : p.state,
       };
-      for (const ref of issues)
+      for (const ref of issues) {
          prsOf.set(issueKey(ref), [...(prsOf.get(issueKey(ref)) ?? []), linked]);
+      }
    }
+   // the first plan after `plan`, of its project, whose spec lists `k` too
+   const movedTo = (plan: RoadmapItem, k: string): number | undefined =>
+      [...(specPlans.get(k) ?? [])]
+         .map(id => byId.get(id) as RoadmapItem)
+         .filter(
+            p =>
+               p.project === plan.project &&
+               (p.start > plan.start || (p.start === plan.start && p.id > plan.id))
+         )
+         .sort((a, b) => a.start.localeCompare(b.start) || a.id - b.id)[0]?.id;
    return plans.map(plan => {
       const spec = plan.spec ? specs.get(issueKey(plan.spec)) : undefined;
-      const list = (items.get(plan.id) ?? []).map(item =>
-         item.ref ? { ...item, prs: prsOf.get(issueKey(item.ref)) ?? [] } : item
-      );
-      const count = (state: ItemState) => list.filter(i => i.state === state).length;
+      const list = (items.get(plan.id) ?? []).map(item => {
+         if (!item.ref) return item;
+         const k = issueKey(item.ref);
+         const later = item.state === 'open' && plan.project ? movedTo(plan, k) : undefined;
+         return { ...item, prs: prsOf.get(k) ?? [], ...(later != null ? { movedTo: later } : {}) };
+      });
+      const count = (state: ItemState) =>
+         list.filter(i => i.state === state && i.movedTo == null).length;
       return {
          planId: plan.id,
          spec: plan.spec ?? null,
@@ -266,9 +351,10 @@ export function planScopes({ plans, specs, labeled, pulls, links }: ScopeInputs)
          done: count('done'),
          dropped: count('dropped'),
          open: count('open'),
-         added: list.filter(
-            i => i.joinedAt != null && plan.created_at != null && i.joinedAt > plan.created_at
-         ).length,
+         moved: list.filter(i => i.movedTo != null).length,
+         addedAfterEnd: list.filter(i => i.joinedAt != null && i.joinedAt >= afterEndOf(plan))
+            .length,
+         openPulls: openPulls.get(plan.id) ?? 0,
          afterEnd: (afterEnd.get(plan.id) ?? []).sort(byTime),
          afterDone: (afterDone.get(plan.id) ?? []).sort(byTime),
       };
@@ -277,26 +363,31 @@ export function planScopes({ plans, specs, labeled, pulls, links }: ScopeInputs)
 
 /** What Decide needs from a plan's scope. */
 export interface ScopeCounts {
-   /** items not dropped */
+   /** items neither dropped nor moved to a later plan */
    total: number;
    done: number;
    dropped: number;
-   /** epoch secs the last item closed; null when one closed with no known
-    * time (a checked plain line), or none has */
+   /** epoch secs the last item closed, of those whose close time is known;
+    * null when none is */
    lastClosedAt: number | null;
    afterEnd: number;
    afterDone: number;
+   /** its PRs still open */
+   openPulls: number;
 }
 
 export function scopeCounts(scope: PlanScope): ScopeCounts {
-   const closed = scope.items.filter(i => i.state !== 'open');
-   const times = closed.map(i => i.closedAt);
+   const times = scope.items
+      .filter(i => i.state !== 'open')
+      .map(i => i.closedAt)
+      .filter((t): t is number => t != null);
    return {
       total: scope.done + scope.open,
       done: scope.done,
       dropped: scope.dropped,
-      lastClosedAt: !times.length || times.includes(null) ? null : Math.max(...(times as number[])),
+      lastClosedAt: times.length ? Math.max(...times) : null,
       afterEnd: scope.afterEnd.length,
       afterDone: scope.afterDone.length,
+      openPulls: scope.openPulls,
    };
 }

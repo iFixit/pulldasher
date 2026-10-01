@@ -33,7 +33,7 @@ import { useArmedConfirm } from '../../components/useArmedConfirm';
 import { mainTeam, type PortfolioItem } from '../../model/portfolio';
 import { dayOf, dayWords } from '../../model/projectData';
 import { commitEnds } from '../../model/roadmapTime';
-import { saveDecideRotation, saveOngoingProjects } from '../../model/settingsData';
+import { saveDecideRotation, setOngoing } from '../../model/settingsData';
 import { scopeCounts, type PlanScope } from '../../../../shared/model/scope';
 import {
    createRoadmapItem,
@@ -71,8 +71,8 @@ export function decideRows(
 const SECTIONS: [DecideReason['kind'][], string, string][] = [
    [
       ['reopened'],
-      'Done or dropped, but work goes on',
-      'Marked done or dropped, on the roadmap or by closing its issue, but a PR is still open a week later or a new one opened more than a week after',
+      'Done or dropped, but still being worked on',
+      'Marked done or dropped, on the roadmap or by closing its issue, but a week later a PR is still open, or a new PR opened more than a week after it was marked',
    ],
    [
       ['issue_closed'],
@@ -97,8 +97,8 @@ const SECTIONS: [DecideReason['kind'][], string, string][] = [
    ],
    [
       ['scope_done'],
-      'Spec done',
-      'Nothing in the issue that specs the plan is still open, and the plan hasn’t changed since. Finish it, or add what’s left to its spec.',
+      'Everything in its spec is closed',
+      'Nothing in its spec issue is still open, and the plan hasn’t changed since. Finish it, or add what’s left to its spec.',
    ],
    [
       ['stalled'],
@@ -139,9 +139,11 @@ function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
             reason.since ? `, though ${n(reason.since, 'PR')} opened since its end` : ''
          }. Is it done?`;
       case 'scope_done':
-         return `Everything in its spec is closed: ${reason.done} done${
-            reason.dropped ? `, ${reason.dropped} dropped` : ''
-         }. Finish it?`;
+         return reason.done
+            ? `Everything in its spec is closed: ${reason.done} done${
+                 reason.dropped ? `, ${reason.dropped} dropped` : ''
+              }. Finish it?`
+            : `Everything in its spec was dropped (${reason.dropped}). Drop the plan?`;
       case 'missed':
          return `Missed its ${dayWords(reason.due)} target with ${n(reason.open, 'PR')} open`;
       case 'off_track':
@@ -171,6 +173,13 @@ function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
          return 'Parked, but its PRs have had activity since';
    }
 }
+
+/** A reason the project page shows better than the roadmap: its spec, or
+ * the PRs that opened after its end. */
+const aboutTheWork = (reason: DecideReason) =>
+   reason.kind === 'scope_done' ||
+   (reason.kind === 'reopened' && reason.late > 0) ||
+   ((reason.kind === 'over' || reason.kind === 'ended') && reason.since > 0);
 
 /** Where a plan the row makes starts: its item's start, or else the week
  * its first open PR opened. */
@@ -339,14 +348,24 @@ function DecideRowView({
                />
             </div>
             {row.reasons.map(reason =>
-               // a reason about the plan opens the plan, where its bar shows it
+               // a reason about the plan opens the plan, where its bar shows it;
+               // one about its spec or the PRs after its end opens the project
+               // page, which lists them
                item ? (
                   <button
                      type="button"
                      key={reason.kind}
-                     onClick={() => navigate(openPlan(nav, item.id))}
+                     onClick={() =>
+                        row.slug && aboutTheWork(reason)
+                           ? navigate({ project: row.slug })
+                           : navigate(openPlan(nav, item.id))
+                     }
                      className="pressable block rounded border-0 bg-transparent p-0 text-left text-[13px] text-ink-2 hover:underline"
-                     title="Open its plan on the roadmap"
+                     title={
+                        row.slug && aboutTheWork(reason)
+                           ? 'Open the project: its spec and the PRs opened after its end'
+                           : 'Open its plan on the roadmap'
+                     }
                   >
                      {reasonWords(reason, item)}
                   </button>
@@ -442,7 +461,7 @@ function DecideRowView({
                      <button
                         type="button"
                         onClick={() => markOngoing(true)}
-                        title="Mark it ongoing: work with no end, like upkeep, that never needs a plan. Decide stops asking it for one."
+                        title="Mark the project ongoing: work with no end, like upkeep. Decide stops asking it for a first plan, and a finished plan of its stays finished as the work goes on."
                         className={buttonClass}
                      >
                         It’s ongoing
@@ -571,7 +590,6 @@ export function Decide({
    scoped,
    scope,
    ongoing,
-   ongoingSaved,
    nav,
    navigate,
 }: {
@@ -590,13 +608,13 @@ export function Decide({
    scope: ReadonlyMap<number, PlanScope> | null | undefined;
    /** every project with no end, and the ones marked so on the board */
    ongoing: ReadonlySet<string>;
-   ongoingSaved: string[];
    nav: ProjectsNav;
    navigate: Navigate;
 }) {
    const { items: plans, loadFailed, problem } = useRoadmap();
    const [decided, setDecided] = useState(madeThisVisit);
    const [copied, setCopied] = useState(false);
+   const [ongoingError, setOngoingError] = useState<string | null>(null);
    const record = (next: (d: ReadonlyMap<string, Decided>) => ReadonlyMap<string, Decided>) =>
       setDecided(d => (madeThisVisit = next(d)));
    const day = dayOf(new Date());
@@ -663,24 +681,27 @@ export function Decide({
       );
    };
 
-   // ongoing is a setting, not a plan: the row reads decided at once, and
-   // Undo takes it back
+   // ongoing is a setting, not a plan: the row reads decided at once, Undo
+   // takes it back, and a failed save puts the row back and says why
    const markOngoing = (row: DecideRow) => (on: boolean) => {
       const slug = row.slug;
       if (!slug) return;
       const key = rowKey(row);
-      const rest = ongoingSaved.filter(s => s !== slug);
-      if (on)
-         record(d =>
-            new Map(d).set(key, { row, words: 'Marked ongoing', id: null, ongoing: true })
-         );
-      else
+      const marked: Decided = { row, words: 'Marked ongoing', id: null, ongoing: true };
+      const show = (decidedNow: boolean) =>
          record(d => {
             const next = new Map(d);
-            next.delete(key);
+            if (decidedNow) next.set(key, marked);
+            else next.delete(key);
             return next;
          });
-      void saveOngoingProjects(on ? [...rest, slug] : rest);
+      show(on);
+      setOngoingError(null);
+      void setOngoing(slug, on).then(r => {
+         if (!('error' in r)) return;
+         show(!on);
+         setOngoingError(r.error);
+      });
    };
 
    const nameOf = (row: DecideRow) =>
@@ -750,7 +771,8 @@ export function Decide({
                   : 'Rows show up here when a project needs a plan or stalls, when a plan runs past its end or target date or its latest update says at risk or off track, and when the roadmap disagrees with the project’s issue or PRs.'}{' '}
                Parking stops work for now without dropping it, so it stops counting in the roadmap’s
                weeks ahead. Projects with fewer than {DECIDE_MIN_PRS} PRs, open or merged in the
-               last {LIVE_DAYS} days, don’t need a plan unless they stall.
+               last {LIVE_DAYS} days, don’t need a plan unless they stall. Ongoing projects, like
+               upkeep, never need one.
             </p>
             <RunsDecide rotation={rotation} day={day} />
             {scoped && (
@@ -780,16 +802,16 @@ export function Decide({
                   )}
                </div>
             )}
-            {problem && (
+            {(problem || ongoingError) && (
                <div
                   className="mt-2 flex items-center gap-3 rounded-lg border border-warn bg-surface px-3 py-2 text-[13px]"
                   role="alert"
                >
-                  <span className="text-ink-2">{problem}</span>
+                  <span className="text-ink-2">{problem ?? ongoingError}</span>
                   <span className="flex-1" />
                   <button
                      type="button"
-                     onClick={dismissRoadmapProblem}
+                     onClick={problem ? dismissRoadmapProblem : () => setOngoingError(null)}
                      className="hit pressable rounded border-0 bg-transparent p-0 text-xs text-ink-3 hover:text-ink"
                   >
                      Dismiss
@@ -819,7 +841,12 @@ export function Decide({
                            commitTo={commitTo}
                            decide={decide}
                            markOngoing={
-                              row.slug && !row.item && row.reasons.some(r => r.kind === 'new')
+                              row.slug &&
+                              row.reasons.some(
+                                 r =>
+                                    r.kind === 'new' ||
+                                    (r.kind === 'reopened' && r.by === 'roadmap')
+                              )
                                  ? markOngoing(row)
                                  : null
                            }

@@ -226,7 +226,6 @@ export function Projects({
                scoped={scoped}
                scope={scopes}
                ongoing={ongoing}
-               ongoingSaved={data?.ongoing ?? []}
                nav={nav}
                navigate={navigate}
             />

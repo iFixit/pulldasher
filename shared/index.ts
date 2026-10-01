@@ -93,6 +93,7 @@ export {
    decideProjects,
    decideQueue,
    needsDecision,
+   specAllClosed,
    DECIDE_MIN_PRS,
    STALL_DAYS,
 } from './model/decide';
@@ -104,7 +105,9 @@ export type { TimeRow, Touch } from './model/retro';
 
 export {
    afterEndOf,
+   bodyLinks,
    issueKey,
+   issueText,
    itemState,
    parseChecklist,
    parseIssueRef,

@@ -119,6 +119,33 @@ test('ongoing projects save as a sorted list, and an empty one clears the row', 
    assert.equal(table.has('ongoing_projects'), false);
 });
 
+test('ongoing_project marks one project at a time, and quick clicks keep each other', async () => {
+   await patch({ ongoing_projects: ['docs'] });
+   // a slow save, so the second click lands while the first is saving
+   const slow = mock.method(db, 'query', async (sql, params) => {
+      if (sql.startsWith('REPLACE')) await new Promise(done => setTimeout(done, 30));
+      return fakeQuery(sql, params);
+   });
+   const both = await Promise.all([
+      patch({ ongoing_project: { slug: 'translations', ongoing: true } }),
+      patch({ ongoing_project: { slug: 'upkeep', ongoing: true } }),
+   ]);
+   slow.mock.restore();
+   assert.deepEqual(
+      both.map(r => r.status),
+      [200, 200]
+   );
+   assert.deepEqual(projectSettings().ongoing, ['docs', 'translations', 'upkeep']);
+   const off = await patch({ ongoing_project: { slug: 'docs', ongoing: false } });
+   assert.deepEqual(off.body.ongoing_projects, ['translations', 'upkeep']);
+   assert.equal((await patch({ ongoing_project: { slug: 'docs' } })).status, 400);
+   assert.equal(
+      (await patch({ ongoing_project: { slug: 'two words', ongoing: true } })).status,
+      400
+   );
+   await patch({ ongoing_projects: null });
+});
+
 test('a login on two teams, or a missing field, is a 400 that says why', async () => {
    const twice = await patch({ developer_teams: { Store: ['alice'], FixBot: ['Alice'] } });
    assert.equal(twice.status, 400);

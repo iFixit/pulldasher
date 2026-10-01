@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RoadmapItem } from '../../../shared/model/roadmap';
 import {
+   bodyLinks,
    itemState,
    parseChecklist,
    parseIssueRef,
@@ -87,6 +88,8 @@ describe('parseChecklist', () => {
          '```',
          '  + [ ] https://github.com/iFixit/ifixit/issues/61513 pick a name',
          '- not a box',
+         '- [ ] Mobile drawer, keeping the language row from #63064',
+         '- [ ] **#64776** stop the double submit',
       ].join('\n');
       expect(parseChecklist(body, 'iFixit/ifixit')).toEqual([
          {
@@ -105,8 +108,35 @@ describe('parseChecklist', () => {
             text: 'https://github.com/iFixit/ifixit/issues/61513 pick a name',
             ref: { repo: 'iFixit/ifixit', number: 61513 },
          },
+         // an issue named further in is context, not the task
+         { checked: false, text: 'Mobile drawer, keeping the language row from #63064', ref: null },
+         {
+            checked: false,
+            text: '**#64776** stop the double submit',
+            ref: { repo: 'iFixit/ifixit', number: 64776 },
+         },
       ]);
       expect(parseChecklist(null, 'iFixit/ifixit')).toEqual([]);
+   });
+});
+
+describe('bodyLinks', () => {
+   it('reads the issues a PR body links on purpose, not the ones it mentions in passing', () => {
+      const body = [
+         'Parts of #62502, #62503 and iFixit/ops#12',
+         'Fixes: https://github.com/iFixit/ifixit/issues/64170',
+         'connects to #9',
+         'Unlike #63000, this keeps the old header. See #1.',
+         'Not part of the #63000 audit',
+      ].join('\n');
+      expect(bodyLinks(body, 'iFixit/ifixit')).toEqual([
+         { repo: 'iFixit/ifixit', number: 62502 },
+         { repo: 'iFixit/ifixit', number: 62503 },
+         { repo: 'iFixit/ops', number: 12 },
+         { repo: 'iFixit/ifixit', number: 64170 },
+         { repo: 'iFixit/ifixit', number: 9 },
+      ]);
+      expect(bodyLinks(null, 'iFixit/ifixit')).toEqual([]);
    });
 });
 
@@ -137,6 +167,10 @@ describe('planOfWork', () => {
       // linking both: back to the date
       expect(planOfWork([launch, feedback], at('2026-09-29'), new Set([1, 2]))?.id).toBe(2);
    });
+
+   it('ignores a link into a plan that hadn’t started yet', () => {
+      expect(planOfWork([launch, feedback], at('2026-09-05'), new Set([2]))?.id).toBe(1);
+   });
 });
 
 describe('planScopes', () => {
@@ -164,7 +198,8 @@ describe('planScopes', () => {
                   closedAt: at('2026-08-20'),
                   joinedAt: at('2026-08-05'),
                }),
-               item(62957, { joinedAt: at('2026-08-05') }),
+               // added to the launch's spec after the launch's end
+               item(62957, { joinedAt: at('2026-09-03') }),
                item(61513, { source: 'check' }),
             ],
          },
@@ -231,10 +266,10 @@ describe('planScopes', () => {
       expect(l.items[0].prs).toEqual([]);
    });
 
-   it('counts what joined after the plan was made', () => {
-      // everything with a join time joined after May 18
-      expect(l.added).toBe(3);
-      expect(f.added).toBe(2);
+   it('counts what joined a plan’s spec after its end, and its open PRs', () => {
+      expect(l.addedAfterEnd).toBe(1);
+      expect(f.addedAfterEnd).toBe(0);
+      expect([l.openPulls, f.openPulls]).toEqual([3, 1]);
    });
 
    it('lists the PRs that arrived after a plan’s end, split by date and link', () => {
@@ -250,6 +285,7 @@ describe('planScopes', () => {
          lastClosedAt: at('2026-08-20'),
          afterEnd: 2,
          afterDone: 0,
+         openPulls: 3,
       });
    });
 
@@ -280,5 +316,95 @@ describe('planScopes', () => {
       expect(s.afterDone.map(p => p.number)).toEqual([11]);
       expect(s.afterEnd.map(p => p.number)).toEqual([10, 11]);
       expect(at('2026-06-24') - at('2026-06-20')).toBeLessThan(7 * DAY);
+   });
+});
+
+describe('planScopes, between back-to-back plans', () => {
+   const v1 = plan(1, {
+      spec: { repo: 'iFixit/ifixit', number: 100 },
+      start: '2026-05-18',
+      weeks: 15,
+   });
+   const v2 = plan(2, {
+      spec: { repo: 'iFixit/ifixit', number: 200 },
+      start: '2026-09-21',
+      weeks: 12,
+   });
+   // keyed the way a person might type the repo: keys ignore case
+   const specs = new Map([
+      [
+         'ifixit/IFIXIT#100',
+         {
+            title: 'v1.0',
+            found: true,
+            items: [
+               item(101, { state: 'done', closedAt: at('2026-08-01') }),
+               // not finished in v1.0, and listed again for v1.1
+               item(102),
+            ],
+         },
+      ],
+      ['iFixit/ifixit#200', { title: 'v1.1', found: true, items: [item(102), item(201)] }],
+   ]);
+   const scopes = planScopes({
+      plans: [v1, v2],
+      specs,
+      labeled: new Map(),
+      pulls: new Map([['workbench', [pull(1, '2026-09-25')]]]),
+      links: new Map([
+         // "Parts of #100": the v1.0 epic itself
+         ['iFixit/ifixit#1', [{ repo: 'iFixit/ifixit', number: 100 }]],
+         ['iFixit/ifixit#7', [{ repo: 'iFixit/ifixit', number: 101 }]],
+         ['iFixit/ifixit#8', [{ repo: 'iFixit/ifixit', number: 201 }]],
+      ]),
+      unlabeled: [
+         // no project label, but it links a v1.0 issue
+         pull(7, '2026-09-10', { state: 'closed', mergedAt: at('2026-09-11') }),
+         // it links only v1.1's scope, before v1.1 started: not the project's
+         pull(8, '2026-09-12'),
+      ],
+   });
+   const [a, b] = scopes;
+
+   it('counts an open item a later plan lists too as moved, so the earlier plan can finish', () => {
+      expect(a.items[1].movedTo).toBe(2);
+      expect([a.done, a.open, a.moved]).toEqual([1, 0, 1]);
+      expect(scopeCounts(a)).toMatchObject({ total: 1, done: 1 });
+      // the later plan still has it open
+      expect([b.open, b.moved]).toEqual([2, 0]);
+   });
+
+   it('links a PR to the plan whose spec issue it names, and counts unlabeled PRs that link a scope', () => {
+      // #1 opened after v1.1 started, but it names v1.0's epic
+      expect(a.afterEnd.map(p => p.number)).toEqual([7, 1]);
+      expect(b.afterEnd).toEqual([]);
+      expect(a.items[0].prs).toEqual([
+         { repo: 'iFixit/ifixit', number: 7, title: 'PR 7', state: 'merged' },
+      ]);
+   });
+});
+
+describe('scopeCounts', () => {
+   it('takes the last close it knows, past items with no close time', () => {
+      const [s] = planScopes({
+         plans: [plan(1, { spec: { repo: 'iFixit/ifixit', number: 100 } })],
+         specs: new Map([
+            [
+               'iFixit/ifixit#100',
+               {
+                  title: 'Spec',
+                  found: true,
+                  items: [
+                     item(1, { state: 'done', closedAt: at('2026-08-01') }),
+                     item(2, { state: 'done', closedAt: null }),
+                  ],
+               },
+            ],
+         ]),
+         labeled: new Map(),
+         pulls: new Map(),
+         links: new Map(),
+      });
+      expect(scopeCounts(s).lastClosedAt).toBe(at('2026-08-01'));
    });
 });

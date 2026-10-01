@@ -200,23 +200,34 @@ describe('decideQueue', () => {
          lastClosedAt: ago(2),
          afterEnd: 0,
          afterDone: 0,
+         openPulls: 2,
          ...over,
       });
+      const spec = { repo: 'iFixit/ifixit', number: 100 };
       const rows = decideQueue({
-         live: [project('shipped'), project('busy'), project('answered'), project('lines')],
+         live: [
+            project('shipped'),
+            project('busy'),
+            project('answered'),
+            project('lines'),
+            project('labels-only'),
+         ],
          items: [
-            item(1, { project: 'shipped' }),
-            item(2, { project: 'busy' }),
+            item(1, { project: 'shipped', spec }),
+            item(2, { project: 'busy', spec }),
             // the plan changed after its last item closed: already answered
-            item(3, { project: 'answered', updated_at: ago(1) }),
-            item(4, { project: 'lines' }),
+            item(3, { project: 'answered', spec, updated_at: ago(1) }),
+            item(4, { project: 'lines', spec }),
+            // no spec: its labeled issues don't say what the plan delivers
+            item(5, { project: 'labels-only' }),
          ],
          scope: new Map([
             [1, counts()],
             [2, counts({ done: 3 })],
             [3, counts()],
-            // a checked plain line has no close time, so it asks
+            // no close time known: it asks
             [4, counts({ lastClosedAt: null })],
+            [5, counts()],
          ]),
          today,
          now: NOW,
@@ -228,6 +239,16 @@ describe('decideQueue', () => {
       expect(rows[1].reasons[0]).toEqual({ kind: 'scope_done', done: 4, dropped: 1 });
    });
 
+   const noScope: ScopeCounts = {
+      total: 0,
+      done: 0,
+      dropped: 0,
+      lastClosedAt: null,
+      afterEnd: 0,
+      afterDone: 0,
+      openPulls: 0,
+   };
+
    it('says how many PRs opened after a plan’s end, and puts the busiest first', () => {
       const end = { start: '2026-08-03', weeks: 4 };
       const rows = decideQueue({
@@ -237,8 +258,8 @@ describe('decideQueue', () => {
             item(2, { project: 'running-on', ...end }),
          ],
          scope: new Map([
-            [1, { total: 0, done: 0, dropped: 0, lastClosedAt: null, afterEnd: 1, afterDone: 0 }],
-            [2, { total: 0, done: 0, dropped: 0, lastClosedAt: null, afterEnd: 9, afterDone: 0 }],
+            [1, { ...noScope, afterEnd: 1, openPulls: 2 }],
+            [2, { ...noScope, afterEnd: 9, openPulls: 2 }],
          ]),
          today,
          now: NOW,
@@ -254,15 +275,45 @@ describe('decideQueue', () => {
          // its PRs merged fast, so none is open now
          live: [project('comeback', { open: 0 })],
          items: [item(1, { project: 'comeback', status: 'done', updated_at: ago(100) })],
-         scope: new Map([
-            [1, { total: 0, done: 0, dropped: 0, lastClosedAt: null, afterEnd: 2, afterDone: 2 }],
-         ]),
+         scope: new Map([[1, { ...noScope, afterEnd: 2, afterDone: 2 }]]),
          today,
          now: NOW,
       });
       expect(rows[0].reasons).toEqual([
          { kind: 'reopened', open: 0, late: 2, as: 'done', by: 'roadmap' },
       ]);
+   });
+
+   it('judges a finished launch by its own PRs, not its follow-on’s', () => {
+      const rows = decideQueue({
+         live: [project('workbench', { open: 3 })],
+         items: [
+            item(1, { project: 'workbench', start: '2026-05-18', weeks: 15 }),
+            item(2, { project: 'workbench', start: '2026-09-21', weeks: 12 }),
+         ],
+         scope: new Map([
+            // the three open PRs are the feedback round's
+            [1, { ...noScope, afterEnd: 2 }],
+            [2, { ...noScope, openPulls: 3 }],
+         ]),
+         today,
+         now: NOW,
+      });
+      expect(rows.map(r => [r.item?.id, r.reasons[0].kind])).toEqual([[1, 'ended']]);
+   });
+
+   it('lets an ongoing project’s work go on after a finished plan', () => {
+      const rows = decideQueue({
+         live: [project('upkeep', { open: 2 }), project('feature', { open: 2 })],
+         items: [
+            item(1, { project: 'upkeep', status: 'done', updated_at: ago(100) }),
+            item(2, { project: 'feature', status: 'done', updated_at: ago(100) }),
+         ],
+         ongoing: new Set(['upkeep']),
+         today,
+         now: NOW,
+      });
+      expect(rows.map(r => [r.slug, r.reasons[0].kind])).toEqual([['feature', 'reopened']]);
    });
 
    it('never asks an ongoing project for a first plan', () => {

@@ -60,7 +60,7 @@ import {
    type LoadWeek,
 } from '../../../../shared/model/load';
 import { closedIssues, decideProjects, needsDecision } from '../../../../shared/model/decide';
-import { issueKey, parseIssueRef } from '../../../../shared/model/issueRef';
+import { issueText, parseIssueRef } from '../../../../shared/model/issueRef';
 import {
    columnsFor,
    commitEnds,
@@ -254,7 +254,7 @@ function Editor({
    );
    const [draft, setDraft] = useState<RoadmapFields>(initial);
    // the spec as typed: "owner/repo#123" or a link, read on save
-   const [specText, setSpecText] = useState(item?.spec ? issueKey(item.spec) : '');
+   const [specText, setSpecText] = useState(item?.spec ? issueText(item.spec) : '');
    const [error, setError] = useState<string | null>(null);
    const [saving, setSaving] = useState(false);
    const { armed, run } = useArmedConfirm();
@@ -391,7 +391,7 @@ function Editor({
                value={specText}
                onChange={e => setSpecText(e.target.value)}
                placeholder="owner/repo#123"
-               title="The issue that says what this plan delivers, usually an epic. Its sub-issues and checklist become the plan’s scope, and Decide asks “Done?” once they’re all closed."
+               title="The issue that says what this plan delivers, usually an epic. Its sub-issues and checklist, with the issues labeled into the project, list the plan’s work, and Decide asks whether the plan is done once they’re all closed."
             />
          )}
          {field(

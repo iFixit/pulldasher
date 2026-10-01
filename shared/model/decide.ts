@@ -9,7 +9,8 @@ import type { ScopeCounts } from './scope';
  * - `new`: in flight with DECIDE_MIN_PRS or more PRs and never a plan;
  *   smaller work just ships
  * - `stalled`: open PRs with no activity for STALL_DAYS, and no call since
- * - `over`: a plan past its end with PRs still open
+ * - `over`: a plan past its end with PRs still open (its own PRs, once its
+ *   scope is read: model/scope.ts)
  * - `ended`: a plan past its end with none open: probably done
  * - `missed`: its target date passed with PRs open, and nobody replanned
  * - `off_track` / `at_risk`: its latest update says so, and the plan hasn't
@@ -17,10 +18,11 @@ import type { ScopeCounts } from './scope';
  * - `issue_closed`: its issue was closed after the plan last changed, and
  *   the plan still says it's going
  * - `reopened`: finished or dropped, on the roadmap or by closing its issue,
- *   a week or more ago, but PRs are still open
+ *   a week or more ago, but PRs are still open or new ones keep opening
+ *   (by the roadmap's call, never for a project marked ongoing)
  * - `moving`: parked, but its PRs changed after it was parked
- * - `scope_done`: nothing in its spec is still open (model/scope.ts), and
- *   the plan hasn't changed since the last item closed
+ * - `scope_done`: the plan names a spec issue, nothing in it is still open
+ *   (model/scope.ts), and the plan hasn't changed since the last item closed
  * Every plan still under way is judged on its own, so a project's finished
  * first phase can't hide its second running late. A call is a roadmap write
  * (commit, park, finish, drop); any change to a plan counts as one.
@@ -139,6 +141,20 @@ const RANK: Record<DecideReason['kind'], number> = {
    new: 10,
 };
 
+/**
+ * Whether Decide asks a plan "Done?": it names a spec issue (a plan with
+ * none says nothing about what it delivers), nothing in the spec is still
+ * open, and the plan hasn't changed since the last item closed.
+ */
+export function specAllClosed(item: RoadmapItem, counts: ScopeCounts): boolean {
+   return (
+      !!item.spec &&
+      counts.total === counts.done &&
+      counts.done + counts.dropped > 0 &&
+      (counts.lastClosedAt == null || counts.lastClosedAt > (item.updated_at ?? 0))
+   );
+}
+
 export function decideQueue({
    live,
    items,
@@ -154,7 +170,8 @@ export function decideQueue({
    closed?: ReadonlyMap<string, ClosedIssue>;
    /** each plan's scope (model/scope.ts scopeCounts), by plan id */
    scope?: ReadonlyMap<number, ScopeCounts>;
-   /** projects that run with no end: they never owe a first plan */
+   /** projects that run with no end: they never owe a first plan, and a
+    * finished plan of theirs isn't reopened by the work that follows */
    ongoing?: ReadonlySet<string>;
    today: string;
    now: number;
@@ -183,8 +200,12 @@ export function decideQueue({
          add(item.project, item, { kind: 'issue_closed', as: issue.as, on: utcDay(issue.at) });
          return;
       }
-      const open = project?.open ?? 0;
       const counts = scope.get(item.id);
+      // a project with several plans counts each plan's own PRs (its scope),
+      // so a later plan's open PRs don't keep a finished one over; with one
+      // plan, every PR of the project is its, as the board counts them now
+      const several = (item.project ? plansOf.get(item.project)?.length ?? 0 : 0) > 1;
+      const open = counts && several ? counts.openPulls : project?.open ?? 0;
       if (planEnd(item) < today) {
          add(item.project, item, {
             kind: open > 0 ? 'over' : 'ended',
@@ -192,14 +213,7 @@ export function decideQueue({
             since: counts?.afterEnd ?? 0,
          });
       }
-      // a spec with nothing left open, unless the plan changed after the last
-      // item closed (a plain checklist line has no close time, so it asks)
-      if (
-         counts &&
-         counts.total - counts.done === 0 &&
-         counts.done + counts.dropped > 0 &&
-         (counts.lastClosedAt == null || counts.lastClosedAt > decidedAt(item))
-      ) {
+      if (counts && specAllClosed(item, counts)) {
          add(item.project, item, {
             kind: 'scope_done',
             done: counts.done,
@@ -249,8 +263,9 @@ export function decideQueue({
             if ((project.lastActivity ?? 0) > decidedAt(last)) {
                add(project.slug, last, { kind: 'moving' });
             }
-         } else if (last) {
-            // PRs still open a week after the call, or new ones opened after it
+         } else if (last && !ongoing.has(project.slug)) {
+            // PRs still open a week after the call, or new ones opened after it;
+            // an ongoing project's work goes on after each finished plan
             const late = scope.get(last.id)?.afterDone ?? 0;
             if ((project.open > 0 && now - decidedAt(last) >= REOPEN_DAYS * DAY) || late > 0) {
                add(project.slug, last, {

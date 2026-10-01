@@ -9,7 +9,12 @@ export interface IssueRef {
    number: number;
 }
 
-export const issueKey = (ref: IssueRef): string => `${ref.repo}#${ref.number}`;
+/** "owner/repo#123", for people to read. */
+export const issueText = (ref: IssueRef): string => `${ref.repo}#${ref.number}`;
+
+/** An issue's key in a map. GitHub ignores case in repo names, and people
+ * type them both ways, so the key does too. */
+export const issueKey = (ref: IssueRef): string => issueText(ref).toLowerCase();
 
 /** an "owner/repo" name, as a regex source */
 export const REPO_PATTERN = '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+';

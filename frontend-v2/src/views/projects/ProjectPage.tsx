@@ -37,7 +37,7 @@ import {
 } from './parts';
 import { PlanFacts } from './roadmapHealth';
 import { ProjectSpecs } from './Spec';
-import { saveOngoingProjects } from '../../model/settingsData';
+import { setOngoing } from '../../model/settingsData';
 import { stageWord, type PortfolioItem } from '../../model/portfolio';
 
 const DAY_MS = 86_400_000;
@@ -210,8 +210,9 @@ export function ProjectPage({
    /** the projects marked ongoing on the board (not by label) */
    ongoingSaved: string[];
 }) {
-   // the box flips at once; a failed save puts it back
+   // the box flips at once; a failed save puts it back and says why
    const [want, setWant] = useState<boolean | null>(null);
+   const [saveError, setSaveError] = useState<string | null>(null);
    const live = today.live.find(g => g.slug === slug);
    const group = live ?? today.quiet.find(g => g.slug === slug);
    const project = group?.project ?? data?.projects.find(p => p.slug === slug) ?? null;
@@ -247,9 +248,11 @@ export function ProjectPage({
    const ongoing = byLabel || (want ?? ongoingSaved.includes(slug));
    const markOngoing = (on: boolean) => {
       setWant(on);
-      const rest = ongoingSaved.filter(s => s !== slug);
-      void saveOngoingProjects(on ? [...rest, slug] : rest).then(r => {
-         if ('error' in r) setWant(null);
+      setSaveError(null);
+      void setOngoing(slug, on).then(r => {
+         if (!('error' in r)) return;
+         setWant(null);
+         setSaveError(r.error);
       });
    };
    const people = group?.people ?? [];
@@ -267,8 +270,8 @@ export function ProjectPage({
                className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-ink-3 has-[:disabled]:cursor-default"
                title={
                   byLabel
-                     ? 'Its issue has the ongoing label: take the label off to change this'
-                     : 'Work with no end, like upkeep: Decide stops asking it for a plan or to finish, and this page skips the finish forecast'
+                     ? 'Take the ongoing label off its issue to change this'
+                     : 'Decide stops asking it for a first plan, and a finished plan of its stays finished as the work goes on. This page skips the finish forecast.'
                }
             >
                <input
@@ -278,8 +281,9 @@ export function ProjectPage({
                   onChange={e => markOngoing(e.target.checked)}
                   className="m-0 disabled:opacity-40"
                />
-               Ongoing
+               {byLabel ? 'Ongoing, set by its issue’s label' : 'Ongoing, no end (like upkeep)'}
             </label>
+            {saveError && <span className="text-xs text-warn">{saveError}</span>}
             {group && (
                <span className="flex items-center gap-3 text-xs">
                   <FlagWords g={group} />
@@ -302,7 +306,7 @@ export function ProjectPage({
          </div>
          <div className="mb-7">
             <Rows>
-               <ProjectFacts g={{ slug }} project={project} prefix={prefix} />
+               <ProjectFacts g={{ slug }} project={project} prefix={prefix} ongoing={ongoing} />
                <PlanFacts slug={slug} nav={nav} navigate={navigate} />
                {group && group.open.length > 0 ? (
                   <FoldRows list={group.open} opts={opts} id={`project:${slug}:open`} />
@@ -313,7 +317,14 @@ export function ProjectPage({
                )}
             </Rows>
          </div>
-         <ProjectSpecs slug={slug} plans={plans} scopes={scopes} nav={nav} navigate={navigate} />
+         <ProjectSpecs
+            slug={slug}
+            label={prefix + slug}
+            plans={plans}
+            scopes={scopes}
+            nav={nav}
+            navigate={navigate}
+         />
          {merged.length > 0 && (
             <RestGroup>
                <Fold

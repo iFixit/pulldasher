@@ -115,6 +115,9 @@ function targetCell(item: PortfolioItem): ReactNode {
 }
 
 function planTitle(item: PortfolioItem): string {
+   if (item.planCell.kind === 'scope_done') {
+      return 'Everything in its spec is closed, and the plan hasn’t changed since, so Decide asks whether it’s done. Click to open the plan.';
+   }
    if (item.plan) return `${planCellWords(item.plan).title}. Click to open the plan.`;
    if (item.planCell.kind === 'missed') {
       return 'Its target date passed with PRs still open, and it has no plan on the roadmap.';
@@ -258,22 +261,24 @@ const COLUMNS: Column[] = [
 
 const SPEC: Column = {
    key: 'scope',
-   label: 'Spec',
-   title: 'How much of its plan’s spec is done: the spec issue’s sub-issues and checklist, and the issues carrying the project label. Dropped ones don’t count.',
+   label: 'Spec done',
+   title: 'How much of its plan’s spec issue is done: its sub-issues, its checklist, and the issues labeled into the project. Dropped ones and ones moved to a later plan don’t count.',
    width: 'w-16',
    hide: 'hidden lg:block',
    cell: (i, act) => {
       const s = i.scope;
-      if (!s || !s.items.length) return '';
+      if (!s?.spec || !s.items.length) return '';
+      const total = s.done + s.open;
       return (
          <CellButton
             onClick={() => act.openProject(i.slug)}
-            className={s.open === 0 ? 'text-warn' : 'text-ink-2'}
+            // amber only while Decide asks whether it's done
+            className={i.planCell.kind === 'scope_done' ? 'text-warn' : 'text-ink-2'}
             title={`${s.done} done, ${s.open} open${s.dropped ? `, ${s.dropped} dropped` : ''}${
                s.specTitle ? ` in ${s.specTitle}` : ''
             }. Click for the list.`}
          >
-            {s.done} of {s.done + s.open}
+            {total ? `${s.done} of ${total}` : 'All dropped'}
          </CellButton>
       );
    },
@@ -333,7 +338,7 @@ function RowDetail({
    const heading = `m-0 px-3.5 pt-2.5 pb-1 text-ink-3 ${eyebrowText}`;
    return (
       <div className="border-t border-secondary">
-         <ProjectFacts g={item} project={item.project} prefix={prefix}>
+         <ProjectFacts g={item} project={item.project} prefix={prefix} ongoing={item.ongoing}>
             <PageLink g={item} navigate={navigate} />
          </ProjectFacts>
          <PlanFacts slug={item.slug} nav={nav} navigate={navigate} />

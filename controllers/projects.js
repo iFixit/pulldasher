@@ -337,7 +337,9 @@ export default {
          res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
          return;
       }
-      const load = Promise.all([loadProjects(settings), listItems(), loadScope(settings)]);
+      const load = Promise.all([loadProjects(settings), listItems()]).then(([projects, plans]) =>
+         loadScope(settings, { plans, projects }).then(scopes => [projects, plans, scopes])
+      );
       respondOrError(
          res,
          load.then(([projects, items, scopes]) => {

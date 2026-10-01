@@ -20,21 +20,23 @@ async function dummyScopes(plans: readonly RoadmapItem[]): Promise<PlanScope[]> 
    const { pulls, projectLabelPrefix } = await loadDummy();
    const prefix = projectLabelPrefix ?? 'project:';
    const byProject = new Map<string, WorkPull[]>();
+   // the fixture PRs with no project label that link a spec
+   const unlabeled: WorkPull[] = [];
+   const linked = new Set(Object.keys(DUMMY_LINKS).map(k => k.toLowerCase()));
    for (const p of pulls) {
+      if (isSuffixBot(p.user.login)) continue;
       const slug = projectOf(p.labels, prefix);
-      if (!slug || isSuffixBot(p.user.login)) continue;
-      byProject.set(slug, [
-         ...(byProject.get(slug) ?? []),
-         {
-            repo: p.repo,
-            number: p.number,
-            title: p.title,
-            author: p.user.login,
-            createdAt: epoch(p.created_at),
-            mergedAt: p.merged_at ? epoch(p.merged_at) : null,
-            state: p.state === 'open' ? 'open' : 'closed',
-         },
-      ]);
+      const pull: WorkPull = {
+         repo: p.repo,
+         number: p.number,
+         title: p.title,
+         author: p.user.login,
+         createdAt: epoch(p.created_at),
+         mergedAt: p.merged_at ? epoch(p.merged_at) : null,
+         state: p.state === 'open' ? 'open' : 'closed',
+      };
+      if (slug) byProject.set(slug, [...(byProject.get(slug) ?? []), pull]);
+      else if (linked.has(issueKey(pull))) unlabeled.push(pull);
    }
    const specs = new Map(
       Object.entries(DUMMY_SPECS).map(([k, spec]) => [k, { ...spec, found: true }])
@@ -45,6 +47,7 @@ async function dummyScopes(plans: readonly RoadmapItem[]): Promise<PlanScope[]> 
       labeled: new Map(),
       pulls: byProject,
       links: new Map(Object.entries(DUMMY_LINKS)),
+      unlabeled,
    });
 }
 
@@ -67,13 +70,14 @@ export function useScopeData(
    plans: readonly RoadmapItem[] | null
 ): ReadonlyMap<number, PlanScope> | null | undefined {
    const [got, setGot] = useState<PlanScope[] | null | undefined>(undefined);
-   // what each plan's scope depends on: its spec, dates and status
+   // what each plan's scope depends on: its spec, dates, status, and when it
+   // last changed (a done plan's late PRs count from then)
    const key = plans
       ?.map(
          p =>
             `${p.id}:${p.project}:${p.spec ? issueKey(p.spec) : ''}:${p.start}:${p.weeks}:${
                p.status
-            }`
+            }:${p.updated_at ?? ''}`
       )
       .join(',');
    useEffect(() => {

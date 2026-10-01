@@ -172,12 +172,16 @@ export function ProjectFacts({
    g,
    project,
    prefix,
+   ongoing,
    children,
 }: {
    g: Pick<ProjectGroup, 'slug'>;
    project: Project | null;
    /** the project label prefix, to name the label in full */
    prefix: string;
+   /** marked ongoing on the board or by its issue's label; the label alone
+    * when not given */
+   ongoing?: boolean;
    /** trailing controls, e.g. the project page link */
    children?: ReactNode;
 }) {
@@ -213,7 +217,7 @@ export function ProjectFacts({
       if (project.parents.length) {
          facts.push(<span key="parents">Part of {project.parents.join(', ')}</span>);
       }
-      facts.push(<span key="kind">{project.ongoing ? 'Ongoing' : 'Has an end'}</span>);
+      facts.push(<span key="kind">{ongoing ?? project.ongoing ? 'Ongoing' : 'Has an end'}</span>);
    } else {
       facts.push(
          <span
