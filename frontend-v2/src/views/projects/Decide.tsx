@@ -101,8 +101,8 @@ const SECTIONS: [DecideReason['kind'][], string, string][] = [
    ],
    [
       ['issues_done'],
-      'Every issue attached is closed',
-      'Every issue attached to the project is closed, and the plan hasn’t changed since. Finish it, or add the issues still to do.',
+      'All its issues are closed',
+      'Every issue in the project is closed, and the plan hasn’t changed since. Finish it, or add the issues still to do.',
    ],
    [
       ['stalled'],
@@ -142,12 +142,21 @@ function reasonWords(reason: DecideReason, item: RoadmapItem | null): string {
          return `Its plan ended ${n(reason.weeks, 'week')} ago and no PRs are open${
             reason.since ? `, though ${n(reason.since, 'PR')} opened since its end` : ''
          }. Is it done?`;
-      case 'issues_done':
+      case 'issues_done': {
+         const tally = reason.done
+            ? `${reason.done} done${reason.dropped ? `, ${reason.dropped} dropped` : ''}`
+            : `all ${reason.dropped} dropped`;
+         if (reason.open) {
+            return `All its issues are closed (${tally}), but ${n(
+               reason.open,
+               'PR is',
+               'PRs are'
+            )} still open. Add the issues they do, or finish it?`;
+         }
          return reason.done
-            ? `Every issue attached is closed: ${reason.done} done${
-                 reason.dropped ? `, ${reason.dropped} dropped` : ''
-              }. Finish it?`
-            : `Every issue attached was dropped (${reason.dropped}). Drop the plan?`;
+            ? `All its issues are closed: ${tally}. Finish it?`
+            : `All its issues were dropped (${reason.dropped}). Drop the plan?`;
+      }
       case 'missed':
          return `Missed its ${dayWords(reason.due)} target with ${n(reason.open, 'PR')} open`;
       case 'off_track':

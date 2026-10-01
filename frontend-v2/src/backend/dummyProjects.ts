@@ -343,6 +343,8 @@ export const DUMMY_LINKS: Record<string, IssueRef[]> = {
       { repo: 'iFixit/ops', number: 812 },
    ],
    'iFixit/ifixit#35154': [{ repo: 'iFixit/ifixit', number: 35802 }],
+   // no project label: it joins webdriver-deflake by linking its issue
+   'iFixit/ifixit#35501': [{ repo: 'iFixit/ifixit', number: 35805 }],
 };
 
 /** Issues the dummy board's issue search finds that no project has, for

@@ -35,15 +35,29 @@ function dummyCorpus(): IssueHit[] {
 }
 
 /** What the dummy board's search finds: the way the server's does, from
- * its fixtures (lib/work.js searchIssues). */
+ * its fixtures (lib/work.js searchIssues), each hit with its projects. */
 function dummySearch(text: string): IssueHit[] {
    const q = issueQuery(text);
    if (!q) return [];
    const all = dummyCorpus();
-   if (q.kind === 'ref') return all.filter(hit => issueKey(hit) === issueKey(q.ref));
-   if (q.kind === 'number') return all.filter(hit => hit.number === q.number);
-   const words = q.words.toLowerCase().split(/\s+/);
-   return all.filter(hit => words.every(w => hit.title.toLowerCase().includes(w))).slice(0, 10);
+   let hits: IssueHit[];
+   if (q.kind === 'ref') hits = all.filter(hit => issueKey(hit) === issueKey(q.ref));
+   else if (q.kind === 'number') hits = all.filter(hit => hit.number === q.number);
+   else {
+      const words = q.words.toLowerCase().split(/\s+/);
+      hits = all.filter(hit => words.every(w => hit.title.toLowerCase().includes(w))).slice(0, 10);
+   }
+   const lists = [...Object.entries(DUMMY_ATTACHED), ...dummyHand];
+   return hits.map(hit => ({
+      ...hit,
+      projects: [
+         ...new Set(
+            lists
+               .filter(([, list]) => list.some(i => issueKey(i.ref) === issueKey(hit)))
+               .map(([slug]) => slug)
+         ),
+      ],
+   }));
 }
 
 const SIGNED_OUT = 'Your sign-in expired. Reload the page to sign in again.';

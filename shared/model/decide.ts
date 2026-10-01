@@ -21,8 +21,9 @@ import type { IssueCounts } from './work';
  *   a week or more ago, but PRs are still open or new ones keep opening
  *   (by the roadmap's call, never for a project marked ongoing)
  * - `moving`: parked, but its PRs changed after it was parked
- * - `issues_done`: every issue attached to its project is closed
- *   (model/work.ts), and the plan hasn't changed since the last one closed
+ * - `issues_done`: every issue in its project is closed (model/work.ts),
+ *   and the plan hasn't changed since the last one closed; only the plan
+ *   running today is asked
  * Every plan still under way is judged on its own, so a project's finished
  * first phase can't hide its second running late. A call is a roadmap write
  * (commit, park, finish, drop); any change to a plan counts as one.
@@ -56,7 +57,8 @@ export type DecideReason =
         by: 'roadmap' | 'issue';
      }
    | { kind: 'moving' }
-   | { kind: 'issues_done'; done: number; dropped: number };
+   /** `open`: the plan's PRs still open, which no closed issue accounts for */
+   | { kind: 'issues_done'; done: number; dropped: number; open: number };
 
 /** What the queue needs to know about a live project. */
 export interface DecideProject {
@@ -226,11 +228,16 @@ export function decideQueue({
          });
       }
       const attached = item.project ? issues.get(item.project) : undefined;
-      if (attached && issuesAllClosed(item, attached)) {
+      // the issues are the project's, so only its plan running today is asked
+      const runningNow = (plansOf.get(item.project ?? '') ?? [])
+         .filter(p => isUnderWay(p.status) && p.start <= today)
+         .sort((a, b) => b.start.localeCompare(a.start) || b.id - a.id)[0];
+      if (attached && runningNow?.id === item.id && issuesAllClosed(item, attached)) {
          add(item.project, item, {
             kind: 'issues_done',
             done: attached.done,
             dropped: attached.dropped,
+            open,
          });
       }
       const due = project?.due;

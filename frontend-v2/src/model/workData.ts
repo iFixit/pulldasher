@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
 import { isDummy, loadDummy } from '../backend/dummy';
-import { DUMMY_ATTACHED, DUMMY_ISSUES, DUMMY_LINKS } from '../backend/dummyProjects';
+import {
+   DUMMY_ATTACHED,
+   DUMMY_ISSUES,
+   DUMMY_LINKS,
+   DUMMY_PROJECTS,
+} from '../backend/dummyProjects';
 import { epoch } from '../../../shared/format';
-import { projectOf } from '../../../shared/model/projects';
+import { MISC_SLUG, projectOf } from '../../../shared/model/projects';
 import type { RoadmapItem } from '../../../shared/model/roadmap';
 import { isSuffixBot } from '../../../shared/model/visibility';
 import {
@@ -55,8 +60,10 @@ export async function dummyWorkInputs(plans: readonly RoadmapItem[]): Promise<Wo
          links: linksOf.get(issueKey(p)) ?? [],
       };
       knownPulls.set(issueKey(pull), pull);
+      // misc holds unsorted work, not a project: a misc PR joins the
+      // projects whose issues it links, as one with no label does
       const slug = projectOf(p.labels, prefix);
-      if (slug) byProject.set(slug, [...(byProject.get(slug) ?? []), pull]);
+      if (slug && slug !== MISC_SLUG) byProject.set(slug, [...(byProject.get(slug) ?? []), pull]);
       else if (pull.links.length) unlabeled.push(pull);
    }
    // a project's issues by its label and by hand, each once
@@ -96,6 +103,7 @@ export async function dummyWorkInputs(plans: readonly RoadmapItem[]): Promise<Wo
       links,
       knownPulls,
       knownIssues: new Map(DUMMY_ISSUES.map(hit => [issueKey(hit), hit])),
+      notIssues: new Set(DUMMY_PROJECTS.map(p => issueKey(p))),
    };
 }
 

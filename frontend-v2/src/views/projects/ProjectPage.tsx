@@ -329,6 +329,7 @@ export function ProjectPage({
             plans={plans}
             work={work}
             pulls={pulls}
+            nameOf={s => data?.projects.find(p => p.slug === s)?.name ?? s}
          />
          {w && (
             <section className="mb-7">

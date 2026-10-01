@@ -236,6 +236,8 @@ export function apiIndex(req, res) {
             reopened:
                'marked done or dropped a week ago or more (`by` the roadmap or by closing the issue), but `open` PRs are still open',
             moving: 'parked, but its PRs changed after it was parked',
+            issues_done:
+               'every issue in its project is closed (`done`, `dropped`), and the plan running today hasn’t changed since the last one closed; `open` = its PRs still open',
          },
          to_clear:
             'Make the call as a roadmap write. With no item: POST /api/v1/roadmap {name, project, status, ' +

@@ -381,9 +381,9 @@ export default {
    /**
     * POST /project-issues and /api/v1/project-issues {project, issue} --
     * add an issue to a project by hand: `issue` is "owner/repo#123", a link,
-    * or {repo, number}. It's read off GitHub, so a missing issue (or a PR)
-    * is a 404, and a project's own issue or a plan's spec issue a 409.
-    * Adding one that's already there changes nothing.
+    * or {repo, number}. It's read off GitHub, so a missing issue is a 404,
+    * and a PR, an issue outside the tracked organizations, or a project's
+    * own issue a 409. Adding one that's already there changes nothing.
     */
    attachIssue: function (req, res) {
       const body = req.body || {};

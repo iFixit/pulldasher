@@ -9,6 +9,7 @@ import {
    loadWork,
    searchIssues,
    syncWork,
+   workIssueTouched,
 } from '../lib/work.js';
 
 const at = day => Date.parse(`${day}T12:00:00Z`) / 1000;
@@ -167,16 +168,19 @@ const LABELED_PULLS = [
    pullRow(201, 'dana', '2026-08-01', merged('2026-08-19')),
    // after the plan's end (Aug 30)
    pullRow(202, 'erin', '2026-09-10', { body: 'Parts of #101' }),
-   // links an issue no one attached: a suggestion
-   pullRow(204, 'faye', '2026-09-25', { body: 'Parts of #110' }),
-   // links nothing
-   pullRow(208, 'gus', '2026-09-26'),
+   // links an issue no one attached, twice: one suggestion, linked once
+   pullRow(204, 'faye', '2026-09-25', { body: 'Parts of #110. Closes #110' }),
+   // links no issue: #212 is a PR, never an issue to suggest
+   pullRow(208, 'gus', '2026-09-26', { body: 'Fixes #212' }),
    pullRow(209, 'renovate[bot]', '2026-09-27'),
 ];
 // PRs with no project label
 const OTHER_PULLS = [
    pullRow(203, 'hal', '2026-08-05', merged('2026-08-06')),
-   pullRow(207, 'ivy', '2026-09-28'),
+   // it joins by linking #106; the other issue it links is suggested
+   pullRow(207, 'ivy', '2026-09-28', { body: 'Parts of #106 and #111' }),
+   // links nothing attached, so only the pulls table knows it's a PR
+   pullRow(212, 'jo', '2026-09-01', merged('2026-09-02')),
 ];
 
 function fakeQuery(sql, params) {
@@ -210,7 +214,14 @@ function fakeQuery(sql, params) {
          ...OTHER_PULLS.map(p => ({ ...p, labeled: 0 })),
       ]
          .filter(p => linked.has(`${p.repo}#${p.number}`.toLowerCase()))
-         .map(p => ({ ...p, body: undefined }));
+         .map(p => ({ ...p, body: sql.includes('p.body') ? p.body : undefined }));
+   }
+   // the PRs among the issues a project's PRs link
+   if (sql.includes('FROM `pulls` WHERE (`repo`, `number`) IN')) {
+      const wanted = new Set(params[0].map(([r, n]) => `${r}#${n}`.toLowerCase()));
+      return [...LABELED_PULLS, ...OTHER_PULLS].filter(p =>
+         wanted.has(`${p.repo}#${p.number}`.toLowerCase())
+      );
    }
    if (sql.startsWith('DELETE FROM `issue_pull_links`')) {
       const gone = new Set(params[0].map(([r, n]) => `${r}#${n}`.toLowerCase()));
@@ -265,7 +276,8 @@ function fakeQuery(sql, params) {
    throw new Error(`unexpected query: ${sql}`);
 }
 
-const settings = { repo: 'test/projects', prefix: 'project:' };
+// iFixit's own repos are tracked through its projects repo
+const settings = { repo: 'iFixit/projects', prefix: 'project:' };
 
 function fresh() {
    tables = { links: [], hand: [], handReads: 0 };
@@ -325,8 +337,12 @@ test('a project’s page lists each issue with its PRs, the PRs that link none, 
       [208, 204]
    );
    assert.deepEqual(
-      work.suggested.map(i => [i.number, i.title]),
-      [[110, 'Make the bench printable']]
+      work.suggested.map(i => [i.number, i.title, i.linkedBy.map(p => p.number)]),
+      [
+         [110, 'Make the bench printable', [204]],
+         // read off a PR with no project label; the board never saw it
+         [111, '', [207]],
+      ]
    );
    assert.deepEqual([work.counts.total, work.counts.open, work.counts.done], [3, 2, 1]);
 });
@@ -362,8 +378,10 @@ test('adding by hand keeps who added it first, refuses a project’s own issue, 
       tables.hand.map(h => h.added_by),
       ['dana']
    );
-   // a PR, or an issue GitHub doesn't have, can't be added
-   assert.deepEqual(await add(201), { missing: true });
+   // a PR, an issue outside the tracked organizations, or one GitHub
+   // doesn't have can't be added
+   assert.match((await add(201)).refused, /That’s a PR/);
+   assert.match((await add(5, 'dana', 'other/thing')).refused, /organization this board tracks/);
    assert.deepEqual(await add(999), { missing: true });
    assert.match((await add(1, 'dana', 'test/projects')).refused, /project’s own issue/);
    // the hourly sync keeps its title current
@@ -386,20 +404,42 @@ test('a sync asked for while one runs runs again after it', async () => {
 test('searchIssues finds an issue by link, by number in any tracked repo, or by words', async () => {
    fresh();
    searches = [];
+   await attachIssue(settings, 'workbench', { repo: 'iFixit/ifixit', number: 106 }, 'dana');
    const [byLink] = await searchIssues(settings, 'https://github.com/iFixit/ifixit/issues/106');
-   assert.deepEqual([byLink.repo, byLink.number, byLink.state], ['iFixit/ifixit', 106, 'open']);
-   // a PR isn't an issue to pick
+   // with the projects it's in already
+   assert.deepEqual(
+      [byLink.repo, byLink.number, byLink.state, byLink.projects],
+      ['iFixit/ifixit', 106, 'open', ['workbench']]
+   );
+   // a PR isn't an issue to pick, nor is one outside the tracked organizations
    assert.deepEqual(await searchIssues(settings, 'iFixit/ifixit#201'), []);
+   assert.deepEqual(await searchIssues(settings, 'other/thing#3'), []);
    // only issues in the tracked repos' organizations, whatever the words ask
    assert.deepEqual(
       (await searchIssues(settings, 'stickers')).map(h => `${h.repo}#${h.number}`),
       ['test/repo-a#5']
    );
-   assert.match(searches[0], /^stickers is:issue org:test/);
+   assert.match(searches[0], /^stickers is:issue org:iFixit org:test$/);
    // answered again from what it kept
    await searchIssues(settings, 'stickers');
    assert.equal(searches.length, 1);
    // a number too big for GitHub is no search at all
    assert.deepEqual(await searchIssues(settings, '#30000000000'), []);
    assert.deepEqual(await searchIssues(settings, ' '), []);
+});
+
+test('a project label put on an issue reads the work again a minute later', async () => {
+   fresh();
+   mock.timers.enable({ apis: ['setTimeout'] });
+   // no project's issue, and no project label: nothing to read
+   workIssueTouched(settings, 'iFixit/ifixit', 300, [{ name: 'bug' }]);
+   mock.timers.tick(60 * 1000);
+   assert.equal(tables.handReads, 0);
+   // just labeled into a project
+   workIssueTouched(settings, 'iFixit/ifixit', 300, [{ name: 'project:workbench' }]);
+   mock.timers.tick(60 * 1000);
+   // asked while the timer's sync runs: it waits for that one and one more
+   await syncWork(settings);
+   assert.equal(tables.handReads, 2);
+   mock.timers.reset();
 });

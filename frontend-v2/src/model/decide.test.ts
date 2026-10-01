@@ -231,7 +231,27 @@ describe('decideQueue', () => {
          ['shipped', 'issues_done'],
          ['unknown', 'issues_done'],
       ]);
-      expect(rows[0].reasons[0]).toEqual({ kind: 'issues_done', done: 4, dropped: 1 });
+      // the plan's PRs still open come along, so the ask can say so
+      expect(rows[0].reasons[0]).toEqual({ kind: 'issues_done', done: 4, dropped: 1, open: 2 });
+   });
+
+   it('asks only the plan running today, not one that hasn’t started', () => {
+      const rows = decideQueue({
+         live: [project('phases')],
+         items: [
+            item(1, { project: 'phases', start: '2026-09-07' }),
+            item(2, { project: 'phases', start: '2026-09-21' }),
+            item(3, { project: 'phases', status: 'planned', start: '2026-11-02' }),
+         ],
+         issues: new Map([
+            ['phases', { total: 2, open: 0, done: 2, dropped: 0, lastClosedAt: ago(2) }],
+         ]),
+         today,
+         now: NOW,
+      });
+      expect(
+         rows.filter(r => r.reasons.some(x => x.kind === 'issues_done')).map(r => r.item?.id)
+      ).toEqual([2]);
    });
 
    const noPulls: PlanCounts = { openPulls: 0, afterEnd: 0, afterDone: 0 };

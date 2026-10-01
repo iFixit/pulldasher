@@ -51,14 +51,15 @@ export function bodyLinks(body: string | null, repo: string): IssueRef[] {
       `\\b(?:${LINK_WORDS}):?\\s+(${ONE_REF}(?:\\s*(?:,|and|&)\\s*${ONE_REF})*)`,
       'gi'
    );
-   const refs: IssueRef[] = [];
+   // a body naming one issue twice ("Parts of #1 ... closes #1") links it once
+   const refs = new Map<string, IssueRef>();
    for (const m of (body ?? '').matchAll(phrase)) {
       for (const one of m[1].matchAll(new RegExp(ONE_REF, 'gi'))) {
          const ref = parseIssueRef(one[0], repo);
-         if (ref) refs.push(ref);
+         if (ref && !refs.has(issueKey(ref))) refs.set(issueKey(ref), ref);
       }
    }
-   return refs;
+   return [...refs.values()];
 }
 
 /** Where an issue stands: still to do, done, or dropped (closed as not
@@ -83,6 +84,8 @@ export interface IssueHit {
    createdAt: number | null;
    /** epoch secs it closed; null while open or when not known */
    closedAt?: number | null;
+   /** a search hit: the projects it's in already, by slug */
+   projects?: string[];
 }
 
 /** An issue attached to a project. */
@@ -156,8 +159,8 @@ export interface SuggestedIssue extends IssueHit {
  * them, and the issues its PRs link that aren't attached. */
 export interface ProjectWork {
    issues: ProjectIssue[];
-   /** its PRs that link none of its issues: the open ones, and the ones
-    * merged or closed in the last RECENT_DAYS, newest first */
+   /** its PRs that link none of its issues: the open ones, then the ones
+    * merged or closed in the last RECENT_DAYS, each newest first */
    unlinked: IssuePull[];
    /** issues its recent PRs link that aren't attached, to add */
    suggested: SuggestedIssue[];
@@ -198,13 +201,19 @@ export interface WorkInputs {
 
 /**
  * Which of a project's plans a PR belongs to: the latest one that had
- * started when it opened, or the earliest plan when it came before them
- * all. Null for a project with no plans.
+ * started when it opened, skipping plans already marked done or dropped by
+ * then while another still runs; or the earliest plan when it came before
+ * them all. Null for a project with no plans.
  */
 export function planOfWork(plans: readonly RoadmapItem[], at: number): RoadmapItem | null {
    const sorted = [...plans].sort((a, b) => a.start.localeCompare(b.start) || a.id - b.id);
    const started = sorted.filter(p => (dayStart(p.start) as number) <= at);
-   return started[started.length - 1] ?? sorted[0] ?? null;
+   const stopped = (p: RoadmapItem) =>
+      (p.status === 'done' || p.status === 'dropped') && p.updated_at != null && p.updated_at <= at;
+   const running = started.filter(p => !stopped(p));
+   // with every started plan stopped, the latest still takes it: that's how
+   // work after a finished plan shows up (PlanWork.afterDone)
+   return running[running.length - 1] ?? started[started.length - 1] ?? sorted[0] ?? null;
 }
 
 /** The first moment after a plan's last planned day. */
@@ -378,7 +387,7 @@ export function projectWork(
       unlinked: mine
          .filter(pr => !linked.has(issueKey(pr)) && recent(pr, RECENT_DAYS))
          .map(issuePull)
-         .sort(newest),
+         .sort((a, b) => Number(b.state === 'open') - Number(a.state === 'open') || newest(a, b)),
       suggested: [...suggested.values()],
       counts: issueCounts(issues),
    };

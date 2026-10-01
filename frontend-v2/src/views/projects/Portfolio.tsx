@@ -116,7 +116,7 @@ function targetCell(item: PortfolioItem): ReactNode {
 
 function planTitle(item: PortfolioItem): string {
    if (item.planCell.kind === 'issues_done') {
-      return 'Every issue attached to it is closed, and the plan hasn’t changed since, so Decide asks whether it’s done. Click to open the plan.';
+      return 'All its issues are closed, and the plan hasn’t changed since, so Decide asks whether it’s done. Click to open the plan.';
    }
    if (item.plan) return `${planCellWords(item.plan).title}. Click to open the plan.`;
    if (item.planCell.kind === 'missed') {
@@ -262,7 +262,7 @@ const COLUMNS: Column[] = [
 const ISSUES: Column = {
    key: 'issues',
    label: 'Issues open',
-   title: 'How many of the issues attached to it are still open, by its label or added on its page',
+   title: 'How many of its issues are still open: the ones with its label and the ones added on its page',
    width: 'w-16',
    hide: 'hidden lg:block',
    cell: (i, act) => {
@@ -271,8 +271,8 @@ const ISSUES: Column = {
       return (
          <CellButton
             onClick={() => act.openProject(i.slug)}
-            // amber only while Decide asks whether it's done
-            className={i.planCell.kind === 'issues_done' ? 'text-warn' : 'text-ink-2'}
+            // the Plan cell carries the call Decide asks, so this stays plain
+            className="text-ink-2"
             title={`${s.open} open, ${s.done} done${
                s.dropped ? `, ${s.dropped} dropped` : ''
             }. Click for the list.`}

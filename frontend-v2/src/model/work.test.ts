@@ -99,6 +99,8 @@ describe('bodyLinks', () => {
          'Parts of #62502, #62503 and iFixit/ops#12',
          'Fixes: https://github.com/iFixit/ifixit/issues/64170',
          'connects to #9',
+         // named again: still one link
+         'Closes #62502',
          'Unlike #63000, this keeps the old header. See #1.',
          'Not part of the #63000 audit',
       ].join('\n');
@@ -132,6 +134,22 @@ describe('planOfWork', () => {
       // before every plan: the first one
       expect(planOfWork([feedback, launch], at('2026-01-05'))?.id).toBe(1);
       expect(planOfWork([], at('2026-01-05'))).toBeNull();
+   });
+
+   it('skips a plan marked done or dropped before the PR opened, while another runs', () => {
+      const launch = plan(1, { start: '2026-07-06', weeks: 6 });
+      // started Sep 7, dropped the next day
+      const extra = plan(2, {
+         start: '2026-09-07',
+         status: 'dropped',
+         updated_at: at('2026-09-08'),
+      });
+      expect(planOfWork([launch, extra], at('2026-09-14'))?.id).toBe(1);
+      // opened before the drop: it was that plan's
+      expect(planOfWork([launch, extra], at('2026-09-07'))?.id).toBe(2);
+      // every started plan stopped: the latest still takes it, as work after it
+      const done = plan(3, { start: '2026-07-06', status: 'done', updated_at: at('2026-08-20') });
+      expect(planOfWork([done], at('2026-09-14'))?.id).toBe(3);
    });
 });
 
@@ -239,6 +257,8 @@ describe('projectWork', () => {
                   // merged long ago: off the page
                   pull(202, '2026-07-01', merged('2026-07-05')),
                   pull(203, '2026-09-27', { links: [ref(300)] }),
+                  // merged, and newer than the open ones: it still lists after them
+                  pull(209, '2026-09-29', merged('2026-09-29')),
                   pull(204, '2026-09-29', { links: [ref(301)] }),
                   pull(205, '2026-09-10', {
                      ...merged('2026-09-12'),
@@ -287,8 +307,8 @@ describe('projectWork', () => {
       expect(page.issues[1].prs[1]).toMatchObject({ title: 'Elsewhere', state: 'merged' });
    });
 
-   it('lists its PRs that link none of its issues: open, or closed in the last two weeks', () => {
-      expect(numbers(page.unlinked)).toEqual([204, 203, 201]);
+   it('lists its PRs that link none of its issues: open ones first, then closed lately', () => {
+      expect(numbers(page.unlinked)).toEqual([204, 203, 209, 201]);
    });
 
    it('suggests the issues its recent PRs link that aren’t attached', () => {

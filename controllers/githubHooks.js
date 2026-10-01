@@ -237,9 +237,13 @@ function handleIssueEvent(body) {
    hooksDebug('Webhook action: %s for issue #%s', body.action, body.issue.number);
 
    var doneHandling = handleLabelEvents(body);
-   // an issue attached to a project changed: its project's work is read again soon
+   // an issue attached to a project changed, or a project label came or went:
+   // the work is read again soon
    if (body.repository) {
-      workIssueTouched(projectSettings(), body.repository.full_name, body.issue.number);
+      workIssueTouched(projectSettings(), body.repository.full_name, body.issue.number, [
+         ...(body.issue.labels ?? []),
+         ...(body.label ? [body.label] : []),
+      ]);
    }
 
    // Always refresh from the API rather than upserting the webhook body

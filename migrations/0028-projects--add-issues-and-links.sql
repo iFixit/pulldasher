@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS `project_issues` (
   `created_at` int unsigned DEFAULT NULL,
   `added_by` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `added_at` int unsigned NOT NULL,
-  PRIMARY KEY (`project`,`repo`,`number`)
+  PRIMARY KEY (`project`,`repo`,`number`),
+  KEY `issue` (`repo`,`number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS `issue_pull_links` (
