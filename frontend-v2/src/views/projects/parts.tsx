@@ -63,9 +63,11 @@ export interface ProjectsNav {
     * for the view's own default */
    psort: string;
 }
-/** Change the tab's view. A change of view (lens, project, view, zoom) gets
- * a history entry so Back undoes it; `push` asks for one for any other
- * change a click made (typing replaces the entry instead). */
+/** Change the tab's view. A change of view (lens, project, view, zoom) or a
+ * pick that narrows one (only, team, week, origin, item, Look back's person
+ * and split) gets a history entry, so Back undoes it; `push` asks for one
+ * for any other change a click made, such as a find a click sets (typing
+ * replaces the entry instead). */
 export type Navigate = (patch: Partial<ProjectsNav>, opts?: { push?: boolean }) => void;
 
 /** Where the work came from, as a switch's options; `unsaid` stands for a
@@ -240,13 +242,16 @@ export function ProjectFacts({
             onClick={() =>
                name
                   ? go?.({ project: parent })
-                  : go?.({
-                       project: null,
-                       view: 'overview',
-                       status: 'all',
-                       group: 'parent',
-                       find: parent,
-                    })
+                  : go?.(
+                       {
+                          project: null,
+                          view: 'overview',
+                          status: 'all',
+                          group: 'parent',
+                          find: `parent:${parent}`,
+                       },
+                       { push: true }
+                    )
             }
             title={name ? `Open ${name}` : `The projects that are part of ${parent}`}
          >
@@ -277,8 +282,13 @@ export function ProjectFacts({
                Lead{' '}
                {go ? (
                   <FactLink
-                     onClick={() => go({ project: null, view: 'overview', find: lead })}
-                     title={`Find the projects ${lead} is on`}
+                     onClick={() =>
+                        go(
+                           { project: null, view: 'overview', find: `lead:${lead}` },
+                           { push: true }
+                        )
+                     }
+                     title={`List only the projects ${lead} leads`}
                   >
                      {lead}
                   </FactLink>
@@ -332,23 +342,25 @@ export function ProjectFacts({
       );
    }
    const isOngoing = ongoing ?? !!project?.ongoing;
-   if (onOngoing) {
+   if (onOngoing && ongoingByLabel) {
+      // only the label can change it, so words instead of a box that can't
+      facts.push(
+         <span key="kind" title="Take the ongoing label off its issue to change this">
+            Ongoing, set by its issue’s label
+         </span>
+      );
+   } else if (onOngoing) {
       facts.push(
          <label
             key="kind"
-            className="inline-flex cursor-pointer items-center gap-1.5 has-[:disabled]:cursor-default"
-            title={
-               ongoingByLabel
-                  ? 'Its issue’s ongoing label says so; take the label off to change it'
-                  : 'Decide stops asking it for a first plan, a finished plan of its stays finished as the work goes on, and its page skips the finish forecast'
-            }
+            className="inline-flex cursor-pointer items-center gap-1.5"
+            title="Decide stops asking it for a first plan, a finished plan of its stays finished as the work goes on, and its page skips the finish forecast"
          >
             <input
                type="checkbox"
                checked={isOngoing}
-               disabled={ongoingByLabel}
                onChange={e => onOngoing(e.target.checked)}
-               className="m-0 disabled:opacity-40"
+               className="m-0"
             />
             Ongoing, no end
          </label>

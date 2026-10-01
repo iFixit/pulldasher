@@ -458,10 +458,15 @@ export function App() {
    };
    const prevView = useRef(view);
    useEffect(() => {
-      const next = buildHash(hashState);
-      if (next === location.hash.slice(1)) return;
+      // spent even when the hash already says so (after Back, or a hash
+      // link), so the next change compares with what's on screen and a
+      // click that changed nothing doesn't push the next keystroke
       const prev = prevView.current;
       prevView.current = view;
+      const asked = pushRequested.current;
+      pushRequested.current = false;
+      const next = buildHash(hashState);
+      if (next === location.hash.slice(1)) return;
       const viewChanged =
          prev.lens !== view.lens ||
          prev.project !== view.project ||
@@ -474,9 +479,12 @@ export function App() {
          prev.item !== view.item ||
          prev.who !== view.who ||
          prev.by !== view.by;
-      const push = viewChanged || pushRequested.current;
-      pushRequested.current = false;
-      if (push) {
+      if (viewChanged || asked) {
+         // a project's page or another Projects view opens at its top; Back
+         // returns to the old one where it was left
+         if (prev.project !== view.project || prev.projectsView !== view.projectsView) {
+            window.scrollTo(0, 0);
+         }
          if (next) {
             // fires hashchange; the listener below re-reads idempotently
             location.hash = next;
@@ -879,6 +887,13 @@ export function App() {
       // the Projects tab, clicked from a project page, goes back to the list
       if (id === 'projects') setProjectsNav(cur => ({ ...cur, project: null }));
    }, []);
+   // a PR's project, from its state popover anywhere on the board: the
+   // Projects tab opens on that project's page, the board's filters kept
+   const onProject = useCallback((slug: string) => {
+      setQuery('');
+      setLens('projects');
+      setProjectsNav(cur => ({ ...cur, project: slug }));
+   }, []);
    // and the Team lens shows the result
    const onPerson = useCallback(
       (login: string) => {
@@ -915,6 +930,7 @@ export function App() {
          pools,
          turns,
          isBotAuthor,
+         onProject,
       }),
       [
          me,
@@ -931,6 +947,7 @@ export function App() {
          pools,
          turns,
          isBotAuthor,
+         onProject,
       ]
    );
 

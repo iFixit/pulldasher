@@ -59,8 +59,8 @@ interface CellActions {
    findTeam: (team: string) => void;
    onPerson: (login: string) => void;
    /** the roadmap's list of work with no plan, where a plan starts, narrowed
-    * to this project */
-   unplanned: (slug: string) => void;
+    * to this project when the list has it (work in flight) */
+   unplanned: (item: PortfolioItem) => void;
    /** whether the 14 days of who worked on what have loaded */
    workersLoaded: boolean;
    openProject: (slug: string) => void;
@@ -271,7 +271,7 @@ const COLUMNS: Column[] = [
                      ? act.openProject(i.slug)
                      : plan
                      ? act.openPlan(plan.id)
-                     : act.unplanned(i.slug)
+                     : act.unplanned(i)
                }
                className={i.planCell.warn ? 'text-warn' : 'text-ink-2'}
                title={planTitle(i)}
@@ -372,7 +372,7 @@ function RowDetail({
          >
             <PageLink g={item} navigate={navigate} />
          </ProjectFacts>
-         <PlanFacts slug={item.slug} nav={nav} navigate={navigate} />
+         <PlanFacts slug={item.slug} nav={nav} navigate={navigate} live={item.status === 'live'} />
          <div className="border-t border-secondary px-3.5 py-2 text-xs text-ink-3">
             {item.workers.length ? (
                <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -580,10 +580,10 @@ export function Portfolio({
    const findText = (text: string) => navigate({ find: text }, { push: true });
    const act: CellActions = {
       openPlan: id => navigate(openPlan(nav, id)),
-      findLead: findText,
-      findTeam: findText,
+      findLead: lead => findText(`lead:${lead}`),
+      findTeam: team => findText(`team:${team}`),
       onPerson,
-      unplanned: slug =>
+      unplanned: item =>
          navigate({
             project: null,
             view: 'roadmap',
@@ -591,7 +591,8 @@ export function Portfolio({
             item: null,
             week: null,
             origin: null,
-            find: slug,
+            // the roadmap lists only work in flight; a quiet project isn't there
+            find: item.status === 'live' ? item.slug : '',
          }),
       workersLoaded,
       openProject: slug => navigate({ project: slug }),

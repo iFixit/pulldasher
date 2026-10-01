@@ -1,5 +1,6 @@
 import { epoch, n } from '../../../shared/format';
 import {
+   closedIssues,
    DECIDE_MIN_PRS,
    STALL_DAYS,
    issuesAllClosed,
@@ -235,6 +236,7 @@ export function portfolioItems(
    const soon = utcDay((dayStart(day) as number) + (ENDS_SOON_DAYS - 1) * DAY);
    const daysSince = (at: number) => Math.max(0, Math.floor((secs - at) / DAY));
    const bySlug = new Map(projects.map(p => [p.slug, p]));
+   const closed = closedIssues(projects);
    const groups = new Map<string, [ProjectGroup, 'live' | 'quiet']>();
    for (const g of today.live) groups.set(g.slug, [g, 'live']);
    for (const g of today.quiet) groups.set(g.slug, [g, 'quiet']);
@@ -313,7 +315,11 @@ export function portfolioItems(
       };
       item.team = plan?.team ?? mainTeam(item, teamOf);
       const asked = planRunningToday(slug, plans, day);
-      const issuesAsked = !!asked && !!item.issues && issuesAllClosed(asked, item.issues);
+      // a project issue closed since the plan's last change is Decide's
+      // first question about it, as decide.ts asks it
+      const issueClosed = (closed.get(slug)?.at ?? 0) > (asked?.updated_at ?? 0);
+      const issuesAsked =
+         !!asked && !!item.issues && !issueClosed && issuesAllClosed(asked, item.issues);
       item.planCell = planCell({ ...item, issuesAsked }, day, secs);
       const kind = item.planCell.kind;
       item.stalled =
@@ -419,14 +425,41 @@ export function onlyWords(only: string | null): string | null {
    return (bar[1] === 'age' ? AGE_BUCKETS : IDLE_BUCKETS)[Number(bar[2])]?.words ?? null;
 }
 
-/** A search over the words a planner would type: the name, the slug, a
- * parent, the lead, or the team. */
-export function matchesFind(item: PortfolioItem, find: string): boolean {
+/** What a row offers the find box. */
+export interface FindFields {
+   name: string;
+   slug: string | null;
+   lead: string | null;
+   team: string | null;
+   parents: readonly string[];
+}
+
+/**
+ * The find box read once, for every view that narrows by it: null when it's
+ * empty, else a test for a row. Words match anywhere in the name, slug,
+ * lead, team or parents; "lead:", "team:" or "parent:" before a name
+ * matches that field exactly, which is what a click on a lead, a team or a
+ * parent puts in the box.
+ */
+export function findFilter(find: string): ((row: FindFields) => boolean) | null {
    const q = find.trim().toLowerCase();
-   if (!q) return true;
-   return [item.name, item.slug, item.lead ?? '', item.team ?? '', ...item.parents].some(s =>
-      s.toLowerCase().includes(q)
-   );
+   if (!q) return null;
+   const exact = /^(lead|team|parent):\s*(.+)$/.exec(q);
+   if (exact) {
+      const [, field, name] = exact;
+      if (field === 'parent') return row => row.parents.some(p => p.toLowerCase() === name);
+      return row => (row[field as 'lead' | 'team'] ?? '').toLowerCase() === name;
+   }
+   return row =>
+      [row.name, row.slug, row.lead, row.team, ...row.parents].some(s =>
+         (s ?? '').toLowerCase().includes(q)
+      );
+}
+
+/** Whether a project's row matches the find box (findFilter). */
+export function matchesFind(item: PortfolioItem, find: string): boolean {
+   const filter = findFilter(find);
+   return !filter || filter(item);
 }
 
 export type SortKey =

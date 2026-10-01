@@ -6,11 +6,12 @@ import {
    issueKey,
    issueQuery,
    projectWork,
+   type AttachedIssue,
    type IssueHit,
    type IssueRef,
    type ProjectWork,
 } from '../../../shared/model/work';
-import { dummyHand, dummyWorkInputs, workVersion } from './workData';
+import { byHandOnly, dummyHand, dummyWorkInputs, workVersion } from './workData';
 
 /**
  * A project's page and the issue search: GET /project-work and
@@ -48,7 +49,14 @@ function dummySearch(text: string): IssueHit[] {
       const words = q.words.toLowerCase().split(/\s+/);
       hits = all.filter(hit => words.every(w => hit.title.toLowerCase().includes(w))).slice(0, 10);
    }
-   const lists = [...Object.entries(DUMMY_ATTACHED), ...dummyHand];
+   // the fixtures' labeled issues and whatever is added by hand now
+   const lists = [
+      ...Object.entries(DUMMY_ATTACHED).map(([slug, list]): [string, AttachedIssue[]] => [
+         slug,
+         list.filter(i => !byHandOnly(i)),
+      ]),
+      ...dummyHand,
+   ];
    return hits.map(hit => ({
       ...hit,
       projects: [

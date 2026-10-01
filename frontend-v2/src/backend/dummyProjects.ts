@@ -100,6 +100,11 @@ const BASE_PROJECTS: Project[] = [
    dummyProject(11, 'type-refresh', 'Type and spacing refresh', { lead: 'danielbeardsley' }),
    dummyProject(12, 'translations', 'Translations upkeep', { ongoing: true }),
    dummyProject(13, 'onboarding-emails', 'Onboarding emails'),
+   // the SSO plan ships its first path alone; the second is a phase of its own
+   dummyProject(15, 'release-gate-sso-second-path', 'SSO approvals: the second path', {
+      lead: 'rjmccluskey',
+      parents: ['release-gate-sso'],
+   }),
    dummyProject(14, 'old-checkout', 'Old checkout cleanup', {
       state: 'closed',
       state_reason: 'not_planned',

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { DecideRow } from '../../../../shared/model/decide';
 import {
    projectOf,
@@ -43,7 +43,7 @@ import {
    type Navigate,
    type ProjectsNav,
 } from './parts';
-import { healthWords, PlanFacts } from './roadmapHealth';
+import { PLAN_STATUS_WORD, PlanFacts } from './roadmapHealth';
 import { ProjectWorkSection, type PullLookup } from './Work';
 
 const DAY_MS = 86_400_000;
@@ -155,15 +155,21 @@ function ProjectFlow({ data, range }: { data: ProjectsData | null | undefined; r
  * answers the question it was opened for. Its plan's health already shows
  * an at-risk or off-track call, so those aren't repeated.
  */
-function DecideAsks({ rows, navigate }: { rows: DecideRow[]; navigate: Navigate }) {
-   const said = rows.flatMap(row =>
+/** Decide's reasons the page shows: all but the plan health's own. */
+const asksOf = (rows: DecideRow[]) =>
+   rows.flatMap(row =>
       row.reasons
          .filter(r => r.kind !== 'off_track' && r.kind !== 'at_risk')
-         .map(
-            r =>
-               (rows.length > 1 && row.item ? `${row.item.name}: ` : '') + reasonWords(r, row.item)
-         )
+         .map(r => ({ row, reason: r }))
    );
+
+function DecideAsks({ rows, navigate }: { rows: DecideRow[]; navigate: Navigate }) {
+   // each reason a sentence, so two don't run together
+   const said = asksOf(rows).map(({ row, reason }) => {
+      const words = reasonWords(reason, row.item);
+      const named = rows.length > 1 && row.item ? `${row.item.name}: ${words}` : words;
+      return /[.?!]$/.test(named) ? named : `${named}.`;
+   });
    if (!said.length) return null;
    return (
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-secondary px-3.5 py-2 text-xs">
@@ -171,7 +177,8 @@ function DecideAsks({ rows, navigate }: { rows: DecideRow[]; navigate: Navigate 
          <span className="min-w-0 text-ink-2">{said.join(' ')}</span>
          <button
             type="button"
-            onClick={() => navigate({ project: null, view: 'decide' })}
+            // every team's rows, so this one is there
+            onClick={() => navigate({ project: null, view: 'decide', team: null })}
             className="hit pressable ml-auto rounded border-0 bg-transparent p-0 text-xs font-medium text-brand hover:underline"
          >
             Make the call in Decide
@@ -236,6 +243,8 @@ export function ProjectPage({
    const [saveError, setSaveError] = useState<string | null>(null);
    // the chart's days, which the forecast reads too (fetched once, cached)
    const flow = useProjectsData(chartWindow(range), slug);
+   // its rows are on this project's page, so their popover doesn't link here
+   const rowOpts = useMemo(() => ({ ...opts, onProject: undefined }), [opts]);
    const live = today.live.find(g => g.slug === slug);
    const group = live ?? today.quiet.find(g => g.slug === slug);
    const project = group?.project ?? data?.projects.find(p => p.slug === slug) ?? null;
@@ -279,17 +288,27 @@ export function ProjectPage({
       });
    };
    const plan = plans ? planFor(slug, plans) : null;
-   const healthAsks =
-      !!plan && isUnderWay(plan.status) && !!healthWords(healthStanding(plan))?.warn;
+   const planHealth = plan ? healthStanding(plan) : null;
+   const update =
+      planHealth?.kind === 'current' || planHealth?.kind === 'stale' ? planHealth.update : null;
+   // a call someone owes already shows amber: the plan's off-track or
+   // at-risk health, or Decide's line; a late forecast then stays plain
+   const callShown =
+      (!!plan &&
+         isUnderWay(plan.status) &&
+         (update?.health === 'off_track' || update?.health === 'at_risk')) ||
+      asksOf(asks).length > 0;
+   // a finished project has nothing left to forecast
+   const finished = project?.state === 'closed' || (!!plan && !isUnderWay(plan.status));
    // a pace only means something when the range runs up to today
    const current = range.end >= dayOf(new Date());
    const forecast =
-      live && !ongoing && current && flow ? (
+      live && !ongoing && !finished && current && flow ? (
          <Forecast
             group={live}
             days={flow.window.days}
             dueOn={targetOf(project)?.due_on ?? null}
-            asked={healthAsks}
+            asked={callShown}
          />
       ) : null;
    // what the board knows of each PR: open ones live on the board (in any
@@ -321,7 +340,10 @@ export function ProjectPage({
             <h2 className="m-0 text-base font-semibold leading-snug">
                {item?.name ?? project?.name ?? slug}
             </h2>
-            <span className="text-xs text-ink-3">{standing}</span>
+            {/* the plan row says it when it's the same word */}
+            {standing !== (plan ? PLAN_STATUS_WORD[plan.status] : null) && (
+               <span className="text-xs text-ink-3">{standing}</span>
+            )}
             <span className="text-xs text-ink-3">{prefix + slug}</span>
             {group && (
                <span className="flex items-center gap-3 text-xs">
@@ -354,7 +376,7 @@ export function ProjectPage({
                   onOngoing={markOngoing}
                   ongoingByLabel={byLabel}
                />
-               <PlanFacts slug={slug} nav={nav} navigate={navigate} />
+               <PlanFacts slug={slug} nav={nav} navigate={navigate} live={!!live} />
                <DecideAsks rows={asks} navigate={navigate} />
                {forecast && <div className="border-t border-secondary px-3.5 py-2">{forecast}</div>}
             </Rows>
@@ -365,7 +387,7 @@ export function ProjectPage({
             label={prefix + slug}
             plans={plans}
             pulls={pulls}
-            opts={opts}
+            opts={rowOpts}
             nameOf={s => nameOf(s) ?? s}
             navigate={navigate}
          />

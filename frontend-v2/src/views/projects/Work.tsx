@@ -83,6 +83,7 @@ function PullItem({
    late,
    opts,
    repoShown,
+   asRow = true,
 }: {
    pr: IssuePull;
    pulls: PullLookup;
@@ -90,9 +91,12 @@ function PullItem({
    late: boolean;
    opts: RowOptions;
    repoShown: boolean;
+   /** false where it's a second sighting (it links two issues here): the
+    * board's row, with its id and actions, is drawn once a page */
+   asRow?: boolean;
 }) {
-   const live = pulls.live(pr);
-   const known = live ? undefined : pulls.known(pr);
+   const live = asRow ? pulls.live(pr) : undefined;
+   const known = live || !asRow ? undefined : pulls.known(pr);
    return (
       // the divider rides on this wrapper, so a note stays with its row
       <div className="border-t border-secondary first:border-t-0">
@@ -164,6 +168,7 @@ function IssueBlock({
    repoShown,
    nameOf,
    navigate,
+   rowOwner,
 }: {
    issue: ProjectIssue;
    pulls: PullLookup;
@@ -176,6 +181,8 @@ function IssueBlock({
    repoShown: (ref: IssueRef) => boolean;
    nameOf: (slug: string) => string;
    navigate: Navigate;
+   /** which issue draws each PR's board row: its first on the page */
+   rowOwner: ReadonlyMap<string, string>;
 }) {
    const via = viaWords(issue);
    return (
@@ -183,8 +190,7 @@ function IssueBlock({
          data-issue={issueKey(issue.ref)}
          className={`border-t border-secondary first:border-t-0 ${fresh ? 'row-fresh' : ''}`}
       >
-         {/* pd-row: Remove shows on this line's hover, as a row's kebab does */}
-         <div className="pd-row flex flex-wrap items-baseline gap-x-2 gap-y-1 px-3.5 pb-1 pt-2 text-[13px]">
+         <div className="group/issue flex flex-wrap items-baseline gap-x-2 gap-y-1 px-3.5 pb-1 pt-2 text-[13px]">
             <RefChip
                data={{
                   kind: 'issue',
@@ -215,7 +221,9 @@ function IssueBlock({
                <button
                   type="button"
                   onClick={onRemove}
-                  className="pd-kebab hit pressable ml-auto rounded border-0 bg-transparent p-0 text-xs text-ink-3 hover:text-ink"
+                  // shows on this line's hover or focus, as a row's menu does;
+                  // always on touch and narrow screens
+                  className="hit pressable ml-auto rounded border-0 bg-transparent p-0 text-xs text-ink-3 opacity-0 transition-opacity hover:text-ink focus-visible:opacity-100 group-hover/issue:opacity-100 max-[719px]:opacity-100 [@media(hover:none)]:opacity-100"
                >
                   Remove
                </button>
@@ -233,6 +241,7 @@ function IssueBlock({
                         late={isLate(pr)}
                         opts={opts}
                         repoShown={repoShown(pr)}
+                        asRow={rowOwner.get(issueKey(pr)) === issueKey(issue.ref)}
                      />
                   ))}
                </Truncated>
@@ -282,6 +291,8 @@ export function ProjectWorkSection({
 }) {
    const page = useProjectWork(slug, plans);
    const [note, setNote] = useState<Note | null>(null);
+   // the note waits while the pointer is on it
+   const [held, setHeld] = useState(false);
    // the issue just added, to bring into view and flash once it shows
    const [landed, setLanded] = useState<string | null>(null);
    const scrolled = useRef<string | null>(null);
@@ -295,6 +306,7 @@ export function ProjectWorkSection({
    const change = (issue: IssueRef & { state?: ItemState }, add: boolean) => {
       const ref = { repo: issue.repo, number: issue.number };
       setLanded(null);
+      setHeld(false);
       scrolled.current = null;
       setNote({ text: `${add ? 'Adding' : 'Removing'} #${ref.number}…`, busy: true });
       void changeProjectIssue(slug, ref, add).then(r => {
@@ -305,15 +317,16 @@ export function ProjectWorkSection({
             setLanded(issueKey(ref));
             setNote({
                text: `Added #${ref.number}${issue.state ? ` to ${FOLD_OF[issue.state]}` : ''}.`,
+               undo: () => change(issue, false),
             });
          }
       });
    };
    useEffect(() => {
-      if (!note || note.busy || note.error) return;
+      if (!note || note.busy || note.error || held) return;
       const wait = setTimeout(() => setNote(null), NOTE_MS);
       return () => clearTimeout(wait);
-   }, [note]);
+   }, [note, held]);
    // an added issue: open the fold it's in and bring it into view
    useEffect(() => {
       if (!landed || scrolled.current === landed) return;
@@ -338,17 +351,30 @@ export function ProjectWorkSection({
    }
    const mainRepo = [...repos].sort((a, b) => b[1] - a[1])[0]?.[0];
    const repoShown = (ref: IssueRef) => ref.repo.toLowerCase() !== mainRepo;
-   const blocks = (list: ProjectIssue[], id: string) => {
-      // a just-added issue leads its list, so a long one can't hide it
-      const ordered = landed
+   // a just-added issue leads its list, so a long one can't hide it
+   const ordered = (list: ProjectIssue[]) =>
+      landed
          ? [
               ...list.filter(i => issueKey(i.ref) === landed),
               ...list.filter(i => issueKey(i.ref) !== landed),
            ]
          : list;
+   // a PR linking two issues here is a board row under the first, in the
+   // page's order, and a plain line under the other
+   const rowOwner = new Map<string, string>();
+   for (const issue of [
+      ...ordered(by('open')),
+      ...ordered(by('done')),
+      ...ordered(by('dropped')),
+   ]) {
+      for (const pr of issue.prs) {
+         if (!rowOwner.has(issueKey(pr))) rowOwner.set(issueKey(pr), issueKey(issue.ref));
+      }
+   }
+   const blocks = (list: ProjectIssue[], id: string) => {
       return (
          <Truncated cap={LIST_CAP} id={`work:${slug}:${id}`} label="more issues">
-            {ordered.map(issue => (
+            {ordered(list).map(issue => (
                <IssueBlock
                   key={issueKey(issue.ref)}
                   issue={issue}
@@ -364,6 +390,7 @@ export function ProjectWorkSection({
                   repoShown={repoShown}
                   nameOf={nameOf}
                   navigate={navigate}
+                  rowOwner={rowOwner}
                />
             ))}
          </Truncated>
@@ -563,6 +590,8 @@ export function ProjectWorkSection({
             >
                {note && (
                   <span
+                     onMouseEnter={() => setHeld(true)}
+                     onMouseLeave={() => setHeld(false)}
                      className={`pointer-events-auto flex max-w-[560px] items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] shadow-md ${
                         note.error ? 'text-bad' : 'text-ink'
                      }`}
@@ -574,6 +603,8 @@ export function ProjectWorkSection({
                            onClick={() => {
                               const undo = note.undo;
                               setNote(null);
+                              // it leaves from under the pointer: no mouseleave comes
+                              setHeld(false);
                               undo?.();
                            }}
                            className="hit pressable flex-none rounded border-0 bg-transparent p-0 text-xs font-medium text-brand hover:underline"

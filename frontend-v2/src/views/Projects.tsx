@@ -32,6 +32,15 @@ export type { ProjectsNav } from './projects/parts';
 
 const NO_TODAY: Today = { live: [], quiet: [], misc: [], unsorted: [], doubleLabeled: [] };
 
+/** The way back from a project's page, named for where it goes. */
+const BACK_WORDS: Record<ProjectsNav['view'], string> = {
+   overview: 'All projects',
+   decide: 'Decide',
+   roadmap: 'Roadmap',
+   people: 'People',
+   retro: 'Look back',
+};
+
 /**
  * The Projects tab, for the person who plans the work: an overview of every
  * project (headline numbers, charts, and one sortable list), the roadmap
@@ -42,15 +51,6 @@ const NO_TODAY: Today = { live: [], quiet: [], misc: [], unsorted: [], doubleLab
  * socket pulls, so it moves with the board; the project issues and the
  * history come from /projects-data.
  */
-/** The way back from a project's page, named for where it goes. */
-const BACK_WORDS: Record<ProjectsNav['view'], string> = {
-   overview: 'All projects',
-   decide: 'Decide',
-   roadmap: 'Roadmap',
-   people: 'People',
-   retro: 'Look back',
-};
-
 export function Projects({
    pulls,
    closed,
@@ -78,6 +78,8 @@ export function Projects({
    me: string;
    onPerson: (login: string) => void;
 }) {
+   // this tab shows hidden PRs anyway, so its rows don't offer to hide one
+   const tabOpts = useMemo(() => ({ ...opts, noHide: true }), [opts]);
    const rangeKey = resolveRange(nav.range) ? nav.range : DEFAULT_RANGE;
    const range = resolveRange(rangeKey) as Range;
    const data = useProjectsData(prefix ? range : null);
@@ -211,7 +213,7 @@ export function Projects({
                item={items.find(i => i.slug === nav.project)}
                plans={plans}
                ongoingSaved={data?.ongoing ?? []}
-               opts={opts}
+               opts={tabOpts}
                onPerson={onPerson}
                asks={(decisions ?? []).filter(row => row.slug === nav.project)}
             />
@@ -270,7 +272,7 @@ export function Projects({
                nameOf={nameOf}
                nav={nav}
                navigate={navigate}
-               opts={opts}
+               opts={tabOpts}
                decisions={decisions}
                me={me}
                onPerson={onPerson}

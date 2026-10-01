@@ -42,7 +42,7 @@ import { Icon } from '../../components/Icon';
 import { eyebrowText, Rows, useFoldState } from '../../components/Lane';
 import { useArmedConfirm } from '../../components/useArmedConfirm';
 import { dateOf, dayOf, dayWords, useProjectsData, type Range } from '../../model/projectData';
-import { mainTeam, type PortfolioItem } from '../../model/portfolio';
+import { findFilter, mainTeam, type PortfolioItem } from '../../model/portfolio';
 import {
    createRoadmapItem,
    dismissRoadmapProblem,
@@ -361,11 +361,11 @@ function Editor({
                </button>
             ))}
          </div>
-         {field(
-            'Project it tracks',
-            <span className="flex items-center gap-2">
+         <div className="flex flex-col gap-1 text-xs text-ink-3">
+            {field(
+               'Project it tracks',
                <select
-                  className={`flex-1 ${selectClass}`}
+                  className={selectClass}
                   value={draft.project ?? ''}
                   onChange={e => set({ project: e.target.value || null })}
                >
@@ -376,9 +376,15 @@ function Editor({
                      </option>
                   ))}
                </select>
-               {draft.project && <PageLink g={{ slug: draft.project }} navigate={navigate} />}
-            </span>
-         )}
+            )}
+            {/* under the box, outside its label; only for the project it
+                tracks now, not one picked and not saved yet */}
+            {initial.project && draft.project === initial.project && (
+               <span>
+                  <PageLink g={{ slug: initial.project }} navigate={navigate} />
+               </span>
+            )}
+         </div>
          {field(
             'Team',
             <select
@@ -1460,8 +1466,9 @@ export function Roadmap({
    // the find box narrows the rows to a name, label, lead or team; the load
    // chart still counts everything
    const q = nav.find.trim().toLowerCase();
-   const matches = (...words: (string | null | undefined)[]) =>
-      !q || words.some(w => w?.toLowerCase().includes(q));
+   const filter = findFilter(nav.find);
+   const parentsOf = (slug: string | null) =>
+      (slug && items.find(i => i.slug === slug)?.parents) || [];
    // a week picked on the load chart narrows them to exactly what that week
    // counts, by the chart's own rule, so its numbers and its rows agree
    const picked = nav.week;
@@ -1472,7 +1479,14 @@ export function Roadmap({
    const shownPlans = showPlans
       ? ordered.filter(
            i =>
-              matches(i.name, i.project, i.lead, i.team) &&
+              (!filter ||
+                 filter({
+                    name: i.name,
+                    slug: i.project,
+                    lead: i.lead,
+                    team: i.team,
+                    parents: parentsOf(i.project),
+                 })) &&
               fromOrigin(i) &&
               (!members ||
                  members.plans.has(i.id) ||
@@ -1483,7 +1497,7 @@ export function Roadmap({
       ? []
       : unplanned.filter(
            p =>
-              matches(p.name, p.slug, p.lead, mainTeam(p, teamOf)) &&
+              (!filter || filter({ ...p, team: mainTeam(p, teamOf) })) &&
               (!members || members.projects.get(p.slug) === 'off')
         );
    const narrowed = !!(q || picked || nav.origin);

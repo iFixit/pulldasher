@@ -456,7 +456,9 @@ function DecideRowView({
                      title={
                         // still has open PRs: say so instead of claiming the
                         // work is finished (shared/model/decide.ts REOPEN_DAYS)
-                        project && project.open > 0
+                        // an ongoing project's work goes on after its plans,
+                        // so Decide doesn't come back to it
+                        project && project.open > 0 && !project.ongoing
                            ? `Mark it Done. It still has ${n(
                                 project.open,
                                 'open PR'

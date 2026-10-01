@@ -33,9 +33,18 @@ import { createMemoryStore } from '../storage';
  * and every project page load again. */
 export const workVersion = createMemoryStore({ n: 0 });
 
+/** an issue only a hand put on its project (no label), which Remove can take off */
+export const byHandOnly = (issue: AttachedIssue) =>
+   issue.via.length === 1 && issue.via[0] === 'hand';
+
 /** The issues added by hand on the dummy board, by slug, standing in for
- * the server's table. */
-export const dummyHand = new Map<string, AttachedIssue[]>();
+ * the server's table; the fixtures' own start in it, so Remove takes them
+ * off as it would a real one. */
+export const dummyHand = new Map<string, AttachedIssue[]>(
+   Object.entries(DUMMY_ATTACHED)
+      .map(([slug, list]): [string, AttachedIssue[]] => [slug, list.filter(byHandOnly)])
+      .filter(([, list]) => list.length > 0)
+);
 
 /** What the dummy board's work is built from, the way the server builds it
  * (lib/work.js workInputs). */
@@ -70,7 +79,8 @@ export async function dummyWorkInputs(plans: readonly RoadmapItem[]): Promise<Wo
    const attached = new Map<string, AttachedIssue[]>();
    for (const slug of new Set([...Object.keys(DUMMY_ATTACHED), ...dummyHand.keys()])) {
       const byKey = new Map<string, AttachedIssue>();
-      for (const issue of [...(DUMMY_ATTACHED[slug] ?? []), ...(dummyHand.get(slug) ?? [])]) {
+      const labeled = (DUMMY_ATTACHED[slug] ?? []).filter(issue => !byHandOnly(issue));
+      for (const issue of [...labeled, ...(dummyHand.get(slug) ?? [])]) {
          const was = byKey.get(issueKey(issue.ref));
          byKey.set(
             issueKey(issue.ref),

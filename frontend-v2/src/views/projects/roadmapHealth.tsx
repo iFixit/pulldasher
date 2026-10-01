@@ -313,10 +313,13 @@ export function PlanFacts({
    slug,
    nav,
    navigate,
+   live = false,
 }: {
    slug: string;
    nav: ProjectsNav;
    navigate: Navigate;
+   /** it has work in flight, so the roadmap's list of work with no plan has it */
+   live?: boolean;
 }) {
    const { items } = useRoadmap();
    if (!items) return null;
@@ -334,8 +337,14 @@ export function PlanFacts({
       return (
          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-secondary px-3.5 py-2 text-xs text-ink-3">
             Not on the roadmap
-            {/* the roadmap narrowed to it, where its row offers a plan */}
-            {link('Open the roadmap', { project: null, view: 'roadmap', item: null, find: slug })}
+            {/* narrowed to it when the roadmap lists it (work in flight), where
+                its row offers a plan */}
+            {link('Open the roadmap', {
+               project: null,
+               view: 'roadmap',
+               item: null,
+               find: live ? slug : '',
+            })}
          </div>
       );
    }
@@ -350,17 +359,9 @@ export function PlanFacts({
             </span>
             <span>{PLAN_STATUS_WORD[plan.status]}</span>
             {health && (
-               // the health says what its updates say, so it opens them
-               <button
-                  type="button"
-                  onClick={() => navigate(openPlan(nav, plan.id))}
-                  className={`hit pressable rounded border-0 bg-transparent p-0 text-xs hover:underline ${
-                     health.warn ? 'text-warn' : 'text-ink-2'
-                  }`}
-                  title={`${health.title.replace(/\.$/, '')}. Click to open its updates.`}
-               >
+               <span className={health.warn ? 'text-warn' : 'text-ink-2'} title={health.title}>
                   {health.text}
-               </button>
+               </span>
             )}
             {link('Open on the roadmap', openPlan(nav, plan.id))}
          </div>

@@ -120,11 +120,14 @@ function FactsSection({
    claim,
    turn,
    poolSize,
+   onProject,
 }: {
    pull: DerivedPull;
    claim?: Claim | null;
    turn?: string | null;
    poolSize?: number;
+   /** open its project's page; unset on that page itself */
+   onProject?: (slug: string) => void;
 }) {
    const d = pull.data;
    // the name isn't cheaply available here (only the live socket snapshot
@@ -229,12 +232,18 @@ function FactsSection({
          {slug && slug !== MISC_SLUG && (
             <p>
                project{' '}
-               <a
-                  href={`#lens=projects&project=${slug}`}
-                  className="font-medium text-brand hover:underline"
-               >
-                  {slug}
-               </a>
+               {onProject ? (
+                  // through the app, so the board's filters stay
+                  <button
+                     type="button"
+                     onClick={() => onProject(slug)}
+                     className="hit pressable rounded border-0 bg-transparent p-0 font-medium text-brand hover:underline"
+                  >
+                     {slug}
+                  </button>
+               ) : (
+                  <b className="font-medium text-ink">{slug}</b>
+               )}
             </p>
          )}
          {/* a claim always trumps the rotation guess — same precedence as
@@ -295,6 +304,7 @@ function StatePopoverBody({
    turn,
    poolSize,
    whyHere,
+   onProject,
 }: {
    pull: DerivedPull;
    me: string;
@@ -302,11 +312,18 @@ function StatePopoverBody({
    turn?: string | null;
    poolSize?: number;
    whyHere?: string | null;
+   onProject?: (slug: string) => void;
 }) {
    return (
       <>
          <StateSection pull={pull} me={me} claim={claim} turn={turn} />
-         <FactsSection pull={pull} claim={claim} turn={turn} poolSize={poolSize} />
+         <FactsSection
+            pull={pull}
+            claim={claim}
+            turn={turn}
+            poolSize={poolSize}
+            onProject={onProject}
+         />
          <FeedbackSection pull={pull} />
          {/* ranked lanes explain their pick per-card here — behind the same
              door as everything else, never inline on the row */}
@@ -350,6 +367,7 @@ export function StatePopover({
    turn,
    poolSize,
    whyHere,
+   onProject,
    title = 'see the full state',
    children,
 }: {
@@ -360,6 +378,8 @@ export function StatePopover({
    poolSize?: number;
    /** a ranked lane's one-line reason this pull sits where it does */
    whyHere?: string | null;
+   /** open the PR's project page (RowOptions.onProject) */
+   onProject?: (slug: string) => void;
    title?: string;
    children: ReactNode;
 }) {
@@ -384,6 +404,7 @@ export function StatePopover({
             turn={turn}
             poolSize={poolSize}
             whyHere={whyHere}
+            onProject={onProject}
          />
       </Popover>
    );

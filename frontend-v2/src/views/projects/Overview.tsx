@@ -172,8 +172,11 @@ function AgeCharts({
       const bar = /^(age|idle)-(\d)$/.exec(nav.only ?? '');
       return bar && bar[1] === chart ? Number(bar[2]) : null;
    };
-   const pick = (chart: 'age' | 'idle', i: number) =>
+   // the list sits above the charts, so a bar's pick brings it into view
+   const pick = (chart: 'age' | 'idle', i: number) => {
       navigate({ status: 'live', only: pickedOf(chart) === i ? null : `${chart}-${i}` });
+      scrollTo('all-projects');
+   };
    const span = (days: number[]) => {
       if (!days.length) return '';
       const lo = Math.min(...days);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decideProjects, decideQueue } from '../../../shared/model/decide';
+import { closedIssues, decideProjects, decideQueue } from '../../../shared/model/decide';
 import type { DerivedPull } from '../../../shared/model/status';
 import type { Project, ProjectGroup, ProjectWindow, Today } from '../../../shared/model/projects';
 import type { RoadmapItem, RoadmapUpdate } from '../../../shared/model/roadmap';
@@ -345,6 +345,35 @@ describe('planCell', () => {
       const answered = { updated_at: now - 86400 };
       expect(flags([first, { ...second, ...answered }])).toEqual([false, false]);
       expect(flags([{ ...first, ...answered }, second])).toEqual([true, true]);
+      // its own issue closed since the plan last changed: Decide asks about
+      // that first, so the cell doesn't say the issues are all closed
+      const shut = projects.map(p =>
+         p.slug === 'alpha'
+            ? {
+                 ...p,
+                 state: 'closed' as const,
+                 state_reason: 'completed',
+                 closed_at: new Date((now - 3600) * 1000).toISOString(),
+              }
+            : p
+      );
+      expect(flags([first])).toEqual([true, true]);
+      expect(
+         portfolioItems(shut, today, {}, teamOf, NOW, [first], issues).find(i => i.slug === 'alpha')
+            ?.planCell.kind
+      ).not.toBe('issues_done');
+      expect(
+         decideQueue({
+            live: decideProjects(today),
+            items: [first],
+            closed: closedIssues(shut),
+            issues,
+            today: day,
+            now,
+         })
+            .find(r => r.slug === 'alpha')
+            ?.reasons.map(r => r.kind)
+      ).toEqual(['issue_closed']);
    });
 
    it('counts a project behind when off track, or past its end or target with PRs open', () => {
@@ -394,6 +423,24 @@ describe('the list’s filters', () => {
       expect(items.filter(i => matchesFind(i, 'WARE')).map(i => i.slug)).toEqual(['beta']);
       expect(items.filter(i => matchesFind(i, 'dana')).map(i => i.slug)).toEqual(['alpha']);
       expect(items.filter(i => matchesFind(i, 'fixbot')).map(i => i.slug)).toEqual(['label-only']);
+   });
+
+   it('matches a lead, team or parent exactly after "lead:", "team:" or "parent:"', () => {
+      const find = (f: string) =>
+         items
+            .filter(i => matchesFind(i, f))
+            .map(i => i.slug)
+            .sort();
+      // what a click on a parent, a lead or a team puts in the box
+      expect(find('parent:store')).toEqual(['alpha', 'beta']);
+      expect(find('parent:Warehouse')).toEqual(['beta']);
+      expect(find('lead:dana')).toEqual(['alpha']);
+      expect(find('team:fixbot')).toEqual(['label-only']);
+      // part of a name isn't the name
+      expect(find('parent:stor')).toEqual([]);
+      expect(find('lead:dan')).toEqual([]);
+      // without the prefix, a word still matches inside any of them
+      expect(find('stor')).toEqual(expect.arrayContaining(['alpha', 'beta']));
    });
 });
 
