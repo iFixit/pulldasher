@@ -10,12 +10,12 @@ import { isBotLogin } from '../../shared/model/visibility';
 import { getSettings, subscribeSettings } from './settings';
 import { epoch, pullKey } from '../../shared/format';
 import { readStorage, writeStorage } from './storage';
-import type { PullData, RepoSpec } from '../../shared/types';
+import type { PullData, RefreshAllProgress, RepoSpec } from '../../shared/types';
 
 /**
  * The one store: raw pulls keyed by repo#number, re-derived and re-published
  * as a sorted snapshot whenever the socket delivers. Throttled so a burst of
- * pullChange events (bulk refresh on the server) renders once, not N times.
+ * pullChange events (a "Refresh all" on the server) renders once, not N times.
  */
 
 export interface Snapshot {
@@ -38,9 +38,9 @@ export interface Snapshot {
     * review baseline that wakes it): hidden for a day or until it changes.
     * Persisted per-browser. */
    snoozed: Readonly<Record<string, SnoozeRecord>>;
-   /** "Refresh all" in progress (or just finished): how many of the pulls
-    * queued at kickoff have reported back. Null when no refresh is running. */
-   refreshProgress: { done: number; total: number } | null;
+   /** "Refresh all" running on the server, or finished a moment ago. Null
+    * otherwise. */
+   refreshProgress: RefreshAllProgress | null;
 }
 
 const LAST_SEEN_KEY = 'pd2.lastSeen';
@@ -59,34 +59,20 @@ let authFailed = false;
 let lastPayloadAt = 0;
 const listeners = new Set<() => void>();
 
-// "Refresh all" progress: the set of pull keys still awaiting a pullChange
-// since the last refreshAll() kickoff. total is fixed at kickoff so the
-// header/Settings chip reads "N of TOTAL" even as pending shrinks. Null
-// means no refresh is in flight (or its grace window has elapsed).
-let refreshTracking: { pending: Set<string>; total: number } | null = null;
-let refreshCompleteTimer: ReturnType<typeof setTimeout> | null = null;
+// "Refresh all" as the server last reported it. A finished press stays on
+// screen a few seconds, or a fast one would flash and clear before anyone
+// reads it.
+let refreshProgress: RefreshAllProgress | null = null;
+let refreshClearTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** A reconnect resends everything as one 'initialize' payload, which isn't
- * the per-pull pullChange this tracking is counting — treat it as "the
- * refresh's work is moot", not "N more arrived", or the counter would stall
- * short of total forever. */
-function clearRefreshTracking() {
-   if (refreshCompleteTimer != null) clearTimeout(refreshCompleteTimer);
-   refreshCompleteTimer = null;
-   refreshTracking = null;
-}
-
-/** Count a pullChange toward the in-flight refresh, if one is running. On
- * the last arrival, hold the finished "N of N" on screen briefly — a fast
- * board would otherwise flash the count and clear it before anyone reads it. */
-function noteRefreshArrival(key: string) {
-   if (!refreshTracking || !refreshTracking.pending.delete(key)) return;
-   if (refreshTracking.pending.size > 0) return;
-   refreshCompleteTimer = setTimeout(() => {
-      refreshTracking = null;
-      refreshCompleteTimer = null;
-      schedulePublish();
-   }, 4000);
+function setRefreshProgress(progress: RefreshAllProgress | null) {
+   if (refreshClearTimer != null) clearTimeout(refreshClearTimer);
+   refreshClearTimer = null;
+   refreshProgress = progress;
+   if (progress?.state === 'done') {
+      refreshClearTimer = setTimeout(() => setRefreshProgress(null), 6000);
+   }
+   schedulePublish();
 }
 
 // The marker moves ONLY by the user's hand — the "Recently updated" lane's
@@ -278,12 +264,7 @@ function publish() {
       lastPayloadAt,
       lastSeen,
       snoozed: { ...snoozed },
-      refreshProgress: refreshTracking
-         ? {
-              done: refreshTracking.total - refreshTracking.pending.size,
-              total: refreshTracking.total,
-           }
-         : null,
+      refreshProgress,
    };
    for (const fn of listeners) fn();
 }
@@ -324,17 +305,16 @@ function start() {
          extraBots = new Set(payload.bots ?? []);
          for (const p of payload.pulls) raw.set(pullKey(p), p);
          initialized = true;
-         // a reconnect resends everything; counting it as refresh progress
-         // would either double-count or strand the tracker short of total
-         clearRefreshTracking();
+         // a press that ended while this board was away mustn't stay stuck
+         // on screen; the server sends one still running right after this
+         setRefreshProgress(null);
       } else {
-         const key = pullKey(payload);
-         raw.set(key, payload);
-         noteRefreshArrival(key);
+         raw.set(pullKey(payload), payload);
       }
       lastPayloadAt = Date.now() / 1000;
       schedulePublish();
    });
+   backend.onRefreshAll(setRefreshProgress);
    backend.onConnection(state => {
       connection = state;
       schedulePublish();
@@ -377,23 +357,20 @@ export function releaseReview(pull: Pick<PullData, 'repo' | 'number'>): void {
 }
 
 /**
- * Settings action: ask the server to re-fetch every open pull from GitHub.
- * The socket protocol has no bulk refresh, so this fans out one per-pull
- * refresh (the same event a row's refresh button sends) and lets the server's
- * serial refresh queue work through them. Returns how many were queued so the
- * UI can say so. Closed pulls are historical, so they're left out.
+ * Settings action: ask the server to bring the board to GitHub's state. It
+ * compares GitHub with the board and refetches only what differs; every open
+ * board hears its progress, so this returns nothing.
  */
-export function refreshAll(): number {
-   const opens = [...raw.values()].filter(p => p.state === 'open');
-   if (opens.length === 0) return 0;
-   // a re-click mid-refresh restarts the count from this batch, not a merge
-   // with the last one's leftovers
-   clearRefreshTracking();
-   refreshTracking = {
-      pending: new Set(opens.map(pullKey)),
-      total: opens.length,
-   };
-   for (const p of opens) backend.refreshPull(p.repo, p.number);
-   schedulePublish();
-   return opens.length;
+export const refreshAll = backend.refreshAll;
+
+/** One wording for a press, wherever it shows (the header, Settings). */
+export function refreshAllText(p: RefreshAllProgress): string {
+   if (p.state === 'checking') return 'checking GitHub…';
+   if (p.state === 'refreshing') return `refreshing ${p.done} of ${p.total}…`;
+   const refreshed = p.done - p.failed;
+   const parts = refreshed > 0 || p.failed > 0 ? [] : ['up to date'];
+   if (refreshed > 0) parts.push(`refreshed ${refreshed}`);
+   if (p.failed > 0) parts.push(`${p.failed} failed`);
+   if (p.skipped > 0) parts.push(`couldn’t read ${p.skipped} repo${p.skipped === 1 ? '' : 's'}`);
+   return parts.join(' · ');
 }

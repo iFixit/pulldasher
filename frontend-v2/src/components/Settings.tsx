@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Settings as SettingsIcon, Trash2, X } from 'lucide-react';
 import { clearStoredPrefs } from '../storage';
-import { refreshAll, usePulldasher } from '../store';
+import { refreshAll, refreshAllText, usePulldasher } from '../store';
 import {
    addCodeRegion,
    removeCodeRegion,
@@ -119,7 +119,6 @@ export function Settings({
    const { refreshProgress } = usePulldasher();
    const panelRef = useRef<HTMLDivElement>(null);
    const triggerRef = useRef<HTMLButtonElement>(null);
-   const [refreshNote, setRefreshNote] = useState('');
    const { armed: armReset, run: runReset } = useArmedConfirm();
 
    // open on demand — the code-regions tip's "Set them up" action dispatches
@@ -414,21 +413,17 @@ export function Settings({
                      <section className="border-t border-secondary px-4 py-3.5">
                         <Explainer summary="Advanced">
                            <span className="block text-ink-2">
-                              Re-fetch every open PR from GitHub now, instead of waiting for the
-                              next webhook. The board updates as each one comes back.
+                              Check the board against GitHub and re-fetch every PR it has wrong,
+                              including ones it missed or still shows open. The board updates as
+                              each one comes back.
                            </span>
                            <div className="flex items-center gap-3 pt-1">
                               <QuietButton
                                  size="md"
-                                 disabled={!!refreshProgress}
-                                 onClick={() => {
-                                    // live progress (store.refreshProgress) takes over
-                                    // from here; the local note only covers the no-op
-                                    if (refreshAll() === 0) {
-                                       setRefreshNote('nothing to refresh');
-                                       setTimeout(() => setRefreshNote(''), 2500);
-                                    }
-                                 }}
+                                 // one press at a time, for every board: the server
+                                 // ignores a second while one runs
+                                 disabled={!!refreshProgress && refreshProgress.state !== 'done'}
+                                 onClick={() => refreshAll()}
                               >
                                  Refresh all
                               </QuietButton>
@@ -436,11 +431,7 @@ export function Settings({
                                   when the text lands — a screen reader hears the
                                   confirmation, not just sighted users */}
                               <span role="status" className="text-xs text-ink-3 tabular-nums">
-                                 {refreshProgress
-                                    ? refreshProgress.done === refreshProgress.total
-                                       ? `refreshed ${refreshProgress.total}`
-                                       : `refreshing ${refreshProgress.done} of ${refreshProgress.total}…`
-                                    : refreshNote}
+                                 {refreshProgress ? refreshAllText(refreshProgress) : ''}
                               </span>
                            </div>
 

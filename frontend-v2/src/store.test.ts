@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { pullKey } from '../../shared/format';
 import type { PullData } from '../../shared/types';
-import { isSnoozed, type SnoozeRecord } from './store';
+import { isSnoozed, refreshAllText, type SnoozeRecord } from './store';
 
 // isSnoozed reads only repo/number/updated_at and a few status counts, so a
 // minimal pull is enough; the outer cast keeps the fixture to what it touches.
@@ -143,5 +143,27 @@ describe('isSnoozed', () => {
       expect(
          isSnoozed(pull({ updatedAtEpoch: AT - 100, comments: 3 }), rec({ comments: 2 }), WITHIN)
       ).toBe(false);
+   });
+});
+
+describe('refreshAllText', () => {
+   const done = (total: number, failed = 0, skipped = 0) =>
+      refreshAllText({ state: 'done', done: total, total, failed, skipped });
+
+   it('says how far a press got while it runs', () => {
+      expect(refreshAllText({ state: 'checking', done: 0, total: 0, failed: 0, skipped: 0 })).toBe(
+         'checking GitHub…'
+      );
+      expect(
+         refreshAllText({ state: 'refreshing', done: 2, total: 5, failed: 0, skipped: 0 })
+      ).toBe('refreshing 2 of 5…');
+   });
+
+   it('says what a finished press did, failures included', () => {
+      expect(done(0)).toBe('up to date');
+      expect(done(5)).toBe('refreshed 5');
+      expect(done(5, 1)).toBe('refreshed 4 · 1 failed');
+      expect(done(1, 1)).toBe('1 failed');
+      expect(done(0, 0, 2)).toBe('up to date · couldn’t read 2 repos');
    });
 });
