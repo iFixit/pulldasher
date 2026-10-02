@@ -27,7 +27,7 @@
     "jsdom": "^29.1.1",
     "tailwindcss": "^4.1.0",
     "typescript": "^5.7.2",
-    "vite": "^6.0.0",
-    "vitest": "^2.1.8"
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
   }
 }
