@@ -1,7 +1,7 @@
 import { ago, n, pullKey } from '../../../shared/format';
 import type { ClosedIssue } from '../../../shared/model/decide';
 import { dayStart } from '../../../shared/model/projects';
-import type { RoadmapItem } from '../../../shared/model/roadmap';
+import { issuePace, paceFinish, type RoadmapItem } from '../../../shared/model/roadmap';
 import { prStage, type PrStage } from '../../../shared/model/stage';
 import { CR_INCOMPLETE, type DerivedPull } from '../../../shared/model/status';
 import {
@@ -170,8 +170,6 @@ function reviewWaits(p: DerivedPull, turn: string | null, own: (words: string) =
    return own(p.status === 'needs_qa' ? 'needs a tester' : 'needs a reviewer');
 }
 
-const DAY = 86400;
-
 /**
  * Why a PR stands out against its project's plan, in words for its line:
  * it opened after the plan was marked done or dropped (or, with no plan
@@ -208,9 +206,6 @@ export function plannedAt(plan: Pick<RoadmapItem, 'start' | 'created_at'>): numb
 export const addedLater = (issue: Pick<AttachedIssue, 'attachedAt'>, planned: number | null) =>
    planned != null && issue.attachedAt != null && issue.attachedAt > planned;
 
-/** how many trailing days set the pace an issue forecast runs on */
-const PACE_DAYS = 28;
-
 /**
  * The day a time fell on here, the way the tab says a day: "Sep 21", with
  * its year when that isn't this one ("Mar 3, 2024"). One unbreakable
@@ -244,30 +239,29 @@ export function durationWords(d: number): string {
  * and the open ones at that pace give a day, or the words that there's no
  * end in sight. With none closed there's no pace to compare, so it only
  * counts. `due` (YYYY-MM-DD) adds "after the target" to a day past it.
- * `how` says how it's worked out. Null when no issue is open.
+ * `how` says how it's worked out. Null when no issue is open. The pace is
+ * the one the roadmap's rule weighs (shared/model/roadmap.ts paceFinish), so
+ * the page and the plan's update say the same day.
  */
 export function issueForecast(
    issues: readonly Pick<ProjectIssue, 'state' | 'closedAt' | 'attachedAt'>[],
    due: string | null,
    now: number = Date.now() / 1000
 ): { text: string; how: string } | null {
-   const open = issues.filter(i => i.state === 'open').length;
+   const pace = issuePace(issues, now);
+   const { open, closed, added } = pace;
    if (!open) return null;
-   const since = now - PACE_DAYS * DAY;
-   const closed = issues.filter(i => i.state !== 'open' && (i.closedAt ?? 0) >= since).length;
-   const added = issues.filter(i => (i.attachedAt ?? 0) >= since).length;
    const how = `In the last four weeks ${closed} of its issues closed (done or dropped) and ${added} were added; ${open} are open. A rough guide: it assumes that pace holds.`;
    if (!closed && !added) return { text: 'no issue closed or added in four weeks', how };
    const tally = `${closed || 'none'} closed, ${added || 'none'} added in four weeks`;
    // a young project's issues all arrived lately: "faster than they close"
    // would say it's losing ground before anything had a chance to close
-   if (!closed) return { text: tally, how };
-   if (closed <= added) {
-      const pace = closed === added ? 'as fast as' : 'faster than';
-      return { text: `${tally}: issues arrive ${pace} they close`, how };
+   const eta = paceFinish(pace, now);
+   if (eta == null) return { text: tally, how };
+   if (eta === Infinity) {
+      const words = closed === added ? 'as fast as' : 'faster than';
+      return { text: `${tally}: issues arrive ${words} they close`, how };
    }
-   const weeks = Math.ceil((open * PACE_DAYS) / 7 / (closed - added));
-   const eta = now + weeks * 7 * DAY;
    // the milestone's day as GitHub means it, the same day the target shows
    const late = due != null && dayOf(new Date(eta * 1000)) > due.slice(0, 10);
    return {

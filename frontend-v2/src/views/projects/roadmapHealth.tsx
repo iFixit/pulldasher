@@ -19,20 +19,21 @@ import {
    type RoadmapItem,
    type RoadmapStatus,
    type RoadmapUpdate,
+   type Vouch,
 } from '../../../../shared/model/roadmap';
 import { PrimaryButton, Segmented, TextButton } from '../../components/bits';
 import { dayOf, dayWords, useProjectsData } from '../../model/projectData';
 import type { LoadWeek } from '../../../../shared/model/load';
 import { loadRoadmapUpdates, postRoadmapUpdate, useRoadmap } from '../../model/roadmapData';
+import { draftUpdate } from '../../model/updateDraft';
 import {
    BEING_WORKED_ON,
    IN_PROGRESS,
+   LAST_14_DAYS,
    missedTarget,
-   NO_PLAN,
    NO_UPDATE_YET,
    pastEnd,
    pastEndMark,
-   PLAN_IT,
    UPDATE_DUE,
 } from '../../model/words';
 import { openPlan, type Navigate, type ProjectsNav } from './parts';
@@ -87,11 +88,14 @@ const OWED = [
 export type Owed = typeof OWED[number];
 
 /** A piece of some words: `owed` names what it asks for, if anything, and
- * `amber` marks the one piece of a plan's words that is said in amber. */
+ * `amber` marks the one piece of a plan's words that is said in amber.
+ * `wrap` lets a reason too long for a narrow row break across lines, where
+ * a row's other words keep to one. */
 export interface Piece {
    text: string;
    owed?: Owed;
    amber?: boolean;
+   wrap?: boolean;
 }
 
 /** Words in pieces, with the sentence their hover gives. */
@@ -121,6 +125,10 @@ export function SaidWords({ said: s }: { said: Said }) {
                <span key={i} className="text-warn">
                   {p.text}
                </span>
+            ) : p.wrap ? (
+               <span key={i} className="whitespace-normal">
+                  {p.text}
+               </span>
             ) : (
                <Fragment key={i}>{p.text}</Fragment>
             )
@@ -148,12 +156,29 @@ export function Dotted({ children }: { children: ReactNode[] }) {
 
 const healthOwed = (h: RoadmapHealth): Owed | undefined => (h === 'on_track' ? undefined : h);
 
+/** what a plan whose numbers vouch for it is owed instead of an update */
+export const NO_UPDATE_NEEDED = 'no update needed';
+
+/** Why a plan in progress owes no update, said where its update would go:
+ * "2 PRs merged in the last 14 days: no update needed". */
+export const vouchWords = (v: Vouch) =>
+   `${n(v.merged, 'PR')} merged in the ${LAST_14_DAYS}: ${NO_UPDATE_NEEDED}`;
+
+/** The rule behind vouchWords, in a sentence, for a hover. */
+export const vouchRule = (v: Vouch) =>
+   `Its PRs are merging, it isn’t past its end, and ${
+      v.finish == null
+         ? 'nothing in its issues says it won’t finish by then'
+         : `at their pace its issues are done around ${when(v.finish)}, by its end`
+   }, so the numbers say how it’s going and its lead owes no update. Post one any time.`;
+
 /**
  * An item's health in words, for the roadmap's rows and the project list:
  * the health its latest update gave, and an update owed. At risk, off track
  * and an owed update each ask someone to act, so each can be its plan's
- * amber piece (planWarnings picks one); the date stays ink. Null when there's
- * nothing to say.
+ * amber piece (planWarnings picks one); the date stays ink. A plan its
+ * numbers vouch for says why it owes nothing, in ink, where its update
+ * would go. Null when there's nothing to say.
  */
 export function healthWords(s: HealthStanding, changedAt: number | null = null): Said | null {
    // at risk or off track asks the planner for a call, until the plan changes
@@ -162,7 +187,11 @@ export function healthWords(s: HealthStanding, changedAt: number | null = null):
       u.at > (changedAt ?? 0) ? healthOwed(u.health) : undefined;
    switch (s.kind) {
       case 'quiet':
-         return null;
+         // short on a row, with the numbers and the rule on hover: the
+         // project's page says it in full where its update would be
+         return s.vouch
+            ? said([{ text: 'No update needed' }], `${vouchWords(s.vouch)}. ${vouchRule(s.vouch)}`)
+            : null;
       case 'missing':
          return said(
             [{ text: NO_UPDATE_YET, owed: 'missing' }],
@@ -171,10 +200,20 @@ export function healthWords(s: HealthStanding, changedAt: number | null = null):
       case 'current': {
          // a full sentence, since callers add "Click to …" after it
          const body = s.update.body ? `: ${s.update.body.trim()}` : '';
-         return said(
-            [{ text: HEALTH_WORD[s.update.health], owed: owedFor(s.update) }],
-            `${s.update.author} on ${when(s.update.at)}${body}${/[.!?]$/.test(body) ? '' : '.'}`
-         );
+         const last = `${s.update.author} on ${when(s.update.at)}${body}${
+            /[.!?]$/.test(body) ? '' : '.'
+         }`;
+         if (s.vouch) {
+            // its last word, from a while ago, and why no new one is owed
+            return said(
+               [
+                  { text: HEALTH_WORD[s.update.health], owed: owedFor(s.update) },
+                  { text: ` as of ${when(s.update.at)} · ${NO_UPDATE_NEEDED}` },
+               ],
+               `${last}\n${vouchWords(s.vouch)}. ${vouchRule(s.vouch)}`
+            );
+         }
+         return said([{ text: HEALTH_WORD[s.update.health], owed: owedFor(s.update) }], last);
       }
       case 'stale':
          return said(
@@ -492,8 +531,11 @@ function SinceLast({ item, last }: { item: RoadmapItem; last: RoadmapUpdate }) {
 /**
  * An item's updates, under its editor: a form to post a new one (how it's
  * going, and why), what changed since the last, and every update before,
- * newest first, each with the plan as it stood then. The row's words change
- * as soon as the server has the new one, and the form says it was posted.
+ * newest first, each with the plan as it stood then. The form opens with an
+ * update drafted from the plan's numbers (model/updateDraft.ts), so posting
+ * it is one click, "Post as drafted", and the lead can change it first. The
+ * row's words change as soon as the server has the new one, and the form
+ * says it was posted.
  */
 export function UpdatesPanel({
    item,
@@ -513,15 +555,25 @@ export function UpdatesPanel({
    onClose?: () => void;
 }) {
    const [history, setHistory] = useState<RoadmapUpdate[] | 'failed' | null>(null);
-   const [health, setHealth] = useState<RoadmapHealth>(item.update?.health ?? 'on_track');
-   const [body, setBody] = useState('');
+   // drafted once, as it opens: the numbers moving on a reload mustn't
+   // change what the lead is reading
+   const [draft] = useState(() => draftUpdate(item, Date.now() / 1000));
+   const [health, setHealth] = useState<RoadmapHealth>(
+      draft?.health ?? item.update?.health ?? 'on_track'
+   );
+   const [body, setBody] = useState(draft?.body ?? '');
    const [posting, setPosting] = useState(false);
    const [error, setError] = useState<string | null>(null);
    const [posted, setPosted] = useState(false);
    const box = useRef<HTMLTextAreaElement>(null);
+   const asDrafted = !!draft && health === draft.health && body === draft.body;
    useEffect(() => {
-      // the opener scrolls the panel into view, clear of the sticky headers
-      if (autoFocus) box.current?.focus({ preventScroll: true });
+      // the opener scrolls the panel into view, clear of the sticky headers;
+      // the caret after the draft, to add to it
+      const el = box.current;
+      if (!autoFocus || !el) return;
+      el.focus({ preventScroll: true });
+      el.setSelectionRange(el.value.length, el.value.length);
    }, [autoFocus]);
    useEffect(() => {
       let live = true;
@@ -548,9 +600,11 @@ export function UpdatesPanel({
          className={`${bare ? '' : 'border-t border-secondary'} bg-muted/40 px-3.5 py-3`}
          onKeyDown={e => {
             if (e.key !== 'Escape' || !onClose) return;
-            // a stray Escape mustn't throw away an update half written
-            if (body.trim()) setError('Post the update, or empty the box to close it.');
-            else onClose();
+            // a stray Escape mustn't throw away an update half written; the
+            // draft as it came isn't anyone's writing
+            if (body.trim() && body !== draft?.body) {
+               setError('Post the update, or empty the box to close it.');
+            } else onClose();
          }}
       >
          <form
@@ -568,11 +622,16 @@ export function UpdatesPanel({
                   options={ROADMAP_HEALTHS.map(h => [h, HEALTH_WORD[h]])}
                   onChange={setHealth}
                />
+               {asDrafted && (
+                  <span className="text-xs text-ink-3">Drafted from its PRs and issues</span>
+               )}
             </div>
             <textarea
                ref={box}
                aria-label={`Update on ${item.name}`}
-               className="min-h-16 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px]"
+               // as tall as the draft, where the browser can size it, and
+               // narrow enough to read as prose
+               className="min-h-16 max-w-[70ch] rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px] field-sizing-content"
                value={body}
                maxLength={2000}
                onChange={e => {
@@ -583,7 +642,9 @@ export function UpdatesPanel({
             />
             {item.update && <SinceLast item={item} last={item.update} />}
             <div className="flex flex-wrap items-center gap-3">
-               <PrimaryButton disabled={posting}>Post update</PrimaryButton>
+               <PrimaryButton disabled={posting}>
+                  {asDrafted ? 'Post as drafted' : 'Post update'}
+               </PrimaryButton>
                {/* the result, where the click was, and read out */}
                <span role="status" className="text-xs text-ink-2">
                   {error ?? (posted ? 'Posted.' : '')}
@@ -654,8 +715,7 @@ export function planCellWords(plan: RoadmapItem): { text: string; warn: boolean;
  * A project's plan, as the detail under its row in the project list: the
  * planned weeks, the status, how it's going and the latest note, in the
  * roadmap's own words, with the way to the roadmap. All in ink: the row's
- * Plan cell above is its one amber mark. Says so when the project has no
- * plan at all.
+ * Plan cell above is its one amber mark.
  */
 export function PlanFacts({
    slug,
@@ -677,21 +737,9 @@ export function PlanFacts({
          {label}
       </TextButton>
    );
-   if (!plan) {
-      return (
-         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-secondary px-3.5 py-2 text-xs text-ink-3">
-            {NO_PLAN}
-            {/* narrowed to it when the roadmap lists it (work in flight), where
-                its row's plus plans it */}
-            {link(live ? PLAN_IT : 'Open the roadmap', {
-               project: null,
-               view: 'roadmap',
-               item: null,
-               find: live ? slug : '',
-            })}
-         </div>
-      );
-   }
+   // a row with no plan draws its own line and the calls that make one
+   // (Portfolio.tsx), so this only ever shows a plan
+   if (!plan) return null;
    const w = planWarnings(plan, items, dayOf(new Date()), { live, target: null });
    const u = latestOf(healthStanding(plan));
    const fact = (s: Said | null) =>

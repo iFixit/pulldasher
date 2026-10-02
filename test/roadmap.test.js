@@ -2,9 +2,13 @@ import { test, before, after, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import bodyParser from 'body-parser';
+import config from '../lib/config-loader.js';
 import db from '../lib/db.js';
-import { itemFromRow } from '../lib/roadmap.js';
-import roadmapController, { canWrite } from '../controllers/roadmap.js';
+import pullManager from '../lib/pull-manager.js';
+import Label from '../models/label.js';
+import Pull from '../models/pull.js';
+import { itemFromRow, latelyBySlug } from '../lib/roadmap.js';
+import roadmapController, { _resetLately, canWrite } from '../controllers/roadmap.js';
 import { API_ROUTES } from '../controllers/api-routes.js';
 
 // In-memory roadmap_items and roadmap_updates tables behind a stubbed
@@ -14,6 +18,9 @@ let rows = [];
 let updates = [];
 let nextId = 1;
 let nextUpdateId = 1;
+// set by a test that turns projects on: it answers the project issues' and
+// the work model's reads first
+let projectQuery = null;
 function fakeUpdatesQuery(sql, params) {
    if (sql.startsWith('INSERT INTO `roadmap_updates` SET ?')) {
       const row = { id: nextUpdateId++, ...params[0] };
@@ -39,6 +46,8 @@ function fakeUpdatesQuery(sql, params) {
    throw new Error(`unexpected query: ${sql}`);
 }
 function fakeQuery(sql, params = []) {
+   const answer = projectQuery?.(sql);
+   if (answer !== undefined) return answer;
    if (sql.includes('`roadmap_updates`')) return fakeUpdatesQuery(sql, params);
    const byOrder = () =>
       [...rows].sort((a, b) => a.priority - b.priority || a.id - b.id);
@@ -430,4 +439,170 @@ test('the API route table names each route once, with what it does', () => {
       // every write goes through the gate that records who made it
       if (route.method !== 'get') assert.equal(route.handlers[0], canWrite, key);
    }
+});
+
+// ---- with projects on: what a plan's project issue and its PRs say ----
+
+const DAY = 86400;
+const issueRow = (number, slug, over = {}) => ({
+   repo: 'test/projects',
+   number,
+   title: slug,
+   status: 'open',
+   state_reason: null,
+   assignee: null,
+   milestone_title: null,
+   milestone_due_on: null,
+   field_start: null,
+   field_target: null,
+   field_priority: null,
+   date_created: number,
+   date_closed: null,
+   ...over,
+});
+
+/** Run a test with projects set up and these project issues; the work
+ * model's reads find nothing attached or linked. */
+async function withProjects(issues, run) {
+   config.projects = { repo: 'test/projects' };
+   projectQuery = sql => {
+      if (sql.startsWith('SELECT i.* FROM issues')) return issues;
+      if (sql.startsWith('SELECT l.repo, l.number, l.title FROM pull_labels')) {
+         return issues.map(i => ({ repo: i.repo, number: i.number, title: `project:${i.title}` }));
+      }
+      return sql.includes('`roadmap_') ? undefined : [];
+   };
+   _resetLately();
+   try {
+      await run();
+   } finally {
+      delete config.projects;
+      projectQuery = null;
+      _resetLately();
+   }
+}
+
+test('a new plan starts on its issue’s Start date, placed by its Priority', async () => {
+   await withProjects(
+      [
+         issueRow(1, 'alpha', { field_start: '2026-10-07', field_priority: 'High' }),
+         issueRow(2, 'beta', { field_priority: 'low' }),
+      ],
+      async () => {
+         await call('POST', '/roadmap', { name: 'No project' });
+         await call('POST', '/roadmap', { name: 'Beta', project: 'beta' });
+         const alpha = await call('POST', '/roadmap', { name: 'Alpha', project: 'alpha' });
+         // the Start date's Monday
+         assert.equal(alpha.body.item.start, '2026-10-05');
+         // high above low; the plan whose issue says no priority keeps its place
+         const order = (await call('GET', '/roadmap', undefined, {})).body.items;
+         assert.deepEqual(
+            order.map(i => i.name),
+            ['No project', 'Alpha', 'Beta']
+         );
+         // a start the person sent wins
+         const sent = await call('POST', '/roadmap', {
+            name: 'Alpha again',
+            project: 'alpha',
+            start: '2026-11-04',
+         });
+         assert.equal(sent.body.item.start, '2026-11-02');
+      }
+   );
+});
+
+test('a plan whose PRs merged lately owes no update, on the API as on the board', async () => {
+   const now = Math.floor(Date.now() / 1000);
+   const merged = {
+      repo: 'test/repo-a',
+      number: 501,
+      state: 'closed',
+      title: 'PR 501',
+      body: '',
+      draft: 0,
+      date: now - 5 * DAY,
+      date_updated: now - DAY,
+      date_closed: now - DAY,
+      mergeable: 1,
+      date_merged: now - DAY,
+      additions: 1,
+      deletions: 1,
+      changed_files: 1,
+      head_branch: 'b501',
+      head_sha: 'sha501',
+      base_branch: 'main',
+      owner: 'alice',
+      assignees: [],
+      requested_reviewers: [],
+      cr_req: 1,
+      qa_req: 1,
+   };
+   pullManager.updatePull(
+      Pull.getFromDB(merged, [], [], [], [], [
+         new Label({ name: 'project:alpha' }, 501, 'test/repo-a', 'job-bot'),
+      ])
+   );
+   // under way since January, through next February, never updated
+   const plan = (id, project) => ({
+      id,
+      name: `Plan ${project}`,
+      project,
+      team: null,
+      lead_login: 'dana',
+      status: 'active',
+      origin: null,
+      start: '2026-01-05',
+      weeks: 60,
+      priority: id,
+      notes: '',
+      waits_on: null,
+      updated_by: 'dana',
+      updated_at: now - 200 * DAY,
+      created_at: now - 200 * DAY,
+   });
+   rows.push(plan(81, 'alpha'), plan(82, 'beta'));
+   await withProjects([issueRow(1, 'alpha'), issueRow(2, 'beta')], async () => {
+      const owed = (await call('GET', '/updates-owed', undefined, {})).body;
+      assert.deepEqual(
+         owed.leads.flatMap(l => l.plans.map(p => p.id)),
+         [82]
+      );
+      const items = (await call('GET', '/roadmap', undefined, {})).body.items;
+      assert.equal(items.find(i => i.id === 81).lately.merged, 1);
+      assert.equal(items.find(i => i.id === 82).lately.merged, 0);
+   });
+});
+
+test('what a project did lately: its merges in the last two weeks, open PRs by stage, its pace', () => {
+   const now = Date.UTC(2026, 8, 30) / 1000;
+   const iso = t => new Date(t * 1000).toISOString();
+   const open = status => ({
+      status,
+      cryo: false,
+      externalBlock: false,
+      conflict: false,
+      changesRequestedBy: [],
+      data: { status: {} },
+   });
+   const today = {
+      live: [
+         {
+            slug: 'alpha',
+            open: [open('needs_cr'), open('ready')],
+            merged: [{ merged_at: iso(now - 3 * DAY) }, { merged_at: iso(now - 20 * DAY) }],
+            lastActivity: now - 3600,
+         },
+      ],
+      quiet: [{ slug: 'beta', open: [], merged: [], lastActivity: null }],
+   };
+   const pace = { alpha: { open: 2, closed: 3, added: 1 }, beta: { open: 1, closed: 0, added: 0 } };
+   const lately = latelyBySlug(today, pace, new Set(['beta']), now);
+   assert.deepEqual(lately.get('alpha'), {
+      merged: 1,
+      open: { ready: 1, hold: 0, review: 1, work: 0 },
+      activityAt: now - 3600,
+      issues: pace.alpha,
+   });
+   // work with no end has no finish to forecast
+   assert.equal(lately.get('beta').issues, null);
 });

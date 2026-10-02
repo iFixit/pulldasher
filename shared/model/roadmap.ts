@@ -1,4 +1,5 @@
 import { dayStart, utcDay } from './projects';
+import type { PrStage } from './stage';
 
 /**
  * The roadmap: the plan a project manager lays out by hand, kept in
@@ -82,6 +83,68 @@ export interface RoadmapItem {
    created_at: number | null;
    /** the latest update on how it's going; null before the first */
    update: RoadmapUpdate | null;
+   /** what its project did lately, as the server read it when it sent the
+    * item (never stored); absent or null when it has no project the board
+    * can read */
+   lately?: PlanLately | null;
+}
+
+/** how many trailing days set the pace a project's issues are forecast at */
+export const PACE_DAYS = 28;
+
+/** How a project's issues moved over the last PACE_DAYS: the pace a rough
+ * finish runs on. */
+export interface IssuePace {
+   open: number;
+   /** closed, done or dropped, in that time */
+   closed: number;
+   /** attached to the project in that time */
+   added: number;
+}
+
+/**
+ * What a plan's project did lately: the numbers that can vouch for the plan
+ * (vouchFor), and what its drafted update is written from. The server sends
+ * it with each item (controllers/roadmap.js), and the dummy board's twin
+ * does the same.
+ */
+export interface PlanLately {
+   /** its PRs merged in the last UPDATE_DUE_DAYS */
+   merged: number;
+   /** its open PRs by where each stands (shared/model/stage.ts prStage) */
+   open: Record<PrStage, number>;
+   /** epoch secs of its newest PR activity, an update or a merge; null with
+    * nothing in flight */
+   activityAt: number | null;
+   /** its issues' pace; null with no issues, or for work with no end, which
+    * has no finish to forecast */
+   issues: IssuePace | null;
+}
+
+/** A project's issues' pace, from its attached issues (shared/model/work.ts). */
+export function issuePace(
+   issues: readonly { state: string; closedAt: number | null; attachedAt: number | null }[],
+   now: number
+): IssuePace {
+   const since = now - PACE_DAYS * DAY;
+   return {
+      open: issues.filter(i => i.state === 'open').length,
+      closed: issues.filter(i => i.state !== 'open' && (i.closedAt ?? 0) >= since).length,
+      added: issues.filter(i => (i.attachedAt ?? 0) >= since).length,
+   };
+}
+
+/**
+ * When a project's open issues are done at their pace, in epoch secs: the
+ * open ones, at closes less adds per PACE_DAYS. Infinity when they arrive as
+ * fast as they close, or faster; null with none open, or none closed lately,
+ * so no pace to run on. The project page's forecast says the same day.
+ */
+export function paceFinish(pace: IssuePace, now: number): number | null {
+   if (!pace.open || !pace.closed) return null;
+   if (pace.closed <= pace.added) return Infinity;
+   const weeks = Math.ceil((pace.open * PACE_DAYS) / 7 / (pace.closed - pace.added));
+   return now + weeks * 7 * DAY;
 }
 
 /**
@@ -336,6 +399,48 @@ export function endShift(
 }
 
 /**
+ * Whether a plan is in progress: marked so, or still marked planned after
+ * its PRs moved on or after its first day, which is in progress whatever it
+ * says, so nobody has to flip it. The board shows it so
+ * (model/roadmapData.ts), and its updates are owed from then.
+ */
+export function inProgress(item: Pick<RoadmapItem, 'status' | 'start' | 'lately'>): boolean {
+   if (item.status === 'active') return true;
+   const at = item.lately?.activityAt;
+   return item.status === 'planned' && at != null && at >= (dayStart(item.start) as number);
+}
+
+/** Why a plan in progress owes no update now (vouchFor). */
+export interface Vouch {
+   /** its PRs merged in the last UPDATE_DUE_DAYS */
+   merged: number;
+   /** when its open issues are done at their pace, by its end; null with no
+    * pace to tell by */
+   finish: number | null;
+}
+
+/**
+ * The numbers that vouch for a plan in progress, so its lead owes no update
+ * while they hold (PRODUCT.md: no news is good news): its PRs merged in the
+ * last UPDATE_DUE_DAYS, it isn't past its end, and its issues' pace, when
+ * there is one, finishes them by its end. Null when they don't, or aren't
+ * known.
+ */
+export function vouchFor(
+   item: Pick<RoadmapItem, 'start' | 'weeks' | 'lately'>,
+   now: number
+): Vouch | null {
+   const lately = item.lately;
+   if (!lately?.merged) return null;
+   const end = planEnd(item);
+   if (utcDay(now) > end) return null;
+   const finish = lately.issues ? paceFinish(lately.issues, now) : null;
+   // Infinity first: it has no day to compare
+   if (finish === Infinity || (finish != null && utcDay(finish) > end)) return null;
+   return { merged: lately.merged, finish };
+}
+
+/**
  * Where an item's updates stand, for the roadmap row and the overview:
  * - `quiet`: nothing owed. Done or dropped, planned, or in progress for less
  *   than UPDATE_DUE_DAYS without an update yet. The days count from its
@@ -345,11 +450,14 @@ export function endShift(
  * - `missing`: in progress past UPDATE_DUE_DAYS that way, and never an update.
  * - `current`: the latest update is recent enough, or the work hasn't started.
  * - `stale`: in progress, and the latest update is older than UPDATE_DUE_DAYS.
+ * A plan the numbers vouch for (vouchFor) owes nothing: where it would be
+ * `missing` it's `quiet`, and where `stale`, `current`, each with `vouch`
+ * saying why.
  */
 export type HealthStanding =
-   | { kind: 'quiet' }
+   | { kind: 'quiet'; vouch?: Vouch }
    | { kind: 'missing' }
-   | { kind: 'current'; update: RoadmapUpdate }
+   | { kind: 'current'; update: RoadmapUpdate; vouch?: Vouch }
    | { kind: 'stale'; update: RoadmapUpdate; days: number };
 
 /** One plan whose lead owes an update: `days` since the last one, or since
@@ -362,9 +470,10 @@ export interface OwedUpdate {
 
 /**
  * The updates owed now, by lead, for a reminder to send: every plan in
- * progress with no update for UPDATE_DUE_DAYS (healthStanding's missing or
- * stale), each lead's longest overdue first, and the lead owing the most
- * first. Plans with no lead come last, under null: someone still owes them.
+ * progress with no update for UPDATE_DUE_DAYS that its numbers don't vouch
+ * for (healthStanding's missing or stale), each lead's longest overdue
+ * first, and the lead owing the most first. Plans with no lead come last,
+ * under null: someone still owes them.
  */
 export function updatesOwed(
    items: readonly RoadmapItem[],
@@ -390,21 +499,22 @@ export function updatesOwed(
 }
 
 export function healthStanding(
-   item: Pick<RoadmapItem, 'status' | 'start' | 'update' | 'created_at'>,
+   item: Pick<RoadmapItem, 'status' | 'start' | 'weeks' | 'update' | 'created_at' | 'lately'>,
    now: number = Date.now() / 1000
 ): HealthStanding {
    if (isStopped(item.status)) return { kind: 'quiet' };
-   const active = item.status === 'active';
+   const active = inProgress(item);
    const u = item.update;
    if (!u) {
       const from = Math.max(dayStart(item.start) as number, item.created_at ?? 0);
-      const days = (now - from) / DAY;
-      return active && days > UPDATE_DUE_DAYS ? { kind: 'missing' } : { kind: 'quiet' };
+      if (!active || (now - from) / DAY <= UPDATE_DUE_DAYS) return { kind: 'quiet' };
+      const vouch = vouchFor(item, now);
+      return vouch ? { kind: 'quiet', vouch } : { kind: 'missing' };
    }
    const days = Math.floor((now - u.at) / DAY);
-   return active && days > UPDATE_DUE_DAYS
-      ? { kind: 'stale', update: u, days }
-      : { kind: 'current', update: u };
+   if (!active || days <= UPDATE_DUE_DAYS) return { kind: 'current', update: u };
+   const vouch = vouchFor(item, now);
+   return vouch ? { kind: 'current', update: u, vouch } : { kind: 'stale', update: u, days };
 }
 
 /** Worst first, for sorting: off track, at risk, an update owed, on track,

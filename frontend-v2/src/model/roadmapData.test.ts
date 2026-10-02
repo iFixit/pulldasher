@@ -122,3 +122,90 @@ describe('the roadmap store', () => {
       expect(data.readRoadmap().problem).toMatch(/nope/);
    });
 });
+
+describe('what fills itself in', () => {
+   const lately = (activityAt: number | null) => ({
+      merged: 1,
+      open: { ready: 0, hold: 0, review: 1, work: 0 },
+      activityAt,
+      issues: null,
+   });
+   const monday = Date.parse('2026-09-28T00:00:00Z') / 1000;
+
+   it('shows a plan still marked planned as in progress once its PRs moved after its start', async () => {
+      const { answer } = scriptedFetch();
+      const data = await load();
+      const first = data.loadRoadmap();
+      answer({
+         items: [
+            item(1, { project: 'a', lately: lately(monday + 3600) }),
+            item(2, { project: 'b', lately: lately(monday - 3600) }),
+            item(3, { project: 'c', status: 'parked', lately: lately(monday + 3600) }),
+         ],
+      });
+      await first;
+      expect(data.readRoadmap().items?.map(i => i.status)).toEqual(['active', 'planned', 'parked']);
+   });
+
+   it('places a new plan by its issue’s Priority, above the first lower one under way', async () => {
+      const { placedByPriority } = await load();
+      const fields = (priority: string | null) => ({ start: null, target: null, priority });
+      const projects = [
+         { slug: 'high', fields: fields('high') },
+         { slug: 'low', fields: fields('low') },
+         { slug: 'none', fields: fields(null) },
+      ];
+      const order = [
+         item(1),
+         item(2, { project: 'none' }),
+         item(3, { project: 'low', status: 'done' }),
+         item(4, { project: 'low' }),
+         item(5, { project: 'high' }),
+      ];
+      // past the plans that say nothing and the one that's finished
+      expect(placedByPriority(order, 5, projects)).toEqual([1, 2, 3, 5, 4]);
+      // none lower, or none said: where it is
+      expect(placedByPriority(order, 4, projects)).toEqual([1, 2, 3, 4, 5]);
+      expect(placedByPriority(order, 2, projects)).toEqual([1, 2, 3, 4, 5]);
+   });
+
+   it('reads what each project did lately the way the server does', async () => {
+      const { latelyFrom } = await load();
+      const now = monday + 2 * 86400;
+      const pull = (status: string) => ({
+         status,
+         cryo: false,
+         externalBlock: false,
+         conflict: false,
+         changesRequestedBy: [],
+         data: { status: {} },
+      });
+      const merged = (daysAgo: number) => ({
+         merged_at: new Date((now - daysAgo * 86400) * 1000).toISOString(),
+      });
+      const group = (slug: string, open: unknown[], mergedPrs: unknown[]) => ({
+         slug,
+         open,
+         merged: mergedPrs,
+         lastActivity: now - 3600,
+      });
+      const today = {
+         live: [group('a', [pull('needs_cr'), pull('dev_block')], [merged(2), merged(16)])],
+         quiet: [group('b', [], [])],
+      } as unknown as Parameters<typeof latelyFrom>[0];
+      const open = { state: 'open', closedAt: null, attachedAt: now - 86400 };
+      const attached = new Map([
+         ['a', [open]],
+         ['b', [open]],
+      ]);
+      const facts = latelyFrom(today, attached, new Set(['b']), now);
+      expect(facts.get('a')).toEqual({
+         merged: 1,
+         open: { ready: 0, hold: 0, review: 1, work: 1 },
+         activityAt: now - 3600,
+         issues: { open: 1, closed: 0, added: 1 },
+      });
+      // work with no end has no finish to forecast
+      expect(facts.get('b')?.issues).toBeNull();
+   });
+});

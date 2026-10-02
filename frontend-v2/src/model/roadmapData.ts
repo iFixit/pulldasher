@@ -1,18 +1,29 @@
 import { useEffect } from 'react';
-import { isDummy } from '../backend/dummy';
-import { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } from '../backend/dummyProjects';
+import { isDummy, loadDummy } from '../backend/dummy';
+import { DUMMY_PROJECTS, DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } from '../backend/dummyProjects';
 import { createMemoryStore } from '../storage';
+import { epoch } from '../../../shared/format';
 import {
    checkRoadmapFields,
+   inProgress,
+   isUnderWay,
+   issuePace,
    mondayOf,
    checkRoadmapUpdate,
+   moveBefore,
+   UPDATE_DUE_DAYS,
    waitsOnProblem,
+   type PlanLately,
    type RoadmapFields,
    type RoadmapHealth,
    type RoadmapItem,
    type RoadmapUpdate,
 } from '../../../shared/model/roadmap';
-import { utcDay } from '../../../shared/model/projects';
+import { buildToday, dayStart, utcDay, type Project } from '../../../shared/model/projects';
+import { prStage } from '../../../shared/model/stage';
+import { derive } from '../../../shared/model/status';
+import { isBotLogin } from '../../../shared/model/visibility';
+import { dummyWorkInputs } from './workData';
 
 /**
  * The roadmap's state on the board: the items (null until the first load),
@@ -31,6 +42,15 @@ const store = createMemoryStore<RoadmapState>({ items: null, loadFailed: false, 
 
 const byPriority = (items: RoadmapItem[]) =>
    [...items].sort((a, b) => a.priority - b.priority || a.id - b.id);
+
+/**
+ * A plan as the board shows it: one still marked planned whose PRs moved
+ * after its start is in progress by the numbers (shared/model/roadmap.ts
+ * inProgress), so every view says so and nobody has to flip it. What's
+ * stored stays as it was, so no one's name goes on a change they didn't make.
+ */
+const shown = (item: RoadmapItem): RoadmapItem =>
+   item.status === 'planned' && inProgress(item) ? { ...item, status: 'active' } : item;
 
 type Reply = { status: number; json: Record<string, unknown> };
 
@@ -87,6 +107,90 @@ function liveApi(): Api {
    };
 }
 
+const DAY = 86400;
+
+/** GitHub's Priority field's options, most urgent first, as the server ranks
+ * them (lib/roadmap.js) */
+const PRIORITIES = ['urgent', 'high', 'medium', 'low'];
+const rankOf = (priority: string | null | undefined) =>
+   PRIORITIES.indexOf((priority ?? '').toLowerCase());
+
+/**
+ * The order of plan ids with plan `id` placed by its project issue's
+ * Priority, as the server places a new one (lib/roadmap.js createItem):
+ * just above the first plan under way whose own issue says a lower
+ * priority. Left where it is when its issue says none, or none is lower.
+ */
+export function placedByPriority(
+   order: readonly RoadmapItem[],
+   id: number,
+   projects: readonly Pick<Project, 'slug' | 'fields'>[]
+): number[] {
+   const priorityOf = (slug: string | null) => projects.find(p => p.slug === slug)?.fields.priority;
+   const ids = order.map(i => i.id);
+   const rank = rankOf(priorityOf(order.find(i => i.id === id)?.project ?? null));
+   const below =
+      rank >= 0 &&
+      order.find(i => i.id !== id && isUnderWay(i.status) && rankOf(priorityOf(i.project)) > rank);
+   return below ? moveBefore(ids, id, below.id) : ids;
+}
+
+/**
+ * What each project did lately, by slug, as the server sends it with each
+ * plan (lib/roadmap.js latelyBySlug): from Today, its PRs merged in the last
+ * UPDATE_DUE_DAYS, its open PRs by stage and its newest activity; and its
+ * issues' pace from its attached issues, which work with no end
+ * (`ongoing`) goes without.
+ */
+export function latelyFrom(
+   today: Pick<ReturnType<typeof buildToday>, 'live' | 'quiet'>,
+   attached: ReadonlyMap<string, readonly Parameters<typeof issuePace>[0][number][]>,
+   ongoing: ReadonlySet<string>,
+   now: number
+): Map<string, PlanLately> {
+   const out = new Map<string, PlanLately>();
+   for (const g of [...today.live, ...today.quiet]) {
+      const open = { ready: 0, hold: 0, review: 0, work: 0 };
+      for (const d of g.open) open[prStage(d)]++;
+      const issues = attached.get(g.slug);
+      out.set(g.slug, {
+         merged: g.merged.filter(p => epoch(p.merged_at ?? '') >= now - UPDATE_DUE_DAYS * DAY)
+            .length,
+         open,
+         activityAt: g.lastActivity,
+         issues: issues && !ongoing.has(g.slug) ? issuePace(issues, now) : null,
+      });
+   }
+   return out;
+}
+
+// the dummy board's facts, kept a minute as the server keeps its own
+let dummyFacts: { at: number; bySlug: Map<string, PlanLately> } | null = null;
+
+/** The dummy board's PRs and issues read the way the server reads its own:
+ * Today from the fixture's PRs, each in its project by the links too, and
+ * the issues from the work model's twin. */
+async function dummyLately(plans: readonly RoadmapItem[]): Promise<Map<string, PlanLately>> {
+   if (dummyFacts && Date.now() - dummyFacts.at < 60_000) return dummyFacts.bySlug;
+   const now = Date.now() / 1000;
+   const [{ pulls, bots = [], projectLabelPrefix }, { attached, linked }] = await Promise.all([
+      loadDummy(),
+      dummyWorkInputs(plans),
+   ]);
+   const people = pulls.filter(p => !isBotLogin(p.user.login, new Set(bots)));
+   const today = buildToday(
+      DUMMY_PROJECTS,
+      people.filter(p => p.state === 'open').map(p => derive(p, undefined, now)),
+      people.filter(p => p.state !== 'open'),
+      projectLabelPrefix ?? 'project:',
+      now,
+      linked
+   );
+   const ongoing = new Set(DUMMY_PROJECTS.filter(p => p.ongoing).map(p => p.slug));
+   dummyFacts = { at: Date.now(), bySlug: latelyFrom(today, attached, ongoing, now) };
+   return dummyFacts.bySlug;
+}
+
 /** The dummy board's stand-in for the server: the same checks, a table in
  * memory, gone on reload. */
 function dummyApi(): Api {
@@ -101,16 +205,25 @@ function dummyApi(): Api {
       updated_by: 'danielbeardsley',
       updated_at: Math.floor(Date.now() / 1000),
    });
+   // copies, as a server's JSON would be: handing out its own rows let a
+   // later write change rows the page already held, under React's feet;
+   // each with what its project did lately, as the server sends it
+   const sent = async (items: readonly RoadmapItem[]) => {
+      const bySlug = await dummyLately(rows);
+      return items.map(r => ({ ...r, lately: (r.project && bySlug.get(r.project)) || null }));
+   };
    return {
-      // copies, as a server's JSON would be: handing out its own rows let a
-      // later write change rows the page already held, under React's feet
-      list: () => ok({ items: byPriority(rows).map(r => ({ ...r })) }),
-      create: fields => {
+      list: async () => ok({ items: await sent(byPriority(rows)) }),
+      create: async fields => {
          const checked = checkRoadmapFields(fields, { partial: false });
          if ('error' in checked) return bad(checked.error);
          const f = checked.fields;
          const loop = f.waits_on && waitsOnProblem(null, f.waits_on, rows);
          if (loop) return bad(loop);
+         // its project's issue says when it starts, when nobody did
+         const issue = DUMMY_PROJECTS.find(p => p.slug === f.project)?.fields;
+         const start =
+            issue?.start && dayStart(issue.start) != null ? issue.start : utcDay(Date.now() / 1000);
          const item: RoadmapItem = {
             id: nextId++,
             name: f.name ?? '',
@@ -119,7 +232,7 @@ function dummyApi(): Api {
             lead: f.lead ?? null,
             status: f.status ?? 'planned',
             origin: f.origin ?? null,
-            start: f.start ?? mondayOf(utcDay(Date.now() / 1000)),
+            start: f.start ?? mondayOf(start),
             weeks: f.weeks ?? 4,
             notes: f.notes ?? '',
             waits_on: f.waits_on ?? [],
@@ -130,9 +243,14 @@ function dummyApi(): Api {
             update: null,
          };
          rows.push(item);
-         return ok({ item: { ...item } }, 201);
+         // and where it goes, by its Priority
+         placedByPriority(byPriority(rows), item.id, DUMMY_PROJECTS).forEach((id, i) => {
+            const row = rows.find(r => r.id === id);
+            if (row) row.priority = i;
+         });
+         return ok({ item: (await sent([item]))[0] }, 201);
       },
-      update: (id, fields, restate, undo) => {
+      update: async (id, fields, restate, undo) => {
          const checked = checkRoadmapFields(fields, { partial: true });
          if ('error' in checked) return bad(checked.error);
          const loop = checked.fields.waits_on && waitsOnProblem(id, checked.fields.waits_on, rows);
@@ -146,7 +264,7 @@ function dummyApi(): Api {
          Object.assign(row, checked.fields, touch());
          if (undo) Object.assign(row, undo);
          else if (moved) row.status_at = row.updated_at;
-         return ok({ item: { ...row } });
+         return ok({ item: (await sent([row]))[0] });
       },
       remove: id => {
          const before = rows.length;
@@ -175,12 +293,12 @@ function dummyApi(): Api {
          row.update = update;
          return ok({ update }, 201);
       },
-      reorder: ids => {
+      reorder: async ids => {
          ids.forEach((id, i) => {
             const row = rows.find(r => r.id === id);
             if (row) row.priority = i;
          });
-         return ok({ items: byPriority(rows).map(r => ({ ...r })) });
+         return ok({ items: await sent(byPriority(rows)) });
       },
    };
 }
@@ -224,7 +342,8 @@ export async function loadRoadmap(): Promise<void> {
       const reply = await api.list();
       if (reply.status !== 200) throw new Error(String(reply.status));
       if (seen !== writes) return;
-      store.set({ ...store.get(), items: reply.json.items as RoadmapItem[], loadFailed: false });
+      const items = (reply.json.items as RoadmapItem[]).map(shown);
+      store.set({ ...store.get(), items, loadFailed: false });
    } catch {
       if (seen === writes) store.set({ ...store.get(), loadFailed: true });
    }
@@ -245,7 +364,8 @@ function settle(reply: Reply, doing: string, undo: () => void): boolean {
    return false;
 }
 
-/** Add an item at the bottom. Resolves to it, or null when the server said no. */
+/** Add an item: at the bottom, or where its project issue's Priority puts it.
+ * Resolves to it, or null when the server said no. */
 export async function createRoadmapItem(
    fields: Partial<RoadmapFields>
 ): Promise<RoadmapItem | null> {
@@ -253,7 +373,7 @@ export async function createRoadmapItem(
    const reply = await api.create(fields).catch((): Reply => ({ status: 0, json: {} }));
    // nothing was shown early, so there's nothing to take back
    if (!settle(reply, 'add the plan', () => undefined)) return null;
-   const item = reply.json.item as RoadmapItem;
+   const item = shown(reply.json.item as RoadmapItem);
    const before = store.get().items;
    // never loaded (still loading, or the load failed): a list of just this
    // one would read as the whole roadmap, every other project with no plan,
@@ -265,6 +385,8 @@ export async function createRoadmapItem(
    // a load that already had it mustn't make it show twice
    const others = before.filter(i => i.id !== item.id);
    store.set({ ...store.get(), items: byPriority([...others, item]) });
+   // placed above others by its Priority, which moved their places too
+   if (others.some(i => i.priority >= item.priority)) void loadRoadmap();
    return item;
 }
 
@@ -294,7 +416,7 @@ export async function updateRoadmapItem(
       .update(id, fields, restate, undo)
       .catch((): Reply => ({ status: 0, json: {} }));
    if (!settle(reply, 'save the plan', takeBack)) return false;
-   const saved = reply.json.item as RoadmapItem;
+   const saved = shown(reply.json.item as RoadmapItem);
    store.set({
       ...store.get(),
       items: (store.get().items ?? []).map(i => (i.id === id ? saved : i)),
@@ -326,14 +448,14 @@ export async function reorderRoadmap(ids: number[]): Promise<boolean> {
    if (reply.status === 409) {
       store.set({
          ...store.get(),
-         items: reply.json.items as RoadmapItem[],
+         items: (reply.json.items as RoadmapItem[]).map(shown),
          problem:
             'Someone else just added or removed a plan, so your new order wasn’t saved. This is the order now; try again.',
       });
       return false;
    }
    if (!settle(reply, 'save the new order', undo)) return false;
-   store.set({ ...store.get(), items: reply.json.items as RoadmapItem[] });
+   store.set({ ...store.get(), items: (reply.json.items as RoadmapItem[]).map(shown) });
    return true;
 }
 

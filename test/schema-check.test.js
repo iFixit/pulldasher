@@ -13,7 +13,8 @@ test('a database with every migration is missing none', async () => {
 });
 
 test('names each missing migration once, oldest first', async () => {
-   // 0027's column and both of 0028's tables are missing
+   // 0027's column and both of 0028's tables are missing, and with them the
+   // columns 0030 adds to one
    const rows = all.filter(
       r =>
          !(r.t === 'pulls' && r.c === 'date_pushed') &&
@@ -24,6 +25,7 @@ test('names each missing migration once, oldest first', async () => {
    assert.deepEqual(await missingMigrations(), [
       '0027-pulls--add-date-pushed.sql',
       '0028-projects--add-issues-and-links.sql',
+      '0030-project-issues--add-linked-by-removed-at.sql',
    ]);
    mock.restoreAll();
 });

@@ -118,9 +118,20 @@ export function Projects({
    const prev = useProjectsData(prefix ? previousRange(range) : null);
    // every view counts every PR, whatever the filter bar narrows: a project
    // whose PRs are filtered out would otherwise look quiet or finished, and a
-   // click on a face would rewrite the planner's numbers
+   // click on a face would rewrite the planner's numbers. A PR with no
+   // project label counts where the issues it links put it, as on the server.
    const today = useMemo(
-      () => (prefix ? buildToday(data?.projects ?? [], allPulls, allClosed, prefix) : NO_TODAY),
+      () =>
+         prefix
+            ? buildToday(
+                 data?.projects ?? [],
+                 allPulls,
+                 allClosed,
+                 prefix,
+                 Date.now() / 1000,
+                 data?.pull_links
+              )
+            : NO_TODAY,
       [data, allPulls, allClosed, prefix]
    );
    const scoped = allPulls.length !== pulls.length || allClosed.length !== closed.length;

@@ -217,8 +217,9 @@ CREATE TABLE IF NOT EXISTS `roadmap_items` (
 
 --
 -- Table structure for tables `project_issues` and `issue_pull_links` (the
--- issues added to a project by hand, and the PRs that link each issue a
--- project has; lib/work.js keeps them)
+-- issues added to a project by hand or by a link, with a row kept for one
+-- taken off, and the PRs that link each issue a project has; lib/work.js
+-- keeps them)
 --
 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -234,6 +235,8 @@ CREATE TABLE IF NOT EXISTS `project_issues` (
   `created_at` int unsigned DEFAULT NULL,
   `added_by` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `added_at` int unsigned NOT NULL,
+  `linked_by` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `removed_at` int unsigned DEFAULT NULL,
   PRIMARY KEY (`project`,`repo`,`number`),
   KEY `issue` (`repo`,`number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

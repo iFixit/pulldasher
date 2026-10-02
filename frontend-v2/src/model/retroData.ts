@@ -3,10 +3,12 @@ import { isDummy, loadDummy } from '../backend/dummy';
 import { createMemoryStore } from '../storage';
 import { DUMMY_TEAMS } from '../backend/dummyProjects';
 import { epoch } from '../../../shared/format';
+import { issueKey } from '../../../shared/model/issueRef';
 import { dayStart, projectOf } from '../../../shared/model/projects';
 import { timeSpent, type Touch } from '../../../shared/model/retro';
 import { isSuffixBot } from '../../../shared/model/visibility';
 import { teamLookup, type Range } from './projectData';
+import { dummyPullLinks } from './workData';
 
 /** A PR someone spent days on, as GET /retro-data lists it. */
 export interface RetroPr {
@@ -41,7 +43,12 @@ export interface RetroData {
 
 /** The dummy board's answer, from its fixture PRs: opened, merged and stamped. */
 async function dummyRetro({ start, end }: Range): Promise<RetroData> {
-   const { pulls, projectLabelPrefix } = await loadDummy();
+   // a PR's project by the same rule as everywhere: its label, else the
+   // project whose issue it links
+   const [{ pulls, projectLabelPrefix }, linked] = await Promise.all([
+      loadDummy(),
+      dummyPullLinks(),
+   ]);
    const prefix = projectLabelPrefix ?? 'project:';
    const from = dayStart(start) ?? 0;
    const to = (dayStart(end) ?? from) + 86400;
@@ -77,7 +84,7 @@ async function dummyRetro({ start, end }: Range): Promise<RetroData> {
             title: p.title,
             owner: p.user.login,
             bot: isSuffixBot(p.user.login),
-            project: projectOf(p.labels, prefix),
+            project: projectOf(p.labels, prefix, linked[issueKey(p)]),
             state: p.state === 'open' ? 'open' : 'closed',
             merged: p.merged_at ? epoch(p.merged_at) : null,
             closed: p.closed_at ? epoch(p.closed_at) : null,

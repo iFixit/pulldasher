@@ -6,12 +6,12 @@ import {
    issueKey,
    issueQuery,
    projectWork,
-   type AttachedIssue,
    type IssueHit,
    type IssueRef,
    type ProjectWork,
 } from '../../../shared/model/work';
-import { byHandOnly, dummyHand, dummyWorkInputs, workVersion } from './workData';
+import { refreshProjectsData } from './projectData';
+import { dummyRows, dummyWorkInputs, saveDummyRows, workVersion } from './workData';
 
 /**
  * A project's page and the issue search: GET /project-work and
@@ -49,21 +49,25 @@ function dummySearch(text: string): IssueHit[] {
       const words = q.words.toLowerCase().split(/\s+/);
       hits = all.filter(hit => words.every(w => hit.title.toLowerCase().includes(w))).slice(0, 10);
    }
-   // the fixtures' labeled issues and whatever is added by hand now
+   // the fixtures' labeled issues and the ones added by hand or by a link
+   // now, never one taken off
    const lists = [
-      ...Object.entries(DUMMY_ATTACHED).map(([slug, list]): [string, AttachedIssue[]] => [
+      ...Object.entries(DUMMY_ATTACHED).map(([slug, list]) => ({
          slug,
-         list.filter(i => !byHandOnly(i)),
-      ]),
-      ...dummyHand,
+         refs: list.filter(i => i.via.includes('label')).map(i => i.ref),
+      })),
+      ...[...dummyRows].map(([slug, rows]) => ({
+         slug,
+         refs: rows.filter(row => row.removedAt == null).map(row => row.ref),
+      })),
    ];
    return hits.map(hit => ({
       ...hit,
       projects: [
          ...new Set(
             lists
-               .filter(([, list]) => list.some(i => issueKey(i.ref) === issueKey(hit)))
-               .map(([slug]) => slug)
+               .filter(({ refs }) => refs.some(ref => issueKey(ref) === issueKey(hit)))
+               .map(({ slug }) => slug)
          ),
       ],
    }));
@@ -115,42 +119,56 @@ export function reloadProjectWork(): void {
    workVersion.set({ n: workVersion.get().n + 1 });
 }
 
-/** Add an issue to a project by hand, or take one added by hand off it. */
+/** Add an issue to a project by hand (or put back one taken off), or take
+ * one added by hand or by a link off it, for good: its row stays, so a link
+ * never brings it back. `forget` takes back an add instead (its Undo), as
+ * if it was never added, so a suggestion goes back to being one. */
 export async function changeProjectIssue(
    slug: string,
    ref: IssueRef,
-   add: boolean
+   add: boolean,
+   { forget = false } = {}
 ): Promise<{ ok: true } | { error: string }> {
    if (isDummy()) {
-      const list = dummyHand.get(slug) ?? [];
-      const rest = list.filter(issue => issueKey(issue.ref) !== issueKey(ref));
+      const rows = dummyRows.get(slug) ?? [];
+      const row = rows.find(r => issueKey(r.ref) === issueKey(ref));
       const hit = dummyCorpus().find(h => issueKey(h) === issueKey(ref));
+      const now = Math.floor(Date.now() / 1000);
       if (add && DUMMY_PROJECTS.some(p => issueKey(p) === issueKey(ref))) {
          return {
             error: 'That’s a project’s own issue: it names the project, so it isn’t one of its issues.',
          };
       }
-      if (add && !hit) return { error: 'GitHub has no issue by that name.' };
-      dummyHand.set(
-         slug,
-         add && hit
-            ? [
-                 ...rest,
-                 {
-                    ref: { repo: hit.repo, number: hit.number },
-                    title: hit.title,
-                    state: hit.state,
-                    closedAt: hit.closedAt ?? null,
-                    author: hit.author,
-                    createdAt: hit.createdAt,
-                    via: ['hand'],
-                    attachedAt: Math.floor(Date.now() / 1000),
-                    addedBy: 'you',
-                 },
-              ]
-            : rest
-      );
+      if (add && !row && !hit) return { error: 'GitHub has no issue by that name.' };
+      // the server's table: added again, a row comes back as it was
+      if (row && forget) {
+         dummyRows.set(
+            slug,
+            rows.filter(r => r !== row)
+         );
+      } else if (row) {
+         row.removedAt = add ? null : row.removedAt ?? now;
+      } else if (add && hit) {
+         dummyRows.set(slug, [
+            ...rows,
+            {
+               ref: { repo: hit.repo, number: hit.number },
+               title: hit.title,
+               state: hit.state,
+               closedAt: hit.closedAt ?? null,
+               author: hit.author,
+               createdAt: hit.createdAt,
+               via: ['hand'],
+               attachedAt: now,
+               addedBy: 'you',
+               removedAt: null,
+            },
+         ]);
+      }
+      saveDummyRows();
       reloadProjectWork();
+      // which project each PR is in can change with it, on every view
+      refreshProjectsData();
       return { ok: true };
    }
    const res = await (add
@@ -164,6 +182,7 @@ export async function changeProjectIssue(
               project: slug,
               repo: ref.repo,
               number: String(ref.number),
+              ...(forget ? { forget: '1' } : {}),
            })}`,
            { method: 'DELETE' }
         )

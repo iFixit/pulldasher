@@ -87,6 +87,27 @@ describe('amber means someone owes something', () => {
       expect(words?.pieces.filter(p => p.owed).map(p => p.text)).toEqual(['Update due']);
    });
 
+   it('on a plan its numbers vouch for, why it owes nothing, in ink where its update goes', () => {
+      const lately = {
+         merged: 2,
+         open: { ready: 0, hold: 0, review: 1, work: 0 },
+         activityAt: NOW - 3600,
+         issues: null,
+      };
+      // Sep 7 for 8 weeks: inside its Nov 1 end
+      const going = (u: RoadmapUpdate | null) =>
+         planWarnings(item(1, { weeks: 8, update: u, lately }), [], TODAY, null, NOW);
+      // short on the row; the numbers behind it are on hover
+      const never = going(null);
+      expect(never.health?.text).toBe('No update needed');
+      expect(never.health?.title).toMatch(/^2 PRs merged in the last 14 days: no update needed\./);
+      expect(amber(never)).toEqual([]);
+      const old = going(update(20, 'on_track'));
+      expect(old.health?.text).toMatch(/^On track as of .+ · no update needed$/);
+      expect(old.health?.title).toMatch(/2 PRs merged in the last 14 days/);
+      expect(amber(old)).toEqual([]);
+   });
+
    it('in the table, a stale on track reads as the update it owes', () => {
       expect(planCellWords(item(1, { update: update(20, 'on_track') })).text).toBe('Update due');
       expect(planCellWords(item(1, { update: update(20, 'off_track') })).text).toBe('Off track');

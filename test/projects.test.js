@@ -13,6 +13,7 @@ import {
    projectsFromRows,
    reviewsFromRows,
    spansFromRows,
+   todayFromBoard,
    MAX_WINDOW_DAYS,
 } from '../lib/projects.js';
 import projectsController from '../controllers/projects.js';
@@ -206,6 +207,28 @@ test('spansFromRows files PRs by label, leaves bots out, falls back to the merge
    ]);
 });
 
+test('spansFromRows files a PR with no project label under the project whose issue it links', () => {
+   const spans = spansFromRows(
+      [
+         { repo: 'test/repo-a', number: 1, owner: 'alice', date: 100, date_closed: null, date_merged: null },
+         { repo: 'Test/Repo-A', number: 2, owner: 'bob', date: 100, date_closed: null, date_merged: null },
+         { repo: 'test/repo-a', number: 3, owner: 'bob', date: 100, date_closed: null, date_merged: null },
+      ],
+      [
+         { repo: 'test/repo-a', number: 1, title: 'project:alpha' },
+         { repo: 'test/repo-a', number: 3, title: 'project:misc' },
+      ],
+      'project:',
+      // keyed as issueKey keys them, the repo lowercased
+      { 'test/repo-a#1': ['beta'], 'test/repo-a#2': ['beta', 'gamma'], 'test/repo-a#3': ['gamma'] }
+   );
+   // a label wins; with none, the first project it links; misc yields too
+   assert.deepEqual(
+      spans.map(s => s.project),
+      ['alpha', 'beta', 'gamma']
+   );
+});
+
 test('reviewsFromRows keeps repo and number, drops a bot on either side, leaves a self-stamp for windowStats to ignore', () => {
    const reviews = reviewsFromRows([
       { reviewer: 'carol', repo: 'test/repo-a', number: 11, author: 'alice', at: 100 },
@@ -348,7 +371,20 @@ before(() => {
       }
       if (sql.includes('FROM `roadmap_items`')) return roadmapRows;
       if (sql.includes('FROM `roadmap_updates`')) return [];
-      // no issue carries a project label or was added by hand
+      // alpha's own issue carries its label; its side names #11, on the
+      // board, and #99, which isn't
+      if (sql.includes('l.date AS labeled_at')) {
+         return [{ repo: 'test/projects', number: 7, title: 'Alpha work', label: 'project:alpha' }];
+      }
+      if (sql.startsWith('SELECT `issue_repo`')) {
+         return [11, 99].map(n => ({
+            issue_repo: 'test/projects',
+            issue_number: 7,
+            pull_repo: 'test/repo-a',
+            pull_number: n,
+         }));
+      }
+      // no issue was added by hand, nor joined by a link
       if (
          sql.includes('FROM `issue_pull_links`') ||
          sql.includes('FROM `project_issues`') ||
@@ -442,8 +478,27 @@ test('/projects-data sends the registry and the window, and 400s a bad window', 
       ['alpha', 'beta']
    );
    assert.equal(ok.body.window.start, '2026-09-01');
+   // which projects the board's PRs link, so the tab files them as this does
+   assert.deepEqual(ok.body.pull_links, { 'test/repo-a#11': ['alpha'] });
    const bad = await get('/projects-data?start=2026-09-29&end=2026-09-01');
    assert.equal(bad.status, 400);
+});
+
+test('todayFromBoard files a PR with no project label under the project whose issue it links', () => {
+   const projects = [{ slug: 'alpha', state: 'open' }];
+   const before = todayFromBoard(pullManager.getPulls(), projects, 'project:', NOW);
+   assert.deepEqual(
+      before.unsorted.map(d => d.data.number),
+      [13]
+   );
+   const today = todayFromBoard(pullManager.getPulls(), projects, 'project:', NOW, {
+      'test/repo-a#13': ['alpha'],
+   });
+   assert.deepEqual(today.unsorted, []);
+   assert.deepEqual(
+      today.live[0].open.map(d => d.data.number),
+      [11, 12, 13]
+   );
 });
 
 test('project= narrows the window to one project and rejects a repeated one', async () => {

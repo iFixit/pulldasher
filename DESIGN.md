@@ -347,6 +347,35 @@ icon with a class bolted on.
   page and opens them; its range numbers are one sentence under the
   backlog chart, not tiles that open nothing; and its finish forecast
   comes from issues closed and added, or there's none.
+- **Keeping it current costs nobody a visit.** The people who keep Projects
+  current are the developers and leads shipping the PRs, and other project
+  tools were dropped for the upkeep they asked. So what can be read off PRs,
+  labels, issue links and activity is filled in, with Undo, before anyone is
+  asked for it:
+  - **A PR counts where it links.** Its project is its label (not the
+    one-offs label), else the project whose issue it links (a closing
+    reference or "Parts of #N"), else none, by one rule on every view and the
+    server. Of 298 merged PRs, 54% linked an issue and 2% carried a project
+    label. One that links two projects' issues counts under the first and
+    shows in "In two projects".
+  - **Issues join by their links.** An issue a project's PRs link joins it,
+    its line saying "linked by PR #N", with a Remove that sticks. It's one
+    hop, from an issue the project has by label, by hand or as its own, so a
+    shared epic can't pull everything in; an issue two projects' PRs link
+    joins neither, and one another project has stays a suggestion.
+  - **An update is owed only when the numbers can't vouch.** A plan under
+    way whose PRs merged in the last 14 days, inside its end and its issues'
+    pace, owes none: a row says "no update needed", the page says the
+    numbers. The rest open on a drafted update with "Post as drafted". A
+    Planned plan whose PRs moved since its start reads In progress; that's
+    derived, never written.
+  - **A new plan takes what its issue says**: its Start date, its Priority
+    for its place, and a target still ahead as the outlined answer ("Through
+    its target, Oct 21").
+- **A call is made where it's seen.** The call strip sits under a project
+  page's Plan line for any project and in an Overview row's details, and
+  each Decide section answers every row at once ("Commit all 52 through the
+  end of Oct"), each row keeping its receipt, with Undo all.
 - **Open boards stay current.** The server sends `projectsChanged` after
   every Projects write and sync; the tab refetches once a burst settles,
   keeping the old numbers on screen meanwhile.

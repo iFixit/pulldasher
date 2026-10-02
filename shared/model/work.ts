@@ -1,24 +1,27 @@
 import { MAX_ISSUE_NUMBER, REPO_PATTERN, issueKey, parseIssueRef, type IssueRef } from './issueRef';
-import { dayStart } from './projects';
+import { dayStart, type PullLinks } from './projects';
 import { isStopped, planEnd, type RoadmapItem } from './roadmap';
 
 export { issueKey, issueText, parseIssueRef, type IssueRef } from './issueRef';
 
 /**
  * A project's work: the issues attached to it and the PRs that do them. An
- * issue joins a project by the project's label, or by hand on the board. A
- * PR joins by the label, or by linking one of the project's issues ("Parts
- * of #N", "closes #N"). A project is one piece of work with an end; a later
- * round of the same thing (the feedback after a launch) is a project of its
- * own, grouped under the first by a parent label.
+ * issue joins a project by the project's label, by hand on the board, or on
+ * its own when one of the project's PRs links it and no project has it (the
+ * server's sync stores it; taken off, it stays off). A PR joins by the
+ * label, or with none by linking one of the project's issues ("Parts of
+ * #N", "closes #N"): projectOf, the rule every view counts by. A project is
+ * one piece of work with an end; a later round of the same thing (the
+ * feedback after a launch) is a project of its own, grouped under the first
+ * by a parent label.
  *
  * The project page lists each issue with the PRs that link it, then the
  * project's PRs that link none of its issues, then the issues its PRs link
- * that aren't attached, to add. A plan on the roadmap gives the dates: the
- * PRs that opened after it ended show on the page and in Decide, and once
- * every issue is closed Decide asks whether the work is done. Done is a
- * person's call. Pure, like the rest of shared/: the server builds it from
- * its tables and the board renders it, so they can't disagree.
+ * that didn't join, to add. A plan on the roadmap gives the dates: the PRs
+ * that opened after it ended show on the page and in Decide, and once every
+ * issue is closed Decide asks whether the work is done. Done is a person's
+ * call. Pure, like the rest of shared/: the server builds it from its tables
+ * and the board renders it, so they can't disagree.
  */
 
 const DAY = 86400;
@@ -98,12 +101,15 @@ export interface AttachedIssue {
    author: string | null;
    /** epoch secs it was opened */
    createdAt: number | null;
-   /** how it's attached: the project's label, by hand on the board, or both */
-   via: ('label' | 'hand')[];
+   /** how it's attached: the project's label, by hand on the board, on its
+    * own by one of the project's PRs linking it, or more than one */
+   via: ('label' | 'hand' | 'link')[];
    /** epoch secs it was first attached; null when not known */
    attachedAt: number | null;
    /** who added it by hand */
    addedBy: string | null;
+   /** with 'link': the PR whose link brought it in */
+   linkedBy?: IssueRef | null;
 }
 
 /** A PR as the work model reads it. */
@@ -135,6 +141,11 @@ export interface IssuePull {
     * that other projects have (their slugs), so the page can say where the
     * work may belong. Absent when there are none. */
    elsewhere?: { ref: IssueRef; projects: string[] }[];
+   /** on an issue's line, a PR the board knows that counts toward another
+    * project or none (projectOf: its own label; a bot's), so the page's
+    * counts leave it out as every other view does. Absent for the
+    * project's own, and for one the board hasn't read. */
+   outside?: true;
 }
 
 /** An issue on its project's page: with the PRs that link it, newest first. */
@@ -161,6 +172,11 @@ export interface SuggestedIssue extends IssueHit {
    linkedBy: IssueRef[];
    /** the projects it's attached to already, by slug */
    alsoIn: string[];
+   /** it joins on its own at the server's next sync: no project has it, a
+    * PR that's here by its label or by one of its issues added by label or
+    * by hand links it, and no other project's recent PR does. The rest wait
+    * for someone to add them. */
+   joins: boolean;
 }
 
 /** A project's page: its issues with their PRs, its PRs that link none of
@@ -170,7 +186,8 @@ export interface ProjectWork {
    /** its PRs that link none of its issues: the open ones, then the ones
     * merged or closed in the last RECENT_DAYS, each newest first */
    unlinked: IssuePull[];
-   /** issues its recent PRs link that aren't attached, to add */
+   /** issues its recent PRs link that aren't attached, never one taken off
+    * it: the ones joining on their own, and the ones to add by hand */
    suggested: SuggestedIssue[];
    counts: IssueCounts;
 }
@@ -190,13 +207,15 @@ export interface PlanWork {
 /** What a project's work is built from: the server reads it out of its tables. */
 export interface WorkInputs {
    plans: readonly RoadmapItem[];
-   /** each project's attached issues, by slug */
+   /** each project's attached issues, by slug, none taken off */
    attached: ReadonlyMap<string, readonly AttachedIssue[]>;
    /** each project's PRs by its label (people's, not bots'), by slug */
    pulls: ReadonlyMap<string, readonly WorkPull[]>;
-   /** people's PRs with no project label: each joins the projects whose
-    * issues it links */
+   /** people's PRs with no project label (or only misc's) that link a
+    * project's issue: each joins the first project `linked` names */
    unlabeled?: readonly WorkPull[];
+   /** the projects each PR links, by issueKey of the PR (PullLinks) */
+   linked?: PullLinks;
    /** the PRs that link each issue, from the issue's side (GitHub's closing
     * references and linking mentions), by issueKey(issue) */
    links: ReadonlyMap<string, readonly IssueRef[]>;
@@ -206,9 +225,12 @@ export interface WorkInputs {
    /** issues never to suggest: every project's own issue */
    notIssues?: ReadonlySet<string>;
    /** each project's own issue, by slug: a PR that links it ("Parts of
-    * iFixit/projects#12") joins the project the way one that links its
-    * issues does */
+    * iFixit/projects#12") is the project's the way one that links its
+    * issues is */
    ownIssues?: ReadonlyMap<string, IssueRef>;
+   /** the issues taken off each project, by slug then issueKey: never
+    * suggested there again, nor joined on their own */
+   removed?: ReadonlyMap<string, ReadonlySet<string>>;
 }
 
 /** When a plan's status last changed; a plan saved before that was kept
@@ -257,35 +279,14 @@ export function issueCounts(
    };
 }
 
-/** Each project's PRs: the ones with its label, and the ones with no
- * project label that link one of its issues. */
-function pullsOf({
-   attached,
-   pulls,
-   unlabeled = [],
-   links,
-   ownIssues,
-}: WorkInputs): Map<string, WorkPull[]> {
+/** Each project's PRs, by projectOf: the ones with its label, and the ones
+ * with no project label whose first linked project it is, so a PR counts
+ * in one project here as it does on every other view. */
+function pullsOf({ pulls, unlabeled = [], linked = {} }: WorkInputs): Map<string, WorkPull[]> {
    const out = new Map([...pulls].map(([slug, list]) => [slug, [...list]]));
-   // which projects each PR links, from both sides
-   const linkedTo = new Map<string, Set<string>>();
-   const note = (pr: string, slug: string) =>
-      linkedTo.set(pr, new Set([...(linkedTo.get(pr) ?? []), slug]));
-   for (const slug of new Set([...attached.keys(), ...(ownIssues?.keys() ?? [])])) {
-      const own = ownIssues?.get(slug);
-      const keys = new Set([
-         ...(attached.get(slug) ?? []).map(i => issueKey(i.ref)),
-         ...(own ? [issueKey(own)] : []),
-      ]);
-      for (const k of keys) for (const pr of links.get(k) ?? []) note(issueKey(pr), slug);
-      for (const pr of unlabeled) {
-         if (pr.links.some(ref => keys.has(issueKey(ref)))) note(issueKey(pr), slug);
-      }
-   }
    for (const pr of unlabeled) {
-      for (const slug of linkedTo.get(issueKey(pr)) ?? []) {
-         out.set(slug, [...(out.get(slug) ?? []), pr]);
-      }
+      const slug = linked[issueKey(pr)]?.[0];
+      if (slug) out.set(slug, [...(out.get(slug) ?? []), pr]);
    }
    return out;
 }
@@ -346,7 +347,8 @@ function issuePull(pr: WorkPull): IssuePull {
 /**
  * One project's page (ProjectWork): each attached issue with the PRs that
  * link it, from either side; its PRs that link none of them; and the issues
- * its recent PRs link that aren't attached, to add.
+ * its recent PRs link that aren't attached, saying which join on their own.
+ * The server's sync runs it for every project and stores those (lib/work.js).
  */
 export function projectWork(
    inputs: WorkInputs,
@@ -355,25 +357,36 @@ export function projectWork(
 ): ProjectWork {
    const issues = inputs.attached.get(slug) ?? [];
    const keys = new Set(issues.map(i => issueKey(i.ref)));
-   // the other projects that have each issue, by label or by hand
+   // the other projects that have each issue, by label, by hand or by a
+   // link, and what they know of it
    const elsewhere = new Map<string, string[]>();
+   const theirIssue = new Map<string, IssueHit>();
    for (const [other, list] of inputs.attached) {
       if (other === slug) continue;
       for (const i of list) {
          elsewhere.set(issueKey(i.ref), [...(elsewhere.get(issueKey(i.ref)) ?? []), other]);
+         theirIssue.set(issueKey(i.ref), {
+            ...i.ref,
+            title: i.title,
+            state: i.state,
+            author: i.author,
+            createdAt: i.createdAt,
+            closedAt: i.closedAt,
+         });
       }
    }
    const alsoIn = (k: string) => [...(elsewhere.get(k) ?? [])].sort();
-   const mine = pullsOf(inputs).get(slug) ?? [];
+   const all = pullsOf(inputs);
+   const mine = all.get(slug) ?? [];
    const known = new Map([
       ...(inputs.knownPulls ?? []),
       ...mine.map(pr => [issueKey(pr), pr] as const),
    ]);
+   const ours = new Set(mine.map(issueKey));
    const resolve = (ref: IssueRef): IssuePull => {
       const pr = known.get(issueKey(ref));
-      return pr
-         ? issuePull(pr)
-         : { ...ref, title: null, author: null, createdAt: null, state: null };
+      if (!pr) return { ...ref, title: null, author: null, createdAt: null, state: null };
+      return ours.has(issueKey(ref)) ? issuePull(pr) : { ...issuePull(pr), outside: true };
    };
    const prsOf = new Map<string, Map<string, IssuePull>>();
    const link = (issue: string, pr: IssueRef) => {
@@ -386,13 +399,36 @@ export function projectWork(
       for (const ref of pr.links) if (keys.has(issueKey(ref))) link(issueKey(ref), pr);
    }
    const newest = (a: IssuePull, b: IssuePull) => (b.createdAt ?? 0) - (a.createdAt ?? 0);
-   const linked = new Set([...prsOf.values()].flatMap(list => [...list.keys()]));
+   const onIssue = new Set([...prsOf.values()].flatMap(list => [...list.keys()]));
    const since = (days: number) => now - days * DAY;
    const recent = (pr: WorkPull, days: number) =>
       pr.state === 'open' ||
       (pr.closedAt ?? pr.mergedAt ?? 0) >= since(days) ||
       pr.createdAt >= since(days);
-   // issues the recent PRs link, not attached, and not a project's own issue
+   // the PRs whose links bring an issue in on their own: the ones with its
+   // label, and the ones linking its own issue or one it has by label or by
+   // hand. A PR here only through an issue a link brought brings no more,
+   // so an epic many PRs link can't pull everything they touch in after it.
+   const own = inputs.ownIssues?.get(slug);
+   const anchors = [
+      ...issues.filter(i => i.via.some(v => v !== 'link')).map(i => issueKey(i.ref)),
+      ...(own ? [issueKey(own)] : []),
+   ];
+   const anchored = new Set([
+      ...(inputs.pulls.get(slug) ?? []).map(issueKey),
+      ...anchors.flatMap(k => (inputs.links.get(k) ?? []).map(issueKey)),
+   ]);
+   // the issues other projects' recent PRs link: one that two projects' PRs
+   // link joins neither on its own
+   const theirs = new Set(
+      [...all]
+         .filter(([other]) => other !== slug)
+         .flatMap(([, prs]) => prs.filter(p => recent(p, SUGGEST_DAYS)))
+         .flatMap(pr => pr.links.map(issueKey))
+   );
+   const gone = inputs.removed?.get(slug);
+   // issues the recent PRs link, not attached, not taken off this project,
+   // and not a project's own issue
    const suggested = new Map<string, SuggestedIssue>();
    for (const pr of mine.filter(p => recent(p, SUGGEST_DAYS))) {
       for (const ref of pr.links) {
@@ -402,20 +438,24 @@ export function projectWork(
             was.linkedBy.push({ repo: pr.repo, number: pr.number });
             continue;
          }
-         if (keys.has(k) || inputs.notIssues?.has(k)) continue;
+         if (keys.has(k) || gone?.has(k) || inputs.notIssues?.has(k)) continue;
          // a PR's link to a PR isn't an issue to add
          if (known.has(k)) continue;
-         // an issue another project has belongs there (a phase moved on,
-         // V1 to V1.1): the PR's line says so instead of suggesting it back
-         if (elsewhere.has(k)) continue;
-         const info = inputs.knownIssues?.get(k);
+         const info = inputs.knownIssues?.get(k) ?? theirIssue.get(k);
          if (info && info.state !== 'open' && (info.closedAt ?? 0) < since(SUGGEST_DAYS)) continue;
          suggested.set(k, {
             ...(info ?? { ...ref, title: '', state: 'open', author: null, createdAt: null }),
             linkedBy: [{ repo: pr.repo, number: pr.number }],
             alsoIn: alsoIn(k),
+            joins: false,
          });
       }
+   }
+   // one another project has stays a suggestion: it may belong there (a
+   // phase moved on, V1 to V1.1), and adding it here is someone's call
+   for (const [k, s] of suggested) {
+      s.joins =
+         !elsewhere.has(k) && !theirs.has(k) && s.linkedBy.some(pr => anchored.has(issueKey(pr)));
    }
    return {
       issues: issues.map(issue => ({
@@ -424,7 +464,7 @@ export function projectWork(
          alsoIn: alsoIn(issueKey(issue.ref)),
       })),
       unlinked: mine
-         .filter(pr => !linked.has(issueKey(pr)) && recent(pr, RECENT_DAYS))
+         .filter(pr => !onIssue.has(issueKey(pr)) && recent(pr, RECENT_DAYS))
          .map(pr => {
             const there = new Map(
                pr.links

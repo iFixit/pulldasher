@@ -1,6 +1,7 @@
 import {
    useEffect,
    useId,
+   useMemo,
    useRef,
    useState,
    type KeyboardEvent as ReactKeyboardEvent,
@@ -46,10 +47,11 @@ import { useRowKeys } from '../../components/useRowKeys';
 import { mainTeam, type PortfolioItem } from '../../model/portfolio';
 import { teamLoad, type InFlight } from '../../model/teamLoad';
 import { dayOf, dayWords } from '../../model/projectData';
-import { commitEnds } from '../../model/roadmapTime';
+import { commitEnds, type CommitEnd } from '../../model/roadmapTime';
 import { saveDecideRotation, setOngoing } from '../../model/settingsData';
 import {
    ALL_ISSUES_CLOSED,
+   andList,
    BEING_WORKED_ON,
    COMMIT_THROUGH,
    COPY_AS_TEXT,
@@ -73,6 +75,7 @@ import {
 } from '../../model/roadmapData';
 import { createMemoryStore, readSessionStorage, writeSessionStorage } from '../../storage';
 import {
+   openPageAt,
    openPlan,
    ORIGIN_OPTIONS,
    PeopleStack,
@@ -219,7 +222,7 @@ const upperFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** The calls a row can get. */
 export type Call =
-   | { kind: 'commit'; label: string; end: string }
+   | ({ kind: 'commit' } & CommitEnd)
    | { kind: 'park' }
    | { kind: 'done' }
    | { kind: 'drop' }
@@ -255,6 +258,76 @@ export function askOf(reason: DecideReason): { question: string; call: Call['kin
             ? { question: 'Done?', call: 'done' }
             : { question: 'Drop it?', call: 'drop' };
    }
+}
+
+/** The ends a row's plan can commit to: its project's target first while
+ * that's ahead, then the coming months and quarters, none before the plan
+ * starts. */
+function endsFor(
+   row: DecideRow,
+   project: Pick<PortfolioItem, 'target'> | undefined,
+   today: string
+): CommitEnd[] {
+   const target = project?.target?.due_on?.slice(0, 10) ?? null;
+   return commitEnds(today, target).filter(c => c.end >= (row.item?.start ?? ''));
+}
+
+/**
+ * The call a row's outlined answer makes: the one its question asks, a
+ * commit going through its target while that's ahead, else through the
+ * nearest end. A row nobody asked about (a plan on its project's page)
+ * answers with a commit too.
+ */
+export function answerOf(
+   row: DecideRow,
+   project: Pick<PortfolioItem, 'target'> | undefined,
+   today: string
+): Call {
+   const asked = row.reasons.length ? askOf(primaryOf(row)).call : 'commit';
+   if (asked !== 'commit') return { kind: asked };
+   const [end] = endsFor(row, project, today);
+   return end ? { kind: 'commit', ...end } : { kind: 'park' };
+}
+
+const VERBS: Record<Call['kind'], [string, string]> = {
+   commit: ['Commit', 'Committed'],
+   park: ['Park', 'Parked'],
+   done: ['Mark', 'Marked'],
+   drop: ['Drop', 'Dropped'],
+   ongoing: ['Mark', 'Marked'],
+};
+
+/**
+ * What one click on a section does to its rows, or did: "Commit all 52
+ * through the end of Oct", "Committed 52 through the end of Oct". Rows
+ * whose answers differ say each one and how many ("Commit 5 through the
+ * end of Oct and mark 3 done"), and rows going through their own targets
+ * count together.
+ */
+export function bulkWords(made: readonly Call[], tense: 'do' | 'did'): string {
+   const groups = new Map<string, { call: Call; count: number }>();
+   for (const call of made) {
+      const key = call.kind === 'commit' ? (call.target ? 'target' : call.end) : call.kind;
+      const group = groups.get(key) ?? { call, count: 0 };
+      group.count++;
+      groups.set(key, group);
+   }
+   const all = groups.size === 1 && tense === 'do' ? 'all ' : '';
+   let said = '';
+   const parts = [...groups.values()].map(({ call, count }, i) => {
+      const verb = VERBS[call.kind][tense === 'do' ? 0 : 1];
+      const tail =
+         call.kind === 'commit'
+            ? ` through ${call.target && count > 1 ? 'their targets' : call.through}`
+            : call.kind === 'done' || call.kind === 'ongoing'
+            ? ` ${call.kind}`
+            : '';
+      // "Commit 40 through the end of Oct and 12 through their targets"
+      const head = verb === said ? '' : `${i ? verb.toLowerCase() : verb} `;
+      said = verb;
+      return `${head}${all}${count}${tail}`;
+   });
+   return andList(parts);
 }
 
 /**
@@ -372,7 +445,11 @@ const aboutTheWork = (reason: DecideReason) =>
  * its first open PR opened. */
 function startOf(row: DecideRow, project: PortfolioItem | undefined, today: string): string {
    if (row.item) return row.item.start;
-   return mondayOf((project?.group && firstOpenDay(project.group)) || today);
+   // a Start date a person set on the project's issue wins, as everywhere
+   // a person's value does; else the work started when its first PR did
+   return mondayOf(
+      project?.project?.fields.start || (project?.group && firstOpenDay(project.group)) || today
+   );
 }
 
 const STATUS = { park: 'parked', done: 'done', drop: 'dropped' } as const;
@@ -391,9 +468,11 @@ export function writeFor(
    | { id: number; fields: Partial<RoadmapFields>; restate: boolean }
    | { id: null; fields: Partial<RoadmapFields> } {
    const start = startOf(row, project, today);
+   // a new end for a plan that hasn't started yet leaves it planned
+   const waiting = row.item?.status === 'planned' && start > today;
    const fields: Partial<RoadmapFields> =
       call.kind === 'commit'
-         ? { status: 'active', start, weeks: weeksThrough(start, call.end) }
+         ? { status: waiting ? 'planned' : 'active', start, weeks: weeksThrough(start, call.end) }
          : { status: STATUS[call.kind] };
    if (row.item) {
       // done or dropped on a plan already marked so says it again, which
@@ -430,11 +509,7 @@ export function callWords(
 ): string {
    switch (call.kind) {
       case 'commit':
-         // "End of Q4" reads "the end of Q4"
-         return `Committed through the ${call.label.replace(
-            /^End/,
-            'end'
-         )}. Decide asks again if it runs past that.`;
+         return `Committed through ${call.through}. Decide asks again if it runs past that.`;
       case 'park':
          return 'Parked, so it stops counting in the weeks ahead. Decide asks again if its PRs move.';
       case 'ongoing':
@@ -467,6 +542,9 @@ export interface Made {
    origin: RoadmapOrigin | null;
    /** tells this call from a later one on the same row */
    token: number;
+   /** made, or taken back, by its section's one click: Undo all takes it
+    * back, and the section says what happened rather than each row */
+   batch?: boolean;
 }
 
 // the calls made since the page loaded, so a trip to a project's page and
@@ -515,7 +593,44 @@ export function keepCalls(
 
 /** keepCalls on this visit's calls, for a view that lists Decide's rows. */
 export function useKeptCalls(queue: readonly DecideRow[]) {
-   return keepCalls(queue, calls.useValue().made);
+   const { made } = calls.useValue();
+   return useMemo(() => keepCalls(queue, made), [queue, made]);
+}
+
+/**
+ * keepCalls on the calls still owed (`owed`, Decide's queue with this
+ * visit's calls kept) and the ones made since this view opened: a view that
+ * answers in place keeps a row it answered there, with its receipt (`all`,
+ * `settled`), while a call made elsewhere before it opened is simply done.
+ */
+export function useCallsMadeHere(owed: readonly DecideRow[]) {
+   const { made } = calls.useValue();
+   const [since] = useState(() => tokens);
+   return useMemo(
+      () => keepCalls(owed, new Map([...made].filter(([, m]) => m.token > since))),
+      [owed, made, since]
+   );
+}
+
+/**
+ * The row a project's strip answers under its plan, where Decide asks
+ * nothing of it: a call made there on this plan while it stands, so its
+ * receipt and Undo stay where the click was, even once the call has made
+ * the plan; else the plan, or, for work with no plan, the calls that start
+ * one. `kept` is the project's rows with this visit's calls kept.
+ */
+export function planRow(
+   slug: string,
+   plan: RoadmapItem | null,
+   kept: readonly DecideRow[]
+): DecideRow {
+   return (
+      kept.find(row => !row.reasons.length && (!row.item || row.item.id === plan?.id)) ?? {
+         slug,
+         item: plan,
+         reasons: [],
+      }
+   );
 }
 
 /** How many of a section's rows to draw before its "+ N more": enough for
@@ -532,14 +647,20 @@ export function capOwed(
 }
 
 // each row's writes run one after another, so an Undo or a "where it came
-// from" waits for the call it follows instead of racing it
+// from" waits for the call it follows instead of racing it; `after` holds
+// a write back until another is done, so a section's calls go one by one.
+// The promise it gives settles when the write is done, whatever happened.
 const chains = new Map<string, Promise<unknown>>();
-function afterRow(key: string, write: () => Promise<unknown>): void {
-   const next = (chains.get(key) ?? Promise.resolve()).then(write);
-   chains.set(
-      key,
-      next.catch(() => undefined)
-   );
+function afterRow(
+   key: string,
+   write: () => Promise<unknown>,
+   after?: Promise<unknown>
+): Promise<unknown> {
+   const next = Promise.all([chains.get(key), after])
+      .then(write)
+      .catch(() => undefined);
+   chains.set(key, next);
+   return next;
 }
 
 // the calls whose save landed, by token, with the plan they wrote: what
@@ -564,7 +685,12 @@ function takeProblem(): string {
    return whyNot(problem);
 }
 
-function makeCall(row: DecideRow, call: Call, project: PortfolioItem | undefined): void {
+function makeCall(
+   row: DecideRow,
+   call: Call,
+   project: PortfolioItem | undefined,
+   batch?: { after: Promise<unknown> }
+): Promise<unknown> {
    const key = rowKey(row);
    const token = ++tokens;
    const today = dayOf(new Date());
@@ -576,64 +702,86 @@ function makeCall(row: DecideRow, call: Call, project: PortfolioItem | undefined
       state: 'made',
       origin: row.item?.origin ?? null,
       token,
+      batch: !!batch,
    });
-   afterRow(key, async () => {
-      let id: number | null = null;
-      let why: string | null = null;
-      if (call.kind === 'ongoing') {
-         const saved = await setOngoing(row.slug as string, true);
-         if ('error' in saved) why = whyNot(saved.error);
-      } else {
-         const write = writeFor(call, row, project, today);
-         if (write.id != null) {
-            const ok = await updateRoadmapItem(write.id, write.fields, { restate: write.restate });
-            if (ok) id = write.id;
-            else why = takeProblem();
+   return afterRow(
+      key,
+      async () => {
+         let id: number | null = null;
+         let why: string | null = null;
+         if (call.kind === 'ongoing') {
+            const saved = await setOngoing(row.slug as string, true);
+            if ('error' in saved) why = whyNot(saved.error);
          } else {
-            id = (await createRoadmapItem(write.fields))?.id ?? null;
-            if (id == null) why = takeProblem();
+            const write = writeFor(call, row, project, today);
+            if (write.id != null) {
+               const ok = await updateRoadmapItem(write.id, write.fields, {
+                  restate: write.restate,
+               });
+               if (ok) id = write.id;
+               else why = takeProblem();
+            } else {
+               id = (await createRoadmapItem(write.fields))?.id ?? null;
+               if (id == null) why = takeProblem();
+            }
          }
-      }
-      if (why == null) landed.set(token, { id });
-      else patchMade(key, token, 'made', { state: 'failed', why });
-   });
+         if (why == null) landed.set(token, { id });
+         else patchMade(key, token, 'made', { state: 'failed', why });
+      },
+      batch?.after
+   );
 }
 
 /** Take a call back: the plan as it was, the new plan gone, or the project
  * no longer ongoing. */
-function undoCall(key: string): void {
+function undoCall(key: string, batch?: { after: Promise<unknown> }): Promise<unknown> {
    const made = calls.get().made.get(key);
-   if (!made) return;
-   setMade(key, { ...made, state: 'undone', why: undefined });
-   afterRow(key, async () => {
-      const saved = landed.get(made.token);
-      // a call that never saved has nothing to take back
-      if (!saved) return;
-      let why: string | null = null;
-      const was = made.row.item;
-      if (made.call.kind === 'ongoing') {
-         const r = await setOngoing(made.row.slug as string, false);
-         if ('error' in r) why = whyNot(r.error);
-      } else if (was) {
-         const fields = {
-            status: was.status,
-            start: was.start,
-            weeks: was.weeks,
-            origin: was.origin,
-         };
-         // with the times the call replaced, so the plan reads as never
-         // decided and Decide asks again after a reload too
-         const undo =
-            was.updated_at != null
-               ? { updated_at: was.updated_at, status_at: was.status_at ?? null }
-               : undefined;
-         if (!(await updateRoadmapItem(was.id, fields, { undo }))) why = takeProblem();
-      } else if (saved.id != null && !(await removeRoadmapItem(saved.id))) {
-         why = takeProblem();
-      }
-      if (why == null) landed.delete(made.token);
-      else patchMade(key, made.token, 'undone', { state: 'made', why: `Undo didn’t save.${why}` });
-   });
+   if (!made) return Promise.resolve();
+   // the row's own Undo speaks for itself, and takes it out of Undo all
+   setMade(key, { ...made, state: 'undone', why: undefined, batch: !!batch });
+   return afterRow(
+      key,
+      async () => {
+         const saved = landed.get(made.token);
+         // a call that never saved has nothing to take back
+         if (!saved) return;
+         let why: string | null = null;
+         const was = made.row.item;
+         if (made.call.kind === 'ongoing') {
+            const r = await setOngoing(made.row.slug as string, false);
+            if ('error' in r) why = whyNot(r.error);
+         } else if (was) {
+            const fields = {
+               status: was.status,
+               start: was.start,
+               weeks: was.weeks,
+               origin: was.origin,
+            };
+            // with the times the call replaced, so the plan reads as never
+            // decided and Decide asks again after a reload too
+            const undo =
+               was.updated_at != null
+                  ? { updated_at: was.updated_at, status_at: was.status_at ?? null }
+                  : undefined;
+            if (!(await updateRoadmapItem(was.id, fields, { undo }))) why = takeProblem();
+         } else if (saved.id != null && !(await removeRoadmapItem(saved.id))) {
+            why = takeProblem();
+         }
+         if (why == null) landed.delete(made.token);
+         else
+            patchMade(key, made.token, 'undone', {
+               state: 'made',
+               why: `Undo didn’t save.${why}`,
+            });
+      },
+      batch?.after
+   );
+}
+
+/** A section's calls, or their Undos, all shown at once and saved one after
+ * another through the same path as a row's own click. */
+function inTurn(each: ((after: Promise<unknown>) => Promise<unknown>)[]): void {
+   each.reduce<Promise<unknown>>((after, write) => write(after), Promise.resolve());
 }
 
 /** Say where a decided plan's work came from. */
@@ -736,11 +884,14 @@ export function DecideCall({
       fn();
    };
    // a call made here is read where the focus lands, so only what changes
-   // later is said here: a failure, an Undo, a part that didn't save
+   // later is said here: a failure, an Undo, a part that didn't save. A
+   // section's one click says what it did for every row at once
    const said = !mine
       ? ''
       : mine.state === 'made'
       ? mine.why ?? ''
+      : mine.batch
+      ? ''
       : mine.state === 'failed'
       ? `Didn’t save the call on ${name}.${mine.why ?? ''}`
       : `Took back the call on ${name}.`;
@@ -800,6 +951,7 @@ export function DecideCall({
             <CallStrip
                row={row}
                name={name}
+               project={project}
                describedBy={describedBy}
                onCall={call => act(() => makeCall(row, call, project))()}
             />
@@ -856,6 +1008,8 @@ function OriginRun({
 interface Option {
    call: Call;
    label: string;
+   /** its words after "Commit through", when they differ from `label` */
+   inRun?: string;
    /** what it does to which row, for a screen reader */
    ariaLabel: string;
 }
@@ -867,24 +1021,29 @@ interface Option {
 function CallStrip({
    row,
    name,
+   project,
    describedBy,
    onCall,
 }: {
    row: DecideRow;
    name: string;
+   /** its project, for its target */
+   project: PortfolioItem | undefined;
    describedBy?: string;
    onCall: (call: Call) => void;
 }) {
-   // a park made from a team's load and taken back has no reason to answer
-   const answer = row.reasons.length ? askOf(primaryOf(row)).call : 'park';
+   const day = dayOf(new Date());
+   const answer = answerOf(row, project, day);
    // ongoing answers new work, and finished work that keeps going
    const ongoing =
       !!row.slug &&
       row.reasons.some(r => r.kind === 'new' || (r.kind === 'reopened' && r.by === 'roadmap'));
-   const dates: Option[] = commitEnds(dayOf(new Date())).map(c => ({
+   const dates: Option[] = endsFor(row, project, day).map(c => ({
       call: { kind: 'commit', ...c },
       label: c.label,
-      ariaLabel: `Commit ${name} through the ${c.label.replace(/^End/, 'end')}`,
+      // "Commit through its target, Oct 21"
+      inRun: c.target ? c.through : undefined,
+      ariaLabel: `Commit ${name} through ${c.through}`,
    }));
    const others: Option[] = [
       { call: { kind: 'park' }, label: 'Park', ariaLabel: `Park ${name}` },
@@ -900,9 +1059,10 @@ function CallStrip({
            ]
          : []),
    ];
-   // a commit's answer is the nearest end
+   // a commit's answer is its target or the nearest end
    const first =
-      answer === 'commit' ? dates[0] : others.find(o => o.call.kind === answer) ?? others[0];
+      (answer.kind === 'commit' ? dates[0] : others.find(o => o.call.kind === answer.kind)) ??
+      others[0];
    const other = (o: Option) =>
       o !== first && (
          <TextButton
@@ -912,7 +1072,7 @@ function CallStrip({
             onClick={() => onCall(o.call)}
             aria-label={o.ariaLabel}
          >
-            {o.label}
+            {o.inRun ?? o.label}
          </TextButton>
       );
    return (
@@ -935,10 +1095,12 @@ function CallStrip({
          {/* on a phone the rest wraps to lines of their own, which part
              them from the answer already */}
          <span aria-hidden className="hidden h-4 w-px bg-line sm:block" />
-         <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-            {COMMIT_THROUGH}
-            <Dotted>{dates.map(other)}</Dotted>
-         </span>
+         {dates.some(o => o !== first) && (
+            <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+               {COMMIT_THROUGH}
+               <Dotted>{dates.map(other)}</Dotted>
+            </span>
+         )}
          {/* wider apart than the words within either run, so the ends and
              the other calls read as two groups */}
          <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 sm:ml-5">
@@ -1172,7 +1334,9 @@ function DecideRowView({
                      tabIndex={-1}
                      disabled={decided}
                      className={decided ? 'invisible' : ''}
-                     onClick={() => go({ project: row.slug as string })}
+                     // linked issues join by themselves now, so what's left
+                     // is the page's PRs that do no issue there
+                     onClick={() => openPageAt(go, row.slug as string, 'project-unlinked')}
                   >
                      Or add issues for those PRs
                   </TextButton>
@@ -1188,6 +1352,106 @@ function DecideRowView({
             ))}
          <DecideCall row={row} project={project} describedBy={whyId} />
       </div>
+   );
+}
+
+/**
+ * One click for a whole section, in its header: every row still owed gets
+ * the call its outlined answer makes, all shown at once and saved one after
+ * another, each row keeping its own receipt and Undo (a failure stays in
+ * its row with Try again). Then what it did, with Undo all. Only for two
+ * rows or more, since a lone row's answer is the same click.
+ */
+function SectionCalls({
+   title,
+   rows,
+   owed,
+   projectOf,
+}: {
+   title: string;
+   /** the section's rows, decided here or not */
+   rows: readonly DecideRow[];
+   /** the ones still owed a call */
+   owed: readonly DecideRow[];
+   projectOf: (row: DecideRow) => PortfolioItem | undefined;
+}) {
+   const { made } = calls.useValue();
+   const rootRef = useRef<HTMLSpanElement>(null);
+   const refocus = useRef(false);
+   const [said, setSaid] = useState('');
+   const day = dayOf(new Date());
+   // its calls in a state, on the rows as they stood
+   const batch = (state: Made['state']) =>
+      rows.flatMap(row => {
+         const m = made.get(rowKey(row));
+         return m?.batch && m.state === state && kindsOf(m.row) === kindsOf(row) ? [m] : [];
+      });
+   const standing = batch('made');
+   const failed = batch('failed').length;
+   const answers = owed.map(row => ({ row, call: answerOf(row, projectOf(row), day) }));
+   const view = standing.length ? 'did' : 'ask';
+   const before = useRef(view);
+   // after a click here, focus lands on what it did, so an extra Enter never
+   // takes it all back; after Undo all, on the click again, or else on the
+   // section's first answer. Saves that all fail later take the focus only
+   // when they removed it, and give it to the click again
+   useEffect(() => {
+      if (before.current === view) return;
+      before.current = view;
+      if (!refocus.current && document.activeElement !== document.body) return;
+      refocus.current = false;
+      rootRef.current
+         ?.closest('[data-decide-section]')
+         ?.querySelector<HTMLElement>('[data-decide-focus]')
+         ?.focus();
+   }, [view]);
+   const words = bulkWords(
+      answers.map(a => a.call),
+      'do'
+   );
+   const all = () => {
+      refocus.current = true;
+      setSaid('');
+      inTurn(answers.map(a => after => makeCall(a.row, a.call, projectOf(a.row), { after })));
+   };
+   const undoAll = () => {
+      refocus.current = true;
+      setSaid(`Took back ${n(standing.length, 'call')} under ${title}.`);
+      inTurn(standing.map(m => after => undoCall(rowKey(m.row), { after })));
+   };
+   // the rows' failures, said once for all of them
+   const news = failed
+      ? `${n(failed, 'call')} under ${title} didn’t save. Each row says why, with Try again.`
+      : said;
+   return (
+      <span ref={rootRef} className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+         <span className="sr-only" aria-live="polite">
+            {news}
+         </span>
+         {standing.length > 0 && (
+            <span className="inline-flex flex-wrap items-center gap-x-2 text-xs text-ink-2">
+               <span data-decide-focus tabIndex={-1} className="rounded">
+                  <Icon icon={Check} size={14} className="mr-1 inline-block align-[-2px]" />
+                  {bulkWords(
+                     standing.map(m => m.call),
+                     'did'
+                  )}
+                  .
+               </span>
+               <TextButton
+                  onClick={undoAll}
+                  aria-label={`Undo all ${n(standing.length, 'call')} under ${title}`}
+               >
+                  Undo all
+               </TextButton>
+            </span>
+         )}
+         {answers.length > 1 && (
+            <QuietButton data-decide-focus onClick={all} aria-label={`${words}, under ${title}`}>
+               {words}
+            </QuietButton>
+         )}
+      </span>
    );
 }
 
@@ -1612,7 +1876,8 @@ export function Decide({
                         </p>
                         <p className="m-0">
                            Each call saves to the roadmap when you click it, and its row says what
-                           happens next, with Undo.
+                           happens next, with Undo. A section of two or more has one button that
+                           gives every row its outlined answer, and then Undo all.
                         </p>
                         <p className="m-0">
                            From the keyboard, j and k move between the rows, the left and right
@@ -1699,8 +1964,9 @@ export function Decide({
             const here = shown.filter(row => sectionOf(row) === index);
             if (!here.length) return null;
             const decided = (row: DecideRow) => kept.settled.has(rowKey(row));
+            const owedHere = here.filter(row => !decided(row));
             return (
-               <div key={section.kinds[0]} className="mb-6">
+               <div key={section.kinds[0]} data-decide-section className="mb-6">
                   <GroupHeader
                      level={3}
                      compact
@@ -1714,7 +1980,15 @@ export function Decide({
                            ))}
                         </SubDoor>
                      }
-                     count={here.filter(row => !decided(row)).length}
+                     count={owedHere.length}
+                     headerExtra={
+                        <SectionCalls
+                           title={section.title}
+                           rows={here}
+                           owed={owedHere}
+                           projectOf={projectOf}
+                        />
+                     }
                   />
                   <Rows>
                      <Truncated cap={capOwed(here, decided, 10)} id={`decide:${section.kinds[0]}`}>

@@ -40,7 +40,9 @@ export const API_ROUTES = [
       does:
          'Every project: its issue fields, where it stands today (`stages` counts its open PRs: ' +
          'ready to merge, on hold, waiting on review, being worked on), and its numbers for ' +
-         '?start=&end= (YYYY-MM-DD days, default the last 30); ?project=<slug> narrows the numbers to one',
+         '?start=&end= (YYYY-MM-DD days, default the last 30); ?project=<slug> narrows the numbers to one. ' +
+         'A PR counts toward its project label, or with none the project whose issue it links; ' +
+         '`double_labeled` holds the open PRs in two',
    },
    {
       method: 'get',
@@ -80,23 +82,28 @@ export const API_ROUTES = [
       path: '/api/v1/project-work',
       handlers: [projectsController.getProjectWork],
       does:
-         'A project page for ?project=slug: each issue attached to it (by its label or by hand) with ' +
-         'the PRs that link it, its PRs that link none of them, and the issues its PRs link that are ' +
-         'not attached',
+         'A project page for ?project=slug: each issue attached to it (by its label, by hand, or ' +
+         'joined by a link from one of its PRs) with the PRs that link it, its PRs that link none ' +
+         'of them, and the issues its PRs link that are not attached (`joins`: it joins on its own ' +
+         'at the next hourly sync)',
    },
    {
       method: 'post',
       path: '/api/v1/project-issues',
       handlers: [canWrite, projectsController.attachIssue],
       does:
-         'Add an issue to a project by hand: {project, issue} with issue as owner/repo#123 or a link. ' +
-         "A missing issue, or a PR, is a 404; a project's own issue a 409",
+         'Add an issue to a project by hand, or put back one taken off: {project, issue} with issue ' +
+         'as owner/repo#123 or a link. A missing issue is a 404; a PR, an issue outside the tracked ' +
+         "organizations, or a project's own issue a 409",
    },
    {
       method: 'delete',
       path: '/api/v1/project-issues',
       handlers: [canWrite, projectsController.detachIssue],
-      does: 'Take an issue added by hand off a project: ?project=slug&repo=owner/repo&number=123',
+      does:
+         'Take an issue added by hand or joined by a link off a project, for good (a link never ' +
+         'brings it back; adding it does): ?project=slug&repo=owner/repo&number=123. &forget=1 ' +
+         'takes back an add instead, as if it was never added',
    },
    {
       method: 'get',
@@ -104,7 +111,8 @@ export const API_ROUTES = [
       handlers: [roadmapController.owed],
       does:
          'The leads who owe an update, each with the plans in progress they have not updated for ' +
-         `${UPDATE_DUE_DAYS} days, longest overdue first: what a reminder would send each of them`,
+         `${UPDATE_DUE_DAYS} days, longest overdue first: what a reminder would send each of them. ` +
+         `A plan whose PRs merged in the last ${UPDATE_DUE_DAYS} days, inside its end and its issues' pace, owes none`,
    },
    {
       method: 'get',
@@ -125,13 +133,18 @@ export const API_ROUTES = [
       method: 'get',
       path: '/api/v1/roadmap',
       handlers: [roadmapController.list],
-      does: 'Every roadmap item in priority order (top first), each with its latest update',
+      does:
+         'Every roadmap item in priority order (top first), each with its latest update and `lately` ' +
+         '(read only): PRs merged in the last 14 days, open PRs by stage, newest PR activity, its issues’ pace',
    },
    {
       method: 'post',
       path: '/api/v1/roadmap',
       handlers: [canWrite, roadmapController.create],
-      does: 'Add an item at the bottom: {name, project?, team?, lead?, status?, origin?, start?, weeks?, notes?, waits_on?}',
+      does:
+         'Add an item at the bottom: {name, project?, team?, lead?, status?, origin?, start?, weeks?, notes?, waits_on?}. ' +
+         'For a project, no start means its issue’s Start date, and its issue’s Priority places it above the first ' +
+         'plan under way whose issue says lower',
    },
    {
       method: 'put',

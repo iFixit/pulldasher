@@ -11,13 +11,17 @@ import {
 import type { IssueCounts } from '../../../shared/model/work';
 import type { RoadmapItem, RoadmapUpdate } from '../../../shared/model/roadmap';
 import {
+   answerOf,
+   bulkWords,
    callWords,
    capOwed,
    keepCalls,
+   planRow,
    reasonWords,
    teamOrder,
    whyNot,
    writeFor,
+   type Call,
    type Made,
 } from '../views/projects/Decide';
 import { teamLoad } from './teamLoad';
@@ -368,7 +372,7 @@ describe('Decide’s calls', () => {
       // a commit keeps the plan's start and runs through the end it names
       expect(
          writeFor(
-            { kind: 'commit', label: 'End of Oct', end: '2026-10-31' },
+            { kind: 'commit', label: 'End of Oct', end: '2026-10-31', through: 'the end of Oct' },
             reopened,
             undefined,
             today
@@ -414,12 +418,128 @@ describe('Decide’s calls', () => {
       );
       expect(
          callWords(
-            { kind: 'commit', label: 'End of Q1 2027', end: '2027-03-31' },
+            {
+               kind: 'commit',
+               label: 'End of Q1 2027',
+               end: '2027-03-31',
+               through: 'the end of Q1 2027',
+            },
             reopened,
             quiet,
             today
          )
       ).toBe('Committed through the end of Q1 2027. Decide asks again if it runs past that.');
+   });
+
+   it('gives a plan that hasn’t started a new end without starting it', () => {
+      const promo = (start: string): DecideRow => ({
+         slug: 'promo',
+         item: item(9, { project: 'promo', status: 'planned', start, weeks: 4 }),
+         reasons: [],
+      });
+      const oct: Call = {
+         kind: 'commit',
+         label: 'End of Oct',
+         end: '2026-10-31',
+         through: 'the end of Oct',
+      };
+      expect(writeFor(oct, promo('2026-10-12'), undefined, today).fields).toEqual({
+         status: 'planned',
+         start: '2026-10-12',
+         weeks: 3,
+      });
+      // one already under way is committed to, as ever
+      expect(writeFor(oct, promo('2026-09-07'), undefined, today).fields.status).toBe('active');
+   });
+
+   it('answers each row the way its outlined answer does: its target first while ahead', () => {
+      const row = (reasons: DecideReason[], over: Partial<RoadmapItem> | null = null) => ({
+         slug: 'p',
+         item: over && item(3, { project: 'p', ...over }),
+         reasons,
+      });
+      const target = (due_on: string) => ({ target: { title: null, due_on } });
+      const fresh: DecideReason = { kind: 'new', since: null };
+      expect(answerOf(row([fresh]), target('2026-10-21'), today)).toMatchObject({
+         kind: 'commit',
+         end: '2026-10-21',
+         label: 'Through its target, Oct 21',
+      });
+      // a milestone's due date is a timestamp; its day is what counts
+      expect(answerOf(row([fresh]), target('2026-10-21T07:00:00Z'), today)).toMatchObject({
+         end: '2026-10-21',
+      });
+      // a target passed is a miss, not an answer
+      expect(answerOf(row([fresh]), target('2026-09-26'), today)).toMatchObject({
+         label: 'End of Oct',
+      });
+      expect(answerOf(row([fresh]), undefined, today)).toMatchObject({ label: 'End of Oct' });
+      // a plan that starts after its target can't run through it
+      expect(
+         answerOf(row([{ kind: 'at_risk' }], { start: '2026-10-26' }), target('2026-10-21'), today)
+      ).toMatchObject({ label: 'End of Oct' });
+      expect(answerOf(row([{ kind: 'stalled', days: 30 }], {}), undefined, today)).toEqual({
+         kind: 'park',
+      });
+      expect(answerOf(row([{ kind: 'ended', weeks: 2, since: 0 }], {}), undefined, today)).toEqual({
+         kind: 'done',
+      });
+      // nobody asked: its plan's strip on its page commits
+      expect(answerOf(row([], {}), target('2026-11-02'), today)).toMatchObject({
+         through: 'its target, Nov 2',
+      });
+      expect(
+         callWords(
+            answerOf(row([fresh]), target('2026-10-21'), today),
+            reopened,
+            { open: 0, ongoing: false },
+            today
+         )
+      ).toBe('Committed through its target, Oct 21. Decide asks again if it runs past that.');
+   });
+
+   it('says a section’s one click in a few words, each answer with how many', () => {
+      const oct: Call = {
+         kind: 'commit',
+         label: 'End of Oct',
+         end: '2026-10-31',
+         through: 'the end of Oct',
+      };
+      const own = (day: number): Call => ({
+         kind: 'commit',
+         label: `Through its target, Oct ${day}`,
+         end: `2026-10-${day}`,
+         through: `its target, Oct ${day}`,
+         target: true,
+      });
+      const times = (call: Call, count: number) => Array<Call>(count).fill(call);
+      expect(bulkWords(times(oct, 52), 'do')).toBe('Commit all 52 through the end of Oct');
+      expect(bulkWords(times(oct, 52), 'did')).toBe('Committed 52 through the end of Oct');
+      expect(bulkWords([...times(oct, 40), own(21), own(23)], 'do')).toBe(
+         'Commit 40 through the end of Oct and 2 through their targets'
+      );
+      expect(bulkWords([oct, own(21)], 'did')).toBe(
+         'Committed 1 through the end of Oct and 1 through its target, Oct 21'
+      );
+      expect(bulkWords([oct, { kind: 'done' }, oct, { kind: 'done' }], 'do')).toBe(
+         'Commit 2 through the end of Oct and mark 2 done'
+      );
+      expect(bulkWords(times({ kind: 'done' }, 3), 'do')).toBe('Mark all 3 done');
+      expect(bulkWords([{ kind: 'park' }, { kind: 'drop' }], 'did')).toBe('Parked 1 and dropped 1');
+   });
+
+   it('keeps a call made under a plan in its place, even once it has made the plan', () => {
+      const plan = item(4, { project: 'p' });
+      const asked: DecideRow = { slug: 'p', item: plan, reasons: [{ kind: 'at_risk' }] };
+      // nothing made here: the plan, or nothing yet to plan
+      expect(planRow('p', plan, [asked])).toEqual({ slug: 'p', item: plan, reasons: [] });
+      expect(planRow('p', null, [])).toEqual({ slug: 'p', item: null, reasons: [] });
+      // the call that made its plan keeps its receipt where it was clicked
+      const started: DecideRow = { slug: 'p', item: null, reasons: [] };
+      expect(planRow('p', plan, [started])).toBe(started);
+      // a call on another of its plans stays with that one
+      const other: DecideRow = { slug: 'p', item: item(5, { project: 'p' }), reasons: [] };
+      expect(planRow('p', plan, [other])).toEqual({ slug: 'p', item: plan, reasons: [] });
    });
 
    it('says why a call didn’t save, in the row, without repeating “couldn’t save”', () => {

@@ -1,15 +1,20 @@
+import pullManager from '../lib/pull-manager.js';
 import { respondOrError } from '../lib/controller-utils.js';
+import { loadProjects, projectSettings, todayFromBoard } from '../lib/projects.js';
 import {
    addUpdate,
    createItem,
    deleteItem,
    getItem,
+   latelyBySlug,
    listItems,
    listUpdates,
    moveItem,
    reorderItems,
    updateItem,
 } from '../lib/roadmap.js';
+import { getOrSet } from '../lib/ttl-cache.js';
+import { loadPullLinks, loadWork } from '../lib/work.js';
 import {
    checkRoadmapFields,
    checkRoadmapUpdate,
@@ -18,6 +23,65 @@ import {
 } from '../shared/dist/index.js';
 
 const FAKE_USER = process.env.MOCK_AUTH_AS_USER;
+
+/** how long what the projects did lately is kept: the roadmap reloads each
+ * minute an open board shows it, and once is enough for all of them */
+const LATELY_MS = 60 * 1000;
+const latelyCache = new Map();
+
+/**
+ * What each project did lately, by slug (lib/roadmap.js latelyBySlug): the
+ * board's PRs now, each in its project by the same rule as Today's
+ * (controllers/projects.js), and its issues' pace from the work model when
+ * it sends one (`pace`, by slug). Empty when projects aren't set up, or the
+ * reads fail: every plan is then judged by its updates alone, as before.
+ */
+async function lately() {
+   const settings = projectSettings();
+   if (!settings) return new Map();
+   try {
+      const { bySlug } = await getOrSet(latelyCache, 'all', LATELY_MS, async () => {
+         const [projects, linked] = await Promise.all([
+            loadProjects(settings),
+            loadPullLinks(settings),
+         ]);
+         const work = await loadWork(settings, { plans: [], projects }).catch(err => {
+            console.error('roadmap: reading the issues’ pace failed:', err);
+            return null;
+         });
+         const now = Date.now() / 1000;
+         const ongoing = new Set([
+            ...settings.ongoing,
+            ...projects.filter(p => p.ongoing).map(p => p.slug),
+         ]);
+         const pulls = pullManager.getPulls();
+         const today = todayFromBoard(pulls, projects, settings.prefix, now, linked);
+         return { bySlug: latelyBySlug(today, work?.pace ?? {}, ongoing, now) };
+      });
+      return bySlug;
+   } catch (err) {
+      console.error('roadmap: reading what projects did lately failed:', err);
+      return new Map();
+   }
+}
+
+/** Items as the roadmap sends them: each with what its project did lately
+ * (shared/model/roadmap.ts PlanLately), which its standing is judged by. */
+async function sent(items) {
+   const bySlug = await lately();
+   return items.map(item => ({
+      ...item,
+      lately: (item.project && bySlug.get(item.project)) || null,
+   }));
+}
+
+/** One item as the roadmap sends it; null stays null. */
+const sentOne = async item => (item ? (await sent([item]))[0] : null);
+
+/** test hook: forget what the projects did lately */
+export function _resetLately() {
+   latelyCache.clear();
+}
 
 /**
  * The gate on every roadmap write. The writer is the /api/v1 caller whose
@@ -75,12 +139,15 @@ export default {
     * GET /roadmap (session) and GET /api/v1/roadmap (Bearer) -- every
     * roadmap item in priority order: the plan a project manager laid out,
     * each with its first week, length in weeks, an optional project label
-    * slug linking it to that project's PRs, and its latest update.
+    * slug linking it to that project's PRs, its latest update, and what its
+    * project did lately.
     */
    list: function (req, res) {
       respondOrError(
          res,
-         listItems().then(items => ({ items })),
+         listItems()
+            .then(sent)
+            .then(items => ({ items })),
          'roadmap query failed'
       );
    },
@@ -88,13 +155,15 @@ export default {
    /**
     * GET /api/v1/updates-owed -- the leads who owe an update, each with the
     * plans in progress they haven't updated for UPDATE_DUE_DAYS, longest
-    * overdue first: what a reminder would send each of them.
+    * overdue first: what a reminder would send each of them. A plan whose
+    * PRs merged lately, inside its end and its issues' pace, owes none
+    * (shared/model/roadmap.ts vouchFor), as on the board.
     */
    owed: function (req, res) {
       const now = Math.floor(Date.now() / 1000);
       respondOrError(
          res,
-         listItems().then(items => ({
+         listItems().then(sent).then(items => ({
             server_time: now,
             leads: updatesOwed(items, now).map(({ lead, owed }) => ({
                lead,
@@ -114,8 +183,10 @@ export default {
 
    /**
     * POST /roadmap {name, project?, team?, lead?, status?, start?, weeks?,
-    * notes?, waits_on?} -- a new item at the bottom of the order. 201 with
-    * the item.
+    * notes?, waits_on?} -- a new item at the bottom of the order, or for a
+    * project, where its issue's Priority field puts it, starting on its Start
+    * date when no start is sent (lib/roadmap.js createItem). 201 with the
+    * item.
     */
    create: function (req, res) {
       const checked = checkRoadmapFields(req.body, { partial: false });
@@ -123,7 +194,8 @@ export default {
       waitsOnError(null, checked.fields)
          .then(async error => {
             if (error) return res.status(400).json({ error });
-            res.status(201).json({ item: await createItem(checked.fields, req.roadmapLogin) });
+            const item = await createItem(checked.fields, req.roadmapLogin);
+            res.status(201).json({ item: await sentOne(item) });
          })
          .catch(err => {
             console.error('roadmap create failed:', err);
@@ -136,6 +208,7 @@ export default {
       const id = idOf(req);
       if (!id) return res.status(400).json({ error: 'the id must be a positive whole number' });
       getItem(id)
+         .then(sentOne)
          .then(item =>
             item ? res.json({ item }) : res.status(404).json({ error: 'no such roadmap item' })
          )
@@ -160,14 +233,13 @@ export default {
             .json({ error: 'send before as the id to move above, or null for the bottom' });
       }
       moveItem(id, before)
-         .then(result => {
+         .then(async result => {
             if (result.missing) return res.status(404).json({ error: 'no such roadmap item' });
+            const items = await sent(result.items);
             if (result.conflict) {
-               return res
-                  .status(409)
-                  .json({ error: 'the roadmap changed; here it is again', items: result.items });
+               return res.status(409).json({ error: 'the roadmap changed; here it is again', items });
             }
-            res.json({ items: result.items });
+            res.json({ items });
          })
          .catch(err => {
             console.error('roadmap move failed:', err);
@@ -191,7 +263,7 @@ export default {
                restate: req.body?.restate === true,
                undo: undoTimes(req.body?.undo),
             });
-            if (item) res.json({ item });
+            if (item) res.json({ item: await sentOne(item) });
             else res.status(404).json({ error: 'no such roadmap item' });
          })
          .catch(err => {
@@ -258,11 +330,13 @@ export default {
          return res.status(400).json({ error: 'send ids as a list of item ids, top first' });
       }
       reorderItems(ids)
-         .then(result =>
-            result.conflict
-               ? res.status(409).json({ error: 'the roadmap changed; here it is again', items: result.items })
-               : res.json({ items: result.items })
-         )
+         .then(async result => {
+            const items = await sent(result.items);
+            if (result.conflict) {
+               return res.status(409).json({ error: 'the roadmap changed; here it is again', items });
+            }
+            res.json({ items });
+         })
          .catch(err => {
             console.error('roadmap reorder failed:', err);
             res.status(500).json({ error: 'roadmap reorder failed' });

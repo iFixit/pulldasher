@@ -57,13 +57,22 @@ export function useRowKeys(row: string, target: string) {
                return;
             }
          }
-         const to =
-            at === -1
-               ? step > 0
-                  ? 0
-                  : rows.length - 1
-               : Math.min(Math.max(at + step, 0), rows.length - 1);
-         focusRow(rows[to]);
+         if (at === -1) {
+            // from outside the rows (a section's header, a receipt): the
+            // next row after where focus is, or the one before it for k
+            const from = document.activeElement;
+            const after = (r: HTMLElement) =>
+               !!from &&
+               from !== document.body &&
+               !!(from.compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING);
+            const next =
+               step > 0
+                  ? rows.find(after) ?? rows[0]
+                  : [...rows].reverse().find(r => !after(r)) ?? rows[rows.length - 1];
+            focusRow(next);
+            return;
+         }
+         focusRow(rows[Math.min(Math.max(at + step, 0), rows.length - 1)]);
       };
       // capture: ahead of the board's hotkeys, which stand down for a key
       // claimed here (hooks.ts checks defaultPrevented)

@@ -6,6 +6,7 @@ import {
    attachIssue,
    detachIssue,
    loadProjectWork,
+   loadPullLinks,
    loadWork,
    searchIssues,
    syncWork,
@@ -186,6 +187,9 @@ const OTHER_PULLS = [
    pullRow(213, 'copilot-swe-agent[bot]', '2026-09-29'),
    // cites the project's own issue; linked only in its test below
    pullRow(214, 'kim', '2026-09-30'),
+   // does #110 once it has joined, and another issue: linked only in the
+   // test of issues joining by a link
+   pullRow(216, 'lee', '2026-09-29', { body: 'Parts of #110 and #120' }),
 ];
 
 function fakeQuery(sql, params) {
@@ -251,32 +255,51 @@ function fakeQuery(sql, params) {
    }
    const sameIssue = (h, r, n) =>
       h.repo.toLowerCase() === String(r).toLowerCase() && Number(h.number) === Number(n);
+   const one = (project, r, n) => h => h.project === project && sameIssue(h, r, n);
+   // a row taken off stays, marked
+   const live = tables.hand.filter(h => h.removed_at == null);
    if (sql.startsWith('SELECT DISTINCT `repo`, `number` FROM `project_issues`')) {
       tables.handReads++;
-      return tables.hand.map(({ repo: r, number }) => ({ repo: r, number }));
+      return live.map(({ repo: r, number }) => ({ repo: r, number }));
    }
-   if (sql.startsWith('INSERT IGNORE INTO `project_issues`')) {
+   if (sql.startsWith('INSERT IGNORE INTO `project_issues` SET ?')) {
       const row = params[0];
-      if (!tables.hand.some(h => h.project === row.project && sameIssue(h, row.repo, row.number))) {
-         tables.hand.push({ ...row });
+      if (!tables.hand.some(one(row.project, row.repo, row.number))) tables.hand.push({ ...row });
+      return {};
+   }
+   // the issues a sync lets join by a link
+   if (sql.startsWith('INSERT IGNORE INTO `project_issues` (')) {
+      const columns = [...sql.matchAll(/`(\w+)`/g)].map(m => m[1]).slice(1);
+      for (const values of params[0]) {
+         const row = Object.fromEntries(columns.map((c, i) => [c, values[i]]));
+         if (!tables.hand.some(one(row.project, row.repo, row.number))) tables.hand.push(row);
       }
       return {};
    }
    if (sql.startsWith('SELECT') && sql.includes('FROM `project_issues` WHERE `project` = ?')) {
-      return tables.hand.filter(h => h.project === params[0] && sameIssue(h, params[1], params[2]));
+      return tables.hand.filter(one(params[0], params[1], params[2]));
+   }
+   if (sql.startsWith('UPDATE `project_issues` SET `removed_at` = NULL')) {
+      for (const h of tables.hand.filter(one(...params))) h.removed_at = null;
+      return {};
+   }
+   if (sql.startsWith('UPDATE `project_issues` SET `removed_at` = ?')) {
+      const [when, ...which] = params;
+      const gone = live.filter(one(...which));
+      for (const h of gone) h.removed_at = when;
+      return { affectedRows: gone.length };
    }
    if (sql.startsWith('DELETE FROM `project_issues`')) {
-      const before = tables.hand.length;
-      tables.hand = tables.hand.filter(
-         h => !(h.project === params[0] && sameIssue(h, params[1], params[2]))
-      );
-      return { affectedRows: before - tables.hand.length };
+      const gone = live.filter(one(...params));
+      tables.hand = tables.hand.filter(h => !gone.includes(h));
+      return { affectedRows: gone.length };
    }
    if (sql.startsWith('UPDATE `project_issues` SET ?')) {
       for (const h of tables.hand)
          if (sameIssue(h, params[1], params[2])) Object.assign(h, params[0]);
       return {};
    }
+   if (sql.includes('FROM `project_issues` WHERE `removed_at` IS NULL')) return live;
    if (sql.includes('FROM `project_issues`')) return tables.hand;
    throw new Error(`unexpected query: ${sql}`);
 }
@@ -398,6 +421,87 @@ test('every plan’s PRs by the dates, with the PRs that link its project’s is
       dropped: 0,
       lastClosedAt: at('2026-08-20'),
    });
+});
+
+test('a PR with no project label counts in the first project whose issue it links', async () => {
+   fresh();
+   await syncWork(settings);
+   await attachIssue(settings, 'workbench', { repo: 'iFixit/ifixit', number: 106 }, 'dana');
+   // the issue's side names each PR, labeled or not; the project's own issue
+   // counts too
+   tables.links.push(['test/projects', 1, 'iFixit/ifixit', 214, 0]);
+   assert.deepEqual(await loadPullLinks(settings), {
+      'ifixit/ifixit#201': ['workbench'],
+      'ifixit/ifixit#202': ['workbench'],
+      'ifixit/ifixit#203': ['workbench'],
+      'ifixit/ifixit#207': ['workbench'],
+      'ifixit/ifixit#214': ['workbench'],
+   });
+   // taken off, #106 brings #207 in no more
+   await detachIssue('workbench', { repo: 'iFixit/ifixit', number: 106 });
+   assert.ok(!('ifixit/ifixit#207' in (await loadPullLinks(settings))));
+});
+
+test('an issue its PRs link joins on its own at the sync, and stays off once taken off', async () => {
+   fresh();
+   // GitHub has #110 (which #204, with the project's label, links) and #120;
+   // #216 links #110 from its side
+   STATES['ifixit/ifixit#110'] = issueNode(110, 'Make the bench printable');
+   STATES['ifixit/ifixit#120'] = issueNode(120, 'Print the bench’s QR code');
+   LINKS['ifixit/ifixit#110'] = {
+      __typename: 'Issue',
+      closedByPullRequestsReferences: { nodes: [] },
+      timelineItems: {
+         nodes: [{ source: { __typename: 'PullRequest', ...pr(216, 'Parts of #110 and #120') } }],
+      },
+   };
+   try {
+      await syncWork(settings);
+      const page = async () => {
+         const work = await loadProjectWork(settings, 'workbench');
+         return {
+            issue: work.issues.find(i => i.ref.number === 110),
+            suggested: work.suggested.map(s => s.number),
+         };
+      };
+      const joined = await page();
+      assert.deepEqual(
+         [joined.issue.via, joined.issue.linkedBy, joined.issue.addedBy],
+         [['link'], { repo: 'iFixit/ifixit', number: 204 }, null]
+      );
+      assert.ok(!joined.suggested.includes(110));
+      // #216 is the project's now, by #110; the other issue it links waits for
+      // a person, since a PR in only by a joined issue brings no more
+      const links = await loadPullLinks(settings);
+      assert.deepEqual(links['ifixit/ifixit#216'], ['workbench']);
+      await syncWork(settings);
+      assert.ok(!tables.hand.some(h => h.number === 120));
+      assert.ok((await page()).suggested.includes(120));
+      // taken off, it stays off: neither joined again nor suggested
+      assert.equal(await detachIssue('workbench', { repo: 'iFixit/ifixit', number: 110 }), true);
+      await syncWork(settings);
+      const gone = await page();
+      assert.equal(gone.issue, undefined);
+      assert.ok(!gone.suggested.includes(110));
+      // added again, it's back as it was
+      await attachIssue(settings, 'workbench', { repo: 'iFixit/ifixit', number: 110 }, 'erin');
+      assert.deepEqual((await page()).issue.via, ['link']);
+   } finally {
+      delete STATES['ifixit/ifixit#110'];
+      delete STATES['ifixit/ifixit#120'];
+      delete LINKS['ifixit/ifixit#110'];
+   }
+});
+
+test('taking back an add forgets it, where a Remove keeps its row', async () => {
+   fresh();
+   const ref = { repo: 'iFixit/ifixit', number: 106 };
+   await attachIssue(settings, 'workbench', ref, 'dana');
+   assert.equal(await detachIssue('workbench', ref, { forget: true }), true);
+   assert.deepEqual(tables.hand, []);
+   await attachIssue(settings, 'workbench', ref, 'dana');
+   assert.equal(await detachIssue('workbench', ref), true);
+   assert.equal(tables.hand.length, 1);
 });
 
 test('adding by hand keeps who added it first, refuses a project’s own issue, and comes off', async () => {

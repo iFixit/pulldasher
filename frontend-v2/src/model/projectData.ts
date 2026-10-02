@@ -5,17 +5,20 @@ import { isDummy, loadDummy } from '../backend/dummy';
 import { DUMMY_PROJECTS, DUMMY_TEAMS } from '../backend/dummyProjects';
 import type { DecideRotation } from '../../../shared/model/settings';
 import { epoch } from '../../../shared/format';
+import { issueKey } from '../../../shared/model/issueRef';
 import {
    dayStart,
    projectOf,
    utcDay,
    windowStats,
    type Project,
+   type PullLinks,
    type PullSpan,
    type ReviewSpan,
    type WindowStats,
 } from '../../../shared/model/projects';
 import { isSuffixBot } from '../../../shared/model/visibility';
+import { dummyPullLinks } from './workData';
 
 /**
  * The Projects tab's server data: the project issues and one window's
@@ -38,6 +41,10 @@ export interface ProjectsData {
     * also say so with the `ongoing` label (Project.ongoing). Older servers
     * omit it. */
    ongoing?: string[];
+   /** which projects each of the board's PRs links (PullLinks), so Today
+    * puts a PR with no project label where the server does. Older servers
+    * omit it. */
+   pull_links?: PullLinks;
    window: WindowStats;
 }
 
@@ -171,19 +178,25 @@ export function chartWindow(range: Range): Range {
 }
 
 // the dummy board has no server: run the real windowStats over its own
-// pulls, with their sign-offs standing in for the review history
+// pulls, with their sign-offs standing in for the review history, each PR
+// in its project by the server's rule
 async function dummyData({ start, end }: Range, project: string | null): Promise<ProjectsData> {
-   const { pulls, bots, projectLabelPrefix } = await loadDummy();
+   const [{ pulls, bots, projectLabelPrefix }, linked] = await Promise.all([
+      loadDummy(),
+      dummyPullLinks(),
+   ]);
    const prefix = projectLabelPrefix ?? 'project:';
+   const projectOfPull = (p: typeof pulls[number]) =>
+      projectOf(p.labels, prefix, linked[issueKey(p)]);
    const people = pulls.filter(
       p =>
          !isSuffixBot(p.user.login) &&
          !(bots ?? []).includes(p.user.login) &&
-         (project == null || projectOf(p.labels, prefix) === project)
+         (project == null || projectOfPull(p) === project)
    );
    const spans: PullSpan[] = people.map(p => ({
       author: p.user.login,
-      project: projectOf(p.labels, prefix),
+      project: projectOfPull(p),
       opened: epoch(p.created_at),
       closed: p.closed_at ? epoch(p.closed_at) : null,
       merged: !!p.merged_at,
@@ -203,6 +216,7 @@ async function dummyData({ start, end }: Range, project: string | null): Promise
       teams_from: dummyTeams ? 'saved' : 'config',
       decide_rotation: dummyRotation,
       ongoing: dummyOngoing,
+      pull_links: linked,
       window: windowStats(spans, start, end, {
          teamOf: teamLookup(dummyTeams ?? DUMMY_TEAMS),
          reviews,

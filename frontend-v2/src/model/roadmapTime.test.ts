@@ -90,5 +90,29 @@ describe('commitEnds', () => {
          ['End of Q4', '2026-12-31'],
          ['End of Q1 2027', '2027-03-31'],
       ]);
+      expect(commitEnds('2026-11-10')[1].through).toBe('the end of Q4');
+   });
+
+   it('puts a target still ahead first, however near, and never one already passed', () => {
+      expect(commitEnds('2026-10-01', '2026-10-21').map(c => [c.label, c.through])).toEqual([
+         ['Through its target, Oct 21', 'its target, Oct 21'],
+         ['End of Oct', 'the end of Oct'],
+         ['End of Nov', 'the end of Nov'],
+         ['End of Q4', 'the end of Q4'],
+         ['End of Q1 2027', 'the end of Q1 2027'],
+      ]);
+      // due today still counts; a month ending the same day gives way to it
+      expect(commitEnds('2026-10-31', '2026-10-31')[0]).toMatchObject({ target: true });
+      expect(commitEnds('2026-10-01', '2026-10-31').map(c => c.end)).toEqual([
+         '2026-10-31',
+         '2026-11-30',
+         '2026-12-31',
+         '2027-03-31',
+      ]);
+      expect(commitEnds('2026-10-01', '2026-09-26').some(c => c.target)).toBe(false);
+      // a target next year says its year, as the ends do
+      expect(commitEnds('2026-12-01', '2027-01-15')[0].label).toBe(
+         'Through its target, Jan 15 2027'
+      );
    });
 });

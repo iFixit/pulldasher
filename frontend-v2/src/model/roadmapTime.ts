@@ -135,25 +135,44 @@ export function columnsFor(scale: 'month' | 'quarter', zoom: Zoom | null, now: D
    });
 }
 
+/** An end a plan can commit to. */
+export interface CommitEnd {
+   /** its words on a button: "End of Oct", "Through its target, Oct 21" */
+   label: string;
+   /** the day it runs through, YYYY-MM-DD */
+   end: string;
+   /** its words after "through" in a sentence: "the end of Oct", "its
+    * target, Oct 21" */
+   through: string;
+   /** the project's own target, not a month's or a quarter's end */
+   target?: boolean;
+}
+
 /**
  * The ends of the coming months and quarters a plan can commit to: the next
  * two of each that are at least a week out, so a commitment is never to a
  * period that is all but over, in date order. Their labels are the tab's one
  * set of words for them, in Decide's calls and the roadmap's chooser and
  * editor: "End of Oct", "End of Q4", with the year whenever it isn't this
- * one ("End of Q1 2027").
+ * one ("End of Q1 2027"). A project's `target` (its issue's Target date or
+ * its milestone's due day) comes first while it's still ahead, however
+ * near: "Through its target, Oct 21", in place of a month or quarter ending
+ * the same day. A target already passed is a miss, not an end to offer.
  */
-export function commitEnds(today: string): { label: string; end: string }[] {
+export function commitEnds(today: string, target?: string | null): CommitEnd[] {
    const t = dateOf(today);
    const soon = dayOf(new Date(t.getFullYear(), t.getMonth(), t.getDate() + 7));
    const year = (last: Date) =>
       last.getFullYear() === t.getFullYear() ? '' : ` ${last.getFullYear()}`;
    const ends = (months: number, label: (last: Date) => string) => {
-      const out: { label: string; end: string }[] = [];
+      const out: CommitEnd[] = [];
       const first = Math.floor(t.getMonth() / months) * months;
       for (let k = 1; out.length < 2; k++) {
          const last = new Date(t.getFullYear(), first + k * months, 0);
-         if (dayOf(last) >= soon) out.push({ label: label(last), end: dayOf(last) });
+         const words = label(last);
+         // "End of Q4" reads "the end of Q4"
+         const through = `the ${words.replace(/^End/, 'end')}`;
+         if (dayOf(last) >= soon) out.push({ label: words, end: dayOf(last), through });
       }
       return out;
    };
@@ -167,5 +186,18 @@ export function commitEnds(today: string): { label: string; end: string }[] {
          ...ends(3, last => `End of Q${Math.floor(last.getMonth() / 3) + 1}${year(last)}`),
       ].map(c => [c.end, c])
    );
-   return [...byEnd.values()].sort((a, b) => a.end.localeCompare(b.end));
+   const sorted = [...byEnd.values()].sort((a, b) => a.end.localeCompare(b.end));
+   if (!target || target < today) return sorted;
+   const due = dateOf(target);
+   // "Oct 21", with its year in another one, as the ends say theirs
+   const day = due.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + year(due);
+   return [
+      {
+         label: `Through its target, ${day}`,
+         end: target,
+         through: `its target, ${day}`,
+         target: true,
+      },
+      ...sorted.filter(c => c.end !== target),
+   ];
 }

@@ -64,7 +64,16 @@ const BASE_PROJECTS: Project[] = [
       lead: 'mlahargou',
       parents: ['ci'],
    }),
-   dummyProject(2, 'grafana-dashboards', 'Grafana dashboards for content', { lead: 'sivadnor' }),
+   // no plan yet, but its issue says when: Decide's outlined answer is
+   // "Through its target", and the plan it makes starts on the Start date
+   dummyProject(2, 'grafana-dashboards', 'Grafana dashboards for content', {
+      lead: 'sivadnor',
+      fields: {
+         start: inDays(-21).slice(0, 10),
+         target: inDays(20).slice(0, 10),
+         priority: 'high',
+      },
+   }),
    dummyProject(3, 'training-periods', 'Training periods', {
       lead: 'hackalot805',
       target: { title: 'October', due_on: inDays(30) },
@@ -163,6 +172,14 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
       ),
       update(3, 24, 'on_track', 'mlahargou', [-6, 12], 'Down to four flaky tests.'),
       update(
+         5,
+         16,
+         'on_track',
+         'evannoronha',
+         [-4, 12],
+         'The replica runs 8.0; the primary is next.'
+      ),
+      update(
          1,
          16,
          'at_risk',
@@ -258,7 +275,9 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          status: 'active',
       }),
       item(4, 'Checkout redesign', 3, 8, { team: 'Store', lead: 'jarstelfox', waits_on: [2] }),
-      item(5, 'MySQL 8 upgrade', -2, 12, {
+      // its last update is 16 days old and nothing merged since, so its
+      // numbers can't vouch for it: the board's "Update due"
+      item(5, 'MySQL 8 upgrade', -4, 12, {
          project: 'mysql-8',
          team: 'Community',
          lead: 'evannoronha',
@@ -277,7 +296,14 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
       }),
       // FixBot's two developers would each be alone on a plan while this
       // overlaps the webdriver work, so its lane's load shows amber
-      item(9, 'Visual regression checks', 1, 6, { team: 'FixBot', lead: 'ardelato' }),
+      // under way three weeks with no PRs and no update yet ("No update
+      // yet"), beside the webdriver work: FixBot's two developers on two
+      // things this week, so its lane reads "no one to spare"
+      item(9, 'Visual regression checks', -3, 6, {
+         team: 'FixBot',
+         lead: 'ardelato',
+         status: 'active',
+      }),
       item(10, 'Training periods', -6, 10, {
          project: 'training-periods',
          team: 'Community',
@@ -441,6 +467,9 @@ export const DUMMY_LINKS: Record<string, IssueRef[]> = {
    'iFixit/ifixit#35249': [{ repo: 'iFixit/ifixit', number: 36301 }],
    // the second path's PR does an issue SSO approvals still has
    'iFixit/ifixit#35553': [{ repo: 'iFixit/ifixit', number: 35004 }],
+   // no label, and its issue is in two projects: the Overview's "In two
+   // projects" fold
+   'iFixit/ifixit#35529': [{ repo: 'iFixit/ifixit', number: 35806 }],
 };
 
 /** Issues the dummy board's issue search finds that no project has, for

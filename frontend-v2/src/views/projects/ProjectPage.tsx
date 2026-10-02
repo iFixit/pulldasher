@@ -40,21 +40,28 @@ import {
    LAST_14_DAYS,
    NO_PLAN,
    NO_UPDATE_YET,
-   PLAN_IT,
    UPDATE_DUE,
 } from '../../model/words';
-import { DecideCall, reasonParts } from './Decide';
+import { DecideCall, planRow, reasonParts } from './Decide';
 import { BacklogSection } from './BacklogSection';
 import {
    flagText,
    openPlan,
    PeopleStack,
    ProjectFacts,
+   takeLanding,
    targetWords,
    type Navigate,
    type ProjectsNav,
 } from './parts';
-import { PLAN_STATUS_WORD, planWords, UpdatesPanel, when } from './roadmapHealth';
+import {
+   PLAN_STATUS_WORD,
+   planWords,
+   UpdatesPanel,
+   vouchRule,
+   vouchWords,
+   when,
+} from './roadmapHealth';
 import { ProjectWorkSections, showPulls, type PullLookup } from './Work';
 
 /** words that start a line, with a capital */
@@ -236,10 +243,22 @@ export function ProjectPage({
          document.title = was;
       };
    }, [name]);
+   // a trip here for one section (Decide's "Or add issues") lands on it,
+   // once its issues are in, so it lands where they end up
+   const landing = useRef<string | null>();
+   useEffect(() => {
+      if (landing.current === undefined) landing.current = takeLanding();
+      if (!landing.current || work === undefined) return;
+      jumpTo(null, landing.current);
+      landing.current = null;
+   }, [work]);
    // a closed project isn't on Today, so read its recent merges straight off
    // the closed pulls (the server keeps 14 days of them)
    const merged =
-      group?.merged ?? closed.filter(p => p.merged_at && projectOf(p.labels, prefix) === slug);
+      group?.merged ??
+      closed.filter(
+         p => p.merged_at && projectOf(p.labels, prefix, data?.pull_links?.[issueKey(p)]) === slug
+      );
    const w: ProjectWindow | undefined = data?.window.projects[slug];
    if (!group && !project && !w && !merged.length) {
       return data === undefined ? (
@@ -317,11 +336,13 @@ export function ProjectPage({
 
    // its PRs by where they stand, from the same list the page shows, each
    // by the key that finds it below
+   // a PR that does one of its issues but counts in another project isn't
+   // this project's, so the counts leave it out as the Overview does
    const onPage = new Map(
-      [...(page?.issues.flatMap(i => i.prs) ?? []), ...(page?.unlinked ?? [])].map(pr => [
-         issueKey(pr),
-         pr,
-      ])
+      [
+         ...(page?.issues.flatMap(i => i.prs.filter(pr => !pr.outside)) ?? []),
+         ...(page?.unlinked ?? []),
+      ].map(pr => [issueKey(pr), pr])
    );
    const byStage = new Map<PrStage, string[]>(PR_STAGES.map(s => [s, []]));
    const unread: string[] = [];
@@ -347,6 +368,9 @@ export function ProjectPage({
    // what's owed on it: Decide's question, an update its lead owes, and the
    // flags the board raises, each in amber with the way to answer it
    const planHealth = plan && isUnderWay(plan.status) ? healthStanding(plan) : null;
+   // its numbers vouch for it: no update owed, and the Update row says why
+   const vouch =
+      planHealth?.kind === 'quiet' || planHealth?.kind === 'current' ? planHealth.vouch : undefined;
    const update =
       planHealth?.kind === 'current' || planHealth?.kind === 'stale' ? planHealth.update : null;
    // a reason that quotes the latest update leaves the quote to the Update
@@ -377,7 +401,10 @@ export function ProjectPage({
       update.health !== 'on_track' &&
       update.at > (plan?.updated_at ?? 0) &&
       !asks.some(row => row.reasons.some(r => r.kind === update.health));
-   const decideCalls = calls.map(row => (
+   // Decide's rows here, asked or decided; a call made under the plan, where
+   // Decide asked nothing, keeps its receipt there
+   const decideRows = calls.filter(row => row.reasons.length);
+   const decideCalls = decideRows.map(row => (
       <DecideCall
          key={`${row.slug ?? ''}:${row.item?.id ?? ''}`}
          row={row}
@@ -391,7 +418,7 @@ export function ProjectPage({
    // call stays as a receipt with Undo, on the label's line, level with it
    // (a receipt sits in a strip's height). The strip keeps its place in the
    // list either way, so the focus a call moves to Undo stays there.
-   if (calls.length) {
+   if (decideRows.length) {
       owed.push(
          <Fragment key="decide">
             <dt
@@ -587,44 +614,50 @@ export function ProjectPage({
                      {update.body && (
                         <p className="m-0 mt-0.5 max-w-[70ch] whitespace-pre-line">{update.body}</p>
                      )}
+                     {vouch && (
+                        <p className="m-0 mt-0.5 text-ink-3" title={vouchRule(vouch)}>
+                           {vouchWords(vouch)}
+                        </p>
+                     )}
+                  </dd>
+               </>
+            )}
+            {/* no update yet, and its numbers say none is owed: say so where
+                the update would be, so the empty row isn't a mystery */}
+            {!update && vouch && !posting && (
+               <>
+                  <dt className="text-xs leading-5 text-ink-3">Update</dt>
+                  <dd className="m-0 text-ink-3" title={vouchRule(vouch)}>
+                     {vouchWords(vouch)}
                   </dd>
                </>
             )}
             <dt className="text-xs leading-5 text-ink-3">Plan</dt>
             <dd className="m-0 text-ink-2">
-               {plan ? (
-                  <FactLink
-                     onClick={() => navigate(openPlan(nav, plan.id))}
-                     title="Open it on the roadmap"
-                  >
-                     {/* the head says its status when it's the same word */}
-                     {PLAN_STATUS_WORD[plan.status] === standing
-                        ? upper(planWords(plan))
-                        : `${PLAN_STATUS_WORD[plan.status]}, ${planWords(plan)}`}
-                  </FactLink>
-               ) : (
-                  <>
-                     {NO_PLAN}
-                     {/* while Decide asks, its call is the way to plan it */}
-                     {!finished && !asked.length && (
-                        <>
-                           {' · '}
-                           <TextButton
-                              // narrowed to it when the roadmap lists it (work in flight)
-                              onClick={() =>
-                                 navigate({
-                                    project: null,
-                                    view: 'roadmap',
-                                    item: null,
-                                    find: live ? slug : '',
-                                 })
-                              }
-                           >
-                              {PLAN_IT}
-                           </TextButton>
-                        </>
-                     )}
-                  </>
+               <span id="project-plan">
+                  {plan ? (
+                     <FactLink
+                        onClick={() => navigate(openPlan(nav, plan.id))}
+                        title="Open it on the roadmap"
+                     >
+                        {/* the head says its status when it's the same word */}
+                        {PLAN_STATUS_WORD[plan.status] === standing
+                           ? upper(planWords(plan))
+                           : `${PLAN_STATUS_WORD[plan.status]}, ${planWords(plan)}`}
+                     </FactLink>
+                  ) : (
+                     NO_PLAN
+                  )}
+               </span>
+               {/* changed right here, as Decide changes it: while Decide asks,
+                   its own strip above is the one; with no plan, a commit
+                   starts one */}
+               {plans && !decideRows.length && (
+                  <DecideCall
+                     row={planRow(slug, plan, calls)}
+                     project={item}
+                     describedBy="project-plan"
+                  />
                )}
             </dd>
             {/* when it's meant to finish, and when its issues say it will;

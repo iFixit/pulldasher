@@ -46,12 +46,16 @@ import {
    type IssueStanding,
    type PrStage,
 } from '../../model/stage';
-import { byHandOnly } from '../../model/workData';
+import { removable } from '../../model/workData';
 import { LAST_14_DAYS } from '../../model/words';
 import type { Navigate } from './parts';
 
 /** a long list shows this many rows, then "+ N more" */
 const LIST_CAP = 40;
+
+/** a PR on an issue's line that another project's label (or link) claims */
+const COUNTED_ELSEWHERE = 'counted in another project';
+const upperFirst = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 /** what each stage's band means, on hovering its name */
 const STAGE_GLOSS: Record<IssueStage, string> = {
@@ -270,7 +274,11 @@ function PullItem({
    const who =
       live && !whoSaid ? holderWords(live, { turns: opts.turns, line: true, onRow: true }) : '';
    if (who) parts.push(who);
-   if (late) parts.push(parts.length ? late : late[0].toUpperCase() + late.slice(1));
+   if (late) parts.push(parts.length ? late : upperFirst(late));
+   // a person's PR this page's counts leave out, the way every view does
+   if (pr.outside && (live || known)) {
+      parts.push(parts.length ? COUNTED_ELSEWHERE : upperFirst(COUNTED_ELSEWHERE));
+   }
    if (pr.elsewhere?.length) {
       parts.push(
          <Elsewhere
@@ -331,35 +339,70 @@ function PullItem({
    );
 }
 
-/**
- * How an issue came to be here, when that's worth a word: added after its
- * plan took effect (scope that grew along the way), or added by hand, and
- * by whom when that's known. Nothing for one its label brought before the
- * plan, the usual case the section's sub-line explains.
- */
-function addedWords(issue: ProjectIssue, planned: number | null): string {
-   const hand = issue.via.includes('hand');
-   if (!hand && !addedLater(issue, planned)) return '';
-   const when = issue.attachedAt != null ? ` ${dateWords(issue.attachedAt)}` : hand ? ' here' : '';
-   const added = `added${when}${issue.addedBy ? ` by ${issue.addedBy}` : ''}`;
-   // with the label too, taking it off here wouldn't take it out
-   return hand && issue.via.includes('label') ? `${added}, and has the label` : added;
+/** A PR named in a line's words, by its number, to open on GitHub. */
+function PullRef({ pr, repoShown }: { pr: IssueRef; repoShown: boolean }) {
+   return (
+      <a
+         href={githubUrl(pr.repo, pr.number)}
+         target="_blank"
+         rel="noopener noreferrer"
+         className="text-ink-2 underline decoration-line underline-offset-2 hover:text-brand"
+      >
+         PR #{pr.number}
+         {repoShown && ` in ${shortRepo(pr.repo)}`}
+      </a>
+   );
 }
 
-/** The other projects an issue is in, each a link to its page. */
+/**
+ * How an issue came to be here, when that's worth a word: joined by a link
+ * from one of its PRs (always said, since no person put it here), added by
+ * hand, and by whom when that's known, or added after its plan took effect
+ * (scope that grew along the way, with when). Nothing for one its label
+ * brought before the plan, the usual case the section's sub-line explains.
+ */
+function addedWords(
+   issue: ProjectIssue,
+   planned: number | null,
+   repoShown: (ref: IssueRef) => boolean
+): ReactNode {
+   const hand = issue.via.includes('hand');
+   const later = addedLater(issue, planned);
+   const labeled = issue.via.includes('label');
+   // with the label too, taking it off here wouldn't take it out
+   const andLabel = labeled ? ', and has the label' : '';
+   if (issue.via.includes('link') && issue.linkedBy) {
+      return (
+         <>
+            linked by <PullRef pr={issue.linkedBy} repoShown={repoShown(issue.linkedBy)} />
+            {later && issue.attachedAt != null && ` on ${dateWords(issue.attachedAt)}`}
+            {andLabel}
+         </>
+      );
+   }
+   if (!hand && !later) return null;
+   const when = issue.attachedAt != null ? ` ${dateWords(issue.attachedAt)}` : hand ? ' here' : '';
+   const added = `added${when}${issue.addedBy ? ` by ${issue.addedBy}` : ''}`;
+   return hand ? `${added}${andLabel}` : added;
+}
+
+/** The other projects an issue is in, each a link to its page: "also in"
+ * one this project has, "in" one it doesn't. */
 function AlsoIn({
    slugs,
    nameOf,
    navigate,
+   lead = 'also in',
 }: {
    slugs: string[];
    nameOf: (slug: string) => string;
    navigate: Navigate;
+   lead?: string;
 }) {
    if (!slugs.length) return null;
    return (
       <span className="text-xs text-ink-3">
-         also in{' '}
+         {lead}{' '}
          {slugs.map((slug, i) => (
             <Fragment key={slug}>
                {i > 0 && ', '}
@@ -422,6 +465,7 @@ function Receipt({
  */
 function IssueLine({
    slug,
+   label,
    issue,
    standing,
    pulls,
@@ -440,6 +484,8 @@ function IssueLine({
    all,
 }: {
    slug: string;
+   /** the project's label in full */
+   label: string;
    issue: ProjectIssue;
    standing: IssueStanding;
    pulls: PullLookup;
@@ -449,7 +495,8 @@ function IssueLine({
    planned: number | null;
    /** just added: it flashes once */
    fresh: boolean;
-   /** take it off the project; only for one added here and not labeled */
+   /** take it off the project; only for one added here or by a link, not
+    * labeled */
    onRemove: (() => void) | null;
    /** a change made on this line, said under it in place of Remove */
    receipt: ReactNode;
@@ -473,7 +520,9 @@ function IssueLine({
    useEffect(() => {
       if (all && has && shown !== all.open) setShown(all.open);
    }, [all]);
-   const added = addedWords(issue, planned);
+   const added = addedWords(issue, planned, repoShown);
+   // one with the label comes off by the label, which is GitHub's
+   const offOnGitHub = !onRemove && issue.via.includes('label');
    // its PRs that opened late, counted by why
    const late = new Map<string, number>();
    for (const pr of issue.prs) {
@@ -548,14 +597,14 @@ function IssueLine({
                >
                   {issue.title}
                </a>
-               {added && (
+               {(added || offOnGitHub) && (
                   <span className="text-xs text-ink-3">
                      {added}
                      {onRemove && !receipt && (
-                        // beside the words that say it was added by hand, away
-                        // from who holds it; it shows on this line's hover or
-                        // focus, as a row's verbs do, and always on touch and
-                        // narrow screens
+                        // beside the words that say how it came, away from who
+                        // holds it; it shows on this line's hover or focus, as
+                        // a row's verbs do, and always on touch and narrow
+                        // screens
                         <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover/issue:opacity-100 max-[719px]:opacity-100 [@media(hover:none)]:opacity-100">
                            <span aria-hidden> · </span>
                            <TextButton
@@ -565,6 +614,26 @@ function IssueLine({
                            >
                               Remove
                            </TextButton>
+                        </span>
+                     )}
+                     {offOnGitHub && (
+                        // where Remove would be, on hover or focus: its label
+                        // is GitHub's. The title goes to the same page and the
+                        // list's door says how, for keyboards, touch and
+                        // screen readers.
+                        <span className="opacity-0 transition-opacity group-focus-within/issue:opacity-100 group-hover/issue:opacity-100 max-[719px]:hidden [@media(hover:none)]:hidden">
+                           {added && <span aria-hidden> · </span>}
+                           <a
+                              href={issueUrl(issue.ref.repo, issue.ref.number)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              tabIndex={-1}
+                              aria-hidden
+                              title={`Take the ${label} label off it there`}
+                              className="font-medium text-brand hover:underline"
+                           >
+                              Remove on GitHub
+                           </a>
                         </span>
                      )}
                   </span>
@@ -716,14 +785,16 @@ export function ProjectWorkSections({
    const mine = (plans ?? []).filter(p => p.project === slug);
    const lateOf = (pr: IssuePull) => lateWords(pr.createdAt, mine, closed);
    /** Save `add` for a change's issue: the click's own change, or, when it
-    * goes the other way, its Undo. */
+    * goes the other way, its Undo. An add's Undo forgets it, so a
+    * suggestion goes back to being one, where a Remove keeps it off. */
    const save = ({ ref, add: did, at, kept }: Omit<Change, 'state' | 'token'>, add: boolean) => {
       const undo = add !== did;
       const token = ++tokens.current;
       const c = { ref, add: did, at, kept, token };
       setChange({ ...c, state: undo ? 'undoing' : 'saving' });
       if (!undo) setLanded(null);
-      void changeProjectIssue(slug, { repo: ref.repo, number: ref.number }, add).then(r => {
+      const issue = { repo: ref.repo, number: ref.number };
+      void changeProjectIssue(slug, issue, add, { forget: undo && !add }).then(r => {
          // a later change has the floor
          if (tokens.current !== token) return;
          if ('error' in r) {
@@ -881,6 +952,7 @@ export function ProjectWorkSections({
                      <IssueLine
                         key={k}
                         slug={slug}
+                        label={label}
                         issue={issue}
                         standing={standings.get(k) ?? { stage, pull: null }}
                         pulls={pulls}
@@ -888,7 +960,7 @@ export function ProjectWorkSections({
                         planned={planned}
                         fresh={landed === k}
                         onRemove={
-                           byHandOnly(issue)
+                           removable(issue)
                               ? () =>
                                    save({ ref: issue.ref, add: false, at: 'issues', kept }, false)
                               : null
@@ -959,8 +1031,13 @@ export function ProjectWorkSections({
                   counts?.total ? (
                      <SubDoor label="What’s on this list" text="by where they stand">
                         <p className="m-0">
-                           Its issues are the ones with the {label} label on GitHub and the ones
-                           added here. One added after its plan started says when.
+                           Its issues are the ones with the {label} label on GitHub, the ones added
+                           here, and the ones its PRs link that no other project has, which join on
+                           their own. One added after its plan started says when.
+                        </p>
+                        <p className="m-0">
+                           Remove takes one off for good: a link never brings it back. One with the
+                           label comes off when the label does, on GitHub.
                         </p>
                         <p className="m-0">
                            Each one is as far along as its least finished open PR: ready to merge,
@@ -1019,7 +1096,7 @@ export function ProjectWorkSections({
                      </>
                   )}{' '}
                   give an issue the {label} label on GitHub: the label that puts PRs in this
-                  project.
+                  project. An issue its PRs link (“Parts of #N”) joins on its own.
                </p>
             )}
          </section>
@@ -1049,9 +1126,9 @@ export function ProjectWorkSections({
                         </p>
                         {issues.length > 0 && (
                            <p className="m-0">
-                              Add the issue each one does (“Parts of #N” in its description), or
-                              check it belongs here. One that does an issue of another project says
-                              which.
+                              Name the issue each one does (“Parts of #N” in its description) and
+                              the issue joins on its own, or check it belongs here. One that does an
+                              issue of another project says which.
                            </p>
                         )}
                      </SubDoor>
@@ -1097,7 +1174,15 @@ export function ProjectWorkSections({
                <GroupHeader
                   level={3}
                   title="Issues linked from its PRs"
-                  sub="not in this project yet"
+                  sub={
+                     <SubDoor label="Why these didn’t join" text="not in this project yet">
+                        <p className="m-0">
+                           An issue its PRs link joins on its own within the hour. One waits here
+                           instead when another project has it, another project’s PRs link it too,
+                           or the PR linking it is here only by an issue that joined that way.
+                        </p>
+                     </SubDoor>
+                  }
                />
                <Rows>
                   <Truncated cap={LIST_CAP} id={`work:${slug}:suggested`} label="more issues">
@@ -1129,20 +1214,19 @@ export function ProjectWorkSections({
                                        {issue.title}
                                     </a>
                                  )}
+                                 {/* where it is now, which is why it didn't join */}
+                                 <AlsoIn
+                                    slugs={issue.alsoIn}
+                                    nameOf={nameOf}
+                                    navigate={navigate}
+                                    lead="in"
+                                 />
                                  <span className="text-xs text-ink-3">
                                     linked by{' '}
                                     {issue.linkedBy.map((pr, j) => (
                                        <Fragment key={issueKey(pr)}>
                                           {j > 0 && ', '}
-                                          <a
-                                             href={githubUrl(pr.repo, pr.number)}
-                                             target="_blank"
-                                             rel="noopener noreferrer"
-                                             className="text-ink-2 underline decoration-line underline-offset-2 hover:text-brand"
-                                          >
-                                             PR #{pr.number}
-                                             {pr.repo !== issue.repo && ` in ${shortRepo(pr.repo)}`}
-                                          </a>
+                                          <PullRef pr={pr} repoShown={pr.repo !== issue.repo} />
                                        </Fragment>
                                     ))}
                                  </span>

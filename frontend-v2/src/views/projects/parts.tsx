@@ -71,6 +71,23 @@ export interface ProjectsNav {
  * replaces the entry instead). */
 export type Navigate = (patch: Partial<ProjectsNav>, opts?: { push?: boolean }) => void;
 
+// the section a trip to a project's page is for, which the page brings into
+// view once, when it opens
+let landing: string | null = null;
+
+/** Open a project's page on one of its sections, by the section's id. */
+export function openPageAt(navigate: Navigate, slug: string, section: string): void {
+   landing = section;
+   navigate({ project: slug });
+}
+
+/** The section the trip that opened a project's page was for, once. */
+export function takeLanding(): string | null {
+   const section = landing;
+   landing = null;
+   return section;
+}
+
 /** Another view, opened the way the view switch opens it: the view's own
  * picks (a sort, a team, a person, a week, a narrowing) stay behind, so one
  * view never quietly narrows the next. */

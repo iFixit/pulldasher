@@ -9,7 +9,14 @@ import {
    todayFromBoard,
 } from '../lib/projects.js';
 import { listItems } from '../lib/roadmap.js';
-import { attachIssue, detachIssue, loadProjectWork, loadWork, searchIssues } from '../lib/work.js';
+import {
+   attachIssue,
+   detachIssue,
+   loadProjectWork,
+   loadPullLinks,
+   loadWork,
+   searchIssues,
+} from '../lib/work.js';
 import {
    addWeeks,
    closedIssues,
@@ -54,11 +61,11 @@ function ongoingSlugs(settings, projects) {
 
 /**
  * Validate the projects config and the requested window, then load the
- * projects, the window's PR history and its CR/QA stamps. An optional
- * `project` slug narrows the window's numbers and stamps to that project's
- * PRs (the project list stays whole). Answers the request itself (404 when
- * projects aren't set up here, 400 for a bad window) and returns null, or
- * returns a promise of what the handler needs.
+ * projects, which projects each PR links, the window's PR history and its
+ * CR/QA stamps. An optional `project` slug narrows the window's numbers and
+ * stamps to that project's PRs (the project list stays whole). Answers the
+ * request itself (404 when projects aren't set up here, 400 for a bad
+ * window) and returns null, or returns a promise of what the handler needs.
  */
 function load(req, res) {
    const settings = projectSettings();
@@ -73,17 +80,20 @@ function load(req, res) {
       res.status(400).json({ error: window.error || 'project must be one project slug' });
       return null;
    }
-   return Promise.all([
-      loadProjects(settings),
-      loadWindow(settings, window.start, window.end, only),
-   ]).then(([projects, { spans, reviews }]) => ({
-      settings,
-      projects,
-      stats: windowStats(spans, window.start, window.end, {
-         teamOf: settings.teamOf,
-         reviews,
-      }),
-   }));
+   return Promise.all([loadProjects(settings), loadPullLinks(settings)]).then(
+      ([projects, linked]) =>
+         loadWindow(settings, window.start, window.end, only, linked).then(
+            ({ spans, reviews }) => ({
+               settings,
+               projects,
+               linked,
+               stats: windowStats(spans, window.start, window.end, {
+                  teamOf: settings.teamOf,
+                  reviews,
+               }),
+            })
+         )
+   );
 }
 
 /**
@@ -166,24 +176,32 @@ export default {
    /**
     * GET /projects-data?start=&end=&project= -- the Projects tab's fetch:
     * every project issue plus the window's numbers (one project's, with
-    * `project`). The tab builds Today itself from the live socket pulls, so
-    * it moves with the board. Session-authed like /stats-history.
+    * `project`), and which projects each of the board's PRs links. The tab
+    * builds Today itself from the live socket pulls, so it moves with the
+    * board, and by the same rule as here. Session-authed like /stats-history.
     */
    getBoardData: function (req, res) {
       const loaded = load(req, res);
       if (!loaded) return;
       respondOrError(
          res,
-         loaded.then(({ settings, projects, stats }) => ({
-            label_prefix: settings.prefix,
-            projects_repo: settings.repo,
-            teams: settings.teams,
-            teams_from: settings.teamsFrom,
-            decide_rotation: settings.decideRotation,
-            ongoing: settings.ongoing,
-            projects,
-            window: stats,
-         })),
+         loaded.then(({ settings, projects, linked, stats }) => {
+            // the PRs Today is built from: the board's open and recently closed
+            const onBoard = new Set(pullManager.getPulls().map(p => key(p.data).toLowerCase()));
+            return {
+               label_prefix: settings.prefix,
+               projects_repo: settings.repo,
+               teams: settings.teams,
+               teams_from: settings.teamsFrom,
+               decide_rotation: settings.decideRotation,
+               ongoing: settings.ongoing,
+               projects,
+               pull_links: Object.fromEntries(
+                  Object.entries(linked).filter(([pull]) => onBoard.has(pull))
+               ),
+               window: stats,
+            };
+         }),
          'projects-data query failed'
       );
    },
@@ -202,9 +220,10 @@ export default {
       if (!loaded) return;
       respondOrError(
          res,
-         loaded.then(({ settings, projects, stats }) => {
+         loaded.then(({ settings, projects, linked, stats }) => {
             const now = Date.now() / 1000;
-            const today = todayFromBoard(pullManager.getPulls(), projects, settings.prefix, now);
+            const pulls = pullManager.getPulls();
+            const today = todayFromBoard(pulls, projects, settings.prefix, now, linked);
             return {
                server_time: Math.floor(now),
                start: stats.start,
@@ -239,9 +258,10 @@ export default {
       if (!loaded) return;
       respondOrError(
          res,
-         loaded.then(({ settings, projects, stats }) => {
+         loaded.then(({ settings, projects, linked, stats }) => {
             const now = Date.now() / 1000;
-            const today = todayFromBoard(pullManager.getPulls(), projects, settings.prefix, now);
+            const pulls = pullManager.getPulls();
+            const today = todayFromBoard(pulls, projects, settings.prefix, now, linked);
             const live = new Map();
             for (const g of today.live) {
                for (const login of g.people) {
@@ -318,11 +338,13 @@ export default {
       }
       respondOrError(
          res,
-         loadTimeSpent(settings, window.start, window.end).then(spent => ({
-            start: window.start,
-            end: window.end,
-            ...spent,
-         })),
+         loadPullLinks(settings)
+            .then(linked => loadTimeSpent(settings, window.start, window.end, linked))
+            .then(spent => ({
+               start: window.start,
+               end: window.end,
+               ...spent,
+            })),
          'retro query failed'
       );
    },
@@ -369,10 +391,10 @@ export default {
 
    /**
     * GET /project-work?project=slug (session) and /api/v1/project-work
-    * (Bearer) -- a project's page: every issue attached to it (by its label
-    * or by hand) with the PRs that link it, its PRs that link none of them,
-    * and the issues its PRs link that aren't attached (shared/model/work.ts
-    * projectWork).
+    * (Bearer) -- a project's page: every issue attached to it (by its label,
+    * by hand, or by a link from one of its PRs) with the PRs that link it,
+    * its PRs that link none of them, and the issues its PRs link that aren't
+    * attached (shared/model/work.ts projectWork).
     */
    getProjectWork: function (req, res) {
       const settings = projectSettings();
@@ -393,7 +415,8 @@ export default {
     * add an issue to a project by hand: `issue` is "owner/repo#123", a link,
     * or {repo, number}. It's read off GitHub, so a missing issue is a 404,
     * and a PR, an issue outside the tracked organizations, or a project's
-    * own issue a 409. Adding one that's already there changes nothing.
+    * own issue a 409. Adding one that's already there changes nothing; one
+    * taken off comes back as it was.
     */
    attachIssue: function (req, res) {
       const body = req.body || {};
@@ -423,8 +446,10 @@ export default {
 
    /**
     * DELETE /project-issues?project=slug&repo=owner/repo&number=123 and
-    * /api/v1/project-issues -- take an issue added by hand off a project.
-    * One attached by label stays until the label comes off it.
+    * /api/v1/project-issues -- take an issue added by hand, or joined by a
+    * link, off a project, for good: a link never brings it back. One
+    * attached by label stays until the label comes off it. `forget=1`
+    * takes back an add instead (its Undo): the issue is as if never added.
     */
    detachIssue: function (req, res) {
       const { project } = req.query;
@@ -433,11 +458,11 @@ export default {
          res.status(400).json({ error: 'send project, repo and number' });
          return;
       }
-      detachIssue(project, ref)
+      detachIssue(project, ref, { forget: req.query.forget === '1' })
          .then(gone =>
             gone
                ? res.json({ ok: true })
-               : res.status(404).json({ error: 'no issue by that name was added by hand' })
+               : res.status(404).json({ error: 'no issue by that name was added here' })
          )
          .catch(err => {
             console.error('taking an issue off a project failed:', err);
@@ -457,14 +482,16 @@ export default {
          res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
          return;
       }
-      const load = Promise.all([loadProjects(settings), listItems()]).then(([projects, plans]) =>
-         loadWork(settings, { plans, projects }).then(work => [projects, plans, work])
+      const load = Promise.all([loadProjects(settings), listItems(), loadPullLinks(settings)]).then(
+         ([projects, plans, linked]) =>
+            loadWork(settings, { plans, projects }).then(work => [projects, plans, work, linked])
       );
       respondOrError(
          res,
-         load.then(([projects, items, work]) => {
+         load.then(([projects, items, work, linked]) => {
             const now = Date.now() / 1000;
-            const today = todayFromBoard(pullManager.getPulls(), projects, settings.prefix, now);
+            const pulls = pullManager.getPulls();
+            const today = todayFromBoard(pulls, projects, settings.prefix, now, linked);
             const bySlug = new Map(projects.map(p => [p.slug, p]));
             const open = new Map(today.live.map(g => [g.slug, g.open.length]));
             const rows = decideQueue({
@@ -542,19 +569,25 @@ export default {
       }
       // the PRs tell the weeks up to today; the plans tell the rest
       const pastEnd = window.end < day ? window.end : day;
+      const links = loadPullLinks(settings);
       const history =
          window.start <= pastEnd
-            ? loadWindow(settings, window.start, pastEnd).then(
-                 ({ spans, reviews }) =>
-                    windowStats(spans, window.start, pastEnd, { teamOf: settings.teamOf, reviews })
-                       .projects
-              )
+            ? links
+                 .then(linked => loadWindow(settings, window.start, pastEnd, undefined, linked))
+                 .then(
+                    ({ spans, reviews }) =>
+                       windowStats(spans, window.start, pastEnd, {
+                          teamOf: settings.teamOf,
+                          reviews,
+                       }).projects
+                 )
             : Promise.resolve({});
       respondOrError(
          res,
-         Promise.all([loadProjects(settings), listItems(), history]).then(
-            ([projects, items, past]) => {
-               const today = todayFromBoard(pullManager.getPulls(), projects, settings.prefix, now);
+         Promise.all([loadProjects(settings), listItems(), history, links]).then(
+            ([projects, items, past, linked]) => {
+               const pulls = pullManager.getPulls();
+               const today = todayFromBoard(pulls, projects, settings.prefix, now, linked);
                const spans = spansFrom(past, liveStarts(today), window.start);
                // the projects with no plan that owe a decision count ahead
                const closed = closedIssues(projects);

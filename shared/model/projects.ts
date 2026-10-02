@@ -1,5 +1,6 @@
 import { epoch } from '../format';
 import type { PullData } from '../types';
+import { issueKey } from './issueRef';
 import type { DerivedPull } from './status';
 import { MISC_SLUG, projectOf, projectSlugs } from './projectLabel';
 import { prStage } from './stage';
@@ -8,7 +9,8 @@ export { MISC_SLUG, projectOf, projectSlugs } from './projectLabel';
 
 /**
  * Projects: what the open PRs add up to. A PR joins a project through one
- * label, `<prefix><slug>` (`project:workbench`), and a project's own record
+ * label, `<prefix><slug>` (`project:workbench`), or with no label by linking
+ * one of the project's issues ("Parts of #N"), and a project's own record
  * is a GitHub issue carrying the same label: its title is the name, its
  * assignee the lead, its milestone the rough target, `parent:<slug>` labels
  * its parents (any number of them), and an `ongoing` label marks work with no
@@ -94,11 +96,18 @@ export interface Today {
    quiet: ProjectGroup[];
    /** open PRs filed as one-offs */
    misc: DerivedPull[];
-   /** open PRs with no project label yet */
+   /** open PRs in no project: no project label, and no project's issue linked */
    unsorted: DerivedPull[];
-   /** open PRs carrying more than one project label */
+   /** open PRs in two projects: two project labels, or no label and issues of
+    * two projects linked. Each counts under the first (projectOf). */
    doubleLabeled: DerivedPull[];
 }
+
+/** The projects each PR links, by issueKey of the PR: every project that has
+ * an issue it links (by its label, by hand or by a link) or whose own issue
+ * it links, sorted. What a PR with no project label joins (projectOf). The
+ * server reads it off each issue's side (lib/work.js loadPullLinks). */
+export type PullLinks = Readonly<Record<string, readonly string[]>>;
 
 /** The day a group's earliest open PR opened, YYYY-MM-DD; null with none
  * open. Where Decide and the roadmap's chooser start a plan for work already
@@ -115,14 +124,17 @@ export function projectName(g: Pick<ProjectGroup, 'slug' | 'project'>): string {
 /**
  * Today: every project with work in flight, from the open PRs, the recently
  * merged ones (the server keeps LIVE_DAYS of them in memory), and the
- * project issues. Pass people's PRs only; bots are the caller's call.
+ * project issues, each PR in its project by projectOf (`linked` says which
+ * projects' issues it links). Pass people's PRs only; bots are the caller's
+ * call.
  */
 export function buildToday(
    projects: readonly Project[],
    open: readonly DerivedPull[],
    closed: readonly PullData[],
    prefix: string,
-   now: number = Date.now() / 1000
+   now: number = Date.now() / 1000,
+   linked: PullLinks = {}
 ): Today {
    const bySlug = new Map(projects.map(p => [p.slug, p]));
    const groups = new Map<string, ProjectGroup>();
@@ -146,15 +158,20 @@ export function buildToday(
 
    const today: Today = { live: [], quiet: [], misc: [], unsorted: [], doubleLabeled: [] };
    for (const p of open) {
-      if (projectSlugs(p.data.labels, prefix).length > 1) today.doubleLabeled.push(p);
-      const slug = projectOf(p.data.labels, prefix);
+      const slugs = projectSlugs(p.data.labels, prefix);
+      const links = linked[issueKey(p.data)] ?? [];
+      // a label settles it; with none, links to two projects' issues don't
+      if (slugs.length > 1 || (!slugs.some(s => s !== MISC_SLUG) && links.length > 1)) {
+         today.doubleLabeled.push(p);
+      }
+      const slug = projectOf(p.data.labels, prefix, links);
       if (slug == null) today.unsorted.push(p);
       else if (slug === MISC_SLUG) today.misc.push(p);
       else group(slug).open.push(p);
    }
    for (const p of closed) {
       if (!p.merged_at || now - epoch(p.merged_at) > LIVE_DAYS * DAY) continue;
-      const slug = projectOf(p.labels, prefix);
+      const slug = projectOf(p.labels, prefix, linked[issueKey(p)]);
       if (slug != null && slug !== MISC_SLUG) group(slug).merged.push(p);
    }
    // an open project with nothing in flight still exists: it lands in quiet
@@ -205,7 +222,7 @@ export function buildToday(
 /** One PR's lifetime, the unit the window counts are built from (epoch secs). */
 export interface PullSpan {
    author: string;
-   /** its project (misc included); null with no project label */
+   /** its project by projectOf (misc included); null when it's in none */
    project: string | null;
    opened: number;
    /** when it merged or closed; null while open */
@@ -276,7 +293,7 @@ export interface WeekPoint {
    week: string;
    opened: { developers: number; non_developers: number };
    merged: { developers: number; non_developers: number };
-   /** merged PRs by project slug (misc included); '' for no project label */
+   /** merged PRs by project slug (misc included); '' for those in no project */
    merged_by_project: Record<string, number>;
    /** stamps given that week, by who wrote the PR */
    reviews: { on_developers: number; on_non_developers: number };
@@ -289,7 +306,7 @@ export interface WindowStats {
    totals: WindowCounts;
    /** by project slug, misc included */
    projects: Record<string, ProjectWindow>;
-   /** PRs with no project label */
+   /** PRs in no project */
    unsorted: WindowCounts;
    people: Record<string, PersonWindow>;
    /** one point per day, for the backlog chart */
@@ -354,7 +371,8 @@ function median(xs: number[]): number | null {
  * project and per person, plus a point per day and per week for the charts.
  * Every bucket satisfies backlog_start + opened - merged - closed =
  * backlog_end, the check the history rebuild used. A PR is counted under its
- * current project label, which is exact unless it moved between projects.
+ * project now (projectOf: its label, else the issues it links), which is
+ * exact unless it moved between projects.
  * Pass people's PRs only, and a valid start <= end. With `teamOf`, people
  * split into developers (on a team in config) and everyone else; with
  * `reviews`, each person's stamps given in the window are counted too.

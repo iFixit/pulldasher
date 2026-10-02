@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { issueUrl, pullKey, shortRepo } from '../../../../shared/format';
-import { STALL_DAYS } from '../../../../shared/model/decide';
+import { STALL_DAYS, type DecideRow } from '../../../../shared/model/decide';
 import { utcDay } from '../../../../shared/model/projects';
 import { planEnd } from '../../../../shared/model/roadmap';
 import {
@@ -44,6 +44,7 @@ import {
    type SortKey,
 } from '../../model/portfolio';
 import { dayOf, dayWords } from '../../model/projectData';
+import { useRoadmap } from '../../model/roadmapData';
 import {
    andList,
    BEING_WORKED_ON,
@@ -52,8 +53,9 @@ import {
    daysShort,
    devDays,
    LAST_14_DAYS,
+   NO_PLAN,
 } from '../../model/words';
-import { reasonWords } from './Decide';
+import { DecideCall, planRow, reasonWords } from './Decide';
 import {
    FlagWords,
    NarrowChip,
@@ -63,7 +65,6 @@ import {
    ProjectFacts,
    type FactLinks,
    SortHeader,
-   switchView,
    type Navigate,
    type ProjectsNav,
 } from './parts';
@@ -108,6 +109,8 @@ interface CellActions {
    openProject: (slug: string) => void;
    /** where a row's facts line goes: its lead and its related projects */
    factLinks: (item: PortfolioItem) => FactLinks;
+   /** open the row in place, on the calls it's asked: set by each row */
+   openDetail?: () => void;
 }
 
 const prWords = (pr: PrRef) => `${shortRepo(pr.repo)}#${pr.number} ${pr.title}`;
@@ -130,20 +133,20 @@ function targetCell(item: PortfolioItem): ReactNode {
 
 /** Calls Decide asks, in Decide's own words, as one sentence: "Is it
  * done?" already ends one. */
-function asked(asks: readonly Ask[]): string {
+function askedWords(asks: readonly Ask[]): string {
    // each reason is a sentence ending in its question
    const said = asks.map(a => reasonWords(a.reason, a.item)).join(' ');
    return /[.?!]$/.test(said) ? said : `${said}.`;
 }
 
 /** Whether the plan's own line in an opened row (PlanFacts) already says
- * what a call is about: that there's no plan, the plan's health and its
- * update, or its weeks past the end. Said once is enough, and that line's
- * link is then the one way to answer. */
+ * what a call is about: that there's no plan (or the one a call just made),
+ * the plan's health and its update, or its weeks past the end. Said once is
+ * enough, and the strip under it is the way to answer. */
 function toldByPlan(a: Ask, item: PortfolioItem): boolean {
+   if (a.reason.kind === 'new') return true;
    if ((a.item?.id ?? null) !== (item.plan?.id ?? null)) return false;
    switch (a.reason.kind) {
-      case 'new':
       case 'at_risk':
       case 'off_track':
          return true;
@@ -159,13 +162,7 @@ function toldByPlan(a: Ask, item: PortfolioItem): boolean {
 function planTitle(item: PortfolioItem): string {
    const plan = item.plan;
    if (item.asks.length) {
-      return `Decide asks: ${asked(item.asks)} Click to open ${
-         item.planCell.kind === 'issues_done'
-            ? 'the project page'
-            : item.planCell.planId != null
-            ? 'the plan'
-            : 'the work with no plan'
-      }.`;
+      return `Decide asks: ${askedWords(item.asks)} Click to make the call here.`;
    }
    if (plan) {
       const span = `${dayWords(plan.start)} to ${dayWords(planEnd(plan))}`;
@@ -174,10 +171,9 @@ function planTitle(item: PortfolioItem): string {
    return '';
 }
 
-/** The Plan cell's words as the link they are: the plan opens on the
- * roadmap, "All issues closed" opens the project page where they're
- * listed, and "No plan" opens the roadmap's work with no plan, where one
- * starts. A project an earlier band already showed draws them in ink, so
+/** The Plan cell's words as the link they are: a call Decide asks opens
+ * the row in place, on the calls that answer it, and a plan opens on the
+ * roadmap. A project an earlier band already showed draws them in ink, so
  * one call wears one amber mark. */
 function PlanButton({
    item,
@@ -193,8 +189,8 @@ function PlanButton({
    return (
       <FactLink
          onClick={() =>
-            cell.kind === 'issues_done'
-               ? act.openProject(item.slug)
+            item.asks.length && act.openDetail
+               ? act.openDetail()
                : cell.planId != null
                ? act.openPlan(cell.planId)
                : act.unplanned(item)
@@ -398,13 +394,14 @@ function workedOnWords(item: PortfolioItem, onPerson: (login: string) => void): 
    }`;
 }
 
-/** Everything a project row opens to: its facts and plan, what else Decide
- * asks of it, who worked on it lately, the open PR gone longest without
- * activity, and its PRs. Each fact is said once: the row's Plan cell names
- * the call, the plan's line says its state, and the Decide line only what
- * those two don't. */
+/** Everything a project row opens to: its facts and plan, the calls Decide
+ * asks of it, made right here, who worked on it lately, the open PR gone
+ * longest without activity, and its PRs. Each fact is said once: the row's
+ * Plan cell names the call, the plan's line says its state, and the Decide
+ * line only what those two don't. */
 function RowDetail({
    item,
+   calls,
    prefix,
    opts,
    nav,
@@ -414,6 +411,8 @@ function RowDetail({
    workers,
 }: {
    item: PortfolioItem;
+   /** its rows on Decide: asked, or answered here */
+   calls: readonly DecideRow[];
    prefix: string;
    opts: RowOptions;
    nav: ProjectsNav;
@@ -422,11 +421,18 @@ function RowDetail({
    links: FactLinks;
    workers: Workers;
 }) {
+   const { items: plans } = useRoadmap();
+   const whyId = useId();
    const stalest = item.stalest;
    const line = 'm-0 border-t border-secondary px-3.5 py-2 text-xs';
    // the band runs the row's width; its sentence stops at a readable length
    const prose = 'block max-w-[70ch]';
-   const untold = item.asks.filter(a => !toldByPlan(a, item));
+   // Decide's rows here, asked or answered here, and what of them the
+   // plan's line doesn't say
+   const asked = calls.filter(row => row.reasons.length);
+   const untold = asked
+      .flatMap(row => row.reasons.map(reason => ({ reason, item: row.item })))
+      .filter(a => !toldByPlan(a, item));
    return (
       <div className="border-t border-secondary bg-muted/30">
          <ProjectFacts
@@ -438,25 +444,44 @@ function RowDetail({
          >
             <PageLink g={item} navigate={navigate} />
          </ProjectFacts>
-         <PlanFacts slug={item.slug} nav={nav} navigate={navigate} live={item.status === 'live'} />
-         {untold.length > 0 && (
-            // the call in Decide's own words, and the way to make it; the
-            // row's Plan cell already carries its amber
-            <p className={`${line} text-ink-2`}>
-               <span className={prose}>
-                  Decide asks: {asked(untold)}{' '}
-                  <TextButton
-                     onClick={() =>
-                        navigate(
-                           { ...switchView('decide'), team: item.team ?? '(none)' },
-                           { push: true }
-                        )
-                     }
-                  >
-                     Make the call on Decide
-                  </TextButton>
-               </span>
-            </p>
+         {/* its plan, and the calls that change it, made right here: the
+             ones Decide asks, in its own words when the plan's line doesn't
+             say them, or else the plan's own; never amber, since the row's
+             Plan cell carries its one mark */}
+         {plans && (
+            <>
+               {item.plan ? (
+                  <PlanFacts
+                     slug={item.slug}
+                     nav={nav}
+                     navigate={navigate}
+                     live={item.status === 'live'}
+                  />
+               ) : (
+                  <p className={`${line} text-ink-3`}>{NO_PLAN}</p>
+               )}
+               {/* under the plan's line, as on its page, unless Decide asks
+                   what that line doesn't say */}
+               <div className={untold.length ? `${line} text-ink-2` : '-mt-2 px-3.5 pb-2 text-xs'}>
+                  {untold.length > 0 && (
+                     <span id={whyId} className={prose}>
+                        Decide asks: {askedWords(untold)}
+                     </span>
+                  )}
+                  {asked.length ? (
+                     asked.map(row => (
+                        <DecideCall
+                           key={`${row.slug ?? ''}:${row.item?.id ?? ''}`}
+                           row={row}
+                           project={item}
+                           describedBy={untold.length ? whyId : undefined}
+                        />
+                     ))
+                  ) : (
+                     <DecideCall row={planRow(item.slug, item.plan, calls)} project={item} />
+                  )}
+               </div>
+            </>
          )}
          {/* said once the days are in: before then "nobody" would be a guess */}
          {workers === 'loaded' && (
@@ -525,6 +550,7 @@ function RowDetail({
  */
 function PortfolioRow({
    item,
+   calls,
    prefix,
    columns,
    act,
@@ -535,6 +561,8 @@ function PortfolioRow({
    repeat,
 }: {
    item: PortfolioItem;
+   /** its rows on Decide: asked, or answered here */
+   calls: readonly DecideRow[];
    prefix: string;
    columns: Column[];
    act: CellActions;
@@ -549,6 +577,23 @@ function PortfolioRow({
    const [open, setOpen] = useState(false);
    const detailId = useId();
    const rowRef = useRef<HTMLDivElement>(null);
+   // the Plan cell's call opens the row on the answer that makes it
+   const toAnswer = useRef(false);
+   const focusAnswer = () =>
+      document.getElementById(detailId)?.querySelector<HTMLElement>('[data-decide-focus]')?.focus();
+   useEffect(() => {
+      if (!open || !toAnswer.current) return;
+      toAnswer.current = false;
+      focusAnswer();
+   });
+   const rowAct: CellActions = {
+      ...act,
+      openDetail: () => {
+         toAnswer.current = true;
+         if (open) focusAnswer();
+         else setOpen(true);
+      },
+   };
    // one Tab stop a row: every control but the name leaves the Tab order,
    // so a keyboard walks 40 rows in 40 stops, not 300
    useEffect(() => {
@@ -639,7 +684,7 @@ function PortfolioRow({
                      c.hide ?? ''
                   }`}
                >
-                  {c.cell(item, act, repeat)}
+                  {c.cell(item, rowAct, repeat)}
                </span>
             ))}
          </div>
@@ -648,6 +693,7 @@ function PortfolioRow({
                <div role="cell" aria-colspan={columns.length + 2}>
                   <RowDetail
                      item={item}
+                     calls={calls}
                      prefix={prefix}
                      opts={opts}
                      nav={nav}
@@ -747,6 +793,8 @@ const STUCK =
  */
 export function Portfolio({
    items,
+   placeOf = item => item,
+   calls,
    prefix,
    workers,
    nameOf,
@@ -758,6 +806,11 @@ export function Portfolio({
    me,
 }: {
    items: PortfolioItem[];
+   /** how a row is placed, found and counted: a row answered in place as it
+    * stood just before, so it keeps its place and its tab */
+   placeOf?: (item: PortfolioItem) => PortfolioItem;
+   /** Decide's rows still owed, and the ones answered in the list's rows */
+   calls: readonly DecideRow[];
    /** the project label prefix */
    prefix: string;
    workers: Workers;
@@ -794,11 +847,15 @@ export function Portfolio({
       ro.observe(bar);
       return () => ro.disconnect();
    }, []);
-   const narrowed = items.filter(i => matchesFind(i, nav.find) && matchesOnly(i, nav.only));
+   // placed by how they stood, drawn as they are
+   const now = new Map(items.map(i => [i.slug, i]));
+   const narrowed = items
+      .map(placeOf)
+      .filter(i => matchesFind(i, nav.find) && matchesOnly(i, nav.only));
    const shown = sortItems(
       narrowed.filter(i => matchesStatus(i, nav.status)),
       nav.sort
-   );
+   ).map(i => now.get(i.slug) ?? i);
    const groups = groupItems(shown, nav.group, nameOf, teams);
    // each tab counts what it would show with the find and a tile's pick, so
    // the tab that's on always says how many rows are below it
@@ -852,10 +909,13 @@ export function Portfolio({
          setTimeout(() => setCopied(false), 2000);
       });
    };
+   const callsOf = new Map<string, DecideRow[]>();
+   for (const r of calls) if (r.slug) callsOf.set(r.slug, [...(callsOf.get(r.slug) ?? []), r]);
    const row = (item: PortfolioItem, repeat = false) => (
       <PortfolioRow
          key={item.slug}
          item={item}
+         calls={callsOf.get(item.slug) ?? []}
          prefix={prefix}
          columns={columns}
          act={act}

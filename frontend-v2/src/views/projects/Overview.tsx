@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { n } from '../../../../shared/format';
 import { STALL_DAYS, type DecideRow } from '../../../../shared/model/decide';
 import type { Today } from '../../../../shared/model/projects';
@@ -38,10 +38,13 @@ import {
 } from '../../model/words';
 import { StatsCard } from '../stats/parts';
 import type { Bucket } from './charts';
+import { useCallsMadeHere } from './Decide';
 import { BucketChart, ChartSlot } from './lazyCharts';
 import { switchView, Tile, type Navigate, type ProjectsNav } from './parts';
 import { AS_OPENED, Portfolio } from './Portfolio';
 import { useWhoIsOnWhat, type WhoRow } from './WhoIsOnWhat';
+
+const NO_ROWS: DecideRow[] = [];
 
 /** Scroll a section of the page into view, under the sticky header. */
 const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ block: 'start' });
@@ -452,6 +455,18 @@ export function Overview({
       () => withCalls(rows ? withWorkers(items, peopleByProject(rows)) : items, decisions),
       [items, rows, decisions]
    );
+   // the calls owed, and the ones made in the list's rows since it opened
+   const calls = useCallsMadeHere(decisions ?? NO_ROWS);
+   // a row answered in place keeps its place, its tab and its receipt, as a
+   // row on Decide does: the list places it as it stood just before the
+   // call, while its cells say what's true now
+   const answered = new Set([...calls.settled.values()].map(m => m.row.slug));
+   const stood = useRef(new Map<string, PortfolioItem>());
+   useEffect(() => {
+      for (const item of listed) if (!answered.has(item.slug)) stood.current.set(item.slug, item);
+   });
+   const placeOf = (item: PortfolioItem) =>
+      (answered.has(item.slug) && stood.current.get(item.slug)) || item;
    // most projects first, then by login: the order People lists them in
    const overloaded = useMemo(
       () =>
@@ -493,6 +508,8 @@ export function Overview({
          />
          <Portfolio
             items={listed}
+            placeOf={placeOf}
+            calls={calls.all}
             prefix={prefix}
             workers={rows ? 'loaded' : who === null ? 'failed' : 'loading'}
             nameOf={nameOf}
@@ -527,7 +544,7 @@ export function Overview({
                <Fold
                   count={today.unsorted.length}
                   label={NOT_IN_A_PROJECT}
-                  gloss={`PRs with no ${prefix} label. Label one to count it toward a project.`}
+                  gloss={`PRs with no ${prefix} label that link none of a project’s issues. Label one, or link one of a project’s issues (“Parts of #N”), to count it there.`}
                   id="projects:unsorted"
                >
                   <FoldRows
@@ -539,8 +556,8 @@ export function Overview({
                </Fold>
                <Fold
                   count={today.doubleLabeled.length}
-                  label="Two project labels"
-                  gloss="A PR belongs to one project. These count under their first label until someone removes the other."
+                  label="In two projects"
+                  gloss="A PR counts in one project. These have two project labels, or no label and issues of two projects linked, and count under the first until someone sorts them out."
                   id="projects:double"
                >
                   <FoldRows

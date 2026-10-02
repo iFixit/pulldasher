@@ -103,6 +103,15 @@ describe('projectSlugs / projectOf', () => {
       expect(projectOf(labels('project:misc'), P)).toBe('misc');
       expect(projectOf(labels('security'), P)).toBeNull();
    });
+
+   it('with no real project label, takes the first project whose issue it links', () => {
+      // a label settles it
+      expect(projectOf(labels('project:zeta'), P, ['alpha'])).toBe('zeta');
+      expect(projectOf(labels('security'), P, ['alpha', 'beta'])).toBe('alpha');
+      // misc is for work with no project, so a link outranks it
+      expect(projectOf(labels('project:misc'), P, ['beta'])).toBe('beta');
+      expect(projectOf(labels(), P, [])).toBeNull();
+   });
 });
 
 describe('buildToday', () => {
@@ -120,6 +129,37 @@ describe('buildToday', () => {
          ['search', 1],
          ['workbench', 1],
       ]);
+   });
+
+   it('files a PR with no project label under the project whose issue it links', () => {
+      const labeled = open({ labels: ['project:workbench'] });
+      const linked = open({ labels: [] });
+      const oneOff = open({ labels: ['project:misc'] });
+      const two = open({ labels: [] });
+      const done = merged({ labels: [], daysAgo: 2 });
+      const key = (p: { repo: string; number: number }) => `${p.repo}#${p.number}`.toLowerCase();
+      const today = buildToday(
+         [project({ slug: 'workbench' }), project({ slug: 'search' })],
+         [labeled, linked, oneOff, two],
+         [done],
+         P,
+         NOW,
+         {
+            [key(labeled.data)]: ['search'],
+            [key(linked.data)]: ['workbench'],
+            [key(oneOff.data)]: ['workbench'],
+            [key(two.data)]: ['search', 'workbench'],
+            [key(done)]: ['workbench'],
+         }
+      );
+      const groups = Object.fromEntries(today.live.map(g => [g.slug, g]));
+      // its label wins over a link; with none, or only misc, the link counts
+      expect(groups.workbench.open).toEqual([labeled, linked, oneOff]);
+      expect(groups.workbench.merged).toEqual([done]);
+      // linking two projects' issues, it counts under the first and asks to be sorted
+      expect(groups.search.open).toEqual([two]);
+      expect(today.doubleLabeled).toEqual([two]);
+      expect([today.misc, today.unsorted]).toEqual([[], []]);
    });
 
    it('counts idle days from real work, not from a label edit that moved updated_at', () => {

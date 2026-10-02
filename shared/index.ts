@@ -58,6 +58,7 @@ export {
    checkRoadmapFields,
    checkRoadmapUpdate,
    isUnderWay,
+   issuePace,
    mondayOf,
    moveBefore,
    planEnd,

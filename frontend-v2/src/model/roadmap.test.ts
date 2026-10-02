@@ -8,13 +8,17 @@ import {
    checkRoadmapUpdate,
    endShift,
    healthStanding,
+   inProgress,
+   issuePace,
    mondayOf,
    moveBefore,
+   paceFinish,
    periodPlan,
    planEnd,
    planFor,
    ROADMAP_ORIGINS,
    updatesOwed,
+   type PlanLately,
    type RoadmapItem,
    type RoadmapUpdate,
    waitsOnProblem,
@@ -113,7 +117,7 @@ describe('updates', () => {
    });
 
    it('owes an update only on work in progress, after two weeks', () => {
-      const active = { status: 'active' as const, start: '2026-09-07', created_at: null };
+      const active = { status: 'active' as const, start: '2026-09-07', weeks: 4, created_at: null };
       expect(healthStanding({ ...active, update: null }, now).kind).toBe('missing');
       expect(healthStanding({ ...active, start: '2026-09-21', update: null }, now).kind).toBe(
          'quiet'
@@ -132,6 +136,81 @@ describe('updates', () => {
       expect(
          healthStanding({ ...active, created_at: now - 3 * 86400, update: null }, now).kind
       ).toBe('quiet');
+   });
+
+   // Sep 7, 8 weeks: it ends Nov 1
+   const going = { status: 'active' as const, start: '2026-09-07', weeks: 8, created_at: null };
+   const lately = (over: Partial<PlanLately> = {}): PlanLately => ({
+      merged: 2,
+      open: { ready: 0, hold: 0, review: 1, work: 1 },
+      activityAt: now - DAY,
+      issues: null,
+      ...over,
+   });
+
+   it('owes nothing while its PRs merge, inside its end and its issues’ pace', () => {
+      expect(healthStanding({ ...going, update: null, lately: lately() }, now)).toEqual({
+         kind: 'quiet',
+         vouch: { merged: 2, finish: null },
+      });
+      // the last update stays the word on it, with why none is owed now
+      expect(healthStanding({ ...going, update: update(20), lately: lately() }, now)).toEqual({
+         kind: 'current',
+         update: update(20),
+         vouch: { merged: 2, finish: null },
+      });
+      // 2 open, 3 closed and 1 added in four weeks: done in four weeks, Oct 28
+      const onPace = lately({ issues: { open: 2, closed: 3, added: 1 } });
+      expect(healthStanding({ ...going, update: null, lately: onPace }, now)).toMatchObject({
+         vouch: { finish: now + 28 * DAY },
+      });
+   });
+
+   it('owes one when its PRs didn’t merge, it’s past its end, or its issues finish late', () => {
+      const owes = (over: Partial<PlanLately>, item: Partial<typeof going> = {}) =>
+         healthStanding({ ...going, ...item, update: null, lately: lately(over) }, now).kind;
+      expect(owes({ merged: 0 })).toBe('missing');
+      expect(owes({}, { weeks: 2 })).toBe('missing');
+      // 4 open at one a week: Oct 28 is too late for an Oct 18 end
+      expect(owes({ issues: { open: 4, closed: 4, added: 0 } }, { weeks: 6 })).toBe('missing');
+      // arriving as fast as they close never finishes
+      expect(owes({ issues: { open: 2, closed: 3, added: 3 } })).toBe('missing');
+      // no pace to run on (none closed) leaves the merges to vouch
+      expect(owes({ issues: { open: 2, closed: 0, added: 2 } })).toBe('quiet');
+      expect(healthStanding({ ...going, update: update(20), lately: null }, now).kind).toBe(
+         'stale'
+      );
+   });
+
+   it('reads a plan still marked planned as in progress once its PRs moved after its start', () => {
+      const planned = { status: 'planned' as const, start: '2026-09-07', lately: lately() };
+      expect(inProgress(planned)).toBe(true);
+      expect(inProgress({ ...planned, lately: lately({ activityAt: now - 30 * DAY }) })).toBe(
+         false
+      );
+      expect(inProgress({ ...planned, lately: lately({ activityAt: null }) })).toBe(false);
+      expect(inProgress({ ...planned, lately: null })).toBe(false);
+      expect(inProgress({ ...planned, status: 'parked' })).toBe(false);
+      // so it owes updates as one marked in progress does
+      expect(
+         healthStanding({ ...going, ...planned, update: null, lately: lately({ merged: 0 }) }, now)
+            .kind
+      ).toBe('missing');
+   });
+
+   it('runs a project’s issues at the last four weeks’ pace', () => {
+      const issues = [
+         { state: 'open', closedAt: null, attachedAt: now - 3 * DAY },
+         { state: 'open', closedAt: null, attachedAt: null },
+         { state: 'done', closedAt: now - 2 * DAY, attachedAt: now - 60 * DAY },
+         { state: 'dropped', closedAt: now - 40 * DAY, attachedAt: now - 60 * DAY },
+      ];
+      expect(issuePace(issues, now)).toEqual({ open: 2, closed: 1, added: 1 });
+      // 3 open, one fewer a week: three weeks
+      expect(paceFinish({ open: 3, closed: 5, added: 1 }, now)).toBe(now + 21 * DAY);
+      expect(paceFinish({ open: 3, closed: 1, added: 1 }, now)).toBe(Infinity);
+      expect(paceFinish({ open: 3, closed: 0, added: 0 }, now)).toBeNull();
+      expect(paceFinish({ open: 0, closed: 4, added: 0 }, now)).toBeNull();
    });
 });
 
@@ -191,6 +270,22 @@ describe('updatesOwed', () => {
          ['dana', [[1, 'stale', 20]]],
          [null, [[5, 'missing', 121]]],
       ]);
+   });
+
+   it('leaves out a plan its numbers vouch for, the way every view does', () => {
+      const lately = { merged: 3, open: { ready: 0, hold: 0, review: 0, work: 1 } };
+      const owed = updatesOwed(
+         [
+            item(1, {
+               lead: 'dana',
+               update: update(20),
+               lately: { ...lately, activityAt: NOW, issues: null },
+            }),
+            item(2, { lead: 'dana', update: update(20) }),
+         ],
+         NOW
+      );
+      expect(owed.flatMap(o => o.owed.map(x => x.item.id))).toEqual([2]);
    });
 });
 

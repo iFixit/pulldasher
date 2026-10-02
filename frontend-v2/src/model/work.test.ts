@@ -234,14 +234,15 @@ describe('planWork', () => {
          ['tool', [pull(10, '2026-09-05'), pull(11, '2026-09-10')]],
       ]),
       unlabeled: [
-         // no label: joins by linking the project's issue in its body
+         // no label: in the project whose issue it links, as the server
+         // reads it off the issue's side
          pull(5, '2026-09-23', { links: [ref(100)] }),
-         // or by the issue's side naming it (a closing reference)
          pull(6, '2026-09-24'),
          // links nothing attached anywhere: no project's
          pull(7, '2026-09-24', { links: [ref(999)] }),
       ],
-      links: new Map([[key(100), [ref(6)]]]),
+      linked: { [key(5)]: ['workbench'], [key(6)]: ['workbench'] },
+      links: new Map([[key(100), [ref(5), ref(6)]]]),
    });
    const ids = (prs: WorkPull[]) => prs.map(p => p.number);
 
@@ -263,6 +264,18 @@ describe('planWork', () => {
       expect(ids(work[2].afterEnd)).toEqual([10, 11]);
       expect(ids(work[2].afterDone)).toEqual([11]);
       expect(ids(work[0].afterDone)).toEqual([]);
+   });
+
+   it('counts a PR that links two projects’ issues once, in the first, as every view does', () => {
+      const [first, second] = planWork({
+         plans: [plan(1, { project: 'alpha' }), plan(2, { project: 'beta' })],
+         attached: new Map(),
+         pulls: new Map(),
+         unlabeled: [pull(8, '2026-09-24')],
+         linked: { [key(8)]: ['alpha', 'beta'] },
+         links: new Map(),
+      });
+      expect([first.openPulls, second.openPulls]).toEqual([1, 0]);
    });
 
    it('counts from when it was marked done, not from a later edit', () => {
@@ -360,6 +373,7 @@ describe('projectWork', () => {
             ],
          ]),
          unlabeled: [pull(206, '2026-09-24', { links: [ref(101)] })],
+         linked: { [key(206)]: ['workbench'] },
          links: new Map([
             // from the issue's side: #200 again, and PRs the body doesn't say
             [key(100), [ref(200), ref(150)]],
@@ -395,6 +409,11 @@ describe('projectWork', () => {
          state: null,
       });
       expect(page.issues[1].prs[1]).toMatchObject({ title: 'Elsewhere', state: 'merged' });
+      // a PR the board knows that isn't this project's says so, for the counts
+      expect(page.issues[1].prs.map(p => [p.number, p.outside ?? false])).toEqual([
+         [206, false],
+         [208, true],
+      ]);
    });
 
    it('lists its PRs that link none of its issues: open ones first, then closed lately', () => {
@@ -441,10 +460,55 @@ describe('projectWork', () => {
          [100, ['labels', 'printing']],
          [101, []],
       ]);
-      // #300 is printing's: not suggested here, and the PR doing it says so
-      expect(shared.suggested.map(s => [s.number, s.alsoIn])).toEqual([[301, []]]);
+      // #300 is printing's: suggested here, never joining on its own, and
+      // the PR doing it says where it is
+      expect(shared.suggested.map(s => [s.number, s.alsoIn, s.joins])).toEqual([
+         [300, ['printing'], false],
+         [301, [], true],
+      ]);
       expect(shared.unlinked.map(p => [p.number, p.elsewhere])).toEqual([
          [200, [{ ref: ref(300), projects: ['printing'] }]],
+      ]);
+   });
+
+   it('lets an issue join on its own from a PR here by its label or its issues, alone', () => {
+      const page = projectWork(
+         {
+            plans: [],
+            attached: new Map([
+               ['workbench', [issue(100), issue(110, { via: ['link'], linkedBy: ref(200) })]],
+               ['printing', [issue(500)]],
+            ]),
+            pulls: new Map([
+               // its label, linking an issue taken off it too
+               ['workbench', [pull(200, '2026-09-25', { links: [ref(100), ref(301), ref(304)] })]],
+               ['printing', [pull(400, '2026-09-25', { links: [ref(500), ref(302)] })]],
+            ]),
+            unlabeled: [
+               // here only by #110, which a link brought: it brings no more
+               pull(201, '2026-09-26', { links: [ref(110), ref(303)] }),
+               // here by #100, but printing's PR links #302 too
+               pull(202, '2026-09-26', { links: [ref(100), ref(302)] }),
+            ],
+            linked: { [key(201)]: ['workbench'], [key(202)]: ['workbench'] },
+            links: new Map([
+               [key(100), [ref(200), ref(202)]],
+               [key(110), [ref(201)]],
+            ]),
+            removed: new Map([['workbench', new Set([key(304)])]]),
+         },
+         'workbench',
+         NOW
+      );
+      expect(page.suggested.map(s => [s.number, s.joins])).toEqual([
+         [301, true],
+         [303, false],
+         [302, false],
+      ]);
+      // one a link brought is an issue like any other, with its PRs
+      expect(page.issues.map(i => [i.ref.number, i.via, numbers(i.prs)])).toEqual([
+         [100, ['label'], [202, 200]],
+         [110, ['link'], [201]],
       ]);
    });
 
