@@ -151,3 +151,119 @@ test("parse lists workflow jobs once check runs are refused", async (t) => {
   }
   assert.equal(calls.filter((call) => call.endsWith("/check-runs")).length, 1);
 });
+
+test("getPullsToCompare reads both lists in one call, then only the one with more", async (t) => {
+  const node = (number, extra = {}) => ({
+    number,
+    updatedAt: "2026-09-28T00:00:00Z",
+    isDraft: false,
+    headRefOid: `sha${number}`,
+    labels: { nodes: [{ name: "size: S" }] },
+    comments: { totalCount: 2 },
+    reviews: { totalCount: 1 },
+    commits: {
+      nodes: [
+        {
+          commit: {
+            oid: `sha${number}`,
+            committedDate: "2026-09-27T00:00:00Z",
+          },
+        },
+      ],
+    },
+    ...extra,
+  });
+  const connection = (nodes, endCursor) => ({
+    pageInfo: { hasNextPage: Boolean(endCursor), endCursor },
+    nodes,
+  });
+  const asked = [];
+  fakeGithub(t, [
+    [
+      /^\/graphql$/,
+      ({ variables }) => {
+        asked.push(
+          `open ${variables.withOpen} ${variables.openCursor}, closed ${variables.withClosed}`
+        );
+        const repository = {};
+        if (variables.withOpen) {
+          repository.open = variables.openCursor
+            ? connection([
+                node(2, {
+                  commits: {
+                    nodes: [{ commit: { oid: "old", committedDate: "x" } }],
+                  },
+                }),
+              ])
+            : connection([node(1)], "c1");
+        }
+        if (variables.withClosed) {
+          // newest update first: #4 is older than the cutoff, so page 2 (empty
+          // here) is never asked for
+          repository.closed = variables.closedCursor
+            ? connection([])
+            : connection(
+                [
+                  {
+                    number: 3,
+                    updatedAt: "2026-09-27T00:00:00Z",
+                    closedAt: "2026-09-26T00:00:00Z",
+                  },
+                  {
+                    number: 4,
+                    updatedAt: "2026-09-01T00:00:00Z",
+                    closedAt: "2026-09-01T00:00:00Z",
+                  },
+                ],
+                "c2"
+              );
+        }
+        return { body: { data: { repository } } };
+      },
+    ],
+  ]);
+
+  const pulls = await gitManager.getPullsToCompare(
+    "test/repo-a",
+    new Date("2026-09-18T00:00:00Z")
+  );
+
+  assert.deepEqual(asked, [
+    "open true null, closed true",
+    "open true c1, closed false",
+  ]);
+  assert.deepEqual(pulls, [
+    {
+      repo: "test/repo-a",
+      number: 1,
+      state: "open",
+      updatedAt: "2026-09-28T00:00:00Z",
+      draft: false,
+      headSha: "sha1",
+      headCommittedAt: "2026-09-27T00:00:00Z",
+      labels: ["size: S"],
+      comments: 2,
+      reviews: 1,
+    },
+    {
+      repo: "test/repo-a",
+      number: 2,
+      state: "open",
+      updatedAt: "2026-09-28T00:00:00Z",
+      draft: false,
+      headSha: "sha2",
+      // the last commit listed isn't the head, so its date says nothing
+      headCommittedAt: null,
+      labels: ["size: S"],
+      comments: 2,
+      reviews: 1,
+    },
+    {
+      repo: "test/repo-a",
+      number: 3,
+      state: "closed",
+      updatedAt: "2026-09-27T00:00:00Z",
+      closedAt: "2026-09-26T00:00:00Z",
+    },
+  ]);
+});
