@@ -188,7 +188,10 @@ export function Legend() {
          </Group>
 
          <Group title="Keys">
-            <Item term={<Kbd>/</Kbd>} def="focus the filter" />
+            <Item
+               term={<Kbd>/</Kbd>}
+               def="focus the filter; on Projects, the view’s own find box"
+            />
             <Item
                term={
                   <>
@@ -203,6 +206,8 @@ export function Legend() {
                def="open the selected PR or project; on Decide, make the call"
             />
             <Item term={<Kbd>c</Kbd>} def="copy the selected branch name" />
+            <Item term={<Kbd>a</Kbd>} def="on a project’s page, add an issue" />
+            <Item term={<Kbd>u</Kbd>} def="on a project’s page, post an update" />
          </Group>
       </Popover>
    );

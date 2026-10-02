@@ -372,6 +372,13 @@ icon with a class bolted on.
   - **A new plan takes what its issue says**: its Start date, its Priority
     for its place, and a target still ahead as the outlined answer ("Through
     its target, Oct 21").
+- **Every save can be taken back, and nothing asks twice.** A plan's Save,
+  a Remove, a posted update and People's "Go back to config.js" each leave
+  a receipt where the click was, with Undo; a removed plan is kept, so its
+  Undo brings back its updates, place and waits. "/" finds within the
+  Overview, Roadmap and People; on a project's page "a" adds an issue and
+  "u" posts an update. A new plan opens with its name and end, the rest
+  behind More.
 - **A call is made where it's seen.** The call strip sits under a project
   page's Plan line for any project and in an Overview row's details, and
   each Decide section answers every row at once ("Commit all 52 through the

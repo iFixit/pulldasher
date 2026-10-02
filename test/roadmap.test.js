@@ -27,9 +27,12 @@ function fakeUpdatesQuery(sql, params) {
       updates.push(row);
       return { insertId: row.id, affectedRows: 1 };
    }
+   if (sql.startsWith('SELECT `created_by` FROM `roadmap_updates`')) {
+      return updates.filter(u => u.id === params[0] && u.item_id === params[1]);
+   }
    if (sql.startsWith('DELETE FROM `roadmap_updates`')) {
       const before = updates.length;
-      updates = updates.filter(u => u.item_id !== params[0]);
+      updates = updates.filter(u => u.id !== params[0]);
       return { affectedRows: before - updates.length };
    }
    if (sql.includes('MAX(`id`)')) {
@@ -51,21 +54,34 @@ function fakeQuery(sql, params = []) {
    if (sql.includes('`roadmap_updates`')) return fakeUpdatesQuery(sql, params);
    const byOrder = () =>
       [...rows].sort((a, b) => a.priority - b.priority || a.id - b.id);
+   // a statement about the items on the roadmap leaves out the removed ones
+   const kept = r => !sql.includes('`removed_at` IS NULL') || r.removed_at == null;
    if (sql.startsWith('SELECT MAX(`priority`)')) {
       return [{ top: rows.length ? Math.max(...rows.map(r => r.priority)) : null }];
    }
    if (sql.startsWith('SELECT') && sql.includes('WHERE `id` = ?')) {
-      return rows.filter(r => r.id === params[0]);
+      return rows.filter(r => r.id === params[0] && kept(r));
    }
-   if (sql.startsWith('SELECT')) return byOrder();
+   if (sql.startsWith('SELECT')) return byOrder().filter(kept);
    if (sql.startsWith('INSERT INTO `roadmap_items` SET ?')) {
       const row = { id: nextId++, ...params[0] };
       rows.push(row);
       return { insertId: row.id, affectedRows: 1 };
    }
    if (sql.startsWith('UPDATE `roadmap_items` SET ? WHERE `id` = ?')) {
-      const row = rows.find(r => r.id === params[1]);
+      const row = rows.find(r => r.id === params[1] && kept(r));
       if (row) Object.assign(row, params[0]);
+      return { affectedRows: row ? 1 : 0 };
+   }
+   // removing stamps when, putting back clears it
+   if (sql.startsWith('UPDATE `roadmap_items` SET `removed_at` = ?')) {
+      const row = rows.find(r => r.id === params[1] && r.removed_at == null);
+      if (row) row.removed_at = params[0];
+      return { affectedRows: row ? 1 : 0 };
+   }
+   if (sql.startsWith('UPDATE `roadmap_items` SET `removed_at` = NULL')) {
+      const row = rows.find(r => r.id === params[0] && r.removed_at != null);
+      if (row) row.removed_at = null;
       return { affectedRows: row ? 1 : 0 };
    }
    if (sql.startsWith('UPDATE `roadmap_items` SET `priority` = CASE')) {
@@ -74,11 +90,6 @@ function fakeQuery(sql, params = []) {
          rows.find(r => r.id === pairs[i]).priority = pairs[i + 1];
       }
       return { affectedRows: pairs.length / 2 };
-   }
-   if (sql.startsWith('DELETE FROM `roadmap_items`')) {
-      const before = rows.length;
-      rows = rows.filter(r => r.id !== params[0]);
-      return { affectedRows: before - rows.length };
    }
    throw new Error(`unexpected query: ${sql}`);
 }
@@ -103,6 +114,7 @@ function makeApp() {
    app.delete('/roadmap/:id', canWrite, roadmapController.remove);
    app.get('/roadmap/:id/updates', roadmapController.updates);
    app.post('/roadmap/:id/updates', canWrite, roadmapController.postUpdate);
+   app.delete('/roadmap/:id/updates/:update', canWrite, roadmapController.removeUpdate);
    app.get('/roadmap/:id', roadmapController.get);
    app.post('/roadmap/:id/move', canWrite, roadmapController.move);
    return app;
@@ -351,25 +363,68 @@ test('waits_on is stored as ids and refuses a loop', async () => {
    assert.equal(rows.find(r => r.id === b.id).waits_on, null);
 });
 
-test('deleting an item takes it off what others wait on', async () => {
+test('a removed item is off what others wait on until it’s put back', async () => {
    const a = (await call('POST', '/roadmap', { name: 'A' })).body.item;
    const b = (await call('POST', '/roadmap', { name: 'B' })).body.item;
    const c = (await call('POST', '/roadmap', { name: 'C', waits_on: [a.id, b.id] })).body.item;
    await call('DELETE', `/roadmap/${a.id}`, undefined, {});
    const after = (await call('GET', `/roadmap/${c.id}`, undefined, {})).body.item;
    assert.deepEqual(after.waits_on, [b.id]);
-   // and it saves again
-   assert.equal((await call('PATCH', `/roadmap/${c.id}`, { waits_on: after.waits_on })).status, 200);
+   // and it saves again, and nothing new can wait on the removed one
+   assert.equal((await call('PATCH', `/roadmap/${c.id}`, { notes: 'x' })).status, 200);
+   assert.equal((await call('PATCH', `/roadmap/${b.id}`, { waits_on: [a.id] })).status, 400);
+   await call('PATCH', `/roadmap/${a.id}`, { restore: true });
+   const back = (await call('GET', `/roadmap/${c.id}`, undefined, {})).body.item;
+   assert.deepEqual(back.waits_on, [a.id, b.id]);
 });
 
-test('delete removes the item and its updates', async () => {
-   const { body } = await call('POST', '/roadmap', { name: 'Gone soon' });
-   await call('POST', `/roadmap/${body.item.id}/updates`, { health: 'off_track' });
-   const res = await call('DELETE', `/roadmap/${body.item.id}`, undefined, {});
-   assert.equal(res.status, 200);
-   assert.equal(updates.length, 0);
-   assert.equal((await call('GET', '/roadmap', undefined, {})).body.items.length, 0);
-   assert.equal((await call('DELETE', `/roadmap/${body.item.id}`, undefined, {})).status, 404);
+test('removing keeps the item and its updates, and restore puts it back in its place', async () => {
+   const ids = [];
+   for (const name of ['A', 'B', 'C']) ids.push((await call('POST', '/roadmap', { name })).body.item.id);
+   const b = ids[1];
+   await call('POST', `/roadmap/${b}/updates`, { health: 'off_track', body: 'Stuck.' });
+   const was = rows.find(r => r.id === b);
+   const times = { updated_at: was.updated_at, status_at: was.status_at };
+   assert.equal((await call('DELETE', `/roadmap/${b}`, undefined, {})).status, 200);
+   assert.equal(updates.length, 1);
+   const names = async () => (await call('GET', '/roadmap', undefined, {})).body.items.map(i => i.name);
+   assert.deepEqual(await names(), ['A', 'C']);
+   // gone from every door until it's back
+   assert.equal((await call('GET', `/roadmap/${b}`, undefined, {})).status, 404);
+   assert.equal((await call('PATCH', `/roadmap/${b}`, { weeks: 3 })).status, 404);
+   assert.equal((await call('POST', `/roadmap/${b}/updates`, { health: 'on_track' })).status, 404);
+   assert.equal((await call('DELETE', `/roadmap/${b}`, undefined, {})).status, 404);
+   const back = await call('PATCH', `/roadmap/${b}`, { restore: true });
+   assert.equal(back.status, 200);
+   assert.equal(back.body.item.update.body, 'Stuck.');
+   assert.deepEqual(
+      { updated_at: back.body.item.updated_at, status_at: back.body.item.status_at },
+      times
+   );
+   assert.deepEqual(await names(), ['A', 'B', 'C']);
+   // only a removed item can be put back
+   assert.equal((await call('PATCH', `/roadmap/${b}`, { restore: true })).status, 404);
+});
+
+test('an update’s author can take it back; the one before is the latest again', async () => {
+   const { body } = await call('POST', '/roadmap', { name: 'Search' });
+   const id = body.item.id;
+   const first = (await call('POST', `/roadmap/${id}/updates`, { health: 'on_track' })).body.update;
+   const second = (await call('POST', `/roadmap/${id}/updates`, { health: 'at_risk' })).body.update;
+   const theirs = await call('DELETE', `/roadmap/${id}/updates/${second.id}`, undefined, {
+      Authorization: 'Bearer carol',
+   });
+   assert.equal(theirs.status, 403);
+   const back = await call('DELETE', `/roadmap/${id}/updates/${second.id}`, undefined, {});
+   assert.equal(back.status, 200);
+   assert.equal(back.body.update.id, first.id);
+   const [item] = (await call('GET', '/roadmap', undefined, {})).body.items;
+   assert.equal(item.update.health, 'on_track');
+   assert.equal((await call('DELETE', `/roadmap/${id}/updates/${second.id}`, undefined, {})).status, 404);
+   // the last one gone leaves none
+   const none = await call('DELETE', `/roadmap/${id}/updates/${first.id}`, undefined, {});
+   assert.equal(none.body.update, null);
+   assert.equal((await call('DELETE', `/roadmap/${id}/updates/x`, undefined, {})).status, 400);
 });
 
 test('an order naming every item rewrites the priorities; a stale one is a 409', async () => {

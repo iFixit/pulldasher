@@ -40,7 +40,8 @@ interface RoadmapState {
 
 const store = createMemoryStore<RoadmapState>({ items: null, loadFailed: false, problem: null });
 
-const byPriority = (items: RoadmapItem[]) =>
+/** Items in the roadmap's order: by priority, the older first on a tie. */
+export const byPriority = (items: readonly RoadmapItem[]) =>
    [...items].sort((a, b) => a.priority - b.priority || a.id - b.id);
 
 /**
@@ -65,9 +66,13 @@ interface Api {
       undo?: UndoTimes
    ) => Promise<Reply>;
    remove: (id: number) => Promise<Reply>;
+   /** a removed item back as it was: Remove's Undo */
+   restore: (id: number) => Promise<Reply>;
    reorder: (ids: number[]) => Promise<Reply>;
    updates: (id: number) => Promise<Reply>;
    postUpdate: (id: number, fields: UpdateFields) => Promise<Reply>;
+   /** an update its author just posted, taken back */
+   removeUpdate: (id: number, updateId: number) => Promise<Reply>;
 }
 
 type UpdateFields = { health: RoadmapHealth; body: string };
@@ -101,9 +106,11 @@ function liveApi(): Api {
             ...(undo ? { undo } : {}),
          }),
       remove: id => send('DELETE', `/roadmap/${id}`),
+      restore: id => send('PATCH', `/roadmap/${id}`, { restore: true }),
       reorder: ids => send('PUT', '/roadmap/order', { ids }),
       updates: id => send('GET', `/roadmap/${id}/updates`),
       postUpdate: (id, fields) => send('POST', `/roadmap/${id}/updates`, fields),
+      removeUpdate: (id, updateId) => send('DELETE', `/roadmap/${id}/updates/${updateId}`),
    };
 }
 
@@ -194,9 +201,17 @@ async function dummyLately(plans: readonly RoadmapItem[]): Promise<Map<string, P
 /** The dummy board's stand-in for the server: the same checks, a table in
  * memory, gone on reload. */
 function dummyApi(): Api {
-   let rows = DUMMY_ROADMAP.map(item => ({ ...item }));
+   const rows = DUMMY_ROADMAP.map(item => ({ ...item }));
    let nextId = Math.max(0, ...rows.map(r => r.id)) + 1;
    let updates = DUMMY_ROADMAP_UPDATES.map(u => ({ ...u }));
+   // removed plans keep their rows and updates until Undo puts them back,
+   // left off what others wait on meanwhile, as on the server
+   const removed = new Set<number>();
+   const live = () =>
+      rows
+         .filter(r => !removed.has(r.id))
+         .map(r => ({ ...r, waits_on: r.waits_on.filter(other => !removed.has(other)) }));
+   const rowOf = (id: number) => rows.find(r => r.id === id && !removed.has(id));
    const ok = (json: Record<string, unknown>, status = 200) => Promise.resolve({ status, json });
    const bad = (error: string, status = 400) => ok({ error }, status);
    // stamped at each write, the way the server does: the Decide queue
@@ -209,16 +224,20 @@ function dummyApi(): Api {
    // later write change rows the page already held, under React's feet;
    // each with what its project did lately, as the server sends it
    const sent = async (items: readonly RoadmapItem[]) => {
-      const bySlug = await dummyLately(rows);
-      return items.map(r => ({ ...r, lately: (r.project && bySlug.get(r.project)) || null }));
+      const bySlug = await dummyLately(live());
+      return items.map(r => ({
+         ...r,
+         waits_on: r.waits_on.filter(other => !removed.has(other)),
+         lately: (r.project && bySlug.get(r.project)) || null,
+      }));
    };
    return {
-      list: async () => ok({ items: await sent(byPriority(rows)) }),
+      list: async () => ok({ items: await sent(byPriority(live())) }),
       create: async fields => {
          const checked = checkRoadmapFields(fields, { partial: false });
          if ('error' in checked) return bad(checked.error);
          const f = checked.fields;
-         const loop = f.waits_on && waitsOnProblem(null, f.waits_on, rows);
+         const loop = f.waits_on && waitsOnProblem(null, f.waits_on, live());
          if (loop) return bad(loop);
          // its project's issue says when it starts, when nobody did
          const issue = DUMMY_PROJECTS.find(p => p.slug === f.project)?.fields;
@@ -244,7 +263,7 @@ function dummyApi(): Api {
          };
          rows.push(item);
          // and where it goes, by its Priority
-         placedByPriority(byPriority(rows), item.id, DUMMY_PROJECTS).forEach((id, i) => {
+         placedByPriority(byPriority(live()), item.id, DUMMY_PROJECTS).forEach((id, i) => {
             const row = rows.find(r => r.id === id);
             if (row) row.priority = i;
          });
@@ -253,9 +272,10 @@ function dummyApi(): Api {
       update: async (id, fields, restate, undo) => {
          const checked = checkRoadmapFields(fields, { partial: true });
          if ('error' in checked) return bad(checked.error);
-         const loop = checked.fields.waits_on && waitsOnProblem(id, checked.fields.waits_on, rows);
+         const loop =
+            checked.fields.waits_on && waitsOnProblem(id, checked.fields.waits_on, live());
          if (loop) return bad(loop);
-         const row = rows.find(r => r.id === id);
+         const row = rowOf(id);
          if (!row) return bad('no such roadmap item', 404);
          // when it stopped is when its status changed (or a call restated
          // it), not its last edit
@@ -267,18 +287,20 @@ function dummyApi(): Api {
          return ok({ item: (await sent([row]))[0] });
       },
       remove: id => {
-         const before = rows.length;
-         rows = rows
-            .filter(r => r.id !== id)
-            .map(r => ({ ...r, waits_on: r.waits_on.filter(other => other !== id) }));
-         updates = updates.filter(u => u.item_id !== id);
-         return rows.length < before ? ok({ ok: true }) : bad('no such roadmap item', 404);
+         if (!rowOf(id)) return bad('no such roadmap item', 404);
+         removed.add(id);
+         return ok({ ok: true });
+      },
+      restore: async id => {
+         const row = rows.find(r => r.id === id);
+         if (!row || !removed.delete(id)) return bad('no removed roadmap item by that id', 404);
+         return ok({ item: (await sent([row]))[0] });
       },
       updates: id => ok({ updates: updates.filter(u => u.item_id === id).reverse() }),
       postUpdate: (id, fields) => {
          const checked = checkRoadmapUpdate(fields);
          if ('error' in checked) return bad(checked.error);
-         const row = rows.find(r => r.id === id);
+         const row = rowOf(id);
          if (!row) return bad('no such roadmap item', 404);
          const update: RoadmapUpdate = {
             id: Math.max(0, ...updates.map(u => u.id)) + 1,
@@ -293,12 +315,25 @@ function dummyApi(): Api {
          row.update = update;
          return ok({ update }, 201);
       },
+      removeUpdate: (id, updateId) => {
+         const gone = updates.find(u => u.id === updateId && u.item_id === id);
+         if (!gone) return bad('no such update on that item', 404);
+         if (gone.author !== touch().updated_by) {
+            return bad('only the person who posted an update can take it back', 403);
+         }
+         updates = updates.filter(u => u !== gone);
+         // kept oldest first, so the item's latest is its last
+         const update = updates.filter(u => u.item_id === id).at(-1) ?? null;
+         const row = rows.find(r => r.id === id);
+         if (row) row.update = update;
+         return ok({ update });
+      },
       reorder: async ids => {
          ids.forEach((id, i) => {
             const row = rows.find(r => r.id === id);
             if (row) row.priority = i;
          });
-         return ok({ items: await sent(byPriority(rows)) });
+         return ok({ items: await sent(byPriority(live())) });
       },
    };
 }
@@ -318,8 +353,10 @@ function failing(inner: Api): Api {
          create: down,
          update: down,
          remove: down,
+         restore: down,
          reorder: down,
          postUpdate: down,
+         removeUpdate: down,
       };
    return inner;
 }
@@ -424,8 +461,10 @@ export async function updateRoadmapItem(
    return true;
 }
 
+/** Take an item off the roadmap. The server keeps it, so restoreRoadmapItem
+ * can put it back. */
 export async function removeRoadmapItem(id: number): Promise<boolean> {
-   // the server takes it off what other items wait on; so does the screen
+   // the server leaves it off what other items wait on; so does the screen
    const undo = optimistic(items =>
       items
          .filter(i => i.id !== id)
@@ -435,6 +474,20 @@ export async function removeRoadmapItem(id: number): Promise<boolean> {
    );
    const reply = await api.remove(id).catch((): Reply => ({ status: 0, json: {} }));
    return settle(reply, 'remove the plan', undo);
+}
+
+/** Put a removed item back as it was (Remove's Undo): its updates and its
+ * place come with it, and what waited on it with the load that follows. */
+export async function restoreRoadmapItem(id: number): Promise<boolean> {
+   writes++;
+   const reply = await api.restore(id).catch((): Reply => ({ status: 0, json: {} }));
+   // nothing was shown early, so there's nothing to take back
+   if (!settle(reply, 'put the plan back', () => undefined)) return false;
+   const item = shown(reply.json.item as RoadmapItem);
+   const others = (store.get().items ?? []).filter(i => i.id !== id);
+   store.set({ ...store.get(), items: byPriority([...others, item]) });
+   void loadRoadmap();
+   return true;
 }
 
 /** Put the items in this order, top first; resolves to whether it saved. If
@@ -475,6 +528,24 @@ export async function postRoadmapUpdate(
    const reply = await api.postUpdate(id, fields).catch((): Reply => ({ status: 0, json: {} }));
    if (reply.status !== 201) return { error: problemOf(reply, 'post the update') };
    const update = reply.json.update as RoadmapUpdate;
+   store.set({
+      ...store.get(),
+      items: (store.get().items ?? []).map(i => (i.id === id ? { ...i, update } : i)),
+   });
+   return { update };
+}
+
+/** Take back an update just posted (its Undo): the one before it is the
+ * item's latest again everywhere the roadmap shows. A refusal comes back in
+ * words. */
+export async function takeBackRoadmapUpdate(
+   id: number,
+   updateId: number
+): Promise<{ update: RoadmapUpdate | null } | { error: string }> {
+   writes++;
+   const reply = await api.removeUpdate(id, updateId).catch((): Reply => ({ status: 0, json: {} }));
+   if (reply.status !== 200) return { error: problemOf(reply, 'take the update back') };
+   const update = (reply.json.update as RoadmapUpdate | null) ?? null;
    store.set({
       ...store.get(),
       items: (store.get().items ?? []).map(i => (i.id === id ? { ...i, update } : i)),

@@ -251,11 +251,14 @@ curl -s -H "Authorization: Bearer $(gh auth token)" https://pulldasher.example.c
 - `GET /api/v1/roadmap` and `GET /api/v1/roadmap/:id`: the items in
   priority order, or one, each with its latest update.
 - `POST /api/v1/roadmap`, `PATCH` and `DELETE /api/v1/roadmap/:id`: add,
-  change or remove an item. `POST /api/v1/roadmap/:id/move` with
+  change or remove an item. A removed item is kept, out of every list, and
+  `PATCH` with `{"restore": true}` puts it back with its updates, place and
+  waits. `POST /api/v1/roadmap/:id/move` with
   `{"before": <id>}` (or `null` for the bottom) moves one item without
   sending the whole order; `PUT /api/v1/roadmap/order` sets the whole order.
 - `GET` and `POST /api/v1/roadmap/:id/updates`: an item's updates, or a new
-  one, `{"health": "at_risk", "body": "..."}`.
+  one, `{"health": "at_risk", "body": "..."}`. `DELETE
+  /api/v1/roadmap/:id/updates/:update` takes one back; only its author can.
 - `GET` and `PATCH /api/v1/settings`: the developer teams and whether
   they're saved or `config.js`'s. `{"developer_teams": {"Store": ["dana"]}}`
   replaces them; `null` goes back to `config.js`.

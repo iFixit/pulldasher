@@ -4,13 +4,15 @@ import { loadProjects, projectSettings, todayFromBoard } from '../lib/projects.j
 import {
    addUpdate,
    createItem,
-   deleteItem,
+   deleteUpdate,
    getItem,
    latelyBySlug,
    listItems,
    listUpdates,
    moveItem,
+   removeItem,
    reorderItems,
+   restoreItem,
    updateItem,
 } from '../lib/roadmap.js';
 import { getOrSet } from '../lib/ttl-cache.js';
@@ -250,10 +252,24 @@ export default {
    /** PATCH /roadmap/:id with any of the item's fields -- changes just those.
     * `restate: true` says a status sent as it already was is a call made
     * again; `undo: { updated_at, status_at }` puts back the times a call
-    * replaced. */
+    * replaced. `restore: true`, alone, puts back an item removed by mistake
+    * (Remove's Undo), as it was. */
    update: function (req, res) {
       const id = idOf(req);
       if (!id) return res.status(400).json({ error: 'the id must be a positive whole number' });
+      if (req.body?.restore === true) {
+         return restoreItem(id)
+            .then(sentOne)
+            .then(item =>
+               item
+                  ? res.json({ item })
+                  : res.status(404).json({ error: 'no removed roadmap item by that id' })
+            )
+            .catch(err => {
+               console.error('roadmap restore failed:', err);
+               res.status(500).json({ error: 'roadmap restore failed' });
+            });
+      }
       const checked = checkRoadmapFields(req.body, { partial: true });
       if (checked.error) return res.status(400).json({ error: checked.error });
       waitsOnError(id, checked.fields)
@@ -272,11 +288,12 @@ export default {
          });
    },
 
-   /** DELETE /roadmap/:id -- removes the item. */
+   /** DELETE /roadmap/:id -- takes the item off the roadmap. Its row and
+    * updates are kept, so PATCH with `restore: true` puts it back. */
    remove: function (req, res) {
       const id = idOf(req);
       if (!id) return res.status(400).json({ error: 'the id must be a positive whole number' });
-      deleteItem(id)
+      removeItem(id)
          .then(gone =>
             gone ? res.json({ ok: true }) : res.status(404).json({ error: 'no such roadmap item' })
          )
@@ -316,6 +333,36 @@ export default {
          .catch(err => {
             console.error('roadmap update post failed:', err);
             res.status(500).json({ error: 'roadmap update post failed' });
+         });
+   },
+
+   /**
+    * DELETE /roadmap/:id/updates/:update -- takes back an update the caller
+    * posted (the Undo beside a post): 200 with the item's latest update now,
+    * the one before it, or null. 403 for someone else's update; 404 when
+    * the item has no such update.
+    */
+   removeUpdate: function (req, res) {
+      const id = idOf(req);
+      const updateId = Number(req.params.update);
+      if (!id || !Number.isInteger(updateId) || updateId <= 0) {
+         return res.status(400).json({ error: 'the ids must be positive whole numbers' });
+      }
+      deleteUpdate(id, updateId, req.roadmapLogin)
+         .then(result => {
+            if (result.missing) {
+               return res.status(404).json({ error: 'no such update on that item' });
+            }
+            if (result.notYours) {
+               return res
+                  .status(403)
+                  .json({ error: 'only the person who posted an update can take it back' });
+            }
+            res.json({ update: result.latest });
+         })
+         .catch(err => {
+            console.error('roadmap update delete failed:', err);
+            res.status(500).json({ error: 'roadmap update delete failed' });
          });
    },
 

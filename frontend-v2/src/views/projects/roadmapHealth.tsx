@@ -24,7 +24,12 @@ import {
 import { PrimaryButton, Segmented, TextButton } from '../../components/bits';
 import { dayOf, dayWords, useProjectsData } from '../../model/projectData';
 import type { LoadWeek } from '../../../../shared/model/load';
-import { loadRoadmapUpdates, postRoadmapUpdate, useRoadmap } from '../../model/roadmapData';
+import {
+   loadRoadmapUpdates,
+   postRoadmapUpdate,
+   takeBackRoadmapUpdate,
+   useRoadmap,
+} from '../../model/roadmapData';
 import { draftUpdate } from '../../model/updateDraft';
 import {
    BEING_WORKED_ON,
@@ -564,7 +569,9 @@ export function UpdatesPanel({
    const [body, setBody] = useState(draft?.body ?? '');
    const [posting, setPosting] = useState(false);
    const [error, setError] = useState<string | null>(null);
-   const [posted, setPosted] = useState(false);
+   // the update just posted, so its Undo can take it back
+   const [posted, setPosted] = useState<RoadmapUpdate | null>(null);
+   const [tookBack, setTookBack] = useState(false);
    const box = useRef<HTMLTextAreaElement>(null);
    const asDrafted = !!draft && health === draft.health && body === draft.body;
    useEffect(() => {
@@ -591,8 +598,22 @@ export function UpdatesPanel({
       if ('error' in result) return setError(result.error);
       setError(null);
       setBody('');
-      setPosted(true);
+      setPosted(result.update);
+      setTookBack(false);
       setHistory(h => [result.update, ...(Array.isArray(h) ? h : [])]);
+   };
+   // Undo where Post was: the update goes, and its words come back to the
+   // box, as if it was never posted
+   const takeBack = async () => {
+      if (!posted) return;
+      const result = await takeBackRoadmapUpdate(item.id, posted.id);
+      if ('error' in result) return setError(result.error);
+      setError(null);
+      setHistory(h => (Array.isArray(h) ? h.filter(u => u.id !== posted.id) : h));
+      setBody(posted.body);
+      setHealth(posted.health);
+      setPosted(null);
+      setTookBack(true);
    };
    const list = Array.isArray(history) ? history : [];
    return (
@@ -636,7 +657,8 @@ export function UpdatesPanel({
                maxLength={2000}
                onChange={e => {
                   setBody(e.target.value);
-                  setPosted(false);
+                  setPosted(null);
+                  setTookBack(false);
                }}
                placeholder="What changed, what’s in the way, what’s next"
             />
@@ -647,7 +669,16 @@ export function UpdatesPanel({
                </PrimaryButton>
                {/* the result, where the click was, and read out */}
                <span role="status" className="text-xs text-ink-2">
-                  {error ?? (posted ? 'Posted.' : '')}
+                  {error ??
+                     (posted ? (
+                        <>
+                           Posted. <TextButton onClick={() => void takeBack()}>Undo</TextButton>
+                        </>
+                     ) : tookBack ? (
+                        'Took the update back.'
+                     ) : (
+                        ''
+                     ))}
                </span>
                {actions && <span className="ml-auto flex items-center gap-3">{actions}</span>}
             </div>

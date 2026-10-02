@@ -121,6 +121,62 @@ describe('the roadmap store', () => {
       expect(data.readRoadmap().items?.[1].waits_on).toEqual([1]);
       expect(data.readRoadmap().problem).toMatch(/nope/);
    });
+
+   it('puts a removed item back in its place, and what waited on it with the next load', async () => {
+      const { answer } = scriptedFetch();
+      const data = await load();
+      const first = data.loadRoadmap();
+      answer({ items: [item(1), item(2, { waits_on: [1] }), item(3)] });
+      await first;
+      const remove = data.removeRoadmapItem(1);
+      answer({ ok: true });
+      await remove;
+      const restore = data.restoreRoadmapItem(1);
+      const [path, init] = vi.mocked(fetch).mock.calls[2];
+      expect([path, init?.method, JSON.parse(String(init?.body))]).toEqual([
+         '/roadmap/1',
+         'PATCH',
+         { restore: true },
+      ]);
+      answer({ item: item(1) });
+      expect(await restore).toBe(true);
+      expect(data.readRoadmap().items?.map(i => i.id)).toEqual([1, 2, 3]);
+      // the load it asks for brings back what waited on it
+      answer({ items: [item(1), item(2, { waits_on: [1] }), item(3)] });
+      await settled();
+      expect(data.readRoadmap().items?.[1].waits_on).toEqual([1]);
+   });
+
+   it('takes back an update just posted, and the one before is the latest again', async () => {
+      const { answer } = scriptedFetch();
+      const data = await load();
+      const update = (id: number) => ({
+         id,
+         item_id: 1,
+         health: 'on_track' as const,
+         body: '',
+         plan_start: '2026-09-28',
+         plan_weeks: 4,
+         author: 'alice',
+         at: id,
+      });
+      const first = data.loadRoadmap();
+      answer({ items: [item(1, { update: update(7) })] });
+      await first;
+      const back = data.takeBackRoadmapUpdate(1, 7);
+      const [path, init] = vi.mocked(fetch).mock.calls[1];
+      expect([path, init?.method]).toEqual(['/roadmap/1/updates/7', 'DELETE']);
+      answer({ update: update(6) });
+      expect(await back).toEqual({ update: update(6) });
+      expect(data.readRoadmap().items?.[0].update?.id).toBe(6);
+      // a refusal comes back in words, and changes nothing
+      const theirs = data.takeBackRoadmapUpdate(1, 6);
+      answer({ error: 'only the person who posted an update can take it back' }, 403);
+      expect(await theirs).toEqual({
+         error: 'Couldn’t take the update back: only the person who posted an update can take it back.',
+      });
+      expect(data.readRoadmap().items?.[0].update?.id).toBe(6);
+   });
 });
 
 describe('what fills itself in', () => {

@@ -21,9 +21,11 @@ import type { PullData } from '../../../../shared/types';
 import { EmptyState, FactLink, LoadFailed, TextButton } from '../../components/bits';
 import { foldDomId, openFold, SubDoor } from '../../components/Lane';
 import type { RowOptions } from '../../components/Row';
+import { usePageKey } from '../../hooks';
 import { dayOf, dayWords, type ProjectsData, type Range } from '../../model/projectData';
 import { stageWord, type PortfolioItem } from '../../model/portfolio';
 import { reloadProjectWork, useProjectWork } from '../../model/projectWork';
+import { takeBackRoadmapUpdate } from '../../model/roadmapData';
 import { setOngoing } from '../../model/settingsData';
 import {
    addedLater,
@@ -75,6 +77,8 @@ const PR_STAGES: readonly PrStage[] = ['ready', 'hold', 'review', 'work'];
 
 /** the latest update's health word, where the focus lands after posting one */
 const HEALTH_ID = 'project-update-health';
+/** the way to post one, where the focus lands after taking one back */
+const POST_ID = 'project-post-update';
 
 /** Something someone owes on this project, as a row of the summary: the
  * word in amber, then the why, and the way to do it right after it; what
@@ -211,22 +215,48 @@ export function ProjectPage({
    // what the page just did, for a screen reader
    const [said, setSaid] = useState('');
    // a posted update is the plan's new latest one: the form's job is done
-   const latestAt = (plans ? planFor(slug, plans) : null)?.update?.at ?? null;
-   const formFrom = useRef(latestAt);
+   const latest = (plans ? planFor(slug, plans) : null)?.update ?? null;
+   const latestId = latest?.id ?? null;
+   const formFrom = useRef(latestId);
    const posted = useRef(false);
+   // the update just posted here, which keeps an Undo beside it
+   const [justPosted, setJustPosted] = useState<number | null>(null);
+   const [undoError, setUndoError] = useState<string | null>(null);
    useEffect(() => {
-      if (posting && latestAt !== formFrom.current) {
+      if (posting && latestId !== formFrom.current) {
          setPosting(false);
          posted.current = true;
          setSaid('Update posted.');
+         // one someone else posted meanwhile isn't this person's to take back
+         const mine = !!latest && latest.author.toLowerCase() === opts.me.toLowerCase();
+         setJustPosted(mine ? latestId : null);
+         setUndoError(null);
       } else if (!posting && posted.current) {
          // the form went from under the focus: it lands on the update just
          // posted, once its row is back, and a screen reader hears it went
          posted.current = false;
          document.getElementById(HEALTH_ID)?.focus();
       }
-      formFrom.current = latestAt;
-   }, [latestAt, posting]);
+      formFrom.current = latestId;
+   }, [latestId, posting]);
+   // "u" opens an update from anywhere on the page: the box opens where
+   // it's offered, near the top, and comes into view with the line above
+   // it, by hand, clear of the app's header (scrollIntoView can't do both)
+   usePageKey('u', () => {
+      if (!plans || !planFor(slug, plans)) return setSaid('It has no plan to post an update on.');
+      setPosting(true);
+      requestAnimationFrame(() => {
+         const form = document.getElementById('project-update-form');
+         const header =
+            parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-h')) ||
+            0;
+         const up =
+            (document.getElementById(POST_ID)?.getBoundingClientRect().top ?? 0) - header - 8;
+         const down = (form?.getBoundingClientRect().bottom ?? 0) - window.innerHeight + 16;
+         window.scrollBy(0, up < 0 ? up : Math.min(Math.max(down, 0), up));
+         form?.querySelector('textarea')?.focus({ preventScroll: true });
+      });
+   });
    // its issues and PRs, which the summary counts and the list shows
    const work = useProjectWork(slug, plans);
    // its rows are on this project's page, so their popover doesn't link here
@@ -445,31 +475,52 @@ export function ProjectPage({
          </Fragment>
       );
    }
-   if (plan && (planHealth?.kind === 'missing' || planHealth?.kind === 'stale')) {
+   // the way to post an update, on any plan: on the line that asks for one
+   // while it's owed, else on the Update line with nothing amber, since a
+   // plan its numbers vouch for can still say more; "u" works it too
+   const owes = !!plan && (planHealth?.kind === 'missing' || planHealth?.kind === 'stale');
+   const postToggle = (
+      <TextButton
+         id={POST_ID}
+         tone={posting ? 'quiet' : 'action'}
+         onClick={() => setPosting(!posting)}
+         aria-expanded={posting}
+         aria-keyshortcuts={posting ? undefined : 'u'}
+      >
+         {posting ? 'Close' : 'Post an update'}
+      </TextButton>
+   );
+   // the form opens under the line that offers it; its toggle there is the
+   // way to close it
+   const postForm = posting && plan && (
+      <div
+         id="project-update-form"
+         className="overflow-hidden rounded-xl border border-line bg-surface"
+      >
+         <UpdatesPanel item={plan} bare autoFocus />
+      </div>
+   );
+   /** Take back the update just posted: the one before is the latest again,
+    * and any update owed is owed again. */
+   const undoPost = (id: number) => {
+      if (!plan) return;
+      void takeBackRoadmapUpdate(plan.id, id).then(r => {
+         if ('error' in r) return setUndoError(r.error);
+         setJustPosted(null);
+         setSaid('Took the update back.');
+         // the Undo went with it: the focus goes to the way to post one
+         requestAnimationFrame(() => document.getElementById(POST_ID)?.focus());
+      });
+   };
+   if (plan && owes) {
       owed.push(
          <Owed
             key="update"
-            word={planHealth.kind === 'missing' ? NO_UPDATE_YET : UPDATE_DUE}
-            action={
-               <TextButton
-                  tone={posting ? 'quiet' : 'action'}
-                  onClick={() => setPosting(!posting)}
-                  aria-expanded={posting}
-               >
-                  {posting ? 'Close' : 'Post an update'}
-               </TextButton>
-            }
-            // the form opens under the line that asks for it; its toggle
-            // above is the way to close it
-            after={
-               posting && (
-                  <div className="overflow-hidden rounded-xl border border-line bg-surface">
-                     <UpdatesPanel item={plan} bare autoFocus />
-                  </div>
-               )
-            }
+            word={planHealth?.kind === 'missing' ? NO_UPDATE_YET : UPDATE_DUE}
+            action={postToggle}
+            after={postForm}
          >
-            {planHealth.kind === 'stale'
+            {planHealth?.kind === 'stale'
                ? `The last one was ${days(planHealth.days)} ago; one is due every ${days(
                     UPDATE_DUE_DAYS
                  )}.`
@@ -593,43 +644,68 @@ export function ProjectPage({
              labels line up: the column grows to fit a long amber word */}
          <dl className="m-0 mb-8 grid grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2.5 text-[13px] leading-5 sm:grid-cols-[minmax(7rem,max-content)_minmax(0,1fr)]">
             {owed}
-            {/* while the form is open, its list of updates shows this one first */}
-            {update && !posting && (
+            {/* its latest update, with the way to post one when none is owed
+                (nothing amber); while the form is open, its list of updates
+                shows this one first */}
+            {plan && (!owes || (update && !posting)) && (
                <>
                   <dt className="text-xs leading-5 text-ink-3">Update</dt>
                   <dd className="m-0 text-ink-2">
-                     <FactLink
-                        id={HEALTH_ID}
-                        onClick={() => plan && navigate(openPlan(nav, plan.id))}
-                        className="font-medium"
-                        title="Open its plan and every update on the roadmap"
-                     >
-                        <span className={healthOwed ? 'text-warn' : undefined}>
-                           {HEALTH_WORD[update.health]}
-                        </span>
-                     </FactLink>
-                     {' · '}
-                     {when(update.at)} · {update.author}
-                     {/* drawn as the updates panel draws its history */}
-                     {update.body && (
-                        <p className="m-0 mt-0.5 max-w-[70ch] whitespace-pre-line">{update.body}</p>
-                     )}
-                     {vouch && (
-                        <p className="m-0 mt-0.5 text-ink-3" title={vouchRule(vouch)}>
-                           {vouchWords(vouch)}
-                        </p>
+                     {update && !posting ? (
+                        <>
+                           <FactLink
+                              id={HEALTH_ID}
+                              onClick={() => navigate(openPlan(nav, plan.id))}
+                              className="font-medium"
+                              title="Open its plan and every update on the roadmap"
+                           >
+                              <span className={healthOwed ? 'text-warn' : undefined}>
+                                 {HEALTH_WORD[update.health]}
+                              </span>
+                           </FactLink>
+                           {' · '}
+                           {when(update.at)} · {update.author}{' '}
+                           {/* just posted here: its Undo, where Post was */}
+                           {update.id === justPosted ? (
+                              <>
+                                 {undoError && <span>{undoError} </span>}
+                                 <TextButton
+                                    onClick={() => undoPost(update.id)}
+                                    aria-label="Undo posting this update"
+                                 >
+                                    Undo
+                                 </TextButton>
+                              </>
+                           ) : (
+                              !owes && postToggle
+                           )}
+                           {/* drawn as the updates panel draws its history */}
+                           {update.body && (
+                              <p className="m-0 mt-0.5 max-w-[70ch] whitespace-pre-line">
+                                 {update.body}
+                              </p>
+                           )}
+                           {vouch && (
+                              <p className="m-0 mt-0.5 text-ink-3" title={vouchRule(vouch)}>
+                                 {vouchWords(vouch)}
+                              </p>
+                           )}
+                        </>
+                     ) : (
+                        <>
+                           {/* no update yet, and its numbers say none is owed:
+                               said where the update would be, so the row isn't
+                               a mystery */}
+                           {vouch && !posting && (
+                              <span className="text-ink-3" title={vouchRule(vouch)}>
+                                 {vouchWords(vouch)}{' '}
+                              </span>
+                           )}
+                           {postToggle}
+                        </>
                      )}
                   </dd>
-               </>
-            )}
-            {/* no update yet, and its numbers say none is owed: say so where
-                the update would be, so the empty row isn't a mystery */}
-            {!update && vouch && !posting && (
-               <>
-                  <dt className="text-xs leading-5 text-ink-3">Update</dt>
-                  <dd className="m-0 text-ink-3" title={vouchRule(vouch)}>
-                     {vouchWords(vouch)}
-                  </dd>
+                  {!owes && postForm && <dd className="col-span-2 m-0">{postForm}</dd>}
                </>
             )}
             <dt className="text-xs leading-5 text-ink-3">Plan</dt>

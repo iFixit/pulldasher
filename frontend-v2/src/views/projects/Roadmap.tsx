@@ -48,18 +48,19 @@ import {
 } from '../../components/bits';
 import { Icon } from '../../components/Icon';
 import { eyebrowText, Fold, GroupHeader, Rows, SubDoor, useFoldState } from '../../components/Lane';
-import { useArmedConfirm } from '../../components/useArmedConfirm';
 import { useRowKeys } from '../../components/useRowKeys';
 import { dateOf, dayOf, dayWords, useProjectsData, type Range } from '../../model/projectData';
 import { findFilter, planCell, type PortfolioItem } from '../../model/portfolio';
 import { teamLoad } from '../../model/teamLoad';
 import {
+   byPriority,
    createRoadmapItem,
    dismissRoadmapProblem,
    loadRoadmap,
    readRoadmap,
    removeRoadmapItem,
    reorderRoadmap,
+   restoreRoadmapItem,
    updateRoadmapItem,
    useRoadmap,
 } from '../../model/roadmapData';
@@ -88,7 +89,7 @@ import {
    zoomWords,
    type Column,
 } from '../../model/roadmapTime';
-import { BEING_WORKED_ON, COMMIT_THROUGH, targetOn } from '../../model/words';
+import { andList, BEING_WORKED_ON, COMMIT_THROUGH, targetOn } from '../../model/words';
 import { askOf, reasonWords } from './Decide';
 import { LoadChart } from './LoadChart';
 import { NowNextLater } from './NowNextLater';
@@ -210,6 +211,36 @@ function problemAt(error: string): { text: string; field: 'name' | 'lead' | null
    };
 }
 
+/** What each field is, in a receipt that names what a save changed. */
+const FIELD_WORD: Record<keyof RoadmapFields, string> = {
+   name: 'its name',
+   project: 'its project',
+   team: 'its team',
+   lead: 'its lead',
+   status: 'its status',
+   origin: 'where it came from',
+   start: 'its dates',
+   weeks: 'its dates',
+   notes: 'its notes',
+   waits_on: 'what it waits on',
+};
+
+/**
+ * A save in the editor, in words for its receipt: new dates the way a drag
+ * says them, a new status as the call it is, and anything else by what it
+ * changed ("Saved MySQL 8: changed its lead and its notes").
+ */
+export function savedWords(was: RoadmapItem, changed: Partial<RoadmapFields>): string {
+   const now = { ...was, ...changed };
+   const keys = Object.keys(changed) as (keyof RoadmapFields)[];
+   const moved = keys.every(k => k === 'start' || k === 'weeks') && moveWords(now.name, was, now);
+   if (moved) return moved;
+   if (keys.length === 1 && changed.status) {
+      return `Marked ${now.name} ${STATUS_WORD[changed.status].toLowerCase()}`;
+   }
+   return `Saved ${now.name}: changed ${andList([...new Set(keys.map(k => FIELD_WORD[k]))])}`;
+}
+
 /**
  * What an item waits on: the chosen items, each with a way to drop it, and a
  * list to add another. The list leaves out the item itself, dropped work, and
@@ -275,11 +306,17 @@ function WaitsOnField({
    );
 }
 
+/** A project a plan can track, with its target's day while it has one. */
+type ProjectOption = { slug: string; name: string; target: string | null };
+
 /**
  * The editor for one item, open in the roadmap's own flow (work in progress
  * lives inline, never in a popover a stray click can close). The same form
- * adds a new item. Saves through the shared checks, so a mistake reads the
- * same here as the server would say it, beside the field it's about.
+ * adds a new item, asking only its name and end until More shows the rest.
+ * Saves through the shared checks, so a mistake reads the same here as the
+ * server would say it, beside the field it's about. Save and Remove leave a
+ * receipt with Undo under the row (the roadmap's onSaved and onDone), so
+ * neither asks twice.
  */
 function Editor({
    item,
@@ -290,6 +327,7 @@ function Editor({
    today,
    navigate,
    onDone,
+   onSaved,
    onAdded,
    onUpdates,
 }: {
@@ -297,13 +335,15 @@ function Editor({
    item: RoadmapItem | null;
    /** every item on the roadmap, to choose what this one waits on */
    all: RoadmapItem[];
-   projects: { slug: string; name: string }[];
+   projects: ProjectOption[];
    teams: string[];
    people: string[];
    today: string;
    navigate: Navigate;
    /** closed: saved, cancelled, or removed (`removed` says which) */
    onDone: (removed?: boolean) => void;
+   /** an item's changes, saved: the item as it was, and what changed */
+   onSaved?: (was: RoadmapItem, changed: Partial<RoadmapFields>) => void;
    /** a new item, saved */
    onAdded?: (added: RoadmapItem) => void;
    /** to its updates instead */
@@ -341,9 +381,11 @@ function Editor({
    const [draft, setDraft] = useState<RoadmapFields>(initial);
    const [error, setError] = useState<ReturnType<typeof problemAt> | null>(null);
    const [saving, setSaving] = useState(false);
-   const { armed, run } = useArmedConfirm();
+   // a new plan asks its name and end; More shows the other fields
+   const [more, setMore] = useState(!!item);
    const nameRef = useRef<HTMLInputElement>(null);
    const leadRef = useRef<HTMLInputElement>(null);
+   const startRef = useRef<HTMLSelectElement>(null);
    useEffect(() => {
       // the roadmap scrolls the open editor into view, clear of its headers
       nameRef.current?.focus({ preventScroll: true });
@@ -386,14 +428,20 @@ function Editor({
          });
       }
       if (added) onAdded?.(added);
+      else if (item) onSaved?.(item, checked.fields);
       onDone();
    };
-   const field = (label: string, control: ReactNode, wide = false) => (
-      <label className={`flex flex-col gap-1 text-xs text-ink-3 ${wide ? 'sm:col-span-2' : ''}`}>
-         {label}
-         {control}
-      </label>
-   );
+   /** A field and its words. A group of buttons gets a plain box: a label
+    * would hand its name, and a click on its words, to the first of them. */
+   const field = (label: string, control: ReactNode, wide = false, group = false) => {
+      const Box = group ? 'div' : 'label';
+      return (
+         <Box className={`flex flex-col gap-1 text-xs text-ink-3 ${wide ? 'sm:col-span-2' : ''}`}>
+            {label}
+            {control}
+         </Box>
+      );
+   };
    const fieldError = (at: 'name' | 'lead') =>
       error?.field === at && (
          <span id={`roadmap-error-${at}`} className="text-xs text-ink-2">
@@ -402,11 +450,13 @@ function Editor({
       );
    const projectOptions =
       draft.project && !projects.some(p => p.slug === draft.project)
-         ? [...projects, { slug: draft.project, name: draft.project }]
+         ? [...projects, { slug: draft.project, name: draft.project, target: null }]
          : projects;
-   // the same ends Decide commits to, from the start above; the nearest is
-   // the one outlined answer, as on Decide
-   const ends = commitEnds(today).filter(c => c.end >= draft.start);
+   // the same ends Decide commits to, from the start above: its project's
+   // target first while that's ahead, else the nearest end, the one
+   // outlined answer, as on Decide
+   const target = projects.find(p => p.slug === draft.project)?.target ?? null;
+   const ends = commitEnds(today, target).filter(c => c.end >= draft.start);
    return (
       <form
          className="grid gap-3 border-t border-secondary bg-muted/40 px-3.5 py-3 sm:grid-cols-4"
@@ -439,35 +489,38 @@ function Editor({
             {fieldError('name')}
          </div>
          {/* the dates first: most edits are a date change */}
-         {field(
-            'Starts the week of',
-            <select
-               className={selectClass}
-               value={draft.start}
-               onChange={e => set({ start: e.target.value })}
-            >
-               {startChoices(today, draft.start).map(g => (
-                  <optgroup key={g.month} label={g.month}>
-                     {g.days.map(day => (
-                        <option key={day} value={day}>
-                           {weekWords(day)}
-                        </option>
-                     ))}
-                  </optgroup>
-               ))}
-            </select>
-         )}
-         {field(
-            'Length in weeks',
-            <input
-               type="number"
-               min={1}
-               max={MAX_WEEKS}
-               className={inputClass}
-               value={draft.weeks}
-               onChange={e => set({ weeks: Number(e.target.value) })}
-            />
-         )}
+         {more &&
+            field(
+               'Starts the week of',
+               <select
+                  ref={startRef}
+                  className={selectClass}
+                  value={draft.start}
+                  onChange={e => set({ start: e.target.value })}
+               >
+                  {startChoices(today, draft.start).map(g => (
+                     <optgroup key={g.month} label={g.month}>
+                        {g.days.map(day => (
+                           <option key={day} value={day}>
+                              {weekWords(day)}
+                           </option>
+                        ))}
+                     </optgroup>
+                  ))}
+               </select>
+            )}
+         {more &&
+            field(
+               'Length in weeks',
+               <input
+                  type="number"
+                  min={1}
+                  max={MAX_WEEKS}
+                  className={inputClass}
+                  value={draft.weeks}
+                  onChange={e => set({ weeks: Number(e.target.value) })}
+               />
+            )}
          {/* where the dates land, so nobody has to count the weeks */}
          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3 sm:col-span-4">
             <span className="text-ink-2" aria-live="polite">
@@ -483,16 +536,18 @@ function Editor({
                         const weeks = weeksThrough(draft.start, c.end);
                         const props = {
                            onClick: () => set({ weeks }),
-                           'aria-label': `${COMMIT_THROUGH} the ${c.label.replace(/^End/, 'end')}`,
+                           'aria-label': `${COMMIT_THROUGH} ${c.through}`,
                            title: planWords({ start: draft.start, weeks }),
                         };
+                        // in the run of words, "Commit through its target, Oct 21"
+                        const words = c.target ? c.through : c.label;
                         return i === 0 ? (
                            <QuietButton key={c.end} {...props}>
-                              {c.label}
+                              {words}
                            </QuietButton>
                         ) : (
                            <TextButton key={c.end} {...props}>
-                              {c.label}
+                              {words}
                            </TextButton>
                         );
                      })}
@@ -500,140 +555,162 @@ function Editor({
                </span>
             )}
          </div>
-         {field(
-            'Status',
-            <Segmented
-               ariaLabel="status"
-               value={draft.status}
-               options={ROADMAP_STATUSES.map(s => [s, STATUS_WORD[s]])}
-               onChange={status => set({ status })}
-            />,
-            true
-         )}
-         {field(
-            'Where it came from',
-            <Segmented
-               ariaLabel="where it came from"
-               value={draft.origin ?? 'unsaid'}
-               options={ORIGIN_OPTIONS}
-               onChange={o => set({ origin: o === 'unsaid' ? null : o })}
-            />,
-            true
-         )}
-         <div className="flex flex-col gap-1 text-xs text-ink-3">
-            {field(
-               'Project it tracks',
-               <select
-                  className={selectClass}
-                  value={draft.project ?? ''}
-                  onChange={e => set({ project: e.target.value || null })}
-               >
-                  <option value="">No project yet</option>
-                  {projectOptions.map(p => (
-                     <option key={p.slug} value={p.slug}>
-                        {p.name}
-                     </option>
-                  ))}
-               </select>
-            )}
-            {/* under the box, outside its label; only for the project it
-                tracks now, not one picked and not saved yet */}
-            {initial.project && draft.project === initial.project && (
-               <span>
-                  <PageLink g={{ slug: initial.project }} navigate={navigate} />
-               </span>
-            )}
-         </div>
-         {field(
-            'Team',
-            <select
-               className={selectClass}
-               value={draft.team ?? ''}
-               onChange={e => set({ team: e.target.value || null })}
-            >
-               <option value="">No team</option>
-               {[...new Set([...teams, ...(draft.team ? [draft.team] : [])])].map(t => (
-                  <option key={t} value={t}>
-                     {t}
-                  </option>
-               ))}
-            </select>
-         )}
-         <div className="flex flex-col gap-1">
-            {field(
-               'Lead',
-               <>
-                  <input
-                     ref={leadRef}
-                     className={inputClass}
-                     list="roadmap-people"
-                     value={draft.lead ?? ''}
-                     onChange={e => set({ lead: e.target.value.trim() || null })}
-                     placeholder="GitHub login"
-                     aria-invalid={error?.field === 'lead' || undefined}
-                     aria-describedby={error?.field === 'lead' ? 'roadmap-error-lead' : undefined}
-                  />
-                  <datalist id="roadmap-people">
-                     {people.map(login => (
-                        <option key={login} value={login} />
+         {more && (
+            <>
+               {field(
+                  'Status',
+                  <Segmented
+                     ariaLabel="status"
+                     value={draft.status}
+                     options={ROADMAP_STATUSES.map(s => [s, STATUS_WORD[s]])}
+                     onChange={status => set({ status })}
+                  />,
+                  true,
+                  true
+               )}
+               {field(
+                  'Where it came from',
+                  <Segmented
+                     ariaLabel="where it came from"
+                     value={draft.origin ?? 'unsaid'}
+                     options={ORIGIN_OPTIONS}
+                     onChange={o => set({ origin: o === 'unsaid' ? null : o })}
+                  />,
+                  true,
+                  true
+               )}
+               <div className="flex flex-col gap-1 text-xs text-ink-3">
+                  {field(
+                     'Project it tracks',
+                     <select
+                        className={selectClass}
+                        value={draft.project ?? ''}
+                        onChange={e => set({ project: e.target.value || null })}
+                     >
+                        <option value="">No project yet</option>
+                        {projectOptions.map(p => (
+                           <option key={p.slug} value={p.slug}>
+                              {p.name}
+                           </option>
+                        ))}
+                     </select>
+                  )}
+                  {/* under the box, outside its label; only for the project it
+                      tracks now, not one picked and not saved yet */}
+                  {initial.project && draft.project === initial.project && (
+                     <span>
+                        <PageLink g={{ slug: initial.project }} navigate={navigate} />
+                     </span>
+                  )}
+               </div>
+               {field(
+                  'Team',
+                  <select
+                     className={selectClass}
+                     value={draft.team ?? ''}
+                     onChange={e => set({ team: e.target.value || null })}
+                  >
+                     <option value="">No team</option>
+                     {[...new Set([...teams, ...(draft.team ? [draft.team] : [])])].map(t => (
+                        <option key={t} value={t}>
+                           {t}
+                        </option>
                      ))}
-                  </datalist>
-               </>
-            )}
-            {fieldError('lead')}
-         </div>
-         {field(
-            'Waits on',
-            <WaitsOnField
-               id={item?.id ?? null}
-               value={draft.waits_on}
-               all={all}
-               onChange={waits_on => set({ waits_on })}
-            />,
-            true
-         )}
-         {field(
-            'Notes',
-            <textarea
-               className="min-h-16 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px]"
-               value={draft.notes}
-               maxLength={2000}
-               onChange={e => set({ notes: e.target.value })}
-               placeholder="Why it matters"
-            />,
-            true
+                  </select>
+               )}
+               <div className="flex flex-col gap-1">
+                  {field(
+                     'Lead',
+                     <>
+                        <input
+                           ref={leadRef}
+                           className={inputClass}
+                           list="roadmap-people"
+                           value={draft.lead ?? ''}
+                           onChange={e => set({ lead: e.target.value.trim() || null })}
+                           placeholder="GitHub login"
+                           aria-invalid={error?.field === 'lead' || undefined}
+                           aria-describedby={
+                              error?.field === 'lead' ? 'roadmap-error-lead' : undefined
+                           }
+                        />
+                        <datalist id="roadmap-people">
+                           {people.map(login => (
+                              <option key={login} value={login} />
+                           ))}
+                        </datalist>
+                     </>
+                  )}
+                  {fieldError('lead')}
+               </div>
+               {field(
+                  'Waits on',
+                  <WaitsOnField
+                     id={item?.id ?? null}
+                     value={draft.waits_on}
+                     all={all}
+                     onChange={waits_on => set({ waits_on })}
+                  />,
+                  true,
+                  true
+               )}
+               {field(
+                  'Notes',
+                  <textarea
+                     className="min-h-16 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px]"
+                     value={draft.notes}
+                     maxLength={2000}
+                     onChange={e => set({ notes: e.target.value })}
+                     placeholder="Why it matters"
+                  />,
+                  true
+               )}
+            </>
          )}
          <div className="flex flex-wrap items-center gap-3 text-xs sm:col-span-4">
             <PrimaryButton disabled={saving}>{item ? 'Save' : 'Add to the roadmap'}</PrimaryButton>
             <TextButton tone="quiet" onClick={() => onDone()}>
                Cancel
             </TextButton>
+            {!more && (
+               <TextButton
+                  tone="quiet"
+                  aria-expanded={false}
+                  aria-label="More fields: its dates, status, project, team, lead and notes"
+                  onClick={() => {
+                     setMore(true);
+                     // on to the first field it showed
+                     requestAnimationFrame(() => startRef.current?.focus());
+                  }}
+               >
+                  More
+               </TextButton>
+            )}
             {onUpdates && <TextButton onClick={onUpdates}>See its updates</TextButton>}
             <span role="status" className="text-ink-2">
                {error && !error.field ? error.text : ''}
             </span>
             <span className="flex-1" />
             {item && (
+               // one click: its receipt under the row has the Undo
                <TextButton
                   tone="quiet"
-                  onClick={() =>
-                     run(async () => {
-                        if (await removeRoadmapItem(item.id)) return onDone(true);
-                        // said here, like a save that failed
-                        const { problem } = readRoadmap();
-                        dismissRoadmapProblem();
-                        setError({
-                           text: problem ?? 'Couldn’t remove the plan. Try again in a minute.',
-                           field: null,
-                        });
-                     })
-                  }
-                  // armed, it's the one thing here to look at, in ink: an
-                  // armed button isn't owed, so not amber, and red stays CI's
-                  className={armed ? 'font-semibold' : ''}
-                  style={armed ? { color: 'var(--ink)' } : undefined}
+                  disabled={saving}
+                  onClick={async () => {
+                     setSaving(true);
+                     const gone = await removeRoadmapItem(item.id);
+                     setSaving(false);
+                     if (gone) return onDone(true);
+                     // said here, like a save that failed
+                     const { problem } = readRoadmap();
+                     dismissRoadmapProblem();
+                     setError({
+                        text: problem ?? 'Couldn’t remove the plan. Try again in a minute.',
+                        field: null,
+                     });
+                  }}
                >
-                  {armed ? 'Click again to remove it' : 'Remove from the roadmap'}
+                  Remove from the roadmap
                </TextButton>
             )}
          </div>
@@ -713,6 +790,8 @@ interface Receipt {
    open?: number;
    /** the project it planned, kept in its place in the list of no plan */
    project?: PortfolioItem;
+   /** the plan it removed, kept in its place in the list of plans */
+   gone?: RoadmapItem;
 }
 
 function ReceiptLine({ receipt, onOpen }: { receipt: Receipt; onOpen: (id: number) => void }) {
@@ -724,7 +803,15 @@ function ReceiptLine({ receipt, onOpen }: { receipt: Receipt; onOpen: (id: numbe
             {receipt.words.replace(/\.$/, '')}.
          </span>
          {open != null && <TextButton onClick={() => onOpen(open)}>Open its plan</TextButton>}
-         {receipt.undo && <TextButton onClick={receipt.undo}>Undo</TextButton>}
+         {/* a failed Undo keeps its button, to try again */}
+         {receipt.undo && (
+            <TextButton
+               onClick={receipt.undo}
+               aria-label={receipt.failed ? 'Try the Undo again' : `Undo: ${receipt.words}`}
+            >
+               {receipt.failed ? 'Try again' : 'Undo'}
+            </TextButton>
+         )}
       </div>
    );
 }
@@ -1421,11 +1508,13 @@ function PlanChooser({
 }: {
    item: PortfolioItem;
    today: string;
-   /** the Monday of the week its PRs began */
-   start: string;
+   /** its first week (runStart), and what that week is */
+   start: { day: string; from: 'field' | 'prs' };
    onPlan: (plan: Span) => void;
    onClose: () => void;
 }) {
+   // its issue's target first while it's ahead, as on Decide
+   const target = item.target?.due_on?.slice(0, 10) ?? null;
    return (
       <div
          className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-secondary bg-muted/40 px-3.5 py-2 text-xs text-ink-3"
@@ -1434,31 +1523,33 @@ function PlanChooser({
          }}
       >
          <span>
-            Plan {item.name} from the week of {weekWords(start)}, when its PRs began.
+            Plan {item.name} from the week of {weekWords(start.day)},{' '}
+            {start.from === 'field' ? 'its issue’s Start date' : 'when its PRs began'}.
          </span>
          <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
             {COMMIT_THROUGH}
             <Dotted>
-               {commitEnds(today).map((c, i) => {
-                  const plan = { start, weeks: weeksThrough(start, c.end) };
-                  const props = {
-                     onClick: () => onPlan(plan),
-                     'aria-label': `Plan ${item.name} through the ${c.label.replace(
-                        /^End/,
-                        'end'
-                     )}`,
-                     title: planWords(plan),
-                  };
-                  return i === 0 ? (
-                     <QuietButton key={c.end} autoFocus {...props}>
-                        {c.label}
-                     </QuietButton>
-                  ) : (
-                     <TextButton key={c.end} {...props}>
-                        {c.label}
-                     </TextButton>
-                  );
-               })}
+               {commitEnds(today, target)
+                  .filter(c => c.end >= start.day)
+                  .map((c, i) => {
+                     const plan = { start: start.day, weeks: weeksThrough(start.day, c.end) };
+                     const props = {
+                        onClick: () => onPlan(plan),
+                        'aria-label': `Plan ${item.name} through ${c.through}`,
+                        title: planWords(plan),
+                     };
+                     // in the run of words, "Commit through its target, Oct 21"
+                     const words = c.target ? c.through : c.label;
+                     return i === 0 ? (
+                        <QuietButton key={c.end} autoFocus {...props}>
+                           {words}
+                        </QuietButton>
+                     ) : (
+                        <TextButton key={c.end} {...props}>
+                           {words}
+                        </TextButton>
+                     );
+                  })}
             </Dotted>
          </span>
          <span>Or drag across its weeks on the timeline.</span>
@@ -1825,6 +1916,11 @@ export function Roadmap({
    const everything = nav.show !== 'plan';
    const ordered = plan ?? [];
    const ids = ordered.map(i => i.id);
+   // a plan just removed keeps its place in the rows while its receipt
+   // stands there, so Undo is where Remove was; nothing counts it
+   const gone = receipt?.gone && !ids.includes(receipt.gone.id) ? receipt.gone : null;
+   const listed = gone ? byPriority([...ordered, gone]) : ordered;
+   const counted = (list: readonly RoadmapItem[]) => list.filter(i => i !== gone).length;
    const kept = ordered.filter(i => i.status !== 'dropped');
    const linkedSlugs = new Set(kept.flatMap(i => (i.project ? [i.project] : [])));
    // every project with PRs in the horizon, as a span: ones with PRs open
@@ -1884,11 +1980,12 @@ export function Roadmap({
    // work with no plan has no origin to match
    const fromOrigin = (i: RoadmapItem) => !nav.origin || (i.origin ?? 'unsaid') === nav.origin;
    const shownPlans = showPlans
-      ? ordered.filter(
+      ? listed.filter(
            i =>
               found(i) &&
               fromOrigin(i) &&
               (!members ||
+                 i === gone ||
                  members.plans.has(i.id) ||
                  (!!i.project && members.projects.get(i.project) === 'on'))
         )
@@ -1921,7 +2018,7 @@ export function Roadmap({
    });
    const projectOptions = [...items]
       .sort((a, b) => a.name.localeCompare(b.name))
-      .map(i => ({ slug: i.slug, name: i.name }));
+      .map(i => ({ slug: i.slug, name: i.name, target: i.target?.due_on?.slice(0, 10) ?? null }));
    const people = [
       ...new Set([
          ...items.flatMap(i => [...i.developers, ...i.nonDevelopers, i.lead ?? '']),
@@ -1951,12 +2048,18 @@ export function Roadmap({
       setReceipt(next);
       setAnnounced(words ?? (next ? `${next.words.replace(/\.$/, '')}.` : ''));
    };
-   // a save that failed says so where the click was, not in the toolbar
-   const fail = (key: string) => {
+   // a save that failed says so where the click was, not in the toolbar;
+   // `keep` holds a removed plan's place, and its Undo, to try again
+   const fail = (key: string, keep?: Pick<Receipt, 'gone' | 'undo'>) => {
       const why = readRoadmap().problem;
       dismissRoadmapProblem();
       run.current = null;
-      say({ key, words: why ?? 'Couldn’t save that. Try again in a minute', failed: true });
+      say({
+         key,
+         words: why ?? 'Couldn’t save that. Try again in a minute',
+         failed: true,
+         ...keep,
+      });
    };
    const moved = (item: RoadmapItem, to: Span) => {
       const key = `plan:${item.id}`;
@@ -2025,13 +2128,46 @@ export function Roadmap({
          });
       });
    };
+   // a save in the editor: what it changed, and Undo puts back the fields
+   // and the times it replaced, as Decide's Undo does
+   const saved = (was: RoadmapItem, changed: Partial<RoadmapFields>) => {
+      const key = `plan:${was.id}`;
+      // a run of drags before it isn't this receipt's to undo
+      run.current = null;
+      const back = Object.fromEntries(
+         Object.keys(changed).map(k => [k, was[k as keyof RoadmapFields]])
+      ) as Partial<RoadmapFields>;
+      const times =
+         was.updated_at != null
+            ? { updated_at: was.updated_at, status_at: was.status_at ?? null }
+            : undefined;
+      say({
+         key,
+         words: savedWords(was, changed),
+         undo: () => {
+            refocus.current = [`roadmap-status-${was.id}`];
+            void updateRoadmapItem(was.id, back, { undo: times }).then(ok =>
+               ok ? say(null, `Put ${was.name} back as it was`) : fail(key)
+            );
+         },
+      });
+   };
    const removed = (item: RoadmapItem, visible: number[]) => {
-      // the focus goes to the plan that took its place
+      // the focus goes to the plan that took its place; its receipt, with
+      // Undo, stands where it was
       const at = visible.indexOf(item.id);
       const next = visible[at + 1] ?? visible[at - 1];
-      refocus.current = next == null ? null : [`roadmap-grip-${next}`];
+      refocus.current = [...(next == null ? [] : [`roadmap-grip-${next}`]), 'roadmap-add'];
       navigate({ item: null });
-      say(null, `Removed ${item.name} from the roadmap`);
+      const key = `plan:${item.id}`;
+      run.current = null;
+      const undo = () => {
+         refocus.current = [`roadmap-grip-${item.id}`];
+         void restoreRoadmapItem(item.id).then(ok =>
+            ok ? say(null, `Put ${item.name} back on the roadmap`) : fail(key, { gone: item, undo })
+         );
+      };
+      say({ key, words: `Removed ${item.name} from the roadmap`, gone: item, undo });
    };
    const added = (item: RoadmapItem) => {
       const rank = (readRoadmap().items ?? []).findIndex(i => i.id === item.id) + 1;
@@ -2040,6 +2176,12 @@ export function Roadmap({
          key: 'added',
          words: `Added ${item.name} to the roadmap${rank ? `, at priority ${rank}` : ''}`,
          open: item.id,
+         undo: () => {
+            refocus.current = ['roadmap-add'];
+            void removeRoadmapItem(item.id).then(ok =>
+               ok ? say(null, `Took ${item.name} off the roadmap`) : fail('added')
+            );
+         },
       });
    };
 
@@ -2088,8 +2230,13 @@ export function Roadmap({
       },
    });
 
-   // the week a project's PRs began
-   const runStart = (p: PortfolioItem) => mondayOf((p.group && firstOpenDay(p.group)) || today);
+   // a new plan's first week: its issue's Start date when a person set one,
+   // as everywhere a person's value wins, else the week its PRs began
+   const runStart = (p: PortfolioItem): { day: string; from: 'field' | 'prs' } => {
+      const field = p.project?.fields.start;
+      if (field && dayStart(field) != null) return { day: mondayOf(field), from: 'field' };
+      return { day: mondayOf((p.group && firstOpenDay(p.group)) || today), from: 'prs' };
+   };
    const planProject = (p: PortfolioItem, span: Span) => {
       setChoosing(null);
       if (planning.current.has(p.slug)) return;
@@ -2177,6 +2324,14 @@ export function Roadmap({
       const visibleIds = visible.map(i => i.id);
       return list.map(item => {
          const key = `plan:${item.id}`;
+         // removed just now: its receipt stands where the row was
+         if (item === gone && receipt) {
+            return (
+               <div key={item.id} className={rowMargin}>
+                  <ReceiptLine receipt={receipt} onOpen={openFromReceipt} />
+               </div>
+            );
+         }
          const isOpen = editing === item.id;
          return (
             <div
@@ -2237,7 +2392,8 @@ export function Roadmap({
                         today={today}
                         navigate={navigate}
                         onUpdates={() => setPanel('updates')}
-                        onDone={gone => (gone ? removed(item, visibleIds) : close(item.id))}
+                        onSaved={saved}
+                        onDone={off => (off ? removed(item, visibleIds) : close(item.id))}
                      />
                   ))}
             </div>
@@ -2344,9 +2500,9 @@ export function Roadmap({
                key={id}
                id={id}
                label={name}
-               count={shownPlanned.length + shownLoose.length}
+               count={counted(shownPlanned) + shownLoose.length}
                gloss={`${name}: ${of(
-                  shownPlanned.length,
+                  counted(shownPlanned),
                   planned.length,
                   'plan'
                )} in priority order${looseWords}.`}
@@ -2382,9 +2538,9 @@ export function Roadmap({
             <TimelineLane
                id="roadmap:planned"
                label="On the roadmap"
-               count={shownPlans.length}
+               count={counted(shownPlans)}
                gloss={`${of(
-                  shownPlans.length,
+                  counted(shownPlans),
                   ordered.length,
                   'plan'
                )} in priority order: what matters most is on top.`}
@@ -2610,6 +2766,8 @@ export function Roadmap({
                <input
                   type="search"
                   aria-label="Find a project, lead or team"
+                  // "/" comes here, not to the board's PR search (hooks.ts)
+                  aria-keyshortcuts="/"
                   placeholder="Find a project, lead or team"
                   value={nav.find}
                   onChange={e => navigate({ find: e.target.value })}

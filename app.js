@@ -102,6 +102,7 @@ app.patch('/roadmap/:id', canWrite, roadmapController.update);
 app.delete('/roadmap/:id', canWrite, roadmapController.remove);
 app.get('/roadmap/:id/updates', roadmapController.updates);
 app.post('/roadmap/:id/updates', canWrite, roadmapController.postUpdate);
+app.delete('/roadmap/:id/updates/:update', canWrite, roadmapController.removeUpdate);
 app.get('/settings', settingsController.get);
 app.patch('/settings', canWrite, settingsController.update);
 app.post('/hooks/main', hooksController.main);

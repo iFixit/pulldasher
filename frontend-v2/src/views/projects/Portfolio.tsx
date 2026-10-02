@@ -999,6 +999,8 @@ export function Portfolio({
          <input
             type="search"
             aria-label="Find a project, lead or team"
+            // "/" comes here, not to the board's PR search (hooks.ts)
+            aria-keyshortcuts="/"
             placeholder="Find a project, lead or team"
             value={nav.find}
             onChange={e => navigate({ find: e.target.value })}

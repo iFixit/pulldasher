@@ -162,13 +162,15 @@ export const API_ROUTES = [
       method: 'patch',
       path: '/api/v1/roadmap/:id',
       handlers: [canWrite, roadmapController.update],
-      does: 'Change only the fields sent; null or "" clears an optional one',
+      does:
+         'Change only the fields sent; null or "" clears an optional one. {restore: true} alone puts back ' +
+         'a removed item as it was, with its updates and its place',
    },
    {
       method: 'delete',
       path: '/api/v1/roadmap/:id',
       handlers: [canWrite, roadmapController.remove],
-      does: 'Remove an item and its updates',
+      does: 'Take an item off the roadmap; its updates are kept, so PATCH {restore: true} puts it back',
    },
    {
       method: 'post',
@@ -187,6 +189,14 @@ export const API_ROUTES = [
       path: '/api/v1/roadmap/:id/updates',
       handlers: [canWrite, roadmapController.postUpdate],
       does: 'Post an update: {health, body?}',
+   },
+   {
+      method: 'delete',
+      path: '/api/v1/roadmap/:id/updates/:update',
+      handlers: [canWrite, roadmapController.removeUpdate],
+      does:
+         'Take back an update you posted; returns the latest update now ({update}, null with none). ' +
+         "403 for someone else's",
    },
    {
       method: 'get',

@@ -22,7 +22,6 @@ import {
 } from '../../components/bits';
 import { Icon } from '../../components/Icon';
 import { Fold, foldDomId, GroupHeader, openFold, SubDoor } from '../../components/Lane';
-import { useArmedConfirm } from '../../components/useArmedConfirm';
 import { useRowKeys } from '../../components/useRowKeys';
 import { findFilter, type FindFields, type PortfolioItem } from '../../model/portfolio';
 import {
@@ -77,9 +76,11 @@ const UNDER_HEADS = 'scroll-mt-[calc(var(--stick,0px)_+_38px)]';
  * The developer teams, and the way to change them: who counts as a developer,
  * and on which team, for every developer count in the tab and the load line
  * on the roadmap. Saved here, they replace config.js's list for everyone;
- * "Go back to config.js" drops them. A login with no PR or stamp behind it is
- * pointed out as it's typed, since a typo would quietly make someone a
- * non-developer. Escape, like Cancel, puts the teams back as they were.
+ * "Go back to config.js" drops them. Either leaves a receipt with Undo, which
+ * saves the teams as they were, so neither asks twice. A login with no PR or
+ * stamp behind it is pointed out as it's typed, since a typo would quietly
+ * make someone a non-developer. Escape, like Cancel, puts the teams back as
+ * they were.
  */
 function TeamsSection({
    teams,
@@ -95,8 +96,13 @@ function TeamsSection({
    const [draft, setDraft] = useState<[string, string][] | null>(null);
    const [error, setError] = useState<string | null>(null);
    const [saving, setSaving] = useState(false);
-   const [saved, setSaved] = useState(false);
-   const { armed, run } = useArmedConfirm();
+   // what the last save did, with the way back: the teams as they were, or
+   // config.js's (null)
+   const [receipt, setReceipt] = useState<{
+      words: string;
+      failed?: boolean;
+      back?: DeveloperTeams | null;
+   }>();
    const editId = useId();
    const formRef = useRef<HTMLFormElement>(null);
    // focus follows the editor: into its first field when it opens, and back
@@ -115,13 +121,22 @@ function TeamsSection({
    }, [editing, editId]);
    const names = Object.keys(teams);
    const save = async (value: DeveloperTeams | null) => {
+      const back = from === 'saved' ? teams : null;
       setSaving(true);
       const result = await saveDeveloperTeams(value);
       setSaving(false);
       if ('error' in result) return setError(result.error);
       setError(null);
-      setSaved(true);
+      setReceipt({ words: value ? 'Saved' : 'Back to config.js’s teams', back });
       setDraft(null);
+   };
+   const undo = async (back: DeveloperTeams | null) => {
+      const result = await saveDeveloperTeams(back);
+      setReceipt(
+         'error' in result
+            ? { words: `Undo didn’t save. ${result.error}`, failed: true, back }
+            : { words: 'Put back as they were' }
+      );
    };
    const cancel = () => {
       setDraft(null);
@@ -155,20 +170,38 @@ function TeamsSection({
             }
             headerExtra={
                <>
-                  {/* the receipt sits where focus comes back to, and is read out */}
-                  <span role="status" className="inline-flex items-center gap-1 text-xs text-ink-2">
-                     {saved && !editing && (
+                  {/* the receipt sits where focus comes back to, and is read
+                      out; its Undo saves the teams as they were */}
+                  {/* on the header's baseline, its words level with Undo's */}
+                  <span
+                     role="status"
+                     className="inline-flex items-baseline gap-1 text-xs text-ink-2"
+                  >
+                     {receipt && !editing && (
                         <>
-                           <Icon icon={Check} size={14} />
-                           Saved
+                           {!receipt.failed && (
+                              <Icon icon={Check} size={14} className="self-center" />
+                           )}
+                           {receipt.words}
                         </>
                      )}
                   </span>
+                  {receipt?.back !== undefined && !editing && (
+                     <TextButton
+                        onClick={() => void undo(receipt.back ?? null)}
+                        aria-label={`Undo: put back ${
+                           receipt.back ? 'the teams saved here' : 'config.js’s teams'
+                        }`}
+                        className="text-xs"
+                     >
+                        Undo
+                     </TextButton>
+                  )}
                   {!editing && (
                      <TextButton
                         id={editId}
                         onClick={() => {
-                           setSaved(false);
+                           setReceipt(undefined);
                            setDraft(
                               names.length ? names.map(t => [t, teams[t].join(', ')]) : [['', '']]
                            );
@@ -274,14 +307,9 @@ function TeamsSection({
                      </span>
                      <span className="flex-1" />
                      {from === 'saved' && (
-                        // armed, it says what a second click does: not owed,
-                        // so never amber, and never red, which is CI's
-                        <TextButton
-                           tone="quiet"
-                           onClick={() => run(() => save(null))}
-                           className={armed ? 'font-medium' : ''}
-                        >
-                           {armed ? 'Click again to use config.js’s teams' : 'Go back to config.js'}
+                        // one click: its receipt above has the Undo
+                        <TextButton tone="quiet" disabled={saving} onClick={() => void save(null)}>
+                           Go back to config.js
                         </TextButton>
                      )}
                   </div>
@@ -933,6 +961,8 @@ function PeopleList({
                      <input
                         type="search"
                         aria-label="Find a person, team or project"
+                        // "/" comes here, not to the board's PR search (hooks.ts)
+                        aria-keyshortcuts="/"
                         placeholder="Find a person, team or project"
                         value={nav.find}
                         onChange={e => navigate({ find: e.target.value })}

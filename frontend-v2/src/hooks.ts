@@ -1,22 +1,33 @@
 import { type RefObject, useEffect, useLayoutEffect } from 'react';
 
+/** A key press the board's keys leave alone: one a view's own keys
+ * (components/useRowKeys.ts) already took, one typed into a field, or one
+ * with a modifier, which belongs to the browser. */
+function notOurs(e: KeyboardEvent): boolean {
+   if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return true;
+   const t = e.target as HTMLElement;
+   return ['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName) || t.isContentEditable;
+}
+
 /**
  * The keyboard model for an audience that lives in editors:
- *   /   jump to the filter box (v1's hotkey)
+ *   /   jump to the filter box (v1's hotkey), or to a view's own find box
+ *       where it has one (Projects' Overview, Roadmap and People mark theirs
+ *       aria-keyshortcuts="/"), so the key never leaves the view
  *   j/k move focus down/up the rows (Enter opens — it's a link)
  *   c   copy the focused row's branch name
  */
 export function useBoardHotkeys(searchRef: RefObject<HTMLInputElement | null>) {
    useEffect(() => {
       const onKey = (e: KeyboardEvent) => {
-         // a view's own list keys (components/useRowKeys.ts) got there first
-         if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
-         const t = e.target as HTMLElement;
-         if (['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName) || t.isContentEditable) return;
+         if (notOurs(e)) return;
          if (e.key === '/') {
             e.preventDefault();
-            searchRef.current?.focus();
-            searchRef.current?.select();
+            const box =
+               document.querySelector<HTMLInputElement>('input[aria-keyshortcuts="/"]') ??
+               searchRef.current;
+            box?.focus();
+            box?.select();
             return;
          }
          if (e.key === 'j' || e.key === 'k') {
@@ -46,6 +57,23 @@ export function useBoardHotkeys(searchRef: RefObject<HTMLInputElement | null>) {
       document.addEventListener('keydown', onKey);
       return () => document.removeEventListener('keydown', onKey);
    }, [searchRef]);
+}
+
+/**
+ * A page's own key, as "a" adds an issue on a project's page: heard
+ * anywhere on the page but in a field, never with a modifier. The control
+ * it works carries it in aria-keyshortcuts, so a screen reader says so.
+ */
+export function usePageKey(key: string, run: () => void) {
+   useEffect(() => {
+      const onKey = (e: KeyboardEvent) => {
+         if (e.key !== key || notOurs(e)) return;
+         e.preventDefault();
+         run();
+      };
+      document.addEventListener('keydown', onKey);
+      return () => document.removeEventListener('keydown', onKey);
+   }, [key, run]);
 }
 
 /**

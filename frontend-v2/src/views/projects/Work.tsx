@@ -32,6 +32,7 @@ import {
 } from '../../components/Lane';
 import { Row, type RowOptions } from '../../components/Row';
 import { useRowKeys } from '../../components/useRowKeys';
+import { usePageKey } from '../../hooks';
 import { changeProjectIssue, reloadProjectWork } from '../../model/projectWork';
 import {
    addedLater,
@@ -782,6 +783,15 @@ export function ProjectWorkSections({
    const choices = useFoldChoices();
    // an issue line lands on its PR count (or its title), a PR on its title
    useRowKeys('[data-issue-row], [data-pull]', '[data-row-focus], a[href*="/pull/"]');
+   // "a" opens Add an issue from anywhere on the page, its box in view: in
+   // the middle, clear of the sticky headers above it at any width
+   usePageKey('a', () => {
+      setAdding(true);
+      requestAnimationFrame(() => {
+         boxRef.current?.scrollIntoView({ block: 'center' });
+         boxRef.current?.querySelector('input')?.focus({ preventScroll: true });
+      });
+   });
    const mine = (plans ?? []).filter(p => p.project === slug);
    const lateOf = (pr: IssuePull) => lateWords(pr.createdAt, mine, closed);
    /** Save `add` for a change's issue: the click's own change, or, when it
@@ -1058,6 +1068,7 @@ export function ProjectWorkSections({
                         tone={adding ? 'quiet' : 'action'}
                         onClick={() => setAdding(!adding)}
                         aria-expanded={adding}
+                        aria-keyshortcuts={adding ? undefined : 'a'}
                      >
                         {adding ? 'Close' : 'Add an issue'}
                      </TextButton>
