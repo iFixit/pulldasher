@@ -129,3 +129,23 @@ test("createPacer spaces consecutive gates by observed consumption", async () =>
     "second gate should pace out the request spent since the last gate"
   );
 });
+
+// GraphQL and search answer with their own budgets in the same headers. A
+// pacer that read them as REST's would pause bulk work for a quota it isn't
+// spending, here until a reset a few seconds out (short, so a regression fails
+// instead of holding the run open).
+test("createPacer ignores the GraphQL budget's headers", async () => {
+  const pacer = createPacer({ reserve: 10 });
+  pacer.observe({
+    "x-ratelimit-resource": "graphql",
+    "x-ratelimit-remaining": "0",
+    "x-ratelimit-reset": String(Math.ceil(Date.now() / 1000) + 3),
+    "x-ratelimit-used": "5000",
+  });
+
+  const paused = await Promise.race([
+    pacer.gate().then(() => false),
+    new Promise((resolve) => setTimeout(() => resolve(true), 1000)),
+  ]);
+  assert.equal(paused, false);
+});

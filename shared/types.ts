@@ -145,6 +145,18 @@ export interface InitializePayload {
    weightLabels?: Record<string, string>;
 }
 
+/** "Refresh all" on the server, sent to every board: it checks GitHub, then
+ * refetches the pulls the board has wrong, one press at a time. */
+export interface RefreshAllProgress {
+   state: 'checking' | 'refreshing' | 'done';
+   /** pulls refetched so far, of the `total` that differed from GitHub */
+   done: number;
+   total: number;
+   /** pulls that couldn't be refetched, and repos GitHub didn't list */
+   failed: number;
+   skipped: number;
+}
+
 export interface TokenResponse {
    socketToken: string;
    user: string;
