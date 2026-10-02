@@ -359,8 +359,11 @@ export function ProjectPage({
       .filter(p => p.parents.includes(slug))
       .map(p => ({ slug: p.slug, name: p.name }));
    const people = group?.people ?? [];
-   const devs = people.filter(login => teamOf(login) != null);
-   const others = people.filter(login => teamOf(login) == null);
+   // with no developer teams yet nobody is a developer, so the faces go
+   // unsplit rather than all under "Non-developers"
+   const split = !!data && Object.keys(data.teams).length > 0;
+   const devs = split ? people.filter(login => teamOf(login) != null) : [];
+   const others = split ? people.filter(login => teamOf(login) == null) : [];
    // when its issue says it's finished, for the PRs that opened after
    const closedIssue = closedIssues(project ? [project] : []).get(slug) ?? null;
 
@@ -598,6 +601,9 @@ export function ProjectPage({
                <span className="text-xs text-ink-3">{standing}</span>
                {people.length > 0 && (
                   <span className="flex items-center gap-3 text-xs text-ink-3 sm:ml-auto">
+                     {!split && (
+                        <PeopleStack logins={people} size={20} onPerson={onPerson} me={opts.me} />
+                     )}
                      {devs.length > 0 && (
                         <span className="inline-flex items-center gap-1.5">
                            Developers{' '}
@@ -625,6 +631,7 @@ export function ProjectPage({
                   project={project}
                   prefix={prefix}
                   ongoing={ongoing}
+                  lead={item}
                   links={{ navigate, nameOf, parts }}
                   onOngoing={decideOffersOngoing ? undefined : markOngoing}
                   ongoingByLabel={byLabel}

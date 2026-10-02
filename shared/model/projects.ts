@@ -335,6 +335,31 @@ export function utcDay(epochSecs: number): string {
    return new Date(epochSecs * 1000).toISOString().slice(0, 10);
 }
 
+const dayFormats = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * The YYYY-MM-DD day an epoch-secs instant falls on in a time zone (an IANA
+ * name, like America/Los_Angeles), or where the code runs with none: the
+ * day a team means by today, where utcDay's turns over at 5pm in
+ * California. The board goes by the browser's day, the server by its
+ * team's (lib/projects.js teamDay), so "past its end" is one answer.
+ */
+export function dayIn(epochSecs: number, timeZone?: string): string {
+   let format = dayFormats.get(timeZone ?? '');
+   if (!format) {
+      format = new Intl.DateTimeFormat('en-US', {
+         timeZone,
+         year: 'numeric',
+         month: '2-digit',
+         day: '2-digit',
+      });
+      dayFormats.set(timeZone ?? '', format);
+   }
+   const parts = format.formatToParts(new Date(epochSecs * 1000));
+   const part = (type: string) => parts.find(p => p.type === type)?.value;
+   return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
 interface Tally {
    counts: Omit<
       WindowCounts,

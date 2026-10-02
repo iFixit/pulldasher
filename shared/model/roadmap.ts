@@ -1,4 +1,4 @@
-import { dayStart, utcDay } from './projects';
+import { dayIn, dayStart, utcDay } from './projects';
 import type { PrStage } from './stage';
 
 /**
@@ -423,20 +423,29 @@ export interface Vouch {
  * The numbers that vouch for a plan in progress, so its lead owes no update
  * while they hold (PRODUCT.md: no news is good news): its PRs merged in the
  * last UPDATE_DUE_DAYS, it isn't past its end, and its issues' pace, when
- * there is one, finishes them by its end. Null when they don't, or aren't
- * known.
+ * there is one, finishes them by its end. They vouch only for what its lead
+ * last said, if anything, was on track: merges never stand over an at risk
+ * or off track. `today` is the day `now` falls on where the team is
+ * (dayIn). Null when they don't vouch, or aren't known.
  */
 export function vouchFor(
-   item: Pick<RoadmapItem, 'start' | 'weeks' | 'lately'>,
-   now: number
+   item: Pick<RoadmapItem, 'start' | 'weeks' | 'lately' | 'update'>,
+   now: number,
+   today: string = dayIn(now)
 ): Vouch | null {
    const lately = item.lately;
-   if (!lately?.merged) return null;
+   if (!lately?.merged || (item.update && item.update.health !== 'on_track')) return null;
    const end = planEnd(item);
-   if (utcDay(now) > end) return null;
+   if (today > end) return null;
    const finish = lately.issues ? paceFinish(lately.issues, now) : null;
-   // Infinity first: it has no day to compare
-   if (finish === Infinity || (finish != null && utcDay(finish) > end)) return null;
+   // Infinity first: it has no day to compare; a finish is whole weeks from
+   // now, so its day is as many from today
+   if (
+      finish === Infinity ||
+      (finish != null && utcDay((dayStart(today) as number) + finish - now) > end)
+   ) {
+      return null;
+   }
    return { merged: lately.merged, finish };
 }
 
@@ -477,11 +486,12 @@ export interface OwedUpdate {
  */
 export function updatesOwed(
    items: readonly RoadmapItem[],
-   now: number
+   now: number,
+   today: string = dayIn(now)
 ): { lead: string | null; owed: OwedUpdate[] }[] {
    const byLead = new Map<string | null, OwedUpdate[]>();
    for (const item of items) {
-      const standing = healthStanding(item, now);
+      const standing = healthStanding(item, now, today);
       if (standing.kind !== 'missing' && standing.kind !== 'stale') continue;
       const from = Math.max(dayStart(item.start) as number, item.created_at ?? 0);
       const days = standing.kind === 'stale' ? standing.days : Math.floor((now - from) / DAY);
@@ -498,9 +508,12 @@ export function updatesOwed(
       );
 }
 
+/** `today` is the day `now` falls on where the team is (dayIn), which says
+ * whether a plan is past its end. */
 export function healthStanding(
    item: Pick<RoadmapItem, 'status' | 'start' | 'weeks' | 'update' | 'created_at' | 'lately'>,
-   now: number = Date.now() / 1000
+   now: number = Date.now() / 1000,
+   today: string = dayIn(now)
 ): HealthStanding {
    if (isStopped(item.status)) return { kind: 'quiet' };
    const active = inProgress(item);
@@ -508,13 +521,26 @@ export function healthStanding(
    if (!u) {
       const from = Math.max(dayStart(item.start) as number, item.created_at ?? 0);
       if (!active || (now - from) / DAY <= UPDATE_DUE_DAYS) return { kind: 'quiet' };
-      const vouch = vouchFor(item, now);
+      const vouch = vouchFor(item, now, today);
       return vouch ? { kind: 'quiet', vouch } : { kind: 'missing' };
    }
    const days = Math.floor((now - u.at) / DAY);
    if (!active || days <= UPDATE_DUE_DAYS) return { kind: 'current', update: u };
-   const vouch = vouchFor(item, now);
+   const vouch = vouchFor(item, now, today);
    return vouch ? { kind: 'current', update: u, vouch } : { kind: 'stale', update: u, days };
+}
+
+/**
+ * Where a plan's updates stand in one word, as the API says it beside the
+ * board's: `owed` (its lead owes one: healthStanding's missing or stale),
+ * `vouched` (none owed, its numbers vouch for it), `current` (its latest
+ * update stands: recent, or the work isn't under way). Null when there's
+ * nothing to say: no update, and none owed yet.
+ */
+export function updateStanding(s: HealthStanding): 'owed' | 'vouched' | 'current' | null {
+   if (s.kind === 'missing' || s.kind === 'stale') return 'owed';
+   if (s.vouch) return 'vouched';
+   return s.kind === 'current' ? 'current' : null;
 }
 
 /** Worst first, for sorting: off track, at risk, an update owed, on track,

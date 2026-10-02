@@ -1,0 +1,52 @@
+#!/usr/bin/env node
+/**
+ * Apply the migrations this database is missing (lib/schema-check.js
+ * MIGRATIONS), oldest first, each only while information_schema says it's
+ * still missing, then check again. Exits non-zero when anything is still
+ * missing, so a deploy runs it inside the new image, with that instance's
+ * database, and swaps only when it succeeds:
+ *
+ *   docker run --rm --env-file .env.db pulldasher-dev:$SHA bin/migrate-missing
+ *
+ * Usage: bin/migrate-missing [--dry-run]
+ * --dry-run names what's missing and changes nothing (non-zero if any is).
+ */
+import mysql from 'mysql2/promise';
+import config from '../lib/config-loader.js';
+import db from '../lib/db.js';
+import { applyMissing, missingMigrations } from '../lib/schema-check.js';
+
+const dryRun = process.argv.includes('--dry-run');
+
+// a file can hold several statements (0028 makes two tables), which the
+// board's own connections don't allow
+const conn = dryRun
+   ? null
+   : await mysql.createConnection({
+        host: config.mysql.host,
+        database: config.mysql.db,
+        user: config.mysql.user,
+        password: config.mysql.pass,
+        charset: 'utf8mb4',
+        multipleStatements: true,
+     });
+try {
+   const missing = dryRun
+      ? await missingMigrations()
+      : await applyMissing(async (file, sql) => {
+           console.log('Applying %s', file);
+           await conn.query(sql);
+        });
+   if (missing.length) {
+      console.error('%s: %s', dryRun ? 'Missing' : 'Still missing', missing.join(', '));
+      process.exitCode = 1;
+   } else {
+      console.log('Every migration is in.');
+   }
+} catch (err) {
+   console.error('Migrating failed: %s', (err && err.message) || err);
+   process.exitCode = 1;
+} finally {
+   await conn?.end();
+   await db.end();
+}

@@ -198,6 +198,9 @@ interface CheerInput {
     * snapshot. Defaults to {} so an unresolved login just falls back to
     * itself. */
    names?: Readonly<Record<string, string | null>>;
+   /** open PRs whose project's plan is parked (model/standing.ts): start-here
+    * puts them last, as the review board sinks them */
+   parked?: ReadonlyMap<string, string>;
    /** the board's first payload has arrived. `false` means it's still loading
     * (an empty snapshot), and diffing that against a primed baseline would fire
     * a phantom "Board's clear" / "Inbox zero" and count every stamp as newly
@@ -393,9 +396,16 @@ function readSignals(input: CheerInput): Signals {
    // deprioritize bots exactly as Review's Deal-me-one does, so start-here never
    // calls a dependabot bump "the single best pull to review next" — it's only
    // the best when nothing human is left
-   const bestStart = dealFrom(dealRank(reviewableUnclaimed, { me, pulls, deprioritize: isBot }), {
-      passed: new Set(),
-   });
+   // and a parked project's PRs with them, as the review board sinks them
+   const parked = input.parked;
+   const bestStart = dealFrom(
+      dealRank(reviewableUnclaimed, {
+         me,
+         pulls,
+         deprioritize: p => isBot(p) || !!parked?.has(pullKey(p.data)),
+      }),
+      { passed: new Set() }
+   );
    const startReason = bestStart
       ? startHereReason(bestStart, pulls, me, true, input.names ?? {})
       : '';

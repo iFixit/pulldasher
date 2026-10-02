@@ -65,7 +65,13 @@ async function dummyRetro({ start, end }: Range): Promise<RetroData> {
       ].filter(t => t.at >= from && t.at < to);
    });
    const teamOf = teamLookup(DUMMY_TEAMS);
-   const rows = timeSpent(touches, login => !isSuffixBot(login) && teamOf(login) != null);
+   // with no teams yet (a new install), everyone's days count, as the
+   // server counts them (lib/projects.js)
+   const teams = Object.values(DUMMY_TEAMS).some(members => members.length > 0);
+   const rows = timeSpent(
+      touches,
+      login => !isSuffixBot(login) && (!teams || teamOf(login) != null)
+   );
    const byKey = new Map(pulls.map(p => [`${p.repo}#${p.number}`, p]));
    const people = [...new Set(rows.map(r => r.login))].sort();
    const weeks = [...new Set(rows.map(r => r.week))].sort();
@@ -73,7 +79,7 @@ async function dummyRetro({ start, end }: Range): Promise<RetroData> {
    return {
       start,
       end,
-      counted: 'developers',
+      counted: teams ? 'developers' : 'everyone',
       weeks,
       people,
       prs: prKeys.map(key => {

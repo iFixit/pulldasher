@@ -18,6 +18,7 @@ import {
    planFor,
    ROADMAP_ORIGINS,
    updatesOwed,
+   updateStanding,
    type PlanLately,
    type RoadmapItem,
    type RoadmapUpdate,
@@ -180,6 +181,36 @@ describe('updates', () => {
       expect(healthStanding({ ...going, update: update(20), lately: null }, now).kind).toBe(
          'stale'
       );
+   });
+
+   it('never vouches over a lead’s at risk or off track: their word stands until a new one', () => {
+      for (const health of ['at_risk', 'off_track'] as const) {
+         expect(
+            healthStanding({ ...going, update: update(20, health), lately: lately() }, now)
+         ).toEqual({ kind: 'stale', update: update(20, health), days: 20 });
+      }
+   });
+
+   it('judges a plan past its end, and its issues’ finish, by the team’s day, not UTC’s', () => {
+      const plan = { ...going, update: null, lately: lately() };
+      // 9pm on Sunday Nov 1 in California, its last day, is Monday in UTC
+      const evening = Date.UTC(2026, 10, 2, 5) / 1000;
+      expect(healthStanding(plan, evening, '2026-11-01').kind).toBe('quiet');
+      expect(healthStanding(plan, evening, '2026-11-02').kind).toBe('missing');
+      // 9pm on Oct 4 there: its issues done in four weeks, on its last day
+      const paced = { ...plan, lately: lately({ issues: { open: 2, closed: 3, added: 1 } }) };
+      const oct4 = Date.UTC(2026, 9, 5, 4) / 1000;
+      expect(healthStanding(paced, oct4, '2026-10-04').kind).toBe('quiet');
+   });
+
+   it('says where a plan’s updates stand in one word, as the API does', () => {
+      const vouch = { merged: 2, finish: null };
+      expect(updateStanding({ kind: 'missing' })).toBe('owed');
+      expect(updateStanding({ kind: 'stale', update: update(20), days: 20 })).toBe('owed');
+      expect(updateStanding({ kind: 'quiet', vouch })).toBe('vouched');
+      expect(updateStanding({ kind: 'current', update: update(20), vouch })).toBe('vouched');
+      expect(updateStanding({ kind: 'current', update: update(3) })).toBe('current');
+      expect(updateStanding({ kind: 'quiet' })).toBeNull();
    });
 
    it('reads a plan still marked planned as in progress once its PRs moved after its start', () => {

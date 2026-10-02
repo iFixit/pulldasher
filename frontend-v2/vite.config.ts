@@ -19,7 +19,12 @@ export default defineConfig({
          '/stats-history': 'http://localhost:3000',
          '/user-names': 'http://localhost:3000',
          '/projects-data': 'http://localhost:3000',
+         '/project-standing': 'http://localhost:3000',
+         '/work-data': 'http://localhost:3000',
+         '/project-work': 'http://localhost:3000',
+         '/project-issues': 'http://localhost:3000',
          '/roadmap': 'http://localhost:3000',
+         '/settings': 'http://localhost:3000',
       },
    },
 });

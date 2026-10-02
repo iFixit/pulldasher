@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DerivedPull } from '../../../shared/model/status';
-import { crScore, crSort, teamFirst } from './sort';
+import { crScore, crSort, finishersFirst, sinkBy, teamFirst } from './sort';
 
 function fake(over: {
    ageDays?: number;
@@ -49,6 +49,30 @@ describe('crScore / crSort', () => {
       expect(sorted[0]).toBe(c);
       expect(sorted[1]).toBe(a);
       expect(sorted[2]).toBe(b);
+   });
+
+   it("sinks a parked project's pull below a heavier one, never out of the list", () => {
+      const parkedXs = fake({ weight: 'XS', ageDays: 10 });
+      const freshL = fake({ weight: 'L', ageDays: 0 });
+      expect(crSort([parkedXs, freshL], p => p === parkedXs)).toEqual([freshL, parkedXs]);
+   });
+});
+
+describe('sinkBy', () => {
+   it('moves the higher ranks down and keeps each rank in its order', () => {
+      const [a, b, c, d] = [1, 2, 3, 4].map(n => fake({ ageDays: n }));
+      expect(sinkBy([a, b, c, d], p => Number(p === a || p === c))).toEqual([b, d, a, c]);
+   });
+});
+
+describe('finishersFirst', () => {
+   it('lifts a pull that finishes a plan to the front of its tie, no further', () => {
+      const [a, b, c, d] = [1, 2, 3, 4].map(n => fake({ ageDays: n }));
+      // a ranks above its own tie; b and c tie, and c would finish a plan
+      const tie = (p: DerivedPull) => (p === b || p === c ? 'tie' : String(p.ageDays));
+      expect(finishersFirst([a, b, c, d], tie, p => p === c)).toEqual([a, c, b, d]);
+      // a finisher alone in its run stays where the ranking put it
+      expect(finishersFirst([a, b, c, d], tie, p => p === d)).toEqual([a, b, c, d]);
    });
 });
 

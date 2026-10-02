@@ -1,6 +1,6 @@
 import pullManager from '../lib/pull-manager.js';
 import { respondOrError } from '../lib/controller-utils.js';
-import { loadProjects, projectSettings, todayFromBoard } from '../lib/projects.js';
+import { loadProjects, projectSettings, teamDay, todayFromBoard } from '../lib/projects.js';
 import {
    addUpdate,
    createItem,
@@ -15,74 +15,124 @@ import {
    restoreItem,
    updateItem,
 } from '../lib/roadmap.js';
-import { getOrSet } from '../lib/ttl-cache.js';
+import { sharedValue } from '../lib/ttl-cache.js';
 import { loadPullLinks, loadWork } from '../lib/work.js';
 import {
    checkRoadmapFields,
    checkRoadmapUpdate,
+   healthStanding,
+   inProgress,
+   planFor,
    updatesOwed,
+   updateStanding,
    waitsOnProblem,
 } from '../shared/dist/index.js';
 
 const FAKE_USER = process.env.MOCK_AUTH_AS_USER;
 
 /** how long what the projects did lately is kept: the roadmap reloads each
- * minute an open board shows it, and once is enough for all of them */
+ * minute an open board shows it, and once is enough for all of them. A
+ * project write forgets it (forgetProjectCaches). */
 const LATELY_MS = 60 * 1000;
-const latelyCache = new Map();
 
 /**
  * What each project did lately, by slug (lib/roadmap.js latelyBySlug): the
  * board's PRs now, each in its project by the same rule as Today's
  * (controllers/projects.js), and its issues' pace from the work model when
- * it sends one (`pace`, by slug). Empty when projects aren't set up, or the
- * reads fail: every plan is then judged by its updates alone, as before.
+ * it sends one (`pace`, by slug). Empty when projects aren't set up.
  */
-async function lately() {
+const latelyNow = sharedValue(LATELY_MS, async () => {
    const settings = projectSettings();
    if (!settings) return new Map();
+   const [projects, linked] = await Promise.all([
+      loadProjects(settings),
+      loadPullLinks(settings),
+   ]);
+   const work = await loadWork(settings, { plans: [], projects }).catch(err => {
+      console.error('roadmap: reading the issues’ pace failed:', err);
+      return null;
+   });
+   const now = Date.now() / 1000;
+   const ongoing = new Set([
+      ...settings.ongoing,
+      ...projects.filter(p => p.ongoing).map(p => p.slug),
+   ]);
+   const pulls = pullManager.getPulls();
+   const today = todayFromBoard(pulls, projects, settings.prefix, now, linked);
+   return latelyBySlug(today, work?.pace ?? {}, ongoing, now);
+});
+
+/** What each project did lately (latelyNow); empty when the reads fail:
+ * every plan is then judged by its updates alone, as before. */
+async function lately() {
    try {
-      const { bySlug } = await getOrSet(latelyCache, 'all', LATELY_MS, async () => {
-         const [projects, linked] = await Promise.all([
-            loadProjects(settings),
-            loadPullLinks(settings),
-         ]);
-         const work = await loadWork(settings, { plans: [], projects }).catch(err => {
-            console.error('roadmap: reading the issues’ pace failed:', err);
-            return null;
-         });
-         const now = Date.now() / 1000;
-         const ongoing = new Set([
-            ...settings.ongoing,
-            ...projects.filter(p => p.ongoing).map(p => p.slug),
-         ]);
-         const pulls = pullManager.getPulls();
-         const today = todayFromBoard(pulls, projects, settings.prefix, now, linked);
-         return { bySlug: latelyBySlug(today, work?.pace ?? {}, ongoing, now) };
-      });
-      return bySlug;
+      return await latelyNow.get();
    } catch (err) {
       console.error('roadmap: reading what projects did lately failed:', err);
       return new Map();
    }
 }
 
-/** Items as the roadmap sends them: each with what its project did lately
- * (shared/model/roadmap.ts PlanLately), which its standing is judged by. */
+/**
+ * Items as the roadmap sends them: each with what its project did lately
+ * (shared/model/roadmap.ts PlanLately), and what the board reads off it, so
+ * a script says what the board says: `in_progress` (marked so, or planned
+ * with its PRs moving since its start: inProgress) and `standing`, where its
+ * updates stand (updateStanding: owed, vouched or current), judged by the
+ * team's day.
+ */
 async function sent(items) {
    const bySlug = await lately();
-   return items.map(item => ({
-      ...item,
-      lately: (item.project && bySlug.get(item.project)) || null,
-   }));
+   const now = Date.now() / 1000;
+   const today = teamDay(now);
+   return items.map(item => {
+      const read = { ...item, lately: (item.project && bySlug.get(item.project)) || null };
+      return {
+         ...read,
+         in_progress: inProgress(read),
+         standing: updateStanding(healthStanding(read, now, today)),
+      };
+   });
 }
 
 /** One item as the roadmap sends it; null stays null. */
 const sentOne = async item => (item ? (await sent([item]))[0] : null);
 
-/** test hook: forget what the projects did lately */
-export function _resetLately() {
-   latelyCache.clear();
+/** how long the review board's project standing is kept; a project write
+ * forgets it */
+const STANDING_MS = 60 * 1000;
+
+/**
+ * What the review board needs to know of projects: which projects each of
+ * its PRs links (lib/work.js loadPullLinks), so it files a PR in its project
+ * by the Projects tab's rule, and each project's plan (shared/model/roadmap.ts
+ * planFor) by slug: its status, and whether it's in progress by its PRs
+ * (inProgress), so a parked one's PRs sink and one under way can finish,
+ * and its name, for the board to say which.
+ */
+const standingNow = sharedValue(STANDING_MS, async () => {
+   const settings = projectSettings();
+   const [linked, items] = await Promise.all([loadPullLinks(settings), listItems().then(sent)]);
+   // the board's PRs: open, and closed lately
+   const onBoard = new Set(
+      pullManager.getPulls().map(p => `${p.data.repo}#${p.data.number}`.toLowerCase())
+   );
+   const plans = {};
+   for (const slug of new Set(items.map(i => i.project).filter(Boolean))) {
+      const plan = planFor(slug, items);
+      plans[slug] = { status: plan.status, in_progress: plan.in_progress, name: plan.name };
+   }
+   return {
+      pull_links: Object.fromEntries(Object.entries(linked).filter(([pr]) => onBoard.has(pr))),
+      plans,
+   };
+});
+
+/** Forget what's kept of the projects: a project write, or a sync of the
+ * issues and their links, changed it (app.js). */
+export function forgetProjectCaches() {
+   latelyNow.forget();
+   standingNow.forget();
 }
 
 /**
@@ -141,8 +191,8 @@ export default {
     * GET /roadmap (session) and GET /api/v1/roadmap (Bearer) -- every
     * roadmap item in priority order: the plan a project manager laid out,
     * each with its first week, length in weeks, an optional project label
-    * slug linking it to that project's PRs, its latest update, and what its
-    * project did lately.
+    * slug linking it to that project's PRs, its latest update, what its
+    * project did lately, and what the board reads off them (`sent`).
     */
    list: function (req, res) {
       respondOrError(
@@ -155,11 +205,24 @@ export default {
    },
 
    /**
+    * GET /project-standing (session) -- the review board's view of projects
+    * (standingNow): which projects each of its PRs links, and each project's
+    * plan's status and whether it's in progress, by slug.
+    */
+   standing: function (req, res) {
+      if (!projectSettings()) {
+         res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
+         return;
+      }
+      respondOrError(res, standingNow.get(), 'project standing query failed');
+   },
+
+   /**
     * GET /api/v1/updates-owed -- the leads who owe an update, each with the
     * plans in progress they haven't updated for UPDATE_DUE_DAYS, longest
     * overdue first: what a reminder would send each of them. A plan whose
     * PRs merged lately, inside its end and its issues' pace, owes none
-    * (shared/model/roadmap.ts vouchFor), as on the board.
+    * (shared/model/roadmap.ts vouchFor), as on the board, by the team's day.
     */
    owed: function (req, res) {
       const now = Math.floor(Date.now() / 1000);
@@ -167,7 +230,7 @@ export default {
          res,
          listItems().then(sent).then(items => ({
             server_time: now,
-            leads: updatesOwed(items, now).map(({ lead, owed }) => ({
+            leads: updatesOwed(items, now, teamDay(now)).map(({ lead, owed }) => ({
                lead,
                plans: owed.map(({ item, kind, days }) => ({
                   id: item.id,

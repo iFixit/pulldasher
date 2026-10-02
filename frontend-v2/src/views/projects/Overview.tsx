@@ -15,6 +15,7 @@ import {
    bucketOf,
    ENDS_SOON_DAYS,
    IDLE_BUCKETS,
+   isYours,
    lowerFirst,
    sortItems,
    upperFirst,
@@ -41,7 +42,7 @@ import type { Bucket } from './charts';
 import { useCallsMadeHere } from './Decide';
 import { BucketChart, ChartSlot } from './lazyCharts';
 import { switchView, Tile, type Navigate, type ProjectsNav } from './parts';
-import { AS_OPENED, Portfolio } from './Portfolio';
+import { AS_OPENED, Portfolio, Yours, type Workers } from './Portfolio';
 import { useWhoIsOnWhat, type WhoRow } from './WhoIsOnWhat';
 
 const NO_ROWS: DecideRow[] = [];
@@ -218,6 +219,8 @@ function Tiles({
                      note={
                         behind.length
                            ? behindNote()
+                           : !items.some(i => i.plan)
+                           ? 'no plans yet'
                            : `${n(ending.length, 'plan')} end in the next ${ENDS_SOON_DAYS} days`
                      }
                      title={`Projects past their plan’s end or their target date with PRs still open, or whose latest update says off track with no new plan since. Click to list ${
@@ -413,9 +416,9 @@ function AgeCharts({
 }
 
 /**
- * The Overview: where the projects stand now. The tiles say whether
- * anything needs a look; then every project on one list, what's owed
- * first; then how long the projects being worked on have been open and
+ * The Overview: where the projects stand now. Your own projects come first,
+ * the same rows as the list's; the tiles say whether anything needs a look;
+ * then every project on one list, what's owed first; then how long the projects being worked on have been open and
  * when they last moved; and the PRs outside any project close it out,
  * since sorting them is someone's job too. Who is on what lives on People,
  * where the Overloaded tile goes. Every number is as of now; Look back
@@ -467,6 +470,27 @@ export function Overview({
    });
    const placeOf = (item: PortfolioItem) =>
       (answered.has(item.slug) && stood.current.get(item.slug)) || item;
+   // your projects, first, as the list places them
+   const yours = new Set(
+      listed
+         .map(placeOf)
+         .filter(i => isYours(i, me))
+         .map(i => i.slug)
+   );
+   const workers: Workers = rows ? 'loaded' : who === null ? 'failed' : 'loading';
+   // what both lists draw their rows with
+   const list = {
+      items: listed,
+      placeOf,
+      calls: calls.all,
+      prefix,
+      workers,
+      nav,
+      navigate,
+      opts,
+      onPerson,
+      me,
+   };
    // most projects first, then by login: the order People lists them in
    const overloaded = useMemo(
       () =>
@@ -497,6 +521,7 @@ export function Overview({
                onRetry={retryRetroData}
             />
          )}
+         <Yours {...list} slugs={yours} />
          <Tiles
             items={listed}
             today={today}
@@ -506,20 +531,7 @@ export function Overview({
             nav={nav}
             navigate={navigate}
          />
-         <Portfolio
-            items={listed}
-            placeOf={placeOf}
-            calls={calls.all}
-            prefix={prefix}
-            workers={rows ? 'loaded' : who === null ? 'failed' : 'loading'}
-            nameOf={nameOf}
-            teams={teams}
-            nav={nav}
-            navigate={navigate}
-            opts={opts}
-            onPerson={onPerson}
-            me={me}
-         />
+         <Portfolio {...list} nameOf={nameOf} teams={teams} above={yours} />
          <AgeCharts items={listed} nav={nav} navigate={navigate} />
          {outside + today.doubleLabeled.length > 0 && (
             <RestGroup

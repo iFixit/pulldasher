@@ -1,13 +1,14 @@
 import type { ReactNode } from 'react';
 import { headStatuses, type DerivedPull } from '../../../shared/model/status';
 // the small module, so the board's rows don't load the projects model
-import { MISC_SLUG, projectOf } from '../../../shared/model/projectLabel';
+import { MISC_SLUG } from '../../../shared/model/projectLabel';
 import type { Claim, RowNote } from '../model/actions';
 import { rowNote } from '../model/actions';
+import { projectOfPull, useProjectStanding } from '../model/standing';
 import type { PullData } from '../../../shared/types';
 import { ago, closedEpoch, epoch, githubUrl, issueUrl, signatureUrl } from '../../../shared/format';
 import { usePulldasher } from '../store';
-import { ClosedBadge, STATUS_LABEL } from './bits';
+import { ClosedBadge, FactLink, STATUS_LABEL } from './bits';
 import { Avatar } from './identity';
 import { Popover } from './Popover';
 
@@ -130,11 +131,12 @@ function FactsSection({
    onProject?: (slug: string) => void;
 }) {
    const d = pull.data;
-   // the name isn't cheaply available here (only the live socket snapshot
-   // is, via usePulldasher; the project list is a separate fetch), so the
-   // link shows the slug
+   // its project by the Projects tab's rule: its label, else the project
+   // whose issue it links. The board has the slug, not the project's name
+   // (that comes with the Projects tab's own fetch), so the link shows it
    const { projectLabelPrefix } = usePulldasher();
-   const slug = projectLabelPrefix ? projectOf(d.labels, projectLabelPrefix) : null;
+   const standing = useProjectStanding(projectLabelPrefix);
+   const slug = projectLabelPrefix ? projectOfPull(pull, projectLabelPrefix, standing) : null;
    const crReq = d.status.cr_req;
    const qaReq = d.status.qa_req;
    const ciWord =
@@ -234,13 +236,12 @@ function FactsSection({
                project{' '}
                {onProject ? (
                   // through the app, so the board's filters stay
-                  <button
-                     type="button"
+                  <FactLink
                      onClick={() => onProject(slug)}
-                     className="hit pressable rounded border-0 bg-transparent p-0 font-medium text-brand hover:underline"
+                     aria-label={`${slug}: open its page on the Projects tab`}
                   >
                      {slug}
-                  </button>
+                  </FactLink>
                ) : (
                   <b className="font-medium text-ink">{slug}</b>
                )}

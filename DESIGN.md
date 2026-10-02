@@ -296,11 +296,11 @@ icon with a class bolted on.
 
 ## The Projects tab
 
-- **Every view counts every PR, whatever the filter bar narrows.** A
-  project whose PRs are filtered out would otherwise look quiet or
-  finished, and one click on a face (which set an author filter) dropped
-  "in progress" from 11 projects to 1. A quiet line says so while the bar
-  narrows.
+- **Every view counts every PR, whatever the filter bar narrows**, so the
+  tab hides the bar's filters (the PR search stays). A project whose PRs
+  are filtered out would otherwise look quiet or finished, and one click on
+  a face (which set an author filter) dropped "in progress" from 11
+  projects to 1.
 - **A person clicked anywhere in Projects opens People with them
   picked.** It never leaves the tab or sets a filter.
 - **A view's picks stay with it.** Switching views clears the old view's
@@ -365,8 +365,10 @@ icon with a class bolted on.
     joins neither, and one another project has stays a suggestion.
   - **An update is owed only when the numbers can't vouch.** A plan under
     way whose PRs merged in the last 14 days, inside its end and its issues'
-    pace, owes none: a row says "no update needed", the page says the
-    numbers. The rest open on a drafted update with "Post as drafted". A
+    pace, owes none, unless its lead's last update said at risk or off
+    track: a row says "no update needed", the page says the numbers. Days
+    are the team's (`projects.timeZone`), so the board and /api/v1 agree on
+    "past its end". The rest open on a drafted update with "Post as drafted". A
     Planned plan whose PRs moved since its start reads In progress; that's
     derived, never written.
   - **A new plan takes what its issue says**: its Start date, its Priority
@@ -379,6 +381,25 @@ icon with a class bolted on.
   Overview, Roadmap and People; on a project's page "a" adds an issue and
   "u" posts an update. A new plan opens with its name and end, the rest
   behind More.
+- **A default is safe to take blind.** An outlined end never shortens a
+  plan, and "New end?" offers only ends after its current one. Where
+  nothing is asked (a page's Plan line, an Overview row) there's no strip at
+  rest, only a quiet "Change" that opens one with nothing outlined.
+- **Every guess can be checked in one place.** Decide ends with "Filled in
+  on its own this week": issues that joined by a link (each with its
+  Remove), PRs counted by a link, plans read In progress from their PRs, and
+  updates skipped because the numbers vouched.
+- **A project reads sensibly before anyone sets it up**, as prod will on day
+  one (`?state=fresh` on the dummy board: labels on PRs, nothing else). A
+  project with no issue is named from its slug ("Webdriver deflake") and led
+  by its author with the most PRs, marked "by PRs".
+- **Yours first.** The Overview opens with your projects (you lead it, or
+  you have a PR open or merged in the last 14 days), and My work carries a
+  "Your projects" fold, amber only when the call is yours.
+- **The review board knows projects**, by the tab's one rule: a parked
+  project's PRs sink in every ranked lane (their why says so), the last two
+  open PRs of a plan in progress win ties, and the PR popover names the
+  project. Nothing leaves the board, and no lane changes.
 - **A call is made where it's seen.** The call strip sits under a project
   page's Plan line for any project and in an Overview row's details, and
   each Decide section answers every row at once ("Commit all 52 through the

@@ -6,6 +6,7 @@ import {
    loadWindow,
    parseWindow,
    projectSettings,
+   teamDay,
    todayFromBoard,
 } from '../lib/projects.js';
 import { listItems } from '../lib/roadmap.js';
@@ -416,7 +417,9 @@ export default {
     * or {repo, number}. It's read off GitHub, so a missing issue is a 404,
     * and a PR, an issue outside the tracked organizations, or a project's
     * own issue a 409. Adding one that's already there changes nothing; one
-    * taken off comes back as it was.
+    * taken off comes back as it was. `inserted` says whether this put it
+    * in, which is when its Undo forgets it (DELETE with forget=1); else
+    * its Undo is a Remove, so one taken off before stays off.
     */
    attachIssue: function (req, res) {
       const body = req.body || {};
@@ -433,8 +436,8 @@ export default {
          return;
       }
       attachIssue(settings, body.project, ref, req.roadmapLogin)
-         .then(({ issue, missing, refused }) => {
-            if (issue) res.status(201).json({ issue });
+         .then(({ issue, inserted, missing, refused }) => {
+            if (issue) res.status(201).json({ issue, inserted });
             else if (missing) res.status(404).json({ error: 'GitHub has no issue by that name.' });
             else res.status(409).json({ error: refused });
          })
@@ -449,7 +452,8 @@ export default {
     * /api/v1/project-issues -- take an issue added by hand, or joined by a
     * link, off a project, for good: a link never brings it back. One
     * attached by label stays until the label comes off it. `forget=1`
-    * takes back an add instead (its Undo): the issue is as if never added.
+    * takes back an add that put it in (the POST's `inserted`) instead: the
+    * issue is as if never added.
     */
    detachIssue: function (req, res) {
       const { project } = req.query;
@@ -510,10 +514,11 @@ export default {
                ),
                issues: new Map(Object.entries(work.projects)),
                ongoing: ongoingSlugs(settings, projects),
-               today: utcDay(now),
+               // the board's Decide asks by the browser's day: the team's
+               today: teamDay(now),
                now,
             });
-            const day = utcDay(now);
+            const day = teamDay(now);
             return {
                server_time: Math.floor(now),
                stall_days: STALL_DAYS,

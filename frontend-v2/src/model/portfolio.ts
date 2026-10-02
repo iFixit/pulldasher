@@ -58,6 +58,10 @@ export const upperFirst = (words: string) => words.charAt(0).toUpperCase() + wor
 /** Words written to start a line ("No PR activity") in the middle of one. */
 export const lowerFirst = (words: string) => words.charAt(0).toLowerCase() + words.slice(1);
 
+/** A label's slug read as words, the name of a project no issue or plan
+ * names yet: "webdriver-deflake" is "Webdriver deflake", not a code. */
+export const slugName = (slug: string) => upperFirst(slug.replace(/[-_]+/g, ' '));
+
 /** Where a project is: being worked on (an open PR or a merge in the last
  * 14 days, and not parked, done or dropped on the roadmap), parked, quiet
  * (open, nothing in flight), or closed (done or dropped). "In progress" is
@@ -115,15 +119,20 @@ export interface PlanCell {
 
 export interface PortfolioItem {
    slug: string;
-   /** its issue's title, or else its plan's name, or else the label */
+   /** its issue's title, or else its plan's name, or else its label's slug
+    * read as words (slugName) */
    name: string;
    project: Project | null;
    /** Today's group when the project is live or quiet */
    group: ProjectGroup | null;
    status: ProjectStatus;
    stage: Stage;
-   /** its issue's assignee, or else its plan's lead */
+   /** its issue's assignee, or else its plan's lead, or else whoever has the
+    * most PRs in it, open or merged in the last 14 days (`leadByPrs`) */
    lead: string | null;
+   /** no issue or plan names a lead, so it's the one with the most PRs:
+    * said "by PRs" wherever the lead shows */
+   leadByPrs: boolean;
    /** its plan's team, or else the team most of its developers are on */
    team: string | null;
    /** its issue's Target date, or else its milestone (projects.ts targetOf) */
@@ -344,14 +353,17 @@ export function portfolioItems(
                ? 'dropped'
                : 'done'
             : 'quiet');
+      const named = project?.lead ?? plan?.lead ?? null;
       const item: PortfolioItem = {
          slug,
-         name: project?.name ?? plan?.name ?? slug,
+         name: project?.name ?? plan?.name ?? slugName(slug),
          project,
          group,
          status,
          stage,
-         lead: project?.lead ?? plan?.lead ?? null,
+         // people come most PRs first (projects.ts buildToday)
+         lead: named ?? people[0] ?? null,
+         leadByPrs: !named && people.length > 0,
          team: null,
          target,
          dueInDays: Number.isNaN(due) ? null : Math.ceil((due - now) / (DAY * 1000)),
@@ -470,6 +482,23 @@ export function withWorkers(
  */
 export function beingWorkedOn(item: Pick<PortfolioItem, 'stage' | 'status' | 'asks'>): boolean {
    return item.stage === 'progress' || (item.status === 'live' && item.asks.length > 0);
+}
+
+/**
+ * Whether a project is the viewer's: they lead it (by PRs too), or have a
+ * PR open in it or merged in the last 14 days. A done or dropped one stays
+ * only while Decide asks about it, since its PRs still move. The Overview
+ * lists these first, as Yours.
+ */
+export function isYours(
+   item: Pick<PortfolioItem, 'lead' | 'developers' | 'nonDevelopers' | 'stage' | 'status' | 'asks'>,
+   me: string
+): boolean {
+   const mine = (login: string | null) => !!login && login.toLowerCase() === me.toLowerCase();
+   return (
+      (mine(item.lead) || [...item.developers, ...item.nonDevelopers].some(mine)) &&
+      (item.stage !== 'closed' || beingWorkedOn(item))
+   );
 }
 
 /** The tabs over the list, in the order they show. `live` is the projects

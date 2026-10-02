@@ -7,8 +7,9 @@ import db from '../lib/db.js';
 import pullManager from '../lib/pull-manager.js';
 import Label from '../models/label.js';
 import Pull from '../models/pull.js';
+import authManager from '../lib/authentication.js';
 import { itemFromRow, latelyBySlug } from '../lib/roadmap.js';
-import roadmapController, { _resetLately, canWrite } from '../controllers/roadmap.js';
+import roadmapController, { canWrite, forgetProjectCaches } from '../controllers/roadmap.js';
 import { API_ROUTES } from '../controllers/api-routes.js';
 
 // In-memory roadmap_items and roadmap_updates tables behind a stubbed
@@ -117,6 +118,7 @@ function makeApp() {
    app.delete('/roadmap/:id/updates/:update', canWrite, roadmapController.removeUpdate);
    app.get('/roadmap/:id', roadmapController.get);
    app.post('/roadmap/:id/move', canWrite, roadmapController.move);
+   app.get('/project-standing', roadmapController.standing);
    return app;
 }
 
@@ -522,18 +524,18 @@ async function withProjects(issues, run) {
    config.projects = { repo: 'test/projects' };
    projectQuery = sql => {
       if (sql.startsWith('SELECT i.* FROM issues')) return issues;
-      if (sql.startsWith('SELECT l.repo, l.number, l.title FROM pull_labels')) {
+      if (sql.startsWith('SELECT l.repo, l.number, l.title, l.date FROM pull_labels')) {
          return issues.map(i => ({ repo: i.repo, number: i.number, title: `project:${i.title}` }));
       }
       return sql.includes('`roadmap_') ? undefined : [];
    };
-   _resetLately();
+   forgetProjectCaches();
    try {
       await run();
    } finally {
       delete config.projects;
       projectQuery = null;
-      _resetLately();
+      forgetProjectCaches();
    }
 }
 
@@ -615,16 +617,145 @@ test('a plan whose PRs merged lately owes no update, on the API as on the board'
       updated_at: now - 200 * DAY,
       created_at: now - 200 * DAY,
    });
-   rows.push(plan(81, 'alpha'), plan(82, 'beta'));
+   rows.push(
+      plan(81, 'alpha'),
+      plan(82, 'beta'),
+      // still marked planned, its PRs moving since its start
+      { ...plan(83, 'alpha'), status: 'planned' },
+      // its lead's last word, three weeks ago, was off track
+      plan(84, 'alpha')
+   );
+   updates.push({
+      id: nextUpdateId++,
+      item_id: 84,
+      health: 'off_track',
+      body: 'Blocked on the vendor.',
+      plan_start: '2026-01-05',
+      plan_weeks: 60,
+      created_by: 'dana',
+      created_at: now - 21 * DAY,
+   });
    await withProjects([issueRow(1, 'alpha'), issueRow(2, 'beta')], async () => {
       const owed = (await call('GET', '/updates-owed', undefined, {})).body;
+      // merges never stand over a lead's off track
       assert.deepEqual(
          owed.leads.flatMap(l => l.plans.map(p => p.id)),
-         [82]
+         [82, 84]
       );
       const items = (await call('GET', '/roadmap', undefined, {})).body.items;
-      assert.equal(items.find(i => i.id === 81).lately.merged, 1);
-      assert.equal(items.find(i => i.id === 82).lately.merged, 0);
+      const item = id => items.find(i => i.id === id);
+      assert.equal(item(81).lately.merged, 1);
+      assert.equal(item(82).lately.merged, 0);
+      // what the board reads off each, said the board's way
+      assert.deepEqual(
+         [81, 82, 83, 84].map(id => [item(id).status, item(id).in_progress, item(id).standing]),
+         [
+            ['active', true, 'vouched'],
+            ['active', true, 'owed'],
+            ['planned', true, 'vouched'],
+            ['active', true, 'owed'],
+         ]
+      );
+   });
+});
+
+/** An open PR on the board, as the pulls table keeps it. */
+function boardPull(number, over = {}) {
+   const now = Math.floor(Date.now() / 1000);
+   return Pull.getFromDB(
+      {
+         repo: 'test/repo-a',
+         number,
+         state: 'open',
+         title: `PR ${number}`,
+         body: '',
+         draft: 0,
+         date: now - 3 * DAY,
+         date_updated: now - DAY,
+         date_closed: null,
+         mergeable: 1,
+         date_merged: null,
+         additions: 1,
+         deletions: 1,
+         changed_files: 1,
+         head_branch: `b${number}`,
+         head_sha: `sha${number}`,
+         base_branch: 'main',
+         owner: 'erin',
+         assignees: [],
+         requested_reviewers: [],
+         cr_req: 1,
+         qa_req: 1,
+         ...over,
+      },
+      [],
+      [],
+      [],
+      [],
+      []
+   );
+}
+
+test('the review board’s project standing: its PRs’ links and each project’s plan, kept a while', async () => {
+   const now = Math.floor(Date.now() / 1000);
+   // on the board with no project label; #999 isn't on the board
+   pullManager.updatePull(boardPull(602));
+   const plan = (id, project, status) => ({
+      id,
+      name: `Plan ${project}`,
+      project,
+      team: null,
+      lead_login: null,
+      status,
+      origin: null,
+      start: '2026-01-05',
+      weeks: 60,
+      priority: id,
+      notes: '',
+      waits_on: null,
+      updated_by: 'dana',
+      updated_at: now - 30 * DAY,
+      created_at: now - 30 * DAY,
+   });
+   rows.push(plan(91, 'alpha', 'planned'), plan(92, 'beta', 'parked'), plan(93, 'gamma', 'planned'));
+   await withProjects([issueRow(1, 'alpha'), issueRow(2, 'beta')], async () => {
+      const base = projectQuery;
+      let linkReads = 0;
+      projectQuery = sql => {
+         // alpha's own issue carries its label, and #602 and #999 link it
+         if (sql.includes('l.date AS labeled_at')) {
+            return [{ repo: 'test/projects', number: 1, title: 'alpha', label: 'project:alpha' }];
+         }
+         if (sql.startsWith('SELECT `issue_repo`')) {
+            linkReads++;
+            return [602, 999].map(n => ({
+               issue_repo: 'test/projects',
+               issue_number: 1,
+               pull_repo: 'test/repo-a',
+               pull_number: n,
+            }));
+         }
+         return base(sql);
+      };
+      const { status, body } = await call('GET', '/project-standing', undefined, {});
+      assert.equal(status, 200);
+      assert.deepEqual(body, {
+         pull_links: { 'test/repo-a#602': ['alpha'] },
+         plans: {
+            // planned, and in progress by #602 moving since its start
+            alpha: { status: 'planned', in_progress: true, name: 'Plan alpha' },
+            beta: { status: 'parked', in_progress: false, name: 'Plan beta' },
+            gamma: { status: 'planned', in_progress: false, name: 'Plan gamma' },
+         },
+      });
+      // kept: asked again, nothing is read
+      const reads = linkReads;
+      await call('GET', '/project-standing', undefined, {});
+      assert.equal(linkReads, reads);
+      // a project write forgets it, and boards asking at once share one read
+      forgetProjectCaches();
+      await Promise.all([1, 2, 3].map(() => call('GET', '/project-standing', undefined, {})));
+      assert.equal(linkReads, 2 * reads);
    });
 });
 
@@ -660,4 +791,10 @@ test('what a project did lately: its merges in the last two weeks, open PRs by s
    });
    // work with no end has no finish to forecast
    assert.equal(lately.get('beta').issues, null);
+});
+
+test('the project standing needs a signed-in session, like the board’s other reads', () => {
+   const gated = [];
+   authManager.setupRoutes({ get: path => gated.push(path) });
+   assert.ok(gated.includes('/project-standing'));
 });

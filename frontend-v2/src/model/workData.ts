@@ -43,7 +43,12 @@ export const removable = (issue: AttachedIssue) => !issue.via.includes('label');
  * off, its row kept so a link never brings it back. */
 type DummyRow = AttachedIssue & { removedAt: number | null };
 
-const DUMMY_ROWS_KEY = 'pd2.dummy.projectIssues';
+// one set per bench, so ?state=fresh starts with none of the full bench's
+const DUMMY_ROWS_KEY = `pd2.dummy.projectIssues${
+   typeof location !== 'undefined' && new URLSearchParams(location.search).get('state')
+      ? `:${new URLSearchParams(location.search).get('state')}`
+      : ''
+}`;
 
 /** The dummy board's project_issues rows, by slug: the fixtures' own
  * issues added by hand to start, so Remove takes them off as it would a
@@ -214,7 +219,10 @@ export async function dummyWorkInputs(plans: readonly RoadmapItem[]): Promise<Wo
                author: s.author,
                createdAt: s.createdAt,
                via: ['link'],
-               attachedAt: now,
+               // its pace counts from when the PR that brought it opened, as
+               // on the server; when it joined stays beside it
+               attachedAt: s.linkedAt,
+               joinedAt: now,
                addedBy: null,
                linkedBy: s.linkedBy[0],
                removedAt: null,

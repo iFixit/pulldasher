@@ -723,6 +723,9 @@ interface Change {
    state: 'saving' | 'saved' | 'failed' | 'undoing' | 'undo-failed' | 'undone';
    error?: string;
    kept?: Kept;
+   /** an add the server says put its row in (false: it put back one taken
+    * off before); unknown until it says */
+   inserted?: boolean;
    /** tells this change from a later one, whose save may land first */
    token: number;
 }
@@ -795,16 +798,23 @@ export function ProjectWorkSections({
    const mine = (plans ?? []).filter(p => p.project === slug);
    const lateOf = (pr: IssuePull) => lateWords(pr.createdAt, mine, closed);
    /** Save `add` for a change's issue: the click's own change, or, when it
-    * goes the other way, its Undo. An add's Undo forgets it, so a
-    * suggestion goes back to being one, where a Remove keeps it off. */
-   const save = ({ ref, add: did, at, kept }: Omit<Change, 'state' | 'token'>, add: boolean) => {
+    * goes the other way, its Undo. An add's Undo forgets the row the add
+    * put in, so a suggestion goes back to being one, where a Remove keeps
+    * it off; an add that put back one taken off before is undone by taking
+    * it off again, so that Remove holds and no sync brings it back. */
+   const save = (
+      { ref, add: did, at, kept, inserted }: Omit<Change, 'state' | 'token'>,
+      add: boolean
+   ) => {
       const undo = add !== did;
       const token = ++tokens.current;
-      const c = { ref, add: did, at, kept, token };
+      const c = { ref, add: did, at, kept, inserted, token };
       setChange({ ...c, state: undo ? 'undoing' : 'saving' });
       if (!undo) setLanded(null);
       const issue = { repo: ref.repo, number: ref.number };
-      void changeProjectIssue(slug, issue, add, { forget: undo && !add }).then(r => {
+      // forgotten unless the add said it put back a row taken off before
+      const forget = undo && !add && inserted !== false;
+      void changeProjectIssue(slug, issue, add, { forget }).then(r => {
          // a later change has the floor
          if (tokens.current !== token) return;
          if ('error' in r) {
@@ -812,7 +822,13 @@ export function ProjectWorkSections({
             return;
          }
          if (add && !undo) setLanded(issueKey(ref));
-         setChange({ ...c, state: undo ? 'undone' : 'saved' });
+         // an add's answer says whether it put the row in, for its Undo
+         const said = 'inserted' in r && typeof r.inserted === 'boolean' ? r.inserted : undefined;
+         setChange({
+            ...c,
+            inserted: add && !undo ? said : inserted,
+            state: undo ? 'undone' : 'saved',
+         });
       });
    };
    // after an Undo from the box, the focus goes back in it, ready for the next

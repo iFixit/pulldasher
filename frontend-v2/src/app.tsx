@@ -50,8 +50,8 @@ import {
 } from './model/savedFilters';
 import { SavedFiltersInput, SavedFiltersMenu } from './components/SavedFiltersPanel';
 import type { RowOptions } from './components/Row';
+import { pullStanding, useProjectStanding } from './model/standing';
 import { Review } from './views/Review';
-import { MyWork } from './views/MyWork';
 import { Team } from './views/Team';
 import { Classic } from './views/Classic';
 import { Ci } from './views/Ci';
@@ -65,6 +65,12 @@ export type { Lens };
 // The Projects tab is for whoever plans the work; reviewers never open it, so
 // its code (and the chart and calendar chunks under it) loads only on demand.
 const Projects = lazy(() => import('./views/Projects').then(m => ({ default: m.Projects })));
+// My work lists your projects in the Projects tab's own words, so it carries
+// the projects model; it loads on its own too (fetched once the board is up,
+// so the tab never waits on it), keeping that model out of the review
+// board's bundle.
+const loadMyWork = () => import('./views/MyWork').then(m => ({ default: m.MyWork }));
+const MyWork = lazy(loadMyWork);
 
 const LENSES: Lens[] = ['review', 'mine', 'team', 'projects', 'classic', 'ci', 'stats'];
 
@@ -403,6 +409,10 @@ export function App() {
    );
    const dark = settings.theme === 'dark' || (settings.theme === 'system' && systemDark);
    const searchRef = useRef<HTMLInputElement>(null);
+   // My work's code, fetched once the board is up so the tab opens at once
+   useEffect(() => {
+      if (initialized) void loadMyWork();
+   }, [initialized]);
 
    // The whole session view as one object — what buildHash writes to the URL
    // AND what "Save current filter…" would capture right now must never
@@ -804,30 +814,21 @@ export function App() {
    ]);
 
    // The Projects tab counts every person's PR, drafts and hidden repos
-   // included: a project's size can't depend on one viewer's review
-   // preferences. The repo and people picks in the filter bar still narrow
-   // it, the way they narrow Stats. Bots are left out, as in the API.
-   const inProjectScope = useCallback(
-      (repo: string, login: string) =>
-         (!scope.repos.length || scope.repos.includes(repo)) &&
-         (!scope.authors.length || scope.authors.includes(login)) &&
-         !scope.notAuthors.includes(login),
-      [scope]
-   );
-   // Decide writes the roadmap, so it sees every project whatever the
-   // filters: a project whose PRs are filtered out mustn't look finished
+   // included, whatever the filter bar narrows (it isn't shown there): a
+   // project's size can't depend on one viewer's review preferences, and a
+   // project whose PRs are filtered out mustn't look finished. Bots are
+   // left out, as in the API.
    const allProjectPulls = useMemo(() => pulls.filter(p => !isBot(p)), [pulls, isBot]);
    const allProjectClosed = useMemo(
       () => closed.filter(p => !isBotLogin(p.user.login, extraBots)),
       [closed, extraBots]
    );
-   const projectPulls = useMemo(
-      () => allProjectPulls.filter(p => inProjectScope(p.data.repo, p.data.user.login)),
-      [allProjectPulls, inProjectScope]
-   );
-   const projectClosed = useMemo(
-      () => allProjectClosed.filter(p => inProjectScope(p.repo, p.user.login)),
-      [allProjectClosed, inProjectScope]
+   // how each PR's project stands, for the review board's lanes: counted
+   // over every person's PR, as every Projects view counts them
+   const standing = useProjectStanding(projectLabelPrefix);
+   const reviewStanding = useMemo(
+      () => pullStanding(standing, allProjectPulls, projectLabelPrefix),
+      [standing, allProjectPulls, projectLabelPrefix]
    );
 
    // the hidden-PR ledger's numbers: stable per-category sizes (what each
@@ -952,6 +953,14 @@ export function App() {
    );
 
    const mineCount = humans.filter(p => p.data.user.login === me).length;
+   const onProjects = lens === 'projects';
+   // the Projects views whose own find box takes "/" (their inputs carry
+   // aria-keyshortcuts="/", which hooks.ts focuses before the PR search)
+   const viewFinds =
+      onProjects &&
+      !searching &&
+      !projectsNav.project &&
+      ['overview', 'roadmap', 'people'].includes(projectsNav.view);
    // a tab's count rides as the corner badge (out of flow), so it appearing
    // when data lands can never widen the tab and shove the strip sideways
    const tab = (id: Lens, label: string, count?: number) => (
@@ -1068,7 +1077,8 @@ export function App() {
       onClaimTurn,
       initialized,
       names,
-      snoozedKeys
+      snoozedKeys,
+      reviewStanding.parked
    );
 
    // A fired nudge outlives the PR it points at: once that PR merges or closes
@@ -1216,8 +1226,9 @@ export function App() {
                 away and stops a growing set from wrapping the dimension triggers
                 below. Click applies it on the lens you're standing on; click
                 again clears. State is a background tint; the text never changes,
-                so nothing shifts. */}
-            {pinnedSearches.length > 0 && (
+                so nothing shifts. Not on Projects: every view there counts every
+                PR, so a pin there would change nothing. */}
+            {pinnedSearches.length > 0 && !onProjects && (
                <div className="no-scrollbar mx-auto flex max-w-[1240px] min-w-0 items-center gap-2 overflow-x-auto border-t border-secondary px-5 py-2">
                   {pinnedSearches.map(f => {
                      const active = matchesView(f.hash, currentHash);
@@ -1244,57 +1255,69 @@ export function App() {
             )}
             <div
                className={`mx-auto flex max-w-[1240px] min-w-0 flex-wrap items-center gap-2 px-5 py-2 ${
-                  pinnedSearches.length > 0 ? '' : 'border-t border-secondary'
+                  pinnedSearches.length > 0 && !onProjects ? '' : 'border-t border-secondary'
                }`}
             >
-               <RepoFilter
-                  repos={repoCounts}
-                  reveal={reveal}
-                  toggleReveal={toggleReveal}
-                  showAll={showAll}
-                  setShowAll={setShowAll}
-                  scope={scope}
-                  setScope={setScope}
-               />
-               <PeopleFilter pulls={pulls} scope={scope} setScope={setScope} />
-               <WeightFilter
-                  pulls={preWeightScoped}
-                  weightSel={weightSel}
-                  setWeightSel={setWeightSel}
-               />
-               <StateFilter pulls={preStateScoped} stateSel={stateSel} setStateSel={setStateSel} />
-               <SavedFiltersMenu currentHash={currentHash} sessionActive={sessionActive} />
-               <HiddenPanel
-                  counts={hiddenCounts}
-                  showAll={showAll}
-                  setShowAll={setShowAll}
-                  reveal={reveal}
-                  toggleReveal={toggleReveal}
-                  draftsMode={draftsMode}
-                  setDraftsMode={setDraftsMode}
-               />
-               {sessionActive && (
-                  <button
-                     type="button"
-                     onClick={() => {
-                        setScope({ repos: [], authors: [], notAuthors: [] });
-                        setWeightSel([]);
-                        setStateSel([]);
-                        setShowAll(false);
-                        setReveal([]);
-                        setDraftsMode(settings.draftsMode);
-                     }}
-                     title="clears filters and session toggles; your team, hidden, and primary-repo choices stay"
-                     className="hit pressable rounded-md px-1.5 py-1 text-[13px] text-ink-3 hover:text-brand"
-                  >
-                     Reset
-                  </button>
-               )}
-               <span className="flex-1" />
-               {bots.length > 0 && (
-                  <span className="text-xs text-ink-3 tabular-nums">
-                     {n(bots.length, 'bot PR')}
-                  </span>
+               {/* the filters narrow every tab but Projects, whose views count
+                   every PR (DESIGN.md), so there they'd only take room: two
+                   rows of a phone's header (177px down to 106). The search
+                   stays: it opens Search from anywhere */}
+               {!onProjects && (
+                  <>
+                     <RepoFilter
+                        repos={repoCounts}
+                        reveal={reveal}
+                        toggleReveal={toggleReveal}
+                        showAll={showAll}
+                        setShowAll={setShowAll}
+                        scope={scope}
+                        setScope={setScope}
+                     />
+                     <PeopleFilter pulls={pulls} scope={scope} setScope={setScope} />
+                     <WeightFilter
+                        pulls={preWeightScoped}
+                        weightSel={weightSel}
+                        setWeightSel={setWeightSel}
+                     />
+                     <StateFilter
+                        pulls={preStateScoped}
+                        stateSel={stateSel}
+                        setStateSel={setStateSel}
+                     />
+                     <SavedFiltersMenu currentHash={currentHash} sessionActive={sessionActive} />
+                     <HiddenPanel
+                        counts={hiddenCounts}
+                        showAll={showAll}
+                        setShowAll={setShowAll}
+                        reveal={reveal}
+                        toggleReveal={toggleReveal}
+                        draftsMode={draftsMode}
+                        setDraftsMode={setDraftsMode}
+                     />
+                     {sessionActive && (
+                        <button
+                           type="button"
+                           onClick={() => {
+                              setScope({ repos: [], authors: [], notAuthors: [] });
+                              setWeightSel([]);
+                              setStateSel([]);
+                              setShowAll(false);
+                              setReveal([]);
+                              setDraftsMode(settings.draftsMode);
+                           }}
+                           title="clears filters and session toggles; your team, hidden, and primary-repo choices stay"
+                           className="hit pressable rounded-md px-1.5 py-1 text-[13px] text-ink-3 hover:text-brand"
+                        >
+                           Reset
+                        </button>
+                     )}
+                     <span className="flex-1" />
+                     {bots.length > 0 && (
+                        <span className="text-xs text-ink-3 tabular-nums">
+                           {n(bots.length, 'bot PR')}
+                        </span>
+                     )}
+                  </>
                )}
                <SavedFiltersInput
                   query={query}
@@ -1305,7 +1328,9 @@ export function App() {
                   inputProps={{
                      'aria-label':
                         'Search all PRs, open and closed: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked, is:bot',
-                     placeholder: 'Search all PRs (press /)',
+                     // "/" finds within a view that has its own find box
+                     // (hooks.ts), so the hint only shows where "/" comes here
+                     placeholder: viewFinds ? 'Search all PRs' : 'Search all PRs (press /)',
                      title: 'text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked, is:bot',
                      className: `w-[210px] max-w-full grow pr-2.5 pl-8 sm:grow-0 ${textInputClass}`,
                   }}
@@ -1366,10 +1391,20 @@ export function App() {
                   botsForReady={botsBypassingHideBots}
                   closed={scopedClosed}
                   opts={{ ...rowOpts, showSnooze: true }}
+                  standing={reviewStanding}
                />
             )}
             {initialized && !searching && lens === 'mine' && (
-               <MyWork pulls={humans} closed={closed} opts={rowOpts} />
+               <Suspense fallback={null}>
+                  <MyWork
+                     pulls={humans}
+                     closed={closed}
+                     opts={rowOpts}
+                     prefix={projectLabelPrefix}
+                     allPulls={allProjectPulls}
+                     allClosed={allProjectClosed}
+                  />
+               </Suspense>
             )}
             {initialized && !searching && lens === 'team' && (
                <Team
@@ -1394,8 +1429,6 @@ export function App() {
                   }
                >
                   <Projects
-                  pulls={projectPulls}
-                  closed={projectClosed}
                   allPulls={allProjectPulls}
                   allClosed={allProjectClosed}
                   prefix={projectLabelPrefix}

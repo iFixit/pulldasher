@@ -3,6 +3,7 @@ import { pullKey, shortRepo } from '../../../shared/format';
 import { useNames } from '../model/names';
 import { matchedRegions } from '../model/regions';
 import { buildReviewLanes } from '../model/reviewLanes';
+import type { PullStanding } from '../model/standing';
 import { useSettings } from '../settings';
 import { clearSnoozes, isFresh, isSnoozed, markAllSeen, usePulldasher } from '../store';
 import type { PullData } from '../../../shared/types';
@@ -31,6 +32,7 @@ export function Review({
    botsForReady: allBotsForReady,
    closed,
    opts,
+   standing,
 }: {
    pulls: DerivedPull[];
    bots: DerivedPull[];
@@ -40,6 +42,9 @@ export function Review({
    botsForReady: DerivedPull[];
    closed: PullData[];
    opts: RowOptions;
+   /** how each PR's project stands (model/standing.ts), so a parked
+    * project's PRs sink and a plan's last ones win ties */
+   standing?: PullStanding;
 }) {
    const me = opts.me;
    const { selfReview, teams, codeRegions, repoPriority, repoQueueCap } = useSettings();
@@ -50,7 +55,7 @@ export function Review({
    // loop lives here, so the quieting gesture belongs here — every other
    // lens still shows the pull. Snoozed rows collect in their own section at
    // the bottom of the board instead of vanishing into Settings.
-   const { snoozed } = usePulldasher();
+   const { snoozed, projectLabelPrefix } = usePulldasher();
    // allBotsForReady can hold a bot allBots no longer does ("Ignore bot PRs"
    // pulled it out of the human-review surfaces) — folded in here too, deduped
    // by key, so snoozing a bot straight off the Ready-to-merge lane still
@@ -101,8 +106,20 @@ export function Review({
       repoPriority,
       ageWarnDays: opts.ageWarnDays,
       names,
+      standing,
    });
    const queueOpts = { ...opts, rankReason: lanes.whyUpNext };
+   // lanes ranked by age or by the word you owe say only what a PR's project
+   // did to its place
+   const projectOpts = { ...opts, rankReason: (p: DerivedPull) => lanes.whyProject(p, null) };
+   // what a project does to a lane's order, said in each lane's explanation
+   // on a board that has projects
+   const projectRule = (sink: string, tie: string) =>
+      projectLabelPrefix && (
+         <p>
+            {sink}. {tie}, the one that helps finish a plan in progress goes first.
+         </p>
+      );
 
    // bots/shipped stay reachable even when no human PRs need review
    if (lanes.empty) {
@@ -140,11 +157,15 @@ export function Review({
                      Bot PRs land here too once they’re fully green: they only ship when a human
                      merges them. Longest-waiting first.
                   </p>
+                  {projectRule(
+                     'A parked project’s PRs sink to the bottom',
+                     'Between two that have waited the same days'
+                  )}
                </SubDoor>
             }
             pulls={lanes.ready}
             cap={6}
-            opts={opts}
+            opts={projectOpts}
          />
          {lanes.yourMove.length > 0 && (
             <Lane
@@ -168,6 +189,10 @@ export function Review({
                         The kinds of action that unblock other people come first; inside a group,
                         the PR that has been open the longest comes first.
                      </p>
+                     {projectRule(
+                        'A parked project’s PRs sink to the bottom of their group',
+                        'Between two open the same days'
+                     )}
                   </SubDoor>
                }
                pulls={[]}
@@ -176,7 +201,7 @@ export function Review({
             >
                <WordGroupRows
                   pulls={lanes.yourMove}
-                  opts={opts}
+                  opts={projectOpts}
                   id="lane:Waiting on you"
                   cap={laneShown(12, opts)}
                />
@@ -273,9 +298,10 @@ export function Review({
                   hideRegionMark: true,
                   rankReason: p => {
                      const r = matchedRegions(p, codeRegions);
-                     return r.length
-                        ? `It touches ${r.join(', ')}, a code region you flagged`
-                        : null;
+                     return lanes.whyProject(
+                        p,
+                        r.length ? `It touches ${r.join(', ')}, a code region you flagged` : null
+                     );
                   },
                }}
             />
@@ -308,6 +334,10 @@ export function Review({
                         sink to each block’s bottom. The per-repo cap folds the rest behind “+N
                         more” so one busy repo can’t take the whole screen.
                      </p>
+                     {projectRule(
+                        'A parked project’s PRs sink below everyone else’s, above the bot PRs',
+                        'When two PRs rank the same with age in whole days'
+                     )}
                      <p>PRs you claim stay in the queue and also appear in Waiting on you.</p>
                      <p>
                         Starving PRs and PRs in your code regions still show up in their repo block
@@ -368,6 +398,10 @@ export function Review({
                         your work, and small quick wins, lightest first. Bot PRs (dependency bumps)
                         sink to the bottom.
                      </p>
+                     {projectRule(
+                        'A parked project’s PRs sink below everyone else’s, above the bot PRs',
+                        'When two PRs rank the same with age in whole days'
+                     )}
                      <p>PRs you claim stay in the queue and also appear in Waiting on you.</p>
                      <p>
                         PRs in your code regions still show up in the queue below; the call-out
@@ -396,6 +430,10 @@ export function Review({
                      or conflicted. PRs nobody is testing yet lead; within that, lighter tests
                      first, then oldest.
                   </p>
+                  {projectRule(
+                     'A parked project’s PRs sink to the bottom',
+                     'When two tie, counting age in whole days'
+                  )}
                </SubDoor>
             }
             pulls={lanes.needsQa}

@@ -120,15 +120,20 @@ module.exports = {
    // fields show too, the Target date ahead of the milestone; `github.token`
    // above reads them over GraphQL. Closing the issue as completed means
    // done; as not planned, dropped or merged into another. When several
-   // issues carry one label, `repo`'s wins, then an open one, then the
-   // oldest. The server only reads these; something else writes them, and
+   // issues carry one label, `repo`'s wins, then the first one the label
+   // went on; issues labeled later are the project's work. The server only reads these; something else writes them, and
    // bin/sync-issue-fields can copy each plan into its issue's fields. `repo`
    // is optional; give it the same webhook as a tracked repo, and send Issues
    // events in both. Keep label names to 32 characters with no spaces: that's
-   // what the label table and the filter box hold.
+   // what the label table and the filter box hold. A PR also joins a project
+   // when its body links one of the project's issues ("Parts of #N").
    projects: {
       repo: 'owner/projects',
       labelPrefix: 'project:',
+      // The team's day, for "past its end", "today" and the weekly calls, so
+      // the board and /api/v1 agree whoever reads them. Defaults to
+      // America/Los_Angeles.
+      timeZone: 'America/Los_Angeles',
       // Team name -> the GitHub logins on it. The Projects tab splits people
       // into these teams; anyone who opens PRs without being listed here
       // counts as a non-developer.

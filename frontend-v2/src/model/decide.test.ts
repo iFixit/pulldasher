@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dayStart } from '../../../shared/model/projects';
+import { dayStart, type Today } from '../../../shared/model/projects';
 import {
    closedIssues,
    decideQueue,
@@ -8,13 +8,17 @@ import {
    type DecideRow,
    type PlanCounts,
 } from '../../../shared/model/decide';
-import type { IssueCounts } from '../../../shared/model/work';
+import type { DerivedPull } from '../../../shared/model/status';
+import type { IssueCounts, ProjectIssue } from '../../../shared/model/work';
+import type { PullData } from '../../../shared/types';
 import type { RoadmapItem, RoadmapUpdate } from '../../../shared/model/roadmap';
 import {
    answerOf,
    bulkWords,
    callWords,
    capOwed,
+   endsFor,
+   filledIn,
    keepCalls,
    planRow,
    reasonWords,
@@ -474,28 +478,62 @@ describe('Decide’s calls', () => {
          label: 'End of Oct',
       });
       expect(answerOf(row([fresh]), undefined, today)).toMatchObject({ label: 'End of Oct' });
-      // a plan that starts after its target can't run through it
+      // a plan that starts after its target can't run through it, and a
+      // new end comes after the one it has (Dec 20)
       expect(
          answerOf(row([{ kind: 'at_risk' }], { start: '2026-10-26' }), target('2026-10-21'), today)
-      ).toMatchObject({ label: 'End of Oct' });
+      ).toMatchObject({ label: 'End of Q4' });
       expect(answerOf(row([{ kind: 'stalled', days: 30 }], {}), undefined, today)).toEqual({
          kind: 'park',
       });
       expect(answerOf(row([{ kind: 'ended', weeks: 2, since: 0 }], {}), undefined, today)).toEqual({
          kind: 'done',
       });
-      // nobody asked: its plan's strip on its page commits
-      expect(answerOf(row([], {}), target('2026-11-02'), today)).toMatchObject({
-         through: 'its target, Nov 2',
-      });
       expect(
          callWords(
-            answerOf(row([fresh]), target('2026-10-21'), today),
+            answerOf(row([fresh]), target('2026-10-21'), today) as Call,
             reopened,
             { open: 0, ongoing: false },
             today
          )
       ).toBe('Committed through its target, Oct 21. Decide asks again if it runs past that.');
+   });
+
+   it('outlines only an answer safe to take blind: never an end that cuts a plan short', () => {
+      // Type and spacing refresh: Sep 7 to Nov 1, 8 weeks
+      const row = (reasons: DecideReason[], over: Partial<RoadmapItem> = {}): DecideRow => ({
+         slug: 'p',
+         item: item(3, { project: 'p', ...over }),
+         reasons,
+      });
+      const labels = (r: DecideRow, due?: string) =>
+         endsFor(r, due ? { target: { title: null, due_on: due } } : undefined, today).map(
+            c => c.label
+         );
+      // "New end?" offers only the ends after Nov 1: "End of Oct" left it
+      // as it was and cleared the call
+      const later = ['End of Nov', 'End of Q4', 'End of Q1 2027'];
+      expect(labels(row([{ kind: 'at_risk' }]))).toEqual(later);
+      expect(answerOf(row([{ kind: 'at_risk' }]), undefined, today)).toMatchObject({
+         label: 'End of Nov',
+      });
+      // nor is a target before its end a new end
+      expect(labels(row([{ kind: 'missed', due: '2026-09-26', open: 2 }]), '2026-10-21')).toEqual(
+         later
+      );
+      // past every end offered: nothing outlined, so a person picks
+      expect(answerOf(row([{ kind: 'off_track' }], { weeks: 40 }), undefined, today)).toBeNull();
+      // back on, for a parked plan that ran to Jan 24: no end before that
+      expect(
+         answerOf(row([{ kind: 'moving' }], { status: 'parked', weeks: 20 }), undefined, today)
+      ).toMatchObject({ label: 'End of Q1 2027' });
+      // nobody asked (a plan under its page): nothing outlined, and its
+      // strip leaves out the end it has already; a parked plan can resume on it
+      expect(answerOf(row([]), undefined, today)).toBeNull();
+      expect(labels(row([]))).toEqual(later);
+      expect(labels(row([], { status: 'parked' }))[0]).toBe('End of Oct');
+      // work with no plan: every end
+      expect(labels({ slug: 'p', item: null, reasons: [] })[0]).toBe('End of Oct');
    });
 
    it('says a section’s one click in a few words, each answer with how many', () => {
@@ -680,3 +718,85 @@ describe('reasonWords', () => {
       );
    });
 });
+
+describe('filledIn', () => {
+   const iso = (days: number) => new Date(ago(days) * 1000).toISOString();
+   const label = (slug: string) => ({ title: `project:${slug}` });
+   const pr = (number: number, opened: number, labels: { title: string }[] = []) =>
+      ({ repo: 'iFixit/ifixit', number, created_at: iso(opened), labels } as unknown as PullData);
+   const open = (data: PullData) => ({ data } as unknown as DerivedPull);
+   const ref = (number: number) => ({ repo: 'iFixit/ifixit', number });
+   const issue = (number: number, via: ProjectIssue['via'], joined: number, prs: number[] = []) =>
+      ({
+         ref: ref(number),
+         title: `Issue ${number}`,
+         via,
+         attachedAt: ago(joined),
+         linkedBy: ref(900),
+         prs: prs.map(ref),
+      } as unknown as ProjectIssue);
+   const group = (slug: string, openPrs: PullData[], merged: PullData[] = []) =>
+      ({ slug, open: openPrs.map(open), merged } as unknown as Today['live'][number]);
+
+   it('lists each guess the board made this week, and none a person made', () => {
+      const today = {
+         live: [
+            group(
+               'sso',
+               [
+                  pr(1, 1, [label('sso')]), // by its label
+                  pr(2, 2), // by a link, this week
+                  pr(3, 10), // by a link, but before this week
+                  pr(4, 3, [label('misc')]), // misc counts where it links
+               ],
+               [pr(5, 4)] // merged this week, by a link
+            ),
+         ],
+         quiet: [],
+      };
+      const pages = new Map([
+         [
+            'sso',
+            {
+               issues: [
+                  issue(10, ['link'], 2), // joined this week
+                  issue(11, ['link', 'hand'], 2), // someone added it too
+                  issue(12, ['link'], 10), // joined before this week
+                  issue(13, ['label'], 30, [2]), // the issue PR 2 links
+               ],
+            },
+         ],
+      ]);
+      const lately = {
+         merged: 2,
+         open: { ready: 0, hold: 0, review: 1, work: 0 },
+         activityAt: ago(1),
+         issues: null,
+      };
+      const plans = [
+         // marked Planned, read In progress, from this week
+         {
+            ...item(1, { project: 'sso', status: 'active', start: '2026-09-28' }),
+            marked: 'planned' as const,
+         },
+         // the same, but it started weeks ago: an earlier week's
+         {
+            ...item(2, { project: 'a', status: 'active', start: '2026-09-07' }),
+            marked: 'planned' as const,
+         },
+         // marked In progress by a person, its PRs merging: no update owed
+         item(3, { project: 'b', start: '2026-08-31', weeks: 12, updated_at: null, lately }),
+      ];
+      const found = filledIn({ today, prefix: 'project:', plans, pages, now: NOW });
+      expect(found.joined.map(j => j.issue.ref.number)).toEqual([10]);
+      expect(found.linked.map(l => [dataOfNumber(l.pull), l.issue?.number ?? null])).toEqual([
+         [2, 13],
+         [4, null],
+         [5, null],
+      ]);
+      expect(found.started.map(p => p.id)).toEqual([1]);
+      expect(found.vouched.map(v => [v.plan.id, v.vouch.merged])).toEqual([[3, 2]]);
+   });
+});
+
+const dataOfNumber = (p: unknown) => ((p as { data?: PullData }).data ?? (p as PullData)).number;

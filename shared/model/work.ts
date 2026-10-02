@@ -104,12 +104,17 @@ export interface AttachedIssue {
    /** how it's attached: the project's label, by hand on the board, on its
     * own by one of the project's PRs linking it, or more than one */
    via: ('label' | 'hand' | 'link')[];
-   /** epoch secs it was first attached; null when not known */
+   /** epoch secs it was first attached, which its project's issues' pace
+    * counts from: for one joined by a link, when the PR that brought it
+    * opened; null when not known */
    attachedAt: number | null;
    /** who added it by hand */
    addedBy: string | null;
    /** with 'link': the PR whose link brought it in */
    linkedBy?: IssueRef | null;
+   /** with 'link': epoch secs the server's sync joined it, which can be
+    * weeks after its PR opened (the first sync after a deploy) */
+   joinedAt?: number | null;
 }
 
 /** A PR as the work model reads it. */
@@ -169,7 +174,11 @@ export interface IssueCounts {
 /** An issue a project's PRs link that isn't attached: what the board
  * knows of it (just its number when it has never seen it), and the PRs. */
 export interface SuggestedIssue extends IssueHit {
+   /** the PRs that link it, the first opened first */
    linkedBy: IssueRef[];
+   /** epoch secs the first of them opened: one that joins on its own is
+    * dated from then, not from the sync that noticed it (its issues' pace) */
+   linkedAt: number;
    /** the projects it's attached to already, by slug */
    alsoIn: string[];
    /** it joins on its own at the server's next sync: no project has it, a
@@ -428,9 +437,13 @@ export function projectWork(
    );
    const gone = inputs.removed?.get(slug);
    // issues the recent PRs link, not attached, not taken off this project,
-   // and not a project's own issue
+   // and not a project's own issue; read first opened first, so each one's
+   // first PR is the one that brought it
    const suggested = new Map<string, SuggestedIssue>();
-   for (const pr of mine.filter(p => recent(p, SUGGEST_DAYS))) {
+   const byOpened = mine
+      .filter(p => recent(p, SUGGEST_DAYS))
+      .sort((a, b) => a.createdAt - b.createdAt || a.number - b.number);
+   for (const pr of byOpened) {
       for (const ref of pr.links) {
          const k = issueKey(ref);
          const was = suggested.get(k);
@@ -446,6 +459,7 @@ export function projectWork(
          suggested.set(k, {
             ...(info ?? { ...ref, title: '', state: 'open', author: null, createdAt: null }),
             linkedBy: [{ repo: pr.repo, number: pr.number }],
+            linkedAt: pr.createdAt,
             alsoIn: alsoIn(k),
             joins: false,
          });

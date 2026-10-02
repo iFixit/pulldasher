@@ -57,6 +57,7 @@ import {
 } from '../../model/words';
 import { DecideCall, planRow, reasonWords } from './Decide';
 import {
+   ByPrs,
    FlagWords,
    NarrowChip,
    openPlan,
@@ -79,7 +80,7 @@ const LIST_CAP = 40;
 export const AS_OPENED: Partial<ProjectsNav> = { status: 'live', only: null };
 
 /** Whether who worked on what in the last 14 days has come in. */
-type Workers = 'loading' | 'loaded' | 'failed';
+export type Workers = 'loading' | 'loaded' | 'failed';
 
 interface Column {
    key: SortKey;
@@ -207,20 +208,27 @@ const COLUMNS: Column[] = [
    {
       key: 'lead',
       label: 'Lead',
-      title: 'Who leads it: the assignee on its issue, or else its plan’s lead. Click a lead to open their row on People.',
+      title: 'Who leads it: the assignee on its issue, or else its plan’s lead, or else whoever has the most PRs in it (by PRs). Click a lead to open their row on People.',
       width: 'w-28',
       hide: 'hidden md:block',
       order: 'ascending',
       cell: (i, act) => {
          const lead = i.lead;
          return lead ? (
-            <FactLink
-               onClick={() => act.onPerson(lead)}
-               className="break-words"
-               title={`Open ${lead}’s row on People`}
-            >
-               {lead}
-            </FactLink>
+            <>
+               <FactLink
+                  onClick={() => act.onPerson(lead)}
+                  className="break-words"
+                  title={`Open ${lead}’s row on People`}
+               >
+                  {lead}
+               </FactLink>
+               {i.leadByPrs && (
+                  <span className="block text-[11px]">
+                     <ByPrs />
+                  </span>
+               )}
+            </>
          ) : (
             ''
          );
@@ -433,6 +441,15 @@ function RowDetail({
    const untold = asked
       .flatMap(row => row.reasons.map(reason => ({ reason, item: row.item })))
       .filter(a => !toldByPlan(a, item));
+   // nothing asked: the calls rest behind Plan it, on the No plan line, or
+   // under the plan's line behind Change the plan
+   const unasked = !asked.length && (
+      <DecideCall
+         row={planRow(item.slug, item.plan, calls)}
+         project={item}
+         change="Change the plan"
+      />
+   );
    return (
       <div className="border-t border-secondary bg-muted/30">
          <ProjectFacts
@@ -440,6 +457,7 @@ function RowDetail({
             project={item.project}
             prefix={prefix}
             ongoing={item.ongoing}
+            lead={item}
             links={links}
          >
             <PageLink g={item} navigate={navigate} />
@@ -458,29 +476,34 @@ function RowDetail({
                      live={item.status === 'live'}
                   />
                ) : (
-                  <p className={`${line} text-ink-3`}>{NO_PLAN}</p>
+                  <div className={`${line} text-ink-3`}>
+                     {NO_PLAN}
+                     {unasked}
+                  </div>
                )}
                {/* under the plan's line, as on its page, unless Decide asks
                    what that line doesn't say */}
-               <div className={untold.length ? `${line} text-ink-2` : '-mt-2 px-3.5 pb-2 text-xs'}>
-                  {untold.length > 0 && (
-                     <span id={whyId} className={prose}>
-                        Decide asks: {askedWords(untold)}
-                     </span>
-                  )}
-                  {asked.length ? (
-                     asked.map(row => (
-                        <DecideCall
-                           key={`${row.slug ?? ''}:${row.item?.id ?? ''}`}
-                           row={row}
-                           project={item}
-                           describedBy={untold.length ? whyId : undefined}
-                        />
-                     ))
-                  ) : (
-                     <DecideCall row={planRow(item.slug, item.plan, calls)} project={item} />
-                  )}
-               </div>
+               {(asked.length > 0 || item.plan) && (
+                  <div
+                     className={untold.length ? `${line} text-ink-2` : '-mt-2 px-3.5 pb-2 text-xs'}
+                  >
+                     {untold.length > 0 && (
+                        <span id={whyId} className={prose}>
+                           Decide asks: {askedWords(untold)}
+                        </span>
+                     )}
+                     {asked.length
+                        ? asked.map(row => (
+                             <DecideCall
+                                key={`${row.slug ?? ''}:${row.item?.id ?? ''}`}
+                                row={row}
+                                project={item}
+                                describedBy={untold.length ? whyId : undefined}
+                             />
+                          ))
+                        : unasked}
+                  </div>
+               )}
             </>
          )}
          {/* said once the days are in: before then "nobody" would be a guess */}
@@ -782,29 +805,10 @@ function bandGloss(by: string, title: string): string {
 const STUCK =
    'sticky top-[calc(var(--header-h,0px)_+_var(--bar-h,0px))] z-[4] bg-[color-mix(in_oklab,var(--muted)_40%,var(--surface))]';
 
-/**
- * Every project on one list. Tabs pick which (the ones being worked on by
- * default), and each counts what it would show; a column header sorts,
- * what's owed first by default; grouping splits by parent, lead or team;
- * the find box narrows by name, parent, lead or team; and a tile or a
- * chart's bar narrows it further, said by a chip in the bar that clears it.
- * What's listed is what the CSV and the copied text hold. All of it rides
- * in the URL, so a view can be shared.
- */
-export function Portfolio({
-   items,
-   placeOf = item => item,
-   calls,
-   prefix,
-   workers,
-   nameOf,
-   teams,
-   nav,
-   navigate,
-   opts,
-   onPerson,
-   me,
-}: {
+/** What a list of projects takes: Yours and All projects alike. */
+interface ListProps {
+   /** every project: each list picks its own from them, and takes its
+    * columns from all of them, so the two tables line up */
    items: PortfolioItem[];
    /** how a row is placed, found and counted: a row answered in place as it
     * stood just before, so it keeps its place and its tab */
@@ -814,55 +818,21 @@ export function Portfolio({
    /** the project label prefix */
    prefix: string;
    workers: Workers;
-   nameOf: (slug: string) => string;
-   /** the team names in their configured order */
-   teams: readonly string[];
    nav: ProjectsNav;
    navigate: Navigate;
    opts: RowOptions;
    onPerson: (login: string) => void;
    me: string;
-}) {
-   const [copied, setCopied] = useState(false);
+}
+
+/**
+ * What a list draws its rows with: its columns, a row, the header that
+ * names and sorts them (sticking under the list's own bar when `stuck`),
+ * and the line telling a keyboard what Enter and Space do, which each row
+ * points to.
+ */
+function useRows({ items, calls, prefix, workers, nav, navigate, opts, onPerson, me }: ListProps) {
    const hint = useId();
-   const barRef = useRef<HTMLDivElement>(null);
-   // j and k move between the projects, landing on each one's name
-   useRowKeys('[data-portfolio-row]', '[data-portfolio-focus]');
-   // the column names stick under the list's own sticky bar, which is as
-   // tall as its toolbar wraps to, and doesn't stick on a phone (below)
-   useLayoutEffect(() => {
-      const wrap = barRef.current;
-      const bar = wrap?.firstElementChild;
-      const section = wrap?.parentElement;
-      if (!wrap || !bar || !section) return;
-      const publish = () =>
-         section.style.setProperty(
-            '--bar-h',
-            getComputedStyle(wrap).display === 'contents'
-               ? `${bar.getBoundingClientRect().height}px`
-               : '0px'
-         );
-      publish();
-      const ro = new ResizeObserver(publish);
-      ro.observe(bar);
-      return () => ro.disconnect();
-   }, []);
-   // placed by how they stood, drawn as they are
-   const now = new Map(items.map(i => [i.slug, i]));
-   const narrowed = items
-      .map(placeOf)
-      .filter(i => matchesFind(i, nav.find) && matchesOnly(i, nav.only));
-   const shown = sortItems(
-      narrowed.filter(i => matchesStatus(i, nav.status)),
-      nav.sort
-   ).map(i => now.get(i.slug) ?? i);
-   const groups = groupItems(shown, nav.group, nameOf, teams);
-   // each tab counts what it would show with the find and a tile's pick, so
-   // the tab that's on always says how many rows are below it
-   const statusOptions: [string, string][] = STATUS_FILTERS.map(([key, label]) => {
-      const count = narrowed.filter(i => matchesStatus(i, key)).length;
-      return [key, count ? `${label} · ${count}` : label];
-   });
    // from every project, not the tab's: columns that come and go with the
    // tab would move the ones a reader was following
    const columns = [
@@ -872,11 +842,6 @@ export function Portfolio({
    ];
    const sort = parseSort(nav.sort);
    const onSort = (s: string) => navigate({ sort: s });
-   const byDefault = sort.key === 'plan' && !sort.reversed;
-   const sortedBy = [{ key: 'name', label: 'Project' }, ...columns].find(
-      c => c.key === sort.key
-   )?.label;
-   const only = onlyWords(nav.only);
    const act: CellActions = {
       openPlan: id => navigate(openPlan(nav, id)),
       findTeam: team => navigate({ find: `team:${team}` }, { push: true }),
@@ -903,12 +868,6 @@ export function Portfolio({
             .map(i => ({ slug: i.slug, name: i.name })),
       }),
    };
-   const copy = () => {
-      void navigator.clipboard?.writeText(portfolioText(shown, dayOf(new Date()))).then(() => {
-         setCopied(true);
-         setTimeout(() => setCopied(false), 2000);
-      });
-   };
    const callsOf = new Map<string, DecideRow[]>();
    for (const r of calls) if (r.slug) callsOf.set(r.slug, [...(callsOf.get(r.slug) ?? []), r]);
    const row = (item: PortfolioItem, repeat = false) => (
@@ -926,17 +885,16 @@ export function Portfolio({
          repeat={repeat}
       />
    );
-   const grouped = groups.length > 1 || !!groups[0]?.title;
    // the visible header row sorts; a group's own table repeats its names for
-   // a screen reader, so each cell keeps its column's name
-   const head = (visible: boolean) => (
-      <div role="rowgroup" className={visible && !grouped ? STUCK : undefined}>
+   // a screen reader, so each cell keeps its column's name. `ruled` draws
+   // the line under it, which a grouped list's first band draws instead
+   const head = (visible: boolean, { stuck = false, ruled = true } = {}) => (
+      <div role="rowgroup" className={stuck ? STUCK : undefined}>
          {visible ? (
             <div
                role="row"
-               // grouped, the first band's own rule sits under it
                className={`flex items-center gap-3 px-3.5 py-[7px] ${
-                  grouped ? '' : 'border-b border-line'
+                  ruled ? 'border-b border-line' : ''
                }`}
             >
                <span role="columnheader" className="w-3 flex-none">
@@ -977,6 +935,136 @@ export function Portfolio({
          )}
       </div>
    );
+   const hintLine = (
+      <span id={hint} className="sr-only">
+         Enter opens its page; Space shows its details here.
+      </span>
+   );
+   return { columns, sort, onSort, row, head, hintLine };
+}
+
+/**
+ * Your projects, first on the Overview (portfolio.ts isYours): the ones you
+ * lead, by PRs too, or have a PR in, in the list's order and with its rows,
+ * so a call is made here the same way. They're in All projects below as
+ * well, drawn in ink there, so one call wears one amber mark. Nothing shows
+ * when none are yours.
+ */
+export function Yours(props: ListProps & { slugs: ReadonlySet<string> }) {
+   const { items, placeOf = item => item, slugs, nav } = props;
+   const { head, row, hintLine } = useRows(props);
+   const now = new Map(items.map(i => [i.slug, i]));
+   const mine = sortItems(
+      items.map(placeOf).filter(i => slugs.has(i.slug)),
+      nav.sort
+   ).map(i => now.get(i.slug) ?? i);
+   if (!mine.length) return null;
+   return (
+      <section>
+         <GroupHeader
+            title="Yours"
+            count={mine.length}
+            sub={
+               <SubDoor label="What makes a project yours" text="You lead them or have PRs in them">
+                  <p className="m-0">
+                     A project is yours when you lead it, or you have a PR open in it or merged in
+                     the {LAST_14_DAYS}. Its lead is the assignee on its issue, or else its plan’s
+                     lead, or else whoever has the most PRs in it, said “by PRs”.
+                  </p>
+                  <p className="m-0">
+                     Done or dropped ones leave the list, unless Decide asks about them because
+                     their PRs still move. Each is in All projects below too.
+                  </p>
+               </SubDoor>
+            }
+         />
+         {hintLine}
+         <div className="overflow-clip rounded-2xl border border-line bg-surface">
+            <ProjectTable
+               label="Your projects"
+               head={head(true)}
+               items={mine}
+               id="portfolio:yours"
+               row={item => row(item)}
+            />
+         </div>
+      </section>
+   );
+}
+
+/**
+ * Every project on one list. Tabs pick which (the ones being worked on by
+ * default), and each counts what it would show; a column header sorts,
+ * what's owed first by default; grouping splits by parent, lead or team;
+ * the find box narrows by name, parent, lead or team; and a tile or a
+ * chart's bar narrows it further, said by a chip in the bar that clears it.
+ * What's listed is what the CSV and the copied text hold. All of it rides
+ * in the URL, so a view can be shared.
+ */
+export function Portfolio(
+   props: ListProps & {
+      nameOf: (slug: string) => string;
+      /** the team names in their configured order */
+      teams: readonly string[];
+      /** the projects Yours lists above, drawn in ink here */
+      above?: ReadonlySet<string>;
+   }
+) {
+   const { items, placeOf = item => item, nameOf, teams, above, nav, navigate } = props;
+   const [copied, setCopied] = useState(false);
+   const barRef = useRef<HTMLDivElement>(null);
+   const { columns, sort, onSort, row, head, hintLine } = useRows(props);
+   // j and k move between the projects, Yours' too, landing on each one's name
+   useRowKeys('[data-portfolio-row]', '[data-portfolio-focus]');
+   // the column names stick under the list's own sticky bar, which is as
+   // tall as its toolbar wraps to, and doesn't stick on a phone (below)
+   useLayoutEffect(() => {
+      const wrap = barRef.current;
+      const bar = wrap?.firstElementChild;
+      const section = wrap?.parentElement;
+      if (!wrap || !bar || !section) return;
+      const publish = () =>
+         section.style.setProperty(
+            '--bar-h',
+            getComputedStyle(wrap).display === 'contents'
+               ? `${bar.getBoundingClientRect().height}px`
+               : '0px'
+         );
+      publish();
+      const ro = new ResizeObserver(publish);
+      ro.observe(bar);
+      return () => ro.disconnect();
+   }, []);
+   // placed by how they stood, drawn as they are
+   const now = new Map(items.map(i => [i.slug, i]));
+   const narrowed = items
+      .map(placeOf)
+      .filter(i => matchesFind(i, nav.find) && matchesOnly(i, nav.only));
+   const shown = sortItems(
+      narrowed.filter(i => matchesStatus(i, nav.status)),
+      nav.sort
+   ).map(i => now.get(i.slug) ?? i);
+   const groups = groupItems(shown, nav.group, nameOf, teams);
+   // each tab counts what it would show with the find and a tile's pick, so
+   // the tab that's on always says how many rows are below it
+   const statusOptions: [string, string][] = STATUS_FILTERS.map(([key, label]) => {
+      const count = narrowed.filter(i => matchesStatus(i, key)).length;
+      return [key, count ? `${label} · ${count}` : label];
+   });
+   const byDefault = sort.key === 'plan' && !sort.reversed;
+   const sortedBy = [{ key: 'name', label: 'Project' }, ...columns].find(
+      c => c.key === sort.key
+   )?.label;
+   const only = onlyWords(nav.only);
+   const copy = () => {
+      void navigator.clipboard?.writeText(portfolioText(shown, dayOf(new Date()))).then(() => {
+         setCopied(true);
+         setTimeout(() => setCopied(false), 2000);
+      });
+   };
+   const grouped = groups.length > 1 || !!groups[0]?.title;
+   // a project Yours lists above wears its amber there
+   const repeated = (slug: string) => !!above?.has(slug);
    const toolbar = (
       <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 pt-1.5">
          <Segmented
@@ -1094,16 +1182,14 @@ export function Portfolio({
                }
             />
          </div>
-         <span id={hint} className="sr-only">
-            Enter opens its page; Space shows its details here.
-         </span>
+         {hintLine}
          {/* clipped, not hidden: overflow hidden would end the column names'
              stick at this box */}
          <div className="overflow-clip rounded-2xl border border-line bg-surface">
             {grouped ? (
                <>
                   <div role="table" aria-label="Sort the projects" className={STUCK}>
-                     {head(true)}
+                     {head(true, { ruled: false })}
                   </div>
                   {groups.map(g => (
                      <Fold
@@ -1122,7 +1208,7 @@ export function Portfolio({
                            head={head(false)}
                            items={g.items}
                            id={`portfolio:${nav.status}:${g.title}`}
-                           row={item => row(item, g.repeats.has(item.slug))}
+                           row={item => row(item, g.repeats.has(item.slug) || repeated(item.slug))}
                         />
                      </Fold>
                   ))}
@@ -1131,10 +1217,10 @@ export function Portfolio({
                <ProjectTable
                   key={nav.status}
                   label="Projects"
-                  head={head(true)}
+                  head={head(true, { stuck: true })}
                   items={shown}
                   id={`portfolio:${nav.status}:`}
-                  row={item => row(item)}
+                  row={item => row(item, repeated(item.slug))}
                />
             )}
             {!shown.length && (

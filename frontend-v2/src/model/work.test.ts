@@ -421,11 +421,18 @@ describe('projectWork', () => {
    });
 
    it('suggests the issues its recent PRs link that aren’t attached', () => {
+      // in the order the PRs linking them opened: #205 (Sep 10) first
       expect(page.suggested.map(s => [s.number, s.title, numbers(s.linkedBy)])).toEqual([
-         // never seen by the board: just its number
-         [300, '', [203, 205]],
-         [301, 'Show the queue', [204]],
          [303, 'Issue 303', [205]],
+         // never seen by the board: just its number
+         [300, '', [205, 203]],
+         [301, 'Show the queue', [204]],
+      ]);
+      // one that joins on its own is dated from when its first PR opened
+      expect(page.suggested.map(s => [s.number, s.linkedAt])).toEqual([
+         [303, at('2026-09-10')],
+         [300, at('2026-09-10')],
+         [301, at('2026-09-29')],
       ]);
    });
 

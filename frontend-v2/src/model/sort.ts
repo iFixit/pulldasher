@@ -22,10 +22,12 @@ export function crScore(p: DerivedPull): number {
    return weight - (oneFromDone ? 1.5 : 0) - ageCredit;
 }
 
-/** best next review first; actively-iterating pulls sink (demoted, never hidden) */
-export function crSort(pulls: DerivedPull[]): DerivedPull[] {
+/** best next review first; actively-iterating pulls sink (demoted, never
+ * hidden), and a parked project's (`sinks`, model/standing.ts) below them */
+export function crSort(pulls: DerivedPull[], sinks?: (p: DerivedPull) => boolean): DerivedPull[] {
    return [...pulls].sort(
       (a, b) =>
+         Number(!!sinks?.(a)) - Number(!!sinks?.(b)) ||
          Number(isIterating(a)) - Number(isIterating(b)) ||
          crScore(a) - crScore(b) ||
          b.ageDays - a.ageDays ||
@@ -47,4 +49,42 @@ export function teamFirst(pulls: DerivedPull[], team: ReadonlySet<string>): Deri
       ...pulls.filter(p => team.has(p.data.user.login)),
       ...pulls.filter(p => !team.has(p.data.user.login)),
    ];
+}
+
+/** Lowest `rank` first, each rank keeping the order it had (sort is
+ * stable): how a lane sinks a parked project's pulls, or a bot's, to its
+ * bottom without reordering anything else. */
+export function sinkBy(pulls: DerivedPull[], rank: (p: DerivedPull) => number): DerivedPull[] {
+   return [...pulls].sort((a, b) => rank(a) - rank(b));
+}
+
+/**
+ * Within each run of neighbors that tie (the same `tie` key: the lane's
+ * own ranking with age read in whole days), the pulls that would finish a
+ * plan go first, every run otherwise in its order. A tie-break only: no
+ * pull passes one that ranks above it for its own reasons, or leaves its
+ * lane.
+ */
+export function finishersFirst(
+   pulls: DerivedPull[],
+   tie: (p: DerivedPull) => string,
+   finishes: (p: DerivedPull) => boolean
+): DerivedPull[] {
+   // most lanes hold none, and a tie key can cost a score
+   if (!pulls.some(finishes)) return pulls;
+   const out: DerivedPull[] = [];
+   let run: DerivedPull[] = [];
+   let runKey = '';
+   const flush = () => {
+      out.push(...run.filter(finishes), ...run.filter(p => !finishes(p)));
+      run = [];
+   };
+   for (const p of pulls) {
+      const key = tie(p);
+      if (run.length && key !== runKey) flush();
+      runKey = key;
+      run.push(p);
+   }
+   flush();
+   return out;
 }

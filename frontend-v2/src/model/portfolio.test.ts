@@ -16,6 +16,7 @@ import {
    groupItems,
    IDLE_BUCKETS,
    AGE_BUCKETS,
+   isYours,
    mainTeam,
    matchesFind,
    matchesOnly,
@@ -231,13 +232,30 @@ describe('portfolioItems', () => {
       });
    });
 
-   it('falls back to the plan for a project with no issue', () => {
+   it('falls back to the plan for a project with no issue, then to its label read as words', () => {
       expect(bySlug['label-only']).toMatchObject({
          name: 'Label importer',
          lead: 'erin',
          team: 'FixBot',
       });
-      expect(bySlug['merges-only'].name).toBe('merges-only');
+      // a name, not a code: what a fresh install shows for every project
+      expect(bySlug['merges-only'].name).toBe('Merges only');
+   });
+
+   it('leads by PRs where no issue or plan names a lead, and says so', () => {
+      const leads = Object.fromEntries(items.map(i => [i.slug, [i.lead, i.leadByPrs]]));
+      expect(leads).toEqual({
+         // its issue's assignee, then its plan's lead
+         alpha: ['dana', false],
+         'label-only': ['erin', false],
+         // the one with the most PRs open or merged lately
+         'merges-only': ['dana', true],
+         paused: ['finn', true],
+         // nobody's PRs: nobody
+         beta: [null, false],
+         gone: [null, false],
+         shipped: [null, false],
+      });
    });
 
    it('dates a project by its oldest open PR and its newest real work', () => {
@@ -466,7 +484,11 @@ describe('the list’s filters', () => {
 
    it('finds by name, slug, parent, lead or team', () => {
       expect(items.filter(i => matchesFind(i, 'WARE')).map(i => i.slug)).toEqual(['beta']);
-      expect(items.filter(i => matchesFind(i, 'dana')).map(i => i.slug)).toEqual(['alpha']);
+      // a lead by PRs is a lead
+      expect(items.filter(i => matchesFind(i, 'dana')).map(i => i.slug)).toEqual([
+         'alpha',
+         'merges-only',
+      ]);
       expect(items.filter(i => matchesFind(i, 'fixbot')).map(i => i.slug)).toEqual(['label-only']);
    });
 
@@ -479,16 +501,38 @@ describe('the list’s filters', () => {
       // what a click on a parent or a team puts in the box
       expect(find('parent:store')).toEqual(['alpha', 'beta']);
       expect(find('parent:Warehouse')).toEqual(['beta']);
-      expect(find('lead:dana')).toEqual(['alpha']);
+      expect(find('lead:dana')).toEqual(['alpha', 'merges-only']);
       expect(find('team:fixbot')).toEqual(['label-only']);
       // a lead or team is found before it's typed out
-      expect(find('lead:dan')).toEqual(['alpha']);
+      expect(find('lead:dan')).toEqual(['alpha', 'merges-only']);
       expect(find('team:Fix')).toEqual(['label-only']);
       expect(find('lead:ana')).toEqual([]);
       // part of a parent isn't the parent
       expect(find('parent:stor')).toEqual([]);
       // without the prefix, a word still matches inside any of them
       expect(find('stor')).toEqual(expect.arrayContaining(['alpha', 'beta']));
+   });
+});
+
+describe('isYours', () => {
+   it('is a project you lead, by PRs too, or have a PR in, until it’s done', () => {
+      const yours = (me: string) =>
+         items
+            .filter(i => isYours(i, me))
+            .map(i => i.slug)
+            .sort();
+      // dana leads alpha and has the merge in merges-only
+      expect(yours('dana')).toEqual(['alpha', 'merges-only']);
+      // kyle only has a PR open in alpha; logins match in any case
+      expect(yours('Kyle')).toEqual(['alpha']);
+      // finn's project is parked: still his
+      expect(yours('finn')).toEqual(['paused']);
+      expect(yours('nobody')).toEqual([]);
+      // done or dropped leaves it, unless Decide asks because its PRs still move
+      const done = { ...bySlug.alpha, stage: 'closed' as const };
+      expect(isYours(done, 'dana')).toBe(false);
+      const reason: DecideReason = { kind: 'new', since: null };
+      expect(isYours({ ...done, asks: [{ reason, item: null }] }, 'dana')).toBe(true);
    });
 });
 

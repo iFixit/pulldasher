@@ -36,6 +36,7 @@ export { isBotLogin } from './model/visibility';
 
 export {
    buildToday,
+   dayIn,
    dayStart,
    projectOf,
    projectSlugs,
@@ -57,6 +58,8 @@ export {
    bucketOf,
    checkRoadmapFields,
    checkRoadmapUpdate,
+   healthStanding,
+   inProgress,
    isUnderWay,
    issuePace,
    mondayOf,
@@ -64,6 +67,7 @@ export {
    planEnd,
    planFor,
    updatesOwed,
+   updateStanding,
    MAX_WEEKS,
    ROADMAP_HEALTHS,
    ROADMAP_ORIGINS,

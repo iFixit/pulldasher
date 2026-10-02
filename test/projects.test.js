@@ -13,6 +13,7 @@ import {
    projectsFromRows,
    reviewsFromRows,
    spansFromRows,
+   teamDay,
    todayFromBoard,
    MAX_WINDOW_DAYS,
 } from '../lib/projects.js';
@@ -29,6 +30,20 @@ test('parseWindow defaults to the 30 days ending today', () => {
       start: '2026-08-12',
       end: '2026-09-10',
    });
+});
+
+test('teamDay is the day where the team is, which turns over hours after UTC’s', () => {
+   // 8pm on Sep 29 in California is already Sep 30 in UTC
+   const evening = Date.UTC(2026, 8, 30, 3) / 1000;
+   const saved = config.projects;
+   try {
+      config.projects = { ...saved };
+      assert.equal(teamDay(evening), '2026-09-29');
+      config.projects.timeZone = 'Europe/London';
+      assert.equal(teamDay(evening), '2026-09-30');
+   } finally {
+      config.projects = saved;
+   }
 });
 
 test('parseWindow rejects bad days, backwards and oversized windows, repeats', () => {
@@ -127,23 +142,32 @@ test('projectsFromRows fills created_at and closed_at from the issue dates', () 
    assert.equal(projects[0].closed_at, new Date(1700100000 * 1000).toISOString());
 });
 
-test('projectsFromRows keeps the open issue when two carry one label', () => {
-   const projects = projectsFromRows(
-      [
-         issueRow({ number: 5, title: 'Old', status: 'closed', state_reason: 'completed' }),
-         issueRow({ number: 3, title: 'Current' }),
-      ],
-      [
-         { repo: 'test/projects', number: 5, title: 'project:alpha' },
-         { repo: 'test/projects', number: 3, title: 'project:alpha' },
-      ],
-      'project:'
-   );
-   assert.equal(projects.length, 1);
-   assert.equal(projects[0].name, 'Current');
+test('projectsFromRows keeps the first issue its label went on, open or closed, old or new', () => {
+   // the project's issue, labeled first and since closed, and work labeled
+   // into it later: an open issue, and an older one off the backlog
+   const rows = [
+      issueRow({
+         number: 5,
+         title: 'Workbench',
+         status: 'closed',
+         state_reason: 'completed',
+         date_created: 500,
+      }),
+      issueRow({ number: 3, title: 'Print stickers', date_created: 600 }),
+      issueRow({ number: 2, title: 'Old backlog bug', date_created: 100 }),
+   ];
+   const labels = [
+      { repo: 'test/projects', number: 5, title: 'project:alpha', date: 1000 },
+      { repo: 'test/projects', number: 3, title: 'project:alpha', date: 2000 },
+      { repo: 'test/projects', number: 2, title: 'project:alpha', date: 3000 },
+      // another label going on later doesn't count
+      { repo: 'test/projects', number: 3, title: 'bug', date: 10 },
+   ];
+   const [project] = projectsFromRows(rows, labels, 'project:');
+   assert.deepEqual([project.name, project.number, project.state], ['Workbench', 5, 'closed']);
 });
 
-test('projectsFromRows keeps the projects repo issue, then the oldest, when several carry one label', () => {
+test('projectsFromRows keeps the projects repo issue, then the oldest when labels have no date', () => {
    const rows = [
       issueRow({ repo: 'test/repo-a', number: 40, title: 'Later work', date_created: 300 }),
       issueRow({ repo: 'test/repo-a', number: 20, title: 'The epic', date_created: 100 }),
@@ -156,7 +180,7 @@ test('projectsFromRows keeps the projects repo issue, then the oldest, when seve
    ];
    // label rows match their issue whatever the repo's case
    assert.equal(projectsFromRows(rows, labels, 'project:', 'test/projects')[0].name, 'Home');
-   // with no projects repo, the first issue labeled is the project
+   // with no projects repo, and no day its label went on, the oldest
    assert.equal(projectsFromRows(rows, labels, 'project:')[0].name, 'The epic');
    // the same number in two repos is two issues
    const twoRepos = projectsFromRows(
@@ -322,7 +346,7 @@ before(() => {
             issueRow({ number: 8, title: 'Beta', status: 'closed', state_reason: 'not_planned' }),
          ];
       }
-      if (sql.startsWith('SELECT l.repo, l.number, l.title FROM pull_labels')) {
+      if (sql.startsWith('SELECT l.repo, l.number, l.title, l.date FROM pull_labels')) {
          return [
             { repo: 'test/projects', number: 7, title: 'project:alpha' },
             { repo: 'test/projects', number: 8, title: 'project:beta' },
@@ -622,4 +646,25 @@ test('/api/v1/load counts this week and runs undecided projects ahead', async ()
 
    const bad = await get('/api/v1/load?start=nope');
    assert.equal(bad.status, 400);
+});
+
+test('/api/v1/decide asks "past its end?" by the team’s day, as the board’s Decide does', async () => {
+   // ends Sunday Sep 27; 8pm that day in California is Monday in UTC
+   roadmapRows = [
+      roadmapRow({ start: '2026-09-07', weeks: 3, updated_at: Date.UTC(2026, 8, 7) / 1000 }),
+   ];
+   const pastEnd = async at => {
+      mock.timers.enable({ apis: ['Date'], now: at });
+      try {
+         const { body } = await get('/api/v1/decide');
+         const row = body.decisions.find(d => d.project === 'alpha');
+         return Boolean(row?.reasons.some(r => r.kind === 'over'));
+      } finally {
+         mock.timers.reset();
+      }
+   };
+   assert.equal(await pastEnd(Date.UTC(2026, 8, 28, 3)), false);
+   // Monday in California too
+   assert.equal(await pastEnd(Date.UTC(2026, 8, 28, 8)), true);
+   roadmapRows = [];
 });

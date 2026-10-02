@@ -58,8 +58,6 @@ const BACK_WORDS: Record<ProjectsNav['view'], string> = {
  * history come from /projects-data.
  */
 export function Projects({
-   pulls,
-   closed,
    allPulls,
    allClosed,
    prefix,
@@ -68,11 +66,8 @@ export function Projects({
    opts,
    me,
 }: {
-   /** people's open PRs, narrowed by the repo and people filters only */
-   pulls: DerivedPull[];
-   /** people's PRs closed in the last 14 days, same narrowing */
-   closed: PullData[];
-   /** the same two lists before the filters narrow them, for Decide */
+   /** people's open PRs, and their PRs closed in the last 14 days, whatever
+    * the filter bar narrows */
    allPulls: DerivedPull[];
    allClosed: PullData[];
    /** the project label prefix; null when the server isn't set up for projects */
@@ -134,7 +129,6 @@ export function Projects({
             : NO_TODAY,
       [data, allPulls, allClosed, prefix]
    );
-   const scoped = allPulls.length !== pulls.length || allClosed.length !== closed.length;
    const teamOf = useMemo(() => teamLookup(data?.teams ?? {}), [data]);
    const { items: plans } = useRoadmap();
    // each plan's PRs by the dates, each project's issues, and which
@@ -225,11 +219,6 @@ export function Projects({
              own months and quarters; the range is for looking back. A
              project's page puts it beside the numbers it sets. */}
          {!nav.project && (nav.view === 'people' || nav.view === 'retro') && rangePicker}
-         {scoped && (
-            <span className="text-xs text-ink-3">
-               Projects counts every PR, whatever the filter bar narrows.
-            </span>
-         )}
       </div>
    );
    return (
@@ -281,6 +270,8 @@ export function Projects({
                rotation={data?.decide_rotation ?? null}
                work={work}
                ongoing={ongoing}
+               prefix={prefix}
+               opts={tabOpts}
                nav={nav}
                navigate={navigate}
                onPerson={onPersonHere}

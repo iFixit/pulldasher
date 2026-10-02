@@ -207,7 +207,11 @@ function dummyBackend(): Backend {
    return {
       // one person on the dummy board: nobody else's writes to hear, so
       // nothing to unsubscribe from either
-      onProjectsChanged: () => () => undefined,
+      // the dummy roadmap's writes say it (model/roadmapData.ts announcing)
+      onProjectsChanged(handler) {
+         window.addEventListener('pd:projectsChanged', handler);
+         return () => window.removeEventListener('pd:projectsChanged', handler);
+      },
       whoami: () => Promise.resolve(dummyUser()),
       onPulls(handler) {
          emit = handler;

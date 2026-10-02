@@ -105,6 +105,9 @@ const DUMMY_PROJECT_PULLS: Record<string, number[]> = {
    'newsletter-promo': [44, 45],
    'store-picker': [16, 36],
    'type-refresh': [1, 24, 42],
+   // its one PR moved this week, so its plan, marked Planned from Monday,
+   // reads In progress: Decide's "Filled in on its own this week"
+   translations: [22],
    misc: [3, 18, 20, 29, 43, 47, 53],
 };
 const SECOND_PROJECT: Record<number, string> = { 50: 'webdriver-deflake' };

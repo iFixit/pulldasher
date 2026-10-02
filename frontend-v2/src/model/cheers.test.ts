@@ -810,6 +810,40 @@ describe('evaluateCheers — loading guard', () => {
    });
 });
 
+describe('evaluateCheers — start-here and parked projects', () => {
+   it("names a parked project's PR last, as the review board sinks it", () => {
+      // the fields the move functions read too, so actionState can file them
+      const reviewable = (p: DerivedPull) =>
+         ({
+            ...p,
+            dependent: false,
+            qaingLogin: null,
+            crHave: 0,
+            qaHave: 0,
+            changesRequestedBy: [],
+            engagedNoStamp: [],
+            ciFailing: [],
+            headPushedAt: null,
+            devBlockedBy: [],
+            deployBlockedBy: [],
+            externalBlock: false,
+            cryo: false,
+         } as DerivedPull);
+      // the older one would be the best start, but its project is parked
+      const parkedOne = reviewable(pull('org/a', 1, { author: 'alice', ageDays: 9 }));
+      const other = reviewable(pull('org/a', 2, { author: 'bob', ageDays: 2 }));
+      const start = (parked?: ReadonlyMap<string, string>) =>
+         evaluateCheers(
+            { pulls: [parkedOne, other], turns: new Map(), me: 'me', ready: true, parked },
+            EMPTY_BASELINE
+         ).toasts.find(t => t.dedupeKey?.startsWith('start:'))?.dedupeKey;
+      expect(start()).toBe(`start:${pullKey(parkedOne.data)}`);
+      expect(start(new Map([[pullKey(parkedOne.data), 'store-picker']]))).toBe(
+         `start:${pullKey(other.data)}`
+      );
+   });
+});
+
 describe('cheer catalog', () => {
    it('documents exactly every toast kind, once each', () => {
       const catalogKinds = CHEER_CATALOG.map(c => c.kind);

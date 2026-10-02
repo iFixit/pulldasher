@@ -1,4 +1,5 @@
 import {
+   useCallback,
    useEffect,
    useId,
    useMemo,
@@ -8,7 +9,7 @@ import {
    type ReactNode,
 } from 'react';
 import { Check } from 'lucide-react';
-import { n } from '../../../../shared/format';
+import { epoch, issueUrl, n } from '../../../../shared/format';
 import {
    compareRows,
    decideProjects,
@@ -19,19 +20,31 @@ import {
    type DecideReason,
    type DecideRow,
 } from '../../../../shared/model/decide';
-import { firstOpenDay, type Today } from '../../../../shared/model/projects';
+import { firstOpenDay, projectSlugs, type Today } from '../../../../shared/model/projects';
 import { decideTurn, type DecideRotation } from '../../../../shared/model/settings';
 import {
    addWeeks,
+   healthStanding,
    HEALTH_WORD,
+   isUnderWay,
    mondayOf,
    planEnd,
    weeksThrough,
    type RoadmapFields,
    type RoadmapItem,
    type RoadmapOrigin,
+   type Vouch,
 } from '../../../../shared/model/roadmap';
+import type { DerivedPull } from '../../../../shared/model/status';
 import {
+   issueKey,
+   type IssueRef,
+   type ProjectIssue,
+   type ProjectWork,
+} from '../../../../shared/model/work';
+import type { PullData } from '../../../../shared/types';
+import {
+   ClosedBadge,
    EmptyState,
    FactLink,
    LoadFailed,
@@ -42,11 +55,14 @@ import {
    textInputClass,
 } from '../../components/bits';
 import { Icon } from '../../components/Icon';
-import { GroupHeader, Rows, SubDoor, Truncated } from '../../components/Lane';
+import { ClosedRow } from '../../components/ClosedRow';
+import { Fold, GroupHeader, Rows, SubDoor, Truncated } from '../../components/Lane';
+import { Row, type RowOptions } from '../../components/Row';
 import { useRowKeys } from '../../components/useRowKeys';
 import { mainTeam, type PortfolioItem } from '../../model/portfolio';
 import { teamLoad, type InFlight } from '../../model/teamLoad';
 import { dayOf, dayWords } from '../../model/projectData';
+import { changeProjectIssue, useProjectWork } from '../../model/projectWork';
 import { commitEnds, type CommitEnd } from '../../model/roadmapTime';
 import { saveDecideRotation, setOngoing } from '../../model/settingsData';
 import {
@@ -55,12 +71,14 @@ import {
    BEING_WORKED_ON,
    COMMIT_THROUGH,
    COPY_AS_TEXT,
+   IN_PROGRESS,
    LAST_14_DAYS,
    missedTarget,
    NO_PLAN,
    noPrActivity,
    ONGOING,
    pastEnd,
+   PLAN_IT,
    targetOn,
 } from '../../model/words';
 import type { WorkData } from '../../model/workData';
@@ -75,6 +93,7 @@ import {
 } from '../../model/roadmapData';
 import { createMemoryStore, readSessionStorage, writeSessionStorage } from '../../storage';
 import {
+   ByPrs,
    openPageAt,
    openPlan,
    ORIGIN_OPTIONS,
@@ -83,7 +102,7 @@ import {
    type Navigate,
    type ProjectsNav,
 } from './parts';
-import { PLAN_STATUS_WORD, when } from './roadmapHealth';
+import { PLAN_STATUS_WORD, vouchWords, when } from './roadmapHealth';
 
 /** The decisions owed now, worst first, for this view, the tab's label and
  * the Overview's tile. */
@@ -228,6 +247,10 @@ export type Call =
    | { kind: 'drop' }
    | { kind: 'ongoing' };
 
+/** The question that asks a plan to end later: its answers are only ends
+ * after the one it has. */
+const NEW_END = 'New end?';
+
 /** The question a reason asks, and the call that answers yes. */
 export function askOf(reason: DecideReason): { question: string; call: Call['kind'] } {
    switch (reason.kind) {
@@ -240,7 +263,7 @@ export function askOf(reason: DecideReason): { question: string; call: Call['kin
       case 'missed':
       case 'off_track':
       case 'at_risk':
-         return { question: 'New end?', call: 'commit' };
+         return { question: NEW_END, call: 'commit' };
       case 'moving':
          return { question: 'Back on?', call: 'commit' };
       case 'ended':
@@ -262,31 +285,46 @@ export function askOf(reason: DecideReason): { question: string; call: Call['kin
 
 /** The ends a row's plan can commit to: its project's target first while
  * that's ahead, then the coming months and quarters, none before the plan
- * starts. */
-function endsFor(
+ * starts. An end that leaves a plan under way as long as it is would only
+ * stamp it changed, so it isn't one; a row asking "New end?" offers only the
+ * ends that move it later. */
+export function endsFor(
    row: DecideRow,
    project: Pick<PortfolioItem, 'target'> | undefined,
    today: string
 ): CommitEnd[] {
    const target = project?.target?.due_on?.slice(0, 10) ?? null;
-   return commitEnds(today, target).filter(c => c.end >= (row.item?.start ?? ''));
+   const plan = row.item;
+   if (!plan) return commitEnds(today, target);
+   const later = row.reasons.length > 0 && askOf(primaryOf(row)).question === NEW_END;
+   return commitEnds(today, target).filter(c => {
+      if (c.end < plan.start) return false;
+      const weeks = weeksThrough(plan.start, c.end);
+      return later ? weeks > plan.weeks : weeks !== plan.weeks || !isUnderWay(plan.status);
+   });
 }
 
 /**
- * The call a row's outlined answer makes: the one its question asks, a
- * commit going through its target while that's ahead, else through the
- * nearest end. A row nobody asked about (a plan on its project's page)
- * answers with a commit too.
+ * The call a row's outlined answer makes, safe to take without reading the
+ * rest: the one its question asks, a commit going through its target while
+ * that's ahead, else through the nearest end, never one that ends its plan
+ * sooner. Null when there's none to outline: a row nobody asked about (a
+ * plan under its project's page), or a plan already running past every end
+ * offered.
  */
 export function answerOf(
    row: DecideRow,
    project: Pick<PortfolioItem, 'target'> | undefined,
    today: string
-): Call {
-   const asked = row.reasons.length ? askOf(primaryOf(row)).call : 'commit';
+): Call | null {
+   if (!row.reasons.length) return null;
+   const asked = askOf(primaryOf(row)).call;
    if (asked !== 'commit') return { kind: asked };
-   const [end] = endsFor(row, project, today);
-   return end ? { kind: 'commit', ...end } : { kind: 'park' };
+   const plan = row.item;
+   const end = endsFor(row, project, today).find(
+      c => !plan || weeksThrough(plan.start, c.end) >= plan.weeks
+   );
+   return end ? { kind: 'commit', ...end } : null;
 }
 
 const VERBS: Record<Call['kind'], [string, string]> = {
@@ -840,12 +878,16 @@ function Dotted({ children }: { children: ReactNode[] }) {
  * The calls a row can get, one click each, and once one is made, what was
  * decided and what happens next, with Undo. The question the row's reason
  * asks has one answer, the outlined button; the other calls are words. Works
- * wherever a Decide row shows: this view, and a project's own page.
+ * wherever a Decide row shows: this view, and a project's own page. Where
+ * nothing is asked (a plan under its page or in an Overview row), the calls
+ * rest behind Change, or Plan it, and open with nothing outlined: an
+ * outlined answer there would be a call nobody asked for, one click away.
  */
 export function DecideCall({
    row,
    project,
    describedBy,
+   change = 'Change',
 }: {
    row: DecideRow;
    /** its project, for a new plan's start, team and lead, and for what
@@ -853,6 +895,9 @@ export function DecideCall({
    project?: PortfolioItem;
    /** the element that says why the row is here, read with its answer */
    describedBy?: string;
+   /** the words that open the calls on a plan nobody asked about: "Change
+    * the plan" where they sit away from the plan's own words */
+   change?: string;
 }) {
    const made = calls.useValue().made.get(rowKey(row));
    // a call made on the row as it stood; a row back for a new reason is asked afresh
@@ -865,11 +910,14 @@ export function DecideCall({
    // it has, so the rows below never slide under the pointer, a phone's
    // wrapped lines included
    const [held, setHeld] = useState<number>();
-   const view = shown?.state ?? 'ask';
+   // opened from Change; it stays open through a call and its Undo
+   const [open, setOpen] = useState(false);
+   const view = shown?.state ?? (row.reasons.length || open ? 'ask' : 'rest');
    const before = useRef(view);
    // after a click here, focus lands on what replaced the button: what was
-   // decided, Try again, or the row's answer; a save or an Undo that fails
-   // later takes the focus only when it removed the focused control
+   // decided, Try again, the row's answer, or Change again; a save or an
+   // Undo that fails later takes the focus only when it removed the focused
+   // control
    useEffect(() => {
       if (before.current === view) return;
       before.current = view;
@@ -895,11 +943,29 @@ export function DecideCall({
       : mine.state === 'failed'
       ? `Didn’t save the call on ${name}.${mine.why ?? ''}`
       : `Took back the call on ${name}.`;
+   const live = (
+      <span className="sr-only" aria-live="polite">
+         {said}
+      </span>
+   );
+   if (view === 'rest') {
+      // on the plan's own line, after its words
+      return (
+         <div ref={rootRef} className="inline">
+            {live}{' '}
+            <TextButton
+               data-decide-focus
+               aria-label={row.item ? `Change the plan for ${name}` : `Plan ${name}`}
+               onClick={act(() => setOpen(true))}
+            >
+               {row.item ? change : PLAN_IT}
+            </TextButton>
+         </div>
+      );
+   }
    return (
       <div ref={rootRef} className="mt-1.5" style={{ minHeight: held }}>
-         <span className="sr-only" aria-live="polite">
-            {said}
-         </span>
+         {live}
          {shown?.state === 'failed' ? (
             <p className="m-0 flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-2">
                <span aria-hidden>Didn’t save.{shown.why}</span>
@@ -954,6 +1020,7 @@ export function DecideCall({
                project={project}
                describedBy={describedBy}
                onCall={call => act(() => makeCall(row, call, project))()}
+               onCancel={row.reasons.length ? undefined : act(() => setOpen(false))}
             />
          )}
       </div>
@@ -1016,14 +1083,16 @@ interface Option {
 
 /** The calls, before one is made: the row's answer first, outlined, in the
  * same place on every row; then, past a divider and in quieter ink, the
- * other ends and the other calls. One Tab stop, the answer; the arrow keys
- * reach the rest. */
+ * other ends and the other calls. With no answer to outline, the calls
+ * alone. One Tab stop, the answer or else the first call; the arrow keys
+ * reach the rest, and Escape is Cancel where there's one. */
 function CallStrip({
    row,
    name,
    project,
    describedBy,
    onCall,
+   onCancel,
 }: {
    row: DecideRow;
    name: string;
@@ -1031,6 +1100,8 @@ function CallStrip({
    project: PortfolioItem | undefined;
    describedBy?: string;
    onCall: (call: Call) => void;
+   /** close it again, for calls opened from Change */
+   onCancel?: () => void;
 }) {
    const day = dayOf(new Date());
    const answer = answerOf(row, project, day);
@@ -1059,42 +1130,58 @@ function CallStrip({
            ]
          : []),
    ];
-   // a commit's answer is its target or the nearest end
+   // a commit's answer is its target or the nearest end that doesn't cut
+   // the plan short
    const first =
-      (answer.kind === 'commit' ? dates[0] : others.find(o => o.call.kind === answer.kind)) ??
-      others[0];
+      answer &&
+      (answer.kind === 'commit'
+         ? dates.find(o => o.call.kind === 'commit' && o.call.end === answer.end)
+         : others.find(o => o.call.kind === answer.kind));
+   // the strip's one Tab stop
+   const lead = first ?? dates[0] ?? others[0];
    const other = (o: Option) =>
       o !== first && (
          <TextButton
             key={o.label}
             tone="quiet"
-            tabIndex={-1}
+            tabIndex={o === lead ? 0 : -1}
+            data-decide-focus={o === lead || undefined}
+            aria-describedby={o === lead ? describedBy : undefined}
             onClick={() => onCall(o.call)}
             aria-label={o.ariaLabel}
          >
             {o.inRun ?? o.label}
          </TextButton>
       );
+   // on a phone the groups wrap to lines of their own, which parts them
+   // already
+   const divider = <span aria-hidden className="hidden h-4 w-px bg-line sm:block" />;
    return (
       <div
          role="toolbar"
          aria-label={`Calls on ${name}`}
-         onKeyDown={arrowsAmong}
+         onKeyDown={e => {
+            if (e.key !== 'Escape' || !onCancel) return arrowsAmong(e);
+            e.preventDefault();
+            onCancel();
+         }}
          className="flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3"
       >
          {/* first on every row, so the eye finds it in one place; the
              question above says what it answers */}
-         <QuietButton
-            data-decide-focus
-            onClick={() => onCall(first.call)}
-            aria-label={first.ariaLabel}
-            aria-describedby={describedBy}
-         >
-            {first.label}
-         </QuietButton>
-         {/* on a phone the rest wraps to lines of their own, which part
-             them from the answer already */}
-         <span aria-hidden className="hidden h-4 w-px bg-line sm:block" />
+         {first && (
+            <>
+               <QuietButton
+                  data-decide-focus
+                  onClick={() => onCall(first.call)}
+                  aria-label={first.ariaLabel}
+                  aria-describedby={describedBy}
+               >
+                  {first.label}
+               </QuietButton>
+               {divider}
+            </>
+         )}
          {dates.some(o => o !== first) && (
             <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
                {COMMIT_THROUGH}
@@ -1106,6 +1193,23 @@ function CallStrip({
          <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 sm:ml-5">
             <Dotted>{others.map(other)}</Dotted>
          </span>
+         {onCancel && (
+            <>
+               {divider}
+               {/* a line of its own on a phone, where no divider parts it
+                   from the calls */}
+               <span className="basis-full sm:basis-auto">
+                  <TextButton
+                     tone="quiet"
+                     tabIndex={-1}
+                     onClick={onCancel}
+                     aria-label={`Cancel changing ${name}`}
+                  >
+                     Cancel
+                  </TextButton>
+               </span>
+            </>
+         )}
       </div>
    );
 }
@@ -1131,6 +1235,7 @@ function RowFacts({
    onProject: () => void;
 }) {
    const lead = row.item?.lead ?? project?.lead ?? null;
+   const byPrs = !row.item?.lead && !!project?.leadByPrs;
    const people = project ? [...project.developers, ...project.nonDevelopers] : [];
    const size = project
       ? [
@@ -1146,22 +1251,27 @@ function RowFacts({
    return (
       <Dotted>
          {[
-            lead &&
-               (onPerson ? (
-                  <FactLink
-                     key="lead"
-                     tabIndex={-1}
-                     onClick={() => onPerson(lead)}
-                     title={`See ${lead} on People`}
-                     className="text-xs"
-                  >
-                     {lead}
-                  </FactLink>
-               ) : (
-                  <span key="lead" className="text-xs text-ink-2">
-                     {lead}
-                  </span>
-               )),
+            lead && (
+               <span key="lead" className="text-xs">
+                  {onPerson ? (
+                     <FactLink
+                        tabIndex={-1}
+                        onClick={() => onPerson(lead)}
+                        title={`See ${lead} on People`}
+                     >
+                        {lead}
+                     </FactLink>
+                  ) : (
+                     <span className="text-ink-2">{lead}</span>
+                  )}
+                  {byPrs && (
+                     <>
+                        {' '}
+                        <ByPrs />
+                     </>
+                  )}
+               </span>
+            ),
             team && (
                <FactLink
                   key="team"
@@ -1388,7 +1498,11 @@ function SectionCalls({
       });
    const standing = batch('made');
    const failed = batch('failed').length;
-   const answers = owed.map(row => ({ row, call: answerOf(row, projectOf(row), day) }));
+   // a row with no answer to outline waits for a person
+   const answers = owed.flatMap(row => {
+      const call = answerOf(row, projectOf(row), day);
+      return call ? [{ row, call }] : [];
+   });
    const view = standing.length ? 'did' : 'ask';
    const before = useRef(view);
    // after a click here, focus lands on what it did, so an extra Enter never
@@ -1707,6 +1821,416 @@ function RunsDecide({
    );
 }
 
+const DAY = 86400;
+/** how far back "this week" reaches, for what filled itself in */
+const WEEK_DAYS = 7;
+
+/** A plan as the board shows it, with `marked`: the status it was saved
+ * with, where the board reads another off its PRs (marked Planned, read In
+ * progress). roadmapData.ts shown is the place to set it; until it does,
+ * no plan lists as In progress by its PRs. */
+type ShownPlan = RoadmapItem & { marked?: RoadmapItem['status'] };
+
+/** What filled itself in this week, kind by kind: each guess the board made
+ * from PRs, labels, links and activity, for the list at the end of Decide. */
+export interface FilledIn {
+   /** issues that joined a project this week by a link from one of its PRs,
+    * newest first */
+   joined: { slug: string; issue: ProjectIssue }[];
+   /** PRs opened this week, with no project label, that count in a project
+    * by a link to one of its issues (that issue, when its page says),
+    * newest first */
+   linked: { slug: string; pull: DerivedPull | PullData; issue: IssueRef | null }[];
+   /** plans marked Planned that started this week and read In progress off
+    * their PRs */
+   started: ShownPlan[];
+   /** plans in progress whose numbers vouch for them, so their leads owe no
+    * update this week */
+   vouched: { plan: RoadmapItem; vouch: Vouch }[];
+}
+
+export function filledIn({
+   today,
+   prefix,
+   plans,
+   pages,
+   now,
+}: {
+   today: Pick<Today, 'live' | 'quiet'>;
+   prefix: string;
+   plans: readonly ShownPlan[];
+   /** the pages of the projects that have issues, by slug */
+   pages: ReadonlyMap<string, Pick<ProjectWork, 'issues'>>;
+   /** epoch secs */
+   now: number;
+}): FilledIn {
+   const since = now - WEEK_DAYS * DAY;
+   const joined = [...pages]
+      .flatMap(([slug, page]) =>
+         page.issues
+            // one a person added or labeled too is theirs, not a guess
+            // by when it joined (joinedAt), not when the PR that brought it
+            // opened, so a deploy week's first sync shows every join
+            .filter(
+               i =>
+                  i.via.length === 1 &&
+                  i.via[0] === 'link' &&
+                  (i.joinedAt ?? i.attachedAt ?? 0) >= since
+            )
+            .map(issue => ({ slug, issue }))
+      )
+      .sort(
+         (a, b) =>
+            (b.issue.joinedAt ?? b.issue.attachedAt ?? 0) -
+            (a.issue.joinedAt ?? a.issue.attachedAt ?? 0)
+      );
+   const byLink = (p: PullData, slug: string) =>
+      epoch(p.created_at) >= since && !projectSlugs(p.labels, prefix).includes(slug);
+   const issueOf = (slug: string, p: PullData) =>
+      pages.get(slug)?.issues.find(i => i.prs.some(pr => issueKey(pr) === issueKey(p)))?.ref ??
+      null;
+   const linked = [...today.live, ...today.quiet]
+      .flatMap(g => [
+         ...g.open
+            .filter(p => byLink(p.data, g.slug))
+            .map(p => ({ slug: g.slug, pull: p, issue: issueOf(g.slug, p.data) })),
+         ...g.merged
+            .filter(p => byLink(p, g.slug))
+            .map(p => ({ slug: g.slug, pull: p, issue: issueOf(g.slug, p) })),
+      ])
+      .sort((a, b) => epoch(dataOf(b.pull).created_at) - epoch(dataOf(a.pull).created_at));
+   const week = dayOf(new Date(since * 1000));
+   const started = plans.filter(
+      p => p.marked === 'planned' && p.status === 'active' && p.start >= week
+   );
+   const vouched = plans.flatMap(plan => {
+      const s = isUnderWay(plan.status) ? healthStanding(plan, now) : null;
+      const vouch = s?.kind === 'quiet' || s?.kind === 'current' ? s.vouch : undefined;
+      return vouch ? [{ plan, vouch }] : [];
+   });
+   return { joined, linked, started, vouched };
+}
+
+/** A PR's own fields, open (as the board derives it) or closed. */
+const dataOf = (p: DerivedPull | PullData): PullData => ('data' in p ? p.data : p);
+
+/** One project's page, read for what filled itself in: the issues that
+ * joined it, and which issue each of its PRs links. It draws nothing. */
+function PageOf({
+   slug,
+   plans,
+   onPage,
+}: {
+   slug: string;
+   plans: readonly RoadmapItem[];
+   onPage: (slug: string, page: ProjectWork) => void;
+}) {
+   const page = useProjectWork(slug, plans);
+   useEffect(() => {
+      if (page) onPage(slug, page);
+   }, [page]);
+   return null;
+}
+
+/** An issue that joined a project by a link, with its Remove, which takes it
+ * off for good: then what was done, where Remove was, with Undo. */
+function JoinedLine({
+   slug,
+   issue,
+   name,
+   onHold,
+   navigate,
+}: {
+   slug: string;
+   issue: ProjectIssue;
+   /** its project's name */
+   name: string;
+   /** keep the line in place once it's off its project */
+   onHold: () => void;
+   navigate: Navigate;
+}) {
+   const [state, setState] = useState<'on' | 'removing' | 'off' | 'putting' | 'failed'>('on');
+   const [error, setError] = useState<string | null>(null);
+   const [said, setSaid] = useState('');
+   const rootRef = useRef<HTMLLIElement>(null);
+   const refocus = useRef(false);
+   const number = `#${issue.ref.number}`;
+   // once it's saved, the focus lands on what replaced the button: what was
+   // done, or Remove again after an Undo
+   const saving = state === 'removing' || state === 'putting';
+   useEffect(() => {
+      if (!refocus.current || saving) return;
+      refocus.current = false;
+      rootRef.current?.querySelector<HTMLElement>('[data-joined-focus]')?.focus();
+   }, [state]);
+   const change = (add: boolean) => {
+      if (saving) return;
+      refocus.current = true;
+      setError(null);
+      setState(add ? 'putting' : 'removing');
+      if (!add) onHold();
+      void changeProjectIssue(slug, issue.ref, add).then(r => {
+         if ('error' in r) {
+            setError(r.error);
+            setState(add ? 'off' : 'failed');
+            setSaid(r.error);
+            return;
+         }
+         setState(add ? 'on' : 'off');
+         setSaid(add ? `Put ${number} back on ${name}.` : `Removed ${number} from ${name}.`);
+      });
+   };
+   const off = state === 'off' || state === 'putting';
+   return (
+      <li ref={rootRef} className="border-t border-secondary px-3.5 py-2 first:border-t-0">
+         <span className="sr-only" aria-live="polite">
+            {said}
+         </span>
+         <span className={`block max-w-[70ch] ${off ? 'text-ink-3' : 'text-ink-2'}`}>
+            <a
+               href={issueUrl(issue.ref.repo, issue.ref.number)}
+               target="_blank"
+               rel="noopener noreferrer"
+               className="text-ink-2 hover:text-brand hover:underline"
+            >
+               {number}
+            </a>{' '}
+            <span className="font-medium text-ink">{issue.title || number}</span> joined{' '}
+            <FactLink onClick={() => openPageAt(navigate, slug, 'project-issues')}>{name}</FactLink>
+            {issue.linkedBy && (
+               <>
+                  , linked by{' '}
+                  <a
+                     href={issueUrl(issue.linkedBy.repo, issue.linkedBy.number)}
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     className="text-ink-2 underline decoration-line underline-offset-2 hover:text-brand"
+                  >
+                     PR #{issue.linkedBy.number}
+                  </a>
+               </>
+            )}
+            .{' '}
+            {off ? (
+               <>
+                  <span data-joined-focus tabIndex={-1} className="rounded">
+                     {error ?? 'Removed.'}
+                  </span>{' '}
+                  <TextButton
+                     onClick={() => change(true)}
+                     aria-label={`Undo removing ${number} from ${name}`}
+                  >
+                     Undo
+                  </TextButton>
+               </>
+            ) : (
+               <>
+                  {state === 'failed' && <span>{error} </span>}
+                  <TextButton
+                     data-joined-focus
+                     onClick={() => change(false)}
+                     aria-label={`Remove ${number} from ${name}`}
+                  >
+                     {state === 'failed' ? 'Try again' : 'Remove'}
+                  </TextButton>
+               </>
+            )}
+         </span>
+      </li>
+   );
+}
+
+/**
+ * What filled itself in this week, at the end of Decide: every guess the
+ * board made from PRs, labels, links and activity, in one place, each line
+ * a way to where it happened, so a person can check them all in half a
+ * minute and take a joined issue back off. Nothing shows in a week with no
+ * guesses.
+ */
+function FilledInSection({
+   today,
+   prefix,
+   plans,
+   work,
+   items,
+   opts,
+   nav,
+   navigate,
+}: {
+   today: Today;
+   prefix: string;
+   plans: readonly RoadmapItem[];
+   work: WorkData | null | undefined;
+   items: readonly PortfolioItem[];
+   opts: RowOptions;
+   nav: ProjectsNav;
+   navigate: Navigate;
+}) {
+   const [pages, setPages] = useState<ReadonlyMap<string, ProjectWork>>(new Map());
+   const onPage = useCallback(
+      (slug: string, page: ProjectWork) => setPages(was => new Map(was).set(slug, page)),
+      []
+   );
+   // a line taken off its project stays, with Undo, though its page no
+   // longer lists it; put back, its page lists it again
+   const [held, setHeld] = useState<ReadonlyMap<string, FilledIn['joined'][number]>>(new Map());
+   // ponytail: one project page per project with issues, read when Decide
+   // opens; a list of the week's joins on /work-data once that's dozens
+   const withIssues = [...(work?.projects.keys() ?? [])];
+   const found = filledIn({ today, prefix, plans, pages, now: Date.now() / 1000 });
+   const keyOf = (j: FilledIn['joined'][number]) => `${j.slug} ${issueKey(j.issue.ref)}`;
+   const joined = [...found.joined];
+   for (const j of held.values()) if (!joined.some(o => keyOf(o) === keyOf(j))) joined.push(j);
+   const nameOf = (slug: string) => items.find(i => i.slug === slug)?.name ?? slug;
+   const line = 'border-t border-secondary px-3.5 py-2 first:border-t-0';
+   const total = joined.length + found.linked.length + found.started.length + found.vouched.length;
+   return (
+      <>
+         {withIssues.map(slug => (
+            <PageOf key={slug} slug={slug} plans={plans} onPage={onPage} />
+         ))}
+         {total > 0 && (
+            <div className="mb-6">
+               <GroupHeader
+                  level={3}
+                  compact
+                  title="Filled in on its own this week"
+                  count={total}
+                  sub={
+                     <SubDoor label="What fills itself in" text="Every guess, to check">
+                        <p className="m-0">
+                           What the board read off PRs, labels, links and activity in the last{' '}
+                           {WEEK_DAYS} days rather than asking anyone: issues that joined a project
+                           because its PRs link them, PRs that count in a project because they link
+                           one of its issues, plans that read In progress because their PRs moved,
+                           and updates nobody owes because the numbers vouch.
+                        </p>
+                        <p className="m-0">
+                           Each line opens where it happened. A joined issue that doesn’t belong
+                           comes off with Remove, and no link brings it back.
+                        </p>
+                     </SubDoor>
+                  }
+               />
+               <Rows>
+                  <Fold
+                     count={joined.length}
+                     label="Joined by a link"
+                     gloss="Issues that joined a project on their own this week, because one of its PRs links them"
+                     id="decide:filled:joined"
+                  >
+                     <ul className="m-0 list-none p-0 text-[13px]">
+                        {joined.map(j => (
+                           <JoinedLine
+                              key={keyOf(j)}
+                              slug={j.slug}
+                              issue={j.issue}
+                              name={nameOf(j.slug)}
+                              onHold={() => setHeld(was => new Map(was).set(keyOf(j), j))}
+                              navigate={navigate}
+                           />
+                        ))}
+                     </ul>
+                  </Fold>
+                  <Fold
+                     count={found.linked.length}
+                     label="Counted by a link"
+                     gloss="PRs opened this week with no project label that count in a project because they link one of its issues"
+                     id="decide:filled:linked"
+                  >
+                     {found.linked.map(({ slug, pull, issue }) => {
+                        const note = (
+                           <>
+                              Counts in{' '}
+                              <FactLink onClick={() => navigate({ project: slug })}>
+                                 {nameOf(slug)}
+                              </FactLink>{' '}
+                              by its link to {issue ? `#${issue.number}` : 'one of its issues'}, not
+                              a label
+                           </>
+                        );
+                        const data = dataOf(pull);
+                        return (
+                           <div
+                              key={issueKey(data)}
+                              className="border-t border-secondary first:border-t-0"
+                           >
+                              {'data' in pull ? (
+                                 <Row pull={pull} opts={opts} footnote={note} />
+                              ) : (
+                                 <>
+                                    <ClosedRow pull={pull} lastSeen={opts.lastSeen} />
+                                    {/* under its title, as a row's footnote is, past
+                                        stand-ins as wide as its badge and face */}
+                                    <p className="m-0 -mt-1 flex gap-2.5 pb-1.5 pl-[11px] pr-3.5 text-xs text-ink-3">
+                                       <span
+                                          aria-hidden
+                                          className="invisible flex flex-none gap-2.5"
+                                       >
+                                          <ClosedBadge merged={!!pull.merged_at} inline />
+                                          <span className="w-[22px]" />
+                                       </span>
+                                       <span className="min-w-0">{note}</span>
+                                    </p>
+                                 </>
+                              )}
+                           </div>
+                        );
+                     })}
+                  </Fold>
+                  <Fold
+                     count={found.started.length}
+                     label="In progress by its PRs"
+                     gloss="Plans marked Planned that started this week and read In progress because their PRs moved since"
+                     id="decide:filled:started"
+                  >
+                     <ul className="m-0 list-none p-0 text-[13px] text-ink-2">
+                        {found.started.map(plan => (
+                           <li key={plan.id} className={line}>
+                              <span className="block max-w-[70ch]">
+                                 <FactLink onClick={() => navigate(openPlan(nav, plan.id))}>
+                                    {plan.name}
+                                 </FactLink>{' '}
+                                 reads {IN_PROGRESS}: marked Planned from {dayWords(plan.start)},
+                                 and its PRs moved since.
+                              </span>
+                           </li>
+                        ))}
+                     </ul>
+                  </Fold>
+                  <Fold
+                     count={found.vouched.length}
+                     label="No update needed"
+                     gloss="Plans whose PRs merged lately, inside their end and their issues’ pace, so their leads owe no update this week"
+                     id="decide:filled:vouched"
+                  >
+                     <ul className="m-0 list-none p-0 text-[13px] text-ink-2">
+                        {found.vouched.map(({ plan, vouch }) => (
+                           <li key={plan.id} className={line}>
+                              <span className="block max-w-[70ch]">
+                                 <FactLink
+                                    onClick={() =>
+                                       plan.project
+                                          ? navigate({ project: plan.project })
+                                          : navigate(openPlan(nav, plan.id))
+                                    }
+                                 >
+                                    {plan.name}
+                                 </FactLink>
+                                 {' · '}
+                                 {vouchWords(vouch)}
+                              </span>
+                           </li>
+                        ))}
+                     </ul>
+                  </Fold>
+               </Rows>
+            </div>
+         )}
+      </>
+   );
+}
+
 /** The teams the switch offers: the configured ones in their own order,
  * then any other a row names, by name; "No team" comes after these. */
 export function teamOrder(configured: readonly string[], named: readonly (string | null)[]) {
@@ -1732,6 +2256,8 @@ export function Decide({
    rotation,
    work,
    ongoing,
+   prefix,
+   opts,
    nav,
    navigate,
    onPerson,
@@ -1749,6 +2275,10 @@ export function Decide({
    work: WorkData | null | undefined;
    /** every project with no end, and the ones marked so on the board */
    ongoing: ReadonlySet<string>;
+   /** the project label prefix, to tell a PR's label from its links */
+   prefix: string;
+   /** how the board draws its PR rows */
+   opts: RowOptions;
    nav: ProjectsNav;
    navigate: Navigate;
    /** open a person on People */
@@ -1792,8 +2322,10 @@ export function Decide({
       ? 'Nothing left to decide'
       : 'Nothing to decide';
    const leadOf = (row: DecideRow) => {
-      const lead = row.item?.lead ?? projectOf(row)?.lead;
-      return lead ? ` (${lead})` : '';
+      const project = projectOf(row);
+      const lead = row.item?.lead ?? project?.lead;
+      if (!lead) return '';
+      return !row.item?.lead && project?.leadByPrs ? ` (${lead}, by PRs)` : ` (${lead})`;
    };
 
    // the list as plain text, for the weekly meeting's notes or a chat post:
@@ -2009,6 +2541,16 @@ export function Decide({
                </div>
             );
          })}
+         <FilledInSection
+            today={today}
+            prefix={prefix}
+            plans={plans}
+            work={work}
+            items={items}
+            opts={opts}
+            nav={nav}
+            navigate={navigate}
+         />
       </section>
    );
 }

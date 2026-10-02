@@ -446,3 +446,111 @@ describe('buildReviewLanes — why-line display names', () => {
       expect(lanes.whyQaNext(p)).toBe('Alice A is already testing it; it sinks below unclaimed QA');
    });
 });
+
+describe('buildReviewLanes — projects', () => {
+   /** pull keys to the project standing the lanes read (model/standing.ts) */
+   const standing = (
+      parked: Record<string, string>,
+      finishing: Record<string, { slug: string; left: number }> = {}
+   ) => ({
+      parked: new Map(Object.entries(parked)),
+      finishing: new Map(Object.entries(finishing)),
+   });
+
+   it("sinks a parked project's PR below everyone's in the queue, above the bots, and says why", () => {
+      // a quick win waiting 3 days would lead, but its project is parked
+      const parked = dp({ number: 1, author: 'alice', weight: 'XS', ageDays: 3 });
+      const fresh = dp({ number: 2, author: 'bob', weight: 'L', ageDays: 0 });
+      const bot = dp({ number: 3, author: 'dependabot[bot]', ageDays: 1 });
+      const lanes = buildReviewLanes(
+         input({
+            pulls: [parked, fresh],
+            bots: [bot],
+            standing: standing({ 'org/repo#1': 'picker' }),
+         })
+      );
+      expect(lanes.queue).toEqual([fresh, parked, bot]);
+      expect(lanes.whyUpNext(parked)).toBe('Parked project: picker');
+   });
+
+   it("sinks a teammate's parked PR below someone else's", () => {
+      const teammates = dp({ number: 1, author: 'alice' });
+      const stranger = dp({ number: 2, author: 'bob' });
+      const lanes = buildReviewLanes(
+         input({
+            pulls: [teammates, stranger],
+            teams: [{ name: 'My team', members: ['alice'] }],
+            standing: standing({ 'org/repo#1': 'picker' }),
+         })
+      );
+      expect(lanes.queue).toEqual([stranger, teammates]);
+   });
+
+   it("sinks a parked project's PR in Needs QA and Ready to merge", () => {
+      const parked = standing({ 'org/repo#1': 'picker' });
+      const qaParked = dp({ number: 1, author: 'alice', status: 'needs_qa', weight: 'XS' });
+      const qaOther = dp({ number: 2, author: 'bob', status: 'needs_qa', weight: 'XL' });
+      expect(
+         buildReviewLanes(input({ pulls: [qaParked, qaOther], standing: parked })).needsQa
+      ).toEqual([qaOther, qaParked]);
+      const readyParked = dp({ number: 1, author: 'alice', status: 'ready', ageDays: 9 });
+      const readyOther = dp({ number: 2, author: 'bob', status: 'ready', ageDays: 1 });
+      const lanes = buildReviewLanes(input({ pulls: [readyParked, readyOther], standing: parked }));
+      expect(lanes.ready).toEqual([readyOther, readyParked]);
+      expect(lanes.whyProject(readyParked, null)).toBe('Parked project: picker');
+   });
+
+   it("sinks a parked project's PR within its word in Waiting on you, never out of it", () => {
+      const restampParked = dp({
+         number: 1,
+         author: 'alice',
+         status: 'needs_recr',
+         recrBy: ['me'],
+         ageDays: 9,
+      });
+      const restamp = dp({ number: 2, author: 'bob', status: 'needs_recr', recrBy: ['me'] });
+      const requested = dp({ number: 3, author: 'carol', requestedReviewers: ['me'], ageDays: 20 });
+      const lanes = buildReviewLanes(
+         input({
+            pulls: [restampParked, restamp, requested],
+            standing: standing({ 'org/repo#1': 'picker' }),
+         })
+      );
+      // both re-stamps still come before the review request
+      expect(lanes.yourMove).toEqual([restamp, restampParked, requested]);
+   });
+
+   it('puts the PR that helps finish a plan first on a tie, and says so', () => {
+      // the same score to the day: the older one leads, unless the younger
+      // one is among the last open PRs of a plan in progress
+      const older = dp({ number: 1, author: 'alice', ageDays: 2.4 });
+      const finisher = dp({ number: 2, author: 'bob', ageDays: 2.2 });
+      const plain = buildReviewLanes(input({ pulls: [older, finisher] }));
+      expect(plain.queue).toEqual([older, finisher]);
+      const lanes = buildReviewLanes(
+         input({
+            pulls: [older, finisher],
+            standing: standing({}, { 'org/repo#2': { slug: 'sync', left: 1 } }),
+         })
+      );
+      expect(lanes.queue).toEqual([finisher, older]);
+      expect(lanes.whyUpNext(finisher)).toBe(
+         'Waiting 2d without a full CR. Helps finish sync: its last open PR'
+      );
+   });
+
+   it('never puts it above a PR that waited a day longer', () => {
+      const older = dp({ number: 1, author: 'alice', ageDays: 3 });
+      const finisher = dp({ number: 2, author: 'bob', ageDays: 2 });
+      const lanes = buildReviewLanes(
+         input({
+            pulls: [older, finisher],
+            standing: standing({}, { 'org/repo#2': { slug: 'sync', left: 2 } }),
+         })
+      );
+      expect(lanes.queue).toEqual([older, finisher]);
+      expect(lanes.whyProject(finisher, null)).toBe(
+         'Helps finish sync: one of its last 2 open PRs'
+      );
+   });
+});

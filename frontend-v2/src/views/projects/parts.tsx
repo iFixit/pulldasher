@@ -251,6 +251,22 @@ export function targetWords(target: ProjectTarget): string {
    return !target.title || target.title === due ? due : `${target.title}, due ${due}`;
 }
 
+/** Why a lead reads "by PRs", where there's room to open it. */
+const BY_PRS_WHY =
+   'No issue or plan names its lead, so it’s whoever has the most PRs in it, open or merged in the last 14 days. Assign its issue on GitHub, or give its plan a lead, to name one.';
+
+/** "by PRs" after a lead nobody named: a door to why on a facts line, the
+ * plain words in a cell or a row's facts, which keep one Tab stop. */
+export function ByPrs({ door = false }: { door?: boolean }) {
+   return door ? (
+      <SubDoor label="Why this lead" text="by PRs">
+         {BY_PRS_WHY}
+      </SubDoor>
+   ) : (
+      <span className="text-ink-3">by PRs</span>
+   );
+}
+
 /** Where a facts line's words go: the lead, and the other projects. */
 export interface FactLinks {
    navigate: Navigate;
@@ -272,6 +288,7 @@ export function ProjectFacts({
    project,
    prefix,
    ongoing,
+   lead,
    links,
    onOngoing,
    ongoingByLabel = false,
@@ -285,6 +302,9 @@ export function ProjectFacts({
    /** marked ongoing on the board or by its issue's label; the label alone
     * when not given */
    ongoing?: boolean;
+   /** its lead as the project list has it: its plan's, or the one with the
+    * most PRs, when its issue names none; its issue's alone when not given */
+   lead?: { lead: string | null; leadByPrs: boolean };
    /** where the lead and the other projects go; without it they're words */
    links?: FactLinks;
    /** set whether it runs with no end; without it the line only says so */
@@ -325,6 +345,29 @@ export function ProjectFacts({
    };
    const list = (nodes: ReactNode[]) =>
       nodes.flatMap((node, i) => (i ? [<span key={`and${i}`}>, </span>, node] : [node]));
+   const who = lead ? lead.lead : project?.lead ?? null;
+   const leadFact = who && (
+      <span key="lead">
+         Lead{' '}
+         {go ? (
+            // a person clicked anywhere in the tab opens their row on People
+            <FactLink
+               onClick={() => go({ ...switchView('people'), who }, { push: true })}
+               title={`Open ${who}’s row on People`}
+            >
+               {who}
+            </FactLink>
+         ) : (
+            <span className="font-medium text-ink-2">{who}</span>
+         )}
+         {lead?.leadByPrs && (
+            <>
+               {' '}
+               <ByPrs door />
+            </>
+         )}
+      </span>
+   );
    const facts: ReactNode[] = [];
    if (project) {
       facts.push(
@@ -339,25 +382,7 @@ export function ProjectFacts({
             {shortRepo(project.repo)} #{project.number}
          </a>
       );
-      if (project.lead) {
-         const lead = project.lead;
-         facts.push(
-            <span key="lead">
-               Lead{' '}
-               {go ? (
-                  // a person clicked anywhere in the tab opens their row on People
-                  <FactLink
-                     onClick={() => go({ ...switchView('people'), who: lead }, { push: true })}
-                     title={`Open ${lead}’s row on People`}
-                  >
-                     {lead}
-                  </FactLink>
-               ) : (
-                  <span className="font-medium text-ink-2">{lead}</span>
-               )}
-            </span>
-         );
-      }
+      if (leadFact) facts.push(leadFact);
       const target = inline ? null : targetOf(project);
       if (target) facts.push(<span key="target">{targetOn(targetWords(target))}</span>);
       if (project.fields.start) {
@@ -389,6 +414,7 @@ export function ProjectFacts({
             label to name the project and set its lead.
          </SubDoor>
       );
+      if (leadFact) facts.push(leadFact);
    }
    if (go && links.parts.length) {
       facts.push(

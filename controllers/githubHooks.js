@@ -14,7 +14,7 @@ import utils from '../lib/utils.js';
 import dbManager from '../lib/db-manager.js';
 import git from '../lib/git-manager.js';
 import { projectSettings } from '../lib/projects.js';
-import { workIssueTouched } from '../lib/work.js';
+import { workIssueTouched, workPullTouched } from '../lib/work.js';
 
 const hooksDebug = debug('pulldasher:hooks');
 
@@ -104,6 +104,17 @@ const HooksController = {
          dbUpdated = preUpdate.then(function () {
             return dbManager.updatePull(Pull.fromGithubApi(body.pull_request));
          });
+
+         // a "Parts of #N" in a new or edited PR counts toward that issue's
+         // project a minute later, as a label does, not at the hourly sync
+         if (body.action === 'opened' || body.action === 'edited') {
+            workPullTouched(
+               projectSettings(),
+               body.repository.full_name,
+               body.pull_request.body,
+               body.pull_request.labels
+            );
+         }
 
          if (reconcileAfterUpdate) {
             // A `synchronize` webhook never triggers a full refresh on its own,

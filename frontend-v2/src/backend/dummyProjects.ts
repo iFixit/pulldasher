@@ -14,6 +14,13 @@ import { SCALE_TEAM_ADDS, scaleCount, scaleProjects } from './dummyScale';
 
 const inDays = (days: number) => new Date(Date.now() + days * 86400_000).toISOString();
 
+/** `?state=fresh`: the board as a new install has it on day one, the PRs'
+ * project labels and the links in their bodies, and nothing else: no project
+ * issues (so no issues of theirs), no plans or updates, no teams. Every view
+ * has to read sensibly there before it reads well with everything filled in. */
+const FRESH =
+   typeof location !== 'undefined' && new URLSearchParams(location.search).get('state') === 'fresh';
+
 /** Developer teams, as the server's config.js `projects.developerTeams` sends
  * them. Everyone else in the fixture shows as a non-developer, so the People
  * view and the developer split on every project demo both kinds. */
@@ -24,7 +31,9 @@ const BASE_TEAMS: Record<string, string[]> = {
 };
 // a board scaled with ?projects= has a real-sized team too (dummyScale.ts)
 const SCALE = scaleCount();
-export const DUMMY_TEAMS: Record<string, string[]> = SCALE
+export const DUMMY_TEAMS: Record<string, string[]> = FRESH
+   ? {}
+   : SCALE
    ? Object.fromEntries(
         Object.entries(BASE_TEAMS).map(([team, logins]) => [
            team,
@@ -56,8 +65,8 @@ const dummyProject = (
 });
 
 /** The project issues behind the dummy labels, as /projects-data sends them.
- * translations and onboarding-emails have no PRs (they land in quiet), and
- * old-checkout was dropped, so Today never shows it. */
+ * onboarding-emails has no PRs (it lands in quiet), translations has one,
+ * and old-checkout was dropped, so Today never shows it. */
 const BASE_PROJECTS: Project[] = [
    dummyProject(1, 'webdriver-deflake', 'Deflake the webdriver tests', {
       ongoing: true,
@@ -120,12 +129,17 @@ const BASE_PROJECTS: Project[] = [
    }),
 ];
 
-export const DUMMY_PROJECTS: Project[] = [
-   ...BASE_PROJECTS,
-   ...SCALED.map((p, k) =>
-      dummyProject(100 + k, p.slug, p.name, { lead: p.lead, created_at: inDays(-p.startDaysAgo) })
-   ),
-];
+export const DUMMY_PROJECTS: Project[] = FRESH
+   ? []
+   : [
+        ...BASE_PROJECTS,
+        ...SCALED.map((p, k) =>
+           dummyProject(100 + k, p.slug, p.name, {
+              lead: p.lead,
+              created_at: inDays(-p.startDaysAgo),
+           })
+        ),
+     ];
 
 /**
  * The roadmap a project manager might have laid out, relative to this week:
@@ -138,6 +152,7 @@ export const DUMMY_PROJECTS: Project[] = [
  * flagged at risk before it starts.
  */
 export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
+   if (FRESH) return { DUMMY_ROADMAP: [] as RoadmapItem[], DUMMY_ROADMAP_UPDATES: [] };
    const monday = mondayOf(utcDay(Date.now() / 1000));
    const at = (weeks: number) => addWeeks(monday, weeks);
    const now = Math.floor(Date.now() / 1000);
@@ -284,7 +299,9 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          status: 'active',
       }),
       item(6, 'Search relevance', 7, 6, { team: 'FixBot', waits_on: [3] }),
-      item(7, 'Translations upkeep', -1, 26, { project: 'translations', team: 'Community' }),
+      // marked Planned from this Monday, and its PR has moved since: it reads
+      // In progress, which Decide lists as filled in on its own this week
+      item(7, 'Translations upkeep', 0, 26, { project: 'translations', team: 'Community' }),
       // marked done three weeks ago; its issue closed later, with a PR still
       // open, so Decide asks again (the "reopened" call, by its issue)
       item(8, 'Akeneo 4 migration', -11, 8, {
@@ -364,7 +381,11 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
  * One webdriver issue was added to SSO approvals by hand too, so both pages
  * say it's in the other.
  */
-export const DUMMY_ATTACHED: Record<string, AttachedIssue[]> = (() => {
+export const DUMMY_ATTACHED: Record<string, AttachedIssue[]> = ((): Record<
+   string,
+   AttachedIssue[]
+> => {
+   if (FRESH) return {};
    const day = 86400;
    const now = Math.floor(Date.now() / 1000);
    const issue = (
@@ -465,6 +486,9 @@ export const DUMMY_LINKS: Record<string, IssueRef[]> = {
    'iFixit/ifixit#90005': [{ repo: 'iFixit/ifixit', number: 35004 }],
    'iFixit/ifixit#90009': [{ repo: 'iFixit/ifixit', number: 35807 }],
    'iFixit/ifixit#35249': [{ repo: 'iFixit/ifixit', number: 36301 }],
+   // opened this week with no project label: it counts in core-primitives
+   // by this link, which Decide lists as filled in on its own this week
+   'iFixit/ifixit#35554': [{ repo: 'iFixit/ifixit', number: 36301 }],
    // the second path's PR does an issue SSO approvals still has
    'iFixit/ifixit#35553': [{ repo: 'iFixit/ifixit', number: 35004 }],
    // no label, and its issue is in two projects: the Overview's "In two

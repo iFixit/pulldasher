@@ -1,7 +1,8 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'fs';
 import db from '../lib/db.js';
-import { MIGRATIONS, missingMigrations } from '../lib/schema-check.js';
+import { MIGRATIONS, applyMissing, missingMigrations } from '../lib/schema-check.js';
 
 // information_schema rows for a database that has every migration
 const all = MIGRATIONS.map(m => ({ t: m.table, c: m.column ?? 'id' }));
@@ -29,3 +30,51 @@ test('names each missing migration once, oldest first', async () => {
    ]);
    mock.restoreAll();
 });
+
+test('every migration the check names is a file bin/migrate-missing can run', () => {
+   for (const { file } of MIGRATIONS) {
+      assert.ok(existsSync(new URL(`../migrations/${file}`, import.meta.url)), file);
+   }
+});
+
+test(
+   'applyMissing runs each missing file once, in order, and stops at one that added nothing',
+   { timeout: 5000 },
+   async () => {
+      // what the database has: all but 0027, 0028 and 0030; running a file adds
+      // what the check looks for
+      let has = all.filter(
+         r =>
+            !(r.t === 'pulls' && r.c === 'date_pushed') &&
+            r.t !== 'project_issues' &&
+            r.t !== 'issue_pull_links'
+      );
+      // a turn of the event loop per read, so a loop that never stops times out
+      mock.method(db, 'query', () => new Promise(resolve => setImmediate(() => resolve(has))));
+      const ran = [];
+      const missing = await applyMissing(async (file, sql) => {
+         ran.push(file);
+         assert.ok(sql.trim().length > 0, file);
+         has = [...has, ...all.filter((r, i) => MIGRATIONS[i].file === file)];
+      });
+      assert.deepEqual(ran, [
+         '0027-pulls--add-date-pushed.sql',
+         '0028-projects--add-issues-and-links.sql',
+         '0030-project-issues--add-linked-by-removed-at.sql',
+      ]);
+      assert.deepEqual(missing, []);
+      // one that runs and adds nothing stops it, and what's left is named
+      has = all.filter(
+         r => !(r.t === 'pulls' && r.c === 'date_pushed') && r.t !== 'project_issues'
+      );
+      ran.length = 0;
+      const left = await applyMissing(async file => ran.push(file));
+      assert.deepEqual(ran, ['0027-pulls--add-date-pushed.sql']);
+      assert.deepEqual(left, [
+         '0027-pulls--add-date-pushed.sql',
+         '0028-projects--add-issues-and-links.sql',
+         '0030-project-issues--add-linked-by-removed-at.sql',
+      ]);
+      mock.restoreAll();
+   }
+);

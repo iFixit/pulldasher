@@ -14,7 +14,7 @@ import hooksController from './controllers/githubHooks.js';
 import statsController from './controllers/stats.js';
 import userNamesController from './controllers/user-names.js';
 import projectsController from './controllers/projects.js';
-import roadmapController, { canWrite } from './controllers/roadmap.js';
+import roadmapController, { canWrite, forgetProjectCaches } from './controllers/roadmap.js';
 import { API_ROUTES, apiIndex } from './controllers/api-routes.js';
 import settingsController from './controllers/settings.js';
 import { loadSettings } from './lib/settings.js';
@@ -79,18 +79,28 @@ app.get('/retro-data', projectsController.getRetro);
 app.get('/work-data', projectsController.getWork);
 app.get('/issue-search', projectsController.searchIssues);
 app.get('/project-work', projectsController.getProjectWork);
-// every write the Projects tab can see tells open boards to fetch again, so
-// one person's call shows on another's screen without a reload
+// the review board's view of projects: which projects its PRs link, and
+// each project's plan, so it orders and names PRs by the Projects tab's rule
+app.get('/project-standing', roadmapController.standing);
+
+// Something open boards show of the projects changed: what's kept of them is
+// read again, and every open board fetches again, so one person's call shows
+// on another's screen without a reload.
+function projectsChanged() {
+   forgetProjectCaches();
+   pullManager.projectsChanged();
+}
+// every write the Projects tab can see
 const PROJECT_WRITES = ['/project-issues', '/roadmap', '/settings', '/api/v1/project-issues', '/api/v1/roadmap', '/api/v1/settings'];
 app.use(PROJECT_WRITES, function (req, res, next) {
    if (req.method !== 'GET') {
       res.on('finish', function () {
-         if (res.statusCode < 300) pullManager.projectsChanged();
+         if (res.statusCode < 300) projectsChanged();
       });
    }
    next();
 });
-setOnWorkSynced(() => pullManager.projectsChanged());
+setOnWorkSynced(projectsChanged);
 app.post('/project-issues', canWrite, projectsController.attachIssue);
 app.delete('/project-issues', canWrite, projectsController.detachIssue);
 // the roadmap is the one part of the Projects tab people edit here: reads are
@@ -194,22 +204,28 @@ function syncProjectIssues() {
    if (!projects) return;
    const startedAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
    const lookback = new Date(Date.now() - TRACKED_ISSUES_DAYS * 86400 * 1000).toISOString();
-   for (const repo of issueRepos(projects)) {
+   const synced = issueRepos(projects).map(function (repo) {
       const since = projectIssuesSyncedAt.get(repo) ?? (repo === projects.repo ? null : lookback);
-      refresh
+      return refresh
          .issuesChangedSince(repo, since)
          .then(function (report) {
             // move the marker only past a clean run, so a failed issue is retried
             if (!report.failedRepos.length && !report.failedItems.length) {
                projectIssuesSyncedAt.set(repo, startedAt);
             }
-            // a project's name, target or state may have changed
-            pullManager.projectsChanged();
+            return report.refreshed > 0;
          })
          .catch(function (err) {
             console.error('Project issue sync failed in %s: %s', repo, (err && err.message) || err);
+            return false;
          });
-   }
+   });
+   // a project's name, target or state may have changed: open boards hear it
+   // once, after every repo is read, and only when an issue changed (a word
+   // per repo had every open Projects tab fetch it all again once per repo)
+   Promise.all(synced).then(function (changed) {
+      if (changed.some(Boolean)) projectsChanged();
+   });
 }
 
 //====================================================

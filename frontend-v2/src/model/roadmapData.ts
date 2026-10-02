@@ -50,8 +50,11 @@ export const byPriority = (items: readonly RoadmapItem[]) =>
  * inProgress), so every view says so and nobody has to flip it. What's
  * stored stays as it was, so no one's name goes on a change they didn't make.
  */
-const shown = (item: RoadmapItem): RoadmapItem =>
-   item.status === 'planned' && inProgress(item) ? { ...item, status: 'active' } : item;
+const shown = (item: RoadmapItem): RoadmapItem & { marked?: RoadmapItem['status'] } =>
+   item.status === 'planned' && inProgress(item)
+      ? // `marked` keeps what it was saved as, for Decide's weekly list
+        { ...item, status: 'active', marked: 'planned' }
+      : item;
 
 type Reply = { status: number; json: Record<string, unknown> };
 
@@ -361,7 +364,27 @@ function failing(inner: Api): Api {
    return inner;
 }
 
-const api = isDummy() ? failing(dummyApi()) : liveApi();
+/** The dummy board has no server to say projectsChanged after a write, so
+ * its roadmap says it here, and the dummy backend hands it on: parking a
+ * project on Decide then reaches the review board, as it would live. */
+function announcing(inner: Api): Api {
+   const said =
+      <A extends unknown[]>(call: (...args: A) => Promise<Reply>) =>
+      async (...args: A) => {
+         const reply = await call(...args);
+         if (reply.status < 300) window.dispatchEvent(new Event('pd:projectsChanged'));
+         return reply;
+      };
+   return {
+      ...inner,
+      create: said(inner.create),
+      update: said(inner.update),
+      remove: said(inner.remove),
+      reorder: said(inner.reorder),
+   };
+}
+
+const api = isDummy() ? announcing(failing(dummyApi())) : liveApi();
 
 function problemOf(reply: Reply, doing: string): string {
    if (reply.status === 401) return 'Your sign-in expired. Reload the page to sign in again.';

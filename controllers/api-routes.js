@@ -94,7 +94,8 @@ export const API_ROUTES = [
       does:
          'Add an issue to a project by hand, or put back one taken off: {project, issue} with issue ' +
          'as owner/repo#123 or a link. A missing issue is a 404; a PR, an issue outside the tracked ' +
-         "organizations, or a project's own issue a 409",
+         "organizations, or a project's own issue a 409. `inserted`: whether this put it in (false " +
+         'when it was taken off before, or there already)',
    },
    {
       method: 'delete',
@@ -103,7 +104,8 @@ export const API_ROUTES = [
       does:
          'Take an issue added by hand or joined by a link off a project, for good (a link never ' +
          'brings it back; adding it does): ?project=slug&repo=owner/repo&number=123. &forget=1 ' +
-         'takes back an add instead, as if it was never added',
+         'takes back an add whose POST said `inserted`, as if it was never added; undo any other ' +
+         'add without it, so an issue taken off before stays off',
    },
    {
       method: 'get',
@@ -112,13 +114,16 @@ export const API_ROUTES = [
       does:
          'The leads who owe an update, each with the plans in progress they have not updated for ' +
          `${UPDATE_DUE_DAYS} days, longest overdue first: what a reminder would send each of them. ` +
-         `A plan whose PRs merged in the last ${UPDATE_DUE_DAYS} days, inside its end and its issues' pace, owes none`,
+         `A plan whose PRs merged in the last ${UPDATE_DUE_DAYS} days, inside its end and its issues' pace, ` +
+         'owes none, unless its last update said at risk or off track',
    },
    {
       method: 'get',
       path: '/api/v1/decide',
       handlers: [projectsController.getDecide],
-      does: 'The decisions owed now, worst first, each with its project, roadmap item, and reasons (see `decide`)',
+      does:
+         'The decisions owed now, worst first, each with its project, roadmap item, and reasons (see ' +
+         '`decide`); days are the team’s (config.js projects.timeZone, default America/Los_Angeles)',
    },
    {
       method: 'get',
@@ -135,7 +140,11 @@ export const API_ROUTES = [
       handlers: [roadmapController.list],
       does:
          'Every roadmap item in priority order (top first), each with its latest update and `lately` ' +
-         '(read only): PRs merged in the last 14 days, open PRs by stage, newest PR activity, its issues’ pace',
+         '(read only): PRs merged in the last 14 days, open PRs by stage, newest PR activity, its issues’ pace. ' +
+         'What the board reads off them: `in_progress` (marked so, or planned with PRs moving since its ' +
+         'start, which the board shows as In progress) and `standing`, where its updates stand: `owed` ' +
+         '(its lead owes one), `vouched` (none owed: its PRs vouch for it), `current` (its latest stands), ' +
+         'or null (none yet, none owed)',
    },
    {
       method: 'post',

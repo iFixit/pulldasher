@@ -203,6 +203,8 @@ export function decideQueue({
    /** projects that run with no end: they never owe a first plan, and a
     * finished plan of theirs isn't reopened by the work that follows */
    ongoing?: ReadonlySet<string>;
+   /** the day `now` falls on where the team is (projects.ts dayIn): what
+    * "past its end" is judged by, the vouch for an update included */
    today: string;
    now: number;
 }): DecideRow[] {
@@ -262,7 +264,7 @@ export function decideQueue({
       if (due && due < today && open > 0 && decidedAt(item) < (dayStart(due) as number) + DAY) {
          add(item.project, item, { kind: 'missed', due, open });
       }
-      const standing = healthStanding(item, now);
+      const standing = healthStanding(item, now, today);
       const update =
          standing.kind === 'current' || standing.kind === 'stale' ? standing.update : null;
       // an update the plan already answered isn't owed a call again

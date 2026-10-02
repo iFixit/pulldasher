@@ -122,13 +122,15 @@ export function reloadProjectWork(): void {
 /** Add an issue to a project by hand (or put back one taken off), or take
  * one added by hand or by a link off it, for good: its row stays, so a link
  * never brings it back. `forget` takes back an add instead (its Undo), as
- * if it was never added, so a suggestion goes back to being one. */
+ * if it was never added, so a suggestion goes back to being one: only for
+ * an add that said it `inserted` its row, so an Undo never forgets a
+ * Remove made before the add. */
 export async function changeProjectIssue(
    slug: string,
    ref: IssueRef,
    add: boolean,
    { forget = false } = {}
-): Promise<{ ok: true } | { error: string }> {
+): Promise<{ ok: true; inserted?: boolean } | { error: string }> {
    if (isDummy()) {
       const rows = dummyRows.get(slug) ?? [];
       const row = rows.find(r => issueKey(r.ref) === issueKey(ref));
@@ -169,7 +171,8 @@ export async function changeProjectIssue(
       reloadProjectWork();
       // which project each PR is in can change with it, on every view
       refreshProjectsData();
-      return { ok: true };
+      // as the server says it: an add with no row before put one in
+      return add ? { ok: true, inserted: !row } : { ok: true };
    }
    const res = await (add
       ? fetch('/project-issues', {
@@ -196,5 +199,7 @@ export async function changeProjectIssue(
       };
    }
    reloadProjectWork();
-   return { ok: true };
+   if (!add) return { ok: true };
+   const json = (await res.json().catch(() => ({}))) as { inserted?: boolean };
+   return { ok: true, inserted: json.inserted };
 }

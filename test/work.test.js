@@ -11,6 +11,7 @@ import {
    searchIssues,
    syncWork,
    workIssueTouched,
+   workPullTouched,
 } from '../lib/work.js';
 
 const at = day => Date.parse(`${day}T12:00:00Z`) / 1000;
@@ -192,28 +193,37 @@ const OTHER_PULLS = [
    pullRow(216, 'lee', '2026-09-29', { body: 'Parts of #110 and #120' }),
 ];
 
+/** A PR's body as a query reads it: none unless it asks; asked as
+ * IF(RECENT...), only for one open, or opened or closed since the time its
+ * first two parameters name. */
+function bodyOf(p, sql, params) {
+   if (!sql.includes('p.body')) return undefined;
+   if (!sql.includes('IF(')) return p.body;
+   const since = params[0];
+   return p.state === 'open' || p.date >= since || (p.date_closed ?? 0) >= since ? p.body : null;
+}
+
 function fakeQuery(sql, params) {
+   tables.queries.push({ sql, params });
    if (sql.includes('FROM `roadmap_items`')) return [PLAN];
    if (sql.includes('FROM `roadmap_updates`')) return [];
    if (sql.startsWith('SELECT i.repo, i.number, i.title')) return LABELED;
    if (sql.startsWith('SELECT i.* FROM issues')) {
       return [{ ...LABELED[0], assignee: null, milestone_title: null, milestone_due_on: null }];
    }
-   if (sql.startsWith('SELECT l.repo, l.number, l.title FROM pull_labels')) {
+   if (sql.startsWith('SELECT l.repo, l.number, l.title, l.date FROM pull_labels')) {
       return [{ repo: 'test/projects', number: 1, title: 'project:workbench' }];
    }
    if (sql.includes('FROM `issues` WHERE (`repo`, `number`) IN')) {
       const wanted = new Set(params[0].map(([r, n]) => `${r}#${n}`.toLowerCase()));
       return KNOWN_ISSUES.filter(i => wanted.has(`${i.repo}#${i.number}`.toLowerCase()));
    }
-   // the project's PRs, with their bodies when asked
+   // the projects' PRs, with their bodies when asked
    if (sql.startsWith('SELECT p.repo, p.number')) {
-      const bodies = sql.includes('p.body');
-      return LABELED_PULLS.map(p => ({
-         ...p,
-         body: bodies ? p.body : undefined,
-         label: 'project:workbench',
-      }));
+      return [
+         ...LABELED_PULLS.map(p => ({ ...p, label: 'project:workbench' })),
+         ...tables.printing.map(p => ({ ...p, label: 'project:printing' })),
+      ].map(p => ({ ...p, body: bodyOf(p, sql, params) }));
    }
    // every PR that links an attached issue, and whether a project's label claims it
    if (sql.startsWith('SELECT DISTINCT p.repo')) {
@@ -223,7 +233,7 @@ function fakeQuery(sql, params) {
          ...OTHER_PULLS.map(p => ({ ...p, labeled: 0 })),
       ]
          .filter(p => linked.has(`${p.repo}#${p.number}`.toLowerCase()))
-         .map(p => ({ ...p, body: sql.includes('p.body') ? p.body : undefined }));
+         .map(p => ({ ...p, body: bodyOf(p, sql, params) }));
    }
    // the PRs among the issues a project's PRs link
    if (sql.includes('FROM `pulls` WHERE (`repo`, `number`) IN')) {
@@ -232,9 +242,21 @@ function fakeQuery(sql, params) {
          wanted.has(`${p.repo}#${p.number}`.toLowerCase())
       );
    }
-   if (sql.startsWith('DELETE FROM `issue_pull_links`')) {
+   // an issue's links read again; with the pulls table joined, its links to
+   // merged PRs stay
+   if (sql.startsWith('DELETE k FROM `issue_pull_links`')) {
       const gone = new Set(params[0].map(([r, n]) => `${r}#${n}`.toLowerCase()));
-      tables.links = tables.links.filter(l => !gone.has(`${l[0]}#${l[1]}`.toLowerCase()));
+      const keepsMerged = sql.includes('p.`date_merged` IS NULL');
+      const merged = new Set(
+         [...LABELED_PULLS, ...OTHER_PULLS]
+            .filter(p => keepsMerged && p.date_merged != null)
+            .map(p => `${p.repo}#${p.number}`.toLowerCase())
+      );
+      tables.links = tables.links.filter(
+         l =>
+            !gone.has(`${l[0]}#${l[1]}`.toLowerCase()) ||
+            merged.has(`${l[2]}#${l[3]}`.toLowerCase())
+      );
       return {};
    }
    if (sql.startsWith('INSERT IGNORE INTO `issue_pull_links`')) {
@@ -264,8 +286,9 @@ function fakeQuery(sql, params) {
    }
    if (sql.startsWith('INSERT IGNORE INTO `project_issues` SET ?')) {
       const row = params[0];
-      if (!tables.hand.some(one(row.project, row.repo, row.number))) tables.hand.push({ ...row });
-      return {};
+      if (tables.hand.some(one(row.project, row.repo, row.number))) return { affectedRows: 0 };
+      tables.hand.push({ ...row });
+      return { affectedRows: 1 };
    }
    // the issues a sync lets join by a link
    if (sql.startsWith('INSERT IGNORE INTO `project_issues` (')) {
@@ -308,7 +331,8 @@ function fakeQuery(sql, params) {
 const settings = { repo: 'iFixit/projects', prefix: 'project:' };
 
 function fresh() {
-   tables = { links: [], hand: [], handReads: 0 };
+   // `printing`: another project's PRs, for a test that has one
+   tables = { links: [], hand: [], handReads: 0, printing: [], queries: [] };
    mock.method(git, 'graphql', fakeGraphql);
    mock.method(db, 'query', async (sql, params) => fakeQuery(sql, params));
 }
@@ -445,14 +469,17 @@ test('a PR with no project label counts in the first project whose issue it link
 test('an issue its PRs link joins on its own at the sync, and stays off once taken off', async () => {
    fresh();
    // GitHub has #110 (which #204, with the project's label, links) and #120;
-   // #216 links #110 from its side
+   // #110's side lists #204 and #216, which links it too
    STATES['ifixit/ifixit#110'] = issueNode(110, 'Make the bench printable');
    STATES['ifixit/ifixit#120'] = issueNode(120, 'Print the bench’s QR code');
    LINKS['ifixit/ifixit#110'] = {
       __typename: 'Issue',
       closedByPullRequestsReferences: { nodes: [] },
       timelineItems: {
-         nodes: [{ source: { __typename: 'PullRequest', ...pr(216, 'Parts of #110 and #120') } }],
+         nodes: [
+            { source: { __typename: 'PullRequest', ...pr(204, 'Parts of #110. Closes #110') } },
+            { source: { __typename: 'PullRequest', ...pr(216, 'Parts of #110 and #120') } },
+         ],
       },
    };
    try {
@@ -469,6 +496,10 @@ test('an issue its PRs link joins on its own at the sync, and stays off once tak
          [joined.issue.via, joined.issue.linkedBy, joined.issue.addedBy],
          [['link'], { repo: 'iFixit/ifixit', number: 204 }, null]
       );
+      // its pace counts from when #204 opened, not from the sync, so a first
+      // sync's joins don't all read as arriving today; the sync's time stays
+      assert.equal(joined.issue.attachedAt, at('2026-09-25'));
+      assert.ok(joined.issue.joinedAt > Date.now() / 1000 - 60);
       assert.ok(!joined.suggested.includes(110));
       // #216 is the project's now, by #110; the other issue it links waits for
       // a person, since a PR in only by a joined issue brings no more
@@ -483,9 +514,14 @@ test('an issue its PRs link joins on its own at the sync, and stays off once tak
       const gone = await page();
       assert.equal(gone.issue, undefined);
       assert.ok(!gone.suggested.includes(110));
-      // added again, it's back as it was
-      await attachIssue(settings, 'workbench', { repo: 'iFixit/ifixit', number: 110 }, 'erin');
+      // added again, it's back as it was; that put no row in, so its Undo is
+      // a Remove (the board's), and the one before holds through a sync
+      const ref = { repo: 'iFixit/ifixit', number: 110 };
+      assert.equal((await attachIssue(settings, 'workbench', ref, 'erin')).inserted, false);
       assert.deepEqual((await page()).issue.via, ['link']);
+      assert.equal(await detachIssue('workbench', ref), true);
+      await syncWork(settings);
+      assert.equal((await page()).issue, undefined);
    } finally {
       delete STATES['ifixit/ifixit#110'];
       delete STATES['ifixit/ifixit#120'];
@@ -496,12 +532,15 @@ test('an issue its PRs link joins on its own at the sync, and stays off once tak
 test('taking back an add forgets it, where a Remove keeps its row', async () => {
    fresh();
    const ref = { repo: 'iFixit/ifixit', number: 106 };
-   await attachIssue(settings, 'workbench', ref, 'dana');
+   // the add says it put the row in, which is when its Undo forgets it
+   assert.equal((await attachIssue(settings, 'workbench', ref, 'dana')).inserted, true);
    assert.equal(await detachIssue('workbench', ref, { forget: true }), true);
    assert.deepEqual(tables.hand, []);
    await attachIssue(settings, 'workbench', ref, 'dana');
    assert.equal(await detachIssue('workbench', ref), true);
    assert.equal(tables.hand.length, 1);
+   // put back after a Remove: no row put in
+   assert.equal((await attachIssue(settings, 'workbench', ref, 'dana')).inserted, false);
 });
 
 test('adding by hand keeps who added it first, refuses a project’s own issue, and comes off', async () => {
@@ -580,4 +619,98 @@ test('a project label put on an issue reads the work again a minute later', asyn
    await syncWork(settings);
    assert.equal(tables.handReads, 2);
    mock.timers.reset();
+});
+
+test('a PR opened or edited with a link a project has reads the work again a minute later', async () => {
+   fresh();
+   // the sync watches the issues the projects have
+   await syncWork(settings);
+   mock.timers.enable({ apis: ['setTimeout'] });
+   try {
+      // links no issue a project has, and carries no project label: nothing to read
+      workPullTouched(settings, 'iFixit/ifixit', 'Parts of #300', [{ name: 'bug' }]);
+      mock.timers.tick(60 * 1000);
+      assert.equal(tables.handReads, 1);
+      // "Parts of #101", an issue the project has
+      workPullTouched(settings, 'iFixit/ifixit', 'Parts of #101', []);
+      mock.timers.tick(60 * 1000);
+      await syncWork(settings);
+      assert.equal(tables.handReads, 3);
+      // in a project by its label, its links may join: read too
+      workPullTouched(settings, 'iFixit/ifixit', 'Parts of #300', [{ name: 'project:workbench' }]);
+      mock.timers.tick(60 * 1000);
+      await syncWork(settings);
+      assert.equal(tables.handReads, 5);
+   } finally {
+      mock.timers.reset();
+   }
+});
+
+test('a project’s page says an issue joins only when the sync will join it', async () => {
+   fresh();
+   STATES['ifixit/ifixit#110'] = issueNode(110, 'Make the bench printable');
+   // another project's PR links #110 too, which #204 (workbench's) links
+   tables.printing = [pullRow(301, 'mo', '2026-09-20', { body: 'Parts of #110' })];
+   try {
+      const suggestion = async () =>
+         (await loadProjectWork(settings, 'workbench')).suggested.find(s => s.number === 110);
+      assert.equal((await suggestion()).joins, false);
+      await syncWork(settings);
+      assert.ok(!tables.hand.some(h => h.number === 110));
+      assert.equal((await suggestion()).joins, false);
+   } finally {
+      delete STATES['ifixit/ifixit#110'];
+   }
+});
+
+test('a project’s page reads the bodies of only the PRs moving in the last 30 days', async () => {
+   fresh();
+   await syncWork(settings);
+   tables.queries = [];
+   const now = at('2026-09-30');
+   await loadProjectWork(settings, 'workbench', now);
+   const reads = tables.queries.filter(q => q.sql.includes('p.body'));
+   assert.ok(reads.length >= 2);
+   for (const { sql, params } of reads) {
+      assert.ok(
+         sql.includes("IF((p.state = 'open' OR p.date >= ? OR p.date_closed >= ?), p.body, NULL)"),
+         sql
+      );
+      assert.deepEqual(params.slice(0, 2), [now - 30 * 86400, now - 30 * 86400]);
+   }
+});
+
+test('a batch GitHub can’t answer is asked again in halves, so one issue can’t freeze the rest', async () => {
+   fresh();
+   // #101's cross-references time out any batch that asks for them
+   mock.method(git, 'graphql', (query, variables) =>
+      query.includes('closedByPullRequestsReferences') && query.includes('i101:')
+         ? Promise.reject(Object.assign(new Error('timed out'), { status: 502 }))
+         : fakeGraphql(query, variables)
+   );
+   // a link #101 had before stays as it was
+   tables.links.push(['iFixit/ifixit', 101, 'iFixit/ifixit', 299, 0]);
+   await syncWork(settings);
+   assert.deepEqual(tables.links.map(l => l.join(' ')).sort(), [
+      'iFixit/ifixit 101 iFixit/ifixit 299 0',
+      'iFixit/ifixit 102 iFixit/ifixit 203 0',
+   ]);
+});
+
+test('a sync keeps an issue’s links to merged PRs once GitHub’s side stops listing them', async () => {
+   fresh();
+   // stored before: #101 linked from #212 (merged) and #213 (still open);
+   // GitHub's side, past its last 100 cross-references, lists neither now
+   tables.links.push(
+      ['iFixit/ifixit', 101, 'iFixit/ifixit', 212, 0],
+      ['iFixit/ifixit', 101, 'iFixit/ifixit', 213, 0]
+   );
+   await syncWork(settings);
+   assert.deepEqual(
+      tables.links
+         .filter(l => l[1] === 101)
+         .map(l => l[3])
+         .sort(),
+      [201, 202, 212]
+   );
 });
