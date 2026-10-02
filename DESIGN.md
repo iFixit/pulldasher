@@ -484,13 +484,28 @@ icon with a class bolted on.
   arrows on the grip reorder, arrows on a focused bar move it a week, and
   Shift with them changes the length. A plan's bar says its status by form
   (an outline while planned, a fill once under way, green when done, a gray
-  outline when parked, faint when dropped) and its dates and weeks inside, when it has room. Editing opens inline
-  under the row, not in a popover, since a half-typed plan shouldn't
-  vanish on a stray click. Now, next and later is the same plan without
+  outline when parked, faint when dropped) and its dates and weeks inside, when it has room. A click on a
+  bar opens the plan under its row, read first, the way its project's page
+  says a plan: the plan in a line with Decide's calls under it (the one
+  asked outlined and focused), its latest update and Post an update, its
+  team and lead, and only the facts it has. The fields wait behind Edit
+  details, in one column, with the dates said as a sentence ("from the week
+  of Aug 31 for 8 weeks, to Oct 25"). It all opens inline, never in a
+  popover, a side sheet or a modal: those hide the timeline a plan is
+  weighed against, and a half-typed plan shouldn't vanish on a stray click.
+  A form holding changes keeps its place when another plan is opened. A
+  plan with no project gets the same details, and its name opens them. Now,
+  next and later is the same plan without
   week dates, for readers who want the order and not the weeks: a card in
   Next or Later says only the month its work starts. The columns are
   derived from the dates, never set by hand, so the two layouts can't
   disagree.
+- **A plan's row at rest says one thing.** Its name, then the one thing the
+  plan asks for (Decide's call, else the worst thing owed, else its health
+  word), then its lead. The bar's form says its status, and its hover and
+  screen-reader label say it in words. What it waits on, its target and
+  where it came from are in its details; the milestone flag stays on the
+  timeline. A Now, next and later card says the same.
 - **Every mark on the timeline says what it is, where it's drawn.** A
   mark that needs a legend gets rethought, not explained: an unlabeled gray
   line for a project's PR activity and an upright tick for its milestone
@@ -506,8 +521,9 @@ icon with a class bolted on.
   instead of carrying a legend. Stripes for projected weeks were cut the
   same way, and so were the count words' colored squares: each count word
   takes its bars' color instead. A bar says it can be dragged with the
-  grab cursor and a resize edge that shows on hover and focus; one
-  sentence under the heading says how, not a footer.
+  grab cursor and a resize edge that shows on hover and focus. The line
+  under the heading says only that top to bottom is priority, and its door
+  says how to drag.
 - **The timeline is built for a hundred projects in flight.** Every live
   project shows, planned or not, since the load is the point; lanes fold,
   and remember it like every fold. A project with no plan is one line (its
@@ -532,17 +548,18 @@ icon with a class bolted on.
     Escape clears it), and the rows narrow to what was in flight or planned
     then, with the week banded through every row
   - the chart's counts filter to what they count ("94 with no plan") and
-    pick their week, so a count and its rows agree, and the developer count
-    opens the teams
+    pick their week, so a count and its rows agree, and the developer
+    line's label opens the teams
   - a column or month name zooms in; while zoomed, Today comes back
-  - a plain click on a bar opens its editor, and only a drag moves it; on a
+  - a plain click on a bar opens its details, and only a drag moves it; on a
     project with no plan, a plain click opens the chooser, and only a drag
     plans it. Escape cancels a drag, a saved move offers Undo in place, and
     arrow keys reorder within the list on screen (lanes too), said aloud
   - a plan's name opens its project's page, a lead opens their row on
-    People, a health word opens the updates on their own with focus in
-    them, "after X" opens X, the milestone flag and a missed target open the
-    project, the overrun opens the plan
+    People, a row's words open its details (on its updates, with focus in
+    the box, when the words are about an update), what it waits on opens
+    that plan from its details, the milestone flag opens the project, and
+    the overrun opens the plan
   - a Now, next, later card, and the Plan cell in the project list, open
     the plan on the timeline
   The test for a new mark: what would someone expect clicking it to do?
@@ -596,8 +613,9 @@ icon with a class bolted on.
   was asked for from above, or found by the team, as a fire to put out or
   its own pick, so a planner can see how much of the load anyone chose.
   The load chart says it in words under its roadmap count ("1 fire, 4 not
-  said"), each a filter like the counts above it, and says nothing until
-  some plan does. The bars keep their two colors: a hue per origin would
+  said") once the rows are narrowed to the plans, each a filter like the
+  counts above it, and says nothing until some plan does. At rest the count
+  is only its two halves ("11 on the roadmap · 4 with no plan"). The bars keep their two colors: a hue per origin would
   need a legend. On Decide it's asked in the receipt, after the call, so
   saying it alone never clears a row.
 - **Decide is a list that empties, sized for a Monday.** With no product
@@ -637,12 +655,13 @@ icon with a class bolted on.
   Claude session. A list nobody owns doesn't empty, so it names whose week
   it is: people take turns, a week each, and every reader counts the same
   weeks from the Monday the turns were set, so nothing assigns them.
-- **What a plan waits on is words on its row, not lines across the
-  timeline**: "after Search reindex", or, amber, "starts before Shopify
-  sync ends". Linear draws dependency lines, but ours would cross team
-  lanes and every row between the two ends, and the row's words already
-  say the one thing the planner acts on. The editor offers only choices
-  that can be saved: never the item itself, dropped work, or a loop.
+- **What a plan waits on is words, not lines across the timeline**: in its
+  details, "Search reindex, which ends Nov 8", and on its row only when
+  it's the thing owed, in amber: "starts before Shopify sync ends". Linear
+  draws dependency lines, but ours would cross team lanes and every row
+  between the two ends, and the words already say the one thing the
+  planner acts on. Edit details offers only choices that can be saved:
+  never the item itself, dropped work, or a loop.
 - **A team lane's load is one sentence in its header**: "5 being worked on
   this week, for 4 developers", amber in its last words ("more than it can
   staff") once that's as many as the team has developers, because then at

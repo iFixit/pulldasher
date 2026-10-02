@@ -165,10 +165,13 @@ The tab has five views and a page per project:
     lead or team.
   - Each plan can say where its work came from: asked for from above
     (top-down), or found by the team, as a fire to put out or its own pick
-    (bottom-up). The load chart splits its roadmap count that way, and a
-    click on one shows only those plans.
+    (bottom-up). Once the rows are narrowed to the plans, the load chart
+    splits its roadmap count that way, and a click on one shows only those
+    plans.
   - Drag rows to set priority, drag a bar to move it and its edge to change
-    its length; the editor also plans a month or a quarter in one click.
+    its length. A click on a bar opens the plan's details under its row,
+    where Decide's calls commit it through a month or a quarter in one
+    click, and Edit details holds the rest.
     Team lanes say the most each team has in flight at once against its
     developers, and draw a dashed line where, in priority order, the work
     in flight outnumbers them: what's below it is what to park.

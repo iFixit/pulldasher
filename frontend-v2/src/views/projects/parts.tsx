@@ -34,7 +34,7 @@ export interface ProjectsNav {
    find: string;
    /** the roadmap's layout: month or quarter columns, or now, next and later */
    scale: 'month' | 'quarter' | 'now';
-   /** the roadmap item whose editor and updates are open */
+   /** the roadmap item whose details are open under its row */
    item: number | null;
    /** what the roadmap's timeline shows: everything in flight, only the
     * plans, or only the projects in flight with no plan */
@@ -151,7 +151,7 @@ export const ORIGIN_OPTIONS: [RoadmapOrigin | 'unsaid', string][] = [
 /**
  * The way to one roadmap item from anywhere in the tab: the roadmap with the
  * item open, on a timeline even when it was showing now, next and later,
- * since the item's editor lives on the timeline. The find box, a picked
+ * since its details live on the timeline. The find box, a picked
  * week, the show switch and a picked origin are cleared, since any of them
  * could hide it.
  */

@@ -13,12 +13,14 @@ import {
    moveWords,
    planCellWords,
    planWarnings,
+   restWords,
    stepWithin,
    waitsWords,
    type PlanCall,
    type PlanWarnings,
    type Said,
 } from './roadmapHealth';
+import { originsShown } from './LoadChart';
 
 const NOW = dayStart('2026-09-30') as number;
 const TODAY = '2026-09-30';
@@ -51,6 +53,13 @@ const update = (daysAgo: number, health: RoadmapUpdate['health']): RoadmapUpdate
    author: 'dana',
    at: NOW - daysAgo * 86400,
 });
+/** PRs merging lately, so the numbers vouch for a plan inside its end */
+const LATELY = {
+   merged: 2,
+   open: { ready: 0, hold: 0, review: 1, work: 0 },
+   activityAt: NOW - 3600,
+   issues: null,
+};
 /** the pieces said in amber, across all of a plan's words */
 const amber = (w: PlanWarnings) =>
    [w.status, w.health, w.over, w.target, w.waits]
@@ -269,6 +278,104 @@ describe('Decide’s call on a plan’s row', () => {
       );
       expect(over.status?.text).toBe('3 weeks past its end · New end?');
       expect(amber(over)).toEqual(['New end?']);
+   });
+});
+
+describe('a row at rest says one thing', () => {
+   const call = (kind: PlanCall['kind'], text: string, question: string): PlanCall => ({
+      kind,
+      text,
+      question,
+      title: `${text}. ${question}`,
+   });
+   // ended Aug 30 with work still in flight: five weeks past its end
+   const late = item(1, { start: '2026-08-03', weeks: 4, update: update(2, 'on_track') });
+   const live = { live: true, target: null };
+
+   it('says the call Decide asks, with its question, over the facts behind it', () => {
+      const w = planWarnings(
+         { ...late, update: update(2, 'at_risk') },
+         [late],
+         TODAY,
+         live,
+         NOW,
+         call('at_risk', 'At risk', 'New end?')
+      );
+      const rest = restWords(w, true);
+      expect(rest?.said.text).toBe('At risk · New end?');
+      // its answer is in the plan's details, not its updates
+      expect(rest?.opens).toBe('plan');
+      const ended = planWarnings(
+         late,
+         [late],
+         TODAY,
+         live,
+         NOW,
+         call('ended', 'Ended, no PRs open', 'Done?')
+      );
+      expect(restWords(ended, true)?.said.text).toBe('Ended, no PRs open · Done?');
+   });
+
+   it('else the worst thing owed, and an update owed opens the updates', () => {
+      const due = planWarnings(item(1, { update: update(20, 'on_track') }), [], TODAY, null, NOW);
+      expect(restWords(due, false)?.said.text).toMatch(/^On track as of .+ · Update due$/);
+      expect(restWords(due, false)?.opens).toBe('update');
+      const unstarted = planWarnings(
+         item(1, { status: 'planned', start: '2026-09-21' }),
+         [],
+         TODAY,
+         null
+      );
+      expect(restWords(unstarted, false)?.said.text).toBe(
+         'Was to start Sep 21, still marked Planned'
+      );
+      expect(restWords(unstarted, false)?.opens).toBe('plan');
+   });
+
+   it('lets a bar that draws its overrun say it, and says the health word instead', () => {
+      const w = planWarnings(late, [late], TODAY, live, NOW);
+      expect(restWords(w, false)?.said.text).toBe('5 weeks past its end');
+      const drawn = restWords(w, true);
+      expect(drawn?.said.text).toBe('On track');
+      expect(drawn?.said.pieces.some(p => p.amber)).toBe(false);
+      expect(drawn?.opens).toBe('update');
+   });
+
+   it('says only the health word when nothing is owed, and nothing for a quiet plan', () => {
+      const vouched = planWarnings(
+         item(1, { update: update(20, 'on_track'), weeks: 8, lately: LATELY }),
+         [],
+         TODAY,
+         null,
+         NOW
+      );
+      expect(vouched.health?.text).toMatch(/· no update needed$/);
+      expect(restWords(vouched, false)?.said.text).toBe('On track');
+      const quiet = planWarnings(item(1, { weeks: 8, lately: LATELY }), [], TODAY, null, NOW);
+      expect(quiet.health?.text).toBe('No update needed');
+      expect(restWords(quiet, false)).toBeNull();
+      expect(
+         restWords(planWarnings(item(1, { status: 'done' }), [], TODAY, null), false)
+      ).toBeNull();
+   });
+});
+
+describe('the load chart’s count of plans by where they came from', () => {
+   const counts = { asked: 1, fire: 1, chosen: 0, unsaid: 8 };
+   const none = { asked: 0, fire: 0, chosen: 0, unsaid: 11 };
+
+   it('rests behind the roadmap count until the rows are narrowed to the plans', () => {
+      expect(originsShown('all', null, counts)).toEqual([]);
+      expect(originsShown('unplanned', null, counts)).toEqual([]);
+      expect(originsShown('plan', null, counts)).toEqual(['asked', 'fire', 'unsaid']);
+   });
+
+   it('keeps a picked origin, even at none that week, so it can be let go', () => {
+      expect(originsShown('all', 'chosen', counts)).toEqual(['asked', 'fire', 'chosen', 'unsaid']);
+   });
+
+   it('says nothing until some plan says where it came from', () => {
+      expect(originsShown('plan', null, none)).toEqual([]);
    });
 });
 

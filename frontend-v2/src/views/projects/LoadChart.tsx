@@ -218,44 +218,45 @@ export function LoadChart({
                }
                onClick={() => onPick(picked ? null : now.week)}
             />
-            {/* each count narrows the rows to what it counts, in the week it
-                counts them, so its number and its rows agree */}
+            {/* the two halves of the count, in one line; each narrows the rows
+                to what it counts, in the week it counts them, so its number
+                and its rows agree. Where the plans came from is a closer look:
+                it shows once the rows are narrowed to the plans. */}
             <div className="flex flex-col gap-0.5 text-[11px]">
-               <CountButton
-                  active={show === 'plan'}
-                  onClick={() => (show === 'plan' ? onShow('all') : narrow(() => onShow('plan')))}
-                  title={`Show only the plans on the roadmap ${weekName}`}
-                  count={shown.onPlan}
-                  tone="text-brand"
-               >
-                  on the roadmap
-               </CountButton>
+               <span className="flex flex-wrap items-baseline gap-x-1.5">
+                  <CountButton
+                     active={show === 'plan'}
+                     onClick={() =>
+                        show === 'plan' ? onShow('all') : narrow(() => onShow('plan'))
+                     }
+                     title={`Show only the plans on the roadmap ${weekName}`}
+                     count={shown.onPlan}
+                     tone="text-brand"
+                  >
+                     on the roadmap
+                  </CountButton>
+                  <span aria-hidden className="text-ink-3">
+                     ·
+                  </span>
+                  <CountButton
+                     active={show === 'unplanned'}
+                     onClick={() =>
+                        show === 'unplanned' ? onShow('all') : narrow(() => onShow('unplanned'))
+                     }
+                     title={`Show only the projects ${BEING_WORKED_ON} with no plan ${weekName}`}
+                     count={shown.offPlan}
+                     tone="text-ink-3"
+                  >
+                     with no plan
+                  </CountButton>
+               </span>
                <OriginSplit
+                  keys={originsShown(show, origin, shown.origins)}
                   counts={shown.origins}
                   origin={origin}
                   onOrigin={o => (o ? narrow(() => onOrigin(o)) : onOrigin(null))}
                   weekName={weekName}
                />
-               <CountButton
-                  active={show === 'unplanned'}
-                  onClick={() =>
-                     show === 'unplanned' ? onShow('all') : narrow(() => onShow('unplanned'))
-                  }
-                  title={`Show only the projects ${BEING_WORKED_ON} with no plan ${weekName}`}
-                  count={shown.offPlan}
-                  tone="text-ink-3"
-               >
-                  with no plan
-               </CountButton>
-               {each != null && (
-                  <FactLink
-                     onClick={onPeople}
-                     className="self-start tabular-nums"
-                     title={`Plans and projects ${BEING_WORKED_ON} ${weekName}, per person on a developer team. At 1.0 or more, some work has one developer or none. Click to see the teams on People.`}
-                  >
-                     {n(developers, 'developer')}, {each.toFixed(1)} projects each
-                  </FactLink>
-               )}
             </div>
          </div>
          <div className="min-w-0">
@@ -387,19 +388,35 @@ export function LoadChart({
                })}
                {developers > 0 && (
                   // ink until a week ahead has more in flight than people;
-                  // the count beside it is a fact, so it stays ink
-                  <span
-                     aria-hidden
-                     className="pointer-events-none absolute inset-x-0 border-t border-dashed"
-                     style={{
-                        bottom: pct(developers),
-                        borderColor: crossed ? 'var(--warn)' : 'var(--ink-3)',
-                     }}
-                  >
-                     <span className="absolute right-0 -top-4 bg-surface px-1 text-[11px] text-ink-3 tabular-nums">
-                        {n(developers, 'developer')}
+                  // the count on it is a fact, so it stays ink, and it opens
+                  // the teams it counts
+                  <>
+                     <span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-x-0 border-t border-dashed"
+                        style={{
+                           bottom: pct(developers),
+                           borderColor: crossed ? 'var(--warn)' : 'var(--ink-3)',
+                        }}
+                     />
+                     {/* on the line, over the bars, so it keeps the card behind it */}
+                     <span
+                        className="absolute right-0 bg-surface px-1 text-[11px] leading-4"
+                        style={{ bottom: pct(developers) }}
+                     >
+                        <FactLink
+                           onClick={onPeople}
+                           className="tabular-nums"
+                           title={`${n(developers, 'developer')} on the developer teams${
+                              each == null
+                                 ? ''
+                                 : `, ${each.toFixed(1)} plans and projects each ${weekName}`
+                           }. At 1.0 or more, some work has one developer or none. Click to see the teams on People.`}
+                        >
+                           {n(developers, 'developer')}
+                        </FactLink>
                      </span>
-                  </span>
+                  </>
                )}
                {todayAt != null && (
                   <span
@@ -428,27 +445,40 @@ export function LoadChart({
 }
 
 /**
- * The plans on the roadmap split by where their work came from, each count a
- * filter like the ones above it. Until some plan says, there's nothing to
- * split, so it stays out of the way.
+ * Which origins the roadmap count splits into: none at rest, since where the
+ * work came from is a closer look than the load; once the rows narrow to the
+ * plans, or to an origin, each with plans that week, and the picked one even
+ * at none, so it can be let go. Until some plan says, there's nothing to
+ * split.
  */
+export function originsShown(
+   show: 'all' | 'plan' | 'unplanned',
+   origin: OriginKey | null,
+   counts: OriginCounts
+): OriginKey[] {
+   const said = counts.asked + counts.fire + counts.chosen > 0;
+   if (!origin && (show !== 'plan' || !said)) return [];
+   return (Object.keys(ORIGIN_COUNT) as OriginKey[]).filter(k => counts[k] > 0 || k === origin);
+}
+
+/** The plans on the roadmap split by where their work came from, each count
+ * a filter like the ones above it. */
 function OriginSplit({
+   keys,
    counts,
    origin,
    onOrigin,
    weekName,
 }: {
+   /** the origins to show (originsShown) */
+   keys: OriginKey[];
    counts: OriginCounts;
    origin: OriginKey | null;
    onOrigin: (origin: OriginKey | null) => void;
    /** the week the counts are about, in words */
    weekName: string;
 }) {
-   // the picked one stays, even at none this week, so it can be turned off
-   const keys = (Object.keys(ORIGIN_COUNT) as OriginKey[]).filter(
-      k => counts[k] > 0 || k === origin
-   );
-   if (!origin && counts.asked + counts.fire + counts.chosen === 0) return null;
+   if (!keys.length) return null;
    return (
       <span className="flex flex-wrap gap-x-2 pl-3.5">
          {keys.map(k => (

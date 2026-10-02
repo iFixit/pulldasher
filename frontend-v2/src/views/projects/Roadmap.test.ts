@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RoadmapItem } from '../../../../shared/model/roadmap';
-import { savedWords } from './Roadmap';
+import { savedWords, teamWords } from './Roadmap';
 
 const plan: RoadmapItem = {
    id: 5,
@@ -38,5 +38,14 @@ describe('the receipt an editor save leaves', () => {
       expect(savedWords(plan, { name: 'MySQL 8', start: '2026-09-14', weeks: 6 })).toBe(
          'Saved MySQL 8: changed its name and its dates'
       );
+   });
+});
+
+describe('who a plan is with, in its details', () => {
+   it('names its team before its lead, or says what it lacks', () => {
+      expect(teamWords('Store', 'zdmitchell')).toBe('Store, led by ');
+      expect(teamWords(null, 'ardelato')).toBe('No team, led by ');
+      expect(teamWords('FixBot', null)).toBe('FixBot, no lead yet');
+      expect(teamWords(null, null)).toBe('No team or lead yet');
    });
 });

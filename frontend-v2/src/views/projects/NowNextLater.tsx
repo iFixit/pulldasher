@@ -1,11 +1,10 @@
 import type { MouseEvent } from 'react';
-import { n } from '../../../../shared/format';
 import { bucketOf, NEXT_WEEKS, type RoadmapItem } from '../../../../shared/model/roadmap';
 import { FactLink } from '../../components/bits';
 import { Fold, GroupHeader, Rows } from '../../components/Lane';
 import type { PortfolioItem } from '../../model/portfolio';
 import { IN_PROGRESS } from '../../model/words';
-import { Dotted, planWarnings, SaidWords, type PlanCall, type Said } from './roadmapHealth';
+import { Dotted, planWarnings, restWords, SaidWords, type PlanCall } from './roadmapHealth';
 
 const BUCKETS: ['now' | 'next' | 'later', string, string][] = [
    ['now', 'Now', `${IN_PROGRESS}, or its start week has come`],
@@ -37,31 +36,29 @@ const only = (then: () => void) => (e: MouseEvent) => {
    then();
 };
 
+/** A plan as a card: its name, then the timeline row's own words at rest
+ * (the one thing it asks for, with its one amber mark), the month it starts
+ * when that's ahead, and its lead. The rest is in its details on the
+ * timeline, which the card opens. */
 function Card({
    item,
    all,
    linked,
    today,
-   team,
    call,
    onOpen,
    onUpdates,
-   onOpenItem,
    onPerson,
 }: {
    item: RoadmapItem;
    all: RoadmapItem[];
    linked: PortfolioItem | undefined;
    today: string;
-   /** say its team: not when a team's fold already does */
-   team: boolean;
    /** the call Decide asks about it */
    call: PlanCall | null;
    onOpen: () => void;
    /** its updates, on the timeline */
    onUpdates: () => void;
-   /** another plan, on the timeline */
-   onOpenItem: (id: number) => void;
    onPerson: (login: string) => void;
 }) {
    const bucket = bucketOf(item, today);
@@ -74,13 +71,8 @@ function Card({
       undefined,
       call
    );
-   const words = (s: Said | null, key: string) =>
-      s && (
-         <span key={key} title={s.title}>
-            <SaidWords said={s} />
-         </span>
-      );
-   const { health, waits } = w;
+   // no bar here to draw a plan past its end, so the words say it
+   const rest = restWords(w, false);
    const lead = item.lead;
    return (
       // the whole card opens the plan; the name is its keyboard door
@@ -101,30 +93,20 @@ function Card({
          <div className="flex flex-wrap gap-x-1.5 text-xs text-ink-3">
             <Dotted>
                {[
-                  words(w.status, 'status'),
-                  health && (
+                  rest && (
                      <FactLink
-                        key="health"
-                        onClick={only(onUpdates)}
-                        title={`${health.title}\nClick to see its updates and post one.`}
+                        key="rest"
+                        onClick={only(rest.opens === 'update' ? onUpdates : onOpen)}
+                        title={`${rest.said.title}${rest.said.title ? '\n' : ''}${
+                           rest.opens === 'update'
+                              ? 'Click to see its updates and post one.'
+                              : 'Click to open its plan.'
+                        }`}
                      >
-                        <SaidWords said={health} />
+                        <SaidWords said={rest.said} />
                      </FactLink>
                   ),
-                  // past its end, Decide's call already says so
-                  w.call?.kind !== 'over' && words(w.over, 'over'),
-                  words(w.target, 'target'),
                   bucket !== 'now' && <span key="month">{monthWords(item.start, today)}</span>,
-                  waits && (
-                     <FactLink
-                        key="waits"
-                        onClick={only(() => onOpenItem(waits.opens.id))}
-                        title={`${waits.title}. Click to open ${waits.opens.name}.`}
-                     >
-                        <SaidWords said={waits} />
-                     </FactLink>
-                  ),
-                  team && item.team && <span key="team">{item.team}</span>,
                   lead && (
                      <FactLink
                         key="lead"
@@ -134,7 +116,6 @@ function Card({
                         {lead}
                      </FactLink>
                   ),
-                  !!linked?.open && <span key="open">{n(linked.open, 'open PR')}</span>,
                ]}
             </Dotted>
          </div>
@@ -185,11 +166,9 @@ export function NowNextLater({
                all={all}
                linked={item.project ? bySlug.get(item.project) : undefined}
                today={today}
-               team={!laneTitles}
                call={calls.get(item.id) ?? null}
                onOpen={() => onOpen(item.id)}
                onUpdates={() => onUpdates(item.id)}
-               onOpenItem={onOpen}
                onPerson={onPerson}
             />
          ))}

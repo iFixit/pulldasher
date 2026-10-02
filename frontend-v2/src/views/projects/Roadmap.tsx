@@ -1,10 +1,12 @@
 import {
    useEffect,
+   useId,
    useLayoutEffect,
    useRef,
    useState,
    type DragEvent,
    type KeyboardEvent,
+   type MutableRefObject,
    type PointerEvent,
    type ReactNode,
 } from 'react';
@@ -23,12 +25,18 @@ import { n } from '../../../../shared/format';
 import { dayStart, firstOpenDay, utcDay } from '../../../../shared/model/projects';
 import {
    addWeeks,
+   blockersOf,
    bucketOf,
    checkRoadmapFields,
+   HEALTH_WORD,
+   healthStanding,
+   isStopped,
+   isUnderWay,
    MAX_WEEKS,
    mondayOf,
    moveBefore,
    NEXT_WEEKS,
+   ORIGIN_WORD,
    planEnd,
    ROADMAP_STATUSES,
    type RoadmapFields,
@@ -89,15 +97,21 @@ import {
    zoomWords,
    type Column,
 } from '../../model/roadmapTime';
-import { andList, BEING_WORKED_ON, COMMIT_THROUGH, targetOn } from '../../model/words';
-import { askOf, reasonWords } from './Decide';
+import {
+   andList,
+   BEING_WORKED_ON,
+   COMMIT_THROUGH,
+   NO_UPDATE_YET,
+   targetOn,
+   UPDATE_DUE,
+} from '../../model/words';
+import { askOf, DecideCall, reasonWords, useCallsMadeHere } from './Decide';
 import { LoadChart } from './LoadChart';
 import { NowNextLater } from './NowNextLater';
 import {
    NarrowChip,
    openPlan,
    ORIGIN_OPTIONS,
-   PageLink,
    switchView,
    type Navigate,
    type ProjectsNav,
@@ -108,14 +122,19 @@ import {
    Dotted,
    inInk,
    isAmber,
+   latestOf,
    moveWords,
    PLAN_STATUS_WORD as STATUS_WORD,
    planWarnings,
    planWords,
+   restWords,
    SaidWords,
    stepWithin,
    TEAM_LOAD_RULE,
    UpdatesPanel,
+   vouchRule,
+   vouchWords,
+   when,
    type PlanCall,
    type Said,
    type Tracked,
@@ -176,6 +195,13 @@ const rowMargin = 'scroll-mt-[calc(var(--header-h,0px)_+_var(--roadmap-stuck,0px
 
 /** What a plan's span is: its first week and length. */
 type Span = { start: string; weeks: number };
+
+/** no Decide rows yet, the same array each render */
+const NO_ROWS: DecideRow[] = [];
+
+/** what opens under a plan's row: from sm up, in line with the row's name
+ * above, past its grip and rank (63px in), so it reads as that row's */
+const UNDER_ROW = 'border-t border-secondary bg-muted/40 px-3.5 py-3 sm:pl-[3.9375rem]';
 
 /** A picked origin, as the chip that says the rows are narrowed to it. */
 const ORIGIN_ONLY: Record<NonNullable<ProjectsNav['origin']>, string> = {
@@ -310,13 +336,14 @@ function WaitsOnField({
 type ProjectOption = { slug: string; name: string; target: string | null };
 
 /**
- * The editor for one item, open in the roadmap's own flow (work in progress
- * lives inline, never in a popover a stray click can close). The same form
- * adds a new item, asking only its name and end until More shows the rest.
- * Saves through the shared checks, so a mistake reads the same here as the
- * server would say it, beside the field it's about. Save and Remove leave a
- * receipt with Undo under the row (the roadmap's onSaved and onDone), so
- * neither asks twice.
+ * A plan's fields, open in the roadmap's own flow (work in progress lives
+ * inline, never in a popover a stray click can close): behind Edit details
+ * in its plan's details, and as the form that adds a new plan, which asks
+ * only its name and dates until More shows the rest. One column, each field
+ * beside its name, the dates said as a sentence. Saves through the shared
+ * checks, so a mistake reads the same here as the server would say it,
+ * beside the field it's about; a save leaves a receipt with Undo under the
+ * row (the roadmap's onSaved), so nothing asks twice.
  */
 function Editor({
    item,
@@ -325,11 +352,11 @@ function Editor({
    teams,
    people,
    today,
-   navigate,
+   focus = 'name',
+   dirty,
    onDone,
    onSaved,
    onAdded,
-   onUpdates,
 }: {
    /** null to add a new item */
    item: RoadmapItem | null;
@@ -339,15 +366,16 @@ function Editor({
    teams: string[];
    people: string[];
    today: string;
-   navigate: Navigate;
-   /** closed: saved, cancelled, or removed (`removed` says which) */
-   onDone: (removed?: boolean) => void;
+   /** the field that takes the focus as it opens */
+   focus?: 'name' | 'notes' | 'project';
+   /** kept true while it holds changes not saved, so the roadmap won't close it */
+   dirty?: MutableRefObject<boolean>;
+   /** closed: saved or cancelled */
+   onDone: () => void;
    /** an item's changes, saved: the item as it was, and what changed */
    onSaved?: (was: RoadmapItem, changed: Partial<RoadmapFields>) => void;
    /** a new item, saved */
    onAdded?: (added: RoadmapItem) => void;
-   /** to its updates instead */
-   onUpdates?: () => void;
 }) {
    // what the form started from: Save sends only the fields changed since,
    // so a bar dragged while the editor is open keeps its new weeks
@@ -381,14 +409,18 @@ function Editor({
    const [draft, setDraft] = useState<RoadmapFields>(initial);
    const [error, setError] = useState<ReturnType<typeof problemAt> | null>(null);
    const [saving, setSaving] = useState(false);
-   // a new plan asks its name and end; More shows the other fields
+   // a new plan asks its name and dates; More shows the other fields
    const [more, setMore] = useState(!!item);
+   const id = useId();
    const nameRef = useRef<HTMLInputElement>(null);
    const leadRef = useRef<HTMLInputElement>(null);
-   const startRef = useRef<HTMLSelectElement>(null);
+   const statusRef = useRef<HTMLSpanElement>(null);
+   const notesRef = useRef<HTMLTextAreaElement>(null);
+   const projectRef = useRef<HTMLSelectElement>(null);
    useEffect(() => {
       // the roadmap scrolls the open editor into view, clear of its headers
-      nameRef.current?.focus({ preventScroll: true });
+      const at = focus === 'notes' ? notesRef : focus === 'project' ? projectRef : nameRef;
+      at.current?.focus({ preventScroll: true });
    }, []);
    const set = (patch: Partial<RoadmapFields>) => setDraft(d => ({ ...d, ...patch }));
    // what's changed since the form opened; a new plan sends everything
@@ -399,6 +431,13 @@ function Editor({
                JSON.stringify(value) !== JSON.stringify(initial[key as keyof RoadmapFields])
          )
       ) as Partial<RoadmapFields>;
+   useEffect(() => {
+      if (!dirty) return;
+      dirty.current = Object.keys(changes()).length > 0;
+      return () => {
+         dirty.current = false;
+      };
+   });
    const save = async () => {
       const changed = item ? changes() : draft;
       if (item && !Object.keys(changed).length) return onDone();
@@ -431,15 +470,17 @@ function Editor({
       else if (item) onSaved?.(item, checked.fields);
       onDone();
    };
-   /** A field and its words. A group of buttons gets a plain box: a label
-    * would hand its name, and a click on its words, to the first of them. */
-   const field = (label: string, control: ReactNode, wide = false, group = false) => {
-      const Box = group ? 'div' : 'label';
-      return (
-         <Box className={`flex flex-col gap-1 text-xs text-ink-3 ${wide ? 'sm:col-span-2' : ''}`}>
-            {label}
-            {control}
-         </Box>
+   /** A field's name, beside it from sm up and above it on a phone. A group
+    * of buttons gets plain words: a label would hand its name, and a click
+    * on its words, to the first of them. */
+   const label = (text: string, field?: string) => {
+      const className = 'pt-1 text-xs text-ink-3 sm:pt-0';
+      return field ? (
+         <label htmlFor={`${id}-${field}`} className={className}>
+            {text}
+         </label>
+      ) : (
+         <span className={className}>{text}</span>
       );
    };
    const fieldError = (at: 'name' | 'lead') =>
@@ -452,14 +493,15 @@ function Editor({
       draft.project && !projects.some(p => p.slug === draft.project)
          ? [...projects, { slug: draft.project, name: draft.project, target: null }]
          : projects;
-   // the same ends Decide commits to, from the start above: its project's
-   // target first while that's ahead, else the nearest end, the one
-   // outlined answer, as on Decide
+   // a new plan's end, from the ends Decide commits to: its project's target
+   // first while that's ahead, else the nearest, the one outlined answer
    const target = projects.find(p => p.slug === draft.project)?.target ?? null;
-   const ends = commitEnds(today, target).filter(c => c.end >= draft.start);
+   const ends = item ? [] : commitEnds(today, target).filter(c => c.end >= draft.start);
+   const runs = Number.isInteger(draft.weeks) && draft.weeks >= 1 && draft.weeks <= MAX_WEEKS;
    return (
       <form
-         className="grid gap-3 border-t border-secondary bg-muted/40 px-3.5 py-3 sm:grid-cols-4"
+         id={item ? `roadmap-edit-${item.id}` : undefined}
+         className={item ? UNDER_ROW : 'border-t border-secondary bg-muted/40 px-3.5 py-3'}
          onSubmit={e => {
             e.preventDefault();
             void save();
@@ -468,16 +510,18 @@ function Editor({
             if (e.key !== 'Escape') return;
             // a stray Escape mustn't throw away what's typed: it closes the
             // form only while nothing has changed
+            e.stopPropagation();
             if (!Object.keys(changes()).length) onDone();
             else setError({ text: 'Save your changes, or Cancel to drop them.', field: null });
          }}
       >
-         <div className="flex flex-col gap-1 sm:col-span-2">
-            {field(
-               'Name',
+         <div className="grid max-w-3xl grid-cols-1 gap-x-3 gap-y-1 text-[13px] text-ink-2 sm:grid-cols-[minmax(7rem,max-content)_minmax(0,1fr)] sm:items-baseline sm:gap-y-2.5">
+            {label('Name', 'name')}
+            <div className="flex flex-col gap-1">
                <input
+                  id={`${id}-name`}
                   ref={nameRef}
-                  className={inputClass}
+                  className={`w-full max-w-md ${inputClass}`}
                   value={draft.name}
                   maxLength={120}
                   onChange={e => set({ name: e.target.value })}
@@ -485,146 +529,109 @@ function Editor({
                   aria-invalid={error?.field === 'name' || undefined}
                   aria-describedby={error?.field === 'name' ? 'roadmap-error-name' : undefined}
                />
-            )}
-            {fieldError('name')}
-         </div>
-         {/* the dates first: most edits are a date change */}
-         {more &&
-            field(
-               'Starts the week of',
-               <select
-                  ref={startRef}
-                  className={selectClass}
-                  value={draft.start}
-                  onChange={e => set({ start: e.target.value })}
-               >
-                  {startChoices(today, draft.start).map(g => (
-                     <optgroup key={g.month} label={g.month}>
-                        {g.days.map(day => (
-                           <option key={day} value={day}>
-                              {weekWords(day)}
-                           </option>
-                        ))}
-                     </optgroup>
-                  ))}
-               </select>
-            )}
-         {more &&
-            field(
-               'Length in weeks',
-               <input
-                  type="number"
-                  min={1}
-                  max={MAX_WEEKS}
-                  className={inputClass}
-                  value={draft.weeks}
-                  onChange={e => set({ weeks: Number(e.target.value) })}
-               />
-            )}
-         {/* where the dates land, so nobody has to count the weeks */}
-         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3 sm:col-span-4">
-            <span className="text-ink-2" aria-live="polite">
-               {Number.isInteger(draft.weeks) && draft.weeks >= 1 && draft.weeks <= MAX_WEEKS
-                  ? `Runs ${planWords(draft)}`
-                  : `A plan runs 1 to ${MAX_WEEKS} weeks`}
-            </span>
-            {ends.length > 0 && (
-               <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                  {COMMIT_THROUGH}
-                  <Dotted>
-                     {ends.map((c, i) => {
-                        const weeks = weeksThrough(draft.start, c.end);
-                        const props = {
-                           onClick: () => set({ weeks }),
-                           'aria-label': `${COMMIT_THROUGH} ${c.through}`,
-                           title: planWords({ start: draft.start, weeks }),
-                        };
-                        // in the run of words, "Commit through its target, Oct 21"
-                        const words = c.target ? c.through : c.label;
-                        return i === 0 ? (
-                           <QuietButton key={c.end} {...props}>
-                              {words}
-                           </QuietButton>
-                        ) : (
-                           <TextButton key={c.end} {...props}>
-                              {words}
-                           </TextButton>
-                        );
-                     })}
-                  </Dotted>
-               </span>
-            )}
-         </div>
-         {more && (
-            <>
-               {field(
-                  'Status',
-                  <Segmented
-                     ariaLabel="status"
-                     value={draft.status}
-                     options={ROADMAP_STATUSES.map(s => [s, STATUS_WORD[s]])}
-                     onChange={status => set({ status })}
-                  />,
-                  true,
-                  true
-               )}
-               {field(
-                  'Where it came from',
-                  <Segmented
-                     ariaLabel="where it came from"
-                     value={draft.origin ?? 'unsaid'}
-                     options={ORIGIN_OPTIONS}
-                     onChange={o => set({ origin: o === 'unsaid' ? null : o })}
-                  />,
-                  true,
-                  true
-               )}
-               <div className="flex flex-col gap-1 text-xs text-ink-3">
-                  {field(
-                     'Project it tracks',
-                     <select
-                        className={selectClass}
-                        value={draft.project ?? ''}
-                        onChange={e => set({ project: e.target.value || null })}
-                     >
-                        <option value="">No project yet</option>
-                        {projectOptions.map(p => (
-                           <option key={p.slug} value={p.slug}>
-                              {p.name}
-                           </option>
-                        ))}
-                     </select>
-                  )}
-                  {/* under the box, outside its label; only for the project it
-                      tracks now, not one picked and not saved yet */}
-                  {initial.project && draft.project === initial.project && (
-                     <span>
-                        <PageLink g={{ slug: initial.project }} navigate={navigate} />
-                     </span>
-                  )}
-               </div>
-               {field(
-                  'Team',
+               {fieldError('name')}
+            </div>
+            {/* the dates as the sentence they make, so nobody counts weeks */}
+            {label('Runs')}
+            <div className="flex flex-col gap-1.5">
+               <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  from the week of
                   <select
+                     aria-label="Starts the week of"
                      className={selectClass}
-                     value={draft.team ?? ''}
-                     onChange={e => set({ team: e.target.value || null })}
+                     value={draft.start}
+                     onChange={e => set({ start: e.target.value })}
                   >
-                     <option value="">No team</option>
-                     {[...new Set([...teams, ...(draft.team ? [draft.team] : [])])].map(t => (
-                        <option key={t} value={t}>
-                           {t}
-                        </option>
+                     {startChoices(today, draft.start).map(g => (
+                        <optgroup key={g.month} label={g.month}>
+                           {g.days.map(day => (
+                              <option key={day} value={day}>
+                                 {weekWords(day)}
+                              </option>
+                           ))}
+                        </optgroup>
                      ))}
                   </select>
+                  for
+                  <input
+                     type="number"
+                     min={1}
+                     max={MAX_WEEKS}
+                     aria-label="Length in weeks"
+                     className={`w-16 ${inputClass}`}
+                     value={draft.weeks}
+                     onChange={e => set({ weeks: Number(e.target.value) })}
+                  />
+                  {/* the end kept with its word: the gap would part them */}
+                  <span>
+                     {draft.weeks === 1 ? 'week' : 'weeks'}
+                     <span className="text-ink-3" aria-live="polite">
+                        {runs
+                           ? `, to ${weekWords(planEnd(draft))}`
+                           : `: a plan runs 1 to ${MAX_WEEKS} weeks`}
+                     </span>
+                  </span>
+               </span>
+               {ends.length > 0 && (
+                  <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-ink-3">
+                     {COMMIT_THROUGH}
+                     <Dotted>
+                        {ends.map((c, i) => {
+                           const weeks = weeksThrough(draft.start, c.end);
+                           const props = {
+                              onClick: () => set({ weeks }),
+                              'aria-label': `${COMMIT_THROUGH} ${c.through}`,
+                              title: planWords({ start: draft.start, weeks }),
+                           };
+                           // in the run of words, "Commit through its target, Oct 21"
+                           const words = c.target ? c.through : c.label;
+                           return i === 0 ? (
+                              <QuietButton key={c.end} {...props}>
+                                 {words}
+                              </QuietButton>
+                           ) : (
+                              <TextButton key={c.end} {...props}>
+                                 {words}
+                              </TextButton>
+                           );
+                        })}
+                     </Dotted>
+                  </span>
                )}
-               <div className="flex flex-col gap-1">
-                  {field(
-                     'Lead',
-                     <>
+            </div>
+            {more && (
+               <>
+                  {label('Status')}
+                  <span ref={statusRef}>
+                     <Segmented
+                        ariaLabel="status"
+                        value={draft.status}
+                        options={ROADMAP_STATUSES.map(s => [s, STATUS_WORD[s]])}
+                        onChange={status => set({ status })}
+                     />
+                  </span>
+                  {/* who it's with as the sentence its details say: "Store, led by" */}
+                  {label('Team', 'team')}
+                  <div className="flex flex-col gap-1">
+                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <select
+                           id={`${id}-team`}
+                           className={selectClass}
+                           value={draft.team ?? ''}
+                           onChange={e => set({ team: e.target.value || null })}
+                        >
+                           <option value="">No team</option>
+                           {[...new Set([...teams, ...(draft.team ? [draft.team] : [])])].map(t => (
+                              <option key={t} value={t}>
+                                 {t}
+                              </option>
+                           ))}
+                        </select>
+                        led by
                         <input
                            ref={leadRef}
-                           className={inputClass}
+                           aria-label="Lead"
+                           className={`w-44 ${inputClass}`}
                            list="roadmap-people"
                            value={draft.lead ?? ''}
                            onChange={e => set({ lead: e.target.value.trim() || null })}
@@ -639,82 +646,346 @@ function Editor({
                               <option key={login} value={login} />
                            ))}
                         </datalist>
-                     </>
-                  )}
-                  {fieldError('lead')}
-               </div>
-               {field(
-                  'Waits on',
+                     </span>
+                     {fieldError('lead')}
+                  </div>
+                  {label('Project', 'project')}
+                  <span>
+                     <select
+                        id={`${id}-project`}
+                        ref={projectRef}
+                        className={`max-w-full ${selectClass}`}
+                        value={draft.project ?? ''}
+                        onChange={e => set({ project: e.target.value || null })}
+                     >
+                        <option value="">No project yet</option>
+                        {projectOptions.map(p => (
+                           <option key={p.slug} value={p.slug}>
+                              {p.name}
+                           </option>
+                        ))}
+                     </select>
+                  </span>
+                  {label('Waits on')}
                   <WaitsOnField
                      id={item?.id ?? null}
                      value={draft.waits_on}
                      all={all}
                      onChange={waits_on => set({ waits_on })}
-                  />,
-                  true,
-                  true
-               )}
-               {field(
-                  'Notes',
+                  />
+                  {label('Came from')}
+                  <span>
+                     <Segmented
+                        ariaLabel="where it came from"
+                        value={draft.origin ?? 'unsaid'}
+                        options={ORIGIN_OPTIONS}
+                        onChange={o => set({ origin: o === 'unsaid' ? null : o })}
+                     />
+                  </span>
+                  {label('Notes', 'notes')}
                   <textarea
-                     className="min-h-16 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px]"
+                     id={`${id}-notes`}
+                     ref={notesRef}
+                     className="min-h-16 w-full max-w-xl rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px] text-ink"
                      value={draft.notes}
                      maxLength={2000}
                      onChange={e => set({ notes: e.target.value })}
                      placeholder="Why it matters"
-                  />,
-                  true
-               )}
-            </>
-         )}
-         <div className="flex flex-wrap items-center gap-3 text-xs sm:col-span-4">
-            <PrimaryButton disabled={saving}>{item ? 'Save' : 'Add to the roadmap'}</PrimaryButton>
-            <TextButton tone="quiet" onClick={() => onDone()}>
-               Cancel
-            </TextButton>
-            {!more && (
-               <TextButton
-                  tone="quiet"
-                  aria-expanded={false}
-                  aria-label="More fields: its dates, status, project, team, lead and notes"
-                  onClick={() => {
-                     setMore(true);
-                     // on to the first field it showed
-                     requestAnimationFrame(() => startRef.current?.focus());
-                  }}
-               >
-                  More
-               </TextButton>
+                  />
+               </>
             )}
-            {onUpdates && <TextButton onClick={onUpdates}>See its updates</TextButton>}
-            <span role="status" className="text-ink-2">
-               {error && !error.field ? error.text : ''}
-            </span>
-            <span className="flex-1" />
-            {item && (
-               // one click: its receipt under the row has the Undo
+            <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs sm:col-start-2 sm:mt-0">
+               <PrimaryButton disabled={saving}>
+                  {item ? 'Save' : 'Add to the roadmap'}
+               </PrimaryButton>
+               <TextButton tone="quiet" onClick={() => onDone()}>
+                  Cancel
+               </TextButton>
+               {!more && (
+                  <TextButton
+                     tone="quiet"
+                     aria-expanded={false}
+                     aria-label="More fields: its status, team and lead, project, what it waits on, where it came from and notes"
+                     onClick={() => {
+                        setMore(true);
+                        // on to the first field it showed
+                        requestAnimationFrame(() =>
+                           statusRef.current?.querySelector<HTMLElement>('[tabindex="0"]')?.focus()
+                        );
+                     }}
+                  >
+                     More
+                  </TextButton>
+               )}
+               <span role="status" className="text-ink-2">
+                  {error && !error.field ? error.text : ''}
+               </span>
+            </div>
+         </div>
+      </form>
+   );
+}
+
+/** a line of a plan's details that runs under its words, not its label:
+ * the whole width on a phone */
+const WIDE = 'col-span-2 m-0 sm:col-span-1 sm:col-start-2';
+
+/** Who a plan is with, in words: "Store, led by" before its lead's door,
+ * or what it lacks. */
+export function teamWords(team: string | null, lead: string | null): string {
+   if (!team && !lead) return 'No team or lead yet';
+   return `${team ?? 'No team'}, ${lead ? 'led by ' : 'no lead yet'}`;
+}
+
+/**
+ * A plan's details, open under its row and read first, the way its project's
+ * page says its plan: the plan in a line with Decide's calls under it (the
+ * one asked, outlined; the coming ends; park, done and drop), each saved at
+ * once with Undo where it was made; its latest update and the way to post
+ * one; its team and lead; and only the facts it has (its project when that
+ * isn't its name, what it waits on, where it came from, its notes). The
+ * fields themselves wait behind Edit details. Nothing here is amber: the row
+ * above carries the plan's one mark. Escape or Close puts it away, and a
+ * stray click doesn't.
+ */
+function PlanPanel({
+   item,
+   all,
+   linked,
+   today,
+   row,
+   focusCalls,
+   updates,
+   dirty,
+   onUpdates,
+   onEdit,
+   onRemove,
+   onClose,
+   onPerson,
+   onOpenItem,
+   onOpenProject,
+}: {
+   item: RoadmapItem;
+   all: RoadmapItem[];
+   /** the project it tracks, on the project list */
+   linked: PortfolioItem | undefined;
+   today: string;
+   /** Decide's row for it, asked or answered here, for its calls */
+   row: DecideRow;
+   /** opened from a door (its bar, its words, a link): the focus goes to its
+    * calls; back from its fields, the roadmap puts it on Edit details */
+   focusCalls: boolean;
+   /** its update form is open */
+   updates: boolean;
+   /** kept true while the update form holds words not posted */
+   dirty: MutableRefObject<boolean>;
+   onUpdates: (open: boolean) => void;
+   /** its fields, with the focus on one */
+   onEdit: (focus?: 'notes' | 'project') => void;
+   onRemove: () => Promise<unknown>;
+   onClose: () => void;
+   onPerson: (login: string) => void;
+   onOpenItem: (id: number) => void;
+   onOpenProject: (slug: string) => void;
+}) {
+   const ref = useRef<HTMLDivElement>(null);
+   const [removing, setRemoving] = useState(false);
+   const focused = useRef(false);
+   const asked = row.reasons.length > 0;
+   useEffect(() => {
+      // opened from a door to change the plan: on to its calls (its updates
+      // take their own focus), and on to Decide's answer if its question
+      // arrives after, while the focus is still on the calls
+      const panel = ref.current;
+      if (!panel || updates) return;
+      const onCalls = !!panel.querySelector('[role="toolbar"]')?.contains(document.activeElement);
+      if (!(focusCalls && !focused.current) && !onCalls) return;
+      focused.current = true;
+      panel.querySelector<HTMLElement>('[data-decide-focus]')?.focus({ preventScroll: true });
+   }, [asked]);
+   // the facts behind the row's words, in ink
+   const w = planWarnings(item, all, today, trackedBy(linked));
+   const facts = [w.status, w.over, w.target].flatMap(s => (s ? [` · ${s.text}`] : []));
+   const standing = healthStanding(item);
+   const u = latestOf(standing);
+   const vouch =
+      standing.kind === 'quiet' || standing.kind === 'current' ? standing.vouch : undefined;
+   const blockers = blockersOf(item, all);
+   const lead = item.lead;
+   const project = item.project;
+   const projectName = linked?.name ?? project;
+   const term = 'text-xs leading-5 text-ink-3';
+   const post = (
+      <TextButton
+         id={`roadmap-post-${item.id}`}
+         tone={updates ? 'quiet' : 'action'}
+         aria-expanded={updates}
+         onClick={() => onUpdates(!updates)}
+      >
+         {updates ? 'Close' : 'Post an update'}
+      </TextButton>
+   );
+   return (
+      <div
+         ref={ref}
+         role="group"
+         aria-label={`${item.name}: its plan`}
+         className={UNDER_ROW}
+         onKeyDown={e => {
+            // the update form takes its own Escape
+            if (e.key !== 'Escape' || updates) return;
+            e.preventDefault();
+            onClose();
+         }}
+      >
+         <dl className="m-0 grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2.5 text-[13px] leading-5 sm:grid-cols-[minmax(7rem,max-content)_minmax(0,1fr)]">
+            <dt className={term}>Plan</dt>
+            <dd className="m-0 max-w-[70ch] text-ink-2">
+               {STATUS_WORD[item.status]}, {planWords(item)}
+               {facts}
+            </dd>
+            {/* under the plan's words; the whole width on a phone */}
+            <dd className={`-mt-2 ${WIDE}`}>
+               <DecideCall
+                  row={row}
+                  project={linked}
+                  opened
+                  // the row's words above ask the question its answer answers
+                  describedBy={asked ? `roadmap-words-${item.id}` : undefined}
+               />
+            </dd>
+            {(u || isUnderWay(item.status)) && (
+               <>
+                  <dt className={term}>Update</dt>
+                  <dd className="m-0 text-ink-2">
+                     {u ? (
+                        <>
+                           <span className="font-medium text-ink">{HEALTH_WORD[u.health]}</span>
+                           {` · ${when(u.at)} · ${u.author}`}
+                           {standing.kind === 'stale' && ` · ${UPDATE_DUE}`} {post}
+                           {u.body && (
+                              <p className="m-0 mt-0.5 max-w-[70ch] whitespace-pre-line">
+                                 {u.body}
+                              </p>
+                           )}
+                           {vouch && (
+                              <p className="m-0 mt-0.5 text-ink-3" title={vouchRule(vouch)}>
+                                 {vouchWords(vouch)}
+                              </p>
+                           )}
+                        </>
+                     ) : (
+                        <>
+                           {vouch ? (
+                              <span title={vouchRule(vouch)}>{vouchWords(vouch)}</span>
+                           ) : standing.kind === 'missing' ? (
+                              NO_UPDATE_YET
+                           ) : (
+                              'None yet'
+                           )}{' '}
+                           {post}
+                        </>
+                     )}
+                  </dd>
+                  {updates && (
+                     <dd className="col-span-2 m-0 overflow-hidden rounded-xl border border-line bg-surface">
+                        <UpdatesPanel
+                           item={item}
+                           bare
+                           autoFocus
+                           dirty={dirty}
+                           onClose={() => onUpdates(false)}
+                        />
+                     </dd>
+                  )}
+               </>
+            )}
+            <dt className={term}>Team</dt>
+            <dd className="m-0 text-ink-2">
+               {teamWords(item.team, lead)}
+               {lead && (
+                  <FactLink onClick={() => onPerson(lead)} title={`Open ${lead}’s row on People`}>
+                     {lead}
+                  </FactLink>
+               )}
+            </dd>
+            {/* its project, when that isn't already its name above */}
+            {(!project || projectName !== item.name) && (
+               <>
+                  <dt className={term}>Project</dt>
+                  <dd className="m-0 text-ink-2">
+                     {project ? (
+                        <FactLink
+                           onClick={() => onOpenProject(project)}
+                           title="Open the project’s page"
+                        >
+                           {projectName}
+                        </FactLink>
+                     ) : (
+                        <>
+                           None yet{' '}
+                           <TextButton onClick={() => onEdit('project')}>Pick one</TextButton>
+                        </>
+                     )}
+                  </dd>
+               </>
+            )}
+            {blockers.length > 0 && (
+               <>
+                  <dt className={term}>Waits on</dt>
+                  <dd className="m-0 max-w-[70ch] text-ink-2">
+                     {blockers.map(({ item: b, clash }, i) => (
+                        <span key={b.id}>
+                           {i > 0 && '; '}
+                           <FactLink onClick={() => onOpenItem(b.id)} title={`Open ${b.name}`}>
+                              {b.name}
+                           </FactLink>
+                           {isStopped(b.status)
+                              ? `, which was ${b.status}`
+                              : `, which ends ${weekWords(planEnd(b))}${
+                                   clash ? ', after this starts' : ''
+                                }`}
+                        </span>
+                     ))}
+                  </dd>
+               </>
+            )}
+            {item.origin && (
+               <>
+                  <dt className={term}>Came from</dt>
+                  <dd className="m-0 text-ink-2">{ORIGIN_WORD[item.origin]}</dd>
+               </>
+            )}
+            <dt className={term}>Notes</dt>
+            <dd className="m-0 text-ink-2">
+               {item.notes ? (
+                  <p className="m-0 max-w-[70ch] whitespace-pre-line">{item.notes}</p>
+               ) : (
+                  <TextButton onClick={() => onEdit('notes')}>Add a note</TextButton>
+               )}
+            </dd>
+            <dd className={`mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs ${WIDE}`}>
+               <TextButton id={`roadmap-details-${item.id}`} onClick={() => onEdit()}>
+                  Edit details
+               </TextButton>
+               {/* one click: its receipt in the row's place has the Undo */}
                <TextButton
                   tone="quiet"
-                  disabled={saving}
-                  onClick={async () => {
-                     setSaving(true);
-                     const gone = await removeRoadmapItem(item.id);
-                     setSaving(false);
-                     if (gone) return onDone(true);
-                     // said here, like a save that failed
-                     const { problem } = readRoadmap();
-                     dismissRoadmapProblem();
-                     setError({
-                        text: problem ?? 'Couldn’t remove the plan. Try again in a minute.',
-                        field: null,
-                     });
+                  disabled={removing}
+                  onClick={() => {
+                     setRemoving(true);
+                     void onRemove().finally(() => setRemoving(false));
                   }}
                >
                   Remove from the roadmap
                </TextButton>
-            )}
-         </div>
-      </form>
+               <span className="flex-1" />
+               <TextButton tone="quiet" onClick={onClose}>
+                  Close
+               </TextButton>
+            </dd>
+         </dl>
+      </div>
    );
 }
 
@@ -838,17 +1109,20 @@ const OVER_STYLE = {
 
 /**
  * One planned item: its grip and place in the order, its name (the door to
- * its project's page, as everywhere in the tab, or to its editor when it
- * tracks no project), its words, and its bar, which says its dates and weeks
- * inside when there's room. A click on the bar opens the editor; a drag
- * moves the plan, and a drag on its right edge (shown on hover and focus)
- * changes the length. Both snap to whole weeks, Escape puts the bar back
- * mid-drag, and with the bar focused the arrow keys do the same (Shift
- * changes the length). Every mark on the track says what it is: a plan still
- * in flight past its end grows a piece labeled "+3 wk over" up to today,
- * fading on after it since nothing says when it ends, and its milestone is
- * a flag with its date. A bar the view cuts off is square at the cut, so it
- * reads as going on. A call Decide asks about the plan is its one amber mark.
+ * its project's page, as everywhere in the tab, or to its details when it
+ * tracks no project), one line of words, and its bar, which says its dates
+ * and weeks inside when there's room. At rest the words are the one thing
+ * the plan asks for (restWords: Decide's call, or what's owed, or its
+ * health) and its lead; the rest waits in its details. The bar's form says
+ * its status. A click on the bar opens the details; a drag moves the plan,
+ * and a drag on its right edge (shown on hover and focus) changes the
+ * length. Both snap to whole weeks, Escape puts the bar back mid-drag, and
+ * with the bar focused the arrow keys do the same (Shift changes the
+ * length). Every mark on the track says what it is: a plan still in flight
+ * past its end grows a piece labeled "+3 wk over" up to today, fading on
+ * after it since nothing says when it ends, and its milestone is a flag with
+ * its date. A bar the view cuts off is square at the cut, so it reads as
+ * going on. A call Decide asks about the plan is its one amber mark.
  */
 function PlanRow({
    item,
@@ -859,10 +1133,9 @@ function PlanRow({
    linked,
    call,
    open,
-   onEdit,
+   onOpen,
    onUpdates,
    onPerson,
-   onOpenItem,
    onOpenProject,
    onMove,
    onShow,
@@ -878,12 +1151,13 @@ function PlanRow({
    linked: PortfolioItem | undefined;
    /** the call Decide asks about it */
    call: PlanCall | null;
-   /** what's open under the row: its editor, its updates, or nothing */
-   open: 'plan' | 'updates' | null;
-   onEdit: () => void;
+   /** its details are open under the row */
+   open: boolean;
+   /** open its details */
+   onOpen: () => void;
+   /** open its details on its updates */
    onUpdates: () => void;
    onPerson: (login: string) => void;
-   onOpenItem: (id: number) => void;
    onOpenProject: (slug: string) => void;
    /** a drag or an arrow key moved or resized it */
    onMove: (to: Span) => void;
@@ -978,31 +1252,25 @@ function PlanRow({
             : { start: addWeeks(item.start, step), weeks: item.weeks }
       );
    };
-   // one line of what the planner acts on; PR counts live on the project list
+   // one line at rest: what the plan asks for, and its lead. PR counts live
+   // on the project list, the rest in its details
    const lead = item.lead;
-   const waits = w.waits;
+   const rest = restWords(w, overWidth > 0);
    const meta: ReactNode[] = [
-      <FactLink
-         key="status"
-         id={`roadmap-status-${item.id}`}
-         onClick={onEdit}
-         aria-expanded={open === 'plan'}
-         title={
-            w.status
-               ? `${w.status.title} Click to change its plan.`
-               : 'Change its status or its plan'
-         }
-      >
-         {w.status ? <SaidWords said={w.status} /> : STATUS_WORD[item.status]}
-      </FactLink>,
-      w.health && (
+      rest && (
          <FactLink
-            key="health"
-            onClick={onUpdates}
-            aria-expanded={open === 'updates'}
-            title={`${w.health.title}\nClick to see its updates and post one.`}
+            key="rest"
+            // what the answer in its details is read with
+            id={`roadmap-words-${item.id}`}
+            onClick={rest.opens === 'update' ? onUpdates : onOpen}
+            aria-expanded={open}
+            title={`${rest.said.title}${rest.said.title ? '\n' : ''}${
+               rest.opens === 'update'
+                  ? 'Click to see its updates and post one.'
+                  : 'Click to open its plan.'
+            }`}
          >
-            <SaidWords said={w.health} />
+            <SaidWords said={rest.said} />
          </FactLink>
       ),
       lead && (
@@ -1010,41 +1278,10 @@ function PlanRow({
             {lead}
          </FactLink>
       ),
-      waits && (
-         <FactLink
-            key="waits"
-            onClick={() => onOpenItem(waits.opens.id)}
-            title={`${waits.title}. Click to open ${waits.opens.name}.`}
-         >
-            <SaidWords said={waits} />
-         </FactLink>
-      ),
-      // past its end is said once: by its piece of bar, or here while that's
-      // out of the weeks shown, unless Decide's call already says it
-      w.over && overWidth <= 0 && w.call?.kind !== 'over' && (
-         <FactLink
-            key="over"
-            // the status word opens the same editor from the keyboard
-            tabIndex={-1}
-            onClick={onEdit}
-            title={`${w.over.title} Click to change the plan.`}
-         >
-            <SaidWords said={w.over} />
-         </FactLink>
-      ),
-      w.target && project && (
-         <FactLink
-            key="target"
-            // the name opens the same page from the keyboard
-            tabIndex={-1}
-            onClick={() => onOpenProject(project)}
-            title={`${w.target.title} Click to open the project.`}
-         >
-            <SaidWords said={w.target} />
-         </FactLink>
-      ),
    ];
    const span = `${weekWords(plan.start)} to ${weekWords(end)}`;
+   // the bar says its status by its form; in words for a hover and a reader
+   const facts = `${STATUS_WORD[item.status]}, ${span}, ${n(plan.weeks, 'week')}`;
    const barText = 'text-[11px] leading-[14px] font-medium whitespace-nowrap tabular-nums';
    const name =
       'hit pressable min-w-0 rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium break-words text-ink hover:text-brand';
@@ -1085,20 +1322,23 @@ function PlanRow({
                         {item.name}
                      </button>
                   ) : (
+                     // with no project page, its details are its page
                      <button
                         type="button"
                         data-roadmap-focus
-                        aria-expanded={open === 'plan'}
-                        onClick={onEdit}
+                        aria-expanded={open}
+                        onClick={onOpen}
                         className={name}
-                        title="Edit this plan; it tracks no project yet"
+                        title="Open its plan; it tracks no project yet"
                      >
                         {item.name}
                      </button>
                   )}
-                  <span className="flex min-w-0 flex-wrap gap-x-1.5 text-[11px] text-ink-3">
-                     <Dotted>{meta}</Dotted>
-                  </span>
+                  {meta.some(Boolean) && (
+                     <span className="flex min-w-0 flex-wrap gap-x-1.5 text-[11px] text-ink-3">
+                        <Dotted>{meta}</Dotted>
+                     </span>
+                  )}
                </span>
             </span>
             <span ref={trackRef} className="relative block h-9">
@@ -1107,17 +1347,12 @@ function PlanRow({
                   <button
                      type="button"
                      id={`roadmap-bar-${item.id}`}
-                     aria-label={`${item.name}: planned ${span}, ${n(
-                        plan.weeks,
-                        'week'
-                     )}. Enter edits it; the left and right arrows move it a week, and with Shift they change its length.`}
-                     title={`${span} · ${n(
-                        plan.weeks,
-                        'week'
-                     )}. Click to edit; drag to move, or drag the right edge to change the length. Escape cancels a drag.`}
+                     aria-expanded={open}
+                     aria-label={`${item.name}: ${facts}. Enter opens its plan; the left and right arrows move it a week, and with Shift they change its length.`}
+                     title={`${facts}. Click to open its plan; drag to move it, or drag its right edge to change its length. Escape cancels a drag.`}
                      onPointerDown={e => grab(e, 'move')}
                      onClick={() => {
-                        if (!dragged.current) onEdit();
+                        if (!dragged.current) onOpen();
                      }}
                      onKeyDown={keys}
                      // .hit takes the 16px bar to a 24px target, so the words
@@ -1192,9 +1427,9 @@ function PlanRow({
                      )}
                      <button
                         type="button"
-                        // the bar opens the same editor from the keyboard
+                        // the bar opens the same details from the keyboard
                         tabIndex={-1}
-                        onClick={onEdit}
+                        onClick={onOpen}
                         className={`hit @container absolute top-1.5 h-4 border-y p-0 text-left text-[11px] leading-[14px] font-medium whitespace-nowrap ${
                            today < horizon.end ? 'rounded-r-md border-r' : ''
                         } ${isAmber(w.over) ? 'text-warn' : 'text-ink-2'}`}
@@ -1204,7 +1439,7 @@ function PlanRow({
                            background: over.tint,
                            borderColor: over.edge,
                         }}
-                        title={`${w.over.title} Click to change the plan.`}
+                        title={`${w.over.title} Click to open its plan.`}
                      >
                         {/* its words inside it when they fit (two digits need
                             more room), else just past today's line, where it
@@ -1772,11 +2007,22 @@ export function Roadmap({
    decisions?: DecideRow[] | null;
 }) {
    const { items: plan, loadFailed, problem } = useRoadmap();
+   // Decide's rows with the calls made here kept, so a call made in a plan's
+   // details keeps its receipt and Undo there
+   const callsHere = useCallsMadeHere(decisions ?? NO_ROWS);
    const teams = Object.keys(teamMembers);
-   // the open item is in the URL, so a link can open it; whether its editor
-   // or its updates show under it is the door it was opened by
+   // the open item is in the URL, so a link can open it; its details show
+   // under it, read first: on its updates when that's the door it was opened
+   // by, or on its fields once Edit details opens them
    const editing = nav.item;
-   const [panel, setPanel] = useState<'plan' | 'updates'>('plan');
+   const [panel, setPanel] = useState<'plan' | 'updates' | 'edit'>('plan');
+   const [editFocus, setEditFocus] = useState<'name' | 'notes' | 'project'>('name');
+   // whether the open details take the focus to their calls: yes from a
+   // door, no on the way back from their fields
+   const [focusCalls, setFocusCalls] = useState(true);
+   // the open fields hold changes not saved, or the update form words not
+   // posted: another plan or a close waits
+   const dirty = useRef(false);
    const [adding, setAdding] = useState(false);
    const [dragging, setDragging] = useState<number | null>(null);
    const [dropTarget, setDropTarget] = useState<number | null>(null);
@@ -2029,19 +2275,48 @@ export function Roadmap({
    // a person clicked anywhere in the tab opens their row on People
    const person = (login: string) =>
       navigate({ ...switchView('people'), who: login }, { push: true });
+   // fields with changes not saved, or an update half written, keep their
+   // place: the focus goes back to them, and a screen reader hears why
+   const held = () => {
+      if (editing == null || panel === 'plan' || !dirty.current) return false;
+      setAnnounced(
+         panel === 'edit'
+            ? 'Save your changes, or Cancel them, first.'
+            : 'Post the update, or empty its box, first.'
+      );
+      document
+         .getElementById(`roadmap-item-${editing}`)
+         ?.querySelector<HTMLElement>('form input, form select, form textarea')
+         ?.focus();
+      return true;
+   };
    const open = (id: number, which: 'plan' | 'updates') => {
-      // a second click on the same door closes it
-      if (editing === id && panel === which) return close(id);
+      if (held()) return;
+      // a second click on the same door, or on any while a form in it is
+      // open, closes it
+      if (editing === id && (panel === which || panel !== 'plan')) return close(id);
       setPanel(which);
-      navigate({ item: id });
+      setFocusCalls(true);
+      if (editing !== id) navigate({ item: id });
    };
    const close = (id: number) => {
-      refocus.current = [`roadmap-status-${id}`];
+      refocus.current = [`roadmap-bar-${id}`, `roadmap-grip-${id}`];
       navigate({ item: null });
    };
    const openFromReceipt = (id: number) => {
+      if (held()) return;
       setPanel('plan');
+      setFocusCalls(true);
       navigate(openPlan(nav, id));
+   };
+   // its row on Decide, asked or answered here, else the plan alone, for the
+   // calls in its details
+   const rowFor = (item: RoadmapItem): DecideRow => {
+      const mine = callsHere.all.filter(r => r.item?.id === item.id);
+      return (
+         mine.find(r => r.reasons.length > 0) ??
+         mine[0] ?? { slug: item.project, item, reasons: [] }
+      );
    };
    const say = (next: Receipt | null, words?: string) => {
       if (next?.key !== run.current?.key) run.current = null;
@@ -2145,7 +2420,7 @@ export function Roadmap({
          key,
          words: savedWords(was, changed),
          undo: () => {
-            refocus.current = [`roadmap-status-${was.id}`];
+            refocus.current = [`roadmap-bar-${was.id}`, `roadmap-grip-${was.id}`];
             void updateRoadmapItem(was.id, back, { undo: times }).then(ok =>
                ok ? say(null, `Put ${was.name} back as it was`) : fail(key)
             );
@@ -2333,6 +2608,7 @@ export function Roadmap({
             );
          }
          const isOpen = editing === item.id;
+         const linked = item.project ? bySlug.get(item.project) : undefined;
          return (
             <div
                key={item.id}
@@ -2346,13 +2622,12 @@ export function Roadmap({
                   rank={ids.indexOf(item.id) + 1}
                   axis={axis}
                   today={today}
-                  linked={item.project ? bySlug.get(item.project) : undefined}
+                  linked={linked}
                   call={planCalls.get(item.id) ?? null}
-                  open={isOpen ? panel : null}
-                  onEdit={() => open(item.id, 'plan')}
+                  open={isOpen}
+                  onOpen={() => open(item.id, 'plan')}
                   onUpdates={() => open(item.id, 'updates')}
                   onPerson={person}
-                  onOpenItem={openFromReceipt}
                   onOpenProject={slug => navigate({ project: slug })}
                   onMove={to => moved(item, to)}
                   onShow={day =>
@@ -2365,24 +2640,7 @@ export function Roadmap({
                />
                {receipt?.key === key && <ReceiptLine receipt={receipt} onOpen={openFromReceipt} />}
                {isOpen &&
-                  (panel === 'updates' ? (
-                     // its updates alone, the focus in the box for the next one
-                     <UpdatesPanel
-                        item={item}
-                        autoFocus
-                        onClose={() => close(item.id)}
-                        actions={
-                           <>
-                              <TextButton onClick={() => setPanel('plan')}>
-                                 Change the plan
-                              </TextButton>
-                              <TextButton tone="quiet" onClick={() => close(item.id)}>
-                                 Close
-                              </TextButton>
-                           </>
-                        }
-                     />
-                  ) : (
+                  (panel === 'edit' ? (
                      <Editor
                         item={item}
                         all={ordered}
@@ -2390,10 +2648,44 @@ export function Roadmap({
                         teams={teams}
                         people={people}
                         today={today}
-                        navigate={navigate}
-                        onUpdates={() => setPanel('updates')}
+                        focus={editFocus}
+                        dirty={dirty}
                         onSaved={saved}
-                        onDone={off => (off ? removed(item, visibleIds) : close(item.id))}
+                        onDone={() => {
+                           // back to its details, on the way to its fields
+                           refocus.current = [`roadmap-details-${item.id}`];
+                           setFocusCalls(false);
+                           setPanel('plan');
+                        }}
+                     />
+                  ) : (
+                     <PlanPanel
+                        item={item}
+                        all={ordered}
+                        linked={linked}
+                        today={today}
+                        row={rowFor(item)}
+                        focusCalls={focusCalls}
+                        updates={panel === 'updates'}
+                        dirty={dirty}
+                        onUpdates={on => {
+                           // closed: back to the way it was opened
+                           if (!on) refocus.current = [`roadmap-post-${item.id}`];
+                           setPanel(on ? 'updates' : 'plan');
+                        }}
+                        onEdit={focus => {
+                           setEditFocus(focus ?? 'name');
+                           setPanel('edit');
+                        }}
+                        onRemove={() =>
+                           removeRoadmapItem(item.id).then(gone =>
+                              gone ? removed(item, visibleIds) : fail(key)
+                           )
+                        }
+                        onClose={() => close(item.id)}
+                        onPerson={person}
+                        onOpenItem={openFromReceipt}
+                        onOpenProject={slug => navigate({ project: slug })}
                      />
                   ))}
             </div>
@@ -2612,7 +2904,6 @@ export function Roadmap({
             teams={teams}
             people={people}
             today={today}
-            navigate={navigate}
             onAdded={added}
             onDone={() => {
                refocus.current = ['roadmap-add'];
@@ -2636,10 +2927,7 @@ export function Roadmap({
                title="What’s planned, and when"
                sub={
                   timeline ? (
-                     <SubDoor
-                        label="How the timeline works"
-                        text="Top to bottom is priority; drag a plan’s grip or bar, or use the arrow keys"
-                     >
+                     <SubDoor label="How the timeline works" text="Top to bottom is priority">
                         <p className="m-0">
                            Drag a plan’s grip, or press the up and down arrow keys on it, to change
                            its place in the order.
@@ -2650,8 +2938,9 @@ export function Roadmap({
                            the length. Escape cancels a drag, and Undo takes a move back.
                         </p>
                         <p className="m-0">
-                           Click a bar to edit its plan, and a health word to see its updates and
-                           post one. An amber question is a call Decide asks about that row.
+                           Click a bar to open its plan under it: Decide’s calls, its latest update,
+                           who leads it, and Edit details for the rest. A row’s words open the same,
+                           and an amber question there is a call Decide asks about that plan.
                         </p>
                         <p className="m-0">
                            The load chart counts the plans and projects {BEING_WORKED_ON} each week:
@@ -2674,7 +2963,7 @@ export function Roadmap({
                   ) : (
                      <SubDoor
                         label="How now, next and later works"
-                        text="Each column is in priority order; click a plan to change it on the timeline"
+                        text="Each column is in priority order; click a plan to open it on the timeline"
                      >
                         <p className="m-0">
                            Now holds the plans marked {STATUS_WORD.active}, and plans whose start
@@ -2761,8 +3050,8 @@ export function Roadmap({
                   />
                </span>
                <span className="flex-1" />
-               {/* full width on a phone, with what narrows the rows after
-                   it, as on the project list */}
+               {/* the rest of the line on a phone, beside Add, with what
+                   narrows the rows after it, as on the project list */}
                <input
                   type="search"
                   aria-label="Find a project, lead or team"
@@ -2771,7 +3060,7 @@ export function Roadmap({
                   placeholder="Find a project, lead or team"
                   value={nav.find}
                   onChange={e => navigate({ find: e.target.value })}
-                  className={`w-full px-2.5 sm:w-52 ${textInputClass}`}
+                  className={`min-w-48 flex-1 px-2.5 sm:w-52 sm:min-w-0 sm:flex-none ${textInputClass}`}
                />
                {/* what the load chart's counts and bars narrow the rows to,
                    each with its own way out: the chart scrolls away, these
@@ -2802,11 +3091,14 @@ export function Roadmap({
                   id="roadmap-add"
                   onClick={() => setAdding(a => !a)}
                   aria-expanded={adding}
+                  aria-label="Add to the roadmap"
                   // until the roadmap loads, a new plan would land in a list of one
                   disabled={!loaded}
                >
                   <Icon icon={Plus} size={14} className="mr-1.5" />
-                  Add to the roadmap
+                  {/* its short word on a phone, so it fits beside the find box */}
+                  <span className="sm:hidden">Add</span>
+                  <span className="hidden sm:inline">Add to the roadmap</span>
                </QuietButton>
             </div>
             {problem && (

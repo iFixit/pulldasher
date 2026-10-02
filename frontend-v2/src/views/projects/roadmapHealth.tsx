@@ -1,4 +1,11 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+   Fragment,
+   useEffect,
+   useRef,
+   useState,
+   type MutableRefObject,
+   type ReactNode,
+} from 'react';
 import { n } from '../../../../shared/format';
 import type { DecideReason } from '../../../../shared/model/decide';
 import { dayStart, type ProjectTarget } from '../../../../shared/model/projects';
@@ -163,6 +170,8 @@ const healthOwed = (h: RoadmapHealth): Owed | undefined => (h === 'on_track' ? u
 
 /** what a plan whose numbers vouch for it is owed instead of an update */
 export const NO_UPDATE_NEEDED = 'no update needed';
+/** the same, starting a row's words */
+const NO_UPDATE_NEEDED_WORD = 'No update needed';
 
 /** Why a plan in progress owes no update, said where its update would go:
  * "2 PRs merged in the last 14 days: no update needed". */
@@ -195,7 +204,10 @@ export function healthWords(s: HealthStanding, changedAt: number | null = null):
          // short on a row, with the numbers and the rule on hover: the
          // project's page says it in full where its update would be
          return s.vouch
-            ? said([{ text: 'No update needed' }], `${vouchWords(s.vouch)}. ${vouchRule(s.vouch)}`)
+            ? said(
+                 [{ text: NO_UPDATE_NEEDED_WORD }],
+                 `${vouchWords(s.vouch)}. ${vouchRule(s.vouch)}`
+              )
             : null;
       case 'missing':
          return said(
@@ -420,6 +432,30 @@ export function planWarnings(
 }
 
 /**
+ * The one thing a plan's row says at rest, after its name: the words that
+ * hold its amber piece (Decide's call with its question, or else the worst
+ * thing owed), or else its health word alone ("On track"), or else nothing,
+ * since the bar's form already says its status. Everything else waits in the
+ * plan's details. A plan past its end whose bar draws the overrun
+ * (`overDrawn`) lets that piece carry it, so it isn't said twice. `opens`
+ * is what a click on the words opens: its updates when they're about an
+ * update, else its plan, where Decide's call is answered.
+ */
+export function restWords(
+   w: PlanWarnings,
+   overDrawn: boolean
+): { said: Said; opens: 'plan' | 'update' } | null {
+   const owed = [w.status, w.health, w.over, w.target, w.waits].find(isAmber);
+   if (owed && !(owed === w.over && overDrawn)) {
+      return { said: owed, opens: owed === w.health && !w.call ? 'update' : 'plan' };
+   }
+   const word = w.health?.pieces[0];
+   // a plan its numbers vouch for, with no update to quote, has nothing to say
+   if (!w.health || !word || w.health.text === NO_UPDATE_NEEDED_WORD) return null;
+   return { said: said([{ text: word.text }], w.health.title), opens: 'update' };
+}
+
+/**
  * The owed words a change takes away, for its receipt: the worst one the
  * plan said before and doesn't after. A week's nudge can do it without
  * anyone meaning to ("No update yet", when the start moves past the days an
@@ -548,8 +584,11 @@ export function UpdatesPanel({
    autoFocus = false,
    actions,
    onClose,
+   dirty,
 }: {
    item: RoadmapItem;
+   /** kept true while its box holds words someone wrote and hasn't posted */
+   dirty?: MutableRefObject<boolean>;
    /** no rule of its own on top: it sits in a box that already has an edge */
    bare?: boolean;
    /** put the focus in the update's box when it opens */
@@ -574,6 +613,15 @@ export function UpdatesPanel({
    const [tookBack, setTookBack] = useState(false);
    const box = useRef<HTMLTextAreaElement>(null);
    const asDrafted = !!draft && health === draft.health && body === draft.body;
+   // someone's own words, not the draft as it came
+   const written = !!body.trim() && body !== draft?.body;
+   useEffect(() => {
+      if (!dirty) return;
+      dirty.current = written;
+      return () => {
+         dirty.current = false;
+      };
+   });
    useEffect(() => {
       // the opener scrolls the panel into view, clear of the sticky headers;
       // the caret after the draft, to add to it
@@ -623,7 +671,7 @@ export function UpdatesPanel({
             if (e.key !== 'Escape' || !onClose) return;
             // a stray Escape mustn't throw away an update half written; the
             // draft as it came isn't anyone's writing
-            if (body.trim() && body !== draft?.body) {
+            if (written) {
                setError('Post the update, or empty the box to close it.');
             } else onClose();
          }}

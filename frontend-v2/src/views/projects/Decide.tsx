@@ -888,6 +888,7 @@ export function DecideCall({
    project,
    describedBy,
    change = 'Change',
+   opened = false,
 }: {
    row: DecideRow;
    /** its project, for a new plan's start, team and lead, and for what
@@ -898,6 +899,9 @@ export function DecideCall({
    /** the words that open the calls on a plan nobody asked about: "Change
     * the plan" where they sit away from the plan's own words */
    change?: string;
+   /** the calls open from the start, with no Cancel: a place someone opened
+    * to change the plan (the roadmap's plan details), where they're the point */
+   opened?: boolean;
 }) {
    const made = calls.useValue().made.get(rowKey(row));
    // a call made on the row as it stood; a row back for a new reason is asked afresh
@@ -911,7 +915,7 @@ export function DecideCall({
    // wrapped lines included
    const [held, setHeld] = useState<number>();
    // opened from Change; it stays open through a call and its Undo
-   const [open, setOpen] = useState(false);
+   const [open, setOpen] = useState(opened);
    const view = shown?.state ?? (row.reasons.length || open ? 'ask' : 'rest');
    const before = useRef(view);
    // after a click here, focus lands on what replaced the button: what was
@@ -1020,7 +1024,7 @@ export function DecideCall({
                project={project}
                describedBy={describedBy}
                onCall={call => act(() => makeCall(row, call, project))()}
-               onCancel={row.reasons.length ? undefined : act(() => setOpen(false))}
+               onCancel={row.reasons.length || opened ? undefined : act(() => setOpen(false))}
             />
          )}
       </div>
