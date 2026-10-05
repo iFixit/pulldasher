@@ -1,6 +1,7 @@
 import { MISC_SLUG } from './projects';
 import {
    addWeeks,
+   endOf,
    isUnderWay,
    mondayOf,
    planEnd,
@@ -15,9 +16,9 @@ import {
  * roadmap has decided on them. Weeks up to this one count what the PRs did.
  * Weeks ahead count, if nothing changes: each plan until its planned end
  * (one already past its end, with its project still open, keeps counting,
- * since nothing says it's done), and every open project big enough to owe a
- * decision that has none. Parked, finished and dropped work counts only in
- * the past.
+ * since nothing says it's done; ongoing work, with no end, counts every week
+ * from its start), and every open project big enough to owe a decision that
+ * has none. Parked, finished and dropped work counts only in the past.
  */
 
 /** A project's real span: its first PR in the horizon to its last merge or
@@ -88,7 +89,8 @@ export function weekMembers({
    const onRoadmap = new Set(kept.flatMap(p => (p.project ? [p.project] : [])));
    const open = new Set(spans.filter(s => s.end == null).map(s => s.slug));
    const undecided = [...(ahead ?? open)].filter(slug => open.has(slug) && !decided.has(slug));
-   const running = (p: RoadmapItem, week: string) => p.start <= sunday(week) && planEnd(p) >= week;
+   const running = (p: RoadmapItem, week: string) =>
+      p.start <= sunday(week) && (endOf(p) ?? week) >= week;
    return week => {
       const projects = new Map<string, 'on' | 'off'>();
       const counted = new Set<number>();
@@ -109,7 +111,8 @@ export function weekMembers({
       for (const p of kept) {
          if (!isUnderWay(p.status)) continue;
          // past its end already and still open: it keeps going
-         const overrun = !!p.project && open.has(p.project) && planEnd(p) < thisWeek;
+         const end = endOf(p);
+         const overrun = !!p.project && open.has(p.project) && end != null && end < thisWeek;
          if (running(p, week) || overrun) {
             counted.add(p.id);
             if (p.project) projects.set(p.project, 'on');

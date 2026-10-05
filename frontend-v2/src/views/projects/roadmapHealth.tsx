@@ -11,16 +11,21 @@ import type { DecideReason } from '../../../../shared/model/decide';
 import { dayStart, type ProjectTarget } from '../../../../shared/model/projects';
 import {
    blockersOf,
+   endOf,
    endShift,
    isStopped,
    HEALTH_WORD,
    healthStanding,
    mondayOf,
    moveBefore,
+   PILE_AGE_DAYS,
+   PILE_GROWTH,
+   PILE_MIN,
    planEnd,
    planFor,
    ROADMAP_HEALTHS,
    UPDATE_DUE_DAYS,
+   type EndKind,
    type HealthStanding,
    type RoadmapHealth,
    type RoadmapItem,
@@ -40,6 +45,7 @@ import {
 import { draftUpdate } from '../../model/updateDraft';
 import {
    BEING_WORKED_ON,
+   END_IN_A_SENTENCE,
    IN_PROGRESS,
    LAST_14_DAYS,
    missedTarget,
@@ -66,8 +72,14 @@ export const PLAN_STATUS_WORD: Record<RoadmapStatus, string> = {
 export const when = (at: number) =>
    new Date(at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
-export function planWords(plan: { start: string; weeks: number }): string {
-   return `${dayWords(plan.start)} to ${dayWords(planEnd(plan))}, ${n(plan.weeks, 'week')}`;
+/** A plan's weeks in words, "Aug 31 to Oct 25, 8 weeks", with how firm its
+ * end is when the plan says ("..., a soft end"), or "from Aug 31, ongoing"
+ * for work with no end. */
+export function planWords(plan: { start: string; weeks: number; end_kind?: EndKind }): string {
+   if (plan.end_kind === 'ongoing')
+      return `from ${dayWords(plan.start)}, ${END_IN_A_SENTENCE.ongoing}`;
+   const span = `${dayWords(plan.start)} to ${dayWords(planEnd(plan))}, ${n(plan.weeks, 'week')}`;
+   return plan.end_kind ? `${span}, ${END_IN_A_SENTENCE[plan.end_kind]}` : span;
 }
 
 /** Which way and how far a plan's end moved, "2 weeks later"; null when it didn't. */
@@ -178,13 +190,25 @@ const NO_UPDATE_NEEDED_WORD = 'No update needed';
 export const vouchWords = (v: Vouch) =>
    `${n(v.merged, 'PR')} merged in the ${LAST_14_DAYS}: ${NO_UPDATE_NEEDED}`;
 
-/** The rule behind vouchWords, in a sentence, for a hover. */
-export const vouchRule = (v: Vouch) =>
-   `Its PRs are merging, it isn’t past its end, and ${
-      v.finish == null
-         ? 'nothing in its issues says it won’t finish by then'
-         : `at their pace its issues are done around ${when(v.finish)}, by its end`
-   }, so the numbers say how it’s going and its lead owes no update. Post one any time.`;
+/** When a merge stops vouching (roadmap.ts vouchFor), in one sentence. */
+const PILE_RULE = `A merge stops vouching once ${PILE_MIN} or more PRs are open and they grew by ${PILE_GROWTH} or more in ${UPDATE_DUE_DAYS} days, or their median age passed ${PILE_AGE_DAYS} days.`;
+
+/** The rule behind vouchWords, for a hover: what the numbers kept, which
+ * only a hard end asks them to keep inside, and when they stop. */
+export const vouchRule = (v: Vouch) => {
+   const hard = v.endKind === 'hard';
+   const kept =
+      v.endKind === 'ongoing'
+         ? 'it’s ongoing, with no end to keep'
+         : v.finish == null
+         ? `nothing in its issues says it won’t finish${hard ? ' by then' : ''}`
+         : `at their pace its issues are done around ${when(v.finish)}${
+              hard ? ', by its end' : ''
+           }`;
+   return `Its PRs are merging${
+      hard ? ', it isn’t past its end' : ''
+   }, and ${kept}, so the numbers say how it’s going and its lead owes no update. ${PILE_RULE} Post one any time.`;
+};
 
 /**
  * An item's health in words, for the roadmap's rows and the project list:
@@ -263,11 +287,14 @@ export function waitsWords(
    const blockers = blockersOf(item, all);
    if (!blockers.length) return null;
    const title = `Waits on ${blockers
-      .map(({ item: b }) =>
-         isStopped(b.status)
+      .map(({ item: b }) => {
+         const end = endOf(b);
+         return isStopped(b.status)
             ? `${b.name} (${b.status})`
-            : `${b.name} (planned to end ${dayWords(planEnd(b))})`
-      )
+            : end
+            ? `${b.name} (planned to end ${dayWords(end)})`
+            : `${b.name} (ongoing, with no end)`;
+      })
       .join(', ')}`;
    const clashes = blockers.filter(b => b.clash).map(b => b.item);
    const opens = clashes[0] ?? blockers[0].item;
@@ -282,6 +309,8 @@ export function waitsWords(
          ? `${clashes.length} things it waits on don’t fit its plan`
          : clashes[0].status === 'dropped' || clashes[0].status === 'parked'
          ? `waits on ${clashes[0].name}, which was ${clashes[0].status}`
+         : clashes[0].end_kind === 'ongoing'
+         ? `waits on ${clashes[0].name}, which has no end`
          : `starts before ${clashes[0].name} ends`;
    return { ...said([{ text, owed: 'clash' }], title), opens };
 }
@@ -316,7 +345,8 @@ export interface PlanWarnings {
    status: Said | null;
    health: Said | null;
    /** still in progress past its end: the words, and the timeline's own
-    * mark for the piece of bar past the end */
+    * mark for the piece of bar past the end. Owed only past a hard end: a
+    * soft one is an estimate, so passing it is drift, said in ink */
    over: (Said & { weeks: number; mark: string }) | null;
    /** a missed target, or an end planned after it */
    target: (Said & { due: string }) | null;
@@ -344,25 +374,30 @@ export function planWarnings(
    now?: number,
    call: PlanCall | null = null
 ): PlanWarnings {
-   const end = planEnd(item);
+   // ongoing work has no end to run past
+   const end = endOf(item);
    const under = item.status === 'planned' || item.status === 'active';
    const weeksFrom = (a: string, b: string) =>
       Math.ceil(((dayStart(b) as number) - (dayStart(a) as number)) / (7 * DAY));
-   const isOver = under && !!project?.live && today > end;
-   const weeks = isOver ? weeksFrom(end, today) : 0;
+   const isOver = under && !!project?.live && !!end && today > end;
+   const weeks = isOver ? weeksFrom(end as string, today) : 0;
+   const hard = item.end_kind === 'hard';
+   const after = `Still ${BEING_WORKED_ON} ${n(weeks, 'week')} after its`;
    const over = isOver
       ? {
            ...said(
-              [{ text: pastEnd(weeks), owed: 'over' }],
-              `Still ${BEING_WORKED_ON} ${n(weeks, 'week')} after its plan’s end.`
+              [{ text: pastEnd(weeks), owed: hard ? 'over' : undefined }],
+              hard
+                 ? `${after} plan’s end.`
+                 : `${after} soft end, an estimate, so nothing asks about it.`
            ),
            weeks,
            mark: pastEndMark(weeks),
         }
       : null;
-   // work still running past its plan ends no sooner than today
+   // work still running past its plan, or with no end, ends no sooner than today
    const due = under ? project?.target?.due_on?.slice(0, 10) ?? null : null;
-   const expected = isOver ? today : end;
+   const expected = isOver || !end ? today : end;
    let target: PlanWarnings['target'] = null;
    if (due && expected > due) {
       // a milestone by its title; a Target date on the issue is just a date
@@ -434,12 +469,13 @@ export function planWarnings(
 /**
  * The one thing a plan's row says at rest, after its name: the words that
  * hold its amber piece (Decide's call with its question, or else the worst
- * thing owed), or else its health word alone ("On track"), or else nothing,
- * since the bar's form already says its status. Everything else waits in the
- * plan's details. A plan past its end whose bar draws the overrun
- * (`overDrawn`) lets that piece carry it, so it isn't said twice. `opens`
- * is what a click on the words opens: its updates when they're about an
- * update, else its plan, where Decide's call is answered.
+ * thing owed), or else a soft end it ran past, in ink, or else its health
+ * word alone ("On track"), or else nothing, since the bar's form already
+ * says its status. Everything else waits in the plan's details. A plan past
+ * its end whose bar draws the overrun (`overDrawn`) lets that piece carry
+ * it, so it isn't said twice. `opens` is what a click on the words opens:
+ * its updates when they're about an update, else its plan, where Decide's
+ * call is answered.
  */
 export function restWords(
    w: PlanWarnings,
@@ -449,6 +485,8 @@ export function restWords(
    if (owed && !(owed === w.over && overDrawn)) {
       return { said: owed, opens: owed === w.health && !w.call ? 'update' : 'plan' };
    }
+   // drift past a soft end, quietly, where no bar draws it
+   if (w.over && !isAmber(w.over) && !overDrawn) return { said: w.over, opens: 'plan' };
    const word = w.health?.pieces[0];
    // a plan its numbers vouch for, with no update to quote, has nothing to say
    if (!w.health || !word || w.health.text === NO_UPDATE_NEEDED_WORD) return null;

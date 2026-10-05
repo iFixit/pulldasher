@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { decideQueue } from '../../../shared/model/decide';
 import type { RoadmapItem } from '../../../shared/model/roadmap';
 import {
+   afterEndOf,
    bodyLinks,
    issueCounts,
    issueQuery,
@@ -31,6 +32,9 @@ const plan = (id: number, over: Partial<RoadmapItem> = {}): RoadmapItem => ({
    origin: null,
    start: '2026-05-18',
    weeks: 15,
+   // a commitment, the end these tests ask about
+   end_kind: 'hard',
+   done_when: '',
    priority: id,
    notes: '',
    waits_on: [],
@@ -258,6 +262,10 @@ describe('planWork', () => {
    it('lists the PRs that opened after a plan’s end, oldest first', () => {
       expect(ids(work[0].afterEnd)).toEqual([4, 2]);
       expect(ids(work[1].afterEnd)).toEqual([]);
+   });
+
+   it('finds nothing after the end of ongoing work, which has none', () => {
+      expect(afterEndOf({ start: '2026-08-03', weeks: 1, end_kind: 'ongoing' })).toBe(Infinity);
    });
 
    it('counts the PRs that opened more than a week after a plan was marked done', () => {

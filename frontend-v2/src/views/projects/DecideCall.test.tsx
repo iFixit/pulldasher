@@ -18,6 +18,9 @@ const plan: RoadmapItem = {
    origin: null,
    start: '2026-09-07',
    weeks: 6,
+   // a commitment, the end these tests ask about
+   end_kind: 'hard',
+   done_when: '',
    priority: 8,
    notes: '',
    waits_on: [],

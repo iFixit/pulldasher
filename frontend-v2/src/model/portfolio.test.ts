@@ -101,6 +101,7 @@ function group(
       project: p,
       open,
       merged,
+      closed: [],
       people,
       idleDays: null,
       lastActivity: null,
@@ -144,6 +145,9 @@ const plan = (id: number, slug: string | null, over: Partial<RoadmapItem> = {}):
    origin: null,
    start: '2026-09-21',
    weeks: 4,
+   // a commitment, the end these tests ask about
+   end_kind: 'hard',
+   done_when: '',
    priority: id,
    notes: '',
    waits_on: [],
@@ -321,6 +325,29 @@ describe('planCell', () => {
       ).toBe('Done');
       // small work ships without a plan, so the cell says nothing at all
       expect(cell({})).toEqual({ kind: 'no_plan', text: '', warn: false, planId: null });
+   });
+
+   it('says a soft end run past in ink, ongoing work as ongoing, and never counts them behind', () => {
+      const soft = plan(1, 'alpha', {
+         start: '2026-08-03',
+         end_kind: 'soft',
+         update: update('on_track', 1),
+      });
+      expect(cell({ plan: soft })).toEqual({
+         kind: 'past_end',
+         text: '5 weeks past its end',
+         warn: false,
+         planId: 1,
+      });
+      // put on the roadmap three days ago, so no update is owed yet
+      const upkeep = {
+         start: '2026-08-03',
+         end_kind: 'ongoing' as const,
+         created_at: now - 3 * 86400,
+      };
+      expect(cell({ plan: plan(1, 'a', upkeep) }).text).toBe('Ongoing');
+      const items = portfolioItems(projects, today, {}, teamOf, NOW, [soft]);
+      expect(items.find(i => i.slug === 'alpha')?.behind).toBeNull();
    });
 
    it('names the worst call Decide asks, in amber, about the plan it asks', () => {

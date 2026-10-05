@@ -1,6 +1,6 @@
 import { MAX_ISSUE_NUMBER, REPO_PATTERN, issueKey, parseIssueRef, type IssueRef } from './issueRef';
 import { dayStart, type PullLinks } from './projects';
-import { isStopped, planEnd, type RoadmapItem } from './roadmap';
+import { endOf, isStopped, type RoadmapItem } from './roadmap';
 
 export { issueKey, issueText, parseIssueRef, type IssueRef } from './issueRef';
 
@@ -265,9 +265,11 @@ export function planOfWork(plans: readonly RoadmapItem[], at: number): RoadmapIt
    return running[running.length - 1] ?? started[started.length - 1] ?? sorted[0] ?? null;
 }
 
-/** The first moment after a plan's last planned day. */
-export function afterEndOf(plan: Pick<RoadmapItem, 'start' | 'weeks'>): number {
-   return (dayStart(planEnd(plan)) as number) + DAY;
+/** The first moment after a plan's last planned day; never, for ongoing
+ * work, which has no end. */
+export function afterEndOf(plan: Pick<RoadmapItem, 'start' | 'weeks' | 'end_kind'>): number {
+   const end = endOf(plan);
+   return end == null ? Infinity : (dayStart(end) as number) + DAY;
 }
 
 /** How a list of issues stands. */

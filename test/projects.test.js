@@ -581,6 +581,9 @@ function roadmapRow(over) {
       status: 'active',
       start: '2026-01-05',
       weeks: 4,
+      // a commitment: the end Decide asks about once it passes
+      end_kind: 'hard',
+      done_when: '',
       priority: 0,
       notes: '',
       waits_on: null,
@@ -611,9 +614,18 @@ test('/api/v1/decide lists a live project with no plan as new, then a slipped pl
       status: 'active',
       start: '2026-01-05',
       weeks: 4,
+      end_kind: 'hard',
       end: '2026-02-01',
    });
    assert.ok(row.reasons.some(r => r.kind === 'over' && r.weeks > 0));
+
+   // an estimate that passed is never asked about, and ongoing work has no end
+   roadmapRows = [roadmapRow({ end_kind: 'soft' })];
+   const soft = await get('/api/v1/decide');
+   assert.ok(!soft.body.decisions.some(d => d.reasons.some(r => r.kind === 'over')));
+   roadmapRows = [roadmapRow({ end_kind: 'ongoing', updated_at: Math.floor(Date.now() / 1000) })];
+   const endless = await get('/api/v1/decide');
+   assert.ok(!endless.body.decisions.some(d => d.project === 'alpha'));
 
    // parking it is a decision: nothing is owed until its PRs move again
    roadmapRows = [roadmapRow({ status: 'parked', updated_at: Math.floor(Date.now() / 1000) })];

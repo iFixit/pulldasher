@@ -206,6 +206,9 @@ describe('Look back’s project columns', () => {
       origin: null,
       start: '2026-08-03',
       weeks: 4,
+      // a commitment, the end these tests ask about
+      end_kind: 'hard',
+      done_when: '',
       priority: 1,
       notes: '',
       waits_on: [],
@@ -230,6 +233,12 @@ describe('Look back’s project columns', () => {
       expect(retroPlan(plan({ start: '2026-09-28' }), today).text).toBe('Ends Oct 25');
       expect(retroPlan(plan({ status: 'parked' }), today).kind).toBe('parked');
       expect(retroPlan(null, today).text).toBe('No plan');
+      // only a hard end run past is owed a call; ongoing work has no end
+      expect(retroPlan(plan({ end_kind: 'soft' }), today)).toEqual({
+         kind: 'open',
+         text: '5 weeks past its end',
+      });
+      expect(retroPlan(plan({ end_kind: 'ongoing' }), today).text).toBe('Ongoing');
    });
 
    it('dates a finish by when it was marked done, not by a later edit', () => {

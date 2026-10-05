@@ -24,6 +24,7 @@ import {
    decideProjects,
    decideQueue,
    decideTurn,
+   endOf,
    needsDecision,
    parseIssueRef,
    loadByWeek,
@@ -537,7 +538,9 @@ export default {
                         status: item.status,
                         start: item.start,
                         weeks: item.weeks,
-                        end: planEnd(item),
+                        end_kind: item.end_kind,
+                        // ongoing work has no end
+                        end: endOf(item),
                      },
                      reasons,
                   };

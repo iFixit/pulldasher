@@ -8,6 +8,7 @@ import {
 } from '../../../shared/model/projects';
 import {
    addWeeks,
+   endOf,
    mondayOf,
    planEnd,
    planFor,
@@ -388,13 +389,24 @@ export const RETRO_PLAN_RANK: Record<RetroPlanKind, number> = {
  * "3 weeks past its end", "Ends Oct 11", parked, dropped, or "No plan".
  * A plan's finish day is the day it was marked done (status_at), whatever
  * edits came after; a plan saved before status_at existed falls back to its
- * last change.
+ * last change. Only a hard end passed is `past_end`, owed a call: a soft one
+ * passed says so as a plain fact, and ongoing work has no end to judge by.
  */
 export function retroPlan(
-   plan: Pick<RoadmapItem, 'status' | 'start' | 'weeks' | 'updated_at' | 'status_at'> | null,
+   plan: Pick<
+      RoadmapItem,
+      'status' | 'start' | 'weeks' | 'end_kind' | 'updated_at' | 'status_at'
+   > | null,
    today: string
 ): { kind: RetroPlanKind; text: string } {
    if (!plan) return { kind: 'none', text: NO_PLAN };
+   if (plan.end_kind === 'ongoing') {
+      if (plan.status === 'done') return { kind: 'on_time', text: 'Done' };
+      if (plan.status === 'dropped' || plan.status === 'parked') {
+         return { kind: plan.status, text: plan.status === 'dropped' ? 'Dropped' : 'Parked' };
+      }
+      return { kind: 'open', text: 'Ongoing' };
+   }
    const end = planEnd(plan);
    const weeksAfter = (day: string) =>
       Math.ceil(((dayStart(day) as number) - (dayStart(end) as number)) / (7 * DAY));
@@ -408,7 +420,12 @@ export function retroPlan(
    }
    if (plan.status === 'dropped') return { kind: 'dropped', text: 'Dropped' };
    if (plan.status === 'parked') return { kind: 'parked', text: 'Parked' };
-   if (end < today) return { kind: 'past_end', text: pastEnd(weeksAfter(today)) };
+   if (end < today) {
+      return {
+         kind: plan.end_kind === 'hard' ? 'past_end' : 'open',
+         text: pastEnd(weeksAfter(today)),
+      };
+   }
    return {
       kind: 'open',
       text: plan.start > today ? `Starts ${dayWords(plan.start)}` : `Ends ${dayWords(end)}`,
@@ -441,14 +458,19 @@ export function finishedIn(
       const day = utcDay(at);
       if (!inRange(day)) continue;
       const key = plan.project ?? `plan:${plan.id}`;
-      out.set(key, { key, name: plan.name, onTime: day <= planEnd(plan) });
+      out.set(key, { key, name: plan.name, onTime: day <= (endOf(plan) ?? day) });
    }
    for (const p of projects) {
       if (p.state !== 'closed' || p.state_reason === 'not_planned' || !p.closed_at) continue;
       const day = p.closed_at.slice(0, 10);
       if (!inRange(day) || out.has(p.slug)) continue;
       const plan = planFor(p.slug, plans);
-      out.set(p.slug, { key: p.slug, name: p.name, onTime: plan ? day <= planEnd(plan) : null });
+      out.set(p.slug, {
+         key: p.slug,
+         name: p.name,
+         // ongoing work has no end to finish late by
+         onTime: plan ? day <= (endOf(plan) ?? day) : null,
+      });
    }
    return [...out.values()];
 }

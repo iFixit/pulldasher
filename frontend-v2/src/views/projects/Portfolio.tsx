@@ -11,7 +11,6 @@ import { ChevronRight } from 'lucide-react';
 import { issueUrl, pullKey, shortRepo } from '../../../../shared/format';
 import { STALL_DAYS, type DecideRow } from '../../../../shared/model/decide';
 import { utcDay } from '../../../../shared/model/projects';
-import { planEnd } from '../../../../shared/model/roadmap';
 import {
    FactLink,
    QuietButton,
@@ -69,7 +68,7 @@ import {
    type Navigate,
    type ProjectsNav,
 } from './parts';
-import { PlanFacts } from './roadmapHealth';
+import { PlanFacts, planWords } from './roadmapHealth';
 
 /** the long-list rule: this many rows, then "+ N more" */
 const LIST_CAP = 40;
@@ -165,10 +164,7 @@ function planTitle(item: PortfolioItem): string {
    if (item.asks.length) {
       return `Decide asks: ${askedWords(item.asks)} Click to make the call here.`;
    }
-   if (plan) {
-      const span = `${dayWords(plan.start)} to ${dayWords(planEnd(plan))}`;
-      return `${plan.name}, ${span}. Click to open the plan.`;
-   }
+   if (plan) return `${plan.name}, ${planWords(plan)}. Click to open the plan.`;
    return '';
 }
 

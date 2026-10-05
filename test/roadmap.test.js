@@ -184,6 +184,9 @@ test('itemFromRow renames the lead and fills the blanks', () => {
          origin: null,
          start: '2026-09-28',
          weeks: 6,
+         // the column's own default: every plan starts as an estimate
+         end_kind: 'soft',
+         done_when: '',
          priority: 2,
          notes: '',
          waits_on: [1, 4],
@@ -249,6 +252,25 @@ test('a new item starts planned, four weeks from a Monday, at the bottom', async
    // any day moves to its week's Monday
    assert.equal(second.body.item.start, '2026-09-28');
    assert.equal(rows.find(r => r.id === second.body.item.id).created_by, 'alice');
+});
+
+test('a plan’s end starts soft, says how firm it is, and what done looks like in a line', async () => {
+   const { body } = await call('POST', '/roadmap', { name: 'Search' });
+   assert.equal(body.item.end_kind, 'soft');
+   assert.equal(body.item.done_when, '');
+   const id = body.item.id;
+   const hard = await call('PATCH', `/roadmap/${id}`, {
+      end_kind: 'hard',
+      done_when: 'Results rank\n by clicks',
+   });
+   assert.equal(hard.body.item.end_kind, 'hard');
+   assert.equal(hard.body.item.done_when, 'Results rank by clicks');
+   assert.equal(rows.find(r => r.id === id).end_kind, 'hard');
+   const bad = await call('PATCH', `/roadmap/${id}`, { end_kind: 'firm' });
+   assert.equal(bad.status, 400);
+   assert.match(bad.body.error, /end_kind/);
+   const made = await call('POST', '/roadmap', { name: 'Upkeep', end_kind: 'ongoing' });
+   assert.equal(made.body.item.end_kind, 'ongoing');
 });
 
 test('a bad item is a 400 that says why', async () => {
@@ -762,32 +784,42 @@ test('the review board’s project standing: its PRs’ links and each project�
 test('what a project did lately: its merges in the last two weeks, open PRs by stage, its pace', () => {
    const now = Date.UTC(2026, 8, 30) / 1000;
    const iso = t => new Date(t * 1000).toISOString();
-   const open = status => ({
+   const open = (status, daysAgo) => ({
       status,
       cryo: false,
       externalBlock: false,
       conflict: false,
       changesRequestedBy: [],
-      data: { status: {} },
+      data: { created_at: iso(now - daysAgo * DAY), status: {} },
+   });
+   const gone = (openedDaysAgo, closedDaysAgo, merged) => ({
+      created_at: iso(now - openedDaysAgo * DAY),
+      closed_at: iso(now - closedDaysAgo * DAY),
+      merged_at: merged ? iso(now - closedDaysAgo * DAY) : null,
    });
    const today = {
       live: [
          {
             slug: 'alpha',
-            open: [open('needs_cr'), open('ready')],
-            merged: [{ merged_at: iso(now - 3 * DAY) }, { merged_at: iso(now - 20 * DAY) }],
+            open: [open('needs_cr', 2), open('ready', 4), open('needs_cr', 40)],
+            merged: [gone(10, 3, true), gone(30, 20, true)],
+            // open two weeks ago, closed since without merging
+            closed: [gone(30, 5, false)],
             lastActivity: now - 3600,
          },
       ],
-      quiet: [{ slug: 'beta', open: [], merged: [], lastActivity: null }],
+      quiet: [{ slug: 'beta', open: [], merged: [], closed: [], lastActivity: null }],
    };
    const pace = { alpha: { open: 2, closed: 3, added: 1 }, beta: { open: 1, closed: 0, added: 0 } };
    const lately = latelyBySlug(today, pace, new Set(['beta']), now);
    assert.deepEqual(lately.get('alpha'), {
       merged: 1,
-      open: { ready: 1, hold: 0, review: 1, work: 0 },
+      open: { ready: 1, hold: 0, review: 2, work: 0 },
       activityAt: now - 3600,
       issues: pace.alpha,
+      // two opened since, one that was open then closed: one more than then
+      grew: 1,
+      medianAge: 4,
    });
    // work with no end has no finish to forecast
    assert.equal(lately.get('beta').issues, null);

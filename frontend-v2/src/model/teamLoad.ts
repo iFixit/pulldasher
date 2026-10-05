@@ -1,4 +1,4 @@
-import { isUnderWay, planEnd, planFor, type RoadmapItem } from '../../../shared/model/roadmap';
+import { endOf, isUnderWay, planFor, type RoadmapItem } from '../../../shared/model/roadmap';
 import type { PortfolioItem } from './portfolio';
 
 /** One piece of a team's work being worked on. */
@@ -39,7 +39,9 @@ export function teamLoad(
    // (roadmap.ts planFor): the first under way, or else its latest call
    const speaker = new Map([...onRoadmap].map(slug => [slug, planFor(slug, kept)?.id]));
    const going = (p: RoadmapItem) => {
-      if (!p.project) return p.status === 'active' && p.start <= today && planEnd(p) >= today;
+      // ongoing work has no end to run out at
+      if (!p.project)
+         return p.status === 'active' && p.start <= today && (endOf(p) ?? today) >= today;
       const work = bySlug.get(p.project);
       if (!work?.open || speaker.get(p.project) !== p.id) return false;
       return isUnderWay(p.status) || (work.lastActivity?.days ?? MOVING_DAYS) < MOVING_DAYS;

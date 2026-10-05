@@ -6,6 +6,7 @@ import {
    bucketOf,
    checkRoadmapFields,
    checkRoadmapUpdate,
+   endOf,
    endShift,
    healthStanding,
    inProgress,
@@ -16,9 +17,11 @@ import {
    periodPlan,
    planEnd,
    planFor,
+   planLately,
    ROADMAP_ORIGINS,
    updatesOwed,
    updateStanding,
+   type EndKind,
    type PlanLately,
    type RoadmapItem,
    type RoadmapUpdate,
@@ -26,6 +29,8 @@ import {
    weeksThrough,
 } from '../../../shared/model/roadmap';
 import { dayStart } from '../../../shared/model/projects';
+import type { DerivedPull } from '../../../shared/model/status';
+import type { PullData } from '../../../shared/types';
 
 describe('roadmap dates', () => {
    it('moves any day to its week’s Monday and counts whole weeks from it', () => {
@@ -34,6 +39,11 @@ describe('roadmap dates', () => {
       expect(mondayOf('2026-10-04')).toBe('2026-09-28'); // a Sunday
       expect(addWeeks('2026-09-28', 2)).toBe('2026-10-12');
       expect(planEnd({ start: '2026-09-28', weeks: 2 })).toBe('2026-10-11');
+   });
+
+   it('gives ongoing work no end, whatever its weeks say', () => {
+      expect(endOf({ start: '2026-09-28', weeks: 2, end_kind: 'soft' })).toBe('2026-10-11');
+      expect(endOf({ start: '2026-09-28', weeks: 2, end_kind: 'ongoing' })).toBeNull();
    });
 });
 
@@ -71,6 +81,32 @@ describe('checkRoadmapFields', () => {
       expect(error({ lead: 'two words' })).toMatch(/login/);
       expect(error({ start: 'next week' })).toMatch(/YYYY-MM-DD/);
       expect(error([])).toMatch(/object/);
+   });
+
+   it('takes how firm the end is, and what done looks like as one line', () => {
+      expect(checkRoadmapFields({ end_kind: 'hard' }, { partial: true })).toEqual({
+         fields: { end_kind: 'hard' },
+      });
+      expect(
+         (checkRoadmapFields({ end_kind: 'firm' }, { partial: true }) as { error: string }).error
+      ).toMatch(/end_kind is one of hard, soft, ongoing/);
+      // a pasted paragraph keeps its words, on one line
+      expect(
+         checkRoadmapFields(
+            { done_when: ' Both paths ship\n and  the audit passes ' },
+            { partial: true }
+         )
+      ).toEqual({ fields: { done_when: 'Both paths ship and the audit passes' } });
+      expect(checkRoadmapFields({ done_when: null }, { partial: true })).toEqual({
+         fields: { done_when: '' },
+      });
+      expect(
+         (
+            checkRoadmapFields({ done_when: 'x'.repeat(201) }, { partial: true }) as {
+               error: string;
+            }
+         ).error
+      ).toMatch(/200 characters/);
    });
 });
 
@@ -118,7 +154,13 @@ describe('updates', () => {
    });
 
    it('owes an update only on work in progress, after two weeks', () => {
-      const active = { status: 'active' as const, start: '2026-09-07', weeks: 4, created_at: null };
+      const active = {
+         status: 'active' as const,
+         start: '2026-09-07',
+         weeks: 4,
+         end_kind: 'hard' as const,
+         created_at: null,
+      };
       expect(healthStanding({ ...active, update: null }, now).kind).toBe('missing');
       expect(healthStanding({ ...active, start: '2026-09-21', update: null }, now).kind).toBe(
          'quiet'
@@ -139,26 +181,34 @@ describe('updates', () => {
       ).toBe('quiet');
    });
 
-   // Sep 7, 8 weeks: it ends Nov 1
-   const going = { status: 'active' as const, start: '2026-09-07', weeks: 8, created_at: null };
+   // Sep 7, 8 weeks: it ends Nov 1, a hard end
+   const going = {
+      status: 'active' as const,
+      start: '2026-09-07',
+      weeks: 8,
+      end_kind: 'hard' as EndKind,
+      created_at: null,
+   };
    const lately = (over: Partial<PlanLately> = {}): PlanLately => ({
       merged: 2,
       open: { ready: 0, hold: 0, review: 1, work: 1 },
       activityAt: now - DAY,
       issues: null,
+      grew: 0,
+      medianAge: 5,
       ...over,
    });
 
    it('owes nothing while its PRs merge, inside its end and its issues’ pace', () => {
       expect(healthStanding({ ...going, update: null, lately: lately() }, now)).toEqual({
          kind: 'quiet',
-         vouch: { merged: 2, finish: null },
+         vouch: { merged: 2, finish: null, endKind: 'hard' },
       });
       // the last update stays the word on it, with why none is owed now
       expect(healthStanding({ ...going, update: update(20), lately: lately() }, now)).toEqual({
          kind: 'current',
          update: update(20),
-         vouch: { merged: 2, finish: null },
+         vouch: { merged: 2, finish: null, endKind: 'hard' },
       });
       // 2 open, 3 closed and 1 added in four weeks: done in four weeks, Oct 28
       const onPace = lately({ issues: { open: 2, closed: 3, added: 1 } });
@@ -183,6 +233,41 @@ describe('updates', () => {
       );
    });
 
+   it('owes one when its open PRs pile up behind a merge: 3 or more that grew by 3 or aged', () => {
+      const owes = (over: Partial<PlanLately>) =>
+         healthStanding({ ...going, update: null, lately: lately(over) }, now).kind;
+      const three = { ready: 1, hold: 0, review: 1, work: 1 };
+      // grew by 3 in two weeks, or half of them open over 30 days
+      expect(owes({ open: three, grew: 3 })).toBe('missing');
+      expect(owes({ open: three, medianAge: 30.5 })).toBe('missing');
+      // a smaller rise, or a median of 30 days on the dot, still vouches
+      expect(owes({ open: three, grew: 2, medianAge: 30 })).toBe('quiet');
+      // under 3 open, however fast they came, the merges still vouch
+      expect(owes({ open: { ready: 0, hold: 0, review: 1, work: 1 }, grew: 5 })).toBe('quiet');
+   });
+
+   it('holds the numbers to a hard end only: a soft one is an estimate, ongoing has none', () => {
+      const owes = (end_kind: EndKind, weeks: number, over: Partial<PlanLately> = {}) =>
+         healthStanding({ ...going, end_kind, weeks, update: null, lately: lately(over) }, now);
+      // Sep 7 for 2 weeks ended Sep 20
+      expect(owes('hard', 2).kind).toBe('missing');
+      expect(owes('soft', 2)).toEqual({
+         kind: 'quiet',
+         vouch: { merged: 2, finish: null, endKind: 'soft' },
+      });
+      // 4 open at one a week, done Oct 28: late for a hard Oct 18 end, not a soft one
+      const slow = { issues: { open: 4, closed: 4, added: 0 } };
+      expect(owes('hard', 6, slow).kind).toBe('missing');
+      expect(owes('soft', 6, slow).kind).toBe('quiet');
+      // issues arriving as fast as they close never finish, unless it never ends
+      const never = { issues: { open: 2, closed: 3, added: 3 } };
+      expect(owes('soft', 8, never).kind).toBe('missing');
+      expect(owes('ongoing', 2, never)).toEqual({
+         kind: 'quiet',
+         vouch: { merged: 2, finish: null, endKind: 'ongoing' },
+      });
+   });
+
    it('never vouches over a lead’s at risk or off track: their word stands until a new one', () => {
       for (const health of ['at_risk', 'off_track'] as const) {
          expect(
@@ -204,7 +289,7 @@ describe('updates', () => {
    });
 
    it('says where a plan’s updates stand in one word, as the API does', () => {
-      const vouch = { merged: 2, finish: null };
+      const vouch = { merged: 2, finish: null, endKind: 'hard' as const };
       expect(updateStanding({ kind: 'missing' })).toBe('owed');
       expect(updateStanding({ kind: 'stale', update: update(20), days: 20 })).toBe('owed');
       expect(updateStanding({ kind: 'quiet', vouch })).toBe('vouched');
@@ -258,6 +343,8 @@ describe('updatesOwed', () => {
       origin: null,
       start: '2026-06-01',
       weeks: 30,
+      end_kind: 'hard',
+      done_when: '',
       priority: id,
       notes: '',
       waits_on: [],
@@ -304,7 +391,12 @@ describe('updatesOwed', () => {
    });
 
    it('leaves out a plan its numbers vouch for, the way every view does', () => {
-      const lately = { merged: 3, open: { ready: 0, hold: 0, review: 0, work: 1 } };
+      const lately = {
+         merged: 3,
+         open: { ready: 0, hold: 0, review: 0, work: 1 },
+         grew: 0,
+         medianAge: 4,
+      };
       const owed = updatesOwed(
          [
             item(1, {
@@ -342,6 +434,8 @@ describe('waits on', () => {
       origin: null,
       start: '2026-09-07',
       weeks: 4,
+      end_kind: 'soft',
+      done_when: '',
       priority: id,
       notes: '',
       waits_on: [],
@@ -387,6 +481,56 @@ describe('waits on', () => {
          [2, false],
          [3, true],
       ]);
+   });
+
+   it('clashes with ongoing work it waits on, which never ends', () => {
+      const all = [item(1, { status: 'active', end_kind: 'ongoing' })];
+      expect(blockersOf({ start: '2027-06-07', waits_on: [1] }, all)[0].clash).toBe(true);
+   });
+});
+
+describe('planLately', () => {
+   const DAY = 86400;
+   const now = dayStart('2026-09-30') as number;
+   const iso = (daysAgo: number) => new Date((now - daysAgo * DAY) * 1000).toISOString();
+   const open = (daysAgo: number) =>
+      ({
+         status: 'needs_cr',
+         cryo: false,
+         externalBlock: false,
+         conflict: false,
+         changesRequestedBy: [],
+         data: { created_at: iso(daysAgo), status: {} },
+      } as unknown as DerivedPull);
+   const gone = (openedDaysAgo: number, closedDaysAgo: number, merged: boolean) =>
+      ({
+         created_at: iso(openedDaysAgo),
+         closed_at: iso(closedDaysAgo),
+         merged_at: merged ? iso(closedDaysAgo) : null,
+      } as PullData);
+
+   it('counts how many more are open than two weeks ago, and how old they are', () => {
+      const lately = planLately(
+         {
+            // three opened in the last two weeks, one long before
+            open: [open(2), open(5), open(9), open(40)],
+            // one merged and one closed of those open two weeks ago, and one
+            // opened and merged inside the two weeks, which nets out
+            merged: [gone(20, 3, true), gone(6, 1, true)],
+            closed: [gone(30, 4, false)],
+            lastActivity: now - DAY,
+         },
+         null,
+         now
+      );
+      // 4 open now; 1 + 2 were open then
+      expect(lately.grew).toBe(1);
+      expect(lately.medianAge).toBe(7);
+      expect(lately.merged).toBe(2);
+      expect(lately.open.review).toBe(4);
+      expect(
+         planLately({ open: [], merged: [], closed: [], lastActivity: null }, null, now)
+      ).toMatchObject({ grew: 0, medianAge: null });
    });
 });
 

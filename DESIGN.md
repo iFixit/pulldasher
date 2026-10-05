@@ -364,9 +364,12 @@ icon with a class bolted on.
     shared epic can't pull everything in; an issue two projects' PRs link
     joins neither, and one another project has stays a suggestion.
   - **An update is owed only when the numbers can't vouch.** A plan under
-    way whose PRs merged in the last 14 days, inside its end and its issues'
-    pace, owes none, unless its lead's last update said at risk or off
-    track: a row says "no update needed", the page says the numbers. Days
+    way whose PRs merged in the last 14 days, inside its issues' pace and
+    any hard end, owes none, unless its lead's last update said at risk or
+    off track, or its open PRs pile up: 3 or more that grew by 3 in 14 days,
+    or whose median age passed 30 days (Jarred, Oct 5: a merge says less than
+    a pile growing behind it). A row says "no update needed", the page says
+    the numbers. Days
     are the team's (`projects.timeZone`), so the board and /api/v1 agree on
     "past its end". The rest open on a drafted update with "Post as drafted". A
     Planned plan whose PRs moved since its start reads In progress; that's
@@ -484,7 +487,9 @@ icon with a class bolted on.
   arrows on the grip reorder, arrows on a focused bar move it a week, and
   Shift with them changes the length. A plan's bar says its status by form
   (an outline while planned, a fill once under way, green when done, a gray
-  outline when parked, faint when dropped) and its dates and weeks inside, when it has room. A click on a
+  outline when parked, faint when dropped), how firm its end is by its
+  right end (crisp when hard, fading out when soft, running square to the
+  edge of the weeks shown when ongoing), and its dates and weeks inside, when it has room. A click on a
   bar opens the plan under its row, read first, the way its project's page
   says a plan: the plan in a line with Decide's calls under it (the one
   asked outlined and focused), its latest update and Post an update, its
@@ -506,12 +511,21 @@ icon with a class bolted on.
   screen-reader label say it in words. What it waits on, its target and
   where it came from are in its details; the milestone flag stays on the
   timeline. A Now, next and later card says the same.
+- **A plan's end is hard, soft or ongoing.** Hard is a commitment that
+  Decide asks about once it passes. Soft is an estimate: shown on the
+  roadmap, never asked about, and passing it is drift said in ink. Ongoing
+  is upkeep with no end. Every plan starts soft, so a date nobody chose
+  never nags (Jarred, Oct 5: "we might want to be flexible if hard vs soft
+  deadline"); "Commit through" is the commitment that makes an end hard,
+  and Edit details has the choice. A plan with an end has a one-line "Done
+  when", shown beside Decide's "Done?".
 - **Every mark on the timeline says what it is, where it's drawn.** A
   mark that needs a legend gets rethought, not explained: an unlabeled gray
   line for a project's PR activity and an upright tick for its milestone
   were tried and cut because nobody could read them cold. Now a plan still
   in flight past its end grows a piece labeled "+3 wk over" (amber only
-  when it's the plan's worst call, and faded past today), a
+  when it's the plan's worst call, always ink past a soft end, and faded
+  past today), a
   milestone is a flag with its date ("Dec 14 target"), a project with no
   plan is a dashed bar that says "since Aug 17, no plan" (a short one says
   "since Sep 7" past its end), and the load chart labels its two halves
@@ -569,7 +583,8 @@ icon with a class bolted on.
   frees up next week, when nothing says so. Instead every open project big
   enough to owe a decision (the rule Decide uses) keeps counting in the
   weeks ahead when it has none (a paler tint of the same colors), a plan
-  still in flight past its end keeps counting, and parked, finished and
+  still in flight past its end keeps counting, ongoing work counts every
+  week from its start, and parked, finished and
   dropped work stops. A project counts once, however many of its plans
   run. The only way to bring the future down is a decision, which is the
   point. A picked week's rows come from the same rule as its bar, so the
@@ -620,7 +635,7 @@ icon with a class bolted on.
   saying it alone never clears a row.
 - **Decide is a list that empties, sized for a Monday.** With no product
   manager, the tool names the calls owed instead of waiting for someone to
-  notice: new work with no decision, plans past their end or their target,
+  notice: new work with no decision, plans past a hard end or their target,
   stalls, updates saying at risk or off track, work marked done or dropped
   whose PRs are still open, and parked work that moved. Work with fewer
   than 3 PRs ships without a call unless it stalls, so the first visit

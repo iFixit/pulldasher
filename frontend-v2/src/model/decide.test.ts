@@ -45,6 +45,9 @@ const item = (id: number, over: Partial<RoadmapItem>): RoadmapItem => ({
    origin: null,
    start: '2026-09-07',
    weeks: 8,
+   // a commitment, the end these tests ask about
+   end_kind: 'hard',
+   done_when: '',
    priority: id,
    notes: '',
    waits_on: [],
@@ -114,6 +117,23 @@ describe('decideQueue', () => {
          ['late', 'over'],
          ['gone', 'ended'],
       ]);
+   });
+
+   it('asks about a hard end once it passes, never a soft end or ongoing work', () => {
+      const late = { start: '2026-08-03', weeks: 4 };
+      const rows = decideQueue({
+         live: [project('hard'), project('soft'), project('ongoing')],
+         items: [
+            item(1, { project: 'hard', ...late }),
+            item(2, { project: 'soft', ...late, end_kind: 'soft' }),
+            item(3, { project: 'ongoing', ...late, end_kind: 'ongoing' }),
+            // nothing open: a hard one would be asked "Done?"
+            item(4, { project: 'gone', ...late, end_kind: 'soft' }),
+         ],
+         today,
+         now: NOW,
+      });
+      expect(kinds(rows)).toEqual([['hard', 'over']]);
    });
 
    it('takes decided work out, and brings it back when the PRs disagree', () => {
@@ -373,7 +393,8 @@ describe('Decide’s calls', () => {
       expect(writeFor({ kind: 'drop' }, reopened, undefined, today)).toMatchObject({
          restate: true,
       });
-      // a commit keeps the plan's start and runs through the end it names
+      // a commit keeps the plan's start and runs through the end it names,
+      // which it commits to: a hard end, asked about once it passes
       expect(
          writeFor(
             { kind: 'commit', label: 'End of Oct', end: '2026-10-31', through: 'the end of Oct' },
@@ -383,7 +404,7 @@ describe('Decide’s calls', () => {
          )
       ).toEqual({
          id: 7,
-         fields: { status: 'active', start: '2026-08-03', weeks: 13 },
+         fields: { status: 'active', start: '2026-08-03', weeks: 13, end_kind: 'hard' },
          restate: false,
       });
    });
@@ -451,6 +472,7 @@ describe('Decide’s calls', () => {
          status: 'planned',
          start: '2026-10-12',
          weeks: 3,
+         end_kind: 'hard',
       });
       // one already under way is committed to, as ever
       expect(writeFor(oct, promo('2026-09-07'), undefined, today).fields.status).toBe('active');
@@ -534,6 +556,30 @@ describe('Decide’s calls', () => {
       expect(labels(row([], { status: 'parked' }))[0]).toBe('End of Oct');
       // work with no plan: every end
       expect(labels({ slug: 'p', item: null, reasons: [] })[0]).toBe('End of Oct');
+   });
+
+   it('commits to a soft end on its own date, and gives ongoing work any end', () => {
+      const row = (reasons: DecideReason[], over: Partial<RoadmapItem>): DecideRow => ({
+         slug: 'p',
+         item: item(3, { project: 'p', ...over }),
+         reasons,
+      });
+      const labels = (r: DecideRow) => endsFor(r, undefined, today).map(c => c.label);
+      // Sep 7 to Nov 1: committing through the end of Oct makes the estimate a promise
+      expect(labels(row([], { end_kind: 'soft' }))[0]).toBe('End of Oct');
+      // "New end?" on work with no end: every end is new
+      const endless = row([{ kind: 'at_risk' }], { end_kind: 'ongoing', weeks: 40 });
+      expect(labels(endless)[0]).toBe('End of Oct');
+      expect(answerOf(endless, undefined, today)).toMatchObject({ label: 'End of Oct' });
+      // "It’s ongoing" on a plan under way gives the plan no end; on new work
+      // it marks the project
+      const quiet = { open: 0, ongoing: false };
+      expect(callWords({ kind: 'ongoing' }, row([], {}), quiet, today)).toBe(
+         'Marked ongoing, with no end, so Decide never asks about one.'
+      );
+      expect(
+         callWords({ kind: 'ongoing' }, { slug: 'p', item: null, reasons: [] }, quiet, today)
+      ).toBe('Marked ongoing, so Decide stops asking it for a plan or an end.');
    });
 
    it('says a section’s one click in a few words, each answer with how many', () => {
@@ -772,6 +818,8 @@ describe('filledIn', () => {
          open: { ready: 0, hold: 0, review: 1, work: 0 },
          activityAt: ago(1),
          issues: null,
+         grew: 0,
+         medianAge: 4,
       };
       const plans = [
          // marked Planned, read In progress, from this week

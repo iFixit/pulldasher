@@ -80,6 +80,9 @@ export interface ProjectGroup {
    open: DerivedPull[];
    /** merged in the last LIVE_DAYS, newest first */
    merged: PullData[];
+   /** closed without merging in the last LIVE_DAYS, which the board keeps
+    * too: what a plan's open PRs grew by counts them (roadmap.ts planLately) */
+   closed: PullData[];
    /** everyone with an open or recently merged PR here, most PRs first */
    people: string[];
    /** days since the stalest open PR last changed; null with nothing open */
@@ -146,6 +149,7 @@ export function buildToday(
             project: bySlug.get(slug) ?? null,
             open: [],
             merged: [],
+            closed: [],
             people: [],
             idleDays: null,
             lastActivity: null,
@@ -170,9 +174,11 @@ export function buildToday(
       else group(slug).open.push(p);
    }
    for (const p of closed) {
-      if (!p.merged_at || now - epoch(p.merged_at) > LIVE_DAYS * DAY) continue;
+      const at = p.merged_at ?? p.closed_at;
+      if (!at || now - epoch(at) > LIVE_DAYS * DAY) continue;
       const slug = projectOf(p.labels, prefix, linked[issueKey(p)]);
-      if (slug != null && slug !== MISC_SLUG) group(slug).merged.push(p);
+      if (slug == null || slug === MISC_SLUG) continue;
+      group(slug)[p.merged_at ? 'merged' : 'closed'].push(p);
    }
    // an open project with nothing in flight still exists: it lands in quiet
    for (const p of projects) if (p.state === 'open') group(p.slug);
@@ -383,7 +389,8 @@ const tally = (): Tally => ({
    authors: new Set(),
 });
 
-function median(xs: number[]): number | null {
+/** The middle of some numbers, to a tenth; null with none. */
+export function median(xs: number[]): number | null {
    if (!xs.length) return null;
    const s = [...xs].sort((a, b) => a - b);
    const mid = Math.floor(s.length / 2);

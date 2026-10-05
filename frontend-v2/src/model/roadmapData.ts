@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { isDummy, loadDummy } from '../backend/dummy';
 import { DUMMY_PROJECTS, DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } from '../backend/dummyProjects';
 import { createMemoryStore } from '../storage';
-import { epoch } from '../../../shared/format';
 import {
    checkRoadmapFields,
    inProgress,
@@ -11,7 +10,7 @@ import {
    mondayOf,
    checkRoadmapUpdate,
    moveBefore,
-   UPDATE_DUE_DAYS,
+   planLately,
    waitsOnProblem,
    type PlanLately,
    type RoadmapFields,
@@ -20,7 +19,6 @@ import {
    type RoadmapUpdate,
 } from '../../../shared/model/roadmap';
 import { buildToday, dayStart, utcDay, type Project } from '../../../shared/model/projects';
-import { prStage } from '../../../shared/model/stage';
 import { derive } from '../../../shared/model/status';
 import { isBotLogin } from '../../../shared/model/visibility';
 import { dummyWorkInputs } from './workData';
@@ -117,8 +115,6 @@ function liveApi(): Api {
    };
 }
 
-const DAY = 86400;
-
 /** GitHub's Priority field's options, most urgent first, as the server ranks
  * them (lib/roadmap.js) */
 const PRIORITIES = ['urgent', 'high', 'medium', 'low'];
@@ -147,10 +143,11 @@ export function placedByPriority(
 
 /**
  * What each project did lately, by slug, as the server sends it with each
- * plan (lib/roadmap.js latelyBySlug): from Today, its PRs merged in the last
- * UPDATE_DUE_DAYS, its open PRs by stage and its newest activity; and its
- * issues' pace from its attached issues, which work with no end
- * (`ongoing`) goes without.
+ * plan (lib/roadmap.js latelyBySlug, both through shared planLately): from
+ * Today, its merges, its open PRs by stage, how many more are open than two
+ * weeks ago and how old they are, and its newest activity; and its issues'
+ * pace from its attached issues, which work with no end (`ongoing`) goes
+ * without.
  */
 export function latelyFrom(
    today: Pick<ReturnType<typeof buildToday>, 'live' | 'quiet'>,
@@ -160,16 +157,9 @@ export function latelyFrom(
 ): Map<string, PlanLately> {
    const out = new Map<string, PlanLately>();
    for (const g of [...today.live, ...today.quiet]) {
-      const open = { ready: 0, hold: 0, review: 0, work: 0 };
-      for (const d of g.open) open[prStage(d)]++;
       const issues = attached.get(g.slug);
-      out.set(g.slug, {
-         merged: g.merged.filter(p => epoch(p.merged_at ?? '') >= now - UPDATE_DUE_DAYS * DAY)
-            .length,
-         open,
-         activityAt: g.lastActivity,
-         issues: issues && !ongoing.has(g.slug) ? issuePace(issues, now) : null,
-      });
+      const pace = issues && !ongoing.has(g.slug) ? issuePace(issues, now) : null;
+      out.set(g.slug, planLately(g, pace, now));
    }
    return out;
 }
@@ -256,6 +246,9 @@ function dummyApi(): Api {
             origin: f.origin ?? null,
             start: f.start ?? mondayOf(start),
             weeks: f.weeks ?? 4,
+            // an estimate, as on the server, until someone commits
+            end_kind: f.end_kind ?? 'soft',
+            done_when: f.done_when ?? '',
             notes: f.notes ?? '',
             waits_on: f.waits_on ?? [],
             priority: Math.max(-1, ...rows.map(r => r.priority)) + 1,

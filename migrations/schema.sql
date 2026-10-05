@@ -202,6 +202,8 @@ CREATE TABLE IF NOT EXISTS `roadmap_items` (
   `origin` enum('asked','fire','chosen') COLLATE utf8mb4_general_ci DEFAULT NULL,
   `start` date NOT NULL,
   `weeks` smallint unsigned NOT NULL DEFAULT '4',
+  `end_kind` enum('hard','soft','ongoing') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'soft',
+  `done_when` varchar(200) COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
   `priority` int NOT NULL DEFAULT '0',
   `notes` text COLLATE utf8mb4_general_ci,
   `waits_on` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,

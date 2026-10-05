@@ -19,10 +19,10 @@ import {
    type Today,
 } from '../../../shared/model/projects';
 import {
+   endOf,
    HEALTH_WORD,
    healthStanding,
    isUnderWay,
-   planEnd,
    planFor,
    type RoadmapItem,
 } from '../../../shared/model/roadmap';
@@ -179,10 +179,10 @@ export interface PortfolioItem {
     * STALL_DAYS */
    stalled: boolean;
    /** how it's behind, the first that holds: its latest update says off
-    * track and the plan hasn't changed since, it's past its plan's end with
-    * PRs open, or past its target with PRs open; null when it isn't */
+    * track and the plan hasn't changed since, it's past its plan's hard end
+    * with PRs open, or past its target with PRs open; null when it isn't */
    behind: 'off_track' | 'past_end' | 'missed' | null;
-   /** its plan under way ends within the next ENDS_SOON_DAYS */
+   /** its plan under way ends, hard or soft, within the next ENDS_SOON_DAYS */
    endsSoon: boolean;
 }
 
@@ -242,7 +242,8 @@ function callWords(reason: DecideReason): Pick<PlanCell, 'kind' | 'text'> {
  * A project's plan in a few words, carrying the row's one amber mark. When
  * Decide asks about it (`asks`), the worst call it asks, in Decide's order.
  * Otherwise what the plan says, amber only where someone still owes
- * something: off track, past its end, at risk, or an update owed. A project
+ * something: off track, past a hard end, at risk, or an update owed. A soft
+ * end that passed is drift, said in ink, and ongoing work says so. A project
  * with no plan that Decide doesn't ask about says nothing, since small work
  * ships without one.
  */
@@ -268,20 +269,26 @@ export function planCell(
       const standing = healthStanding(plan, now);
       const update =
          standing.kind === 'current' || standing.kind === 'stale' ? standing.update : null;
-      const end = planEnd(plan);
+      const end = endOf(plan);
       const owed = { warn: true, planId: plan.id };
       if (update?.health === 'off_track')
          return { kind: 'off_track', text: HEALTH_WORD.off_track, ...owed };
-      if (end < day) return { kind: 'past_end', text: pastEnd(weeksPast(end, day)), ...owed };
+      if (plan.end_kind === 'hard' && end && end < day) {
+         return { kind: 'past_end', text: pastEnd(weeksPast(end, day)), ...owed };
+      }
       if (update?.health === 'at_risk')
          return { kind: 'at_risk', text: HEALTH_WORD.at_risk, ...owed };
       if (standing.kind === 'missing') return { kind: 'no_update', text: NO_UPDATE_YET, ...owed };
       if (standing.kind === 'stale') return { kind: 'update_due', text: UPDATE_DUE, ...owed };
       const calm = { warn: false, planId: plan.id };
+      // a soft end run past: drift, in ink, the newer fact than an old "On track"
+      if (end && end < day) {
+         return { kind: 'past_end', text: pastEnd(weeksPast(end, day)), ...calm };
+      }
       if (update) return { kind: 'on_track', text: HEALTH_WORD.on_track, ...calm };
-      return plan.start > day
-         ? { kind: 'ends', text: `Starts ${dayWords(plan.start)}`, ...calm }
-         : { kind: 'ends', text: `Ends ${dayWords(end)}`, ...calm };
+      if (plan.start > day)
+         return { kind: 'ends', text: `Starts ${dayWords(plan.start)}`, ...calm };
+      return { kind: 'ends', text: end ? `Ends ${dayWords(end)}` : 'Ongoing', ...calm };
    }
    if (plan?.status === 'parked') {
       return { kind: 'parked', text: 'Parked', warn: false, planId: plan.id };
@@ -410,14 +417,15 @@ export function portfolioItems(
          standing.update.at > (underWay?.updated_at ?? 0);
       item.stalled =
          stage === 'progress' && item.open > 0 && (item.lastActivity?.days ?? 0) >= STALL_DAYS;
+      const end = underWay && endOf(underWay);
       item.behind = offTrack
          ? 'off_track'
-         : underWay && planEnd(underWay) < day && item.open > 0
+         : underWay?.end_kind === 'hard' && end && end < day && item.open > 0
          ? 'past_end'
          : stage !== 'closed' && item.open > 0 && (item.dueInDays ?? 0) < 0 && target?.due_on
          ? 'missed'
          : null;
-      item.endsSoon = !!underWay && planEnd(underWay) >= day && planEnd(underWay) <= soon;
+      item.endsSoon = !!end && end >= day && end <= soon;
       return item;
    });
 }
@@ -432,9 +440,11 @@ export function behindWords(
    switch (item.behind) {
       case 'off_track':
          return HEALTH_WORD.off_track;
-      case 'past_end':
+      case 'past_end': {
          // `behind` reads the plan under way, which is the one planFor gives
-         return item.plan && pastEnd(weeksPast(planEnd(item.plan), day));
+         const end = item.plan && endOf(item.plan);
+         return end && pastEnd(weeksPast(end, day));
+      }
       case 'missed':
          return item.target?.due_on ? missedTarget(dayWords(item.target.due_on)) : null;
       default:

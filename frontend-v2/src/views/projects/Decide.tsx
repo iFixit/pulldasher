@@ -71,6 +71,7 @@ import {
    BEING_WORKED_ON,
    COMMIT_THROUGH,
    COPY_AS_TEXT,
+   DONE_WHEN,
    IN_PROGRESS,
    LAST_14_DAYS,
    missedTarget,
@@ -186,7 +187,7 @@ const SECTIONS: { kinds: DecideReason['kind'][]; title: string; sub: string; mor
       title: 'Past its end',
       sub: 'Still taking PRs first, then the longest overdue',
       more: [
-         'The end date on its plan has passed. The ones still taking new PRs come first, then the longest overdue.',
+         'Its hard end has passed: the end someone committed to. A soft end is an estimate, never asked about, and ongoing work has none. The ones still taking new PRs come first, then the longest overdue.',
       ],
    },
    {
@@ -285,9 +286,10 @@ export function askOf(reason: DecideReason): { question: string; call: Call['kin
 
 /** The ends a row's plan can commit to: its project's target first while
  * that's ahead, then the coming months and quarters, none before the plan
- * starts. An end that leaves a plan under way as long as it is would only
- * stamp it changed, so it isn't one; a row asking "New end?" offers only the
- * ends that move it later. */
+ * starts. An end that leaves a plan under way with the hard end it has
+ * would only stamp it changed, so it isn't one, while the same end on a
+ * soft one commits to its estimate; a row asking "New end?" offers only the
+ * ends that move it later, and ongoing work, with no end, any of them. */
 export function endsFor(
    row: DecideRow,
    project: Pick<PortfolioItem, 'target'> | undefined,
@@ -297,10 +299,12 @@ export function endsFor(
    const plan = row.item;
    if (!plan) return commitEnds(today, target);
    const later = row.reasons.length > 0 && askOf(primaryOf(row)).question === NEW_END;
+   const endless = plan.end_kind === 'ongoing';
    return commitEnds(today, target).filter(c => {
       if (c.end < plan.start) return false;
       const weeks = weeksThrough(plan.start, c.end);
-      return later ? weeks > plan.weeks : weeks !== plan.weeks || !isUnderWay(plan.status);
+      if (later) return endless || weeks > plan.weeks;
+      return weeks !== plan.weeks || !isUnderWay(plan.status) || plan.end_kind !== 'hard';
    });
 }
 
@@ -322,7 +326,7 @@ export function answerOf(
    if (asked !== 'commit') return { kind: asked };
    const plan = row.item;
    const end = endsFor(row, project, today).find(
-      c => !plan || weeksThrough(plan.start, c.end) >= plan.weeks
+      c => !plan || plan.end_kind === 'ongoing' || weeksThrough(plan.start, c.end) >= plan.weeks
    );
    return end ? { kind: 'commit', ...end } : null;
 }
@@ -495,7 +499,8 @@ const STATUS = { park: 'parked', done: 'done', drop: 'dropped' } as const;
 /**
  * What a call writes to the roadmap: a change to the row's plan, or, for
  * work with none, a new plan from its first open PR's week through this one,
- * unless it commits further.
+ * unless it commits further. A commit is the commitment that makes an end
+ * hard, so Decide asks about it once it passes.
  */
 export function writeFor(
    call: Exclude<Call, { kind: 'ongoing' }>,
@@ -510,7 +515,12 @@ export function writeFor(
    const waiting = row.item?.status === 'planned' && start > today;
    const fields: Partial<RoadmapFields> =
       call.kind === 'commit'
-         ? { status: waiting ? 'planned' : 'active', start, weeks: weeksThrough(start, call.end) }
+         ? {
+              status: waiting ? 'planned' : 'active',
+              start,
+              weeks: weeksThrough(start, call.end),
+              end_kind: 'hard',
+           }
          : { status: STATUS[call.kind] };
    if (row.item) {
       // done or dropped on a plan already marked so says it again, which
@@ -533,6 +543,11 @@ export function writeFor(
    };
 }
 
+/** Whether "It’s ongoing" on a row gives its plan under way no end, rather
+ * than marking the project ongoing: new work has no plan, and work whose
+ * plan finished goes on without one. */
+const ongoingPlan = (row: DecideRow) => !!row.item && isUnderWay(row.item.status);
+
 /**
  * What a call decided and what happens next, by decide.ts's rules: a plan
  * comes back when it runs past its end, parked work when its PRs move, and
@@ -551,7 +566,9 @@ export function callWords(
       case 'park':
          return 'Parked, so it stops counting in the weeks ahead. Decide asks again if its PRs move.';
       case 'ongoing':
-         return 'Marked ongoing, so Decide stops asking it for a plan or an end.';
+         return ongoingPlan(row)
+            ? 'Marked ongoing, with no end, so Decide never asks about one.'
+            : 'Marked ongoing, so Decide stops asking it for a plan or an end.';
       case 'done':
       case 'drop': {
          const did = call.kind === 'done' ? 'Marked done' : 'Dropped';
@@ -747,7 +764,10 @@ function makeCall(
       async () => {
          let id: number | null = null;
          let why: string | null = null;
-         if (call.kind === 'ongoing') {
+         if (call.kind === 'ongoing' && row.item && ongoingPlan(row)) {
+            if (await updateRoadmapItem(row.item.id, { end_kind: 'ongoing' })) id = row.item.id;
+            else why = takeProblem();
+         } else if (call.kind === 'ongoing') {
             const saved = await setOngoing(row.slug as string, true);
             if ('error' in saved) why = whyNot(saved.error);
          } else {
@@ -770,8 +790,8 @@ function makeCall(
    );
 }
 
-/** Take a call back: the plan as it was, the new plan gone, or the project
- * no longer ongoing. */
+/** Take a call back: the plan as it was (its end's kind too), the new plan
+ * gone, or the project no longer ongoing. */
 function undoCall(key: string, batch?: { after: Promise<unknown> }): Promise<unknown> {
    const made = calls.get().made.get(key);
    if (!made) return Promise.resolve();
@@ -785,7 +805,7 @@ function undoCall(key: string, batch?: { after: Promise<unknown> }): Promise<unk
          if (!saved) return;
          let why: string | null = null;
          const was = made.row.item;
-         if (made.call.kind === 'ongoing') {
+         if (made.call.kind === 'ongoing' && !ongoingPlan(made.row)) {
             const r = await setOngoing(made.row.slug as string, false);
             if ('error' in r) why = whyNot(r.error);
          } else if (was) {
@@ -793,6 +813,7 @@ function undoCall(key: string, batch?: { after: Promise<unknown> }): Promise<unk
                status: was.status,
                start: was.start,
                weeks: was.weeks,
+               end_kind: was.end_kind,
                origin: was.origin,
             };
             // with the times the call replaced, so the plan reads as never
@@ -1109,10 +1130,14 @@ function CallStrip({
 }) {
    const day = dayOf(new Date());
    const answer = answerOf(row, project, day);
-   // ongoing answers new work, and finished work that keeps going
+   // ongoing answers new work, finished work that keeps going, and any plan
+   // under way that has an end: upkeep one click from its end
    const ongoing =
-      !!row.slug &&
-      row.reasons.some(r => r.kind === 'new' || (r.kind === 'reopened' && r.by === 'roadmap'));
+      (!!row.slug &&
+         row.reasons.some(
+            r => r.kind === 'new' || (r.kind === 'reopened' && r.by === 'roadmap')
+         )) ||
+      (ongoingPlan(row) && row.item?.end_kind !== 'ongoing');
    const dates: Option[] = endsFor(row, project, day).map(c => ({
       call: { kind: 'commit', ...c },
       label: c.label,
@@ -1455,6 +1480,12 @@ function DecideRowView({
                      Or add issues for those PRs
                   </TextButton>
                </>
+            )}
+            {/* "Done?" checked against what the plan said done looks like */}
+            {item?.done_when && askOf(primary).call === 'done' && (
+               <span className="block">
+                  <span className="text-ink-3">{DONE_WHEN}:</span> {item.done_when}
+               </span>
             )}
          </p>
          {row.reasons
@@ -2205,7 +2236,7 @@ function FilledInSection({
                   <Fold
                      count={found.vouched.length}
                      label="No update needed"
-                     gloss="Plans whose PRs merged lately, inside their end and their issues’ pace, so their leads owe no update this week"
+                     gloss="Plans whose PRs merged lately with no pile of open PRs growing or aging behind them, inside their issues’ pace and any hard end, so their leads owe no update this week"
                      id="decide:filled:vouched"
                   >
                      <ul className="m-0 list-none p-0 text-[13px] text-ink-2">

@@ -18,6 +18,9 @@ const plan = (id: number, over: Partial<RoadmapItem>): RoadmapItem => ({
    origin: null,
    start: '2026-09-14',
    weeks: 4,
+   // a commitment, the end these tests ask about
+   end_kind: 'hard',
+   done_when: '',
    priority: id,
    notes: '',
    waits_on: [],
@@ -95,6 +98,19 @@ describe('loadByWeek', () => {
          offPlan: 2,
          projected: true,
       });
+   });
+
+   it('counts ongoing work in every week from its start, with no end to stop at', () => {
+      const ahead = loadByWeek({
+         weeks: ['2027-03-01'],
+         today,
+         plans: [
+            plan(1, { project: 'a', status: 'active', start: '2026-08-03', end_kind: 'ongoing' }),
+            plan(2, { status: 'active', start: '2026-08-03', end_kind: 'ongoing' }),
+         ],
+         spans: [{ slug: 'a', start: '2026-08-03', end: '2026-09-20' }],
+      });
+      expect(ahead[0].onPlan).toBe(2);
    });
 
    it('drops parked and finished work from the weeks ahead', () => {

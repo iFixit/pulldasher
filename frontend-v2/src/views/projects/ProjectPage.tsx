@@ -39,6 +39,7 @@ import {
 import {
    BEING_WORKED_ON,
    days,
+   DONE_WHEN,
    LAST_14_DAYS,
    NO_PLAN,
    NO_UPDATE_YET,
@@ -58,6 +59,7 @@ import {
 } from './parts';
 import {
    PLAN_STATUS_WORD,
+   planWarnings,
    planWords,
    UpdatesPanel,
    vouchRule,
@@ -336,6 +338,9 @@ export function ProjectPage({
          !!row.slug &&
          row.reasons.some(r => r.kind === 'new' || (r.kind === 'reopened' && r.by === 'roadmap'))
    );
+   // while a plan is under way, its end says whether the work ends (the
+   // Plan line's calls offer "It’s ongoing"), so the head has no box of its own
+   const planUnderWay = !!plan && isUnderWay(plan.status);
    // what the board knows of each PR: open ones live on the board (in any
    // project, or none), and the last two weeks' merges
    const liveIndex = new Map(
@@ -566,8 +571,17 @@ export function ProjectPage({
    // there's nothing honest to run a pace on, so the target stands alone.
    // Past a missed target, "after the target" goes without saying.
    const forecast =
-      !ongoing && !finished && page?.issues.length
+      !ongoing && plan?.end_kind !== 'ongoing' && !finished && page?.issues.length
          ? issueForecast(page.issues, missed ? null : due)
+         : null;
+   // a soft end run past is drift, said quietly in the Plan line's sentence;
+   // a hard one is Decide's question above
+   const drift =
+      plan?.end_kind === 'soft' && plans
+         ? planWarnings(plan, plans, dayOf(new Date()), {
+              live: item?.status === 'live',
+              target: item?.target ?? null,
+           }).over
          : null;
    const lastActivity = item?.lastActivity ?? null;
    const counts = page?.counts;
@@ -633,7 +647,7 @@ export function ProjectPage({
                   ongoing={ongoing}
                   lead={item}
                   links={{ navigate, nameOf, parts }}
-                  onOngoing={decideOffersOngoing ? undefined : markOngoing}
+                  onOngoing={decideOffersOngoing || planUnderWay ? undefined : markOngoing}
                   ongoingByLabel={byLabel}
                   inline
                />
@@ -727,6 +741,7 @@ export function ProjectPage({
                         {PLAN_STATUS_WORD[plan.status] === standing
                            ? upper(planWords(plan))
                            : `${PLAN_STATUS_WORD[plan.status]}, ${planWords(plan)}`}
+                        {drift && `, ${drift.text}`}
                      </FactLink>
                   ) : (
                      NO_PLAN
@@ -743,6 +758,12 @@ export function ProjectPage({
                   />
                )}
             </dd>
+            {plan?.done_when && (
+               <>
+                  <dt className="text-xs leading-5 text-ink-3">{DONE_WHEN}</dt>
+                  <dd className="m-0 max-w-[70ch] text-ink-2">{plan.done_when}</dd>
+               </>
+            )}
             {/* when it's meant to finish, and when its issues say it will;
                 facts, so ink, whatever they say. How the forecast is worked
                 out is behind its words, as a sub-line's story is. */}

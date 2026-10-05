@@ -28,6 +28,8 @@ import {
    blockersOf,
    bucketOf,
    checkRoadmapFields,
+   DONE_WHEN_MAX,
+   END_KINDS,
    HEALTH_WORD,
    healthStanding,
    isStopped,
@@ -39,6 +41,7 @@ import {
    ORIGIN_WORD,
    planEnd,
    ROADMAP_STATUSES,
+   type EndKind,
    type RoadmapFields,
    type RoadmapItem,
    type RoadmapStatus,
@@ -101,6 +104,10 @@ import {
    andList,
    BEING_WORKED_ON,
    COMMIT_THROUGH,
+   DONE_WHEN,
+   END_IN_A_SENTENCE,
+   END_MEANS,
+   END_WORD,
    NO_UPDATE_YET,
    targetOn,
    UPDATE_DUE,
@@ -160,7 +167,11 @@ const trackedBy = (linked: PortfolioItem | undefined): Tracked | null =>
    linked ? { live: linked.status === 'live', target: linked.target } : null;
 
 /** How each plan's bar reads: an outline before work starts, a fill once it
- * has, green when it's done, faint when it was dropped. */
+ * has, green when it's done, faint when it was dropped. How firm its end is
+ * is the bar's right end: a hard end is a crisp edge, a soft end (an
+ * estimate) fades out over its last stretch (SOFT_END), and ongoing work runs
+ * on to the edge of the weeks shown, square there like any bar the view cuts
+ * off. Dashes stay the mark of a project with no plan. */
 const BAR_STYLE: Record<RoadmapStatus, { background: string; borderColor: string }> = {
    planned: { background: 'var(--brand-50)', borderColor: 'var(--brand)' },
    active: {
@@ -180,6 +191,13 @@ const BAR_STYLE: Record<RoadmapStatus, { background: string; borderColor: string
       borderColor: 'color-mix(in oklab, var(--ink-3) 55%, transparent)',
    },
 };
+
+/** A soft end, drawn as one: the bar's fill and edges fade out over its
+ * last stretch (at most two fifths of a short bar, so it still reads as a
+ * bar), so its end reads as roughly there. On the bar's own layer, so its
+ * words and its resize edge stay solid. */
+const SOFT_FADE = 'linear-gradient(to right, #000 calc(100% - min(1.25rem, 40%)), transparent)';
+const SOFT_END = { maskImage: SOFT_FADE, WebkitMaskImage: SOFT_FADE };
 
 const weekWords = dayWords;
 
@@ -247,6 +265,8 @@ const FIELD_WORD: Record<keyof RoadmapFields, string> = {
    origin: 'where it came from',
    start: 'its dates',
    weeks: 'its dates',
+   end_kind: 'its end',
+   done_when: 'when it’s done',
    notes: 'its notes',
    waits_on: 'what it waits on',
 };
@@ -263,6 +283,11 @@ export function savedWords(was: RoadmapItem, changed: Partial<RoadmapFields>): s
    if (moved) return moved;
    if (keys.length === 1 && changed.status) {
       return `Marked ${now.name} ${STATUS_WORD[changed.status].toLowerCase()}`;
+   }
+   if (keys.length === 1 && changed.end_kind) {
+      return changed.end_kind === 'ongoing'
+         ? `${now.name} is now ongoing`
+         : `${now.name} now has ${END_IN_A_SENTENCE[changed.end_kind]}`;
    }
    return `Saved ${now.name}: changed ${andList([...new Set(keys.map(k => FIELD_WORD[k]))])}`;
 }
@@ -367,7 +392,7 @@ function Editor({
    people: string[];
    today: string;
    /** the field that takes the focus as it opens */
-   focus?: 'name' | 'notes' | 'project';
+   focus?: 'name' | 'notes' | 'project' | 'done_when';
    /** kept true while it holds changes not saved, so the roadmap won't close it */
    dirty?: MutableRefObject<boolean>;
    /** closed: saved or cancelled */
@@ -390,6 +415,8 @@ function Editor({
               origin: item.origin,
               start: item.start,
               weeks: item.weeks,
+              end_kind: item.end_kind,
+              done_when: item.done_when,
               notes: item.notes,
               waits_on: item.waits_on,
            }
@@ -402,6 +429,9 @@ function Editor({
               origin: null,
               start: addWeeks(mondayOf(utcDay(Date.now() / 1000)), 1),
               weeks: 4,
+              // an estimate until someone commits to it
+              end_kind: 'soft',
+              done_when: '',
               notes: '',
               waits_on: [],
            }
@@ -417,9 +447,17 @@ function Editor({
    const statusRef = useRef<HTMLSpanElement>(null);
    const notesRef = useRef<HTMLTextAreaElement>(null);
    const projectRef = useRef<HTMLSelectElement>(null);
+   const doneRef = useRef<HTMLInputElement>(null);
    useEffect(() => {
       // the roadmap scrolls the open editor into view, clear of its headers
-      const at = focus === 'notes' ? notesRef : focus === 'project' ? projectRef : nameRef;
+      const at =
+         focus === 'notes'
+            ? notesRef
+            : focus === 'project'
+            ? projectRef
+            : focus === 'done_when'
+            ? doneRef
+            : nameRef;
       at.current?.focus({ preventScroll: true });
    }, []);
    const set = (patch: Partial<RoadmapFields>) => setDraft(d => ({ ...d, ...patch }));
@@ -552,25 +590,33 @@ function Editor({
                         </optgroup>
                      ))}
                   </select>
-                  for
-                  <input
-                     type="number"
-                     min={1}
-                     max={MAX_WEEKS}
-                     aria-label="Length in weeks"
-                     className={`w-16 ${inputClass}`}
-                     value={draft.weeks}
-                     onChange={e => set({ weeks: Number(e.target.value) })}
-                  />
-                  {/* the end kept with its word: the gap would part them */}
-                  <span>
-                     {draft.weeks === 1 ? 'week' : 'weeks'}
-                     <span className="text-ink-3" aria-live="polite">
-                        {runs
-                           ? `, to ${weekWords(planEnd(draft))}`
-                           : `: a plan runs 1 to ${MAX_WEEKS} weeks`}
-                     </span>
-                  </span>
+                  {/* ongoing work has no length; its weeks wait, kept, for
+                      when it gets an end again */}
+                  {draft.end_kind === 'ongoing' ? (
+                     <span className="text-ink-3">with no end</span>
+                  ) : (
+                     <>
+                        for
+                        <input
+                           type="number"
+                           min={1}
+                           max={MAX_WEEKS}
+                           aria-label="Length in weeks"
+                           className={`w-16 ${inputClass}`}
+                           value={draft.weeks}
+                           onChange={e => set({ weeks: Number(e.target.value) })}
+                        />
+                        {/* the end kept with its word: the gap would part them */}
+                        <span>
+                           {draft.weeks === 1 ? 'week' : 'weeks'}
+                           <span className="text-ink-3" aria-live="polite">
+                              {runs
+                                 ? `, to ${weekWords(planEnd(draft))}`
+                                 : `: a plan runs 1 to ${MAX_WEEKS} weeks`}
+                           </span>
+                        </span>
+                     </>
+                  )}
                </span>
                {ends.length > 0 && (
                   <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-ink-3">
@@ -579,7 +625,8 @@ function Editor({
                         {ends.map((c, i) => {
                            const weeks = weeksThrough(draft.start, c.end);
                            const props = {
-                              onClick: () => set({ weeks }),
+                              // the word is a commitment: it makes the end hard
+                              onClick: () => set({ weeks, end_kind: 'hard' }),
                               'aria-label': `${COMMIT_THROUGH} ${c.through}`,
                               title: planWords({ start: draft.start, weeks }),
                            };
@@ -599,6 +646,36 @@ function Editor({
                   </span>
                )}
             </div>
+            {/* how firm the end is, said beside the choice */}
+            {label('Ends')}
+            <div className="flex flex-col gap-1">
+               <span>
+                  <Segmented
+                     ariaLabel="how firm its end is"
+                     value={draft.end_kind}
+                     options={END_KINDS.map(k => [k, END_WORD[k]])}
+                     onChange={end_kind => set({ end_kind })}
+                  />
+               </span>
+               <span className="text-xs text-ink-3" aria-live="polite">
+                  {END_MEANS[draft.end_kind]}
+               </span>
+            </div>
+            {/* upkeep is never done, so it has no line for it */}
+            {draft.end_kind !== 'ongoing' && (
+               <>
+                  {label(DONE_WHEN, 'done_when')}
+                  <input
+                     id={`${id}-done_when`}
+                     ref={doneRef}
+                     className={`w-full max-w-xl ${inputClass}`}
+                     value={draft.done_when}
+                     maxLength={DONE_WHEN_MAX}
+                     onChange={e => set({ done_when: e.target.value })}
+                     placeholder="What finished looks like, in a line"
+                  />
+               </>
+            )}
             {more && (
                <>
                   {label('Status')}
@@ -781,7 +858,7 @@ function PlanPanel({
    dirty: MutableRefObject<boolean>;
    onUpdates: (open: boolean) => void;
    /** its fields, with the focus on one */
-   onEdit: (focus?: 'notes' | 'project') => void;
+   onEdit: (focus?: 'notes' | 'project' | 'done_when') => void;
    onRemove: () => Promise<unknown>;
    onClose: () => void;
    onPerson: (login: string) => void;
@@ -854,6 +931,20 @@ function PlanPanel({
                   describedBy={asked ? `roadmap-words-${item.id}` : undefined}
                />
             </dd>
+            {/* what finished looks like, so "Done?" has something to check;
+                upkeep is never done, so it isn't asked for there */}
+            {(item.done_when || item.end_kind !== 'ongoing') && (
+               <>
+                  <dt className={term}>{DONE_WHEN}</dt>
+                  <dd className="m-0 max-w-[70ch] text-ink-2">
+                     {item.done_when || (
+                        <TextButton onClick={() => onEdit('done_when')}>
+                           Say when it’s done
+                        </TextButton>
+                     )}
+                  </dd>
+               </>
+            )}
             {(u || isUnderWay(item.status)) && (
                <>
                   <dt className={term}>Update</dt>
@@ -942,6 +1033,8 @@ function PlanPanel({
                            </FactLink>
                            {isStopped(b.status)
                               ? `, which was ${b.status}`
+                              : b.end_kind === 'ongoing'
+                              ? ', which is ongoing, with no end'
                               : `, which ends ${weekWords(planEnd(b))}${
                                    clash ? ', after this starts' : ''
                                 }`}
@@ -1120,9 +1213,11 @@ const OVER_STYLE = {
  * with the bar focused the arrow keys do the same (Shift changes the
  * length). Every mark on the track says what it is: a plan still in flight
  * past its end grows a piece labeled "+3 wk over" up to today, fading on
- * after it since nothing says when it ends, and its milestone is a flag with
- * its date. A bar the view cuts off is square at the cut, so it reads as
- * going on. A call Decide asks about the plan is its one amber mark.
+ * after it since nothing says when it ends (in ink past a soft end, which
+ * nothing asks about), and its milestone is a flag with its date. A bar the
+ * view cuts off is square at the cut, so it reads as going on, which is how
+ * ongoing work, with no end and no length to drag, always runs. A call
+ * Decide asks about the plan is its one amber mark.
  */
 function PlanRow({
    item,
@@ -1175,15 +1270,17 @@ function PlanRow({
    const [preview, setPreview] = useState<Span | null>(null);
    const { horizon, at: place } = axis;
    const plan = preview ?? { start: item.start, weeks: item.weeks };
+   const ongoing = item.end_kind === 'ongoing';
    const end = planEnd(plan);
    const left = place(plan.start);
-   const right = place(addWeeks(plan.start, plan.weeks));
+   // ongoing work runs on past the weeks shown
+   const right = ongoing ? 100 : place(addWeeks(plan.start, plan.weeks));
    // the same warnings, in the same words, as now, next and later
    const w = planWarnings(item, all, today, trackedBy(linked), undefined, call);
    const project = item.project;
    // cut off by the weeks shown: square at the cut, so it reads as going on
    const cutLeft = plan.start < horizon.start;
-   const cutRight = addWeeks(plan.start, plan.weeks) > horizon.end;
+   const cutRight = ongoing || addWeeks(plan.start, plan.weeks) > horizon.end;
    // past its end, the bar runs on to today, then fades
    const now = place(today);
    const overWidth = w.over ? now - right : 0;
@@ -1244,6 +1341,8 @@ function PlanRow({
    };
    const keys = (e: KeyboardEvent) => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      // ongoing work has no length to change
+      if (e.shiftKey && ongoing) return;
       e.preventDefault();
       const step = e.key === 'ArrowRight' ? 1 : -1;
       commit(
@@ -1279,9 +1378,13 @@ function PlanRow({
          </FactLink>
       ),
    ];
-   const span = `${weekWords(plan.start)} to ${weekWords(end)}`;
-   // the bar says its status by its form; in words for a hover and a reader
-   const facts = `${STATUS_WORD[item.status]}, ${span}, ${n(plan.weeks, 'week')}`;
+   const span = ongoing
+      ? `from ${weekWords(plan.start)}`
+      : `${weekWords(plan.start)} to ${weekWords(end)}`;
+   // the bar says its status and its end by its form; in words for a hover
+   // and a reader
+   const facts = `${STATUS_WORD[item.status]}, ${planWords({ ...plan, end_kind: item.end_kind })}`;
+   const length = ongoing ? END_IN_A_SENTENCE.ongoing : `${plan.weeks} wk`;
    const barText = 'text-[11px] leading-[14px] font-medium whitespace-nowrap tabular-nums';
    const name =
       'hit pressable min-w-0 rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium break-words text-ink hover:text-brand';
@@ -1348,8 +1451,16 @@ function PlanRow({
                      type="button"
                      id={`roadmap-bar-${item.id}`}
                      aria-expanded={open}
-                     aria-label={`${item.name}: ${facts}. Enter opens its plan; the left and right arrows move it a week, and with Shift they change its length.`}
-                     title={`${facts}. Click to open its plan; drag to move it, or drag its right edge to change its length. Escape cancels a drag.`}
+                     aria-label={`${
+                        item.name
+                     }: ${facts}. Enter opens its plan; the left and right arrows move it a week${
+                        ongoing ? '' : ', and with Shift they change its length'
+                     }.`}
+                     title={`${facts}. ${
+                        END_MEANS[item.end_kind]
+                     } Click to open its plan; drag to move it${
+                        ongoing ? '' : ', or drag its right edge to change its length'
+                     }. Escape cancels a drag.`}
                      onPointerDown={e => grab(e, 'move')}
                      onClick={() => {
                         if (!dragged.current) onOpen();
@@ -1357,43 +1468,54 @@ function PlanRow({
                      onKeyDown={keys}
                      // .hit takes the 16px bar to a 24px target, so the words
                      // inside clip themselves rather than the bar clipping it
-                     className={`group/bar hit @container absolute top-1.5 h-4 cursor-grab touch-none border-y p-0 text-left active:cursor-grabbing ${
-                        cutLeft ? '' : 'rounded-l-md border-l'
-                     } ${cutRight ? '' : 'rounded-r-md border-r'}`}
-                     style={{
-                        left: `${left}%`,
-                        width: `max(${right - left}%, 6px)`,
-                        ...BAR_STYLE[item.status],
-                     }}
+                     className={`group/bar hit @container absolute top-1.5 h-4 cursor-grab touch-none border-y border-transparent p-0 text-left active:cursor-grabbing ${
+                        cutLeft ? '' : 'rounded-l-md'
+                     } ${cutRight ? '' : 'rounded-r-md'}`}
+                     style={{ left: `${left}%`, width: `max(${right - left}%, 6px)` }}
                   >
+                     {/* the bar's own layer, under its words: its form says
+                         its status, and a soft end fades out */}
+                     <span
+                        aria-hidden
+                        className={`pointer-events-none absolute inset-x-0 -inset-y-px border-y ${
+                           cutLeft ? '' : 'rounded-l-md border-l'
+                        } ${cutRight ? '' : 'rounded-r-md border-r'}`}
+                        style={{
+                           ...BAR_STYLE[item.status],
+                           ...(item.end_kind === 'soft' && !cutRight ? SOFT_END : {}),
+                        }}
+                     />
                      {/* the weeks, when the bar has room; the dates too, when it has more */}
-                     <span aria-hidden className="block overflow-hidden">
+                     <span aria-hidden className="relative block overflow-hidden">
                         <span
                            className={`hidden px-1.5 ${barText} @min-[3.25rem]:block @min-[10.5rem]:hidden`}
                            style={{ color: BAR_TEXT[item.status] }}
                         >
-                           {plan.weeks} wk
+                           {length}
                         </span>
                         <span
                            className={`hidden px-1.5 ${barText} @min-[10.5rem]:block`}
                            style={{ color: BAR_TEXT[item.status] }}
                         >
-                           {span} · {plan.weeks} wk
+                           {span}
+                           {ongoing ? `, ${length}` : ` · ${length}`}
                         </span>
                      </span>
                      {/* the edge that changes the length, shown on hover and
                          focus so the bar says it can; above the bar's own
-                         widened target */}
-                     <span
-                        aria-hidden
-                        onPointerDown={e => grab(e, 'resize')}
-                        className="absolute inset-y-0 right-0 z-[1] flex w-2 cursor-ew-resize items-center justify-center opacity-0 transition-opacity duration-150 group-hover/bar:opacity-100 group-focus-visible/bar:opacity-100 motion-reduce:transition-none"
-                     >
+                         widened target. Ongoing work has no length. */}
+                     {!ongoing && (
                         <span
-                           className="h-2.5 w-0.5 rounded-full"
-                           style={{ background: BAR_STYLE[item.status].borderColor }}
-                        />
-                     </span>
+                           aria-hidden
+                           onPointerDown={e => grab(e, 'resize')}
+                           className="absolute inset-y-0 right-0 z-[1] flex w-2 cursor-ew-resize items-center justify-center opacity-0 transition-opacity duration-150 group-hover/bar:opacity-100 group-focus-visible/bar:opacity-100 motion-reduce:transition-none"
+                        >
+                           <span
+                              className="h-2.5 w-0.5 rounded-full"
+                              style={{ background: BAR_STYLE[item.status].borderColor }}
+                           />
+                        </span>
+                     )}
                   </button>
                ) : (
                   !(w.over && overWidth > 0) && (
@@ -1484,7 +1606,7 @@ function PlanRow({
                      className="pointer-events-none absolute -top-3.5 z-[1] rounded bg-surface px-1 text-[11px] whitespace-nowrap text-ink-2 shadow-sm tabular-nums"
                      style={{ left: `${left}%` }}
                   >
-                     {span} · {n(plan.weeks, 'week')}
+                     {ongoing ? `${span}, ${length}` : `${span} · ${n(plan.weeks, 'week')}`}
                   </span>
                )}
             </span>
@@ -2016,7 +2138,7 @@ export function Roadmap({
    // by, or on its fields once Edit details opens them
    const editing = nav.item;
    const [panel, setPanel] = useState<'plan' | 'updates' | 'edit'>('plan');
-   const [editFocus, setEditFocus] = useState<'name' | 'notes' | 'project'>('name');
+   const [editFocus, setEditFocus] = useState<'name' | 'notes' | 'project' | 'done_when'>('name');
    // whether the open details take the focus to their calls: yes from a
    // door, no on the way back from their fields
    const [focusCalls, setFocusCalls] = useState(true);
@@ -2512,7 +2634,7 @@ export function Roadmap({
       if (field && dayStart(field) != null) return { day: mondayOf(field), from: 'field' };
       return { day: mondayOf((p.group && firstOpenDay(p.group)) || today), from: 'prs' };
    };
-   const planProject = (p: PortfolioItem, span: Span) => {
+   const planProject = (p: PortfolioItem, span: Span, end_kind: EndKind) => {
       setChoosing(null);
       if (planning.current.has(p.slug)) return;
       planning.current.add(p.slug);
@@ -2527,13 +2649,14 @@ export function Roadmap({
          // it has PRs in flight, so it's under way once its weeks have come
          status: span.start <= today ? 'active' : 'planned',
          ...span,
+         end_kind,
       }).then(made => {
          planning.current.delete(p.slug);
          setSaving(new Set(planning.current));
          if (!made) return fail(key);
          say({
             key,
-            words: `Planned ${p.name}: ${planWords(span)}`,
+            words: `Planned ${p.name}: ${planWords({ ...span, end_kind })}`,
             open: made.id,
             project: p,
             undo: () => {
@@ -2713,7 +2836,8 @@ export function Roadmap({
                         choosing={choosing === p.slug}
                         saving={saving.has(p.slug)}
                         onChoose={() => setChoosing(choosing === p.slug ? null : p.slug)}
-                        onPlan={span => planProject(p, span)}
+                        // a drag across weeks sketches an estimate
+                        onPlan={span => planProject(p, span, 'soft')}
                         onOpen={() => navigate({ project: p.slug })}
                         onPerson={person}
                      />
@@ -2722,7 +2846,8 @@ export function Roadmap({
                            item={p}
                            today={today}
                            start={runStart(p)}
-                           onPlan={span => planProject(p, span)}
+                           // "Commit through" is a commitment, as on Decide
+                           onPlan={span => planProject(p, span, 'hard')}
                            onClose={() => {
                               refocus.current = [`roadmap-plus-${p.slug}`];
                               setChoosing(null);

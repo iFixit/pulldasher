@@ -3,7 +3,12 @@ import projectsController from './projects.js';
 import roadmapController, { canWrite } from './roadmap.js';
 import settingsController from './settings.js';
 import {
+   DONE_WHEN_MAX,
+   END_KINDS,
    MAX_WEEKS,
+   PILE_AGE_DAYS,
+   PILE_GROWTH,
+   PILE_MIN,
    ROADMAP_HEALTHS,
    ROADMAP_ORIGINS,
    ROADMAP_STATUSES,
@@ -114,8 +119,10 @@ export const API_ROUTES = [
       does:
          'The leads who owe an update, each with the plans in progress they have not updated for ' +
          `${UPDATE_DUE_DAYS} days, longest overdue first: what a reminder would send each of them. ` +
-         `A plan whose PRs merged in the last ${UPDATE_DUE_DAYS} days, inside its end and its issues' pace, ` +
-         'owes none, unless its last update said at risk or off track',
+         `A plan whose PRs merged in the last ${UPDATE_DUE_DAYS} days, inside its issues' pace and, for a hard ` +
+         'end, inside its end, owes none, unless its last update said at risk or off track, or its open PRs ' +
+         `pile up: ${PILE_MIN} or more that grew by ${PILE_GROWTH} in ${UPDATE_DUE_DAYS} days, or whose median ` +
+         `age passed ${PILE_AGE_DAYS} days`,
    },
    {
       method: 'get',
@@ -140,7 +147,8 @@ export const API_ROUTES = [
       handlers: [roadmapController.list],
       does:
          'Every roadmap item in priority order (top first), each with its latest update and `lately` ' +
-         '(read only): PRs merged in the last 14 days, open PRs by stage, newest PR activity, its issues’ pace. ' +
+         '(read only): PRs merged in the last 14 days, open PRs by stage, how many more are open than 14 days ' +
+         'ago (`grew`) and their median age in days (`medianAge`), newest PR activity, its issues’ pace. ' +
          'What the board reads off them: `in_progress` (marked so, or planned with PRs moving since its ' +
          'start, which the board shows as In progress) and `standing`, where its updates stand: `owed` ' +
          '(its lead owes one), `vouched` (none owed: its PRs vouch for it), `current` (its latest stands), ' +
@@ -151,7 +159,8 @@ export const API_ROUTES = [
       path: '/api/v1/roadmap',
       handlers: [canWrite, roadmapController.create],
       does:
-         'Add an item at the bottom: {name, project?, team?, lead?, status?, origin?, start?, weeks?, notes?, waits_on?}. ' +
+         'Add an item at the bottom: {name, project?, team?, lead?, status?, origin?, start?, weeks?, end_kind?, ' +
+         'done_when?, notes?, waits_on?}; no end_kind means soft. ' +
          'For a project, no start means its issue’s Start date, and its issue’s Priority places it above the first ' +
          'plan under way whose issue says lower',
    },
@@ -247,6 +256,14 @@ export function apiIndex(req, res) {
          },
          start: 'YYYY-MM-DD; moved to its Monday',
          weeks: `a whole number, 1 to ${MAX_WEEKS}`,
+         end_kind: {
+            values: END_KINDS,
+            means:
+               'how firm its end is: hard, a commitment Decide asks about once it passes; soft, an ' +
+               'estimate shown on the roadmap and never asked about (the default); ongoing, upkeep with ' +
+               'no end, whatever its weeks say',
+         },
+         done_when: `one line on what finished looks like, up to ${DONE_WHEN_MAX} characters; line breaks become spaces`,
          notes: 'up to 2000 characters',
          waits_on: `ids of other items this one waits on, at most ${WAITS_ON_MAX}, never a loop`,
       },
@@ -258,8 +275,8 @@ export function apiIndex(req, res) {
          reasons: {
             new: `in flight with ${DECIDE_MIN_PRS} or more PRs (open, or merged in the last 14 days) and never a roadmap item; since = its first open PR’s day`,
             stalled: `open PRs with no activity for ${STALL_DAYS} days or more, and no call since`,
-            over: 'a plan under way ended `weeks` ago and its project still has PRs open',
-            ended: 'a plan under way ended `weeks` ago with no PRs open: probably done',
+            over: 'a plan under way with a hard end ended `weeks` ago and its project still has PRs open',
+            ended: 'a plan under way with a hard end ended `weeks` ago with no PRs open: probably done',
             missed:
                'its target date `due` passed with `open` PRs open, and the plan hasn’t changed since',
             off_track: 'its latest update says off track, and the plan hasn’t changed since',
@@ -274,7 +291,8 @@ export function apiIndex(req, res) {
          },
          to_clear:
             'Make the call as a roadmap write. With no item: POST /api/v1/roadmap {name, project, status, ' +
-            'start, weeks}. With one: PATCH /api/v1/roadmap/:id with {status: "active", weeks} to commit, ' +
+            'start, weeks, end_kind: "hard"}. With one: PATCH /api/v1/roadmap/:id with {status: "active", weeks, ' +
+            'end_kind: "hard"} to commit, {end_kind: "ongoing"} for upkeep with no end, ' +
             '{status: "parked"}, {status: "done"}, or {status: "dropped"}. Any PATCH to an item counts as ' +
             `a decision, and quiets a stall for ${STALL_DAYS} days.`,
       },

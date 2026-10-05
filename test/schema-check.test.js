@@ -31,6 +31,14 @@ test('names each missing migration once, oldest first', async () => {
    mock.restoreAll();
 });
 
+test('names the migration that gives plans their end kind until it’s in', async () => {
+   mock.method(db, 'query', async () =>
+      all.filter(r => !(r.t === 'roadmap_items' && r.c === 'end_kind'))
+   );
+   assert.deepEqual(await missingMigrations(), ['0032-roadmap-items--add-end-kind-done-when.sql']);
+   mock.restoreAll();
+});
+
 test('every migration the check names is a file bin/migrate-missing can run', () => {
    for (const { file } of MIGRATIONS) {
       assert.ok(existsSync(new URL(`../migrations/${file}`, import.meta.url)), file);

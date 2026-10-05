@@ -13,6 +13,7 @@ import {
    moveWords,
    planCellWords,
    planWarnings,
+   planWords,
    restWords,
    stepWithin,
    waitsWords,
@@ -34,6 +35,9 @@ const item = (id: number, over: Partial<RoadmapItem> = {}): RoadmapItem => ({
    origin: null,
    start: '2026-09-07',
    weeks: 4,
+   // a commitment, the end these tests ask about
+   end_kind: 'hard',
+   done_when: '',
    priority: id,
    notes: '',
    waits_on: [],
@@ -59,6 +63,8 @@ const LATELY = {
    open: { ready: 0, hold: 0, review: 1, work: 0 },
    activityAt: NOW - 3600,
    issues: null,
+   grew: 0,
+   medianAge: 4,
 };
 /** the pieces said in amber, across all of a plan's words */
 const amber = (w: PlanWarnings) =>
@@ -102,6 +108,8 @@ describe('amber means someone owes something', () => {
          open: { ready: 0, hold: 0, review: 1, work: 0 },
          activityAt: NOW - 3600,
          issues: null,
+         grew: 0,
+         medianAge: 4,
       };
       // Sep 7 for 8 weeks: inside its Nov 1 end
       const going = (u: RoadmapUpdate | null) =>
@@ -115,6 +123,28 @@ describe('amber means someone owes something', () => {
       expect(old.health?.text).toMatch(/^On track as of .+ · no update needed$/);
       expect(old.health?.title).toMatch(/2 PRs merged in the last 14 days/);
       expect(amber(old)).toEqual([]);
+   });
+
+   it('says when a merge stops vouching, in its hover', () => {
+      const vouched = healthWords(
+         healthStanding(item(1, { update: null, weeks: 8, lately: LATELY }), NOW)
+      );
+      expect(vouched?.title).toMatch(
+         /A merge stops vouching once 3 or more PRs are open and they grew by 3 or more in 14 days, or their median age passed 30 days\./
+      );
+      // a hard end is the only one the numbers have to keep inside
+      expect(vouched?.title).toMatch(/it isn’t past its end/);
+      const soft = healthWords(
+         healthStanding(item(1, { update: null, weeks: 8, end_kind: 'soft', lately: LATELY }), NOW)
+      );
+      expect(soft?.title).not.toMatch(/past its end/);
+   });
+
+   it('says a plan with how firm its end is, and ongoing work from its start', () => {
+      const span = { start: '2026-09-07', weeks: 8 };
+      expect(planWords(span)).toBe('Sep 7 to Nov 1, 8 weeks');
+      expect(planWords({ ...span, end_kind: 'soft' })).toBe('Sep 7 to Nov 1, 8 weeks, a soft end');
+      expect(planWords({ ...span, end_kind: 'ongoing' })).toBe('from Sep 7, ongoing');
    });
 
    it('in the table, a stale on track reads as the update it owes', () => {
@@ -212,6 +242,18 @@ describe('one owed call, one amber mark', () => {
    it('nothing, when nothing is owed', () => {
       const w = planWarnings(item(1, { update: update(2, 'on_track') }), [], TODAY, null, NOW);
       expect(amber(w)).toEqual([]);
+   });
+
+   it('nothing for a soft end run past: it’s drift, in ink, and ongoing work has no end', () => {
+      const soft = { ...sso, end_kind: 'soft' as const, update: update(3, 'on_track') };
+      const w = planWarnings(soft, [soft], TODAY, { live: true, target: null }, NOW);
+      expect(amber(w)).toEqual([]);
+      expect(w.over?.mark).toBe('+3 wk over');
+      expect(w.over?.title).toMatch(/after its soft end, an estimate, so nothing asks about it\.$/);
+      const endless = { ...soft, end_kind: 'ongoing' as const };
+      expect(
+         planWarnings(endless, [endless], TODAY, { live: true, target: null }, NOW).over
+      ).toBeNull();
    });
 });
 
@@ -330,6 +372,14 @@ describe('a row at rest says one thing', () => {
          'Was to start Sep 21, still marked Planned'
       );
       expect(restWords(unstarted, false)?.opens).toBe('plan');
+   });
+
+   it('says drift past a soft end where no bar draws it, in ink', () => {
+      const soft = { ...late, end_kind: 'soft' as const };
+      const w = planWarnings(soft, [soft], TODAY, live, NOW);
+      expect(restWords(w, false)?.said.text).toBe('5 weeks past its end');
+      expect(restWords(w, false)?.said.pieces.some(p => p.amber)).toBe(false);
+      expect(restWords(w, true)?.said.text).toBe('On track');
    });
 
    it('lets a bar that draws its overrun say it, and says the health word instead', () => {

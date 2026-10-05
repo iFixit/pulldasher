@@ -185,6 +185,21 @@ describe('buildToday', () => {
       expect(today.quiet.map(g => g.slug)).toEqual(['old']);
    });
 
+   it('keeps the last 14 days’ PRs closed without merging apart, and never live on them', () => {
+      const closed = (labels: string[], daysAgo: number) =>
+         ({ ...merged({ labels, daysAgo }), merged_at: null } as PullData);
+      const today = buildToday(
+         [project({ slug: 'tidy' })],
+         [],
+         [closed(['project:tidy'], 3), closed(['project:tidy'], 20)],
+         P,
+         NOW
+      );
+      expect(today.live).toEqual([]);
+      expect(today.quiet[0].closed.map(p => p.closed_at)).toEqual([iso(NOW - 3 * DAY)]);
+      expect(today.quiet[0].merged).toEqual([]);
+   });
+
    it('drops a closed project whose only activity is merges, keeps one with an open PR', () => {
       const today = buildToday(
          [

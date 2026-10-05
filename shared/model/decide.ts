@@ -9,9 +9,11 @@ import type { IssueCounts } from './work';
  * - `new`: in flight with DECIDE_MIN_PRS or more PRs and never a plan;
  *   smaller work just ships
  * - `stalled`: open PRs with no activity for STALL_DAYS, and no call since
- * - `over`: a plan past its end with PRs still open (with several plans,
- *   its own PRs, by the dates: model/work.ts planWork)
- * - `ended`: a plan past its end with none open: probably done
+ * - `over`: a plan past its hard end with PRs still open (with several
+ *   plans, its own PRs, by the dates: model/work.ts planWork)
+ * - `ended`: a plan past its hard end with none open: probably done
+ *   (a soft end is an estimate, never asked about once it passes, and
+ *   ongoing work has no end: roadmap.ts EndKind)
  * - `missed`: its target date passed with PRs open, and nobody replanned
  * - `off_track` / `at_risk`: its latest update says so, and the plan hasn't
  *   changed since
@@ -239,7 +241,8 @@ export function decideQueue({
       // them now
       const several = (item.project ? plansOf.get(item.project)?.length ?? 0 : 0) > 1;
       const open = counts && several ? counts.openPulls : project?.open ?? 0;
-      if (planEnd(item) < today) {
+      // only a hard end is a commitment to ask about once it passes
+      if (item.end_kind === 'hard' && planEnd(item) < today) {
          add(item.project, item, {
             kind: open > 0 ? 'over' : 'ended',
             weeks: weeksPast(item),

@@ -1,20 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { dayStart } from '../../../shared/model/projects';
-import type { PlanLately } from '../../../shared/model/roadmap';
+import type { EndKind, PlanLately } from '../../../shared/model/roadmap';
 import { dayWords } from './projectData';
 import { draftUpdate } from './updateDraft';
 
 const DAY = 86400;
 const NOW = dayStart('2026-09-30') as number;
 // Sep 7 for 8 weeks: it ends Nov 1
-const plan = (lately: Partial<PlanLately> | null, weeks = 8) => ({
+const plan = (lately: Partial<PlanLately> | null, weeks = 8, end_kind: EndKind = 'hard') => ({
    start: '2026-09-07',
    weeks,
+   end_kind,
    lately: lately && {
       merged: 2,
       open: { ready: 1, hold: 0, review: 4, work: 3 },
       activityAt: NOW - DAY,
       issues: null,
+      grew: 0,
+      medianAge: 6,
       ...lately,
    },
 });
@@ -55,6 +58,35 @@ describe('draftUpdate', () => {
          health: 'off_track',
          body: expect.stringMatching(/It’s 2 weeks past its end, .+\.$/),
       });
+   });
+
+   it('says a soft end passed without calling it off track, and ongoing work has none', () => {
+      expect(draftUpdate(plan({}, 2, 'soft'), NOW)).toMatchObject({
+         health: 'on_track',
+         body: expect.stringMatching(/It’s 2 weeks past its soft end, .+\.$/),
+      });
+      // finishing after an estimate isn't at risk
+      const late = draftUpdate(plan({ issues: { open: 8, closed: 5, added: 1 } }, 8, 'soft'), NOW);
+      expect(late?.health).toBe('on_track');
+      expect(late?.body).toMatch(/after its .+ soft end\.$/);
+      expect(draftUpdate(plan({}, 2, 'ongoing'), NOW)?.body).toMatch(
+         /It’s ongoing, with no end\.$/
+      );
+   });
+
+   it('names the pile of open PRs a merge couldn’t vouch for', () => {
+      expect(draftUpdate(plan({ grew: 4 }), NOW)?.body).toMatch(
+         /3 in development\. That’s 4 more open than 14 days ago\. /
+      );
+      expect(draftUpdate(plan({ medianAge: 41.5 }), NOW)?.body).toMatch(
+         /Half have been open 41 days or more\. /
+      );
+      expect(draftUpdate(plan({ grew: 3, medianAge: 35 }), NOW)?.body).toMatch(
+         /That’s 3 more open than 14 days ago, and half have been open 35 days or more\. /
+      );
+      // nothing said under 3 open
+      const two = { ready: 0, hold: 0, review: 1, work: 1 };
+      expect(draftUpdate(plan({ open: two, grew: 2 }), NOW)?.body).not.toMatch(/more open/);
    });
 
    it('says its end when there’s no pace to tell by, and needs numbers to draft from', () => {

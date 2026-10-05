@@ -13,6 +13,9 @@ const plan = (id: number, over: Partial<RoadmapItem>): RoadmapItem => ({
    origin: null,
    start: '2026-09-07',
    weeks: 8,
+   // a commitment, the end these tests ask about
+   end_kind: 'hard',
+   done_when: '',
    priority: id,
    notes: '',
    waits_on: [],
@@ -91,8 +94,9 @@ describe('teamLoad', () => {
          plan(1, { name: 'Running' }),
          plan(2, { name: 'Not marked', status: 'planned' }),
          plan(3, { name: 'Ended', start: '2026-08-03', weeks: 4 }),
+         plan(4, { name: 'Upkeep', start: '2026-08-03', weeks: 4, end_kind: 'ongoing' }),
       ];
-      expect(names(plans, [])).toEqual(['Running']);
+      expect(names(plans, [])).toEqual(['Running', 'Upkeep']);
    });
 
    it('puts work with no plan after the plans, a dropped plan being none', () => {

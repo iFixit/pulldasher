@@ -149,7 +149,11 @@ export const DUMMY_PROJECTS: Project[] = FRESH
  * roadmap" list demos too. The updates show every standing: SSO approvals
  * slid from on track to off track as its plan grew, the webdriver work's
  * last update is overdue, MySQL 8 never had one, and Checkout redesign is
- * flagged at risk before it starts.
+ * flagged at risk before it starts. Every kind of end is here: plans start
+ * soft, an estimate, as prod's did; SSO approvals and Training periods were
+ * committed to (hard), SSO's passed so Decide asks "New end?"; MySQL 8 ran
+ * past its soft end, drift drawn in ink that nothing asks about; and
+ * Translations upkeep is ongoing, with no end.
  */
 export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
    if (FRESH) return { DUMMY_ROADMAP: [] as RoadmapItem[], DUMMY_ROADMAP_UPDATES: [] };
@@ -191,7 +195,7 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          16,
          'on_track',
          'evannoronha',
-         [-4, 12],
+         [-7, 5],
          'The replica runs 8.0; the primary is next.'
       ),
       update(
@@ -203,10 +207,13 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          'Security review found two gaps in the approval step. Fixing them first.'
       ),
       // on track by its lead's word, while its pace says it finishes after
-      // its October target: the forecast's amber
+      // its October target: the forecast's amber. Over two weeks old, with
+      // a merge since and no pile of PRs behind it, so its numbers vouch
+      // for it: "no update needed". The webdriver work's open PRs grew by 3
+      // in two weeks, so its merges no longer do
       update(
          10,
-         6,
+         18,
          'on_track',
          'hackalot805',
          [-6, 10],
@@ -254,6 +261,9 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
       origin: null,
       start: at(start),
       weeks,
+      // an estimate, as every plan starts
+      end_kind: 'soft',
+      done_when: '',
       priority: id - 1,
       notes: '',
       waits_on: [],
@@ -274,14 +284,19 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          // chart's words and Look back's Fires tile and bands have words
          origin: 'asked',
          notes: 'Security asked for this before the audit.',
+         // committed to, and past it: Decide's "New end?"
+         end_kind: 'hard',
+         done_when: 'Both approval paths ship and security signs off the audit',
       }),
       item(2, 'Shopify product and order sync', -4, 8, {
          project: 'shopify-sync',
          team: 'Store',
          lead: 'zdmitchell',
          status: 'active',
-         // last touched before its last issue closed, so Decide asks "Done?"
+         // last touched before its last issue closed, so Decide asks "Done?",
+         // with what done means beside it
          updated_at: Math.floor(Date.now() / 1000) - 10 * 86400,
+         done_when: 'Products and orders sync nightly for every store',
       }),
       item(3, 'Deflake the webdriver tests', -6, 12, {
          project: 'webdriver-deflake',
@@ -291,8 +306,9 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
       }),
       item(4, 'Checkout redesign', 3, 8, { team: 'Store', lead: 'jarstelfox', waits_on: [2] }),
       // its last update is 16 days old and nothing merged since, so its
-      // numbers can't vouch for it: the board's "Update due"
-      item(5, 'MySQL 8 upgrade', -4, 12, {
+      // numbers can't vouch for it: the board's "Update due". Its soft end
+      // passed two weeks ago with its PRs still open: drift, in ink
+      item(5, 'MySQL 8 upgrade', -7, 5, {
          project: 'mysql-8',
          team: 'Community',
          lead: 'evannoronha',
@@ -301,7 +317,12 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
       item(6, 'Search relevance', 7, 6, { team: 'FixBot', waits_on: [3] }),
       // marked Planned from this Monday, and its PR has moved since: it reads
       // In progress, which Decide lists as filled in on its own this week
-      item(7, 'Translations upkeep', 0, 26, { project: 'translations', team: 'Community' }),
+      // upkeep: ongoing, with no end, so it runs on past the weeks shown
+      item(7, 'Translations upkeep', 0, 26, {
+         project: 'translations',
+         team: 'Community',
+         end_kind: 'ongoing',
+      }),
       // marked done three weeks ago; its issue closed later, with a PR still
       // open, so Decide asks again (the "reopened" call, by its issue)
       item(8, 'Akeneo 4 migration', -11, 8, {
@@ -327,6 +348,9 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
          lead: 'hackalot805',
          status: 'active',
          origin: 'chosen',
+         // committed to, with its end still ahead: a crisp edge
+         end_kind: 'hard',
+         done_when: 'Leads can see and approve leave balances',
       }),
       // planned to start in two weeks: the list's "Starts" cell
       item(11, 'Newsletter promo page', 2, 4, {
@@ -368,6 +392,8 @@ export const { DUMMY_ROADMAP, DUMMY_ROADMAP_UPDATES } = (() => {
             team: teamOf(p.lead),
             lead: p.lead,
             status: 'active',
+            // a third committed to, as a Monday of Decide calls leaves them
+            end_kind: k % 3 ? 'soft' : 'hard',
          })
       );
    });

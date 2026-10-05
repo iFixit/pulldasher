@@ -1,0 +1,1 @@
+ALTER TABLE `roadmap_items` ADD COLUMN `end_kind` enum('hard','soft','ongoing') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'soft' AFTER `weeks`, ADD COLUMN `done_when` varchar(200) COLLATE utf8mb4_general_ci NOT NULL DEFAULT '' AFTER `end_kind`;

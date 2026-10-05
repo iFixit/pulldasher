@@ -1,5 +1,6 @@
-import { dayIn, dayStart, utcDay } from './projects';
-import type { PrStage } from './stage';
+import { epoch } from '../format';
+import { dayIn, dayStart, median, utcDay, type ProjectGroup } from './projects';
+import { prStage, type PrStage } from './stage';
 
 /**
  * The roadmap: the plan a project manager lays out by hand, kept in
@@ -41,8 +42,20 @@ export const HEALTH_WORD: Record<RoadmapHealth, string> = {
    off_track: 'Off track',
 };
 
+/**
+ * How firm a plan's end is. `hard`: a commitment, which Decide asks about
+ * once it passes. `soft`: an estimate the roadmap shows and nothing asks
+ * about. `ongoing`: upkeep with no end at all; its weeks stay stored, for
+ * when it gets an end again. Every plan starts soft, since a date nobody
+ * committed to shouldn't nag anyone.
+ */
+export type EndKind = 'hard' | 'soft' | 'ongoing';
+export const END_KINDS: EndKind[] = ['hard', 'soft', 'ongoing'];
+
 /** the longest plan an item can carry, in weeks: two years */
 export const MAX_WEEKS = 104;
+/** the longest "done when" line */
+export const DONE_WHEN_MAX = 200;
 /** how long an update on work in progress stays current: after this many
  * days without a new one, the lead owes the next */
 export const UPDATE_DUE_DAYS = 14;
@@ -71,6 +84,10 @@ export interface RoadmapItem {
    start: string;
    /** the planned length in whole weeks */
    weeks: number;
+   /** how firm its end is (EndKind) */
+   end_kind: EndKind;
+   /** what finished looks like, in one line; '' until someone says */
+   done_when: string;
    /** its place in the order: lower comes first */
    priority: number;
    notes: string;
@@ -119,6 +136,41 @@ export interface PlanLately {
    /** its issues' pace; null with no issues, or for work with no end, which
     * has no finish to forecast */
    issues: IssuePace | null;
+   /** how many more of its PRs are open than UPDATE_DUE_DAYS ago; negative
+    * when fewer are */
+   grew: number;
+   /** the median age of its open PRs, in days; null with none open */
+   medianAge: number | null;
+}
+
+/**
+ * What a project did lately (PlanLately), from its group on Today
+ * (projects.ts buildToday) and its issues' pace. The server sends it with
+ * each plan (lib/roadmap.js latelyBySlug), and the dummy board's twin builds
+ * it here too, so the two can't count differently.
+ */
+export function planLately(
+   g: Pick<ProjectGroup, 'open' | 'merged' | 'closed' | 'lastActivity'>,
+   issues: IssuePace | null,
+   now: number
+): PlanLately {
+   const since = now - UPDATE_DUE_DAYS * DAY;
+   const open: Record<PrStage, number> = { ready: 0, hold: 0, review: 0, work: 0 };
+   for (const d of g.open) open[prStage(d)]++;
+   const opened = g.open.map(d => epoch(d.data.created_at));
+   // open now less open then: the ones opened since, less the ones already
+   // open then that merged or closed since (the board keeps that long of them)
+   const gone = [...g.merged, ...g.closed].filter(
+      p => epoch(p.closed_at ?? p.merged_at ?? '') >= since && epoch(p.created_at) < since
+   ).length;
+   return {
+      merged: g.merged.filter(p => epoch(p.merged_at ?? '') >= since).length,
+      open,
+      activityAt: g.lastActivity,
+      issues,
+      grew: opened.filter(t => t >= since).length - gone,
+      medianAge: median(opened.map(t => (now - t) / DAY)),
+   };
 }
 
 /** A project's issues' pace, from its attached issues (shared/model/work.ts). */
@@ -195,6 +247,8 @@ export type RoadmapFields = Pick<
    | 'origin'
    | 'start'
    | 'weeks'
+   | 'end_kind'
+   | 'done_when'
    | 'notes'
    | 'waits_on'
 >;
@@ -222,6 +276,11 @@ export function weeksThrough(start: string, end: string): number {
 /** The last planned day of an item: its Sunday, `weeks` after it starts. */
 export function planEnd(item: Pick<RoadmapItem, 'start' | 'weeks'>): string {
    return utcDay((dayStart(item.start) as number) + (item.weeks * 7 - 1) * DAY);
+}
+
+/** A plan's last planned day, or null for ongoing work, which has no end. */
+export function endOf(item: Pick<RoadmapItem, 'start' | 'weeks' | 'end_kind'>): string | null {
+   return item.end_kind === 'ongoing' ? null : planEnd(item);
 }
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,23}$/;
@@ -295,6 +354,24 @@ export function checkRoadmapFields(input: unknown, { partial }: { partial: boole
       }
       fields.weeks = weeks;
    }
+   if (has('end_kind')) {
+      if (!END_KINDS.includes(raw.end_kind as EndKind)) {
+         return { error: `end_kind is one of ${END_KINDS.join(', ')}` };
+      }
+      fields.end_kind = raw.end_kind as EndKind;
+   }
+   if (has('done_when')) {
+      if (optional('done_when')) fields.done_when = '';
+      else if (typeof raw.done_when !== 'string') return { error: 'done_when is a line of text' };
+      else {
+         // one line: pasted words keep their spaces, not their line breaks
+         const line = raw.done_when.replace(/\s+/g, ' ').trim();
+         if (line.length > DONE_WHEN_MAX) {
+            return { error: `keep “done when” to ${DONE_WHEN_MAX} characters` };
+         }
+         fields.done_when = line;
+      }
+   }
    if (has('notes')) {
       if (optional('notes')) fields.notes = '';
       else if (typeof raw.notes !== 'string' || raw.notes.length > NOTES_MAX) {
@@ -350,8 +427,9 @@ export function waitsOnProblem(
 
 /**
  * The items `item` waits on, each with whether the plan clashes: the item
- * starts before the other's planned end while that one isn't done, or the
- * other was dropped. Ids no longer on the roadmap are skipped.
+ * starts before the other's planned end while that one isn't done (ongoing
+ * work never ends), or the other was dropped. Ids no longer on the roadmap
+ * are skipped.
  */
 export function blockersOf(
    item: Pick<RoadmapItem, 'start' | 'waits_on'>,
@@ -361,10 +439,11 @@ export function blockersOf(
    return item.waits_on.flatMap(id => {
       const other = byId.get(id);
       if (!other) return [];
+      const end = endOf(other);
       const clash =
          other.status === 'dropped' ||
          other.status === 'parked' ||
-         (other.status !== 'done' && item.start <= planEnd(other));
+         (other.status !== 'done' && (end == null || item.start <= end));
       return [{ item: other, clash }];
    });
 }
@@ -414,39 +493,60 @@ export function inProgress(item: Pick<RoadmapItem, 'status' | 'start' | 'lately'
 export interface Vouch {
    /** its PRs merged in the last UPDATE_DUE_DAYS */
    merged: number;
-   /** when its open issues are done at their pace, by its end; null with no
-    * pace to tell by */
+   /** when its open issues are done at their pace; null with no pace to
+    * tell by, or no end to finish by */
    finish: number | null;
+   /** how firm its end is, which says what the numbers had to keep */
+   endKind: EndKind;
 }
+
+/** open PRs it takes before their growth or age outweighs a merge */
+export const PILE_MIN = 3;
+/** this many more open than UPDATE_DUE_DAYS ago, and a merge doesn't vouch */
+export const PILE_GROWTH = 3;
+/** a median open-PR age past this many days, and a merge doesn't vouch */
+export const PILE_AGE_DAYS = 30;
 
 /**
  * The numbers that vouch for a plan in progress, so its lead owes no update
  * while they hold (PRODUCT.md: no news is good news): its PRs merged in the
- * last UPDATE_DUE_DAYS, it isn't past its end, and its issues' pace, when
- * there is one, finishes them by its end. They vouch only for what its lead
- * last said, if anything, was on track: merges never stand over an at risk
- * or off track. `today` is the day `now` falls on where the team is
- * (dayIn). Null when they don't vouch, or aren't known.
+ * last UPDATE_DUE_DAYS, its open PRs aren't piling up (PILE_MIN or more that
+ * grew by PILE_GROWTH, or whose median age passed PILE_AGE_DAYS: a merge
+ * says less than a pile growing or aging behind it), and its issues' pace,
+ * when there is one, finishes them. A hard end is a promise the numbers have
+ * to keep too: inside it, and the pace by it. A soft end, an estimate, owes
+ * nobody an update for passing, and ongoing work has no end or finish to
+ * forecast. They vouch only for what its lead last said, if anything, was
+ * on track: merges never stand over an at risk or off track. `today` is the
+ * day `now` falls on where the team is (dayIn). Null when they don't vouch,
+ * or aren't known.
  */
 export function vouchFor(
-   item: Pick<RoadmapItem, 'start' | 'weeks' | 'lately' | 'update'>,
+   item: Pick<RoadmapItem, 'start' | 'weeks' | 'end_kind' | 'lately' | 'update'>,
    now: number,
    today: string = dayIn(now)
 ): Vouch | null {
    const lately = item.lately;
    if (!lately?.merged || (item.update && item.update.health !== 'on_track')) return null;
-   const end = planEnd(item);
-   if (today > end) return null;
-   const finish = lately.issues ? paceFinish(lately.issues, now) : null;
-   // Infinity first: it has no day to compare; a finish is whole weeks from
-   // now, so its day is as many from today
+   const open = Object.values(lately.open).reduce((sum, count) => sum + count, 0);
    if (
-      finish === Infinity ||
-      (finish != null && utcDay((dayStart(today) as number) + finish - now) > end)
+      open >= PILE_MIN &&
+      (lately.grew >= PILE_GROWTH || (lately.medianAge ?? 0) > PILE_AGE_DAYS)
    ) {
       return null;
    }
-   return { merged: lately.merged, finish };
+   const endKind = item.end_kind;
+   if (endKind === 'ongoing') return { merged: lately.merged, finish: null, endKind };
+   const finish = lately.issues ? paceFinish(lately.issues, now) : null;
+   // issues arriving as fast as they close never finish, whatever the end
+   if (finish === Infinity) return null;
+   if (endKind === 'hard') {
+      const end = planEnd(item);
+      // a finish is whole weeks from now, so its day is as many from today
+      const late = finish != null && utcDay((dayStart(today) as number) + finish - now) > end;
+      if (today > end || late) return null;
+   }
+   return { merged: lately.merged, finish, endKind };
 }
 
 /**
@@ -511,7 +611,10 @@ export function updatesOwed(
 /** `today` is the day `now` falls on where the team is (dayIn), which says
  * whether a plan is past its end. */
 export function healthStanding(
-   item: Pick<RoadmapItem, 'status' | 'start' | 'weeks' | 'update' | 'created_at' | 'lately'>,
+   item: Pick<
+      RoadmapItem,
+      'status' | 'start' | 'weeks' | 'end_kind' | 'update' | 'created_at' | 'lately'
+   >,
    now: number = Date.now() / 1000,
    today: string = dayIn(now)
 ): HealthStanding {

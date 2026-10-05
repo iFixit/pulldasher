@@ -11,6 +11,9 @@ const item = (id: number, over: Partial<RoadmapItem> = {}): RoadmapItem => ({
    origin: null,
    start: '2026-09-28',
    weeks: 4,
+   // a commitment, the end these tests ask about
+   end_kind: 'hard',
+   done_when: '',
    priority: id,
    notes: '',
    waits_on: [],
@@ -185,6 +188,8 @@ describe('what fills itself in', () => {
       open: { ready: 0, hold: 0, review: 1, work: 0 },
       activityAt,
       issues: null,
+      grew: 0,
+      medianAge: 4,
    });
    const monday = Date.parse('2026-09-28T00:00:00Z') / 1000;
 
@@ -228,21 +233,25 @@ describe('what fills itself in', () => {
    it('reads what each project did lately the way the server does', async () => {
       const { latelyFrom } = await load();
       const now = monday + 2 * 86400;
+      const iso = (daysAgo: number) => new Date((now - daysAgo * 86400) * 1000).toISOString();
       const pull = (status: string) => ({
          status,
          cryo: false,
          externalBlock: false,
          conflict: false,
          changesRequestedBy: [],
-         data: { status: {} },
+         data: { created_at: iso(4), status: {} },
       });
       const merged = (daysAgo: number) => ({
-         merged_at: new Date((now - daysAgo * 86400) * 1000).toISOString(),
+         created_at: iso(30),
+         closed_at: iso(daysAgo),
+         merged_at: iso(daysAgo),
       });
       const group = (slug: string, open: unknown[], mergedPrs: unknown[]) => ({
          slug,
          open,
          merged: mergedPrs,
+         closed: [],
          lastActivity: now - 3600,
       });
       const today = {
@@ -260,6 +269,9 @@ describe('what fills itself in', () => {
          open: { ready: 0, hold: 0, review: 1, work: 1 },
          activityAt: now - 3600,
          issues: { open: 1, closed: 0, added: 1 },
+         // two opened four days ago, one of those open before merged since
+         grew: 1,
+         medianAge: 4,
       });
       // work with no end has no finish to forecast
       expect(facts.get('b')?.issues).toBeNull();

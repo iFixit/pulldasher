@@ -1,4 +1,5 @@
 import { n } from '../../../shared/format';
+import type { EndKind } from '../../../shared/model/roadmap';
 
 /**
  * The Projects tab's words for the facts several views show, kept in one
@@ -47,6 +48,26 @@ export const COPY_AS_TEXT = 'Copy as text';
 export const COMMIT_THROUGH = 'Commit through';
 /** the call for upkeep with no finish line */
 export const ONGOING = 'It’s ongoing';
+/** how firm a plan's end is, as its editor offers it */
+export const END_WORD: Record<EndKind, string> = {
+   hard: 'Hard end',
+   soft: 'Soft end',
+   ongoing: 'Ongoing',
+};
+/** the same in a sentence about the plan: "Aug 31 to Oct 25, 8 weeks, a soft end" */
+export const END_IN_A_SENTENCE: Record<EndKind, string> = {
+   hard: 'a hard end',
+   soft: 'a soft end',
+   ongoing: 'ongoing',
+};
+/** what each kind of end means, said beside the choice and in a hover */
+export const END_MEANS: Record<EndKind, string> = {
+   hard: 'A commitment: Decide asks about it once it passes.',
+   soft: 'An estimate: shown on the roadmap, never asked about.',
+   ongoing: 'Upkeep with no end: nothing asks when it finishes.',
+};
+/** a plan's one line on what finished looks like */
+export const DONE_WHEN = 'Done when';
 /** a project's target, as a fact: "Target Oct 21" */
 export const targetOn = (day: string) => `Target ${day}`;
 /** a target that passed with work still open, said as what's owed */
