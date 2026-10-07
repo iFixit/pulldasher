@@ -363,14 +363,24 @@ export function releaseReview(pull: Pick<PullData, 'repo' | 'number'>): void {
  */
 export const refreshAll = backend.refreshAll;
 
-/** One wording for a press, wherever it shows (the header, Settings). */
-export function refreshAllText(p: RefreshAllProgress): string {
+/** One wording for a press, wherever it shows. The header passes `short`,
+ * which drops the reasons, so the line never covers its tabs; Settings shows
+ * all of it. */
+export function refreshAllText(p: RefreshAllProgress, short = false): string {
    if (p.state === 'checking') return 'checking GitHub…';
    if (p.state === 'refreshing') return `refreshing ${p.done} of ${p.total}…`;
+   if (p.state === 'waiting') {
+      const at = new Date(p.until ?? 0).toLocaleTimeString([], {
+         hour: 'numeric',
+         minute: '2-digit',
+      });
+      return short ? `paused until ${at}` : `paused until ${at} for GitHub’s rate limit`;
+   }
    const refreshed = p.done - p.failed;
    const parts = refreshed > 0 || p.failed > 0 ? [] : ['up to date'];
    if (refreshed > 0) parts.push(`refreshed ${refreshed}`);
    if (p.failed > 0) parts.push(`${p.failed} failed`);
-   if (p.skipped > 0) parts.push(`couldn’t read ${p.skipped} repo${p.skipped === 1 ? '' : 's'}`);
+   if (p.skipped > 0 && !short)
+      parts.push(`couldn’t read ${p.skipped} repo${p.skipped === 1 ? '' : 's'}`);
    return parts.join(' · ');
 }

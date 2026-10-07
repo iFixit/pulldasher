@@ -27,7 +27,8 @@ const reqLogger = Debug('pulldasher:server:request');
 const debug = Debug('pulldasher');
 
 // "Refresh all" compares GitHub with the board, so it waits for the board to
-// load. Its refetches wait on their own pacer, which watches the quota every
+// load and for the startup refresh, which re-reads every open pull a press
+// would. Its refetches wait on their own pacer, which watches the quota every
 // response reports, webhook refreshes included, so a press yields to them.
 let boardLoaded;
 const refreshAllPacer = createPacer();
@@ -109,11 +110,10 @@ dbManager
          pullManager.updatePull(pull);
       });
       pullQueue.resume();
-      boardLoaded();
    })
    .then(function () {
       debug('Refreshing all open pulls from the API');
-      refresh.openPulls();
+      refresh.openPulls().finally(boardLoaded);
    })
    .done();
 

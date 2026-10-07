@@ -159,6 +159,31 @@ describe('refreshAllText', () => {
       ).toBe('refreshing 2 of 5…');
    });
 
+   it('says until when a press waits for GitHub’s rate limit', () => {
+      const until = new Date(2026, 9, 7, 10, 43).getTime();
+      const at = new Date(until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      expect(
+         refreshAllText({ state: 'waiting', until, done: 2, total: 5, failed: 0, skipped: 0 })
+      ).toBe(`paused until ${at} for GitHub’s rate limit`);
+   });
+
+   it('drops the reasons in the header’s short form', () => {
+      const until = new Date(2026, 9, 7, 10, 43).getTime();
+      const at = new Date(until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      const waiting = {
+         state: 'waiting',
+         until,
+         done: 2,
+         total: 5,
+         failed: 0,
+         skipped: 0,
+      } as const;
+      expect(refreshAllText(waiting, true)).toBe(`paused until ${at}`);
+      expect(
+         refreshAllText({ state: 'done', done: 5, total: 5, failed: 1, skipped: 2 }, true)
+      ).toBe('refreshed 4 · 1 failed');
+   });
+
    it('says what a finished press did, failures included', () => {
       expect(done(0)).toBe('up to date');
       expect(done(5)).toBe('refreshed 5');

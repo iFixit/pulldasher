@@ -429,8 +429,13 @@ export function Settings({
                               </QuietButton>
                               {/* role=status stays mounted so the announcement fires
                                   when the text lands — a screen reader hears the
-                                  confirmation, not just sighted users */}
-                              <span role="status" className="text-xs text-ink-3 tabular-nums">
+                                  confirmation, not just sighted users. It takes the
+                                  room the button leaves and wraps in it, so a long
+                                  line never squeezes the button onto two lines */}
+                              <span
+                                 role="status"
+                                 className="min-w-0 flex-1 text-xs text-ink-3 tabular-nums"
+                              >
                                  {refreshProgress ? refreshAllText(refreshProgress) : ''}
                               </span>
                            </div>

@@ -259,32 +259,23 @@ function dummyBackend(): Backend {
       },
       refreshAll() {
          // No GitHub behind the dummy board: play a press that finds 4 pulls
-         // to refetch, one failing, so every state of the status line shows.
+         // to refetch, waits on the rate limit once and has one fail, so
+         // every state of the status line shows.
          if (pressing) return;
          pressing = true;
-         const total = 4;
-         const report = (p: RefreshAllProgress) => onPress?.(p);
-         report({ state: 'checking', done: 0, total: 0, failed: 0, skipped: 0 });
-         for (let done = 0; done <= total; done++) {
-            setTimeout(
-               () =>
-                  report({
-                     state: 'refreshing',
-                     done,
-                     total,
-                     failed: done === total ? 1 : 0,
-                     skipped: 0,
-                  }),
-               1200 + done * 500
-            );
-         }
-         setTimeout(
-            () => {
-               pressing = false;
-               report({ state: 'done', done: total, total, failed: 1, skipped: 0 });
-            },
-            1300 + total * 500
-         );
+         const at = (ms: number, p: RefreshAllProgress) => setTimeout(() => onPress?.(p), ms);
+         const step = (done: number, failed = 0) => ({ done, total: 4, failed, skipped: 0 });
+         at(0, { state: 'checking', done: 0, total: 0, failed: 0, skipped: 0 });
+         at(1200, { state: 'refreshing', ...step(0) });
+         at(1700, { state: 'refreshing', ...step(1) });
+         at(2200, { state: 'refreshing', ...step(2) });
+         at(2700, { state: 'waiting', until: Date.now() + 6000, ...step(2) });
+         at(5700, { state: 'refreshing', ...step(3) });
+         at(6200, { state: 'refreshing', ...step(4, 1) });
+         setTimeout(() => {
+            pressing = false;
+            onPress?.({ state: 'done', ...step(4, 1) });
+         }, 6300);
       },
       onRefreshAll(handler) {
          onPress = handler;

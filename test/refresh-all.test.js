@@ -262,7 +262,7 @@ test("a press refreshes only the pulls that differ and reports its progress", as
     board: () => board,
     repos: [{ name: "test/repo-a" }],
     closedSince: () => CLOSED_SINCE,
-    pacer: { gate: () => Promise.resolve(gates++) },
+    pacer: { restart: () => {}, claim: () => (gates++, 0) },
     onProgress: (p) =>
       progress.push(`${p.state} ${p.done}/${p.total} failed ${p.failed}`),
   });
@@ -300,4 +300,72 @@ test("a second press while one runs doesn't start another", async (t) => {
 
   assert.equal(listings, 2);
   assert.equal(press.progress().state, "done");
+});
+
+// The server's pacer sees every response but only a press takes slots, so a
+// press must not be charged for the webhook refreshes since the last one.
+test("each press takes its slots from a fresh pacer cursor", async (t) => {
+  t.mock.method(gitManager, "getPullsToCompare", () =>
+    Promise.resolve([listed({ number: 5 }), listed({ number: 6 })])
+  );
+  t.mock.method(gitManager, "getPull", (repo, number) =>
+    Promise.resolve({ number, base: { repo: { full_name: repo } } })
+  );
+  t.mock.method(gitManager, "parse", (response) => Promise.resolve(response));
+  t.mock.method(dbManager, "updateAllPullData", () => Promise.resolve());
+  const calls = [];
+  const press = createRefreshAll({
+    board: () => [],
+    repos: [{ name: "test/repo-a" }],
+    closedSince: () => CLOSED_SINCE,
+    pacer: {
+      restart: () => calls.push("restart"),
+      claim: () => (calls.push("claim"), 0),
+    },
+  });
+
+  await press.start();
+  await press.start();
+
+  assert.deepEqual(calls, [
+    "restart",
+    "claim",
+    "claim",
+    "restart",
+    "claim",
+    "claim",
+  ]);
+});
+
+// Below the reserve the pacer can wait until the quota resets, most of an
+// hour; the boards say so instead of sitting on "refreshing 0 of N".
+test("a long pacer wait shows on the boards with when the press resumes", async (t) => {
+  t.mock.method(gitManager, "getPullsToCompare", () =>
+    Promise.resolve([listed({ number: 5 })])
+  );
+  t.mock.method(gitManager, "getPull", (repo, number) =>
+    Promise.resolve({ number, base: { repo: { full_name: repo } } })
+  );
+  t.mock.method(gitManager, "parse", (response) => Promise.resolve(response));
+  t.mock.method(dbManager, "updateAllPullData", () => Promise.resolve());
+  const slept = [];
+  const progress = [];
+  const press = createRefreshAll({
+    board: () => [],
+    repos: [{ name: "test/repo-a" }],
+    closedSince: () => CLOSED_SINCE,
+    pacer: { restart: () => {}, claim: () => 20 * 60 * 1000 },
+    onProgress: (p) => progress.push(p),
+    sleep: (ms) => Promise.resolve(slept.push(ms)),
+  });
+
+  const pressed = Date.now();
+  await press.start();
+
+  assert.deepEqual(slept, [20 * 60 * 1000]);
+  const waiting = progress.find((p) => p.state === "waiting");
+  assert.equal(waiting.done, 0);
+  assert.equal(waiting.total, 1);
+  assert.ok(waiting.until >= pressed + 20 * 60 * 1000);
+  assert.equal(progress.at(-1).state, "done");
 });

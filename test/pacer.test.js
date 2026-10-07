@@ -149,3 +149,38 @@ test("createPacer ignores the GraphQL budget's headers", async () => {
   ]);
   assert.equal(paused, false);
 });
+
+// Near the floor the even spread can put a slot past the reset: 20 calls at
+// 120s each is 40 minutes, but the window refills in 20.
+test("computePace never sets a slot past the reset", () => {
+  const { delayMs, nextSlot } = computePace({
+    remaining: RESERVE + 10,
+    reset: resetIn(20 * 60),
+    used: 4000,
+    reserve: RESERVE,
+    now: NOW,
+    nextSlot: NOW,
+    lastUsed: 3980,
+  });
+  assert.equal(delayMs, 20 * 60 * 1000);
+  assert.equal(nextSlot, NOW + 20 * 60 * 1000);
+});
+
+// "Refresh all" is the server pacer's only gater. Calls the webhooks made
+// since its last press aren't the next press's to repay.
+test("restart drops the spend from before it", () => {
+  const pacer = createPacer({ reserve: 1000 });
+  const headers = {
+    "x-ratelimit-remaining": "2000",
+    "x-ratelimit-reset": String(Math.ceil(Date.now() / 1000) + 1500),
+    "x-ratelimit-used": "1500",
+  };
+  pacer.observe(headers);
+  pacer.claim(); // the last press's last slot
+  pacer.observe({ ...headers, "x-ratelimit-used": "3000" }); // 1,500 webhook calls since
+
+  pacer.restart();
+
+  assert.equal(pacer.claim(), 0);
+});
+

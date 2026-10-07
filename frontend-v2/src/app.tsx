@@ -961,7 +961,7 @@ export function App() {
                      // Out of flow (anchored left of the cluster): transient text
                      // must not shove the bell/legend/cog sideways mid-aim.
                      <span className="absolute inset-y-0 right-full mr-2 hidden items-center bg-surface pl-2 text-xs whitespace-nowrap text-ink-3 tabular-nums sm:flex">
-                        {refreshAllText(refreshProgress)}
+                        {refreshAllText(refreshProgress, true)}
                      </span>
                   )}
                   <span
