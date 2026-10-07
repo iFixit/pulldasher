@@ -20,6 +20,7 @@ function shown({
   state = "open",
   sha = "head1",
   draft = false,
+  mergeable = true,
   updatedAt = "2026-09-20T12:00:00Z",
   labels = ["size: S"],
   comments = ["2026-09-20T11:00:00Z"],
@@ -34,6 +35,7 @@ function shown({
       number,
       state,
       draft,
+      mergeable,
       updated_at: new Date(updatedAt),
       head: { sha },
       user: { login: "author" },
@@ -65,6 +67,7 @@ function listed({
   number = 1,
   sha = "head1",
   draft = false,
+  mergeable = "MERGEABLE",
   updatedAt = "2026-09-20T12:00:00Z",
   labels = ["size: S"],
   comments = 1,
@@ -76,6 +79,7 @@ function listed({
     state: "open",
     updatedAt,
     draft,
+    mergeable,
     headSha: sha,
     headCommittedAt: HEAD_COMMITTED,
     labels,
@@ -147,6 +151,22 @@ test("a pull marked ready for review since the board read it is refreshed", () =
   assert.deepEqual(due([shown({ draft: true })], [listed()]), [
     "test/repo-a#1 draft",
   ]);
+});
+
+// Master moving can make a pull conflict without any webhook or new updated_at.
+test("a pull whose conflict state changed since the board read it is refreshed", () => {
+  assert.deepEqual(due([shown()], [listed({ mergeable: "CONFLICTING" })]), [
+    "test/repo-a#1 conflict",
+  ]);
+  assert.deepEqual(due([shown({ mergeable: false })], [listed()]), [
+    "test/repo-a#1 conflict",
+  ]);
+  // already shown conflicting, or GitHub hasn't worked it out yet
+  assert.deepEqual(
+    due([shown({ mergeable: false })], [listed({ mergeable: "CONFLICTING" })]),
+    []
+  );
+  assert.deepEqual(due([shown()], [listed({ mergeable: "UNKNOWN" })]), []);
 });
 
 test("a pull labeled since the board read it is refreshed", () => {

@@ -413,7 +413,7 @@ export function Settings({
                      <section className="border-t border-secondary px-4 py-3.5">
                         <Explainer summary="Advanced">
                            <span className="block text-ink-2">
-                              Check the board against GitHub and re-fetch every PR it has wrong,
+                              Check the board against GitHub and re-fetch the PRs that differ,
                               including ones it missed or still shows open. The board updates as
                               each one comes back.
                            </span>

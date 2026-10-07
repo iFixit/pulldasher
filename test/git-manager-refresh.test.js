@@ -157,6 +157,7 @@ test("getPullsToCompare reads both lists in one call, then only the one with mor
     number,
     updatedAt: "2026-09-28T00:00:00Z",
     isDraft: false,
+    mergeable: "MERGEABLE",
     headRefOid: `sha${number}`,
     labels: { nodes: [{ name: "size: S" }] },
     comments: { totalCount: 2 },
@@ -239,6 +240,7 @@ test("getPullsToCompare reads both lists in one call, then only the one with mor
       state: "open",
       updatedAt: "2026-09-28T00:00:00Z",
       draft: false,
+      mergeable: "MERGEABLE",
       headSha: "sha1",
       headCommittedAt: "2026-09-27T00:00:00Z",
       labels: ["size: S"],
@@ -251,6 +253,7 @@ test("getPullsToCompare reads both lists in one call, then only the one with mor
       state: "open",
       updatedAt: "2026-09-28T00:00:00Z",
       draft: false,
+      mergeable: "MERGEABLE",
       headSha: "sha2",
       // the last commit listed isn't the head, so its date says nothing
       headCommittedAt: null,
