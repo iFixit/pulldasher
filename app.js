@@ -6,9 +6,11 @@ import authManager from './lib/authentication.js';
 import socketAuthenticator from './lib/socket-auth.js';
 import refresh from './lib/refresh.js';
 import pullManager from './lib/pull-manager.js';
-import git from './lib/git-manager.js';
+import git, { observeRateLimit } from './lib/git-manager.js';
 import dbManager from './lib/db-manager.js';
 import pullQueue from './lib/pull-queue.js';
+import { createRefreshAll } from './lib/refresh-all.js';
+import { createPacer } from './lib/pacer.js';
 import mainController from './controllers/main.js';
 import hooksController from './controllers/githubHooks.js';
 import statsController from './controllers/stats.js';
@@ -23,6 +25,22 @@ import { dirname } from 'path';
 
 const reqLogger = Debug('pulldasher:server:request');
 const debug = Debug('pulldasher');
+
+// "Refresh all" compares GitHub with the board, so it waits for the board to
+// load and for the startup refresh, which re-reads every open pull a press
+// would. Its refetches wait on their own pacer, which watches the quota every
+// response reports, webhook refreshes included, so a press yields to them.
+let boardLoaded;
+const refreshAllPacer = createPacer();
+observeRateLimit(refreshAllPacer);
+const refreshAll = createRefreshAll({
+   board: pullManager.getPulls,
+   repos: config.repos,
+   closedSince: pullManager.getOldestAllowedPullTimestamp,
+   pacer: refreshAllPacer,
+   ready: new Promise(resolve => (boardLoaded = resolve)),
+   onProgress: progress => pullManager.broadcast('refreshAllProgress', progress),
+});
 
 const app = express();
 const httpServer = createServer(app);
@@ -95,9 +113,20 @@ dbManager
    })
    .then(function () {
       debug('Refreshing all open pulls from the API');
-      refresh.openPulls();
+      refresh.openPulls().finally(boardLoaded);
    })
    .done();
+
+// Webhooks get lost, and a lost `closed` left a PR open on the board until the
+// next restart (pulldasher#501 repairs it only at startup), which inflates every
+// backlog number. Once an hour, list each repo's open pulls and refresh just the
+// ones the DB has wrong.
+const RECONCILE_MS = 60 * 60 * 1000;
+setInterval(function () {
+   refresh.reconcileOpenPulls().catch(function (err) {
+      console.error('Hourly open-pull repair failed: %s', (err && err.message) || err);
+   });
+}, RECONCILE_MS);
 
 //====================================================
 // Socket.IO
@@ -119,9 +148,20 @@ io.on('connection', function (socket) {
          socket.user = user;
          socket.emit('authenticated');
          pullManager.addSocket(socket);
+         // a board that connects mid-press shows how far it got
+         const progress = refreshAll.progress();
+         if (progress && progress.state !== 'done') {
+            socket.emit('refreshAllProgress', progress);
+         }
       } else {
          socket.emit('unauthenticated');
          socket.disconnect();
+      }
+   });
+
+   socket.on('refreshAll', function () {
+      if (socket.user) {
+         refreshAll.start();
       }
    });
 

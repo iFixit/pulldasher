@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import gitManager from "../lib/git-manager.js";
 import dbManager from "../lib/db-manager.js";
-import { createRefresh, findStaleOpenPulls } from "../lib/refresh.js";
+import { createRefresh, findMissingOpenPulls, findStaleOpenPulls } from "../lib/refresh.js";
 
 const githubPull = (repo, number) => ({ number, base: { repo: { full_name: repo } } });
 
@@ -24,6 +24,14 @@ test("findStaleOpenPulls keeps DB-open pulls missing from a successful listing",
     { repo: "test/repo-a", number: 2 },
     { repo: "Test/Repo-C", number: 4 },
   ]);
+});
+
+test("findMissingOpenPulls keeps listed pulls the DB doesn't hold as open", () => {
+  const listed = [githubPull("Test/Repo-A", 1), githubPull("test/repo-a", 2)];
+
+  const missing = findMissingOpenPulls([{ repo: "test/repo-a", number: 1 }], listed);
+
+  assert.deepEqual(missing, [githubPull("test/repo-a", 2)]);
 });
 
 // A pull whose close webhook was lost stays open in the DB. openPulls refetches it,
