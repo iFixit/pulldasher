@@ -101,7 +101,7 @@ describe('JailMode while the cell is down', () => {
    it('lifts ready PRs to the top and counts them in the why line', () => {
       const ready = pull(2, { ready: true });
       render([...many(7), ready]);
-      expect(headers()).toEqual(['Ready to merge · 1', 'Waiting on others · 7']);
+      expect(headers()).toEqual(['Ready to merge', 'Waiting on others']);
       expect(document.querySelector('[role="dialog"] li a')?.textContent).toContain(
          ready.data.title
       );
@@ -125,20 +125,21 @@ describe('JailMode while the cell is down', () => {
       expect(document.querySelector('[aria-label^="PR jail"]')).toBeNull();
    });
 
-   it('snoozes only when Snooze is held down, by key or pointer', () => {
+   it('lets you out only when the button is held down, by key or pointer', () => {
       vi.useFakeTimers();
       render(many(8));
       const snooze = [
          ...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
-      ].find(b => b.textContent?.includes('Hold to snooze'));
+      ].find(b => b.textContent?.includes('Hold to get back to work'));
       // it has focus from the start, so the keyboard can hold it right away
       expect(document.activeElement).toBe(snooze);
       const key = (type: string, k = 'Enter') =>
          act(() => snooze?.dispatchEvent(new KeyboardEvent(type, { key: k, bubbles: true })));
-      // a tap of Enter, or Esc, does nothing
+      // a tap of Enter does nothing but say to hold it; neither does Esc
       key('keydown');
-      act(() => vi.advanceTimersByTime(500));
+      act(() => vi.advanceTimersByTime(200));
       key('keyup');
+      expect(snooze?.textContent).toBe('Hold it down');
       act(() => vi.advanceTimersByTime(3000));
       act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
       expect(dialog()).not.toBeNull();
@@ -147,5 +148,36 @@ describe('JailMode while the cell is down', () => {
       act(() => vi.advanceTimersByTime(2000));
       act(() => vi.advanceTimersByTime(700));
       expect(dialog()).toBeNull();
+   });
+
+   it('slides a merged PR out of the list as the countdown ticks', () => {
+      vi.useFakeTimers();
+      const nine = many(9);
+      render(nine);
+      expect(countdown()).toBe('2 to go');
+      render(nine.slice(1));
+      expect(countdown()).toBe('1 to go');
+      // still there for the slide, then gone
+      expect(document.querySelectorAll('.jail-row-leave')).toHaveLength(1);
+      expect(listed()).toBe(9);
+      act(() => vi.advanceTimersByTime(450));
+      expect(listed()).toBe(8);
+   });
+
+   it('copies a nudge listing the PRs waiting on others', async () => {
+      const writeText = vi.fn(() => Promise.resolve());
+      Object.assign(navigator, { clipboard: { writeText } });
+      const first = pull(3);
+      render([first, ...many(7)]);
+      const copy = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
+         b => b.textContent === 'Copy a nudge'
+      );
+      await act(async () => copy?.click());
+      const text = (writeText.mock.calls[0] as unknown as [string])[0];
+      expect(text.split('\n')).toHaveLength(9);
+      expect(text).toContain(
+         `• ${first.data.title} https://github.com/iFixit/ifixit/pull/${first.data.number}`
+      );
+      expect(copy?.textContent).toBe('Copied');
    });
 });

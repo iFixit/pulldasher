@@ -16,8 +16,8 @@ import {
 } from '../model/jail';
 import { useSettings } from '../settings';
 import { readStorage, writeStorage } from '../storage';
-import { HeaderIconButton, RepoRef } from './bits';
-import { eyebrowText } from './Lane';
+import { HeaderIconButton, QuietButton, RepoRef } from './bits';
+import { GroupHeader } from './Lane';
 import { CiGlyph } from './pips';
 
 /**
@@ -201,13 +201,17 @@ function sampleCase(
    };
 }
 
-/** How long the snooze button has to be held down. */
+/** How long "Hold to get back to work" has to be held down. */
 const HOLD_MS = 2000;
 /** How long the open lock shows before the jail closes. */
 const OPEN_MS = 700;
+/** How long a merged or closed row takes to leave the list. */
+const LEAVE_MS = 450;
 
-/** The modal over the board. No close button and no Esc: the only way out
- * besides getting under the limits is holding Snooze down for a couple of
+/** The modal over the board: a centered card on a desktop, a sheet up from
+ * the bottom on a phone. Its header and its one button stay put while the
+ * list scrolls between them. No close button and no Esc: the way out besides
+ * getting under the limits is holding the button down for a couple of
  * seconds, by pointer, finger, Enter or Space. */
 function JailModal({
    jail,
@@ -225,11 +229,11 @@ function JailModal({
 
    useEffect(() => {
       const root = rootRef.current;
-      // focus starts on Snooze, so holding Enter or Space works right away;
-      // the dialog itself when it's showing "You're out"
-      const snooze = root?.querySelector<HTMLElement>('[data-snooze]');
-      (snooze ?? root)?.focus({ preventScroll: true });
-      // Esc doesn't close it (holding Snooze does); Tab stays inside
+      // focus starts on the button, so holding Enter or Space works right
+      // away; the dialog itself when it's showing "You're out"
+      const hold = root?.querySelector<HTMLElement>('[data-hold]');
+      (hold ?? root)?.focus({ preventScroll: true });
+      // Esc doesn't close it (holding the button does); Tab stays inside
       const onKey = (e: KeyboardEvent) => {
          if (e.key === 'Escape') e.preventDefault();
          if (e.key !== 'Tab' || !root) return;
@@ -265,9 +269,9 @@ function JailModal({
          aria-modal="true"
          aria-labelledby="jail-title"
          aria-describedby="jail-why"
-         className="fixed inset-0 z-[200] flex flex-col items-center overflow-y-auto bg-ink/40 px-4 pt-[8vh] pb-8 outline-none"
+         className="fixed inset-0 z-[200] flex flex-col items-center justify-end bg-ink/40 pt-8 outline-none sm:justify-start sm:px-4 sm:pt-[8vh] sm:pb-8"
       >
-         <section className="flex max-h-[calc(100dvh-8vh-2rem)] w-full max-w-[34rem] flex-col gap-5 rounded-2xl border border-line bg-surface p-5 text-ink shadow-2xl sm:p-6">
+         <section className="flex max-h-full w-full flex-col gap-5 rounded-t-2xl border border-line bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-ink shadow-2xl sm:max-h-[80vh] sm:max-w-[40rem] sm:rounded-2xl sm:p-6">
             <div className="flex items-center gap-4">
                <SadRobot />
                <div className="min-w-0 flex-1">
@@ -297,12 +301,13 @@ function JailModal({
             </div>
             {!free && (
                <>
-                  <div className="-mx-1 min-h-0 overflow-y-auto px-1">
+                  {/* the board's own sticky group headers, pinned to the top
+                      of this list on the card's color instead of under the
+                      app header on the canvas */}
+                  <div className="-mx-1 min-h-0 overflow-y-auto px-1 [--canvas:var(--surface)] [--header-h:0px]">
                      <JailList pulls={jail.pulls} me={me} maxDays={maxDays} />
                   </div>
-                  <div className="border-t border-line pt-3">
-                     <HoldToSnooze onDone={onDone} />
-                  </div>
+                  <HoldToLeave onDone={onDone} />
                </>
             )}
          </section>
@@ -310,30 +315,47 @@ function JailModal({
    );
 }
 
-/** Snooze, but only for someone who means it: hold the row down for
- * HOLD_MS, by pointer, finger, Enter or Space. The key in the lock turns a
- * quarter turn as you hold and the ring around it fills, both off the same
- * clock; letting go early springs them back. At the end the shackle pops
- * open and the jail closes. */
-function HoldToSnooze({ onDone }: { onDone: () => void }) {
+/** The one button: hold it down for HOLD_MS, by pointer, finger, Enter or
+ * Space. The key in the lock turns a quarter turn as you hold and the ring
+ * around it fills, both off the same clock; letting go early springs them
+ * back, and a quick click says to hold it. At the end the lock opens and
+ * the jail closes. */
+function HoldToLeave({ onDone }: { onDone: () => void }) {
    const [holding, setHolding] = useState(false);
    const [opened, setOpened] = useState(false);
+   // a click too short to be a hold: the label teaches the gesture
+   const [tapped, setTapped] = useState(false);
    const timer = useRef<number | undefined>(undefined);
+   const tapTimer = useRef<number | undefined>(undefined);
+   const since = useRef(0);
    const start = () => {
       if (timer.current !== undefined || opened) return;
+      since.current = Date.now();
       setHolding(true);
+      setTapped(false);
       timer.current = window.setTimeout(() => {
          setOpened(true);
          timer.current = window.setTimeout(onDone, OPEN_MS);
       }, HOLD_MS);
    };
    const stop = () => {
-      if (opened) return;
+      if (opened || timer.current === undefined) return;
       clearTimeout(timer.current);
       timer.current = undefined;
       setHolding(false);
+      if (Date.now() - since.current < 500) {
+         setTapped(true);
+         clearTimeout(tapTimer.current);
+         tapTimer.current = window.setTimeout(() => setTapped(false), 2000);
+      }
    };
-   useEffect(() => () => clearTimeout(timer.current), []);
+   useEffect(
+      () => () => {
+         clearTimeout(timer.current);
+         clearTimeout(tapTimer.current);
+      },
+      []
+   );
    const isPress = (key: string) => key === 'Enter' || key === ' ';
    // the ring and the key share one timing: fill and turn while held, snap
    // back when let go
@@ -341,7 +363,6 @@ function HoldToSnooze({ onDone }: { onDone: () => void }) {
    return (
       <button
          type="button"
-         aria-describedby="jail-snooze-hint"
          onPointerDown={e => {
             e.currentTarget.setPointerCapture?.(e.pointerId);
             start();
@@ -356,13 +377,13 @@ function HoldToSnooze({ onDone }: { onDone: () => void }) {
          onKeyUp={e => isPress(e.key) && stop()}
          onBlur={stop}
          onContextMenu={e => e.preventDefault()}
-         data-snooze
-         className="pressable group -mx-2 flex touch-none items-center gap-4 rounded-lg px-2 py-2 text-left select-none [-webkit-touch-callout:none] hover:bg-secondary"
+         data-hold
+         className="pressable flex min-h-14 w-full shrink-0 touch-none items-center justify-center gap-3 rounded-xl border border-line px-4 py-2 select-none [-webkit-touch-callout:none] hover:border-brand hover:bg-secondary"
       >
          <svg
             aria-hidden
             viewBox="0 0 48 48"
-            className="size-12 shrink-0"
+            className="size-10 shrink-0"
             fill="none"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -420,46 +441,99 @@ function HoldToSnooze({ onDone }: { onDone: () => void }) {
                />
             </g>
          </svg>
-         <span className="min-w-0">
-            <span className="block text-sm font-semibold text-ink">
-               {opened ? 'Snoozed' : holding ? 'Keep holding…' : 'Hold to snooze'}
-            </span>
-            <span id="jail-snooze-hint" className="mt-0.5 block text-xs leading-relaxed text-ink-3">
-               It comes back if things get worse, at most every 4 hours.
-            </span>
+         <span className="text-[15px] font-semibold text-ink" aria-live="polite">
+            {opened
+               ? 'Unlocked'
+               : holding
+               ? 'Keep holding…'
+               : tapped
+               ? 'Hold it down'
+               : 'Hold to get back to work'}
          </span>
       </button>
    );
 }
 
+const pullId = (p: DerivedPull) => `${p.data.repo}#${p.data.number}`;
+
+/** The PRs that just left `pulls` (merged or closed), kept for LEAVE_MS so
+ * their rows can slide out instead of vanishing. */
+function useLeaving(pulls: DerivedPull[]): DerivedPull[] {
+   const last = useRef(new Map<string, DerivedPull>());
+   const [leaving, setLeaving] = useState<DerivedPull[]>([]);
+   const timers = useRef<number[]>([]);
+   useEffect(() => {
+      const now = new Map(pulls.map(p => [pullId(p), p]));
+      const gone = [...last.current].filter(([id]) => !now.has(id)).map(([, p]) => p);
+      last.current = now;
+      if (!gone.length) return;
+      setLeaving(l => [...l, ...gone]);
+      timers.current.push(
+         window.setTimeout(() => setLeaving(l => l.filter(p => !gone.includes(p))), LEAVE_MS)
+      );
+   }, [pulls]);
+   useEffect(() => () => timers.current.forEach(clearTimeout), []);
+   // one that came back (reopened) is just a row again
+   return leaving.filter(p => !pulls.some(q => pullId(q) === pullId(p)));
+}
+
+/** Slack-ready text asking for the reviews your waiting PRs need: each
+ * title, its link, and who it waits on. */
+function nudgeText(rows: { pull: DerivedPull }[], me: string): string {
+   return [
+      'A few of my PRs are waiting on a review or a stamp:',
+      ...rows.map(({ pull: p }) => {
+         const who = rowNote(p, me).context;
+         return `• ${p.data.title} ${githubUrl(p.data.repo, p.data.number)}${
+            who ? ` (${who})` : ''
+         }`;
+      }),
+   ].join('\n');
+}
+
+/** Copies nudgeText, and says whether it worked. */
+function CopyNudge({ rows, me }: { rows: { pull: DerivedPull }[]; me: string }) {
+   const [copied, setCopied] = useState<'copied' | 'failed' | null>(null);
+   const done = (result: 'copied' | 'failed') => {
+      setCopied(result);
+      window.setTimeout(() => setCopied(null), 3000);
+   };
+   return (
+      <QuietButton
+         onClick={() => {
+            if (!navigator.clipboard) return done('failed');
+            navigator.clipboard.writeText(nudgeText(rows, me)).then(
+               () => done('copied'),
+               () => done('failed')
+            );
+         }}
+      >
+         {copied === 'copied' ? 'Copied' : copied === 'failed' ? 'Couldn’t copy' : 'Copy a nudge'}
+      </QuietButton>
+   );
+}
+
 /** Your PRs, the way My work groups them, with the ready ones on top: the
- * quickest way out first. Each group says what to do with it, then lists
- * oldest first. Someone else's PRs (the preview's fallback) list flat, since
- * their groups would be a reviewer's. */
+ * quickest way out first, each group under the board's own header with a
+ * word on what to do, oldest first. Someone else's PRs (the preview's
+ * fallback) list flat, since their groups would be a reviewer's. */
 function JailList({ pulls, me, maxDays }: { pulls: DerivedPull[]; me: string; maxDays: number }) {
-   const mine = pulls.every(p => p.data.user.login === me);
+   const leaving = useLeaving(pulls);
+   const gone = new Set(leaving.map(pullId));
+   const all = [...pulls, ...leaving];
+   const mine = all.every(p => p.data.user.login === me);
    const groups = mine
-      ? jailGroups(pulls, me)
-      : { ready: [], move: [], waiting: pulls.map(pull => ({ pull })) };
+      ? jailGroups(all, me)
+      : { ready: [], move: [], waiting: all.map(pull => ({ pull })) };
+   const live = (rows: { pull: DerivedPull }[]) => rows.filter(r => !gone.has(pullId(r.pull)));
    const sections = [
-      {
-         title: STAGE_WORDS.ready,
-         tone: 'text-brand-700',
-         hint: 'Quickest way out. Merge these first.',
-         rows: groups.ready,
-         ready: true,
-      },
-      {
-         title: 'Your move',
-         tone: 'text-brand-700',
-         hint: 'Each of these is waiting on you.',
-         rows: groups.move,
-      },
+      { title: STAGE_WORDS.ready, sub: 'Merge these first', rows: groups.ready, ready: true },
+      { title: 'Your move', sub: 'Waiting on you', rows: groups.move },
       {
          title: 'Waiting on others',
-         tone: 'text-ink-3',
-         hint: 'Nudge whoever has it, or close the ones you no longer need.',
+         sub: 'Nudge them, or close what you don’t need',
          rows: groups.waiting,
+         nudge: true,
       },
    ].filter(g => g.rows.length);
    return (
@@ -467,22 +541,28 @@ function JailList({ pulls, me, maxDays }: { pulls: DerivedPull[]; me: string; ma
          {sections.map(g => (
             <section key={g.title} aria-label={mine ? g.title : undefined}>
                {mine && (
-                  <div className="mb-1">
-                     <h3 className={`m-0 ${eyebrowText} ${g.tone}`}>
-                        {g.title} <span className="text-ink-3 tabular-nums">· {g.rows.length}</span>
-                     </h3>
-                     <p className="m-0 mt-0.5 text-xs text-ink-3">{g.hint}</p>
-                  </div>
+                  <GroupHeader
+                     level={3}
+                     title={g.title}
+                     sub={g.sub}
+                     count={live(g.rows).length}
+                     headerExtra={
+                        g.nudge && live(g.rows).length ? (
+                           <CopyNudge rows={live(g.rows)} me={me} />
+                        ) : undefined
+                     }
+                  />
                )}
                <ul className="m-0 flex list-none flex-col divide-y divide-line p-0">
                   {g.rows.map(({ pull }) => (
                      <JailRow
-                        key={`${pull.data.repo}#${pull.data.number}`}
+                        key={pullId(pull)}
                         pull={pull}
                         me={me}
                         maxDays={maxDays}
                         ready={Boolean(g.ready)}
                         mine={mine}
+                        leaving={gone.has(pullId(pull))}
                      />
                   ))}
                </ul>
@@ -500,12 +580,15 @@ function JailRow({
    maxDays,
    ready,
    mine,
+   leaving,
 }: {
    pull: DerivedPull;
    me: string;
    maxDays: number;
    ready: boolean;
    mine: boolean;
+   /** merged or closed: it slides out */
+   leaving?: boolean;
 }) {
    const word = mine && !ready ? rowWord(p, me) : null;
    const context = mine ? rowNote(p, me).context : null;
@@ -516,7 +599,10 @@ function JailRow({
    const detail = context ?? (word?.kind === 'wait' ? word.word : null);
    const old = p.ageDays > maxDays;
    return (
-      <li className="flex flex-col gap-1.5 py-3">
+      <li
+         className={`flex flex-col gap-1.5 py-3 ${leaving ? 'jail-row-leave' : ''}`}
+         aria-hidden={leaving || undefined}
+      >
          <span className="flex items-baseline gap-4">
             <a
                href={githubUrl(p.data.repo, p.data.number)}
