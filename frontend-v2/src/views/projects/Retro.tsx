@@ -1478,14 +1478,14 @@ export function Retro({
          key: 'wrote',
          label: 'Wrote on',
          title: 'Projects they wrote PRs for',
-         width: 'w-16',
+         width: 'w-20',
          hide: 'hidden lg:table-cell',
       },
       {
          key: 'reviewed',
          label: 'Reviewed on',
          title: 'Projects where they reviewed, stamped or commented on someone else’s PRs',
-         width: 'w-20',
+         width: 'w-24',
          hide: 'hidden lg:table-cell',
       },
       {

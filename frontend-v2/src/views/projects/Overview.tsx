@@ -221,7 +221,9 @@ function Tiles({
                      note={
                         stalled.length
                            ? decisions
-                              ? `Decide asks about ${stalledAsked}`
+                              ? stalledAsked === stalled.length
+                                 ? 'Decide asks to park them'
+                                 : `Decide asks about ${stalledAsked}`
                               : null
                            : `none with ${lowerFirst(noPrActivity(STALL_DAYS))}`
                      }

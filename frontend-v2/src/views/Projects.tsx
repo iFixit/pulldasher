@@ -275,6 +275,7 @@ export function Projects({
                nav={nav}
                navigate={navigate}
                onPerson={onPersonHere}
+               projectsRepo={data?.projects_repo}
             />
          ) : nav.view === 'retro' ? (
             <Retro

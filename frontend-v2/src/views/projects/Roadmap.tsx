@@ -3209,7 +3209,14 @@ export function Roadmap({
                title={plan && !plan.length ? 'Nothing planned yet' : 'What’s planned, and when'}
                sub={
                   timeline ? (
-                     <SubDoor label="How the timeline works" text="Highest priority first">
+                     <SubDoor
+                        label="How the timeline works"
+                        text={
+                           plan && !plan.length
+                              ? 'How the timeline works'
+                              : 'Highest priority first'
+                        }
+                     >
                         <p className="m-0">
                            Point at a row for its grip and its lead. Drag the grip, or press the up
                            and down arrow keys on it, to change its place in the order.

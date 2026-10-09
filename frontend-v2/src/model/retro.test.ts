@@ -391,8 +391,8 @@ describe('the weeks a chart draws', () => {
 
    it('prints the year on any day outside this year, and only then', () => {
       const oct1 = Date.UTC(2026, 9, 1, 12);
-      expect(dayWords('2025-10-17', oct1)).toBe('Oct 17, 2025');
-      expect(dayWords('2026-10-17', oct1)).toBe('Oct 17');
+      expect(dayWords('2025-10-17', { now: oct1 })).toBe('Oct 17, 2025');
+      expect(dayWords('2026-10-17', { now: oct1 })).toBe('Oct 17');
    });
 });
 

@@ -135,7 +135,7 @@ export function weekTitle(w: ChartWeek): string {
 /** A week's Monday in words; `dayWords` adds the year when that isn't this
  * one, so a year-long chart's first week can't read as this year's. */
 export function weekWords(week: string, now: number = Date.now() / 1000): string {
-   return dayWords(week, now * 1000);
+   return dayWords(week, { now: now * 1000 });
 }
 
 /** A row's bars, week by week: what the picked range counts, drawn in full,

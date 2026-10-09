@@ -230,7 +230,7 @@ function weekAxis(weeks: readonly ChartWeek[]) {
       <XAxis
          dataKey="week"
          {...xAxisProps}
-         tickFormatter={dayWords}
+         tickFormatter={(day: string) => dayWords(day)}
          tick={weekTick(weeks)}
          interval="preserveStartEnd"
          minTickGap={16}
@@ -319,7 +319,12 @@ export function OpenPrsChart({
                title="Open PRs at the end of each day"
             >
                {grid}
-               <XAxis dataKey="date" tickFormatter={dayWords} minTickGap={24} {...xAxisProps} />
+               <XAxis
+                  dataKey="date"
+                  tickFormatter={(day: string) => dayWords(day)}
+                  minTickGap={24}
+                  {...xAxisProps}
+               />
                <YAxis {...yAxisProps} />
                <Tooltip content={tip} cursor={{ stroke: 'var(--ring)', strokeDasharray: '3 3' }} />
                <Area

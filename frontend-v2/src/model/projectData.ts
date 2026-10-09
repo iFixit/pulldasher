@@ -86,7 +86,7 @@ export interface Range {
  * day. Milestone due dates go through here as their UTC day, the way the
  * board has always shown them (StatePopover, the CSV). A date outside the
  * current year carries it: "Oct 17, 2025". */
-export function dayWords(day: string, now: number = Date.now()): string {
+export function dayWords(day: string, { now = Date.now() }: { now?: number } = {}): string {
    const d = new Date(`${day.slice(0, 10)}T00:00:00Z`);
    return d.toLocaleDateString(undefined, {
       month: 'short',

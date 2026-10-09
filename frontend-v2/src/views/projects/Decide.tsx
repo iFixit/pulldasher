@@ -1331,11 +1331,14 @@ function RowLead({
    project,
    onPerson,
    sayGuessed = true,
+   noRepo = false,
 }: {
    row: DecideRow;
    project: PortfolioItem | undefined;
    onPerson?: (login: string) => void;
    sayGuessed?: boolean;
+   /** no projects repo, so no issue to assign */
+   noRepo?: boolean;
 }) {
    const lead = row.item?.lead ?? project?.lead ?? null;
    if (!lead) return null;
@@ -1356,7 +1359,7 @@ function RowLead({
          )}
          {byPrs && (
             <span className="text-xs">
-               <ByPrs />
+               <ByPrs noRepo={noRepo} />
             </span>
          )}
       </>
@@ -1425,6 +1428,7 @@ function DecideRowView({
    onPerson,
    asked = false,
    sayGuessed = true,
+   noRepo = false,
 }: {
    row: DecideRow;
    /** a call was made on it here */
@@ -1434,6 +1438,7 @@ function DecideRowView({
    asked?: boolean;
    /** its section says "Leads guessed" once instead */
    sayGuessed?: boolean;
+   noRepo?: boolean;
    project: PortfolioItem | undefined;
    team: string | null;
    nav: ProjectsNav;
@@ -1480,7 +1485,13 @@ function DecideRowView({
             >
                {nameOf(row, project)}
             </button>
-            <RowLead row={row} project={project} onPerson={onPerson} sayGuessed={sayGuessed} />
+            <RowLead
+               row={row}
+               project={project}
+               onPerson={onPerson}
+               sayGuessed={sayGuessed}
+               noRepo={noRepo}
+            />
             {asked && (
                <>
                   <span
@@ -2368,6 +2379,7 @@ export function Decide({
    nav,
    navigate,
    onPerson,
+   projectsRepo,
 }: {
    /** Today from every PR, not the filter bar's */
    today: Today;
@@ -2390,6 +2402,8 @@ export function Decide({
    navigate: Navigate;
    /** open a person on People */
    onPerson?: (login: string) => void;
+   /** the repo whose issues name projects; null when there's none */
+   projectsRepo?: string | null;
 }) {
    const { items: plans, loadFailed } = useRoadmap();
    const { made } = calls.useValue();
@@ -2623,7 +2637,8 @@ export function Decide({
                         level={3}
                         compact
                         title={section.title}
-                        count={owedHere.length}
+                        // the do-all button already says how many
+                        count={asked ? undefined : owedHere.length}
                         sub={
                            (asked || guessed) && (
                               <>
@@ -2632,7 +2647,8 @@ export function Decide({
                                  )}
                                  {guessed && (
                                     <span className="text-ink-3">
-                                       {leads.length > 1 ? 'Leads' : 'Lead'} <ByPrs />
+                                       {leads.length > 1 ? 'Leads' : 'Lead'}{' '}
+                                       <ByPrs noRepo={projectsRepo === null} />
                                     </span>
                                  )}
                               </>
@@ -2664,6 +2680,7 @@ export function Decide({
                               onPerson={onPerson}
                               asked={!!asked}
                               sayGuessed={!guessed}
+                              noRepo={projectsRepo === null}
                            />
                         ))}
                      </Truncated>
