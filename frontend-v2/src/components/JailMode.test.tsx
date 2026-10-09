@@ -59,7 +59,7 @@ afterEach(() => {
    act(() => root?.unmount());
    root = null;
    localStorage.clear();
-   setSettings({ jailOn: true });
+   setSettings({ jailMode: 'auto' });
 });
 
 function render(pulls: DerivedPull[]) {
@@ -99,22 +99,30 @@ describe('JailMode while the cell is down', () => {
       expect(why()).toBe('8 open PRs. Parole at 7. Merge your ready one and you’re out.');
    });
 
+   it('only shows the badge when PR jail is manual', () => {
+      setSettings({ jailMode: 'manual' });
+      render(many(9));
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+      const badge = document.querySelector<HTMLButtonElement>('[aria-label^="PR jail"]');
+      expect(badge).not.toBeNull();
+      act(() => badge?.click());
+      expect(why()).toMatch(/^9 open PRs/);
+   });
+
    it('stays away, badge and all, when PR jail is off', () => {
-      setSettings({ jailOn: false });
+      setSettings({ jailMode: 'off' });
       render(many(9));
       expect(document.querySelector('[role="dialog"]')).toBeNull();
       expect(document.querySelector('[aria-label^="PR jail"]')).toBeNull();
    });
 
-   it('goes away when the trash is pressed from the keyboard', () => {
+   it('goes away when the clock is pressed from the keyboard', () => {
       render(many(8));
-      const trash = document.querySelector<HTMLButtonElement>(
-         '[aria-label="Throw PR jail in the trash"]'
-      );
+      const clock = document.querySelector<HTMLButtonElement>('[aria-label="Snooze PR jail"]');
       // a keyboard press clicks with detail 0; a mouse click does nothing
-      act(() => trash?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })));
+      act(() => clock?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })));
       expect(document.querySelector('[role="dialog"]')).not.toBeNull();
-      act(() => trash?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 })));
+      act(() => clock?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 })));
       expect(document.querySelector('[role="dialog"]')).toBeNull();
    });
 });

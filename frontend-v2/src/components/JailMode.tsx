@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Lock, Trash2 } from 'lucide-react';
+import { AlarmClock, Lock } from 'lucide-react';
 import type { DerivedPull } from '../../../shared/model/status';
 import { githubUrl } from '../../../shared/format';
 import { rowNote, rowWord } from '../model/actions';
@@ -23,10 +23,11 @@ import { CiGlyph } from './pips';
 /**
  * PR jail: when your own open PRs pass a limit (model/jail.ts), a modal pops
  * up listing them, and comes back only when that gets worse (jailDue). It
- * has no close button: you drag it to the trash at the bottom of the screen
- * (or press the trash from the keyboard). While you're over, a header badge
- * reopens it. `#jail=1` in the URL forces it, any time, for a preview; the
- * jailOn setting turns the whole thing off.
+ * has no close button: you drag it onto the snooze clock at the bottom of
+ * the screen (or press the clock from the keyboard). It takes a little work
+ * on purpose, so it's never an Esc away. While you're over, a header badge
+ * reopens it. `#jail=1` in the URL forces it, any time, for a preview. The
+ * jailMode setting picks: pop up (auto), the badge alone (manual), or off.
  */
 
 const hasPreviewFlag = () => new URLSearchParams(location.hash.slice(1)).get('jail') === '1';
@@ -56,7 +57,7 @@ export function JailMode({
 
    const found = useMemo(
       () =>
-         initialized && settings.jailOn
+         initialized && settings.jailMode !== 'off'
             ? jailCase(pulls, me, extraBots, {
                  maxOpen: settings.jailMaxOpen,
                  maxDays: settings.jailMaxDays,
@@ -101,7 +102,7 @@ export function JailMode({
    // hidden tab or a focused field waits for the next one, so it never lands
    // mid-typing or out of sight
    useEffect(() => {
-      if (!found || shown) return;
+      if (!found || shown || settings.jailMode !== 'auto') return;
       const check = () => {
          if (document.visibilityState === 'hidden') return;
          if (document.activeElement?.matches('input, textarea, select')) return;
@@ -115,7 +116,7 @@ export function JailMode({
          document.removeEventListener('visibilitychange', check);
          window.removeEventListener('focus', check);
       };
-   }, [found, shown]);
+   }, [found, shown, settings.jailMode]);
 
    return (
       <>
@@ -156,7 +157,7 @@ export function JailMode({
 /** Merged or closed your way under the limits while the cell was down. */
 const FREE: JailCase<DerivedPull> = {
    pulls: [],
-   why: 'You’re under the limits now. Drag this to the trash and get back to work.',
+   why: 'You’re under the limits now. Drag this onto the clock and get back to work.',
    count: 0,
    over: [],
 };
@@ -188,7 +189,7 @@ function sampleCase(
 }
 
 /** The modal over the board. The only way out is dragging it onto the
- * trash; a keyboard or screen reader presses the trash instead. */
+ * snooze clock; a keyboard or screen reader presses the clock instead. */
 function JailModal({
    jail,
    me,
@@ -201,17 +202,17 @@ function JailModal({
    onDone: () => void;
 }) {
    const rootRef = useRef<HTMLDivElement>(null);
-   const trashRef = useRef<HTMLButtonElement>(null);
+   const clockRef = useRef<HTMLButtonElement>(null);
    const drag = useRef<{ id: number; x: number; y: number } | null>(null);
    const [offset, setOffset] = useState({ x: 0, y: 0 });
    const [dragging, setDragging] = useState(false);
-   // the card is over the trash: the trash says "let go here"
+   // the card is over the clock: the clock says "let go here"
    const [over, setOver] = useState(false);
 
    useEffect(() => {
       const root = rootRef.current;
       root?.focus({ preventScroll: true });
-      // Esc doesn't close it (the trash does); Tab stays inside
+      // Esc doesn't close it (the clock does); Tab stays inside
       const onKey = (e: KeyboardEvent) => {
          if (e.key === 'Escape') e.preventDefault();
          if (e.key !== 'Tab' || !root) return;
@@ -239,9 +240,9 @@ function JailModal({
       };
    }, []);
 
-   /** Whether the pointer is over the trash, with some slop. */
-   const onTrash = (x: number, y: number) => {
-      const t = trashRef.current?.getBoundingClientRect();
+   /** Whether the pointer is over the clock, with some slop. */
+   const onClock = (x: number, y: number) => {
+      const t = clockRef.current?.getBoundingClientRect();
       const slop = 32;
       return Boolean(
          t && x > t.left - slop && x < t.right + slop && y > t.top - slop && y < t.bottom + slop
@@ -259,14 +260,14 @@ function JailModal({
       const d = drag.current;
       if (d?.id !== e.pointerId) return;
       setOffset({ x: e.clientX - d.x, y: e.clientY - d.y });
-      setOver(onTrash(e.clientX, e.clientY));
+      setOver(onClock(e.clientX, e.clientY));
    };
    const onPointerUp = (e: PointerEvent<HTMLElement>) => {
       if (drag.current?.id !== e.pointerId) return;
       drag.current = null;
       setDragging(false);
       setOver(false);
-      if (onTrash(e.clientX, e.clientY)) onDone();
+      if (onClock(e.clientX, e.clientY)) onDone();
       else setOffset({ x: 0, y: 0 });
    };
 
@@ -286,7 +287,7 @@ function JailModal({
             } ${over ? 'scale-90 opacity-70' : ''}`}
             style={{ translate: `${offset.x}px ${offset.y}px` }}
          >
-            {/* the handle: drag the card from its top, down to the trash */}
+            {/* the handle: drag the card from its top, down to the clock */}
             <div
                className={`flex touch-none items-center gap-3 select-none ${
                   dragging ? 'cursor-grabbing' : 'cursor-grab'
@@ -310,25 +311,32 @@ function JailModal({
                <JailList pulls={jail.pulls} me={me} maxDays={maxDays} />
             </div>
             <p className="m-0 border-t border-line pt-3 text-xs text-ink-3">
-               Drag this card into the trash below to put it away.
+               Drag this card onto the clock below to snooze it. It comes back if things get worse,
+               at most every 4 hours.
             </p>
          </section>
          <button
-            ref={trashRef}
+            ref={clockRef}
             type="button"
-            aria-label="Throw PR jail in the trash"
+            aria-label="Snooze PR jail"
             // keyboard and screen readers click with detail 0; a mouse has to
             // drag the card here
             onClick={e => e.detail === 0 && onDone()}
             className={`fixed bottom-6 left-1/2 grid size-16 -translate-x-1/2 cursor-default place-items-center rounded-full border-2 border-dashed shadow-lg transition-colors duration-150 motion-reduce:transition-none ${
                over
-                  ? 'scale-110 border-bad bg-bad text-surface'
+                  ? 'scale-110 border-brand bg-brand text-surface'
                   : dragging
-                  ? 'border-bad bg-surface text-bad'
+                  ? 'border-brand bg-surface text-brand'
                   : 'border-line bg-surface text-ink-3'
             }`}
          >
-            <Trash2 size={26} aria-hidden />
+            <AlarmClock size={26} aria-hidden />
+            <span
+               aria-hidden
+               className="absolute top-full mt-1 rounded-full bg-surface px-1.5 text-[11px] font-medium text-ink-2"
+            >
+               Snooze
+            </span>
          </button>
       </div>
    );

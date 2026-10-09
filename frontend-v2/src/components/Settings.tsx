@@ -330,16 +330,17 @@ export function Settings({
                         </Field>
                         <Field
                            label="PR jail"
-                           hint="Pops up a list of your open PRs when you have too many, or one has been open too long. Off hides it and its header badge."
+                           hint="Automatic pops up your list of open PRs when you have too many, or one has been open too long. Manual only shows the lock in the header, to open when you like. Off hides both."
                         >
                            <Segmented
                               ariaLabel="PR jail"
-                              value={s.jailOn ? 'on' : 'off'}
+                              value={s.jailMode}
                               options={[
+                                 ['auto', 'Automatic'],
+                                 ['manual', 'Manual'],
                                  ['off', 'Off'],
-                                 ['on', 'On'],
                               ]}
-                              onChange={v => set({ jailOn: v === 'on' })}
+                              onChange={jailMode => set({ jailMode })}
                            />
                         </Field>
                         <Field
