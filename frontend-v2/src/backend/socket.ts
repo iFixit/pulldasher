@@ -54,12 +54,17 @@ function liveBackend(): Backend {
    const getToken = () => {
       token =
          token ??
-         fetch('/token').then(async r => {
+         // the redirect isn't followed: it goes to GitHub, cross-site, and a
+         // blocked hop would read as a network blip and retry forever
+         fetch('/token', { redirect: 'manual' }).then(async r => {
             // an expired session redirects toward the OAuth flow (or 401s)
-            // instead of returning JSON. Separate that dead-session case from
-            // a transient network/5xx failure, so only the former says "sign
-            // in again" while a blip keeps retrying quietly.
-            if (r.redirected || r.status === 401) throw new AuthExpiredError(r.status);
+            // instead of returning JSON (a server restart drops every
+            // session). Separate that dead-session case from a transient
+            // network/5xx failure, so only the former says "sign in again"
+            // while a blip keeps retrying quietly.
+            if (r.type === 'opaqueredirect' || r.redirected || r.status === 401) {
+               throw new AuthExpiredError(r.status);
+            }
             if (!r.ok) throw new Error(`token fetch failed: ${r.status}`);
             const t = (await r.json()) as TokenResponse;
             if (!t.socketToken) throw new Error('token response missing socketToken');
@@ -105,8 +110,10 @@ function liveBackend(): Backend {
       token = null;
       getToken().then(
          t => {
-            // a valid /token proves the app session is alive again
+            // a valid /token proves the app session is alive again, and
+            // clears a "live updates lost" a failed attempt left up
             onAuth?.(false);
+            onState?.('connected');
             socket!.emit('authenticate', t.socketToken);
          },
          (err: unknown) => {
@@ -139,6 +146,12 @@ function liveBackend(): Backend {
       // returning — skips the wait and reconnects now.
       const wake = () => {
          if (socket && !socket.connected) socket.connect();
+         // connected but waiting out a sign-in retry: try now (as a retry, so
+         // a dead session can reload the page and sign back in)
+         else if (socket && authRetry != null) {
+            clearAuthRetry();
+            authenticate(1);
+         }
       };
       document.addEventListener('visibilitychange', () => {
          if (document.visibilityState === 'visible') wake();
