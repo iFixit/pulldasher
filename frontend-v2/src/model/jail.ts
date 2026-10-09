@@ -47,6 +47,10 @@ export interface JailCase<P extends JailPull> {
    count: number;
    /** repo#number of each counted PR past the age limit */
    over: string[];
+   /** how many PRs you still have to merge or close to be free: enough to
+    * get under the count limit, and every one past the age limit (closing an
+    * old one counts toward both) */
+   toGo: number;
 }
 
 const idOf = (p: JailPull) => `${p.data.repo}#${p.data.number}`;
@@ -75,7 +79,11 @@ export function jailCase<P extends JailPull>(
       )
       .sort(oldestFirst);
    const old = mine.filter(p => p.ageDays > limits.maxDays);
-   const counts = { count: mine.length, over: old.map(idOf) };
+   const counts = {
+      count: mine.length,
+      over: old.map(idOf),
+      toGo: Math.max(mine.length - limits.maxOpen, old.length),
+   };
    if (mine.length > limits.maxOpen) {
       const why = countWhy(
          mine.length,

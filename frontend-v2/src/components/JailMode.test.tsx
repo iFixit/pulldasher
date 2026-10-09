@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { derive, type DerivedPull } from '../../../shared/model/status';
 import type { PullData } from '../../../shared/types';
 import { setSettings } from '../settings';
@@ -60,6 +60,7 @@ afterEach(() => {
    root = null;
    localStorage.clear();
    setSettings({ jailMode: 'auto' });
+   vi.useRealTimers();
 });
 
 function render(pulls: DerivedPull[]) {
@@ -69,6 +70,8 @@ function render(pulls: DerivedPull[]) {
 
 const why = () => document.getElementById('jail-why')?.textContent;
 const listed = () => document.querySelectorAll('[role="dialog"] li').length;
+const dialog = () => document.querySelector('[role="dialog"]');
+const countdown = () => document.querySelector('#jail-title span')?.textContent;
 const headers = () => [...document.querySelectorAll('[role="dialog"] h3')].map(h => h.textContent);
 
 describe('JailMode while the cell is down', () => {
@@ -83,10 +86,16 @@ describe('JailMode while the cell is down', () => {
       expect(why()).toMatch(/^9 open PRs/);
       expect(listed()).toBe(9);
 
-      // merges bring you under the limits: the cell says so
+      expect(countdown()).toBe('2 to go');
+
+      // merges bring you under the limits: it says so, then lets you go
+      vi.useFakeTimers();
       render(first.slice(0, 3));
-      expect(why()).toMatch(/under the limits/);
+      expect(why()).toBe('You’re out. Nice work.');
+      expect(countdown()).toBe('Free');
       expect(listed()).toBe(0);
+      act(() => vi.advanceTimersByTime(2500));
+      expect(dialog()).toBeNull();
    });
 
    it('lifts ready PRs to the top and counts them in the why line', () => {
@@ -116,13 +125,25 @@ describe('JailMode while the cell is down', () => {
       expect(document.querySelector('[aria-label^="PR jail"]')).toBeNull();
    });
 
-   it('goes away when the clock is pressed from the keyboard', () => {
+   it('snoozes only when Snooze is held down, by key or pointer', () => {
+      vi.useFakeTimers();
       render(many(8));
-      const clock = document.querySelector<HTMLButtonElement>('[aria-label="Snooze PR jail"]');
-      // a keyboard press clicks with detail 0; a mouse click does nothing
-      act(() => clock?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })));
-      expect(document.querySelector('[role="dialog"]')).not.toBeNull();
-      act(() => clock?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 })));
-      expect(document.querySelector('[role="dialog"]')).toBeNull();
+      const snooze = [
+         ...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
+      ].find(b => b.textContent?.includes('Hold to snooze'));
+      const key = (type: string, k = 'Enter') =>
+         act(() => snooze?.dispatchEvent(new KeyboardEvent(type, { key: k, bubbles: true })));
+      // a tap of Enter, or Esc, does nothing
+      key('keydown');
+      act(() => vi.advanceTimersByTime(500));
+      key('keyup');
+      act(() => vi.advanceTimersByTime(3000));
+      act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+      expect(dialog()).not.toBeNull();
+      // holding Space the full two seconds turns the key, then it opens
+      key('keydown', ' ');
+      act(() => vi.advanceTimersByTime(2000));
+      act(() => vi.advanceTimersByTime(400));
+      expect(dialog()).toBeNull();
    });
 });

@@ -74,6 +74,14 @@ describe('jailCase', () => {
       );
    });
 
+   it('counts what’s left to close, the old ones included', () => {
+      // 9 open (2 over the limit) and 3 old: closing the 3 old ones frees you
+      const pulls = [...many(6), pull('me', 20), pull('me', 30), pull('me', 40)];
+      expect(jailCase(pulls, 'me', NO_BOTS, LIMITS)?.toGo).toBe(3);
+      // 12 open (5 over) and 1 old: 5 to go, the old one among them
+      expect(jailCase([...many(11), pull('me', 20)], 'me', NO_BOTS, LIMITS)?.toGo).toBe(5);
+   });
+
    it('says merge when the one old PR is ready, and counts several', () => {
       const old = pull('me', 30, { ready: true });
       expect(jailCase([old], 'me', NO_BOTS, LIMITS)?.why).toBe(
@@ -95,6 +103,7 @@ describe('jailCase', () => {
       expect(c?.pulls[0].ageDays).toBe(9);
       expect(c?.why).toBe('8 open PRs. Parole at 7. Close 1 to get out.');
       expect(c?.count).toBe(8);
+      expect(c?.toGo).toBe(1);
    });
 
    it('jails one PR past the age limit, and lists only the old ones', () => {
@@ -106,6 +115,7 @@ describe('jailCase', () => {
       );
       expect(c?.count).toBe(3);
       expect(c?.over).toEqual([`iFixit/ifixit#${old.data.number}`]);
+      expect(c?.toGo).toBe(1);
    });
 
    it('ignores other people’s PRs', () => {
