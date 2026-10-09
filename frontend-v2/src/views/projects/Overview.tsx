@@ -66,7 +66,7 @@ function Tiles({
    items,
    today,
    overloaded,
-   standsOut,
+   tooMany,
    line,
    decisions,
    noTeams,
@@ -79,8 +79,8 @@ function Tiles({
    noTeams: boolean;
    /** undefined while the last 14 days load, null when they failed */
    overloaded: WhoRow[] | null | undefined;
-   /** some cross the line, but too many to single out */
-   standsOut: boolean;
+   /** how many cross the line when too many do to single out */
+   tooMany: string | null;
    line: number;
    decisions: DecideRow[] | null;
    nav: ProjectsNav;
@@ -155,25 +155,37 @@ function Tiles({
                            ? '…'
                            : overloaded === null
                            ? '?'
+                           : tooMany
+                           ? 'None singled out'
                            : overloaded.length
                      }
-                     label={`${upperFirst(OVERLOADED)}, ${LAST_14_DAYS}`}
+                     label={upperFirst(OVERLOADED)}
+                     // the window in the note, as on the other tiles
                      note={
                         !overloaded
-                           ? null
-                           : overloaded.length
-                           ? names(overloaded.map(r => r.login))
-                           : standsOut
-                           ? 'no one stands out'
-                           : `nobody on ${line} or more projects`
+                           ? LAST_14_DAYS
+                           : `${LAST_14_DAYS}: ${
+                                overloaded.length
+                                   ? names(overloaded.map(r => r.login))
+                                   : tooMany ?? `nobody on ${line} or more projects`
+                             }`
                      }
                      warn={overloadedNow}
                      title={`${
                         noTeams ? 'People' : 'Developers'
-                     } who wrote PRs on ${line} or more different projects in the ${LAST_14_DAYS}. Reviewing a PR doesn’t count. Click to open People.`}
-                     // the same 14 days the tile counts, narrowed to who it names
+                     } who wrote PRs on ${line} or more different projects in the ${LAST_14_DAYS}. Reviewing a PR doesn’t count.${
+                        tooMany ? ' Too many to single out.' : ''
+                     } Click to open People.`}
+                     // the same 14 days the tile counts, narrowed to who it
+                     // names, or sorted by it when too many cross to name
                      onClick={() =>
-                        navigate({ ...switchView('people'), only: 'overloaded', range: '14d' })
+                        navigate({
+                           ...switchView('people'),
+                           range: '14d',
+                           ...(tooMany
+                              ? { only: null, psort: 'projects' }
+                              : { only: 'overloaded' }),
+                        })
                      }
                   />
                )}
@@ -284,7 +296,8 @@ function Tiles({
                      {upperFirst(OVERLOADED)}: {noTeams ? 'people' : 'developers'} who wrote PRs on{' '}
                      {line} or more projects in the {LAST_14_DAYS}, twice the{' '}
                      {noTeams ? 'median' : 'developers’ median'} and never under {OVERLOAD_MIN}.
-                     Reviewing a PR doesn’t count.
+                     Reviewing a PR doesn’t count. When more than a quarter cross, none are singled
+                     out and the tile says how many.
                   </p>
                   <p className="m-0">
                      {upperFirst(BEING_WORKED_ON)}: an open PR or a merge in the {LAST_14_DAYS}, and
@@ -475,7 +488,7 @@ export function Overview({
    me: string;
    onPerson: (login: string) => void;
 }) {
-   const { rows, who, line, over } = useWhoIsOnWhat(data?.teams, today, teamOf);
+   const { rows, who, line, over, tooMany } = useWhoIsOnWhat(data?.teams, today, teamOf);
    // who worked on each lately, and the calls Decide asks of each, which
    // give every row's Plan cell its words and its one amber mark
    const listed = useMemo(
@@ -520,7 +533,6 @@ export function Overview({
    // who wrote for the line's projects or more, most first; reviewing isn't
    // being on a project, and a line that would flag a quarter flags no one
    const overloaded = who && over;
-   const standsOut = !over.length && !!who?.some(r => r.wrote >= line);
    // the teams in their configured order, for the list's Group by Team
    const teams = useMemo(() => Object.keys(data?.teams ?? {}), [data]);
    // two-label PRs already sit in a project, so they aren't "outside" ones
@@ -545,7 +557,7 @@ export function Overview({
             items={listed}
             today={today}
             overloaded={overloaded}
-            standsOut={standsOut}
+            tooMany={tooMany}
             line={line}
             decisions={decisions}
             noTeams={!!list.noTeams}

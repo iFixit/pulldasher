@@ -29,7 +29,7 @@ import { ToastStack, useToasts } from './toasts';
 import { requestNames, useNames } from './model/names';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from '../../shared/model/visibility';
 import { reviewRequestedFrom } from './model/reviewers';
-import { CornerBadge, textInputClass } from './components/bits';
+import { CornerBadge, QuietButton, textInputClass } from './components/bits';
 import { foldDomId, openFold } from './components/Lane';
 import { Legend } from './components/Legend';
 import { LensMenu } from './components/LensMenu';
@@ -239,9 +239,9 @@ function Banner({
       warn: 'border-warn bg-surface',
       brand: 'notice-inner border-brand bg-brand-50 text-brand-700',
    };
-   const surface = `flex w-full items-center gap-2 rounded-lg border px-3 py-[7px] text-left ${inner[tone]} ${
-      onClick ? 'pressable hover:bg-brand-100' : ''
-   }`;
+   const surface = `flex w-full items-center gap-2 rounded-lg border px-3 py-[7px] text-left ${
+      inner[tone]
+   } ${onClick ? 'pressable hover:bg-brand-100' : ''}`;
    return (
       <div className="mx-auto mt-3 max-w-[1240px] px-5 text-[13px]">
          {onClick ? (
@@ -291,6 +291,7 @@ export function App() {
       me,
       connection,
       initialized,
+      updated,
       authFailed,
       lastPayloadAt,
       lastSeen,
@@ -992,8 +993,8 @@ export function App() {
       lens === 'review'
          ? scopedClosed.length
          : lens === 'mine'
-           ? closed.filter(p => p.user.login === me).length
-           : 0;
+         ? closed.filter(p => p.user.login === me).length
+         : 0;
    // memoized: this feeds the shippedExtras useMemo below, which feeds
    // useToasts' extras effect — a fresh identity every render would re-run
    // that chain on every unrelated keystroke/toggle while on these lenses
@@ -1142,11 +1143,11 @@ export function App() {
                         connection === 'connected'
                            ? 'conn-live bg-ok'
                            : connection === 'connecting'
-                             ? // in-progress, not an alarm — the same slate hue CI
-                               // running wears, not warn (which means "you owe
-                               // something")
-                               'bg-slate'
-                             : 'bg-bad'
+                           ? // in-progress, not an alarm — the same slate hue CI
+                             // running wears, not warn (which means "you owe
+                             // something")
+                             'bg-slate'
+                           : 'bg-bad'
                      }`}
                      title={connection}
                   >
@@ -1348,17 +1349,22 @@ export function App() {
                </span>
             </Banner>
          )}
-         {initialized &&
-            !authFailed &&
-            (connection === 'disconnected' || connection === 'error') && (
-               <Banner tone="warn">
-                  <span className="font-semibold text-warn">Live updates lost.</span>
-                  <span className="text-ink-2">
-                     Showing data as of {lastPayloadAt ? `${ago(lastPayloadAt)} ago` : 'page load'},
-                     retrying in the background.
-                  </span>
-               </Banner>
-            )}
+         {updated && (
+            <Banner tone="brand">
+               <span className="font-semibold">Pulldasher was updated.</span>
+               <span className="flex-1" />
+               <QuietButton onClick={() => window.location.reload()}>Reload</QuietButton>
+            </Banner>
+         )}
+         {initialized && !authFailed && (connection === 'disconnected' || connection === 'error') && (
+            <Banner tone="warn">
+               <span className="font-semibold text-warn">Live updates lost.</span>
+               <span className="text-ink-2">
+                  Showing data as of {lastPayloadAt ? `${ago(lastPayloadAt)} ago` : 'page load'},
+                  retrying in the background.
+               </span>
+            </Banner>
+         )}
          <main
             className={`mx-auto mt-4 max-w-[1240px] px-5 pb-16 ${entrance ? 'settle-once' : ''}`}
          >
@@ -1427,13 +1433,13 @@ export function App() {
                   }
                >
                   <Projects
-                  allPulls={allProjectPulls}
-                  allClosed={allProjectClosed}
-                  prefix={projectLabelPrefix}
-                  nav={projectsNav}
-                  navigate={navigateProjects}
-                  opts={rowOpts}
-                  me={me}
+                     allPulls={allProjectPulls}
+                     allClosed={allProjectClosed}
+                     prefix={projectLabelPrefix}
+                     nav={projectsNav}
+                     navigate={navigateProjects}
+                     opts={rowOpts}
+                     me={me}
                   />
                </Suspense>
             )}

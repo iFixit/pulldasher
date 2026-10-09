@@ -253,15 +253,18 @@ export function targetWords(target: ProjectTarget): string {
 
 /** Why a lead is guessed from PRs, where there's room to open it. */
 export const BY_PRS_WHY =
-   'No issue or plan names its lead, so it’s whoever has the most PRs in it, open or merged in the last 14 days. Assign its issue on GitHub, or give its plan a lead, to name one.';
+   'No issue or plan names its lead, so it’s whoever has the most PRs in it, open or merged in the last 14 days. Give its plan a lead, or assign its issue in the projects repo, to name one.';
+/** With no projects repo there is no issue to assign. */
+export const BY_PRS_WHY_NO_REPO =
+   'No plan names its lead, so it’s whoever has the most PRs in it, open or merged in the last 14 days. Give its plan a lead to name one.';
 
 /** A lead nobody named: the word "guessed", with why on hover. `door` is
  * accepted for callers that still pass it. */
-export function ByPrs(_: { door?: boolean } = {}) {
+export function ByPrs({ noRepo }: { door?: boolean; noRepo?: boolean } = {}) {
    return (
       <span
          className="text-ink-3 underline decoration-dotted underline-offset-2"
-         title={BY_PRS_WHY}
+         title={noRepo ? BY_PRS_WHY_NO_REPO : BY_PRS_WHY}
       >
          guessed
       </span>
@@ -369,7 +372,7 @@ export function ProjectFacts({
          {lead?.leadByPrs && (
             <>
                {' '}
-               <ByPrs />
+               <ByPrs noRepo={links?.projectsRepo === null} />
             </>
          )}
       </span>
@@ -413,24 +416,17 @@ export function ProjectFacts({
          );
       }
    } else {
-      facts.push(
-         // a door, not a title: touch and screen readers never get a title
-         <SubDoor key="none" label="Why no issue names it" text="No issue names it yet">
-            {links?.projectsRepo === null ? (
-               <>
-                  PRs carry the {prefix}
-                  {g.slug} label. Name its lead on the roadmap when you plan it.
-               </>
-            ) : (
-               <>
-                  PRs carry the {prefix}
-                  {g.slug} label, but no issue in{' '}
-                  {links?.projectsRepo ? `the ${links.projectsRepo} repo` : 'the projects repo'} has
-                  it. Label one there to name the project and set its lead.
-               </>
-            )}
-         </SubDoor>
-      );
+      // with no projects repo no issue could ever name it, so there is nothing to say
+      if (links?.projectsRepo !== null)
+         facts.push(
+            // a door, not a title: touch and screen readers never get a title
+            <SubDoor key="none" label="Why no issue names it" text="No issue names it yet">
+               PRs carry the {prefix}
+               {g.slug} label, but no issue in{' '}
+               {links?.projectsRepo ? `the ${links.projectsRepo} repo` : 'the projects repo'} has
+               it. Label one there to name the project and set its lead.
+            </SubDoor>
+         );
       if (leadFact) facts.push(leadFact);
    }
    if (go && links.parts.length) {

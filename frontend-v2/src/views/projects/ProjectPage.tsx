@@ -593,7 +593,9 @@ export function ProjectPage({
    const parts = (data?.projects ?? [])
       .filter(p => p.parents.includes(slug))
       .map(p => ({ slug: p.slug, name: p.name }));
-   const people = group?.people ?? [];
+   // one author who is also the guessed lead is named by the lead fact already
+   const lone = group?.people.length === 1 ? group.people[0] : null;
+   const people = lone && item?.leadByPrs && item.lead === lone ? [] : group?.people ?? [];
    // with no developer teams yet nobody is a developer, so the faces go
    // unsplit rather than all under "Non-developers"
    const split = !!data && Object.keys(data.teams).length > 0;

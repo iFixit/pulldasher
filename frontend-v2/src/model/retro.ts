@@ -132,13 +132,10 @@ export function weekTitle(w: ChartWeek): string {
    return w.days < 7 ? `${head}, ${w.days} of 7 days` : head;
 }
 
-/** A week's Monday in words, with its year when that isn't this one, so a
- * year-long chart's first week can't read as this year's: "Sep 29, 2025". */
+/** A week's Monday in words; `dayWords` adds the year when that isn't this
+ * one, so a year-long chart's first week can't read as this year's. */
 export function weekWords(week: string, now: number = Date.now() / 1000): string {
-   const year = week.slice(0, 4);
-   return year === String(new Date(now * 1000).getFullYear())
-      ? dayWords(week)
-      : `${dayWords(week)}, ${year}`;
+   return dayWords(week, now * 1000);
 }
 
 /** A row's bars, week by week: what the picked range counts, drawn in full,
@@ -322,14 +319,26 @@ export function overloadLine(counts: readonly number[]): number {
 
 /** Who reads as overloaded: wrote for `line` or more filed projects, most
  * first. Nobody when more than a quarter would: then the flag picks out no
- * one, and the tile says no one stands out. */
+ * one, and the tile says how many cross (tooManyWords). */
 export function overloaded<T extends Pick<PersonLoad, 'login' | 'wrote'>>(
    loads: readonly T[],
    line: number
 ): T[] {
-   const over = loads.filter(l => l.wrote >= line);
-   if (over.length * 4 > loads.length) return [];
-   return over.sort((a, b) => b.wrote - a.wrote || a.login.localeCompare(b.login));
+   if (tooManyWords(loads, line)) return [];
+   return loads
+      .filter(l => l.wrote >= line)
+      .sort((a, b) => b.wrote - a.wrote || a.login.localeCompare(b.login));
+}
+
+/** When too many cross the line for `overloaded` to single them out, how
+ * many do: "6 of 23 wrote for 4 or more", so a tile never reads as nobody.
+ * Null when the flag names them, or nobody crosses. */
+export function tooManyWords(
+   loads: readonly Pick<PersonLoad, 'wrote'>[],
+   line: number
+): string | null {
+   const over = loads.filter(l => l.wrote >= line).length;
+   return over * 4 > loads.length ? `${over} of ${loads.length} wrote for ${line} or more` : null;
 }
 
 export function median(values: readonly number[]): number {

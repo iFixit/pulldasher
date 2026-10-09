@@ -7,6 +7,7 @@ import {
    overloaded,
    overloadLine,
    retroRows,
+   tooManyWords,
    type PersonLoad,
    type RetroRow,
 } from '../../model/retro';
@@ -62,6 +63,9 @@ export function useWhoIsOnWhat(
    /** who wrote for `line` or more projects; empty when more than a quarter
     * would be (retro.ts overloaded) */
    over: WhoRow[];
+   /** "6 of 23 wrote for 4 or more" when `over` is empty because too many
+    * cross; null otherwise */
+   tooMany: string | null;
 } {
    const retro = useRetroData(range ?? (resolveRange(`${WHO_DAYS}d`) as Range));
    const rows = useMemo(() => (retro ? retroRows(retro) : null), [retro]);
@@ -91,10 +95,15 @@ export function useWhoIsOnWhat(
       }));
    }, [retro, rows, teams, today, teamOf]);
    // only the projects they wrote for: reviewing isn't being on a project
-   const { line, middle, over } = useMemo(() => {
+   const { line, middle, over, tooMany } = useMemo(() => {
       const counts = who?.map(r => r.wrote) ?? [];
       const line = overloadLine(counts);
-      return { line, middle: median(counts), over: overloaded(who ?? [], line) };
+      return {
+         line,
+         middle: median(counts),
+         over: overloaded(who ?? [], line),
+         tooMany: tooManyWords(who ?? [], line),
+      };
    }, [who]);
-   return { rows, who, line, middle, over };
+   return { rows, who, line, middle, over, tooMany };
 }

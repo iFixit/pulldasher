@@ -4,7 +4,14 @@ import { teamLookup } from '../../model/projectData';
 import type { PortfolioItem } from '../../model/portfolio';
 import { findFilter } from '../../model/portfolio';
 import type { RetroRow } from '../../model/retro';
-import { overloadedPeople, peopleRows, personMatches, sortPeople, type PersonRow } from './People';
+import {
+   overloadedPeople,
+   peopleRows,
+   personMatches,
+   sortPeople,
+   tooManyOf,
+   type PersonRow,
+} from './People';
 import { openingMonth } from './RangeCalendar';
 import { lastWeeks, type WhoRow } from './WhoIsOnWhat';
 
@@ -110,9 +117,21 @@ describe('overloadedPeople', () => {
       expect(overloadedPeople(rows, 4)).toEqual([]);
    });
 
-   it('flags no one when more than a quarter would be', () => {
+   it('flags no one when more than a quarter would be, and says how many cross', () => {
       const rows = [row('amy', 6), row('bob', 6), row('cal', 1)];
       expect(overloadedPeople(rows, 4)).toEqual([]);
+      expect(tooManyOf(rows, 4)).toBe('2 of 3 wrote for 4 or more');
+      // non-developers, with no days, aren't counted in either number
+      expect(tooManyOf([...rows, { ...row('nia', 0), load: null }], 4)).toBe(
+         '2 of 3 wrote for 4 or more'
+      );
+      expect(tooManyOf([row('amy', 6), ...['b', 'c', 'd'].map(l => row(l, 1))], 4)).toBeNull();
+   });
+
+   it('sorts Wrote on by the projects they wrote for, not the ones they reviewed', () => {
+      const reviewer = { ...row('rae', 9), load: { ...load('rae', 9, 9), wrote: 1 } };
+      const sorted = sortPeople([reviewer, row('amy', 3)], { key: 'projects', reversed: false });
+      expect(sorted.map(r => r.login)).toEqual(['amy', 'rae']);
    });
 });
 

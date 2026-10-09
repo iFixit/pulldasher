@@ -336,17 +336,23 @@ icon with a class bolted on.
   the picked range. One header serves every team's fold and sticks, so a
   person clicked anywhere lands on labeled numbers; changing the range
   keeps the old numbers up, dimmed, until the new ones arrive. Its columns
-  answer who has too much on; Open, Opened, Merged and On non-developers'
-  PRs sit in the opened row (a moved column rejoins the header while the
-  list sorts by it). Overload says so in words, "overloaded" inline after
-  the name in amber, the count in ink. It counts only the projects someone
-  wrote PRs for, never ones they only reviewed (a reviewer is spread by the
-  job), and when more than a quarter of people would cross the line it
-  flags nobody and the tile reads "No one stands out": a flag on 8 of 23
-  meant nothing. The tile says its window, "Overloaded, last 14 days", and
-  opens People on the same 14 days. The Overloaded tile has no note
-  (the heading's door says the threshold); the Stamps tile's note is the
-  short mark ("+47"), the sentence in its hover. With no teams set up the
+  answer who has too much on: "Wrote on" (projects they wrote PRs for) with
+  "Reviewed on" beside it, the same two words and counts as Look back's;
+  Open, Opened, Merged and On non-developers' PRs sit in the opened row (a
+  moved column rejoins the header while the list sorts by it). Overload
+  says so in words, "overloaded" inline after the name in amber, the count
+  in ink. It counts only the projects someone wrote PRs for, never ones they
+  only reviewed (a reviewer is spread by the job), and the sub-line says so
+  ("4 or more projects they wrote for is overloaded"): a column that counted
+  both sat under a line about one and read as a contradiction. When more
+  than a quarter of people would cross the line it singles out nobody (a
+  flag on 8 of 23 meant nothing), but never reads as nobody crossing: the
+  tile says "None singled out" with the count as its note ("6 of 23 wrote
+  for 4 or more") and sorts the list by Wrote on, and the narrowed list says
+  the same sentence. The Overview's Overloaded tile keeps its window in its
+  note ("last 14 days: djmetzle, kwiens and 2 more"), as every tile in that
+  row does, and opens People on the same 14 days; the Stamps tile's note is
+  the short mark ("+47"), the sentence in its hover. With no teams set up the
   fold reads "Everyone", not "Non-developers", and hovers say "People", not
   "Developers".
 - **The Overview opens on what's owed**: rows Decide asks about first, in
@@ -424,16 +430,22 @@ icon with a class bolted on.
   A project with no naming issue is named from its slug, with an acronym
   list so it reads as people write it ("GA4 events", "PLP server
   component", "npm token"), and its header says "No issue names it yet",
-  whose door says to label one in the projects repo (or, with none set, to
-  name its lead on the roadmap). It's led by its author with the most PRs.
+  whose door says to label one in the projects repo. With no projects repo
+  set that fact is gone: it was true of every project and nothing could
+  change it. It's led by its author with the most PRs, and when that author
+  is its only one the header shows no face, since the lead fact already
+  names them (once it was the face, the lead and "One author", in three
+  lines).
   An unassigned issue has no lead, never "ghost". A guessed lead's login is
   its normal link, followed by the word "guessed" in ink-3,
   dotted-underlined, whose hover gives the reason; the same look on the
   Overview, Decide and the project page. The dots sit on the word, never
   the login, since the login opens People. When every lead in a table or
-  section is guessed it's said once (the column head "Lead, guessed";
+  section is guessed it's said once (the column head "Guessed lead", a
+  phrase that reads in caps where "Lead, guessed" read as a CSV header;
   Decide's "Leads guessed" line per section) and rows show just the
-  login. A project's start, while its work is open, is its oldest open PR,
+  login. With no projects repo there's no issue to assign, so the hover
+  says only "Give its plan a lead to name one". A project's start, while its work is open, is its oldest open PR,
   the same day on every view.
 - **Yours first.** The Overview opens with your projects (you lead it, or
   you have a PR open or merged in the last 14 days), and My work carries a
@@ -485,6 +497,10 @@ icon with a class bolted on.
   away); a celebration gated only on the fact's transition fires "at
   random" from the user's seat. Require the user's own action in the
   gate (climbing demands your own stamp count grew).
+- **A deploy says so, calmly.** The server names its build in
+  `initialize`; when a reconnect brings a different one, the board shows
+  "Pulldasher was updated." with a Reload button, never an automatic reload,
+  which would lose a half-typed plan.
 - **Nags are once per subject** with an explicit refire rule (overtaken
   refires only after you reclaim and lose the spot again); dedupe keys
   name the subject, not the tick.
@@ -519,6 +535,9 @@ icon with a class bolted on.
 - **One color vocabulary across Stats and Projects**: ink for opened, green
   for merged or finished, brand for what is still open, a paler ink for
   closed without merging.
+- **A date outside this year says its year** ("Oct 17, 2025"), everywhere
+  `dayWords` writes one; a year-old "since Oct 17" on a 2026 roadmap read as
+  a future date.
 - **One date range per page, picked with one control**: the button that
   names the range, opening the presets an analytics tool offers beside a
   two-month calendar (react-day-picker, lazy with its stylesheet). A preset
@@ -674,7 +693,9 @@ icon with a class bolted on.
   "Projects per person" count only work filed under a project; a PR with
   none doesn't count on its own (it made one person 53 "projects" a week on
   a 46-project board), and "Not in a project" says how much is outside
-  them. With no plan ever saved, the On the roadmap and Plans done tiles
+  them. When more than half the days are outside a project the Projects
+  per person tile steps aside (on 88% unlabeled days it measured the
+  labeling, "0.5, was 0"); the column stays. With no plan ever saved, the On the roadmap and Plans done tiles
   give way to one line: "No plans yet, so nothing here is judged against
   one."
 - **Look back counts days, not PRs.** "Where did our time go" can't be
@@ -805,7 +826,8 @@ icon with a class bolted on.
 - **A comparison is words, not color.** Each count says how it compares with
   the same number of days just before, as a short mark ("+57", "was 6%")
   with the full sentence ("57 more than the 30 days before") in the tile's
-  hover.
+  hover. A row of tiles uses one form: Look back's are all "was N" ("was
+  335", "was 35%"), since a "-27" beside them read as a hyphen.
   More merged isn't always good news, so no green or red.
 
 ## Copy rules (static text is part of the visual system)

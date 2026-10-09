@@ -1,3 +1,4 @@
+import { dayWords } from './projectData';
 import { describe, expect, it } from 'vitest';
 import { timeSpent, type Touch } from '../../../shared/model/retro';
 import type { Project } from '../../../shared/model/projects';
@@ -21,6 +22,7 @@ import {
    retroPlan,
    retroRows,
    spreadByPerson,
+   tooManyWords,
    weekBars,
    weeklyBy,
    weekTitle,
@@ -184,6 +186,14 @@ describe('Look back’s groups', () => {
       // two of six is more than a quarter: the flag says nothing
       expect(overloaded([...team, load('fay', 4)], 4)).toEqual([]);
       expect(overloaded([], 4)).toEqual([]);
+   });
+
+   it('says how many cross when too many do to single out, never a bare zero', () => {
+      const load = (wrote: number) => ({ wrote });
+      const team = [load(6), load(1), load(0), load(2), load(1)];
+      expect(tooManyWords(team, 4)).toBeNull();
+      expect(tooManyWords([...team, load(4)], 4)).toBe('2 of 6 wrote for 4 or more');
+      expect(tooManyWords([], 4)).toBeNull();
    });
 });
 
@@ -377,6 +387,12 @@ describe('the weeks a chart draws', () => {
       const oct1 = Date.UTC(2026, 9, 1, 12) / 1000;
       expect(weekWords('2025-09-29', oct1)).toBe('Sep 29, 2025');
       expect(weekWords('2026-09-28', oct1)).toBe('Sep 28');
+   });
+
+   it('prints the year on any day outside this year, and only then', () => {
+      const oct1 = Date.UTC(2026, 9, 1, 12);
+      expect(dayWords('2025-10-17', oct1)).toBe('Oct 17, 2025');
+      expect(dayWords('2026-10-17', oct1)).toBe('Oct 17');
    });
 });
 

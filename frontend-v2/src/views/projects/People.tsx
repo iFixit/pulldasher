@@ -38,7 +38,12 @@ import {
    type ProjectsData,
    type Range,
 } from '../../model/projectData';
-import { beforeWords, OVERLOAD_MIN, overloaded as overloadedOf } from '../../model/retro';
+import {
+   beforeWords,
+   OVERLOAD_MIN,
+   overloaded as overloadedOf,
+   tooManyWords,
+} from '../../model/retro';
 import { retryRetroData } from '../../model/retroData';
 import { saveDeveloperTeams } from '../../model/settingsData';
 import { days, devDays, NOT_IN_A_PROJECT, OVERLOADED } from '../../model/words';
@@ -365,6 +370,7 @@ export function peopleRows(
 type PersonKey =
    | 'name'
    | 'projects'
+   | 'reviewed'
    | 'days'
    | 'reviewing'
    | 'open'
@@ -375,6 +381,7 @@ type PersonKey =
 const PERSON_KEYS: PersonKey[] = [
    'name',
    'projects',
+   'reviewed',
    'days',
    'reviewing',
    'open',
@@ -390,7 +397,9 @@ function valueOf(row: PersonRow, key: Exclude<PersonKey, 'name'>): number {
    const { load, w } = row;
    switch (key) {
       case 'projects':
-         return load ? load.projects.length : -1;
+         return load ? load.wrote : -1;
+      case 'reviewed':
+         return load ? load.reviewed : -1;
       case 'days':
          return load ? load.days : -1;
       case 'reviewing':
@@ -438,6 +447,15 @@ export function overloadedPeople(rows: readonly PersonRow[], line: number): Pers
    return overloadedOf(loaded, line).map(l => l.row);
 }
 
+/** "6 of 23 wrote for 4 or more" when too many cross the line for
+ * overloadedPeople to single out; null otherwise. */
+export function tooManyOf(rows: readonly PersonRow[], line: number): string | null {
+   return tooManyWords(
+      rows.flatMap(r => (r.load ? [r.load] : [])),
+      line
+   );
+}
+
 /**
  * Whether a person matches the tab's find (findFilter, model/portfolio.ts),
  * read as people: plain words find a login, a team, or the name of a project
@@ -479,7 +497,7 @@ interface Column {
 
 /** The columns a row's numbers sit under. The rest (PR throughput) wait in a
  * row's opened detail, and a column joins when the list is sorted by it. */
-const MAIN_COLUMNS: readonly string[] = ['projects', 'days', 'reviewing', 'stamps'];
+const MAIN_COLUMNS: readonly string[] = ['projects', 'reviewed', 'days', 'reviewing', 'stamps'];
 
 /** Every column, each over the picked range. With no teams every PR is a
  * non-developer's, so the split by whose PR it was says nothing. */
@@ -487,9 +505,17 @@ function allColumns(range: Range, line: number, hasTeams: boolean): Column[] {
    const all: Column[] = [
       {
          key: 'projects',
-         label: 'Projects',
-         title: `Projects they wrote or reviewed PRs on, one-offs left out. ${line} or more projects they wrote for is ${OVERLOADED}.`,
+         label: 'Wrote on',
+         title: `Projects they wrote PRs for, one-offs left out. ${line} or more is ${OVERLOADED}.`,
+         width: 'w-16',
+         fromDays: true,
+      },
+      {
+         key: 'reviewed',
+         label: 'Reviewed on',
+         title: 'Projects where they reviewed, stamped or commented on someone else’s PRs, one-offs left out. Reviewing doesn’t count toward overloaded.',
          width: 'w-20',
+         hide: 'hidden lg:block',
          fromDays: true,
       },
       {
@@ -870,6 +896,7 @@ function PeopleList({
    const filter = findFilter(find);
    // the picked person shows whatever narrows the rest
    const over = new Set(overloadedPeople(rows, line).map(r => r.login.toLowerCase()));
+   const tooMany = tooManyOf(rows, line);
    const shown = rows.filter(
       r =>
          r.login.toLowerCase() === whoKey ||
@@ -945,15 +972,16 @@ function PeopleList({
                sub={
                   <SubDoor
                      label="How the people are counted"
-                     text={`${line} or more projects is ${OVERLOADED}`}
+                     text={`${line} or more projects they wrote for is ${OVERLOADED}`}
                   >
                      <p className="m-0">
-                        {teams.length ? 'A developer’s' : 'A person’s'} projects are the ones they
-                        wrote or reviewed PRs on in the range, one-offs left out. Reviewing a PR
+                        Wrote on counts the projects {teams.length ? 'a developer' : 'a person'}{' '}
+                        wrote PRs for in the range, and reviewed on the ones where they reviewed,
+                        stamped or commented on someone else’s, one-offs left out. Reviewing a PR
                         doesn’t count toward {OVERLOADED}: {line} or more projects they wrote for is{' '}
                         {OVERLOADED}, twice the median of {Math.round(middle * 10) / 10} and never
-                        under {OVERLOAD_MIN}. If that would flag more than a quarter of people, no
-                        one is flagged.
+                        under {OVERLOAD_MIN}. If that would flag more than a quarter of people, none
+                        are singled out and the tile says how many cross.
                      </p>
                      <p className="m-0">
                         Days are the days they opened a PR, had one merged, or commented on, stamped
@@ -1082,6 +1110,8 @@ function PeopleList({
                <p className="m-0 px-3.5 py-4 text-[13px] text-ink-3">
                   {find
                      ? `Nobody here matches “${find}”.`
+                     : tooMany
+                     ? `${tooMany}, too many to single out.`
                      : `Nobody wrote for ${line} or more projects.`}{' '}
                   <QuietButton onClick={showEveryone}>Show everyone</QuietButton>
                </p>
@@ -1232,8 +1262,8 @@ export function People({
    const versusStamps = versus(stamps, stampsBefore, beforeWords(rangeDays(shownRange)));
    const stampsOnOthers = sum(devs(view.data), w => w.reviews_on_non_dev);
    const overloaded = overloadedPeople(rows, view.line);
-   // some cross the line but too many to single out
-   const standsOut = rows.some(r => r.load && r.load.wrote >= view.line);
+   // "6 of 23 wrote for 4 or more" when too many cross to single out
+   const tooMany = tooManyOf(rows, view.line);
    const pct = (part: number, whole: number) => `${Math.round((100 * part) / whole)}%`;
    // a tile sorts or narrows the list to what it counts, and brings it in
    const toList = (patch: Partial<ProjectsNav>) => {
@@ -1286,22 +1316,25 @@ export function People({
                <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
                   {view.loads && (
                      <Tile
-                        value={overloaded.length}
+                        // never a 0 while people cross the line
+                        value={tooMany ? 'None singled out' : overloaded.length}
                         label={OVERLOADED_LABEL}
-                        note={
-                           overloaded.length
-                              ? undefined
-                              : standsOut
-                              ? 'No one stands out'
-                              : undefined
-                        }
+                        note={tooMany}
                         title={`${hasTeams ? 'Developers' : 'People'} who wrote PRs on ${
                            view.line
                         } or more projects in the range: twice the median, and never under ${OVERLOAD_MIN}. Reviewing doesn’t count.${
-                           overloaded.length ? ' Click to list only them.' : ''
+                           overloaded.length
+                              ? ' Click to list only them.'
+                              : tooMany
+                              ? ' Too many to single out. Click to sort the people by Wrote on.'
+                              : ''
                         }`}
                         onClick={
-                           overloaded.length ? () => toList({ only: 'overloaded' }) : undefined
+                           overloaded.length
+                              ? () => toList({ only: 'overloaded' })
+                              : tooMany
+                              ? () => toList({ only: null, psort: 'projects' })
+                              : undefined
                         }
                      />
                   )}

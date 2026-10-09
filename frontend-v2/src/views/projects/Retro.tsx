@@ -78,7 +78,6 @@ import {
    readSort,
    switchView,
    Tile,
-   deltaWords,
    versus,
    type Navigate,
    type ProjectsNav,
@@ -1376,7 +1375,7 @@ export function Retro({
             )}. A day counts once per person, split across the PRs they touched that day. Click to see who spent them.`,
             then ? versus(Math.round(now.total), Math.round(then.total), period) : null
          )}
-         note={then ? deltaWords(Math.round(now.total), Math.round(then.total)) : null}
+         note={then ? `was ${Math.round(then.total)}` : null}
          onClick={() => go({}, 'retro-people')}
       />,
       <Tile
@@ -1432,19 +1431,22 @@ export function Retro({
             jumpToRow('retro-row-project:');
          }}
       />,
-      <Tile
-         key="spread"
-         value={now.spread}
-         // "per person" only while it counts more than one; "a week" is in
-         // the title
-         label={nav.who ? 'Projects' : 'Projects per person'}
-         title={andWas(
-            'The median, across people, of how many different projects each touched in a week they worked. PRs with no project don’t count here; see Not in a project. Click to sort the people by it.',
-            then ? `${then.spread} in the ${period}` : null
-         )}
-         note={then ? `was ${then.spread}` : null}
-         onClick={() => go({ psort: 'spread' }, 'retro-people')}
-      />,
+      // on mostly unlabeled days it measures the labeling, not the spread
+      now.unfiled <= now.total / 2 && (
+         <Tile
+            key="spread"
+            value={now.spread}
+            // "per person" only while it counts more than one; "a week" is in
+            // the title
+            label={nav.who ? 'Projects' : 'Projects per person'}
+            title={andWas(
+               'The median, across people, of how many different projects each touched in a week they worked. PRs with no project don’t count here; see Not in a project. Click to sort the people by it.',
+               then ? `${then.spread} in the ${period}` : null
+            )}
+            note={then ? `was ${then.spread}` : null}
+            onClick={() => go({ psort: 'spread' }, 'retro-people')}
+         />
+      ),
       !noPlans && (
          <Tile
             key="finished"
@@ -1457,10 +1459,7 @@ export function Retro({
                   ? ` ${upper(versus(finished.length, finishedBefore.length, period) ?? '')}.`
                   : ''
             }`}
-            note={
-               plansNote ??
-               (finishedBefore ? deltaWords(finished.length, finishedBefore.length) : null)
-            }
+            note={plansNote ?? (finishedBefore ? `was ${finishedBefore.length}` : null)}
             onClick={() => go({ sort: 'plan' }, 'retro-projects')}
          />
       ),

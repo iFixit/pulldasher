@@ -151,6 +151,9 @@ export interface InitializePayload {
     * only when the server is set up for projects; the Projects tab shows only
     * then. See shared/model/projects.ts. */
    projectLabelPrefix?: string;
+   /** names the frontend build the server is serving (absent without a build);
+    * a different one on a later initialize means the board was redeployed */
+   build?: string;
 }
 
 /** "Refresh all" on the server, sent to every board: it checks GitHub, then

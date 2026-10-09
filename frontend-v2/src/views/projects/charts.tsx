@@ -210,7 +210,8 @@ function weekTick(weeks: readonly ChartWeek[]) {
       return (
          <text x={at} y={Number(y)} textAnchor={anchor} fill="var(--ink-3)" fontSize={10}>
             <tspan x={at} dy="0.71em">
-               {i === 0 ? weekWords(w.week) : dayWords(w.week)}
+               {/* the first tick carries the year; the rest stay short */}
+               {i === 0 ? weekWords(w.week) : dayWords(w.week).replace(/, \d{4}$/, '')}
             </tspan>
             {cut && (
                <tspan x={at} dy="1.3em">

@@ -51,6 +51,7 @@ import {
 import { DecideCall, planRow, reasonWords } from './Decide';
 import {
    BY_PRS_WHY,
+   BY_PRS_WHY_NO_REPO,
    ByPrs,
    FlagWords,
    NarrowChip,
@@ -110,6 +111,8 @@ interface CellActions {
    openDetail?: () => void;
    /** every lead in this table is a guess, so its column head says so once */
    leadsGuessed: boolean;
+   /** no projects repo is set, so no issue can name a lead */
+   noRepo: boolean;
 }
 
 const prWords = (pr: PrRef) => `${shortRepo(pr.repo)}#${pr.number} ${pr.title}`;
@@ -229,7 +232,7 @@ const COLUMNS: Column[] = [
                {i.leadByPrs && !act.leadsGuessed && (
                   <>
                      {' '}
-                     <ByPrs />
+                     <ByPrs noRepo={act.noRepo} />
                   </>
                )}
             </>
@@ -853,8 +856,10 @@ function useRows(
          c.key === 'lead' && leadsGuessed
             ? {
                  ...c,
-                 label: 'Lead, guessed',
-                 title: `${BY_PRS_WHY} Click a lead to open their row on People.`,
+                 label: 'Guessed lead',
+                 title: `${
+                    projectsRepo === null ? BY_PRS_WHY_NO_REPO : BY_PRS_WHY
+                 } Click a lead to open their row on People.`,
               }
             : c.key === 'people' && noTeams
             ? { ...c, title: c.title.replace('Developers', 'People') }
@@ -885,6 +890,7 @@ function useRows(
          }),
       workers,
       leadsGuessed,
+      noRepo: projectsRepo === null,
       openProject: slug => navigate({ project: slug }),
       factLinks: item => ({
          navigate,
