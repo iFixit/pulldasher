@@ -1006,3 +1006,31 @@ input[type="checkbox"] {
   font-size: 13px;
   font-weight: 600;
 }
+
+/* PR jail's snooze key (components/JailMode.tsx): a slow wiggle in the
+   keyhole while it waits to be held. Transform only, and still when motion
+   is reduced. */
+@keyframes jail-key-wiggle {
+  0%,
+  60%,
+  100% {
+    rotate: 0deg;
+  }
+  70% {
+    rotate: -14deg;
+  }
+  80% {
+    rotate: 12deg;
+  }
+  90% {
+    rotate: -6deg;
+  }
+}
+.jail-key-wiggle {
+  animation: jail-key-wiggle 2.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .jail-key-wiggle {
+    animation: none;
+  }
+}

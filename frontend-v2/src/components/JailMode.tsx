@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlarmClock, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import type { DerivedPull } from '../../../shared/model/status';
 import { githubUrl } from '../../../shared/format';
 import { rowNote, rowWord } from '../model/actions';
@@ -23,11 +23,11 @@ import { CiGlyph } from './pips';
 /**
  * PR jail: when your own open PRs pass a limit (model/jail.ts), a modal pops
  * up listing them, and comes back only when that gets worse (jailDue). It
- * has no close button: you drag it onto the snooze clock at the bottom of
- * the screen (or press the clock from the keyboard). It takes a little work
- * on purpose, so it's never an Esc away. While you're over, a header badge
- * reopens it. `#jail=1` in the URL forces it, any time, for a preview. The
- * jailMode setting picks: pop up (auto), the badge alone (manual), or off.
+ * has no close button and Esc does nothing: you hold Snooze down for a
+ * couple of seconds (a little work on purpose), or get under the limits and
+ * it lets you go. While you're over, a header badge counts down what's left
+ * and reopens it. `#jail=1` in the URL forces it, any time, for a preview.
+ * The jailMode setting picks: pop up (auto), the badge alone (manual), or off.
  */
 
 const hasPreviewFlag = () => new URLSearchParams(location.hash.slice(1)).get('jail') === '1';
@@ -118,17 +118,25 @@ export function JailMode({
       };
    }, [found, shown, settings.jailMode]);
 
+   // you got under the limits while it was up: it says so, then lets you go
+   const freed = shown === 'real' && !found;
+   useEffect(() => {
+      if (!freed) return;
+      const t = window.setTimeout(() => setShown(null), FREED_MS);
+      return () => clearTimeout(t);
+   }, [freed]);
+
    return (
       <>
          {found && (
             <HeaderIconButton
                icon={Lock}
-               label={`PR jail: ${found.why}`}
+               label={`PR jail, ${found.toGo} to go: ${found.why}`}
                onClick={() => show(found)}
                className="relative"
             >
                <span className="absolute -top-1 -right-1 grid h-4 min-w-[16px] place-items-center rounded-full bg-warn px-1 text-[10px] leading-none font-semibold text-surface tabular-nums">
-                  {found.pulls.length > 9 ? '9+' : found.pulls.length}
+                  {found.toGo > 9 ? '9+' : found.toGo}
                </span>
             </HeaderIconButton>
          )}
@@ -154,12 +162,16 @@ export function JailMode({
    );
 }
 
-/** Merged or closed your way under the limits while the cell was down. */
+/** How long "You're out" shows before the jail closes on its own. */
+const FREED_MS = 2500;
+
+/** Merged or closed your way under the limits while it was up. */
 const FREE: JailCase<DerivedPull> = {
    pulls: [],
-   why: 'You’re under the limits now. Drag this onto the clock and get back to work.',
+   why: 'You’re out. Nice work.',
    count: 0,
    over: [],
+   toGo: 0,
 };
 
 /** The preview when you're not in jail: your PRs as jail counts them (any
@@ -185,11 +197,18 @@ function sampleCase(
       why: 'Preview: these are sample PRs from the board',
       count: 0,
       over: [],
+      toGo: 0,
    };
 }
 
-/** The modal over the board. The only way out is dragging it onto the
- * snooze clock; a keyboard or screen reader presses the clock instead. */
+/** How long the snooze button has to be held down. */
+const HOLD_MS = 2000;
+/** How long the open lock shows before the jail closes. */
+const OPEN_MS = 400;
+
+/** The modal over the board. No close button and no Esc: the only way out
+ * besides getting under the limits is holding Snooze down for a couple of
+ * seconds, by pointer, finger, Enter or Space. */
 function JailModal({
    jail,
    me,
@@ -202,17 +221,12 @@ function JailModal({
    onDone: () => void;
 }) {
    const rootRef = useRef<HTMLDivElement>(null);
-   const clockRef = useRef<HTMLButtonElement>(null);
-   const drag = useRef<{ id: number; x: number; y: number } | null>(null);
-   const [offset, setOffset] = useState({ x: 0, y: 0 });
-   const [dragging, setDragging] = useState(false);
-   // the card is over the clock: the clock says "let go here"
-   const [over, setOver] = useState(false);
+   const free = jail === FREE;
 
    useEffect(() => {
       const root = rootRef.current;
       root?.focus({ preventScroll: true });
-      // Esc doesn't close it (the clock does); Tab stays inside
+      // Esc doesn't close it (holding Snooze does); Tab stays inside
       const onKey = (e: KeyboardEvent) => {
          if (e.key === 'Escape') e.preventDefault();
          if (e.key !== 'Tab' || !root) return;
@@ -240,37 +254,6 @@ function JailModal({
       };
    }, []);
 
-   /** Whether the pointer is over the clock, with some slop. */
-   const onClock = (x: number, y: number) => {
-      const t = clockRef.current?.getBoundingClientRect();
-      const slop = 32;
-      return Boolean(
-         t && x > t.left - slop && x < t.right + slop && y > t.top - slop && y < t.bottom + slop
-      );
-   };
-
-   const onPointerDown = (e: PointerEvent<HTMLElement>) => {
-      // links in the header stay clickable
-      if ((e.target as HTMLElement).closest('a')) return;
-      drag.current = { id: e.pointerId, x: e.clientX - offset.x, y: e.clientY - offset.y };
-      setDragging(true);
-      e.currentTarget.setPointerCapture?.(e.pointerId);
-   };
-   const onPointerMove = (e: PointerEvent<HTMLElement>) => {
-      const d = drag.current;
-      if (d?.id !== e.pointerId) return;
-      setOffset({ x: e.clientX - d.x, y: e.clientY - d.y });
-      setOver(onClock(e.clientX, e.clientY));
-   };
-   const onPointerUp = (e: PointerEvent<HTMLElement>) => {
-      if (drag.current?.id !== e.pointerId) return;
-      drag.current = null;
-      setDragging(false);
-      setOver(false);
-      if (onClock(e.clientX, e.clientY)) onDone();
-      else setOffset({ x: 0, y: 0 });
-   };
-
    return (
       <div
          ref={rootRef}
@@ -279,66 +262,163 @@ function JailModal({
          aria-modal="true"
          aria-labelledby="jail-title"
          aria-describedby="jail-why"
-         className="fixed inset-0 z-[200] flex flex-col items-center overflow-y-auto bg-ink/40 px-4 pt-[8vh] pb-32 outline-none"
+         className="fixed inset-0 z-[200] flex flex-col items-center overflow-y-auto bg-ink/40 px-4 pt-[8vh] pb-8 outline-none"
       >
-         <section
-            className={`flex max-h-[calc(100dvh-8vh-9rem)] w-full max-w-[30rem] flex-col gap-3 rounded-xl border border-line bg-surface p-4 text-ink shadow-2xl ${
-               dragging ? '' : 'transition-transform duration-200 motion-reduce:transition-none'
-            } ${over ? 'scale-90 opacity-70' : ''}`}
-            style={{ translate: `${offset.x}px ${offset.y}px` }}
-         >
-            {/* the handle: drag the card from its top, down to the clock */}
-            <div
-               className={`flex touch-none items-center gap-3 select-none ${
-                  dragging ? 'cursor-grabbing' : 'cursor-grab'
-               }`}
-               onPointerDown={onPointerDown}
-               onPointerMove={onPointerMove}
-               onPointerUp={onPointerUp}
-               onPointerCancel={onPointerUp}
-            >
+         <section className="flex max-h-[calc(100dvh-8vh-2rem)] w-full max-w-[30rem] flex-col gap-3 rounded-xl border border-line bg-surface p-4 text-ink shadow-2xl">
+            <div className="flex items-center gap-3">
                <SadRobot />
-               <div className="min-w-0">
-                  <h2 id="jail-title" className="m-0 text-lg font-semibold">
+               <div className="min-w-0 flex-1">
+                  <h2 id="jail-title" className="m-0 flex items-center gap-2 text-lg font-semibold">
                      PR jail
+                     {/* the countdown to freedom: ticks down live as you merge
+                         or close */}
+                     <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${
+                           free ? 'bg-ok/15 text-ok' : 'bg-warn/15 text-warn'
+                        }`}
+                     >
+                        {free ? 'Free' : `${jail.toGo} to go`}
+                     </span>
                   </h2>
-                  <p id="jail-why" className="m-0 text-[13px] text-ink-2">
+                  <p id="jail-why" className="m-0 text-[13px] text-ink-2" aria-live="polite">
                      {jail.why}
                   </p>
                </div>
             </div>
-            <div className="min-h-0 overflow-y-auto">
-               <JailList pulls={jail.pulls} me={me} maxDays={maxDays} />
-            </div>
-            <p className="m-0 border-t border-line pt-3 text-xs text-ink-3">
-               Drag this card onto the clock below to snooze it. It comes back if things get worse,
-               at most every 4 hours.
-            </p>
+            {!free && (
+               <>
+                  <div className="min-h-0 overflow-y-auto">
+                     <JailList pulls={jail.pulls} me={me} maxDays={maxDays} />
+                  </div>
+                  <HoldToSnooze onDone={onDone} />
+               </>
+            )}
          </section>
-         <button
-            ref={clockRef}
-            type="button"
-            aria-label="Snooze PR jail"
-            // keyboard and screen readers click with detail 0; a mouse has to
-            // drag the card here
-            onClick={e => e.detail === 0 && onDone()}
-            className={`fixed bottom-6 left-1/2 grid size-16 -translate-x-1/2 cursor-default place-items-center rounded-full border-2 border-dashed shadow-lg transition-colors duration-150 motion-reduce:transition-none ${
-               over
-                  ? 'scale-110 border-brand bg-brand text-surface'
-                  : dragging
-                  ? 'border-brand bg-surface text-brand'
-                  : 'border-line bg-surface text-ink-3'
-            }`}
-         >
-            <AlarmClock size={26} aria-hidden />
-            <span
-               aria-hidden
-               className="absolute top-full mt-1 rounded-full bg-surface px-1.5 text-[11px] font-medium text-ink-2"
-            >
-               Snooze
-            </span>
-         </button>
       </div>
+   );
+}
+
+/** Snooze, but only for someone who means it: hold the row down for
+ * HOLD_MS, by pointer, finger, Enter or Space. The key in the lock turns a
+ * quarter turn as you hold and the ring around it fills, both off the same
+ * clock; letting go early springs them back. At the end the shackle pops
+ * open and the jail closes. */
+function HoldToSnooze({ onDone }: { onDone: () => void }) {
+   const [holding, setHolding] = useState(false);
+   const [opened, setOpened] = useState(false);
+   const timer = useRef<number | undefined>(undefined);
+   const start = () => {
+      if (timer.current !== undefined || opened) return;
+      setHolding(true);
+      timer.current = window.setTimeout(() => {
+         setOpened(true);
+         timer.current = window.setTimeout(onDone, OPEN_MS);
+      }, HOLD_MS);
+   };
+   const stop = () => {
+      if (opened) return;
+      clearTimeout(timer.current);
+      timer.current = undefined;
+      setHolding(false);
+   };
+   useEffect(() => () => clearTimeout(timer.current), []);
+   const isPress = (key: string) => key === 'Enter' || key === ' ';
+   // the ring and the key share one timing: fill and turn while held, snap
+   // back when let go
+   const sweep = holding ? `${HOLD_MS}ms linear` : '150ms ease-out';
+   return (
+      <button
+         type="button"
+         aria-describedby="jail-snooze-hint"
+         onPointerDown={e => {
+            e.currentTarget.setPointerCapture?.(e.pointerId);
+            start();
+         }}
+         onPointerUp={stop}
+         onPointerCancel={stop}
+         onKeyDown={e => {
+            if (!isPress(e.key)) return;
+            e.preventDefault();
+            if (!e.repeat) start();
+         }}
+         onKeyUp={e => isPress(e.key) && stop()}
+         onBlur={stop}
+         onContextMenu={e => e.preventDefault()}
+         className="pressable group flex w-full touch-none items-center gap-3 rounded-lg border-t border-line pt-3 text-left select-none [-webkit-touch-callout:none]"
+      >
+         <svg
+            aria-hidden
+            viewBox="0 0 48 48"
+            className="size-12 shrink-0"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+         >
+            {/* the ring: a quiet track, filling with brand as you hold */}
+            <circle cx="24" cy="24" r="22" className="stroke-line" strokeWidth={2} />
+            <circle
+               cx="24"
+               cy="24"
+               r="22"
+               pathLength={1}
+               strokeDasharray="1"
+               className="stroke-brand"
+               strokeWidth={2}
+               transform="rotate(-90 24 24)"
+               style={{
+                  strokeDashoffset: holding ? 0 : 1,
+                  transition: `stroke-dashoffset ${sweep}`,
+               }}
+            />
+            {/* the shackle, which pops up once the key has turned */}
+            <path
+               d="M18 22 V18 a6 6 0 0 1 12 0 V22"
+               className="stroke-ink-2"
+               strokeWidth={2.5}
+               style={{
+                  translate: opened ? '0 -4px' : '0 0',
+                  transition: 'translate 200ms ease-out',
+               }}
+            />
+            <rect
+               x="14"
+               y="22"
+               width="20"
+               height="15"
+               rx="4"
+               className="fill-surface stroke-ink-2"
+               strokeWidth={2}
+            />
+            {/* the key's bow in the keyhole: it wiggles while it waits for
+                you, and turns a quarter turn as you hold */}
+            <g
+               className={holding || opened ? '' : 'jail-key-wiggle'}
+               style={{ transformOrigin: '24px 29.5px' }}
+            >
+               <rect
+                  x="22.5"
+                  y="25"
+                  width="3"
+                  height="9"
+                  rx="1.5"
+                  className="fill-brand"
+                  style={{
+                     transformOrigin: '24px 29.5px',
+                     rotate: holding ? '90deg' : '0deg',
+                     transition: `rotate ${sweep}`,
+                  }}
+               />
+            </g>
+         </svg>
+         <span className="min-w-0">
+            <span className="block text-[13px] font-semibold text-ink group-hover:text-brand">
+               {opened ? 'Snoozed' : holding ? 'Keep holding…' : 'Hold to snooze'}
+            </span>
+            <span id="jail-snooze-hint" className="block text-xs text-ink-3">
+               It comes back if things get worse, at most every 4 hours.
+            </span>
+         </span>
+      </button>
    );
 }
 
