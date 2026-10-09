@@ -115,7 +115,9 @@ export function JailMode({
    // read on the first render: the app rewrites the hash right after and
    // drops the unknown param
    const [preview, setPreview] = useState(hasPreviewFlag);
-   const [shown, setShown] = useState<JailCase<DerivedPull> | null>(null);
+   // which jail is open, not a copy of it: the list below is read live, so a
+   // merge or a new PR shows up while it's open
+   const [shown, setShown] = useState<'real' | 'preview' | null>(null);
    // the last showing, kept here too so blocked storage still holds it for
    // this page load; another tab's showing arrives by the storage event
    const record = useRef(parseJailRecord(readStorage(JAIL_KEY)));
@@ -132,10 +134,13 @@ export function JailMode({
       [initialized, pulls, me, extraBots, settings]
    );
 
-   const show = (jail: JailCase<DerivedPull>) => {
+   const remember = (jail: JailCase<DerivedPull>) => {
       record.current = jailRecord(jail, Date.now());
       writeStorage(JAIL_KEY, JSON.stringify(record.current));
-      setShown(jail);
+   };
+   const show = (jail: JailCase<DerivedPull>) => {
+      remember(jail);
+      setShown('real');
    };
 
    useEffect(() => {
@@ -157,8 +162,8 @@ export function JailMode({
    useEffect(() => {
       if (!initialized || !preview) return;
       setPreview(false);
-      setShown(found ?? sampleCase(pulls));
-   }, [initialized, preview, found, pulls]);
+      setShown('preview');
+   }, [initialized, preview]);
 
    // checked on load, on every data change, and when the tab comes back; a
    // hidden tab or a focused field waits for the next one, so it never lands
@@ -195,10 +200,29 @@ export function JailMode({
             </HeaderIconButton>
          )}
          {shown &&
-            createPortal(<JailCell jail={shown} onDone={() => setShown(null)} />, document.body)}
+            createPortal(
+               <JailCell
+                  jail={found ?? (shown === 'preview' ? sampleCase(pulls) : FREE)}
+                  onDone={() => {
+                     // what you saw last is what the next showing compares
+                     // against, so PRs opened while it was up don't re-drop it
+                     if (shown === 'real' && found) remember(found);
+                     setShown(null);
+                  }}
+               />,
+               document.body
+            )}
       </>
    );
 }
+
+/** Merged or closed your way under the limits while the cell was down. */
+const FREE: JailCase<DerivedPull> = {
+   pulls: [],
+   why: 'You’re under the limits now. Use the key to walk out.',
+   count: 0,
+   over: [],
+};
 
 /** The preview's fallback when you're not in jail: the board's oldest
  * PRs, so there's something to look at. */
