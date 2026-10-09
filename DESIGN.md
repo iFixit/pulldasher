@@ -129,7 +129,10 @@ popover era dismissed a commitment-in-progress on any stray click.)
 
 **Ranked lanes explain themselves in three quiet layers**: the sub-line
 says the ordering in one plain sentence (and is itself the hover-door to
-the full story — existing text becomes interactive, no info-icon chrome);
+the full story — existing text becomes interactive, no info-icon chrome),
+at most one visible per pane, and only where a threshold or an unclear
+inclusion changes what you see (Decide's sections have none: each carries
+its rule in its header's hover);
 each card's state popover carries a "why it's up next" line; and every
 fold's label glosses what lands in it on hover. If a user has to ask why
 a card is where it is, one of these layers is missing.
@@ -332,9 +335,14 @@ icon with a class bolted on.
 - **People is the tab's one person table**, and every column on it follows
   the picked range. One header serves every team's fold and sticks, so a
   person clicked anywhere lands on labeled numbers; changing the range
-  keeps the old numbers up, dimmed, until the new ones arrive. Overload
-  says so in words, the word in amber, the count in ink. The Overview's
-  Overloaded tile opens it on the same 14 days.
+  keeps the old numbers up, dimmed, until the new ones arrive. Its columns
+  answer who has too much on; Open, Opened, Merged and On non-developers'
+  PRs sit in the opened row (a moved column rejoins the header while the
+  list sorts by it). Overload says so in words, "overloaded" inline after
+  the name in amber, the count in ink. The Overview's
+  Overloaded tile opens it on the same 14 days. The Overloaded tile has no note
+  (the heading's door says the threshold); the Stamps tile's note is the
+  short mark ("+47"), the sentence in its hover.
 - **The Overview opens on what's owed**: rows Decide asks about first, in
   Decide's own order, then updates owed, then the rest, so its top rows and
   Decide's list can't disagree. Its first tab counts projects being worked
@@ -395,16 +403,24 @@ icon with a class bolted on.
 - **A project reads sensibly before anyone sets it up**, as prod will on day
   one (`?state=fresh` on the dummy board: labels on PRs, nothing else). A
   project with no issue is named from its slug ("Webdriver deflake") and led
-  by its author with the most PRs, marked "by PRs".
+  by its author with the most PRs. The name is its normal link, followed by
+  the word "guessed" in ink-3, dotted-underlined, whose hover gives the
+  reason; the same look on the Overview, Decide and the project page. The
+  dots sit on the word, never the name, since the name opens People.
 - **Yours first.** The Overview opens with your projects (you lead it, or
   you have a PR open or merged in the last 14 days), and My work carries a
   "Your projects" fold, amber only when the call is yours.
+  The Yours table keeps the Time open and Last activity columns as blank
+  slots (blank head and cell, same widths as All projects), so the Lead and
+  the other columns line up between the two tables.
 - **The review board knows projects**, by the tab's one rule: a parked
   project's PRs sink in every ranked lane (their why says so), the last two
   open PRs of a plan in progress win ties, and the PR popover names the
   project. Nothing leaves the board, and no lane changes.
 - **A call is made where it's seen.** The call strip sits under a project
-  page's Plan line for any project and in an Overview row's details, and
+  page's Plan line for any project and in an Overview row's details,
+  starting collapsed wherever a question is asked (the Roadmap's plan
+  details show the full set from the start), and
   each Decide section answers every row at once ("Commit all 52 through the
   end of Oct"), each row keeping its receipt, with Undo all.
 - **Open boards stay current.** The server sends `projectsChanged` after
@@ -459,8 +475,11 @@ icon with a class bolted on.
   and a chart drawing itself in on load says nothing.
 - **Every chart says what it counts.** The unit sits over the y-axis
   ("Open PRs", "Developer-days each week"), the x-axis names the days or
-  weeks, and hovering a mark gives its exact numbers; the load chart puts
-  its unit on its top gridline ("10 projects"). A list of small weekly
+  weeks, and hovering a mark gives its exact numbers. The load chart is the
+  exception, with no y-axis: its headline beside the bars names what they
+  count, and its dashed developer line is the one ruler. Look back's
+  weekly chart is the other: its heading says what the bars count, so it
+  carries no unit label either. A list of small weekly
   bars gets column heads that date its first and last week. Each chart
   answers one question, said plainly in its title ("Is the backlog
   growing?"): a cumulative flow chart was replaced by the open PRs each
@@ -481,7 +500,8 @@ icon with a class bolted on.
   least 90 days ending on the range's last day and pales the days before the
   range, so a short range still shows its trend.
 - **The roadmap moves by direct manipulation, in whole weeks.** Drag a
-  row's grip to change its priority (the order is the priority; there's no
+  row's grip (shown on the row's hover or focus, always on touch, since the
+  rank beside it already says the rows are ordered) to change its priority (the order is the priority; there's no
   separate number to keep in sync), drag a bar to move the plan, and drag
   its right edge to change the length. Every drag has a keyboard twin:
   arrows on the grip reorder, arrows on a focused bar move it a week, and
@@ -489,7 +509,9 @@ icon with a class bolted on.
   (an outline while planned, a fill once under way, green when done, a gray
   outline when parked, faint when dropped), how firm its end is by its
   right end (crisp when hard, fading out when soft, running square to the
-  edge of the weeks shown when ongoing), and its dates and weeks inside, when it has room. A click on a
+  edge of the weeks shown when ongoing), and its weeks by its length on the
+  axis: inside it names only an end its form can't show ("Ongoing",
+  "Promised" when it has room), and its hover and a drag say the dates. A click on a
   bar opens the plan under its row, read first, the way its project's page
   says a plan: the plan in a line with Decide's calls under it (the one
   asked outlined and focused), its latest update and Post an update, its
@@ -505,12 +527,18 @@ icon with a class bolted on.
   Next or Later says only the month its work starts. The columns are
   derived from the dates, never set by hand, so the two layouts can't
   disagree.
-- **A plan's row at rest says one thing.** Its name, then the one thing the
-  plan asks for (Decide's call, else the worst thing owed, else its health
-  word), then its lead. The bar's form says its status, and its hover and
-  screen-reader label say it in words. What it waits on, its target and
-  where it came from are in its details; the milestone flag stays on the
-  timeline. A Now, next and later card says the same.
+- **A plan's row at rest is one line: rank and name.** A second line only
+  when Decide asks something, and then only its question, in amber with a
+  dotted underline, its reason on hover; or, in ink, a clash with what it
+  waits on, by rank ("Starts before #2 is done", the name on hover), since
+  order is the roadmap's own business. So a row's height says it wants
+  you, and amber on the Roadmap means Decide's questions only. An update
+  owed ("Update due", "No update yet") is said where the lead looks, the
+  Overview's Plan column and the opened plan, and a health word with
+  nothing owed isn't said at all. The lead shows on the row's hover, in a
+  slot it already takes, and "No lead yet" only in the opened plan. The
+  bar's form says its status, and its hover and screen-reader label say it
+  in words. A Now, next and later card says the same, with its lead.
 - **A plan's end is hard, soft or ongoing.** Hard is a commitment that
   Decide asks about once it passes. Soft is an estimate: shown on the
   roadmap, never asked about, and passing it is drift said in ink. Ongoing
@@ -523,20 +551,32 @@ icon with a class bolted on.
   mark that needs a legend gets rethought, not explained: an unlabeled gray
   line for a project's PR activity and an upright tick for its milestone
   were tried and cut because nobody could read them cold. Now a plan still
-  in flight past its end grows a piece labeled "+3 wk over" (amber only
+  in flight past its end grows a piece labeled "3 wk overdue" (amber only
   when it's the plan's worst call, always ink past a soft end, and faded
   past today), a
-  milestone is a flag with its date ("Dec 14 target"), a project with no
+  milestone is a flag with its date while that's ahead ("Due Oct 29"), the
+  flag alone once it passed (the overrun and Decide's question already say
+  late), a project with no
   plan is a dashed bar that says "since Aug 17, no plan" (a short one says
-  "since Sep 7" past its end), and the load chart labels its two halves
-  ("Being worked on, from PRs" and "Ahead, if nothing changes · 39 ship
-  without a plan", which names the drop at today) and its dashed line ("10 developers", ink until a week from
-  this one on crosses it; the wash above it was cut as a state wash)
-  instead of carrying a legend. Stripes for projected weeks were cut the
-  same way, and so were the count words' colored squares: each count word
-  takes its bars' color instead. A bar says it can be dragged with the
+  "since Sep 7" past its end), and the load chart labels its dashed line ("10 developers", always ink,
+  the way to People; the wash above it was cut as a state wash) instead of
+  carrying a legend. Its headline beside the bars is the answer and names
+  what they count and over which span ("15 projects being worked on this
+  week", the span in ink-3, since the Overview counts the last 14 days;
+  and in amber "5 more than
+  developers" when over), so the bars carry no label of their own; "from
+  PRs" is in its hover. Today is brand words over its line, no filled tag. The chart draws only the weeks up to today: a forecast drawn from
+  the plan list could only fall, since the list knows nothing that isn't
+  decided yet, so its tail read as silly. Right of today it says the next
+  four weeks in words the rows can check ("Next 4 weeks: 2 start, 3 should
+  end", each count's hover naming the plans). Stripes for projected
+  weeks were cut the same way, and so were the count words' colored
+  squares: each count word takes its bars' color instead. A soft end is a
+  plain rounded end and a promised end has an ink cap ("Promised"
+  when the bar has room), so a fade only ever means still going past
+  today. A bar says it can be dragged with the
   grab cursor and a resize edge that shows on hover and focus. The line
-  under the heading says only that top to bottom is priority, and its door
+  under the heading says only "Highest priority first", and its door
   says how to drag.
 - **The timeline is built for a hundred projects in flight.** Every live
   project shows, planned or not, since the load is the point; lanes fold,
@@ -639,14 +679,23 @@ icon with a class bolted on.
   stalls, updates saying at risk or off track, work marked done or dropped
   whose PRs are still open, and parked work that moved. Work with fewer
   than 3 PRs ships without a call unless it stalls, so the first visit
-  isn't a hundred rows. Each row says why it's there in words, with the
-  facts the call turns on (team, size, people, target), and each call is
+  isn't a hundred rows. Each row says why it's there in words, under its
+  name and lead; the facts the call turns on (team, size, people, target)
+  are on the reason's hover. Each call is
   one click that writes the roadmap: commit through the end of a coming
   month or quarter, park, mark done, or drop. Each row's reason asks one
   question ("Done?", "New end?", "Commit to it?"), in amber, the row's one
-  amber mark. Its answer comes first on every row, the one outlined button,
-  so it sits in the same place down the list; a divider, then the other
-  ends and calls in quiet ink. After a call, focus lands on the receipt's
+  amber mark. Its suggested answer comes first on every row, the one filled
+  button, so it sits in the same place down the list, then a bordered
+  "Other answers" that opens the "Promise to finish by" and "Or instead"
+  rows in place. The collapsed button uses the project page's answer words
+  ("Move the end date to Oct 31", "Restart, finishing by Oct 31", "Promise
+  to finish by Oct 31", "Mark done", "Park", "Drop", "Mark ongoing") so it
+  answers the question alone; the expanded rows keep the short "End of Oct".
+  The reason is one short sentence ("3 weeks overdue, 4 new PRs since.") on
+  Decide, the project page and the Overview's hover. On the project page the
+  row listing a project's child projects is labeled "Projects in it", not
+  "Parts", which at iFixit means repair parts; every card starts collapsed. After a call, focus lands on the receipt's
   words, with Undo the next Tab, so an extra Enter never undoes it. The
   roadmap names the same call on the plan's row, the question in amber. Every receipt says what happens next and
   offers Undo, which puts the plan back with the times the call replaced,
@@ -701,7 +750,9 @@ icon with a class bolted on.
   next one can say the end moved "2 weeks later" without anyone keeping a
   baseline by hand.
 - **A comparison is words, not color.** Each count says how it compares with
-  the same number of days just before ("4 more than the 30 days before").
+  the same number of days just before, as a short mark ("+57", "was 6%")
+  with the full sentence ("57 more than the 30 days before") in the tile's
+  hover.
   More merged isn't always good news, so no green or red.
 
 ## Copy rules (static text is part of the visual system)
@@ -728,7 +779,10 @@ icon with a class bolted on.
   comments.)
 - **Every curated lane's sub-line is a door** (`SubDoor` in Lane.tsx): the
   visible sentence states the ordering, hovering it opens what lands in
-  the lane and how it's ranked. Every group eyebrow glosses itself the
+  the lane and how it's ranked. At most one shows per pane, where a
+  threshold or an unclear inclusion changes what you see; never a date
+  range a picker on screen already says. The rest carry their rule in
+  the heading's hover. Every group eyebrow glosses itself the
   same way (WORD_GLOSS). The PR title is a door too: hovering the
   visible words previews the description, rendered and sanitized
   (markdown.ts, lazy chunk) — the "can I act on this?" read without
