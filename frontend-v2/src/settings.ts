@@ -115,8 +115,9 @@ export interface Settings {
     * or age tooltip) before it opens, so brushing the pointer across the board
     * doesn't flash panels open. 0 = open instantly; a click always bypasses it. */
    hoverDelayMs: number;
-   /** PR jail pops up at all; off hides it and its header badge */
-   jailOn: boolean;
+   /** PR jail: 'auto' pops it up when you're over the limits, 'manual' only
+    * shows the header lock (click to open), 'off' shows neither */
+   jailMode: 'auto' | 'manual' | 'off';
    /** PR jail pops up when you have more than this many open PRs of your own */
    jailMaxOpen: number;
    /** ...or when any of them has been open longer than this many days */
@@ -176,13 +177,21 @@ export const DEFAULT_SETTINGS: Settings = {
    repoQueueCap: 15,
    openPrsNewTab: true,
    hoverDelayMs: 250,
-   jailOn: true,
+   jailMode: 'auto',
    jailMaxOpen: JAIL_MAX_OPEN,
    jailMaxDays: JAIL_MAX_DAYS,
    jailCountDrafts: false,
 };
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
+// jailOn (an on/off switch, live for a day) became jailMode; an Off carries over
+{
+   const saved = store.get() as Settings & { jailOn?: boolean };
+   if (saved.jailOn !== undefined) {
+      const { jailOn, ...rest } = saved;
+      store.set({ ...rest, jailMode: jailOn ? rest.jailMode : 'off' });
+   }
+}
 
 /** Union of every personal roster, sorted — "your people": the set that
  * leads the review queues and wears the teammate corner heart. */
