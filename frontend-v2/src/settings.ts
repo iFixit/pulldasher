@@ -115,7 +115,9 @@ export interface Settings {
     * or age tooltip) before it opens, so brushing the pointer across the board
     * doesn't flash panels open. 0 = open instantly; a click always bypasses it. */
    hoverDelayMs: number;
-   /** PR jail drops when you have more than this many open PRs of your own */
+   /** PR jail pops up at all; off hides it and its header badge */
+   jailOn: boolean;
+   /** PR jail pops up when you have more than this many open PRs of your own */
    jailMaxOpen: number;
    /** ...or when any of them has been open longer than this many days */
    jailMaxDays: number;
@@ -174,6 +176,7 @@ export const DEFAULT_SETTINGS: Settings = {
    repoQueueCap: 15,
    openPrsNewTab: true,
    hoverDelayMs: 250,
+   jailOn: true,
    jailMaxOpen: JAIL_MAX_OPEN,
    jailMaxDays: JAIL_MAX_DAYS,
    jailCountDrafts: false,

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Lock } from 'lucide-react';
+import { Lock, Trash2 } from 'lucide-react';
 import type { DerivedPull } from '../../../shared/model/status';
 import { githubUrl } from '../../../shared/format';
 import { rowNote, rowWord } from '../model/actions';
@@ -21,86 +21,13 @@ import { eyebrowText } from './Lane';
 import { CiGlyph } from './pips';
 
 /**
- * PR jail: when your own open PRs pass a limit (model/jail.ts), a cell
- * drops over the board and lists them, and comes back only when that gets
- * worse (jailDue). Dragging the key onto the lock (or pressing it) lets you
- * out. While you're over, a header badge reopens it. `#jail=1` in the URL
- * forces it, any time, for a preview.
+ * PR jail: when your own open PRs pass a limit (model/jail.ts), a modal pops
+ * up listing them, and comes back only when that gets worse (jailDue). It
+ * has no close button: you drag it to the trash at the bottom of the screen
+ * (or press the trash from the keyboard). While you're over, a header badge
+ * reopens it. `#jail=1` in the URL forces it, any time, for a preview; the
+ * jailOn setting turns the whole thing off.
  */
-
-// the art as raw SVG strings, inlined so CSS can animate their parts
-const svgs = import.meta.glob<string>('../assets/jail/*.svg', {
-   query: '?raw',
-   import: 'default',
-   eager: true,
-});
-const svg = (name: string) => svgs[`../assets/jail/${name}.svg`];
-
-/** Several SVGs share one page, so every id (and every #ref to one) gets a
- * per-copy prefix. */
-function prefixIds(raw: string, prefix: string): string {
-   return raw
-      .replace(/<\?xml[^>]*>/, '')
-      .replace(/<title>[^<]*<\/title>/, '')
-      .replace(/id="/g, `id="${prefix}`)
-      .replace(/(href="#|url\(#)/g, `$1${prefix}`);
-}
-
-/** One cell's art and where things sit on it, in its 1200x800 viewBox.
- * `front` names the bars drawn again in front of the robot, so it reads as
- * inside the cell; swapping the cell art means a new one of these. */
-const CELL = {
-   svg: svg('cell-r10'),
-   // the door's outer bars cross the robot's sides; the middle one stays
-   // behind him, since in front it would hide his face
-   front: [725, 875],
-   barTop: 92,
-   barBottom: 708,
-   // the robot's face sits on the door's middle line (x 800); inmate-r05
-   // draws him further left in its art, so its box sits further right
-   inmate: { x: 590, y: 275, w: 330, h: 440 },
-   merged: { x: 635, y: 275, w: 330, h: 440 },
-   // inmate-r03's tally wall, on the back wall in the bay left of the door
-   tally: { x: 528, y: 271, w: 216, h: 288 },
-   // hung on the door's latch edge, clear of the robot's face
-   lock: { x: 608, y: 330, w: 120, h: 160 },
-   // right above the lock, so getting out is one drag straight down
-   key: { x: 631, y: 96, w: 74, h: 148 },
-   // the dashed arrow from the key's bit down to the lock
-   guide: { x: 653, y: 248, w: 30, h: 78 },
-   // the drop-target ring, centered on the padlock's keyhole
-   ring: { x: 598, y: 372, w: 140, h: 140 },
-};
-
-const ART = {
-   back: prefixIds(CELL.svg, 'jb-'),
-   front: prefixIds(CELL.svg, 'jf-'),
-   inmate: prefixIds(svg('inmate-r03'), 'ji-'),
-   tally: prefixIds(svg('inmate-r03'), 'jt-'),
-   merged: prefixIds(svg('inmate-r05'), 'jm-'),
-   key: prefixIds(svg('key-g01'), 'jk-'),
-   lock: prefixIds(svg('lock-g01'), 'jl-'),
-};
-
-const box = (b: { x: number; y: number; w: number; h: number }): CSSProperties => ({
-   left: `${b.x / 12}%`,
-   top: `${b.y / 8}%`,
-   width: `${b.w / 12}%`,
-   height: `${b.h / 8}%`,
-});
-
-/** A clip-path showing only narrow strips around the front bars. The strips
- * join along the top edge with zero-width seams. */
-function frontClip(): string {
-   const top = `${CELL.barTop / 8}%`;
-   const bottom = `${CELL.barBottom / 8}%`;
-   const pts = CELL.front.flatMap(x => {
-      const l = `${(x - 18) / 12}%`;
-      const r = `${(x + 18) / 12}%`;
-      return [`${l} ${top}`, `${r} ${top}`, `${r} ${bottom}`, `${l} ${bottom}`, `${l} ${top}`];
-   });
-   return `polygon(${pts.join(', ')})`;
-}
 
 const hasPreviewFlag = () => new URLSearchParams(location.hash.slice(1)).get('jail') === '1';
 
@@ -129,7 +56,7 @@ export function JailMode({
 
    const found = useMemo(
       () =>
-         initialized
+         initialized && settings.jailOn
             ? jailCase(pulls, me, extraBots, {
                  maxOpen: settings.jailMaxOpen,
                  maxDays: settings.jailMaxDays,
@@ -206,7 +133,7 @@ export function JailMode({
          )}
          {shown &&
             createPortal(
-               <JailCell
+               <JailModal
                   jail={
                      found ??
                      (shown === 'preview' ? sampleCase(pulls, me, extraBots, settings) : FREE)
@@ -229,7 +156,7 @@ export function JailMode({
 /** Merged or closed your way under the limits while the cell was down. */
 const FREE: JailCase<DerivedPull> = {
    pulls: [],
-   why: 'You’re under the limits now. Use the key to walk out.',
+   why: 'You’re under the limits now. Drag this to the trash and get back to work.',
    count: 0,
    over: [],
 };
@@ -260,15 +187,9 @@ function sampleCase(
    };
 }
 
-type Phase = 'locked' | 'turning' | 'open' | 'leaving';
-
-// ms from a hit: key snaps and turns, shackle opens and the robot cheers,
-// then the cell lifts away
-const TURN_MS = 600;
-const CHEER_MS = 1400;
-const LIFT_MS = 650;
-
-function JailCell({
+/** The modal over the board. The only way out is dragging it onto the
+ * trash; a keyboard or screen reader presses the trash instead. */
+function JailModal({
    jail,
    me,
    maxDays,
@@ -280,27 +201,17 @@ function JailCell({
    onDone: () => void;
 }) {
    const rootRef = useRef<HTMLDivElement>(null);
-   const keyRef = useRef<HTMLButtonElement>(null);
-   const lockRef = useRef<HTMLDivElement>(null);
+   const trashRef = useRef<HTMLButtonElement>(null);
    const drag = useRef<{ id: number; x: number; y: number } | null>(null);
-   const [phase, setPhase] = useState<Phase>('locked');
    const [offset, setOffset] = useState({ x: 0, y: 0 });
    const [dragging, setDragging] = useState(false);
-   // the key is over the lock: the ring says "let go here"
-   const [near, setNear] = useState(false);
-   // the "Drag me" hint goes once the key's been touched, by pointer or keys
-   const [touched, setTouched] = useState(false);
-   // a missed drop: the lock shakes its head before the key springs back
-   const [nope, setNope] = useState(false);
-   const timers = useRef<number[]>([]);
+   // the card is over the trash: the trash says "let go here"
+   const [over, setOver] = useState(false);
 
    useEffect(() => {
       const root = rootRef.current;
-      // the dialog takes focus, not the key, so the key only shows its focus
-      // ring when someone tabs to it; no scroll, as the key sits below the
-      // list on a phone
       root?.focus({ preventScroll: true });
-      // Esc doesn't let you out (the key does); Tab stays inside
+      // Esc doesn't close it (the trash does); Tab stays inside
       const onKey = (e: KeyboardEvent) => {
          if (e.key === 'Escape') e.preventDefault();
          if (e.key !== 'Tab' || !root) return;
@@ -322,91 +233,43 @@ function JailCell({
       document.addEventListener('keydown', onKey);
       const prevOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
-      const pending = timers.current;
       return () => {
          document.removeEventListener('keydown', onKey);
          document.body.style.overflow = prevOverflow;
-         pending.forEach(clearTimeout);
       };
    }, []);
 
-   const unlock = () => {
-      if (phase !== 'locked') return;
-      // snap the key's bit onto the keyhole
-      const d = bitToHole();
-      if (d) setOffset(o => ({ x: o.x + d.x, y: o.y + d.y }));
-      setPhase('turning');
-      const at = (ms: number, fn: () => void) => timers.current.push(window.setTimeout(fn, ms));
-      at(TURN_MS, () => setPhase('open'));
-      at(TURN_MS + CHEER_MS, () => setPhase('leaving'));
-      at(TURN_MS + CHEER_MS + LIFT_MS, onDone);
-   };
-
-   /** How far the key's bit is from the keyhole, in px. */
-   const bitToHole = () => {
-      const key = keyRef.current?.getBoundingClientRect();
-      const lock = lockRef.current?.getBoundingClientRect();
-      if (!key || !lock?.width) return null;
-      return {
-         x: lock.left + lock.width / 2 - (key.left + key.width / 2),
-         y: lock.top + lock.height * 0.72 - (key.top + key.height * 0.85),
-      };
-   };
-
-   const keyOverLock = () => {
-      const key = keyRef.current?.getBoundingClientRect();
-      const lock = lockRef.current?.getBoundingClientRect();
-      const slop = 24;
+   /** Whether the pointer is over the trash, with some slop. */
+   const onTrash = (x: number, y: number) => {
+      const t = trashRef.current?.getBoundingClientRect();
+      const slop = 32;
       return Boolean(
-         key &&
-            lock &&
-            key.right > lock.left - slop &&
-            key.left < lock.right + slop &&
-            key.bottom > lock.top - slop &&
-            key.top < lock.bottom + slop
+         t && x > t.left - slop && x < t.right + slop && y > t.top - slop && y < t.bottom + slop
       );
    };
 
-   const onPointerDown = (e: PointerEvent<HTMLButtonElement>) => {
-      if (phase !== 'locked') return;
+   const onPointerDown = (e: PointerEvent<HTMLElement>) => {
+      // links in the header stay clickable
+      if ((e.target as HTMLElement).closest('a')) return;
       drag.current = { id: e.pointerId, x: e.clientX - offset.x, y: e.clientY - offset.y };
       setDragging(true);
-      setTouched(true);
-      // keeps the moves coming when the pointer outruns the key
       e.currentTarget.setPointerCapture?.(e.pointerId);
    };
-   const onPointerMove = (e: PointerEvent<HTMLButtonElement>) => {
+   const onPointerMove = (e: PointerEvent<HTMLElement>) => {
       const d = drag.current;
       if (d?.id !== e.pointerId) return;
-      const next = { x: e.clientX - d.x, y: e.clientY - d.y };
-      const isNear = keyOverLock();
-      setNear(isNear);
-      // in range, the keyhole pulls the key's bit a third of the way in
-      const pull = isNear ? bitToHole() : null;
-      setOffset(
-         pull
-            ? {
-                 x: next.x + (pull.x - (next.x - offset.x)) / 3,
-                 y: next.y + (pull.y - (next.y - offset.y)) / 3,
-              }
-            : next
-      );
+      setOffset({ x: e.clientX - d.x, y: e.clientY - d.y });
+      setOver(onTrash(e.clientX, e.clientY));
    };
-   const onPointerUp = (e: PointerEvent<HTMLButtonElement>) => {
+   const onPointerUp = (e: PointerEvent<HTMLElement>) => {
       if (drag.current?.id !== e.pointerId) return;
       drag.current = null;
       setDragging(false);
-      setNear(false);
-      if (keyOverLock()) unlock();
-      else {
-         // a miss springs back home
-         setOffset({ x: 0, y: 0 });
-         setNope(true);
-         timers.current.push(window.setTimeout(() => setNope(false), 400));
-      }
+      setOver(false);
+      if (onTrash(e.clientX, e.clientY)) onDone();
+      else setOffset({ x: 0, y: 0 });
    };
 
-   const free = phase === 'open' || phase === 'leaving';
    return (
       <div
          ref={rootRef}
@@ -415,120 +278,58 @@ function JailCell({
          aria-modal="true"
          aria-labelledby="jail-title"
          aria-describedby="jail-why"
-         className="jail fixed inset-0 z-[200] overflow-hidden outline-none"
+         className="fixed inset-0 z-[200] flex flex-col items-center overflow-y-auto bg-ink/40 px-4 pt-[8vh] pb-32 outline-none"
       >
-         {/* the cell's back wall, so the board doesn't show between the bars */}
-         <div className="jail-scrim absolute inset-0" aria-hidden />
-         <div
-            className={`jail-stage absolute inset-0 flex flex-col overflow-y-auto jail-wide:block jail-wide:overflow-visible ${
-               phase === 'leaving' ? 'is-leaving' : ''
-            }`}
+         <section
+            className={`flex max-h-[calc(100dvh-8vh-9rem)] w-full max-w-[30rem] flex-col gap-3 rounded-xl border border-line bg-surface p-4 text-ink shadow-2xl ${
+               dragging ? '' : 'transition-transform duration-200 motion-reduce:transition-none'
+            } ${over ? 'scale-90 opacity-70' : ''}`}
+            style={{ translate: `${offset.x}px ${offset.y}px` }}
          >
-            {/* the cell: the whole screen when it's wide (jail-wide in styles.css); on a phone or tablet, the part with
-                the robot and the door, below the list */}
-            <div className="jail-frame order-2">
-               <div className="jail-scene" aria-hidden>
-                  <div
-                     className="jail-art jail-tally absolute"
-                     style={box(CELL.tally)}
-                     dangerouslySetInnerHTML={{ __html: ART.tally }}
-                  />
-                  <div
-                     className="jail-art absolute inset-0"
-                     dangerouslySetInnerHTML={{ __html: ART.back }}
-                  />
-                  <div
-                     key={free ? 'merged' : 'jailed'}
-                     className={`jail-art jail-inmate absolute ${free ? 'jail-cheer' : ''}`}
-                     style={box(free ? CELL.merged : CELL.inmate)}
-                     dangerouslySetInnerHTML={{ __html: free ? ART.merged : ART.inmate }}
-                  />
-                  <div
-                     className="jail-art absolute inset-0"
-                     style={{ clipPath: frontClip() }}
-                     dangerouslySetInnerHTML={{ __html: ART.front }}
-                  />
-                  <div
-                     className={`jail-ring absolute rounded-full ${dragging ? 'is-dragging' : ''} ${
-                        near ? 'is-near' : ''
-                     } ${phase !== 'locked' ? 'is-done' : ''}`}
-                     style={box(CELL.ring)}
-                  />
-                  {phase === 'locked' && !dragging && (
-                     <svg
-                        className="jail-guide absolute"
-                        style={box(CELL.guide)}
-                        viewBox="0 0 30 78"
-                        fill="none"
-                     >
-                        {/* a casing under the arrow, so it reads over the door's bar */}
-                        <path d="M15 2V66M6 60L15 72L24 60" className="jail-guide-case" />
-                        <path d="M15 2V66" className="jail-guide-line" />
-                        <path d="M6 60L15 72L24 60" />
-                     </svg>
-                  )}
-                  <div
-                     ref={lockRef}
-                     className={`jail-art jail-lock absolute ${free ? 'is-open' : ''} ${
-                        near ? 'is-near' : ''
-                     } ${nope ? 'is-nope' : ''} ${phase === 'locked' ? 'is-live' : ''}`}
-                     style={box(CELL.lock)}
-                     dangerouslySetInnerHTML={{ __html: ART.lock }}
-                  />
-               </div>
-               {/* the key rides the same geometry as the art, outside its aria-hidden */}
-               <div className="jail-scene pointer-events-none">
-                  <button
-                     ref={keyRef}
-                     type="button"
-                     aria-label="Use the key to unlock PR jail"
-                     className={`jail-key ${
-                        phase === 'locked' ? 'is-live' : ''
-                     } pointer-events-auto absolute z-10 cursor-grab touch-none rounded-lg ${
-                        dragging ? 'is-dragging cursor-grabbing' : ''
-                     } ${phase !== 'locked' ? 'is-turning' : ''} ${free ? 'is-in' : ''}`}
-                     style={{ ...box(CELL.key), translate: `${offset.x}px ${offset.y}px` }}
-                     onPointerDown={onPointerDown}
-                     onPointerMove={onPointerMove}
-                     onPointerUp={onPointerUp}
-                     onPointerCancel={onPointerUp}
-                     // keyboard and screen readers click with detail 0; a
-                     // mouse has to drag the key
-                     onClick={e => e.detail === 0 && unlock()}
-                     onKeyDown={() => setTouched(true)}
-                  >
-                     {!touched && phase === 'locked' && (
-                        <span
-                           aria-hidden
-                           className="jail-hint pointer-events-none absolute top-[18%] left-full ml-1.5 rounded-full border border-line bg-surface px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap text-ink-2 shadow-sm"
-                        >
-                           Drag me
-                        </span>
-                     )}
-                     <span
-                        className="jail-art jail-key-art block h-full w-full"
-                        dangerouslySetInnerHTML={{ __html: ART.key }}
-                     />
-                  </button>
-               </div>
-            </div>
-            <section className="relative order-1 m-4 flex shrink-0 flex-col gap-3 rounded-xl border border-line bg-surface p-4 text-ink shadow-xl jail-wide:absolute jail-wide:top-24 jail-wide:left-[4vw] jail-wide:m-0 jail-wide:w-[26rem]">
-               <div>
+            {/* the handle: drag the card from its top, down to the trash */}
+            <div
+               className={`flex touch-none items-center gap-3 select-none ${
+                  dragging ? 'cursor-grabbing' : 'cursor-grab'
+               }`}
+               onPointerDown={onPointerDown}
+               onPointerMove={onPointerMove}
+               onPointerUp={onPointerUp}
+               onPointerCancel={onPointerUp}
+            >
+               <SadRobot />
+               <div className="min-w-0">
                   <h2 id="jail-title" className="m-0 text-lg font-semibold">
-                     {free ? 'Out of PR jail' : 'PR jail'}
+                     PR jail
                   </h2>
                   <p id="jail-why" className="m-0 text-[13px] text-ink-2">
                      {jail.why}
                   </p>
                </div>
+            </div>
+            <div className="min-h-0 overflow-y-auto">
                <JailList pulls={jail.pulls} me={me} maxDays={maxDays} />
-               <p className="m-0 border-t border-line pt-3 text-xs text-ink-3" aria-live="polite">
-                  {free
-                     ? 'Merged! You’re free.'
-                     : 'Drag the key down into the lock to get out (or press Enter on it).'}
-               </p>
-            </section>
-         </div>
+            </div>
+            <p className="m-0 border-t border-line pt-3 text-xs text-ink-3">
+               Drag this card into the trash below to put it away.
+            </p>
+         </section>
+         <button
+            ref={trashRef}
+            type="button"
+            aria-label="Throw PR jail in the trash"
+            // keyboard and screen readers click with detail 0; a mouse has to
+            // drag the card here
+            onClick={e => e.detail === 0 && onDone()}
+            className={`fixed bottom-6 left-1/2 grid size-16 -translate-x-1/2 cursor-default place-items-center rounded-full border-2 border-dashed shadow-lg transition-colors duration-150 motion-reduce:transition-none ${
+               over
+                  ? 'scale-110 border-bad bg-bad text-surface'
+                  : dragging
+                  ? 'border-bad bg-surface text-bad'
+                  : 'border-line bg-surface text-ink-3'
+            }`}
+         >
+            <Trash2 size={26} aria-hidden />
+         </button>
       </div>
    );
 }
@@ -547,7 +348,7 @@ function JailList({ pulls, me, maxDays }: { pulls: DerivedPull[]; me: string; ma
       { title: 'Waiting on others', tone: 'text-ink-3', rows: groups.waiting },
    ].filter(g => g.rows.length);
    return (
-      <div className="flex flex-col gap-3 jail-wide:max-h-[45vh] jail-wide:overflow-y-auto">
+      <div className="flex flex-col gap-3">
          {sections.map(g => (
             <section key={g.title} aria-label={mine ? g.title : undefined}>
                {mine && (
@@ -617,12 +418,62 @@ function JailRow({
                {p.ageDays ? `${p.ageDays}d` : '<1d'}
             </span>
          </span>
-         <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-ink-3 jail-wide:flex-nowrap">
+         <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-ink-3">
             <RepoRef repo={p.data.repo} number={p.data.number} />
             {move && <span className="font-medium whitespace-nowrap text-brand-700">· {move}</span>}
             {!ready && <CiGlyph pull={p} />}
             {detail && <span className="min-w-0 truncate">· {detail}</span>}
          </span>
       </li>
+   );
+}
+
+/** The inmate: a sad robot behind bars, drawn in the board's own line
+ * weights and color tokens so it themes with everything else. */
+function SadRobot() {
+   return (
+      <svg
+         aria-hidden
+         viewBox="0 0 96 96"
+         className="size-20 shrink-0 rounded-xl bg-secondary"
+         fill="none"
+         strokeLinecap="round"
+         strokeLinejoin="round"
+      >
+         {/* a drooping antenna */}
+         <path d="M48 24 C48 18 52 15 57 15" className="stroke-ink-3" strokeWidth={2} />
+         <circle cx="58" cy="15" r="2.5" className="fill-warn" />
+         {/* head, and the face on its screen */}
+         <rect
+            x="26"
+            y="24"
+            width="44"
+            height="34"
+            rx="10"
+            className="fill-surface stroke-ink-2"
+            strokeWidth={2}
+         />
+         <path d="M38 35 L43 33 M58 35 L53 33" className="stroke-ink-2" strokeWidth={2} />
+         <circle cx="41" cy="40" r="2.2" className="fill-ink-2" />
+         <circle cx="55" cy="40" r="2.2" className="fill-ink-2" />
+         <path d="M42 50 Q48 45 54 50" className="stroke-ink-2" strokeWidth={2} />
+         {/* striped prison body */}
+         <rect
+            x="34"
+            y="62"
+            width="28"
+            height="22"
+            rx="6"
+            className="fill-surface stroke-ink-2"
+            strokeWidth={2}
+         />
+         <path d="M34 69 H62 M34 76 H62" className="stroke-ink-3" strokeWidth={2} />
+         {/* the bars, in front of him */}
+         <path
+            d="M14 8 V88 M31 8 V88 M65 8 V88 M82 8 V88 M8 8 H88 M8 88 H88"
+            className="stroke-ink-3"
+            strokeWidth={2.5}
+         />
+      </svg>
    );
 }

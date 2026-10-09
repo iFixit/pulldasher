@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { derive, type DerivedPull } from '../../../shared/model/status';
 import type { PullData } from '../../../shared/types';
+import { setSettings } from '../settings';
 import { JailMode } from './JailMode';
 
 // React's act() warns unless the environment says it's a test
@@ -58,6 +59,7 @@ afterEach(() => {
    act(() => root?.unmount());
    root = null;
    localStorage.clear();
+   setSettings({ jailOn: true });
 });
 
 function render(pulls: DerivedPull[]) {
@@ -95,5 +97,24 @@ describe('JailMode while the cell is down', () => {
          ready.data.title
       );
       expect(why()).toBe('8 open PRs. Parole at 7. Merge your ready one and you’re out.');
+   });
+
+   it('stays away, badge and all, when PR jail is off', () => {
+      setSettings({ jailOn: false });
+      render(many(9));
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+      expect(document.querySelector('[aria-label^="PR jail"]')).toBeNull();
+   });
+
+   it('goes away when the trash is pressed from the keyboard', () => {
+      render(many(8));
+      const trash = document.querySelector<HTMLButtonElement>(
+         '[aria-label="Throw PR jail in the trash"]'
+      );
+      // a keyboard press clicks with detail 0; a mouse click does nothing
+      act(() => trash?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })));
+      expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+      act(() => trash?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 })));
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
    });
 });
