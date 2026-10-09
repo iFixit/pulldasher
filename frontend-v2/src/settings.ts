@@ -1,4 +1,5 @@
 import { STARVE_DAYS } from '../../shared/model/status';
+import { JAIL_MAX_DAYS, JAIL_MAX_OPEN } from './model/jail';
 import { createPersistentStore } from './storage';
 
 /** one named review circle; DEFAULT_TEAM_NAME is what quick add-to-team
@@ -114,6 +115,12 @@ export interface Settings {
     * or age tooltip) before it opens, so brushing the pointer across the board
     * doesn't flash panels open. 0 = open instantly; a click always bypasses it. */
    hoverDelayMs: number;
+   /** PR jail drops when you have more than this many open PRs of your own */
+   jailMaxOpen: number;
+   /** ...or when any of them has been open longer than this many days */
+   jailMaxDays: number;
+   /** whether your draft PRs count toward PR jail */
+   jailCountDrafts: boolean;
 }
 
 /** The heaviest age text tier (red), derived from ageWarnDays rather than
@@ -167,6 +174,9 @@ export const DEFAULT_SETTINGS: Settings = {
    repoQueueCap: 15,
    openPrsNewTab: true,
    hoverDelayMs: 250,
+   jailMaxOpen: JAIL_MAX_OPEN,
+   jailMaxDays: JAIL_MAX_DAYS,
+   jailCountDrafts: false,
 };
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);

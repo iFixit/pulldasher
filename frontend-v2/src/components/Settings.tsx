@@ -329,6 +329,59 @@ export function Settings({
                            />
                         </Field>
                         <Field
+                           label="PR jail: open PRs"
+                           hint="PR jail drops over the board when you have more than this many open PRs of your own (bots and deploy holds never count). It comes back only when that gets worse, at most every 4 hours."
+                        >
+                           <NumberField
+                              value={s.jailMaxOpen}
+                              min={1}
+                              max={50}
+                              suffix="PRs"
+                              onChange={jailMaxOpen => set({ jailMaxOpen })}
+                           />
+                        </Field>
+                        <Field
+                           label="PR jail: days open"
+                           hint="It also drops when any of them has been open longer than this."
+                        >
+                           <NumberField
+                              value={s.jailMaxDays}
+                              min={1}
+                              max={365}
+                              suffix="days"
+                              onChange={jailMaxDays => set({ jailMaxDays })}
+                           />
+                        </Field>
+                        <Field
+                           label="PR jail: count drafts"
+                           hint="Off leaves your draft PRs out of both limits."
+                        >
+                           <Segmented
+                              ariaLabel="count drafts toward PR jail"
+                              value={s.jailCountDrafts ? 'on' : 'off'}
+                              options={[
+                                 ['off', 'Off'],
+                                 ['on', 'On'],
+                              ]}
+                              onChange={v => set({ jailCountDrafts: v === 'on' })}
+                           />
+                        </Field>
+                        <Field
+                           label="See PR jail"
+                           hint="Drops it now with your open PRs, whatever the limits say."
+                        >
+                           <QuietButton
+                              onClick={() => {
+                                 // JailMode listens for jail=1 in the hash
+                                 const hash = new URLSearchParams(location.hash.slice(1));
+                                 hash.set('jail', '1');
+                                 location.hash = hash.toString();
+                              }}
+                           >
+                              Preview PR jail
+                           </QuietButton>
+                        </Field>
+                        <Field
                            label="Getting QA is a to-do"
                            hint="For teams that self-review, no separate CR gate means lining up QA is the real stall, so “Find a QA-er” on your own PRs shows in Waiting on you. Off keeps it in My work only."
                         >
