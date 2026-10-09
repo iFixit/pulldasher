@@ -329,8 +329,22 @@ export function Settings({
                            />
                         </Field>
                         <Field
+                           label="PR jail"
+                           hint="Pops up a list of your open PRs when you have too many, or one has been open too long. Off hides it and its header badge."
+                        >
+                           <Segmented
+                              ariaLabel="PR jail"
+                              value={s.jailOn ? 'on' : 'off'}
+                              options={[
+                                 ['off', 'Off'],
+                                 ['on', 'On'],
+                              ]}
+                              onChange={v => set({ jailOn: v === 'on' })}
+                           />
+                        </Field>
+                        <Field
                            label="PR jail: open PRs"
-                           hint="PR jail drops over the board when you have more than this many open PRs of your own (bots and deploy holds never count). It comes back only when that gets worse, at most every 4 hours."
+                           hint="PR jail pops up when you have more than this many open PRs of your own (bots and deploy holds never count). It comes back only when that gets worse, at most every 4 hours."
                         >
                            <NumberField
                               value={s.jailMaxOpen}
@@ -342,7 +356,7 @@ export function Settings({
                         </Field>
                         <Field
                            label="PR jail: days open"
-                           hint="It also drops when any of them has been open longer than this."
+                           hint="It also pops up when any of them has been open longer than this."
                         >
                            <NumberField
                               value={s.jailMaxDays}
@@ -368,7 +382,7 @@ export function Settings({
                         </Field>
                         <Field
                            label="See PR jail"
-                           hint="Drops it now with your open PRs, whatever the limits say."
+                           hint="Shows it now with your open PRs, whatever the limits say."
                         >
                            <QuietButton
                               onClick={() => {
