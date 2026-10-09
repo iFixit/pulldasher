@@ -20,7 +20,7 @@ import { buildReviewerPools, turnFor } from './model/rotation';
 import { shipRelevance, shippedToast } from './model/shipped';
 import { notificationStale } from './model/notificationRelevance';
 import type { Toast } from './model/toast';
-import { claimReview, isSnoozed, usePulldasher } from './store';
+import { claimReview, isSnoozed, refreshAllText, usePulldasher } from './store';
 import { primeScope, useScope } from './prefs';
 import { useBoardHotkeys, useHeaderHeightVar } from './hooks';
 import { ageRotDays, getSettings, type Settings as SettingsShape, useSettings } from './settings';
@@ -1133,9 +1133,7 @@ export function App() {
                      // Out of flow (anchored left of the cluster): transient text
                      // must not shove the bell/legend/cog sideways mid-aim.
                      <span className="absolute inset-y-0 right-full mr-2 hidden items-center bg-surface pl-2 text-xs whitespace-nowrap text-ink-3 tabular-nums sm:flex">
-                        {refreshProgress.done === refreshProgress.total
-                           ? `refreshed ${refreshProgress.total}`
-                           : `refreshing ${refreshProgress.done} of ${refreshProgress.total}`}
+                        {refreshAllText(refreshProgress, true)}
                      </span>
                   )}
                   <span

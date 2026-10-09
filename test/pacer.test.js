@@ -129,3 +129,58 @@ test("createPacer spaces consecutive gates by observed consumption", async () =>
     "second gate should pace out the request spent since the last gate"
   );
 });
+
+// GraphQL and search answer with their own budgets in the same headers. A
+// pacer that read them as REST's would pause bulk work for a quota it isn't
+// spending, here until a reset a few seconds out (short, so a regression fails
+// instead of holding the run open).
+test("createPacer ignores the GraphQL budget's headers", async () => {
+  const pacer = createPacer({ reserve: 10 });
+  pacer.observe({
+    "x-ratelimit-resource": "graphql",
+    "x-ratelimit-remaining": "0",
+    "x-ratelimit-reset": String(Math.ceil(Date.now() / 1000) + 3),
+    "x-ratelimit-used": "5000",
+  });
+
+  const paused = await Promise.race([
+    pacer.gate().then(() => false),
+    new Promise((resolve) => setTimeout(() => resolve(true), 1000)),
+  ]);
+  assert.equal(paused, false);
+});
+
+// Near the floor the even spread can put a slot past the reset: 20 calls at
+// 120s each is 40 minutes, but the window refills in 20.
+test("computePace never sets a slot past the reset", () => {
+  const { delayMs, nextSlot } = computePace({
+    remaining: RESERVE + 10,
+    reset: resetIn(20 * 60),
+    used: 4000,
+    reserve: RESERVE,
+    now: NOW,
+    nextSlot: NOW,
+    lastUsed: 3980,
+  });
+  assert.equal(delayMs, 20 * 60 * 1000);
+  assert.equal(nextSlot, NOW + 20 * 60 * 1000);
+});
+
+// "Refresh all" is the server pacer's only gater. Calls the webhooks made
+// since its last press aren't the next press's to repay.
+test("restart drops the spend from before it", () => {
+  const pacer = createPacer({ reserve: 1000 });
+  const headers = {
+    "x-ratelimit-remaining": "2000",
+    "x-ratelimit-reset": String(Math.ceil(Date.now() / 1000) + 1500),
+    "x-ratelimit-used": "1500",
+  };
+  pacer.observe(headers);
+  pacer.claim(); // the last press's last slot
+  pacer.observe({ ...headers, "x-ratelimit-used": "3000" }); // 1,500 webhook calls since
+
+  pacer.restart();
+
+  assert.equal(pacer.claim(), 0);
+});
+
