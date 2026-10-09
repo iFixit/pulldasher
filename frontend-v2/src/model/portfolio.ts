@@ -58,9 +58,38 @@ export const upperFirst = (words: string) => words.charAt(0).toUpperCase() + wor
 /** Words written to start a line ("No PR activity") in the middle of one. */
 export const lowerFirst = (words: string) => words.charAt(0).toLowerCase() + words.slice(1);
 
+/** Words a slug can't case on its own, from the live P- labels: acronyms,
+ * and brands spelled their own way. */
+const SLUG_WORDS: Record<string, string> = Object.fromEntries(
+   [
+      'GA4',
+      'BI',
+      'UPS',
+      'CI',
+      'PLP',
+      'SSR',
+      'API',
+      'CAD',
+      'npm',
+      'idx',
+      'ChatGPT',
+      'NetSuite',
+      'FixHub',
+      'FixBot',
+      'RepairDesk',
+      'v2',
+      'v5',
+   ].map(w => [w.toLowerCase(), w])
+);
+
 /** A label's slug read as words, the name of a project no issue or plan
- * names yet: "webdriver-deflake" is "Webdriver deflake", not a code. */
-export const slugName = (slug: string) => upperFirst(slug.replace(/[-_]+/g, ' '));
+ * names yet: "webdriver-deflake" is "Webdriver deflake", "ga4-events" is
+ * "GA4 events", and "npm-token" stays "npm token", as the brand writes it. */
+export const slugName = (slug: string) => {
+   const words = slug.split(/[-_]+/).map(w => SLUG_WORDS[w.toLowerCase()] ?? w);
+   const name = words.join(' ');
+   return SLUG_WORDS[words[0].toLowerCase()] ? name : upperFirst(name);
+};
 
 /** Where a project is: being worked on (an open PR or a merge in the last
  * 14 days, and not parked, done or dropped on the roadmap), parked, quiet

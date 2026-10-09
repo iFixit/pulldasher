@@ -174,7 +174,7 @@ export function flagText(flag: ProjectFlag, g: ProjectGroup): [string, string] {
       case 'one_person':
          // the real counts, not the flag's threshold
          return [
-            'only one person',
+            'one author',
             `${n(
                g.open.length + g.merged.length,
                'PR'
@@ -252,7 +252,7 @@ export function targetWords(target: ProjectTarget): string {
 }
 
 /** Why a lead is guessed from PRs, where there's room to open it. */
-const BY_PRS_WHY =
+export const BY_PRS_WHY =
    'No issue or plan names its lead, so it’s whoever has the most PRs in it, open or merged in the last 14 days. Assign its issue on GitHub, or give its plan a lead, to name one.';
 
 /** A lead nobody named: the word "guessed", with why on hover. `door` is
@@ -275,6 +275,8 @@ export interface FactLinks {
    nameOf: (slug: string) => string | null;
    /** the projects that name this one as their parent */
    parts: { slug: string; name: string }[];
+   /** the repo whose issues name projects; null when none is set */
+   projectsRepo?: string | null;
 }
 
 /**
@@ -414,9 +416,19 @@ export function ProjectFacts({
       facts.push(
          // a door, not a title: touch and screen readers never get a title
          <SubDoor key="none" label="Why no issue names it" text="No issue names it yet">
-            PRs carry the {prefix}
-            {g.slug} label, but no issue has it yet. Give one issue in any tracked repo the same
-            label to name the project and set its lead.
+            {links?.projectsRepo === null ? (
+               <>
+                  PRs carry the {prefix}
+                  {g.slug} label. Name its lead on the roadmap when you plan it.
+               </>
+            ) : (
+               <>
+                  PRs carry the {prefix}
+                  {g.slug} label, but no issue in{' '}
+                  {links?.projectsRepo ? `the ${links.projectsRepo} repo` : 'the projects repo'} has
+                  it. Label one there to name the project and set its lead.
+               </>
+            )}
          </SubDoor>
       );
       if (leadFact) facts.push(leadFact);

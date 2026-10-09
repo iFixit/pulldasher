@@ -61,7 +61,7 @@ import { Icon } from '../../components/Icon';
 import { eyebrowText, Fold, GroupHeader, Rows, SubDoor, useFoldState } from '../../components/Lane';
 import { useRowKeys } from '../../components/useRowKeys';
 import { dateOf, dayOf, dayWords, useProjectsData, type Range } from '../../model/projectData';
-import { findFilter, planCell, type PortfolioItem } from '../../model/portfolio';
+import { findFilter, lowerFirst, planCell, type PortfolioItem } from '../../model/portfolio';
 import { teamLoad } from '../../model/teamLoad';
 import {
    byPriority,
@@ -87,6 +87,7 @@ import {
    decideProjects,
    needsDecision,
    RANK,
+   STALL_DAYS,
    type DecideRow,
 } from '../../../../shared/model/decide';
 import {
@@ -106,6 +107,7 @@ import {
    COMMIT_THROUGH,
    NEEDS_A_PLAN,
    NO_PLAN_NEEDED,
+   noPrActivity,
    PLAN_IT,
    DONE_WHEN,
    END_IN_A_SENTENCE,
@@ -1159,6 +1161,24 @@ interface Receipt {
    project?: PortfolioItem;
    /** the plan it removed, kept in its place in the list of plans */
    gone?: RoadmapItem;
+   /** the lane the planned or parked project was in, where it stays */
+   lane?: Standing;
+}
+
+/** Where a project with no plan sits: Decide asks it for a plan, asks it
+ * another call (most often whether to park it), or asks nothing. */
+export type Standing = 'plan' | 'call' | 'none';
+
+/** Each project with no plan that Decide asks about, by its lane: any call
+ * but a first plan (most often "Park it?") is 'call', even with a plan asked
+ * too, so "No plan needed" never holds work Decide asks about. */
+export function standingsOf(rows: readonly DecideRow[]): Map<string, Standing> {
+   const out = new Map<string, Standing>();
+   for (const row of rows) {
+      if (row.item || !row.slug || !row.reasons.length) continue;
+      out.set(row.slug, row.reasons.some(r => r.kind !== 'new') ? 'call' : 'plan');
+   }
+   return out;
 }
 
 function ReceiptLine({ receipt, onOpen }: { receipt: Receipt; onOpen: (id: number) => void }) {
@@ -1650,6 +1670,7 @@ function InFlightRow({
    saving,
    onChoose,
    onPlan,
+   onPark,
    onOpen,
    onPerson,
 }: {
@@ -1670,6 +1691,8 @@ function InFlightRow({
    saving: boolean;
    onChoose: () => void;
    onPlan: (plan: Span) => void;
+   /** in the Stalled lane: parking it is the question, so its button shows */
+   onPark?: () => void;
    onOpen: () => void;
    onPerson: (login: string) => void;
 }) {
@@ -1818,6 +1841,18 @@ function InFlightRow({
                      title={`Put ${item.name} on the roadmap`}
                   >
                      {PLAN_IT}
+                  </QuietButton>
+               </span>
+            )}
+            {onPark && (
+               <span className="ml-auto flex-none self-center">
+                  <QuietButton
+                     onClick={onPark}
+                     disabled={saving}
+                     aria-label={`Park ${item.name}`}
+                     title={`Park ${item.name}, so it stops counting in the weeks ahead. Decide asks again if its PRs move.`}
+                  >
+                     Park
                   </QuietButton>
                </span>
             )}
@@ -2411,8 +2446,18 @@ export function Roadmap({
               (!members || members.projects.get(p.slug) === 'off' || keepsPlace(p.slug))
         );
    const narrowed = !!(q || picked || nav.origin);
-   const needing = shownUnplanned.filter(p => asksPlan.has(p.slug));
-   const shipping = shownUnplanned.filter(p => !asksPlan.has(p.slug));
+   // a project's lane: any other call Decide asks (most often whether to
+   // park it) before a plan, so "No plan needed" never holds work Decide
+   // asks about; one planned or parked just now stays where it was
+   const standings = standingsOf(decisions ?? []);
+   const laneOf = (p: PortfolioItem): Standing =>
+      (receipt?.project?.slug === p.slug && receipt.lane) || standings.get(p.slug) || 'none';
+   const inLane = (lane: Standing) => (p: PortfolioItem) => laneOf(p) === lane;
+   const needing = shownUnplanned.filter(inLane('plan'));
+   const asking = shownUnplanned.filter(inLane('call'));
+   const shipping = shownUnplanned.filter(inLane('none'));
+   // with no plans at all, the chart says where to start
+   const firstAsked = unplanned.find(inLane('plan'));
    const of = (shown: number, total: number, word: string) =>
       narrowed ? `${shown} of ${n(total, word)}` : n(total, word);
    const developers = new Set(
@@ -2693,31 +2738,25 @@ export function Roadmap({
       if (field && dayStart(field) != null) return { day: mondayOf(field), from: 'field' };
       return { day: mondayOf((p.group && firstOpenDay(p.group)) || today), from: 'prs' };
    };
-   const planProject = (p: PortfolioItem, span: Span, end_kind: EndKind) => {
+   // a plan for a project with no plan, saved once however many clicks: an
+   // active or planned one, or a parked one (Stalled's Park)
+   const saveFor = (p: PortfolioItem, fields: Partial<RoadmapFields>, words: string) => {
       setChoosing(null);
       if (planning.current.has(p.slug)) return;
       planning.current.add(p.slug);
       setSaving(new Set(planning.current));
       const key = `project:${p.slug}`;
-      void createRoadmapItem({
-         name: p.name,
-         project: p.slug,
-         // the lane it's in now
-         team: p.team,
-         lead: p.lead,
-         // it has PRs in flight, so it's under way once its weeks have come
-         status: span.start <= today ? 'active' : 'planned',
-         ...span,
-         end_kind,
-      }).then(made => {
+      const lane = laneOf(p);
+      void createRoadmapItem(fields).then(made => {
          planning.current.delete(p.slug);
          setSaving(new Set(planning.current));
          if (!made) return fail(key);
          say({
             key,
-            words: `Planned ${p.name}: ${planWords({ ...span, end_kind })}`,
+            words,
             open: made.id,
             project: p,
+            lane,
             undo: () => {
                refocus.current = [`roadmap-plus-${p.slug}`];
                void removeRoadmapItem(made.id).then(ok =>
@@ -2726,6 +2765,40 @@ export function Roadmap({
             },
          });
       });
+   };
+   const planProject = (p: PortfolioItem, span: Span, end_kind: EndKind) =>
+      saveFor(
+         p,
+         {
+            name: p.name,
+            project: p.slug,
+            // the lane it's in now
+            team: p.team,
+            lead: p.lead,
+            // it has PRs in flight, so it's under way once its weeks have come
+            status: span.start <= today ? 'active' : 'planned',
+            ...span,
+            end_kind,
+         },
+         `Planned ${p.name}: ${planWords({ ...span, end_kind })}`
+      );
+   // parked from the week its PRs began through this one, as Decide's Park
+   // writes it, so Decide stops asking until its PRs move
+   const parkProject = (p: PortfolioItem) => {
+      const start = runStart(p).day;
+      saveFor(
+         p,
+         {
+            name: p.name,
+            project: p.slug,
+            team: p.team,
+            lead: p.lead,
+            status: 'parked',
+            start,
+            weeks: weeksThrough(start, today),
+         },
+         `Parked ${p.name}. Decide asks again if its PRs move`
+      );
    };
 
    // into view, clear of the app's header and the roadmap's own sticky one,
@@ -2876,6 +2949,10 @@ export function Roadmap({
    const inFlightRows = (list: PortfolioItem[]) =>
       list.map(p => {
          const here = receipt?.key === `project:${p.slug}` ? receipt : null;
+         const call = projectCalls.get(p.slug) ?? null;
+         // in the Stalled lane its title asks the question, and Park answers
+         // it; a team's lane has no title that says it, so the row does
+         const stalled = !lanes && call?.kind === 'stalled';
          return (
             <div key={p.slug} data-roadmap-row className={rowMargin}>
                {here && !here.failed ? (
@@ -2888,10 +2965,11 @@ export function Roadmap({
                         span={spanBySlug.get(p.slug) ?? null}
                         axis={axis}
                         today={today}
-                        call={projectCalls.get(p.slug) ?? null}
+                        call={stalled ? null : call}
                         // the lanes have no fold that says it
                         needsPlan={lanes && asksPlan.has(p.slug)}
-                        planIt={!lanes && asksPlan.has(p.slug)}
+                        planIt={!lanes && laneOf(p) === 'plan'}
+                        onPark={stalled ? () => parkProject(p) : undefined}
                         choosing={choosing === p.slug}
                         saving={saving.has(p.slug)}
                         onChoose={() => setChoosing(choosing === p.slug ? null : p.slug)}
@@ -3037,13 +3115,31 @@ export function Roadmap({
                count={needing.length}
                gloss={`${of(
                   needing.length,
-                  unplanned.filter(p => asksPlan.has(p.slug)).length,
+                  unplanned.filter(inLane('plan')).length,
                   'project'
                )} ${BEING_WORKED_ON} with no plan and big enough that Decide asks for one, longest-running first. Press ${PLAN_IT} on a row to plan it.`}
                load={null}
                lined={false}
             >
                {inFlightRows(needing)}
+            </TimelineLane>
+         )}
+         {everything && asking.length > 0 && (
+            <TimelineLane
+               id="roadmap:stalled"
+               label="Stalled"
+               count={asking.length}
+               gloss={`${of(
+                  asking.length,
+                  unplanned.filter(inLane('call')).length,
+                  'project'
+               )} with PRs still open, ${lowerFirst(
+                  noPrActivity(STALL_DAYS)
+               )} or more, and no plan. Decide asks whether to park each one, the longest-running first. Press Park on a row to park it.`}
+               load={null}
+               lined={false}
+            >
+               {inFlightRows(asking)}
             </TimelineLane>
          )}
          {everything && shipping.length > 0 && (
@@ -3053,7 +3149,7 @@ export function Roadmap({
                count={shipping.length}
                gloss={`${of(
                   shipping.length,
-                  unplanned.filter(p => !asksPlan.has(p.slug)).length,
+                  unplanned.filter(inLane('none')).length,
                   'project'
                )} ${BEING_WORKED_ON} with no plan, small enough to ship without one unless it stalls, longest-running first.`}
                load={null}
@@ -3110,7 +3206,7 @@ export function Roadmap({
             }`}
          >
             <GroupHeader
-               title="What’s planned, and when"
+               title={plan && !plan.length ? 'Nothing planned yet' : 'What’s planned, and when'}
                sub={
                   timeline ? (
                      <SubDoor label="How the timeline works" text="Highest priority first">
@@ -3130,8 +3226,9 @@ export function Roadmap({
                            it for why.
                         </p>
                         <p className="m-0">
-                           The bars count the plans and projects {BEING_WORKED_ON} each week, from
-                           their PRs. Click a week to see only what was {BEING_WORKED_ON} then.
+                           The bars count the plans and projects with a PR open each week, merged
+                           that week included. The lanes count PRs in the last 14 days, so their
+                           totals can differ. Click a week to see only that week’s work.
                         </p>
                         <p className="m-0">
                            Grouped by team, a lane counts what its developers have on this week:{' '}
@@ -3333,6 +3430,27 @@ export function Roadmap({
                   origin={nav.origin}
                   onOrigin={origin => navigate({ origin })}
                   onPeople={() => navigate(switchView('people'))}
+                  firstPlan={
+                     plan && !plan.length
+                        ? {
+                             asked: unplanned.filter(inLane('plan')).length,
+                             // opens the first Needs a plan row's chooser, as its Plan it does
+                             onStart: firstAsked
+                                ? () => {
+                                     navigate({ find: '', week: null, origin: null, show: 'all' });
+                                     setChoosing(firstAsked.slug);
+                                     requestAnimationFrame(() =>
+                                        scrollClear(
+                                           document.getElementById(
+                                              `roadmap-plus-${firstAsked.slug}`
+                                           )
+                                        )
+                                     );
+                                  }
+                                : null,
+                          }
+                        : null
+                  }
                />
                {newPlan}
                {receiptAdded}

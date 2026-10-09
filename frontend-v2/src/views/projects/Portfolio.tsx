@@ -50,6 +50,7 @@ import {
 } from '../../model/words';
 import { DecideCall, planRow, reasonWords } from './Decide';
 import {
+   BY_PRS_WHY,
    ByPrs,
    FlagWords,
    NarrowChip,
@@ -107,6 +108,8 @@ interface CellActions {
    factLinks: (item: PortfolioItem) => FactLinks;
    /** open the row in place, on the calls it's asked: set by each row */
    openDetail?: () => void;
+   /** every lead in this table is a guess, so its column head says so once */
+   leadsGuessed: boolean;
 }
 
 const prWords = (pr: PrRef) => `${shortRepo(pr.repo)}#${pr.number} ${pr.title}`;
@@ -223,7 +226,7 @@ const COLUMNS: Column[] = [
                >
                   {lead}
                </FactLink>
-               {i.leadByPrs && (
+               {i.leadByPrs && !act.leadsGuessed && (
                   <>
                      {' '}
                      <ByPrs />
@@ -812,6 +815,10 @@ interface ListProps {
    opts: RowOptions;
    onPerson: (login: string) => void;
    me: string;
+   /** no teams are set, so everyone counts and "developers" is the wrong word */
+   noTeams?: boolean;
+   /** the repo whose issues name projects; null when none is set */
+   projectsRepo?: string | null;
 }
 
 /**
@@ -821,14 +828,38 @@ interface ListProps {
  * points to.
  */
 function useRows(
-   { items, calls, prefix, workers, nav, navigate, opts, onPerson, me }: ListProps,
+   {
+      items,
+      calls,
+      prefix,
+      workers,
+      nav,
+      navigate,
+      opts,
+      onPerson,
+      me,
+      noTeams,
+      projectsRepo,
+   }: ListProps,
    leave: readonly string[] = []
 ) {
    const hint = useId();
    // from every project, not the tab's: columns that come and go with the
    // tab would move the ones a reader was following
+   const leads = items.filter(i => i.lead);
+   const leadsGuessed = leads.length > 0 && leads.every(i => i.leadByPrs);
    const columns = [
-      ...COLUMNS,
+      ...COLUMNS.map(c =>
+         c.key === 'lead' && leadsGuessed
+            ? {
+                 ...c,
+                 label: 'Lead, guessed',
+                 title: `${BY_PRS_WHY} Click a lead to open their row on People.`,
+              }
+            : c.key === 'people' && noTeams
+            ? { ...c, title: c.title.replace('Developers', 'People') }
+            : c
+      ),
       ...(items.some(i => i.issues?.total) ? [ISSUES] : []),
       ...(items.some(i => i.target) ? [TARGET] : []),
    ].map(c =>
@@ -853,9 +884,11 @@ function useRows(
             find: item.status === 'live' ? item.slug : '',
          }),
       workers,
+      leadsGuessed,
       openProject: slug => navigate({ project: slug }),
       factLinks: item => ({
          navigate,
+         projectsRepo,
          nameOf: slug => items.find(i => i.slug === slug)?.name ?? null,
          parts: items
             .filter(i => i.project?.parents.includes(item.slug))
@@ -1052,8 +1085,11 @@ export function Portfolio(
    // each tab counts what it would show with the find and a tile's pick, so
    // the tab that's on always says how many rows are below it
    const statusOptions: [string, string][] = STATUS_FILTERS.map(([key, label]) => {
-      const count = narrowed.filter(i => matchesStatus(i, key)).length;
-      return [key, count ? `${label} · ${count}` : label];
+      const matching = narrowed.filter(i => matchesStatus(i, key));
+      const count = matching.length;
+      // the stalled ones are part of the count, so the Stalled tile and the tab agree
+      const stalled = key === 'live' ? matching.filter(i => i.stalled).length : 0;
+      return [key, count ? `${label} · ${count}${stalled ? ` (${stalled} stalled)` : ''}` : label];
    });
    const byDefault = sort.key === 'plan' && !sort.reversed;
    const sortedBy = [{ key: 'name', label: 'Project' }, ...columns].find(

@@ -1158,7 +1158,8 @@ export function Retro({
          g,
          label: g.key ? nameOf(g.key) : NOT_IN_A_PROJECT,
          filed,
-         length: filed ? projectLength(item?.window, range.end) : null,
+         length: filed ? projectLength(item?.window, range.end, item?.openSince) : null,
+         openSince: item?.openSince ?? null,
          quiet: quietWeeks(weekly),
          last: lastWeek(weekly),
          planItem,
@@ -1267,7 +1268,7 @@ export function Retro({
    const shares = (m: ReturnType<typeof measure>) =>
       [
          `${pct(m.total - m.writing, m.total)} reviewing`,
-         `${pct(m.planned, m.total)} on the roadmap`,
+         noPlans ? null : `${pct(m.planned, m.total)} on the roadmap`,
          anyOrigin ? `${pct(m.fires, m.total)} fires` : null,
          `${pct(m.unfiled, m.total)} not in a project`,
       ]
@@ -1285,7 +1286,9 @@ export function Retro({
             'people'
          )}${earlier ? ` (${versus(Math.round(total), Math.round(earlierTotal), period)})` : ''}`,
          `${shares(now)}${then?.total ? `; in the ${period}, ${shares(then)}` : ''}`,
-         `Plans done: ${finished.length}${plansNote ? ` (${plansNote})` : ''}`,
+         ...(noPlans
+            ? []
+            : [`Plans done: ${finished.length}${plansNote ? ` (${plansNote})` : ''}`]),
          `Week by week: ${rangeWeeks
             .map(
                (w, i) =>
@@ -1360,6 +1363,8 @@ export function Retro({
       if (Object.keys(all).length) navigate(all);
       jumpTo(section);
    };
+   // no plan was ever saved: plan tiles would be a flat 0, so a line says why
+   const noPlans = plans.length === 0;
    const tiles = [
       <Tile
          key="days"
@@ -1385,17 +1390,19 @@ export function Retro({
          note={was(m => m.total - m.writing)}
          onClick={() => go({ by: 'author' }, 'retro-split')}
       />,
-      <Tile
-         key="roadmap"
-         value={pct(now.planned, now.total)}
-         label="On the roadmap"
-         title={andWas(
-            'Of the days, the share on projects with a plan. Click to split the days by where the work came from.',
-            wasFull(m => m.planned)
-         )}
-         note={was(m => m.planned)}
-         onClick={() => go({ by: 'origin' }, 'retro-split')}
-      />,
+      !noPlans && (
+         <Tile
+            key="roadmap"
+            value={pct(now.planned, now.total)}
+            label="On the roadmap"
+            title={andWas(
+               'Of the days, the share on projects with a plan. Click to split the days by where the work came from.',
+               wasFull(m => m.planned)
+            )}
+            note={was(m => m.planned)}
+            onClick={() => go({ by: 'origin' }, 'retro-split')}
+         />
+      ),
       anyOrigin && (
          <Tile
             key="fires"
@@ -1432,29 +1439,31 @@ export function Retro({
          // the title
          label={nav.who ? 'Projects' : 'Projects per person'}
          title={andWas(
-            'The median, across people, of how many different projects each touched in a week they worked. A PR with no project counts on its own. Click to sort the people by it.',
+            'The median, across people, of how many different projects each touched in a week they worked. PRs with no project don’t count here; see Not in a project. Click to sort the people by it.',
             then ? `${then.spread} in the ${period}` : null
          )}
          note={then ? `was ${then.spread}` : null}
          onClick={() => go({ psort: 'spread' }, 'retro-people')}
       />,
-      <Tile
-         key="finished"
-         value={finished.length}
-         label="Plans done"
-         title={`Plans marked done in these days, and project issues closed as completed, each judged against its plan’s end${
-            narrowed ? `; only the ones ${narrowed} worked on` : ''
-         }. Click to sort the projects by their plan.${
-            finishedBefore
-               ? ` ${upper(versus(finished.length, finishedBefore.length, period) ?? '')}.`
-               : ''
-         }`}
-         note={
-            plansNote ??
-            (finishedBefore ? deltaWords(finished.length, finishedBefore.length) : null)
-         }
-         onClick={() => go({ sort: 'plan' }, 'retro-projects')}
-      />,
+      !noPlans && (
+         <Tile
+            key="finished"
+            value={finished.length}
+            label="Plans done"
+            title={`Plans marked done in these days, and project issues closed as completed, each judged against its plan’s end${
+               narrowed ? `; only the ones ${narrowed} worked on` : ''
+            }. Click to sort the projects by their plan.${
+               finishedBefore
+                  ? ` ${upper(versus(finished.length, finishedBefore.length, period) ?? '')}.`
+                  : ''
+            }`}
+            note={
+               plansNote ??
+               (finishedBefore ? deltaWords(finished.length, finishedBefore.length) : null)
+            }
+            onClick={() => go({ sort: 'plan' }, 'retro-projects')}
+         />
+      ),
    ].filter(Boolean);
 
    const personCols: (Column<PersonKey> & { key: PersonKey })[] = [
@@ -1483,7 +1492,7 @@ export function Retro({
       {
          key: 'spread',
          label: 'Projects a week',
-         title: 'The median, over the weeks they worked, of how many different projects they touched that week. A PR with no project counts on its own.',
+         title: 'The median, over the weeks they worked, of how many different projects they touched that week. PRs with no project don’t count here; see Not in a project.',
          width: 'w-24',
          hide: 'hidden xl:table-cell',
       },
@@ -1696,9 +1705,19 @@ export function Retro({
                      </span>
                   </Td>
                   <Td col={projectCols[3]}>
-                     {r.length
-                        ? `${r.length.open ? 'open' : 'took'} ${daysShort(r.length.days)}`
-                        : ''}
+                     {r.length ? (
+                        <span
+                           title={
+                              r.length.open && r.openSince
+                                 ? `PRs open since ${dayWords(r.openSince)}`
+                                 : undefined
+                           }
+                        >
+                           {r.length.open ? 'open' : 'took'} {daysShort(r.length.days)}
+                        </span>
+                     ) : (
+                        ''
+                     )}
                   </Td>
                   <Td col={projectCols[4]}>{r.quiet ? `${r.quiet} wk` : ZERO}</Td>
                   <Td col={projectCols[5]}>
@@ -1881,6 +1900,11 @@ export function Retro({
                   >
                      {tiles}
                   </div>
+                  {noPlans && (
+                     <p className="m-0 mt-3 text-[13px] text-ink-3">
+                        No plans yet, so nothing here is judged against one.
+                     </p>
+                  )}
                </StatsCard>
             ) : (
                <div className="flex flex-col items-start gap-1.5">

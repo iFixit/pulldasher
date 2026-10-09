@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RoadmapItem } from '../../../../shared/model/roadmap';
-import { savedWords, teamWords } from './Roadmap';
+import { savedWords, standingsOf, teamWords } from './Roadmap';
 
 const plan: RoadmapItem = {
    id: 5,
@@ -50,5 +50,26 @@ describe('who a plan is with, in its details', () => {
       expect(teamWords(null, 'ardelato')).toBe('No team, led by ');
       expect(teamWords('FixBot', null)).toBe('FixBot, no lead yet');
       expect(teamWords(null, null)).toBe('No team or lead yet');
+   });
+});
+
+describe('standingsOf', () => {
+   it('puts a project Decide asks to park in Stalled, never in No plan needed', () => {
+      const lanes = standingsOf([
+         { slug: 'docs', item: null, reasons: [{ kind: 'new', since: '2026-07-31' }] },
+         { slug: 'plp', item: null, reasons: [{ kind: 'stalled', days: 268 }] },
+         // before a stalled project stopped being asked for a plan too
+         {
+            slug: 'idx',
+            item: null,
+            reasons: [
+               { kind: 'new', since: null },
+               { kind: 'stalled', days: 40 },
+            ],
+         },
+         // a plan's row is the plan's, not a project's with none
+         { slug: 'mysql-8', item: plan, reasons: [{ kind: 'at_risk' }] },
+      ]);
+      expect(Object.fromEntries(lanes)).toEqual({ docs: 'plan', plp: 'call', idx: 'call' });
    });
 });

@@ -652,7 +652,8 @@ export function ProjectPage({
    const asked = asks.map(row => {
       const primary = row.reasons.reduce((a, r) => (RANK[r.kind] < RANK[a.kind] ? r : a));
       const sentences = [primary, ...row.reasons.filter(r => r !== primary)].map(r =>
-         reasonParts(r, quoteless(row))
+         // the page's Status already says there's no plan
+         reasonParts(r, quoteless(row), r.kind === 'new')
       );
       return {
          key: `${row.slug ?? ''}:${row.item?.id ?? ''}`,
@@ -823,7 +824,7 @@ export function ProjectPage({
                   prefix={prefix}
                   ongoing={ongoing}
                   lead={item}
-                  links={{ navigate, nameOf, parts: [] }}
+                  links={{ navigate, nameOf, parts: [], projectsRepo: data?.projects_repo }}
                   ongoingByLabel={byLabel}
                   issueLink={false}
                   inline

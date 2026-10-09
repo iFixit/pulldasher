@@ -324,7 +324,9 @@ describe('updates', () => {
       expect(issuePace(issues, now)).toEqual({ open: 2, closed: 1, added: 1 });
       // 3 open, one fewer a week: three weeks
       expect(paceFinish({ open: 3, closed: 5, added: 1 }, now)).toBe(now + 21 * DAY);
-      expect(paceFinish({ open: 3, closed: 1, added: 1 }, now)).toBe(Infinity);
+      expect(paceFinish({ open: 3, closed: 2, added: 2 }, now)).toBe(Infinity);
+      // too few moved to call it a pace
+      expect(paceFinish({ open: 3, closed: 1, added: 1 }, now)).toBeNull();
       expect(paceFinish({ open: 3, closed: 0, added: 0 }, now)).toBeNull();
       expect(paceFinish({ open: 0, closed: 4, added: 0 }, now)).toBeNull();
    });

@@ -86,7 +86,7 @@ const kinds = (rows: ReturnType<typeof decideQueue>) =>
    rows.map(r => [r.slug ?? `#${r.item?.id}`, ...r.reasons.map(x => x.kind)]);
 
 describe('decideQueue', () => {
-   it('asks for a first call on work with no decision, and for stalled work', () => {
+   it('asks for a first call on work with no decision, and to park stalled work, not plan it', () => {
       const rows = decideQueue({
          live: [project('fresh'), project('quiet', { lastActivity: ago(30) })],
          items: [],
@@ -94,7 +94,7 @@ describe('decideQueue', () => {
          now: NOW,
       });
       expect(kinds(rows)).toEqual([
-         ['quiet', 'new', 'stalled'],
+         ['quiet', 'stalled'],
          ['fresh', 'new'],
       ]);
    });
@@ -599,16 +599,16 @@ describe('Decide’s calls', () => {
          target: true,
       });
       const times = (call: Call, count: number) => Array<Call>(count).fill(call);
-      expect(bulkWords(times(oct, 52), 'do')).toBe('Promise all 52 by the end of Oct');
-      expect(bulkWords(times(oct, 52), 'did')).toBe('Promised 52 by the end of Oct');
+      expect(bulkWords(times(oct, 52), 'do')).toBe('Promise all 52 by Oct 31');
+      expect(bulkWords(times(oct, 52), 'did')).toBe('Promised 52 by Oct 31');
       expect(bulkWords([...times(oct, 40), own(21), own(23)], 'do')).toBe(
-         'Promise 40 by the end of Oct and 2 by their target dates'
+         'Promise 40 by Oct 31 and 2 by their target dates'
       );
       expect(bulkWords([oct, own(21)], 'did')).toBe(
-         'Promised 1 by the end of Oct and 1 by its target date, Oct 21'
+         'Promised 1 by Oct 31 and 1 by its target date, Oct 21'
       );
       expect(bulkWords([oct, { kind: 'done' }, oct, { kind: 'done' }], 'do')).toBe(
-         'Promise 2 by the end of Oct and mark 2 done'
+         'Promise 2 by Oct 31 and mark 2 done'
       );
       expect(bulkWords(times({ kind: 'done' }, 3), 'do')).toBe('Mark all 3 done');
       expect(bulkWords([{ kind: 'park' }, { kind: 'drop' }], 'did')).toBe('Parked 1 and dropped 1');

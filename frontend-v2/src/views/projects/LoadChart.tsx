@@ -1,9 +1,13 @@
 import type { ReactNode } from 'react';
 import { n } from '../../../../shared/format';
 import { addWeeks, type RoadmapOrigin } from '../../../../shared/model/roadmap';
-import { FactLink } from '../../components/bits';
+import { FactLink, QuietButton } from '../../components/bits';
 import { dayWords } from '../../model/projectData';
-import { BEING_WORKED_ON, NOT_SAID } from '../../model/words';
+import { NOT_SAID } from '../../model/words';
+
+// what a week counts: a project with a PR open at some point in it (merged
+// that week counts too), not the lanes' 14 days of "being worked on"
+const PRS_OPEN = 'with PRs open';
 import type { LoadWeek, OriginCounts } from '../../../../shared/model/load';
 
 /**
@@ -89,11 +93,22 @@ function AheadWords({ ahead }: { ahead: Ahead }) {
    );
 }
 
+/** With no plans yet, where to start: the projects Decide asks to plan. */
+function FirstPlan({ asked, onStart }: { asked: number; onStart: (() => void) | null }) {
+   if (!asked) return <>No plans yet, and nothing big enough to need one.</>;
+   return (
+      <>
+         No plans yet. Start with the {asked} that {asked === 1 ? 'needs' : 'need'} one.{' '}
+         {onStart && <QuietButton onClick={onStart}>Plan the first one</QuietButton>}
+      </>
+   );
+}
+
 function weekWords(w: LoadWeek, developers: number): string {
    const people = developers ? `, for ${n(developers, 'developer')}` : '';
-   return `Week of ${dayWords(w.week)}: ${total(w)} ${BEING_WORKED_ON}, ${
-      w.onPlan
-   } with a plan and ${w.offPlan} with none${people}`;
+   return `Week of ${dayWords(w.week)}: ${total(w)} ${PRS_OPEN}, ${w.onPlan} with a plan and ${
+      w.offPlan
+   } with none${people}`;
 }
 
 /** A count that filters the rows to what it counts, and back on a second
@@ -146,6 +161,7 @@ export function LoadChart({
    origin,
    onOrigin,
    onPeople,
+   firstPlan,
 }: {
    weeks: LoadWeek[];
    /** this week's load, whatever weeks the chart shows */
@@ -172,6 +188,10 @@ export function LoadChart({
    onOrigin: (origin: OriginKey | null) => void;
    /** to the developer teams */
    onPeople: () => void;
+   /** with no plans yet: how many projects Decide asks to plan, and the way
+    * to plan the first of them (null when none is asked); null once a plan
+    * exists */
+   firstPlan?: { asked: number; onStart: (() => void) | null } | null;
 }) {
    // only the weeks that happened: a projection from the plans can only fall
    const weeks = all.filter(w => !w.projected);
@@ -214,14 +234,14 @@ export function LoadChart({
                   title={
                      picked
                         ? 'Show every week again'
-                        : `Counted from their PRs. Show only the plans and projects ${BEING_WORKED_ON} this week`
+                        : `A project counts in a week when one of its PRs was open in it, so this can differ from the lanes below, which count PRs in the last 14 days. Show only the plans and projects ${PRS_OPEN} this week`
                   }
                   className="pressable -mx-1.5 flex flex-col items-start rounded-md border-0 bg-transparent px-1.5 py-0.5 text-left hover:bg-muted"
                   style={picked ? { background: 'var(--secondary)' } : undefined}
                >
                   <span className="text-xl font-semibold text-ink tabular-nums">{inFlight}</span>
                   <span className="text-xs text-ink-2">
-                     {inFlight === 1 ? 'project' : 'projects'} {BEING_WORKED_ON}
+                     {inFlight === 1 ? 'project' : 'projects'} {PRS_OPEN}
                      {picked ? ` ${weekName}` : <span className="text-ink-3"> this week</span>}
                   </span>
                   {over > 0 && (
@@ -233,7 +253,8 @@ export function LoadChart({
                 to what it counts, in the week it counts them, so its number
                 and its rows agree. Where the plans came from is a closer look:
                 it shows once the rows are narrowed to the plans. */}
-            <div className="flex flex-col gap-0.5 text-[11px]">
+            {/* with no plans, "0 have a plan" is always 0: the line waits for one */}
+            <div className={`flex flex-col gap-0.5 text-[11px] ${firstPlan ? 'hidden' : ''}`}>
                <span className="flex flex-wrap items-baseline gap-x-1.5">
                   <CountButton
                      active={show === 'plan'}
@@ -253,7 +274,7 @@ export function LoadChart({
                      onClick={() =>
                         show === 'unplanned' ? onShow('all') : narrow(() => onShow('unplanned'))
                      }
-                     title={`Show only the projects ${BEING_WORKED_ON} with no plan ${weekName}`}
+                     title={`Show only the projects ${PRS_OPEN} with no plan ${weekName}`}
                      count={shown.offPlan}
                      tone="text-ink-3"
                   >
@@ -286,11 +307,11 @@ export function LoadChart({
                className="relative h-20"
                role="group"
                tabIndex={0}
-               aria-label={`Plans and projects ${BEING_WORKED_ON} each week up to today, counted from their PRs: ${total(
+               aria-label={`Plans and projects ${PRS_OPEN} each week up to today, counted from their PRs: ${total(
                   now
                )} this week${
                   developers ? ` for ${n(developers, 'developer')}` : ''
-               }. Click a week, or use the arrow keys, to show only what was ${BEING_WORKED_ON} then; Escape shows every week.`}
+               }. Click a week, or use the arrow keys, to show only that week’s plans and projects; Escape shows every week.`}
                onKeyDown={e => {
                   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
                      e.preventDefault();
@@ -371,7 +392,7 @@ export function LoadChart({
                   >
                      {/* on the card, so the developer line doesn't strike it */}
                      <span className="bg-surface pr-1">
-                        <AheadWords ahead={ahead} />
+                        {firstPlan ? <FirstPlan {...firstPlan} /> : <AheadWords ahead={ahead} />}
                      </span>
                   </span>
                )}

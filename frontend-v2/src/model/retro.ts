@@ -202,9 +202,14 @@ export function weeklyBy(
    return out;
 }
 
+/** A filed project: a real one, not one-offs (misc) and not unlabeled. */
+const filedProject = (row: RetroRow) =>
+   row.pr.project != null && row.pr.project !== MISC_SLUG ? row.pr.project : null;
+
 /** How spread out each person was: the median, over the weeks they worked,
- * of how many different projects they touched that week. A PR with no
- * project counts on its own, since nothing says it's part of another. */
+ * of how many different filed projects they touched that week. PRs with no
+ * project (and one-offs) don't count here; Not in a project says how much
+ * went to them. */
 export function spreadByPerson(rows: readonly RetroRow[]): Map<string, number> {
    const seen = new Map<string, Map<number, Set<string>>>();
    for (const row of rows) {
@@ -212,7 +217,8 @@ export function spreadByPerson(rows: readonly RetroRow[]): Map<string, number> {
       seen.set(row.login, weeks);
       const things = weeks.get(row.week) ?? new Set<string>();
       weeks.set(row.week, things);
-      things.add(row.pr.project ?? `${row.pr.repo}#${row.pr.number}`);
+      const slug = filedProject(row);
+      if (slug) things.add(slug);
    }
    return new Map(
       [...seen].map(([login, weeks]) => [login, median([...weeks.values()].map(s => s.size))])
@@ -226,10 +232,6 @@ export interface ProjectWorker {
    days: number;
    writing: number;
 }
-
-/** A filed project: a real one, not one-offs (misc) and not unlabeled. */
-const filedProject = (row: RetroRow) =>
-   row.pr.project != null && row.pr.project !== MISC_SLUG ? row.pr.project : null;
 
 /** Days per person per filed project. */
 function byPersonProject(rows: readonly RetroRow[]): Map<string, Map<string, ProjectWorker>> {
@@ -303,17 +305,31 @@ export function loadByPerson(rows: readonly RetroRow[], logins: readonly string[
    });
 }
 
-/** fewest filed projects in a window that ever reads as overloaded */
+/** fewest filed projects they wrote for, in a window, that ever reads as
+ * overloaded */
 export const OVERLOAD_MIN = 4;
 
 /**
- * How many filed projects in a window make someone overloaded: at least
- * OVERLOAD_MIN, and at least twice the median across developers (zeros
- * included). Relative on purpose: while most PRs aren't filed yet, a fixed
+ * How many filed projects someone wrote PRs for in a window make them
+ * overloaded: at least OVERLOAD_MIN, and at least twice the median across
+ * developers (zeros included). Reviewing doesn't count: a reviewer is spread
+ * by the job. Relative on purpose: while most PRs aren't filed yet, a fixed
  * number would flag more people each week as filing catches up.
  */
 export function overloadLine(counts: readonly number[]): number {
    return Math.max(OVERLOAD_MIN, Math.ceil(2 * median(counts)));
+}
+
+/** Who reads as overloaded: wrote for `line` or more filed projects, most
+ * first. Nobody when more than a quarter would: then the flag picks out no
+ * one, and the tile says no one stands out. */
+export function overloaded<T extends Pick<PersonLoad, 'login' | 'wrote'>>(
+   loads: readonly T[],
+   line: number
+): T[] {
+   const over = loads.filter(l => l.wrote >= line);
+   if (over.length * 4 > loads.length) return [];
+   return over.sort((a, b) => b.wrote - a.wrote || a.login.localeCompare(b.login));
 }
 
 export function median(values: readonly number[]): number {
@@ -346,19 +362,23 @@ export function lastWeek(weekly: readonly number[]): number {
 
 /**
  * How long a project's PRs ran, as of the range's end: still open then,
- * and for how many days since its first PR in the range opened; or done,
+ * and for how many days since `openSince` (its oldest open PR, firstOpenDay)
+ * or else its first PR in the range opened; or done,
  * and how many days from that first PR to its last merge or close. Null
  * with no numbers for the range. It counts the days gone by, not the days
  * touched, as the Overview counts a project's age, so the two say the same.
  */
 export function projectLength(
    w: Pick<ProjectWindow, 'first_opened' | 'last_closed' | 'backlog_end'> | null | undefined,
-   rangeEnd: string
+   rangeEnd: string,
+   openSince?: string | null
 ): { open: boolean; days: number } | null {
    if (!w?.first_opened) return null;
    const from = dayStart(w.first_opened) as number;
    if (w.backlog_end > 0) {
-      return { open: true, days: Math.round(((dayStart(rangeEnd) as number) - from) / DAY) };
+      // still open: from its oldest open PR when known, the day every pane says
+      const since = (openSince && dayStart(openSince)) || from;
+      return { open: true, days: Math.round(((dayStart(rangeEnd) as number) - since) / DAY) };
    }
    if (!w.last_closed) return null;
    return { open: false, days: Math.round(((dayStart(w.last_closed) as number) - from) / DAY) };

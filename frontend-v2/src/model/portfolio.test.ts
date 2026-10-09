@@ -27,6 +27,7 @@ import {
    portfolioCsv,
    portfolioItems,
    portfolioText,
+   slugName,
    sortItems,
    STATUS_FILTERS,
    withCalls,
@@ -276,6 +277,18 @@ describe('portfolioItems', () => {
    it('calls a project in progress stalled after 21 days without activity, but not a parked one', () => {
       expect(items.filter(i => i.stalled).map(i => i.slug)).toEqual(['label-only']);
       expect(bySlug.paused.lastActivity?.days).toBe(50);
+   });
+});
+
+describe('slugName', () => {
+   it('cases acronyms and brands their own way, and the rest as a sentence', () => {
+      expect(slugName('webdriver-deflake')).toBe('Webdriver deflake');
+      expect(slugName('ga4-events')).toBe('GA4 events');
+      expect(slugName('plp_server-component')).toBe('PLP server component');
+      expect(slugName('editor-v2')).toBe('Editor v2');
+      expect(slugName('netsuite-sync')).toBe('NetSuite sync');
+      // a lowercase brand first stays lowercase, as the label writes it
+      expect(slugName('npm-token')).toBe('npm token');
    });
 });
 

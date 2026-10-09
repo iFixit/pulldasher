@@ -194,6 +194,8 @@ export function issuePace(
  */
 export function paceFinish(pace: IssuePace, now: number): number | null {
    if (!pace.open || !pace.closed) return null;
+   // too few issues moved to say a pace: no finish day from one close
+   if (pace.closed + pace.added < 3) return null;
    if (pace.closed <= pace.added) return Infinity;
    const weeks = Math.ceil((pace.open * PACE_DAYS) / 7 / (pace.closed - pace.added));
    return now + weeks * 7 * DAY;

@@ -339,22 +339,37 @@ icon with a class bolted on.
   answer who has too much on; Open, Opened, Merged and On non-developers'
   PRs sit in the opened row (a moved column rejoins the header while the
   list sorts by it). Overload says so in words, "overloaded" inline after
-  the name in amber, the count in ink. The Overview's
-  Overloaded tile opens it on the same 14 days. The Overloaded tile has no note
+  the name in amber, the count in ink. It counts only the projects someone
+  wrote PRs for, never ones they only reviewed (a reviewer is spread by the
+  job), and when more than a quarter of people would cross the line it
+  flags nobody and the tile reads "No one stands out": a flag on 8 of 23
+  meant nothing. The tile says its window, "Overloaded, last 14 days", and
+  opens People on the same 14 days. The Overloaded tile has no note
   (the heading's door says the threshold); the Stamps tile's note is the
-  short mark ("+47"), the sentence in its hover.
+  short mark ("+47"), the sentence in its hover. With no teams set up the
+  fold reads "Everyone", not "Non-developers", and hovers say "People", not
+  "Developers".
 - **The Overview opens on what's owed**: rows Decide asks about first, in
   Decide's own order, then updates owed, then the rest, so its top rows and
   Decide's list can't disagree. Its first tab counts projects being worked
   on in the last 14 days, plus asked parked or finished work whose PRs
-  still move. A tile or chart pick that narrows the list is a toggle,
+  still move, and names the stalled ones inside it ("Being worked on · 43
+  (13 stalled)"), so it and the Stalled tile agree on sight. A tile or chart pick that narrows the list is a toggle,
   outlined like the chip it puts in the list's sticky bar; letting it go
   returns to that tab. The column names stay in view as the rows scroll.
 - **A project's page answers in place.** Decide's call strip sits under
   its "Decide asks" line; each PR count says where those PRs are on the
   page and opens them; its range numbers are one sentence under the
   backlog chart, not tiles that open nothing; and its finish forecast
-  comes from issues closed and added, or there's none.
+  comes from issues closed and added, or there's none. Under 3 closes and
+  adds together in four weeks it only counts ("1 closed, 1 added in four
+  weeks"): a pace from one of each read as a verdict. The flag for a
+  single author says "one author" ("One author: timothyasp · 6 PRs in the
+  last 14 days"), since the People column beside it shows reviewers too.
+  A PR someone commented on without a stamp says "mlahargou is looking at
+  it", a sentence like its siblings ("is testing it"). The Plan's reason
+  is the short form ("PRs open since Jul 31."), since Status already says
+  "No plan".
 - **Keeping it current costs nobody a visit.** The people who keep Projects
   current are the developers and leads shipping the PRs, and other project
   tools were dropped for the upkeep they asked. So what can be read off PRs,
@@ -401,12 +416,25 @@ icon with a class bolted on.
   Remove), PRs counted by a link, plans read In progress from their PRs, and
   updates skipped because the numbers vouched.
 - **A project reads sensibly before anyone sets it up**, as prod will on day
-  one (`?state=fresh` on the dummy board: labels on PRs, nothing else). A
-  project with no issue is named from its slug ("Webdriver deflake") and led
-  by its author with the most PRs. The name is its normal link, followed by
-  the word "guessed" in ink-3, dotted-underlined, whose hover gives the
-  reason; the same look on the Overview, Decide and the project page. The
-  dots sit on the word, never the name, since the name opens People.
+  one (`?state=fresh` on the dummy board: labels on PRs, nothing else). Only
+  an issue in the projects repo (`settings.repo`) names a project and sets
+  its lead; a labeled issue anywhere else is work inside the project, since
+  on real data people label task issues, and the first one labeled renamed
+  the project. With no projects repo set, every name comes from its label.
+  A project with no naming issue is named from its slug, with an acronym
+  list so it reads as people write it ("GA4 events", "PLP server
+  component", "npm token"), and its header says "No issue names it yet",
+  whose door says to label one in the projects repo (or, with none set, to
+  name its lead on the roadmap). It's led by its author with the most PRs.
+  An unassigned issue has no lead, never "ghost". A guessed lead's login is
+  its normal link, followed by the word "guessed" in ink-3,
+  dotted-underlined, whose hover gives the reason; the same look on the
+  Overview, Decide and the project page. The dots sit on the word, never
+  the login, since the login opens People. When every lead in a table or
+  section is guessed it's said once (the column head "Lead, guessed";
+  Decide's "Leads guessed" line per section) and rows show just the
+  login. A project's start, while its work is open, is its oldest open PR,
+  the same day on every view.
 - **Yours first.** The Overview opens with your projects (you lead it, or
   you have a PR open or merged in the last 14 days), and My work carries a
   "Your projects" fold, amber only when the call is yours.
@@ -421,8 +449,9 @@ icon with a class bolted on.
   page's Plan line for any project and in an Overview row's details,
   starting collapsed wherever a question is asked (the Roadmap's plan
   details show the full set from the start), and
-  each Decide section answers every row at once ("Commit all 52 through the
-  end of Oct"), each row keeping its receipt, with Undo all.
+  each Decide section answers every row at once, the wording naming the day
+  its button does ("Promise all 7 by Oct 31"), each row keeping its
+  receipt, with Undo all.
 - **Open boards stay current.** The server sends `projectsChanged` after
   every Projects write and sync; the tab refetches once a burst settles,
   keeping the old numbers on screen meanwhile.
@@ -561,15 +590,21 @@ icon with a class bolted on.
   "since Sep 7" past its end), and the load chart labels its dashed line ("10 developers", always ink,
   the way to People; the wash above it was cut as a state wash) instead of
   carrying a legend. Its headline beside the bars is the answer and names
-  what they count and over which span ("15 projects being worked on this
-  week", the span in ink-3, since the Overview counts the last 14 days;
-  and in amber "5 more than
+  what they count and over which span ("15 projects with PRs open this
+  week", merged that week included). It doesn't say "being worked on":
+  that's the lanes' 14 days, and one phrase over two windows put 39 over
+  lanes that added to 43. In amber, "5 more than
   developers" when over), so the bars carry no label of their own; "from
   PRs" is in its hover. Today is brand words over its line, no filled tag. The chart draws only the weeks up to today: a forecast drawn from
   the plan list could only fall, since the list knows nothing that isn't
   decided yet, so its tail read as silly. Right of today it says the next
   four weeks in words the rows can check ("Next 4 weeks: 2 start, 3 should
-  end", each count's hover naming the plans). Stripes for projected
+  end", each count's hover naming the plans). With no plans yet the
+  heading is "Nothing planned yet", the words right of today say where to
+  start ("No plans yet. Start with the 7 that need one.") with a Plan the
+  first one button that opens the first Needs a plan row's chooser, and the
+  "have a plan · have none" line waits for a plan, since its first half is
+  always 0. Stripes for projected
   weeks were cut the same way, and so were the count words' colored
   squares: each count word takes its bars' color instead. A soft end is a
   plain rounded end and a promised end has an ink cap ("Promised"
@@ -587,9 +622,15 @@ icon with a class bolted on.
   touch) opens a chooser under the row (from the week
   its PRs began, "Commit through" the end of a coming month or quarter, the
   nearest outlined, the same calls Decide offers), or drag across its weeks
-  on the timeline. Projects with no plan sit in two folds: "Needs a plan"
-  (big enough to owe a decision, by Decide's rule) and "Ships without one",
-  folded. Design it on the dummy board with
+  on the timeline. Projects with no plan sit in three folds by what Decide
+  asks: "Needs a plan" (big enough to owe a plan, with a Plan it button),
+  "Stalled" (Decide asks whether to park it, with a Park button), and "No
+  plan needed", folded, which never holds work Decide asks about. A stalled
+  project isn't also asked for a plan: its question is "park it?". The
+  rows in these folds are as calm as plan rows, "lead · N open PRs": the
+  question lives in the fold's title and the button, as on Decide. In team
+  lanes, where no fold says it, the row says its call. A row planned or
+  parked here keeps its fold while its receipt stands. Design it on the dummy board with
   `?projects=100`, not at a dozen rows. The header with the column names stays
   in place while the rows scroll, and month lines (quarter lines stronger)
   run through every row, so a span reads against the calendar anywhere on
@@ -629,6 +670,13 @@ icon with a class bolted on.
   run. The only way to bring the future down is a decision, which is the
   point. A picked week's rows come from the same rule as its bar, so the
   count and the rows always agree.
+- **Look back's "projects" are labeled projects.** "Projects a week" and
+  "Projects per person" count only work filed under a project; a PR with
+  none doesn't count on its own (it made one person 53 "projects" a week on
+  a 46-project board), and "Not in a project" says how much is outside
+  them. With no plan ever saved, the On the roadmap and Plans done tiles
+  give way to one line: "No plans yet, so nothing here is judged against
+  one."
 - **Look back counts days, not PRs.** "Where did our time go" can't be
   read off merged PRs: a one-line fix and a month of work each count once.
   A developer-day is a day someone did something on a PR (opened, merged,
@@ -693,7 +741,12 @@ icon with a class bolted on.
   to finish by Oct 31", "Mark done", "Park", "Drop", "Mark ongoing") so it
   answers the question alone; the expanded rows keep the short "End of Oct".
   The reason is one short sentence ("3 weeks overdue, 4 new PRs since.") on
-  Decide, the project page and the Overview's hover. On the project page the
+  Decide, the project page and the Overview's hover. A section whose rows
+  all share one question and one suggested answer asks it once in its
+  header, plural ("Stalled · 13 · Park them for now?"), its bulk button
+  the filled main action, and each row is one line ("Plp server component ·
+  dhmacs · no PR activity for 268 days") with an outlined answer button and
+  Other answers; rows whose answers differ keep the full card. On the project page the
   row listing a project's child projects is labeled "Projects in it", not
   "Parts", which at iFixit means repair parts; every card starts collapsed. After a call, focus lands on the receipt's
   words, with Undo the next Tab, so an extra Enter never undoes it. The

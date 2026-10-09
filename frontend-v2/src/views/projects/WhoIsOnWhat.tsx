@@ -4,6 +4,7 @@ import { resolveRange, type Range } from '../../model/projectData';
 import {
    loadByPerson,
    median,
+   overloaded,
    overloadLine,
    retroRows,
    type PersonLoad,
@@ -42,7 +43,8 @@ export function lastWeeks(
 /**
  * Who is on what: the days' rows, one load per developer (every developer
  * on a team, spelled the way their PRs spell them; with no teams, everyone
- * with days), and the overload line with the median it comes from. Over the
+ * with days), the overload line with the median it comes from, and who is
+ * over it, counting only projects they wrote for. Over the
  * last 14 days for the Overview's tile, or over `range` for People, where
  * every column follows the picked range; People draws the table. `who` is
  * undefined while the days load, and null when they failed.
@@ -57,6 +59,9 @@ export function useWhoIsOnWhat(
    who: WhoRow[] | null | undefined;
    line: number;
    middle: number;
+   /** who wrote for `line` or more projects; empty when more than a quarter
+    * would be (retro.ts overloaded) */
+   over: WhoRow[];
 } {
    const retro = useRetroData(range ?? (resolveRange(`${WHO_DAYS}d`) as Range));
    const rows = useMemo(() => (retro ? retroRows(retro) : null), [retro]);
@@ -85,6 +90,11 @@ export function useWhoIsOnWhat(
          })),
       }));
    }, [retro, rows, teams, today, teamOf]);
-   const counts = who?.map(r => r.projects.length) ?? [];
-   return { rows, who, line: overloadLine(counts), middle: median(counts) };
+   // only the projects they wrote for: reviewing isn't being on a project
+   const { line, middle, over } = useMemo(() => {
+      const counts = who?.map(r => r.wrote) ?? [];
+      const line = overloadLine(counts);
+      return { line, middle: median(counts), over: overloaded(who ?? [], line) };
+   }, [who]);
+   return { rows, who, line, middle, over };
 }

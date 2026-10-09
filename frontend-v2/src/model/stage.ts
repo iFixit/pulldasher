@@ -165,7 +165,11 @@ function reviewWaits(p: DerivedPull, turn: string | null, own: (words: string) =
    }
    const asked = requestedReviewers(p);
    if (asked.length) return own(`waiting on ${list(asked)}`);
-   if (p.engagedNoStamp.length) return `${list(p.engagedNoStamp)} looking`;
+   if (p.engagedNoStamp.length) {
+      return `${list(p.engagedNoStamp)} ${
+         p.engagedNoStamp.length === 1 ? 'is' : 'are'
+      } looking at it`;
+   }
    if (turn) return `${turn}’s turn to review`;
    return own(p.status === 'needs_qa' ? 'needs a tester' : 'needs a reviewer');
 }
@@ -237,12 +241,16 @@ export function durationWords(d: number): string {
  * A rough finish for a project's issues: how many closed (done or
  * dropped) and how many were added over the last four weeks set a pace,
  * and the open ones at that pace give a day, or the words that there's no
- * end in sight. With none closed there's no pace to compare, so it only
- * counts. `due` (YYYY-MM-DD) adds "after the target" to a day past it.
+ * end in sight. With none closed there's no pace to compare, and with
+ * fewer than PACE_MIN closes and adds together too little to read one, so
+ * it only counts. `due` (YYYY-MM-DD) adds "after the target" to a day past it.
  * `how` says how it's worked out. Null when no issue is open. The pace is
  * the one the roadmap's rule weighs (shared/model/roadmap.ts paceFinish), so
  * the page and the plan's update say the same day.
  */
+/** the fewest issues closed and added in four weeks that set a pace */
+export const PACE_MIN = 3;
+
 export function issueForecast(
    issues: readonly Pick<ProjectIssue, 'state' | 'closedAt' | 'attachedAt'>[],
    due: string | null,
@@ -254,6 +262,9 @@ export function issueForecast(
    const how = `In the last four weeks ${closed} of its issues closed (done or dropped) and ${added} were added; ${open} are open. A rough guide: it assumes that pace holds.`;
    if (!closed && !added) return { text: 'no issue closed or added in four weeks', how };
    const tally = `${closed || 'none'} closed, ${added || 'none'} added in four weeks`;
+   // one close and one add is no pace: "as fast as they close" from n=1
+   // reads as a verdict
+   if (closed + added < PACE_MIN) return { text: tally, how };
    // a young project's issues all arrived lately: "faster than they close"
    // would say it's losing ground before anything had a chance to close
    const eta = paceFinish(pace, now);

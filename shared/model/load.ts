@@ -185,7 +185,8 @@ export function peakFrom(
 /**
  * Each project's span from a window's numbers: open ones run to today, the
  * rest end at their last merge or close. `live` names the projects with work
- * in flight now, and where each started when the window doesn't say.
+ * in flight now, and the day each one's oldest open PR opened, which wins
+ * over the window's first PR so every pane gives one start day.
  */
 export function spansFrom(
    history: Record<string, { first_opened: string | null; last_closed: string | null }>,
@@ -194,7 +195,9 @@ export function spansFrom(
 ): InFlightSpan[] {
    const spans: InFlightSpan[] = [];
    for (const [slug, firstOpen] of Object.entries(live)) {
-      const start = history[slug]?.first_opened ?? firstOpen;
+      // the oldest open PR, as Decide and the project page say; the window's
+      // first PR only when that's unknown
+      const start = firstOpen ?? history[slug]?.first_opened;
       if (start) spans.push({ slug, start, end: null });
    }
    for (const [slug, w] of Object.entries(history)) {

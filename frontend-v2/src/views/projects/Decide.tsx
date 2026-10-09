@@ -226,6 +226,48 @@ const sectionOf = (row: DecideRow) =>
 const primaryOf = (row: DecideRow) =>
    row.reasons.find(r => SECTIONS[sectionOf(row)].kinds.includes(r.kind)) ?? row.reasons[0];
 
+/** A section's question asked of all its rows at once: "Park them for
+ * now?", "When will each finish?". */
+export const askAll = (question: string) =>
+   question
+      .replace(/^(Is|When will) it\b/, '$1 each')
+      .replace(/ it\b/, ' them')
+      .replace(/the (plan|end date)\b/, 'the $1s');
+
+/** The words that tell one answer from another, as the section's one click
+ * counts them: every target date is the same answer. */
+const answerKey = (call: Call | null) =>
+   !call ? '' : call.kind !== 'commit' ? call.kind : call.target ? 'target' : call.end;
+
+/**
+ * The question a section asks once, in its header, when two or more rows
+ * ask it with the same suggested answer and have nothing else to say: each
+ * row is then one line, its name, lead and the one fact. Null keeps the
+ * cards.
+ */
+export function sharedAsk(
+   rows: readonly DecideRow[],
+   projectOf: (row: DecideRow) => Pick<PortfolioItem, 'target'> | undefined,
+   today: string
+): string | null {
+   if (rows.length < 2) return null;
+   const keys = new Set<string>();
+   const questions = new Set<string>();
+   for (const row of rows) {
+      if (row.reasons.length !== 1) return null;
+      const [reason] = row.reasons;
+      const { question, call } = askOf(reason);
+      // a done_when or an issues link is a second line the card keeps
+      if (call === 'done' && row.item?.done_when) return null;
+      if (reason.kind === 'issues_done' && reason.open > 0 && row.slug) return null;
+      const answer = answerOf(row, projectOf(row), today);
+      if (!answer) return null;
+      keys.add(answerKey(answer));
+      questions.add(question);
+   }
+   return keys.size === 1 && questions.size === 1 ? [...questions][0] : null;
+}
+
 const rowKey = (row: DecideRow) => `${row.slug ?? ''}:${row.item?.id ?? ''}`;
 const kindsOf = (row: DecideRow) => row.reasons.map(r => r.kind).join(',');
 const nameOf = (row: DecideRow, project?: Pick<PortfolioItem, 'name'>) =>
@@ -233,6 +275,8 @@ const nameOf = (row: DecideRow, project?: Pick<PortfolioItem, 'name'>) =>
 
 const closedAs = (as: 'done' | 'dropped') => (as === 'done' ? 'completed' : 'not planned');
 const upperFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** A fact mid-line: "no PR activity for 268 days", but "PRs open since". */
+const midLine = (s: string) => (/^[A-Z][a-z]/.test(s) ? lowerFirst(s) : s);
 
 /** The calls a row can get. */
 export type Call =
@@ -337,9 +381,10 @@ const VERBS: Record<Call['kind'], [string, string]> = {
 };
 
 /**
- * What one click on a section does to its rows, or did: "Promise all 52
- * by the end of Oct", "Promised 52 by the end of Oct". Rows whose answers
- * differ say each one and how many ("Promise 5 by the end of Oct and mark
+ * What one click on a section does to its rows, or did, in the day each
+ * row's own button says: "Promise all 52 by Oct 31", "Promised 52 by Oct
+ * 31". Rows whose answers differ say each one and how many ("Promise 5 by
+ * Oct 31 and mark
  * 3 done"), and rows going through their own target dates
  * count together.
  */
@@ -357,7 +402,9 @@ export function bulkWords(made: readonly Call[], tense: 'do' | 'did'): string {
       const verb = VERBS[call.kind][tense === 'do' ? 0 : 1];
       const tail =
          call.kind === 'commit'
-            ? ` by ${call.target && count > 1 ? 'their target dates' : call.through}`
+            ? ` by ${
+                 !call.target ? dayWords(call.end) : count > 1 ? 'their target dates' : call.through
+              }`
             : call.kind === 'done' || call.kind === 'ongoing'
             ? ` ${call.kind}`
             : '';
@@ -476,10 +523,11 @@ const stop = (words: string) => (/[.!?…]$/.test(words) ? words : `${words}.`);
  * that sets them apart (the question in amber, after every reason's facts). */
 export function reasonParts(
    reason: DecideReason,
-   item: RoadmapItem | null
+   item: RoadmapItem | null,
+   bare = false
 ): { facts: string; question: string } {
    return {
-      facts: stop(reasonFacts(reason, item)),
+      facts: stop(reasonFacts(reason, item, bare)),
       question: askOf(reason).question,
    };
 }
@@ -933,6 +981,7 @@ export function DecideCall({
    describedBy,
    change = 'Change',
    opened = false,
+   compact = false,
 }: {
    row: DecideRow;
    /** its project, for a new plan's start, team and lead, and for what
@@ -946,6 +995,10 @@ export function DecideCall({
    /** the calls open from the start, with no Cancel: a place someone opened
     * to change the plan (the roadmap's plan details), where they're the point */
    opened?: boolean;
+   /** on a one-line row under a section that asks its question once: the
+    * answer an outlined button at the line's end, since the section's one
+    * click is the filled one */
+   compact?: boolean;
 }) {
    const made = calls.useValue().made.get(rowKey(row));
    // a call made on the row as it stood; a row back for a new reason is asked afresh
@@ -1012,7 +1065,7 @@ export function DecideCall({
       );
    }
    return (
-      <div ref={rootRef} className="mt-1.5" style={{ minHeight: held }}>
+      <div ref={rootRef} className={compact ? 'ml-auto' : 'mt-1.5'} style={{ minHeight: held }}>
          {live}
          {shown?.state === 'failed' ? (
             <p className="m-0 flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-2">
@@ -1069,6 +1122,7 @@ export function DecideCall({
                onCall={call => act(() => makeCall(row, call, project))()}
                onCancel={row.reasons.length || opened ? undefined : act(() => setOpen(false))}
                full={opened}
+               quiet={compact}
             />
          )}
       </div>
@@ -1121,6 +1175,7 @@ function CallStrip({
    onCall,
    onCancel,
    full = false,
+   quiet = false,
 }: {
    row: DecideRow;
    name: string;
@@ -1132,6 +1187,9 @@ function CallStrip({
    onCancel?: () => void;
    /** every call shown from the start, where changing the plan is the point */
    full?: boolean;
+   /** the answer outlined and unmarked: its section's header asks the
+    * question and holds the filled button */
+   quiet?: boolean;
 }) {
    const [more, setMore] = useState(false);
    const stripRef = useRef<HTMLDivElement>(null);
@@ -1180,6 +1238,8 @@ function CallStrip({
    // every call a button that looks like one, in two labeled rows: how
    // long it runs, or what else becomes of it. The suggested answer is
    // filled and says so; the rest are outlined, never bare words.
+   // opened from Other answers, a quiet row's answer says Suggested again
+   const marked = !quiet || more || full;
    const button = (o: Option, words = o.label) => (
       <button
          key={o.label}
@@ -1190,13 +1250,15 @@ function CallStrip({
          aria-label={o.ariaLabel}
          onClick={() => onCall(o.call)}
          className={`hit pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium ${
-            o === first
+            o === first && marked
                ? 'border-brand bg-brand text-surface hover:opacity-90'
                : 'border-line bg-surface text-ink-2 hover:border-brand hover:text-brand'
          }`}
       >
          {words}
-         {o === first && <span className="text-[11px] font-normal opacity-80">Suggested</span>}
+         {o === first && marked && (
+            <span className="text-[11px] font-normal opacity-80">Suggested</span>
+         )}
       </button>
    );
    // opened, the focus moves to the first of the answers it showed
@@ -1262,19 +1324,22 @@ function CallStrip({
 
 /** Its lead, the one fact a card shows beside its name; only the lead goes
  * anywhere (People), and the row's name opens the project. A lead guessed
- * from PRs is followed by the word guessed. */
+ * from PRs is followed by the word guessed, unless its section says it once
+ * for every row. */
 function RowLead({
    row,
    project,
    onPerson,
+   sayGuessed = true,
 }: {
    row: DecideRow;
    project: PortfolioItem | undefined;
    onPerson?: (login: string) => void;
+   sayGuessed?: boolean;
 }) {
    const lead = row.item?.lead ?? project?.lead ?? null;
    if (!lead) return null;
-   const byPrs = !row.item?.lead && !!project?.leadByPrs;
+   const byPrs = sayGuessed && guessedLead(row, project);
    return (
       <>
          {onPerson ? (
@@ -1297,6 +1362,11 @@ function RowLead({
       </>
    );
 }
+
+/** A lead nobody named: the plan names none, and the project's is the one
+ * with the most PRs. */
+const guessedLead = (row: DecideRow, project: PortfolioItem | undefined) =>
+   !row.item?.lead && !!project?.lead && !!project.leadByPrs;
 
 /** The rest of what a decision turns on, for the reason's hover: team,
  * people and size, target date. */
@@ -1353,10 +1423,17 @@ function DecideRowView({
    nav,
    navigate,
    onPerson,
+   asked = false,
+   sayGuessed = true,
 }: {
    row: DecideRow;
    /** a call was made on it here */
    decided: boolean;
+   /** its section asks the question once, so the row is one line: name,
+    * lead, the one fact and its answer */
+   asked?: boolean;
+   /** its section says "Leads guessed" once instead */
+   sayGuessed?: boolean;
    project: PortfolioItem | undefined;
    team: string | null;
    nav: ProjectsNav;
@@ -1403,47 +1480,66 @@ function DecideRowView({
             >
                {nameOf(row, project)}
             </button>
-            <RowLead row={row} project={project} onPerson={onPerson} />
-         </div>
-         <p
-            id={whyId}
-            className="m-0 mt-0.5 max-w-[70ch] text-[13px]"
-            title={factsTitle(row, project, team) || undefined}
-         >
-            {reason(primary, true)} {/* the one thing owed on the row, until it's answered */}
-            <span className={decided ? '' : 'text-warn'}>{askOf(primary).question}</span>
-            {primary.kind === 'issues_done' && primary.open > 0 && row.slug && (
+            <RowLead row={row} project={project} onPerson={onPerson} sayGuessed={sayGuessed} />
+            {asked && (
                <>
-                  {' '}
-                  <FactLink
-                     // the name opens the same page from the keyboard; decided,
-                     // it keeps its place unseen, so no line moves
-                     tabIndex={-1}
-                     disabled={decided}
-                     className={decided ? 'invisible' : ''}
-                     // linked issues join by themselves now, so what's left
-                     // is the page's PRs that do no issue there
-                     onClick={() => openPageAt(go, row.slug as string, 'project-unlinked')}
+                  <span
+                     id={whyId}
+                     className="min-w-0 flex-1 text-[13px]"
+                     title={factsTitle(row, project, team) || undefined}
                   >
-                     Add issues for those PRs on its page
-                  </FactLink>
+                     <span aria-hidden>· </span>
+                     {midLine(reasonFacts(primary, item, true))}
+                     {/* the header asks it once; the row's answer is read with it */}
+                     <span className="sr-only"> {askOf(primary).question}</span>
+                  </span>
+                  <DecideCall row={row} project={project} describedBy={whyId} compact />
                </>
             )}
-            {/* "Is it done?" checked against what the plan said done looks like */}
-            {item?.done_when && askOf(primary).call === 'done' && (
-               <span className="block">
-                  <span className="text-ink-3">{DONE_WHEN}:</span> {item.done_when}
-               </span>
-            )}
-         </p>
-         {row.reasons
-            .filter(r => r !== primary)
-            .map(r => (
-               <p key={r.kind} className="m-0 max-w-[70ch] text-[13px]">
-                  {reason(r, false)}
+         </div>
+         {!asked && (
+            <>
+               <p
+                  id={whyId}
+                  className="m-0 mt-0.5 max-w-[70ch] text-[13px]"
+                  title={factsTitle(row, project, team) || undefined}
+               >
+                  {reason(primary, true)} {/* the one thing owed on the row, until it's answered */}
+                  <span className={decided ? '' : 'text-warn'}>{askOf(primary).question}</span>
+                  {primary.kind === 'issues_done' && primary.open > 0 && row.slug && (
+                     <>
+                        {' '}
+                        <FactLink
+                           // the name opens the same page from the keyboard; decided,
+                           // it keeps its place unseen, so no line moves
+                           tabIndex={-1}
+                           disabled={decided}
+                           className={decided ? 'invisible' : ''}
+                           // linked issues join by themselves now, so what's left
+                           // is the page's PRs that do no issue there
+                           onClick={() => openPageAt(go, row.slug as string, 'project-unlinked')}
+                        >
+                           Add issues for those PRs on its page
+                        </FactLink>
+                     </>
+                  )}
+                  {/* "Is it done?" checked against what the plan said done looks like */}
+                  {item?.done_when && askOf(primary).call === 'done' && (
+                     <span className="block">
+                        <span className="text-ink-3">{DONE_WHEN}:</span> {item.done_when}
+                     </span>
+                  )}
                </p>
-            ))}
-         <DecideCall row={row} project={project} describedBy={whyId} />
+               {row.reasons
+                  .filter(r => r !== primary)
+                  .map(r => (
+                     <p key={r.kind} className="m-0 max-w-[70ch] text-[13px]">
+                        {reason(r, false)}
+                     </p>
+                  ))}
+               <DecideCall row={row} project={project} describedBy={whyId} />
+            </>
+         )}
       </div>
    );
 }
@@ -1460,6 +1556,7 @@ function SectionCalls({
    rows,
    owed,
    projectOf,
+   main = false,
 }: {
    title: string;
    /** the section's rows, decided here or not */
@@ -1467,6 +1564,8 @@ function SectionCalls({
    /** the ones still owed a call */
    owed: readonly DecideRow[];
    projectOf: (row: DecideRow) => PortfolioItem | undefined;
+   /** the section's main action, filled: the header asks its question */
+   main?: boolean;
 }) {
    const { made } = calls.useValue();
    const rootRef = useRef<HTMLSpanElement>(null);
@@ -1543,11 +1642,22 @@ function SectionCalls({
                </QuietButton>
             </span>
          )}
-         {answers.length > 1 && (
-            <QuietButton data-decide-focus onClick={all} aria-label={`${words}, under ${title}`}>
-               {words}
-            </QuietButton>
-         )}
+         {answers.length > 1 &&
+            (main ? (
+               <button
+                  type="button"
+                  data-decide-focus
+                  onClick={all}
+                  aria-label={`${words}, under ${title}`}
+                  className="hit pressable inline-flex h-8 items-center rounded-lg border border-brand bg-brand px-3 text-[13px] font-medium text-surface hover:opacity-90"
+               >
+                  {words}
+               </button>
+            ) : (
+               <QuietButton data-decide-focus onClick={all} aria-label={`${words}, under ${title}`}>
+                  {words}
+               </QuietButton>
+            ))}
       </span>
    );
 }
@@ -2499,6 +2609,11 @@ export function Decide({
             if (!here.length) return null;
             const decided = (row: DecideRow) => kept.settled.has(rowKey(row));
             const owedHere = here.filter(row => !decided(row));
+            // asked once in the header when every row asks it alike
+            const asked = sharedAsk(here, projectOf, day);
+            const leads = here.filter(row => row.item?.lead ?? projectOf(row)?.lead);
+            const guessed =
+               leads.length > 0 && leads.every(row => guessedLead(row, projectOf(row)));
             return (
                <div key={section.kinds[0]} data-decide-section className="mb-6">
                   {/* no sub-line: the title says what lands here, its rule
@@ -2509,12 +2624,27 @@ export function Decide({
                         compact
                         title={section.title}
                         count={owedHere.length}
+                        sub={
+                           (asked || guessed) && (
+                              <>
+                                 {asked && owedHere.length > 0 && (
+                                    <span className="text-warn">{askAll(asked)} </span>
+                                 )}
+                                 {guessed && (
+                                    <span className="text-ink-3">
+                                       {leads.length > 1 ? 'Leads' : 'Lead'} <ByPrs />
+                                    </span>
+                                 )}
+                              </>
+                           )
+                        }
                         headerExtra={
                            <SectionCalls
                               title={section.title}
                               rows={here}
                               owed={owedHere}
                               projectOf={projectOf}
+                              main={!!asked}
                            />
                         }
                      />
@@ -2532,6 +2662,8 @@ export function Decide({
                               nav={nav}
                               navigate={navigate}
                               onPerson={onPerson}
+                              asked={!!asked}
+                              sayGuessed={!guessed}
                            />
                         ))}
                      </Truncated>

@@ -155,6 +155,11 @@ describe('holderWords', () => {
       expect(holderWords(dp(2, 'needs_cr'), { turns })).toBe('erin’s turn to review');
       expect(holderWords(dp(3, 'needs_cr'), { turns })).toBe('needs a reviewer');
       expect(holderWords(dp(3, 'needs_qa'))).toBe('needs a tester');
+      // someone commented with no stamp: a sentence, like its siblings
+      const engaged = (logins: string[]) =>
+         ({ ...dp(4, 'needs_cr'), engagedNoStamp: logins } as DerivedPull);
+      expect(holderWords(engaged(['mlahargou']))).toBe('mlahargou is looking at it');
+      expect(holderWords(engaged(['ardelato', 'kate']))).toBe('ardelato, kate are looking at it');
       // a named person holds it before anyone's turn does
       expect(holderWords(dp(3, 'needs_qa', { qaingLogin: 'k0rvus' }), { turns })).toBe(
          'k0rvus is testing it'
@@ -305,21 +310,22 @@ describe('issueForecast', () => {
          `5 closed, 3 added in four weeks: done around ${day(now + 6 * 7 * DAY)}`
       );
       // a close before the four weeks doesn't set the pace
-      expect(issueForecast([closed(40), closed(3), open()], null, now)?.text).toBe(
-         `1 closed, none added in four weeks: done around ${day(now + 4 * 7 * DAY)}`
-      );
+      expect(
+         issueForecast([closed(40), closed(3), closed(4), closed(5), open()], null, now)?.text
+      ).toBe(`3 closed, none added in four weeks: done around ${day(now + 2 * 7 * DAY)}`);
    });
 
    it('says when the target falls before it', () => {
-      expect(issueForecast([closed(3), open()], '2026-10-15', now)?.text).toMatch(
+      const three = [closed(3), closed(4), closed(5)];
+      expect(issueForecast([...three, open()], '2026-10-05', now)?.text).toMatch(
          /done around .+, after the target$/
       );
-      expect(issueForecast([closed(3), open()], '2026-12-31', now)?.text).not.toMatch(/target/);
+      expect(issueForecast([...three, open()], '2026-12-31', now)?.text).not.toMatch(/target/);
    });
 
    it('gives no day when issues arrive as fast as they close, or nothing moves', () => {
-      expect(issueForecast([closed(3), open(3)], null, now)?.text).toBe(
-         '1 closed, 1 added in four weeks: issues arrive as fast as they close'
+      expect(issueForecast([closed(3), closed(4), open(3), open(5)], null, now)?.text).toBe(
+         '2 closed, 2 added in four weeks: issues arrive as fast as they close'
       );
       expect(issueForecast([closed(3), open(3), open(9)], null, now)?.text).toBe(
          '1 closed, 2 added in four weeks: issues arrive faster than they close'
@@ -329,6 +335,16 @@ describe('issueForecast', () => {
       );
       // nothing open: no forecast
       expect(issueForecast([closed(3)], null, now)).toBeNull();
+   });
+
+   it('only counts with too few closes and adds to read a pace from', () => {
+      // one closed and one added in four weeks is no pace
+      const thin = issueForecast([closed(3), open(3)], null, now);
+      expect(thin?.text).toBe('1 closed, 1 added in four weeks');
+      expect(thin?.short).toBeUndefined();
+      expect(issueForecast([closed(3), open()], null, now)?.text).toBe(
+         '1 closed, none added in four weeks'
+      );
    });
 
    it('only counts when nothing has closed yet, with no pace to compare', () => {

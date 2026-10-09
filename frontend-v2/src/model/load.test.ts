@@ -210,20 +210,23 @@ describe('peakFrom', () => {
 });
 
 describe('spansFrom', () => {
-   it('runs open projects to today and closed ones to their last close', () => {
+   it('runs open projects from their oldest open PR to today, closed ones to their last close', () => {
       expect(
          spansFrom(
             {
                a: { first_opened: '2026-08-01', last_closed: '2026-09-02' },
                b: { first_opened: '2026-07-01', last_closed: '2026-07-20' },
                misc: { first_opened: '2026-07-01', last_closed: '2026-09-20' },
+               d: { first_opened: '2026-08-10', last_closed: null },
             },
-            { a: '2026-08-05', c: '2026-09-10' },
+            { a: '2026-08-05', c: '2026-09-10', d: null },
             '2026-08-01'
          )
       ).toEqual([
-         { slug: 'a', start: '2026-08-01', end: null },
+         { slug: 'a', start: '2026-08-05', end: null },
          { slug: 'c', start: '2026-09-10', end: null },
+         // no open PR day known: the window's first PR
+         { slug: 'd', start: '2026-08-10', end: null },
       ]);
    });
 });

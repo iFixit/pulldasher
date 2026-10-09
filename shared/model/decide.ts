@@ -290,6 +290,17 @@ export function decideQueue({
               null
            );
       const issue = closed.get(project.slug);
+      // open PRs gone quiet, and no call in that time
+      const idle =
+         project.lastActivity == null ? null : Math.floor((now - project.lastActivity) / DAY);
+      const lastCall = Math.max(0, ...plans.map(decidedAt), issue?.at ?? 0);
+      const holder = going[0] ?? last;
+      const stalls =
+         project.open > 0 &&
+         idle != null &&
+         idle >= STALL_DAYS &&
+         now - lastCall >= STALL_DAYS * DAY &&
+         holder?.status !== 'parked';
       if (!going.length) {
          if (issue && issue.at > (last ? decidedAt(last) : 0)) {
             if (project.open > 0 && now - issue.at >= REOPEN_DAYS * DAY) {
@@ -318,24 +329,12 @@ export function decideQueue({
                   by: 'roadmap',
                });
             }
-         } else if (needsDecision(project, closed) && !ongoing.has(project.slug)) {
+         } else if (!stalls && needsDecision(project, closed) && !ongoing.has(project.slug)) {
+            // a stalled project's question is "park it?", not "plan it"
             add(project.slug, null, { kind: 'new', since: project.firstOpened });
          }
       }
-      // open PRs gone quiet, and no call in that time
-      const idle =
-         project.lastActivity == null ? null : Math.floor((now - project.lastActivity) / DAY);
-      const lastCall = Math.max(0, ...plans.map(decidedAt), issue?.at ?? 0);
-      const holder = going[0] ?? last;
-      if (
-         project.open > 0 &&
-         idle != null &&
-         idle >= STALL_DAYS &&
-         now - lastCall >= STALL_DAYS * DAY &&
-         holder?.status !== 'parked'
-      ) {
-         add(project.slug, holder, { kind: 'stalled', days: idle });
-      }
+      if (stalls) add(project.slug, holder, { kind: 'stalled', days: idle ?? 0 });
    }
    // plans under way whose project has nothing in flight, or no project
    const liveSlugs = new Set(live.map(p => p.slug));

@@ -66,15 +66,21 @@ function Tiles({
    items,
    today,
    overloaded,
+   standsOut,
    line,
    decisions,
+   noTeams,
    nav,
    navigate,
 }: {
    items: PortfolioItem[];
    today: Today;
+   /** no teams are set, so everyone counts */
+   noTeams: boolean;
    /** undefined while the last 14 days load, null when they failed */
    overloaded: WhoRow[] | null | undefined;
+   /** some cross the line, but too many to single out */
+   standsOut: boolean;
    line: number;
    decisions: DecideRow[] | null;
    nav: ProjectsNav;
@@ -151,16 +157,20 @@ function Tiles({
                            ? '?'
                            : overloaded.length
                      }
-                     label={upperFirst(OVERLOADED)}
+                     label={`${upperFirst(OVERLOADED)}, ${LAST_14_DAYS}`}
                      note={
                         !overloaded
                            ? null
                            : overloaded.length
                            ? names(overloaded.map(r => r.login))
-                           : `nobody on ${line} or more projects in the ${LAST_14_DAYS}`
+                           : standsOut
+                           ? 'no one stands out'
+                           : `nobody on ${line} or more projects`
                      }
                      warn={overloadedNow}
-                     title={`Developers who wrote or reviewed PRs on ${line} or more different projects in the ${LAST_14_DAYS}. Click to open People.`}
+                     title={`${
+                        noTeams ? 'People' : 'Developers'
+                     } who wrote PRs on ${line} or more different projects in the ${LAST_14_DAYS}. Reviewing a PR doesn’t count. Click to open People.`}
                      // the same 14 days the tile counts, narrowed to who it names
                      onClick={() =>
                         navigate({ ...switchView('people'), only: 'overloaded', range: '14d' })
@@ -271,9 +281,10 @@ function Tiles({
                      or work marked done or parked whose PRs still move.
                   </p>
                   <p className="m-0">
-                     {upperFirst(OVERLOADED)}: developers who wrote or reviewed PRs on {line} or
-                     more projects in the {LAST_14_DAYS}, twice the developers’ median and never
-                     under {OVERLOAD_MIN}.
+                     {upperFirst(OVERLOADED)}: {noTeams ? 'people' : 'developers'} who wrote PRs on{' '}
+                     {line} or more projects in the {LAST_14_DAYS}, twice the{' '}
+                     {noTeams ? 'median' : 'developers’ median'} and never under {OVERLOAD_MIN}.
+                     Reviewing a PR doesn’t count.
                   </p>
                   <p className="m-0">
                      {upperFirst(BEING_WORKED_ON)}: an open PR or a merge in the {LAST_14_DAYS}, and
@@ -464,7 +475,7 @@ export function Overview({
    me: string;
    onPerson: (login: string) => void;
 }) {
-   const { rows, who, line } = useWhoIsOnWhat(data?.teams, today, teamOf);
+   const { rows, who, line, over } = useWhoIsOnWhat(data?.teams, today, teamOf);
    // who worked on each lately, and the calls Decide asks of each, which
    // give every row's Plan cell its words and its one amber mark
    const listed = useMemo(
@@ -503,18 +514,13 @@ export function Overview({
       opts,
       onPerson,
       me,
+      noTeams: !!data && !Object.keys(data.teams ?? {}).length,
+      projectsRepo: data ? data.projects_repo : undefined,
    };
-   // most projects first, then by login: the order People lists them in
-   const overloaded = useMemo(
-      () =>
-         who &&
-         who
-            .filter(r => r.projects.length >= line)
-            .sort(
-               (a, b) => b.projects.length - a.projects.length || a.login.localeCompare(b.login)
-            ),
-      [who, line]
-   );
+   // who wrote for the line's projects or more, most first; reviewing isn't
+   // being on a project, and a line that would flag a quarter flags no one
+   const overloaded = who && over;
+   const standsOut = !over.length && !!who?.some(r => r.wrote >= line);
    // the teams in their configured order, for the list's Group by Team
    const teams = useMemo(() => Object.keys(data?.teams ?? {}), [data]);
    // two-label PRs already sit in a project, so they aren't "outside" ones
@@ -539,8 +545,10 @@ export function Overview({
             items={listed}
             today={today}
             overloaded={overloaded}
+            standsOut={standsOut}
             line={line}
             decisions={decisions}
+            noTeams={!!list.noTeams}
             nav={nav}
             navigate={navigate}
          />

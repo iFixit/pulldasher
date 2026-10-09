@@ -12,6 +12,7 @@ import {
    loadByPerson,
    median,
    mergeSpeed,
+   overloaded,
    overloadLine,
    peopleByProject,
    projectLength,
@@ -134,10 +135,11 @@ describe('Look back’s groups', () => {
    });
 
    it('says how many different projects each person touched in a week', () => {
-      // dana: alpha and beta in week one; erin: beta, then beta and an unfiled PR
+      // dana: alpha and beta in week one; erin: beta, then beta and an
+      // unfiled PR, which isn't a project
       expect([...spreadByPerson(rows)]).toEqual([
          ['dana', 2],
-         ['erin', 1.5],
+         ['erin', 1],
       ]);
       expect(median([3, 1, 2])).toBe(2);
       expect(median([])).toBe(0);
@@ -174,6 +176,15 @@ describe('Look back’s groups', () => {
       expect(overloadLine([1, 1, 0])).toBe(4);
       expect(overloadLine([])).toBe(4);
    });
+
+   it('flags who wrote for the line or more, and no one when over a quarter would be', () => {
+      const load = (login: string, wrote: number) => ({ login, wrote });
+      const team = [load('amy', 6), load('bob', 1), load('cy', 0), load('di', 2), load('ed', 1)];
+      expect(overloaded(team, 4).map(l => l.login)).toEqual(['amy']);
+      // two of six is more than a quarter: the flag says nothing
+      expect(overloaded([...team, load('fay', 4)], 4)).toEqual([]);
+      expect(overloaded([], 4)).toEqual([]);
+   });
 });
 
 describe('Look back’s project columns', () => {
@@ -192,6 +203,11 @@ describe('Look back’s project columns', () => {
       expect(projectLength({ ...w, backlog_end: 2 }, '2026-09-30')).toEqual({
          open: true,
          days: 60,
+      });
+      // still open: from its oldest open PR, as Decide says
+      expect(projectLength({ ...w, backlog_end: 2 }, '2026-09-30', '2026-09-10')).toEqual({
+         open: true,
+         days: 20,
       });
       expect(projectLength(null, '2026-09-30')).toBeNull();
    });

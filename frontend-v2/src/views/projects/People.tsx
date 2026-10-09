@@ -38,7 +38,7 @@ import {
    type ProjectsData,
    type Range,
 } from '../../model/projectData';
-import { beforeWords, OVERLOAD_MIN } from '../../model/retro';
+import { beforeWords, OVERLOAD_MIN, overloaded as overloadedOf } from '../../model/retro';
 import { retryRetroData } from '../../model/retroData';
 import { saveDeveloperTeams } from '../../model/settingsData';
 import { days, devDays, NOT_IN_A_PROJECT, OVERLOADED } from '../../model/words';
@@ -230,7 +230,7 @@ function TeamsSection({
                   </ul>
                ) : (
                   <p className="m-0 text-[13px] text-ink-3">
-                     None yet, so everyone counts as a non-developer.
+                     No teams yet. Add them to split developers from everyone else.
                   </p>
                )
             ) : (
@@ -427,16 +427,15 @@ export function sortPeople(
    });
 }
 
-/** On the overload line's number of projects or more, in the range. */
-const isOver = (row: PersonRow, line: number) => !!row.load && row.load.projects.length >= line;
-
-/** The overloaded, most projects first and then by login, the order the
- * Overview names them in too. */
+/** The overloaded: wrote PRs for the line's number of projects or more in
+ * the range (reviewing isn't being on a project), most first and then by
+ * login, the order the Overview names them in too. Nobody when more than a
+ * quarter would be: then the flag picks out no one. */
 export function overloadedPeople(rows: readonly PersonRow[], line: number): PersonRow[] {
-   const count = (r: PersonRow) => r.load?.projects.length ?? 0;
-   return rows
-      .filter(r => isOver(r, line))
-      .sort((a, b) => count(b) - count(a) || a.login.localeCompare(b.login));
+   const loaded = rows.flatMap(row =>
+      row.load ? [{ row, login: row.login, wrote: row.load.wrote }] : []
+   );
+   return overloadedOf(loaded, line).map(l => l.row);
 }
 
 /**
@@ -489,7 +488,7 @@ function allColumns(range: Range, line: number, hasTeams: boolean): Column[] {
       {
          key: 'projects',
          label: 'Projects',
-         title: `Projects they wrote or reviewed PRs on, one-offs left out. ${line} or more is ${OVERLOADED}.`,
+         title: `Projects they wrote or reviewed PRs on, one-offs left out. ${line} or more projects they wrote for is ${OVERLOADED}.`,
          width: 'w-20',
          fromDays: true,
       },
@@ -719,7 +718,7 @@ function PeopleTable({
    rows,
    cols,
    sort,
-   line,
+   over,
    me,
    isOpen,
    onToggle,
@@ -729,7 +728,8 @@ function PeopleTable({
    rows: PersonRow[];
    cols: Column[];
    sort: { key: PersonKey; reversed: boolean };
-   line: number;
+   /** the overloaded, by lowercase login */
+   over: ReadonlySet<string>;
    me: string;
    isOpen: (key: string) => boolean;
    onToggle: (key: string) => void;
@@ -750,7 +750,7 @@ function PeopleTable({
          {sortPeople(rows, sort).map(row => {
             const key = row.login.toLowerCase();
             const open = isOpen(key);
-            const over = isOver(row, line);
+            const isOver = over.has(key);
             const detailId = `person-${key}-detail`;
             const overId = `person-${key}-over`;
             return (
@@ -775,7 +775,7 @@ function PeopleTable({
                            data-person-target
                            aria-expanded={open}
                            aria-controls={open ? detailId : undefined}
-                           aria-describedby={over ? overId : undefined}
+                           aria-describedby={isOver ? overId : undefined}
                            onClick={() => onToggle(key)}
                            className="pd-link flex max-w-full min-w-0 items-center gap-2 rounded border-0 bg-transparent p-0 text-left text-[13px]"
                         >
@@ -788,7 +788,7 @@ function PeopleTable({
                            />
                            <PersonCell login={row.login} me={me} />
                         </button>
-                        {over && (
+                        {isOver && (
                            <span id={overId} className="text-[11px] text-warn">
                               {OVERLOADED}
                            </span>
@@ -869,10 +869,11 @@ function PeopleList({
    const find = nav.find.trim();
    const filter = findFilter(find);
    // the picked person shows whatever narrows the rest
+   const over = new Set(overloadedPeople(rows, line).map(r => r.login.toLowerCase()));
    const shown = rows.filter(
       r =>
          r.login.toLowerCase() === whoKey ||
-         ((!narrowed || isOver(r, line)) && personMatches(r, filter, items))
+         ((!narrowed || over.has(r.login.toLowerCase())) && personMatches(r, filter, items))
    );
    const folds = [
       ...teams.map(team => ({
@@ -880,7 +881,11 @@ function PeopleList({
          label: team,
          rows: shown.filter(r => r.team === team),
       })),
-      { id: NON_DEVS, label: 'Non-developers', rows: shown.filter(r => r.team == null) },
+      {
+         id: NON_DEVS,
+         label: teams.length ? 'Non-developers' : 'Everyone',
+         rows: shown.filter(r => r.team == null),
+      },
    ];
    const whoFold = whoKey
       ? folds.find(f => f.rows.some(r => r.login.toLowerCase() === whoKey))?.id ?? null
@@ -943,10 +948,12 @@ function PeopleList({
                      text={`${line} or more projects is ${OVERLOADED}`}
                   >
                      <p className="m-0">
-                        A developer’s projects are the ones they wrote or reviewed PRs on in the
-                        range, one-offs left out. {line} or more is {OVERLOADED}: twice the
-                        developers’ median of {Math.round(middle * 10) / 10}, and never under{' '}
-                        {OVERLOAD_MIN}.
+                        {teams.length ? 'A developer’s' : 'A person’s'} projects are the ones they
+                        wrote or reviewed PRs on in the range, one-offs left out. Reviewing a PR
+                        doesn’t count toward {OVERLOADED}: {line} or more projects they wrote for is{' '}
+                        {OVERLOADED}, twice the median of {Math.round(middle * 10) / 10} and never
+                        under {OVERLOAD_MIN}. If that would flag more than a quarter of people, no
+                        one is flagged.
                      </p>
                      <p className="m-0">
                         Days are the days they opened a PR, had one merged, or commented on, stamped
@@ -1042,7 +1049,7 @@ function PeopleList({
                         ? undefined
                         : teams.length
                         ? 'Everyone with a PR or a stamp in the range who isn’t on a developer team. Days and projects count developers only.'
-                        : 'No developer teams yet, so everyone counts as a non-developer.'
+                        : 'No developer teams yet, so everyone counts.'
                   }
                   // the developers greet you; the non-developers rest folded
                   // once there are teams
@@ -1053,7 +1060,7 @@ function PeopleList({
                      rows={f.rows}
                      cols={cols}
                      sort={sort}
-                     line={line}
+                     over={over}
                      me={me}
                      isOpen={isOpen}
                      onToggle={toggle}
@@ -1075,7 +1082,7 @@ function PeopleList({
                <p className="m-0 px-3.5 py-4 text-[13px] text-ink-3">
                   {find
                      ? `Nobody here matches “${find}”.`
-                     : `Nobody is on ${line} or more projects.`}{' '}
+                     : `Nobody wrote for ${line} or more projects.`}{' '}
                   <QuietButton onClick={showEveryone}>Show everyone</QuietButton>
                </p>
             )}
@@ -1225,6 +1232,8 @@ export function People({
    const versusStamps = versus(stamps, stampsBefore, beforeWords(rangeDays(shownRange)));
    const stampsOnOthers = sum(devs(view.data), w => w.reviews_on_non_dev);
    const overloaded = overloadedPeople(rows, view.line);
+   // some cross the line but too many to single out
+   const standsOut = rows.some(r => r.load && r.load.wrote >= view.line);
    const pct = (part: number, whole: number) => `${Math.round((100 * part) / whole)}%`;
    // a tile sorts or narrows the list to what it counts, and brings it in
    const toList = (patch: Partial<ProjectsNav>) => {
@@ -1279,9 +1288,16 @@ export function People({
                      <Tile
                         value={overloaded.length}
                         label={OVERLOADED_LABEL}
-                        title={`Developers who wrote or reviewed PRs on ${
+                        note={
+                           overloaded.length
+                              ? undefined
+                              : standsOut
+                              ? 'No one stands out'
+                              : undefined
+                        }
+                        title={`${hasTeams ? 'Developers' : 'People'} who wrote PRs on ${
                            view.line
-                        } or more projects in the range: twice the developers’ median, and never under ${OVERLOAD_MIN}.${
+                        } or more projects in the range: twice the median, and never under ${OVERLOAD_MIN}. Reviewing doesn’t count.${
                            overloaded.length ? ' Click to list only them.' : ''
                         }`}
                         onClick={

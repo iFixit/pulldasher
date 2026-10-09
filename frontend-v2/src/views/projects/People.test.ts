@@ -95,8 +95,24 @@ describe('overloadedPeople', () => {
    });
 
    it('names the most projects first, and ties by login, as the Overview does', () => {
-      const rows = [row('zed', 4), row('amy', 6), row('bob', 4), row('cal', 3)];
+      const rows = [
+         row('zed', 4),
+         row('amy', 6),
+         row('bob', 4),
+         ...['c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k'].map(l => row(l, 1)),
+      ];
       expect(overloadedPeople(rows, 4).map(r => r.login)).toEqual(['amy', 'bob', 'zed']);
+   });
+
+   it('counts projects they wrote for, not ones they only reviewed', () => {
+      const reviewer = { ...row('rae', 9), load: { ...load('rae', 9, 9), wrote: 1 } };
+      const rows = [reviewer, ...['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(l => row(l, 1))];
+      expect(overloadedPeople(rows, 4)).toEqual([]);
+   });
+
+   it('flags no one when more than a quarter would be', () => {
+      const rows = [row('amy', 6), row('bob', 6), row('cal', 1)];
+      expect(overloadedPeople(rows, 4)).toEqual([]);
    });
 });
 
