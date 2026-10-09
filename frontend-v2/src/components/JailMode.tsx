@@ -204,7 +204,7 @@ function sampleCase(
 /** How long the snooze button has to be held down. */
 const HOLD_MS = 2000;
 /** How long the open lock shows before the jail closes. */
-const OPEN_MS = 400;
+const OPEN_MS = 700;
 
 /** The modal over the board. No close button and no Esc: the only way out
  * besides getting under the limits is holding Snooze down for a couple of
@@ -225,7 +225,10 @@ function JailModal({
 
    useEffect(() => {
       const root = rootRef.current;
-      root?.focus({ preventScroll: true });
+      // focus starts on Snooze, so holding Enter or Space works right away;
+      // the dialog itself when it's showing "You're out"
+      const snooze = root?.querySelector<HTMLElement>('[data-snooze]');
+      (snooze ?? root)?.focus({ preventScroll: true });
       // Esc doesn't close it (holding Snooze does); Tab stays inside
       const onKey = (e: KeyboardEvent) => {
          if (e.key === 'Escape') e.preventDefault();
@@ -264,11 +267,14 @@ function JailModal({
          aria-describedby="jail-why"
          className="fixed inset-0 z-[200] flex flex-col items-center overflow-y-auto bg-ink/40 px-4 pt-[8vh] pb-8 outline-none"
       >
-         <section className="flex max-h-[calc(100dvh-8vh-2rem)] w-full max-w-[30rem] flex-col gap-3 rounded-xl border border-line bg-surface p-4 text-ink shadow-2xl">
-            <div className="flex items-center gap-3">
+         <section className="flex max-h-[calc(100dvh-8vh-2rem)] w-full max-w-[34rem] flex-col gap-5 rounded-2xl border border-line bg-surface p-5 text-ink shadow-2xl sm:p-6">
+            <div className="flex items-center gap-4">
                <SadRobot />
                <div className="min-w-0 flex-1">
-                  <h2 id="jail-title" className="m-0 flex items-center gap-2 text-lg font-semibold">
+                  <h2
+                     id="jail-title"
+                     className="m-0 flex items-center gap-2.5 text-xl font-semibold"
+                  >
                      PR jail
                      {/* the countdown to freedom: ticks down live as you merge
                          or close */}
@@ -280,17 +286,23 @@ function JailModal({
                         {free ? 'Free' : `${jail.toGo} to go`}
                      </span>
                   </h2>
-                  <p id="jail-why" className="m-0 text-[13px] text-ink-2" aria-live="polite">
+                  <p
+                     id="jail-why"
+                     className="m-0 mt-1 text-sm leading-snug text-ink-2"
+                     aria-live="polite"
+                  >
                      {jail.why}
                   </p>
                </div>
             </div>
             {!free && (
                <>
-                  <div className="min-h-0 overflow-y-auto">
+                  <div className="-mx-1 min-h-0 overflow-y-auto px-1">
                      <JailList pulls={jail.pulls} me={me} maxDays={maxDays} />
                   </div>
-                  <HoldToSnooze onDone={onDone} />
+                  <div className="border-t border-line pt-3">
+                     <HoldToSnooze onDone={onDone} />
+                  </div>
                </>
             )}
          </section>
@@ -344,7 +356,8 @@ function HoldToSnooze({ onDone }: { onDone: () => void }) {
          onKeyUp={e => isPress(e.key) && stop()}
          onBlur={stop}
          onContextMenu={e => e.preventDefault()}
-         className="pressable group flex w-full touch-none items-center gap-3 rounded-lg border-t border-line pt-3 text-left select-none [-webkit-touch-callout:none]"
+         data-snooze
+         className="pressable group -mx-2 flex touch-none items-center gap-4 rounded-lg px-2 py-2 text-left select-none [-webkit-touch-callout:none] hover:bg-secondary"
       >
          <svg
             aria-hidden
@@ -362,7 +375,7 @@ function HoldToSnooze({ onDone }: { onDone: () => void }) {
                r="22"
                pathLength={1}
                strokeDasharray="1"
-               className="stroke-brand"
+               className={opened ? 'stroke-ok' : 'stroke-brand'}
                strokeWidth={2}
                transform="rotate(-90 24 24)"
                style={{
@@ -370,15 +383,12 @@ function HoldToSnooze({ onDone }: { onDone: () => void }) {
                   transition: `stroke-dashoffset ${sweep}`,
                }}
             />
-            {/* the shackle, which pops up once the key has turned */}
+            {/* the shackle: once the key has turned it lifts out of the
+                body and swings over its right leg to the other side */}
             <path
                d="M18 22 V18 a6 6 0 0 1 12 0 V22"
-               className="stroke-ink-2"
+               className={`stroke-ink-2 ${opened ? 'jail-shackle-open' : ''}`}
                strokeWidth={2.5}
-               style={{
-                  translate: opened ? '0 -4px' : '0 0',
-                  transition: 'translate 200ms ease-out',
-               }}
             />
             <rect
                x="14"
@@ -401,7 +411,7 @@ function HoldToSnooze({ onDone }: { onDone: () => void }) {
                   width="3"
                   height="9"
                   rx="1.5"
-                  className="fill-brand"
+                  className={opened ? 'fill-ok' : 'fill-brand'}
                   style={{
                      transformOrigin: '24px 29.5px',
                      rotate: holding ? '90deg' : '0deg',
@@ -411,10 +421,10 @@ function HoldToSnooze({ onDone }: { onDone: () => void }) {
             </g>
          </svg>
          <span className="min-w-0">
-            <span className="block text-[13px] font-semibold text-ink group-hover:text-brand">
+            <span className="block text-sm font-semibold text-ink">
                {opened ? 'Snoozed' : holding ? 'Keep holding…' : 'Hold to snooze'}
             </span>
-            <span id="jail-snooze-hint" className="block text-xs text-ink-3">
+            <span id="jail-snooze-hint" className="mt-0.5 block text-xs leading-relaxed text-ink-3">
                It comes back if things get worse, at most every 4 hours.
             </span>
          </span>
@@ -423,31 +433,48 @@ function HoldToSnooze({ onDone }: { onDone: () => void }) {
 }
 
 /** Your PRs, the way My work groups them, with the ready ones on top: the
- * quickest way out first. Someone else's PRs (the preview's fallback) list
- * flat, since their groups would be a reviewer's. */
+ * quickest way out first. Each group says what to do with it, then lists
+ * oldest first. Someone else's PRs (the preview's fallback) list flat, since
+ * their groups would be a reviewer's. */
 function JailList({ pulls, me, maxDays }: { pulls: DerivedPull[]; me: string; maxDays: number }) {
    const mine = pulls.every(p => p.data.user.login === me);
    const groups = mine
       ? jailGroups(pulls, me)
       : { ready: [], move: [], waiting: pulls.map(pull => ({ pull })) };
    const sections = [
-      { title: STAGE_WORDS.ready, tone: 'text-brand-700', rows: groups.ready, ready: true },
-      { title: 'Your move', tone: 'text-brand-700', rows: groups.move },
-      { title: 'Waiting on others', tone: 'text-ink-3', rows: groups.waiting },
+      {
+         title: STAGE_WORDS.ready,
+         tone: 'text-brand-700',
+         hint: 'Quickest way out. Merge these first.',
+         rows: groups.ready,
+         ready: true,
+      },
+      {
+         title: 'Your move',
+         tone: 'text-brand-700',
+         hint: 'Each of these is waiting on you.',
+         rows: groups.move,
+      },
+      {
+         title: 'Waiting on others',
+         tone: 'text-ink-3',
+         hint: 'Nudge whoever has it, or close the ones you no longer need.',
+         rows: groups.waiting,
+      },
    ].filter(g => g.rows.length);
    return (
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-6">
          {sections.map(g => (
             <section key={g.title} aria-label={mine ? g.title : undefined}>
                {mine && (
-                  <h3 className={`m-0 ${eyebrowText} ${g.tone}`}>
-                     {g.title} <span className="text-ink-3 tabular-nums">· {g.rows.length}</span>
-                  </h3>
+                  <div className="mb-1">
+                     <h3 className={`m-0 ${eyebrowText} ${g.tone}`}>
+                        {g.title} <span className="text-ink-3 tabular-nums">· {g.rows.length}</span>
+                     </h3>
+                     <p className="m-0 mt-0.5 text-xs text-ink-3">{g.hint}</p>
+                  </div>
                )}
-               {g.ready && (
-                  <p className="m-0 text-xs text-ink-3">Quickest way out. Merge these first.</p>
-               )}
-               <ul className="m-0 mt-1.5 flex list-none flex-col gap-2 p-0">
+               <ul className="m-0 flex list-none flex-col divide-y divide-line p-0">
                   {g.rows.map(({ pull }) => (
                      <JailRow
                         key={`${pull.data.repo}#${pull.data.number}`}
@@ -465,7 +492,8 @@ function JailList({ pulls, me, maxDays }: { pulls: DerivedPull[]; me: string; ma
    );
 }
 
-/** One PR: the title to GitHub and its age, then what it's waiting on. */
+/** One PR: the title to GitHub and its age, then the move and what it's
+ * waiting on. */
 function JailRow({
    pull: p,
    me,
@@ -486,31 +514,36 @@ function JailRow({
    // stands in when there's no detail
    const move = word?.kind === 'do' ? word.word : null;
    const detail = context ?? (word?.kind === 'wait' ? word.word : null);
+   const old = p.ageDays > maxDays;
    return (
-      <li className="flex flex-col text-[13px]">
-         <span className="flex items-baseline gap-3">
+      <li className="flex flex-col gap-1.5 py-3">
+         <span className="flex items-baseline gap-4">
             <a
                href={githubUrl(p.data.repo, p.data.number)}
                target="_blank"
                rel="noopener noreferrer"
-               className="min-w-0 flex-1 font-medium text-ink hover:underline"
+               className="min-w-0 flex-1 text-sm leading-snug font-medium text-ink hover:underline"
             >
                {p.data.title} <span aria-hidden>↗</span>
             </a>
             <span
                className={`shrink-0 text-xs tabular-nums ${
-                  p.ageDays > maxDays ? 'font-semibold text-warn' : 'text-ink-3'
+                  old ? 'font-semibold text-warn' : 'text-ink-3'
                }`}
-               title={`Open ${p.ageDays} days`}
+               title={`Open ${p.ageDays} days${old ? `, past the ${maxDays}-day limit` : ''}`}
             >
-               {p.ageDays ? `${p.ageDays}d` : '<1d'}
+               {p.ageDays ? `${p.ageDays} days` : 'today'}
             </span>
          </span>
-         <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-ink-3">
+         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-3">
             <RepoRef repo={p.data.repo} number={p.data.number} />
-            {move && <span className="font-medium whitespace-nowrap text-brand-700">· {move}</span>}
+            {move && (
+               <span className="rounded-md bg-brand/10 px-1.5 py-0.5 font-medium whitespace-nowrap text-brand-700">
+                  {move}
+               </span>
+            )}
             {!ready && <CiGlyph pull={p} />}
-            {detail && <span className="min-w-0 truncate">· {detail}</span>}
+            {detail && <span className="min-w-0">{detail}</span>}
          </span>
       </li>
    );

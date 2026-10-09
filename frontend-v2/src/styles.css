@@ -1029,8 +1029,28 @@ input[type="checkbox"] {
 .jail-key-wiggle {
   animation: jail-key-wiggle 2.8s ease-in-out infinite;
 }
+/* ...and the shackle opening once it has turned: up out of the body, then
+   over its right leg (x 30) to the other side, like a padlock swinging
+   open. Reduced motion lands on the open lock with no swing. */
+@keyframes jail-shackle-open {
+  from {
+    transform: translateY(0) scaleX(1);
+  }
+  35% {
+    transform: translateY(-5px) scaleX(1);
+  }
+  to {
+    transform: translateY(-5px) scaleX(-1);
+  }
+}
+.jail-shackle-open {
+  transform-origin: 30px 18px;
+  transform: translateY(-5px) scaleX(-1);
+  animation: jail-shackle-open 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
 @media (prefers-reduced-motion: reduce) {
-  .jail-key-wiggle {
+  .jail-key-wiggle,
+  .jail-shackle-open {
     animation: none;
   }
 }
