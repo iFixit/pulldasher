@@ -41,7 +41,7 @@ const STATES = {
       title: 'PR 201',
       repository: ifixit,
    },
-   'test/projects#1': issueNode(1, 'Workbench', { repository: repo('test/projects') }),
+   'ifixit/projects#1': issueNode(1, 'Workbench', { repository: repo('iFixit/projects') }),
    'test/repo-a#5': issueNode(5, 'Print stickers for the bench', {
       repository: repo('test/repo-a'),
    }),
@@ -135,7 +135,7 @@ const issueRow = (number, over) => ({
 });
 const LABELED = [
    // the project's own issue: it names the project, so it isn't one of its issues
-   issueRow(1, { repo: 'test/projects', title: 'Workbench', labeled_at: at('2026-05-01') }),
+   issueRow(1, { repo: 'iFixit/projects', title: 'Workbench', labeled_at: at('2026-05-01') }),
    issueRow(101, { title: 'Share a bench', labeled_at: at('2026-08-01') }),
    issueRow(102, {
       title: 'Save drafts',
@@ -212,7 +212,7 @@ function fakeQuery(sql, params) {
       return [{ ...LABELED[0], assignee: null, milestone_title: null, milestone_due_on: null }];
    }
    if (sql.startsWith('SELECT l.repo, l.number, l.title, l.date FROM pull_labels')) {
-      return [{ repo: 'test/projects', number: 1, title: 'project:workbench' }];
+      return [{ repo: 'iFixit/projects', number: 1, title: 'project:workbench' }];
    }
    if (sql.includes('FROM `issues` WHERE (`repo`, `number`) IN')) {
       const wanted = new Set(params[0].map(([r, n]) => `${r}#${n}`.toLowerCase()));
@@ -382,7 +382,7 @@ test('a project’s page lists each issue with its PRs, the PRs that link none, 
    );
    assert.equal(work.issues[2].addedBy, 'dana');
    // the project's own issue isn't one of its issues
-   assert.ok(!work.issues.some(i => i.ref.repo === 'test/projects'));
+   assert.ok(!work.issues.some(i => i.ref.repo === 'iFixit/projects'));
    // a bot's PR never lists
    assert.deepEqual(
       work.unlinked.map(p => p.number),
@@ -419,8 +419,8 @@ test('a bot’s PR an issue links shows with its state, and never joins by link'
 test('a PR that links the project’s own issue joins it, with no issue of its own', async () => {
    fresh();
    await syncWork(settings);
-   // "Parts of test/projects#1", read off the project's own issue
-   tables.links.push(['test/projects', 1, 'iFixit/ifixit', 214, 0]);
+   // "Parts of iFixit/projects#1", read off the project's own issue
+   tables.links.push(['iFixit/projects', 1, 'iFixit/ifixit', 214, 0]);
    const work = await loadProjectWork(settings, 'workbench');
    assert.ok(work.unlinked.some(p => p.number === 214));
    assert.ok(!work.issues.some(i => i.prs.some(p => p.number === 214)));
@@ -453,7 +453,7 @@ test('a PR with no project label counts in the first project whose issue it link
    await attachIssue(settings, 'workbench', { repo: 'iFixit/ifixit', number: 106 }, 'dana');
    // the issue's side names each PR, labeled or not; the project's own issue
    // counts too
-   tables.links.push(['test/projects', 1, 'iFixit/ifixit', 214, 0]);
+   tables.links.push(['iFixit/projects', 1, 'iFixit/ifixit', 214, 0]);
    assert.deepEqual(await loadPullLinks(settings), {
       'ifixit/ifixit#201': ['workbench'],
       'ifixit/ifixit#202': ['workbench'],
@@ -558,7 +558,7 @@ test('adding by hand keeps who added it first, refuses a project’s own issue, 
    assert.match((await add(201)).refused, /That’s a PR/);
    assert.match((await add(5, 'dana', 'other/thing')).refused, /organization this board tracks/);
    assert.deepEqual(await add(999), { missing: true });
-   assert.match((await add(1, 'dana', 'test/projects')).refused, /project’s own issue/);
+   assert.match((await add(1, 'dana', 'iFixit/projects')).refused, /project’s own issue/);
    // the hourly sync keeps its title current
    STATES['ifixit/ifixit#106'].title = 'Print the stickers';
    await syncWork(settings);

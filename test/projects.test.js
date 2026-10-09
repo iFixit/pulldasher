@@ -5,6 +5,7 @@ import config from '../lib/config-loader.js';
 import db from '../lib/db.js';
 import Pull from '../models/pull.js';
 import Label from '../models/label.js';
+import Issue from '../models/issue.js';
 import pullManager from '../lib/pull-manager.js';
 import {
    issueRepos,
@@ -81,7 +82,8 @@ test('projectsFromRows reads name, lead, target, parents and ongoing off the iss
          { repo: 'test/projects', number: 1, title: 'ongoing' },
          { repo: 'test/projects', number: 2, title: 'bug' },
       ],
-      'project:'
+      'project:',
+      'test/projects'
    );
    assert.deepEqual(projects, [
       {
@@ -113,7 +115,8 @@ test('projectsFromRows reads the issue fields GitHub keeps on the issue', () => 
          }),
       ],
       [{ repo: 'test/projects', number: 4, title: 'project:delta' }],
-      'project:'
+      'project:',
+      'test/projects'
    );
    assert.deepEqual(p.fields, { start: '2026-10-05', target: '2026-11-27', priority: 'high' });
 });
@@ -136,7 +139,8 @@ test('projectsFromRows fills created_at and closed_at from the issue dates', () 
    const projects = projectsFromRows(
       [issueRow({ number: 9, date_created: 1700000000, date_closed: 1700100000 })],
       [{ repo: 'test/projects', number: 9, title: 'project:gamma' }],
-      'project:'
+      'project:',
+      'test/projects'
    );
    assert.equal(projects[0].created_at, new Date(1700000000 * 1000).toISOString());
    assert.equal(projects[0].closed_at, new Date(1700100000 * 1000).toISOString());
@@ -163,41 +167,62 @@ test('projectsFromRows keeps the first issue its label went on, open or closed, 
       // another label going on later doesn't count
       { repo: 'test/projects', number: 3, title: 'bug', date: 10 },
    ];
-   const [project] = projectsFromRows(rows, labels, 'project:');
+   const [project] = projectsFromRows(rows, labels, 'project:', 'test/projects');
    assert.deepEqual([project.name, project.number, project.state], ['Workbench', 5, 'closed']);
 });
 
-test('projectsFromRows keeps the projects repo issue, then the oldest when labels have no date', () => {
+test('projectsFromRows names a project only from an issue in the projects repo', () => {
    const rows = [
-      issueRow({ repo: 'test/repo-a', number: 40, title: 'Later work', date_created: 300 }),
-      issueRow({ repo: 'test/repo-a', number: 20, title: 'The epic', date_created: 100 }),
-      issueRow({ repo: 'test/projects', number: 2, title: 'Home', date_created: 900 }),
+      issueRow({ repo: 'test/repo-a', number: 40, title: 'A task', date_created: 100 }),
+      issueRow({ repo: 'test/projects', number: 3, title: 'Later home', date_created: 900 }),
+      issueRow({ repo: 'test/projects', number: 2, title: 'Home', date_created: 800 }),
+      issueRow({ repo: 'test/repo-b', number: 7, title: 'Only elsewhere' }),
    ];
    const labels = [
       { repo: 'test/repo-a', number: 40, title: 'project:alpha' },
-      { repo: 'test/repo-a', number: 20, title: 'project:alpha' },
+      { repo: 'test/projects', number: 3, title: 'project:alpha' },
+      // label rows match their issue whatever the repo's case
       { repo: 'TEST/projects', number: 2, title: 'project:alpha' },
+      { repo: 'test/repo-b', number: 7, title: 'project:beta' },
    ];
-   // label rows match their issue whatever the repo's case
-   assert.equal(projectsFromRows(rows, labels, 'project:', 'test/projects')[0].name, 'Home');
-   // with no projects repo, and no day its label went on, the oldest
-   assert.equal(projectsFromRows(rows, labels, 'project:')[0].name, 'The epic');
-   // the same number in two repos is two issues
-   const twoRepos = projectsFromRows(
-      [issueRow({ repo: 'test/repo-a', number: 7 }), issueRow({ repo: 'test/repo-b', number: 7 })],
-      [
-         { repo: 'test/repo-a', number: 7, title: 'project:alpha' },
-         { repo: 'test/repo-b', number: 7, title: 'project:beta' },
-      ],
-      'project:'
-   );
+   // a task labeled elsewhere, even an older one, never names it; among home
+   // issues with no day their label went on, the oldest; beta has no home issue
    assert.deepEqual(
-      twoRepos.map(p => [p.slug, p.repo]),
-      [
-         ['alpha', 'test/repo-a'],
-         ['beta', 'test/repo-b'],
-      ]
+      projectsFromRows(rows, labels, 'project:', 'Test/Projects').map(p => [p.slug, p.name]),
+      [['alpha', 'Home']]
    );
+   // with no projects repo, nothing names a project
+   assert.deepEqual(projectsFromRows(rows, labels, 'project:'), []);
+});
+
+test('projectsFromRows never makes ghost a lead', () => {
+   const leads = projectsFromRows(
+      [issueRow({ number: 1, assignee: 'ghost' }), issueRow({ number: 2, assignee: null })],
+      [
+         { repo: 'test/projects', number: 1, title: 'project:alpha' },
+         { repo: 'test/projects', number: 2, title: 'project:beta' },
+      ],
+      'project:',
+      'test/projects'
+   ).map(p => p.lead);
+   assert.deepEqual(leads, [null, null]);
+});
+
+test('an unassigned issue is stored with no assignee, a deleted author as ghost', () => {
+   const gh = over => ({
+      repo: 'test/projects',
+      number: 1,
+      title: 'Alpha',
+      state: 'open',
+      created_at: '2026-10-01T00:00:00Z',
+      user: null,
+      assignee: null,
+      ...over,
+   });
+   const issue = Issue.getFromGH(gh());
+   assert.equal(issue.assignee, null);
+   assert.equal(issue.author, 'ghost');
+   assert.equal(Issue.getFromGH(gh({ assignee: { login: 'lee' } })).assignee, 'lee');
 });
 
 test('issueRepos is the projects repo and every tracked repo, once each', () => {

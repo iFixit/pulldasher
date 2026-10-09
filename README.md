@@ -100,18 +100,18 @@ or a job) files the PRs:
 - A PR joins a project through one label, `project:<slug>`. PRs that fit no
   project get `project:misc`. Keep a label to 32 characters with no spaces:
   that's what Pulldasher's label table and filter box hold.
-- A project's record is an issue carrying the same label, in any tracked
-  repo or in a projects repo. The issue's title is the project's name, its
+- A project's record is the issue in the projects repo carrying the same
+  label; with no projects repo, names come from labels. The issue's title
+  is the project's name, its
   assignee the lead, its milestone (and due date) the target,
   `parent:<slug>` labels its parents (any number), and an `ongoing` label
   marks work with no end. GitHub's own issue fields show too: its Start
   date, its Priority, and its Target date, which wins over a milestone,
   since it's set on that one issue. Close it as completed when it's done, or as not
-  planned when it's dropped or merged into another. Labeling an issue is
-  also how a project starts before it has a PR. When several issues carry
-  one label, the projects repo's wins, then an open one, then the oldest:
-  the first issue labeled is the project, and later ones are work inside
-  it.
+  planned when it's dropped or merged into another. Labeling an issue in
+  the projects repo is also how a project starts before it has a PR. An
+  issue with the label in any other repo is work inside the project and
+  never renames it.
 
 Turn it on with the `projects` block in `config.js` (see
 `config.example.js`): a projects repo if you want one, and `developerTeams`, the teams
