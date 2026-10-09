@@ -113,7 +113,7 @@ export function holderWords(
    const stage = prStage(p);
    let who: string;
    if (stage === 'hold') {
-      if (parked(p)) who = own('parked');
+      if (parked(p)) who = own('paused');
       else if (p.externalBlock) who = opts.onRow ? '' : own('blocked outside the repo');
       else
          who = own(
@@ -124,7 +124,7 @@ export function holderWords(
    } else if (stage === 'review') {
       who = reviewWaits(p, opts.turns?.get(pullKey(p.data)) ?? null, own);
    } else {
-      who = opts.onRow ? '' : own(`with ${p.data.user.login}`);
+      who = opts.onRow ? '' : `${p.data.user.login} is working on it`;
    }
    const age = Math.floor(p.ageDays);
    return !opts.onRow && opts.ageWarnDays != null && age >= opts.ageWarnDays
@@ -166,7 +166,7 @@ function reviewWaits(p: DerivedPull, turn: string | null, own: (words: string) =
    const asked = requestedReviewers(p);
    if (asked.length) return own(`waiting on ${list(asked)}`);
    if (p.engagedNoStamp.length) return `${list(p.engagedNoStamp)} looking`;
-   if (turn) return `${turn}’s turn`;
+   if (turn) return `${turn}’s turn to review`;
    return own(p.status === 'needs_qa' ? 'needs a tester' : 'needs a reviewer');
 }
 
@@ -191,7 +191,7 @@ export function lateWords(
    if (mark?.at && createdAt > mark.at) {
       return mark.as === 'done' ? 'opened after it was marked done' : 'opened after it was dropped';
    }
-   return plan && createdAt >= afterEndOf(plan) ? 'opened after the plan ended' : null;
+   return plan && createdAt >= afterEndOf(plan) ? 'opened after the end date' : null;
 }
 
 /** When a plan took effect: its first day, or when it was put on the
@@ -247,7 +247,7 @@ export function issueForecast(
    issues: readonly Pick<ProjectIssue, 'state' | 'closedAt' | 'attachedAt'>[],
    due: string | null,
    now: number = Date.now() / 1000
-): { text: string; how: string } | null {
+): { text: string; how: string; eta?: number; tally?: string; short?: string } | null {
    const pace = issuePace(issues, now);
    const { open, closed, added } = pace;
    if (!open) return null;
@@ -260,14 +260,13 @@ export function issueForecast(
    if (eta == null) return { text: tally, how };
    if (eta === Infinity) {
       const words = closed === added ? 'as fast as' : 'faster than';
-      return { text: `${tally}: issues arrive ${words} they close`, how };
+      const short = `issues arrive ${words} they close`;
+      return { text: `${tally}: ${short}`, how, tally, short };
    }
    // the milestone's day as GitHub means it, the same day the target shows
    const late = due != null && dayOf(new Date(eta * 1000)) > due.slice(0, 10);
-   return {
-      text: `${tally}: done around ${dateWords(eta, now)}${late ? ', after the target' : ''}`,
-      how,
-   };
+   const short = `done around ${dateWords(eta, now)}${late ? ', after the target' : ''}`;
+   return { text: `${tally}: ${short}`, how, eta, tally, short };
 }
 
 /**

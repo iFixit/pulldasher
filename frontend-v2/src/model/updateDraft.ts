@@ -81,12 +81,12 @@ export function draftUpdate(
 
    let left: string;
    if (!end) {
-      left = stalled ? `${noPrActivity(idle as number)}.` : 'It’s ongoing, with no end.';
+      left = stalled ? `${noPrActivity(idle as number)}.` : 'It’s ongoing, with no end date.';
    } else if (ended) {
       const weeks = Math.ceil(((dayStart(today) as number) - (dayStart(end) as number)) / DAY / 7);
       left = hard
          ? `It’s ${pastEnd(weeks)}, ${dayWords(end)}.`
-         : `It’s ${n(weeks, 'week')} past its soft end, ${dayWords(end)}.`;
+         : `It’s ${pastEnd(weeks, 'soft')}, ${dayWords(end)}.`;
    } else if (stalled) {
       left = `${noPrActivity(idle as number)}.`;
    } else if (pace && finish === Infinity) {

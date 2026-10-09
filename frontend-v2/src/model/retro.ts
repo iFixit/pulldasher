@@ -423,7 +423,7 @@ export function retroPlan(
    if (end < today) {
       return {
          kind: plan.end_kind === 'hard' ? 'past_end' : 'open',
-         text: pastEnd(weeksAfter(today)),
+         text: pastEnd(weeksAfter(today), plan.end_kind),
       };
    }
    return {

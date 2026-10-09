@@ -293,9 +293,7 @@ describe('planCell', () => {
          warn: true,
          planId: 1,
       });
-      expect(cell({ plan: plan(1, 'a', { start: '2026-08-03' }) }).text).toBe(
-         '5 weeks past its end'
-      );
+      expect(cell({ plan: plan(1, 'a', { start: '2026-08-03' }) }).text).toBe('5 weeks overdue');
       expect(cell({ plan: plan(1, 'a', { update: update('at_risk', 1) }) }).text).toBe('At risk');
       expect(cell({ plan: plan(1, 'a', { start: '2026-09-07', weeks: 6 }) }).text).toBe(
          'No update yet'
@@ -335,7 +333,7 @@ describe('planCell', () => {
       });
       expect(cell({ plan: soft })).toEqual({
          kind: 'past_end',
-         text: '5 weeks past its end',
+         text: '5 weeks past its estimate',
          warn: false,
          planId: 1,
       });
@@ -354,17 +352,20 @@ describe('planCell', () => {
       const done = plan(7, 'a', { status: 'done' });
       const asked = (...reasons: DecideReason[]) =>
          cell({ plan: done, asks: reasons.map(reason => ({ reason, item: done })) });
-      expect(asked({ kind: 'new', since: null })).toMatchObject({ text: 'No plan', warn: true });
+      expect(asked({ kind: 'new', since: null })).toMatchObject({
+         text: 'Needs a plan',
+         warn: true,
+      });
       // a finished plan Decide asks about again, whatever else it asks
       expect(
          asked(
             { kind: 'stalled', days: 30 },
             { kind: 'reopened', open: 2, late: 0, as: 'done', by: 'roadmap' }
          )
-      ).toEqual({ kind: 'reopened', text: 'Done, still taking PRs', warn: true, planId: 7 });
-      expect(asked({ kind: 'over', weeks: 3, since: 0 }).text).toBe('3 weeks past its end');
+      ).toEqual({ kind: 'reopened', text: 'Done, still worked on', warn: true, planId: 7 });
+      expect(asked({ kind: 'over', weeks: 3, since: 0 }).text).toBe('3 weeks overdue');
       expect(asked({ kind: 'missed', due: '2026-09-20', open: 2 }).text).toBe(
-         'Missed its Sep 20 target'
+         'Missed its Sep 20 target date'
       );
       // a call about no plan opens the work with no plan
       expect(cell({ asks: [{ reason: { kind: 'stalled', days: 25 }, item: null }] })).toMatchObject(
@@ -451,10 +452,10 @@ describe('planCell', () => {
       const late = portfolioItems(projects, today, {}, teamOf, NOW, [
          plan(3, 'alpha', { start: '2026-08-03' }),
       ]).find(i => i.slug === 'alpha') as PortfolioItem;
-      expect(behindWords(late, day)).toBe('5 weeks past its end');
+      expect(behindWords(late, day)).toBe('5 weeks overdue');
       const due = { title: null, due_on: '2026-09-20T00:00:00Z' };
       expect(behindWords({ behind: 'missed', plan: null, target: due }, day)).toBe(
-         'Missed its Sep 20 target'
+         'Missed its Sep 20 target date'
       );
       expect(behindWords({ behind: 'off_track', plan: null, target: null }, day)).toBe('Off track');
       expect(behindWords(bySlug.beta, day)).toBeNull();

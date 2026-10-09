@@ -11,13 +11,7 @@ import { ChevronRight } from 'lucide-react';
 import { issueUrl, pullKey, shortRepo } from '../../../../shared/format';
 import { STALL_DAYS, type DecideRow } from '../../../../shared/model/decide';
 import { utcDay } from '../../../../shared/model/projects';
-import {
-   FactLink,
-   QuietButton,
-   Segmented,
-   TextButton,
-   textInputClass,
-} from '../../components/bits';
+import { FactLink, QuietButton, Segmented, textInputClass } from '../../components/bits';
 import { ClosedRow } from '../../components/ClosedRow';
 import { Icon } from '../../components/Icon';
 import { Fold, FoldRows, GroupHeader, laneShown, SubDoor, Truncated } from '../../components/Lane';
@@ -89,6 +83,8 @@ interface Column {
    width: string;
    /** narrow screens drop the columns a planner reads least */
    hide?: string;
+   /** an empty slot that keeps the column's room, so two tables line up */
+   blank?: boolean;
    /** the first click's order, when it isn't biggest first */
    order?: 'ascending';
    /** `repeat`: an earlier band already showed the row */
@@ -162,7 +158,7 @@ function toldByPlan(a: Ask, item: PortfolioItem): boolean {
 function planTitle(item: PortfolioItem): string {
    const plan = item.plan;
    if (item.asks.length) {
-      return `Decide asks: ${askedWords(item.asks)} Click to make the call here.`;
+      return `Decide asks: ${askedWords(item.asks)} Click to decide here.`;
    }
    if (plan) return `${plan.name}, ${planWords(plan)}. Click to open the plan.`;
    return '';
@@ -183,6 +179,14 @@ function PlanButton({
 }) {
    const cell = item.planCell;
    if (!cell.text) return null;
+   const tone = cell.warn && !repeat ? 'text-warn' : '';
+   // words, not a link, when they open the row in place: the row's own click does that
+   if (item.asks.length && act.openDetail)
+      return (
+         <span className={`md:text-right ${tone}`} title={planTitle(item)}>
+            {cell.text}
+         </span>
+      );
    return (
       <FactLink
          onClick={() =>
@@ -192,7 +196,7 @@ function PlanButton({
                ? act.openPlan(cell.planId)
                : act.unplanned(item)
          }
-         className={`md:text-right ${cell.warn && !repeat ? 'text-warn' : ''}`}
+         className={`md:text-right ${tone}`}
          title={planTitle(item)}
       >
          {cell.text}
@@ -204,8 +208,8 @@ const COLUMNS: Column[] = [
    {
       key: 'lead',
       label: 'Lead',
-      title: 'Who leads it: the assignee on its issue, or else its plan’s lead, or else whoever has the most PRs in it (by PRs). Click a lead to open their row on People.',
-      width: 'w-28',
+      title: 'Who leads it: the assignee on its issue, or else its plan’s lead, or else whoever has the most PRs in it (guessed from PRs). Click a lead to open their row on People.',
+      width: 'w-40',
       hide: 'hidden md:block',
       order: 'ascending',
       cell: (i, act) => {
@@ -220,9 +224,10 @@ const COLUMNS: Column[] = [
                   {lead}
                </FactLink>
                {i.leadByPrs && (
-                  <span className="block text-[11px]">
+                  <>
+                     {' '}
                      <ByPrs />
-                  </span>
+                  </>
                )}
             </>
          ) : (
@@ -237,23 +242,11 @@ const COLUMNS: Column[] = [
       width: 'w-20',
       hide: 'hidden 2xl:block',
       order: 'ascending',
-      cell: (i, act) => {
-         const team = i.team;
-         return team ? (
-            <FactLink
-               onClick={() => act.findTeam(team)}
-               title={`List only the projects on the ${team} team`}
-            >
-               {team}
-            </FactLink>
-         ) : (
-            ''
-         );
-      },
+      cell: i => i.team ?? '',
    },
    {
       key: 'age',
-      label: 'Open for',
+      label: 'Time open',
       title: 'How long its oldest open PR has been open',
       width: 'w-16',
       cell: i =>
@@ -305,10 +298,10 @@ const COLUMNS: Column[] = [
    },
    {
       key: 'waiting',
-      label: 'Waiting',
-      title: 'Its open PRs waiting on a CR or QA',
+      label: 'In review',
+      title: 'Waiting on review: its open PRs waiting on a CR or QA',
       width: 'w-14',
-      hide: 'hidden xl:block',
+      hide: 'hidden 2xl:block',
       cell: i => i.waiting || '',
    },
    {
@@ -316,13 +309,13 @@ const COLUMNS: Column[] = [
       label: 'Merged',
       title: `Its PRs merged in the ${LAST_14_DAYS}`,
       width: 'w-14',
-      hide: 'hidden xl:block',
+      hide: 'hidden 2xl:block',
       cell: i => i.merged || '',
    },
    {
       key: 'plan',
       label: 'Plan',
-      title: 'The call Decide asks about it, or else what its plan says. Amber when someone owes something: a call Decide asks for, or an update its lead owes. Blank when it has no plan and needs none yet. Sorting by it, the default, puts amber first.',
+      title: 'The decision Decide asks for, or else what its plan says. Amber when someone owes something: a decision Decide asks for, or an update its lead owes. Blank when it has no plan and needs none yet. Sorting by it, the default, puts amber first.',
       width: 'w-36',
       hide: 'hidden md:block',
       cell: (i, act, repeat) => <PlanButton item={i} act={act} repeat={repeat} />,
@@ -516,9 +509,9 @@ function RowDetail({
                      href={issueUrl(stalest.pr.repo, stalest.pr.number)}
                      target="_blank"
                      rel="noopener noreferrer"
-                     className="text-ink-2 hover:text-brand hover:underline"
+                     className="text-ink-2 underline hover:text-brand"
                   >
-                     {prWords(stalest.pr)}
+                     {prWords(stalest.pr)} ↗
                   </a>
                   {stalest.opened
                      ? `, nothing since it opened ${days(stalest.days)} ago.`
@@ -827,7 +820,10 @@ interface ListProps {
  * and the line telling a keyboard what Enter and Space do, which each row
  * points to.
  */
-function useRows({ items, calls, prefix, workers, nav, navigate, opts, onPerson, me }: ListProps) {
+function useRows(
+   { items, calls, prefix, workers, nav, navigate, opts, onPerson, me }: ListProps,
+   leave: readonly string[] = []
+) {
    const hint = useId();
    // from every project, not the tab's: columns that come and go with the
    // tab would move the ones a reader was following
@@ -835,7 +831,9 @@ function useRows({ items, calls, prefix, workers, nav, navigate, opts, onPerson,
       ...COLUMNS,
       ...(items.some(i => i.issues?.total) ? [ISSUES] : []),
       ...(items.some(i => i.target) ? [TARGET] : []),
-   ];
+   ].map(c =>
+      leave.includes(c.key) ? { ...c, blank: true, label: '', title: '', cell: () => '' } : c
+   );
    const sort = parseSort(nav.sort);
    const onSort = (s: string) => navigate({ sort: s });
    const act: CellActions = {
@@ -905,18 +903,26 @@ function useRows({ items, calls, prefix, workers, nav, navigate, opts, onPerson,
                   order="ascending"
                   className="min-w-0 flex-1"
                />
-               {columns.map(c => (
-                  <SortHeader
-                     key={c.key}
-                     label={c.label}
-                     title={c.title}
-                     sortKey={c.key}
-                     sort={sort}
-                     onSort={onSort}
-                     order={c.order}
-                     className={`flex-none text-right ${c.width} ${c.hide ?? ''}`}
-                  />
-               ))}
+               {columns.map(c =>
+                  c.blank ? (
+                     <span
+                        key={c.key}
+                        role="columnheader"
+                        className={`flex-none ${c.width} ${c.hide ?? ''}`}
+                     />
+                  ) : (
+                     <SortHeader
+                        key={c.key}
+                        label={c.label}
+                        title={c.title}
+                        sortKey={c.key}
+                        sort={sort}
+                        onSort={onSort}
+                        order={c.order}
+                        className={`flex-none text-right ${c.width} ${c.hide ?? ''}`}
+                     />
+                  )
+               )}
             </div>
          ) : (
             <div role="row" className="sr-only">
@@ -948,7 +954,9 @@ function useRows({ items, calls, prefix, workers, nav, navigate, opts, onPerson,
  */
 export function Yours(props: ListProps & { slugs: ReadonlySet<string> }) {
    const { items, placeOf = item => item, slugs, nav } = props;
-   const { head, row, hintLine } = useRows(props);
+   // your own work: you know when it last moved, so those two columns stay
+   // empty slots (All projects below uses them for sorting) and Lead lines up
+   const { head, row, hintLine } = useRows(props, ['age', 'last']);
    const now = new Map(items.map(i => [i.slug, i]));
    const mine = sortItems(
       items.map(placeOf).filter(i => slugs.has(i.slug)),
@@ -965,7 +973,7 @@ export function Yours(props: ListProps & { slugs: ReadonlySet<string> }) {
                   <p className="m-0">
                      A project is yours when you lead it, or you have a PR open in it or merged in
                      the {LAST_14_DAYS}. Its lead is the assignee on its issue, or else its plan’s
-                     lead, or else whoever has the most PRs in it, said “by PRs”.
+                     lead, or else whoever has the most PRs in it, said “guessed from PRs”.
                   </p>
                   <p className="m-0">
                      Done or dropped ones leave the list, unless Decide asks about them because
@@ -1123,12 +1131,13 @@ export function Portfolio(
       </span>
    );
    const sub = byDefault ? (
-      <SubDoor label="How the list is ordered" text="What’s owed first, then the longest quiet">
+      <SubDoor label="How the list is ordered" text="How this list works">
          <p className="m-0">
-            Amber Plan words name what someone owes: a call Decide asks for, such as a first plan, a
-            plan past its end or its target, a stall, or work marked done that still takes PRs; or
-            an update its lead owes. Decide’s calls come first, in Decide’s own order, then the
-            updates owed, then the rest, each by how long since anyone worked on it.
+            Amber Plan words name what someone owes: a decision Decide asks for, such as a first
+            plan, a plan that is overdue or past its target date, a stall, or work marked done that
+            is still worked on; or an update its lead owes. Decide’s decisions come first, in
+            Decide’s own order, then the updates owed, then the rest, each by how long since anyone
+            worked on it.
          </p>
          <p className="m-0">
             {upperFirst(BEING_WORKED_ON)} means an open PR or a merge in the {LAST_14_DAYS}, and not
@@ -1136,9 +1145,9 @@ export function Portfolio(
             still move. Quiet is an open project with nothing in flight.
          </p>
          <p className="m-0">
-            Open for counts from its oldest open PR. Last activity is real work: a push, a comment,
-            review or stamp, opening or merging. People and Merged count the {LAST_14_DAYS};
-            Waiting, the open PRs waiting on a CR or QA.
+            Time open counts from its oldest open PR. Last activity is real work: a push, a comment,
+            review or stamp, opening or merging. People and Merged count the {LAST_14_DAYS}; In
+            review, the open PRs waiting on a CR or QA.
          </p>
          <p className="m-0">
             The find box matches a project, lead, team or parent; “lead:”, “team:” or “parent:”
@@ -1157,7 +1166,7 @@ export function Portfolio(
       <span>
          Sorted by {sortedBy}
          {sort.reversed ? ', reversed' : ''}.{' '}
-         <TextButton onClick={() => onSort(DEFAULT_SORT)}>Put what’s owed first</TextButton>
+         <QuietButton onClick={() => onSort(DEFAULT_SORT)}>Sort by what’s owed</QuietButton>
       </span>
    );
    return (
@@ -1224,9 +1233,9 @@ export function Portfolio(
                   {nav.find || nav.only ? (
                      <>
                         No project matches that.{' '}
-                        <TextButton onClick={() => navigate({ find: '', only: null })}>
-                           Show all
-                        </TextButton>
+                        <QuietButton onClick={() => navigate({ find: '', only: null })}>
+                           Show all projects
+                        </QuietButton>
                      </>
                   ) : (
                      'No projects here.'

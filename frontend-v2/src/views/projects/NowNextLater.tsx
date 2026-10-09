@@ -3,6 +3,7 @@ import { bucketOf, NEXT_WEEKS, type RoadmapItem } from '../../../../shared/model
 import { FactLink } from '../../components/bits';
 import { Fold, GroupHeader, Rows } from '../../components/Lane';
 import type { PortfolioItem } from '../../model/portfolio';
+import { n } from '../../../../shared/format';
 import { IN_PROGRESS } from '../../model/words';
 import { Dotted, planWarnings, restWords, SaidWords, type PlanCall } from './roadmapHealth';
 
@@ -37,7 +38,7 @@ const only = (then: () => void) => (e: MouseEvent) => {
 };
 
 /** A plan as a card: its name, then the timeline row's own words at rest
- * (the one thing it asks for, with its one amber mark), the month it starts
+ * (Decide's question, its one amber mark, or a clash), the month it starts
  * when that's ahead, and its lead. The rest is in its details on the
  * timeline, which the card opens. */
 function Card({
@@ -47,7 +48,6 @@ function Card({
    today,
    call,
    onOpen,
-   onUpdates,
    onPerson,
 }: {
    item: RoadmapItem;
@@ -57,8 +57,6 @@ function Card({
    /** the call Decide asks about it */
    call: PlanCall | null;
    onOpen: () => void;
-   /** its updates, on the timeline */
-   onUpdates: () => void;
    onPerson: (login: string) => void;
 }) {
    const bucket = bucketOf(item, today);
@@ -71,8 +69,7 @@ function Card({
       undefined,
       call
    );
-   // no bar here to draw a plan past its end, so the words say it
-   const rest = restWords(w, false);
+   const rest = restWords(w);
    const lead = item.lead;
    return (
       // the whole card opens the plan; the name is its keyboard door
@@ -94,19 +91,17 @@ function Card({
             <Dotted>
                {[
                   rest && (
-                     <FactLink
+                     // plain words: the card and its name open the plan
+                     <span
                         key="rest"
-                        onClick={only(rest.opens === 'update' ? onUpdates : onOpen)}
-                        title={`${rest.said.title}${rest.said.title ? '\n' : ''}${
-                           rest.opens === 'update'
-                              ? 'Click to see its updates and post one.'
-                              : 'Click to open its plan.'
-                        }`}
+                        title={rest.title}
+                        className="underline decoration-dotted underline-offset-2"
                      >
-                        <SaidWords said={rest.said} />
-                     </FactLink>
+                        <SaidWords said={rest} />
+                     </span>
                   ),
                   bucket !== 'now' && <span key="month">{monthWords(item.start, today)}</span>,
+                  // no lead is said in the plan, not on every card
                   lead && (
                      <FactLink
                         key="lead"
@@ -137,9 +132,10 @@ export function NowNextLater({
    laneTitles,
    today,
    calls,
+   unplanned,
    onOpen,
-   onUpdates,
    onPerson,
+   onTimeline,
 }: {
    /** the plans to show, as the find box narrows them, in priority order */
    items: RoadmapItem[];
@@ -151,11 +147,13 @@ export function NowNextLater({
    today: string;
    /** the calls Decide asks, by plan */
    calls: ReadonlyMap<number, PlanCall>;
+   /** projects being worked on with no plan, which have no column here */
+   unplanned: number;
    /** a plan, open on the timeline */
    onOpen: (id: number) => void;
-   /** a plan's updates, open on the timeline */
-   onUpdates: (id: number) => void;
    onPerson: (login: string) => void;
+   /** the timeline, where the projects with no plan are */
+   onTimeline: () => void;
 }) {
    const cards = (list: RoadmapItem[]) => (
       <ol className="m-0 list-none p-0">
@@ -168,46 +166,57 @@ export function NowNextLater({
                today={today}
                call={calls.get(item.id) ?? null}
                onOpen={() => onOpen(item.id)}
-               onUpdates={() => onUpdates(item.id)}
                onPerson={onPerson}
             />
          ))}
       </ol>
    );
    return (
-      <div className="grid gap-x-4 gap-y-6 sm:grid-cols-3">
-         {BUCKETS.map(([bucket, title, sub]) => {
-            const list = items.filter(i => bucketOf(i, today) === bucket);
-            const lanes =
-               laneTitles &&
-               [...laneTitles, null]
-                  .map(team => ({ team, list: list.filter(i => (i.team ?? null) === team) }))
-                  .filter(lane => lane.list.length);
-            return (
-               <section key={bucket} className="min-w-0">
-                  <GroupHeader title={title} sub={sub} count={list.length} level={3} compact />
-                  {list.length ? (
-                     <Rows>
-                        {lanes
-                           ? lanes.map(lane => (
-                                <Fold
-                                   key={lane.team ?? '(none)'}
-                                   id={`roadmap:nnl:${bucket}:${lane.team ?? '(none)'}`}
-                                   defaultOpen
-                                   label={lane.team ?? 'No team'}
-                                   count={lane.list.length}
-                                >
-                                   {cards(lane.list)}
-                                </Fold>
-                             ))
-                           : cards(list)}
-                     </Rows>
-                  ) : (
-                     <p className="m-0 text-xs text-ink-3">No plans.</p>
-                  )}
-               </section>
-            );
-         })}
-      </div>
+      <>
+         <div className="grid gap-x-4 gap-y-6 sm:grid-cols-3">
+            {BUCKETS.map(([bucket, title, sub]) => {
+               const list = items.filter(i => bucketOf(i, today) === bucket);
+               const lanes =
+                  laneTitles &&
+                  [...laneTitles, null]
+                     .map(team => ({ team, list: list.filter(i => (i.team ?? null) === team) }))
+                     .filter(lane => lane.list.length);
+               return (
+                  <section key={bucket} className="min-w-0">
+                     <GroupHeader title={title} sub={sub} count={list.length} level={3} compact />
+                     {list.length ? (
+                        <Rows>
+                           {lanes
+                              ? lanes.map(lane => (
+                                   <Fold
+                                      key={lane.team ?? '(none)'}
+                                      id={`roadmap:nnl:${bucket}:${lane.team ?? '(none)'}`}
+                                      defaultOpen
+                                      label={lane.team ?? 'No team'}
+                                      count={lane.list.length}
+                                   >
+                                      {cards(lane.list)}
+                                   </Fold>
+                                ))
+                              : cards(list)}
+                        </Rows>
+                     ) : (
+                        <p className="m-0 text-xs text-ink-3">No plans.</p>
+                     )}
+                  </section>
+               );
+            })}
+         </div>
+         {/* without them, the columns would read as all the work */}
+         {unplanned > 0 && (
+            <p className="m-0 mt-4 text-xs text-ink-3">
+               {n(unplanned, 'project')} with no plan {unplanned === 1 ? 'isn’t' : 'aren’t'} shown
+               here.{' '}
+               <FactLink onClick={onTimeline}>
+                  See {unplanned === 1 ? 'it' : 'them'} on the timeline
+               </FactLink>
+            </p>
+         )}
+      </>
    );
 }

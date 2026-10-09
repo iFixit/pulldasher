@@ -106,6 +106,7 @@ function Tiles({
       return `${first.name}${words ? `, ${lowerFirst(words)}` : ''}${more}`;
    };
    const newWork = decisions?.filter(d => d.reasons.some(r => r.kind === 'new')).length;
+   const stalledAsked = decisions?.filter(d => d.reasons.some(r => r.kind === 'stalled')).length;
    const owedCalls = !!decisions?.length;
    const overloadedNow = !!overloaded?.length;
    // a tile opens exactly what it counts: no find or earlier pick on top
@@ -132,11 +133,11 @@ function Tiles({
                         !decisions
                            ? null
                            : decisions.length
-                           ? `${newWork} new, with no plan yet`
+                           ? `${newWork} need a plan`
                            : 'none owed'
                      }
                      warn={owedCalls}
-                     title="The calls owed: new work with no plan, plans past their end, stalled work, updates that say at risk or off track, and finished or parked work whose PRs still move. Click to decide them."
+                     title="Decisions waiting: new work with no plan, overdue plans, stalled work, updates that say at risk or off track, and finished or parked work whose PRs still move. Click to decide them."
                      onClick={() => navigate(switchView('decide'))}
                   />
                )}
@@ -171,8 +172,8 @@ function Tiles({
                   <Tile
                      value={working.length}
                      label={upperFirst(BEING_WORKED_ON)}
-                     note={`in the ${LAST_14_DAYS}, with ${held} of the ${allOpen} open PRs`}
-                     title={`Projects with an open PR or a merge in the ${LAST_14_DAYS} that aren’t parked, done or dropped on the roadmap, unless Decide asks about them because their PRs still move. Click to list them.`}
+                     note={LAST_14_DAYS}
+                     title={`${held} of the ${allOpen} open PRs are in them. Projects with an open PR or a merge in the ${LAST_14_DAYS} that aren’t parked, done or dropped on the roadmap, unless Decide asks about them because their PRs still move. Click to list them.`}
                      onClick={() => toList({ status: 'live' })}
                   />
                )}
@@ -181,7 +182,11 @@ function Tiles({
                   <Tile
                      value={middleAge == null ? 'none' : days(middleAge)}
                      label="Median time open"
-                     note={`${ages.filter(d => d >= 90).length} open 90 days or more`}
+                     note={
+                        ages.some(d => d >= 90)
+                           ? `${ages.filter(d => d >= 90).length} over 90 days`
+                           : 'none over 90 days'
+                     }
                      title={`How long the projects ${BEING_WORKED_ON} have been open, from each one’s oldest open PR: half are newer than this, half older. Click to list them oldest first.`}
                      onClick={() => toList({ status: 'live', sort: 'age' })}
                   />
@@ -193,15 +198,21 @@ function Tiles({
                      label="Stalled"
                      note={
                         stalled.length
-                           ? `longest ${stalled[0].name}, ${lowerFirst(
-                                noPrActivity(stalled[0].lastActivity?.days ?? 0)
-                             )}`
+                           ? decisions
+                              ? `Decide asks about ${stalledAsked}`
+                              : null
                            : `none with ${lowerFirst(noPrActivity(STALL_DAYS))}`
                      }
-                     title={`Projects with open PRs and no activity on any of them for ${STALL_DAYS} days or more (no push, comment, review, stamp or merge) that aren’t parked, done or dropped. Click to list ${
+                     title={`${
+                        stalled.length
+                           ? `Longest: ${stalled[0].name}, ${lowerFirst(
+                                noPrActivity(stalled[0].lastActivity?.days ?? 0)
+                             )}. `
+                           : ''
+                     }Projects with open PRs and no activity on any of them for ${STALL_DAYS} days or more (no push, comment, review, stamp or merge) that aren’t parked, done or dropped. Click to list ${
                         stalled.length
                            ? 'them'
-                           : `the projects ${BEING_WORKED_ON}, longest quiet first`
+                           : `the projects ${BEING_WORKED_ON}, oldest activity first`
                      }.`}
                      picked={stalled.length ? nav.only === 'stalled' : undefined}
                      onClick={() =>
@@ -221,9 +232,11 @@ function Tiles({
                            ? behindNote()
                            : !items.some(i => i.plan)
                            ? 'no plans yet'
-                           : `${n(ending.length, 'plan')} end in the next ${ENDS_SOON_DAYS} days`
+                           : `${n(ending.length, 'plan')} ${
+                                ending.length === 1 ? 'is' : 'are'
+                             } due in the next ${ENDS_SOON_DAYS} days`
                      }
-                     title={`Projects past their plan’s end or their target date with PRs still open, or whose latest update says off track with no new plan since. Click to list ${
+                     title={`Projects overdue or past their target date with PRs still open, or whose latest update says off track with no new plan since. Click to list ${
                         behind.length
                            ? 'them'
                            : ending.length
@@ -254,8 +267,8 @@ function Tiles({
             <div className="mt-3 hidden md:block">
                <SubDoor label="What the tiles count" text="What each tile counts">
                   <p className="m-0">
-                     To decide: the calls Decide asks for, such as a first plan, a new end, or work
-                     marked done or parked whose PRs still move.
+                     To decide: the decisions Decide asks for, such as a first plan, a new end date,
+                     or work marked done or parked whose PRs still move.
                   </p>
                   <p className="m-0">
                      {upperFirst(OVERLOADED)}: developers who wrote or reviewed PRs on {line} or
@@ -272,8 +285,8 @@ function Tiles({
                      {lowerFirst(noPrActivity(STALL_DAYS))} or more.
                   </p>
                   <p className="m-0">
-                     Behind plan: past its plan’s end or its target with PRs open, or off track
-                     since its plan last changed.
+                     Behind plan: overdue or past its target date with PRs open, or off track since
+                     its plan last changed.
                   </p>
                   <p className="m-0">Each tile opens what it counts.</p>
                </SubDoor>
@@ -394,7 +407,7 @@ function AgeCharts({
    return (
       <section>
          {/* the cards' own headings sit under this one, not under the list's */}
-         <h2 className="sr-only">{`Projects ${BEING_WORKED_ON}, by age and by quiet`}</h2>
+         <h2 className="sr-only">{`Projects ${BEING_WORKED_ON}, by age and by last activity`}</h2>
          <div className="grid gap-5 [grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr))]">
             {card(
                'age',

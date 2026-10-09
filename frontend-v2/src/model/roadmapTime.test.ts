@@ -62,7 +62,7 @@ describe('columnsFor', () => {
    it('starts the wide views a period back, each column a zoom in', () => {
       const quarters = columnsFor('quarter', null, now);
       expect(quarters[0]).toMatchObject({ start: '2026-04-01', zoom: '2026-Q2' });
-      expect(quarters).toHaveLength(6);
+      expect(quarters).toHaveLength(4);
       const months = columnsFor('month', null, now);
       expect(months[0]).toMatchObject({ start: '2026-08-01', zoom: '2026-08' });
       expect(months).toHaveLength(7);
@@ -95,7 +95,7 @@ describe('commitEnds', () => {
 
    it('puts a target still ahead first, however near, and never one already passed', () => {
       expect(commitEnds('2026-10-01', '2026-10-21').map(c => [c.label, c.through])).toEqual([
-         ['Through its target, Oct 21', 'its target, Oct 21'],
+         ['Its target date, Oct 21', 'its target date, Oct 21'],
          ['End of Oct', 'the end of Oct'],
          ['End of Nov', 'the end of Nov'],
          ['End of Q4', 'the end of Q4'],
@@ -111,8 +111,6 @@ describe('commitEnds', () => {
       ]);
       expect(commitEnds('2026-10-01', '2026-09-26').some(c => c.target)).toBe(false);
       // a target next year says its year, as the ends do
-      expect(commitEnds('2026-12-01', '2027-01-15')[0].label).toBe(
-         'Through its target, Jan 15 2027'
-      );
+      expect(commitEnds('2026-12-01', '2027-01-15')[0].label).toBe('Its target date, Jan 15 2027');
    });
 });

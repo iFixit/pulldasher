@@ -56,21 +56,21 @@ describe('draftUpdate', () => {
       // Sep 7 for 2 weeks ended Sep 20
       expect(draftUpdate(plan({}, 2), NOW)).toMatchObject({
          health: 'off_track',
-         body: expect.stringMatching(/It’s 2 weeks past its end, .+\.$/),
+         body: expect.stringMatching(/It’s 2 weeks overdue, .+\.$/),
       });
    });
 
    it('says a soft end passed without calling it off track, and ongoing work has none', () => {
       expect(draftUpdate(plan({}, 2, 'soft'), NOW)).toMatchObject({
          health: 'on_track',
-         body: expect.stringMatching(/It’s 2 weeks past its soft end, .+\.$/),
+         body: expect.stringMatching(/It’s 2 weeks past its estimate, .+\.$/),
       });
       // finishing after an estimate isn't at risk
       const late = draftUpdate(plan({ issues: { open: 8, closed: 5, added: 1 } }, 8, 'soft'), NOW);
       expect(late?.health).toBe('on_track');
       expect(late?.body).toMatch(/after its .+ soft end\.$/);
       expect(draftUpdate(plan({}, 2, 'ongoing'), NOW)?.body).toMatch(
-         /It’s ongoing, with no end\.$/
+         /It’s ongoing, with no end date\.$/
       );
    });
 

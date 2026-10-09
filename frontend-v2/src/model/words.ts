@@ -8,18 +8,25 @@ import type { EndKind } from '../../../shared/model/roadmap';
  * fact gets its word here first.
  */
 
-/** a project with no plan on the roadmap */
+/** a project with no plan on the roadmap, as a plain fact */
 export const NO_PLAN = 'No plan';
+/** one with no plan that Decide asks to plan: owed */
+export const NEEDS_A_PLAN = 'Needs a plan';
+/** one with no plan, small enough to ship without */
+export const NO_PLAN_NEEDED = 'No plan needed';
 /** the action that gives it one */
 export const PLAN_IT = 'Plan it';
 /** a plan whose lead owes an update: the last one is older than the update rhythm */
 export const UPDATE_DUE = 'Update due';
 /** a plan under way that has had no update since it started */
 export const NO_UPDATE_YET = 'No update yet';
-/** a plan still running after its last planned week, in a sentence */
-export const pastEnd = (weeks: number) => `${n(weeks, 'week')} past its end`;
+/** a plan still running after its end date, in a sentence: a promised end
+ * is overdue, an estimate only passed */
+export const pastEnd = (weeks: number, kind: EndKind = 'hard') =>
+   kind === 'hard' ? `${n(weeks, 'week')} overdue` : `${n(weeks, 'week')} past its estimate`;
 /** the same on a timeline bar, where a sentence won't fit */
-export const pastEndMark = (weeks: number) => `+${weeks} wk over`;
+export const pastEndMark = (weeks: number, kind: EndKind = 'hard') =>
+   kind === 'hard' ? `${weeks} wk overdue` : `${weeks} wk past`;
 /** the board's recent window for merged and closed PRs */
 export const LAST_14_DAYS = 'last 14 days';
 /** PRs with no project label */
@@ -37,7 +44,7 @@ export const BEING_WORKED_ON = 'being worked on';
 /** where a plan's work came from, when nobody has said */
 export const NOT_SAID = 'Not said';
 /** the board's bucket for small work that isn't worth a project */
-export const ONE_OFFS = 'One-offs';
+export const ONE_OFFS = 'Small work, no project';
 /** someone on more projects than the overload line (model/retro.ts) */
 export const OVERLOADED = 'overloaded';
 /** a project whose issues are all closed, as a label */
@@ -45,33 +52,33 @@ export const ALL_ISSUES_CLOSED = 'All issues closed';
 /** every view's export of what it shows, as plain text for a meeting */
 export const COPY_AS_TEXT = 'Copy as text';
 /** the choice of a plan's end, on Decide and in the roadmap's editor */
-export const COMMIT_THROUGH = 'Commit through';
+export const COMMIT_THROUGH = 'Promise to finish by';
 /** the call for upkeep with no finish line */
-export const ONGOING = 'It’s ongoing';
+export const ONGOING = 'Mark ongoing';
 /** how firm a plan's end is, as its editor offers it */
 export const END_WORD: Record<EndKind, string> = {
-   hard: 'Hard end',
-   soft: 'Soft end',
+   hard: 'Promised',
+   soft: 'Estimate',
    ongoing: 'Ongoing',
 };
-/** the same in a sentence about the plan: "Aug 31 to Oct 25, 8 weeks, a soft end" */
+/** the same in a sentence about the plan: "Aug 31 to Oct 25, 8 weeks, an estimated end" */
 export const END_IN_A_SENTENCE: Record<EndKind, string> = {
-   hard: 'a hard end',
-   soft: 'a soft end',
+   hard: 'a promised end',
+   soft: 'an estimated end',
    ongoing: 'ongoing',
 };
 /** what each kind of end means, said beside the choice and in a hover */
 export const END_MEANS: Record<EndKind, string> = {
-   hard: 'A commitment: Decide asks about it once it passes.',
+   hard: 'A promise: Decide asks about it once it passes.',
    soft: 'An estimate: shown on the roadmap, never asked about.',
-   ongoing: 'Upkeep with no end: nothing asks when it finishes.',
+   ongoing: 'Upkeep with no end date: nothing asks when it finishes.',
 };
 /** a plan's one line on what finished looks like */
 export const DONE_WHEN = 'Done when';
 /** a project's target, as a fact: "Target Oct 21" */
-export const targetOn = (day: string) => `Target ${day}`;
+export const targetOn = (day: string) => `Target date ${day}`;
 /** a target that passed with work still open, said as what's owed */
-export const missedTarget = (day: string) => `Missed its ${day} target`;
+export const missedTarget = (day: string) => `Missed its ${day} target date`;
 /** nobody's PRs moved: "No PR activity for 21 days" */
 export const noPrActivity = (count: number) => `No PR activity for ${days(count)}`;
 /** names in a sentence, in the order given: "a", "a and b", "a, b and c" */

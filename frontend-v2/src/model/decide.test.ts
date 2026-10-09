@@ -127,7 +127,7 @@ describe('decideQueue', () => {
             item(1, { project: 'hard', ...late }),
             item(2, { project: 'soft', ...late, end_kind: 'soft' }),
             item(3, { project: 'ongoing', ...late, end_kind: 'ongoing' }),
-            // nothing open: a hard one would be asked "Done?"
+            // nothing open: a hard one would be asked "Is it done?"
             item(4, { project: 'gone', ...late, end_kind: 'soft' }),
          ],
          today,
@@ -237,7 +237,7 @@ describe('decideQueue', () => {
       expect(rows[0].reasons[0]).toEqual({ kind: 'missed', due: '2026-09-25', open: 2 });
    });
 
-   it('asks "Done?" when every issue attached is closed, until the plan changes after', () => {
+   it('asks "Is it done?" when every issue attached is closed, until the plan changes after', () => {
       const counts = (over: Partial<IssueCounts> = {}): IssueCounts => ({
          total: 5,
          open: 0,
@@ -453,7 +453,7 @@ describe('Decide’s calls', () => {
             quiet,
             today
          )
-      ).toBe('Committed through the end of Q1 2027. Decide asks again if it runs past that.');
+      ).toBe('Promised to finish by the end of Q1 2027. Decide asks again if it runs past that.');
    });
 
    it('gives a plan that hasn’t started a new end without starting it', () => {
@@ -478,7 +478,7 @@ describe('Decide’s calls', () => {
       expect(writeFor(oct, promo('2026-09-07'), undefined, today).fields.status).toBe('active');
    });
 
-   it('answers each row the way its outlined answer does: its target first while ahead', () => {
+   it('answers each row the way its suggested answer does: its target first while ahead', () => {
       const row = (reasons: DecideReason[], over: Partial<RoadmapItem> | null = null) => ({
          slug: 'p',
          item: over && item(3, { project: 'p', ...over }),
@@ -489,7 +489,7 @@ describe('Decide’s calls', () => {
       expect(answerOf(row([fresh]), target('2026-10-21'), today)).toMatchObject({
          kind: 'commit',
          end: '2026-10-21',
-         label: 'Through its target, Oct 21',
+         label: 'Its target date, Oct 21',
       });
       // a milestone's due date is a timestamp; its day is what counts
       expect(answerOf(row([fresh]), target('2026-10-21T07:00:00Z'), today)).toMatchObject({
@@ -518,7 +518,9 @@ describe('Decide’s calls', () => {
             { open: 0, ongoing: false },
             today
          )
-      ).toBe('Committed through its target, Oct 21. Decide asks again if it runs past that.');
+      ).toBe(
+         'Promised to finish by its target date, Oct 21. Decide asks again if it runs past that.'
+      );
    });
 
    it('outlines only an answer safe to take blind: never an end that cuts a plan short', () => {
@@ -532,7 +534,7 @@ describe('Decide’s calls', () => {
          endsFor(r, due ? { target: { title: null, due_on: due } } : undefined, today).map(
             c => c.label
          );
-      // "New end?" offers only the ends after Nov 1: "End of Oct" left it
+      // "Move the end date?" offers only the ends after Nov 1: "End of Oct" left it
       // as it was and cleared the call
       const later = ['End of Nov', 'End of Q4', 'End of Q1 2027'];
       expect(labels(row([{ kind: 'at_risk' }]))).toEqual(later);
@@ -567,7 +569,7 @@ describe('Decide’s calls', () => {
       const labels = (r: DecideRow) => endsFor(r, undefined, today).map(c => c.label);
       // Sep 7 to Nov 1: committing through the end of Oct makes the estimate a promise
       expect(labels(row([], { end_kind: 'soft' }))[0]).toBe('End of Oct');
-      // "New end?" on work with no end: every end is new
+      // "Move the end date?" on work with no end: every end is new
       const endless = row([{ kind: 'at_risk' }], { end_kind: 'ongoing', weeks: 40 });
       expect(labels(endless)[0]).toBe('End of Oct');
       expect(answerOf(endless, undefined, today)).toMatchObject({ label: 'End of Oct' });
@@ -591,22 +593,22 @@ describe('Decide’s calls', () => {
       };
       const own = (day: number): Call => ({
          kind: 'commit',
-         label: `Through its target, Oct ${day}`,
+         label: `Its target date, Oct ${day}`,
          end: `2026-10-${day}`,
-         through: `its target, Oct ${day}`,
+         through: `its target date, Oct ${day}`,
          target: true,
       });
       const times = (call: Call, count: number) => Array<Call>(count).fill(call);
-      expect(bulkWords(times(oct, 52), 'do')).toBe('Commit all 52 through the end of Oct');
-      expect(bulkWords(times(oct, 52), 'did')).toBe('Committed 52 through the end of Oct');
+      expect(bulkWords(times(oct, 52), 'do')).toBe('Promise all 52 by the end of Oct');
+      expect(bulkWords(times(oct, 52), 'did')).toBe('Promised 52 by the end of Oct');
       expect(bulkWords([...times(oct, 40), own(21), own(23)], 'do')).toBe(
-         'Commit 40 through the end of Oct and 2 through their targets'
+         'Promise 40 by the end of Oct and 2 by their target dates'
       );
       expect(bulkWords([oct, own(21)], 'did')).toBe(
-         'Committed 1 through the end of Oct and 1 through its target, Oct 21'
+         'Promised 1 by the end of Oct and 1 by its target date, Oct 21'
       );
       expect(bulkWords([oct, { kind: 'done' }, oct, { kind: 'done' }], 'do')).toBe(
-         'Commit 2 through the end of Oct and mark 2 done'
+         'Promise 2 by the end of Oct and mark 2 done'
       );
       expect(bulkWords(times({ kind: 'done' }, 3), 'do')).toBe('Mark all 3 done');
       expect(bulkWords([{ kind: 'park' }, { kind: 'drop' }], 'did')).toBe('Parked 1 and dropped 1');
@@ -753,14 +755,14 @@ describe('reasonWords', () => {
             { kind: 'at_risk' },
             item(1, { project: 'p', update: { ...update('at_risk', 2), body } })
          );
-      expect(said('Not sure the import can land.')).toMatch(/can land\. New end\?$/);
-      expect(said('Can the import land?')).toMatch(/land\? New end\?$/);
-      expect(said('Waiting on the vendor')).toMatch(/vendor\. New end\?$/);
+      expect(said('Not sure the import can land.')).toMatch(/can land\. Move the end date\?$/);
+      expect(said('Can the import land?')).toMatch(/land\? Move the end date\?$/);
+      expect(said('Waiting on the vendor')).toMatch(/vendor\. Move the end date\?$/);
    });
 
    it('asks new work in the verb its answer uses', () => {
       expect(reasonWords({ kind: 'new', since: '2026-08-30' }, null)).toBe(
-         'PRs open since Aug 30, and no plan yet. Commit to it?'
+         'PRs open since Aug 30, and no plan yet. When will it finish?'
       );
    });
 });

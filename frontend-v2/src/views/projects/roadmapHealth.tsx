@@ -33,9 +33,8 @@ import {
    type RoadmapUpdate,
    type Vouch,
 } from '../../../../shared/model/roadmap';
-import { PrimaryButton, Segmented, TextButton } from '../../components/bits';
+import { FactLink, PrimaryButton, QuietButton, Segmented } from '../../components/bits';
 import { dayOf, dayWords, useProjectsData } from '../../model/projectData';
-import type { LoadWeek } from '../../../../shared/model/load';
 import {
    loadRoadmapUpdates,
    postRoadmapUpdate,
@@ -206,7 +205,7 @@ export const vouchRule = (v: Vouch) => {
               hard ? ', by its end' : ''
            }`;
    return `Its PRs are merging${
-      hard ? ', it isn’t past its end' : ''
+      hard ? ', it isn’t past its end date' : ''
    }, and ${kept}, so the numbers say how it’s going and its lead owes no update. ${PILE_RULE} Post one any time.`;
 };
 
@@ -272,6 +271,13 @@ export function healthWords(s: HealthStanding, changedAt: number | null = null):
    }
 }
 
+/** A plan by its place in the order, "#2", which its row shows beside its
+ * name; by name when it isn't in the list. */
+const rankOf = (item: RoadmapItem, all: readonly RoadmapItem[]) => {
+   const at = all.indexOf(item);
+   return at < 0 ? item.name : `#${at + 1}`;
+};
+
 /**
  * What an item waits on, in words for its row: "after Search reindex", or
  * how the plan clashes with it (the item starts before one of them ends, or
@@ -308,10 +314,10 @@ export function waitsWords(
       clashes.length > 1
          ? `${clashes.length} things it waits on don’t fit its plan`
          : clashes[0].status === 'dropped' || clashes[0].status === 'parked'
-         ? `waits on ${clashes[0].name}, which was ${clashes[0].status}`
+         ? `Waits on ${clashes[0].name}, which was ${clashes[0].status}`
          : clashes[0].end_kind === 'ongoing'
-         ? `waits on ${clashes[0].name}, which has no end`
-         : `starts before ${clashes[0].name} ends`;
+         ? `Waits on ${clashes[0].name}, which has no end`
+         : `Starts before ${rankOf(clashes[0], all)} is done`;
    return { ...said([{ text, owed: 'clash' }], title), opens };
 }
 
@@ -386,13 +392,13 @@ export function planWarnings(
    const over = isOver
       ? {
            ...said(
-              [{ text: pastEnd(weeks), owed: hard ? 'over' : undefined }],
+              [{ text: pastEnd(weeks, item.end_kind), owed: hard ? 'over' : undefined }],
               hard
-                 ? `${after} plan’s end.`
-                 : `${after} soft end, an estimate, so nothing asks about it.`
+                 ? `${after} promised end date.`
+                 : `${after} estimated end date. An estimate is never asked about.`
            ),
            weeks,
-           mark: pastEndMark(weeks),
+           mark: pastEndMark(weeks, item.end_kind),
         }
       : null;
    // work still running past its plan, or with no end, ends no sooner than today
@@ -467,30 +473,16 @@ export function planWarnings(
 }
 
 /**
- * The one thing a plan's row says at rest, after its name: the words that
- * hold its amber piece (Decide's call with its question, or else the worst
- * thing owed), or else a soft end it ran past, in ink, or else its health
- * word alone ("On track"), or else nothing, since the bar's form already
- * says its status. Everything else waits in the plan's details. A plan past
- * its end whose bar draws the overrun (`overDrawn`) lets that piece carry
- * it, so it isn't said twice. `opens` is what a click on the words opens:
- * its updates when they're about an update, else its plan, where Decide's
- * call is answered.
+ * What a plan's row says at rest, under its name: Decide's question alone,
+ * in amber, its reason on hover (the opened plan says both), or else a
+ * clash with what it waits on, in ink, since order is the roadmap's own
+ * business. Nothing else: the bar says the dates, its overrun piece how
+ * late, and an update owed is said where the lead looks (the Overview's
+ * Plan column, the opened plan). Null when there's nothing to ask.
  */
-export function restWords(
-   w: PlanWarnings,
-   overDrawn: boolean
-): { said: Said; opens: 'plan' | 'update' } | null {
-   const owed = [w.status, w.health, w.over, w.target, w.waits].find(isAmber);
-   if (owed && !(owed === w.over && overDrawn)) {
-      return { said: owed, opens: owed === w.health && !w.call ? 'update' : 'plan' };
-   }
-   // drift past a soft end, quietly, where no bar draws it
-   if (w.over && !isAmber(w.over) && !overDrawn) return { said: w.over, opens: 'plan' };
-   const word = w.health?.pieces[0];
-   // a plan its numbers vouch for, with no update to quote, has nothing to say
-   if (!w.health || !word || w.health.text === NO_UPDATE_NEEDED_WORD) return null;
-   return { said: said([{ text: word.text }], w.health.title), opens: 'update' };
+export function restWords(w: PlanWarnings): Said | null {
+   if (w.call) return said([{ text: w.call.question, amber: true }], w.call.title);
+   return w.waits?.pieces.some(p => p.owed) ? inInk(w.waits) : null;
 }
 
 /**
@@ -541,13 +533,6 @@ export function capacityWords(count: number, developers: number): Said | null {
       ],
       `With as much ${BEING_WORKED_ON} as there are developers, at least one piece of work has one developer or none. ${rule}`
    );
-}
-
-/** Whether a week from `from` on has more in flight than there are
- * developers: the load chart's developer line turns amber then, since the
- * planner owes the roadmap fewer things at once. Weeks before are history. */
-export function crossesLine(weeks: readonly LoadWeek[], from: string, developers: number): boolean {
-   return developers > 0 && weeks.some(w => w.week >= from && w.onPlan + w.offPlan > developers);
 }
 
 /**
@@ -623,8 +608,12 @@ export function UpdatesPanel({
    actions,
    onClose,
    dirty,
+   history: showHistory = true,
 }: {
    item: RoadmapItem;
+   /** the earlier updates under the form; off where the page shows the
+    * latest beside it and the roadmap keeps the rest */
+   history?: boolean;
    /** kept true while its box holds words someone wrote and hasn't posted */
    dirty?: MutableRefObject<boolean>;
    /** no rule of its own on top: it sits in a box that already has an edge */
@@ -669,6 +658,7 @@ export function UpdatesPanel({
       el.setSelectionRange(el.value.length, el.value.length);
    }, [autoFocus]);
    useEffect(() => {
+      if (!showHistory) return;
       let live = true;
       void loadRoadmapUpdates(item.id).then(list => {
          if (live) setHistory(list ?? 'failed');
@@ -676,7 +666,7 @@ export function UpdatesPanel({
       return () => {
          live = false;
       };
-   }, [item.id]);
+   }, [item.id, showHistory]);
    const post = async () => {
       setPosting(true);
       const result = await postRoadmapUpdate(item.id, { health, body });
@@ -758,7 +748,7 @@ export function UpdatesPanel({
                   {error ??
                      (posted ? (
                         <>
-                           Posted. <TextButton onClick={() => void takeBack()}>Undo</TextButton>
+                           Posted. <QuietButton onClick={() => void takeBack()}>Undo</QuietButton>
                         </>
                      ) : tookBack ? (
                         'Took the update back.'
@@ -769,13 +759,13 @@ export function UpdatesPanel({
                {actions && <span className="ml-auto flex items-center gap-3">{actions}</span>}
             </div>
          </form>
-         {history === 'failed' && (
+         {showHistory && history === 'failed' && (
             <p className="m-0 mt-3 text-xs text-ink-3">Couldn’t load the earlier updates.</p>
          )}
-         {Array.isArray(history) && !history.length && (
+         {showHistory && Array.isArray(history) && !history.length && (
             <p className="m-0 mt-3 text-xs text-ink-3">No updates yet.</p>
          )}
-         {list.length > 0 && (
+         {showHistory && list.length > 0 && (
             <ol className="m-0 mt-3 flex list-none flex-col gap-3 border-t border-secondary p-0 pt-3">
                {list.map((u, i) => {
                   const before = list[i + 1];
@@ -850,9 +840,9 @@ export function PlanFacts({
    if (!items) return null;
    const plan = planFor(slug, items);
    const link = (label: string, patch: Parameters<Navigate>[0]) => (
-      <TextButton className="ml-auto" onClick={() => navigate(patch)}>
+      <FactLink className="ml-auto" onClick={() => navigate(patch)}>
          {label}
-      </TextButton>
+      </FactLink>
    );
    // a row with no plan draws its own line and the calls that make one
    // (Portfolio.tsx), so this only ever shows a plan

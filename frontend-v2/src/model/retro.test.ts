@@ -229,14 +229,14 @@ describe('Look back’s project columns', () => {
       expect(retroPlan(plan({ status: 'done', updated_at: at('2026-09-10') }), today).text).toBe(
          'Done 2 weeks late'
       );
-      expect(retroPlan(plan({}), today).text).toBe('5 weeks past its end');
+      expect(retroPlan(plan({}), today).text).toBe('5 weeks overdue');
       expect(retroPlan(plan({ start: '2026-09-28' }), today).text).toBe('Ends Oct 25');
       expect(retroPlan(plan({ status: 'parked' }), today).kind).toBe('parked');
       expect(retroPlan(null, today).text).toBe('No plan');
       // only a hard end run past is owed a call; ongoing work has no end
       expect(retroPlan(plan({ end_kind: 'soft' }), today)).toEqual({
          kind: 'open',
-         text: '5 weeks past its end',
+         text: '5 weeks past its estimate',
       });
       expect(retroPlan(plan({ end_kind: 'ongoing' }), today).text).toBe('Ongoing');
    });

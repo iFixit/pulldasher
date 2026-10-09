@@ -1,35 +1,27 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { n } from '../../../../shared/format';
 import { addWeeks, type RoadmapOrigin } from '../../../../shared/model/roadmap';
 import { FactLink } from '../../components/bits';
 import { dayWords } from '../../model/projectData';
 import { BEING_WORKED_ON, NOT_SAID } from '../../model/words';
 import type { LoadWeek, OriginCounts } from '../../../../shared/model/load';
-import { Tile } from './parts';
-import { crossesLine } from './roadmapHealth';
 
 /**
- * How loaded the weeks are, on the roadmap's own time axis so each week's
- * bar sits above the same weeks of every row. Every mark is labeled where
- * it is drawn, never in a legend: the weeks up to today say "Being worked
- * on, from PRs" (blue on the roadmap, gray with no plan: the colors the
- * counts beside them are written in), the weeks after say "Ahead, if
- * nothing changes" (the plans, and every project still open with no
- * decision, in lighter tints) and how many small projects drop off at
- * today, and the dashed line says how many developers there are. The line
- * turns amber once a week from this one on has more in flight than people:
- * the one call the chart asks for.
+ * How loaded the weeks up to today were, on the roadmap's own time axis so
+ * each week's bar sits above the same weeks of every row. Each fact is said
+ * once: the headline beside the bars names what they count (blue on the
+ * roadmap, gray with no plan: the colors the counts under it are written
+ * in), and the dashed line, the one ruler that matters, says how many
+ * developers there are and leads to them. No y-axis: each bar's hover
+ * gives its number. The headline answers the one question: more projects
+ * than developers, said in amber. No bars after today: a plan list only
+ * knows what's decided, so any forecast drawn from it can only fall. The
+ * weeks ahead are said in words instead (Ahead), which the rows below can
+ * check.
  */
-
-/** "Being worked on", to start a label */
-const WORKED_ON = BEING_WORKED_ON.charAt(0).toUpperCase() + BEING_WORKED_ON.slice(1);
-const AHEAD = 'Ahead, if nothing changes';
 
 const ON_PLAN = 'var(--brand)';
 const OFF_PLAN = 'color-mix(in oklab, var(--ink-3) 70%, transparent)';
-// paler for the weeks ahead, and still apart from the card (about 2:1)
-const ON_PLAN_AHEAD = 'color-mix(in oklab, var(--brand) 45%, transparent)';
-const OFF_PLAN_AHEAD = 'color-mix(in oklab, var(--ink-3) 45%, transparent)';
 
 const total = (w: LoadWeek) => w.onPlan + w.offPlan;
 
@@ -56,20 +48,58 @@ const ORIGIN_TITLE: Record<OriginKey, string> = {
    unsaid: 'Show only the plans with no word on where the work came from',
 };
 
+/** A plan and the day it starts or should end. */
+export interface PlanDay {
+   name: string;
+   day: string;
+}
+
+/** The plans that start, and the plans that should end, in the next four
+ * weeks (Roadmap.tsx). */
+export interface Ahead {
+   starts: PlanDay[];
+   ends: PlanDay[];
+}
+
+/** "Next 4 weeks: 2 start, 3 should end", each count a dotted
+ * underline whose hover names the plans and their days. */
+function AheadWords({ ahead }: { ahead: Ahead }) {
+   const { starts, ends } = ahead;
+   if (!starts.length && !ends.length) return <>Nothing starts or ends in the next 4 weeks</>;
+   const count = (list: PlanDay[], verb: string, words: string) => (
+      <span
+         tabIndex={0}
+         title={list.map(p => `${p.name} ${verb} ${dayWords(p.day)}`).join('\n')}
+         className="underline decoration-dotted underline-offset-2"
+      >
+         {words}
+      </span>
+   );
+   const startWords =
+      starts.length > 0 &&
+      count(starts, 'starts', `${starts.length} ${starts.length === 1 ? 'starts' : 'start'}`);
+   // plans go without saying on a roadmap
+   const endWords = ends.length > 0 && count(ends, 'should end', `${ends.length} should end`);
+   return (
+      <>
+         Next 4 weeks: {startWords}
+         {startWords && endWords && ', '}
+         {endWords}
+      </>
+   );
+}
+
 function weekWords(w: LoadWeek, developers: number): string {
    const people = developers ? `, for ${n(developers, 'developer')}` : '';
-   return w.projected
-      ? `Week of ${dayWords(w.week)}, if nothing changes: ${total(w)} ${BEING_WORKED_ON}, ${
-           w.onPlan
-        } on the roadmap and ${w.offPlan} with no plan that need one${people}`
-      : `Week of ${dayWords(w.week)}: ${total(w)} ${BEING_WORKED_ON}, ${
-           w.onPlan
-        } on the roadmap and ${w.offPlan} with no plan${people}`;
+   return `Week of ${dayWords(w.week)}: ${total(w)} ${BEING_WORKED_ON}, ${
+      w.onPlan
+   } with a plan and ${w.offPlan} with none${people}`;
 }
 
 /** A count that filters the rows to what it counts, and back on a second
- * click: a fact that goes somewhere. The count stays quiet; the words take
- * the color of the bars they count, so they label them without a legend. */
+ * click: it acts here, so it's a bordered chip, filled while pressed. The
+ * count stays quiet; the words take the color of the bars they count, so
+ * they label them without a legend. */
 function CountButton({
    active,
    onClick,
@@ -91,8 +121,7 @@ function CountButton({
          aria-pressed={active}
          onClick={onClick}
          title={title}
-         // pressed is a chip around it; the padding is paid back so nothing moves
-         className="-mx-1 self-start px-1"
+         className="self-start border border-line px-1.5 py-0.5 no-underline"
          style={active ? { background: 'var(--secondary)' } : undefined}
       >
          {count != null && <span className="tabular-nums">{count} </span>}
@@ -102,12 +131,13 @@ function CountButton({
 }
 
 export function LoadChart({
-   weeks,
+   weeks: all,
    now,
    developers,
    at,
    todayAt,
    when,
+   ahead,
    rowGrid,
    picked,
    onPick,
@@ -127,6 +157,8 @@ export function LoadChart({
    todayAt: number | null;
    /** whether the shown weeks are all past, all to come, or today falls among them */
    when: 'past' | 'future' | 'both';
+   /** what starts and should end in the next four weeks, said right of today */
+   ahead: Ahead;
    /** the roadmap's row grid, so the chart's track lines up with the rows' */
    rowGrid: string;
    /** the week picked by clicking its bar, or null */
@@ -141,13 +173,11 @@ export function LoadChart({
    /** to the developer teams */
    onPeople: () => void;
 }) {
+   // only the weeks that happened: a projection from the plans can only fall
+   const weeks = all.filter(w => !w.projected);
    // a picked week's numbers stand in for this week's
    const shown = (picked && weeks.find(w => w.week === picked)) || now;
    const inFlight = total(shown);
-   // the drop at today, said where it's drawn: small work with no plan
-   // stops counting next week, since it ships without one
-   const next = when === 'both' ? weeks.find(w => w.week === addWeeks(now.week, 1)) : undefined;
-   const shed = next ? now.offPlan - next.offPlan : 0;
    // the week the counts are about, in words
    const weekName = picked ? `the week of ${dayWords(shown.week)}` : 'this week';
    // a count picks its week too, so its rows are the ones it counted
@@ -155,40 +185,6 @@ export function LoadChart({
       if (picked !== shown.week) onPick(shown.week);
       then();
    };
-   const ahead = shed > 0 ? `${AHEAD} · ${shed} ship without a plan` : AHEAD;
-   // each label above the plot shows only where it fits beside today's tag:
-   // on a phone's narrow plot, one would run off the edge. Each drops its
-   // second half before it goes.
-   const pastLabel = useRef<HTMLSpanElement>(null);
-   const pastShort = useRef<HTMLSpanElement>(null);
-   const aheadLabel = useRef<HTMLSpanElement>(null);
-   const aheadShort = useRef<HTMLSpanElement>(null);
-   type Fit = 'full' | 'short' | 'none';
-   const [fits, setFits] = useState<{ past: Fit; ahead: Fit }>({ past: 'full', ahead: 'full' });
-   useLayoutEffect(() => {
-      const row = pastLabel.current?.parentElement ?? aheadLabel.current?.parentElement;
-      if (!row) return;
-      const check = () => {
-         const pick = (
-            full: HTMLElement | null,
-            short: HTMLElement | null,
-            fit: (el: HTMLElement) => boolean
-         ): Fit => (!full || fit(full) ? 'full' : short && fit(short) ? 'short' : 'none');
-         const next = {
-            past: pick(pastLabel.current, pastShort.current, el => el.offsetLeft >= 0),
-            ahead: pick(
-               aheadLabel.current,
-               aheadShort.current,
-               el => el.offsetLeft + el.offsetWidth <= row.clientWidth
-            ),
-         };
-         setFits(f => (f.past === next.past && f.ahead === next.ahead ? f : next));
-      };
-      check();
-      const watch = new ResizeObserver(check);
-      watch.observe(row);
-      return () => watch.disconnect();
-   }, [todayAt, when, ahead]);
    const step = (by: number) => {
       const i = weeks.findIndex(w => w.week === (picked ?? now.week));
       const next = weeks[Math.min(weeks.length - 1, Math.max(0, (i < 0 ? 0 : i) + by))];
@@ -197,8 +193,7 @@ export function LoadChart({
    const top = Math.max(developers, ...weeks.map(total), 1) * 1.15;
    const pct = (v: number) => `${(v / top) * 100}%`;
    const each = developers ? inFlight / developers : null;
-   const crossed = crossesLine(weeks, now.week, developers);
-   const ticks = yTicks(top);
+   const over = developers ? inFlight - developers : 0;
    return (
       // its own stacking context, so no label in it paints over the sticky
       // headers above it
@@ -208,16 +203,32 @@ export function LoadChart({
             {picked ? weekWords(shown, developers) : ''}
          </span>
          <div className="flex flex-col gap-1.5 self-start">
-            <Tile
-               value={inFlight}
-               label={`${WORKED_ON} ${picked ? `the week of ${dayWords(picked)}` : 'this week'}`}
-               title={
-                  picked
-                     ? 'Show every week again'
-                     : `Show only the plans and projects ${BEING_WORKED_ON} this week`
-               }
-               onClick={() => onPick(picked ? null : now.week)}
-            />
+            {/* the answer: how many projects, and how many more than
+                developers. It narrows the rows to its week; its hover fill
+                says it presses, and no border makes it a card in a card */}
+            <div className="flex flex-col items-start">
+               <button
+                  type="button"
+                  aria-pressed={!!picked}
+                  onClick={() => onPick(picked ? null : now.week)}
+                  title={
+                     picked
+                        ? 'Show every week again'
+                        : `Counted from their PRs. Show only the plans and projects ${BEING_WORKED_ON} this week`
+                  }
+                  className="pressable -mx-1.5 flex flex-col items-start rounded-md border-0 bg-transparent px-1.5 py-0.5 text-left hover:bg-muted"
+                  style={picked ? { background: 'var(--secondary)' } : undefined}
+               >
+                  <span className="text-xl font-semibold text-ink tabular-nums">{inFlight}</span>
+                  <span className="text-xs text-ink-2">
+                     {inFlight === 1 ? 'project' : 'projects'} {BEING_WORKED_ON}
+                     {picked ? ` ${weekName}` : <span className="text-ink-3"> this week</span>}
+                  </span>
+                  {over > 0 && (
+                     <span className="text-xs text-warn">{over} more than developers</span>
+                  )}
+               </button>
+            </div>
             {/* the two halves of the count, in one line; each narrows the rows
                 to what it counts, in the week it counts them, so its number
                 and its rows agree. Where the plans came from is a closer look:
@@ -231,9 +242,8 @@ export function LoadChart({
                      }
                      title={`Show only the plans on the roadmap ${weekName}`}
                      count={shown.onPlan}
-                     tone="text-brand"
                   >
-                     on the roadmap
+                     {shown.onPlan === 1 ? 'has a plan' : 'have a plan'}
                   </CountButton>
                   <span aria-hidden className="text-ink-3">
                      ·
@@ -247,7 +257,7 @@ export function LoadChart({
                      count={shown.offPlan}
                      tone="text-ink-3"
                   >
-                     with no plan
+                     {shown.offPlan === 1 ? 'has none' : 'have none'}
                   </CountButton>
                </span>
                <OriginSplit
@@ -260,63 +270,15 @@ export function LoadChart({
             </div>
          </div>
          <div className="min-w-0">
-            {/* what each side of today counts, said where it's drawn */}
-            <div className="relative h-4 text-[11px] font-medium text-ink-3">
-               {when !== 'future' &&
-                  (['full', 'short'] as const).map(fit => (
-                     <span
-                        key={fit}
-                        ref={fit === 'full' ? pastLabel : pastShort}
-                        className="absolute top-0 pr-1.5 text-right whitespace-nowrap"
-                        // ends clear of the Today tag, which sits centered on the line
-                        style={{
-                           ...(todayAt != null
-                              ? { right: `calc(${100 - todayAt}% + 1.5rem)` }
-                              : { left: 0 }),
-                           visibility: fits.past === fit ? undefined : 'hidden',
-                        }}
-                     >
-                        {fit === 'full' ? `${WORKED_ON}, from PRs` : WORKED_ON}
-                     </span>
-                  ))}
+            {/* today, in brand words over its line: the line marks it, so
+                no fill to make it the loudest thing here */}
+            <div className="relative h-4 text-[11px] font-semibold text-brand">
                {todayAt != null && (
                   <span
-                     className="absolute top-0 -translate-x-1/2 rounded-sm bg-brand px-1 leading-4 font-semibold text-surface"
+                     className="absolute top-0 -translate-x-1/2 leading-4"
                      style={{ left: `${todayAt}%` }}
                   >
                      Today
-                  </span>
-               )}
-               {when !== 'past' && (
-                  <span
-                     ref={aheadLabel}
-                     className="absolute top-0 pl-1.5 whitespace-nowrap"
-                     style={{
-                        left: todayAt != null ? `calc(${todayAt}% + 1.5rem)` : 0,
-                        visibility: fits.ahead === 'full' ? undefined : 'hidden',
-                     }}
-                     title={
-                        shed > 0
-                           ? `After this week, ${n(
-                                shed,
-                                'project'
-                             )} with no plan stop counting: small work ships without a plan unless it stalls. Plans, and work big enough to need one, keep counting.`
-                           : undefined
-                     }
-                  >
-                     {ahead}
-                  </span>
-               )}
-               {when !== 'past' && shed > 0 && (
-                  <span
-                     ref={aheadShort}
-                     className="absolute top-0 pl-1.5 whitespace-nowrap"
-                     style={{
-                        left: todayAt != null ? `calc(${todayAt}% + 1.5rem)` : 0,
-                        visibility: fits.ahead === 'short' ? undefined : 'hidden',
-                     }}
-                  >
-                     {AHEAD}
                   </span>
                )}
             </div>
@@ -324,11 +286,11 @@ export function LoadChart({
                className="relative h-20"
                role="group"
                tabIndex={0}
-               aria-label={`Plans and projects ${BEING_WORKED_ON} each week: ${total(
+               aria-label={`Plans and projects ${BEING_WORKED_ON} each week up to today, counted from their PRs: ${total(
                   now
                )} this week${
                   developers ? ` for ${n(developers, 'developer')}` : ''
-               }. Weeks after this one count the plans, and the projects with no plan that need one, as if nothing changes. Click a week, or use the arrow keys, to show only what was ${BEING_WORKED_ON} then; Escape shows every week.`}
+               }. Click a week, or use the arrow keys, to show only what was ${BEING_WORKED_ON} then; Escape shows every week.`}
                onKeyDown={e => {
                   if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
                      e.preventDefault();
@@ -336,15 +298,6 @@ export function LoadChart({
                   } else if (e.key === 'Escape') onPick(null);
                }}
             >
-               {/* the y-axis: hairline gridlines at round counts, under the bars */}
-               {ticks.map(v => (
-                  <span
-                     key={v}
-                     aria-hidden
-                     className="pointer-events-none absolute inset-x-0 border-t border-secondary"
-                     style={{ bottom: pct(v) }}
-                  />
-               ))}
                {weeks.map(w => {
                   const left = at(w.week);
                   const isPicked = w.week === picked;
@@ -370,52 +323,36 @@ export function LoadChart({
                            developers
                         )}. Click to show only that week’s plans and projects.`}
                      >
-                        <span
-                           style={{
-                              height: pct(w.onPlan),
-                              background: w.projected ? ON_PLAN_AHEAD : ON_PLAN,
-                           }}
-                        />
+                        <span style={{ height: pct(w.onPlan), background: ON_PLAN }} />
                         <span
                            className="rounded-t-[1px]"
-                           style={{
-                              height: pct(w.offPlan),
-                              background: w.projected ? OFF_PLAN_AHEAD : OFF_PLAN,
-                           }}
+                           style={{ height: pct(w.offPlan), background: OFF_PLAN }}
                         />
                      </button>
                   );
                })}
                {developers > 0 && (
-                  // ink until a week ahead has more in flight than people;
-                  // the count on it is a fact, so it stays ink, and it opens
-                  // the teams it counts
+                  // a plain reference: the headline says when it's crossed
                   <>
                      <span
                         aria-hidden
-                        className="pointer-events-none absolute inset-x-0 border-t border-dashed"
-                        style={{
-                           bottom: pct(developers),
-                           borderColor: crossed ? 'var(--warn)' : 'var(--ink-3)',
-                        }}
-                     />
-                     {/* on the line, over the bars, so it keeps the card behind it */}
-                     <span
-                        className="absolute right-0 bg-surface px-1 text-[11px] leading-4"
+                        className="pointer-events-none absolute inset-x-0 border-t border-dashed border-ink-3"
                         style={{ bottom: pct(developers) }}
+                     />
+                     {/* on the line, over the bars, so it keeps the card behind
+                         it; the way to the teams on People */}
+                     <FactLink
+                        onClick={onPeople}
+                        className="absolute right-0 bg-surface px-1 text-[11px] leading-4 tabular-nums"
+                        style={{ bottom: pct(developers) }}
+                        title={`${n(developers, 'developer')} on the developer teams${
+                           each == null
+                              ? ''
+                              : `, ${each.toFixed(1)} plans and projects each ${weekName}`
+                        }. At 1.0 or more, some work has one developer or none. Click to see the teams on People.`}
                      >
-                        <FactLink
-                           onClick={onPeople}
-                           className="tabular-nums"
-                           title={`${n(developers, 'developer')} on the developer teams${
-                              each == null
-                                 ? ''
-                                 : `, ${each.toFixed(1)} plans and projects each ${weekName}`
-                           }. At 1.0 or more, some work has one developer or none. Click to see the teams on People.`}
-                        >
-                           {n(developers, 'developer')}
-                        </FactLink>
-                     </span>
+                        {n(developers, 'developer')}
+                     </FactLink>
                   </>
                )}
                {todayAt != null && (
@@ -425,19 +362,19 @@ export function LoadChart({
                      style={{ left: `${todayAt}%`, borderColor: 'var(--brand)' }}
                   />
                )}
-               {/* the gridlines' counts, the unit on the top one: beside the
-                   plot from sm up, so they never cover the first weeks; over
-                   it on a phone, where the counts sit above the chart */}
-               {ticks.map((v, i) => (
+               {/* the weeks ahead, in words the rows can check, in the room
+                   right of today */}
+               {when !== 'past' && (
                   <span
-                     key={`label-${v}`}
-                     aria-hidden
-                     className="pointer-events-none absolute left-0 translate-y-1/2 bg-surface pr-1 text-[11px] leading-none whitespace-nowrap text-ink-3 tabular-nums sm:left-auto sm:right-full sm:bg-transparent sm:pr-1.5"
-                     style={{ bottom: pct(v) }}
+                     className="absolute top-1/2 right-0 -translate-y-1/2 pl-3 text-[11px] leading-4 text-ink-2"
+                     style={{ left: todayAt != null ? `${todayAt}%` : 0 }}
                   >
-                     {i === ticks.length - 1 ? n(v, 'project') : v}
+                     {/* on the card, so the developer line doesn't strike it */}
+                     <span className="bg-surface pr-1">
+                        <AheadWords ahead={ahead} />
+                     </span>
                   </span>
-               ))}
+               )}
             </div>
          </div>
       </div>

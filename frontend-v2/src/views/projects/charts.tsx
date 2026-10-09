@@ -506,7 +506,8 @@ export function StripsChart({
       1,
       ...weeks.flatMap((_, i) => strips.map(s => s.bars.counted[i] + s.bars.before[i]))
    );
-   const ticks = [0, ...yTicks(top)];
+   // the baseline is 0 on every strip, so no strip labels it
+   const ticks = yTicks(top);
    const strip = Math.max(40, Math.round((height - 32) / strips.length));
    // a week before the range is all pale: its numbers are the pale ones
    const valueOf = (s: Strip, w: ChartWeek, i: number) =>
@@ -548,7 +549,7 @@ export function StripsChart({
                   data={data}
                   margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
                   role="img"
-                  title={`${s.name}: ${unit}`}
+                  title={unit ? `${s.name}: ${unit}` : s.name}
                   // one keyboard stop for the chart: the first strip's
                   // tooltip says every strip's week
                   accessibilityLayer={k === 0}
@@ -589,7 +590,7 @@ export function StripsChart({
    };
    return (
       <div>
-         <Unit>{unit}</Unit>
+         {unit && <Unit>{unit}</Unit>}
          <div className="flex flex-col gap-1">{strips.map(plot)}</div>
          <SrTable
             caption={ariaLabel}

@@ -9,7 +9,7 @@ import {
 } from '../../../../shared/model/projects';
 import { ORIGIN_WORD, ROADMAP_ORIGINS, type RoadmapOrigin } from '../../../../shared/model/roadmap';
 import { ArrowDown, ArrowUp, ChevronRight, X } from 'lucide-react';
-import { FactLink, TextButton } from '../../components/bits';
+import { FactLink } from '../../components/bits';
 import { Icon } from '../../components/Icon';
 import { Avatar } from '../../components/identity';
 import { eyebrowText, SubDoor } from '../../components/Lane';
@@ -244,26 +244,27 @@ export function PeopleStack({
    );
 }
 
-/** "Oct 31", or the milestone's title when it has no due date. */
+/** "Oct 31", "Oct 31 (Security review)" with the milestone's title, or the title alone when it has no due date. */
 export function targetWords(target: ProjectTarget): string {
    if (!target.due_on) return target.title ?? '';
    const due = dayWords(target.due_on);
-   return !target.title || target.title === due ? due : `${target.title}, due ${due}`;
+   return !target.title || target.title === due ? due : `${due} (${target.title})`;
 }
 
-/** Why a lead reads "by PRs", where there's room to open it. */
+/** Why a lead is guessed from PRs, where there's room to open it. */
 const BY_PRS_WHY =
    'No issue or plan names its lead, so it’s whoever has the most PRs in it, open or merged in the last 14 days. Assign its issue on GitHub, or give its plan a lead, to name one.';
 
-/** "by PRs" after a lead nobody named: a door to why on a facts line, the
- * plain words in a cell or a row's facts, which keep one Tab stop. */
-export function ByPrs({ door = false }: { door?: boolean }) {
-   return door ? (
-      <SubDoor label="Why this lead" text="by PRs">
-         {BY_PRS_WHY}
-      </SubDoor>
-   ) : (
-      <span className="text-ink-3">by PRs</span>
+/** A lead nobody named: the word "guessed", with why on hover. `door` is
+ * accepted for callers that still pass it. */
+export function ByPrs(_: { door?: boolean } = {}) {
+   return (
+      <span
+         className="text-ink-3 underline decoration-dotted underline-offset-2"
+         title={BY_PRS_WHY}
+      >
+         guessed
+      </span>
    );
 }
 
@@ -293,6 +294,7 @@ export function ProjectFacts({
    onOngoing,
    ongoingByLabel = false,
    inline = false,
+   issueLink = true,
    children,
 }: {
    g: Pick<ProjectGroup, 'slug'>;
@@ -313,6 +315,8 @@ export function ProjectFacts({
    ongoingByLabel?: boolean;
    /** a line of the page's own, not a row in a box; its dates go to the plan */
    inline?: boolean;
+   /** "repo #N" to its issue; off where the page has its own way there */
+   issueLink?: boolean;
    /** trailing controls, e.g. the project page link */
    children?: ReactNode;
 }) {
@@ -363,25 +367,26 @@ export function ProjectFacts({
          {lead?.leadByPrs && (
             <>
                {' '}
-               <ByPrs door />
+               <ByPrs />
             </>
          )}
       </span>
    );
    const facts: ReactNode[] = [];
    if (project) {
-      facts.push(
-         <a
-            key="issue"
-            href={issueUrl(project.repo, project.number)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-brand hover:underline"
-            title="Edit the name, lead, target or parents on the issue"
-         >
-            {shortRepo(project.repo)} #{project.number}
-         </a>
-      );
+      if (issueLink)
+         facts.push(
+            <a
+               key="issue"
+               href={issueUrl(project.repo, project.number)}
+               target="_blank"
+               rel="noopener noreferrer"
+               className="underline hover:text-brand"
+               title="Edit the name, lead, target or parents on the issue"
+            >
+               {shortRepo(project.repo)} #{project.number} ↗
+            </a>
+         );
       if (leadFact) facts.push(leadFact);
       const target = inline ? null : targetOf(project);
       if (target) facts.push(<span key="target">{targetOn(targetWords(target))}</span>);
@@ -465,7 +470,10 @@ export function ProjectFacts({
    return (
       <div
          className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3 ${
-            inline ? '' : 'px-3.5 py-2'
+            // on a page's own line, a dot after each fact but the last
+            inline
+               ? "[&>*:not(:last-child)]:after:ml-3 [&>*:not(:last-child)]:after:text-ink-3 [&>*:not(:last-child)]:after:content-['·']"
+               : 'px-3.5 py-2'
          }`}
       >
          {facts}
@@ -476,7 +484,7 @@ export function ProjectFacts({
 
 /** The link from a project's band or row to its own page. */
 export function PageLink({ g, navigate }: { g: Pick<ProjectGroup, 'slug'>; navigate: Navigate }) {
-   return <TextButton onClick={() => navigate({ project: g.slug })}>Project page</TextButton>;
+   return <FactLink onClick={() => navigate({ project: g.slug })}>Open project page</FactLink>;
 }
 
 /** One number with its label under it, the Stats tab's big-number style,
@@ -613,6 +621,13 @@ export function SortHeader<K extends string>({
 }
 
 /** "4 more than the 30 days before", or null while there's nothing to compare. */
+export function deltaWords(now: number, before: number | null | undefined): string | null {
+   if (before == null) return null;
+   const d = now - before;
+   return d === 0 ? 'same' : d > 0 ? `+${d}` : `-${-d}`;
+}
+
+/** The longer comparison a short mark stands for, for the tile's title. */
 export function versus(
    now: number,
    before: number | null | undefined,

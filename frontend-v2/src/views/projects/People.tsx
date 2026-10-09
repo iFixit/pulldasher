@@ -17,7 +17,7 @@ import {
    FactLink,
    LoadFailed,
    PrimaryButton,
-   TextButton,
+   QuietButton,
    textInputClass,
 } from '../../components/bits';
 import { Icon } from '../../components/Icon';
@@ -41,7 +41,7 @@ import {
 import { beforeWords, OVERLOAD_MIN } from '../../model/retro';
 import { retryRetroData } from '../../model/retroData';
 import { saveDeveloperTeams } from '../../model/settingsData';
-import { andList, days, devDays, NOT_IN_A_PROJECT, ONE_OFFS, OVERLOADED } from '../../model/words';
+import { days, devDays, NOT_IN_A_PROJECT, OVERLOADED } from '../../model/words';
 import { PersonCell, StatsCard } from '../stats/parts';
 import { ChartSlot, SplitWeeksChart } from './lazyCharts';
 import {
@@ -51,6 +51,7 @@ import {
    SortHeader,
    switchView,
    Tile,
+   deltaWords,
    versus,
    type Navigate,
    type ProjectsNav,
@@ -75,8 +76,8 @@ const UNDER_HEADS = 'scroll-mt-[calc(var(--stick,0px)_+_38px)]';
 /**
  * The developer teams, and the way to change them: who counts as a developer,
  * and on which team, for every developer count in the tab and the load line
- * on the roadmap. Saved here, they replace config.js's list for everyone;
- * "Go back to config.js" drops them. Either leaves a receipt with Undo, which
+ * on the roadmap. Edited here, they replace the default teams for everyone;
+ * "Go back to the default teams" drops them. Either leaves a receipt with Undo, which
  * saves the teams as they were, so neither asks twice. A login with no PR or
  * stamp behind it is pointed out as it's typed, since a typo would quietly
  * make someone a non-developer. Escape, like Cancel, puts the teams back as
@@ -127,7 +128,7 @@ function TeamsSection({
       setSaving(false);
       if ('error' in result) return setError(result.error);
       setError(null);
-      setReceipt({ words: value ? 'Saved' : 'Back to config.js’s teams', back });
+      setReceipt({ words: value ? 'Saved' : 'Back to the default teams', back });
       setDraft(null);
    };
    const undo = async (back: DeveloperTeams | null) => {
@@ -157,14 +158,14 @@ function TeamsSection({
             sub={
                <SubDoor
                   label="What the developer teams do"
-                  text={from === 'saved' ? 'saved here' : 'from config.js'}
+                  text={from === 'saved' ? 'edited here' : 'the default teams'}
                >
                   <p className="m-0">
                      Who counts as a developer, and on which team. Everyone else is a non-developer.
                   </p>
                   <p className="m-0">
                      The teams set every developer count in Projects and the developer line on the
-                     roadmap. Saved here, they replace config.js’s teams for everyone.
+                     roadmap. Edited here, they replace the default teams for everyone.
                   </p>
                </SubDoor>
             }
@@ -187,18 +188,17 @@ function TeamsSection({
                      )}
                   </span>
                   {receipt?.back !== undefined && !editing && (
-                     <TextButton
+                     <QuietButton
                         onClick={() => void undo(receipt.back ?? null)}
                         aria-label={`Undo: put back ${
-                           receipt.back ? 'the teams saved here' : 'config.js’s teams'
+                           receipt.back ? 'the teams saved here' : 'the default teams'
                         }`}
-                        className="text-xs"
                      >
                         Undo
-                     </TextButton>
+                     </QuietButton>
                   )}
                   {!editing && (
-                     <TextButton
+                     <QuietButton
                         id={editId}
                         onClick={() => {
                            setReceipt(undefined);
@@ -206,10 +206,9 @@ function TeamsSection({
                               names.length ? names.map(t => [t, teams[t].join(', ')]) : [['', '']]
                            );
                         }}
-                        className="text-xs"
                      >
                         Edit teams
-                     </TextButton>
+                     </QuietButton>
                   )}
                </>
             }
@@ -290,27 +289,24 @@ function TeamsSection({
                         </div>
                      );
                   })}
-                  <TextButton
-                     onClick={() => setDraft(d => [...(d ?? []), ['', '']])}
-                     className="inline-flex items-center gap-1 self-start text-xs"
-                  >
-                     <Icon icon={Plus} size={13} />
-                     Add a team
-                  </TextButton>
+                  <span className="self-start">
+                     <QuietButton onClick={() => setDraft(d => [...(d ?? []), ['', '']])}>
+                        <Icon icon={Plus} size={13} className="mr-1 inline align-[-2px]" />
+                        Add a team
+                     </QuietButton>
+                  </span>
                   <div className="mt-1 flex flex-wrap items-center gap-3 text-xs">
                      <PrimaryButton disabled={saving}>Save teams</PrimaryButton>
-                     <TextButton tone="quiet" onClick={cancel}>
-                        Cancel
-                     </TextButton>
+                     <QuietButton onClick={cancel}>Cancel</QuietButton>
                      <span role="status" className="text-ink-2">
                         {error}
                      </span>
                      <span className="flex-1" />
                      {from === 'saved' && (
                         // one click: its receipt above has the Undo
-                        <TextButton tone="quiet" disabled={saving} onClick={() => void save(null)}>
-                           Go back to config.js
-                        </TextButton>
+                        <QuietButton disabled={saving} onClick={() => void save(null)}>
+                           Go back to the default teams
+                        </QuietButton>
                      )}
                   </div>
                </form>
@@ -482,9 +478,13 @@ interface Column {
    fromDays?: boolean;
 }
 
+/** The columns a row's numbers sit under. The rest (PR throughput) wait in a
+ * row's opened detail, and a column joins when the list is sorted by it. */
+const MAIN_COLUMNS: readonly string[] = ['projects', 'days', 'reviewing', 'stamps'];
+
 /** Every column, each over the picked range. With no teams every PR is a
  * non-developer's, so the split by whose PR it was says nothing. */
-function columnsFor(range: Range, line: number, hasTeams: boolean): Column[] {
+function allColumns(range: Range, line: number, hasTeams: boolean): Column[] {
    const all: Column[] = [
       {
          key: 'projects',
@@ -509,12 +509,6 @@ function columnsFor(range: Range, line: number, hasTeams: boolean): Column[] {
          width: 'w-20',
          hide: 'hidden lg:block',
          fromDays: true,
-      },
-      {
-         key: 'open',
-         label: 'Open',
-         title: `Their PRs still open at the end of ${dayWords(range.end)}, drafts included`,
-         width: 'w-14',
       },
       {
          key: 'opened',
@@ -546,6 +540,12 @@ function columnsFor(range: Range, line: number, hasTeams: boolean): Column[] {
       },
    ];
    return hasTeams ? all : all.filter(c => c.key !== 'nondev');
+}
+
+function columnsFor(range: Range, line: number, hasTeams: boolean, sortKey: string): Column[] {
+   return allColumns(range, line, hasTeams).filter(
+      c => MAIN_COLUMNS.includes(c.key) || c.key === sortKey
+   );
 }
 
 /** A cell's number; empty for a zero, which reads quieter down a column. */
@@ -586,6 +586,21 @@ function Detail({
       </FactLink>
    );
    const { load, w } = row;
+   // the numbers the table leaves out, said once here
+   const more = allColumns(range, 0, hasTeams)
+      .filter(c => !MAIN_COLUMNS.includes(c.key))
+      .map(c => ({ ...c, text: cellText(row, c.key) }))
+      .filter(c => c.text);
+   const counts = more.length > 0 && (
+      <p className="m-0 mb-2 max-w-[70ch] text-ink-3">
+         {more.map((c, i) => (
+            <span key={c.key} title={c.title} className="whitespace-nowrap">
+               {i ? ' · ' : ''}
+               {c.label} {c.text}
+            </span>
+         ))}
+      </p>
+   );
    if (!load?.days) {
       // no days to split: say where their PRs were, and why there's no more
       const slugs = w?.projects ?? [];
@@ -597,30 +612,36 @@ function Detail({
          ? 'Their days didn’t load.'
          : 'Days and projects count developers only.';
       return (
-         <p className="m-0 max-w-[70ch] text-ink-3">
-            {slugs.length > 0 && (
-               <>
-                  Their PRs in the range are in{' '}
-                  {slugs.flatMap((s, i) => (i ? [', ', project(s)] : [project(s)]))}.{' '}
-               </>
-            )}
-            {why}
-         </p>
+         <>
+            {counts}
+            <p className="m-0 max-w-[70ch] text-ink-3">
+               {slugs.length > 0 && (
+                  <>
+                     Their PRs in the range are in{' '}
+                     {slugs.flatMap((s, i) => (i ? [', ', project(s)] : [project(s)]))}.{' '}
+                  </>
+               )}
+               {why}
+            </p>
+         </>
       );
    }
    const filed = load.projects.reduce((sum, p) => sum + p.days, 0);
    const oneOffs = load.days - filed - load.unfiled;
    const rest = [
-      oneOffs >= 0.05 ? `${days(devDays(oneOffs))} on ${ONE_OFFS.toLowerCase()}` : null,
+      oneOffs >= 0.05 ? `${days(devDays(oneOffs))} on small work` : null,
       load.unfiled >= 0.05
          ? `${days(devDays(load.unfiled))} on PRs ${NOT_IN_A_PROJECT.toLowerCase()}`
          : null,
    ].filter(Boolean);
    if (!load.projects.length) {
       return (
-         <p className="m-0 max-w-[70ch] text-ink-3">
-            No days on a project{rest.length ? `: ${rest.join(' and ')}` : ''}.
-         </p>
+         <>
+            {counts}
+            <p className="m-0 max-w-[70ch] text-ink-3">
+               No days on a project{rest.length ? `: ${rest.join(' and ')}` : ''}.
+            </p>
+         </>
       );
    }
    // a project they worked on this week is still theirs; one they haven't
@@ -628,6 +649,7 @@ function Detail({
    const thisWeek = mondayOf(range.end);
    return (
       <>
+         {counts}
          <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {load.projects.map(p => {
                const cell = items.get(p.slug)?.planCell;
@@ -744,7 +766,7 @@ function PeopleTable({
                   >
                      <div
                         role="cell"
-                        className="flex min-w-0 flex-1 basis-full flex-col items-start gap-0.5 sm:basis-0"
+                        className="flex min-w-0 flex-1 basis-full flex-wrap items-baseline gap-x-2 gap-y-0.5 sm:basis-0"
                      >
                         {/* pd-link stretches the click over the row; not pressable,
                             whose press scale would shrink that stretch mid-click */}
@@ -767,7 +789,7 @@ function PeopleTable({
                            <PersonCell login={row.login} me={me} />
                         </button>
                         {over && (
-                           <span id={overId} className="pl-12 text-[11px] text-warn">
+                           <span id={overId} className="text-[11px] text-warn">
                               {OVERLOADED}
                            </span>
                         )}
@@ -900,7 +922,7 @@ function PeopleList({
    };
    const sort = readSort<PersonKey>(nav.psort, PERSON_KEYS, 'projects');
    const onSort = (psort: string) => navigate({ psort });
-   const cols = columnsFor(range, line, teams.length > 0);
+   const cols = columnsFor(range, line, teams.length > 0, sort.key);
    const showEveryone = () => navigate({ only: null, find: '' });
    return (
       <section
@@ -918,7 +940,7 @@ function PeopleList({
                sub={
                   <SubDoor
                      label="How the people are counted"
-                     text={`${rangeWords(range)} · ${line} or more projects is ${OVERLOADED}`}
+                     text={`${line} or more projects is ${OVERLOADED}`}
                   >
                      <p className="m-0">
                         A developer’s projects are the ones they wrote or reviewed PRs on in the
@@ -1054,7 +1076,7 @@ function PeopleList({
                   {find
                      ? `Nobody here matches “${find}”.`
                      : `Nobody is on ${line} or more projects.`}{' '}
-                  <TextButton onClick={showEveryone}>Show everyone</TextButton>
+                  <QuietButton onClick={showEveryone}>Show everyone</QuietButton>
                </p>
             )}
          </div>
@@ -1179,9 +1201,9 @@ export function People({
                {rangeWords(range) !== rangeWords(resolveRange(DEFAULT_RANGE) as Range) && (
                   <>
                      {' '}
-                     <TextButton onClick={() => navigate({ range: DEFAULT_RANGE })}>
+                     <QuietButton onClick={() => navigate({ range: DEFAULT_RANGE })}>
                         Show the {rangeName(DEFAULT_RANGE).toLowerCase()}
-                     </TextButton>
+                     </QuietButton>
                   </>
                )}
             </p>
@@ -1199,6 +1221,8 @@ export function People({
       w => w.opened
    );
    const stamps = sum(devs(view.data), w => w.reviews);
+   const stampsBefore = view.prev ? sum(devs(view.prev), w => w.reviews) : null;
+   const versusStamps = versus(stamps, stampsBefore, beforeWords(rangeDays(shownRange)));
    const stampsOnOthers = sum(devs(view.data), w => w.reviews_on_non_dev);
    const overloaded = overloadedPeople(rows, view.line);
    const pct = (part: number, whole: number) => `${Math.round((100 * part) / whole)}%`;
@@ -1255,11 +1279,6 @@ export function People({
                      <Tile
                         value={overloaded.length}
                         label={OVERLOADED_LABEL}
-                        note={
-                           overloaded.length && overloaded.length <= 3
-                              ? andList(overloaded.map(r => r.login))
-                              : `on ${view.line} or more projects`
-                        }
                         title={`Developers who wrote or reviewed PRs on ${
                            view.line
                         } or more projects in the range: twice the developers’ median, and never under ${OVERLOAD_MIN}.${
@@ -1273,7 +1292,7 @@ export function People({
                   {hasTeams && opened > 0 && (
                      <Tile
                         value={pct(openedByOthers, opened)}
-                        label="Of PRs opened, by non-developers"
+                        label="PRs by non-developers"
                         note={`${openedByOthers} of ${opened}`}
                         title="The share of the range’s new PRs that someone outside the developer teams opened. Click to list the non-developers, most opened first."
                         onClick={() => {
@@ -1288,21 +1307,17 @@ export function People({
                      <Tile
                         value={stamps}
                         label="Stamps developers gave"
-                        note={versus(
-                           stamps,
-                           view.prev ? sum(devs(view.prev), w => w.reviews) : null,
-                           beforeWords(rangeDays(shownRange))
-                        )}
-                        title={`CR and QA stamps developers gave on other people’s PRs in the range.${
-                           stamps ? ' Click to list the people, most stamps first.' : ''
-                        }`}
+                        note={deltaWords(stamps, stampsBefore)}
+                        title={`CR and QA stamps developers gave on other people’s PRs in the range${
+                           versusStamps ? `: ${versusStamps}` : ''
+                        }.${stamps ? ' Click to list the people, most stamps first.' : ''}`}
                         onClick={stamps ? () => toList({ psort: 'stamps' }) : undefined}
                      />
                   )}
                   {hasTeams && stamps > 0 && (
                      <Tile
                         value={pct(stampsOnOthers, stamps)}
-                        label="Of those, on non-developers’ PRs"
+                        label="Stamps on non-developers’ PRs"
                         note={`${stampsOnOthers} of ${stamps}`}
                         title="How much of the developers’ stamping went to PRs from outside the developer teams. Click to list the people, most of those first."
                         onClick={() => toList({ psort: 'nondev' })}
@@ -1334,7 +1349,9 @@ export function People({
                   title="Developers and non-developers"
                   sub={
                      chartShown.start < chartPicked.start
-                        ? `${rangeWords(chartShown)}, paler before ${dayWords(chartPicked.start)}`
+                        ? `${rangeWords(chartShown)}, weeks before ${dayWords(
+                             chartPicked.start
+                          )} shown lighter`
                         : rangeWords(chartShown)
                   }
                />

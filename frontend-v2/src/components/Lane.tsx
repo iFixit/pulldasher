@@ -57,9 +57,12 @@ export function SubDoor({
    label,
    text,
    children,
+   inLine = false,
 }: {
    /** the popover's accessible name, e.g. "How the queue is ranked" */
    label: string;
+   /** part of a sentence: the sentence's size and ink, not a sub-line's */
+   inLine?: boolean;
    /** the visible sub-line sentence */
    text: string;
    children: ReactNode;
@@ -76,7 +79,9 @@ export function SubDoor({
             <button
                {...t}
                type="button"
-               className="hit rounded border-0 bg-transparent p-0 text-left text-xs text-ink-3 underline decoration-dotted underline-offset-2 hover:text-ink-2"
+               className={`hit rounded border-0 bg-transparent p-0 text-left underline decoration-dotted underline-offset-2 hover:text-ink ${
+                  inLine ? 'text-[13px] text-ink-2' : 'text-xs text-ink-3 hover:text-ink-2'
+               }`}
             >
                {text}
             </button>
@@ -461,7 +466,8 @@ export function Fold({
                            const el = detailsRef.current;
                            if (el) el.open = !el.open;
                         }}
-                        className={`hit rounded border-0 bg-transparent p-0 text-left ${
+                        // dotted, as every explanation on hover is
+                        className={`hit rounded border-0 bg-transparent p-0 text-left underline decoration-dotted underline-offset-2 ${
                            caps ? eyebrowText : 'text-[11px] font-semibold'
                         }`}
                      >

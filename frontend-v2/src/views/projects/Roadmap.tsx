@@ -30,6 +30,7 @@ import {
    checkRoadmapFields,
    DONE_WHEN_MAX,
    END_KINDS,
+   endOf,
    HEALTH_WORD,
    healthStanding,
    isStopped,
@@ -54,7 +55,6 @@ import {
    PrimaryButton,
    QuietButton,
    Segmented,
-   TextButton,
    textInputClass,
 } from '../../components/bits';
 import { Icon } from '../../components/Icon';
@@ -104,12 +104,14 @@ import {
    andList,
    BEING_WORKED_ON,
    COMMIT_THROUGH,
+   NEEDS_A_PLAN,
+   NO_PLAN_NEEDED,
+   PLAN_IT,
    DONE_WHEN,
    END_IN_A_SENTENCE,
    END_MEANS,
    END_WORD,
    NO_UPDATE_YET,
-   targetOn,
    UPDATE_DUE,
 } from '../../model/words';
 import { askOf, DecideCall, reasonWords, useCallsMadeHere } from './Decide';
@@ -168,10 +170,11 @@ const trackedBy = (linked: PortfolioItem | undefined): Tracked | null =>
 
 /** How each plan's bar reads: an outline before work starts, a fill once it
  * has, green when it's done, faint when it was dropped. How firm its end is
- * is the bar's right end: a hard end is a crisp edge, a soft end (an
- * estimate) fades out over its last stretch (SOFT_END), and ongoing work runs
- * on to the edge of the weeks shown, square there like any bar the view cuts
- * off. Dashes stay the mark of a project with no plan. */
+ * is the bar's right end: a hard end has an ink cap (HARD_CAP), a soft end
+ * (an estimate) is a plain rounded end, and ongoing work runs on to the edge
+ * of the weeks shown, square there like any bar the view cuts off, in the
+ * planned tint since it asks for nothing. A fade only ever means still going
+ * past today. Dashes stay the mark of a project with no plan. */
 const BAR_STYLE: Record<RoadmapStatus, { background: string; borderColor: string }> = {
    planned: { background: 'var(--brand-50)', borderColor: 'var(--brand)' },
    active: {
@@ -192,21 +195,13 @@ const BAR_STYLE: Record<RoadmapStatus, { background: string; borderColor: string
    },
 };
 
-/** A soft end, drawn as one: the bar's fill and edges fade out over its
- * last stretch (at most two fifths of a short bar, so it still reads as a
- * bar), so its end reads as roughly there. On the bar's own layer, so its
- * words and its resize edge stay solid. */
-const SOFT_FADE = 'linear-gradient(to right, #000 calc(100% - min(1.25rem, 40%)), transparent)';
-const SOFT_END = { maskImage: SOFT_FADE, WebkitMaskImage: SOFT_FADE };
+/** A promised end, drawn as one: a 2px ink cap on the bar's right edge. */
+const HARD_CAP = { borderRightWidth: 2, borderRightColor: 'var(--ink)' };
 
 const weekWords = dayWords;
 
 const inputClass = `px-2.5 ${textInputClass}`;
 const selectClass = `px-2 ${textInputClass}`;
-/** the label of the projects with no plan that Decide asks to plan */
-const NEEDS_A_PLAN = 'Needs a plan';
-/** and of the rest, small enough to ship without one */
-const SHIPS_WITHOUT = 'Ships without one';
 /** a row's scroll margin, so j and k (data-roadmap-row) bring it into view
  * below the sticky headers, whose height the roadmap measures */
 const rowMargin = 'scroll-mt-[calc(var(--header-h,0px)_+_var(--roadmap-stuck,0px)_+_0.5rem)]';
@@ -609,12 +604,31 @@ function Editor({
                         {/* the end kept with its word: the gap would part them */}
                         <span>
                            {draft.weeks === 1 ? 'week' : 'weeks'}
-                           <span className="text-ink-3" aria-live="polite">
-                              {runs
-                                 ? `, to ${weekWords(planEnd(draft))}`
-                                 : `: a plan runs 1 to ${MAX_WEEKS} weeks`}
-                           </span>
+                           {!runs && (
+                              <span className="text-ink-3" aria-live="polite">
+                                 {`: a plan runs 1 to ${MAX_WEEKS} weeks`}
+                              </span>
+                           )}
                         </span>
+                        {/* or the day it finishes, for anyone who knows the
+                            date and not the weeks: it lands on that week's
+                            Sunday, since plans move in whole weeks */}
+                        {runs && (
+                           <>
+                              finishing
+                              <input
+                                 type="date"
+                                 aria-label="Finishes on"
+                                 className={inputClass}
+                                 value={planEnd(draft)}
+                                 min={draft.start}
+                                 onChange={e => {
+                                    if (e.target.value)
+                                       set({ weeks: weeksThrough(draft.start, e.target.value) });
+                                 }}
+                              />
+                           </>
+                        )}
                      </>
                   )}
                </span>
@@ -622,7 +636,7 @@ function Editor({
                   <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-ink-3">
                      {COMMIT_THROUGH}
                      <Dotted>
-                        {ends.map((c, i) => {
+                        {ends.map(c => {
                            const weeks = weeksThrough(draft.start, c.end);
                            const props = {
                               // the word is a commitment: it makes the end hard
@@ -630,16 +644,12 @@ function Editor({
                               'aria-label': `${COMMIT_THROUGH} ${c.through}`,
                               title: planWords({ start: draft.start, weeks }),
                            };
-                           // in the run of words, "Commit through its target, Oct 21"
+                           // in the run of words, "Promise to finish by its target date, Oct 21"
                            const words = c.target ? c.through : c.label;
-                           return i === 0 ? (
+                           return (
                               <QuietButton key={c.end} {...props}>
                                  {words}
                               </QuietButton>
-                           ) : (
-                              <TextButton key={c.end} {...props}>
-                                 {words}
-                              </TextButton>
                            );
                         })}
                      </Dotted>
@@ -775,12 +785,9 @@ function Editor({
                <PrimaryButton disabled={saving}>
                   {item ? 'Save' : 'Add to the roadmap'}
                </PrimaryButton>
-               <TextButton tone="quiet" onClick={() => onDone()}>
-                  Cancel
-               </TextButton>
+               <QuietButton onClick={() => onDone()}>Cancel</QuietButton>
                {!more && (
-                  <TextButton
-                     tone="quiet"
+                  <QuietButton
                      aria-expanded={false}
                      aria-label="More fields: its status, team and lead, project, what it waits on, where it came from and notes"
                      onClick={() => {
@@ -791,8 +798,8 @@ function Editor({
                         );
                      }}
                   >
-                     More
-                  </TextButton>
+                     More fields
+                  </QuietButton>
                )}
                <span role="status" className="text-ink-2">
                   {error && !error.field ? error.text : ''}
@@ -893,14 +900,13 @@ function PlanPanel({
    const projectName = linked?.name ?? project;
    const term = 'text-xs leading-5 text-ink-3';
    const post = (
-      <TextButton
+      <QuietButton
          id={`roadmap-post-${item.id}`}
-         tone={updates ? 'quiet' : 'action'}
          aria-expanded={updates}
          onClick={() => onUpdates(!updates)}
       >
          {updates ? 'Close' : 'Post an update'}
-      </TextButton>
+      </QuietButton>
    );
    return (
       <div
@@ -938,9 +944,9 @@ function PlanPanel({
                   <dt className={term}>{DONE_WHEN}</dt>
                   <dd className="m-0 max-w-[70ch] text-ink-2">
                      {item.done_when || (
-                        <TextButton onClick={() => onEdit('done_when')}>
+                        <QuietButton onClick={() => onEdit('done_when')}>
                            Say when it’s done
-                        </TextButton>
+                        </QuietButton>
                      )}
                   </dd>
                </>
@@ -1015,7 +1021,7 @@ function PlanPanel({
                      ) : (
                         <>
                            None yet{' '}
-                           <TextButton onClick={() => onEdit('project')}>Pick one</TextButton>
+                           <QuietButton onClick={() => onEdit('project')}>Pick one</QuietButton>
                         </>
                      )}
                   </dd>
@@ -1054,16 +1060,15 @@ function PlanPanel({
                {item.notes ? (
                   <p className="m-0 max-w-[70ch] whitespace-pre-line">{item.notes}</p>
                ) : (
-                  <TextButton onClick={() => onEdit('notes')}>Add a note</TextButton>
+                  <QuietButton onClick={() => onEdit('notes')}>Add a note</QuietButton>
                )}
             </dd>
             <dd className={`mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs ${WIDE}`}>
-               <TextButton id={`roadmap-details-${item.id}`} onClick={() => onEdit()}>
+               <QuietButton id={`roadmap-details-${item.id}`} onClick={() => onEdit()}>
                   Edit details
-               </TextButton>
+               </QuietButton>
                {/* one click: its receipt in the row's place has the Undo */}
-               <TextButton
-                  tone="quiet"
+               <QuietButton
                   disabled={removing}
                   onClick={() => {
                      setRemoving(true);
@@ -1071,11 +1076,9 @@ function PlanPanel({
                   }}
                >
                   Remove from the roadmap
-               </TextButton>
+               </QuietButton>
                <span className="flex-1" />
-               <TextButton tone="quiet" onClick={onClose}>
-                  Close
-               </TextButton>
+               <QuietButton onClick={onClose}>Close</QuietButton>
             </dd>
          </dl>
       </div>
@@ -1166,15 +1169,15 @@ function ReceiptLine({ receipt, onOpen }: { receipt: Receipt; onOpen: (id: numbe
             {!receipt.failed && <Icon icon={Check} size={14} />}
             {receipt.words.replace(/\.$/, '')}.
          </span>
-         {open != null && <TextButton onClick={() => onOpen(open)}>Open its plan</TextButton>}
+         {open != null && <FactLink onClick={() => onOpen(open)}>Open its plan</FactLink>}
          {/* a failed Undo keeps its button, to try again */}
          {receipt.undo && (
-            <TextButton
+            <QuietButton
                onClick={receipt.undo}
                aria-label={receipt.failed ? 'Try the Undo again' : `Undo: ${receipt.words}`}
             >
                {receipt.failed ? 'Try again' : 'Undo'}
-            </TextButton>
+            </QuietButton>
          )}
       </div>
    );
@@ -1201,23 +1204,23 @@ const OVER_STYLE = {
 };
 
 /**
- * One planned item: its grip and place in the order, its name (the door to
- * its project's page, as everywhere in the tab, or to its details when it
- * tracks no project), one line of words, and its bar, which says its dates
- * and weeks inside when there's room. At rest the words are the one thing
- * the plan asks for (restWords: Decide's call, or what's owed, or its
- * health) and its lead; the rest waits in its details. The bar's form says
- * its status. A click on the bar opens the details; a drag moves the plan,
- * and a drag on its right edge (shown on hover and focus) changes the
- * length. Both snap to whole weeks, Escape puts the bar back mid-drag, and
- * with the bar focused the arrow keys do the same (Shift changes the
- * length). Every mark on the track says what it is: a plan still in flight
- * past its end grows a piece labeled "+3 wk over" up to today, fading on
- * after it since nothing says when it ends (in ink past a soft end, which
- * nothing asks about), and its milestone is a flag with its date. A bar the
- * view cuts off is square at the cut, so it reads as going on, which is how
- * ongoing work, with no end and no length to drag, always runs. A call
- * Decide asks about the plan is its one amber mark.
+ * One planned item: its place in the order and its name (the door to its
+ * project's page, as everywhere in the tab, or to its details when it
+ * tracks no project), with its grip and lead on the row's hover, and its
+ * bar. A second line only when Decide asks something (restWords), so a
+ * row's height says it wants you; the rest waits in its details. The bar's
+ * form says its status, its length on the axis its weeks; it names only an
+ * end its form can't show (Ongoing, Promised). A click on the bar opens the
+ * details; a drag moves the plan, and a drag on its right edge (shown on
+ * hover and focus) changes the length. Both snap to whole weeks, Escape
+ * puts the bar back mid-drag, and with the bar focused the arrow keys do
+ * the same (Shift changes the length). A plan still in flight past its end
+ * grows a piece labeled "3 wk overdue" up to today, fading on after it
+ * since nothing says when it ends (in ink past a soft end, which nothing
+ * asks about), and its milestone is a flag, with its date while that's
+ * ahead. A bar the view cuts off is square at the cut, so it reads as going
+ * on, which is how ongoing work, with no end and no length to drag, always
+ * runs. A call Decide asks about the plan is its one amber mark.
  */
 function PlanRow({
    item,
@@ -1229,7 +1232,6 @@ function PlanRow({
    call,
    open,
    onOpen,
-   onUpdates,
    onPerson,
    onOpenProject,
    onMove,
@@ -1250,8 +1252,6 @@ function PlanRow({
    open: boolean;
    /** open its details */
    onOpen: () => void;
-   /** open its details on its updates */
-   onUpdates: () => void;
    onPerson: (login: string) => void;
    onOpenProject: (slug: string) => void;
    /** a drag or an arrow key moved or resized it */
@@ -1271,6 +1271,9 @@ function PlanRow({
    const { horizon, at: place } = axis;
    const plan = preview ?? { start: item.start, weeks: item.weeks };
    const ongoing = item.end_kind === 'ongoing';
+   const hard = item.end_kind === 'hard';
+   // upkeep in progress recedes into the planned tint: it asks for nothing
+   const look: RoadmapStatus = ongoing && item.status === 'active' ? 'planned' : item.status;
    const end = planEnd(plan);
    const left = place(plan.start);
    // ongoing work runs on past the weeks shown
@@ -1351,40 +1354,19 @@ function PlanRow({
             : { start: addWeeks(item.start, step), weeks: item.weeks }
       );
    };
-   // one line at rest: what the plan asks for, and its lead. PR counts live
-   // on the project list, the rest in its details
+   // one line at rest, a second only when Decide asks something (or the
+   // order clashes): row height itself says "this one wants you". The lead
+   // shows on the row's hover, the rest in its details
    const lead = item.lead;
-   const rest = restWords(w, overWidth > 0);
-   const meta: ReactNode[] = [
-      rest && (
-         <FactLink
-            key="rest"
-            // what the answer in its details is read with
-            id={`roadmap-words-${item.id}`}
-            onClick={rest.opens === 'update' ? onUpdates : onOpen}
-            aria-expanded={open}
-            title={`${rest.said.title}${rest.said.title ? '\n' : ''}${
-               rest.opens === 'update'
-                  ? 'Click to see its updates and post one.'
-                  : 'Click to open its plan.'
-            }`}
-         >
-            <SaidWords said={rest.said} />
-         </FactLink>
-      ),
-      lead && (
-         <FactLink key="lead" onClick={() => onPerson(lead)} title={`Open ${lead}’s row on People`}>
-            {lead}
-         </FactLink>
-      ),
-   ];
+   const rest = restWords(w);
    const span = ongoing
       ? `from ${weekWords(plan.start)}`
       : `${weekWords(plan.start)} to ${weekWords(end)}`;
    // the bar says its status and its end by its form; in words for a hover
    // and a reader
-   const facts = `${STATUS_WORD[item.status]}, ${planWords({ ...plan, end_kind: item.end_kind })}`;
-   const length = ongoing ? END_IN_A_SENTENCE.ongoing : `${plan.weeks} wk`;
+   const facts = `${STATUS_WORD[item.status]}, ${planWords({ ...plan, end_kind: item.end_kind })}${
+      lead ? `, led by ${lead}` : ''
+   }`;
    const barText = 'text-[11px] leading-[14px] font-medium whitespace-nowrap tabular-nums';
    const name =
       'hit pressable min-w-0 rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium break-words text-ink hover:text-brand';
@@ -1394,8 +1376,8 @@ function PlanRow({
          className="border-t border-secondary first:border-t-0"
          style={dropHere ? { boxShadow: 'inset 0 2px 0 0 var(--brand)' } : undefined}
       >
-         <div className={`${rowGrid} px-3.5 py-1.5 hover:bg-muted`}>
-            <span className="flex min-w-0 items-center gap-2">
+         <div className={`group/plan ${rowGrid} px-3.5 py-1.5 hover:bg-muted`}>
+            <span className="flex min-w-0 items-start gap-2">
                <span
                   {...dragHandlers.grip}
                   id={`roadmap-grip-${item.id}`}
@@ -1405,41 +1387,66 @@ function PlanRow({
                   aria-label={`${item.name}: priority ${rank}. Drag, or use the up and down arrow keys, to change its place`}
                   title="Drag to change its priority"
                   // padded and widened by .hit to a 24px target, taking no
-                  // more room in the row
-                  className="hit -m-0.5 flex-none cursor-grab touch-none p-0.5 text-ink-3 hover:text-ink focus-visible:text-brand active:cursor-grabbing"
+                  // more room in the row. The rank already says the rows are
+                  // ordered, so the grip shows on the row's hover or focus,
+                  // and always on touch, which has no hover
+                  className="hit -m-0.5 flex-none cursor-grab leading-5 touch-none p-0.5 text-ink-3 opacity-0 transition-opacity duration-150 group-hover/plan:opacity-100 group-focus-within/plan:opacity-100 hover:text-ink focus-visible:text-brand focus-visible:opacity-100 active:cursor-grabbing motion-reduce:transition-none [@media(hover:none)]:opacity-100"
                >
                   <Icon icon={GripVertical} size={13} />
                </span>
-               <span className="w-5 flex-none text-right text-xs text-ink-3 tabular-nums">
+               <span className="w-5 flex-none text-right text-xs leading-5 text-ink-3 tabular-nums">
                   {rank}
                </span>
                <span className="flex min-w-0 flex-col">
-                  {project ? (
-                     <button
-                        type="button"
-                        data-roadmap-focus
-                        onClick={() => onOpenProject(project)}
-                        className={name}
-                        title="Open the project’s page"
+                  <span className="flex min-w-0 items-baseline gap-x-1.5">
+                     {project ? (
+                        <button
+                           type="button"
+                           data-roadmap-focus
+                           onClick={() => onOpenProject(project)}
+                           className={name}
+                           title="Open the project’s page"
+                        >
+                           {item.name}
+                        </button>
+                     ) : (
+                        // with no project page, its details are its page
+                        <button
+                           type="button"
+                           data-roadmap-focus
+                           aria-expanded={open}
+                           onClick={onOpen}
+                           className={name}
+                           title="Open its plan; it tracks no project yet"
+                        >
+                           {item.name}
+                        </button>
+                     )}
+                     {/* on the row's hover or focus, in a slot it already
+                         takes, so nothing moves; no lead says so in the plan */}
+                     {lead && (
+                        <FactLink
+                           onClick={() => onPerson(lead)}
+                           title={`Open ${lead}’s row on People`}
+                           className="pointer-events-none flex-none text-[11px] text-ink-3 opacity-0 group-hover/plan:pointer-events-auto group-hover/plan:opacity-100 group-focus-within/plan:pointer-events-auto group-focus-within/plan:opacity-100"
+                        >
+                           {lead}
+                        </FactLink>
+                     )}
+                  </span>
+                  {rest && (
+                     // plain words, dotted since their hover explains: the
+                     // bar and the name open the plan. What the answer in its
+                     // details is read with, so a reader hears the reason too
+                     <span
+                        id={`roadmap-words-${item.id}`}
+                        title={rest.title}
+                        className="self-start text-[11px] text-ink-3 underline decoration-dotted underline-offset-2"
                      >
-                        {item.name}
-                     </button>
-                  ) : (
-                     // with no project page, its details are its page
-                     <button
-                        type="button"
-                        data-roadmap-focus
-                        aria-expanded={open}
-                        onClick={onOpen}
-                        className={name}
-                        title="Open its plan; it tracks no project yet"
-                     >
-                        {item.name}
-                     </button>
-                  )}
-                  {meta.some(Boolean) && (
-                     <span className="flex min-w-0 flex-wrap gap-x-1.5 text-[11px] text-ink-3">
-                        <Dotted>{meta}</Dotted>
+                        <span className="sr-only">{rest.title}</span>
+                        <span aria-hidden>
+                           <SaidWords said={rest} />
+                        </span>
                      </span>
                   )}
                </span>
@@ -1474,33 +1481,33 @@ function PlanRow({
                      style={{ left: `${left}%`, width: `max(${right - left}%, 6px)` }}
                   >
                      {/* the bar's own layer, under its words: its form says
-                         its status, and a soft end fades out */}
+                         its status, and a promised end has an ink cap */}
                      <span
                         aria-hidden
                         className={`pointer-events-none absolute inset-x-0 -inset-y-px border-y ${
                            cutLeft ? '' : 'rounded-l-md border-l'
                         } ${cutRight ? '' : 'rounded-r-md border-r'}`}
                         style={{
-                           ...BAR_STYLE[item.status],
-                           ...(item.end_kind === 'soft' && !cutRight ? SOFT_END : {}),
+                           ...BAR_STYLE[look],
+                           ...(hard && !cutRight ? HARD_CAP : {}),
                         }}
                      />
-                     {/* the weeks, when the bar has room; the dates too, when it has more */}
-                     <span aria-hidden className="relative block overflow-hidden">
-                        <span
-                           className={`hidden px-1.5 ${barText} @min-[3.25rem]:block @min-[10.5rem]:hidden`}
-                           style={{ color: BAR_TEXT[item.status] }}
-                        >
-                           {length}
+                     {/* no weeks or dates at rest: the bar's length on the
+                         axis says them, and its hover and a drag say them in
+                         words. Only an end the form can't show is named: work
+                         that runs off the edge, and a promise's ink cap */}
+                     {(ongoing || hard) && (
+                        <span aria-hidden className="relative block overflow-hidden">
+                           <span
+                              className={`hidden px-1.5 ${barText} ${
+                                 ongoing ? '@min-[3.25rem]:block' : '@min-[6.5rem]:block'
+                              }`}
+                              style={{ color: BAR_TEXT[look] }}
+                           >
+                              {END_WORD[item.end_kind]}
+                           </span>
                         </span>
-                        <span
-                           className={`hidden px-1.5 ${barText} @min-[10.5rem]:block`}
-                           style={{ color: BAR_TEXT[item.status] }}
-                        >
-                           {span}
-                           {ongoing ? `, ${length}` : ` · ${length}`}
-                        </span>
-                     </span>
+                     )}
                      {/* the edge that changes the length, shown on hover and
                          focus so the bar says it can; above the bar's own
                          widened target. Ongoing work has no length. */}
@@ -1512,7 +1519,7 @@ function PlanRow({
                         >
                            <span
                               className="h-2.5 w-0.5 rounded-full"
-                              style={{ background: BAR_STYLE[item.status].borderColor }}
+                              style={{ background: BAR_STYLE[look].borderColor }}
                            />
                         </span>
                      )}
@@ -1595,10 +1602,14 @@ function PlanRow({
                         // near the right edge, the words go on the flag's left
                         transform: place(due) > 80 ? 'translateX(-100%)' : undefined,
                      }}
-                     title={`${targetName}, due ${weekWords(due)}. Click to open the project.`}
+                     title={`${targetName}, ${due < today ? 'was ' : ''}due ${weekWords(
+                        due
+                     )}. Click to open the project.`}
                   >
                      <Icon icon={Flag} size={11} />
-                     {targetOn(weekWords(due))}
+                     {/* a passed target is the flag alone: the overrun and
+                         Decide's question already say late */}
+                     {due >= today && `Due ${weekWords(due)}`}
                   </button>
                )}
                {preview && (
@@ -1606,7 +1617,9 @@ function PlanRow({
                      className="pointer-events-none absolute -top-3.5 z-[1] rounded bg-surface px-1 text-[11px] whitespace-nowrap text-ink-2 shadow-sm tabular-nums"
                      style={{ left: `${left}%` }}
                   >
-                     {ongoing ? `${span}, ${length}` : `${span} · ${n(plan.weeks, 'week')}`}
+                     {ongoing
+                        ? `${span}, ${END_IN_A_SENTENCE.ongoing}`
+                        : `${span} · ${n(plan.weeks, 'week')}`}
                   </span>
                )}
             </span>
@@ -1618,7 +1631,8 @@ function PlanRow({
 /**
  * A live project with no plan, on one line: the plus that opens its chooser
  * (it offers, so it shows on the row's hover or focus, and always on touch,
- * which has no hover), its name (the door to its page), its lead and open
+ * which has no hover; in Needs a plan, where planning is the point, a Plan
+ * it button that always shows), its name (the door to its page), its lead and open
  * PRs, and a dashed bar over the weeks its PRs have run, fading past today
  * since nothing says when it ends; its words go just past today when the
  * bar is too short to hold them. Dragging across its weeks plans it for
@@ -1631,6 +1645,7 @@ function InFlightRow({
    today,
    call,
    needsPlan,
+   planIt,
    choosing,
    saving,
    onChoose,
@@ -1646,6 +1661,9 @@ function InFlightRow({
    call: PlanCall | null;
    /** say Decide asks for a plan, where no fold around it says so */
    needsPlan: boolean;
+   /** in the Needs a plan lane: planning it is the point, so its button
+    * always shows */
+   planIt: boolean;
    /** its chooser is open */
    choosing: boolean;
    /** a plan for it is on its way to the server: no second one */
@@ -1715,22 +1733,27 @@ function InFlightRow({
          className={`group/row ${rowGrid} border-t border-secondary px-3.5 py-1 first:border-t-0 hover:bg-muted`}
       >
          <span className="flex min-w-0 items-baseline gap-x-2">
-            <button
-               type="button"
-               id={`roadmap-plus-${item.slug}`}
-               onClick={onChoose}
-               disabled={saving}
-               aria-expanded={choosing}
-               aria-label={`Plan ${item.name}`}
-               title={`Put ${item.name} on the roadmap`}
-               // an offer: it shows on the row's hover or focus, and stands
-               // while its chooser is open
-               className={`hit pressable flex-none self-center rounded-md border-0 bg-transparent p-0.5 text-brand transition-opacity duration-150 hover:bg-brand-50 focus-visible:opacity-100 disabled:opacity-40 group-hover/row:opacity-100 group-focus-within/row:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100 ${
-                  choosing || saving ? 'opacity-100' : 'opacity-0'
-               }`}
-            >
-               <Icon icon={Plus} size={13} />
-            </button>
+            {planIt ? (
+               // keeps the names in line with the rows that have a plus
+               <span aria-hidden className="w-[17px] flex-none" />
+            ) : (
+               <button
+                  type="button"
+                  id={`roadmap-plus-${item.slug}`}
+                  onClick={onChoose}
+                  disabled={saving}
+                  aria-expanded={choosing}
+                  aria-label={`Plan ${item.name}`}
+                  title={`Put ${item.name} on the roadmap`}
+                  // an offer: it shows on the row's hover or focus, and stands
+                  // while its chooser is open
+                  className={`hit pressable flex-none self-center rounded-md border-0 bg-transparent p-0.5 text-brand transition-opacity duration-150 hover:bg-brand-50 focus-visible:opacity-100 disabled:opacity-40 group-hover/row:opacity-100 group-focus-within/row:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100 ${
+                     choosing || saving ? 'opacity-100' : 'opacity-0'
+                  }`}
+               >
+                  <Icon icon={Plus} size={13} />
+               </button>
+            )}
             <span className="min-w-0 break-words">
                <button
                   type="button"
@@ -1754,15 +1777,20 @@ function InFlightRow({
                            </FactLink>
                         ),
                         call ? (
-                           <FactLink
+                           <span
                               key="call"
-                              // the name opens the same page from the keyboard
-                              tabIndex={-1}
-                              onClick={onOpen}
-                              title={`Decide asks: ${call.title} Click to open the project, where its call is one click.`}
+                              title={`Decide asks: ${call.title} Open the project, where you can decide in one click.`}
                            >
-                              {call.text} · <span className="text-warn">{call.question}</span>
-                           </FactLink>
+                              <FactLink
+                                 // the name opens the same page from the keyboard
+                                 tabIndex={-1}
+                                 onClick={onOpen}
+                              >
+                                 {call.text}
+                              </FactLink>
+                              {' · '}
+                              <span className="text-warn">{call.question}</span>
+                           </span>
                         ) : (
                            needsPlan && <span key="needs">{NEEDS_A_PLAN.toLowerCase()}</span>
                         ),
@@ -1779,6 +1807,20 @@ function InFlightRow({
                   </Dotted>
                </span>
             </span>
+            {planIt && (
+               <span className="ml-auto flex-none self-center">
+                  <QuietButton
+                     id={`roadmap-plus-${item.slug}`}
+                     onClick={onChoose}
+                     disabled={saving}
+                     aria-expanded={choosing}
+                     aria-label={`${PLAN_IT}: ${item.name}`}
+                     title={`Put ${item.name} on the roadmap`}
+                  >
+                     {PLAN_IT}
+                  </QuietButton>
+               </span>
+            )}
          </span>
          <span
             ref={trackRef}
@@ -1895,24 +1937,18 @@ function PlanChooser({
                         'aria-label': `Plan ${item.name} through ${c.through}`,
                         title: planWords(plan),
                      };
-                     // in the run of words, "Commit through its target, Oct 21"
+                     // in the run of words, "Promise to finish by its target date, Oct 21"
                      const words = c.target ? c.through : c.label;
-                     return i === 0 ? (
-                        <QuietButton key={c.end} autoFocus {...props}>
+                     return (
+                        <QuietButton key={c.end} autoFocus={i === 0} {...props}>
                            {words}
                         </QuietButton>
-                     ) : (
-                        <TextButton key={c.end} {...props}>
-                           {words}
-                        </TextButton>
                      );
                   })}
             </Dotted>
          </span>
          <span>Or drag across its weeks on the timeline.</span>
-         <TextButton tone="quiet" onClick={onClose}>
-            Cancel
-         </TextButton>
+         <QuietButton onClick={onClose}>Cancel</QuietButton>
       </div>
    );
 }
@@ -1942,8 +1978,10 @@ function CapacityLine({
             'developer'
          )}. Above this line, in priority order, is the work that takes all ${developers} this week: ${TEAM_LOAD_RULE}. Below it, anything ${BEING_WORKED_ON} has nobody left to staff it. Park or finish something, or drag what matters less below the line. Click to see ${team}’s decisions.`}
       >
-         Below here: more {BEING_WORKED_ON} this week than {team}’s {n(developers, 'developer')} can
-         staff
+         <span>
+            Below here: more {BEING_WORKED_ON} this week than {team}’s {n(developers, 'developer')}{' '}
+            can staff. <span className="underline underline-offset-2">See {team}’s decisions</span>
+         </span>
       </button>
    );
 }
@@ -1962,11 +2000,14 @@ function TimelineLane({
    load,
    lined,
    defaultOpen = true,
+   showCount = true,
    children,
 }: {
    id: string;
    label: string;
    count: number;
+   /** false when the label says its count in words */
+   showCount?: boolean;
    gloss: string;
    /** a team's load in words; null for none */
    load: Said | null;
@@ -1984,6 +2025,7 @@ function TimelineLane({
          defaultOpen={defaultOpen}
          label={label}
          count={count}
+         showCount={showCount}
          gloss={gloss}
          detail={
             words && (
@@ -2000,7 +2042,8 @@ function TimelineLane({
 
 /** The columns' names and the smaller marks under them (months under
  * quarters, Mondays under months, days under a week), in the sticky header.
- * A column that can fill the width is a button with a zoom glass. */
+ * A column that can fill the width is a button, its zoom glass shown on
+ * hover and focus. */
 function AxisHeader({
    columns,
    ticks,
@@ -2030,7 +2073,7 @@ function AxisHeader({
                      />
                   );
                }
-               // six quarters across a phone fit only without the year, so
+               // four quarters across a phone fit only without the year, so
                // it's said where it starts: the first column and each Q1
                const short = /^Q[2-4] \d{4}$/.test(c.label) && i > 0 ? c.label.slice(0, 2) : null;
                const label = short ? (
@@ -2048,11 +2091,13 @@ function AxisHeader({
                      onClick={() => onZoom(zoom)}
                      title={`Zoom in: fill the width with ${c.label}`}
                      // no .hit here: it sets position: relative, and this sits absolutely on the axis
-                     className={`pressable absolute top-0 inline-flex items-center gap-1 rounded-none border-0 border-l border-line bg-transparent py-0 pl-1.5 pr-0 whitespace-nowrap text-ink-2 hover:text-brand ${eyebrowText}`}
+                     className={`group/zoom pressable absolute top-0 inline-flex items-center gap-1 rounded-none border-0 border-l border-line bg-transparent py-0 pl-1.5 pr-0 whitespace-nowrap text-ink-2 hover:text-brand ${eyebrowText}`}
                      style={style}
                   >
                      {label}
-                     <span className="hidden sm:inline">
+                     {/* the name zooms; the glass says so on hover and focus,
+                         not after every name */}
+                     <span className="hidden opacity-0 group-hover/zoom:opacity-100 group-focus-visible/zoom:opacity-100 sm:inline">
                         <Icon icon={ZoomIn} size={11} />
                      </span>
                   </button>
@@ -2384,6 +2429,20 @@ export function Roadmap({
       spans,
       ahead,
    });
+   // what starts, and what should end, in the next four weeks: the chart
+   // says it in words right of today, where bars drawn from the plans could
+   // only fall
+   const fourWeeks = utcDay((dayStart(today) as number) + 28 * DAY);
+   const within = (day: string | null): day is string => !!day && day >= today && day < fourWeeks;
+   const nextWeeks = {
+      starts: ordered.flatMap(i =>
+         i.status === 'planned' && within(i.start) ? [{ name: i.name, day: i.start }] : []
+      ),
+      ends: ordered.flatMap(i => {
+         const end = endOf(i);
+         return isUnderWay(i.status) && within(end) ? [{ name: i.name, day: end }] : [];
+      }),
+   };
    const projectOptions = [...items]
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(i => ({ slug: i.slug, name: i.name, target: i.target?.due_on?.slice(0, 10) ?? null }));
@@ -2749,7 +2808,6 @@ export function Roadmap({
                   call={planCalls.get(item.id) ?? null}
                   open={isOpen}
                   onOpen={() => open(item.id, 'plan')}
-                  onUpdates={() => open(item.id, 'updates')}
                   onPerson={person}
                   onOpenProject={slug => navigate({ project: slug })}
                   onMove={to => moved(item, to)}
@@ -2833,6 +2891,7 @@ export function Roadmap({
                         call={projectCalls.get(p.slug) ?? null}
                         // the lanes have no fold that says it
                         needsPlan={lanes && asksPlan.has(p.slug)}
+                        planIt={!lanes && asksPlan.has(p.slug)}
                         choosing={choosing === p.slug}
                         saving={saving.has(p.slug)}
                         onChoose={() => setChoosing(choosing === p.slug ? null : p.slug)}
@@ -2954,8 +3013,10 @@ export function Roadmap({
          {shownPlans.length > 0 && (
             <TimelineLane
                id="roadmap:planned"
-               label="On the roadmap"
+               // "13 plans": the chart's counts above are projects this week
+               label={`On the roadmap · ${n(counted(shownPlans), 'plan')}`}
                count={counted(shownPlans)}
+               showCount={false}
                gloss={`${of(
                   counted(shownPlans),
                   ordered.length,
@@ -2978,7 +3039,7 @@ export function Roadmap({
                   needing.length,
                   unplanned.filter(p => asksPlan.has(p.slug)).length,
                   'project'
-               )} ${BEING_WORKED_ON} with no plan and big enough that Decide asks for one, longest-running first. A project’s plus plans it.`}
+               )} ${BEING_WORKED_ON} with no plan and big enough that Decide asks for one, longest-running first. Press ${PLAN_IT} on a row to plan it.`}
                load={null}
                lined={false}
             >
@@ -2988,7 +3049,7 @@ export function Roadmap({
          {everything && shipping.length > 0 && (
             <TimelineLane
                id="roadmap:ships"
-               label={SHIPS_WITHOUT}
+               label={NO_PLAN_NEEDED}
                count={shipping.length}
                gloss={`${of(
                   shipping.length,
@@ -3013,7 +3074,7 @@ export function Roadmap({
          Nothing {in_} matches
          {q ? ` “${nav.find.trim()}”` : ''}
          {timeline && picked ? ` in the week of ${weekWords(picked)}` : ''}.{' '}
-         <TextButton onClick={showAll}>Show all</TextButton>
+         <QuietButton onClick={showAll}>Show all plans</QuietButton>
       </div>
    );
    const nnlPlans = ordered.filter(found);
@@ -3052,10 +3113,10 @@ export function Roadmap({
                title="What’s planned, and when"
                sub={
                   timeline ? (
-                     <SubDoor label="How the timeline works" text="Top to bottom is priority">
+                     <SubDoor label="How the timeline works" text="Highest priority first">
                         <p className="m-0">
-                           Drag a plan’s grip, or press the up and down arrow keys on it, to change
-                           its place in the order.
+                           Point at a row for its grip and its lead. Drag the grip, or press the up
+                           and down arrow keys on it, to change its place in the order.
                         </p>
                         <p className="m-0">
                            Drag a bar to move the plan, or its right edge to change its length. With
@@ -3063,17 +3124,14 @@ export function Roadmap({
                            the length. Escape cancels a drag, and Undo takes a move back.
                         </p>
                         <p className="m-0">
-                           Click a bar to open its plan under it: Decide’s calls, its latest update,
-                           who leads it, and Edit details for the rest. A row’s words open the same,
-                           and an amber question there is a call Decide asks about that plan.
+                           Click a bar or a name to open its plan under it: Decide’s questions, its
+                           latest update, who leads it, and Edit details for the rest. An amber
+                           question on a row is a decision Decide asks for about that plan; point at
+                           it for why.
                         </p>
                         <p className="m-0">
-                           The load chart counts the plans and projects {BEING_WORKED_ON} each week:
-                           up to today from their PRs, open or merged or closed that week; after it,
-                           if nothing changes, the plans and the work with no plan big enough to
-                           need one. Small work with no plan drops off at today, since it ships
-                           without one. Each count, and a week’s bar, narrows the rows to what it
-                           counts in that week.
+                           The bars count the plans and projects {BEING_WORKED_ON} each week, from
+                           their PRs. Click a week to see only what was {BEING_WORKED_ON} then.
                         </p>
                         <p className="m-0">
                            Grouped by team, a lane counts what its developers have on this week:{' '}
@@ -3233,9 +3291,7 @@ export function Roadmap({
                >
                   <span className="text-ink-2">{problem}</span>
                   <span className="flex-1" />
-                  <TextButton tone="quiet" onClick={dismissRoadmapProblem}>
-                     Dismiss
-                  </TextButton>
+                  <QuietButton onClick={dismissRoadmapProblem}>Dismiss</QuietButton>
                </div>
             )}
             {timeline && loaded && (
@@ -3268,6 +3324,7 @@ export function Roadmap({
                   at={place}
                   todayAt={axis.todayAt}
                   when={today < horizon.start ? 'future' : today >= horizon.end ? 'past' : 'both'}
+                  ahead={nextWeeks}
                   rowGrid={rowGrid}
                   picked={picked}
                   onPick={week => navigate({ week })}
@@ -3312,12 +3369,12 @@ export function Roadmap({
                      laneTitles={lanes ? laneTitles : null}
                      today={today}
                      calls={planCalls}
+                     unplanned={unplanned.length}
                      onOpen={id => openFromReceipt(id)}
-                     onUpdates={id => {
-                        setPanel('updates');
-                        navigate(openPlan(nav, id));
-                     }}
                      onPerson={person}
+                     onTimeline={() =>
+                        navigate({ scale: 'quarter', zoom: null, show: 'unplanned' })
+                     }
                   />
                )}
             </>

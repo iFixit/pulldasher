@@ -35,8 +35,8 @@ import type { ProjectWorker } from './retro';
 import {
    ALL_ISSUES_CLOSED,
    BEING_WORKED_ON,
-   LAST_14_DAYS,
    missedTarget,
+   NEEDS_A_PLAN,
    NO_PLAN,
    NO_UPDATE_YET,
    pastEnd,
@@ -215,10 +215,10 @@ function callWords(reason: DecideReason): Pick<PlanCell, 'kind' | 'text'> {
       case 'reopened':
          return {
             kind: 'reopened',
-            text: `${reason.as === 'dropped' ? 'Dropped' : 'Done'}, still taking PRs`,
+            text: `${reason.as === 'dropped' ? 'Dropped' : 'Done'}, still worked on`,
          };
       case 'issue_closed':
-         return { kind: 'issue_closed', text: 'Issue closed, plan open' };
+         return { kind: 'issue_closed', text: 'Issue closed, plan still going' };
       case 'moving':
          return { kind: 'moving', text: 'Parked, still worked on' };
       case 'off_track':
@@ -234,7 +234,7 @@ function callWords(reason: DecideReason): Pick<PlanCell, 'kind' | 'text'> {
       case 'stalled':
          return { kind: 'stalled', text: 'Stalled' };
       case 'new':
-         return { kind: 'no_plan', text: NO_PLAN };
+         return { kind: 'no_plan', text: NEEDS_A_PLAN };
    }
 }
 
@@ -283,7 +283,7 @@ export function planCell(
       const calm = { warn: false, planId: plan.id };
       // a soft end run past: drift, in ink, the newer fact than an old "On track"
       if (end && end < day) {
-         return { kind: 'past_end', text: pastEnd(weeksPast(end, day)), ...calm };
+         return { kind: 'past_end', text: pastEnd(weeksPast(end, day), 'soft'), ...calm };
       }
       if (update) return { kind: 'on_track', text: HEALTH_WORD.on_track, ...calm };
       if (plan.start > day)
@@ -431,7 +431,7 @@ export function portfolioItems(
 }
 
 /** How a project is behind (`behind`), in the words its row uses: "Off
- * track", "3 weeks past its end", "Missed its Sep 26 target"; null when it
+ * track", "3 weeks overdue", "Missed its Sep 26 target date"; null when it
  * isn't. */
 export function behindWords(
    item: Pick<PortfolioItem, 'behind' | 'plan' | 'target'>,
@@ -443,7 +443,7 @@ export function behindWords(
       case 'past_end': {
          // `behind` reads the plan under way, which is the one planFor gives
          const end = item.plan && endOf(item.plan);
-         return end && pastEnd(weeksPast(end, day));
+         return end && pastEnd(weeksPast(end, day), item.plan?.end_kind);
       }
       case 'missed':
          return item.target?.due_on ? missedTarget(dayWords(item.target.due_on)) : null;
@@ -515,7 +515,7 @@ export function isYours(
  * being worked on, named for the URLs shared before parked had a tab of
  * its own. Parked or finished work Decide asks about shows in two. */
 export const STATUS_FILTERS: [string, string][] = [
-   ['live', `${upperFirst(BEING_WORKED_ON)}, ${LAST_14_DAYS}`],
+   ['live', upperFirst(BEING_WORKED_ON)],
    ['parked', 'Parked'],
    ['quiet', 'Quiet'],
    ['closed', 'Done or dropped'],

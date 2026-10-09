@@ -145,10 +145,14 @@ describe('issueStanding', () => {
 
 describe('holderWords', () => {
    it('names who holds a PR, and how long it’s been open once that’s past the warning', () => {
-      expect(holderWords(dp(1, 'draft', { author: 'mlahargou' }))).toBe('with mlahargou');
-      expect(holderWords(dp(1, 'ready', { author: 'mlahargou' }))).toBe('with mlahargou');
+      expect(holderWords(dp(1, 'draft', { author: 'mlahargou' }))).toBe(
+         'mlahargou is working on it'
+      );
+      expect(holderWords(dp(1, 'ready', { author: 'mlahargou' }))).toBe(
+         'mlahargou is working on it'
+      );
       const turns = new Map([['iFixit/ifixit#2', 'erin']]);
-      expect(holderWords(dp(2, 'needs_cr'), { turns })).toBe('erin’s turn');
+      expect(holderWords(dp(2, 'needs_cr'), { turns })).toBe('erin’s turn to review');
       expect(holderWords(dp(3, 'needs_cr'), { turns })).toBe('needs a reviewer');
       expect(holderWords(dp(3, 'needs_qa'))).toBe('needs a tester');
       // a named person holds it before anyone's turn does
@@ -161,11 +165,13 @@ describe('holderWords', () => {
       expect(holderWords(dp(4, 'deploy_block', { deployBlockedBy: ['sctice'] }))).toBe(
          'deploy hold by sctice'
       );
-      expect(holderWords(dp(5, 'ready', { cryo: true }))).toBe('parked');
+      expect(holderWords(dp(5, 'ready', { cryo: true }))).toBe('paused');
       expect(holderWords(dp(1, 'draft', { ageDays: 38.6 }), { ageWarnDays: 14 })).toBe(
-         'with dana, PR open 38 days'
+         'dana is working on it, PR open 38 days'
       );
-      expect(holderWords(dp(1, 'draft', { ageDays: 3 }), { ageWarnDays: 14 })).toBe('with dana');
+      expect(holderWords(dp(1, 'draft', { ageDays: 3 }), { ageWarnDays: 14 })).toBe(
+         'dana is working on it'
+      );
    });
 
    it('names who took a PR to review, as its row does', () => {
@@ -187,10 +193,12 @@ describe('holderWords', () => {
    it('starts a line with a capital, but never changes a login', () => {
       const turns = new Map([['iFixit/ifixit#2', 'andyg0808']]);
       expect(holderWords(dp(1, 'draft', { author: 'mlahargou' }), { line: true })).toBe(
-         'With mlahargou'
+         'mlahargou is working on it'
       );
       expect(holderWords(dp(3, 'needs_cr'), { line: true })).toBe('Needs a reviewer');
-      expect(holderWords(dp(2, 'needs_cr'), { turns, line: true })).toBe('andyg0808’s turn');
+      expect(holderWords(dp(2, 'needs_cr'), { turns, line: true })).toBe(
+         'andyg0808’s turn to review'
+      );
       expect(holderWords(dp(3, 'needs_qa', { qaingLogin: 'jrodger312' }), { line: true })).toBe(
          'jrodger312 is testing it'
       );
@@ -204,9 +212,9 @@ describe('holderWords', () => {
       // who it waits on, and what holds it, the row doesn't say
       const turns = new Map([['iFixit/ifixit#2', 'erin']]);
       expect(holderWords(dp(2, 'needs_cr', { ageDays: 38 }), { ...onRow, turns })).toBe(
-         'erin’s turn'
+         'erin’s turn to review'
       );
-      expect(holderWords(dp(5, 'ready', { cryo: true }), onRow)).toBe('parked');
+      expect(holderWords(dp(5, 'ready', { cryo: true }), onRow)).toBe('paused');
    });
 });
 
@@ -231,13 +239,13 @@ describe('lateWords', () => {
       const plans = [plan({})];
       // the plan's last day is Aug 30
       expect(lateWords(at('2026-08-30'), plans)).toBeNull();
-      expect(lateWords(at('2026-09-02'), plans)).toBe('opened after the plan ended');
+      expect(lateWords(at('2026-09-02'), plans)).toBe('opened after the end date');
       expect(lateWords(null, plans)).toBeNull();
    });
 
    it('says it opened after the plan was marked done, not after it ended', () => {
       const done = plan({ status: 'done', status_at: at('2026-09-10') });
-      expect(lateWords(at('2026-09-05'), [done])).toBe('opened after the plan ended');
+      expect(lateWords(at('2026-09-05'), [done])).toBe('opened after the end date');
       expect(lateWords(at('2026-09-12'), [done])).toBe('opened after it was marked done');
       expect(lateWords(at('2026-09-12'), [{ ...done, status: 'dropped' }])).toBe(
          'opened after it was dropped'

@@ -14,7 +14,7 @@ import {
    type ProjectWork,
    type SuggestedIssue,
 } from '../../../../shared/model/work';
-import { ClosedBadge, FactLink, LoadFailed, TextButton } from '../../components/bits';
+import { ClosedBadge, FactLink, LoadFailed, QuietButton } from '../../components/bits';
 import { ClosedRow } from '../../components/ClosedRow';
 import { RefChip } from '../../components/GitHubRef';
 import { Icon } from '../../components/Icon';
@@ -60,11 +60,11 @@ const upperFirst = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 /** what each stage's band means, on hovering its name */
 const STAGE_GLOSS: Record<IssueStage, string> = {
-   ready: 'Its PRs are signed off: what’s left is merging them',
-   hold: 'A PR of it is parked, blocked outside the repo, or signed off and held for a deploy',
-   review: 'A PR of it is waiting on a code review or on QA',
-   work: 'A PR of it is a draft, blocked, failing CI, signed off but in conflict, or has changes asked for',
-   merged: 'Its PRs merged and the issue is still open: close it, or more work is coming',
+   ready: 'Its PRs are signed off and just need merging',
+   hold: 'A PR is paused, blocked outside the repo, or signed off and waiting on a deploy',
+   review: 'A PR is waiting on code review or QA',
+   work: 'A PR still needs work: a draft, failing CI, conflicts, or changes asked for',
+   merged: 'Its PRs merged but the issue is still open: close it, or more work is coming',
    none: 'No PR links it yet',
    done: 'Closed as completed',
    dropped: 'Closed as not planned or as a duplicate',
@@ -73,7 +73,7 @@ const STAGE_GLOSS: Record<IssueStage, string> = {
 /** what each stage's band means for a PR that does no issue here */
 const PR_GLOSS: Record<PrStage, string> = {
    ready: 'Signed off: what’s left is merging it',
-   hold: 'Parked, blocked outside the repo, or signed off and held for a deploy',
+   hold: 'Paused, blocked outside the repo, or signed off and held for a deploy',
    review: 'Waiting on a code review or on QA',
    work: 'A draft, blocked, failing CI, signed off but in conflict, or has changes asked for',
 };
@@ -85,7 +85,7 @@ export interface PullLookup {
    known: (ref: IssueRef) => PullData | undefined;
 }
 
-/** Which band of "PRs with no issue here" a PR sits in: an open one by
+/** Which band of "PRs not tied to an issue" a PR sits in: an open one by
  * where it stands (one the board can't read counts as in development),
  * and the merged and closed ones together. */
 const unlinkedBand = (pr: IssuePull, live: PullLookup['live']): PrStage | 'closed' => {
@@ -183,7 +183,7 @@ function PullLine({ pr, repoShown }: { pr: IssuePull; repoShown: boolean }) {
                className="text-xs font-medium text-ink-2 hover:text-brand hover:underline"
             >
                PR #{pr.number}
-               {repoShown && ` in ${shortRepo(pr.repo)}`}
+               {repoShown && ` in ${shortRepo(pr.repo)}`} ↗
             </a>
          )}
          <span className="text-xs text-ink-3">
@@ -350,7 +350,7 @@ function PullRef({ pr, repoShown }: { pr: IssueRef; repoShown: boolean }) {
          className="text-ink-2 underline decoration-line underline-offset-2 hover:text-brand"
       >
          PR #{pr.number}
-         {repoShown && ` in ${shortRepo(pr.repo)}`}
+         {repoShown && ` in ${shortRepo(pr.repo)}`} ↗
       </a>
    );
 }
@@ -439,20 +439,16 @@ function Receipt({
       <p className="m-0 flex max-w-[70ch] flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-ink-2">
          <span aria-hidden>{words}</span>
          {onUndo && (
-            <TextButton autoFocus={focus} onClick={onUndo} aria-label={undoLabel}>
+            <QuietButton autoFocus={focus} onClick={onUndo} aria-label={undoLabel}>
                Undo
-            </TextButton>
+            </QuietButton>
          )}
          {onRetry && (
-            <TextButton autoFocus={focus} onClick={onRetry}>
+            <QuietButton autoFocus={focus} onClick={onRetry}>
                Try again
-            </TextButton>
+            </QuietButton>
          )}
-         {onCancel && (
-            <TextButton tone="quiet" onClick={onCancel}>
-               Cancel
-            </TextButton>
-         )}
+         {onCancel && <QuietButton onClick={onCancel}>Cancel</QuietButton>}
       </p>
    );
 }
@@ -511,7 +507,7 @@ function IssueLine({
    navigate: Navigate;
    /** which shown issue draws each PR's board row: its first on the page */
    rowOwner: ReadonlyMap<string, string>;
-   /** the section's last "Show all PRs" or "Hide all PRs", which every
+   /** the section's last "Expand all issues" or "Collapse all issues", which every
     * line follows */
    all: { open: boolean } | null;
 }) {
@@ -608,13 +604,13 @@ function IssueLine({
                         // screens
                         <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover/issue:opacity-100 max-[719px]:opacity-100 [@media(hover:none)]:opacity-100">
                            <span aria-hidden> · </span>
-                           <TextButton
+                           <QuietButton
                               onClick={onRemove}
                               autoFocus={focusRemove}
                               aria-label={`Remove #${issue.ref.number} from this project`}
                            >
                               Remove
-                           </TextButton>
+                           </QuietButton>
                         </span>
                      )}
                      {offOnGitHub && (
@@ -631,9 +627,9 @@ function IssueLine({
                               tabIndex={-1}
                               aria-hidden
                               title={`Take the ${label} label off it there`}
-                              className="font-medium text-brand hover:underline"
+                              className="font-medium text-brand underline decoration-line underline-offset-2 hover:text-brand"
                            >
-                              Remove on GitHub
+                              Remove label on GitHub ↗
                            </a>
                         </span>
                      )}
@@ -653,14 +649,15 @@ function IssueLine({
             </div>
             <span className="text-xs text-ink-2">{who}</span>
             {has ? (
-               <FactLink
+               <button
+                  type="button"
                   aria-expanded={shown}
                   // named for its issue, since a list of "1 PR" buttons can't be
                   // told apart out of context
                   aria-label={`${door}, for #${issue.ref.number} ${issue.title}`}
                   data-row-focus
                   onClick={() => setShown(!shown)}
-                  className="inline-flex items-center gap-1 justify-self-start text-xs @min-[720px]:justify-self-end"
+                  className="hit pressable inline-flex items-center gap-1 justify-self-start rounded border-0 bg-transparent p-0 text-xs text-ink-2 hover:text-brand @min-[720px]:justify-self-end"
                >
                   <Icon
                      icon={ChevronRight}
@@ -669,8 +666,8 @@ function IssueLine({
                         shown ? 'rotate-90' : ''
                      }`}
                   />
-                  {door}
-               </FactLink>
+                  {shown ? 'Hide' : 'Show'} {door}
+               </button>
             ) : (
                <span />
             )}
@@ -781,7 +778,7 @@ export function ProjectWorkSections({
    // the issue just added, to flash once it shows
    const [landed, setLanded] = useState<string | null>(null);
    const opened = useRef<string | null>(null);
-   // the last "Show all PRs" or "Hide all PRs"
+   // the last "Expand all issues" or "Collapse all issues"
    const [all, setAll] = useState<{ open: boolean } | null>(null);
    const choices = useFoldChoices();
    // an issue line lands on its PR count (or its title), a PR on its title
@@ -1055,7 +1052,7 @@ export function ProjectWorkSections({
                   // the sub-line is the door to how the list is built; an empty
                   // list says how below
                   counts?.total ? (
-                     <SubDoor label="What’s on this list" text="by where they stand">
+                     <SubDoor label="What’s on this list" text="grouped by how close to done">
                         <p className="m-0">
                            Its issues are the ones with the {label} label on GitHub, the ones added
                            here, and the ones its PRs link that no other project has, which join on
@@ -1076,18 +1073,22 @@ export function ProjectWorkSections({
                headerExtra={
                   <span className="flex items-center gap-4 text-xs">
                      {withPrs.length > 1 && (
-                        <TextButton onClick={() => setAll({ open: !allShown })}>
-                           {allShown ? 'Hide all PRs' : 'Show all PRs'}
-                        </TextButton>
+                        <QuietButton
+                           onClick={() => setAll({ open: !allShown })}
+                           aria-expanded={allShown}
+                        >
+                           {allShown ? 'Collapse all issues' : 'Expand all issues'}
+                        </QuietButton>
                      )}
-                     <TextButton
-                        tone={adding ? 'quiet' : 'action'}
+                     {/* a button that looks like one: it opens a box to find
+                         an issue and puts it in this project */}
+                     <QuietButton
                         onClick={() => setAdding(!adding)}
                         aria-expanded={adding}
                         aria-keyshortcuts={adding ? undefined : 'a'}
                      >
-                        {adding ? 'Close' : 'Add an issue'}
-                     </TextButton>
+                        {adding ? 'Close' : '+ Add an issue'}
+                     </QuietButton>
                   </span>
                }
             />
@@ -1119,7 +1120,7 @@ export function ProjectWorkSections({
                      'Find one above, or'
                   ) : (
                      <>
-                        <TextButton onClick={() => setAdding(true)}>Add one</TextButton>, or
+                        <QuietButton onClick={() => setAdding(true)}>Add one</QuietButton>, or
                      </>
                   )}{' '}
                   give an issue the {label} label on GitHub: the label that puts PRs in this
@@ -1131,7 +1132,7 @@ export function ProjectWorkSections({
             <section id="project-unlinked" className="mb-7 scroll-mt-28">
                <GroupHeader
                   level={3}
-                  title={issues.length ? 'PRs with no issue here' : 'Its PRs'}
+                  title={issues.length ? 'PRs not tied to an issue' : 'Its PRs'}
                   sub={
                      <SubDoor
                         label="Which PRs are here"
@@ -1238,7 +1239,7 @@ export function ProjectWorkSections({
                                        rel="noopener noreferrer"
                                        className="min-w-0 break-words text-ink hover:text-brand hover:underline"
                                     >
-                                       {issue.title}
+                                       {issue.title} ↗
                                     </a>
                                  )}
                                  {/* where it is now, which is why it didn't join */}
@@ -1260,7 +1261,7 @@ export function ProjectWorkSections({
                               </span>
                               <span className="ml-auto">
                                  {receipt ?? (
-                                    <TextButton
+                                    <QuietButton
                                        // its line stays, saying it was added, and
                                        // the focus moves to its Undo
                                        onClick={() =>
@@ -1283,10 +1284,9 @@ export function ProjectWorkSections({
                                           key === k
                                        }
                                        aria-label={`Add #${issue.number} to this project`}
-                                       className="text-xs"
                                     >
                                        Add
-                                    </TextButton>
+                                    </QuietButton>
                                  )}
                               </span>
                            </div>

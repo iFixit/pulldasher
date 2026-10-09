@@ -6,7 +6,6 @@ import {
    useRef,
    useState,
    type KeyboardEvent as ReactKeyboardEvent,
-   type ReactNode,
 } from 'react';
 import { Check } from 'lucide-react';
 import { epoch, issueUrl, n } from '../../../../shared/format';
@@ -51,7 +50,6 @@ import {
    PrimaryButton,
    QuietButton,
    Segmented,
-   TextButton,
    textInputClass,
 } from '../../components/bits';
 import { Icon } from '../../components/Icon';
@@ -75,7 +73,7 @@ import {
    IN_PROGRESS,
    LAST_14_DAYS,
    missedTarget,
-   NO_PLAN,
+   NEEDS_A_PLAN,
    noPrActivity,
    ONGOING,
    pastEnd,
@@ -98,7 +96,6 @@ import {
    openPageAt,
    openPlan,
    ORIGIN_OPTIONS,
-   PeopleStack,
    targetWords,
    type Navigate,
    type ProjectsNav,
@@ -121,7 +118,11 @@ export function decideRows(
       planCounts: new Map(
          [...(work?.plans ?? [])].map(([id, w]) => [
             id,
-            { openPulls: w.openPulls, afterEnd: w.afterEnd.length, afterDone: w.afterDone.length },
+            {
+               openPulls: w.openPulls,
+               afterEnd: w.afterEnd.length,
+               afterDone: w.afterDone.length,
+            },
          ])
       ),
       issues: work?.projects,
@@ -133,37 +134,37 @@ export function decideRows(
 
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
-/** What "It’s ongoing" is for, said where each section that offers it
+/** What "Mark ongoing" is for, said where each section that offers it
  * explains itself, since a title on the button is missed by touch and
  * screen readers. */
-const ONGOING_HELP = `${ONGOING} is for upkeep with no finish line. Work that ends but can’t be sized: commit through a month, and Decide checks in when it ends.`;
+const ONGOING_HELP = `${ONGOING} is for upkeep with no finish line. For work that ends but can’t be sized, promise a month, and Decide checks in when it ends.`;
 
 /** The queue's sections, worst first, as decide.ts ranks them: the reasons
- * each holds, its title, the line under it (how its rows are ordered, where
- * they are, else what they share), and what that line opens to. A row sits
- * in the first section any of its reasons names. */
-const SECTIONS: { kinds: DecideReason['kind'][]; title: string; sub: string; more: string[] }[] = [
+ * each holds, its title, and what lands there and in what order, for the
+ * title's hover. A row sits in the first section any of its reasons names. */
+const SECTIONS: {
+   kinds: DecideReason['kind'][];
+   title: string;
+   more: string[];
+}[] = [
    {
       kinds: ['reopened'],
-      title: 'Done or dropped, but still being worked on',
-      sub: 'A week after the call',
+      title: 'Done or dropped, still worked on',
       more: [
-         'Marked done or dropped, on the roadmap or by closing its issue, but a week later a PR is still open, or a new PR opened more than a week after it was marked.',
+         'Marked done or dropped, on the roadmap or by closing its issue, but a week after that a PR is still open, or a new PR opened more than a week after it was marked.',
          ONGOING_HELP,
       ],
    },
    {
       kinds: ['issue_closed'],
-      title: 'Issue closed, plan still open',
-      sub: 'Closed after the plan last changed',
+      title: 'Issue closed, plan still going',
       more: [
          'Its issue was closed after the plan last changed, and the plan still says it’s going.',
       ],
    },
    {
       kinds: ['moving'],
-      title: 'Parked, but still being worked on',
-      sub: 'PRs moved after it was parked',
+      title: 'Parked, still worked on',
       more: [
          'Its PRs had activity after it was parked: a push, a person’s comment, stamp or review, opening or merging.',
       ],
@@ -171,29 +172,25 @@ const SECTIONS: { kinds: DecideReason['kind'][]; title: string; sub: string; mor
    {
       kinds: ['off_track'],
       title: 'Off track',
-      sub: 'Its latest update says so',
       more: ['Its latest update says off track, and the plan hasn’t changed since.'],
    },
    {
       kinds: ['missed'],
-      title: 'Missed its target',
-      sub: 'PRs still open after the date',
+      title: 'Missed its target date',
       more: [
          'The target date on its issue passed with PRs still open, and the plan hasn’t changed since.',
       ],
    },
    {
       kinds: ['over', 'ended'],
-      title: 'Past its end',
-      sub: 'Still taking PRs first, then the longest overdue',
+      title: 'Overdue',
       more: [
-         'Its hard end has passed: the end someone committed to. A soft end is an estimate, never asked about, and ongoing work has none. The ones still taking new PRs come first, then the longest overdue.',
+         'Its promised end date has passed. An estimated end date is never asked about, and ongoing work has none. The ones still getting new PRs come first, then the longest overdue.',
       ],
    },
    {
       kinds: ['issues_done'],
       title: ALL_ISSUES_CLOSED,
-      sub: 'Since the plan last changed',
       more: [
          'Every issue in the project is closed, and the plan hasn’t changed since the last one closed.',
       ],
@@ -201,23 +198,20 @@ const SECTIONS: { kinds: DecideReason['kind'][]; title: string; sub: string; mor
    {
       kinds: ['stalled'],
       title: 'Stalled',
-      sub: `${noPrActivity(STALL_DAYS)} or more, the longest quiet first`,
       more: [
          `PRs still open, ${lowerFirst(
             noPrActivity(STALL_DAYS)
-         )} or more, and no call in that time. Activity is real work: a push, a person’s comment, stamp or review, opening or merging. The longest quiet come first.`,
+         )} or more, and no decision in that time. Activity is real work: a push, a person’s comment, stamp or review, opening or merging. The oldest activity comes first.`,
       ],
    },
    {
       kinds: ['at_risk'],
       title: 'At risk',
-      sub: 'Its latest update says so',
       more: ['Its latest update says at risk, and the plan hasn’t changed since.'],
    },
    {
       kinds: ['new'],
-      title: NO_PLAN,
-      sub: `${DECIDE_MIN_PRS} or more PRs, the longest open first`,
+      title: NEEDS_A_PLAN,
       more: [
          `${DECIDE_MIN_PRS} or more PRs open or merged in the ${LAST_14_DAYS}, some still open, and no plan yet. Smaller work ships without one unless it stalls. The ones open longest come first.`,
          ONGOING_HELP,
@@ -250,36 +244,39 @@ export type Call =
 
 /** The question that asks a plan to end later: its answers are only ends
  * after the one it has. */
-const NEW_END = 'New end?';
+const NEW_END = 'Move the end date?';
 
 /** The question a reason asks, and the call that answers yes. */
-export function askOf(reason: DecideReason): { question: string; call: Call['kind'] } {
+export function askOf(reason: DecideReason): {
+   question: string;
+   call: Call['kind'];
+} {
    switch (reason.kind) {
       case 'new':
-         // asked in the answer's own verb: "Commit through End of Oct"
-         return { question: 'Commit to it?', call: 'commit' };
+         // answered under "Promise to finish by": "End of Oct"
+         return { question: 'When will it finish?', call: 'commit' };
       case 'stalled':
-         return { question: 'Park it?', call: 'park' };
+         return { question: 'Park it for now?', call: 'park' };
       case 'over':
       case 'missed':
       case 'off_track':
       case 'at_risk':
          return { question: NEW_END, call: 'commit' };
       case 'moving':
-         return { question: 'Back on?', call: 'commit' };
+         return { question: 'Restart it?', call: 'commit' };
       case 'ended':
-         return { question: 'Done?', call: 'done' };
+         return { question: 'Is it done?', call: 'done' };
       case 'issue_closed':
          return reason.as === 'done'
-            ? { question: 'Done?', call: 'done' }
-            : { question: 'Drop it?', call: 'drop' };
+            ? { question: 'Mark the plan done too?', call: 'done' }
+            : { question: 'Drop the plan too?', call: 'drop' };
       case 'reopened':
          return reason.as === 'done'
-            ? { question: 'Still done?', call: 'done' }
-            : { question: 'Still dropped?', call: 'drop' };
+            ? { question: 'Is it still done?', call: 'done' }
+            : { question: 'Is it still dropped?', call: 'drop' };
       case 'issues_done':
          return reason.done
-            ? { question: 'Done?', call: 'done' }
+            ? { question: 'Is it done?', call: 'done' }
             : { question: 'Drop it?', call: 'drop' };
    }
 }
@@ -288,7 +285,7 @@ export function askOf(reason: DecideReason): { question: string; call: Call['kin
  * that's ahead, then the coming months and quarters, none before the plan
  * starts. An end that leaves a plan under way with the hard end it has
  * would only stamp it changed, so it isn't one, while the same end on a
- * soft one commits to its estimate; a row asking "New end?" offers only the
+ * soft one commits to its estimate; a row asking "Move the end date?" offers only the
  * ends that move it later, and ongoing work, with no end, any of them. */
 export function endsFor(
    row: DecideRow,
@@ -309,7 +306,7 @@ export function endsFor(
 }
 
 /**
- * The call a row's outlined answer makes, safe to take without reading the
+ * The call a row's suggested answer makes, safe to take without reading the
  * rest: the one its question asks, a commit going through its target while
  * that's ahead, else through the nearest end, never one that ends its plan
  * sooner. Null when there's none to outline: a row nobody asked about (a
@@ -332,7 +329,7 @@ export function answerOf(
 }
 
 const VERBS: Record<Call['kind'], [string, string]> = {
-   commit: ['Commit', 'Committed'],
+   commit: ['Promise', 'Promised'],
    park: ['Park', 'Parked'],
    done: ['Mark', 'Marked'],
    drop: ['Drop', 'Dropped'],
@@ -340,10 +337,10 @@ const VERBS: Record<Call['kind'], [string, string]> = {
 };
 
 /**
- * What one click on a section does to its rows, or did: "Commit all 52
- * through the end of Oct", "Committed 52 through the end of Oct". Rows
- * whose answers differ say each one and how many ("Commit 5 through the
- * end of Oct and mark 3 done"), and rows going through their own targets
+ * What one click on a section does to its rows, or did: "Promise all 52
+ * by the end of Oct", "Promised 52 by the end of Oct". Rows whose answers
+ * differ say each one and how many ("Promise 5 by the end of Oct and mark
+ * 3 done"), and rows going through their own target dates
  * count together.
  */
 export function bulkWords(made: readonly Call[], tense: 'do' | 'did'): string {
@@ -360,16 +357,40 @@ export function bulkWords(made: readonly Call[], tense: 'do' | 'did'): string {
       const verb = VERBS[call.kind][tense === 'do' ? 0 : 1];
       const tail =
          call.kind === 'commit'
-            ? ` through ${call.target && count > 1 ? 'their targets' : call.through}`
+            ? ` by ${call.target && count > 1 ? 'their target dates' : call.through}`
             : call.kind === 'done' || call.kind === 'ongoing'
             ? ` ${call.kind}`
             : '';
-      // "Commit 40 through the end of Oct and 12 through their targets"
+      // "Promise 40 by the end of Oct and 12 by their target dates"
       const head = verb === said ? '' : `${i ? verb.toLowerCase() : verb} `;
       said = verb;
       return `${head}${all}${count}${tail}`;
    });
    return andList(parts);
+}
+
+/** The suggested answer in a verb that says what it does, given where the
+ * plan already stands: "Keep it done" on a plan that's done. */
+export function answerWords(call: Call, plan: RoadmapItem | null): string {
+   const now = plan?.status;
+   switch (call.kind) {
+      case 'commit': {
+         const day = dayWords(call.end);
+         return !plan
+            ? `Promise to finish by ${day}`
+            : now === 'parked' || now === 'done' || now === 'dropped'
+            ? `Restart, finishing by ${day}`
+            : `Move the end date to ${day}`;
+      }
+      case 'park':
+         return now === 'parked' ? 'Keep it parked' : 'Park';
+      case 'done':
+         return now === 'done' ? 'Keep it done' : 'Mark done';
+      case 'drop':
+         return now === 'dropped' ? 'Keep it dropped' : 'Drop';
+      case 'ongoing':
+         return 'Mark ongoing';
+   }
 }
 
 /**
@@ -384,26 +405,26 @@ function reasonFacts(reason: DecideReason, item: RoadmapItem | null, bare = fals
       }
       case 'stalled':
          return noPrActivity(reason.days);
-      case 'over': {
-         const after = reason.since ? `, and ${n(reason.since, 'PR')} opened after it ended` : '';
-         return bare && item
-            ? `Ended ${dayWords(planEnd(item))} with PRs still open${after}`
-            : `PRs still open ${pastEnd(reason.weeks)}${after}`;
-      }
+      case 'over':
+         // short form everywhere: the PRs still open go without saying
+         return `${upperFirst(pastEnd(reason.weeks))}${
+            reason.since ? `, ${n(reason.since, 'new PR')} since` : ''
+         }`;
       case 'ended': {
+         // under its title the PRs are said already: "though 4 opened since"
          const after = reason.since
-            ? `, though ${n(reason.since, 'PR')} opened after it ended`
+            ? `, though ${bare && item ? reason.since : n(reason.since, 'PR')} opened since`
             : '';
          return bare && item
-            ? `Ended ${dayWords(planEnd(item))} and no PRs are open${after}`
+            ? `Was due ${dayWords(planEnd(item))}. No PRs are open${after}`
             : `${upperFirst(pastEnd(reason.weeks))}, and no PRs are open${after}`;
       }
       case 'missed':
-         // under "Missed its target", the target is the fact; elsewhere the
+         // under "Missed its target date", the target is the fact; elsewhere the
          // miss is what's owed
          return bare
             ? `${targetOn(dayWords(reason.due))}, with ${n(reason.open, 'PR')} still open`
-            : `${missedTarget(dayWords(reason.due))} with ${n(reason.open, 'PR')} open`;
+            : `${missedTarget(dayWords(reason.due))}, with ${n(reason.open, 'PR')} open`;
       case 'off_track':
       case 'at_risk': {
          const u = item?.update;
@@ -447,7 +468,8 @@ function reasonFacts(reason: DecideReason, item: RoadmapItem | null, bare = fals
 }
 
 /** A sentence ended once: a reason that quotes an update ending in its own
- * stop keeps that one ("can land. New end?", never "land.. New end?"). */
+ * stop keeps that one ("can land. Move the end date?", never "land.. Move
+ * the end date?"). */
 const stop = (words: string) => (/[.!?…]$/.test(words) ? words : `${words}.`);
 
 /** Why a row is here and the question it asks, as two pieces, for a page
@@ -456,7 +478,10 @@ export function reasonParts(
    reason: DecideReason,
    item: RoadmapItem | null
 ): { facts: string; question: string } {
-   return { facts: stop(reasonFacts(reason, item)), question: askOf(reason).question };
+   return {
+      facts: stop(reasonFacts(reason, item)),
+      question: askOf(reason).question,
+   };
 }
 
 /** Why a row is here and the question it asks, in a sentence that stands
@@ -475,13 +500,6 @@ function rowWords(row: DecideRow): string {
       ...row.reasons.filter(r => r !== primary).map(r => stop(reasonFacts(r, row.item))),
    ].join(' ');
 }
-
-/** A reason the project page shows better than the roadmap: its issues,
- * or the PRs that opened after its end. */
-const aboutTheWork = (reason: DecideReason) =>
-   reason.kind === 'issues_done' ||
-   (reason.kind === 'reopened' && reason.late > 0) ||
-   ((reason.kind === 'over' || reason.kind === 'ended') && reason.since > 0);
 
 /** Where a plan the row makes starts: its item's start, or else the week
  * its first open PR opened. */
@@ -543,7 +561,7 @@ export function writeFor(
    };
 }
 
-/** Whether "It’s ongoing" on a row gives its plan under way no end, rather
+/** Whether "Mark ongoing" on a row gives its plan under way no end, rather
  * than marking the project ongoing: new work has no plan, and work whose
  * plan finished goes on without one. */
 const ongoingPlan = (row: DecideRow) => !!row.item && isUnderWay(row.item.status);
@@ -562,7 +580,7 @@ export function callWords(
 ): string {
    switch (call.kind) {
       case 'commit':
-         return `Committed through ${call.through}. Decide asks again if it runs past that.`;
+         return `Promised to finish by ${call.through}. Decide asks again if it runs past that.`;
       case 'park':
          return 'Parked, so it stops counting in the weeks ahead. Decide asks again if its PRs move.';
       case 'ongoing':
@@ -604,7 +622,9 @@ export interface Made {
 
 // the calls made since the page loaded, so a trip to a project's page and
 // back still shows them
-const calls = createMemoryStore<{ made: ReadonlyMap<string, Made> }>({ made: new Map() });
+const calls = createMemoryStore<{ made: ReadonlyMap<string, Made> }>({
+   made: new Map(),
+});
 
 function setMade(key: string, made: Made | null): void {
    const next = new Map(calls.get().made);
@@ -686,6 +706,29 @@ export function planRow(
          reasons: [],
       }
    );
+}
+
+/**
+ * A plan's calls for a page that edits the plan as fields (the project
+ * page's Status and End): the call Decide suggests, the ends it offers, the
+ * receipt of a call made here, and the ways to make, retry, undo or clear
+ * one. The same calls and store as DecideCall, so Decide's row clears and
+ * its Undo works from either place.
+ */
+export function usePlanCalls(row: DecideRow, project?: PortfolioItem) {
+   const made = calls.useValue().made.get(rowKey(row));
+   const mine = made && kindsOf(made.row) === kindsOf(row) ? made : undefined;
+   const receipt = mine?.state === 'made' || mine?.state === 'failed' ? mine : undefined;
+   const today = dayOf(new Date());
+   return {
+      answer: answerOf(row, project, today),
+      ends: endsFor(row, project, today),
+      receipt,
+      make: (call: Call) => void makeCall(row, call, project),
+      retry: () => receipt && void makeCall(receipt.row, receipt.call, project),
+      undo: () => void undoCall(rowKey(row)),
+      clear: () => setMade(rowKey(row), null),
+   };
 }
 
 /** How many of a section's rows to draw before its "+ N more": enough for
@@ -875,34 +918,14 @@ function arrowsAmong(e: ReactKeyboardEvent<HTMLElement>): void {
    buttons[to]?.focus();
 }
 
-/** Words or controls in a line, a dot between each, the dot trailing its
- * word so a wrapped line never starts with one. */
-function Dotted({ children }: { children: ReactNode[] }) {
-   const shown = children.filter(Boolean);
-   return (
-      <>
-         {shown.map((child, i) => (
-            <span key={i} className="inline-flex items-center gap-x-2">
-               {child}
-               {i < shown.length - 1 && (
-                  <span aria-hidden className="text-xs text-ink-3">
-                     ·
-                  </span>
-               )}
-            </span>
-         ))}
-      </>
-   );
-}
-
 /**
  * The calls a row can get, one click each, and once one is made, what was
  * decided and what happens next, with Undo. The question the row's reason
- * asks has one answer, the outlined button; the other calls are words. Works
- * wherever a Decide row shows: this view, and a project's own page. Where
- * nothing is asked (a plan under its page or in an Overview row), the calls
- * rest behind Change, or Plan it, and open with nothing outlined: an
- * outlined answer there would be a call nobody asked for, one click away.
+ * asks has one answer, the filled button marked Suggested. Works wherever a
+ * Decide row shows: this view, an Overview row and the roadmap's plan
+ * details. Where nothing is asked (a plan in an Overview row), the calls
+ * rest behind Change, or Plan it, and open with nothing suggested: a
+ * suggested answer there would be a call nobody asked for, one click away.
  */
 export function DecideCall({
    row,
@@ -966,8 +989,8 @@ export function DecideCall({
       : mine.batch
       ? ''
       : mine.state === 'failed'
-      ? `Didn’t save the call on ${name}.${mine.why ?? ''}`
-      : `Took back the call on ${name}.`;
+      ? `Didn’t save the decision on ${name}.${mine.why ?? ''}`
+      : `Undid the decision on ${name}.`;
    const live = (
       <span className="sr-only" aria-live="polite">
          {said}
@@ -978,13 +1001,13 @@ export function DecideCall({
       return (
          <div ref={rootRef} className="inline">
             {live}{' '}
-            <TextButton
+            <QuietButton
                data-decide-focus
                aria-label={row.item ? `Change the plan for ${name}` : `Plan ${name}`}
                onClick={act(() => setOpen(true))}
             >
                {row.item ? change : PLAN_IT}
-            </TextButton>
+            </QuietButton>
          </div>
       );
    }
@@ -994,20 +1017,19 @@ export function DecideCall({
          {shown?.state === 'failed' ? (
             <p className="m-0 flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-2">
                <span aria-hidden>Didn’t save.{shown.why}</span>
-               <TextButton
+               <QuietButton
                   data-decide-focus
                   onClick={act(() => makeCall(shown.row, shown.call, project))}
-                  aria-label={`Try the call on ${name} again`}
+                  aria-label={`Try the decision on ${name} again`}
                >
                   Try again
-               </TextButton>
-               <TextButton
-                  tone="quiet"
+               </QuietButton>
+               <QuietButton
                   onClick={act(() => setMade(rowKey(row), null))}
-                  aria-label={`Cancel the call on ${name}`}
+                  aria-label={`Cancel the decision on ${name}`}
                >
                   Cancel
-               </TextButton>
+               </QuietButton>
             </p>
          ) : shown ? (
             <div className="flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-2">
@@ -1022,12 +1044,12 @@ export function DecideCall({
                      {shown.words}
                      {shown.why && ` ${shown.why}`}
                   </span>{' '}
-                  <TextButton
+                  <QuietButton
                      onClick={act(() => undoCall(rowKey(row)))}
-                     aria-label={`Undo the call on ${name}`}
+                     aria-label={`Undo the decision on ${name}`}
                   >
                      Undo
-                  </TextButton>
+                  </QuietButton>
                </span>
                {shown.call.kind !== 'ongoing' && (
                   // optional, after the call: saying it alone never clears a row
@@ -1046,15 +1068,15 @@ export function DecideCall({
                describedBy={describedBy}
                onCall={call => act(() => makeCall(row, call, project))()}
                onCancel={row.reasons.length || opened ? undefined : act(() => setOpen(false))}
+               full={opened}
             />
          )}
       </div>
    );
 }
 
-/** Where a decided plan's work came from, as a run of words rather than a
- * switch that outweighs the call: one Tab stop, the arrow keys between the
- * choices, the one picked in ink. */
+/** Where a decided plan's work came from: optional, after the call, the
+ * same switch as the roadmap's editor. */
 function OriginRun({
    name,
    origin,
@@ -1064,34 +1086,15 @@ function OriginRun({
    origin: RoadmapOrigin | null;
    onChange: (origin: RoadmapOrigin | null) => void;
 }) {
-   const value = origin ?? 'unsaid';
    return (
       <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-3">
          Where it came from
-         <span
-            role="radiogroup"
-            aria-label={`Where ${name} came from`}
-            onKeyDown={arrowsAmong}
-            className="inline-flex flex-wrap items-center gap-x-2 gap-y-1"
-         >
-            <Dotted>
-               {ORIGIN_OPTIONS.map(([o, word]) => (
-                  <button
-                     key={o}
-                     type="button"
-                     role="radio"
-                     aria-checked={o === value}
-                     tabIndex={o === value ? 0 : -1}
-                     onClick={() => onChange(o === 'unsaid' ? null : o)}
-                     className={`hit pressable rounded border-0 bg-transparent p-0 ${
-                        o === value ? 'font-medium text-ink' : 'text-ink-3 hover:text-brand'
-                     }`}
-                  >
-                     {word}
-                  </button>
-               ))}
-            </Dotted>
-         </span>
+         <Segmented
+            value={origin ?? 'unsaid'}
+            options={ORIGIN_OPTIONS}
+            onChange={o => onChange(o === 'unsaid' ? null : o)}
+            ariaLabel={`Where ${name} came from`}
+         />
       </span>
    );
 }
@@ -1100,17 +1103,16 @@ function OriginRun({
 interface Option {
    call: Call;
    label: string;
-   /** its words after "Commit through", when they differ from `label` */
-   inRun?: string;
    /** what it does to which row, for a screen reader */
    ariaLabel: string;
 }
 
-/** The calls, before one is made: the row's answer first, outlined, in the
- * same place on every row; then, past a divider and in quieter ink, the
- * other ends and the other calls. With no answer to outline, the calls
- * alone. One Tab stop, the answer or else the first call; the arrow keys
- * reach the rest, and Escape is Cancel where there's one. */
+/** The calls, before one is made, as real buttons in two labeled rows: the
+ * ends it can promise, then what else becomes of it. The row's answer is
+ * filled and says Suggested. With an answer, the strip starts as that one
+ * button and Other answers, which opens the two rows in place. One Tab
+ * stop, the answer or else the first call; the arrow keys reach the rest,
+ * and Escape is Cancel where there's one. */
 function CallStrip({
    row,
    name,
@@ -1118,6 +1120,7 @@ function CallStrip({
    describedBy,
    onCall,
    onCancel,
+   full = false,
 }: {
    row: DecideRow;
    name: string;
@@ -1127,7 +1130,11 @@ function CallStrip({
    onCall: (call: Call) => void;
    /** close it again, for calls opened from Change */
    onCancel?: () => void;
+   /** every call shown from the start, where changing the plan is the point */
+   full?: boolean;
 }) {
+   const [more, setMore] = useState(false);
+   const stripRef = useRef<HTMLDivElement>(null);
    const day = dayOf(new Date());
    const answer = answerOf(row, project, day);
    // ongoing answers new work, finished work that keeps going, and any plan
@@ -1141,13 +1148,15 @@ function CallStrip({
    const dates: Option[] = endsFor(row, project, day).map(c => ({
       call: { kind: 'commit', ...c },
       label: c.label,
-      // "Commit through its target, Oct 21"
-      inRun: c.target ? c.through : undefined,
-      ariaLabel: `Commit ${name} through ${c.through}`,
+      ariaLabel: `Promise ${name} by ${c.through}`,
    }));
    const others: Option[] = [
       { call: { kind: 'park' }, label: 'Park', ariaLabel: `Park ${name}` },
-      { call: { kind: 'done' }, label: 'Mark done', ariaLabel: `Mark ${name} done` },
+      {
+         call: { kind: 'done' },
+         label: 'Mark done',
+         ariaLabel: `Mark ${name} done`,
+      },
       { call: { kind: 'drop' }, label: 'Drop', ariaLabel: `Drop ${name}` },
       ...(ongoing
          ? [
@@ -1168,170 +1177,147 @@ function CallStrip({
          : others.find(o => o.call.kind === answer.kind));
    // the strip's one Tab stop
    const lead = first ?? dates[0] ?? others[0];
-   const other = (o: Option) =>
-      o !== first && (
-         <TextButton
-            key={o.label}
-            tone="quiet"
-            tabIndex={o === lead ? 0 : -1}
-            data-decide-focus={o === lead || undefined}
-            aria-describedby={o === lead ? describedBy : undefined}
-            onClick={() => onCall(o.call)}
-            aria-label={o.ariaLabel}
-         >
-            {o.inRun ?? o.label}
-         </TextButton>
+   // every call a button that looks like one, in two labeled rows: how
+   // long it runs, or what else becomes of it. The suggested answer is
+   // filled and says so; the rest are outlined, never bare words.
+   const button = (o: Option, words = o.label) => (
+      <button
+         key={o.label}
+         type="button"
+         tabIndex={o === lead ? 0 : -1}
+         data-decide-focus={o === lead || undefined}
+         aria-describedby={o === lead ? describedBy : undefined}
+         aria-label={o.ariaLabel}
+         onClick={() => onCall(o.call)}
+         className={`hit pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium ${
+            o === first
+               ? 'border-brand bg-brand text-surface hover:opacity-90'
+               : 'border-line bg-surface text-ink-2 hover:border-brand hover:text-brand'
+         }`}
+      >
+         {words}
+         {o === first && <span className="text-[11px] font-normal opacity-80">Suggested</span>}
+      </button>
+   );
+   // opened, the focus moves to the first of the answers it showed
+   const showMore = () => {
+      setMore(true);
+      requestAnimationFrame(() =>
+         stripRef.current?.querySelector<HTMLElement>('button:not([data-decide-focus])')?.focus()
       );
-   // on a phone the groups wrap to lines of their own, which parts them
-   // already
-   const divider = <span aria-hidden className="hidden h-4 w-px bg-line sm:block" />;
+   };
+   const group = (label: string, options: Option[]) =>
+      options.length > 0 && (
+         <div className="flex flex-wrap items-center gap-2">
+            <span className="w-full text-xs text-ink-3 sm:w-32 sm:shrink-0">{label}</span>
+            {options.map(o => button(o))}
+         </div>
+      );
+   if (first && !full && !more) {
+      return (
+         <div
+            role="toolbar"
+            aria-label={`Decisions for ${name}`}
+            onKeyDown={arrowsAmong}
+            className="flex flex-wrap items-center gap-2"
+         >
+            {button(first, answerWords(first.call, row.item))}
+            <button
+               type="button"
+               tabIndex={-1}
+               aria-expanded={false}
+               aria-label={`Other answers for ${name}`}
+               onClick={showMore}
+               className="hit pressable inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink-2 hover:border-brand hover:text-brand"
+            >
+               Other answers
+            </button>
+         </div>
+      );
+   }
    return (
       <div
+         ref={stripRef}
          role="toolbar"
-         aria-label={`Calls on ${name}`}
+         aria-label={`Decisions for ${name}`}
          onKeyDown={e => {
             if (e.key !== 'Escape' || !onCancel) return arrowsAmong(e);
             e.preventDefault();
             onCancel();
          }}
-         className="flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3"
+         className="flex flex-col gap-2"
       >
-         {/* first on every row, so the eye finds it in one place; the
-             question above says what it answers */}
-         {first && (
-            <>
-               <QuietButton
-                  data-decide-focus
-                  onClick={() => onCall(first.call)}
-                  aria-label={first.ariaLabel}
-                  aria-describedby={describedBy}
-               >
-                  {first.label}
-               </QuietButton>
-               {divider}
-            </>
-         )}
-         {dates.some(o => o !== first) && (
-            <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-               {COMMIT_THROUGH}
-               <Dotted>{dates.map(other)}</Dotted>
-            </span>
-         )}
-         {/* wider apart than the words within either run, so the ends and
-             the other calls read as two groups */}
-         <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 sm:ml-5">
-            <Dotted>{others.map(other)}</Dotted>
-         </span>
+         {group(COMMIT_THROUGH, dates)}
+         {group('Or instead', others)}
          {onCancel && (
-            <>
-               {divider}
-               {/* a line of its own on a phone, where no divider parts it
-                   from the calls */}
-               <span className="basis-full sm:basis-auto">
-                  <TextButton
-                     tone="quiet"
-                     tabIndex={-1}
-                     onClick={onCancel}
-                     aria-label={`Cancel changing ${name}`}
-                  >
-                     Cancel
-                  </TextButton>
-               </span>
-            </>
+            <div>
+               <QuietButton tabIndex={-1} onClick={onCancel} aria-label={`Cancel changing ${name}`}>
+                  Cancel
+               </QuietButton>
+            </div>
          )}
       </div>
    );
 }
 
-/** Its facts, in words a decision turns on: lead, team, people and size,
- * target. Each does what it names when clicked. From the keyboard, the
- * row's name opens the project whose page has the same lead and target,
- * and the team switch above picks the team, so these are mouse shortcuts
- * and the row keeps its few Tab stops. */
-function RowFacts({
+/** Its lead, the one fact a card shows beside its name; only the lead goes
+ * anywhere (People), and the row's name opens the project. A lead guessed
+ * from PRs is followed by the word guessed. */
+function RowLead({
    row,
    project,
-   team,
-   onTeam,
    onPerson,
-   onProject,
 }: {
    row: DecideRow;
    project: PortfolioItem | undefined;
-   team: string | null;
-   onTeam: (team: string) => void;
    onPerson?: (login: string) => void;
-   onProject: () => void;
 }) {
    const lead = row.item?.lead ?? project?.lead ?? null;
+   if (!lead) return null;
    const byPrs = !row.item?.lead && !!project?.leadByPrs;
+   return (
+      <>
+         {onPerson ? (
+            <FactLink
+               tabIndex={-1}
+               className="text-xs"
+               onClick={() => onPerson(lead)}
+               title={`See ${lead} on People`}
+            >
+               {lead}
+            </FactLink>
+         ) : (
+            <span className="text-xs text-ink-2">{lead}</span>
+         )}
+         {byPrs && (
+            <span className="text-xs">
+               <ByPrs />
+            </span>
+         )}
+      </>
+   );
+}
+
+/** The rest of what a decision turns on, for the reason's hover: team,
+ * people and size, target date. */
+function factsTitle(
+   row: DecideRow,
+   project: PortfolioItem | undefined,
+   team: string | null
+): string {
    const people = project ? [...project.developers, ...project.nonDevelopers] : [];
-   const size = project
-      ? [
-           project.open ? n(project.open, 'open PR') : null,
-           project.merged ? `${project.merged} merged in the ${LAST_14_DAYS}` : null,
-        ]
-           .filter(Boolean)
-           .join(', ')
-      : '';
    // a missed target is the row's reason already
    const target =
       project?.target && !row.reasons.some(r => r.kind === 'missed') ? project.target : null;
-   return (
-      <Dotted>
-         {[
-            lead && (
-               <span key="lead" className="text-xs">
-                  {onPerson ? (
-                     <FactLink
-                        tabIndex={-1}
-                        onClick={() => onPerson(lead)}
-                        title={`See ${lead} on People`}
-                     >
-                        {lead}
-                     </FactLink>
-                  ) : (
-                     <span className="text-ink-2">{lead}</span>
-                  )}
-                  {byPrs && (
-                     <>
-                        {' '}
-                        <ByPrs />
-                     </>
-                  )}
-               </span>
-            ),
-            team && (
-               <FactLink
-                  key="team"
-                  tabIndex={-1}
-                  onClick={() => onTeam(team)}
-                  aria-label={`Show only ${team}’s decisions`}
-                  className="text-xs"
-               >
-                  {team}
-               </FactLink>
-            ),
-            (people.length > 0 || size) && (
-               <span key="size" className="inline-flex items-center gap-1.5 text-xs text-ink-3">
-                  {people.length > 0 && <PeopleStack logins={people} onPerson={onPerson} />}
-                  {size}
-               </span>
-            ),
-            target && (
-               <FactLink
-                  key="target"
-                  tabIndex={-1}
-                  onClick={onProject}
-                  title="Open the project"
-                  className="text-xs"
-               >
-                  {targetOn(targetWords(target))}
-               </FactLink>
-            ),
-         ]}
-      </Dotted>
-   );
+   return [
+      team,
+      people.length ? people.join(', ') : null,
+      project?.open ? n(project.open, 'open PR') : null,
+      project?.merged ? `${project.merged} merged in the ${LAST_14_DAYS}` : null,
+      target && targetOn(targetWords(target)),
+   ]
+      .filter(Boolean)
+      .join(' · ');
 }
 
 /** The row a trip to a project's page or a plan left from, kept for this
@@ -1389,44 +1375,9 @@ function DecideRowView({
    };
    const openProject = () =>
       row.slug ? go({ project: row.slug }) : item && go(openPlan(nav, item.id));
-   // a reason about the plan opens the plan, where its bar shows it; one
-   // about its issues or the PRs after its end opens the project page,
-   // which lists them. Decided, it's words in the same box, so no line
-   // moves: the call is made.
-   const reason = (r: DecideReason, bare: boolean) => {
-      const words = stop(reasonFacts(r, item, bare));
-      if (!item) return words;
-      const work = !!row.slug && aboutTheWork(r);
-      // a quoted update runs long, and a link is one box that can't share
-      // its last line: only who said it links, so the question follows the
-      // quote on its line
-      const quote = (r.kind === 'at_risk' || r.kind === 'off_track') && !!item.update?.body;
-      const cut = quote ? words.indexOf(': ') : -1;
-      const head = cut > 0 ? words.slice(0, cut) : words;
-      return (
-         <>
-            {decided ? (
-               <span className="inline-block">{head}</span>
-            ) : (
-               <FactLink
-                  // from the keyboard, the name opens the project, and its page the plan
-                  tabIndex={-1}
-                  onClick={() =>
-                     work ? go({ project: row.slug as string }) : go(openPlan(nav, item.id))
-                  }
-                  title={
-                     work
-                        ? 'Open the project: its issues and their PRs'
-                        : 'Open its plan on the roadmap'
-                  }
-               >
-                  {head}
-               </FactLink>
-            )}
-            {cut > 0 && words.slice(cut)}
-         </>
-      );
-   };
+   // plain words: the name is the row's one way out, to the project, whose
+   // page links to the plan
+   const reason = (r: DecideReason, bare: boolean) => stop(reasonFacts(r, item, bare));
    return (
       // a decided row keeps every line it had, so the rows below never slide
       // under the pointer between two clicks; it steps down to the quiet ink
@@ -1445,29 +1396,26 @@ function DecideRowView({
                id={nameId}
                type="button"
                onClick={openProject}
-               className={`hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium hover:text-brand ${
+               className={`hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium underline decoration-line underline-offset-2 hover:text-brand ${
                   decided ? 'text-ink-3' : 'text-ink'
                }`}
                title={row.slug ? 'Open the project and its PRs' : 'Open its plan on the roadmap'}
             >
                {nameOf(row, project)}
             </button>
-            <RowFacts
-               row={row}
-               project={project}
-               team={team}
-               onTeam={t => navigate({ team: t })}
-               onPerson={onPerson}
-               onProject={openProject}
-            />
+            <RowLead row={row} project={project} onPerson={onPerson} />
          </div>
-         <p id={whyId} className="m-0 mt-0.5 max-w-[70ch] text-[13px]">
+         <p
+            id={whyId}
+            className="m-0 mt-0.5 max-w-[70ch] text-[13px]"
+            title={factsTitle(row, project, team) || undefined}
+         >
             {reason(primary, true)} {/* the one thing owed on the row, until it's answered */}
             <span className={decided ? '' : 'text-warn'}>{askOf(primary).question}</span>
             {primary.kind === 'issues_done' && primary.open > 0 && row.slug && (
                <>
                   {' '}
-                  <TextButton
+                  <FactLink
                      // the name opens the same page from the keyboard; decided,
                      // it keeps its place unseen, so no line moves
                      tabIndex={-1}
@@ -1477,11 +1425,11 @@ function DecideRowView({
                      // is the page's PRs that do no issue there
                      onClick={() => openPageAt(go, row.slug as string, 'project-unlinked')}
                   >
-                     Or add issues for those PRs
-                  </TextButton>
+                     Add issues for those PRs on its page
+                  </FactLink>
                </>
             )}
-            {/* "Done?" checked against what the plan said done looks like */}
+            {/* "Is it done?" checked against what the plan said done looks like */}
             {item?.done_when && askOf(primary).call === 'done' && (
                <span className="block">
                   <span className="text-ink-3">{DONE_WHEN}:</span> {item.done_when}
@@ -1502,7 +1450,7 @@ function DecideRowView({
 
 /**
  * One click for a whole section, in its header: every row still owed gets
- * the call its outlined answer makes, all shown at once and saved one after
+ * the call its suggested answer makes, all shown at once and saved one after
  * another, each row keeping its own receipt and Undo (a failure stays in
  * its row with Try again). Then what it did, with Undo all. Only for two
  * rows or more, since a lone row's answer is the same click.
@@ -1533,7 +1481,7 @@ function SectionCalls({
       });
    const standing = batch('made');
    const failed = batch('failed').length;
-   // a row with no answer to outline waits for a person
+   // a row with no answer to suggest waits for a person
    const answers = owed.flatMap(row => {
       const call = answerOf(row, projectOf(row), day);
       return call ? [{ row, call }] : [];
@@ -1565,12 +1513,12 @@ function SectionCalls({
    };
    const undoAll = () => {
       refocus.current = true;
-      setSaid(`Took back ${n(standing.length, 'call')} under ${title}.`);
+      setSaid(`Undid ${n(standing.length, 'decision')} under ${title}.`);
       inTurn(standing.map(m => after => undoCall(rowKey(m.row), { after })));
    };
    // the rows' failures, said once for all of them
    const news = failed
-      ? `${n(failed, 'call')} under ${title} didn’t save. Each row says why, with Try again.`
+      ? `${n(failed, 'decision')} under ${title} didn’t save. Each row says why, with Try again.`
       : said;
    return (
       <span ref={rootRef} className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -1587,12 +1535,12 @@ function SectionCalls({
                   )}
                   .
                </span>
-               <TextButton
+               <QuietButton
                   onClick={undoAll}
-                  aria-label={`Undo all ${n(standing.length, 'call')} under ${title}`}
+                  aria-label={`Undo all ${n(standing.length, 'decision')} under ${title}`}
                >
                   Undo all
-               </TextButton>
+               </QuietButton>
             </span>
          )}
          {answers.length > 1 && (
@@ -1717,27 +1665,27 @@ function ParkLine({
                <span data-park-focus tabIndex={-1} className="rounded">
                   Parked.
                </span>
-               <TextButton onClick={act(() => undoCall(key))} aria-label={`Undo parking ${name}`}>
+               <QuietButton onClick={act(() => undoCall(key))} aria-label={`Undo parking ${name}`}>
                   Undo
-               </TextButton>
+               </QuietButton>
             </>
          ) : state === 'failed' ? (
             <>
                <span aria-hidden>Didn’t save.{parked?.why}</span>
-               <TextButton data-park-focus onClick={park} aria-label={`Try parking ${name} again`}>
+               <QuietButton data-park-focus onClick={park} aria-label={`Try parking ${name} again`}>
                   Try again
-               </TextButton>
+               </QuietButton>
             </>
          ) : (
-            <TextButton data-park-focus onClick={park} aria-label={`Park ${name}`}>
+            <QuietButton data-park-focus onClick={park} aria-label={`Park ${name}`}>
                Park
-            </TextButton>
+            </QuietButton>
          )}
          <span className="sr-only" aria-live="polite">
             {state === 'failed'
                ? `Didn’t park ${name}.${parked?.why ?? ''}`
                : parked?.state === 'undone'
-               ? `Took back parking ${name}.`
+               ? `Undid parking ${name}.`
                : parked?.why ?? ''}
          </span>
       </li>
@@ -1788,7 +1736,7 @@ function RunsDecide({
       );
    if (draft == null) {
       return (
-         <p className="m-0 mt-2 text-[13px] text-ink-2">
+         <p className="m-0 mt-1 text-xs text-ink-3">
             {now ? (
                <>
                   {person(now)} runs Decide this week
@@ -1797,9 +1745,9 @@ function RunsDecide({
             ) : (
                'Nobody runs Decide yet.'
             )}{' '}
-            <TextButton onClick={() => setDraft(rotation?.logins.join(', ') ?? '')}>
+            <QuietButton onClick={() => setDraft(rotation?.logins.join(', ') ?? '')}>
                {now ? 'Change the turns' : 'Name who takes turns'}
-            </TextButton>
+            </QuietButton>
          </p>
       );
    }
@@ -1829,21 +1777,21 @@ function RunsDecide({
             <PrimaryButton disabled={saving} aria-label="Save the turns">
                Save
             </PrimaryButton>
-            <TextButton tone="quiet" onClick={close} aria-label="Cancel changing the turns">
+            <QuietButton onClick={close} aria-label="Cancel changing the turns">
                Cancel
-            </TextButton>
+            </QuietButton>
          </span>
          {left.length > 0 && (
             <p className="m-0 flex basis-full flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-3">
                Add
                {left.map(login => (
-                  <TextButton
+                  <QuietButton
                      key={login}
                      onClick={() => setDraft([...chosen, login].join(', '))}
                      aria-label={`Add ${login} to the turns`}
                   >
                      {login}
-                  </TextButton>
+                  </QuietButton>
                ))}
             </p>
          )}
@@ -1875,7 +1823,11 @@ export interface FilledIn {
    /** PRs opened this week, with no project label, that count in a project
     * by a link to one of its issues (that issue, when its page says),
     * newest first */
-   linked: { slug: string; pull: DerivedPull | PullData; issue: IssueRef | null }[];
+   linked: {
+      slug: string;
+      pull: DerivedPull | PullData;
+      issue: IssueRef | null;
+   }[];
    /** plans marked Planned that started this week and read In progress off
     * their PRs */
    started: ShownPlan[];
@@ -1928,7 +1880,11 @@ export function filledIn({
       .flatMap(g => [
          ...g.open
             .filter(p => byLink(p.data, g.slug))
-            .map(p => ({ slug: g.slug, pull: p, issue: issueOf(g.slug, p.data) })),
+            .map(p => ({
+               slug: g.slug,
+               pull: p,
+               issue: issueOf(g.slug, p.data),
+            })),
          ...g.merged
             .filter(p => byLink(p, g.slug))
             .map(p => ({ slug: g.slug, pull: p, issue: issueOf(g.slug, p) })),
@@ -2026,9 +1982,9 @@ function JoinedLine({
                href={issueUrl(issue.ref.repo, issue.ref.number)}
                target="_blank"
                rel="noopener noreferrer"
-               className="text-ink-2 hover:text-brand hover:underline"
+               className="text-ink-2 underline decoration-line underline-offset-2 hover:text-brand"
             >
-               {number}
+               {number} ↗
             </a>{' '}
             <span className="font-medium text-ink">{issue.title || number}</span> joined{' '}
             <FactLink onClick={() => openPageAt(navigate, slug, 'project-issues')}>{name}</FactLink>
@@ -2041,7 +1997,7 @@ function JoinedLine({
                      rel="noopener noreferrer"
                      className="text-ink-2 underline decoration-line underline-offset-2 hover:text-brand"
                   >
-                     PR #{issue.linkedBy.number}
+                     PR #{issue.linkedBy.number} ↗
                   </a>
                </>
             )}
@@ -2051,23 +2007,23 @@ function JoinedLine({
                   <span data-joined-focus tabIndex={-1} className="rounded">
                      {error ?? 'Removed.'}
                   </span>{' '}
-                  <TextButton
+                  <QuietButton
                      onClick={() => change(true)}
                      aria-label={`Undo removing ${number} from ${name}`}
                   >
                      Undo
-                  </TextButton>
+                  </QuietButton>
                </>
             ) : (
                <>
                   {state === 'failed' && <span>{error} </span>}
-                  <TextButton
+                  <QuietButton
                      data-joined-focus
                      onClick={() => change(false)}
                      aria-label={`Remove ${number} from ${name}`}
                   >
                      {state === 'failed' ? 'Try again' : 'Remove'}
-                  </TextButton>
+                  </QuietButton>
                </>
             )}
          </span>
@@ -2112,7 +2068,13 @@ function FilledInSection({
    // ponytail: one project page per project with issues, read when Decide
    // opens; a list of the week's joins on /work-data once that's dozens
    const withIssues = [...(work?.projects.keys() ?? [])];
-   const found = filledIn({ today, prefix, plans, pages, now: Date.now() / 1000 });
+   const found = filledIn({
+      today,
+      prefix,
+      plans,
+      pages,
+      now: Date.now() / 1000,
+   });
    const keyOf = (j: FilledIn['joined'][number]) => `${j.slug} ${issueKey(j.issue.ref)}`;
    const joined = [...found.joined];
    for (const j of held.values()) if (!joined.some(o => keyOf(o) === keyOf(j))) joined.push(j);
@@ -2129,10 +2091,10 @@ function FilledInSection({
                <GroupHeader
                   level={3}
                   compact
-                  title="Filled in on its own this week"
+                  title="Guessed by the board, last 7 days"
                   count={total}
                   sub={
-                     <SubDoor label="What fills itself in" text="Every guess, to check">
+                     <SubDoor label="What the board guesses" text="Check these guesses">
                         <p className="m-0">
                            What the board read off PRs, labels, links and activity in the last{' '}
                            {WEEK_DAYS} days rather than asking anyone: issues that joined a project
@@ -2150,8 +2112,8 @@ function FilledInSection({
                <Rows>
                   <Fold
                      count={joined.length}
-                     label="Joined by a link"
-                     gloss="Issues that joined a project on their own this week, because one of its PRs links them"
+                     label="Issues added by a PR’s link"
+                     gloss="Issues that joined a project on their own in the last 7 days, because one of its PRs links them"
                      id="decide:filled:joined"
                   >
                      <ul className="m-0 list-none p-0 text-[13px]">
@@ -2169,8 +2131,8 @@ function FilledInSection({
                   </Fold>
                   <Fold
                      count={found.linked.length}
-                     label="Counted by a link"
-                     gloss="PRs opened this week with no project label that count in a project because they link one of its issues"
+                     label="PRs counted by an issue link"
+                     gloss="PRs opened in the last 7 days with no project label that count in a project because they link one of its issues"
                      id="decide:filled:linked"
                   >
                      {found.linked.map(({ slug, pull, issue }) => {
@@ -2215,8 +2177,8 @@ function FilledInSection({
                   </Fold>
                   <Fold
                      count={found.started.length}
-                     label="In progress by its PRs"
-                     gloss="Plans marked Planned that started this week and read In progress because their PRs moved since"
+                     label="Started, going by its PRs"
+                     gloss="Plans marked Planned that started in the last 7 days and show In progress because their PRs moved since"
                      id="decide:filled:started"
                   >
                      <ul className="m-0 list-none p-0 text-[13px] text-ink-2">
@@ -2226,8 +2188,8 @@ function FilledInSection({
                                  <FactLink onClick={() => navigate(openPlan(nav, plan.id))}>
                                     {plan.name}
                                  </FactLink>{' '}
-                                 reads {IN_PROGRESS}: marked Planned from {dayWords(plan.start)},
-                                 and its PRs moved since.
+                                 shows {IN_PROGRESS}: it was Planned to start {dayWords(plan.start)}
+                                 , and its PRs have moved since.
                               </span>
                            </li>
                         ))}
@@ -2235,8 +2197,8 @@ function FilledInSection({
                   </Fold>
                   <Fold
                      count={found.vouched.length}
-                     label="No update needed"
-                     gloss="Plans whose PRs merged lately with no pile of open PRs growing or aging behind them, inside their issues’ pace and any hard end, so their leads owe no update this week"
+                     label="No update needed: PRs are merging"
+                     gloss="Plans whose PRs merged lately with no pile of open PRs growing or aging behind them, inside their issues’ pace and any promised end date, so their leads owe no update this week"
                      id="decide:filled:vouched"
                   >
                      <ul className="m-0 list-none p-0 text-[13px] text-ink-2">
@@ -2276,8 +2238,8 @@ export function teamOrder(configured: readonly string[], named: readonly (string
 /**
  * Decide: the weekly triage a product manager would run, as a queue that
  * empties. Every row is a project or plan that needs a call, says why, with
- * the facts the call turns on, and asks one question. Each call (commit it
- * through a month or quarter, park, mark done, drop) is one click that
+ * the facts the call turns on, and asks one question. Each call (promise it
+ * by a month or quarter, park, mark done, drop) is one click that
  * writes the roadmap; the row stays in place saying what was decided and
  * what happens next, with Undo, so nothing vanishes unexplained. Worst
  * first; a team's lead can take just theirs.
@@ -2360,11 +2322,11 @@ export function Decide({
       const project = projectOf(row);
       const lead = row.item?.lead ?? project?.lead;
       if (!lead) return '';
-      return !row.item?.lead && project?.leadByPrs ? ` (${lead}, by PRs)` : ` (${lead})`;
+      return !row.item?.lead && project?.leadByPrs ? ` (${lead}, guessed)` : ` (${lead})`;
    };
 
    // the list as plain text, for the weekly meeting's notes or a chat post:
-   // what's left, and the calls made here
+   // what's left, and the decisions made here
    const copy = () => {
       const left = SECTIONS.flatMap((section, index) => {
          const inSection = owed.filter(row => sectionOf(row) === index);
@@ -2424,17 +2386,14 @@ export function Decide({
                title={`${heading}${whose}`}
                sub={
                   owed.length > 0 && (
-                     <SubDoor
-                        label="How Decide is ordered"
-                        text="Records that disagree first, new work last"
-                     >
+                     <SubDoor label="How Decide is ordered" text="Most urgent first, new work last">
                         <p className="m-0">
-                           Each row is a call the roadmap is owed. The sections run from what costs
-                           most to leave alone to what costs least: work marked done, dropped or
-                           parked that’s still being worked on, and plans their own issue disagrees
-                           with; then plans that slipped past an update, a target or an end; then
-                           plans whose issues are all closed; then quiet work, and plans whose lead
-                           says at risk; then new work waiting for a plan.
+                           Each row is a decision the roadmap is owed. The sections run from what
+                           costs most to leave alone to what costs least: work marked done, dropped
+                           or parked that’s still being worked on, and plans their own issue
+                           disagrees with; then plans that slipped past an update, a target date or
+                           an end date; then plans whose issues are all closed; then stalled work,
+                           and plans whose lead says at risk; then new work waiting for a plan.
                         </p>
                         <p className="m-0">
                            {ALL_ISSUES_CLOSED} comes before at risk: that plan is probably done, but
@@ -2442,13 +2401,13 @@ export function Decide({
                            only warns that a plan might slip.
                         </p>
                         <p className="m-0">
-                           Each call saves to the roadmap when you click it, and its row says what
-                           happens next, with Undo. A section of two or more has one button that
-                           gives every row its outlined answer, and then Undo all.
+                           Each decision saves to the roadmap when you click it, and its row says
+                           what happens next, with Undo. A section of two or more has one button
+                           that gives every row its suggested answer, and then Undo all.
                         </p>
                         <p className="m-0">
                            From the keyboard, j and k move between the rows, the left and right
-                           arrow keys between a row’s calls, and Enter makes the call.
+                           arrow keys between a row’s answers, and Enter makes the decision.
                         </p>
                      </SubDoor>
                   )
@@ -2457,7 +2416,7 @@ export function Decide({
                   (owed.length > 0 || decidedHere.length > 0) && (
                      <QuietButton
                         onClick={copy}
-                        title="Copy what’s left and the calls made here as plain text, for the meeting’s notes or a chat post"
+                        title="Copy what’s left and the decisions made here as plain text, for the meeting’s notes or a chat post"
                      >
                         {copied ?? COPY_AS_TEXT}
                      </QuietButton>
@@ -2475,8 +2434,13 @@ export function Decide({
                      value={nav.team ?? ''}
                      options={[
                         ['', counted('All teams', kept.owed.length)],
-                        ...teams.map((t): [string, string] => [t, counted(t, owedBy(t))]),
-                        ['(none)', counted('No team', owedBy('(none)'))],
+                        // a team with nothing owed has nothing to show
+                        ...teams
+                           .filter(t => owedBy(t) > 0 || nav.team === t)
+                           .map((t): [string, string] => [t, counted(t, owedBy(t))]),
+                        ...(owedBy('(none)') > 0 || nav.team === '(none)'
+                           ? [['(none)', counted('No team', owedBy('(none)'))] as [string, string]]
+                           : []),
                      ]}
                      onChange={t => navigate({ team: t || null })}
                   />
@@ -2505,24 +2469,27 @@ export function Decide({
                <EmptyState
                   title={
                      !nav.team
-                        ? 'Every project has its call'
+                        ? 'Nothing left to decide'
                         : nav.team === '(none)'
-                        ? 'Every project with no team has its call'
-                        : `Every ${nav.team} project has its call`
+                        ? 'Nothing left to decide for work with no team'
+                        : `Nothing left to decide for ${nav.team}`
                   }
                   sub={
                      nav.team && kept.owed.length
-                        ? 'The other teams have calls waiting.'
+                        ? 'Other teams have decisions waiting.'
                         : decidedHere.length
-                        ? `${n(decidedHere.length, 'call')} made here. Each says what happens next.`
-                        : 'Rows show up here when work needs a plan or stalls, runs past its end or target, or its records disagree.'
+                        ? `${n(
+                             decidedHere.length,
+                             'decision'
+                          )} made here. Each says what happens next.`
+                        : 'Rows show up here when work needs a plan, stalls, is overdue or misses its target date, or is marked done or parked but still worked on.'
                   }
                />
                {nav.team && kept.owed.length > 0 && (
                   <p className="m-0 mb-6 text-center text-[13px]">
-                     <TextButton onClick={() => navigate({ team: null })}>
+                     <QuietButton onClick={() => navigate({ team: null })}>
                         Show all teams
-                     </TextButton>
+                     </QuietButton>
                   </p>
                )}
             </>
@@ -2534,29 +2501,25 @@ export function Decide({
             const owedHere = here.filter(row => !decided(row));
             return (
                <div key={section.kinds[0]} data-decide-section className="mb-6">
-                  <GroupHeader
-                     level={3}
-                     compact
-                     title={section.title}
-                     sub={
-                        <SubDoor label={`What lands in ${section.title}`} text={section.sub}>
-                           {section.more.map(words => (
-                              <p key={words} className="m-0">
-                                 {words}
-                              </p>
-                           ))}
-                        </SubDoor>
-                     }
-                     count={owedHere.length}
-                     headerExtra={
-                        <SectionCalls
-                           title={section.title}
-                           rows={here}
-                           owed={owedHere}
-                           projectOf={projectOf}
-                        />
-                     }
-                  />
+                  {/* no sub-line: the title says what lands here, its rule
+                      is the header's hover and read before the rows */}
+                  <div className="contents" title={section.more.join(' ')}>
+                     <GroupHeader
+                        level={3}
+                        compact
+                        title={section.title}
+                        count={owedHere.length}
+                        headerExtra={
+                           <SectionCalls
+                              title={section.title}
+                              rows={here}
+                              owed={owedHere}
+                              projectOf={projectOf}
+                           />
+                        }
+                     />
+                  </div>
+                  <p className="sr-only">{section.more.join(' ')}</p>
                   <Rows>
                      <Truncated cap={capOwed(here, decided, 10)} id={`decide:${section.kinds[0]}`}>
                         {here.map(row => (

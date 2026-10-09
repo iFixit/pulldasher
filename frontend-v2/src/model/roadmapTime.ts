@@ -2,7 +2,7 @@ import { ZOOM_KEY } from '../lens';
 import { dateOf, dayOf } from './days';
 
 /**
- * The roadmap timeline's columns: six quarters or seven months across, or,
+ * The roadmap timeline's columns: four quarters or seven months across, or,
  * zoomed in, one quarter's months or one month's weeks filling the width.
  * A zoom is kept in the URL as its key, "2026-Q4" or "2026-10".
  */
@@ -121,9 +121,9 @@ export function columnsFor(scale: 'month' | 'quarter', zoom: Zoom | null, now: D
          };
       });
    }
-   // six quarters from last quarter
+   // four quarters from last quarter: past this year, plans run thin
    const q = Math.floor(m / 3) * 3;
-   return Array.from({ length: 6 }, (_, i) => {
+   return Array.from({ length: 4 }, (_, i) => {
       const a = new Date(y, q - 3 + i * 3, 1);
       const quarter = Math.floor(a.getMonth() / 3) + 1;
       return {
@@ -137,12 +137,12 @@ export function columnsFor(scale: 'month' | 'quarter', zoom: Zoom | null, now: D
 
 /** An end a plan can commit to. */
 export interface CommitEnd {
-   /** its words on a button: "End of Oct", "Through its target, Oct 21" */
+   /** its words on a button: "End of Oct", "Its target date, Oct 21" */
    label: string;
    /** the day it runs through, YYYY-MM-DD */
    end: string;
-   /** its words after "through" in a sentence: "the end of Oct", "its
-    * target, Oct 21" */
+   /** its words after "by" in a sentence: "the end of Oct", "its target
+    * date, Oct 21" */
    through: string;
    /** the project's own target, not a month's or a quarter's end */
    target?: boolean;
@@ -156,7 +156,7 @@ export interface CommitEnd {
  * editor: "End of Oct", "End of Q4", with the year whenever it isn't this
  * one ("End of Q1 2027"). A project's `target` (its issue's Target date or
  * its milestone's due day) comes first while it's still ahead, however
- * near: "Through its target, Oct 21", in place of a month or quarter ending
+ * near: "Its target date, Oct 21", in place of a month or quarter ending
  * the same day. A target already passed is a miss, not an end to offer.
  */
 export function commitEnds(today: string, target?: string | null): CommitEnd[] {
@@ -193,9 +193,9 @@ export function commitEnds(today: string, target?: string | null): CommitEnd[] {
    const day = due.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + year(due);
    return [
       {
-         label: `Through its target, ${day}`,
+         label: `Its target date, ${day}`,
          end: target,
-         through: `its target, ${day}`,
+         through: `its target date, ${day}`,
          target: true,
       },
       ...sorted.filter(c => c.end !== target),

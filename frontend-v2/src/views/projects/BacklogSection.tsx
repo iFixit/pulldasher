@@ -62,7 +62,7 @@ function rangeSentence(w: WindowCounts, prev: WindowCounts | undefined, range: R
 /**
  * Is the backlog growing: the PRs open at the end of each day, and what
  * arrived and what merged each week, over at least 90 days ending on the
- * range's last day with the days before the range paler, then the range's
+ * range's last day with the days before the range shown lighter, then the range's
  * numbers in one sentence under the charts. Every PR, or one project's (by
  * its label) with `slug`. Look back and a project's page both show it, so
  * the question reads the same wherever it's asked.
@@ -109,7 +109,7 @@ export function BacklogSection({
             level={3}
             title={title}
             sub={`${everyone ? 'Everyone’s PRs, ' : ''}${rangeWords(shown)}${
-               shown.start < range.start ? `, paler before ${dayWords(range.start)}` : ''
+               shown.start < range.start ? `, before ${dayWords(range.start)} shown lighter` : ''
             }`}
             headerExtra={headerExtra}
          />

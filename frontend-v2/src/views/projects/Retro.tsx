@@ -13,7 +13,7 @@ import { MISC_SLUG } from '../../../../shared/model/projects';
 import { ORIGIN_WORD, planFor, type RoadmapItem } from '../../../../shared/model/roadmap';
 import type { DerivedPull } from '../../../../shared/model/status';
 import type { PullData } from '../../../../shared/types';
-import { FactLink, LoadFailed, QuietButton, Segmented, TextButton } from '../../components/bits';
+import { FactLink, LoadFailed, QuietButton, Segmented } from '../../components/bits';
 import { ClosedRow } from '../../components/ClosedRow';
 import { Icon } from '../../components/Icon';
 import { eyebrowText, GroupHeader, SubDoor, Truncated, useFoldState } from '../../components/Lane';
@@ -78,6 +78,7 @@ import {
    readSort,
    switchView,
    Tile,
+   deltaWords,
    versus,
    type Navigate,
    type ProjectsNav,
@@ -870,12 +871,11 @@ function PersonDetail({
             {!load.projects.length && <p className="m-0 text-ink-3">None in a project.</p>}
             {rest.length > 0 && <p className="m-0 mt-1.5 text-ink-3">Also {rest.join(' and ')}.</p>}
             {!narrowedToThem && (
-               <TextButton
-                  onClick={() => navigate({ who: load.login, team: null })}
-                  className="mt-3"
-               >
-                  Count only {load.login}’s days on this page
-               </TextButton>
+               <div className="mt-3">
+                  <QuietButton onClick={() => navigate({ who: load.login, team: null })}>
+                     Count only {load.login}’s days on this page
+                  </QuietButton>
+               </div>
             )}
          </div>
          <div className="min-w-0">
@@ -911,22 +911,6 @@ const PERSON_KEYS: PersonKey[] = [
    'unfiled',
    'before',
 ];
-/** each person column's order in words, after "by team, then": [its
- * first sort, reversed] */
-const PERSON_ORDER: Record<PersonKey, [string, string]> = {
-   name: ['by name', 'by name, Z to A'],
-   days: ['most days first', 'fewest days first'],
-   reviewing: ['most of their days reviewing first', 'least of their days reviewing first'],
-   wrote: ['most projects written on first', 'fewest projects written on first'],
-   reviewed: ['most projects reviewed on first', 'fewest projects reviewed on first'],
-   spread: ['most projects a week first', 'fewest projects a week first'],
-   unfiled: [
-      'most of their days not in a project first',
-      'least of their days not in a project first',
-   ],
-   before: ['most days before first', 'fewest days before first'],
-};
-
 type ProjectKey = 'name' | 'days' | 'people' | 'length' | 'quiet' | 'last' | 'plan' | 'before';
 const PROJECT_KEYS: ProjectKey[] = [
    'name',
@@ -938,16 +922,6 @@ const PROJECT_KEYS: ProjectKey[] = [
    'plan',
    'before',
 ];
-const PROJECT_ORDER: Record<ProjectKey, [string, string]> = {
-   name: ['By name', 'By name, Z to A'],
-   days: ['Most days first', 'Fewest days first'],
-   people: ['Most people first', 'Fewest people first'],
-   length: ['Longest first', 'Shortest first'],
-   quiet: ['Longest pause first', 'Shortest pause first'],
-   last: ['Most recently worked on first', 'Longest since worked on first'],
-   plan: ['Done plans first', 'No plan first'],
-   before: ['Most days before first', 'Fewest days before first'],
-};
 
 /**
  * Look back: where the time went over the picked range, for a retro. The
@@ -1038,12 +1012,17 @@ export function Retro({
    const now = measure(scoped, plans);
    const then = earlierScoped && measure(earlierScoped, plans);
    const period = beforeWords(rangeDays(range));
-   const was = (part: (m: ReturnType<typeof measure>) => number) =>
+   // a tile's comparison is a short mark ("was 6%"); the sentence is its title's
+   const wasFull = (part: (m: ReturnType<typeof measure>) => number) =>
       !then
          ? null
          : then.total
          ? `${pct(part(then), then.total)} in the ${period}`
          : `no days in the ${period}`;
+   const was = (part: (m: ReturnType<typeof measure>) => number) =>
+      !then ? null : then.total ? `was ${pct(part(then), then.total)}` : 'no days before';
+   const andWas = (title: string, full: string | null) =>
+      full ? `${title} Before: ${full}.` : title;
    const total = rows.reduce((sum, r) => sum + r.days, 0);
    const earlierTotal = earlier?.reduce((sum, r) => sum + r.days, 0) ?? 0;
    const today = dayOf(new Date());
@@ -1053,6 +1032,8 @@ export function Retro({
    const kindWords = nav.kind === 'all' ? '' : nav.kind === 'writing' ? ', writing' : ', reviewing';
    // on each list's sub-line while the switch narrows the days
    const kindOnly = nav.kind === 'all' ? '' : `, ${nav.kind} days only`;
+   // the sort arrow says the order; the sub-line says only what the switch narrowed
+   const readThis = kindOnly ? upper(kindOnly.slice(2)) : 'How to read this';
    const issues = items.flatMap(i => (i.project ? [i.project] : []));
    const allFinished = finishedIn(plans, issues, range);
    const allFinishedBefore = finishedIn(plans, issues, previousRange(range));
@@ -1096,10 +1077,10 @@ export function Retro({
    const byKind = barsBy(r => (r.own ? 'writing' : 'reviewing'));
    const strips = [
       ...(nav.kind !== 'reviewing'
-         ? [{ name: 'Writing, on their own PRs', bars: byKind.bars.get('writing') ?? noBars }]
+         ? [{ name: 'Writing', bars: byKind.bars.get('writing') ?? noBars }]
          : []),
       ...(nav.kind !== 'writing'
-         ? [{ name: 'Reviewing, on others’', bars: byKind.bars.get('reviewing') ?? noBars }]
+         ? [{ name: 'Reviewing', bars: byKind.bars.get('reviewing') ?? noBars }]
          : []),
    ];
    // the range's own weeks, for its pauses and its last week worked
@@ -1256,24 +1237,24 @@ export function Retro({
    const splitAction = (key: string): ReactNode => {
       if (nav.by === 'team' && nav.team !== key) {
          return (
-            <TextButton onClick={() => navigate({ team: key, who: null })}>
+            <QuietButton onClick={() => navigate({ team: key, who: null })}>
                {key === NO_TEAM
                   ? 'Count only the days of people on no team'
                   : `Count only ${key}’s days on this page`}
-            </TextButton>
+            </QuietButton>
          );
       }
       // the roadmap filters its plans by where they came from; work with no
       // plan has none to show
       if (nav.by === 'origin' && key !== NOT_FILED && key !== UNPLANNED) {
          return (
-            <TextButton
+            <FactLink
                onClick={() =>
                   navigate({ ...switchView('roadmap'), origin: key as ProjectsNav['origin'] })
                }
             >
                Show these plans on the roadmap
-            </TextButton>
+            </FactLink>
          );
       }
       return null;
@@ -1383,18 +1364,24 @@ export function Retro({
       <Tile
          key="days"
          value={Math.round(now.total)}
-         label="Developer-days"
-         title={`Days people spent on PRs, ${rangeWords(
-            range
-         )}. A day counts once per person, split across the PRs they touched that day. Click to see who spent them.`}
-         note={then ? versus(Math.round(now.total), Math.round(then.total), period) : null}
+         label="Days of work"
+         title={andWas(
+            `Days people spent on PRs, ${rangeWords(
+               range
+            )}. A day counts once per person, split across the PRs they touched that day. Click to see who spent them.`,
+            then ? versus(Math.round(now.total), Math.round(then.total), period) : null
+         )}
+         note={then ? deltaWords(Math.round(now.total), Math.round(then.total)) : null}
          onClick={() => go({}, 'retro-people')}
       />,
       <Tile
          key="reviewing"
          value={pct(now.total - now.writing, now.total)}
          label="Reviewing"
-         title="Of the days, the share on other people’s PRs. Click to split the days by whose PR it was."
+         title={andWas(
+            'Of the days, the share on other people’s PRs. Click to split the days by whose PR it was.',
+            wasFull(m => m.total - m.writing)
+         )}
          note={was(m => m.total - m.writing)}
          onClick={() => go({ by: 'author' }, 'retro-split')}
       />,
@@ -1402,7 +1389,10 @@ export function Retro({
          key="roadmap"
          value={pct(now.planned, now.total)}
          label="On the roadmap"
-         title="Of the days, the share on projects with a plan. Click to split the days by where the work came from."
+         title={andWas(
+            'Of the days, the share on projects with a plan. Click to split the days by where the work came from.',
+            wasFull(m => m.planned)
+         )}
          note={was(m => m.planned)}
          onClick={() => go({ by: 'origin' }, 'retro-split')}
       />,
@@ -1411,7 +1401,10 @@ export function Retro({
             key="fires"
             value={pct(now.fires, now.total)}
             label="Fires"
-            title="Of the days, the share on plans marked as a fire to put out. Click to split the days by where the work came from."
+            title={andWas(
+               'Of the days, the share on plans marked as a fire to put out. Click to split the days by where the work came from.',
+               wasFull(m => m.fires)
+            )}
             note={was(m => m.fires)}
             onClick={() => go({ by: 'origin' }, 'retro-split')}
          />
@@ -1420,7 +1413,10 @@ export function Retro({
          key="unfiled"
          value={pct(now.unfiled, now.total)}
          label={NOT_IN_A_PROJECT}
-         title="Of the days, the share on PRs with no project label. Click for the PRs that took the most."
+         title={andWas(
+            'Of the days, the share on PRs with no project label. Click for the PRs that took the most.',
+            wasFull(m => m.unfiled)
+         )}
          note={was(m => m.unfiled)}
          onClick={() => {
             if (nav.kind !== 'all') navigate({ kind: 'all' });
@@ -1432,13 +1428,14 @@ export function Retro({
       <Tile
          key="spread"
          value={now.spread}
-         // "a week" only once the range holds one, and "per person" only
-         // while it counts more than one
-         label={`${nav.who ? 'Projects' : 'Projects per person'}${
-            rangeDays(range) < 7 ? '' : nav.who ? ' a week' : ', a week'
-         }`}
-         title="The median, across people, of how many different projects each touched in a week they worked. A PR with no project counts on its own. Click to sort the people by it."
-         note={then ? `${then.spread} in the ${period}` : null}
+         // "per person" only while it counts more than one; "a week" is in
+         // the title
+         label={nav.who ? 'Projects' : 'Projects per person'}
+         title={andWas(
+            'The median, across people, of how many different projects each touched in a week they worked. A PR with no project counts on its own. Click to sort the people by it.',
+            then ? `${then.spread} in the ${period}` : null
+         )}
+         note={then ? `was ${then.spread}` : null}
          onClick={() => go({ psort: 'spread' }, 'retro-people')}
       />,
       <Tile
@@ -1447,21 +1444,21 @@ export function Retro({
          label="Plans done"
          title={`Plans marked done in these days, and project issues closed as completed, each judged against its plan’s end${
             narrowed ? `; only the ones ${narrowed} worked on` : ''
-         }. Click to sort the projects by their plan.`}
+         }. Click to sort the projects by their plan.${
+            finishedBefore
+               ? ` ${upper(versus(finished.length, finishedBefore.length, period) ?? '')}.`
+               : ''
+         }`}
          note={
-            [
-               plansNote,
-               finishedBefore ? versus(finished.length, finishedBefore.length, period) : null,
-            ]
-               .filter(Boolean)
-               .join('; ') || null
+            plansNote ??
+            (finishedBefore ? deltaWords(finished.length, finishedBefore.length) : null)
          }
          onClick={() => go({ sort: 'plan' }, 'retro-projects')}
       />,
    ].filter(Boolean);
 
    const personCols: (Column<PersonKey> & { key: PersonKey })[] = [
-      { key: 'days', label: 'Days', title: 'Their developer-days in the range', width: 'w-14' },
+      { key: 'days', label: 'Days', title: 'Their days of work in the range', width: 'w-14' },
       {
          key: 'reviewing',
          label: 'Reviewing',
@@ -1500,13 +1497,13 @@ export function Retro({
       {
          key: 'before',
          label: 'Before',
-         title: `Their developer-days in the ${period}`,
+         title: `Their days of work in the ${period}`,
          width: 'w-16',
          hide: 'hidden md:table-cell',
       },
    ];
    const projectCols: Column<ProjectKey>[] = [
-      { key: 'days', label: 'Days', title: 'Developer-days on it in the range', width: 'w-14' },
+      { key: 'days', label: 'Days', title: 'Days of work on it in the range', width: 'w-14' },
       {
          key: null,
          label: 'Share',
@@ -1530,7 +1527,7 @@ export function Retro({
       },
       {
          key: 'quiet',
-         label: 'Longest quiet',
+         label: 'Longest pause',
          title: 'The most weeks in a row nobody worked on it, between its first and last week with any days in the range',
          width: 'w-24',
          hide: 'hidden xl:table-cell',
@@ -1545,20 +1542,20 @@ export function Retro({
       {
          key: 'plan',
          label: 'Plan',
-         title: 'How its plan on the roadmap turned out, as of today: done on time or late, still running past its end, or no plan. A plan opens on the roadmap.',
+         title: 'How its plan on the roadmap turned out, as of today: done on time or late, still running past its end date, or no plan. A plan opens on the roadmap.',
          width: 'w-40',
          hide: 'hidden md:table-cell',
       },
       {
          key: 'before',
          label: 'Before',
-         title: `Its developer-days in the ${period}`,
+         title: `Its days of work in the ${period}`,
          width: 'w-16',
          hide: 'hidden lg:table-cell',
       },
    ];
    const splitCols: Column<string>[] = [
-      { key: null, label: 'Days', title: 'Developer-days in the range', width: 'w-14' },
+      { key: null, label: 'Days', title: 'Days of work in the range', width: 'w-14' },
       {
          key: null,
          label: 'Share',
@@ -1569,7 +1566,7 @@ export function Retro({
       {
          key: null,
          label: 'Before',
-         title: `Its developer-days in the ${period}`,
+         title: `Its days of work in the ${period}`,
          width: 'w-16',
          hide: 'hidden md:table-cell',
       },
@@ -1798,9 +1795,6 @@ export function Retro({
       : nav.team
       ? `No one on ${nav.team} worked on a PR`
       : 'No one worked on a PR';
-   const chartDays = `${rangeWords(shown)}${
-      shown.start < range.start ? `, paler before ${dayWords(range.start)}` : ''
-   }`;
 
    return (
       <div className="flex flex-col gap-7">
@@ -1808,10 +1802,7 @@ export function Retro({
             <GroupHeader
                title="Where the time went"
                sub={
-                  <SubDoor
-                     label="What a developer-day is"
-                     text={`${rangeWords(range)}, in developer-days`}
-                  >
+                  <SubDoor label="What a developer-day is" text="In days of work">
                      <p className="m-0">
                         A developer-day is a day someone opened, merged, commented on, stamped or
                         reviewed a PR, split evenly across the PRs they touched that day. A day on
@@ -1826,6 +1817,18 @@ export function Retro({
                         60 merged PRs, their commit days would have added about 4%.
                      </p>
                      <p className="m-0">Each tile counts every day, compared with the {period}.</p>
+                     <p className="m-0">
+                        The weekly chart draws at least 90 days, ending on the range’s last day, so
+                        a short range still shows its trend. The days before {dayWords(range.start)}{' '}
+                        are shown lighter, the week the range starts in split in two; only the
+                        range’s days count in the numbers. A week the chart’s days cut off, such as
+                        this one so far, says how many of its days count.
+                     </p>
+                     <p className="m-0">
+                        Writing is days on their own PRs, reviewing days on others’. The switch
+                        above the chart counts only those days there and in every list below; the
+                        tiles always count every day.
+                     </p>
                   </SubDoor>
                }
                headerExtra={
@@ -1889,9 +1892,9 @@ export function Retro({
                   </p>
                   {/* narrowed, the chip is the way out; else a longer look */}
                   {!narrowed && rangeDays(range) < 90 && (
-                     <TextButton onClick={() => navigate({ range: '90d' })} className="text-[13px]">
+                     <QuietButton onClick={() => navigate({ range: '90d' })}>
                         Look back over the last 90 days
-                     </TextButton>
+                     </QuietButton>
                   )}
                </div>
             )}
@@ -1902,24 +1905,6 @@ export function Retro({
                <GroupHeader
                   level={3}
                   title={`${whose} ${nav.kind === 'all' ? '' : `${nav.kind} `}days, week by week`}
-                  sub={
-                     <SubDoor label="How the weeks are drawn" text={chartDays}>
-                        <p className="m-0">
-                           The chart draws at least 90 days, ending on the range’s last day, so a
-                           short range still shows its trend. The days before{' '}
-                           {dayWords(range.start)} are paler, the week the range starts in split in
-                           two; only the range’s days count in the numbers.
-                        </p>
-                        <p className="m-0">
-                           A week the chart’s days cut off, such as this one so far, says how many
-                           of its days count.
-                        </p>
-                        <p className="m-0">
-                           Writing or Reviewing counts only those days here and in every list below.
-                           The tiles above always count every day.
-                        </p>
-                     </SubDoor>
-                  }
                   // the switch sits over what it changes: the weeks and the
                   // lists below, never the tiles above
                   headerExtra={
@@ -1946,8 +1931,8 @@ export function Retro({
                            <StripsChart
                               weeks={weeks}
                               strips={strips}
-                              unit="Developer-days each week"
-                              ariaLabel="Developer-days each week"
+                              unit=""
+                              ariaLabel="Days of work each week"
                               total="All days"
                               format={devDays}
                               height={180}
@@ -1969,14 +1954,7 @@ export function Retro({
                         level={3}
                         title="Who worked on what"
                         sub={
-                           <SubDoor
-                              label="How to read who worked on what"
-                              text={upper(
-                                 `${teamNames.length ? 'by team, then ' : ''}${
-                                    PERSON_ORDER[psort.key][psort.reversed ? 1 : 0]
-                                 }${kindOnly}`
-                              )}
-                           >
+                           <SubDoor label="How to read who worked on what" text={readThis}>
                               <p className="m-0">
                                  Every developer, and anyone else with days in the range. A name
                                  opens that person on People; the arrow opens their projects and PRs
@@ -1984,7 +1962,7 @@ export function Retro({
                               </p>
                               <p className="m-0">
                                  The bars are each week’s days, every row on one scale, the days
-                                 before the range paler. A column’s head sorts by it.
+                                 before the range lighter. A column’s head sorts by it.
                               </p>
                               <ColumnWords cols={personCols} />
                            </SubDoor>
@@ -2036,12 +2014,9 @@ export function Retro({
                         level={3}
                         title="Projects in this range"
                         sub={
-                           <SubDoor
-                              label="How to read the projects"
-                              text={`${PROJECT_ORDER[sort.key][sort.reversed ? 1 : 0]}${kindOnly}`}
-                           >
+                           <SubDoor label="How to read the projects" text={readThis}>
                               <p className="m-0">
-                                 Every project’s developer-days, how long its PRs ran, its longest
+                                 Every project’s days of work, how long its PRs ran, its longest
                                  pause, and how its plan turned out. The days on PRs with no project
                                  come last, as {NOT_IN_A_PROJECT}.
                               </p>
@@ -2098,10 +2073,7 @@ export function Retro({
                         level={3}
                         title="Split another way"
                         sub={
-                           <SubDoor
-                              label="How to read the split"
-                              text={`${SPLIT_WORDS[nav.by]}${kindOnly}`}
-                           >
+                           <SubDoor label="How to read the split" text={readThis}>
                               <p className="m-0">
                                  The same days, split one more way. A name opens its PRs and who
                                  spent the days here, with anything more it offers, such as counting

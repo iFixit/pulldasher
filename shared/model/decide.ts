@@ -156,7 +156,7 @@ export interface PlanCounts {
 }
 
 /**
- * Whether Decide asks a plan "Done?": its project has issues, every one is
+ * Whether Decide asks a plan "Is it done?": its project has issues, every one is
  * closed, and the plan hasn't changed since the last one closed.
  */
 export function issuesAllClosed(item: RoadmapItem, counts: IssueCounts): boolean {
@@ -206,7 +206,7 @@ export function decideQueue({
     * finished plan of theirs isn't reopened by the work that follows */
    ongoing?: ReadonlySet<string>;
    /** the day `now` falls on where the team is (projects.ts dayIn): what
-    * "past its end" is judged by, the vouch for an update included */
+    * "overdue" is judged by, the vouch for an update included */
    today: string;
    now: number;
 }): DecideRow[] {

@@ -1,5 +1,6 @@
+import { Check } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { n } from '../../../../shared/format';
+import { issueUrl, n } from '../../../../shared/format';
 import { closedIssues, RANK, type DecideRow } from '../../../../shared/model/decide';
 import {
    projectOf,
@@ -12,21 +13,31 @@ import {
    HEALTH_WORD,
    healthStanding,
    isUnderWay,
+   mondayOf,
    planFor,
+   planEnd,
    UPDATE_DUE_DAYS,
    type RoadmapItem,
+   type RoadmapStatus,
 } from '../../../../shared/model/roadmap';
 import { issueKey } from '../../../../shared/model/work';
 import type { PullData } from '../../../../shared/types';
-import { EmptyState, FactLink, LoadFailed, TextButton } from '../../components/bits';
+import {
+   EmptyState,
+   FactLink,
+   LoadFailed,
+   QuietButton,
+   Segmented,
+   textInputClass,
+} from '../../components/bits';
+import { Icon } from '../../components/Icon';
 import { foldDomId, openFold, SubDoor } from '../../components/Lane';
 import type { RowOptions } from '../../components/Row';
 import { usePageKey } from '../../hooks';
 import { dayOf, dayWords, type ProjectsData, type Range } from '../../model/projectData';
 import { stageWord, type PortfolioItem } from '../../model/portfolio';
 import { reloadProjectWork, useProjectWork } from '../../model/projectWork';
-import { takeBackRoadmapUpdate } from '../../model/roadmapData';
-import { setOngoing } from '../../model/settingsData';
+import { updateRoadmapItem } from '../../model/roadmapData';
 import {
    addedLater,
    issueForecast,
@@ -40,12 +51,13 @@ import {
    BEING_WORKED_ON,
    days,
    DONE_WHEN,
+   END_MEANS,
+   END_WORD,
    LAST_14_DAYS,
-   NO_PLAN,
    NO_UPDATE_YET,
    UPDATE_DUE,
 } from '../../model/words';
-import { DecideCall, planRow, reasonParts } from './Decide';
+import { answerWords, planRow, reasonParts, usePlanCalls, type Call } from './Decide';
 import { BacklogSection } from './BacklogSection';
 import {
    flagText,
@@ -57,16 +69,9 @@ import {
    type Navigate,
    type ProjectsNav,
 } from './parts';
-import {
-   PLAN_STATUS_WORD,
-   planWarnings,
-   planWords,
-   UpdatesPanel,
-   vouchRule,
-   vouchWords,
-   when,
-} from './roadmapHealth';
+import { UpdatesPanel, vouchRule, vouchWords, when } from './roadmapHealth';
 import { ProjectWorkSections, showPulls, type PullLookup } from './Work';
+import { IssuesBar, PlanTimeline } from './projectMarks';
 
 /** words that start a line, with a capital */
 const upper = (s: string) => s[0].toUpperCase() + s.slice(1);
@@ -81,32 +86,319 @@ const PR_STAGES: readonly PrStage[] = ['ready', 'hold', 'review', 'work'];
 const HEALTH_ID = 'project-update-health';
 /** the way to post one, where the focus lands after taking one back */
 const POST_ID = 'project-post-update';
+/** a label in the page's two lists, and the lists themselves */
+const LABEL = 'mt-2 text-xs leading-5 text-ink-3 first:mt-0 sm:mt-0';
+const LIST =
+   'm-0 grid grid-cols-1 items-start gap-x-4 text-[13px] leading-5 sm:grid-cols-[7.5rem_minmax(0,1fr)]';
+/** a dot after every item of a run but its last, so a wrapped line ends on
+ * a dot and never starts with one */
+const DOTTED =
+   "[&>*:not(:last-child)]:after:ml-3 [&>*:not(:last-child)]:after:text-ink-3 [&>*:not(:last-child)]:after:content-['·']";
 
-/** Something someone owes on this project, as a row of the summary: the
- * word in amber, then the why, and the way to do it right after it; what
- * the way opens (a form) goes under the row, full width. */
-function Owed({
-   word,
-   children,
-   action,
-   after,
+/** A box that can be changed here: every editable value wears it, and
+ * nothing else on the page does. */
+const FIELD = `${textInputClass} text-ink hover:border-brand focus:border-brand`;
+
+/** Status, picked from its plan's four: the value is the control. */
+const STATUS_OPTIONS: [RoadmapStatus, string][] = [
+   ['active', 'In progress'],
+   ['parked', 'Parked'],
+   ['done', 'Done'],
+   ['dropped', 'Dropped'],
+];
+
+/**
+ * Its plan as fields: Status and End, each the plan's own value as a control,
+ * and Decide's question on the field its answer changes, with that one
+ * answer suggested. Every change is one of Decide's calls, so Decide's row
+ * clears and the receipt, with Undo, lands under the field that made it.
+ */
+function PlanFields({
+   row,
+   plan,
+   project,
+   ask,
+   ongoingByLabel,
+   openRoadmap,
+   showDates,
 }: {
-   word: string;
-   children: ReactNode;
-   action?: ReactNode;
-   /** a form the action opens: under the row, the whole width */
-   after?: ReactNode;
+   row: DecideRow;
+   plan: RoadmapItem | null;
+   project: PortfolioItem | undefined;
+   /** Decide's question, when it asks one */
+   ask: { facts: string; question: string } | null;
+   ongoingByLabel: boolean;
+   openRoadmap: () => void;
+   /** its dates in words, where no timeline under Progress shows them */
+   showDates: boolean;
 }) {
+   const { answer, ends, receipt, make, retry, undo, clear } = usePlanCalls(row, project);
+   // a date of one's own, past the presets: the browser's own calendar
+   const [picking, setPicking] = useState(false);
+   const pickRef = useRef<HTMLInputElement>(null);
+   useEffect(() => {
+      // straight to the calendar, where the browser has one
+      try {
+         if (picking) pickRef.current?.showPicker();
+      } catch {
+         // no picker without a click (Safari): the box is focused
+      }
+   }, [picking]);
+   const host = (c: Call | null | undefined) =>
+      c?.kind === 'commit' || c?.kind === 'ongoing' ? 'end' : 'status';
+   const ongoing = plan?.end_kind === 'ongoing';
+   const question = ask && (
+      <div className="mt-1.5 max-w-[60ch]">
+         {/* with a suggested answer, its button is the question answered, so
+             the question is only that button's hover */}
+         <p className="m-0 text-ink-2">
+            {ask.facts} {!answer && <span className="text-warn">{ask.question}</span>}
+         </p>
+         {answer && (
+            // a quiet fill, never an outline: outlines are the boxes'
+            <button
+               type="button"
+               onClick={() => make(answer)}
+               title={`${ask.question} Decide suggests this.`}
+               className="hit pressable mt-1.5 inline-flex h-7 items-center rounded-lg border-0 bg-brand-50 px-2.5 text-[13px] font-medium text-brand hover:bg-brand-100"
+            >
+               {answerWords(answer, plan)}
+               <span className="ml-1.5 text-[11px] font-normal opacity-80">Suggested</span>
+            </button>
+         )}
+      </div>
+   );
+   const said = receipt && (
+      <p className="m-0 mt-1.5 text-ink-2" role="status">
+         {receipt.state === 'failed' ? (
+            <>
+               Didn’t save.{receipt.why} <QuietButton onClick={retry}>Try again</QuietButton>{' '}
+               <QuietButton onClick={clear}>Cancel</QuietButton>
+            </>
+         ) : (
+            <>
+               <Icon icon={Check} size={14} className="mr-1 inline-block align-[-2px]" />
+               {receipt.words}
+               {receipt.why && ` ${receipt.why}`} <QuietButton onClick={undo}>Undo</QuietButton>
+            </>
+         )}
+      </p>
+   );
+   const under = (field: 'status' | 'end') => (
+      <>{receipt ? host(receipt.call) === field && said : host(answer) === field && question}</>
+   );
+   const commitTo = (end: string) => {
+      const c = ends.find(e => e.end === end);
+      if (c) make({ kind: 'commit', ...c });
+   };
+   /** Any day picked: plans move in whole weeks, so it finishes that week's
+    * Sunday, and the words say so. */
+   const commitToDay = (day: string) => {
+      const end = planEnd({ start: mondayOf(day), weeks: 1 });
+      make({ kind: 'commit', label: dayWords(end), end, through: dayWords(end) });
+   };
+   const label = `${LABEL} sm:leading-8`;
    return (
       <>
-         <dt className="font-medium text-warn">{word}</dt>
-         <dd className="m-0 max-w-[70ch] text-ink-2">
-            {children}
-            {action && <> {action}</>}
+         <dt className={label}>Status</dt>
+         <dd className="m-0">
+            {plan ? (
+               <Segmented
+                  ariaLabel="Status"
+                  value={plan.status === 'planned' ? 'active' : plan.status}
+                  options={STATUS_OPTIONS.map(([v, w]) => [
+                     v,
+                     v === 'active' && plan.status === 'planned' ? 'Planned' : w,
+                  ])}
+                  onChange={v => {
+                     if (v === 'parked') make({ kind: 'park' });
+                     else if (v === 'done') make({ kind: 'done' });
+                     else if (v === 'dropped') make({ kind: 'drop' });
+                     else {
+                        // back under way needs an end: the suggested one, or the nearest
+                        const end = answer?.kind === 'commit' ? answer : ends[0];
+                        if (end) make({ ...end, kind: 'commit' });
+                     }
+                  }}
+               />
+            ) : (
+               <span className="leading-8 text-ink-2">No plan</span>
+            )}
+            {under('status')}
          </dd>
-         {after && <dd className="col-span-2 m-0">{after}</dd>}
+         <dt className={label}>End</dt>
+         <dd className="m-0">
+            {ongoingByLabel && !plan ? (
+               <span className="leading-8 text-ink-2">
+                  No end date: its GitHub label says ongoing
+               </span>
+            ) : (
+               <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <select
+                     aria-label="When it ends"
+                     value=""
+                     onChange={e => {
+                        const v = e.target.value;
+                        if (v === 'ongoing') make({ kind: 'ongoing' });
+                        else if (v === 'pick') setPicking(true);
+                        else if (v) commitTo(v);
+                     }}
+                     className={`${FIELD} cursor-pointer pr-7 pl-2.5`}
+                  >
+                     <option value="" disabled>
+                        {!plan
+                           ? 'Promise to finish by…'
+                           : ongoing
+                           ? 'No end'
+                           : dayWords(planEnd(plan))}
+                     </option>
+                     {ends.map(e => (
+                        <option key={e.end} value={e.end}>
+                           {e.label}
+                        </option>
+                     ))}
+                     <option value="pick">Pick a date…</option>
+                     {!ongoing && <option value="ongoing">No end date (ongoing)</option>}
+                  </select>
+                  {picking && (
+                     <input
+                        type="date"
+                        aria-label="Finish by"
+                        min={dayOf(new Date())}
+                        autoFocus
+                        ref={pickRef}
+                        onChange={e => {
+                           if (!e.target.value) return;
+                           setPicking(false);
+                           commitToDay(e.target.value);
+                        }}
+                        onBlur={() => setPicking(false)}
+                        className={`${FIELD} px-2.5`}
+                     />
+                  )}
+                  {plan && !ongoing && (
+                     <span title={`${END_MEANS.hard} ${END_MEANS.soft}`}>
+                        <Segmented
+                           ariaLabel="Kind of end"
+                           value={plan.end_kind}
+                           options={[
+                              ['hard', END_WORD.hard],
+                              ['soft', END_WORD.soft],
+                           ]}
+                           onChange={v => void updateRoadmapItem(plan.id, { end_kind: v })}
+                        />
+                     </span>
+                  )}
+                  {plan && showDates && (
+                     <FactLink
+                        onClick={openRoadmap}
+                        title="Move its dates on the roadmap"
+                        className="text-ink-3"
+                     >
+                        from {dayWords(plan.start)}, {plan.weeks}{' '}
+                        {plan.weeks === 1 ? 'week' : 'weeks'}
+                     </FactLink>
+                  )}
+               </span>
+            )}
+            {under('end')}
+         </dd>
       </>
    );
+}
+
+/** "Done when" as its own box: Enter or leaving it saves; the receipt
+ * beside it takes it back. */
+function DoneWhenField({ plan }: { plan: RoadmapItem }) {
+   const saved = plan.done_when ?? '';
+   const [text, setText] = useState(saved);
+   const [was, setWas] = useState<string | null>(null);
+   const [state, setState] = useState<'idle' | 'saved' | 'failed'>('idle');
+   useEffect(() => setText(plan.done_when ?? ''), [plan.done_when]);
+   const save = async (value: string, before: string) => {
+      if (value.trim() === before.trim()) return;
+      const ok = await updateRoadmapItem(plan.id, { done_when: value.trim() });
+      setState(ok ? 'saved' : 'failed');
+      setWas(ok ? before : null);
+   };
+   return (
+      <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+         <input
+            aria-label={`${DONE_WHEN}, for ${plan.name}`}
+            className={`w-full max-w-[60ch] px-2.5 ${FIELD}`}
+            value={text}
+            maxLength={200}
+            placeholder="What has to be true to call it done"
+            onChange={e => {
+               setText(e.target.value);
+               setState('idle');
+            }}
+            onKeyDown={e => {
+               if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            }}
+            onBlur={() => void save(text, saved)}
+         />
+         <span role="status" className="text-xs text-ink-3">
+            {state === 'saved' && was !== null ? (
+               <>
+                  Saved.{' '}
+                  <QuietButton
+                     onClick={() => {
+                        setText(was);
+                        void save(was, text);
+                        setState('idle');
+                     }}
+                  >
+                     Undo
+                  </QuietButton>
+               </>
+            ) : state === 'failed' ? (
+               'Didn’t save. Try again.'
+            ) : (
+               ''
+            )}
+         </span>
+      </span>
+   );
+}
+
+/** The update box: a real box, two lines, that grows into the composer
+ * (drafted from the numbers) once it's used; "u" opens it too. */
+function UpdateBox({ plan }: { plan: RoadmapItem }) {
+   const [open, setOpen] = useState(false);
+   if (!open) {
+      return (
+         <textarea
+            id={POST_ID}
+            rows={1}
+            readOnly
+            aria-label={`Write the next update on ${plan.name}`}
+            aria-keyshortcuts="u"
+            placeholder="Write the next update…"
+            onFocus={() => setOpen(true)}
+            className={`mt-2 block w-full max-w-[60ch] resize-none px-2.5 py-1.5 ${FIELD} h-auto`}
+         />
+      );
+   }
+   return (
+      <div id={POST_ID} className="mt-2 max-w-[60ch] overflow-hidden rounded-lg border border-line">
+         <UpdatesPanel
+            item={plan}
+            bare
+            history={false}
+            autoFocus
+            onClose={() => setOpen(false)}
+            actions={<QuietButton onClick={() => setOpen(false)}>Cancel</QuietButton>}
+         />
+      </div>
+   );
+}
+
+/** Bring the update box into view and open it. */
+function openComposer() {
+   const el = document.getElementById(POST_ID);
+   el?.scrollIntoView({ block: 'center' });
+   el?.focus({ preventScroll: true });
 }
 
 /** Counts in a line, a dot after each but the last, kept with its count so
@@ -137,8 +429,8 @@ function targetText(
    if (!due) return `target ${targetWords(target)}`;
    const day = unbroken(dayWords(due));
    const name = target.title && target.title !== dayWords(due) ? target.title : null;
-   if (missed) return name ? `missed the ${name} target, ${day}` : `missed the ${day} target`;
-   return name ? `${name} target, ${day}` : `target ${day}`;
+   if (missed) return `after the ${day} target`;
+   return name ? `${name} target date, ${day}` : `target date ${day}`;
 }
 
 /** Open a fold below (or a section), bring it into view, and put focus on
@@ -210,54 +502,13 @@ export function ProjectPage({
    /** the date range's picker, beside the numbers it sets */
    rangePicker?: ReactNode;
 }) {
-   // the box flips at once; a failed save puts it back and says why
-   const [want, setWant] = useState<boolean | null>(null);
-   const [saveError, setSaveError] = useState<{ error: string; on: boolean } | null>(null);
-   const [posting, setPosting] = useState(false);
    // what the page just did, for a screen reader
    const [said, setSaid] = useState('');
-   // a posted update is the plan's new latest one: the form's job is done
-   const latest = (plans ? planFor(slug, plans) : null)?.update ?? null;
-   const latestId = latest?.id ?? null;
-   const formFrom = useRef(latestId);
-   const posted = useRef(false);
-   // the update just posted here, which keeps an Undo beside it
-   const [justPosted, setJustPosted] = useState<number | null>(null);
-   const [undoError, setUndoError] = useState<string | null>(null);
-   useEffect(() => {
-      if (posting && latestId !== formFrom.current) {
-         setPosting(false);
-         posted.current = true;
-         setSaid('Update posted.');
-         // one someone else posted meanwhile isn't this person's to take back
-         const mine = !!latest && latest.author.toLowerCase() === opts.me.toLowerCase();
-         setJustPosted(mine ? latestId : null);
-         setUndoError(null);
-      } else if (!posting && posted.current) {
-         // the form went from under the focus: it lands on the update just
-         // posted, once its row is back, and a screen reader hears it went
-         posted.current = false;
-         document.getElementById(HEALTH_ID)?.focus();
-      }
-      formFrom.current = latestId;
-   }, [latestId, posting]);
-   // "u" opens an update from anywhere on the page: the box opens where
-   // it's offered, near the top, and comes into view with the line above
-   // it, by hand, clear of the app's header (scrollIntoView can't do both)
+   // "u" goes to the update box in "Change this project" from anywhere on
+   // the page, clear of the app's header
    usePageKey('u', () => {
       if (!plans || !planFor(slug, plans)) return setSaid('It has no plan to post an update on.');
-      setPosting(true);
-      requestAnimationFrame(() => {
-         const form = document.getElementById('project-update-form');
-         const header =
-            parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-h')) ||
-            0;
-         const up =
-            (document.getElementById(POST_ID)?.getBoundingClientRect().top ?? 0) - header - 8;
-         const down = (form?.getBoundingClientRect().bottom ?? 0) - window.innerHeight + 16;
-         window.scrollBy(0, up < 0 ? up : Math.min(Math.max(down, 0), up));
-         form?.querySelector('textarea')?.focus({ preventScroll: true });
-      });
+      openComposer();
    });
    // its issues and PRs, which the summary counts and the list shows
    const work = useProjectWork(slug, plans);
@@ -319,28 +570,7 @@ export function ProjectPage({
          : 'Done'
       : 'Quiet';
    const byLabel = !!project?.ongoing;
-   const ongoing = byLabel || (want ?? ongoingSaved.includes(slug));
-   const markOngoing = (on: boolean) => {
-      setWant(on);
-      setSaveError(null);
-      void setOngoing(slug, on).then(r => {
-         if (!('error' in r)) return;
-         setWant(null);
-         setSaveError({ error: r.error, on });
-      });
-   };
-   // one way to say it's ongoing on the page at a time: Decide's own call
-   // while its strip offers it, or its receipt stands (Decide.tsx CallStrip
-   // offers it to new work and to finished work that goes on), else the
-   // head's box
-   const decideOffersOngoing = calls.some(
-      row =>
-         !!row.slug &&
-         row.reasons.some(r => r.kind === 'new' || (r.kind === 'reopened' && r.by === 'roadmap'))
-   );
-   // while a plan is under way, its end says whether the work ends (the
-   // Plan line's calls offer "It’s ongoing"), so the head has no box of its own
-   const planUnderWay = !!plan && isUnderWay(plan.status);
+   const ongoing = byLabel || ongoingSaved.includes(slug);
    // what the board knows of each PR: open ones live on the board (in any
    // project, or none), and the last two weeks' merges
    const liveIndex = new Map(
@@ -442,125 +672,43 @@ export function ProjectPage({
    // Decide's rows here, asked or decided; a call made under the plan, where
    // Decide asked nothing, keeps its receipt there
    const decideRows = calls.filter(row => row.reasons.length);
-   const decideCalls = decideRows.map(row => (
-      <DecideCall
-         key={`${row.slug ?? ''}:${row.item?.id ?? ''}`}
-         row={row}
-         project={item}
-         describedBy="project-decide-why"
-      />
-   ));
-   const owed: ReactNode[] = [];
-   // Decide's call, made right here with Decide's own strip: the label is
-   // ink and the question its one amber mark, as on Decide; once made, the
-   // call stays as a receipt with Undo, on the label's line, level with it
-   // (a receipt sits in a strip's height). The strip keeps its place in the
-   // list either way, so the focus a call moves to Undo stays there.
-   if (decideRows.length) {
-      owed.push(
-         <Fragment key="decide">
-            <dt
-               className={`font-medium text-ink-2 ${
-                  asked.length ? '' : 'mt-1.5 flex min-h-[30px] items-center'
-               }`}
-            >
-               {asked.length ? 'Decide asks' : 'Decided'}
-            </dt>
-            {asked.length > 0 && (
-               <dd key="why" id="project-decide-why" className="m-0 max-w-[70ch] text-ink-2">
-                  {asked.map(({ key, name, facts, question }, i) => (
-                     <Fragment key={key}>
-                        {i > 0 && ' '}
-                        {name}
-                        {facts} <span className="whitespace-nowrap text-warn">{question}</span>
-                     </Fragment>
-                  ))}
-               </dd>
-            )}
-            <dd key="calls" className="col-start-2 m-0 flex flex-col gap-2">
-               {decideCalls}
-            </dd>
-         </Fragment>
-      );
-   }
-   // the way to post an update, on any plan: on the line that asks for one
-   // while it's owed, else on the Update line with nothing amber, since a
-   // plan its numbers vouch for can still say more; "u" works it too
+   // the row the Plan fields answer: Decide's, while it asks, else the plan's
+   const fieldRow = decideRows[0] ?? planRow(slug, plan, calls);
+   const org = project?.repo.split('/')[0] ?? 'iFixit';
+   const labelSearch = `https://github.com/search?type=pullrequests&q=${encodeURIComponent(
+      `org:${org} label:"${prefix}${slug}"`
+   )}`;
    const owes = !!plan && (planHealth?.kind === 'missing' || planHealth?.kind === 'stale');
-   const postToggle = (
-      <TextButton
-         id={POST_ID}
-         tone={posting ? 'quiet' : 'action'}
-         onClick={() => setPosting(!posting)}
-         aria-expanded={posting}
-         aria-keyshortcuts={posting ? undefined : 'u'}
-      >
-         {posting ? 'Close' : 'Post an update'}
-      </TextButton>
-   );
-   // the form opens under the line that offers it; its toggle there is the
-   // way to close it
-   const postForm = posting && plan && (
-      <div
-         id="project-update-form"
-         className="overflow-hidden rounded-xl border border-line bg-surface"
-      >
-         <UpdatesPanel item={plan} bare autoFocus />
-      </div>
-   );
-   /** Take back the update just posted: the one before is the latest again,
-    * and any update owed is owed again. */
-   const undoPost = (id: number) => {
-      if (!plan) return;
-      void takeBackRoadmapUpdate(plan.id, id).then(r => {
-         if ('error' in r) return setUndoError(r.error);
-         setJustPosted(null);
-         setSaid('Took the update back.');
-         // the Undo went with it: the focus goes to the way to post one
-         requestAnimationFrame(() => document.getElementById(POST_ID)?.focus());
-      });
-   };
-   if (plan && owes) {
-      owed.push(
-         <Owed
-            key="update"
-            word={planHealth?.kind === 'missing' ? NO_UPDATE_YET : UPDATE_DUE}
-            action={postToggle}
-            after={postForm}
-         >
-            {planHealth?.kind === 'stale'
-               ? `The last one was ${days(planHealth.days)} ago; one is due every ${days(
-                    UPDATE_DUE_DAYS
-                 )}.`
-               : `None since it started; one is due every ${days(UPDATE_DUE_DAYS)}.`}
-         </Owed>
-      );
-   }
-   for (const flag of group?.flags ?? []) {
-      const [word] = flagText(flag, group as ProjectGroup);
-      const lone = group?.people[0];
-      // the counts behind each flag, never its threshold
-      owed.push(
-         flag === 'one_person' && group && lone ? (
-            <Owed
-               key={flag}
-               word={upper(word)}
-               action={<TextButton onClick={() => onPerson(lone)}>See {lone} in People</TextButton>}
-            >
-               Its {group.open.length + group.merged.length} PRs open or merged in the{' '}
-               {LAST_14_DAYS} are all by {lone}.
-            </Owed>
-         ) : (
-            <Owed key={flag} word={upper(word)}>
-               {group &&
+   // the board's flags, said first on the PRs row, their word the one amber
+   // one that covers every open PR (they all stand at one stage) joins the
+   // open count's line instead of saying the same thing on a line of its own
+   const allOneStage =
+      [...byStage.values()].filter(l => l.length).length + (unread.length ? 1 : 0) <= 1;
+   const merged1 = allOneStage ? (group?.flags ?? []).find(f => f !== 'one_person') : undefined;
+   const warnings: ReactNode[] = (group?.flags ?? [])
+      .filter(f => f !== merged1)
+      .map(flag => {
+         const [word] = flagText(flag, group as ProjectGroup);
+         const lone = group?.people[0];
+         return (
+            <span key={flag} className="block">
+               <span className="font-medium text-warn">{upper(word)}</span>
+               {': '}
+               {flag === 'one_person' && group && lone ? (
+                  <>
+                     <FactLink onClick={() => onPerson(lone)}>{lone}</FactLink> ·{' '}
+                     {group.open.length + group.merged.length} PRs in the {LAST_14_DAYS}
+                  </>
+               ) : (
+                  group &&
                   pullCount(
                      group.open.map(p => issueKey(p.data)),
                      group.open.length === 1 ? 'open PR' : 'open PRs'
-                  )}
-            </Owed>
-         )
-      );
-   }
+                  )
+               )}
+            </span>
+         );
+      });
 
    const openCount = [...byStage.values()].reduce((sum, l) => sum + l.length, 0) + unread.length;
    const target = targetOf(project);
@@ -574,15 +722,10 @@ export function ProjectPage({
       !ongoing && plan?.end_kind !== 'ongoing' && !finished && page?.issues.length
          ? issueForecast(page.issues, missed ? null : due)
          : null;
-   // a soft end run past is drift, said quietly in the Plan line's sentence;
-   // a hard one is Decide's question above
-   const drift =
-      plan?.end_kind === 'soft' && plans
-         ? planWarnings(plan, plans, dayOf(new Date()), {
-              live: item?.status === 'live',
-              target: item?.target ?? null,
-           }).over
-         : null;
+   // its plan as a line under Progress, while there's a plan with an end
+   // still to come or run past (parked shows too, in grey)
+   const timeline =
+      !!plan && plan.status !== 'done' && plan.status !== 'dropped' && plan.end_kind !== 'ongoing';
    const lastActivity = item?.lastActivity ?? null;
    const counts = page?.counts;
    const added = page ? page.issues.filter(i => addedLater(i, planned)).length : 0;
@@ -591,7 +734,7 @@ export function ProjectPage({
          STAGE_WORDS[s].toLowerCase(),
          byStage.get(s) ?? [],
       ]),
-      ...(unread.length ? [['the board hasn’t read', unread] as [string, string[]]] : []),
+      ...(unread.length ? [['not on the board yet', unread] as [string, string[]]] : []),
    ];
    // the open ones that do none of its issues sit apart, under "PRs with no
    // issue here" (with no issues at all, every PR is "its PRs": none apart)
@@ -608,290 +751,391 @@ export function ProjectPage({
          <p role="status" aria-live="polite" className="sr-only">
             {said}
          </p>
-         {/* who it is */}
-         <div className="mb-5">
+         {/* who it is: the name, then GitHub's facts in one quiet line */}
+         <div className="mb-6">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-               <h2 className="m-0 text-lg font-semibold leading-snug">{name}</h2>
-               <span className="text-xs text-ink-3">{standing}</span>
-               {people.length > 0 && (
-                  <span className="flex items-center gap-3 text-xs text-ink-3 sm:ml-auto">
-                     {!split && (
-                        <PeopleStack logins={people} size={20} onPerson={onPerson} me={opts.me} />
-                     )}
-                     {devs.length > 0 && (
-                        <span className="inline-flex items-center gap-1.5">
-                           Developers{' '}
-                           <PeopleStack logins={devs} size={20} onPerson={onPerson} me={opts.me} />
-                        </span>
-                     )}
-                     {others.length > 0 && (
-                        <span className="inline-flex items-center gap-1.5">
-                           Non-developers{' '}
+               <h2 className="m-0 text-xl font-semibold leading-7">{name}</h2>
+               {/* with a plan, its Status says where it stands */}
+               {!plan && <span className="text-[13px] text-ink-3">{standing}</span>}
+               <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3 sm:ml-auto">
+                  {/* its label and where to edit it: out to GitHub, by who works on it */}
+                  <a
+                     href={labelSearch}
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     className="text-ink-3 underline decoration-line underline-offset-2 hover:text-brand"
+                     title="Everything on GitHub with this project's label"
+                  >
+                     {prefix + slug} ↗
+                  </a>
+                  {project && (
+                     <a
+                        href={issueUrl(project.repo, project.number)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-ink-3 underline decoration-line underline-offset-2 hover:text-brand"
+                        title="The name, lead, target and parents are set on its GitHub issue"
+                     >
+                        Edit on GitHub ↗
+                     </a>
+                  )}
+                  {people.length > 0 && (
+                     <span className="flex items-center gap-3 text-xs text-ink-3">
+                        {devs.length > 0 && others.length > 0 ? (
+                           <>
+                              <span className="inline-flex items-center gap-1.5">
+                                 Developers{' '}
+                                 <PeopleStack
+                                    logins={devs}
+                                    size={20}
+                                    onPerson={onPerson}
+                                    me={opts.me}
+                                 />
+                              </span>
+                              <span className="inline-flex items-center gap-1.5">
+                                 Non-developers{' '}
+                                 <PeopleStack
+                                    logins={others}
+                                    size={20}
+                                    onPerson={onPerson}
+                                    me={opts.me}
+                                 />
+                              </span>
+                           </>
+                        ) : (
                            <PeopleStack
-                              logins={others}
+                              logins={people}
                               size={20}
                               onPerson={onPerson}
                               me={opts.me}
                            />
-                        </span>
-                     )}
-                  </span>
-               )}
+                        )}
+                     </span>
+                  )}
+               </span>
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3">
-               <span>{prefix + slug}</span>
+            <div
+               className={`mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-3 ${DOTTED}`}
+            >
                <ProjectFacts
                   g={{ slug }}
                   project={project}
                   prefix={prefix}
                   ongoing={ongoing}
                   lead={item}
-                  links={{ navigate, nameOf, parts }}
-                  onOngoing={decideOffersOngoing || planUnderWay ? undefined : markOngoing}
+                  links={{ navigate, nameOf, parts: [] }}
                   ongoingByLabel={byLabel}
+                  issueLink={false}
                   inline
                />
             </div>
-            {saveError && (
-               // ink: a failed save is nobody's debt
-               <p className="m-0 mt-1 text-xs text-ink-2">
-                  {saveError.error}{' '}
-                  <TextButton onClick={() => markOngoing(saveError.on)}>Try again</TextButton>
-               </p>
-            )}
          </div>
 
-         {/* what's owed on it, then where it stands, in one list whose
-             labels line up: the column grows to fit a long amber word */}
-         <dl className="m-0 mb-8 grid grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2.5 text-[13px] leading-5 sm:grid-cols-[minmax(7rem,max-content)_minmax(0,1fr)]">
-            {owed}
-            {/* its latest update, with the way to post one when none is owed
-                (nothing amber); while the form is open, its list of updates
-                shows this one first */}
-            {plan && (!owes || (update && !posting)) && (
-               <>
-                  <dt className="text-xs leading-5 text-ink-3">Update</dt>
-                  <dd className="m-0 text-ink-2">
-                     {update && !posting ? (
-                        <>
-                           <FactLink
-                              id={HEALTH_ID}
-                              onClick={() => navigate(openPlan(nav, plan.id))}
-                              className="font-medium"
-                              title="Open its plan and every update on the roadmap"
-                           >
-                              <span className={healthOwed ? 'text-warn' : undefined}>
-                                 {HEALTH_WORD[update.health]}
-                              </span>
-                           </FactLink>
-                           {' · '}
-                           {when(update.at)} · {update.author}{' '}
-                           {/* just posted here: its Undo, where Post was */}
-                           {update.id === justPosted ? (
-                              <>
-                                 {undoError && <span>{undoError} </span>}
-                                 <TextButton
-                                    onClick={() => undoPost(update.id)}
-                                    aria-label="Undo posting this update"
-                                 >
-                                    Undo
-                                 </TextButton>
-                              </>
-                           ) : (
-                              !owes && postToggle
-                           )}
-                           {/* drawn as the updates panel draws its history */}
-                           {update.body && (
-                              <p className="m-0 mt-0.5 max-w-[70ch] whitespace-pre-line">
-                                 {update.body}
-                              </p>
-                           )}
-                           {vouch && (
-                              <p className="m-0 mt-0.5 text-ink-3" title={vouchRule(vouch)}>
-                                 {vouchWords(vouch)}
-                              </p>
-                           )}
-                        </>
-                     ) : (
-                        <>
-                           {/* no update yet, and its numbers say none is owed:
-                               said where the update would be, so the row isn't
-                               a mystery */}
-                           {vouch && !posting && (
-                              <span className="text-ink-3" title={vouchRule(vouch)}>
-                                 {vouchWords(vouch)}{' '}
-                              </span>
-                           )}
-                           {postToggle}
-                        </>
-                     )}
-                  </dd>
-                  {!owes && postForm && <dd className="col-span-2 m-0">{postForm}</dd>}
-               </>
-            )}
-            <dt className="text-xs leading-5 text-ink-3">Plan</dt>
-            <dd className="m-0 text-ink-2">
-               <span id="project-plan">
-                  {plan ? (
-                     <FactLink
-                        onClick={() => navigate(openPlan(nav, plan.id))}
-                        title="Open it on the roadmap"
-                     >
-                        {/* the head says its status when it's the same word */}
-                        {PLAN_STATUS_WORD[plan.status] === standing
-                           ? upper(planWords(plan))
-                           : `${PLAN_STATUS_WORD[plan.status]}, ${planWords(plan)}`}
-                        {drift && `, ${drift.text}`}
-                     </FactLink>
-                  ) : (
-                     NO_PLAN
-                  )}
-               </span>
-               {/* changed right here, as Decide changes it: while Decide asks,
-                   its own strip above is the one; with no plan, a commit
-                   starts one */}
-               {plans && !decideRows.length && (
-                  <DecideCall
-                     row={planRow(slug, plan, calls)}
+         {/* the plan: every white box can be changed right here, and
+             nothing else on the page wears one */}
+         <section aria-labelledby="project-plan-title" className="mb-8">
+            <h3 id="project-plan-title" className="m-0 mb-3 text-[13px] font-semibold text-ink">
+               Plan
+            </h3>
+            <dl className={`${LIST} gap-y-1 sm:gap-y-3`}>
+               {plans && (
+                  <PlanFields
+                     row={fieldRow}
+                     plan={plan}
                      project={item}
-                     describedBy="project-plan"
+                     ask={asked[0] ? { facts: asked[0].facts, question: asked[0].question } : null}
+                     ongoingByLabel={byLabel}
+                     openRoadmap={() => plan && navigate(openPlan(nav, plan.id))}
+                     showDates={!timeline}
                   />
                )}
-            </dd>
-            {plan?.done_when && (
-               <>
-                  <dt className="text-xs leading-5 text-ink-3">{DONE_WHEN}</dt>
-                  <dd className="m-0 max-w-[70ch] text-ink-2">{plan.done_when}</dd>
-               </>
-            )}
-            {/* when it's meant to finish, and when its issues say it will;
-                facts, so ink, whatever they say. How the forecast is worked
-                out is behind its words, as a sub-line's story is. */}
-            {(target || forecast) && (
-               <>
-                  <dt className="text-xs leading-5 text-ink-3">Finish</dt>
-                  <dd className="m-0 text-ink-2">
-                     {target && upper(targetText(target, due, missed))}
-                     {target && forecast && ' · '}
-                     {forecast && (
-                        <SubDoor
-                           label="How the finish is worked out"
-                           text={target ? forecast.text : upper(forecast.text)}
-                        >
-                           <p className="m-0">{forecast.how}</p>
-                        </SubDoor>
-                     )}
-                  </dd>
-               </>
-            )}
-            <dt className="text-xs leading-5 text-ink-3">PRs</dt>
-            <dd className="m-0 text-ink-2">
-               {page === undefined ? (
-                  'Counting…'
-               ) : page === null ? (
-                  <LoadFailed what="its PRs" onRetry={reloadProjectWork} />
-               ) : (
+               {plan && (
                   <>
-                     {/* where the open ones stand, each count a way to them */}
-                     <span className="block">
-                        {openCount ? `${openCount} open: ` : 'None open'}
-                        <Counts>
-                           {stageCounts.map(([words, keys]) => (
-                              <Fragment key={words}>{pullCount(keys, words)}</Fragment>
-                           ))}
-                        </Counts>
-                     </span>
-                     {/* the open ones that do none of its issues, apart below */}
-                     {loose.length > 0 && (
-                        <span className="block">
-                           {pullCount(
-                              loose,
-                              `of them ${loose.length === 1 ? 'has' : 'have'} no issue here`
-                           )}
-                        </span>
-                     )}
-                     {/* and how lately they moved */}
-                     {(mergedLately.length > 0 || lastActivity) && (
-                        <span className="block">
-                           <Counts>
-                              {[
-                                 mergedLately.length > 0 && (
-                                    <Fragment key="merged">
-                                       {pullCount(mergedLately, `merged in the ${LAST_14_DAYS}`)}
-                                    </Fragment>
-                                 ),
-                                 lastActivity && (
-                                    <Fragment key="activity">
-                                       {mergedLately.length > 0
-                                          ? 'last activity '
-                                          : 'Last activity '}
-                                       {activityKey && onPage.has(activityKey) ? (
-                                          // to its PR below, like the counts
-                                          <FactLink
-                                             onClick={() => show([activityKey])}
-                                             aria-label={`${activityWords}, on PR #${lastActivity.pr.number} ${lastActivity.pr.title}`}
-                                          >
-                                             {activityWords}
-                                          </FactLink>
-                                       ) : (
-                                          activityWords
-                                       )}
-                                    </Fragment>
-                                 ),
-                              ]}
-                           </Counts>
-                        </span>
-                     )}
+                     <dt className={`${LABEL} sm:leading-8`}>{DONE_WHEN}</dt>
+                     <dd className="m-0">
+                        <DoneWhenField plan={plan} />
+                     </dd>
+                     <dt className={`${LABEL} sm:leading-8`}>Update</dt>
+                     <dd className="m-0 text-ink-2 sm:pt-1.5">
+                        {owes && (
+                           <p className="m-0">
+                              <span className="font-medium text-warn">
+                                 {planHealth?.kind === 'missing' ? NO_UPDATE_YET : UPDATE_DUE}.
+                              </span>{' '}
+                              {planHealth?.kind === 'stale'
+                                 ? `The last one was ${days(
+                                      planHealth.days
+                                   )} ago; one is due every ${days(UPDATE_DUE_DAYS)}.`
+                                 : `None since it started; one is due every ${days(
+                                      UPDATE_DUE_DAYS
+                                   )}.`}
+                           </p>
+                        )}
+                        {update && (
+                           <div className={owes ? 'mt-1' : ''}>
+                              <span
+                                 id={HEALTH_ID}
+                                 className={`font-medium ${healthOwed ? 'text-warn' : 'text-ink'}`}
+                              >
+                                 {HEALTH_WORD[update.health]}
+                              </span>
+                              <span className="text-ink-3">
+                                 {' · '}
+                                 {when(update.at)} · {update.author}
+                              </span>
+                              {update.body && (
+                                 <p className="m-0 mt-0.5 max-w-[70ch] whitespace-pre-line">
+                                    {update.body}
+                                 </p>
+                              )}
+                           </div>
+                        )}
+                        {vouch && !owes && (
+                           <p className="m-0 mt-0.5 text-ink-3" title={vouchRule(vouch)}>
+                              {vouchWords(vouch)}
+                           </p>
+                        )}
+                        <UpdateBox plan={plan} />
+                     </dd>
                   </>
                )}
-            </dd>
-            <dt className="text-xs leading-5 text-ink-3">Issues</dt>
-            <dd className="m-0 text-ink-2">
-               {page === null ? (
-                  <LoadFailed what="its issues" onRetry={reloadProjectWork} />
-               ) : !counts ? (
-                  'Counting…'
-               ) : !counts.total ? (
-                  'None yet'
-               ) : (
-                  <Counts>
-                     {[
-                        <FactLink
-                           key="open"
-                           onClick={() => jumpTo(null, 'project-issues')}
-                           className="tabular-nums"
-                        >
-                           {counts.open ? `${counts.open} open` : 'None open'}
-                        </FactLink>,
-                        counts.done > 0 && (
-                           <FactLink
-                              key="done"
-                              onClick={() => jumpTo(`work:${slug}:done`, 'project-issues')}
-                              className="tabular-nums"
-                           >
-                              {counts.done} done
-                           </FactLink>
-                        ),
-                        counts.dropped > 0 && (
-                           <FactLink
-                              key="dropped"
-                              onClick={() => jumpTo(`work:${slug}:dropped`, 'project-issues')}
-                              className="tabular-nums"
-                           >
-                              {counts.dropped} dropped
-                           </FactLink>
-                        ),
-                        // scope that grew along the way; each one's line says when
-                        added > 0 && (
-                           <span key="added" className="tabular-nums">
-                              {added} added since it was planned
-                           </span>
-                        ),
-                     ]}
-                  </Counts>
+            </dl>
+         </section>
+
+         {/* what the board works out: facts, never boxes; a fixed column of
+             small marks beside the words on a wide screen, the words alone
+             on a phone, where they say every fact the marks do */}
+         <section aria-labelledby="project-progress" className="mb-10">
+            <h3 id="project-progress" className="m-0 mb-3 text-[13px] font-semibold text-ink">
+               Progress
+            </h3>
+            <dl className="m-0 grid grid-cols-1 items-start gap-x-4 gap-y-1 text-[13px] leading-5 sm:grid-cols-[7.5rem_240px_minmax(0,1fr)] sm:gap-y-2.5">
+               {parts.length > 0 && (
+                  // a navigation fact, so it sits with the work it splits into
+                  <>
+                     <dt className={LABEL}>Projects in it</dt>
+                     <dd className="m-0 text-ink-2 sm:col-span-2">
+                        <Counts>
+                           {parts.map(p => (
+                              <FactLink
+                                 key={p.slug}
+                                 onClick={() => navigate({ project: p.slug })}
+                                 title={`Open ${p.name}`}
+                              >
+                                 {p.name}
+                              </FactLink>
+                           ))}
+                        </Counts>
+                     </dd>
+                  </>
                )}
-            </dd>
-         </dl>
+               {(target || forecast || timeline) && plan !== undefined && (
+                  <>
+                     <dt className={LABEL}>Finish</dt>
+                     {timeline && plan && (
+                        <div className="hidden sm:block">
+                           {
+                              <PlanTimeline
+                                 start={plan.start}
+                                 end={planEnd(plan)}
+                                 promised={plan.end_kind === 'hard'}
+                                 today={dayOf(new Date())}
+                                 target={due}
+                                 forecast={forecast?.eta ?? null}
+                                 parked={plan.status === 'parked'}
+                                 onOpen={() => navigate(openPlan(nav, plan.id))}
+                              />
+                           }
+                        </div>
+                     )}
+                     <dd className={`m-0 text-ink-2 ${timeline ? '' : 'sm:col-span-2'}`}>
+                        <Counts>
+                           {[
+                              forecast && (
+                                 <Fragment key="forecast">
+                                    {forecast.tally && forecast.short ? (
+                                       <SubDoor
+                                          label="How the finish is worked out"
+                                          text={upper(forecast.short)}
+                                          inLine
+                                       >
+                                          <p className="m-0">
+                                             {upper(forecast.tally)}. {forecast.how}
+                                          </p>
+                                       </SubDoor>
+                                    ) : (
+                                       <SubDoor
+                                          label="How the finish is worked out"
+                                          text={upper(forecast.text)}
+                                          inLine
+                                       >
+                                          <p className="m-0">{forecast.how}</p>
+                                       </SubDoor>
+                                    )}
+                                 </Fragment>
+                              ),
+                              target && (
+                                 <Fragment key="target">
+                                    {forecast
+                                       ? targetText(target, due, missed)
+                                       : upper(targetText(target, due, missed))}
+                                 </Fragment>
+                              ),
+                              !forecast && !target && plan && (
+                                 <Fragment key="plan">
+                                    {plan.end_kind === 'hard' ? 'Promised by' : 'Estimated for'}{' '}
+                                    {dayWords(planEnd(plan))}
+                                 </Fragment>
+                              ),
+                           ]}
+                        </Counts>
+                     </dd>
+                  </>
+               )}
+               <dt className={LABEL}>PRs</dt>
+               <dd className="m-0 text-ink-2 sm:col-span-2">
+                  {page === undefined ? (
+                     'Counting…'
+                  ) : page === null ? (
+                     <LoadFailed what="its PRs" onRetry={reloadProjectWork} />
+                  ) : (
+                     <>
+                        {warnings}
+                        {/* where the open ones stand, each count a way to them */}
+                        <span className="block">
+                           {merged1 && group ? (
+                              <>
+                                 {pullCount(
+                                    group.open.map(p => issueKey(p.data)),
+                                    'open'
+                                 )}
+                                 ,{' '}
+                                 <span className="font-medium text-warn">
+                                    {flagText(merged1, group)[0].toLowerCase()}
+                                 </span>
+                              </>
+                           ) : (
+                              <>
+                                 {stageCounts.length === 1 ? (
+                                    <>
+                                       {pullCount(stageCounts[0][1], 'open')}, {stageCounts[0][0]}
+                                    </>
+                                 ) : (
+                                    <>
+                                       {openCount ? `${openCount} open: ` : 'None open'}
+                                       <Counts>
+                                          {stageCounts.map(([words, keys]) => (
+                                             <Fragment key={words}>
+                                                {pullCount(keys, words)}
+                                             </Fragment>
+                                          ))}
+                                       </Counts>
+                                    </>
+                                 )}
+                              </>
+                           )}
+                        </span>
+                        {loose.length > 0 && (
+                           <span className="block">{pullCount(loose, 'not tied to an issue')}</span>
+                        )}
+                        {(mergedLately.length > 0 || lastActivity) && (
+                           <span className="block">
+                              <Counts>
+                                 {[
+                                    mergedLately.length > 0 && (
+                                       <Fragment key="merged">
+                                          {pullCount(mergedLately, `merged in the ${LAST_14_DAYS}`)}
+                                       </Fragment>
+                                    ),
+                                    lastActivity && (
+                                       <Fragment key="activity">
+                                          {activityKey && onPage.has(activityKey) ? (
+                                             <FactLink
+                                                onClick={() => show([activityKey])}
+                                                aria-label={`Last activity ${activityWords}, on PR #${lastActivity.pr.number} ${lastActivity.pr.title}`}
+                                             >
+                                                {mergedLately.length > 0 ? 'last' : 'Last'} activity{' '}
+                                                {activityWords}
+                                             </FactLink>
+                                          ) : (
+                                             `${
+                                                mergedLately.length > 0 ? 'last' : 'Last'
+                                             } activity ${activityWords}`
+                                          )}
+                                       </Fragment>
+                                    ),
+                                 ]}
+                              </Counts>
+                           </span>
+                        )}
+                     </>
+                  )}
+               </dd>
+               <dt className={LABEL}>Issues</dt>
+               {!!counts?.total && (
+                  <div className="hidden sm:block">
+                     {
+                        <IssuesBar
+                           done={counts.done}
+                           dropped={counts.dropped}
+                           open={counts.open}
+                           onPart={part =>
+                              jumpTo(
+                                 part === 'open' ? null : `work:${slug}:${part}`,
+                                 'project-issues'
+                              )
+                           }
+                        />
+                     }
+                  </div>
+               )}
+               <dd className={`m-0 text-ink-2 ${counts?.total ? '' : 'sm:col-span-2'}`}>
+                  {page === null ? (
+                     <LoadFailed what="its issues" onRetry={reloadProjectWork} />
+                  ) : !counts ? (
+                     'Counting…'
+                  ) : !counts.total ? (
+                     'None yet'
+                  ) : (
+                     // in the bar's order: done, dropped, then open
+                     <Counts>
+                        {[
+                           counts.done > 0 && (
+                              <FactLink
+                                 key="done"
+                                 onClick={() => jumpTo(`work:${slug}:done`, 'project-issues')}
+                                 className="tabular-nums"
+                              >
+                                 {counts.done} done
+                              </FactLink>
+                           ),
+                           counts.dropped > 0 && (
+                              <FactLink
+                                 key="dropped"
+                                 onClick={() => jumpTo(`work:${slug}:dropped`, 'project-issues')}
+                                 className="tabular-nums"
+                              >
+                                 {counts.dropped} dropped
+                              </FactLink>
+                           ),
+                           <FactLink
+                              key="open"
+                              onClick={() => jumpTo(null, 'project-issues')}
+                              className="tabular-nums"
+                           >
+                              {counts.open ? `${counts.open} open` : 'none open'}
+                           </FactLink>,
+                           added > 0 && (
+                              <span key="added" className="tabular-nums">
+                                 {added} added after the plan started
+                              </span>
+                           ),
+                        ]}
+                     </Counts>
+                  )}
+               </dd>
+            </dl>
+         </section>
 
          <ProjectWorkSections
             slug={slug}

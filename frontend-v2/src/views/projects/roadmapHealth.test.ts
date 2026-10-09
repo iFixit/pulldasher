@@ -8,7 +8,6 @@ import {
 import {
    capacityWords,
    clearedBy,
-   crossesLine,
    healthWords,
    moveWords,
    planCellWords,
@@ -133,17 +132,19 @@ describe('amber means someone owes something', () => {
          /A merge stops vouching once 3 or more PRs are open and they grew by 3 or more in 14 days, or their median age passed 30 days\./
       );
       // a hard end is the only one the numbers have to keep inside
-      expect(vouched?.title).toMatch(/it isn’t past its end/);
+      expect(vouched?.title).toMatch(/it isn’t past its end date/);
       const soft = healthWords(
          healthStanding(item(1, { update: null, weeks: 8, end_kind: 'soft', lately: LATELY }), NOW)
       );
-      expect(soft?.title).not.toMatch(/past its end/);
+      expect(soft?.title).not.toMatch(/past its end date/);
    });
 
    it('says a plan with how firm its end is, and ongoing work from its start', () => {
       const span = { start: '2026-09-07', weeks: 8 };
       expect(planWords(span)).toBe('Sep 7 to Nov 1, 8 weeks');
-      expect(planWords({ ...span, end_kind: 'soft' })).toBe('Sep 7 to Nov 1, 8 weeks, a soft end');
+      expect(planWords({ ...span, end_kind: 'soft' })).toBe(
+         'Sep 7 to Nov 1, 8 weeks, an estimated end'
+      );
       expect(planWords({ ...span, end_kind: 'ongoing' })).toBe('from Sep 7, ongoing');
    });
 
@@ -160,10 +161,12 @@ describe('amber means someone owes something', () => {
       expect(after?.text).toBe('after Shopify sync');
       expect(after?.pieces.some(p => p.owed)).toBe(false);
       const clash = waitsWords(item(1, { start: '2026-09-28', waits_on: [2] }), all);
-      expect(clash?.text).toBe('starts before Shopify sync ends');
+      // by its rank, the number its row shows; its name on hover
+      expect(clash?.text).toBe('Starts before #1 is done');
+      expect(clash?.title).toMatch(/^Waits on Shopify sync/);
       expect(clash?.pieces[0].owed).toBe('clash');
       expect(waitsWords(item(1, { waits_on: [3] }), all)?.text).toBe(
-         'waits on Old thing, which was dropped'
+         'Waits on Old thing, which was dropped'
       );
       expect(waitsWords(item(1, { status: 'done', waits_on: [2] }), all)).toBeNull();
    });
@@ -176,17 +179,6 @@ describe('amber means someone owes something', () => {
       expect(full?.pieces.filter(p => p.amber).map(p => p.text)).toEqual(['no one to spare']);
       expect(capacityWords(5, 4)?.text).toMatch(/· more than it can staff$/);
       expect(capacityWords(0, 4)).toBeNull();
-   });
-
-   it('on the load chart: the developer line, once a week from this one on crosses it', () => {
-      const origins = { asked: 0, fire: 0, chosen: 0, unsaid: 0 };
-      const weeks = [
-         { week: '2026-09-21', onPlan: 5, origins, offPlan: 5, projected: false },
-         { week: '2026-09-28', onPlan: 4, origins, offPlan: 4, projected: false },
-      ];
-      expect(crossesLine(weeks, '2026-09-28', 8)).toBe(false);
-      expect(crossesLine(weeks, '2026-09-21', 8)).toBe(true);
-      expect(crossesLine(weeks, '2026-09-28', 0)).toBe(false);
    });
 });
 
@@ -205,9 +197,9 @@ describe('one owed call, one amber mark', () => {
    it('says the worst once, in amber, and the rest in ink', () => {
       const w = planWarnings(sso, [sso], TODAY, project, NOW);
       expect(amber(w)).toEqual(['Off track']);
-      expect(w.over?.text).toBe('3 weeks past its end');
-      expect(w.over?.mark).toBe('+3 wk over');
-      expect(w.target?.text).toBe('Missed its Sep 25 target');
+      expect(w.over?.text).toBe('3 weeks overdue');
+      expect(w.over?.mark).toBe('3 wk overdue');
+      expect(w.target?.text).toBe('Missed its Sep 25 target date');
    });
 
    it('past its end when nothing worse is owed', () => {
@@ -218,7 +210,7 @@ describe('one owed call, one amber mark', () => {
          { live: true, target: null },
          NOW
       );
-      expect(amber(w)).toEqual(['3 weeks past its end']);
+      expect(amber(w)).toEqual(['3 weeks overdue']);
    });
 
    it('the word of a missed target, never its date', () => {
@@ -230,7 +222,7 @@ describe('one owed call, one amber mark', () => {
       // changed an hour ago: after the off-track update and the missed target
       const replanned = { ...sso, updated_at: NOW - 3600 };
       const w = planWarnings(replanned, [replanned], TODAY, project, NOW);
-      expect(amber(w)).toEqual(['3 weeks past its end']);
+      expect(amber(w)).toEqual(['3 weeks overdue']);
    });
 
    it('a start gone by while still marked Planned', () => {
@@ -248,8 +240,10 @@ describe('one owed call, one amber mark', () => {
       const soft = { ...sso, end_kind: 'soft' as const, update: update(3, 'on_track') };
       const w = planWarnings(soft, [soft], TODAY, { live: true, target: null }, NOW);
       expect(amber(w)).toEqual([]);
-      expect(w.over?.mark).toBe('+3 wk over');
-      expect(w.over?.title).toMatch(/after its soft end, an estimate, so nothing asks about it\.$/);
+      expect(w.over?.mark).toBe('3 wk past');
+      expect(w.over?.title).toMatch(
+         /after its estimated end date\. An estimate is never asked about\.$/
+      );
       const endless = { ...soft, end_kind: 'ongoing' as const };
       expect(
          planWarnings(endless, [endless], TODAY, { live: true, target: null }, NOW).over
@@ -279,22 +273,22 @@ describe('Decide’s call on a plan’s row', () => {
          TODAY,
          project,
          NOW,
-         call('off_track', 'Off track', 'New end?')
+         call('off_track', 'Off track', 'Move the end date?')
       );
-      expect(w.health?.text).toBe('Off track · New end?');
-      expect(amber(w)).toEqual(['New end?']);
+      expect(w.health?.text).toBe('Off track · Move the end date?');
+      expect(amber(w)).toEqual(['Move the end date?']);
       // the facts it would have warned of stay, in ink
-      expect(w.target?.text).toBe('Missed its Sep 25 target');
+      expect(w.target?.text).toBe('Missed its Sep 25 target date');
       const missed = planWarnings(
          { ...sso, update: null },
          [sso],
          TODAY,
          project,
          NOW,
-         call('missed', 'Missed Sep 25 target', 'New end?')
+         call('missed', 'Missed Sep 25 target date', 'Move the end date?')
       );
-      expect(missed.target?.text).toBe('Missed its Sep 25 target · New end?');
-      expect(amber(missed)).toEqual(['New end?']);
+      expect(missed.target?.text).toBe('Missed its Sep 25 target date · Move the end date?');
+      expect(amber(missed)).toEqual(['Move the end date?']);
    });
 
    it('says a call no other word holds where the status goes', () => {
@@ -305,10 +299,10 @@ describe('Decide’s call on a plan’s row', () => {
          TODAY,
          { live: true, target: null },
          NOW,
-         call('moving', 'Parked, still worked on', 'Back on?')
+         call('moving', 'Parked, still worked on', 'Restart it?')
       );
-      expect(w.status?.text).toBe('Parked, still worked on · Back on?');
-      expect(amber(w)).toEqual(['Back on?']);
+      expect(w.status?.text).toBe('Parked, still worked on · Restart it?');
+      expect(amber(w)).toEqual(['Restart it?']);
       // past its end: the call says it, and the bar's piece stays ink
       const over = planWarnings(
          { ...sso, update: null },
@@ -316,10 +310,10 @@ describe('Decide’s call on a plan’s row', () => {
          TODAY,
          { live: true, target: null },
          NOW,
-         call('over', '3 weeks past its end', 'New end?')
+         call('over', '3 weeks overdue', 'Move the end date?')
       );
-      expect(over.status?.text).toBe('3 weeks past its end · New end?');
-      expect(amber(over)).toEqual(['New end?']);
+      expect(over.status?.text).toBe('3 weeks overdue · Move the end date?');
+      expect(amber(over)).toEqual(['Move the end date?']);
    });
 });
 
@@ -334,79 +328,39 @@ describe('a row at rest says one thing', () => {
    const late = item(1, { start: '2026-08-03', weeks: 4, update: update(2, 'on_track') });
    const live = { live: true, target: null };
 
-   it('says the call Decide asks, with its question, over the facts behind it', () => {
+   it('says only the question Decide asks, its reason on hover', () => {
       const w = planWarnings(
          { ...late, update: update(2, 'at_risk') },
          [late],
          TODAY,
          live,
          NOW,
-         call('at_risk', 'At risk', 'New end?')
+         call('at_risk', 'At risk', 'Move the end date?')
       );
-      const rest = restWords(w, true);
-      expect(rest?.said.text).toBe('At risk · New end?');
-      // its answer is in the plan's details, not its updates
-      expect(rest?.opens).toBe('plan');
-      const ended = planWarnings(
-         late,
-         [late],
-         TODAY,
-         live,
-         NOW,
-         call('ended', 'Ended, no PRs open', 'Done?')
-      );
-      expect(restWords(ended, true)?.said.text).toBe('Ended, no PRs open · Done?');
+      const rest = restWords(w);
+      expect(rest?.text).toBe('Move the end date?');
+      expect(rest?.pieces.every(p => p.amber)).toBe(true);
+      expect(rest?.title).toBe('At risk. Move the end date?');
    });
 
-   it('else the worst thing owed, and an update owed opens the updates', () => {
+   it('says a clash in ink, and nothing that only the lead owes', () => {
+      const first = item(2, { name: 'Shopify sync', start: '2026-09-07', weeks: 4 });
+      const clashing = item(1, { start: '2026-09-28', waits_on: [2] });
+      const rest = restWords(planWarnings(clashing, [first, clashing], TODAY, null, NOW));
+      expect(rest?.text).toBe('Starts before #1 is done');
+      expect(rest?.pieces.some(p => p.amber)).toBe(false);
+      // an update owed, a late start, an overrun, a health word: not on the row
       const due = planWarnings(item(1, { update: update(20, 'on_track') }), [], TODAY, null, NOW);
-      expect(restWords(due, false)?.said.text).toMatch(/^On track as of .+ · Update due$/);
-      expect(restWords(due, false)?.opens).toBe('update');
+      expect(restWords(due)).toBeNull();
       const unstarted = planWarnings(
          item(1, { status: 'planned', start: '2026-09-21' }),
          [],
          TODAY,
          null
       );
-      expect(restWords(unstarted, false)?.said.text).toBe(
-         'Was to start Sep 21, still marked Planned'
-      );
-      expect(restWords(unstarted, false)?.opens).toBe('plan');
-   });
-
-   it('says drift past a soft end where no bar draws it, in ink', () => {
-      const soft = { ...late, end_kind: 'soft' as const };
-      const w = planWarnings(soft, [soft], TODAY, live, NOW);
-      expect(restWords(w, false)?.said.text).toBe('5 weeks past its end');
-      expect(restWords(w, false)?.said.pieces.some(p => p.amber)).toBe(false);
-      expect(restWords(w, true)?.said.text).toBe('On track');
-   });
-
-   it('lets a bar that draws its overrun say it, and says the health word instead', () => {
-      const w = planWarnings(late, [late], TODAY, live, NOW);
-      expect(restWords(w, false)?.said.text).toBe('5 weeks past its end');
-      const drawn = restWords(w, true);
-      expect(drawn?.said.text).toBe('On track');
-      expect(drawn?.said.pieces.some(p => p.amber)).toBe(false);
-      expect(drawn?.opens).toBe('update');
-   });
-
-   it('says only the health word when nothing is owed, and nothing for a quiet plan', () => {
-      const vouched = planWarnings(
-         item(1, { update: update(20, 'on_track'), weeks: 8, lately: LATELY }),
-         [],
-         TODAY,
-         null,
-         NOW
-      );
-      expect(vouched.health?.text).toMatch(/· no update needed$/);
-      expect(restWords(vouched, false)?.said.text).toBe('On track');
-      const quiet = planWarnings(item(1, { weeks: 8, lately: LATELY }), [], TODAY, null, NOW);
-      expect(quiet.health?.text).toBe('No update needed');
-      expect(restWords(quiet, false)).toBeNull();
-      expect(
-         restWords(planWarnings(item(1, { status: 'done' }), [], TODAY, null), false)
-      ).toBeNull();
+      expect(restWords(unstarted)).toBeNull();
+      expect(restWords(planWarnings(late, [late], TODAY, live, NOW))).toBeNull();
+      expect(restWords(planWarnings(item(1, { status: 'done' }), [], TODAY, null))).toBeNull();
    });
 });
 

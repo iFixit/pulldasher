@@ -74,7 +74,7 @@ const BASE_PROJECTS: Project[] = [
       parents: ['ci'],
    }),
    // no plan yet, but its issue says when: Decide's outlined answer is
-   // "Through its target", and the plan it makes starts on the Start date
+   // "Its target date", and the plan it makes starts on the Start date
    dummyProject(2, 'grafana-dashboards', 'Grafana dashboards for content', {
       lead: 'sivadnor',
       fields: {

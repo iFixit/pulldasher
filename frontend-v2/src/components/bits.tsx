@@ -122,7 +122,7 @@ export function LoadFailed({ what, onRetry }: { what: string; onRetry?: () => vo
    return (
       <p className="m-0 text-[13px] text-ink-3">
          Couldn’t load {what}.{' '}
-         <TextButton onClick={onRetry ?? (() => window.location.reload())}>Try again</TextButton>
+         <QuietButton onClick={onRetry ?? (() => window.location.reload())}>Try again</QuietButton>
       </p>
    );
 }
