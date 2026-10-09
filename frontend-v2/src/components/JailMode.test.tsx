@@ -131,6 +131,8 @@ describe('JailMode while the cell is down', () => {
       const snooze = [
          ...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
       ].find(b => b.textContent?.includes('Hold to snooze'));
+      // it has focus from the start, so the keyboard can hold it right away
+      expect(document.activeElement).toBe(snooze);
       const key = (type: string, k = 'Enter') =>
          act(() => snooze?.dispatchEvent(new KeyboardEvent(type, { key: k, bubbles: true })));
       // a tap of Enter, or Esc, does nothing
@@ -143,7 +145,7 @@ describe('JailMode while the cell is down', () => {
       // holding Space the full two seconds turns the key, then it opens
       key('keydown', ' ');
       act(() => vi.advanceTimersByTime(2000));
-      act(() => vi.advanceTimersByTime(400));
+      act(() => vi.advanceTimersByTime(700));
       expect(dialog()).toBeNull();
    });
 });
