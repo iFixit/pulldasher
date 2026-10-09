@@ -3,9 +3,12 @@ import { createPortal } from 'react-dom';
 import { Lock } from 'lucide-react';
 import type { DerivedPull } from '../../../shared/model/status';
 import { githubUrl } from '../../../shared/format';
+import { rowNote, rowWord } from '../model/actions';
+import { STAGE_WORDS } from '../model/stage';
 import {
    jailCase,
    jailDue,
+   jailGroups,
    jailRecord,
    parseJailRecord,
    JAIL_KEY,
@@ -14,6 +17,8 @@ import {
 import { useSettings } from '../settings';
 import { readStorage, writeStorage } from '../storage';
 import { HeaderIconButton, RepoRef } from './bits';
+import { eyebrowText } from './Lane';
+import { CiGlyph } from './pips';
 
 /**
  * PR jail: when your own open PRs pass a limit (model/jail.ts), a cell
@@ -202,7 +207,12 @@ export function JailMode({
          {shown &&
             createPortal(
                <JailCell
-                  jail={found ?? (shown === 'preview' ? sampleCase(pulls) : FREE)}
+                  jail={
+                     found ??
+                     (shown === 'preview' ? sampleCase(pulls, me, extraBots, settings) : FREE)
+                  }
+                  me={me}
+                  maxDays={settings.jailMaxDays}
                   onDone={() => {
                      // what you saw last is what the next showing compares
                      // against, so PRs opened while it was up don't re-drop it
@@ -224,15 +234,26 @@ const FREE: JailCase<DerivedPull> = {
    over: [],
 };
 
-/** The preview's fallback when you're not in jail: the board's oldest
- * PRs, so there's something to look at. */
-function sampleCase(pulls: DerivedPull[]): JailCase<DerivedPull> {
-   const sample = pulls
-      .filter(p => p.data.state === 'open')
-      .sort((a, b) => b.ageDays - a.ageDays)
-      .slice(0, 6);
+/** The preview when you're not in jail: your PRs as jail counts them (any
+ * open one trips a limit of 0), or the board's oldest when you have none,
+ * so there's something to look at. */
+function sampleCase(
+   pulls: DerivedPull[],
+   me: string,
+   extraBots: ReadonlySet<string>,
+   settings: { jailMaxDays: number; jailCountDrafts: boolean }
+): JailCase<DerivedPull> {
+   const mine = jailCase(pulls, me, extraBots, {
+      maxOpen: 0,
+      maxDays: settings.jailMaxDays,
+      countDrafts: settings.jailCountDrafts,
+   });
+   if (mine) return { ...mine, why: 'Preview: your open PRs, as jail would list them' };
    return {
-      pulls: sample,
+      pulls: pulls
+         .filter(p => p.data.state === 'open')
+         .sort((a, b) => b.ageDays - a.ageDays)
+         .slice(0, 6),
       why: 'Preview: these are sample PRs from the board',
       count: 0,
       over: [],
@@ -247,7 +268,17 @@ const TURN_MS = 600;
 const CHEER_MS = 1400;
 const LIFT_MS = 650;
 
-function JailCell({ jail, onDone }: { jail: JailCase<DerivedPull>; onDone: () => void }) {
+function JailCell({
+   jail,
+   me,
+   maxDays,
+   onDone,
+}: {
+   jail: JailCase<DerivedPull>;
+   me: string;
+   maxDays: number;
+   onDone: () => void;
+}) {
    const rootRef = useRef<HTMLDivElement>(null);
    const keyRef = useRef<HTMLButtonElement>(null);
    const lockRef = useRef<HTMLDivElement>(null);
@@ -490,27 +521,7 @@ function JailCell({ jail, onDone }: { jail: JailCase<DerivedPull>; onDone: () =>
                      {jail.why}
                   </p>
                </div>
-               <ul className="m-0 flex list-none flex-col gap-2 p-0 jail-wide:max-h-[45vh] jail-wide:overflow-y-auto">
-                  {jail.pulls.map(p => (
-                     <li
-                        key={`${p.data.repo}#${p.data.number}`}
-                        className="flex flex-col text-[13px]"
-                     >
-                        <a
-                           href={githubUrl(p.data.repo, p.data.number)}
-                           target="_blank"
-                           rel="noopener noreferrer"
-                           className="font-medium text-ink hover:underline"
-                        >
-                           {p.data.title} <span aria-hidden>↗</span>
-                        </a>
-                        <span className="text-xs">
-                           <RepoRef repo={p.data.repo} number={p.data.number} />{' '}
-                           <span className="text-ink-3 tabular-nums">· {p.ageDays}d open</span>
-                        </span>
-                     </li>
-                  ))}
-               </ul>
+               <JailList pulls={jail.pulls} me={me} maxDays={maxDays} />
                <p className="m-0 border-t border-line pt-3 text-xs text-ink-3" aria-live="polite">
                   {free
                      ? 'Merged! You’re free.'
@@ -519,5 +530,99 @@ function JailCell({ jail, onDone }: { jail: JailCase<DerivedPull>; onDone: () =>
             </section>
          </div>
       </div>
+   );
+}
+
+/** Your PRs, the way My work groups them, with the ready ones on top: the
+ * quickest way out first. Someone else's PRs (the preview's fallback) list
+ * flat, since their groups would be a reviewer's. */
+function JailList({ pulls, me, maxDays }: { pulls: DerivedPull[]; me: string; maxDays: number }) {
+   const mine = pulls.every(p => p.data.user.login === me);
+   const groups = mine
+      ? jailGroups(pulls, me)
+      : { ready: [], move: [], waiting: pulls.map(pull => ({ pull })) };
+   const sections = [
+      { title: STAGE_WORDS.ready, tone: 'text-brand-700', rows: groups.ready, ready: true },
+      { title: 'Your move', tone: 'text-brand-700', rows: groups.move },
+      { title: 'Waiting on others', tone: 'text-ink-3', rows: groups.waiting },
+   ].filter(g => g.rows.length);
+   return (
+      <div className="flex flex-col gap-3 jail-wide:max-h-[45vh] jail-wide:overflow-y-auto">
+         {sections.map(g => (
+            <section key={g.title} aria-label={mine ? g.title : undefined}>
+               {mine && (
+                  <h3 className={`m-0 ${eyebrowText} ${g.tone}`}>
+                     {g.title} <span className="text-ink-3 tabular-nums">· {g.rows.length}</span>
+                  </h3>
+               )}
+               {g.ready && (
+                  <p className="m-0 text-xs text-ink-3">Quickest way out. Merge these first.</p>
+               )}
+               <ul className="m-0 mt-1.5 flex list-none flex-col gap-2 p-0">
+                  {g.rows.map(({ pull }) => (
+                     <JailRow
+                        key={`${pull.data.repo}#${pull.data.number}`}
+                        pull={pull}
+                        me={me}
+                        maxDays={maxDays}
+                        ready={Boolean(g.ready)}
+                        mine={mine}
+                     />
+                  ))}
+               </ul>
+            </section>
+         ))}
+      </div>
+   );
+}
+
+/** One PR: the title to GitHub and its age, then what it's waiting on. */
+function JailRow({
+   pull: p,
+   me,
+   maxDays,
+   ready,
+   mine,
+}: {
+   pull: DerivedPull;
+   me: string;
+   maxDays: number;
+   ready: boolean;
+   mine: boolean;
+}) {
+   const word = mine && !ready ? rowWord(p, me) : null;
+   const context = mine ? rowNote(p, me).context : null;
+   // a do row names the move, then the detail; a wait row's detail already
+   // says who it waits on ("waiting on bob to re-stamp"), so the word only
+   // stands in when there's no detail
+   const move = word?.kind === 'do' ? word.word : null;
+   const detail = context ?? (word?.kind === 'wait' ? word.word : null);
+   return (
+      <li className="flex flex-col text-[13px]">
+         <span className="flex items-baseline gap-3">
+            <a
+               href={githubUrl(p.data.repo, p.data.number)}
+               target="_blank"
+               rel="noopener noreferrer"
+               className="min-w-0 flex-1 font-medium text-ink hover:underline"
+            >
+               {p.data.title} <span aria-hidden>↗</span>
+            </a>
+            <span
+               className={`shrink-0 text-xs tabular-nums ${
+                  p.ageDays > maxDays ? 'font-semibold text-warn' : 'text-ink-3'
+               }`}
+               title={`Open ${p.ageDays} days`}
+            >
+               {p.ageDays ? `${p.ageDays}d` : '<1d'}
+            </span>
+         </span>
+         <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-ink-3 jail-wide:flex-nowrap">
+            <RepoRef repo={p.data.repo} number={p.data.number} />
+            {move && <span className="font-medium whitespace-nowrap text-brand-700">· {move}</span>}
+            {!ready && <CiGlyph pull={p} />}
+            {detail && <span className="min-w-0 truncate">· {detail}</span>}
+         </span>
+      </li>
    );
 }

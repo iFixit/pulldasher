@@ -1,5 +1,7 @@
+import type { DerivedPull } from '../../../shared/model/status';
 import { isBotLogin } from '../../../shared/model/visibility';
 import type { PullData } from '../../../shared/types';
+import { rowWord } from './actions';
 
 /** Jail when you have more than this many open PRs of your own. */
 export const JAIL_MAX_OPEN = 7;
@@ -27,7 +29,14 @@ export interface JailPull {
    ageDays: number;
    /** who holds a deploy block on it; a held PR is done, so it doesn't count */
    deployBlockedBy: string[];
+   status: DerivedPull['status'];
+   /** parked (Cryogenic Storage): kept open on purpose, never "ready" */
+   cryo: boolean;
 }
+
+/** Can merge now, the quickest way out. A parked PR can be signed off and
+ * green, but My work files it under waiting, so jail does too. */
+export const isJailReady = (p: JailPull) => p.status === 'ready' && !p.cryo;
 
 export interface JailCase<P extends JailPull> {
    /** the PRs that put you there, oldest first */
@@ -68,21 +77,76 @@ export function jailCase<P extends JailPull>(
    const old = mine.filter(p => p.ageDays > limits.maxDays);
    const counts = { count: mine.length, over: old.map(idOf) };
    if (mine.length > limits.maxOpen) {
-      const n = mine.length;
-      return {
-         pulls: mine,
-         why: `${n} open PRs. Parole at ${limits.maxOpen}. Close ${n - limits.maxOpen} to get out.`,
-         ...counts,
-      };
+      const why = countWhy(
+         mine.length,
+         limits.maxOpen,
+         mine.filter(isJailReady).length,
+         old.filter(p => !isJailReady(p)),
+         limits.maxDays
+      );
+      return { pulls: mine, why, ...counts };
    }
    if (old.length) {
-      return {
-         pulls: old,
-         why: `#${old[0].data.number} has been open ${old[0].ageDays} days. Parole at ${limits.maxDays} days.`,
-         ...counts,
-      };
+      return { pulls: old, why: ageWhy(old, limits.maxDays), ...counts };
    }
    return null;
+}
+
+/** The count line, pointing at the ready PRs first since merging one is
+ * the quickest way to lower the count. `stillOld` are the PRs past the age
+ * limit that merging the ready ones won't clear, so it never promises
+ * "you're out" while one is left. */
+// ponytail: when more are ready than needed, an old ready PR left unmerged
+// still holds you; the line doesn't say which ready ones to pick
+function countWhy(
+   n: number,
+   max: number,
+   ready: number,
+   stillOld: JailPull[],
+   maxDays: number
+): string {
+   const need = n - max;
+   const head = `${n} open PRs. Parole at ${max}.`;
+   const yours = ready === 1 ? 'your ready one' : `your ${ready} ready ones`;
+   const out = stillOld.length ? `to get under ${max}` : 'and you’re out';
+   const tail = !stillOld.length
+      ? ''
+      : stillOld.length === 1
+      ? ` #${stillOld[0].data.number} is still past ${maxDays} days.`
+      : ` ${stillOld.length} PRs are still past ${maxDays} days.`;
+   if (!ready)
+      return `${head} Close ${need} to get ${stillOld.length ? `under ${max}` : 'out'}.${tail}`;
+   if (ready < need) return `${head} Merge ${yours} and close ${need - ready} more.${tail}`;
+   if (ready === need) return `${head} Merge ${yours} ${out}.${tail}`;
+   return `${head} Merge ${need} of ${yours} ${out}.${tail}`;
+}
+
+function ageWhy(old: JailPull[], maxDays: number): string {
+   if (old.length > 1) {
+      return `${old.length} PRs open past ${maxDays} days. Merge or close them to get out.`;
+   }
+   const [p] = old;
+   const head = `#${p.data.number} has been open ${p.ageDays} days`;
+   return isJailReady(p)
+      ? `${head} and it’s ready. Merge it to get out.`
+      : `${head}. Parole at ${maxDays} days. Merge or close it to get out.`;
+}
+
+/**
+ * A jail's PRs split the way My work splits them, by the same rowWord, with
+ * the ready ones lifted out on top: ready to merge, your move, then waiting
+ * on others. Each group runs oldest first; the row's word says the rest.
+ */
+export function jailGroups(pulls: DerivedPull[], me: string) {
+   const worded = pulls
+      .map(pull => ({ pull, word: rowWord(pull, me) }))
+      .sort((a, b) => b.pull.ageDays - a.pull.ageDays);
+   const rest = worded.filter(w => !isJailReady(w.pull));
+   return {
+      ready: worded.filter(w => isJailReady(w.pull)),
+      move: rest.filter(w => w.word.kind === 'do'),
+      waiting: rest.filter(w => w.word.kind === 'wait'),
+   };
 }
 
 /** The record to store when `jail` shows at `now`. */

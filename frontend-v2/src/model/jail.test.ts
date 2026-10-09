@@ -15,7 +15,7 @@ let n = 0;
 function pull(
    login: string,
    ageDays: number,
-   o: { draft?: boolean; deployBlockedBy?: string[] } = {}
+   o: { draft?: boolean; deployBlockedBy?: string[]; ready?: boolean; cryo?: boolean } = {}
 ): JailPull {
    n += 1;
    return {
@@ -29,6 +29,8 @@ function pull(
       },
       ageDays,
       deployBlockedBy: o.deployBlockedBy ?? [],
+      status: o.ready ? 'ready' : 'needs_cr',
+      cryo: o.cryo ?? false,
    };
 }
 
@@ -36,6 +38,52 @@ const many = (count: number, login = 'me', ageDays = 1) =>
    Array.from({ length: count }, () => pull(login, ageDays));
 
 describe('jailCase', () => {
+   // [open, ready] -> the why line; limit 7
+   it.each([
+      [20, 0, '20 open PRs. Parole at 7. Close 13 to get out.'],
+      [20, 3, '20 open PRs. Parole at 7. Merge your 3 ready ones and close 10 more.'],
+      [10, 3, '10 open PRs. Parole at 7. Merge your 3 ready ones and you’re out.'],
+      [12, 6, '12 open PRs. Parole at 7. Merge 5 of your 6 ready ones and you’re out.'],
+      [8, 1, '8 open PRs. Parole at 7. Merge your ready one and you’re out.'],
+      [9, 1, '9 open PRs. Parole at 7. Merge your ready one and close 1 more.'],
+   ])('with %i open and %i ready, points at the ready ones first', (open, ready, why) => {
+      const pulls = [
+         ...many(open - ready),
+         ...Array.from({ length: ready }, () => pull('me', 1, { ready: true })),
+      ];
+      expect(jailCase(pulls, 'me', NO_BOTS, LIMITS)?.why).toBe(why);
+   });
+
+   it('never counts a parked PR as ready', () => {
+      const parked = pull('me', 1, { ready: true, cryo: true });
+      expect(jailCase([...many(7), parked], 'me', NO_BOTS, LIMITS)?.why).toBe(
+         '8 open PRs. Parole at 7. Close 1 to get out.'
+      );
+   });
+
+   it('won’t promise you’re out while an old PR would still hold you', () => {
+      const old = pull('me', 40);
+      const pulls = [...many(6), old, pull('me', 1, { ready: true })];
+      expect(jailCase(pulls, 'me', NO_BOTS, LIMITS)?.why).toBe(
+         `8 open PRs. Parole at 7. Merge your ready one to get under 7. #${old.data.number} is still past 14 days.`
+      );
+      // an old PR that's ready leaves with the merge, so you are out
+      const oldReady = [...many(7), pull('me', 40, { ready: true })];
+      expect(jailCase(oldReady, 'me', NO_BOTS, LIMITS)?.why).toBe(
+         '8 open PRs. Parole at 7. Merge your ready one and you’re out.'
+      );
+   });
+
+   it('says merge when the one old PR is ready, and counts several', () => {
+      const old = pull('me', 30, { ready: true });
+      expect(jailCase([old], 'me', NO_BOTS, LIMITS)?.why).toBe(
+         `#${old.data.number} has been open 30 days and it’s ready. Merge it to get out.`
+      );
+      expect(jailCase([pull('me', 20), pull('me', 15)], 'me', NO_BOTS, LIMITS)?.why).toBe(
+         '2 PRs open past 14 days. Merge or close them to get out.'
+      );
+   });
+
    it('stays free at the open-PR limit', () => {
       expect(jailCase(many(7), 'me', NO_BOTS, LIMITS)).toBeNull();
    });
@@ -53,7 +101,9 @@ describe('jailCase', () => {
       const old = pull('me', 21);
       const c = jailCase([pull('me', 2), old, pull('me', 14)], 'me', NO_BOTS, LIMITS);
       expect(c?.pulls).toEqual([old]);
-      expect(c?.why).toBe(`#${old.data.number} has been open 21 days. Parole at 14 days.`);
+      expect(c?.why).toBe(
+         `#${old.data.number} has been open 21 days. Parole at 14 days. Merge or close it to get out.`
+      );
       expect(c?.count).toBe(3);
       expect(c?.over).toEqual([`iFixit/ifixit#${old.data.number}`]);
    });
