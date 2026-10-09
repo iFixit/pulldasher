@@ -1,4 +1,8 @@
 @import "tailwindcss";
+/* PR jail's side-by-side layout (list left, cell right) needs a wide,
+   landscape screen: narrower or portrait, the cell's cover-scaling pushes the
+   robot under the list or off the right edge, so it stacks like a phone */
+@custom-variant jail-wide (@media (min-width: 900px) and (min-aspect-ratio: 11/10));
 
 /* --sweep must be a registered <angle> for the CI ring's share to GLIDE
    between values (an unregistered custom property snaps). Top level on
@@ -1005,4 +1009,447 @@ input[type="checkbox"] {
 .pd-calendar .rdp-month_caption {
   font-size: 13px;
   font-weight: 600;
+}
+
+/* ── PR jail (components/JailMode.tsx): the cell drops from above, lands
+   with a heavy bounce and a small screen shake, and lifts away once the
+   key turns. Transform only. ── */
+/* The art's colors (assets/jail/*.svg use these through style="") and the
+   back wall. Light: steel bars on the board's own surface, a yellow door,
+   no glow. Dark: the neon sign, toned down to sit with the dark tokens. */
+.jail {
+  --jail-wall-lit: var(--surface);
+  --jail-wall-dim: var(--secondary);
+  --jail-mortar: rgb(15 23 42 / 0.045);
+  --jail-edge: #64748b;
+  --jail-rail: #94a3b8;
+  --jail-rail-hi: #cbd5e1;
+  --jail-board: #e2e8f0;
+  --jail-hw: #cbd5e1;
+  --jail-bar: #cbd5e1;
+  --jail-bar-core: #f8fafc;
+  --jail-cross: var(--brand);
+  --jail-cross-core: var(--brand-100);
+  --jail-door: #eab308;
+  --jail-door-core: #fef9c3;
+  --jail-sign: #854d0e;
+  --jail-hole: var(--ink);
+  --jail-glow: 0;
+  /* the key's halo, the guide arrow and the lock's ring: what you can touch */
+  --jail-accent: var(--brand);
+  --jail-halo: 0.3;
+}
+.dark .jail {
+  --jail-wall-lit: var(--muted);
+  --jail-wall-dim: var(--canvas);
+  --jail-mortar: rgb(255 255 255 / 0.025);
+  --jail-edge: var(--canvas);
+  --jail-rail: var(--surface);
+  --jail-rail-hi: var(--muted);
+  --jail-board: var(--surface);
+  --jail-hw: var(--secondary);
+  --jail-bar: #4cc3dc;
+  --jail-bar-core: #c9f3fb;
+  --jail-cross: #df7fb0;
+  --jail-cross-core: #f8dcea;
+  --jail-door: #e6cb45;
+  --jail-door-core: #fbf6d6;
+  --jail-sign: #fbf6d6;
+  --jail-hole: #020617;
+  --jail-glow: 0.6;
+  --jail-accent: var(--jail-cross);
+  --jail-halo: 0.35;
+}
+.jail-scrim {
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 46px, var(--jail-mortar) 46px 48px),
+    radial-gradient(ellipse at 60% 45%, var(--jail-wall-lit) 0%, var(--jail-wall-dim) 75%);
+}
+.jail-glow {
+  opacity: var(--jail-glow);
+}
+/* inmate-r03 is drawn twice: its tally wall behind the bars, the robot
+   behind the door */
+.jail-tally [id$='body'],
+.jail-tally [id$='head'],
+.jail-tally ellipse,
+.jail-inmate [id$='tally'] {
+  display: none;
+}
+.jail-art svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* the cell art covers the screen like background-size: cover */
+.jail-scene {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100vw, 150vh);
+  aspect-ratio: 3 / 2;
+  transform: translate(-50%, -50%);
+}
+/* on a wide screen (jail-wide) the cell fills it, moved right so the robot
+   stands in the clear bay beside the PR list */
+.jail-frame {
+  position: absolute;
+  inset: 0;
+}
+@media (min-width: 900px) and (min-aspect-ratio: 11/10) {
+  .jail-scene {
+    left: calc(50% + 12vw);
+  }
+}
+/* on a phone or tablet the list comes first and the cell scrolls in below it,
+   cropped to the tally wall, the robot and the door (x 470 to 980 of the
+   1200-wide art) */
+@media not all and (min-width: 900px) and (min-aspect-ratio: 11/10) {
+  .jail-frame {
+    position: relative;
+    flex-shrink: 0;
+    width: 100%;
+    aspect-ratio: 510 / 800;
+    overflow: hidden;
+  }
+  .jail-scene {
+    left: calc(-470 / 510 * 100%);
+    top: 0;
+    width: calc(1200 / 510 * 100%);
+    transform: none;
+  }
+}
+/* the padlock is the lock; the cell's own plate would peek out under it */
+.jail-scene [id$='lockplate'] {
+  display: none;
+}
+@keyframes jail-drop {
+  0% {
+    transform: translateY(-110%);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  55% {
+    transform: translateY(0);
+    animation-timing-function: ease-out;
+  }
+  70% {
+    transform: translateY(-5%);
+    animation-timing-function: ease-in;
+  }
+  83% {
+    transform: translateY(0);
+    animation-timing-function: ease-out;
+  }
+  91% {
+    transform: translateY(-1.2%);
+    animation-timing-function: ease-in;
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+@keyframes jail-shake {
+  20% {
+    translate: -7px 4px;
+  }
+  40% {
+    translate: 6px -3px;
+  }
+  60% {
+    translate: -4px 2px;
+  }
+  80% {
+    translate: 2px -1px;
+  }
+}
+@keyframes jail-lift {
+  to {
+    transform: translateY(-110%);
+  }
+}
+@keyframes jail-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes jail-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+.jail {
+  /* lands at 55% of the drop */
+  animation: jail-shake 320ms ease-out 500ms;
+}
+.jail-scrim {
+  animation: jail-fade-in 300ms ease-out;
+}
+.jail-stage {
+  animation: jail-drop 900ms both;
+}
+.jail-stage.is-leaving {
+  animation: jail-lift 650ms cubic-bezier(0.5, 0, 0.75, 0) both;
+}
+.jail:has(.is-leaving) .jail-scrim {
+  animation: jail-fade-out 650ms ease-in both;
+}
+/* the key springs home after a miss, and snaps then turns on a hit */
+.jail-key {
+  transform-origin: 50% 85%;
+  transition: translate 450ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.jail-key.is-dragging {
+  transition: none;
+  scale: 1.08;
+}
+.jail-key.is-turning {
+  rotate: 90deg;
+  transition:
+    translate 220ms ease-out,
+    rotate 300ms ease-in-out 240ms;
+}
+/* what says "drag the key to the lock": a halo behind the key (it travels
+   with it), a slow sway like it hangs on a hook, a dashed arrow down, and a
+   ring on the lock that brightens while you drag and goes solid when near */
+.jail-key::before {
+  content: '';
+  position: absolute;
+  inset: -12% -55%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--jail-accent) calc(var(--jail-halo) * 100%), transparent),
+    transparent
+  );
+  pointer-events: none;
+}
+.jail-key.is-turning::before {
+  opacity: 0;
+  transition: opacity 200ms;
+}
+@keyframes jail-sway {
+  0%,
+  100% {
+    rotate: -3deg;
+  }
+  50% {
+    rotate: 3deg;
+  }
+}
+.jail-key-art {
+  transform-origin: 50% 4%;
+  animation: jail-sway 3s ease-in-out infinite;
+  transition:
+    translate 150ms ease-out,
+    filter 150ms ease-out;
+}
+.jail-key.is-dragging .jail-key-art,
+.jail-key.is-turning .jail-key-art {
+  animation: none;
+}
+.jail-key:is(:hover, :focus-visible):not(.is-dragging, .is-turning) .jail-key-art {
+  translate: 0 -2px;
+  filter: drop-shadow(0 4px 6px rgb(15 23 42 / 0.3));
+}
+.jail-key:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+.jail-guide {
+  overflow: visible;
+  stroke: var(--jail-accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.8;
+}
+.jail-guide-case {
+  stroke: var(--jail-wall-lit);
+  stroke-width: 7;
+}
+.jail-guide-line {
+  stroke-dasharray: 6 7;
+  animation: jail-march 1.2s linear infinite;
+}
+@keyframes jail-march {
+  to {
+    stroke-dashoffset: -13;
+  }
+}
+.jail-ring {
+  border: 2px dashed color-mix(in srgb, var(--jail-accent) 45%, transparent);
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--jail-accent) calc(var(--jail-halo) * 100%), transparent),
+    transparent
+  );
+  animation: jail-pulse 2.4s ease-in-out infinite;
+  transition:
+    scale 150ms ease-out,
+    border-color 150ms,
+    opacity 200ms;
+}
+@keyframes jail-pulse {
+  50% {
+    scale: 1.06;
+    opacity: 0.6;
+  }
+}
+.jail-ring.is-dragging {
+  border-color: color-mix(in srgb, var(--jail-accent) 80%, transparent);
+}
+.jail-ring.is-near {
+  animation: none;
+  scale: 1.15;
+  border-style: solid;
+  border-color: var(--jail-accent);
+}
+.jail-ring.is-done {
+  animation: none;
+  opacity: 0;
+}
+/* the pipeline runs: the commit dots down the key's shaft light in turn,
+   toward the bit and the lock, and the commits around the keyhole chase
+   round while the keyhole beats. Near the lock it rattles; a miss gets a
+   head shake. */
+@keyframes jail-run {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    scale: 1;
+  }
+  20% {
+    opacity: 1;
+    scale: 1.6;
+  }
+}
+.jail-key.is-live .jail-key-art circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: jail-run 1.5s ease-in-out infinite;
+}
+.jail-key.is-live .jail-key-art circle:nth-of-type(2) {
+  animation-delay: 0.25s;
+}
+.jail-key.is-live .jail-key-art circle:nth-of-type(3) {
+  animation-delay: 0.5s;
+}
+@keyframes jail-chase {
+  0%,
+  30%,
+  100% {
+    fill: var(--jail-rail);
+  }
+  8% {
+    fill: var(--jail-cross);
+  }
+}
+.jail-lock.is-live #jl-body > g:first-of-type circle {
+  animation: jail-chase 1.8s linear infinite;
+}
+.jail-lock.is-live #jl-body > g:first-of-type circle:nth-of-type(2) {
+  animation-delay: 0.3s;
+}
+.jail-lock.is-live #jl-body > g:first-of-type circle:nth-of-type(3) {
+  animation-delay: 0.6s;
+}
+.jail-lock.is-live #jl-body > g:first-of-type circle:nth-of-type(4) {
+  animation-delay: 0.9s;
+}
+.jail-lock.is-live #jl-body > g:first-of-type circle:nth-of-type(5) {
+  animation-delay: 1.2s;
+}
+.jail-lock.is-live #jl-body > g:first-of-type circle:nth-of-type(6) {
+  animation-delay: 1.5s;
+}
+@keyframes jail-beat {
+  0%,
+  40%,
+  100% {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  12%,
+  28% {
+    filter: drop-shadow(0 0 6px var(--jail-accent));
+  }
+}
+.jail-lock.is-live #jl-keyhole {
+  animation: jail-beat 1.6s ease-out infinite;
+}
+@keyframes jail-rattle {
+  25% {
+    rotate: -4deg;
+  }
+  75% {
+    rotate: 4deg;
+  }
+}
+.jail-lock {
+  transform-origin: 50% 20%;
+}
+.jail-lock.is-near {
+  animation: jail-rattle 180ms linear infinite;
+}
+@keyframes jail-nope {
+  20%,
+  60% {
+    translate: -6px 0;
+  }
+  40%,
+  80% {
+    translate: 6px 0;
+  }
+}
+.jail-lock.is-nope {
+  animation: jail-nope 400ms ease-in-out;
+}
+.jail-key.is-live:is(:hover, :focus-visible):not(.is-dragging) .jail-key-art {
+  filter: drop-shadow(0 4px 6px rgb(15 23 42 / 0.3)) brightness(1.08);
+}
+/* once turned, the key sinks into the keyhole so it clears the cheering robot */
+.jail-key.is-in {
+  opacity: 0;
+  scale: 0.4;
+  transition:
+    opacity 250ms ease-in,
+    scale 250ms ease-in;
+}
+.jail-lock #jl-shackle {
+  transform-box: fill-box;
+  transform-origin: 0% 100%;
+  transition: transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.jail-lock.is-open #jl-shackle {
+  transform: translateY(-14%) rotate(-28deg);
+}
+@keyframes jail-cheer {
+  from {
+    transform: translateY(6%) scale(0.92);
+  }
+}
+.jail-cheer {
+  animation: jail-cheer 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* reduced motion: no drop or lift, just a fade. !important and a class
+   selector beat the global reduced-motion rule above. */
+@media (prefers-reduced-motion: reduce) {
+  .jail,
+  .jail-cheer,
+  .jail-key-art,
+  .jail-guide-line,
+  .jail-ring,
+  .jail-key-art circle,
+  .jail-lock,
+  .jail-lock circle,
+  .jail-lock #jl-keyhole {
+    animation: none !important;
+  }
+  .jail-stage {
+    animation: jail-fade-in 250ms ease-out both !important;
+  }
+  .jail-stage.is-leaving {
+    animation: jail-fade-out 400ms ease-in both !important;
+  }
 }
