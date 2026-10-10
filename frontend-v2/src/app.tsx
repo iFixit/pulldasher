@@ -11,16 +11,15 @@ import {
 } from 'react';
 import { ago, closedEpoch, n, pullKey, shortRepo } from '../../shared/format';
 import type { ActionStateKey } from './model/actions';
-import { actionState } from './model/actions';
+import { actionState, askedOf } from './model/actions';
 import { DEFAULT_RANGE, DEFAULT_SORT, LENS_LABELS, ORIGIN_KEYS, ZOOM_KEY, type Lens } from './lens';
 import type { DerivedPull } from '../../shared/model/status';
 import { matchesWeightFilter } from '../../shared/model/status';
 import { buildParentLookup } from './model/stack';
-import { buildReviewerPools, turnFor } from './model/rotation';
 import { shipRelevance, shippedToast } from './model/shipped';
 import { notificationStale } from './model/notificationRelevance';
 import type { Toast } from './model/toast';
-import { claimReview, isSnoozed, refreshAllText, usePulldasher } from './store';
+import { isSnoozed, refreshAllText, usePulldasher } from './store';
 import { primeScope, useScope } from './prefs';
 import { useBoardHotkeys, useHeaderHeightVar } from './hooks';
 import { ageRotDays, getSettings, type Settings as SettingsShape, useSettings } from './settings';
@@ -28,7 +27,6 @@ import { useNotifications } from './notifications';
 import { ToastStack, useToasts } from './toasts';
 import { requestNames, useNames } from './model/names';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from '../../shared/model/visibility';
-import { reviewRequestedFrom } from './model/reviewers';
 import { CornerBadge, QuietButton, textInputClass } from './components/bits';
 import { foldDomId, openFold } from './components/Lane';
 import { Legend } from './components/Legend';
@@ -300,12 +298,6 @@ export function App() {
       snoozed,
       projectLabelPrefix,
    } = usePulldasher();
-   // per-repo reviewer pools and whose turn each starved, unclaimed pull is —
-   // computed ONCE over the whole board and shared by the rows (rowOpts),
-   // desktop notifications, and the cheers evaluator, so the three surfaces
-   // can never disagree about the rotation (and never re-derive it in
-   // parallel; buildReviewerPools walks every pull's signatures)
-   const pools = useMemo(() => buildReviewerPools(pulls), [pulls]);
    // Publish the widest CR/QA required counts on the board so every row's pip
    // slot pads to them (styles.css .pd-pip-slot-*) and the marks line up in a
    // column. Over ALL open pulls, not the filtered view: simpler, and the
@@ -324,14 +316,6 @@ export function App() {
       root.setProperty('--cr-slots', String(maxCrReq));
       root.setProperty('--qa-slots', String(maxQaReq));
    }, [maxCrReq, maxQaReq]);
-   const turns = useMemo(() => {
-      const m = new Map<string, string>();
-      for (const p of pulls) {
-         const who = turnFor(p, pools, pulls);
-         if (who) m.set(pullKey(p.data), who);
-      }
-      return m;
-   }, [pulls, pools]);
    // resolve every author on the board to a human display name (batched,
    // cached — model/names.ts): the person hover-cards, the people pickers,
    // and name-aware search all read from this one map
@@ -625,7 +609,7 @@ export function App() {
             p.data.draft &&
             p.data.user.login !== me &&
             !revealedAuthor(p.data.user.login) &&
-            !reviewRequestedFrom(p, me);
+            !askedOf(p).includes(me);
          return hidden || cryoHidden || draftHidden;
       },
       [
@@ -700,7 +684,7 @@ export function App() {
    );
    // desktop notifications watch the whole board (minus the standing hidden
    // settings above), not the current filter
-   useNotifications(nudgeablePulls, me, turns, initialized);
+   useNotifications(nudgeablePulls, me, initialized);
 
    // scope + hidden, but deliberately NOT free text: a query drives the global
    // Search lens (App renders <Search> instead of the current lens), so
@@ -840,7 +824,7 @@ export function App() {
       const c = { parked: 0, drafts: 0, hiddenRepos: 0, hiddenPeople: 0, bots: 0, hiddenNow: 0 };
       for (const p of pulls) {
          if (p.cryo) c.parked++;
-         if (p.data.draft && p.data.user.login !== me && !reviewRequestedFrom(p, me)) c.drafts++;
+         if (p.data.draft && p.data.user.login !== me && !askedOf(p).includes(me)) c.drafts++;
          if (repoHidden(p.data.repo, settings.repoPrefs)) c.hiddenRepos++;
          if (
             p.data.user.login !== me &&
@@ -930,8 +914,6 @@ export function App() {
          compact: settings.density === 'compact',
          laneCap: settings.laneCapByLens[lens] ?? settings.laneCap,
          parentOf,
-         pools,
-         turns,
          isBotAuthor,
          onProject,
       }),
@@ -947,8 +929,6 @@ export function App() {
          settings.laneCapByLens,
          lens,
          parentOf,
-         pools,
-         turns,
          isBotAuthor,
          onProject,
       ]
@@ -1047,15 +1027,6 @@ export function App() {
       setLens('review');
       setWeightSel(['XS', 'S']);
    }, []);
-   // the "your turn" toast's Claim button: claim the review straight from the
-   // nudge (which also adds you as a GitHub reviewer, same as any claim)
-   const onClaimTurn = useCallback(
-      (repo: string, number: number) => {
-         const p = pulls.find(x => x.data.repo === repo && x.data.number === number);
-         if (p) claimReview(p.data);
-      },
-      [pulls]
-   );
    // pull keys the viewer snoozed in Review, so cheers skips them the way the
    // Review lane does — a snooze is "not today", not "nudge me anyway"
    const snoozedKeys = useMemo(
@@ -1072,11 +1043,9 @@ export function App() {
    } = useToasts(
       nudgeablePulls,
       me,
-      turns,
       shippedExtras,
       closed,
       onQuickWins,
-      onClaimTurn,
       initialized,
       names,
       snoozedKeys,
@@ -1084,7 +1053,7 @@ export function App() {
    );
 
    // A fired nudge outlives the PR it points at: once that PR merges or closes
-   // it drops off the board, so a bell entry like "return the favor on
+   // it drops off the board, so a bell entry like "review requested on
    // fixbot#3116" is left pointing at a dead link. Drop any panel record whose
    // PR has left the open board -- notificationStale is general across every
    // kind, and exempts the retrospective shipped recap and board-wide rewards.
@@ -1328,11 +1297,11 @@ export function App() {
                   sessionActive={sessionActive}
                   inputProps={{
                      'aria-label':
-                        'Search all PRs, open and closed: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked, is:bot',
+                        'Search all PRs, open and closed: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:asked, is:blocked, is:bot',
                      // "/" finds within a view that has its own find box
                      // (hooks.ts), so the hint only shows where "/" comes here
                      placeholder: viewFinds ? 'Search all PRs' : 'Search all PRs (press /)',
-                     title: 'text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked, is:bot',
+                     title: 'text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:asked, is:blocked, is:bot',
                      className: `w-[210px] max-w-full grow pr-2.5 pl-8 sm:grow-0 ${textInputClass}`,
                   }}
                />

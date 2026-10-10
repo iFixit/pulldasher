@@ -1,4 +1,4 @@
-import { authorOwnsIt, parked, rowNote } from './actions';
+import { askedOf, authorOwnsIt, parked, rowNote } from './actions';
 import type { DerivedPull } from '../../../shared/model/status';
 import type { PullData } from '../../../shared/types';
 import { isBotLogin } from '../../../shared/model/visibility';
@@ -16,6 +16,7 @@ import { isBotLogin } from '../../../shared/model/visibility';
  *   weight:xs,s   review-effort class, comma list ORs (weight:xs,s = XS or S)
  *   has:action    the viewer (`me`) has an imperative move on this card
  *   is:restamp    `me` owes a re-CR or re-QA on a reviewable pull
+ *   is:asked      a review was asked of `me` (by name or through a team)
  *   is:blocked    status is dev_block or deploy_block
  *   is:bot        the author is a bot: the `[bot]` suffix OR a login named in
  *                 config.json's `bots` list (the caller's `extraBots` set) —
@@ -74,6 +75,7 @@ function matchTerm(
                return (
                   !parked(p) && !authorOwnsIt(p) && (p.recrBy.includes(me) || p.reqaBy.includes(me))
                );
+            if (val === 'asked') return askedOf(p).includes(me);
             if (val === 'blocked') return p.status === 'dev_block' || p.status === 'deploy_block';
             if (val === 'draft') return p.status === 'draft';
             if (val === 'mine') return d.user.login.toLowerCase() === me.toLowerCase();
@@ -100,7 +102,7 @@ function matchTerm(
  * search lens runs this so a merged or closed PR is findable by the identity
  * terms people actually search on: bare text, #number, repo:, author:, label:,
  * is:bot, is:mine. Tokens that describe a live board state (status:, weight:,
- * older:, has:action, is:restamp/blocked/draft) can't hold on something already
+ * older:, has:action, is:restamp/asked/blocked/draft) can't hold on something already
  * closed, so a query using one deliberately excludes closed results rather than
  * matching them by accident. Bare terms and identity tokens match exactly as
  * matchTerm does for open pulls, so "offer" finds the same fields either side of
@@ -141,7 +143,7 @@ function matchClosedTerm(
          if (key === 'is') {
             if (val === 'bot') return isBotLogin(pd.user.login, extraBots);
             if (val === 'mine') return pd.user.login.toLowerCase() === me.toLowerCase();
-            // is:restamp/blocked/draft describe an open pull's state
+            // is:restamp/asked/blocked/draft describe an open pull's state
             return false;
          }
          if (OPEN_ONLY_KEYS.has(key)) return false;

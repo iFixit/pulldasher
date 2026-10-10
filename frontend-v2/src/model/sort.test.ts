@@ -4,7 +4,10 @@ import { crScore, crSort, finishersFirst, sinkBy, teamFirst } from './sort';
 
 function fake(over: {
    ageDays?: number;
+   /** active CR stamps, by reviewers other than the author unless crBy says */
    crHave?: number;
+   crBy?: string[];
+   ownReview?: boolean;
    crReq?: number;
    additions?: number | null;
    weight?: DerivedPull['weight'];
@@ -14,6 +17,8 @@ function fake(over: {
    return {
       ageDays: over.ageDays ?? 0,
       crHave: over.crHave ?? 0,
+      crBy: over.crBy ?? Array.from({ length: over.crHave ?? 0 }, (_, i) => `reviewer${i}`),
+      ownReview: over.ownReview ?? false,
       weight: over.weight ?? 'S',
       sizeKnown: over.sizeKnown ?? true,
       data: {
@@ -22,6 +27,7 @@ function fake(over: {
          // ancient updated_at so nothing counts as iterating
          updated_at: new Date(0).toISOString(),
          status: { cr_req: over.crReq ?? 1, commit_statuses: [] },
+         user: { login: 'author' },
       },
    } as unknown as DerivedPull;
 }
@@ -31,6 +37,18 @@ describe('crScore / crSort', () => {
       const oneFromDone = fake({ crHave: 1, crReq: 2 });
       const untouched = fake({ crHave: 0, crReq: 2 });
       expect(crScore(oneFromDone)).toBeLessThan(crScore(untouched));
+   });
+
+   it('the author’s own stamp is not a review in: no one-from-done jump', () => {
+      const selfStamped = fake({ crHave: 1, crBy: ['author'], crReq: 2 });
+      const untouched = fake({ crHave: 0, crReq: 2 });
+      expect(crScore(selfStamped)).toBe(crScore(untouched));
+   });
+
+   it('a self-reviewed pull earns no age credit: nobody else keeps it waiting', () => {
+      const oldOwn = fake({ weight: 'M', ageDays: 10, ownReview: true });
+      const freshM = fake({ weight: 'M', ageDays: 0 });
+      expect(crScore(oldOwn)).toBe(crScore(freshM));
    });
 
    it('age earns rank: an old M beats a fresh M and can beat a fresh S', () => {

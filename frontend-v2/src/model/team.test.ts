@@ -12,6 +12,8 @@ function dp(o: {
    weight?: Weight;
    sizeKnown?: boolean;
    crHave?: number;
+   ownReview?: boolean;
+   askedOf?: string[];
 }): DerivedPull {
    return {
       data: {
@@ -28,6 +30,8 @@ function dp(o: {
       weight: o.weight ?? 'M',
       sizeKnown: o.sizeKnown ?? true,
       crHave: o.crHave ?? 0,
+      ownReview: o.ownReview ?? false,
+      askedOf: o.askedOf ?? [],
    } as unknown as DerivedPull;
 }
 
@@ -70,6 +74,15 @@ describe('teamBuckets — what a team-authored pull sorts into', () => {
       const { reviewable, stamped } = teamBuckets([p], ['alice'], 'me');
       expect(reviewable).toEqual([]);
       expect(stamped).toEqual([p]);
+   });
+
+   it('leaves a teammate’s own unrequested pull in rest: its review is theirs', () => {
+      const own = dp({ author: 'alice', status: 'needs_cr', ownReview: true });
+      const asked = dp({ author: 'alice', status: 'needs_cr', askedOf: ['me'] });
+      const askedOfBob = dp({ author: 'alice', status: 'needs_cr', askedOf: ['bob'] });
+      const { reviewable, rest } = teamBuckets([own, asked, askedOfBob], ['alice'], 'me');
+      expect(reviewable).toEqual([asked]);
+      expect(rest).toEqual([own, askedOfBob]);
    });
 
    it('lands non-CR statuses in rest', () => {

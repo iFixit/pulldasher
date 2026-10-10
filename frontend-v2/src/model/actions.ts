@@ -1,5 +1,5 @@
 import { ago } from '../../../shared/format';
-import { requestedReviewers } from './reviewers';
+import { claimFor } from './reviewers';
 import { authorOwnsIt, feedbackAnswered, parked } from '../../../shared/model/stage';
 import { CR_INCOMPLETE, unique, type DerivedPull } from '../../../shared/model/status';
 import { isSuffixBot } from '../../../shared/model/visibility';
@@ -10,36 +10,95 @@ export { authorOwnsIt, feedbackAnswered, parked };
 
 /**
  * The verb column: what moves this pull, and whose move is it? Review's
- * "Yours to do" lane and My work's "Your move" both read from here so the
+ * "Waiting on you" lane and My work's "Your move" both read from here so the
  * two tabs can never disagree about what you owe.
+ *
+ * The self-review policy (shared/model/status.ts ownReview): a developer CRs
+ * and QAs their own pull unless they ask for a review, so an unrequested
+ * pull's stamps are its author's move and nobody else owes it anything. Only
+ * a pull that needs someone else (a review asked of people, one a reviewer
+ * took on, one from outside the dev team) is anyone else's review work.
  */
 
+/** The author reviews it themselves. A bot is never a developer, whatever
+ * the roster says (with no roster derive counts everyone, bots included). */
+export const selfReviewed = (p: DerivedPull): boolean =>
+   !!p.ownReview && !isSuffixBot(p.data.user.login);
+
+/** who the author's side asked to review it (people and team members),
+ * read as [] off a pull derived before the policy existed */
+export const askedOf = (p: DerivedPull): string[] => p.askedOf ?? [];
+
+/** Requests are answered in hours: past this, the author's move is a nudge. */
+export const ASK_OVERDUE_HOURS = 4;
+
+/** Whole hours since the review request, or null when there's none or it
+ * can't be dated. */
+export function askedHours(p: DerivedPull, now = Date.now() / 1000): number | null {
+   return p.askedAt == null ? null : Math.max(0, Math.floor((now - p.askedAt) / 3600));
+}
+
+/** "asked 3h ago", "asked just now"; null when the request can't be dated */
+export function askedAgo(p: DerivedPull, now?: number): string | null {
+   const h = askedHours(p, now);
+   if (h == null) return null;
+   return h < 1 ? 'asked just now' : `asked ${h}h ago`;
+}
+
+/** A request nobody has answered past ASK_OVERDUE_HOURS. */
+export const askOverdue = (p: DerivedPull, now?: number): boolean =>
+   (askedHours(p, now) ?? 0) >= ASK_OVERDUE_HOURS;
+
+/**
+ * Whether this pull is `me`'s review work: asked of me (by name or through a
+ * team), or one I said I'd review; otherwise one that needs someone else and
+ * that nobody was asked for or took on (an author outside the dev team, or a
+ * team request naming nobody on the roster). Never my own, and never a
+ * developer's own unrequested pull: its review is its author's.
+ */
+export function reviewIsMine(p: DerivedPull, me: string): boolean {
+   if (p.data.user.login === me) return false;
+   const claim = claimFor(p.data);
+   if (claim?.login === me) return true;
+   const asked = askedOf(p);
+   if (asked.length) return asked.includes(me);
+   if (claim) return false;
+   return !selfReviewed(p);
+}
+
+const INPUT_HINT_WORDS: Record<string, string> = {
+   ci: 'CI',
+   migrations: 'migrations',
+   alerting: 'alerting',
+   'agent-docs': 'agent docs',
+   deploy: 'deploy config',
+   dependencies: 'dependencies',
+};
+
+/** "a", "a and b", "a, b and c" */
+const andList = (words: string[]) =>
+   words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`;
+
+/**
+ * The quiet hint on your own self-reviewed pull whose diff touches what
+ * usually deserves team input (input_hints, from the changed paths): "touches
+ * CI and migrations · worth asking for review?". Null once a review is
+ * asked for, once CR is in, or with nothing to say.
+ */
+export function askForInputHint(p: DerivedPull): string | null {
+   if (!selfReviewed(p) || parked(p) || p.crHave >= p.data.status.cr_req) return null;
+   const areas = unique((p.data.input_hints ?? []).map(h => INPUT_HINT_WORDS[h] ?? h));
+   return areas.length ? `touches ${andList(areas)} · worth asking for review?` : null;
+}
+
+/** The author's move to chase a request gone past ASK_OVERDUE_HOURS. */
+const nudgeMove = (asked: string[]) => `Nudge ${asked.length === 1 ? asked[0] : 'reviewers'}`;
+
 /** Your move on a pull you authored; null = waiting on someone else. Only ever
- * called for the viewer's own pulls, so the author IS the viewer here. */
+ * called for the viewer's own pulls, so the author IS the viewer here. The
+ * same order authorNote weighs, without its context. */
 export function authorMove(p: DerivedPull): string | null {
-   if (parked(p)) return null;
-   if (p.status === 'ready') return 'Merge it';
-   // the ci FLAG, not just the ci_red status: a red build mid-review keeps
-   // its needs_cr status (reviewers may still take it), but fixing the build
-   // is the author's move either way
-   if (p.status === 'ci_red' || p.ci === 'failing') return 'Fix CI';
-   // a dev block is feedback waiting on YOU — v1 lore said "ask them to lift
-   // it", which misroutes the most common author action. But a block you put
-   // on your own PR (self-flagged "hold off") isn't feedback to answer — the
-   // move is lifting it, so mirror authorNote's self-only-blocker case rather
-   // than telling you to "Address feedback" from yourself.
-   if (p.status === 'dev_block') {
-      const others = p.devBlockedBy.filter(l => l !== p.data.user.login);
-      return others.length ? 'Address feedback' : 'Lift your block';
-   }
-   // conflict only, NOT status === 'unmergeable': that status also covers a
-   // clean stacked pull (dependent, signed off, waiting on its parent), where
-   // there is nothing to rebase and no move to nudge about
-   if (p.conflict) return 'Rebase';
-   if (p.status === 'needs_qa' && !p.qaingLogin && !p.reqaBy.length) return 'Find a QA-er';
-   // the exit verb, not "finish": the move is marking it ready for review
-   if (p.status === 'draft') return 'Undraft';
-   return null;
+   return parked(p) ? null : authorNote(p, p.data.user.login).action;
 }
 
 /** Your move on someone else's pull; null = not your job right now. The QA
@@ -61,22 +120,20 @@ export function reviewerMove(p: DerivedPull, me: string): string | null {
 
 /**
  * The subset of moves worth a desktop nudge: a real transition that just
- * landed on you — your PR is mergeable / broke CI / got feedback / needs a
- * rebase, or a re-CR/re-QA fell to you. Excludes self-initiated states
- * (claiming QA, still drafting) and "go find someone" states, which aren't
- * events so much as standing conditions. Returns the action label, or null.
+ * landed on you: your PR is mergeable / broke CI / got feedback / needs a
+ * rebase, a re-CR/re-QA fell to you, or someone asked you for a review.
+ * Excludes standing conditions on your own pull (your own stamp to give, a
+ * draft, a block you put on yourself, a request gone quiet): nothing landed
+ * on you there. Returns the action label, or null.
  */
 export function alertMove(p: DerivedPull, me: string): string | null {
    if (p.data.user.login === me) {
       const v = authorMove(p);
-      // 'Lift your block' is a block you put on yourself — a standing choice,
-      // not an event that landed on you, so it earns no desktop nudge (same as
-      // 'Find a QA-er' / 'Undraft')
-      const standing = v === 'Find a QA-er' || v === 'Undraft' || v === 'Lift your block';
-      return v && !standing ? v : null;
+      return v && ['Merge it', 'Fix CI', 'Address feedback', 'Rebase'].includes(v) ? v : null;
    }
    const v = reviewerMove(p, me);
-   return v === 'Re-stamp' || v === 'Re-QA' ? v : null;
+   if (v === 'Re-stamp' || v === 'Re-QA') return v;
+   return askedOf(p).includes(me) && rowNote(p, me).action === 'Review it' ? 'Review it' : null;
 }
 
 /**
@@ -152,21 +209,24 @@ function authorNote(p: DerivedPull, me: string): RowNote {
       return { action: 'Rebase', context: p.crHave < crReq ? 'CR still needed' : null };
    if (p.status === 'unmergeable' && p.dependent) return waitOnly('lands with its parent');
    if (p.status === 'ready') return doOnly('Merge it');
-   if (p.status === 'needs_qa') {
-      if (!p.qaingLogin && !p.reqaBy.length) return doOnly('Find a QA-er');
-      if (p.qaingLogin) return waitOnly(`${who([p.qaingLogin])} is testing it`);
-      if (p.reqaBy.length) return waitOnly(`new commits undid ${who(p.reqaBy)}'s QA`);
+   const reviewing = p.status === 'needs_cr' || p.status === 'needs_recr';
+   if (!reviewing && p.status !== 'needs_qa') {
+      if (p.status === 'ci_pending') return waitOnly('merge when it goes green');
+      if (p.status === 'deploy_block')
+         return waitOnly(`ask ${who(p.deployBlockedBy)} before deploy`);
+      return waitOnly(FALLBACK_STATUS_LABEL[p.status]);
    }
-   if (p.status === 'needs_recr')
-      return waitOnly(`waiting on ${who(p.recrBy)} to re-stamp${pushed}`);
+
+   // your own stamp went stale on a push: under self-review it's yours to
+   // give again, whoever else is asked
+   if ((reviewing && p.recrBy.includes(me)) || (!reviewing && p.reqaBy.includes(me)))
+      return { action: 'Re-stamp', context: 'new commits since your stamp' };
    if (p.status === 'needs_cr') {
       // any reviewer with an unstamped verdict (CHANGES_REQUESTED already
       // handled above) has left something the author owes an answer to.
       // DISMISSED is excluded — a dismissed review no longer stands, so it
       // owes no answer. Bots are excluded too: the wire's unstamped_reviewers
-      // carries every reviewer, and the CI review bot COMMENTs on most PRs —
-      // unfiltered, "Answer the review · from claude[bot]" was the note on a
-      // quarter of the live board, burying the real queue-position context.
+      // carries every reviewer, and the CI review bot COMMENTs on most PRs.
       const reviewerLogins = unique(
          (d.status.unstamped_reviewers ?? [])
             .filter(r => r.state !== 'DISMISSED' && !isSuffixBot(r.login))
@@ -174,104 +234,59 @@ function authorNote(p: DerivedPull, me: string): RowNote {
       );
       if (reviewerLogins.length)
          return { action: 'Answer the review', context: `from ${who(reviewerLogins)}` };
-      if (p.engagedNoStamp.length) return waitOnly(`in discussion with ${who(p.engagedNoStamp)}`);
-      if (p.starved) return { action: 'Nudge for a review', context: `unreviewed ${p.ageDays}d` };
-      return waitOnly(
-         p.crHave > 0 ? `in the CR queue · ${p.crHave} of ${crReq}` : 'in the CR queue'
-      );
    }
-   if (p.status === 'ci_pending') return waitOnly('merge when it goes green');
-   if (p.status === 'deploy_block') return waitOnly(`ask ${who(p.deployBlockedBy)} before deploy`);
-
-   return waitOnly(FALLBACK_STATUS_LABEL[p.status]);
+   if (p.status === 'needs_qa' && p.qaingLogin)
+      return waitOnly(`${who([p.qaingLogin])} is testing it`);
+   // you asked for a review: theirs to give, answered in hours
+   const asked = askedOf(p);
+   if (asked.length) {
+      const when = askedAgo(p);
+      if (askOverdue(p))
+         return { action: nudgeMove(asked), context: `asked ${who(asked)} ${askedHours(p)}h ago` };
+      return waitOnly(`waiting on ${who(asked)}${when ? ` · ${when}` : ''}`);
+   }
+   const claim = claimFor(d);
+   if (claim) return waitOnly(`${claim.login} is reviewing it`);
+   if (selfReviewed(p))
+      return reviewing
+         ? { action: 'Stamp CR', context: 'review it yourself, or request a review' }
+         : { action: 'Stamp QA', context: 'test it yourself, or request a review' };
+   // outside the dev team: someone else reviews it, nobody's been asked yet
+   if (p.status === 'needs_recr')
+      return waitOnly(`waiting on ${who(p.recrBy)} to re-stamp${pushed}`);
+   if (p.status === 'needs_qa')
+      return waitOnly(
+         p.reqaBy.length ? `new commits undid ${who(p.reqaBy)}'s QA` : 'waiting on a tester'
+      );
+   if (p.engagedNoStamp.length) return waitOnly(`in discussion with ${who(p.engagedNoStamp)}`);
+   return waitOnly(
+      p.crHave > 0 ? `waiting on a review · ${p.crHave} of ${crReq}` : 'waiting on a review'
+   );
 }
 
 /** A reviewer's claim on a pull: who, and when (epoch seconds — see
  * types.ts's review_requests). `at` is null when the server can't say yet
- * (e.g. it restarted before the webhook backfilled the timestamp); a claim
- * with no `at` is treated as fresh everywhere below, since there's nothing to
- * measure staleness against. */
+ * (e.g. it restarted before the webhook backfilled the timestamp). */
 export interface Claim {
    login: string;
    at: number | null;
 }
 
-/** A claim older than this no longer absolves anyone else — the reader may
- * have wandered off, so the pull goes back on the market. */
+/** When an unfinished claim of yours starts reading as stale (the default for
+ * the claim-warn nag, and the "claimed it 3h ago" wording elsewhere). */
 export const STALE_CLAIM_SECS = 2 * 3600;
 
-/**
- * Layers claim/turn coordination onto a base needs_cr/needs_recr note — the
- * note an uninvolved reviewer would see (no stamp of their own, nothing
- * specifically owed by them). A claim always wins over a turn: someone
- * actively reading it is a stronger signal than the rotation's guess, and a
- * fresh claim by someone else absolves the viewer entirely (action null) —
- * but a claim past STALE_CLAIM_SECS stops absolving, since the reader may
- * have moved on, and the pull's "Review it" action comes back. A claim with
- * no timestamp can't be proven stale, so it stays fresh (never degrades to
- * "pick it up?").
- */
-function withCoordination(
-   base: RowNote,
-   me: string,
-   claim?: Claim | null,
-   turn?: string | null,
-   requestedFromMe?: boolean
-): RowNote {
-   if (claim) {
-      const claimAgo = claim.at != null ? `${ago(claim.at)} ago` : null;
-      if (claim.login === me)
-         return {
-            action: 'Finish your review',
-            context: claimAgo ? `you claimed it · ${claimAgo}` : 'you claimed it',
-         };
-      const staleSecs = claim.at != null ? Date.now() / 1000 - claim.at : 0;
-      if (staleSecs > STALE_CLAIM_SECS)
-         return {
-            action: 'Review it',
-            context: `${claim.login} claimed it ${claimAgo}, pick it up?`,
-         };
-      return { action: null, context: `${claim.login} is reading it` };
-   }
-   // An explicit GitHub review request beats the rotation guess: it's a direct
-   // ask, so it always earns the "Review it" pill (and turnFor already stays
-   // silent on requested pulls, so `turn` is null here anyway).
-   if (requestedFromMe)
-      return {
-         action: 'Review it',
-         context: base.context ? `review requested · ${base.context}` : 'review requested',
-      };
-   if (turn === me)
-      return {
-         action: 'Review it',
-         context: base.context ? `your turn · ${base.context}` : 'your turn',
-      };
-   if (turn)
-      return {
-         action: base.action,
-         context: base.context ? `${base.context} · ${turn}'s turn` : `${turn}'s turn`,
-      };
-   return base;
-}
-
 /** The viewer did not author this pull: what they owe, or why they're waiting. */
-function reviewerNote(
-   p: DerivedPull,
-   me: string,
-   extra?: { claim?: Claim | null; turn?: string | null }
-): RowNote {
+function reviewerNote(p: DerivedPull, me: string, extra?: { claim?: Claim | null }): RowNote {
    const d = p.data;
    const author = d.user.login;
    const who = (logins: string[]) => logins.map(l => (l === me ? 'you' : l)).join(', ');
    const pushed = p.headPushedAt ? ` · last commit ${ago(p.headPushedAt)} ago` : '';
    const crReq = d.status.cr_req;
    const qaReq = d.status.qa_req;
-   // GitHub review requests: an ask aimed at you drives the note (via
-   // withCoordination below); one aimed at someone else is still worth naming
-   // as context, so an uninvolved reader sees who owns it.
-   const requested = requestedReviewers(p);
-   const requestedFromMe = requested.includes(me);
-   const requestedOthers = requested.filter(l => l !== me);
+   const asked = askedOf(p);
+   const when = askedAgo(p);
+   const claim = extra?.claim !== undefined ? extra.claim : claimFor(d);
 
    // your personal obligations — but only once the pull is reviewable: while
    // the author owns it (draft / dev block / red CI, the statuses below that
@@ -305,48 +320,46 @@ function reviewerNote(
       }
       return waitOnly(`changes requested by ${who(p.changesRequestedBy)}`);
    }
-   // Adapted from the spec's literal order (see PR/report): an already-active
-   // CR stamp earns the reassuring "you've stamped" count instead of the
-   // generic "waiting on a re-stamp" line, so this check runs before the
-   // plain needs_recr branch below, not after it.
+   // an already-active CR stamp earns the reassuring "you've stamped" count
+   // instead of the generic wait, so this runs before the review branches
    if (CR_INCOMPLETE.includes(p.status) && p.crBy.includes(me))
       return waitOnly(`you've stamped · ${p.crHave} of ${crReq}`);
-   if (p.status === 'needs_recr')
-      return withCoordination(
-         waitOnly(`waiting on ${who(p.recrBy)}${pushed}`),
-         me,
-         extra?.claim,
-         extra?.turn,
-         requestedFromMe
-      );
-   if (p.status === 'needs_cr') {
-      const context = p.starved
-         ? `unreviewed ${p.ageDays}d`
-         : p.crHave > 0
-           ? `${p.crHave} of ${crReq} in`
-           : requestedOthers.length
-             ? `requested from ${who(requestedOthers)}`
-             : p.engagedNoStamp.length
-               ? `${who(p.engagedNoStamp)} looking`
-               : null;
-      return withCoordination(
-         { action: 'Review it', context },
-         me,
-         extra?.claim,
-         extra?.turn,
-         requestedFromMe
-      );
-   }
    if (p.status === 'needs_qa') {
       if (p.qaBy.includes(me)) return waitOnly(`you've QA'd · ${p.qaHave} of ${qaReq}`);
       if (p.qaingLogin) return waitOnly(`${who([p.qaingLogin])} is testing it`);
-      return { action: 'QA it', context: p.qaHave > 0 ? `${p.qaHave} of ${qaReq} in` : null };
+   }
+
+   const reviewing = p.status === 'needs_cr' || p.status === 'needs_recr';
+   if (reviewing || p.status === 'needs_qa') {
+      if (claim?.login === me) {
+         const since = claim.at != null ? ` · ${ago(claim.at)} ago` : '';
+         return { action: 'Finish your review', context: `you said you’d review it${since}` };
+      }
+      if (asked.includes(me))
+         return { action: reviewing ? 'Review it' : 'QA it', context: when ?? 'review requested' };
+      if (claim) return waitOnly(`${claim.login} is reviewing it`);
+      if (p.status === 'needs_recr') return waitOnly(`waiting on ${who(p.recrBy)}${pushed}`);
+      if (asked.length) return waitOnly(`waiting on ${who(asked)}${when ? ` · ${when}` : ''}`);
+      // the author reviews their own: nobody else owes it anything
+      if (selfReviewed(p)) return waitOnly('in self-review');
+      // needs someone else and nobody's on it: an author outside the dev
+      // team, or a request to a team nobody on the roster is in
+      if (p.status === 'needs_qa')
+         return { action: 'QA it', context: p.qaHave > 0 ? `${p.qaHave} of ${qaReq} in` : null };
+      const context = p.starved
+         ? `waiting ${p.ageDays}d`
+         : p.crHave > 0
+         ? `${p.crHave} of ${crReq} in`
+         : p.engagedNoStamp.length
+         ? `${who(p.engagedNoStamp)} looking`
+         : null;
+      return { action: 'Review it', context };
    }
    if (p.status === 'deploy_block') return waitOnly(`ask ${who(p.deployBlockedBy)} first`);
    if (p.status === 'unmergeable')
       return waitOnly(p.conflict ? 'conflicts · author rebases' : 'lands with its parent');
    if (p.status === 'ci_pending') return waitOnly('all stamps in, waiting on green');
-   if (p.status === 'ready') return waitOnly(`ready · nudge ${author} if it sits`);
+   if (p.status === 'ready') return waitOnly(`ready · ${author} merges it`);
 
    return waitOnly(FALLBACK_STATUS_LABEL[p.status]);
 }
@@ -391,23 +404,10 @@ export function actionState(p: DerivedPull, me: string): ActionStateKey {
  * whether it came from a `CR`/`dev_block` comment tag or a GitHub review, so
  * the wording never says "requested changes" or "approved".
  *
- * Deliberately independent of authorMove/reviewerMove: those two back
- * alertMove's narrow desktop-notification filter and must keep behaving
- * exactly as before, so this rewrite duplicates rather than reuses their
- * (much narrower) checks.
- *
- * `extra` is optional and reviewer-side only (see withCoordination): a claim
- * or a rotation turn on a needs_cr/needs_recr pull layers on top of the base
- * note for anyone not already specifically implicated (no stamp, nothing
- * owed). Existing two-arg callers (query.ts's `has:action`, the popover)
- * keep reading the base note, unaware of claims/turns — that's fine, they
- * don't need the coordination detail.
+ * `extra.claim` overrides the pull's own claim (claimFor) for the
+ * reviewer-side note; callers normally leave it out.
  */
-export function rowNote(
-   p: DerivedPull,
-   me: string,
-   extra?: { claim?: Claim | null; turn?: string | null }
-): RowNote {
+export function rowNote(p: DerivedPull, me: string, extra?: { claim?: Claim | null }): RowNote {
    // parked outranks everything, the author's own moves included: a shelved
    // pull is a wait for everyone until the label comes off
    if (parked(p)) return waitOnly('parked, kept open on purpose');
@@ -429,7 +429,8 @@ export type RowWord = { kind: 'do' | 'wait'; word: string };
 
 /** rowNote's action string → the one-word label its section header shows.
  * Falls back to the action string itself so a future action never renders
- * blank — but every string rowNote can produce today is listed here. */
+ * blank — but every string rowNote can produce today is listed here, the
+ * author's "Nudge {name}" by its prefix (see rowWord). */
 export const DO_WORD: Record<string, string> = {
    'Re-stamp': 'Re-stamp',
    'Re-QA': 'Re-QA',
@@ -443,34 +444,34 @@ export const DO_WORD: Record<string, string> = {
    'Lift your block': 'Unblock',
    Unblock: 'Unblock',
    Rebase: 'Rebase',
-   'Nudge for a review': 'Nudge CR',
-   'Find a QA-er': 'Find a QA-er',
+   'Stamp CR': 'Stamp CR',
+   'Stamp QA': 'Stamp QA',
    'Review it': 'Review',
    'QA it': 'QA',
    Undraft: 'Undraft',
 };
 
-/** Same freshness rule withCoordination uses for a claim by someone else — but
- * here it decides a single word (claimed vs. still-owed), not the fuller
- * action/context pair, so it's reimplemented rather than shared. A claim with
- * no timestamp can't be proven stale, so it reads as fresh. */
-function freshOtherClaim(me: string, claim?: Claim | null): boolean {
-   if (!claim || claim.login === me) return false;
-   if (claim.at == null) return true;
-   return Date.now() / 1000 - claim.at <= STALE_CLAIM_SECS;
-}
-
 /**
  * The wait-side word, computed straight from the pull's own facts rather than
  * parsed from rowNote's context — free text is for a human to read, not for a
- * grouping decision to key off. The branch order deliberately mirrors
- * reviewerNote/authorNote: changes-requested outranks your own stamp, and a
- * claim only absolves a viewer with no stake of their own in the pull.
+ * grouping decision to key off. The branch order mirrors reviewerNote/
+ * authorNote: changes-requested outranks your own stamp, and a claim only
+ * absolves a viewer with no stake of their own in the pull. Who was asked
+ * stays in the context ("waiting on bob · asked 3h ago"): one word per
+ * name would split a lane into a header per person.
  */
 export function waitWord(p: DerivedPull, me: string, extra?: { claim?: Claim | null }): string {
    if (parked(p)) return 'parked';
    if (p.externalBlock) return 'on hold';
    const isAuthor = p.data.user.login === me;
+   const claim = extra?.claim !== undefined ? extra.claim : claimFor(p.data);
+   // who it waits on, once nobody's specifically owed a stamp by you
+   const holder = () => {
+      if (claim && claim.login !== me) return 'claimed';
+      if (askedOf(p).length) return 'review requested';
+      if (selfReviewed(p)) return 'self-review';
+      return null;
+   };
    switch (p.status) {
       case 'draft':
          return 'draft';
@@ -489,18 +490,16 @@ export function waitWord(p: DerivedPull, me: string, extra?: { claim?: Claim | n
       case 'needs_qa':
          if (p.qaBy.includes(me)) return 'stamped';
          if (p.qaingLogin) return 'in QA';
-         if (isAuthor && p.reqaBy.length) return 'waiting on re-QA';
-         return 'waiting on QA';
+         if (isAuthor && p.reqaBy.length && !askedOf(p).length) return 'waiting on re-QA';
+         return holder() ?? 'waiting on QA';
       case 'needs_recr':
          if (p.crBy.includes(me)) return 'stamped';
-         if (freshOtherClaim(me, extra?.claim)) return 'claimed';
-         return 'waiting on re-CR';
+         return holder() ?? 'waiting on re-CR';
       case 'needs_cr':
          if (p.changesRequestedBy.length)
             return feedbackAnswered(p) ? 'waiting on re-CR' : 'with author';
          if (p.crBy.includes(me)) return 'stamped';
-         if (freshOtherClaim(me, extra?.claim)) return 'claimed';
-         return 'waiting on CR';
+         return holder() ?? 'waiting on CR';
       default:
          return 'waiting';
    }
@@ -516,18 +515,18 @@ export function waitWord(p: DerivedPull, me: string, extra?: { claim?: Claim | n
  * from parsing rowNote's context string, which is free text meant for a
  * human, not a stable key to group on.
  */
-export function rowWord(
-   p: DerivedPull,
-   me: string,
-   extra?: { claim?: Claim | null; turn?: string | null }
-): RowWord {
+export function rowWord(p: DerivedPull, me: string, extra?: { claim?: Claim | null }): RowWord {
    const note = rowNote(p, me, extra);
-   if (note.action != null) return { kind: 'do', word: DO_WORD[note.action] ?? note.action };
-   return { kind: 'wait', word: waitWord(p, me, extra) };
+   if (note.action == null) return { kind: 'wait', word: waitWord(p, me, extra) };
+   if (note.action.startsWith('Nudge ')) return { kind: 'do', word: 'Nudge' };
+   return { kind: 'do', word: DO_WORD[note.action] ?? note.action };
 }
 
-/** Most-urgent-first order for the 'do' word groups. */
+/** Most-urgent-first order for the 'do' word groups. A review someone asked
+ * of you leads: the policy measures answering one in hours. */
 export const DO_WORD_RANK: readonly string[] = [
+   'Review',
+   'QA',
    'Re-stamp',
    'Re-QA',
    'Finish QA',
@@ -536,17 +535,17 @@ export const DO_WORD_RANK: readonly string[] = [
    'Merge',
    'Fix CI',
    'Respond',
+   'Stamp CR',
+   'Stamp QA',
+   'Nudge',
    'Unblock',
    'Rebase',
-   'Nudge CR',
-   'Find a QA-er',
-   'Review',
-   'QA',
    'Undraft',
 ];
 
 /** Most-urgent-first order for the 'wait' word groups. */
 export const WAIT_WORD_RANK: readonly string[] = [
+   'review requested',
    'waiting on re-CR',
    'waiting on CR',
    'with author',
@@ -554,6 +553,7 @@ export const WAIT_WORD_RANK: readonly string[] = [
    'waiting on QA',
    'in QA',
    'claimed',
+   'self-review',
    'stamped',
    'CI running',
    'CI failing',

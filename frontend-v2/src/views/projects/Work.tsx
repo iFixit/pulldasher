@@ -272,8 +272,7 @@ function PullItem({
    // the row shows itself (the face, a flag, the age), starting the note: a
    // login never takes a capital
    const parts: ReactNode[] = [];
-   const who =
-      live && !whoSaid ? holderWords(live, { turns: opts.turns, line: true, onRow: true }) : '';
+   const who = live && !whoSaid ? holderWords(live, { line: true, onRow: true }) : '';
    if (who) parts.push(who);
    if (late) parts.push(parts.length ? late : upperFirst(late));
    // a person's PR this page's counts leave out, the way every view does
@@ -547,9 +546,7 @@ function IssueLine({
       n(issue.prs.length, 'PR'),
       ...[...others].map(([word, count]) => `${count} ${word}`),
    ].join(', ');
-   const who = standing.pull
-      ? holderWords(standing.pull, { turns: opts.turns, ageWarnDays: opts.ageWarnDays })
-      : '';
+   const who = standing.pull ? holderWords(standing.pull, { ageWarnDays: opts.ageWarnDays }) : '';
    // anywhere on the line but its links opens or closes its PRs
    const lineClick = (e: MouseEvent) => {
       if (!has || (e.target as HTMLElement).closest('a,button,input,label')) return;

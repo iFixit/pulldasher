@@ -38,7 +38,10 @@ import { ClosedRow } from '../components/ClosedRow';
  * word-group sub-headers render — lane and header can't disagree (splitting
  * on authorMove once put a brand "Chase CR" header inside "Waiting on
  * others", because the two models diverge on edge cases like external
- * blocks). Under them, your projects, in the Projects tab's own words.
+ * blocks). Under self-review your own CR and QA stamps are Your move too,
+ * unless you asked someone: then the PR waits on them, and a request nobody
+ * answers in 4 hours comes back as a nudge. Under them, your projects, in
+ * the Projects tab's own words.
  */
 
 export function MyWork({
@@ -60,6 +63,8 @@ export function MyWork({
    allClosed: PullData[];
 }) {
    const me = opts.me;
+   // your self-reviewed rows say when the diff is worth asking someone about
+   const rowOpts = { ...opts, askHint: true };
    const mine = pulls.filter(p => p.data.user.login === me);
    const byUrgency = (a: DerivedPull, b: DerivedPull) => b.ageDays - a.ageDays;
    const kindOf = (p: DerivedPull) => rowWord(p, me, { claim: claimFor(p.data) }).kind;
@@ -93,7 +98,7 @@ export function MyWork({
    return (
       <>
          <Lane title="Your move" pulls={[]} count={move.length} opts={opts}>
-            <WordGroupRows pulls={move} opts={opts} id="mine:move" cap={laneShown(12, opts)} />
+            <WordGroupRows pulls={move} opts={rowOpts} id="mine:move" cap={laneShown(12, opts)} />
             {!move.length && (
                <div className="px-3.5 py-3 text-[13px] text-ink-3">
                   Nothing needs you right now.
@@ -103,7 +108,7 @@ export function MyWork({
          <Lane title="Waiting on others" pulls={[]} count={waiting.length} opts={opts}>
             <WordGroupRows
                pulls={waiting}
-               opts={opts}
+               opts={rowOpts}
                id="mine:waiting"
                cap={laneShown(12, opts)}
             />

@@ -12,11 +12,11 @@ import {
 } from 'lucide-react';
 import type { DerivedPull } from '../../../shared/model/status';
 import { isIterating, lastPushEpoch } from '../../../shared/model/status';
-import { type Claim, rowNote } from '../model/actions';
+import { askForInputHint, type Claim, rowNote } from '../model/actions';
 import { matchedRegions } from '../model/regions';
 import { claimFor } from '../model/reviewers';
 import type { ParentRef } from '../model/stack';
-import { ago, epoch, pullKey, rowDomId, shortRepo } from '../../../shared/format';
+import { ago, epoch, githubUrl, pullKey, rowDomId, shortRepo } from '../../../shared/format';
 import { setRepoPref, toggleHiddenPerson, useSettings } from '../settings';
 import {
    claimReview,
@@ -62,20 +62,13 @@ export interface RowOptions {
     * lens' scope), so the 'stacked' flag can name it instead of just saying
     * "based on <ref>". */
    parentOf?: (p: DerivedPull) => ParentRef | null;
-   /** per-repo reviewer pool for the deterministic turn rotation
-    * (model/rotation.ts), memoized once in app.tsx over the whole board. */
-   pools?: ReadonlyMap<string, string[]>;
-   /** pull key → whose turn it is (the best-fit reviewer for a starved,
-    * unclaimed PR), computed once in app.tsx so the row just looks it up. */
-   turns?: ReadonlyMap<string, string>;
+   /** your own self-reviewed rows say when the diff touches what usually
+    * deserves team input (model/actions.ts askForInputHint): My work sets it */
+   askHint?: boolean;
    /** one plain-words line on why this pull sits where it does in a ranked
     * lane (Review's queue / Needs QA) — rendered in the state popover, never
     * inline on the card. */
    rankReason?: (p: DerivedPull) => string | null;
-   /** the two "In your code regions" lanes (Review, Team) set this true on
-    * their own rows: the lane header already says "this is your region," so
-    * the region mark would be redundant on every card inside it. */
-   hideRegionMark?: boolean;
    /** bot detection for the avatar's square-tile shape (app.tsx's config-fed
     * isBotLogin — the row can't know the config's extra-bots list itself) */
    isBotAuthor?: (login: string) => boolean;
@@ -147,7 +140,9 @@ function rowFlags(
          key: 'deploy-block',
          tone: 'warn',
          label: 'deploy block',
-         detail: `${p.deployBlockedBy.join(', ')} put a deploy block on it; don’t ship without asking.`,
+         detail: `${p.deployBlockedBy.join(
+            ', '
+         )} put a deploy block on it; don’t ship without asking.`,
       });
    if (p.externalBlock)
       flags.push({
@@ -239,7 +234,9 @@ function RowDetails({ flags }: { flags: Flag[] }) {
                {flags.map(f => (
                   <span
                      key={f.key}
-                     className={`whitespace-nowrap ${f.tone === 'warn' ? 'flag-warn' : 'flag-note'}`}
+                     className={`whitespace-nowrap ${
+                        f.tone === 'warn' ? 'flag-warn' : 'flag-note'
+                     }`}
                   >
                      {f.label}
                   </span>
@@ -299,12 +296,12 @@ function useRowActions(pull: DerivedPull) {
 }
 
 /**
- * The row's two workflow buttons — Snooze and Claim — floating left of the
- * data rail (zero standing geometry; the right edge stays the facts').
+ * The row's two workflow buttons — Snooze and "I'll review" — floating left
+ * of the data rail (zero standing geometry; the right edge stays the facts').
  * Each is its own chip with one rule: a button STANDS when it records a
- * choice you made — a claimed row always shows "Release", a snoozed row
- * always shows "Unsnooze", both in place with no hover — and reveals on
- * row hover/focus when it merely OFFERS one ("Claim", "Snooze"). If both
+ * choice you made — a row you said you'd review always shows "Drop it", a
+ * snoozed row always shows "Unsnooze", both in place with no hover — and
+ * reveals on row hover/focus when it merely OFFERS one. If both
  * states are yours, both chips stand. Opacity-only reveal (motion stays
  * reserved for state changes), pointer-events following it so a hidden
  * offer can't steal a click. Touch has no hover: offers live in the kebab
@@ -339,10 +336,10 @@ function VerbDock({
       ? 'wake it: back on your Review tab now'
       : 'snooze: off your Review tab until tomorrow or until it changes';
    const claimWords = mine
-      ? 'release your claim'
+      ? 'drop it: you’re no longer reviewing this'
       : claim
-        ? `claim review, currently ${claim.login}'s`
-        : 'claim this review: adds you as a reviewer on the PR itself, so GitHub and the board both show you’re on it';
+      ? `I’ll review: ${claim.login} said they would too`
+      : 'I’ll review: adds you as a reviewer on the PR itself, so GitHub and the board both show you’re on it';
    return (
       <span className="pd-verbs absolute top-1/2 right-full z-10 mr-1.5 flex -translate-y-1/2 items-center gap-1.5">
          {showSnoozeChip && (
@@ -433,14 +430,12 @@ function RowActionsKebab({
                aria-pressed={claimedByMe}
                title={
                   claimedByMe
-                     ? 'release your claim'
-                     : claim
-                       ? `claim review, currently ${claim.login}'s`
-                       : "claim this review, flags that you're reading it"
+                     ? 'you’re no longer reviewing this'
+                     : 'adds you as a reviewer on the PR itself'
                }
             >
                <Icon icon={Hand} />
-               {claimedByMe ? 'Release claim' : 'Claim review'}
+               {claimedByMe ? 'Drop it' : 'I’ll review'}
             </button>
          )}
          {showSnooze && (
@@ -660,15 +655,12 @@ function RowImpl({
    const d = pull.data;
    const key = pullKey(d);
    const fresh = freshKind(pull, opts);
-   // who's claimed to review this pull, and whose turn the rotation names —
-   // both optional, so a lens that hasn't threaded them (yet) just sees null
-   // and rowNote falls back to its base (pre-coordination) note
+   // who said they'd review this pull
    const claim = claimFor(d);
-   const turn = opts.turns?.get(key) ?? null;
-   const poolSize = opts.pools?.get(d.repo)?.length ?? 0;
    // the viewer-relative note (model/actions.ts): never both-null for an open
    // pull, so the one badge below always has something to say
-   const note = rowNote(pull, opts.me, { claim, turn });
+   const note = rowNote(pull, opts.me, { claim });
+   const askHint = opts.askHint && d.user.login === opts.me ? askForInputHint(pull) : null;
    // the wait badge may itself carry a "last commit …" — don't say it twice
    const showIterating = isIterating(pull) && !(note.context ?? '').includes('last commit');
    // the smallest clean marker for a teammate: a tiny heart over their
@@ -680,7 +672,7 @@ function RowImpl({
    const regions = matchedRegions(pull, settings.codeRegions);
    // only worth asking the whole-board lookup when this row is stacked but
    // rendering flat (its parent isn't visible right above it already)
-   const orphanParent = pull.dependent && depth === 0 ? (opts.parentOf?.(pull) ?? null) : null;
+   const orphanParent = pull.dependent && depth === 0 ? opts.parentOf?.(pull) ?? null : null;
    return (
       <CardShell
          login={d.user.login}
@@ -695,14 +687,18 @@ function RowImpl({
          compact={opts.compact}
          depth={depth}
          stackStub={pull.dependent && depth === 0}
-         className={`${flashOnce(key, !!fresh) ? 'row-fresh' : ''} transition-[background-color] duration-150 ease-out motion-reduce:transition-none`}
+         className={`${
+            flashOnce(key, !!fresh) ? 'row-fresh' : ''
+         } transition-[background-color] duration-150 ease-out motion-reduce:transition-none`}
          avatarBadge={
             // your own rows never wear it: the you-star owns that corner,
             // and a heart-on-yourself would double the glyph
             rosters.length > 0 &&
             d.user.login !== opts.me && (
                <span
-                  title={`on ${rosters.length ? rosters.join(' & ') : 'your team'}: their PRs lead your review queue`}
+                  title={`on ${
+                     rosters.length ? rosters.join(' & ') : 'your team'
+                  }: their PRs lead your review queue`}
                   // seated on a surface-colored disc so the brand heart reads as
                   // a distinct mark instead of muddying into the avatar's colored
                   // face — the visible separation the you-star gets from its
@@ -730,15 +726,13 @@ function RowImpl({
                   pull={pull}
                   me={opts.me}
                   claim={claim}
-                  turn={turn}
-                  poolSize={poolSize}
                   whyHere={opts.rankReason?.(pull) ?? null}
                   onProject={opts.onProject}
                   title="see the full state"
                >
                   <RepoRef repo={d.repo} number={d.number} />
                </StatePopover>
-               {regions.length > 0 && !opts.hideRegionMark && (
+               {regions.length > 0 && (
                   // the brand diamond leads and the matched region is NAMED in
                   // quiet ink beside it — which of your regions hit must read
                   // without a hover (a bare glyph hid it; owner call). No
@@ -756,7 +750,9 @@ function RowImpl({
                         <button
                            {...t}
                            type="button"
-                           aria-label={`in your code ${regions.length > 1 ? 'regions' : 'region'}: ${regions.join(', ')}`}
+                           aria-label={`in your code ${
+                              regions.length > 1 ? 'regions' : 'region'
+                           }: ${regions.join(', ')}`}
                            className={`pressable flex min-w-0 flex-none items-center gap-1 px-0.5 ${railTriggerClass}`}
                         >
                            <span aria-hidden className="text-brand">
@@ -780,6 +776,18 @@ function RowImpl({
                <RowDetails flags={rowFlags(pull, showIterating, depth, orphanParent)} />
                {/* a line of its own, and the last one, even in compact's one
                    flowing line, where the rail comes before it */}
+               {askHint && (
+                  // quiet on purpose: a suggestion, not a debt. It opens the
+                  // PR, where the reviewers picker is
+                  <a
+                     href={githubUrl(d.repo, d.number)}
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     className="pd-raise order-last basis-full text-xs text-ink-3 hover:underline"
+                  >
+                     {askHint}
+                  </a>
+               )}
                {footnote && <span className="order-last basis-full">{footnote}</span>}
             </>
          }
@@ -822,8 +830,7 @@ export const Row = memo(
       a.opts.ageDisplay === b.opts.ageDisplay &&
       a.opts.showSnooze === b.opts.showSnooze &&
       a.opts.parentOf === b.opts.parentOf &&
-      a.opts.pools === b.opts.pools &&
-      a.opts.turns === b.opts.turns &&
+      a.opts.askHint === b.opts.askHint &&
       a.opts.isBotAuthor === b.opts.isBotAuthor &&
       a.opts.onProject === b.opts.onProject &&
       a.opts.noHide === b.opts.noHide &&
