@@ -15,7 +15,7 @@ import {
    type JailCase,
 } from '../model/jail';
 import { useSettings } from '../settings';
-import { readStorage, removeStorage, writeStorage } from '../storage';
+import { readStorage, writeStorage } from '../storage';
 import { HeaderIconButton, QuietButton, RepoRef } from './bits';
 import { GroupHeader } from './Lane';
 import { CiGlyph } from './pips';
@@ -69,12 +69,15 @@ export function JailMode({
       [initialized, pulls, me, extraBots, settings]
    );
 
-   // under the limits again: forget the last showing, so the next time you
-   // go over is a fresh offense, not "no worse than before"
+   // under the limits again: zero what the last showing counted, so going
+   // over later is worse than it (a fresh offense), but keep when it showed,
+   // so it still comes back at most every 4 hours
    useEffect(() => {
-      if (!initialized || !me || found || settings.jailMode === 'off' || !record.current) return;
-      record.current = null;
-      removeStorage(JAIL_KEY);
+      const last = record.current;
+      if (!initialized || !me || found || settings.jailMode === 'off' || !last) return;
+      if (!last.count && !last.over.length) return;
+      record.current = { at: last.at, count: 0, over: [] };
+      writeStorage(JAIL_KEY, JSON.stringify(record.current));
    }, [initialized, me, found, settings.jailMode]);
 
    // the latest case, for closing: the button's hold started seconds ago, and
