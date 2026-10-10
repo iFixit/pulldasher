@@ -31,18 +31,22 @@ import { CiGlyph } from './pips';
  * The jailMode setting picks: pop up (auto), the badge alone (manual), or off.
  */
 
-// whether a mouse button or finger is down anywhere: the jail never pops up
-// mid-drag (a Roadmap bar, say)
-let pointerHeld = false;
+// whether a mouse button or finger is down, or a native drag is under way:
+// the jail never pops up mid-drag (a Roadmap bar or row, say)
+let pressing = false;
+let dragging = false;
+const pointerBusy = () => pressing || dragging;
 if (typeof document !== 'undefined') {
    // the main button only: a right-click's context menu swallows its
    // pointerup and would leave this stuck on
-   document.addEventListener('pointerdown', e => (pointerHeld = e.button === 0), true);
-   // a native drag (a Roadmap row) cancels the pointer but is still a drag
-   document.addEventListener('dragstart', () => (pointerHeld = true), true);
-   for (const end of ['pointerup', 'dragend', 'contextmenu'] as const)
-      document.addEventListener(end, () => (pointerHeld = false), true);
-   window.addEventListener('blur', () => (pointerHeld = false));
+   document.addEventListener('pointerdown', e => (pressing = e.button === 0), true);
+   // a touch that turns into a scroll, or a press that turns into a native
+   // drag, ends with pointercancel; the drag is tracked on its own
+   for (const end of ['pointerup', 'pointercancel', 'contextmenu'] as const)
+      document.addEventListener(end, () => (pressing = false), true);
+   document.addEventListener('dragstart', () => (dragging = true), true);
+   document.addEventListener('dragend', () => (dragging = false), true);
+   window.addEventListener('blur', () => (pressing = dragging = false));
 }
 
 const hasPreviewFlag = () => new URLSearchParams(location.hash.slice(1)).get('jail') === '1';
@@ -152,7 +156,7 @@ export function JailMode({
          if (document.visibilityState === 'hidden') return;
          // another dialog is up (Settings), or a drag is under way: the jail
          // would land on top of it, and swallow the Esc that cancels a drag
-         if (modalOpen() || pointerHeld) return;
+         if (modalOpen() || pointerBusy()) return;
          if (document.activeElement?.matches('input, textarea, select')) return;
          // read the record fresh: a second visible window may have shown it
          // a moment ago, before its storage event reached this one
