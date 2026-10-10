@@ -329,9 +329,13 @@ export function derive(
    // "asked" (and the author would be told to nudge them).
    const claims = new Set((pull.review_requests ?? []).filter(r => r.self).map(r => r.login));
    const requestedTeams = pull.requested_teams ?? [];
+   // a team the roster doesn't name (say @iFixit/coders, the whole dev
+   // team) asks every developer on the roster
+   const everyone = [...policy.teams.values()].flat();
    const teamOf = new Map<string, string>();
    for (const t of requestedTeams)
-      for (const l of policy.teams.get(t.toLowerCase()) ?? []) teamOf.set(l, t.toLowerCase());
+      for (const l of policy.teams.get(t.toLowerCase()) ?? everyone)
+         if (!teamOf.has(l)) teamOf.set(l, t.toLowerCase());
    const askedOf = unique([
       ...(pull.requested_reviewers ?? []).filter(l => !claims.has(l)),
       ...teamOf.keys(),

@@ -461,7 +461,7 @@ describe('the self-review policy', () => {
       );
       expect(d.askedOf).toEqual(['a', 'b']);
       expect(d.ownReview).toBe(false);
-      // a team the roster doesn't know still counts as asking for review
+      // a team the roster doesn't name (say @iFixit/coders) asks every developer
       const unknown = derive(
          pull({ requested_teams: ['infra'] }),
          undefined,
@@ -471,7 +471,7 @@ describe('the self-review policy', () => {
          policy
       );
       expect(unknown.ownReview).toBe(false);
-      expect(unknown.askedOf).toEqual([]);
+      expect(unknown.askedOf).toEqual(['a', 'b', 'c']);
    });
 
    it('a reviewer who stamped is no longer asked, though GitHub keeps the request', () => {
