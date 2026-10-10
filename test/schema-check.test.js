@@ -86,3 +86,19 @@ test(
       mock.restoreAll();
    }
 );
+
+test('names the roadmap and settings tables a database from before them lacks, in order', async () => {
+   mock.method(db, 'query', async () =>
+      all.filter(r => !['roadmap_items', 'roadmap_updates', 'project_settings'].includes(r.t))
+   );
+   assert.deepEqual(await missingMigrations(), [
+      '0022-roadmap-items--add-table.sql',
+      '0023-roadmap-updates--add-table.sql',
+      '0024-project-settings--add-table.sql',
+      '0025-roadmap-items--add-origin.sql',
+      '0029-roadmap-items--add-status-at.sql',
+      '0031-roadmap-items--add-removed-at.sql',
+      '0032-roadmap-items--add-end-kind-done-when.sql',
+   ]);
+   mock.restoreAll();
+});
