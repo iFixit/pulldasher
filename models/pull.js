@@ -42,12 +42,40 @@ function reviewRequestsKey(repo, number) {
    return `${repo}#${number}`;
 }
 
+// "repo#number" -> Map of team slug -> epoch secs it was requested. The pull
+// payload lists teams without times, so a refresh keeps what a webhook or the
+// stored column told us (Pull.fromGithubApi reads this; getFromDB seeds it).
+const teamRequestTimes = new Map();
+
+// the stored column holds {slug, at} (old rows: plain slugs)
+const normalizeTeams = teams =>
+   (teams || []).map(t => (typeof t === 'string' ? { slug: t, at: null } : t));
+
 function getReviewRequests(repo, number, requestedReviewerLogins) {
    const known = reviewRequestsByPull.get(reviewRequestsKey(repo, number));
    return (requestedReviewerLogins || []).map(login => {
       const entry = known && known.get(login);
       return entry ? { login, at: entry.at, self: entry.self } : { login, at: null, self: false };
    });
+}
+
+// A payload's teams with the times we know; the cache then holds exactly the
+// teams still requested.
+function teamRequests(repo, number, payloadTeams) {
+   const key = reviewRequestsKey(repo, number);
+   const known = teamRequestTimes.get(key);
+   const teams = (payloadTeams || []).map(t => ({ slug: t.slug, at: known?.get(t.slug) ?? null }));
+   teamRequestTimes.set(key, new Map(teams.filter(t => t.at !== null).map(t => [t.slug, t.at])));
+   return teams;
+}
+
+function seedTeamRequests(repo, number, stored) {
+   const teams = normalizeTeams(stored);
+   teamRequestTimes.set(
+      reviewRequestsKey(repo, number),
+      new Map(teams.filter(t => t.at != null).map(t => [t.slug, t.at]))
+   );
+   return teams;
 }
 
 class Pull {
@@ -157,6 +185,8 @@ class Pull {
       data.status = this.getStatus();
       data.labels = this.labels.map(label => label.data);
       delete data.input_hints_sha;
+      data.team_requests = normalizeTeams(data.requested_teams);
+      data.requested_teams = data.team_requests.map(t => t.slug);
       data.review_requests = getReviewRequests(data.repo, data.number, data.requested_reviewers);
       return data;
    }
@@ -320,7 +350,7 @@ class Pull {
          },
          assignees: (data.assignees || []).map(a => getLogin(a)),
          requested_reviewers: (data.requested_reviewers || []).map(r => getLogin(r)),
-         requested_teams: (data.requested_teams || []).map(t => t.slug),
+         requested_teams: teamRequests(data.base.repo.full_name, data.number, data.requested_teams),
          // parse() fills input_hints on a full refresh; a webhook's body
          // can't, so reuse what was computed for this same head
          input_hints:
@@ -371,6 +401,19 @@ class Pull {
       }
    }
 
+   /** A `review_requested` webhook for a team: remember when, for the
+    * fromGithubApi call that follows with the payload's team list. */
+   static recordTeamRequested(repo, number, slug, at) {
+      const key = reviewRequestsKey(repo, number);
+      const known = teamRequestTimes.get(key) || new Map();
+      known.set(slug, at);
+      teamRequestTimes.set(key, known);
+   }
+
+   static recordTeamRequestRemoved(repo, number, slug) {
+      teamRequestTimes.get(reviewRequestsKey(repo, number))?.delete(slug);
+   }
+
    /**
     * The `"repo#number"` key reviewRequestsByPull is keyed by, exposed so a
     * caller (pull-manager.js's cull, below) can compute the same keys for its
@@ -393,6 +436,11 @@ class Pull {
       for (const key of reviewRequestsByPull.keys()) {
          if (!liveKeys.has(key)) {
             reviewRequestsByPull.delete(key);
+         }
+      }
+      for (const key of teamRequestTimes.keys()) {
+         if (!liveKeys.has(key)) {
+            teamRequestTimes.delete(key);
          }
       }
    }
@@ -453,7 +501,7 @@ class Pull {
          // mysql2 auto-parses the JSON column, so this is already an array (or null).
          assignees: data.assignees ?? [],
          requested_reviewers: data.requested_reviewers ?? [],
-         requested_teams: data.requested_teams ?? [],
+         requested_teams: seedTeamRequests(data.repo, data.number, data.requested_teams),
          input_hints: data.input_hints?.hints ?? [],
          input_hints_sha: data.input_hints?.sha,
          cr_req: data.cr_req,
