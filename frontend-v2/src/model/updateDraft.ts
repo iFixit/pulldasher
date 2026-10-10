@@ -1,6 +1,7 @@
 import { n } from '../../../shared/format';
 import { STALL_DAYS } from '../../../shared/model/decide';
-import { dayStart, utcDay } from '../../../shared/model/projects';
+import { dayStart } from '../../../shared/model/projects';
+import { dayOf } from './days';
 import {
    endOf,
    paceFinish,
@@ -41,14 +42,15 @@ export function draftUpdate(
    if (!lately) return null;
    const end = endOf(item);
    const hard = item.end_kind === 'hard';
-   const today = utcDay(now);
+   const today = dayOf(new Date(now * 1000));
    const open = STAGES.reduce((sum, s) => sum + lately.open[s], 0);
    const ended = !!end && today > end;
    const idle = lately.activityAt == null ? null : Math.floor((now - lately.activityAt) / DAY);
    const stalled = open > 0 && idle != null && idle >= STALL_DAYS;
    const pace = end ? lately.issues : null;
    const finish = pace ? paceFinish(pace, now) : null;
-   const after = !!end && finish != null && finish !== Infinity && utcDay(finish) > end;
+   const after =
+      !!end && finish != null && finish !== Infinity && dayOf(new Date(finish * 1000)) > end;
    const health: RoadmapHealth =
       hard && ended && open > 0
          ? 'off_track'
@@ -94,7 +96,7 @@ export function draftUpdate(
       left = `Its issues arrive ${words} they close: ${pace.closed} closed and ${pace.added} added in four weeks.`;
    } else if (pace && finish != null) {
       const issues = `${n(pace.open, 'open issue')} ${pace.open === 1 ? 'is' : 'are'}`;
-      left = `At this pace its ${issues} done around ${dayWords(utcDay(finish))}, ${
+      left = `At this pace its ${issues} done around ${dayWords(dayOf(new Date(finish * 1000)))}, ${
          after ? 'after' : 'by'
       } its ${dayWords(end)}${hard ? '' : ' soft'} end.`;
    } else if (pace?.open) {

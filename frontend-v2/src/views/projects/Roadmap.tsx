@@ -74,6 +74,7 @@ import {
    restoreRoadmapItem,
    updateRoadmapItem,
    useRoadmap,
+   storedStatus,
 } from '../../model/roadmapData';
 import {
    loadByWeek,
@@ -2638,6 +2639,8 @@ export function Roadmap({
       const back = Object.fromEntries(
          Object.keys(changed).map(k => [k, was[k as keyof RoadmapFields]])
       ) as Partial<RoadmapFields>;
+      // a shown In progress was saved as Planned: put that back
+      if ('status' in back) back.status = storedStatus(was);
       const times =
          was.updated_at != null
             ? { updated_at: was.updated_at, status_at: was.status_at ?? null }

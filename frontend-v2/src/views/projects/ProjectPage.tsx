@@ -264,7 +264,10 @@ function PlanFields({
                      <input
                         type="date"
                         aria-label="Finish by"
-                        min={dayOf(new Date())}
+                        // not before a plan that starts later: that would end before it begins
+                        min={
+                           plan && plan.start > dayOf(new Date()) ? plan.start : dayOf(new Date())
+                        }
                         autoFocus
                         ref={pickRef}
                         onChange={e => {

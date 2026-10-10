@@ -125,6 +125,25 @@ describe('the roadmap store', () => {
       expect(data.readRoadmap().problem).toMatch(/nope/);
    });
 
+   it('does not bring a removed plan back when a reload answered before the delete committed', async () => {
+      const { answer } = scriptedFetch();
+      const data = await load();
+      const first = data.loadRoadmap();
+      answer({ items: [item(1), item(2)] });
+      await first;
+      const remove = data.removeRoadmapItem(1);
+      const reload = data.loadRoadmap(); // went out after the optimistic remove
+      answer({ items: [item(1), item(2)] }, 200, 1); // answers first, still listing it
+      await reload;
+      answer({ ok: true }); // the delete commits
+      await remove;
+      // the dropped answer is not on screen, and the load asked again after
+      expect(data.readRoadmap().items?.map(i => i.id)).toEqual([2]);
+      answer({ items: [item(2)] });
+      await settled();
+      expect(data.readRoadmap().items?.map(i => i.id)).toEqual([2]);
+   });
+
    it('puts a removed item back in its place, and what waited on it with the next load', async () => {
       const { answer } = scriptedFetch();
       const data = await load();
@@ -206,6 +225,23 @@ describe('what fills itself in', () => {
       });
       await first;
       expect(data.readRoadmap().items?.map(i => i.status)).toEqual(['active', 'planned', 'parked']);
+   });
+
+   it('hands back the status a plan was saved with, for Undo', async () => {
+      const { answer } = scriptedFetch();
+      const data = await load();
+      const first = data.loadRoadmap();
+      answer({
+         items: [
+            item(1, { project: 'a', lately: lately(monday + 3600) }),
+            item(2, { status: 'parked' }),
+         ],
+      });
+      await first;
+      const [moved, parked] = data.readRoadmap().items as RoadmapItem[];
+      expect(moved.status).toBe('active');
+      expect(data.storedStatus(moved)).toBe('planned');
+      expect(data.storedStatus(parked)).toBe('parked');
    });
 
    it('places a new plan by its issue’s Priority, above the first lower one under way', async () => {

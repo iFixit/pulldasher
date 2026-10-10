@@ -460,6 +460,23 @@ describe('planCell', () => {
       expect(offTrack(1)).toBeNull();
    });
 
+   it('counts whole days from the milestone’s UTC day, whatever the hour', () => {
+      const dueIn = (due_on: string, now: number) =>
+         portfolioItems(
+            [project('alpha', { target: { title: 'T', due_on } })],
+            today,
+            {},
+            teamOf,
+            now,
+            []
+         ).find(i => i.slug === 'alpha')?.dueInDays;
+      // a late evening and an early morning of the same local day agree
+      expect(dueIn('2026-09-29T00:00:00Z', new Date(2026, 8, 29, 23, 30).getTime())).toBe(0);
+      expect(dueIn('2026-09-29T00:00:00Z', new Date(2026, 8, 29, 0, 30).getTime())).toBe(0);
+      expect(dueIn('2026-09-30T00:00:00Z', new Date(2026, 8, 29, 23, 30).getTime())).toBe(1);
+      expect(dueIn('2026-09-28T23:59:59Z', new Date(2026, 8, 29, 0, 30).getTime())).toBe(-1);
+   });
+
    it('says how a project is behind in its row’s words', () => {
       const day = '2026-09-29';
       const late = portfolioItems(projects, today, {}, teamOf, NOW, [
