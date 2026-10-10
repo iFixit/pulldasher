@@ -79,6 +79,12 @@ export interface RowOptions {
    /** bot detection for the avatar's square-tile shape (app.tsx's config-fed
     * isBotLogin — the row can't know the config's extra-bots list itself) */
    isBotAuthor?: (login: string) => boolean;
+   /** open a PR's project page from its state popover; unset where the rows
+    * already sit on that project's page */
+   onProject?: (slug: string) => void;
+   /** leave the Hide items out of the row's menu, where hidden PRs show
+    * anyway (the Projects tab) */
+   noHide?: boolean;
 }
 
 /**
@@ -380,10 +386,12 @@ function RowActionsKebab({
    pull,
    claim,
    showSnooze,
+   noHide,
 }: {
    pull: DerivedPull;
    claim: Claim | null;
    showSnooze?: boolean;
+   noHide?: boolean;
 }) {
    const a = useRowActions(pull);
    const settings = useSettings();
@@ -459,33 +467,38 @@ function RowActionsKebab({
             <Icon icon={RefreshCw} className={a.spinning ? 'spin-once' : undefined} />
             Re-fetch from GitHub
          </button>
-         <div aria-hidden className="my-1 border-t border-secondary" />
-         <button
-            type="button"
-            className={item}
-            onClick={() => setRepoPref(repo, isHiddenRepo ? null : 'hide')}
-            aria-pressed={isHiddenRepo}
-            title={
-               isHiddenRepo
-                  ? `show ${repoLabel} on your board again`
-                  : `hide ${repoLabel} from your board`
-            }
-         >
-            <Icon icon={isHiddenRepo ? Eye : EyeOff} />
-            {isHiddenRepo ? `Show ${repoLabel}` : `Hide ${repoLabel}`}
-         </button>
-         {/* never offered for your own pulls — you can't hide yourself from
-             your own board */}
-         {author !== me && (
-            <button
-               type="button"
-               className={item}
-               onClick={() => toggleHiddenPerson(author, true)}
-               title={`hide ${author}'s pulls from your board`}
-            >
-               <Icon icon={EyeOff} />
-               Hide {author}
-            </button>
+         {/* where hidden PRs show anyway, hiding one would change nothing */}
+         {!noHide && (
+            <>
+               <div aria-hidden className="my-1 border-t border-secondary" />
+               <button
+                  type="button"
+                  className={item}
+                  onClick={() => setRepoPref(repo, isHiddenRepo ? null : 'hide')}
+                  aria-pressed={isHiddenRepo}
+                  title={
+                     isHiddenRepo
+                        ? `show ${repoLabel} on your board again`
+                        : `hide ${repoLabel} from your board`
+                  }
+               >
+                  <Icon icon={isHiddenRepo ? Eye : EyeOff} />
+                  {isHiddenRepo ? `Show ${repoLabel}` : `Hide ${repoLabel}`}
+               </button>
+               {/* never offered for your own pulls — you can't hide yourself from
+                   your own board */}
+               {author !== me && (
+                  <button
+                     type="button"
+                     className={item}
+                     onClick={() => toggleHiddenPerson(author, true)}
+                     title={`hide ${author}'s pulls from your board`}
+                  >
+                     <Icon icon={EyeOff} />
+                     Hide {author}
+                  </button>
+               )}
+            </>
          )}
       </Popover>
    );
@@ -561,7 +574,12 @@ function MetricRail({
    const me = opts.me;
    return (
       <span className="pd-rail pd-raise relative ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
-         <RowActionsKebab pull={pull} claim={claim} showSnooze={opts.showSnooze} />
+         <RowActionsKebab
+            pull={pull}
+            claim={claim}
+            showSnooze={opts.showSnooze}
+            noHide={opts.noHide}
+         />
          {/* one instrument, humans first: CR (label, weight letter, pips —
              one door into one panel), then QA, then the machine's circle at
              the rail's end, where its optional render (green only on hover)
@@ -626,6 +644,7 @@ function RowImpl({
    pull,
    opts,
    depth = 0,
+   footnote,
 }: {
    pull: DerivedPull;
    opts: RowOptions;
@@ -633,6 +652,10 @@ function RowImpl({
     * or not rendered through a stack-aware list). Per-row data, not an
     * option — it varies row to row within the same list. */
    depth?: number;
+   /** a line the context adds under the meta (who holds it, why it's
+    * here): inside the row, so it sits above the age line instead of under
+    * it. A control in it wears .pd-raise to sit over the row's click layer. */
+   footnote?: ReactNode;
 }) {
    const d = pull.data;
    const key = pullKey(d);
@@ -710,6 +733,7 @@ function RowImpl({
                   turn={turn}
                   poolSize={poolSize}
                   whyHere={opts.rankReason?.(pull) ?? null}
+                  onProject={opts.onProject}
                   title="see the full state"
                >
                   <RepoRef repo={d.repo} number={d.number} />
@@ -754,6 +778,9 @@ function RowImpl({
                   </Popover>
                )}
                <RowDetails flags={rowFlags(pull, showIterating, depth, orphanParent)} />
+               {/* a line of its own, and the last one, even in compact's one
+                   flowing line, where the rail comes before it */}
+               {footnote && <span className="order-last basis-full">{footnote}</span>}
             </>
          }
          rail={<MetricRail pull={pull} opts={opts} claim={claim} />}
@@ -797,5 +824,8 @@ export const Row = memo(
       a.opts.parentOf === b.opts.parentOf &&
       a.opts.pools === b.opts.pools &&
       a.opts.turns === b.opts.turns &&
-      a.opts.isBotAuthor === b.opts.isBotAuthor
+      a.opts.isBotAuthor === b.opts.isBotAuthor &&
+      a.opts.onProject === b.opts.onProject &&
+      a.opts.noHide === b.opts.noHide &&
+      a.footnote === b.footnote
 );

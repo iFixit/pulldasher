@@ -1,0 +1,89 @@
+#!/usr/bin/env node
+/**
+ * Copy each roadmap plan's dates and priority into GitHub's issue fields on
+ * its project's issue, so they show on the issue and on any project board
+ * that lists it (lib/issue-fields.js says how, and when a value is left
+ * alone). A dry run unless given --apply: it says what it would write and
+ * writes nothing. Writes show as config.github.token's account.
+ *
+ * Usage: bin/sync-issue-fields [--apply]
+ */
+import db from '../lib/db.js';
+import { fieldsFromNodes, getBotLogin, graphql } from '../lib/git-manager.js';
+import {
+   FIELD_NAMES,
+   ISSUE_STATE_QUERY,
+   ORG_FIELDS_QUERY,
+   SET_FIELDS_MUTATION,
+   fieldWrites,
+   lastActors,
+   mutationInput,
+   orgFields,
+   wantedFields,
+} from '../lib/issue-fields.js';
+import { loadProjects, projectSettings } from '../lib/projects.js';
+import { listItems } from '../lib/roadmap.js';
+import { isUnderWay, planFor, utcDay } from '../shared/dist/index.js';
+
+const apply = process.argv.includes('--apply');
+
+async function main() {
+   const settings = projectSettings();
+   if (!settings) throw new Error('this Pulldasher has no projects config');
+   const [projects, items, me] = await Promise.all([
+      loadProjects(settings),
+      listItems(),
+      getBotLogin(),
+   ]);
+   const today = utcDay(Date.now() / 1000);
+   // each organization's fields, looked up once
+   const fieldsOf = new Map();
+   let changed = 0;
+   for (const project of projects) {
+      const plan = planFor(project.slug, items);
+      if (project.state === 'closed' || !plan || !isUnderWay(plan.status)) continue;
+      const [owner, name] = project.repo.split('/');
+      if (!fieldsOf.has(owner)) {
+         const org = await graphql(ORG_FIELDS_QUERY, { login: owner });
+         fieldsOf.set(owner, orgFields(org.organization?.issueFields?.nodes));
+      }
+      const data = await graphql(ISSUE_STATE_QUERY, { owner, name, number: project.number });
+      const issue = data.repository?.issue;
+      if (!issue) continue;
+      const wanted = wantedFields(plan, today);
+      const { writes, kept } = fieldWrites({
+         current: fieldsFromNodes(issue.issueFieldValues?.nodes),
+         wanted,
+         actors: lastActors(issue.timelineItems?.nodes),
+         me,
+      });
+      const where = `${project.repo}#${project.number} (${project.slug})`;
+      for (const k of kept) {
+         console.log(
+            `${where}: left ${FIELD_NAMES[k.key]} at ${k.value ?? 'blank'}, set by ${
+               k.by ?? 'someone else'
+            }; the plan says ${wanted[k.key]}`
+         );
+      }
+      if (!writes.length) continue;
+      changed++;
+      console.log(`${where}: ${writes.map(k => `${FIELD_NAMES[k]} ${wanted[k]}`).join(', ')}`);
+      if (apply) {
+         const input = mutationInput(issue.id, writes, wanted, fieldsOf.get(owner));
+         await graphql(SET_FIELDS_MUTATION, { input });
+      }
+   }
+   const issues = `${changed} ${changed === 1 ? 'issue' : 'issues'}`;
+   console.log(
+      apply
+         ? `Wrote ${issues}.`
+         : `${issues} to write. A dry run: nothing was written; --apply writes.`
+   );
+}
+
+main()
+   .catch(err => {
+      console.error((err && err.message) || err);
+      process.exitCode = 1;
+   })
+   .finally(() => db.end());

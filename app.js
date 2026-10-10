@@ -15,7 +15,15 @@ import mainController from './controllers/main.js';
 import hooksController from './controllers/githubHooks.js';
 import statsController from './controllers/stats.js';
 import userNamesController from './controllers/user-names.js';
-import apiController from './controllers/api.js';
+import projectsController from './controllers/projects.js';
+import roadmapController, { canWrite, forgetProjectCaches } from './controllers/roadmap.js';
+import { API_ROUTES, apiIndex } from './controllers/api-routes.js';
+import settingsController from './controllers/settings.js';
+import { syncRepoIssues } from './lib/project-issue-sync.js';
+import { loadSettingsWithRetry } from './lib/settings.js';
+import { issueRepos, projectSettings } from './lib/projects.js';
+import { setOnWorkSynced, syncWork } from './lib/work.js';
+import { missingMigrations } from './lib/schema-check.js';
 import apiAuth from './lib/api-auth.js';
 import Debug from './lib/debug.js';
 import { createServer } from 'http';
@@ -85,20 +93,80 @@ app.use('/', express.static(__dirname + '/frontend-v2/dist'));
 app.get('/token', mainController.getToken);
 app.get('/stats-history', statsController.getHistory);
 app.get('/user-names', userNamesController.getNames);
+app.get('/projects-data', projectsController.getBoardData);
+app.get('/retro-data', projectsController.getRetro);
+app.get('/work-data', projectsController.getWork);
+app.get('/issue-search', projectsController.searchIssues);
+app.get('/project-work', projectsController.getProjectWork);
+// the review board's view of projects: which projects its PRs link, and
+// each project's plan, so it orders and names PRs by the Projects tab's rule
+app.get('/project-standing', roadmapController.standing);
+
+// Something open boards show of the projects changed: what's kept of them is
+// read again, and every open board fetches again, so one person's call shows
+// on another's screen without a reload.
+function projectsChanged() {
+   forgetProjectCaches();
+   pullManager.projectsChanged();
+}
+// every write the Projects tab can see
+const PROJECT_WRITES = ['/project-issues', '/roadmap', '/settings', '/api/v1/project-issues', '/api/v1/roadmap', '/api/v1/settings'];
+app.use(PROJECT_WRITES, function (req, res, next) {
+   if (req.method !== 'GET') {
+      res.on('finish', function () {
+         if (res.statusCode < 300) projectsChanged();
+      });
+   }
+   next();
+});
+setOnWorkSynced(projectsChanged);
+app.post('/project-issues', canWrite, projectsController.attachIssue);
+app.delete('/project-issues', canWrite, projectsController.detachIssue);
+// the roadmap is the one part of the Projects tab people edit here: reads are
+// gated like the other board data (lib/authentication.js), writes by canWrite
+app.get('/roadmap', roadmapController.list);
+app.post('/roadmap', canWrite, roadmapController.create);
+app.put('/roadmap/order', canWrite, roadmapController.reorder);
+app.patch('/roadmap/:id', canWrite, roadmapController.update);
+app.delete('/roadmap/:id', canWrite, roadmapController.remove);
+app.get('/roadmap/:id/updates', roadmapController.updates);
+app.post('/roadmap/:id/updates', canWrite, roadmapController.postUpdate);
+app.delete('/roadmap/:id/updates/:update', canWrite, roadmapController.removeUpdate);
+app.get('/settings', settingsController.get);
+app.patch('/settings', canWrite, settingsController.update);
 app.post('/hooks/main', hooksController.main);
 
-// /api/v1: machine-to-machine JSON for the review skills, Bearer-authed with
-// the caller's own GitHub token (see lib/api-auth). Independent of the
-// cookie-session gate -- setupRoutes never registers these paths, so the
-// session `auth` middleware doesn't run for them.
-app.get('/api/v1/me', apiAuth, apiController.getMe);
-app.get('/api/v1/pulls', apiAuth, apiController.getPulls);
+// /api/v1: machine-to-machine JSON for the review skills and scripts,
+// Bearer-authed with the caller's own GitHub token (see lib/api-auth). Every
+// route is in controllers/api-routes.js, and GET /api/v1 lists them.
+// Independent of the cookie-session gate -- setupRoutes never registers these
+// paths, so the session `auth` middleware doesn't run for them.
+app.get('/api/v1', apiAuth, apiIndex);
+for (const { method, path, handlers } of API_ROUTES) app[method](path, apiAuth, ...handlers);
 
 // Warm the bot-login cache (used to tell a pulldasher claim apart from a
 // GitHub-UI self-request) before any webhook or socket traffic needs it.
 // Memoized in git-manager, so this just avoids the first caller paying for
 // the lookup.
 git.getBotLogin();
+
+// Saved settings (the developer teams) replace config.js's once loaded;
+// until then, and if the table can't be read, config.js's stand.
+loadSettingsWithRetry();
+
+// Migrations run by hand, before a deploy (migrations/*.sql never run on
+// one). Say loudly at startup which are missing, since the board then
+// fails in pieces: pull refreshes, the issue syncs, roadmap reads.
+missingMigrations()
+   .then(missing => {
+      if (missing.length) {
+         console.error(
+            'The database is missing migrations, so parts of the board will fail. Run these by hand, in order: %s',
+            missing.join(', ')
+         );
+      }
+   })
+   .catch(err => console.error('Checking the schema failed: %s', (err && err.message) || err));
 
 debug('Loading all recent pulls from the DB');
 dbManager
@@ -114,19 +182,60 @@ dbManager
    .then(function () {
       debug('Refreshing all open pulls from the API');
       refresh.openPulls().finally(boardLoaded);
+      syncProjectIssues();
+      syncAttachedIssues();
    })
    .done();
 
 // Webhooks get lost, and a lost `closed` left a PR open on the board until the
 // next restart (pulldasher#501 repairs it only at startup), which inflates every
 // backlog number. Once an hour, list each repo's open pulls and refresh just the
-// ones the DB has wrong.
+// ones the DB has wrong, and pick up project issues that changed.
 const RECONCILE_MS = 60 * 60 * 1000;
 setInterval(function () {
    refresh.reconcileOpenPulls().catch(function (err) {
       console.error('Hourly open-pull repair failed: %s', (err && err.message) || err);
    });
+   syncProjectIssues();
+   syncAttachedIssues();
 }, RECONCILE_MS);
+
+// The issues added to projects by hand, and which PRs link each issue a
+// project has (lib/work.js), read off GitHub once an hour; a webhook on one
+// of those issues reads them sooner.
+function syncAttachedIssues() {
+   syncWork(projectSettings()).catch(function (err) {
+      console.error('Work sync failed: %s', (err && err.message) || err);
+   });
+}
+
+// Project issues can live in any tracked repo (lib/projects.js issueRepos).
+// The projects repo is synced whole at startup; a tracked repo only from
+// TRACKED_ISSUES_DAYS back, since listing every issue of a big repo costs
+// thousands of calls, and webhooks already keep its issues current. So an
+// issue labeled while webhooks were down for longer than that waits for its
+// next change (or bin/refresh-open-issues). After that, only what changed.
+// `since` backs off a few minutes so GitHub's clock can't skip an update.
+const TRACKED_ISSUES_DAYS = 7;
+function syncProjectIssues() {
+   const projects = projectSettings();
+   if (!projects) return;
+   const startedAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+   const lookback = new Date(Date.now() - TRACKED_ISSUES_DAYS * 86400 * 1000).toISOString();
+   const synced = issueRepos(projects).map(function (repo) {
+      const firstSince = repo === projects.repo ? null : lookback;
+      return syncRepoIssues(refresh, repo, firstSince, startedAt).catch(function (err) {
+         console.error('Project issue sync failed in %s: %s', repo, (err && err.message) || err);
+         return false;
+      });
+   });
+   // a project's name, target or state may have changed: open boards hear it
+   // once, after every repo is read, and only when an issue changed (a word
+   // per repo had every open Projects tab fetch it all again once per repo)
+   Promise.all(synced).then(function (changed) {
+      if (changed.some(Boolean)) projectsChanged();
+   });
+}
 
 //====================================================
 // Socket.IO

@@ -45,3 +45,20 @@ test('getFromDB normalizes tinyint mergeable to a real boolean|null', () => {
    // null stays null: GitHub hasn't recomputed, don't assert either way
    assert.equal(mergeableOf(null), null);
 });
+
+test('activityAt is the newest real work: pushes and people count, bots and label edits do not', () => {
+   const at = t => new Date(t * 1000);
+   const by = (login, t) => ({ data: { user: { login }, created_at: at(t), submitted_at: at(t) } });
+   const pull = Pull.getFromDB(
+      // opened 1753200000; updated_at (a label edit) is later than everything
+      { ...row(1), date_updated: 1753900000, date_pushed: 1753300000 },
+      [by('alice', 1753400000)],
+      [by('fixture-bot', 1753800000), by('bob', 1753350000)],
+      [by('carol', 1753450000)],
+      [],
+      []
+   );
+   // carol's review is the newest thing a person did
+   assert.equal(pull.activityAt().getTime(), 1753450000 * 1000);
+   assert.equal(pull.getStatus().activity_at.getTime(), 1753450000 * 1000);
+});

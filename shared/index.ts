@@ -34,5 +34,127 @@ export type { CheckLedger } from './model/ci';
 
 export { isBotLogin } from './model/visibility';
 
+export {
+   buildToday,
+   dayIn,
+   dayStart,
+   projectOf,
+   projectSlugs,
+   utcDay,
+   windowStats,
+   DEFAULT_PROJECT_PREFIX,
+   LIVE_DAYS,
+   MISC_SLUG,
+   ONGOING_LABEL,
+   PARENT_PREFIX,
+} from './model/projects';
+export type { Project, PullSpan, ReviewSpan, Today, WindowStats } from './model/projects';
+
+export { prStage } from './model/stage';
+export type { PrStage } from './model/stage';
+
+export {
+   addWeeks,
+   bucketOf,
+   checkRoadmapFields,
+   checkRoadmapUpdate,
+   endOf,
+   healthStanding,
+   inProgress,
+   isUnderWay,
+   issuePace,
+   mondayOf,
+   moveBefore,
+   planEnd,
+   planFor,
+   planLately,
+   updatesOwed,
+   updateStanding,
+   DONE_WHEN_MAX,
+   END_KINDS,
+   MAX_WEEKS,
+   PILE_AGE_DAYS,
+   PILE_GROWTH,
+   PILE_MIN,
+   ROADMAP_HEALTHS,
+   PROJECT_SLUG,
+   ROADMAP_ORIGINS,
+   ROADMAP_STATUSES,
+   UPDATE_DUE_DAYS,
+   WAITS_ON_MAX,
+   waitsOnProblem,
+} from './model/roadmap';
+export type {
+   EndKind,
+   RoadmapFields,
+   RoadmapHealth,
+   RoadmapItem,
+   RoadmapOrigin,
+   RoadmapStatus,
+   RoadmapUpdate,
+} from './model/roadmap';
+
 export { epoch } from './format';
 export type { PullData, RepoSpec, Signature, CommitStatus, Label } from './types';
+
+export {
+   checkDecideRotation,
+   checkDeveloperTeams,
+   checkOngoingProjects,
+   decideTurn,
+} from './model/settings';
+export type { DecideRotation, DeveloperTeams } from './model/settings';
+
+export {
+   closedIssues,
+   decideProjects,
+   decideQueue,
+   needsDecision,
+   issuesAllClosed,
+   DECIDE_MIN_PRS,
+   STALL_DAYS,
+} from './model/decide';
+export type {
+   ClosedIssue,
+   DecideProject,
+   DecideReason,
+   DecideRow,
+   PlanCounts,
+} from './model/decide';
+export { loadByWeek, mondaysBetween, peakFrom, spansFrom } from './model/load';
+export type { InFlightSpan, LoadWeek, OriginCounts } from './model/load';
+export { timeSpent } from './model/retro';
+export type { TimeRow, Touch } from './model/retro';
+
+export {
+   afterEndOf,
+   bodyLinks,
+   issueCounts,
+   issueKey,
+   issueQuery,
+   issueText,
+   itemState,
+   parseIssueRef,
+   planOfWork,
+   planWork,
+   projectCounts,
+   projectWork,
+   RECENT_DAYS,
+   SUGGEST_DAYS,
+   TAIL_DAYS,
+} from './model/work';
+export type {
+   AttachedIssue,
+   IssueCounts,
+   IssueHit,
+   IssuePull,
+   IssueQuery,
+   IssueRef,
+   ItemState,
+   PlanWork,
+   ProjectIssue,
+   ProjectWork,
+   SuggestedIssue,
+   WorkInputs,
+   WorkPull,
+} from './model/work';

@@ -22,12 +22,18 @@ export interface Snapshot {
    pulls: DerivedPull[];
    /** bot logins beyond the `[bot]` suffix, from server config (initialize) */
    extraBots: ReadonlySet<string>;
+   /** the label prefix that files a PR into a project, from server config
+    * (initialize); null when the server isn't set up for projects, which
+    * hides the Projects tab */
+   projectLabelPrefix: string | null;
    /** merged/closed in the last 14 days (the server's retention window) */
    closed: PullData[];
    me: string;
    connection: ConnectionState;
    /** first initialize payload has arrived: [] means empty, not loading */
    initialized: boolean;
+   /** a reconnect found the server running a different build than this tab loaded */
+   updated: boolean;
    /** the /token fetch failed: session expired or server down */
    authFailed: boolean;
    /** epoch secs of the last payload from the server; 0 until one arrives */
@@ -52,10 +58,13 @@ let repoSpecs: RepoSpec[] = [];
 // reference invalidates the derive cache so weights re-resolve when it arrives.
 let weightLabels: ReadonlyMap<string, Weight> = new Map();
 let extraBots: ReadonlySet<string> = new Set();
+let projectLabelPrefix: string | null = null;
 let me = '';
 let connection: ConnectionState = 'connecting';
 let initialized = false;
 let authFailed = false;
+let firstBuild: string | undefined;
+let updated = false;
 let lastPayloadAt = 0;
 const listeners = new Set<() => void>();
 
@@ -196,13 +205,20 @@ export function isSnoozed(
    return true;
 }
 
+/** a later initialize naming a different build than the first one this tab saw */
+export function isNewBuild(first: string | undefined, now: string | undefined): boolean {
+   return first != null && now != null && first !== now;
+}
+
 let snapshot: Snapshot = {
    pulls: [],
    extraBots,
+   projectLabelPrefix,
    closed: [],
    me,
    connection,
    initialized,
+   updated,
    authFailed,
    lastPayloadAt,
    lastSeen,
@@ -257,9 +273,11 @@ function publish() {
             (a, b) => (Date.parse(b.closed_at ?? '') || 0) - (Date.parse(a.closed_at ?? '') || 0)
          ),
       extraBots,
+      projectLabelPrefix,
       me,
       connection,
       initialized,
+      updated,
       authFailed,
       lastPayloadAt,
       lastSeen,
@@ -303,6 +321,9 @@ function start() {
          // server-owned config rides with the board (see shared/types)
          weightLabels = parseWeightLabels(payload.weightLabels);
          extraBots = new Set(payload.bots ?? []);
+         projectLabelPrefix = payload.projectLabelPrefix || null;
+         firstBuild ??= payload.build;
+         updated = isNewBuild(firstBuild, payload.build);
          for (const p of payload.pulls) raw.set(pullKey(p), p);
          initialized = true;
          // a press that ended while this board was away mustn't stay stuck

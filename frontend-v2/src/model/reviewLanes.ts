@@ -1,4 +1,11 @@
-import { qaDone, weightRank, type DerivedPull, type Status } from '../../../shared/model/status';
+import {
+   isIterating,
+   qaDone,
+   STARVE_DAYS,
+   weightRank,
+   type DerivedPull,
+   type Status,
+} from '../../../shared/model/status';
 import type { PullData } from '../../../shared/types';
 import { pullKey } from '../../../shared/format';
 import {
@@ -10,13 +17,14 @@ import {
    WAIT_WORD_RANK,
 } from './actions';
 import { startHereReason } from './cheers';
-import { dealRank } from './deal';
+import { dealRank, dealScore } from './deal';
 import { displayName } from './names';
 import { matchesRegion } from './regions';
 import { repoBlocks, type RepoBlock } from './repoBlocks';
 import { claimFor, reviewRequestedFrom } from './reviewers';
 import { myPeople, type PersonalTeam } from '../settings';
-import { crSort, teamFirst } from './sort';
+import { crScore, crSort, finishersFirst, sinkBy, teamFirst } from './sort';
+import type { PullStanding } from './standing';
 
 /**
  * Review.tsx's lanes/pools, pulled out of the component so the bucketing
@@ -77,6 +85,10 @@ export interface ReviewLanesInput {
     * a name instead of a login — defaults to {} so an unresolved login just
     * falls back to itself. */
    names?: Readonly<Record<string, string | null>>;
+   /** how each PR's project stands (model/standing.ts): a parked project's
+    * PRs sink in every ranked lane, and the last PRs of a plan in progress
+    * go first on a tie. Absent on a board without projects. */
+   standing?: PullStanding;
 }
 
 export interface ReviewLanes {
@@ -132,7 +144,13 @@ export interface ReviewLanes {
    /** Needs QA's own per-card "why" line — that lane sorts by qaSort, not
     * deal-score, so it needs its own reasons rather than whyUpNext's */
    whyQaNext: (p: DerivedPull) => string;
+   /** a lane's "why" line with what the PR's project did to its place: a
+    * parked project's sank it, the last PRs of a plan in progress won a tie.
+    * `base` is the lane's own reason; null when there's nothing to say */
+   whyProject: (p: DerivedPull, base: string | null) => string | null;
 }
+
+const NO_STANDING: PullStanding = { parked: new Map(), finishing: new Map() };
 
 /** Your own pulls contribute only their do-it-now verbs to the home lane.
  * "Undraft" always stays in My work (planning, not minutes). Getting QA is
@@ -161,10 +179,25 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
       repoPriority,
       ageWarnDays,
       names = {},
+      standing = NO_STANDING,
    } = input;
 
    const team = new Set(myPeople(teams));
    const others = pulls.filter(p => p.data.user.login !== me);
+
+   // A project's say in each ranked lane (model/standing.ts): a parked
+   // project's PRs sink, never hidden, the way an iterating PR sinks; and
+   // where two PRs tie, which each lane reads as its own ranking with age in
+   // whole days, the one that helps finish a plan in progress goes first.
+   const sunk = (p: DerivedPull) => standing.parked.has(pullKey(p.data));
+   const finishes = (p: DerivedPull) => standing.finishing.has(pullKey(p.data));
+   const days = (p: DerivedPull) => Math.round(p.ageDays);
+   const crRank = (list: DerivedPull[]) =>
+      finishersFirst(
+         crSort(list, sunk),
+         p => `${sunk(p)}|${isIterating(p)}|${Math.round(crScore(p) * STARVE_DAYS)}|${days(p)}`,
+         finishes
+      );
 
    // Repo relevance is per-person (a web dev and a firmware dev share the
    // monorepo but little else) and inferred from the current board: the
@@ -269,6 +302,17 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
             weightRank(a.weight) - weightRank(b.weight) ||
             b.ageDays - a.ageDays
       );
+   // teammates lead the primary lane; a parked project's PRs sink below
+   // everything, theirs included
+   const qaRank = (list: DerivedPull[], pinTeam: boolean) => {
+      const pinned = (p: DerivedPull) => pinTeam && team.has(p.data.user.login);
+      const sorted = qaSort(list);
+      return finishersFirst(
+         sinkBy(pinTeam ? teamFirst(sorted, team) : sorted, p => Number(sunk(p))),
+         p => `${sunk(p)}|${pinned(p)}|${!!p.qaingLogin}|${p.weight}|${days(p)}`,
+         finishes
+      );
+   };
 
    // In your code regions: reviewable pulls (CR or QA pool) matching a region
    // you set in Settings, deduped across the two pools, surfaced as a
@@ -280,7 +324,7 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    // isn't region news to you, even though qaPool itself doesn't otherwise
    // care about CR state.
    const regionSeen = new Set<string>();
-   const regionMatches = crSort(
+   const regionMatches = crRank(
       [...crPool, ...qaPool.filter(p => !p.crBy.includes(me))].filter(p => {
          const k = pullKey(p.data);
          if (regionSeen.has(k) || !matchesRegion(p, codeRegions)) return false;
@@ -300,19 +344,33 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    // reachable but not in the way. Region matches stay in this queue too:
    // "In your code regions" above is a highlight, a copy of a slice, not an
    // extraction — the same non-exclusive relationship "Recently updated" and
-   // a claimed PR already have with their lanes.
-   const queue = teamFirst(
-      dealRank(
-         [
-            ...nonStarved.filter(p => isPrimaryRepo(p.data.repo)),
-            ...crPool.filter(p => p.starved),
-            ...botReviewable,
-         ],
-         { me, pulls, deprioritize: isDemoted, warnDays: ageWarnDays }
+   // a claimed PR already have with their lanes. A parked project's PRs sink
+   // below every other person's, teammates' included, and above the bots.
+   const dealOpts = { me, pulls, deprioritize: isDemoted, warnDays: ageWarnDays };
+   const classOf = (p: DerivedPull) => (isDemoted(p) ? 2 : sunk(p) ? 1 : 0);
+   const queue = finishersFirst(
+      sinkBy(
+         teamFirst(
+            dealRank(
+               [
+                  ...nonStarved.filter(p => isPrimaryRepo(p.data.repo)),
+                  ...crPool.filter(p => p.starved),
+                  ...botReviewable,
+               ],
+               dealOpts
+            ),
+            team
+         ),
+         classOf
       ),
-      team
+      // the score in days of waiting, as the why line counts them
+      p =>
+         `${classOf(p)}|${team.has(p.data.user.login)}|${Math.round(
+            dealScore(p, dealOpts) * (ageWarnDays ?? STARVE_DAYS)
+         )}`,
+      finishes
    );
-   const queueOther = crSort(nonStarved.filter(p => !isPrimaryRepo(p.data.repo)));
+   const queueOther = crRank(nonStarved.filter(p => !isPrimaryRepo(p.data.repo)));
 
    // Ready to merge is finishable work for anyone: fully signed off, green,
    // one button-press from done. It earns a real lane in Pick up next rather
@@ -321,13 +379,23 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    // botsForReady (not `bots`) so this lane keeps showing merge-ready bot
    // PRs even when "Ignore bot PRs" has emptied `bots` out of the queue
    // tail and the bot fold below.
-   const ready = [
-      ...others.filter(p => p.status === 'ready'),
-      ...botsForReady.filter(p => p.status === 'ready'),
-   ].sort((a, b) => b.ageDays - a.ageDays);
+   const ready = finishersFirst(
+      [
+         ...others.filter(p => p.status === 'ready'),
+         ...botsForReady.filter(p => p.status === 'ready'),
+      ].sort((a, b) => Number(sunk(a)) - Number(sunk(b)) || b.ageDays - a.ageDays),
+      p => `${sunk(p)}|${days(p)}`,
+      finishes
+   );
 
-   const needsQa = teamFirst(qaSort(qaPool.filter(p => isPrimaryRepo(p.data.repo))), team);
-   const needsQaOther = qaSort(qaPool.filter(p => !isPrimaryRepo(p.data.repo)));
+   const needsQa = qaRank(
+      qaPool.filter(p => isPrimaryRepo(p.data.repo)),
+      true
+   );
+   const needsQaOther = qaRank(
+      qaPool.filter(p => !isPrimaryRepo(p.data.repo)),
+      false
+   );
 
    // your live CR stamp is in, the PR just isn't fully signed off yet (another
    // reviewer owes a stamp, or a re-CR). Covers needs_recr too, so a PR you
@@ -382,7 +450,16 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
       const idx = DO_WORD_RANK.indexOf(word);
       return idx === -1 ? Number.POSITIVE_INFINITY : idx;
    };
-   yourMove.sort((a, b) => doRankOf(a) - doRankOf(b) || b.ageDays - a.ageDays);
+   // a parked project's sink within their word's group, never out of it
+   yourMove.sort(
+      (a, b) =>
+         doRankOf(a) - doRankOf(b) || Number(sunk(a)) - Number(sunk(b)) || b.ageDays - a.ageDays
+   );
+   const yourMoveRanked = finishersFirst(
+      yourMove,
+      p => `${doRankOf(p)}|${sunk(p)}|${days(p)}`,
+      finishes
+   );
 
    // "Waiting on others": your PRs and stamps sitting with someone else right now —
    // your own PRs waiting on a review/QA, plus a stamp you've already given
@@ -407,13 +484,31 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    };
    yoursWaiting.sort((a, b) => waitRankOf(a) - waitRankOf(b) || b.ageDays - a.ageDays);
 
+   // what a PR's project did to its place, said after the lane's own reason:
+   // a parked project's sank it, so that's the whole story; the last PRs of a
+   // plan in progress won a tie
+   const whyProject = (p: DerivedPull, base: string | null): string | null => {
+      const key = pullKey(p.data);
+      const parked = standing.parked.get(key);
+      if (parked) return `Parked project: ${parked}`;
+      const finishing = standing.finishing.get(key);
+      if (!finishing) return base;
+      const last =
+         finishing.left === 1
+            ? `Helps finish ${finishing.slug}: its last open PR`
+            : `Helps finish ${finishing.slug}: one of its last ${finishing.left} open PRs`;
+      return base ? `${base}. ${last}` : last;
+   };
+
    // the per-card "why" behind the repo# door in the ranked lanes — the same
    // reason strings the dealt card's footnote and the Start-here toast use,
    // so every surface explains a pick in the same words
-   const whyUpNext = (p: DerivedPull) =>
-      team.has(p.data.user.login)
+   const whyUpNext = (p: DerivedPull) => {
+      const base = team.has(p.data.user.login)
          ? `From ${displayName(names, p.data.user.login) ?? p.data.user.login}, on your team: teammates’ PRs lead your queue`
          : startHereReason(p, pulls, me, false, names);
+      return whyProject(p, base) ?? base;
+   };
    // the queue's repo blocks (priority order, starved pierced out front) —
    // computed unconditionally, cheap; the render only reads it when a
    // priority is set
@@ -423,14 +518,16 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    // sorted by qaSort (unclaimed-first, then lightest, then oldest) — reusing
    // whyUpNext's reciprocity/quick-win/urgency reasons here would describe a
    // ranking this lane doesn't use.
-   const whyQaNext = (p: DerivedPull) =>
-      team.has(p.data.user.login)
+   const whyQaNext = (p: DerivedPull) => {
+      const base = team.has(p.data.user.login)
          ? `From ${displayName(names, p.data.user.login) ?? p.data.user.login}, on your team: teammates’ PRs lead this lane`
          : p.qaingLogin
            ? `${displayName(names, p.qaingLogin) ?? p.qaingLogin} is already testing it; it sinks below unclaimed QA`
            : p.weight === 'XS' || p.weight === 'S'
              ? `Nobody's testing it yet, a light one (${p.weight})`
              : `Nobody's testing it yet, waiting ${Math.max(1, Math.round(p.ageDays))}d`;
+      return whyProject(p, base) ?? base;
+   };
 
    const boardIsQuiet =
       !yourMove.length &&
@@ -464,7 +561,7 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    const empty = !pulls.length && !bots.length && !closed.length && !botsForReady.length;
 
    return {
-      yourMove,
+      yourMove: yourMoveRanked,
       yoursWaiting,
       changed,
       queue,
@@ -488,5 +585,6 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
       empty,
       whyUpNext,
       whyQaNext,
+      whyProject,
    };
 }

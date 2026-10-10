@@ -1,10 +1,14 @@
 import type { ReactNode } from 'react';
 import { headStatuses, type DerivedPull } from '../../../shared/model/status';
+// the small module, so the board's rows don't load the projects model
+import { MISC_SLUG } from '../../../shared/model/projectLabel';
 import type { Claim, RowNote } from '../model/actions';
 import { rowNote } from '../model/actions';
+import { projectOfPull, useProjectStanding } from '../model/standing';
 import type { PullData } from '../../../shared/types';
 import { ago, closedEpoch, epoch, githubUrl, issueUrl, signatureUrl } from '../../../shared/format';
-import { ClosedBadge, STATUS_LABEL } from './bits';
+import { usePulldasher } from '../store';
+import { ClosedBadge, FactLink, STATUS_LABEL } from './bits';
 import { Avatar } from './identity';
 import { Popover } from './Popover';
 
@@ -117,13 +121,22 @@ function FactsSection({
    claim,
    turn,
    poolSize,
+   onProject,
 }: {
    pull: DerivedPull;
    claim?: Claim | null;
    turn?: string | null;
    poolSize?: number;
+   /** open its project's page; unset on that page itself */
+   onProject?: (slug: string) => void;
 }) {
    const d = pull.data;
+   // its project by the Projects tab's rule: its label, else the project
+   // whose issue it links. The board has the slug, not the project's name
+   // (that comes with the Projects tab's own fetch), so the link shows it
+   const { projectLabelPrefix } = usePulldasher();
+   const standing = useProjectStanding(projectLabelPrefix);
+   const slug = projectLabelPrefix ? projectOfPull(pull, projectLabelPrefix, standing) : null;
    const crReq = d.status.cr_req;
    const qaReq = d.status.qa_req;
    const ciWord =
@@ -218,6 +231,22 @@ function FactsSection({
                )}
             </p>
          )}
+         {slug && slug !== MISC_SLUG && (
+            <p>
+               project{' '}
+               {onProject ? (
+                  // through the app, so the board's filters stay
+                  <FactLink
+                     onClick={() => onProject(slug)}
+                     aria-label={`${slug}: open its page on the Projects tab`}
+                  >
+                     {slug}
+                  </FactLink>
+               ) : (
+                  <b className="font-medium text-ink">{slug}</b>
+               )}
+            </p>
+         )}
          {/* a claim always trumps the rotation guess — same precedence as
              model/actions.ts's withCoordination */}
          {claim ? (
@@ -276,6 +305,7 @@ function StatePopoverBody({
    turn,
    poolSize,
    whyHere,
+   onProject,
 }: {
    pull: DerivedPull;
    me: string;
@@ -283,11 +313,18 @@ function StatePopoverBody({
    turn?: string | null;
    poolSize?: number;
    whyHere?: string | null;
+   onProject?: (slug: string) => void;
 }) {
    return (
       <>
          <StateSection pull={pull} me={me} claim={claim} turn={turn} />
-         <FactsSection pull={pull} claim={claim} turn={turn} poolSize={poolSize} />
+         <FactsSection
+            pull={pull}
+            claim={claim}
+            turn={turn}
+            poolSize={poolSize}
+            onProject={onProject}
+         />
          <FeedbackSection pull={pull} />
          {/* ranked lanes explain their pick per-card here — behind the same
              door as everything else, never inline on the row */}
@@ -331,6 +368,7 @@ export function StatePopover({
    turn,
    poolSize,
    whyHere,
+   onProject,
    title = 'see the full state',
    children,
 }: {
@@ -341,6 +379,8 @@ export function StatePopover({
    poolSize?: number;
    /** a ranked lane's one-line reason this pull sits where it does */
    whyHere?: string | null;
+   /** open the PR's project page (RowOptions.onProject) */
+   onProject?: (slug: string) => void;
    title?: string;
    children: ReactNode;
 }) {
@@ -365,6 +405,7 @@ export function StatePopover({
             turn={turn}
             poolSize={poolSize}
             whyHere={whyHere}
+            onProject={onProject}
          />
       </Popover>
    );

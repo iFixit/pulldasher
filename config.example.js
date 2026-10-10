@@ -110,6 +110,38 @@ module.exports = {
       'size: XL': 'XL',
    },
 
+   // Projects (optional; leave it out and the Projects tab stays hidden). A PR
+   // joins a project through one label, `<labelPrefix><slug>`, for example
+   // `project:workbench`. A project's record is the issue in `repo` carrying
+   // that same label (without `repo`, names come from labels): the title is its name, the
+   // assignee its lead, the milestone and its due date the rough target,
+   // `parent:<slug>` labels its parents (any number), and an `ongoing` label
+   // marks work with no end. Its Start date, Target date and Priority issue
+   // fields show too, the Target date ahead of the milestone; `github.token`
+   // above reads them over GraphQL. Closing the issue as completed means
+   // done; as not planned, dropped or merged into another. An issue with the
+   // label in any other repo is work inside the project and never renames
+   // it. The server only reads these; something else writes them, and
+   // bin/sync-issue-fields can copy each plan into its issue's fields. `repo`
+   // is optional; give it the same webhook as a tracked repo, and send Issues
+   // events in both. Keep label names to 32 characters with no spaces: that's
+   // what the label table and the filter box hold. A PR also joins a project
+   // when its body links one of the project's issues ("Parts of #N").
+   projects: {
+      repo: 'owner/projects',
+      labelPrefix: 'project:',
+      // The team's day, for "past its end", "today" and the weekly calls, so
+      // the board and /api/v1 agree whoever reads them. Defaults to
+      // America/Los_Angeles.
+      timeZone: 'America/Los_Angeles',
+      // Team name -> the GitHub logins on it. The Projects tab splits people
+      // into these teams; anyone who opens PRs without being listed here
+      // counts as a non-developer.
+      developerTeams: {
+         Store: ['login1', 'login2'],
+      },
+   },
+
    // The usual MySQL stuff. Like every other MySQL webapp, basically.
    // You will need to source the `schema.sql` file in the database to create
    // all the tables that Pulldasher expects.

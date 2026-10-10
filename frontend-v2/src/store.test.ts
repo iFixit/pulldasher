@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { pullKey } from '../../shared/format';
 import type { PullData } from '../../shared/types';
-import { isSnoozed, refreshAllText, type SnoozeRecord } from './store';
+import { isNewBuild, isSnoozed, refreshAllText, type SnoozeRecord } from './store';
 
 // isSnoozed reads only repo/number/updated_at and a few status counts, so a
 // minimal pull is enough; the outer cast keeps the fixture to what it touches.
@@ -190,5 +190,14 @@ describe('refreshAllText', () => {
       expect(done(5, 1)).toBe('refreshed 4 · 1 failed');
       expect(done(1, 1)).toBe('1 failed');
       expect(done(0, 0, 2)).toBe('up to date · couldn’t read 2 repos');
+   });
+});
+
+describe('isNewBuild', () => {
+   it('flags only a different build than the first one seen', () => {
+      expect(isNewBuild('a', 'a')).toBe(false);
+      expect(isNewBuild('a', 'b')).toBe(true);
+      expect(isNewBuild(undefined, 'b')).toBe(false);
+      expect(isNewBuild('a', undefined)).toBe(false);
    });
 });

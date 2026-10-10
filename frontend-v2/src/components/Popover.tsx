@@ -1,5 +1,6 @@
 import {
    type PointerEvent as ReactPointerEvent,
+   useEffect,
    useLayoutEffect,
    useState,
    type ReactNode,
@@ -96,8 +97,13 @@ export function Popover({
          // — the phone kebab menu found this the hard way
          const panelW = pop.panelRef.current?.offsetWidth ?? 0;
          const max = window.innerWidth - panelW - 8;
+         // a right-anchored panel hangs left from its trigger's right edge; on
+         // a trigger near the left edge there's no room for that, and the
+         // clamp pushed it over whatever sat beside the trigger, so it hangs
+         // right from the trigger's left edge instead
+         const roomLeft = r.right - panelW >= 8;
          setPos(
-            side === 'right'
+            side === 'right' && roomLeft
                ? { top, right: Math.max(Math.min(window.innerWidth - r.right, max), 8) }
                : { top, left: Math.max(Math.min(r.left, max), 8) }
          );
@@ -115,6 +121,13 @@ export function Popover({
          window.removeEventListener('resize', place);
       };
    }, [pop.open, side]);
+
+   // the panel mounts a render after it opens, once its place is measured,
+   // so usePopover's own focus call finds nothing: focus it when it's there
+   const shown = pop.open && pos != null;
+   useEffect(() => {
+      if (shown && pop.isPinned()) pop.panelRef.current?.focus();
+   }, [shown]);
 
    return (
       <span className={rootClass} ref={pop.rootRef} {...(hoverTriggerOnly ? {} : pop.hoverProps)}>

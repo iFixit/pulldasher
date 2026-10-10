@@ -41,6 +41,10 @@ export interface Backend {
     * released, or removed on GitHub, same as any other review request. */
    claimReview: (repo: string, number: number) => void;
    releaseReview: (repo: string, number: number) => void;
+   /** Calls `handler` when something the Projects tab shows changed on the
+    * server (a roadmap write, an issue added, a setting, a sync), so open
+    * boards fetch it again; returns the unsubscribe. */
+   onProjectsChanged: (handler: () => void) => () => void;
 }
 
 function liveBackend(): Backend {
@@ -50,12 +54,17 @@ function liveBackend(): Backend {
    const getToken = () => {
       token =
          token ??
-         fetch('/token').then(async r => {
+         // the redirect isn't followed: it goes to GitHub, cross-site, and a
+         // blocked hop would read as a network blip and retry forever
+         fetch('/token', { redirect: 'manual' }).then(async r => {
             // an expired session redirects toward the OAuth flow (or 401s)
-            // instead of returning JSON. Separate that dead-session case from
-            // a transient network/5xx failure, so only the former says "sign
-            // in again" while a blip keeps retrying quietly.
-            if (r.redirected || r.status === 401) throw new AuthExpiredError(r.status);
+            // instead of returning JSON (a server restart drops every
+            // session). Separate that dead-session case from a transient
+            // network/5xx failure, so only the former says "sign in again"
+            // while a blip keeps retrying quietly.
+            if (r.type === 'opaqueredirect' || r.redirected || r.status === 401) {
+               throw new AuthExpiredError(r.status);
+            }
             if (!r.ok) throw new Error(`token fetch failed: ${r.status}`);
             const t = (await r.json()) as TokenResponse;
             if (!t.socketToken) throw new Error('token response missing socketToken');
@@ -101,8 +110,10 @@ function liveBackend(): Backend {
       token = null;
       getToken().then(
          t => {
-            // a valid /token proves the app session is alive again
+            // a valid /token proves the app session is alive again, and
+            // clears a "live updates lost" a failed attempt left up
             onAuth?.(false);
+            onState?.('connected');
             socket!.emit('authenticate', t.socketToken);
          },
          (err: unknown) => {
@@ -120,9 +131,14 @@ function liveBackend(): Backend {
       );
    };
 
+   // how many board snapshots this socket has had: the first is the connect,
+   // every later one a reconnect. Counted here, before any subscriber, since
+   // subscribers often start only after the first one arrived.
+   let snapshots = 0;
    const getSocket = () => {
       if (socket) return socket;
       socket = io();
+      socket.on('initialize', () => snapshots++);
       socket.on('connect', () => {
          clearAuthRetry();
          authenticate();
@@ -135,6 +151,12 @@ function liveBackend(): Backend {
       // returning — skips the wait and reconnects now.
       const wake = () => {
          if (socket && !socket.connected) socket.connect();
+         // connected but waiting out a sign-in retry: try now (as a retry, so
+         // a dead session can reload the page and sign back in)
+         else if (socket && authRetry != null) {
+            clearAuthRetry();
+            authenticate(1);
+         }
       };
       document.addEventListener('visibilitychange', () => {
          if (document.visibilityState === 'visible') wake();
@@ -150,6 +172,21 @@ function liveBackend(): Backend {
          const s = getSocket();
          s.on('initialize', (data: InitializePayload) => handler(data));
          s.on('pullChange', (pull: PullData) => handler(pull));
+      },
+      onProjectsChanged(handler) {
+         const s = getSocket();
+         // a change sent while the socket was down is never replayed, so a
+         // reconnect (any snapshot after the first, counted socket-wide)
+         // fetches again, even for a subscriber that started after the first
+         const reconnected = () => {
+            if (snapshots > 1) handler();
+         };
+         s.on('projectsChanged', handler);
+         s.on('initialize', reconnected);
+         return () => {
+            s.off('projectsChanged', handler);
+            s.off('initialize', reconnected);
+         };
       },
       onConnection(handler) {
          onState = handler;
@@ -214,6 +251,13 @@ function dummyBackend(): Backend {
    }
 
    return {
+      // one person on the dummy board: nobody else's writes to hear, so
+      // nothing to unsubscribe from either
+      // the dummy roadmap's writes say it (model/roadmapData.ts announcing)
+      onProjectsChanged(handler) {
+         window.addEventListener('pd:projectsChanged', handler);
+         return () => window.removeEventListener('pd:projectsChanged', handler);
+      },
       whoami: () => Promise.resolve(dummyUser()),
       onPulls(handler) {
          emit = handler;

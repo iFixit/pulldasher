@@ -50,8 +50,9 @@ function isClaimed(p: DerivedPull): boolean {
  *  - +2 reciprocity: this pull's author has stamped one of the viewer's own
  *    pulls — a nudge toward returning the favor.
  *  - +1 quick win: a known XS/S pull, a small bias toward clearing easy ones.
+ * In units of the urgency ramp: one is warnDays of waiting.
  */
-function score(p: DerivedPull, opts: DealRankOptions): number {
+export function dealScore(p: DerivedPull, opts: DealRankOptions): number {
    const urgency = p.starved ? p.starveScore : p.ageDays / (opts.warnDays ?? STARVE_DAYS);
    const repo = p.data.repo;
    const author = p.data.user.login;
@@ -60,10 +61,7 @@ function score(p: DerivedPull, opts: DealRankOptions): number {
       other => other.data.user.login === opts.me && hasStamp(other, author)
    );
    const quickWin = p.weight === 'XS' || p.weight === 'S';
-   const base = urgency + (familiar ? 2 : 0) + (owedByAuthor ? 2 : 0) + (quickWin ? 1 : 0);
-   // a demoted pull (a bot's) sinks below every non-demoted one no matter how
-   // old, but keeps its relative order among the other demoted ones
-   return opts.deprioritize?.(p) ? base - 1000 : base;
+   return urgency + (familiar ? 2 : 0) + (owedByAuthor ? 2 : 0) + (quickWin ? 1 : 0);
 }
 
 /**
@@ -74,10 +72,17 @@ function score(p: DerivedPull, opts: DealRankOptions): number {
  */
 export function dealRank(pool: DerivedPull[], opts: DealRankOptions): DerivedPull[] {
    const base = crSort(pool);
-   return base
-      .map((p, i) => ({ p, s: score(p, opts), i }))
-      .sort((a, b) => b.s - a.s || a.i - b.i)
-      .map(x => x.p);
+   const demoted = (p: DerivedPull) => Number(!!opts.deprioritize?.(p));
+   return (
+      base
+         .map((p, i) => ({ p, s: dealScore(p, opts), i }))
+         // a demoted pull (a bot's) sinks below every other one however old,
+         // keeping its order among the other demoted ones. Its own sort key,
+         // not a score offset: a starved score is age × lines changed, so a
+         // week-old 2,000-line lockfile bump scores 14,000, past any offset
+         .sort((a, b) => demoted(a.p) - demoted(b.p) || b.s - a.s || a.i - b.i)
+         .map(x => x.p)
+   );
 }
 
 /**

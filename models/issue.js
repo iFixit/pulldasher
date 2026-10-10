@@ -75,7 +75,11 @@ class Issue {
                  due_on: new Date(data.milestone.due_on),
               }
             : null,
-         assignee: getLogin(data.assignee),
+         // null when unassigned: getLogin's 'ghost' is for deleted authors
+         assignee: data.assignee ? data.assignee.login : null,
+         // a project issue's Start date, Target date and Priority fields
+         // (git-manager's fieldsFromNodes); null on other issues
+         fields: data.fields || null,
          labels: labels || [],
       };
 
@@ -104,6 +108,11 @@ class Issue {
             : null,
          difficulty: data.difficulty,
          assignee: data.assignee,
+         fields: {
+            start: data.field_start || null,
+            target: data.field_target || null,
+            priority: data.field_priority || null,
+         },
          labels: labels || [],
       };
       return new Issue(issueData, labels);

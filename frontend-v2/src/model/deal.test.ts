@@ -142,6 +142,21 @@ describe('deal rank+from — deprioritize', () => {
       expect(deal([bot, human], { ...opts, passed: new Set(['org/repo#2']) })).toBe(bot);
    });
 
+   it('sinks a demoted pull however large its starved score grows', () => {
+      // starveScore is age × lines changed: a week-old 2,000-line lockfile
+      // bump scores 14,000, past the offset that once stood for "demoted"
+      const lockfileBump = dp({
+         number: 1,
+         author: 'dependabot',
+         ageDays: 7,
+         starved: true,
+         starveScore: 14_000,
+      });
+      const human = dp({ number: 2, author: 'alice', ageDays: 1 });
+      const opts = baseOpts({ deprioritize: p => p.data.user.login === 'dependabot' });
+      expect(dealRank([lockfileBump, human], opts)).toEqual([human, lockfileBump]);
+   });
+
    it('still orders demoted pulls among themselves', () => {
       const olderBot = dp({
          number: 1,

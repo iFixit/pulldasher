@@ -186,6 +186,9 @@ interface LiveToast extends Toast {
  * the `cheers` setting; when off, the baseline still primes so flipping it on
  * mid-session doesn't replay the backlog.
  */
+/** a stable empty default, so the effect below doesn't re-run each render */
+const NO_PARKED: ReadonlyMap<string, string> = new Map();
+
 export function useToasts(
    pulls: DerivedPull[],
    me: string,
@@ -211,7 +214,9 @@ export function useToasts(
    names: Readonly<Record<string, string | null>> = {},
    /** pull keys the viewer snoozed in Review — passed to evaluateCheers so a
     * snoozed pull stops firing start-here / your-turn cheers. */
-   snoozed: ReadonlySet<string> = new Set()
+   snoozed: ReadonlySet<string> = new Set(),
+   /** open PRs whose project is parked: start-here puts them last */
+   parked: ReadonlyMap<string, string> = NO_PARKED
 ) {
    const [toasts, setToasts] = useState<LiveToast[]>([]);
    const [history, setHistory] = useState<ToastRecord[]>([]);
@@ -348,6 +353,7 @@ export function useToasts(
             snoozed,
             ready,
             names,
+            parked,
          },
          baseline.current
       );
@@ -368,7 +374,7 @@ export function useToasts(
          return t;
       });
       if (on) push(bound);
-   }, [ready, pulls, turns, closed, me, push, onQuickWins, onClaimTurn, names, snoozed]);
+   }, [ready, pulls, turns, closed, me, push, onQuickWins, onClaimTurn, names, snoozed, parked]);
 
    // pre-built one-shot toasts from the caller (e.g. the shipped catch-up),
    // deduped by dedupeKey so the same logical toast never re-fires on a later

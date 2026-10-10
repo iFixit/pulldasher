@@ -115,6 +115,10 @@ export interface PullData {
        * servers omit it, so a consumer falls back to comment_count. */
       human_comment_count?: number;
       last_comment_at?: DateString | null;
+      /** the newest real work on the PR: opened, pushed, a person's comment,
+       * stamp or review, or merged (models/pull.js activityAt). Unlike
+       * updated_at, a label edit doesn't move it. Absent on older servers. */
+      activity_at?: DateString | null;
       /** reviewers whose latest verdict has no signature of its own (CHANGES_
        * REQUESTED/COMMENTED/DISMISSED — an APPROVED review already shows up
        * as a CR signature); optional — older servers won't send it. */
@@ -143,6 +147,13 @@ export interface InitializePayload {
     * that omits them just means suffix-only bots and heuristic-only weights. */
    bots?: string[];
    weightLabels?: Record<string, string>;
+   /** the label prefix that files a PR into a project (`project:`), present
+    * only when the server is set up for projects; the Projects tab shows only
+    * then. See shared/model/projects.ts. */
+   projectLabelPrefix?: string;
+   /** names the frontend build the server is serving (absent without a build);
+    * a different one on a later initialize means the board was redeployed */
+   build?: string;
 }
 
 /** "Refresh all" on the server, sent to every board: it checks GitHub, then

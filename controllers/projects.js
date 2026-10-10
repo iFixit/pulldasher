@@ -1,0 +1,650 @@
+import pullManager from '../lib/pull-manager.js';
+import { respondOrError } from '../lib/controller-utils.js';
+import {
+   loadProjects,
+   loadTimeSpent,
+   loadWindow,
+   parseWindow,
+   projectSettings,
+   teamDay,
+   todayFromBoard,
+} from '../lib/projects.js';
+import { listItems } from '../lib/roadmap.js';
+import {
+   attachIssue,
+   detachIssue,
+   loadProjectWork,
+   loadPullLinks,
+   loadWork,
+   searchIssues,
+} from '../lib/work.js';
+import {
+   addWeeks,
+   closedIssues,
+   decideProjects,
+   decideQueue,
+   decideTurn,
+   endOf,
+   needsDecision,
+   parseIssueRef,
+   loadByWeek,
+   mondayOf,
+   mondaysBetween,
+   peakFrom,
+   planEnd,
+   spansFrom,
+   utcDay,
+   windowStats,
+   prStage,
+   MISC_SLUG,
+   PROJECT_SLUG,
+   STALL_DAYS,
+} from '../shared/dist/index.js';
+
+const key = d => `${d.repo}#${d.number}`;
+
+/** a project label's slug: what follows the prefix (the shared rule) */
+const SLUG = PROJECT_SLUG;
+
+/** The issue a request names, as {repo, number} or "owner/repo#123" (or a
+ * link), from the body or the query string; null when it names none. */
+function issueOfRequest(from) {
+   if (from?.repo && from?.number) {
+      const number = Number(from.number);
+      return Number.isInteger(number) && number > 0 ? { repo: String(from.repo), number } : null;
+   }
+   return typeof from?.issue === 'string' ? parseIssueRef(from.issue) : null;
+}
+
+/** Projects that run with no end: marked on the board, or by the `ongoing`
+ * label on their issue. */
+function ongoingSlugs(settings, projects) {
+   return new Set([...settings.ongoing, ...projects.filter(p => p.ongoing).map(p => p.slug)]);
+}
+
+/**
+ * Validate the projects config and the requested window, then load the
+ * projects, which projects each PR links, the window's PR history and its
+ * CR/QA stamps. An optional `project` slug narrows the window's numbers and
+ * stamps to that project's PRs (the project list stays whole). Answers the
+ * request itself (404 when projects aren't set up here, 400 for a bad
+ * window) and returns null, or returns a promise of what the handler needs.
+ */
+function load(req, res) {
+   const settings = projectSettings();
+   if (!settings) {
+      res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
+      return null;
+   }
+   const window = parseWindow(req.query);
+   const only = req.query.project;
+   const badProject = only !== undefined && (typeof only !== 'string' || !only || only.length > 64);
+   if (window.error || badProject) {
+      res.status(400).json({ error: window.error || 'project must be one project slug' });
+      return null;
+   }
+   return Promise.all([loadProjects(settings), loadPullLinks(settings)]).then(
+      ([projects, linked]) =>
+         loadWindow(settings, window.start, window.end, only, linked).then(
+            ({ spans, reviews }) => ({
+               settings,
+               projects,
+               linked,
+               stats: windowStats(spans, window.start, window.end, {
+                  teamOf: settings.teamOf,
+                  reviews,
+               }),
+            })
+         )
+   );
+}
+
+/**
+ * One record per project for the API: what its issue says, where it stands
+ * today, and its numbers for the window. Live projects first in Today's order,
+ * then quiet ones, then the rest (done, dropped, or only in the window's
+ * history) by slug.
+ */
+function projectRecords(projects, today, stats, prefix) {
+   const bySlug = new Map(projects.map(p => [p.slug, p]));
+   const groups = new Map();
+   const standing = new Map();
+   for (const [list, word] of [
+      [today.live, 'live'],
+      [today.quiet, 'quiet'],
+   ]) {
+      for (const g of list) {
+         groups.set(g.slug, g);
+         standing.set(g.slug, word);
+      }
+   }
+   const rest = [...new Set([...bySlug.keys(), ...Object.keys(stats.projects)])]
+      .filter(slug => slug !== MISC_SLUG && !groups.has(slug))
+      .sort();
+   return [...groups.keys(), ...rest].map(slug => {
+      const p = bySlug.get(slug) || null;
+      const g = groups.get(slug) || null;
+      const closedAs =
+         p && p.state === 'closed' ? (p.state_reason === 'not_planned' ? 'dropped' : 'done') : null;
+      return {
+         slug,
+         name: p ? p.name : slug,
+         label: prefix + slug,
+         issue: p
+            ? {
+                 repo: p.repo,
+                 number: p.number,
+                 url: `https://github.com/${p.repo}/issues/${p.number}`,
+                 state: p.state,
+                 state_reason: p.state_reason,
+              }
+            : null,
+         ongoing: p ? p.ongoing : false,
+         parents: p ? p.parents : [],
+         lead: p ? p.lead : null,
+         target: p ? p.target : null,
+         fields: p ? p.fields : null,
+         // live and quiet come from Today; a closed issue with no open PR is
+         // done or dropped; a slug seen only in the window's history is null
+         standing: standing.get(slug) || closedAs,
+         open: g ? g.open.map(d => key(d.data)) : [],
+         merged_recently: g ? g.merged.map(key) : [],
+         people: g ? g.people : [],
+         idle_days: g ? g.idleDays : null,
+         flags: g ? g.flags : [],
+         // its open PRs by where they stand, in the project page's words
+         stages: stageCounts(g ? g.open : []),
+         window: stats.projects[slug] || null,
+      };
+   });
+}
+
+/** How many open PRs are at each stage (shared/model/stage.ts prStage). */
+function stageCounts(open) {
+   const out = { ready: 0, hold: 0, review: 0, work: 0 };
+   for (const d of open) out[prStage(d)]++;
+   return out;
+}
+
+/** Where each project with PRs open began, by slug: the spans that run to today. */
+function liveStarts(today) {
+   return Object.fromEntries(
+      decideProjects(today)
+         .filter(p => p.open > 0)
+         .map(p => [p.slug, p.firstOpened])
+   );
+}
+
+export default {
+   /**
+    * GET /projects-data?start=&end=&project= -- the Projects tab's fetch:
+    * every project issue plus the window's numbers (one project's, with
+    * `project`), and which projects each of the board's PRs links. The tab
+    * builds Today itself from the live socket pulls, so it moves with the
+    * board, and by the same rule as here. Session-authed like /stats-history.
+    */
+   getBoardData: function (req, res) {
+      const loaded = load(req, res);
+      if (!loaded) return;
+      respondOrError(
+         res,
+         loaded.then(({ settings, projects, linked, stats }) => {
+            // the PRs Today is built from: the board's open and recently closed
+            const onBoard = new Set(pullManager.getPulls().map(p => key(p.data).toLowerCase()));
+            return {
+               label_prefix: settings.prefix,
+               projects_repo: settings.repo,
+               teams: settings.teams,
+               teams_from: settings.teamsFrom,
+               decide_rotation: settings.decideRotation,
+               ongoing: settings.ongoing,
+               projects,
+               pull_links: Object.fromEntries(
+                  Object.entries(linked).filter(([pull]) => onBoard.has(pull))
+               ),
+               window: stats,
+            };
+         }),
+         'projects-data query failed'
+      );
+   },
+
+   /**
+    * GET /api/v1/projects?start=&end= -- every project with its issue fields,
+    * where it stands today (open PR ids, people, idle days, flags), and its
+    * numbers for the window (default: the last 30 days) -- backlog, throughput,
+    * developers vs. non-developers, and median days to merge -- plus the
+    * totals and one point per day for the backlog chart. Bearer-authed
+    * (lib/api-auth). Dates are YYYY-MM-DD UTC days, both counted;
+    * `project=<slug>` narrows the window's numbers to that project's PRs.
+    */
+   getProjects: function (req, res) {
+      const loaded = load(req, res);
+      if (!loaded) return;
+      respondOrError(
+         res,
+         loaded.then(({ settings, projects, linked, stats }) => {
+            const now = Date.now() / 1000;
+            const pulls = pullManager.getPulls();
+            const today = todayFromBoard(pulls, projects, settings.prefix, now, linked);
+            return {
+               server_time: Math.floor(now),
+               start: stats.start,
+               end: stats.end,
+               label_prefix: settings.prefix,
+               projects: projectRecords(projects, today, stats, settings.prefix),
+               misc: {
+                  open: today.misc.map(d => key(d.data)),
+                  window: stats.projects[MISC_SLUG] || null,
+               },
+               unsorted: { open: today.unsorted.map(d => key(d.data)), window: stats.unsorted },
+               double_labeled: today.doubleLabeled.map(d => key(d.data)),
+               totals: stats.totals,
+               days: stats.days,
+            };
+         }),
+         'projects query failed'
+      );
+   },
+
+   /**
+    * GET /api/v1/people?start=&end= -- per person: their developer team (from
+    * config, null if unlisted), the window's numbers, the CR/QA stamps they
+    * gave in it and how many landed on a non-developer's PR, the projects
+    * they had PRs in during it, the live projects they're on today, and how
+    * many PRs they have open now. Someone who only reviewed in the window
+    * still gets a row. Most live projects first, which is how a reader spots
+    * someone spread thin. Bots are left out.
+    */
+   getPeople: function (req, res) {
+      const loaded = load(req, res);
+      if (!loaded) return;
+      respondOrError(
+         res,
+         loaded.then(({ settings, projects, linked, stats }) => {
+            const now = Date.now() / 1000;
+            const pulls = pullManager.getPulls();
+            const today = todayFromBoard(pulls, projects, settings.prefix, now, linked);
+            const live = new Map();
+            for (const g of today.live) {
+               for (const login of g.people) {
+                  if (!live.has(login)) live.set(login, []);
+                  live.get(login).push(g.slug);
+               }
+            }
+            const openNow = new Map();
+            for (const d of [
+               ...today.live.flatMap(g => g.open),
+               ...today.misc,
+               ...today.unsorted,
+            ]) {
+               const login = d.data.user.login;
+               openNow.set(login, (openNow.get(login) || 0) + 1);
+            }
+            const logins = new Set([...Object.keys(stats.people), ...live.keys()]);
+            const people = [...logins].map(login => {
+               const w = stats.people[login];
+               return {
+                  login,
+                  team: w ? w.team : settings.teamOf(login),
+                  window: w
+                     ? {
+                          backlog_start: w.backlog_start,
+                          backlog_end: w.backlog_end,
+                          opened: w.opened,
+                          merged: w.merged,
+                          closed: w.closed,
+                          median_age_start_days: w.median_age_start_days,
+                          median_age_end_days: w.median_age_end_days,
+                       }
+                     : null,
+                  projects_in_window: w ? w.projects : [],
+                  live_projects: (live.get(login) || []).sort(),
+                  open_now: openNow.get(login) || 0,
+                  reviews: w ? w.reviews : 0,
+                  reviews_on_non_dev: w ? w.reviews_on_non_dev : 0,
+               };
+            });
+            people.sort(
+               (a, b) =>
+                  b.live_projects.length - a.live_projects.length ||
+                  b.open_now - a.open_now ||
+                  a.login.localeCompare(b.login)
+            );
+            return {
+               server_time: Math.floor(now),
+               start: stats.start,
+               end: stats.end,
+               people,
+            };
+         }),
+         'people query failed'
+      );
+   },
+
+   /**
+    * GET /retro-data (session) and /api/v1/retro (Bearer) ?start=&end= --
+    * where people's days went in the window, week by week: rows of [person,
+    * pr, week, days] pointing into the people, prs and weeks lists
+    * (lib/projects.js loadTimeSpent). Default: the last 30 days.
+    */
+   getRetro: function (req, res) {
+      const settings = projectSettings();
+      if (!settings) {
+         res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
+         return;
+      }
+      const window = parseWindow(req.query);
+      if (window.error) {
+         res.status(400).json({ error: window.error });
+         return;
+      }
+      respondOrError(
+         res,
+         loadPullLinks(settings)
+            .then(linked => loadTimeSpent(settings, window.start, window.end, linked))
+            .then(spent => ({
+               start: window.start,
+               end: window.end,
+               ...spent,
+            })),
+         'retro query failed'
+      );
+   },
+
+   /**
+    * GET /work-data (session) and /api/v1/work (Bearer) -- every plan's PRs
+    * by the dates: how many are still open, the ones that opened after its
+    * end, and for a plan marked done or dropped, the ones opened more than a
+    * week after; and how every project's attached issues stand, by slug
+    * (shared/model/work.ts).
+    */
+   getWork: function (req, res) {
+      const settings = projectSettings();
+      if (!settings) {
+         res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
+         return;
+      }
+      respondOrError(res, loadWork(settings), 'work query failed');
+   },
+
+   /**
+    * GET /issue-search?q= (session) and /api/v1/issue-search (Bearer) --
+    * issues to pick from for what someone typed: the issue a link or
+    * "owner/repo#123" names, the issues with a number ("#123") in every
+    * tracked repo, or GitHub's search for words in issue titles and bodies.
+    */
+   searchIssues: function (req, res) {
+      const settings = projectSettings();
+      if (!settings) {
+         res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
+         return;
+      }
+      const q = typeof req.query.q === 'string' ? req.query.q : '';
+      if (q.length > 200) {
+         res.status(400).json({ error: 'q is at most 200 characters' });
+         return;
+      }
+      respondOrError(
+         res,
+         searchIssues(settings, q).then(issues => ({ issues })),
+         'issue search failed'
+      );
+   },
+
+   /**
+    * GET /project-work?project=slug (session) and /api/v1/project-work
+    * (Bearer) -- a project's page: every issue attached to it (by its label,
+    * by hand, or by a link from one of its PRs) with the PRs that link it,
+    * its PRs that link none of them, and the issues its PRs link that aren't
+    * attached (shared/model/work.ts projectWork).
+    */
+   getProjectWork: function (req, res) {
+      const settings = projectSettings();
+      if (!settings) {
+         res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
+         return;
+      }
+      const slug = req.query.project;
+      if (typeof slug !== 'string' || !SLUG.test(slug)) {
+         res.status(400).json({ error: 'send project, a project label’s slug' });
+         return;
+      }
+      respondOrError(res, loadProjectWork(settings, slug), 'project work query failed');
+   },
+
+   /**
+    * POST /project-issues and /api/v1/project-issues {project, issue} --
+    * add an issue to a project by hand: `issue` is "owner/repo#123", a link,
+    * or {repo, number}. It's read off GitHub, so a missing issue is a 404,
+    * and a PR, an issue outside the tracked organizations, or a project's
+    * own issue a 409. Adding one that's already there changes nothing; one
+    * taken off comes back as it was. `inserted` says whether this put it
+    * in, which is when its Undo forgets it (DELETE with forget=1); else
+    * its Undo is a Remove, so one taken off before stays off.
+    */
+   attachIssue: function (req, res) {
+      const body = req.body || {};
+      const ref = issueOfRequest(typeof body.issue === 'object' ? body.issue : body);
+      if (typeof body.project !== 'string' || !SLUG.test(body.project) || !ref) {
+         res.status(400).json({
+            error: 'send project (a project label’s slug) and issue ("owner/repo#123" or a link)',
+         });
+         return;
+      }
+      const settings = projectSettings();
+      if (!settings) {
+         res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
+         return;
+      }
+      attachIssue(settings, body.project, ref, req.roadmapLogin)
+         .then(({ issue, inserted, missing, refused }) => {
+            if (issue) res.status(201).json({ issue, inserted });
+            else if (missing) res.status(404).json({ error: 'GitHub has no issue by that name.' });
+            else res.status(409).json({ error: refused });
+         })
+         .catch(err => {
+            console.error('adding an issue to a project failed:', err);
+            res.status(500).json({ error: 'adding the issue failed' });
+         });
+   },
+
+   /**
+    * DELETE /project-issues?project=slug&repo=owner/repo&number=123 and
+    * /api/v1/project-issues -- take an issue added by hand, or joined by a
+    * link, off a project, for good: a link never brings it back. One
+    * attached by label stays until the label comes off it. `forget=1`
+    * takes back an add that put it in (the POST's `inserted`) instead: the
+    * issue is as if never added.
+    */
+   detachIssue: function (req, res) {
+      const { project } = req.query;
+      const ref = issueOfRequest(req.query);
+      if (typeof project !== 'string' || !SLUG.test(project) || !ref) {
+         res.status(400).json({ error: 'send project, repo and number' });
+         return;
+      }
+      detachIssue(project, ref, { forget: req.query.forget === '1' })
+         .then(gone =>
+            gone
+               ? res.json({ ok: true })
+               : res.status(404).json({ error: 'no issue by that name was added here' })
+         )
+         .catch(err => {
+            console.error('taking an issue off a project failed:', err);
+            res.status(500).json({ error: 'taking the issue off failed' });
+         });
+   },
+
+   /**
+    * GET /api/v1/decide -- the decisions owed now, worst first: what the
+    * board's Decide view lists (shared/model/decide.ts). Each row names the
+    * project, its roadmap item if it has one, and why it needs a call. A
+    * roadmap write clears it: see `decide` in GET /api/v1.
+    */
+   getDecide: function (req, res) {
+      const settings = projectSettings();
+      if (!settings) {
+         res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
+         return;
+      }
+      const load = Promise.all([loadProjects(settings), listItems(), loadPullLinks(settings)]).then(
+         ([projects, plans, linked]) =>
+            loadWork(settings, { plans, projects }).then(work => [projects, plans, work, linked])
+      );
+      respondOrError(
+         res,
+         load.then(([projects, items, work, linked]) => {
+            const now = Date.now() / 1000;
+            const pulls = pullManager.getPulls();
+            const today = todayFromBoard(pulls, projects, settings.prefix, now, linked);
+            const bySlug = new Map(projects.map(p => [p.slug, p]));
+            const open = new Map(today.live.map(g => [g.slug, g.open.length]));
+            const rows = decideQueue({
+               live: decideProjects(today),
+               items,
+               closed: closedIssues(projects),
+               planCounts: new Map(
+                  work.plans.map(p => [
+                     p.planId,
+                     {
+                        openPulls: p.openPulls,
+                        afterEnd: p.afterEnd.length,
+                        afterDone: p.afterDone.length,
+                     },
+                  ])
+               ),
+               issues: new Map(Object.entries(work.projects)),
+               ongoing: ongoingSlugs(settings, projects),
+               // the board's Decide asks by the browser's day: the team's
+               today: teamDay(now),
+               now,
+            });
+            const day = teamDay(now);
+            return {
+               server_time: Math.floor(now),
+               stall_days: STALL_DAYS,
+               // who takes their turn running this list, this week and next
+               runs_this_week: decideTurn(settings.decideRotation, day),
+               runs_next_week: decideTurn(settings.decideRotation, addWeeks(day, 1)),
+               decisions: rows.map(({ slug, item, reasons }) => {
+                  const p = slug ? bySlug.get(slug) : undefined;
+                  return {
+                     project: slug,
+                     name: item?.name ?? p?.name ?? slug,
+                     lead: item?.lead ?? p?.lead ?? null,
+                     open: slug ? open.get(slug) ?? 0 : 0,
+                     item: item && {
+                        id: item.id,
+                        status: item.status,
+                        start: item.start,
+                        weeks: item.weeks,
+                        end_kind: item.end_kind,
+                        // ongoing work has no end
+                        end: endOf(item),
+                     },
+                     reasons,
+                  };
+               }),
+            };
+         }),
+         'decide query failed'
+      );
+   },
+
+   /**
+    * GET /api/v1/load?start=&end= -- how loaded each week is, against the
+    * developers there are: projects in flight on the roadmap and not, from
+    * PRs through this week and, after it, as if nothing changes (the plans,
+    * plus every open project big enough to owe a decision that has none).
+    * Default: the 12 weeks before this one through the 26 after.
+    */
+   getLoad: function (req, res) {
+      const settings = projectSettings();
+      if (!settings) {
+         res.status(404).json({ error: 'projects are not set up on this Pulldasher' });
+         return;
+      }
+      const now = Date.now() / 1000;
+      const day = utcDay(now);
+      const thisWeek = mondayOf(day);
+      const window = parseWindow({
+         start: req.query.start ?? addWeeks(thisWeek, -12),
+         end: req.query.end ?? planEnd({ start: thisWeek, weeks: 27 }),
+      });
+      if (window.error) {
+         res.status(400).json({ error: window.error });
+         return;
+      }
+      // the PRs tell the weeks up to today; the plans tell the rest
+      const pastEnd = window.end < day ? window.end : day;
+      const links = loadPullLinks(settings);
+      const history =
+         window.start <= pastEnd
+            ? links
+                 .then(linked => loadWindow(settings, window.start, pastEnd, undefined, linked))
+                 .then(
+                    ({ spans, reviews }) =>
+                       windowStats(spans, window.start, pastEnd, {
+                          teamOf: settings.teamOf,
+                          reviews,
+                       }).projects
+                 )
+            : Promise.resolve({});
+      respondOrError(
+         res,
+         Promise.all([loadProjects(settings), listItems(), history, links]).then(
+            ([projects, items, past, linked]) => {
+               const pulls = pullManager.getPulls();
+               const today = todayFromBoard(pulls, projects, settings.prefix, now, linked);
+               const spans = spansFrom(past, liveStarts(today), window.start);
+               // the projects with no plan that owe a decision count ahead
+               const closed = closedIssues(projects);
+               const ahead = new Set(
+                  decideProjects(today)
+                     .filter(p => needsDecision(p, closed))
+                     .map(p => p.slug)
+               );
+               const weeks = loadByWeek({
+                  weeks: mondaysBetween(window.start, addWeeks(mondayOf(window.end), 1)),
+                  today: day,
+                  plans: items,
+                  spans,
+                  ahead,
+               });
+               const developers = new Set(
+                  Object.values(settings.teams)
+                     .flat()
+                     .map(login => login.toLowerCase())
+               ).size;
+               const [current] = loadByWeek({
+                  weeks: [thisWeek],
+                  today: day,
+                  plans: items,
+                  spans,
+                  ahead,
+               });
+               return {
+                  server_time: Math.floor(now),
+                  developers,
+                  this_week: {
+                     week: thisWeek,
+                     on_plan: current.onPlan,
+                     on_plan_by_origin: current.origins,
+                     off_plan: current.offPlan,
+                  },
+                  peak: peakFrom(weeks, day),
+                  weeks: weeks.map(w => ({
+                     week: w.week,
+                     on_plan: w.onPlan,
+                     on_plan_by_origin: w.origins,
+                     off_plan: w.offPlan,
+                     projected: w.projected,
+                  })),
+               };
+            }
+         ),
+         'load query failed'
+      );
+   },
+};

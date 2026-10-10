@@ -14,6 +14,9 @@
    pulldasher's night-shift habit, derived from the same gray ramp. Retheme
    by swapping --brand* and the badge pairs. ── */
 :root {
+  /* native controls (a checkbox's empty box, scrollbars, date fields) follow
+     the theme; .dark flips it */
+  color-scheme: light;
   --canvas: #f9fafb;
   --surface: #ffffff;
   --muted: #f3f4f6;
@@ -56,6 +59,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --canvas: #030712;
   --surface: #101828;
   --muted: #1e2939;
@@ -137,11 +141,15 @@ body {
 
 /* Tailwind v4 ships no button cursor at all (native arrow); the app's
    convention is the hand on everything clickable, declared once instead of
-   remembered 27 times. Disabled buttons keep the arrow. */
-button:not(:disabled),
-summary,
-label:has(> input:not(:disabled)) {
-  cursor: pointer;
+   remembered 27 times. Disabled buttons keep the arrow. In the base layer,
+   so a utility wins where a control means more than a click: the roadmap's
+   bars drag (cursor-grab), and that's what the cursor has to say. */
+@layer base {
+  button:not(:disabled),
+  summary,
+  label:has(> input:not(:disabled)) {
+    cursor: pointer;
+  }
 }
 
 /* extend a small control's tap target past 24px without moving any layout —
@@ -150,13 +158,18 @@ label:has(> input:not(:disabled)) {
    rows, so a larger bleed would overlap in the gap and steal each other's
    clicks (the star vs. its Mute/Only neighbors). -4px still lifts the smallest
    control we use it on (a 16px avatar) to the 24px target floor. */
-.hit {
-  position: relative;
-}
-.hit::after {
-  content: "";
-  position: absolute;
-  inset: -4px;
+@layer components {
+  /* in a layer, so a control that also says absolute or fixed (a Close in
+     a panel's corner) gets it: unlayered, this position: relative beat
+     every Tailwind utility and pulled such controls back into the flow */
+  .hit {
+    position: relative;
+  }
+  .hit::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+  }
 }
 
 /* an internally-scrollable strip (the mobile lens nav) reads as a swipeable
@@ -169,11 +182,19 @@ label:has(> input:not(:disabled)) {
   display: none;
 }
 
-/* shared focus ring (house: border-ring + ring/50 at 3px) */
-:is(select, input, button, summary, a):focus-visible {
+/* shared focus ring: a solid 2px brand ring, at least 3:1 against both
+   themes' surfaces (the old 50% gray glow measured about 1.5:1, and on text
+   buttons it was the only sign of focus). A summary is a full-width band
+   inside a clipped card, so its ring sits inside its own edge. Anything
+   focusable gets it: a textarea, a chart, a drag grip, a heading a jump
+   lands on, so no focus anywhere falls back to the browser's own ring. */
+:is(select, input, textarea, button, summary, a, [tabindex]):focus-visible {
   outline: none;
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand);
+}
+summary:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--brand);
 }
 
 @layer components {
@@ -349,15 +370,19 @@ label:has(> input:not(:disabled)) {
     left: 0;
     bottom: 0;
     width: 100%;
-    height: 2px;
+    height: 8px;
     pointer-events: none;
+    /* drawn 2px tall by scaling an 8px band from the row's bottom edge, so
+       the hover grows it by transform instead of animating height */
+    transform: scaleY(0.25);
+    transform-origin: bottom;
     /* the growing tip rounds like every other surface on the board; the left
        end stays square — it's a measurement from the row's edge, a ruler
        fill, and it tucks under the lane card's own rounded corner */
     border-radius: 0 999px 999px 0;
-    /* only the height animates open; the global prefers-reduced-motion
+    /* only the scale animates open; the global prefers-reduced-motion
        rule at the bottom of this file already zeroes this out */
-    transition: height 150ms var(--ease-quart);
+    transition: transform 150ms var(--ease-quart);
   }
 
   /* the line's own door: .pd-age-track is the row-relative track (bits.tsx
@@ -382,7 +407,7 @@ label:has(> input:not(:disabled)) {
      part of that answer (its popover still needs the band's own hover) */
   .pd-row:hover .pd-age-line,
   .pd-age-hit:focus-visible .pd-age-line {
-    height: 8px;
+    transform: none;
   }
 
   /* row flags: quiet colored labels, not badges — amber for act-on-it,
@@ -967,4 +992,17 @@ input[type="checkbox"] {
 .md-prose td {
   border: 1px solid var(--secondary);
   padding: 3px 8px;
+}
+
+/* The Projects date range calendar (react-day-picker). Its stylesheet takes
+   colors and sizes from --rdp-* variables, which RangeCalendar.tsx points at
+   the tokens above; these rules undo the two sizes it hard-codes, so picked
+   days and month names stay at the board's text size. */
+.pd-calendar .rdp-selected {
+  font-size: inherit;
+  font-weight: 600;
+}
+.pd-calendar .rdp-month_caption {
+  font-size: 13px;
+  font-weight: 600;
 }

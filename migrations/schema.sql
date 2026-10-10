@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS `comments` (
   `user` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
   `date` int unsigned DEFAULT NULL,
   PRIMARY KEY (`repo`,`comment_type`,`comment_id`),
-  KEY `pull` (`number`)
+  KEY `pull` (`number`),
+  KEY `comments_date` (`date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -75,6 +76,9 @@ CREATE TABLE IF NOT EXISTS `issues` (
   `difficulty` int DEFAULT NULL,
   `milestone_title` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `milestone_due_on` int DEFAULT NULL,
+  `field_start` char(10) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `field_target` char(10) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `field_priority` varchar(16) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `assignee` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
   `author` varchar(255) COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'ghost',
   `status` varchar(30) COLLATE utf8mb4_general_ci DEFAULT NULL,
@@ -119,7 +123,8 @@ CREATE TABLE IF NOT EXISTS `pull_signatures` (
   `userid` int unsigned NOT NULL,
   `date` int unsigned DEFAULT NULL,
   KEY `pull_signatures_number` (`repo`,`number`,`active`),
-  KEY `pull_signatures_type` (`repo`,`user`,`type`)
+  KEY `pull_signatures_type` (`repo`,`user`,`type`),
+  KEY `pull_signatures_date` (`date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -146,6 +151,7 @@ CREATE TABLE IF NOT EXISTS `pulls` (
   `qa_req` int NOT NULL DEFAULT '1',
   `date` int unsigned DEFAULT NULL,
   `date_updated` int unsigned DEFAULT NULL,
+  `date_pushed` int unsigned DEFAULT NULL,
   `date_closed` int unsigned DEFAULT NULL,
   `date_merged` int unsigned DEFAULT NULL,
   `mergeable` tinyint(1) DEFAULT NULL,
@@ -160,7 +166,9 @@ CREATE TABLE IF NOT EXISTS `pulls` (
   `changed_files` int unsigned DEFAULT NULL,
   PRIMARY KEY (`repo`,`number`),
   KEY `pulls_state` (`state`),
-  KEY `pulls_repo` (`repo`)
+  KEY `pulls_repo` (`repo`),
+  KEY `pulls_date` (`date`),
+  KEY `pulls_date_merged` (`date_merged`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -179,7 +187,109 @@ CREATE TABLE IF NOT EXISTS `reviews` (
   `user` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
   `date` int unsigned DEFAULT NULL,
   PRIMARY KEY (`repo`,`review_id`),
-  KEY `pull` (`number`)
+  KEY `pull` (`number`),
+  KEY `reviews_date` (`date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+--
+-- Table structure for table `roadmap_items`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `roadmap_items` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(120) COLLATE utf8mb4_general_ci NOT NULL,
+  `project` varchar(64) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `team` varchar(64) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `lead_login` varchar(39) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `status` enum('planned','active','parked','done','dropped') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'planned',
+  `origin` enum('asked','fire','chosen') COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `start` date NOT NULL,
+  `weeks` smallint unsigned NOT NULL DEFAULT '4',
+  `end_kind` enum('hard','soft','ongoing') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'soft',
+  `done_when` varchar(200) COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+  `priority` int NOT NULL DEFAULT '0',
+  `notes` text COLLATE utf8mb4_general_ci,
+  `waits_on` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `created_by` varchar(39) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `created_at` int unsigned DEFAULT NULL,
+  `updated_by` varchar(39) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `updated_at` int unsigned DEFAULT NULL,
+  `status_at` int unsigned DEFAULT NULL,
+  `removed_at` int unsigned DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `roadmap_items_priority` (`priority`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for tables `project_issues` and `issue_pull_links` (the
+-- issues added to a project by hand or by a link, with a row kept for one
+-- taken off, and the PRs that link each issue a project has; lib/work.js
+-- keeps them)
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `project_issues` (
+  `project` varchar(64) COLLATE utf8mb4_general_ci NOT NULL,
+  `repo` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+  `number` int unsigned NOT NULL,
+  `title` varchar(255) COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+  `state` enum('open','done','dropped') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'open',
+  `closed_at` int unsigned DEFAULT NULL,
+  `author` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `created_at` int unsigned DEFAULT NULL,
+  `added_by` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `added_at` int unsigned NOT NULL,
+  `linked_by` varchar(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `removed_at` int unsigned DEFAULT NULL,
+  PRIMARY KEY (`project`,`repo`,`number`),
+  KEY `issue` (`repo`,`number`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `issue_pull_links` (
+  `issue_repo` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+  `issue_number` int unsigned NOT NULL,
+  `pull_repo` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
+  `pull_number` int unsigned NOT NULL,
+  `closes` tinyint(1) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`issue_repo`,`issue_number`,`pull_repo`,`pull_number`),
+  KEY `issue_pull_links_pull` (`pull_repo`,`pull_number`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+--
+-- Table structure for table `roadmap_updates`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `roadmap_updates` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `item_id` int unsigned NOT NULL,
+  `health` enum('on_track','at_risk','off_track') COLLATE utf8mb4_general_ci NOT NULL,
+  `body` text COLLATE utf8mb4_general_ci NOT NULL,
+  `plan_start` date NOT NULL,
+  `plan_weeks` smallint unsigned NOT NULL,
+  `created_by` varchar(39) COLLATE utf8mb4_general_ci NOT NULL,
+  `created_at` int unsigned NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `roadmap_updates_item` (`item_id`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+--
+-- Table structure for table `project_settings`
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `project_settings` (
+  `name` varchar(64) COLLATE utf8mb4_general_ci NOT NULL,
+  `value` text COLLATE utf8mb4_general_ci NOT NULL,
+  `updated_by` varchar(39) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `updated_at` int unsigned DEFAULT NULL,
+  PRIMARY KEY (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!50112 SET @disable_bulk_load = IF (@is_rocksdb_supported, 'SET SESSION rocksdb_bulk_load = @old_rocksdb_bulk_load', 'SET @dummy_rocksdb_bulk_load = 0') */;

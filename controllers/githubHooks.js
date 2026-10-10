@@ -13,6 +13,8 @@ import getLogin from '../lib/get-user-login.js';
 import utils from '../lib/utils.js';
 import dbManager from '../lib/db-manager.js';
 import git from '../lib/git-manager.js';
+import { projectSettings } from '../lib/projects.js';
+import { forgetIssue, workIssueTouched, workPullTouched } from '../lib/work.js';
 
 const hooksDebug = debug('pulldasher:hooks');
 
@@ -102,6 +104,17 @@ const HooksController = {
          dbUpdated = preUpdate.then(function () {
             return dbManager.updatePull(Pull.fromGithubApi(body.pull_request));
          });
+
+         // a "Parts of #N" in a new or edited PR counts toward that issue's
+         // project a minute later, as a label does, not at the hourly sync
+         if (body.action === 'opened' || body.action === 'edited') {
+            workPullTouched(
+               projectSettings(),
+               body.repository.full_name,
+               body.pull_request.body,
+               body.pull_request.labels
+            );
+         }
 
          if (reconcileAfterUpdate) {
             // A `synchronize` webhook never triggers a full refresh on its own,
@@ -235,12 +248,33 @@ function handleIssueEvent(body) {
    hooksDebug('Webhook action: %s for issue #%s', body.action, body.issue.number);
 
    var doneHandling = handleLabelEvents(body);
+   // an issue attached to a project changed, or a project label came or went:
+   // the work is read again soon
+   if (body.repository) {
+      workIssueTouched(projectSettings(), body.repository.full_name, body.issue.number, [
+         ...(body.issue.labels ?? []),
+         ...(body.label ? [body.label] : []),
+      ]);
+   }
 
    // Always refresh from the API rather than upserting the webhook body
    // directly. The body is just a subset of the fields (and for pull requests,
    // not even an issue), and it carries no events, which we need to attribute
    // labels and to date the current assignment (date_assigned).
    // refreshPullOrIssue dispatches pull-vs-issue from the body itself.
+   // A deleted or transferred issue is gone from GitHub, so the refresh
+   // below would only 404: drop it from projects and the board's issues.
+   if (body.action === 'deleted' || body.action === 'transferred') {
+      return doneHandling
+         .then(() => forgetIssue({ repo: body.repository.full_name, number: body.issue.number }))
+         .catch(err =>
+            console.error(
+               'forgetting issue %s failed: %s',
+               body.issue.number,
+               (err && err.message) || err
+            )
+         );
+   }
    return doneHandling.then(function () {
       // Not returning here cause we don't want to delay replying to the
       // hook with a 200 since we know what needs to be done.
