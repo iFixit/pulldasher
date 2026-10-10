@@ -134,6 +134,8 @@ export function Settings({
    useEffect(() => {
       if (!open) return;
       const onKey = (e: KeyboardEvent) => {
+         // a dialog above this one (PR jail) handled it
+         if (e.defaultPrevented) return;
          if (e.key === 'Escape') setOpen(false);
          // aria-modal promises a focus trap; without this, Tab walks out of
          // the dialog into the live board behind the scrim
@@ -387,10 +389,9 @@ export function Settings({
                         >
                            <QuietButton
                               onClick={() => {
-                                 // JailMode listens for jail=1 in the hash
-                                 const hash = new URLSearchParams(location.hash.slice(1));
-                                 hash.set('jail', '1');
-                                 location.hash = hash.toString();
+                                 // close Settings first so the jail isn't stacked on it
+                                 setOpen(false);
+                                 window.dispatchEvent(new Event('pd2:preview-jail'));
                               }}
                            >
                               Preview PR jail
