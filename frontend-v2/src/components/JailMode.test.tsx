@@ -274,4 +274,15 @@ describe('JailMode while the cell is down', () => {
       expect(localStorage.getItem('pd2.jail')).not.toBeNull();
       expect(dialog()).toBeNull();
    });
+
+   it('stays down when another window showed it a moment ago', () => {
+      // another window wrote the record after this one loaded
+      const r = (root ??= createRoot(host));
+      act(() =>
+         r.render(<JailMode pulls={many(8)} me="me" extraBots={new Set()} initialized={false} />)
+      );
+      localStorage.setItem('pd2.jail', JSON.stringify({ at: Date.now(), count: 8, over: [] }));
+      act(() => r.render(<JailMode pulls={many(8)} me="me" extraBots={new Set()} initialized />));
+      expect(dialog()).toBeNull();
+   });
 });

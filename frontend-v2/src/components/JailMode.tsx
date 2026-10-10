@@ -133,6 +133,9 @@ export function JailMode({
       const check = () => {
          if (document.visibilityState === 'hidden') return;
          if (document.activeElement?.matches('input, textarea, select')) return;
+         // read the record fresh: a second visible window may have shown it
+         // a moment ago, before its storage event reached this one
+         record.current = parseJailRecord(readStorage(JAIL_KEY)) ?? record.current;
          if (!jailDue(found, record.current, Date.now())) return;
          show(found);
       };
