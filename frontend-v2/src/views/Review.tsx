@@ -139,26 +139,24 @@ export function Review({
    return (
       <>
          {codeRegions.length === 0 && <RegionHint />}
-         {/* Leads the whole lens (owner call): fully finished work — signed
-             off, green, one press from shipped. Your OWN ready PR appears in
-             "Waiting on you" as a Merge-it; this lane is everyone else's,
-             which their authors merge. */}
+         {/* Leads the whole lens (owner call): fully finished work, one press
+             from shipped. Under the self-review policy you merge your own, so
+             this is your ready PRs, plus another person's only when you were
+             asked to review it or said you would. Not repeated in "Waiting
+             on you". */}
          <Lane
             title="Ready to merge"
             sub={
                <SubDoor
                   label="Why Ready to merge leads"
-                  text="signed off and green, each author merges their own"
+                  text="your PRs that are signed off and green: merge them"
                >
                   <p>
                      Everything is done on these: code review and QA are in, CI is green, and they
-                     merge cleanly. Their authors merge them; it’s here so you can see what’s about
-                     to ship.
+                     merge cleanly. Merge your own. A PR of someone else’s shows up only if you were
+                     asked to review it or said you would, so you can see it’s about to ship.
                   </p>
-                  <p>
-                     Bot PRs land here too once they’re fully green: they only ship when a human
-                     merges them. Longest-waiting first.
-                  </p>
+                  <p>Longest-waiting first.</p>
                   {projectRule(
                      'A parked project’s PRs sink to the bottom',
                      'Between two that have waited the same days'
@@ -183,10 +181,11 @@ export function Review({
                      <p>
                         PRs someone asked you to review, first: answer those within hours. Then
                         stamps of yours that a push undid, reviews you said you’d do, feedback that
-                        needs your reply, and your own PRs to stamp, merge, fix, or rebase.
+                        needs your reply, and your own PRs to stamp, fix, or rebase. Your signed-off
+                        PRs to merge lead the tab.
                      </p>
                      <p>
-                        Each group is named for the action you’d take (Review, Re-stamp, Merge…).
+                        Each group is named for the action you’d take (Review, Re-stamp, Rebase…).
                         Review requests run oldest request first; inside every other group, the PR
                         that has been open the longest comes first.
                      </p>
@@ -281,10 +280,8 @@ export function Review({
          {repoPriority.length > 0 ? (
             // the owner's priority-and-cap model: contiguous per-repo blocks in
             // the Settings repo order, each block score-ranked inside and
-            // flood-bounded by the per-repo cap. Starving PRs lead the "Starving"
-            // fold as a highlight, but also stay in their own repo block below —
-            // the fairness backstop can't be hidden behind a repo the viewer
-            // ranked last, or "surface the other repos" becomes a lie.
+            // flood-bounded by the per-repo cap. Requests of you lead each
+            // block's incoming order, so the oldest request is still first.
             <Lane
                title="Review queue"
                sub={
@@ -302,14 +299,10 @@ export function Review({
                         few:
                      </p>
                      <p>
-                        PRs that have waited {opts.ageWarnDays ?? 4}+ days for review outrank the
-                        blocks entirely; they lead the lane whatever repo they’re from.
-                     </p>
-                     <p>
-                        Inside a block: your team’s PRs first, then repos you’ve reviewed before and
-                        small quick wins, lightest first. Bot PRs sink to each block’s bottom. The
-                        per-repo cap folds the rest behind “+N more” so one busy repo can’t take the
-                        whole screen.
+                        Inside a block: reviews asked of you first, oldest request first, then your
+                        team’s PRs, repos you’ve reviewed before and small quick wins, lightest
+                        first. Bot PRs sink to each block’s bottom. The per-repo cap folds the rest
+                        behind “+N more” so one busy repo can’t take the whole screen.
                      </p>
                      {projectRule(
                         'A parked project’s PRs sink below everyone else’s, above the bot PRs',
@@ -317,8 +310,7 @@ export function Review({
                      )}
                      <p>
                         PRs you said you’d review stay in the queue and also appear in Waiting on
-                        you. Starving PRs still show up in their repo block below; the call-out
-                        above is a copy, not a removal.
+                        you.
                      </p>
                   </SubDoor>
                }
@@ -326,18 +318,6 @@ export function Review({
                count={lanes.queue.length}
                opts={queueOpts}
             >
-               <Fold
-                  count={lanes.queueStarved.length}
-                  label="Starving"
-                  tone="do"
-                  gloss={`Waited ${
-                     opts.ageWarnDays ?? 4
-                  }+ days for review; these outrank your repo order.`}
-                  id="review:queue:starving"
-                  defaultOpen
-               >
-                  <FoldRows list={lanes.queueStarved} opts={queueOpts} id="review:queue:starving" />
-               </Fold>
                {lanes.queueBlocks.map(b => (
                   <Fold
                      key={b.repo}
@@ -372,10 +352,10 @@ export function Review({
                         that are yours: asked of you, ones you said you’d do, and PRs from outside
                         the dev team that nobody’s on yet.
                      </p>
-                     <p className="font-medium text-ink">One score ranks every card:</p>
+                     <p className="font-medium text-ink">Then one score ranks the rest:</p>
                      <p>
-                        PRs that have waited {opts.ageWarnDays ?? 4}+ days for review jump to the
-                        top, oldest and biggest first, even from repos you don’t usually review.
+                        Reviews asked of you come first, oldest request first, whatever repo they’re
+                        from: answer those within hours.
                      </p>
                      <p>
                         Your team’s PRs always come first (edit your team on the Team tab), ordered
@@ -410,8 +390,9 @@ export function Review({
                >
                   <p>
                      QA runs in parallel with CR, so a pull can sit here and in the review queue at
-                     once. Like the queue, it holds only QA that’s yours: a self-reviewed PR’s
-                     author tests it.
+                     once. Developers test their own PRs, even when they ask for a review, so this
+                     holds only PRs from outside the dev team and bots that need a tester, plus ones
+                     you said you’d review.
                   </p>
                   <p>
                      Anything QA-incomplete with green CI lands here, unless it’s a draft, blocked,
@@ -432,13 +413,13 @@ export function Review({
          {lanes.couldUseInput.length > 0 && (
             <RestGroup
                title="Could use your input"
-               sub="Nobody asked, but these touch your areas. Add yourself as a reviewer if you jump in."
+               sub="Nobody owes these a review, but they touch your areas. Add yourself as a reviewer if you jump in."
             >
                <Fold
                   count={lanes.couldUseInput.length}
                   showCount={false}
                   label="Self-reviews in your areas"
-                  gloss="Their authors review these themselves. Your code regions first, then repos you’ve reviewed in."
+                  gloss="Their authors review these themselves, or asked a team with nobody on the roster. Your code regions first, then repos you’ve reviewed in."
                   id="review:could-use-input"
                >
                   <FoldRows

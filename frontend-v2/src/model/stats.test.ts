@@ -328,6 +328,7 @@ function mergedPull(over: {
    cr?: string[];
    reviewers?: string[];
    teams?: string[];
+   claimedBy?: string;
 }): PullData {
    return {
       repo: 'iFixit/ifixit',
@@ -337,8 +338,8 @@ function mergedPull(over: {
       merged_at: new Date(over.at ?? NOON).toISOString(),
       user: { login: over.author ?? 'alice' },
       requested_teams: over.teams ?? [],
-      requested_reviewers: over.reviewers ?? [],
-      review_requests: [],
+      requested_reviewers: [...(over.reviewers ?? []), ...(over.claimedBy ? [over.claimedBy] : [])],
+      review_requests: over.claimedBy ? [{ login: over.claimedBy, at: 1, self: true }] : [],
       status: { allCR: (over.cr ?? []).map(l => sigAt(l, NOON)), allQA: [] },
    } as unknown as PullData;
 }
@@ -355,6 +356,14 @@ describe('selfReviewMix', () => {
          { ...mergedPull({ n: 7 }), merged_at: null } as unknown as PullData, // closed unmerged
       ]);
       expect(mix).toMatchObject({ merged: 6, asked: 2, byOthers: 1, self: 2, unstamped: 1 });
+   });
+
+   it('a claim is someone volunteering, not the author asking', () => {
+      const mix = selfReviewMix([
+         mergedPull({ n: 1, claimedBy: 'bob', cr: ['bob'] }), // bob volunteered
+         mergedPull({ n: 2, claimedBy: 'bob', reviewers: ['carol'] }), // carol was asked
+      ]);
+      expect(mix).toMatchObject({ asked: 1, byOthers: 1 });
    });
 
    it('flags reverts and fix-ups of a self-reviewed pull within a week', () => {

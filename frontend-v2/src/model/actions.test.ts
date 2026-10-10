@@ -10,6 +10,8 @@ import {
    DO_WORD,
    DO_WORD_RANK,
    reviewerMove,
+   nobodysReview,
+   qaIsMine,
    rowNote,
    reviewIsMine,
    rowWord,
@@ -28,6 +30,7 @@ function dp(o: {
    /** a claim: who said they'd review it (review_requests self === true) */
    claimedBy?: { login: string; at: number | null };
    inputHints?: string[];
+   requestedTeams?: string[];
    author?: string;
    status: Status;
    conflict?: boolean;
@@ -63,6 +66,7 @@ function dp(o: {
          },
          review_requests: o.claimedBy ? [{ ...o.claimedBy, self: true }] : [],
          input_hints: o.inputHints,
+         requested_teams: o.requestedTeams,
       },
       ownReview: o.ownReview ?? false,
       askedOf: o.askedOf ?? [],
@@ -877,7 +881,7 @@ describe('self-review: a developer CRs and QAs their own unrequested pull', () =
       });
       expect(rowNote(dp({ author: 'me', status: 'needs_qa', ownReview: true }), 'me')).toEqual({
          action: 'Stamp QA',
-         context: 'test it yourself, or request a review',
+         context: 'test it yourself, or ask someone to',
       });
       expect(rowWord(dp({ author: 'me', status: 'needs_cr', ownReview: true }), 'me')).toEqual({
          kind: 'do',
@@ -919,19 +923,19 @@ describe('self-review: a developer CRs and QAs their own unrequested pull', () =
 describe('review requests: asked of people, answered in hours', () => {
    const hoursAgo = (h: number) => Date.now() / 1000 - h * 3600;
 
-   it('asked of me: Review it (or QA it), with the request’s age', () => {
+   it('asked of me: Review it with the request’s age, and never QA it', () => {
       expect(
          rowNote(
             dp({ author: 'a', status: 'needs_cr', askedOf: ['me'], askedAt: hoursAgo(3.5) }),
             'me'
          )
       ).toEqual({ action: 'Review it', context: 'asked 3h ago' });
-      expect(
-         rowNote(
-            dp({ author: 'a', status: 'needs_qa', askedOf: ['me'], askedAt: hoursAgo(0.2) }),
-            'me'
-         )
-      ).toEqual({ action: 'QA it', context: 'asked just now' });
+      // CR is met and I'm still listed: the author tests their own
+      const qa = dp({ author: 'a', status: 'needs_qa', askedOf: ['me'], askedAt: hoursAgo(0.2) });
+      expect(rowNote(qa, 'me')).toEqual({ action: null, context: 'a tests it' });
+      expect(rowWord(qa, 'me')).toEqual({ kind: 'wait', word: 'self-review' });
+      // only an outside tester's pull (nobody asked) is anyone's QA
+      expect(rowNote(dp({ author: 'a', status: 'needs_qa' }), 'me').action).toBe('QA it');
       expect(rowNote(dp({ author: 'a', status: 'needs_cr', askedOf: ['me'] }), 'me')).toEqual({
          action: 'Review it',
          context: 'review requested',
@@ -1187,5 +1191,47 @@ describe('DO_WORD / WAIT_WORD_RANK — drift guard', () => {
       ];
       const produced = cases.map(([o, extra]) => waitWord(dp(o), 'me', extra));
       expect(WAIT_WORD_RANK).toEqual(expect.arrayContaining(produced));
+   });
+});
+
+describe('the requested reviewer reviews; the author tests', () => {
+   it('the author sees Stamp QA once everyone asked has stamped and CR is met', () => {
+      const p = dp({ author: 'me', status: 'needs_qa', askedOf: [], requestedTeams: ['store'] });
+      expect(rowNote(p, 'me').action).toBe('Stamp QA');
+      // even while another asked reviewer is still listed
+      expect(rowNote(dp({ author: 'me', status: 'needs_qa', askedOf: ['bob'] }), 'me').action).toBe(
+         'Stamp QA'
+      );
+   });
+
+   it('an outside author still waits on a tester', () => {
+      expect(rowNote(dp({ author: 'me', status: 'needs_qa' }), 'me')).toEqual({
+         action: null,
+         context: 'waiting on a tester',
+      });
+   });
+
+   it('a team request naming nobody: the author waits on the team, nobody owes it', () => {
+      const p = dp({ author: 'me', status: 'needs_cr', requestedTeams: ['store-front'] });
+      expect(rowNote(p, 'me')).toEqual({
+         action: null,
+         context: 'waiting on a review from store-front',
+      });
+      expect(reviewIsMine(p, 'bob')).toBe(false);
+      expect(rowNote(p, 'bob').action).toBeNull();
+      expect(nobodysReview(p)).toBe(true);
+   });
+
+   it('QA belongs to a claimer or an outside tester, not to someone asked', () => {
+      const asked = dp({ author: 'a', status: 'needs_qa', askedOf: ['me'] });
+      expect(qaIsMine(asked, 'me')).toBe(false);
+      expect(qaIsMine(dp({ author: 'a', status: 'needs_qa' }), 'me')).toBe(true);
+      const claimed = dp({
+         author: 'a',
+         status: 'needs_qa',
+         claimedBy: { login: 'me', at: 1 },
+      });
+      expect(qaIsMine(claimed, 'me')).toBe(true);
+      expect(qaIsMine(claimed, 'bob')).toBe(false);
    });
 });

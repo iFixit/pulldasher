@@ -844,6 +844,35 @@ describe('evaluateCheers — self-review', () => {
    });
 });
 
+describe('evaluateCheers — board-cleared counts only reviews that are yours', () => {
+   const open = (n: number, o: Partial<DerivedPull>, askedOf: string[] = []) =>
+      ({
+         ...pull('org/a', n, { author: 'alice', askedOf }),
+         dependent: false,
+         qaingLogin: null,
+         crHave: 0,
+         qaHave: 0,
+         changesRequestedBy: [],
+         engagedNoStamp: [],
+         ciFailing: [],
+         headPushedAt: null,
+         devBlockedBy: [],
+         deployBlockedBy: [],
+         externalBlock: false,
+         cryo: false,
+         ...o,
+      } as DerivedPull);
+
+   it('ignores a self-review, but counts a review asked of you', () => {
+      const selfReview = open(1, { ownReview: true });
+      const asked = open(2, {}, ['me']);
+      const base = (pulls: DerivedPull[]) =>
+         evaluateCheers({ pulls, me: 'me', ready: true }, EMPTY_BASELINE).next.boardQueue;
+      expect(base([selfReview])).toBe(0);
+      expect(base([selfReview, asked])).toBe(1);
+   });
+});
+
 describe('cheer catalog', () => {
    it('documents exactly every toast kind, once each', () => {
       const catalogKinds = CHEER_CATALOG.map(c => c.kind);

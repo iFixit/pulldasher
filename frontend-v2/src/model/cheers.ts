@@ -1,6 +1,6 @@
 import { pullKey } from '../../../shared/format';
 import type { PullData } from '../../../shared/types';
-import { actionState, askedHours, askedOf, STALE_CLAIM_SECS } from './actions';
+import { actionState, askedHours, askedOf, reviewIsMine, STALE_CLAIM_SECS } from './actions';
 import { dealFrom, dealRank } from './deal';
 import { reviewerRanks } from './leaderboard';
 import { displayName } from './names';
@@ -406,8 +406,13 @@ function readSignals(input: CheerInput): Signals {
       });
    }
 
+   // only review that's yours: a developer's self-review waiting on its own
+   // author doesn't hold the board back
    const boardReviewable = pulls.filter(
-      p => !p.cryo && (CR_INCOMPLETE.includes(p.status) || p.status === 'needs_qa')
+      p =>
+         !p.cryo &&
+         (CR_INCOMPLETE.includes(p.status) || p.status === 'needs_qa') &&
+         reviewIsMine(p, me)
    ).length;
 
    // claims of yours gone stale that you still haven't stamped — the nudge to

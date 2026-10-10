@@ -345,9 +345,11 @@ export function selfReviewMix(closed: PullData[]): SelfReviewMix {
    for (const d of mergedPulls) {
       mix.merged += 1;
       const author = d.user.login;
+      // a claim is a reviewer volunteering, not the author asking
+      const claims = new Set((d.review_requests ?? []).filter(r => r.self).map(r => r.login));
       const asked =
          (d.requested_teams ?? []).length ||
-         (d.requested_reviewers ?? []).length ||
+         (d.requested_reviewers ?? []).some(l => !claims.has(l)) ||
          (d.review_requests ?? []).some(r => !r.self);
       const stampers = [...d.status.allCR, ...d.status.allQA].map(s => s.data.user.login);
       const reviewers = (d.status.unstamped_reviewers ?? []).map(r => r.login);
