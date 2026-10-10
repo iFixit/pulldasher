@@ -49,6 +49,7 @@ function dp(o: {
    branch?: string;
    reviewRequests?: { login: string; at: number | null; self: boolean }[];
    requestedReviewers?: string[];
+   requestedTeams?: string[];
 }): DerivedPull {
    return {
       data: {
@@ -76,6 +77,7 @@ function dp(o: {
          })),
          review_requests: o.reviewRequests ?? [],
          requested_reviewers: o.requestedReviewers ?? [],
+         requested_teams: o.requestedTeams ?? [],
          draft: o.draft ?? false,
       },
       status: o.status ?? 'needs_cr',
@@ -221,10 +223,12 @@ describe('buildReviewLanes — needs QA', () => {
 });
 
 describe('buildReviewLanes — waiting on you vs waiting on others', () => {
-   it('puts your own ready-to-merge pull in yourMove', () => {
+   it('leaves your own ready-to-merge pull to the Ready to merge lane, not Waiting on you', () => {
+      // the lane leads the tab; listing it in both places only duplicated the Merge row
       const mine = dp({ author: 'me', status: 'ready' });
       const lanes = buildReviewLanes(input({ pulls: [mine] }));
-      expect(lanes.yourMove).toEqual([mine]);
+      expect(lanes.ready).toEqual([mine]);
+      expect(lanes.yourMove).toEqual([]);
       expect(lanes.yoursWaiting).not.toContain(mine);
    });
 
@@ -283,7 +287,6 @@ describe('buildReviewLanes — self-review: nobody else is assigned a developer�
       const ownQa = dp({ number: 2, author: 'alice', status: 'needs_qa', ownReview: true });
       const lanes = buildReviewLanes(input({ pulls: [own, ownQa] }));
       expect(lanes.queue).toEqual([]);
-      expect(lanes.queueStarved).toEqual([]);
       expect(lanes.queueOther).toEqual([]);
       expect(lanes.needsQa).toEqual([]);
       expect(lanes.needsQaOther).toEqual([]);
@@ -393,31 +396,52 @@ describe('buildReviewLanes — could use your input', () => {
 });
 
 describe('buildReviewLanes — stamped and ready lanes', () => {
-   it('places a fully signed-off human pull in ready', () => {
-      const p = dp({ author: 'alice', status: 'ready' });
+   it('places your own fully signed-off pull in ready', () => {
+      const p = dp({ author: 'me', status: 'ready' });
       const lanes = buildReviewLanes(input({ pulls: [p] }));
       expect(lanes.ready).toEqual([p]);
    });
 
-   it('includes a ready bot PR in ready alongside human ones, oldest first', () => {
-      const human = dp({ author: 'alice', status: 'ready', ageDays: 1 });
-      const bot = dp({ author: 'dependabot[bot]', number: 2, status: 'ready', ageDays: 5 });
-      const lanes = buildReviewLanes(input({ pulls: [human], bots: [bot] }));
-      expect(lanes.ready).toEqual([bot, human]);
+   it('shows another person’s ready pull only when you were asked to review it or claimed it', () => {
+      const plain = dp({ number: 1, author: 'alice', status: 'ready' });
+      const asked = dp({ number: 2, author: 'alice', status: 'ready', requestedReviewers: ['me'] });
+      const claimed = dp({
+         number: 3,
+         author: 'alice',
+         status: 'ready',
+         requestedReviewers: ['me'],
+         reviewRequests: [{ login: 'me', at: 1, self: true }],
+      });
+      const askedOther = dp({
+         number: 4,
+         author: 'alice',
+         status: 'ready',
+         requestedReviewers: ['bob'],
+      });
+      const lanes = buildReviewLanes(input({ pulls: [plain, asked, claimed, askedOther] }));
+      expect(lanes.ready.map(p => p.data.number).sort()).toEqual([2, 3]);
+   });
+
+   it('orders ready oldest first, and leaves an unclaimed ready bot PR in the bot fold', () => {
+      const newer = dp({ number: 1, author: 'me', status: 'ready', ageDays: 1 });
+      const older = dp({ number: 2, author: 'me', status: 'ready', ageDays: 5 });
+      const bot = dp({ author: 'dependabot[bot]', number: 3, status: 'ready', ageDays: 9 });
+      const lanes = buildReviewLanes(input({ pulls: [newer, older], bots: [bot] }));
+      expect(lanes.ready).toEqual([older, newer]);
+      expect(lanes.botRest).toEqual([bot]);
    });
 
    it('draws ready’s bot portion from botsForReady, not bots, when the two differ', () => {
       // "Ignore bot PRs" empties `bots` (the queue-tail/fold pool) but
-      // botsForReady bypasses that setting — Ready-to-merge must still
-      // surface the bot PR even though it's absent from `bots`.
-      const bot = dp({ author: 'dependabot[bot]', status: 'ready' });
+      // botsForReady bypasses that setting, so a bot PR you claimed still
+      // shows in Ready-to-merge even though it's absent from `bots`.
+      const bot = dp({
+         author: 'dependabot[bot]',
+         status: 'ready',
+         requestedReviewers: ['me'],
+         reviewRequests: [{ login: 'me', at: 1, self: true }],
+      });
       const lanes = buildReviewLanes(input({ pulls: [], bots: [], botsForReady: [bot] }));
-      expect(lanes.ready).toEqual([bot]);
-   });
-
-   it('falls back to bots for ready when botsForReady is omitted', () => {
-      const bot = dp({ author: 'dependabot[bot]', status: 'ready' });
-      const lanes = buildReviewLanes(input({ pulls: [], bots: [bot] }));
       expect(lanes.ready).toEqual([bot]);
    });
 
@@ -446,7 +470,6 @@ describe('buildReviewLanes — board summary', () => {
       const bot = dp({ author: 'dependabot[bot]', status: 'ready' });
       const lanes = buildReviewLanes(input({ botsForReady: [bot] }));
       expect(lanes.empty).toBe(false);
-      expect(lanes.ready).toContain(bot);
    });
 
    it('boardIsQuiet is false once the queue has something in it', () => {
@@ -568,8 +591,8 @@ describe('buildReviewLanes — projects', () => {
       expect(
          buildReviewLanes(input({ pulls: [qaParked, qaOther], standing: parked })).needsQa
       ).toEqual([qaOther, qaParked]);
-      const readyParked = dp({ number: 1, author: 'alice', status: 'ready', ageDays: 9 });
-      const readyOther = dp({ number: 2, author: 'bob', status: 'ready', ageDays: 1 });
+      const readyParked = dp({ number: 1, author: 'me', status: 'ready', ageDays: 9 });
+      const readyOther = dp({ number: 2, author: 'me', status: 'ready', ageDays: 1 });
       const lanes = buildReviewLanes(input({ pulls: [readyParked, readyOther], standing: parked }));
       expect(lanes.ready).toEqual([readyOther, readyParked]);
       expect(lanes.whyProject(readyParked, null)).toBe('Parked project: picker');
@@ -627,5 +650,64 @@ describe('buildReviewLanes — projects', () => {
       expect(lanes.whyProject(finisher, null)).toBe(
          'Helps finish sync: one of its last 2 open PRs'
       );
+   });
+});
+
+describe('buildReviewLanes — requests run on hours, and QA is the author’s', () => {
+   it('leads the queue with requests of you, oldest request first, ahead of a starving pull', () => {
+      const old = dp({
+         number: 1,
+         author: 'alice',
+         status: 'needs_cr',
+         starved: true,
+         ageDays: 30,
+      });
+      const late = dp({
+         number: 2,
+         author: 'bob',
+         status: 'needs_cr',
+         requestedReviewers: ['me'],
+         askedAt: 2000,
+      });
+      const early = dp({
+         number: 3,
+         author: 'carol',
+         status: 'needs_cr',
+         requestedReviewers: ['me'],
+         askedAt: 1000,
+         repo: 'org/elsewhere',
+      });
+      const lanes = buildReviewLanes(input({ pulls: [old, late, early] }));
+      expect(lanes.queue).toEqual([early, late, old]);
+      expect(lanes).not.toHaveProperty('queueStarved');
+   });
+
+   it('does not hand a requested reviewer the QA: only outside testers and claims reach Needs QA', () => {
+      const asked = dp({
+         number: 1,
+         author: 'alice',
+         status: 'needs_qa',
+         requestedReviewers: ['me'],
+      });
+      const outside = dp({ number: 2, author: 'zed', status: 'needs_qa' });
+      const claimed = dp({
+         number: 3,
+         author: 'alice',
+         status: 'needs_qa',
+         requestedReviewers: ['me'],
+         reviewRequests: [{ login: 'me', at: 1, self: true }],
+      });
+      const lanes = buildReviewLanes(input({ pulls: [asked, outside, claimed] }));
+      expect(lanes.needsQa).toEqual(expect.arrayContaining([outside, claimed]));
+      expect(lanes.needsQa).not.toContain(asked);
+      expect(lanes.queue).not.toContain(asked);
+   });
+
+   it('keeps a team request that names nobody out of every queue, but offers it in Could use your input', () => {
+      const p = dp({ author: 'alice', status: 'needs_cr', requestedTeams: ['ghost'] });
+      const lanes = buildReviewLanes(input({ pulls: [p], codeRegions: ['repo'] }));
+      expect(lanes.queue).toEqual([]);
+      expect(lanes.needsQa).toEqual([]);
+      expect(lanes.couldUseInput).toEqual([p]);
    });
 });

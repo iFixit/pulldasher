@@ -49,12 +49,24 @@ export function askedAgo(p: DerivedPull, now?: number): string | null {
 export const askOverdue = (p: DerivedPull, now?: number): boolean =>
    (askedHours(p, now) ?? 0) >= ASK_OVERDUE_HOURS;
 
+/** A review was requested of someone (a person or a team), whether or not it
+ * still names anyone who owes it. */
+const hasRequest = (p: DerivedPull): boolean =>
+   !!(askedOf(p).length || p.data.requested_reviewers?.length || p.data.requested_teams?.length);
+
+/** Needs a reviewer from outside: the author is outside the dev team (or a
+ * bot), and nobody was asked or took it on. The only pulls where QA is not
+ * the author's own job. */
+const needsOutsideReview = (p: DerivedPull): boolean =>
+   !selfReviewed(p) && !hasRequest(p) && !claimFor(p.data);
+
 /**
- * Whether this pull is `me`'s review work: asked of me (by name or through a
- * team), or one I said I'd review; otherwise one that needs someone else and
- * that nobody was asked for or took on (an author outside the dev team, or a
- * team request naming nobody on the roster). Never my own, and never a
- * developer's own unrequested pull: its review is its author's.
+ * Whether this pull is `me`'s code review: asked of me (by name or through a
+ * team), or one I said I'd review; otherwise one from outside the dev team
+ * that nobody was asked for or took on. Never my own, never a developer's own
+ * unrequested pull (its review is its author's), and never a request that
+ * names nobody who still owes it (a team nobody on the roster is in, or
+ * everyone asked has stamped): that one shows in "Could use your input".
  */
 export function reviewIsMine(p: DerivedPull, me: string): boolean {
    if (p.data.user.login === me) return false;
@@ -62,9 +74,23 @@ export function reviewIsMine(p: DerivedPull, me: string): boolean {
    if (claim?.login === me) return true;
    const asked = askedOf(p);
    if (asked.length) return asked.includes(me);
-   if (claim) return false;
+   if (claim || hasRequest(p)) return false;
    return !selfReviewed(p);
 }
+
+/** Whether this pull's QA is `me`'s. A requested reviewer was asked for a
+ * review, not a test: under the policy the author tests their own. QA goes to
+ * a claimer, or to anyone when the pull needs an outside tester. */
+export function qaIsMine(p: DerivedPull, me: string): boolean {
+   if (p.data.user.login === me) return false;
+   const claim = claimFor(p.data);
+   return claim ? claim.login === me : needsOutsideReview(p);
+}
+
+/** Requested of a team nobody on the roster is in, or of people who have all
+ * answered: nobody's review work, but worth showing to anyone who might help. */
+export const nobodysReview = (p: DerivedPull): boolean =>
+   hasRequest(p) && !askedOf(p).length && !claimFor(p.data);
 
 const INPUT_HINT_WORDS: Record<string, string> = {
    ci: 'CI',
@@ -237,6 +263,11 @@ function authorNote(p: DerivedPull, me: string): RowNote {
    }
    if (p.status === 'needs_qa' && p.qaingLogin)
       return waitOnly(`${who([p.qaingLogin])} is testing it`);
+   // asked reviewers are for the review; QA is the author's own under the
+   // policy, so once CR is met it's yours to stamp whoever is still listed
+   const authorIsDev = selfReviewed(p) || hasRequest(p);
+   if (p.status === 'needs_qa' && authorIsDev)
+      return { action: 'Stamp QA', context: 'test it yourself, or ask someone to' };
    // you asked for a review: theirs to give, answered in hours
    const asked = askedOf(p);
    if (asked.length) {
@@ -247,10 +278,11 @@ function authorNote(p: DerivedPull, me: string): RowNote {
    }
    const claim = claimFor(d);
    if (claim) return waitOnly(`${claim.login} is reviewing it`);
-   if (selfReviewed(p))
-      return reviewing
-         ? { action: 'Stamp CR', context: 'review it yourself, or request a review' }
-         : { action: 'Stamp QA', context: 'test it yourself, or request a review' };
+   // a team request that names nobody on the roster: nobody to nudge, so wait
+   if (d.requested_teams?.length)
+      return waitOnly(`waiting on a review from ${andList(d.requested_teams)}`);
+   if (authorIsDev)
+      return { action: 'Stamp CR', context: 'review it yourself, or request a review' };
    // outside the dev team: someone else reviews it, nobody's been asked yet
    if (p.status === 'needs_recr')
       return waitOnly(`waiting on ${who(p.recrBy)} to re-stamp${pushed}`);
@@ -335,17 +367,24 @@ function reviewerNote(p: DerivedPull, me: string, extra?: { claim?: Claim | null
          const since = claim.at != null ? ` · ${ago(claim.at)} ago` : '';
          return { action: 'Finish your review', context: `you said you’d review it${since}` };
       }
-      if (asked.includes(me))
-         return { action: reviewing ? 'Review it' : 'QA it', context: when ?? 'review requested' };
+      // a request asks for a code review: never QA, which is the author's own
+      if (asked.includes(me) && reviewing)
+         return { action: 'Review it', context: when ?? 'review requested' };
       if (claim) return waitOnly(`${claim.login} is reviewing it`);
+      if (p.status === 'needs_qa') {
+         if (needsOutsideReview(p))
+            return { action: 'QA it', context: p.qaHave > 0 ? `${p.qaHave} of ${qaReq} in` : null };
+         return waitOnly(selfReviewed(p) ? 'in self-review' : `${author} tests it`);
+      }
       if (p.status === 'needs_recr') return waitOnly(`waiting on ${who(p.recrBy)}${pushed}`);
       if (asked.length) return waitOnly(`waiting on ${who(asked)}${when ? ` · ${when}` : ''}`);
       // the author reviews their own: nobody else owes it anything
       if (selfReviewed(p)) return waitOnly('in self-review');
-      // needs someone else and nobody's on it: an author outside the dev
-      // team, or a request to a team nobody on the roster is in
-      if (p.status === 'needs_qa')
-         return { action: 'QA it', context: p.qaHave > 0 ? `${p.qaHave} of ${qaReq} in` : null };
+      // a request that names nobody who still owes it: nobody's job in particular
+      if (d.requested_teams?.length)
+         return waitOnly(`waiting on a review from ${andList(d.requested_teams)}`);
+      if (hasRequest(p)) return waitOnly(`${p.crHave} of ${crReq} in`);
+      // needs someone else and nobody's on it: an author outside the dev team
       const context = p.starved
          ? `waiting ${p.ageDays}d`
          : p.crHave > 0
@@ -468,7 +507,7 @@ export function waitWord(p: DerivedPull, me: string, extra?: { claim?: Claim | n
    // who it waits on, once nobody's specifically owed a stamp by you
    const holder = () => {
       if (claim && claim.login !== me) return 'claimed';
-      if (askedOf(p).length) return 'review requested';
+      if (askedOf(p).length || hasRequest(p)) return 'review requested';
       if (selfReviewed(p)) return 'self-review';
       return null;
    };
@@ -491,7 +530,9 @@ export function waitWord(p: DerivedPull, me: string, extra?: { claim?: Claim | n
          if (p.qaBy.includes(me)) return 'stamped';
          if (p.qaingLogin) return 'in QA';
          if (isAuthor && p.reqaBy.length && !askedOf(p).length) return 'waiting on re-QA';
-         return holder() ?? 'waiting on QA';
+         // QA is the author's own unless an outside tester is needed
+         if (claim && claim.login !== me) return 'claimed';
+         return needsOutsideReview(p) ? 'waiting on QA' : 'self-review';
       case 'needs_recr':
          if (p.crBy.includes(me)) return 'stamped';
          return holder() ?? 'waiting on re-CR';
