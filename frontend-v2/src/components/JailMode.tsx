@@ -35,9 +35,14 @@ import { CiGlyph } from './pips';
 // mid-drag (a Roadmap bar, say)
 let pointerHeld = false;
 if (typeof document !== 'undefined') {
-   document.addEventListener('pointerdown', () => (pointerHeld = true), true);
-   for (const end of ['pointerup', 'pointercancel'] as const)
+   // the main button only: a right-click's context menu swallows its
+   // pointerup and would leave this stuck on
+   document.addEventListener('pointerdown', e => (pointerHeld = e.button === 0), true);
+   // a native drag (a Roadmap row) cancels the pointer but is still a drag
+   document.addEventListener('dragstart', () => (pointerHeld = true), true);
+   for (const end of ['pointerup', 'dragend', 'contextmenu'] as const)
       document.addEventListener(end, () => (pointerHeld = false), true);
+   window.addEventListener('blur', () => (pointerHeld = false));
 }
 
 const hasPreviewFlag = () => new URLSearchParams(location.hash.slice(1)).get('jail') === '1';
