@@ -2,6 +2,7 @@ import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import db from '../lib/db.js';
 import git from '../lib/git-manager.js';
+import config from '../lib/config-loader.js';
 import {
    attachIssue,
    detachIssue,
@@ -9,6 +10,7 @@ import {
    loadPullLinks,
    loadWork,
    searchIssues,
+   searchQualifiers,
    syncWork,
    workIssueTouched,
    workPullTouched,
@@ -327,7 +329,8 @@ function fakeQuery(sql, params) {
    throw new Error(`unexpected query: ${sql}`);
 }
 
-// iFixit's own repos are tracked through its projects repo
+// the board reads issues from the projects repo and the tracked repos
+config.repos.push({ name: 'iFixit/ifixit' });
 const settings = { repo: 'iFixit/projects', prefix: 'project:' };
 
 function fresh() {
@@ -553,10 +556,13 @@ test('adding by hand keeps who added it first, refuses a project’s own issue, 
       tables.hand.map(h => h.added_by),
       ['dana']
    );
-   // a PR, an issue outside the tracked organizations, or one GitHub
+   // a PR, an issue outside the board’s repos, or one GitHub
    // doesn't have can't be added
    assert.match((await add(201)).refused, /That’s a PR/);
-   assert.match((await add(5, 'dana', 'other/thing')).refused, /organization this board tracks/);
+   assert.match(
+      (await add(5, 'dana', 'other/thing')).refused,
+      /doesn’t read issues from that repo/
+   );
    assert.deepEqual(await add(999), { missing: true });
    assert.match((await add(1, 'dana', 'iFixit/projects')).refused, /project’s own issue/);
    // the hourly sync keeps its title current
@@ -594,7 +600,10 @@ test('searchIssues finds an issue by link, by number in any tracked repo, or by 
       (await searchIssues(settings, 'stickers')).map(h => `${h.repo}#${h.number}`),
       ['test/repo-a#5']
    );
-   assert.match(searches[0], /^stickers is:issue org:iFixit org:test$/);
+   assert.match(
+      searches[0],
+      /^stickers is:issue repo:iFixit\/projects repo:test\/repo-a repo:test\/repo-b repo:test\/repo-c repo:iFixit\/ifixit$/
+   );
    // answered again from what it kept, with the projects read fresh
    await attachIssue(settings, 'workbench', { repo: 'test/repo-a', number: 5 }, 'dana');
    const [kept] = await searchIssues(settings, 'stickers');
@@ -603,6 +612,37 @@ test('searchIssues finds an issue by link, by number in any tracked repo, or by 
    // a number too big for GitHub is no search at all
    assert.deepEqual(await searchIssues(settings, '#30000000000'), []);
    assert.deepEqual(await searchIssues(settings, ' '), []);
+});
+
+test('another repo in a tracked organization is neither searched nor attached', async () => {
+   fresh();
+   searches = [];
+   const secret = { repo: 'iFixit/secret', number: 7 };
+   assert.deepEqual(await searchIssues(settings, 'iFixit/secret#7'), []);
+   assert.deepEqual(await searchIssues(settings, 'iFixit/ifixit#201'), []);
+   const result = await attachIssue(settings, 'workbench', secret, 'dana');
+   assert.match(result.refused, /doesn’t read issues from that repo/);
+   assert.equal(tables.hand.length, 0);
+   // a search hit from such a repo (an "org:" in the words) is dropped
+   mock.restoreAll();
+   mock.method(db, 'query', async (sql, params) => fakeQuery(sql, params));
+   mock.method(git, 'graphql', async () => ({
+      search: {
+         nodes: [issueNode(9, 'private stickers', { repository: repo('iFixit/secret') })],
+      },
+   }));
+   assert.deepEqual(await searchIssues(settings, 'stickers org:iFixit'), []);
+});
+
+test('repo qualifiers split into searches that fit GitHub’s length limit', () => {
+   const repos = Array.from({ length: 30 }, (_, i) => `iFixit/repository-${i}`);
+   const parts = searchQualifiers('stickers', repos);
+   assert.ok(parts.length > 1);
+   for (const quals of parts) assert.ok(`stickers is:issue ${quals}`.length <= 256);
+   assert.deepEqual(
+      parts.flatMap(p => p.split(' ')),
+      repos.map(r => `repo:${r}`)
+   );
 });
 
 test('a project label put on an issue reads the work again a minute later', async () => {

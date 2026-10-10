@@ -206,4 +206,50 @@ describe('JailMode while the cell is down', () => {
          'touches CI and migrations · worth asking for review?'
       );
    });
+
+   it('lets a screen reader or voice control out with a lone click', () => {
+      render(many(8));
+      const hold = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
+         b => b.textContent?.includes('Hold to get back to work')
+      );
+      // a mouse click carries detail 1 and does nothing
+      act(() => hold?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })));
+      expect(dialog()).not.toBeNull();
+      // assistive tech sends a click with no pointer or key behind it
+      act(() => hold?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 })));
+      expect(dialog()).toBeNull();
+   });
+
+   it('keeps Esc from reaching anything behind it', () => {
+      render(many(8));
+      let reached = false;
+      const behind = (e: KeyboardEvent) => {
+         if (!e.defaultPrevented) reached = true;
+      };
+      document.addEventListener('keydown', behind);
+      act(() => {
+         document.body.dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+         );
+      });
+      document.removeEventListener('keydown', behind);
+      expect(reached).toBe(false);
+      expect(dialog()).not.toBeNull();
+   });
+
+   it('forgets the last showing once you are under the limits', () => {
+      vi.useFakeTimers();
+      const nine = many(9);
+      render(nine);
+      expect(localStorage.getItem('pd2.jail')).not.toBeNull();
+      render(nine.slice(0, 3));
+      expect(localStorage.getItem('pd2.jail')).toBeNull();
+   });
+
+   it('opens the preview every time Settings asks', () => {
+      render(many(2));
+      expect(dialog()).toBeNull();
+      act(() => window.dispatchEvent(new Event('pd2:preview-jail')));
+      expect(dialog()).not.toBeNull();
+   });
 });

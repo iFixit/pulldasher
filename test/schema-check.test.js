@@ -5,7 +5,10 @@ import db from '../lib/db.js';
 import { MIGRATIONS, applyMissing, missingMigrations } from '../lib/schema-check.js';
 
 // information_schema rows for a database that has every migration
-const all = MIGRATIONS.map(m => ({ t: m.table, c: m.column ?? 'id' }));
+const all = MIGRATIONS.map(m => ({
+   t: m.table,
+   c: m.index ? `key:${m.index}` : m.column ?? 'id',
+}));
 
 test('a database with every migration is missing none', async () => {
    mock.method(db, 'query', async () => all);
@@ -36,6 +39,14 @@ test('names the migration that gives plans their end kind until it’s in', asyn
       all.filter(r => !(r.t === 'roadmap_items' && r.c === 'end_kind'))
    );
    assert.deepEqual(await missingMigrations(), ['0032-roadmap-items--add-end-kind-done-when.sql']);
+   mock.restoreAll();
+});
+
+test('names the date index migration until its last index is in', async () => {
+   mock.method(db, 'query', async () =>
+      all.filter(r => !(r.t === 'pulls' && r.c === 'key:pulls_date_merged'))
+   );
+   assert.deepEqual(await missingMigrations(), ['0034-add-date-indexes.sql']);
    mock.restoreAll();
 });
 
@@ -86,3 +97,19 @@ test(
       mock.restoreAll();
    }
 );
+
+test('names the roadmap and settings tables a database from before them lacks, in order', async () => {
+   mock.method(db, 'query', async () =>
+      all.filter(r => !['roadmap_items', 'roadmap_updates', 'project_settings'].includes(r.t))
+   );
+   assert.deepEqual(await missingMigrations(), [
+      '0022-roadmap-items--add-table.sql',
+      '0023-roadmap-updates--add-table.sql',
+      '0024-project-settings--add-table.sql',
+      '0025-roadmap-items--add-origin.sql',
+      '0029-roadmap-items--add-status-at.sql',
+      '0031-roadmap-items--add-removed-at.sql',
+      '0032-roadmap-items--add-end-kind-done-when.sql',
+   ]);
+   mock.restoreAll();
+});

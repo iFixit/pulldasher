@@ -15,7 +15,7 @@ import {
    type JailCase,
 } from '../model/jail';
 import { useSettings } from '../settings';
-import { readStorage, writeStorage } from '../storage';
+import { readStorage, removeStorage, writeStorage } from '../storage';
 import { HeaderIconButton, QuietButton, RepoRef } from './bits';
 import { GroupHeader } from './Lane';
 import { CiGlyph } from './pips';
@@ -67,6 +67,26 @@ export function JailMode({
       [initialized, pulls, me, extraBots, settings]
    );
 
+   // under the limits again: forget the last showing, so the next time you
+   // go over is a fresh offense, not "no worse than before"
+   useEffect(() => {
+      if (!initialized || found || settings.jailMode === 'off' || !record.current) return;
+      record.current = null;
+      removeStorage(JAIL_KEY);
+   }, [initialized, found, settings.jailMode]);
+
+   // the latest case, for closing: the button's hold started seconds ago, and
+   // what you saw last is what the next showing compares against
+   const latest = useRef(found);
+   latest.current = found;
+
+   // open PRs on the whole board, so a row leaving the jail's list only slides
+   // out as merged when it really closed (not when the rule switched)
+   const openIds = useMemo(
+      () => new Set(pulls.filter(p => p.data.state === 'open').map(pullId)),
+      [pulls]
+   );
+
    const remember = (jail: JailCase<DerivedPull>) => {
       record.current = jailRecord(jail, Date.now());
       writeStorage(JAIL_KEY, JSON.stringify(record.current));
@@ -80,6 +100,10 @@ export function JailMode({
       const onHash = () => {
          if (hasPreviewFlag()) setPreview(true);
       };
+      // Settings' "Preview PR jail": an event, since setting the same hash
+      // twice fires nothing
+      const onPreview = () => setPreview(true);
+      window.addEventListener('pd2:preview-jail', onPreview);
       const onStorage = (e: StorageEvent) => {
          if (e.key === JAIL_KEY) record.current = parseJailRecord(e.newValue);
       };
@@ -87,6 +111,7 @@ export function JailMode({
       window.addEventListener('storage', onStorage);
       return () => {
          window.removeEventListener('hashchange', onHash);
+         window.removeEventListener('pd2:preview-jail', onPreview);
          window.removeEventListener('storage', onStorage);
       };
    }, []);
@@ -149,10 +174,11 @@ export function JailMode({
                   }
                   me={me}
                   maxDays={settings.jailMaxDays}
+                  openIds={openIds}
                   onDone={() => {
                      // what you saw last is what the next showing compares
                      // against, so PRs opened while it was up don't re-drop it
-                     if (shown === 'real' && found) remember(found);
+                     if (shown === 'real' && latest.current) remember(latest.current);
                      setShown(null);
                   }}
                />,
@@ -217,25 +243,39 @@ function JailModal({
    jail,
    me,
    maxDays,
+   openIds,
    onDone,
 }: {
    jail: JailCase<DerivedPull>;
    me: string;
    maxDays: number;
+   openIds: ReadonlySet<string>;
    onDone: () => void;
 }) {
    const rootRef = useRef<HTMLDivElement>(null);
    const free = jail === FREE;
 
+   // "You're out" unmounts the focused button: keep focus in the dialog
+   useEffect(() => {
+      if (free) rootRef.current?.focus({ preventScroll: true });
+   }, [free]);
+
    useEffect(() => {
       const root = rootRef.current;
+      // focus goes back where it was (the header lock, say) when it closes
+      const before = document.activeElement as HTMLElement | null;
       // focus starts on the button, so holding Enter or Space works right
       // away; the dialog itself when it's showing "You're out"
       const hold = root?.querySelector<HTMLElement>('[data-hold]');
       (hold ?? root)?.focus({ preventScroll: true });
       // Esc doesn't close it (holding the button does); Tab stays inside
       const onKey = (e: KeyboardEvent) => {
-         if (e.key === 'Escape') e.preventDefault();
+         // Esc does nothing here, and must not reach a dialog behind this one
+         // (Settings) either: listening in the capture phase runs first
+         if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+         }
          if (e.key !== 'Tab' || !root) return;
          const focusables = root.querySelectorAll<HTMLElement>('a[href], button');
          if (!focusables.length) return;
@@ -252,12 +292,13 @@ function JailModal({
             first.focus();
          }
       };
-      document.addEventListener('keydown', onKey);
+      document.addEventListener('keydown', onKey, true);
       const prevOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
       return () => {
-         document.removeEventListener('keydown', onKey);
+         document.removeEventListener('keydown', onKey, true);
          document.body.style.overflow = prevOverflow;
+         before?.focus?.({ preventScroll: true });
       };
    }, []);
 
@@ -305,7 +346,7 @@ function JailModal({
                       of this list on the card's color instead of under the
                       app header on the canvas */}
                   <div className="-mx-1 min-h-0 overflow-y-auto px-1 [--canvas:var(--surface)] [--header-h:0px]">
-                     <JailList pulls={jail.pulls} me={me} maxDays={maxDays} />
+                     <JailList pulls={jail.pulls} me={me} maxDays={maxDays} openIds={openIds} />
                   </div>
                   <HoldToLeave onDone={onDone} />
                </>
@@ -366,6 +407,13 @@ function HoldToLeave({ onDone }: { onDone: () => void }) {
          onPointerDown={e => {
             e.currentTarget.setPointerCapture?.(e.pointerId);
             start();
+         }}
+         // screen readers, voice control and switch access send a lone click
+         // with no pointer or key behind it (detail 0): they can't hold, so
+         // that click lets them out. A mouse click (detail 1+) or a held key
+         // never gets here as detail 0.
+         onClick={e => {
+            if (e.detail === 0 && !holding && !opened) onDone();
          }}
          onPointerUp={stop}
          onPointerCancel={stop}
@@ -458,19 +506,25 @@ const pullId = (p: DerivedPull) => `${p.data.repo}#${p.data.number}`;
 
 /** The PRs that just left `pulls` (merged or closed), kept for LEAVE_MS so
  * their rows can slide out instead of vanishing. */
-function useLeaving(pulls: DerivedPull[]): DerivedPull[] {
+function useLeaving(pulls: DerivedPull[], openIds: ReadonlySet<string>): DerivedPull[] {
    const last = useRef(new Map<string, DerivedPull>());
    const [leaving, setLeaving] = useState<DerivedPull[]>([]);
    const timers = useRef<number[]>([]);
    useEffect(() => {
       const now = new Map(pulls.map(p => [pullId(p), p]));
-      const gone = [...last.current].filter(([id]) => !now.has(id)).map(([, p]) => p);
+      // gone from the list and closed on the board; one that only stopped
+      // counting (the rule switched, or it went draft) just leaves
+      const gone = [...last.current]
+         .filter(([id]) => !now.has(id) && !openIds.has(id))
+         .map(([, p]) => p);
       last.current = now;
       if (!gone.length) return;
       setLeaving(l => [...l, ...gone]);
       timers.current.push(
          window.setTimeout(() => setLeaving(l => l.filter(p => !gone.includes(p))), LEAVE_MS)
       );
+      // keyed on pulls alone: openIds changes with every board update, and
+      // it's only read to tell a close from a rule switch
    }, [pulls]);
    useEffect(() => () => timers.current.forEach(clearTimeout), []);
    // one that came back (reopened) is just a row again
@@ -516,8 +570,18 @@ function CopyNudge({ rows }: { rows: { pull: DerivedPull }[] }) {
  * quickest way out first, each group under the board's own header with a
  * word on what to do, oldest first. Someone else's PRs (the preview's
  * fallback) list flat, since their groups would be a reviewer's. */
-function JailList({ pulls, me, maxDays }: { pulls: DerivedPull[]; me: string; maxDays: number }) {
-   const leaving = useLeaving(pulls);
+function JailList({
+   pulls,
+   me,
+   maxDays,
+   openIds,
+}: {
+   pulls: DerivedPull[];
+   me: string;
+   maxDays: number;
+   openIds: ReadonlySet<string>;
+}) {
+   const leaving = useLeaving(pulls, openIds);
    const gone = new Set(leaving.map(pullId));
    const all = [...pulls, ...leaving];
    const mine = all.every(p => p.data.user.login === me);
