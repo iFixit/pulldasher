@@ -39,13 +39,24 @@ const pointerBusy = () => pressing || dragging;
 if (typeof document !== 'undefined') {
    // the main button only: a right-click's context menu swallows its
    // pointerup and would leave this stuck on
-   document.addEventListener('pointerdown', e => (pressing = e.button === 0), true);
+   // a new press also means no drag is running, whatever became of the last
+   document.addEventListener(
+      'pointerdown',
+      e => {
+         pressing = e.button === 0;
+         dragging = false;
+      },
+      true
+   );
    // a touch that turns into a scroll, or a press that turns into a native
    // drag, ends with pointercancel; the drag is tracked on its own
    for (const end of ['pointerup', 'pointercancel', 'contextmenu'] as const)
       document.addEventListener(end, () => (pressing = false), true);
    document.addEventListener('dragstart', () => (dragging = true), true);
-   document.addEventListener('dragend', () => (dragging = false), true);
+   // dragend goes to the dragged node, which may have left the page by then
+   // (a Roadmap plan moved to another lane), so the drop counts as the end too
+   for (const end of ['dragend', 'drop'] as const)
+      document.addEventListener(end, () => (dragging = false), true);
    window.addEventListener('blur', () => (pressing = dragging = false));
 }
 
