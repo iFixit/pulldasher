@@ -1,4 +1,5 @@
 import { projectSettings } from '../lib/projects.js';
+import pullManager from '../lib/pull-manager.js';
 import { saveSetting } from '../lib/settings.js';
 import {
    checkDecideRotation,
@@ -91,7 +92,10 @@ export default {
       if (has(body, 'developer_teams')) {
          const checked = checkDeveloperTeams(body.developer_teams);
          if (checked.error) return res.status(400).json({ error: checked.error });
-         saves.push(() => saveSetting('developer_teams', checked.teams, req.roadmapLogin));
+         saves.push(async () => {
+            await saveSetting('developer_teams', checked.teams, req.roadmapLogin);
+            pullManager.developerTeamsChanged();
+         });
       }
       if (has(body, 'ongoing_projects')) {
          const checked = checkOngoingProjects(body.ongoing_projects);

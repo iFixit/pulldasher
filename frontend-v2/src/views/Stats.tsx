@@ -65,11 +65,14 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 export function Stats({
    pulls,
    closed,
+   bots,
    me,
    onPerson,
 }: {
    pulls: DerivedPull[];
    closed: PullData[];
+   /** config bots beyond the [bot] suffix */
+   bots: ReadonlySet<string>;
    me: string;
    onPerson: (login: string) => void;
 }) {
@@ -86,7 +89,7 @@ export function Stats({
    // flow — the closed window plus stamp timestamps
    const perDay = useMemo(() => mergedPerDay(closed, WINDOW_DAYS, Date.now()), [closed]);
    const answer = useMemo(() => requestAnswerTimes(pulls, closed), [pulls, closed]);
-   const selfMix = useMemo(() => selfReviewMix(closed), [closed]);
+   const selfMix = useMemo(() => selfReviewMix(closed, bots), [closed, bots]);
    const pulse = useMemo(
       () => stampsPerDay(pulls, closed, WINDOW_DAYS, Date.now()),
       [pulls, closed]

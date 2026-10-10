@@ -304,6 +304,14 @@ function schedulePublish() {
    }, 250);
 }
 
+/** Rebuild who owes a review from a freshly saved roster and re-derive. */
+export function setDeveloperTeams(teams: Record<string, string[]> | undefined): void {
+   policy = reviewPolicy(teams, [...extraBots]);
+   schedulePublish();
+}
+/** The roster-derived policy the board is deriving with (for tests). */
+export const currentPolicy = (): ReviewPolicy => policy;
+
 let started = false;
 function start() {
    if (started) return;
@@ -344,6 +352,8 @@ function start() {
       schedulePublish();
    });
    backend.onRefreshAll(setRefreshProgress);
+   // a saved roster reaches open boards here, not only at connect
+   backend.onDeveloperTeams(setDeveloperTeams);
    backend.onConnection(state => {
       connection = state;
       schedulePublish();

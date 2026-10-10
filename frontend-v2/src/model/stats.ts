@@ -9,6 +9,7 @@ import {
    WEIGHT_ORDER,
    reviewWeight,
 } from '../../../shared/model/status';
+import { isBotLogin } from '../../../shared/model/visibility';
 
 /**
  * The Stats lens's aggregation layer: pure reductions over the same open pool
@@ -296,9 +297,15 @@ export function waitingOnSomeone(pulls: DerivedPull[], now: number): WaitingOnSo
    for (const p of pulls) {
       const d = p.data;
       const ref = { repo: d.repo, number: d.number, title: d.title };
-      for (const r of openedRequests(d)) {
-         if (answersBy(d, r.login).some(t => t >= r.at)) continue;
-         requests.push({ ...ref, login: r.login, hours: Math.max(0, (now - r.at) / 3600) });
+      // askedOf is who is still being waited on (claims, the author and people
+      // who already stamped left out); a draft or a pull whose CR is met has
+      // nobody left to wait for
+      const open = !d.draft && CR_INCOMPLETE.includes(p.status);
+      for (const login of open ? p.askedOf ?? [] : []) {
+         const at =
+            (d.review_requests ?? []).find(r => !r.self && r.login === login)?.at ?? p.askedAt;
+         if (at == null || answersBy(d, login).some(t => t >= at)) continue;
+         requests.push({ ...ref, login, hours: Math.max(0, (now - at) / 3600) });
       }
       const asked = (d.requested_reviewers ?? []).length || (d.requested_teams ?? []).length;
       if (!p.ownReview && !asked && CR_INCOMPLETE.includes(p.status))
@@ -337,7 +344,10 @@ const WEEK_SECS = 7 * 86400;
  * "Reverts #n" of a self-reviewed pull in the same repo merged up to a week
  * before it. It sees only what the title and description say.
  */
-export function selfReviewMix(closed: PullData[]): SelfReviewMix {
+export function selfReviewMix(
+   closed: PullData[],
+   bots: ReadonlySet<string> = new Set()
+): SelfReviewMix {
    const mergedAt = (d: PullData) => sec(d.merged_at);
    const mix = { merged: 0, asked: 0, byOthers: 0, self: 0, unstamped: 0 };
    const selfMerged = new Map<string, number>();
@@ -351,8 +361,12 @@ export function selfReviewMix(closed: PullData[]): SelfReviewMix {
          (d.requested_teams ?? []).length ||
          (d.requested_reviewers ?? []).some(l => !claims.has(l)) ||
          (d.review_requests ?? []).some(r => !r.self);
-      const stampers = [...d.status.allCR, ...d.status.allQA].map(s => s.data.user.login);
-      const reviewers = (d.status.unstamped_reviewers ?? []).map(r => r.login);
+      // a bot's comment (the CI review bot is on most pulls) isn't a person's review
+      const human = (l: string) => !isBotLogin(l, bots);
+      const stampers = [...d.status.allCR, ...d.status.allQA]
+         .map(s => s.data.user.login)
+         .filter(human);
+      const reviewers = (d.status.unstamped_reviewers ?? []).map(r => r.login).filter(human);
       const others = [...stampers, ...reviewers].some(l => l !== author);
       if (asked) mix.asked += 1;
       else if (others) mix.byOthers += 1;

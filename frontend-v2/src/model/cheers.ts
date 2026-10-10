@@ -1135,7 +1135,7 @@ export function diffCheers(
                title: `Waiting ${p.ageDays}d for review`,
                body: askedOf(p).length
                   ? `Asked of ${askedOf(p).join(', ')}, worth a nudge?`
-                  : 'Your PR, worth a nudge?',
+                  : 'Nobody asked yet, worth asking for a review?',
                pull: pullRef(p),
                dedupeKey: `starve:${key}`,
             },

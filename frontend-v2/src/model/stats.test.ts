@@ -142,6 +142,7 @@ function full(over: {
    title?: string;
    body?: string;
    requested?: string[];
+   draft?: boolean;
    requests?: { login: string; at: number | null; self: boolean }[];
    reviews?: { login: string; date: number }[];
    conflict?: boolean;
@@ -162,6 +163,8 @@ function full(over: {
       reqaBy: over.reqaBy ?? [],
       qaingLogin: over.qaing ?? null,
       ownReview: over.ownReview ?? true,
+      askedOf: (over.requests ?? []).filter(r => !r.self).map(r => r.login),
+      askedAt: null,
       conflict: over.conflict ?? false,
       deployBlockedBy: over.deployBlockedBy ?? [],
       devBlockedBy: over.devBlockedBy ?? [],
@@ -172,6 +175,7 @@ function full(over: {
          number: over.n ?? 1,
          title: over.title ?? 't',
          body: over.body ?? '',
+         draft: over.draft ?? false,
          requested_reviewers: over.requested ?? [],
          review_requests: over.requests ?? [],
          additions: over.additions === undefined ? 100 : over.additions,
@@ -306,6 +310,8 @@ describe('waitingOnSomeone', () => {
             full({ n: 4, ownReview: false, ageDays: 9, requested: ['bob'] }), // asked: not outside
             full({ n: 5, ageDays: 20 }), // own review: nobody owes it
             full({ n: 6, ownReview: false, ageDays: 1, status: 'ready' }), // not short of CR
+            full({ n: 7, requests: [ask('erin', 9)], draft: true }), // a draft isn't waiting
+            full({ n: 8, requests: [ask('fay', 9)], status: 'needs_qa' }), // CR already met
          ],
          AT
       );
@@ -356,6 +362,21 @@ describe('selfReviewMix', () => {
          { ...mergedPull({ n: 7 }), merged_at: null } as unknown as PullData, // closed unmerged
       ]);
       expect(mix).toMatchObject({ merged: 6, asked: 2, byOthers: 1, self: 2, unstamped: 1 });
+   });
+
+   it('leaves bot reviews out of "reviewed by someone else"', () => {
+      const bot = { ...mergedPull({ n: 1 }) } as PullData;
+      bot.status = {
+         allCR: [],
+         allQA: [],
+         unstamped_reviewers: [{ login: 'review-bot' }, { login: 'ci[bot]' }],
+      } as unknown as PullData['status'];
+      expect(selfReviewMix([bot], new Set(['review-bot']))).toMatchObject({
+         byOthers: 0,
+         unstamped: 1,
+      });
+      // with no bot list, only the [bot] suffix is known
+      expect(selfReviewMix([bot])).toMatchObject({ byOthers: 1 });
    });
 
    it('a claim is someone volunteering, not the author asking', () => {

@@ -10,7 +10,7 @@ const merge = {
    commit: { message: "Merge branch 'master' into f" },
 };
 
-async function push(t, getCommit) {
+async function push(t, getCommit, before = 'a') {
    const invalidated = [];
    t.mock.method(git, 'getCommit', getCommit);
    t.mock.method(dbManager, 'invalidateSignatures', async (...args) => invalidated.push(args));
@@ -18,6 +18,7 @@ async function push(t, getCommit) {
    t.mock.method(refresh, 'pull', async () => {});
    const body = {
       action: 'synchronize',
+      before,
       after: 'newhead',
       repository: { full_name: 'o/r' },
       pull_request: {
@@ -55,4 +56,19 @@ test('a failed commit lookup invalidates the stamps', async t => {
       throw new Error('503');
    });
    assert.equal(invalidated.length, 1);
+});
+
+test('a base merge on top of new code invalidates: only a lone merge keeps stamps', async t => {
+   // the merge's first parent is the code commit, not the head before the push
+   const invalidated = await push(t, async () => merge, 'older-head');
+   assert.equal(invalidated.length, 1);
+});
+
+test('a slow commit lookup is cut off and invalidates', async t => {
+   t.mock.timers.enable({ apis: ['setTimeout'] });
+   const pending = push(t, () => new Promise(() => {}));
+   // let the handler reach its timer, then run it out
+   await new Promise(resolve => setImmediate(resolve));
+   t.mock.timers.tick(3000);
+   assert.equal((await pending).length, 1);
 });

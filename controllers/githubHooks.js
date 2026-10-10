@@ -14,6 +14,16 @@ import utils from '../lib/utils.js';
 import dbManager from '../lib/db-manager.js';
 import git from '../lib/git-manager.js';
 import { isBaseMerge } from '../lib/base-merge.js';
+
+// how long a push waits on GitHub to say what its head commit is
+const COMMIT_LOOKUP_MS = 3000;
+function withTimeout(promise, ms) {
+   let timer;
+   const late = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('timed out')), ms);
+   });
+   return Promise.race([promise, late]).finally(() => clearTimeout(timer));
+}
 import { projectSettings } from '../lib/projects.js';
 import { workIssueTouched, workPullTouched } from '../lib/work.js';
 
@@ -93,11 +103,21 @@ const HooksController = {
                // Clear prior CR/QA signoffs immediately for snappy feedback. Emoji
                // CR/QA stay cleared; a carried-over GitHub *approval* is restored by
                // the full refresh below (see Signature.parseReview / git-manager).
-               // Skip it for a push whose head is a merge of the base ("Update
-               // branch"): stamps survive those, and the refresh below settles
-               // the rest. Any error falls back to invalidating.
-               preUpdate = Promise.resolve(git.getCommit(body.repository.full_name, body.after))
-                  .then(commit => isBaseMerge(commit, body.pull_request.base.ref))
+               // Skip it only for a push that is nothing but a merge of the base
+               // ("Update branch"): stamps survive those, and the refresh below
+               // settles the rest. A merge on top of other new commits (its first
+               // parent isn't the old head) carries real code, so it invalidates.
+               // The lookup is capped so a slow GitHub can't hold the reply; any
+               // error or timeout falls back to invalidating.
+               preUpdate = withTimeout(
+                  Promise.resolve(git.getCommit(body.repository.full_name, body.after)),
+                  COMMIT_LOOKUP_MS
+               )
+                  .then(
+                     commit =>
+                        commit.parents[0]?.sha === body.before &&
+                        isBaseMerge(commit, body.pull_request.base.ref)
+                  )
                   .catch(() => false)
                   .then(isMerge =>
                      isMerge

@@ -1415,7 +1415,7 @@ export function App() {
                </Suspense>
             )}
             {initialized && !searching && lens === 'stats' && (
-               <Stats pulls={humans} closed={closed} me={me} onPerson={onPerson} />
+               <Stats pulls={humans} closed={closed} bots={extraBots} me={me} onPerson={onPerson} />
             )}
          </main>
       </>

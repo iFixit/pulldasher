@@ -19,7 +19,7 @@ import {
    type RoadmapUpdate,
 } from '../../../shared/model/roadmap';
 import { buildToday, dayStart, utcDay, type Project } from '../../../shared/model/projects';
-import { derive } from '../../../shared/model/status';
+import { derive, reviewPolicy } from '../../../shared/model/status';
 import { isBotLogin } from '../../../shared/model/visibility';
 import { dummyWorkInputs } from './workData';
 
@@ -173,14 +173,16 @@ let dummyFacts: { at: number; bySlug: Map<string, PlanLately> } | null = null;
 async function dummyLately(plans: readonly RoadmapItem[]): Promise<Map<string, PlanLately>> {
    if (dummyFacts && Date.now() - dummyFacts.at < 60_000) return dummyFacts.bySlug;
    const now = Date.now() / 1000;
-   const [{ pulls, bots = [], projectLabelPrefix }, { attached, linked }] = await Promise.all([
-      loadDummy(),
-      dummyWorkInputs(plans),
-   ]);
+   const [{ pulls, bots = [], projectLabelPrefix, developerTeams }, { attached, linked }] =
+      await Promise.all([loadDummy(), dummyWorkInputs(plans)]);
+   // the board's own roster, so a project's status here matches the board's
+   const policy = reviewPolicy(developerTeams, bots);
    const people = pulls.filter(p => !isBotLogin(p.user.login, new Set(bots)));
    const today = buildToday(
       DUMMY_PROJECTS,
-      people.filter(p => p.state === 'open').map(p => derive(p, undefined, now)),
+      people
+         .filter(p => p.state === 'open')
+         .map(p => derive(p, undefined, now, undefined, undefined, policy)),
       people.filter(p => p.state !== 'open'),
       projectLabelPrefix ?? 'project:',
       now,

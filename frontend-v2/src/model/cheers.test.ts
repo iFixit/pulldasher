@@ -556,6 +556,20 @@ describe('diffCheers — author-side toasts', () => {
       );
    });
 
+   it('pr-starving does not say nudge when nobody was asked', () => {
+      const key = 'org/a#6';
+      const p = pull('org/a', 6, { author: 'me', starved: true, ageDays: 5 });
+      const base = primed(sig({ authorPrs: new Map([[key, prState()]]) }));
+      const { toasts } = diffCheers(
+         sig({ authorPrs: new Map([[key, prState({ starved: true })]]), pulls: [p] }),
+         'me',
+         base
+      );
+      const t = toasts.find(x => x.dedupeKey === `starve:${key}`);
+      expect(t?.body).toMatch(/asking for a review/);
+      expect(t?.body).not.toMatch(/nudge/);
+   });
+
    it('does not fire for a brand-new PR that appears already green', () => {
       const key = 'org/a#5';
       const p = pull('org/a', 5, { author: 'me', status: 'ready' });
