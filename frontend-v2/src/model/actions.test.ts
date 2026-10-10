@@ -982,6 +982,18 @@ describe('review requests: asked of people, answered in hours', () => {
       expect(nobodysReview(p)).toBe(false);
    });
 
+   it("the author's own stale stamp keeps a PR open to input from others", () => {
+      // bob answered without a stamp; the author stamped, then pushed
+      const p = dp({
+         author: 'me',
+         status: 'needs_recr',
+         authorIsDeveloper: true,
+         recrBy: ['me'],
+         answeredBy: ['bob'],
+      });
+      expect(nobodysReview(p)).toBe(true);
+   });
+
    it('asked of someone else: theirs, so I just see who', () => {
       const p = dp({
          author: 'a',

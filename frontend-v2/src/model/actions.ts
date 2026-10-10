@@ -101,7 +101,7 @@ export const nobodysReview = (p: DerivedPull): boolean =>
    !askedOf(p).length &&
    !claimFor(p.data) &&
    // a reviewer who owes a re-stamp is somebody's review work
-   !p.recrBy.length;
+   !p.recrBy.some(l => l !== p.data.user.login);
 
 const INPUT_HINT_WORDS: Record<string, string> = {
    ci: 'CI',
