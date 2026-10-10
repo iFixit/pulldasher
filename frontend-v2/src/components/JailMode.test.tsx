@@ -292,4 +292,14 @@ describe('JailMode while the cell is down', () => {
       expect(dialog()).toBeNull();
       other.remove();
    });
+
+   it('a drop ends a drag even when the dragged row left the page', () => {
+      const row = document.createElement('div');
+      document.body.append(row);
+      row.dispatchEvent(new Event('dragstart', { bubbles: true }));
+      row.remove(); // moved to another lane: its dragend never reaches the page
+      document.body.dispatchEvent(new Event('drop', { bubbles: true }));
+      render(many(9));
+      expect(dialog()).not.toBeNull();
+   });
 });
