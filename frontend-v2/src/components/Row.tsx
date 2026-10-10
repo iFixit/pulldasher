@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import type { DerivedPull } from '../../../shared/model/status';
 import { isIterating, lastPushEpoch } from '../../../shared/model/status';
-import { askForInputHint, type Claim, rowNote } from '../model/actions';
+import { askedAgo, askForInputHint, askOverdue, type Claim, rowNote } from '../model/actions';
 import { matchedRegions } from '../model/regions';
 import { claimFor } from '../model/reviewers';
 import type { ParentRef } from '../model/stack';
@@ -180,6 +180,19 @@ function rowFlags(
                  detail: `Based on ${p.data.base.ref}, not the main branch; it lands with its parent.`,
               }
       );
+   }
+   // a review someone was asked for runs on hours, so its clock sits on the
+   // row, amber once nobody has answered in ASK_OVERDUE_HOURS
+   if (p.askedOf.length && ['needs_cr', 'needs_recr', 'needs_qa'].includes(p.status)) {
+      const team = (p.data.requested_teams ?? []).length ? ' (through a team request)' : '';
+      flags.push({
+         key: 'asked',
+         tone: askOverdue(p) ? 'warn' : 'note',
+         label: askedAgo(p) ?? 'review asked',
+         detail: `Review asked of ${p.askedOf.join(
+            ', '
+         )}${team}. Requests get an answer within hours.`,
+      });
    }
    if (p.mergeUnknown && p.status === 'ready')
       flags.push({
