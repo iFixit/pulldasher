@@ -316,8 +316,8 @@ function handleLabelEvents(body) {
  * Record one `review_requested` / `review_request_removed` webhook's
  * metadata onto the in-memory review_requests cache (models/pull.js) --
  * memory-only, no DB write. `body.requested_reviewer` is absent for a team
- * review request, which Pulldasher doesn't track per-reviewer, so that's a
- * no-op.
+ * review request, which isn't a per-reviewer clock (the team's slug rides on
+ * the pull payload's requested_teams, saved with the pull), so that's a no-op.
  */
 function recordReviewRequestMetadata(body) {
    const reviewer = body.requested_reviewer;

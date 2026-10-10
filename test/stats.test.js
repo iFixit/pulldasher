@@ -5,7 +5,9 @@ import assert from "node:assert/strict";
 // importing lib/db.js (transitively, via controllers/stats.js) doesn't blow
 // up at module-load time. Nothing here actually queries the DB — only the
 // pure reducer functions below are exercised.
+const db = (await import("../lib/db.js")).default;
 const {
+  queryFirstCrLatencies,
   firstCrByMonth,
   median,
   formatDate,
@@ -60,4 +62,15 @@ test("firstCrByMonth groups per-pull latencies into sorted monthly avg+median ro
 
 test("firstCrByMonth returns an empty array for no rows", () => {
   assert.deepEqual(firstCrByMonth([]), []);
+});
+
+test("first-review latency ignores the author's own CR stamp", async (t) => {
+  let sql;
+  t.mock.method(db, "query", async (q) => {
+    sql = q;
+    return [];
+  });
+  await queryFirstCrLatencies();
+  assert.match(sql, /s\.user <> o\.owner/);
+  assert.match(sql, /JOIN pulls o ON o\.repo = s\.repo AND o\.number = s\.number/);
 });
