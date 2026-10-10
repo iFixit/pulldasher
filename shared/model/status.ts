@@ -80,8 +80,21 @@ export interface DerivedPull {
    ageDays: number;
    /** epoch secs the last required sign-off landed; null until fully signed off */
    signedOffAt: number | null;
-   /** CR-incomplete past STARVE_DAYS — including half-reviewed and stale-CR rot */
+   /** CR-incomplete past STARVE_DAYS on a pull waiting on someone else's
+    * review (asked for, or from outside the dev team); a developer's own
+    * unrequested pull never starves, its review is the author's job */
    starved: boolean;
+   /** the self-review policy: a developer's pull with no review request (no
+    * person, no team, no claim). Its CR and QA are the author's own to do,
+    * and nobody else owes it anything */
+   ownReview: boolean;
+   /** logins asked to review it by the author's side: requested reviewers
+    * (claims excluded) plus every member of a requested roster team; never
+    * the author */
+   askedOf: string[];
+   /** epoch secs of the earliest open request in askedOf; null if none or
+    * unknown. Requests are answered in hours, so this clock drives the nudge */
+   askedAt: number | null;
    starveScore: number;
    weight: Weight;
    /** mergeable === false: shows as a flag everywhere, gates "ready" */
@@ -109,7 +122,7 @@ export interface DerivedPull {
 }
 
 export const WEIGHT_ORDER = ['XS', 'S', 'M', 'L', 'XL'] as const;
-export type Weight = (typeof WEIGHT_ORDER)[number];
+export type Weight = typeof WEIGHT_ORDER[number];
 const WEIGHT_RANK: Record<Weight, number> = WEIGHT_ORDER.reduce(
    (acc, w, i) => ({ ...acc, [w]: i }),
    {} as Record<Weight, number>
@@ -152,14 +165,15 @@ export const ROT_DAYS = 10;
 const activeUsers = (sigs: Signature[]) =>
    unique(sigs.filter(s => s.data.active).map(s => s.data.user.login));
 
-/** users with only invalidated stamps (no active one), excluding the author */
-const staleUsers = (sigs: Signature[], author: string) => {
+/** users with only invalidated stamps (no active one), the author included:
+ * under self-review an author's own stale stamp is a re-stamp they owe */
+const staleUsers = (sigs: Signature[]) => {
    const active = activeUsers(sigs);
    return unique(
       sigs
          .filter(s => !s.data.active)
          .map(s => s.data.user.login)
-         .filter(u => !active.includes(u) && u !== author)
+         .filter(u => !active.includes(u))
    );
 };
 
@@ -244,6 +258,34 @@ export function headPushedAt(pull: PullData): number | null {
 export const crDone = (p: { crHave: number; data: PullData }) => p.crHave >= p.data.status.cr_req;
 export const qaDone = (p: { qaHave: number; data: PullData }) => p.qaHave >= p.data.status.qa_req;
 
+/** Who counts as a developer, and the roster teams a GitHub team request
+ * resolves through. Built once from config projects.developerTeams. */
+export interface ReviewPolicy {
+   /** developer logins (lowercased); empty means everyone is a developer */
+   developers: ReadonlySet<string>;
+   /** roster team name, lowercased and slugged like GitHub's ("Store
+    * Front" -> "store-front"), to its logins */
+   teams: ReadonlyMap<string, string[]>;
+}
+
+const slug = (name: string) => name.trim().toLowerCase().replace(/\s+/g, '-');
+
+export function reviewPolicy(developerTeams?: Record<string, string[]> | null): ReviewPolicy {
+   const teams = new Map<string, string[]>();
+   const developers = new Set<string>();
+   for (const [name, logins] of Object.entries(developerTeams ?? {})) {
+      if (!Array.isArray(logins)) continue;
+      teams.set(slug(name), logins);
+      logins.forEach(l => developers.add(l.toLowerCase()));
+   }
+   return { developers, teams };
+}
+
+const EVERYONE_DEVELOPS: ReviewPolicy = { developers: new Set(), teams: new Map() };
+
+export const isDeveloper = (policy: ReviewPolicy, login: string) =>
+   !policy.developers.size || policy.developers.has(login.toLowerCase());
+
 export function derive(
    pull: PullData,
    spec: RepoSpec | undefined,
@@ -254,7 +296,9 @@ export function derive(
    /** label title → weight bucket, from config.json's `weightLabels`. A
     * matching label is the authoritative review-effort signal and overrides
     * the diff-size heuristic; empty map keeps the heuristic. */
-   weightLabels: ReadonlyMap<string, Weight> = new Map()
+   weightLabels: ReadonlyMap<string, Weight> = new Map(),
+   /** who's a developer and what a team request means (reviewPolicy) */
+   policy: ReviewPolicy = EVERYONE_DEVELOPS
 ): DerivedPull {
    const st = pull.status;
    const crBy = activeUsers(st.allCR);
@@ -263,8 +307,30 @@ export function derive(
    const qaHave = qaBy.length;
    const ci = ciVerdict(pull, spec);
 
-   const staleCr = staleUsers(st.allCR, pull.user.login);
-   const staleQa = staleUsers(st.allQA, pull.user.login);
+   const author = pull.user.login;
+   // the author's own stamp goes stale on a push like anyone's, and under
+   // self-review it's the author who owes the re-stamp
+   const staleCr = staleUsers(st.allCR);
+   const staleQa = staleUsers(st.allQA);
+
+   // who the author's side asked: people (not claims, which are a reviewer
+   // volunteering) and every member of a requested roster team
+   const claims = new Set((pull.review_requests ?? []).filter(r => r.self).map(r => r.login));
+   const requestedTeams = pull.requested_teams ?? [];
+   const askedOf = unique([
+      ...(pull.requested_reviewers ?? []).filter(l => !claims.has(l)),
+      ...requestedTeams.flatMap(t => policy.teams.get(t.toLowerCase()) ?? []),
+   ]).filter(l => l !== author);
+   const askedAt =
+      Math.min(
+         ...(pull.review_requests ?? [])
+            .filter(r => !r.self && r.at != null && askedOf.includes(r.login))
+            .map(r => r.at as number)
+      ) || null;
+   const ownReview =
+      isDeveloper(policy, author) &&
+      !(pull.requested_reviewers ?? []).length &&
+      !requestedTeams.length;
 
    // a lifted block deactivates its signature, same as a stale CR stamp
    const devBlockedBy = activeUsers(st.dev_block);
@@ -332,7 +398,8 @@ export function derive(
    // Rot is rot whether the pull has zero stamps, one of two, or a stale one
    // waiting on a re-stamp — the old `crHave === 0` cliff hid half-reviewed
    // pulls from the aging lane forever.
-   const starved = !isParked && CR_INCOMPLETE.includes(status) && !crMet && ageDays >= warnDays;
+   const starved =
+      !isParked && !ownReview && CR_INCOMPLETE.includes(status) && !crMet && ageDays >= warnDays;
 
    const signedOffAt =
       crMet && qaMet
@@ -373,6 +440,9 @@ export function derive(
       cryo: isParked,
       changesRequestedBy,
       engagedNoStamp,
+      ownReview,
+      askedOf,
+      askedAt: Number.isFinite(askedAt) ? askedAt : null,
    };
 }
 

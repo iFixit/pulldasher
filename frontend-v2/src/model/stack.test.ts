@@ -78,6 +78,9 @@ function dp(
       cryo: false,
       changesRequestedBy: [],
       engagedNoStamp: [],
+      ownReview: false,
+      askedOf: [],
+      askedAt: null,
    };
 }
 
