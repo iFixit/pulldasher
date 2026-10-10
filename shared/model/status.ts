@@ -266,11 +266,17 @@ export interface ReviewPolicy {
    /** roster team name, lowercased and slugged like GitHub's ("Store
     * Front" -> "store-front"), to its logins */
    teams: ReadonlyMap<string, string[]>;
+   /** config `bots` beyond the `[bot]` suffix: never developers, so their
+    * PRs still need someone else's review */
+   bots: ReadonlySet<string>;
 }
 
 const slug = (name: string) => name.trim().toLowerCase().replace(/\s+/g, '-');
 
-export function reviewPolicy(developerTeams?: Record<string, string[]> | null): ReviewPolicy {
+export function reviewPolicy(
+   developerTeams?: Record<string, string[]> | null,
+   bots: readonly string[] = []
+): ReviewPolicy {
    const teams = new Map<string, string[]>();
    const developers = new Set<string>();
    for (const [name, logins] of Object.entries(developerTeams ?? {})) {
@@ -278,13 +284,16 @@ export function reviewPolicy(developerTeams?: Record<string, string[]> | null): 
       teams.set(slug(name), logins);
       logins.forEach(l => developers.add(l.toLowerCase()));
    }
-   return { developers, teams };
+   return { developers, teams, bots: new Set(bots.map(b => b.toLowerCase())) };
 }
 
-const EVERYONE_DEVELOPS: ReviewPolicy = { developers: new Set(), teams: new Map() };
+const EVERYONE_DEVELOPS: ReviewPolicy = reviewPolicy();
 
+/** a bot never reviews its own PRs, whatever the roster says */
 export const isDeveloper = (policy: ReviewPolicy, login: string) =>
-   !policy.developers.size || policy.developers.has(login.toLowerCase());
+   !isSuffixBot(login) &&
+   !policy.bots.has(login.toLowerCase()) &&
+   (!policy.developers.size || policy.developers.has(login.toLowerCase()));
 
 export function derive(
    pull: PullData,
