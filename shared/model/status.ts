@@ -333,7 +333,9 @@ export function derive(
    const claims = new Set((pull.review_requests ?? []).filter(r => r.self).map(r => r.login));
    const requestedTeams = pull.requested_teams ?? [];
    // a team the roster doesn't name (say @iFixit/coders, the whole dev
-   // team) asks every developer on the roster
+   // team) asks every developer on the roster. With no roster there's
+   // nobody to name, so a team request asks nobody in particular: it shows
+   // under Could use your input, and team requests need a roster to route.
    const everyone = [...policy.teams.values()].flat();
    const teamOf = new Map<string, string>();
    for (const t of requestedTeams)
