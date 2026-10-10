@@ -226,4 +226,26 @@ describe('JailMode while the cell is down', () => {
       act(() => window.dispatchEvent(new Event('pd2:preview-jail')));
       expect(dialog()).not.toBeNull();
    });
+
+   it('a quick Space tap is not a lone click, even where the browser clicks on keyup', () => {
+      render(many(8));
+      const hold = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
+         b => b.textContent?.includes('Hold to get back to work')
+      );
+      act(() => {
+         hold?.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+         hold?.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', bubbles: true }));
+         // Firefox's keyup click, with no pointer behind it
+         hold?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }));
+      });
+      expect(dialog()).not.toBeNull();
+   });
+
+   it('keeps the last showing while it doesn’t know who you are', () => {
+      localStorage.setItem('pd2.jail', JSON.stringify({ at: Date.now(), count: 9, over: [] }));
+      const r = (root ??= createRoot(host));
+      act(() => r.render(<JailMode pulls={many(9)} me="" extraBots={new Set()} initialized />));
+      expect(localStorage.getItem('pd2.jail')).not.toBeNull();
+      expect(dialog()).toBeNull();
+   });
 });
