@@ -134,9 +134,14 @@ function liveBackend(): Backend {
       );
    };
 
+   // how many board snapshots this socket has had: the first is the connect,
+   // every later one a reconnect. Counted here, before any subscriber, since
+   // subscribers often start only after the first one arrived.
+   let snapshots = 0;
    const getSocket = () => {
       if (socket) return socket;
       socket = io();
+      socket.on('initialize', () => snapshots++);
       socket.on('connect', () => {
          clearAuthRetry();
          authenticate();
@@ -174,11 +179,10 @@ function liveBackend(): Backend {
       onProjectsChanged(handler) {
          const s = getSocket();
          // a change sent while the socket was down is never replayed, so a
-         // reconnect (every initialize after the first) fetches again
-         let seen = false;
+         // reconnect (any snapshot after the first, counted socket-wide)
+         // fetches again, even for a subscriber that started after the first
          const reconnected = () => {
-            if (seen) handler();
-            seen = true;
+            if (snapshots > 1) handler();
          };
          s.on('projectsChanged', handler);
          s.on('initialize', reconnected);
