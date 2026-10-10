@@ -58,10 +58,12 @@ function getReviewRequests(repo, number, requestedReviewerLogins) {
       const entry = known && known.get(login);
       return entry ? { login, at: entry.at, self: entry.self } : { login, at: null, self: false };
    });
-   // requests GitHub has since cleared because the reviewer answered; a
-   // re-request puts the login back in `open`, which supersedes the old answer
+   // requests GitHub has since cleared because the reviewer answered (no pull
+   // update says so, so a cached entry still marked unanswered is one too); a
+   // re-request puts the login back in `open`, which supersedes the old answer,
+   // and a withdrawal deletes its entry
    const answered = [...(known?.entries() ?? [])]
-      .filter(([login, e]) => e.answered && !open.has(login))
+      .filter(([login]) => !open.has(login))
       .map(([login, e]) => ({ login, at: e.at, self: e.self, answered: true }));
    return [...current, ...answered];
 }

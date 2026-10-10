@@ -503,6 +503,29 @@ describe('the self-review policy', () => {
       expect(d.askedOf).toEqual([]);
    });
 
+   it('an answered request from someone off the roster no longer holds the pull', () => {
+      // bob asked, reviewed, then left the roster (or was a bot like Copilot)
+      const roster = reviewPolicy({ Devs: ['author', 'alice'] });
+      const p = withStatus(
+         { allCR: [sig('CR', 'bob', false)] },
+         { review_requests: [{ login: 'bob', at: NOW - 86400, self: false, answered: true }] }
+      );
+      const d = derive(p, undefined, NOW, undefined, undefined, roster);
+      expect(d.ownReview).toBe(true);
+      expect(d.recrBy).toEqual([]);
+      // a developer's answered request still does
+      const kept = reviewPolicy({ Devs: ['author', 'bob'] });
+      const k = derive(p, undefined, NOW, undefined, undefined, kept);
+      expect(k.ownReview).toBe(false);
+      expect(k.recrBy).toEqual(['bob']);
+      const bot = withStatus(
+         { allCR: [sig('CR', 'Copilot', false)] },
+         { review_requests: [{ login: 'Copilot', at: 1, self: false, answered: true }] }
+      );
+      const botPolicy = reviewPolicy(undefined, ['Copilot']);
+      expect(derive(bot, undefined, NOW, undefined, undefined, botPolicy).ownReview).toBe(true);
+   });
+
    it("a fresh unrequested pull with no answered request is still the author's own", () => {
       expect(derive(pull(), undefined, NOW).ownReview).toBe(true);
    });

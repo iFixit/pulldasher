@@ -365,8 +365,15 @@ export function derive(
       !(pull.requested_reviewers ?? []).length &&
       !requestedTeams.length &&
       // GitHub clears a request once the reviewer reviews; that request was
-      // still made, so the PR isn't self-review after a push
-      !(pull.review_requests ?? []).some(r => r.answered);
+      // still made, so the PR isn't self-review after a push. Only a developer
+      // counts: a reviewer who left the roster, or a bot, doesn't hold it.
+      !(pull.review_requests ?? []).some(r => r.answered && isDeveloper(policy, r.login));
+   // an answered reviewer off the roster owes no re-stamp either
+   const offRoster = new Set(
+      (pull.review_requests ?? [])
+         .filter(r => r.answered && !isDeveloper(policy, r.login))
+         .map(r => r.login)
+   );
 
    // a lifted block deactivates its signature, same as a stale CR stamp
    const devBlockedBy = activeUsers(st.dev_block);
@@ -411,7 +418,9 @@ export function derive(
    // on a self-reviewed pull only the author owes a re-stamp: anyone else's
    // stamp there was a favor nobody asked for, so a push doesn't put them
    // on the hook
-   const owedCr = ownReview ? staleCr.filter(u => u === author) : staleCr;
+   const owedCr = ownReview
+      ? staleCr.filter(u => u === author)
+      : staleCr.filter(u => !offRoster.has(u));
    const owedQa = ownReview ? staleQa.filter(u => u === author) : staleQa;
 
    let status: Status;

@@ -96,7 +96,12 @@ export function qaIsMine(p: DerivedPull, me: string): boolean {
 /** Requested of a team nobody on the roster is in, or of people who have all
  * answered: nobody's review work, but worth showing to anyone who might help. */
 export const nobodysReview = (p: DerivedPull): boolean =>
-   p.authorIsDeveloper && hasRequest(p) && !askedOf(p).length && !claimFor(p.data);
+   p.authorIsDeveloper &&
+   hasRequest(p) &&
+   !askedOf(p).length &&
+   !claimFor(p.data) &&
+   // a reviewer who owes a re-stamp is somebody's review work
+   !p.recrBy.length;
 
 const INPUT_HINT_WORDS: Record<string, string> = {
    ci: 'CI',
@@ -287,6 +292,10 @@ function authorNote(p: DerivedPull, me: string): RowNote {
    // a team request that names nobody on the roster: nobody to nudge, so wait
    if (d.requested_teams?.length)
       return waitOnly(`waiting on a review from ${andList(d.requested_teams)}`);
+   // a push undid a reviewer's stamp: the re-stamp is theirs, not the author's
+   // to give (their own re-stamp under self-review is the Stamp CR below)
+   if (p.status === 'needs_recr' && p.recrBy.some(l => l !== d.user.login))
+      return waitOnly(`waiting on ${who(p.recrBy)} to re-stamp${pushed}`);
    if (authorIsDev)
       return { action: 'Stamp CR', context: 'review it yourself, or request a review' };
    // outside the dev team: someone else reviews it, nobody's been asked yet

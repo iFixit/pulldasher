@@ -31,6 +31,8 @@ function dp(o: {
    askedAt?: number | null;
    /** a claim: who said they'd review it (review_requests self === true) */
    claimedBy?: { login: string; at: number | null };
+   /** people asked whose request GitHub has since cleared (they reviewed) */
+   answeredBy?: string[];
    inputHints?: string[];
    requestedTeams?: string[];
    author?: string;
@@ -66,7 +68,15 @@ function dp(o: {
             qa_req: o.qaReq ?? 1,
             unstamped_reviewers: o.unstampedReviewers,
          },
-         review_requests: o.claimedBy ? [{ ...o.claimedBy, self: true }] : [],
+         review_requests: [
+            ...(o.claimedBy ? [{ ...o.claimedBy, self: true }] : []),
+            ...(o.answeredBy ?? []).map(login => ({
+               login,
+               at: null,
+               self: false,
+               answered: true,
+            })),
+         ],
          input_hints: o.inputHints,
          requested_teams: o.requestedTeams,
       },
@@ -954,6 +964,22 @@ describe('review requests: asked of people, answered in hours', () => {
          action: 'Review it',
          context: 'review requested',
       });
+   });
+
+   it('the author waits on the reviewer who owes a re-stamp, and nobody else is invited in', () => {
+      const p = dp({
+         author: 'me',
+         status: 'needs_recr',
+         authorIsDeveloper: true,
+         recrBy: ['bob'],
+         answeredBy: ['bob'],
+         headPushedAt: hoursAgo(2),
+      });
+      expect(rowNote(p, 'me')).toEqual({
+         action: null,
+         context: 'waiting on bob to re-stamp · last commit 2h ago',
+      });
+      expect(nobodysReview(p)).toBe(false);
    });
 
    it('asked of someone else: theirs, so I just see who', () => {
