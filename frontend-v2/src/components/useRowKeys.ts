@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { modalOpen } from '../hooks';
 
 /**
  * j and k move between a list's rows, the way they move between PRs on the
@@ -26,6 +27,8 @@ export function useRowKeys(row: string, target: string) {
       };
       const onKey = (e: KeyboardEvent) => {
          if ((e.key !== 'j' && e.key !== 'k') || e.metaKey || e.ctrlKey || e.altKey) return;
+         // a modal dialog is open: rows behind it are out of reach
+         if (modalOpen()) return;
          const t = e.target as HTMLElement;
          if (['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName) || t.isContentEditable) return;
          // drawn rows only: one in a closed fold has no box to land on

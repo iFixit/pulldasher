@@ -211,13 +211,37 @@ describe('JailMode while the cell is down', () => {
       expect(dialog()).not.toBeNull();
    });
 
-   it('forgets the last showing once you are under the limits', () => {
+   it('zeroes the last showing once you are under the limits, but keeps its time', () => {
       vi.useFakeTimers();
       const nine = many(9);
       render(nine);
-      expect(localStorage.getItem('pd2.jail')).not.toBeNull();
+      const shownAt = JSON.parse(localStorage.getItem('pd2.jail') ?? 'null').at;
       render(nine.slice(0, 3));
-      expect(localStorage.getItem('pd2.jail')).toBeNull();
+      expect(JSON.parse(localStorage.getItem('pd2.jail') ?? 'null')).toEqual({
+         at: shownAt,
+         count: 0,
+         over: [],
+      });
+   });
+
+   it('going back over within 4 hours waits out the rest of them', () => {
+      const nine = many(9);
+      render(nine);
+      act(() =>
+         document
+            .querySelector<HTMLButtonElement>('[data-hold]')
+            ?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }))
+      );
+      expect(dialog()).toBeNull();
+      render(nine.slice(0, 3)); // under: the record zeroes
+      render([...nine, pull()]); // over again, minutes later
+      expect(dialog()).toBeNull();
+   });
+
+   it('board hotkeys stand down while it is open', async () => {
+      const { modalOpen } = await import('../hooks');
+      render(many(8));
+      expect(modalOpen()).toBe(true);
    });
 
    it('opens the preview every time Settings asks', () => {
