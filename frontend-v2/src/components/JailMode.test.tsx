@@ -12,8 +12,12 @@ import { JailMode } from './JailMode';
 
 let n = 0;
 /** One of my open PRs, run through the real derive; `ready` waives CR and
- * QA so it can merge now, otherwise it waits on CR. */
-const pull = (ageDays = 1, { ready = false } = {}): DerivedPull => {
+ * QA so it can merge now, otherwise it needs CR: my own to stamp (self-review),
+ * or `asked`'s, whom I requested a review from an hour ago. */
+const pull = (
+   ageDays = 1,
+   { ready = false, asked = [] as string[], hints = [] as string[] } = {}
+): DerivedPull => {
    n += 1;
    const at = new Date(Date.now() - ageDays * 86400_000 - 60_000).toISOString();
    const data: PullData = {
@@ -47,6 +51,9 @@ const pull = (ageDays = 1, { ready = false } = {}): DerivedPull => {
       },
       labels: [],
       participants: [],
+      requested_reviewers: asked,
+      review_requests: asked.map(login => ({ login, at: Date.now() / 1000 - 3600, self: false })),
+      input_hints: hints,
    };
    return derive(data, undefined);
 };
@@ -101,7 +108,8 @@ describe('JailMode while the cell is down', () => {
    it('lifts ready PRs to the top and counts them in the why line', () => {
       const ready = pull(2, { ready: true });
       render([...many(7), ready]);
-      expect(headers()).toEqual(['Ready to merge', 'Waiting on others']);
+      // the rest are mine to stamp under self-review
+      expect(headers()).toEqual(['Ready to merge', 'Your move']);
       expect(document.querySelector('[role="dialog"] li a')?.textContent).toContain(
          ready.data.title
       );
@@ -164,20 +172,38 @@ describe('JailMode while the cell is down', () => {
       expect(listed()).toBe(8);
    });
 
-   it('copies a nudge listing the PRs waiting on others', async () => {
+   it('copies a nudge listing only the PRs waiting on people I asked, naming them', async () => {
       const writeText = vi.fn(() => Promise.resolve());
       Object.assign(navigator, { clipboard: { writeText } });
-      const first = pull(3);
-      render([first, ...many(7)]);
+      const first = pull(3, { asked: ['bob'] });
+      const second = pull(2, { asked: ['cy', 'dee'] });
+      render([first, second, ...many(6)]);
+      expect(headers()).toEqual(['Your move', 'Waiting on others']);
       const copy = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
          b => b.textContent === 'Copy a nudge'
       );
       await act(async () => copy?.click());
       const text = (writeText.mock.calls[0] as unknown as [string])[0];
-      expect(text.split('\n')).toHaveLength(9);
+      expect(text.split('\n')).toHaveLength(3);
       expect(text).toContain(
-         `• ${first.data.title} https://github.com/iFixit/ifixit/pull/${first.data.number}`
+         `• ${first.data.title} https://github.com/iFixit/ifixit/pull/${first.data.number} (bob)`
       );
+      expect(text).toContain(`(cy, dee)`);
       expect(copy?.textContent).toBe('Copied');
+   });
+
+   it('offers no nudge when I asked nobody: a self-review waits on no one', () => {
+      render(many(8));
+      const copy = [...document.querySelectorAll('[role="dialog"] button')].find(
+         b => b.textContent === 'Copy a nudge'
+      );
+      expect(copy).toBeUndefined();
+   });
+
+   it('hints when a self-reviewed PR touches what usually deserves team input', () => {
+      render([pull(1, { hints: ['ci', 'migrations'] }), ...many(7)]);
+      expect(dialog()?.textContent).toContain(
+         'touches CI and migrations · worth asking for review?'
+      );
    });
 });

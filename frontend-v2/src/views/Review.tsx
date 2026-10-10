@@ -1,5 +1,6 @@
 import type { DerivedPull } from '../../../shared/model/status';
 import { pullKey, shortRepo } from '../../../shared/format';
+import { reviewIsMine } from '../model/actions';
 import { useNames } from '../model/names';
 import { matchedRegions } from '../model/regions';
 import { buildReviewLanes } from '../model/reviewLanes';
@@ -47,7 +48,7 @@ export function Review({
    standing?: PullStanding;
 }) {
    const me = opts.me;
-   const { selfReview, teams, codeRegions, repoPriority, repoQueueCap } = useSettings();
+   const { teams, codeRegions, repoPriority, repoQueueCap } = useSettings();
    // login -> human display name (app.tsx prefetches the board), for the
    // rank-reason popover's why-lines (model/reviewLanes.ts's whyUpNext/whyQaNext)
    const names = useNames();
@@ -72,14 +73,15 @@ export function Review({
    const bots = allBots.filter(p => !isSnoozed(p.data, snoozed));
    const botsForReady = allBotsForReady.filter(p => !isSnoozed(p.data, snoozed));
 
-   // Recently updated: your review work that moved recently, newest first.
-   // Bounded two ways so a quiet board stops resurfacing stale bumps — since
-   // you last hit Clear (isFresh) AND within the last RECENT_MAX_AGE_DAYS.
-   // Already-done and non-reviewable pulls drop out: a PR you hold a live CR
-   // stamp on is finished for you, and others' drafts or dev-blocked PRs
-   // aren't yours to act on. Your own PRs always stay; activity on them is
-   // worth seeing. A pull can still live in a lane below; this is a highlight,
-   // not an exclusive bucket, and only Clear empties it.
+   // Recently updated: your PRs and your review work that moved recently,
+   // newest first. Bounded two ways so a quiet board stops resurfacing stale
+   // bumps — since you last hit Clear (isFresh) AND within the last
+   // RECENT_MAX_AGE_DAYS. Someone else's PR is here only while its review is
+   // yours (reviewIsMine: asked of you, taken on, or nobody's on it), so
+   // other people's self-reviews don't stream past; one you hold a live CR
+   // stamp on is finished for you, and drafts or dev-blocked PRs aren't
+   // yours to act on. A pull can still live in a lane below; this is a
+   // highlight, not an exclusive bucket, and only Clear empties it.
    const RECENT_MAX_AGE_DAYS = 3;
    const recentCutoff = Date.now() - RECENT_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
    const changed = pulls
@@ -88,7 +90,10 @@ export function Review({
       .filter(
          p =>
             p.data.user.login === me ||
-            (!p.data.draft && p.status !== 'dev_block' && !p.crBy.includes(me))
+            (reviewIsMine(p, me) &&
+               !p.data.draft &&
+               p.status !== 'dev_block' &&
+               !p.crBy.includes(me))
       )
       .sort((a, b) => Date.parse(b.data.updated_at) - Date.parse(a.data.updated_at));
 
@@ -100,7 +105,6 @@ export function Review({
       napping,
       changed,
       me,
-      selfReview,
       teams,
       codeRegions,
       repoPriority,
@@ -136,22 +140,20 @@ export function Review({
       <>
          {codeRegions.length === 0 && <RegionHint />}
          {/* Leads the whole lens (owner call): fully finished work — signed
-             off, green, one press from shipped — is the fastest, highest-
-             leverage thing on the board, so clearing it comes before even your
-             own owed work below. Your OWN ready PR still also appears in
-             "Waiting on you" as a Merge-it; this lane is everyone else's done
-             work, landable by anyone. */}
+             off, green, one press from shipped. Your OWN ready PR appears in
+             "Waiting on you" as a Merge-it; this lane is everyone else's,
+             which their authors merge. */}
          <Lane
             title="Ready to merge"
             sub={
                <SubDoor
                   label="Why Ready to merge leads"
-                  text="signed off and green, someone just has to press merge"
+                  text="signed off and green, each author merges their own"
                >
                   <p>
                      Everything is done on these: code review and QA are in, CI is green, and they
-                     merge cleanly. The author usually lands their own PR, but anyone can. Merge it,
-                     or nudge the author if it’s been sitting.
+                     merge cleanly. Their authors merge them; it’s here so you can see what’s about
+                     to ship.
                   </p>
                   <p>
                      Bot PRs land here too once they’re fully green: they only ship when a human
@@ -179,15 +181,14 @@ export function Review({
                         If it’s in this lane, nothing happens until you act:
                      </p>
                      <p>
-                        PRs you approved that changed after your approval (they need a fresh
-                        re-stamp from you), feedback that needs your reply, your own PRs ready to
-                        merge, fix, or rebase, PRs someone asked you to review, and reviews you
-                        claimed.
+                        PRs someone asked you to review, first: answer those within hours. Then
+                        stamps of yours that a push undid, reviews you said you’d do, feedback that
+                        needs your reply, and your own PRs to stamp, merge, fix, or rebase.
                      </p>
                      <p>
-                        Each group is named for the action you’d take (Re-stamp, Respond, Merge…).
-                        The kinds of action that unblock other people come first; inside a group,
-                        the PR that has been open the longest comes first.
+                        Each group is named for the action you’d take (Review, Re-stamp, Merge…).
+                        Review requests run oldest request first; inside every other group, the PR
+                        that has been open the longest comes first.
                      </p>
                      {projectRule(
                         'A parked project’s PRs sink to the bottom of their group',
@@ -213,16 +214,16 @@ export function Review({
                sub={
                   <SubDoor
                      label="What lands in Waiting on others"
-                     text="your PRs and stamps, in someone else's hands"
+                     text="your PRs, in someone else's hands"
                   >
                      <p className="font-medium text-ink">Nothing here needs you right now:</p>
                      <p>
-                        your own PRs waiting on a review, QA, or CI, plus PRs you’ve already stamped
-                        that are still waiting on another reviewer.
+                        your own PRs waiting on people you asked for a review, on CI, or on a hold.
+                        A request nobody answers in 4 hours moves up to Waiting on you as a nudge.
                      </p>
                      <p>
-                        Each group is named for what the PR is waiting on (a review, a tester, CI, a
-                        re-stamp), so you can see where everything of yours is stuck.
+                        Each group is named for what the PR is waiting on, so you can see where
+                        everything of yours is stuck.
                      </p>
                   </SubDoor>
                }
@@ -243,19 +244,20 @@ export function Review({
             sub={
                <SubDoor
                   label="What lands in Recently updated"
-                  text={`PRs you can still act on that changed in the last ${RECENT_MAX_AGE_DAYS} days`}
+                  text={`your PRs and reviews that changed in the last ${RECENT_MAX_AGE_DAYS} days`}
                >
                   <p>
                      A PR shows up here when it changed since you last hit Clear, and that change
                      was in the last {RECENT_MAX_AGE_DAYS} days. Newest first.
                   </p>
                   <p>
-                     PRs you’ve already code reviewed drop out, along with other people’s drafts and
-                     dev-blocked PRs. Your own PRs always stay.
+                     Your own PRs always stay. Someone else’s shows up only while its review is
+                     yours: asked of you, one you said you’d review, or one from outside the dev
+                     team. It drops out once you’ve code reviewed it.
                   </p>
                   <p>
-                     The review queue below is a different list: it ranks other people’s PRs that
-                     need a review, whether or not anything changed.
+                     The review queue below is a different list: it ranks the reviews that are
+                     yours, whether or not anything changed.
                   </p>
                </SubDoor>
             }
@@ -273,38 +275,8 @@ export function Review({
          {/* below here is offered work, not owed work — the board's suggestion
              for what to pick up next, as distinct from "Waiting on you" above. The
              label only earns its place when something is actually on offer. */}
-         {(lanes.queue.length > 0 ||
-            lanes.needsQa.length > 0 ||
-            lanes.regionMatches.length > 0) && (
+         {(lanes.queue.length > 0 || lanes.needsQa.length > 0) && (
             <div className={`mb-2 text-ink-3 ${eyebrowText}`}>Pick up next</div>
-         )}
-         {codeRegions.length > 0 && lanes.regionMatches.length > 0 && (
-            <Lane
-               title="In your code regions"
-               sub={
-                  <SubDoor label="How code regions match" text="areas you flagged in Settings">
-                     <p>
-                        A PR lands here when its title, description, labels, branch, or repo
-                        contains one of your regions. Plain text, case-insensitive, no regex.
-                     </p>
-                  </SubDoor>
-               }
-               pulls={lanes.regionMatches}
-               cap={8}
-               opts={{
-                  ...opts,
-                  // the lane heading already says "this is your region," so
-                  // the row-level region mark would just repeat it
-                  hideRegionMark: true,
-                  rankReason: p => {
-                     const r = matchedRegions(p, codeRegions);
-                     return lanes.whyProject(
-                        p,
-                        r.length ? `It touches ${r.join(', ')}, a code region you flagged` : null
-                     );
-                  },
-               }}
-            />
          )}
          {repoPriority.length > 0 ? (
             // the owner's priority-and-cap model: contiguous per-repo blocks in
@@ -318,8 +290,13 @@ export function Review({
                sub={
                   <SubDoor
                      label="How the queue is ranked"
-                     text="your repos in your order, best first"
+                     text="reviews that are yours, your repos in your order"
                   >
+                     <p>
+                        Developers review their own PRs unless they ask, so this holds only reviews
+                        that are yours: asked of you, ones you said you’d do, and PRs from outside
+                        the dev team that nobody’s on yet.
+                     </p>
                      <p className="font-medium text-ink">
                         Repos appear as blocks in your repo order (Settings), each showing its best
                         few:
@@ -329,19 +306,19 @@ export function Review({
                         blocks entirely; they lead the lane whatever repo they’re from.
                      </p>
                      <p>
-                        Inside a block: your team’s PRs first, then repos you’ve reviewed before,
-                        people who review your work, and small quick wins, lightest first. Bot PRs
-                        sink to each block’s bottom. The per-repo cap folds the rest behind “+N
-                        more” so one busy repo can’t take the whole screen.
+                        Inside a block: your team’s PRs first, then repos you’ve reviewed before and
+                        small quick wins, lightest first. Bot PRs sink to each block’s bottom. The
+                        per-repo cap folds the rest behind “+N more” so one busy repo can’t take the
+                        whole screen.
                      </p>
                      {projectRule(
                         'A parked project’s PRs sink below everyone else’s, above the bot PRs',
                         'When two PRs rank the same with age in whole days'
                      )}
-                     <p>PRs you claim stay in the queue and also appear in Waiting on you.</p>
                      <p>
-                        Starving PRs and PRs in your code regions still show up in their repo block
-                        below; the call-outs above are copies, not removals.
+                        PRs you said you’d review stay in the queue and also appear in Waiting on
+                        you. Starving PRs still show up in their repo block below; the call-out
+                        above is a copy, not a removal.
                      </p>
                   </SubDoor>
                }
@@ -353,7 +330,9 @@ export function Review({
                   count={lanes.queueStarved.length}
                   label="Starving"
                   tone="do"
-                  gloss={`Waited ${opts.ageWarnDays ?? 4}+ days for review; these outrank your repo order.`}
+                  gloss={`Waited ${
+                     opts.ageWarnDays ?? 4
+                  }+ days for review; these outrank your repo order.`}
                   id="review:queue:starving"
                   defaultOpen
                >
@@ -364,7 +343,9 @@ export function Review({
                      key={b.repo}
                      count={b.pulls.length}
                      label={shortRepo(b.repo)}
-                     gloss={`${shortRepo(b.repo)}’s reviewable PRs, best first; your repo order (Settings) decides where the block sits.`}
+                     gloss={`${shortRepo(
+                        b.repo
+                     )}’s reviewable PRs, best first; your repo order (Settings) decides where the block sits.`}
                      id={`review:queue:${b.repo}`}
                      defaultOpen
                   >
@@ -382,7 +363,15 @@ export function Review({
             <Lane
                title="Review queue"
                sub={
-                  <SubDoor label="How the queue is ranked" text="one queue, best next review first">
+                  <SubDoor
+                     label="How the queue is ranked"
+                     text="reviews that are yours, best first"
+                  >
+                     <p>
+                        Developers review their own PRs unless they ask, so this holds only reviews
+                        that are yours: asked of you, ones you said you’d do, and PRs from outside
+                        the dev team that nobody’s on yet.
+                     </p>
                      <p className="font-medium text-ink">One score ranks every card:</p>
                      <p>
                         PRs that have waited {opts.ageWarnDays ?? 4}+ days for review jump to the
@@ -394,18 +383,16 @@ export function Review({
                         is no extra ranking between teammates.
                      </p>
                      <p>
-                        After those: PRs in repos you’ve reviewed before, PRs from people who review
-                        your work, and small quick wins, lightest first. Bot PRs (dependency bumps)
-                        sink to the bottom.
+                        After those: PRs in repos you’ve reviewed before and small quick wins,
+                        lightest first. Bot PRs (dependency bumps) sink to the bottom.
                      </p>
                      {projectRule(
                         'A parked project’s PRs sink below everyone else’s, above the bot PRs',
                         'When two PRs rank the same with age in whole days'
                      )}
-                     <p>PRs you claim stay in the queue and also appear in Waiting on you.</p>
                      <p>
-                        PRs in your code regions still show up in the queue below; the call-out
-                        above is a copy, not a removal.
+                        PRs you said you’d review stay in the queue and also appear in Waiting on
+                        you.
                      </p>
                   </SubDoor>
                }
@@ -423,7 +410,8 @@ export function Review({
                >
                   <p>
                      QA runs in parallel with CR, so a pull can sit here and in the review queue at
-                     once.
+                     once. Like the queue, it holds only QA that’s yours: a self-reviewed PR’s
+                     author tests it.
                   </p>
                   <p>
                      Anything QA-incomplete with green CI lands here, unless it’s a draft, blocked,
@@ -440,12 +428,44 @@ export function Review({
             cap={6}
             opts={{ ...opts, rankReason: lanes.whyQaNext }}
          />
+         {/* an offer, not a debt: folded, uncounted, and outside the deal */}
+         {lanes.couldUseInput.length > 0 && (
+            <RestGroup
+               title="Could use your input"
+               sub="Nobody asked, but these touch your areas. Add yourself as a reviewer if you jump in."
+            >
+               <Fold
+                  count={lanes.couldUseInput.length}
+                  showCount={false}
+                  label="Self-reviews in your areas"
+                  gloss="Their authors review these themselves. Your code regions first, then repos you’ve reviewed in."
+                  id="review:could-use-input"
+               >
+                  <FoldRows
+                     list={lanes.couldUseInput}
+                     opts={{
+                        ...opts,
+                        rankReason: p => {
+                           const r = matchedRegions(p, codeRegions);
+                           return lanes.whyProject(
+                              p,
+                              r.length
+                                 ? `It touches ${r.join(', ')}, a code region you flagged`
+                                 : `In ${shortRepo(p.data.repo)}, where you’ve reviewed before`
+                           );
+                        },
+                     }}
+                     id="review:could-use-input"
+                  />
+               </Fold>
+            </RestGroup>
+         )}
          {(lanes.restTotal > 0 || lanes.napping.length > 0) && (
             <RestGroup title="The rest of the board">
                <Fold
                   count={lanes.queueOther.length}
                   label="Review, other repos"
-                  gloss="Reviewable, just outside your primary repos. The queue above sticks to the repos you actually review."
+                  gloss="Reviews that are yours, just outside your primary repos. The queue above sticks to the repos you actually review."
                   id="review:other-repos"
                   defaultOpen={lanes.boardIsQuiet}
                >
@@ -454,7 +474,7 @@ export function Review({
                <Fold
                   count={lanes.needsQaOther.length}
                   label="QA, other repos"
-                  gloss="Needs a tester, just outside your primary repos."
+                  gloss="QA that’s yours, just outside your primary repos."
                   id="review:qa-other-repos"
                   defaultOpen={lanes.boardIsQuiet}
                >
@@ -495,7 +515,7 @@ export function Review({
                <Fold
                   count={lanes.ciRed.length}
                   label="CI failing"
-                  gloss="Fully signed off, but a required CI check is failing; the author fixes the build, then it's ready. (A red build still awaiting review stays in the queue; reviewing it is your call.)"
+                  gloss="Fully signed off, but a required CI check is failing; the author fixes the build, then it's ready."
                   id="review:ci-red"
                   defaultOpen={lanes.boardIsQuiet}
                >

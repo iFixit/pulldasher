@@ -54,8 +54,8 @@ function LaneCapByLensRow({ lensId, label }: { lensId: string; label: string }) 
    );
 }
 
-/** Free-text editor for the code regions that float matching PRs to the top of
- * the review queue. Arbitrary strings (not a known set), so it's a plain input
+/** Free-text editor for the code regions that put matching self-reviews into
+ * Review's Could use your input. Arbitrary strings (not a known set), so it's a plain input
  * plus removable chips, not a candidate picker. */
 function CodeRegionsGroup() {
    const regions = useSettings().codeRegions;
@@ -67,8 +67,8 @@ function CodeRegionsGroup() {
    return (
       <Group title="Code regions">
          <span className="text-xs text-ink-3">
-            Areas you own or care about. A PR whose title, description, labels, branch, or repo
-            contains one floats to the top of your review queue.
+            Areas you own or care about. Someone’s self-reviewed PR whose title, description,
+            labels, branch, or repo contains one shows under Could use your input on Review.
          </span>
          <div className="flex gap-2">
             <input
@@ -397,22 +397,8 @@ export function Settings({
                            </QuietButton>
                         </Field>
                         <Field
-                           label="Getting QA is a to-do"
-                           hint="For teams that self-review, no separate CR gate means lining up QA is the real stall, so “Find a QA-er” on your own PRs shows in Waiting on you. Off keeps it in My work only."
-                        >
-                           <Segmented
-                              ariaLabel="getting QA is a to-do"
-                              value={s.selfReview ? 'on' : 'off'}
-                              options={[
-                                 ['off', 'Off'],
-                                 ['on', 'On'],
-                              ]}
-                              onChange={v => set({ selfReview: v === 'on' })}
-                           />
-                        </Field>
-                        <Field
-                           label="Nudge me about a claim"
-                           hint="When an unfinished claim of yours starts nagging you to finish it or hand it back. Claims themselves don't expire on a timer; they clear when the review is submitted, released, or removed on GitHub."
+                           label="Nudge me about a review I said I’d do"
+                           hint="When a review you said you’d do starts nagging you to finish it or drop it. It doesn't expire on a timer; it clears when the review is submitted, dropped, or you're removed on GitHub."
                         >
                            <Segmented
                               ariaLabel="claim warning time"

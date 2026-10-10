@@ -1,4 +1,5 @@
 import { CR_INCOMPLETE, STATUS_ORDER, type DerivedPull } from '../../../shared/model/status';
+import { reviewIsMine } from './actions';
 import { crSort } from './sort';
 
 export interface TeamBuckets {
@@ -12,16 +13,17 @@ export interface TeamBuckets {
  * unit-testable without mounting React. Mirrors People.tsx's per-person split
  * (reviewable / mine / rest) generalized to a set of members.
  *
+ * `reviewable` is only review that's yours under self-review (actions.ts
+ * reviewIsMine: asked of you, one you said you'd do, or from outside the dev
+ * team with nobody on it); a teammate's own unrequested PR is theirs to
+ * review, so it sits in `rest` with the rest of what they're working on.
+ *
  * The stamp split is by *live* vs *stale*: only a currently-active CR stamp of
  * yours (`crBy`) is genuinely "stamped, in flight, waiting on another
  * reviewer." A needs_recr pull naming you in `recrBy` means your earlier stamp
- * went stale — the PR is back to 0-of-1 and still needs a CR, reviewable by
- * you (a re-stamp) or by anyone else — so it belongs in `reviewable`, not
- * `stamped`. (The row's own note still reads "your move: Re-stamp"; the lane
- * just must not claim it's waiting on someone else.) You can't review your own
- * PR, so your pulls stay out of `reviewable`/`stamped` — but they still land in
- * `rest`, so adding yourself to your team surfaces your work instead of
- * dropping it (the same way People.tsx handles viewing your own page).
+ * went stale, so it belongs in `reviewable`, not `stamped`. Your own pulls
+ * stay out of `reviewable`/`stamped` — but they still land in `rest`, so
+ * adding yourself to your team surfaces your work instead of dropping it.
  */
 export function teamBuckets(
    pulls: DerivedPull[],
@@ -32,7 +34,7 @@ export function teamBuckets(
    // include your own pulls in the pool; you just can't *review* them, so they
    // fall through to `rest` below instead of vanishing when you add yourself
    const theirs = pulls.filter(p => memberSet.has(p.data.user.login));
-   const reviewableByMe = (p: DerivedPull) => p.data.user.login !== me;
+   const reviewableByMe = (p: DerivedPull) => me != null && reviewIsMine(p, me);
 
    const reviewable = crSort(
       theirs.filter(

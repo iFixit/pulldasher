@@ -82,15 +82,8 @@ const SAMPLE_CHEERS: CheerToast[] = [
       tone: 'info',
       icon: '🎯',
       title: 'Start here',
-      body: 'alice reviewed yours, return the favor',
+      body: 'alice asked you 2 hours ago',
       pull: { repo: 'org/repo', number: 88, title: 'Cache device images at the edge' },
-   },
-   {
-      tone: 'info',
-      icon: '🤝',
-      title: 'Return the favor to alice',
-      body: "They've reviewed 3 of your PRs.",
-      pull: { repo: 'org/repo', number: 90, title: 'Add a retry to the webhook sender' },
    },
    {
       tone: 'info',
@@ -161,15 +154,6 @@ const SAMPLE_CHEERS: CheerToast[] = [
       celebrate: true,
       shimmer: true,
    },
-   {
-      tone: 'nag',
-      icon: '⏳',
-      title: 'Your turn to review',
-      body: "Waiting 6d with nobody on it; you're the best fit. Claim it?",
-      pull: { repo: 'org/repo', number: 5, title: 'Discourage new files in Exec/ dir' },
-      actionLabel: 'Claim it',
-      onAction: () => undefined,
-   },
 ];
 
 interface LiveToast extends Toast {
@@ -192,17 +176,11 @@ const NO_PARKED: ReadonlyMap<string, string> = new Map();
 export function useToasts(
    pulls: DerivedPull[],
    me: string,
-   /** whose turn each starved, unclaimed pull is (pull key → login) — app.tsx
-    * computes it once for the rows, desktop notifications, and these cheers */
-   turns: ReadonlyMap<string, string>,
    extras: Toast[] = [],
    closed: PullData[] = [],
    /** clicking the quick-wins toast filters the board to the small ones rather
     * than scrolling to a single pull — a batch nudge wants a batch view */
    onQuickWins?: () => void,
-   /** the your-turn toast's "Claim it" button claims that review (which also
-    * adds you as a GitHub reviewer) — bound here since claiming is impure */
-   onClaimTurn?: (repo: string, number: number) => void,
    /** the board's first data has arrived. While false the board is still
     * loading (an empty snapshot), and diffing that against a primed baseline
     * would fire phantom "Board's clear" / "Inbox zero" and count every stamp
@@ -213,7 +191,7 @@ export function useToasts(
     * dependency-injection pattern as `closed`/`extras` above. */
    names: Readonly<Record<string, string | null>> = {},
    /** pull keys the viewer snoozed in Review — passed to evaluateCheers so a
-    * snoozed pull stops firing start-here / your-turn cheers. */
+    * snoozed pull stops firing start-here / quick-wins cheers. */
    snoozed: ReadonlySet<string> = new Set(),
    /** open PRs whose project is parked: start-here puts them last */
    parked: ReadonlyMap<string, string> = NO_PARKED
@@ -344,7 +322,6 @@ export function useToasts(
       const { toasts: fresh, next } = evaluateCheers(
          {
             pulls,
-            turns,
             closed,
             me,
             now: Date.now(),
@@ -361,20 +338,15 @@ export function useToasts(
       // only persist once loaded, so a load-time tick can't overwrite the saved
       // session with a not-yet-hydrated baseline
       if (ready) saveCheerSession(me, next, firedKeys.current);
-      // bind the impure actions the pure evaluator can't: quick-wins filters
-      // the board to the small ones (a batch nudge wants a batch view), and the
-      // your-turn nudge's "Claim it" button claims that review in place.
-      const bound = fresh.map(t => {
-         if (t.dedupeKey?.startsWith('quick:') && onQuickWins)
-            return { ...t, pull: undefined, onAct: onQuickWins };
-         if (t.dedupeKey?.startsWith('turn:') && onClaimTurn && t.pull) {
-            const { repo, number } = t.pull;
-            return { ...t, onAction: () => onClaimTurn(repo, number) };
-         }
-         return t;
-      });
+      // bind the impure action the pure evaluator can't: quick-wins filters
+      // the board to the small ones (a batch nudge wants a batch view)
+      const bound = fresh.map(t =>
+         t.dedupeKey?.startsWith('quick:') && onQuickWins
+            ? { ...t, pull: undefined, onAct: onQuickWins }
+            : t
+      );
       if (on) push(bound);
-   }, [ready, pulls, turns, closed, me, push, onQuickWins, onClaimTurn, names, snoozed, parked]);
+   }, [ready, pulls, closed, me, push, onQuickWins, names, snoozed, parked]);
 
    // pre-built one-shot toasts from the caller (e.g. the shipped catch-up),
    // deduped by dedupeKey so the same logical toast never re-fires on a later
@@ -443,7 +415,9 @@ function SparkleBurst() {
             <span
                // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length decorative burst
                key={i}
-               className={`sparkle absolute block rounded-full ${s.tint} ${s.big ? 'h-1.5 w-1.5' : 'h-1 w-1'}`}
+               className={`sparkle absolute block rounded-full ${s.tint} ${
+                  s.big ? 'h-1.5 w-1.5' : 'h-1 w-1'
+               }`}
                style={
                   {
                      '--dx': `${s.dx}px`,
@@ -515,19 +489,21 @@ function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: num
    const tone = reward
       ? 'border-brand-100 bg-surface ring-1 ring-brand/15'
       : info
-        ? 'border-brand-100 bg-surface'
-        : 'border-line bg-muted';
+      ? 'border-brand-100 bg-surface'
+      : 'border-line bg-muted';
    const medallion = reward
       ? 'bg-brand-50 text-brand medallion-pop'
       : info
-        ? 'bg-brand-50 text-brand'
-        : 'bg-secondary text-ink-2 medallion-slump';
+      ? 'bg-brand-50 text-brand'
+      : 'bg-secondary text-ink-2 medallion-slump';
 
    return (
       <div
          className={`group pointer-events-auto relative flex items-start gap-3 rounded-xl border px-3.5 py-3 shadow-lg ${tone} ${
             toast.leaving ? 'toast-leave' : 'toast-enter'
-         } ${clickable ? 'cursor-pointer transition-[background-color] hover:brightness-[0.98]' : ''}`}
+         } ${
+            clickable ? 'cursor-pointer transition-[background-color] hover:brightness-[0.98]' : ''
+         }`}
          // a clickable card is a button to the keyboard/screen reader; the
          // polite live region still announces either way
          role={clickable ? 'button' : 'status'}
@@ -596,19 +572,6 @@ function ToastCard({ toast, onDismiss }: { toast: LiveToast; onDismiss: (id: num
                )
             )}
             {toast.body && <span className="mt-0.5 block text-xs text-ink-2">{toast.body}</span>}
-            {toast.actionLabel && toast.onAction && (
-               <button
-                  type="button"
-                  onClick={e => {
-                     e.stopPropagation();
-                     toast.onAction?.();
-                     onDismiss(toast.id);
-                  }}
-                  className="pressable mt-2 inline-flex items-center rounded-md bg-brand px-2.5 py-1 text-[11px] font-semibold text-surface hover:bg-brand-700"
-               >
-                  {toast.actionLabel}
-               </button>
-            )}
          </span>
          <button
             type="button"

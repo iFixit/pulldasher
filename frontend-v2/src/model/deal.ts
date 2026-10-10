@@ -1,4 +1,5 @@
 import { pullKey } from '../../../shared/format';
+import { selfReviewed } from './actions';
 import { claimFor } from './reviewers';
 import { crSort } from './sort';
 import { STARVE_DAYS, type DerivedPull } from '../../../shared/model/status';
@@ -6,8 +7,8 @@ import { STARVE_DAYS, type DerivedPull } from '../../../shared/model/status';
 /**
  * The review queue's one ranking. dealRank orders a pool by the same score
  * "Deal me one" uses — crSort's deterministic base re-ranked by urgency plus
- * two social signals crSort doesn't know about (have I reviewed this repo
- * before; does this author owe me one) — and dealFrom hands out the first
+ * one signal crSort doesn't know about (have I reviewed this repo before) —
+ * and dealFrom hands out the first
  * still-available entry of that order. The lane renders dealRank's output
  * verbatim, so the button always deals the top visible card that's still up
  * for grabs: the list and the button can't disagree.
@@ -15,9 +16,9 @@ import { STARVE_DAYS, type DerivedPull } from '../../../shared/model/status';
 
 export interface DealRankOptions {
    me: string;
-   /** the whole board's derived pulls (not just the queue) — familiarity and
-    * reciprocity look across every repo/author the viewer touches, not only
-    * the pulls up for grabs right now. */
+   /** the whole board's derived pulls (not just the queue) — familiarity
+    * looks across every repo the viewer touches, not only the pulls up for
+    * grabs right now. */
    pulls: DerivedPull[];
    /** pulls to hand out only once everything else is gone (bot PRs): they still
     * need a reviewer, but shouldn't jump ahead of human work however old they
@@ -45,23 +46,21 @@ function isClaimed(p: DerivedPull): boolean {
  *    for a fresh one, ageDays normalized against the starvation threshold —
  *    so a two-day-old pull still edges out a same-day one without needing to
  *    hit the starvation cliff first.
- *  - +2 familiarity: the viewer has stamped this repo before — less context
- *    to load before reviewing.
- *  - +2 reciprocity: this pull's author has stamped one of the viewer's own
- *    pulls — a nudge toward returning the favor.
+ *  - +2 familiarity: the viewer has stamped someone else's pull in this repo
+ *    before — less context to load before reviewing.
  *  - +1 quick win: a known XS/S pull, a small bias toward clearing easy ones.
- * In units of the urgency ramp: one is warnDays of waiting.
+ * In units of the urgency ramp: one is warnDays of waiting. There's no
+ * reciprocity term: under self-review a review you got isn't one you owe.
  */
 export function dealScore(p: DerivedPull, opts: DealRankOptions): number {
    const urgency = p.starved ? p.starveScore : p.ageDays / (opts.warnDays ?? STARVE_DAYS);
    const repo = p.data.repo;
-   const author = p.data.user.login;
-   const familiar = opts.pulls.some(other => other.data.repo === repo && hasStamp(other, opts.me));
-   const owedByAuthor = opts.pulls.some(
-      other => other.data.user.login === opts.me && hasStamp(other, author)
+   const familiar = opts.pulls.some(
+      other =>
+         other.data.repo === repo && other.data.user.login !== opts.me && hasStamp(other, opts.me)
    );
    const quickWin = p.weight === 'XS' || p.weight === 'S';
-   return urgency + (familiar ? 2 : 0) + (owedByAuthor ? 2 : 0) + (quickWin ? 1 : 0);
+   return urgency + (familiar ? 2 : 0) + (quickWin ? 1 : 0);
 }
 
 /**
@@ -87,7 +86,9 @@ export function dealRank(pool: DerivedPull[], opts: DealRankOptions): DerivedPul
 
 /**
  * Deal the first still-available entry of an already-ranked list — skipping
- * anything claimed or already passed this sitting. Takes the *rendered* queue
+ * anything claimed or already passed this sitting, and a developer's own
+ * unrequested pull, whose review is its author's (the lanes never rank one;
+ * this keeps the deal honest whatever list it's handed). Takes the *rendered* queue
  * (dealRank order, team-pinning and all) rather than re-ranking, so the card
  * dealt is by construction the top visible one still up for grabs.
  */
@@ -100,7 +101,7 @@ export function dealFrom(
 ): DerivedPull | null {
    for (const p of ranked) {
       const key = pullKey(p.data);
-      if (opts.passed.has(key) || isClaimed(p)) continue;
+      if (opts.passed.has(key) || isClaimed(p) || selfReviewed(p)) continue;
       return p;
    }
    return null;

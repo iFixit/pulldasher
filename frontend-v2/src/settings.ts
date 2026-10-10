@@ -74,10 +74,6 @@ export interface Settings {
     * global laneCap" — old saved settings simply lack this field, so they
     * fall back to the object default below. */
    laneCapByLens: Record<string, number>;
-   /** teams that self-review (iFixit) don't gate on CR, so lining up QA is the
-    * real stall: surface "Find a QA-er" on your own PR as a home to-do, not a
-    * My-work afterthought. Off leaves getting QA in My work only. */
-   selfReview: boolean;
    /** your named rosters — REVIEW CIRCLES, yours to define, not the org
     * chart (an official team and a cross-team pairing partner can be two
     * separate rosters). Every roster's members get the same two effects:
@@ -90,9 +86,9 @@ export interface Settings {
     * to — hidden is the whole state. */
    hiddenPeople: string[];
    /** free-text areas you own or care about (e.g. "Growthbook", "Shopify").
-    * A PR whose title, body, labels, branch, or repo partial-matches any of
-    * these floats to the top of the review queue. Arbitrary strings, not a
-    * known set — unlike repos/logins. */
+    * Someone's self-reviewed PR whose title, body, labels, branch, or repo
+    * partial-matches any of these lands in Review's "Could use your input".
+    * Arbitrary strings, not a known set — unlike repos/logins. */
    codeRegions: string[];
    /** when an unfinished claim of yours starts nagging you to finish or
     * release it. Claims themselves don't expire on a timer — they clear when
@@ -168,7 +164,6 @@ export const DEFAULT_SETTINGS: Settings = {
    mutedCheers: [],
    laneCap: 10,
    laneCapByLens: {},
-   selfReview: true,
    teams: [],
    hiddenPeople: [],
    codeRegions: [],
