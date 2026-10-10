@@ -88,6 +88,10 @@ export interface DerivedPull {
     * person, no team, no claim). Its CR and QA are the author's own to do,
     * and nobody else owes it anything */
    ownReview: boolean;
+   /** the author is on the dev roster (and not a bot), whether or not they
+    * asked for a review. A request on record doesn't prove it: contractors
+    * ask too, and their pull still needs someone else's CR and QA */
+   authorIsDeveloper: boolean;
    /** logins asked to review it by the author's side: requested reviewers
     * (claims excluded) plus every member of a requested roster team; never
     * the author */
@@ -476,6 +480,7 @@ export function derive(
       changesRequestedBy,
       engagedNoStamp,
       ownReview,
+      authorIsDeveloper: isDeveloper(policy, author),
       askedOf,
       askedAt: Number.isFinite(askedAt) ? askedAt : null,
       askedAtBy: Object.fromEntries(askedOf.map((l, i) => [l, askedTimes[i]])),

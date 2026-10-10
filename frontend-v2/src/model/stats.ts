@@ -311,7 +311,11 @@ export function waitingOnSomeone(pulls: DerivedPull[], now: number): WaitingOnSo
          if (at == null || answersBy(d, login).some(t => t >= at)) continue;
          requests.push({ ...ref, login, hours: Math.max(0, (now - at) / 3600) });
       }
-      const asked = (d.requested_reviewers ?? []).length || (d.requested_teams ?? []).length;
+      // a developer who asked is waiting on those people (counted above); a
+      // non-developer is outside until nobody asked still owes a review
+      const asked = p.authorIsDeveloper
+         ? (d.requested_reviewers ?? []).length || (d.requested_teams ?? []).length
+         : p.askedOf.length;
       if (!p.ownReview && !asked && CR_INCOMPLETE.includes(p.status))
          outside.push({ ...ref, author: d.user.login, days: p.ageDays });
    }

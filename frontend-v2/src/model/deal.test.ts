@@ -44,6 +44,7 @@ function dp(o: {
       sizeKnown: o.sizeKnown ?? true,
       headPushedAt: o.headPushedAt ?? null,
       ownReview: o.ownReview ?? false,
+      authorIsDeveloper: o.ownReview ?? false,
    } as unknown as DerivedPull;
 }
 

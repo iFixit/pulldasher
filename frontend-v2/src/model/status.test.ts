@@ -522,6 +522,18 @@ describe('the self-review policy', () => {
    it("someone outside the dev team doesn't review their own", () => {
       const d = derive(pull(), undefined, NOW, undefined, undefined, OUTSIDER);
       expect(d.ownReview).toBe(false);
+      expect(d.authorIsDeveloper).toBe(false);
+      // asking for a review doesn't make the author a developer
+      const asked = derive(
+         pull({ requested_reviewers: ['r'] }),
+         undefined,
+         NOW,
+         undefined,
+         undefined,
+         OUTSIDER
+      );
+      expect(asked.authorIsDeveloper).toBe(false);
+      expect(derive(pull(), undefined, NOW).authorIsDeveloper).toBe(true);
       expect(isDeveloper(OUTSIDER, 'R')).toBe(true);
    });
 

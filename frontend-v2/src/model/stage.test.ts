@@ -69,6 +69,7 @@ function dp(
       reqaBy: [],
       engagedNoStamp: [],
       ownReview: o.ownReview ?? false,
+      authorIsDeveloper: o.ownReview ?? false,
       askedOf: o.askedOf ?? [],
       askedAt: o.askedAt ?? null,
    } as unknown as DerivedPull;

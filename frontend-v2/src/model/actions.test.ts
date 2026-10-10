@@ -25,6 +25,8 @@ import {
  * `ownReview: true` is a developer's own unrequested pull. */
 function dp(o: {
    ownReview?: boolean;
+   /** on the dev roster; defaults to own review or having asked someone */
+   authorIsDeveloper?: boolean;
    askedOf?: string[];
    askedAt?: number | null;
    /** a claim: who said they'd review it (review_requests self === true) */
@@ -69,6 +71,9 @@ function dp(o: {
          requested_teams: o.requestedTeams,
       },
       ownReview: o.ownReview ?? false,
+      authorIsDeveloper:
+         o.authorIsDeveloper ??
+         (!!o.ownReview || !!o.askedOf?.length || !!o.requestedTeams?.length),
       askedOf: o.askedOf ?? [],
       askedAt: o.askedAt ?? null,
       status: o.status,
@@ -914,7 +919,12 @@ describe('self-review: a developer CRs and QAs their own unrequested pull', () =
    });
 
    it('a bot is never a developer, whatever ownReview says', () => {
-      const bot = dp({ author: 'dependabot[bot]', status: 'needs_cr', ownReview: true });
+      const bot = dp({
+         author: 'dependabot[bot]',
+         status: 'needs_cr',
+         ownReview: true,
+         authorIsDeveloper: false,
+      });
       expect(rowNote(bot, 'me').action).toBe('Review it');
       expect(reviewIsMine(bot, 'me')).toBe(true);
    });
@@ -1202,6 +1212,40 @@ describe('the requested reviewer reviews; the author tests', () => {
       expect(rowNote(dp({ author: 'me', status: 'needs_qa', askedOf: ['bob'] }), 'me').action).toBe(
          'Stamp QA'
       );
+   });
+
+   // GitHub keeps a reviewer in requested_reviewers after their CR comment, so
+   // a request stays on record (here a team) once askedOf is empty
+   it('a contractor who asked someone, once they stamped, is back to needing an outside tester', () => {
+      const p = dp({
+         author: 'con',
+         status: 'needs_qa',
+         requestedTeams: ['store'],
+         authorIsDeveloper: false,
+      });
+      expect(qaIsMine(p, 'bob')).toBe(true);
+      expect(qaIsMine(p, 'con')).toBe(false);
+      expect(rowNote(p, 'con').action).not.toBe('Stamp QA');
+   });
+
+   it('a contractor with CR still short after one stamp stays in the open review queue', () => {
+      const p = dp({
+         author: 'con',
+         status: 'needs_cr',
+         crReq: 2,
+         crHave: 1,
+         requestedTeams: ['store'],
+         authorIsDeveloper: false,
+      });
+      expect(reviewIsMine(p, 'alice')).toBe(true);
+      expect(nobodysReview(p)).toBe(false);
+      expect(rowNote(p, 'con').action).not.toBe('Stamp CR');
+   });
+
+   it('a developer who asked and was answered by someone else still self-QAs', () => {
+      const p = dp({ author: 'dev', status: 'needs_qa', requestedTeams: ['store'] });
+      expect(qaIsMine(p, 'bob')).toBe(false);
+      expect(rowNote(p, 'dev').action).toBe('Stamp QA');
    });
 
    it('an outside author still waits on a tester', () => {

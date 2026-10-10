@@ -34,7 +34,12 @@ function toRecord(d) {
          cr: { req: p.status.cr_req, have: d.crHave, by: d.crBy, recr_by: d.recrBy },
          qa: { req: p.status.qa_req, have: d.qaHave, by: d.qaBy },
       },
-      review: { own: d.ownReview, asked_of: d.askedOf, asked_at: d.askedAt },
+      review: {
+         own: d.ownReview,
+         author_is_developer: d.authorIsDeveloper,
+         asked_of: d.askedOf,
+         asked_at: d.askedAt,
+      },
       dev_blocked_by: d.devBlockedBy,
       deploy_blocked_by: d.deployBlockedBy,
       head_sha: p.head.sha,

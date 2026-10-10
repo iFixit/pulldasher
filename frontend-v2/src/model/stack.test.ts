@@ -79,6 +79,7 @@ function dp(
       changesRequestedBy: [],
       engagedNoStamp: [],
       ownReview: false,
+      authorIsDeveloper: false,
       askedOf: [],
       askedAt: null,
    };

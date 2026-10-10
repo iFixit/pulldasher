@@ -55,10 +55,12 @@ const hasRequest = (p: DerivedPull): boolean =>
    !!(askedOf(p).length || p.data.requested_reviewers?.length || p.data.requested_teams?.length);
 
 /** Needs a reviewer from outside: the author is outside the dev team (or a
- * bot), and nobody was asked or took it on. The only pulls where QA is not
- * the author's own job. */
+ * bot), and nobody who was asked still owes it, nor took it on. A request on
+ * record doesn't count: GitHub keeps a reviewer listed after they stamp, so
+ * once everyone asked has answered it is back in the open queue. The only
+ * pulls where QA is not the author's own job. */
 const needsOutsideReview = (p: DerivedPull): boolean =>
-   !selfReviewed(p) && !hasRequest(p) && !claimFor(p.data);
+   !p.authorIsDeveloper && !selfReviewed(p) && !askedOf(p).length && !claimFor(p.data);
 
 /**
  * Whether this pull is `me`'s code review: asked of me (by name or through a
@@ -74,8 +76,7 @@ export function reviewIsMine(p: DerivedPull, me: string): boolean {
    if (claim?.login === me) return true;
    const asked = askedOf(p);
    if (asked.length) return asked.includes(me);
-   if (claim || hasRequest(p)) return false;
-   return !selfReviewed(p);
+   return needsOutsideReview(p);
 }
 
 /** Whether this pull's QA is `me`'s. A requested reviewer was asked for a
@@ -90,7 +91,7 @@ export function qaIsMine(p: DerivedPull, me: string): boolean {
 /** Requested of a team nobody on the roster is in, or of people who have all
  * answered: nobody's review work, but worth showing to anyone who might help. */
 export const nobodysReview = (p: DerivedPull): boolean =>
-   hasRequest(p) && !askedOf(p).length && !claimFor(p.data);
+   p.authorIsDeveloper && hasRequest(p) && !askedOf(p).length && !claimFor(p.data);
 
 const INPUT_HINT_WORDS: Record<string, string> = {
    ci: 'CI',
@@ -265,7 +266,7 @@ function authorNote(p: DerivedPull, me: string): RowNote {
       return waitOnly(`${who([p.qaingLogin])} is testing it`);
    // asked reviewers are for the review; QA is the author's own under the
    // policy, so once CR is met it's yours to stamp whoever is still listed
-   const authorIsDev = selfReviewed(p) || hasRequest(p);
+   const authorIsDev = p.authorIsDeveloper;
    if (p.status === 'needs_qa' && authorIsDev)
       return { action: 'Stamp QA', context: 'test it yourself, or ask someone to' };
    // you asked for a review: theirs to give, answered in hours

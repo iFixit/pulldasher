@@ -19,6 +19,7 @@ function fake(over: {
       crHave: over.crHave ?? 0,
       crBy: over.crBy ?? Array.from({ length: over.crHave ?? 0 }, (_, i) => `reviewer${i}`),
       ownReview: over.ownReview ?? false,
+      authorIsDeveloper: over.ownReview ?? false,
       weight: over.weight ?? 'S',
       sizeKnown: over.sizeKnown ?? true,
       data: {

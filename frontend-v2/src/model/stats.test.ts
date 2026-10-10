@@ -139,6 +139,7 @@ function full(over: {
    reqaBy?: string[];
    qaing?: string | null;
    ownReview?: boolean;
+   authorIsDeveloper?: boolean;
    title?: string;
    body?: string;
    requested?: string[];
@@ -163,6 +164,8 @@ function full(over: {
       reqaBy: over.reqaBy ?? [],
       qaingLogin: over.qaing ?? null,
       ownReview: over.ownReview ?? true,
+      authorIsDeveloper:
+         over.authorIsDeveloper ?? ((over.ownReview ?? true) || !!over.requested?.length),
       askedOf: (over.requests ?? []).filter(r => !r.self).map(r => r.login),
       askedAt: null,
       conflict: over.conflict ?? false,
@@ -312,6 +315,15 @@ describe('waitingOnSomeone', () => {
             full({ n: 6, ownReview: false, ageDays: 1, status: 'ready' }), // not short of CR
             full({ n: 7, requests: [ask('erin', 9)], draft: true }), // a draft isn't waiting
             full({ n: 8, requests: [ask('fay', 9)], status: 'needs_qa' }), // CR already met
+            // a contractor whose asked reviewer already stamped (GitHub still lists them)
+            full({
+               n: 9,
+               ownReview: false,
+               authorIsDeveloper: false,
+               requested: ['bob'],
+               ageDays: 3,
+               author: 'con',
+            }),
          ],
          AT
       );
@@ -321,6 +333,7 @@ describe('waitingOnSomeone', () => {
       ]);
       expect(w.outside).toEqual([
          { repo: 'iFixit/ifixit', number: 3, title: 't', author: 'zed', days: 6 },
+         { repo: 'iFixit/ifixit', number: 9, title: 't', author: 'con', days: 3 },
       ]);
    });
 

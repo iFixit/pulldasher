@@ -13,6 +13,8 @@ import { buildReviewLanes, type ReviewLanesInput } from './reviewLanes';
  * requestedReviewers minus claims, as derive() builds it. */
 function dp(o: {
    ownReview?: boolean;
+   /** on the dev roster; defaults to own review or having asked someone */
+   authorIsDeveloper?: boolean;
    askedOf?: string[];
    askedAt?: number | null;
    repo?: string;
@@ -106,6 +108,12 @@ function dp(o: {
       changesRequestedBy: o.changesRequestedBy ?? [],
       engagedNoStamp: o.engagedNoStamp ?? [],
       ownReview: o.ownReview ?? false,
+      authorIsDeveloper:
+         o.authorIsDeveloper ??
+         (!!o.ownReview ||
+            !!o.askedOf?.length ||
+            !!o.requestedReviewers?.length ||
+            !!o.requestedTeams?.length),
       askedOf:
          o.askedOf ??
          (o.requestedReviewers ?? []).filter(
