@@ -1,5 +1,5 @@
 import { projectSettings } from '../lib/projects.js';
-import { saveSetting } from '../lib/settings.js';
+import { saveSetting, settingsLoaded } from '../lib/settings.js';
 import {
    checkDecideRotation,
    checkDeveloperTeams,
@@ -62,6 +62,11 @@ export default {
    update: function (req, res) {
       if (!projectSettings()) {
          return res.status(404).json({ error: 'projects are not set up in config.js' });
+      }
+      if (!settingsLoaded()) {
+         return res
+            .status(503)
+            .json({ error: 'Settings are still loading, try again in a moment' });
       }
       const body = req.body || {};
       if (

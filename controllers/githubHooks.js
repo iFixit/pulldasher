@@ -14,7 +14,7 @@ import utils from '../lib/utils.js';
 import dbManager from '../lib/db-manager.js';
 import git from '../lib/git-manager.js';
 import { projectSettings } from '../lib/projects.js';
-import { workIssueTouched, workPullTouched } from '../lib/work.js';
+import { forgetIssue, workIssueTouched, workPullTouched } from '../lib/work.js';
 
 const hooksDebug = debug('pulldasher:hooks');
 
@@ -262,6 +262,19 @@ function handleIssueEvent(body) {
    // not even an issue), and it carries no events, which we need to attribute
    // labels and to date the current assignment (date_assigned).
    // refreshPullOrIssue dispatches pull-vs-issue from the body itself.
+   // A deleted or transferred issue is gone from GitHub, so the refresh
+   // below would only 404: drop it from projects and the board's issues.
+   if (body.action === 'deleted' || body.action === 'transferred') {
+      return doneHandling
+         .then(() => forgetIssue({ repo: body.repository.full_name, number: body.issue.number }))
+         .catch(err =>
+            console.error(
+               'forgetting issue %s failed: %s',
+               body.issue.number,
+               (err && err.message) || err
+            )
+         );
+   }
    return doneHandling.then(function () {
       // Not returning here cause we don't want to delay replying to the
       // hook with a 200 since we know what needs to be done.
