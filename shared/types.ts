@@ -102,6 +102,11 @@ export interface PullData {
     * (config projects.developerTeams), matched by name. Absent on older
     * servers: read as []. */
    requested_teams?: string[];
+   /** when each requested team was asked (epoch secs, null if unknown), from
+    * the review_requested webhook; a team's members inherit its time, so a
+    * team request gets the same hours clock as a personal one. Absent on
+    * older servers: read as []. */
+   team_requests?: Array<{ slug: string; at: number | null }>;
    /** areas the diff touches that usually deserve team input (ci, migrations,
     * alerting, agent-docs, deploy, dependencies), computed server-side from
     * the changed file paths. Absent until the server has looked: read as []. */
