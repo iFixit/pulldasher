@@ -170,9 +170,18 @@ function liveBackend(): Backend {
       },
       onProjectsChanged(handler) {
          const s = getSocket();
+         // a change sent while the socket was down is never replayed, so a
+         // reconnect (every initialize after the first) fetches again
+         let seen = false;
+         const reconnected = () => {
+            if (seen) handler();
+            seen = true;
+         };
          s.on('projectsChanged', handler);
+         s.on('initialize', reconnected);
          return () => {
             s.off('projectsChanged', handler);
+            s.off('initialize', reconnected);
          };
       },
       onConnection(handler) {

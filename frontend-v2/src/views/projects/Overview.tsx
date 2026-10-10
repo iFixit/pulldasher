@@ -534,7 +534,9 @@ export function Overview({
    };
    // who wrote for the line's projects or more, most first; reviewing isn't
    // being on a project, and a line that would flag a quarter flags no one
-   const overloaded = who && over;
+   // a failed projects load can't say who is a developer: "?" like a failed
+   // days load, not the loading dots
+   const overloaded = data === null ? null : who && over;
    // the teams in their configured order, for the list's Group by Team
    const teams = useMemo(() => Object.keys(data?.teams ?? {}), [data]);
    // two-label PRs already sit in a project, so they aren't "outside" ones

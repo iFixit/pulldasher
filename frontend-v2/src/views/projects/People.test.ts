@@ -5,6 +5,7 @@ import type { PortfolioItem } from '../../model/portfolio';
 import { findFilter } from '../../model/portfolio';
 import type { RetroRow } from '../../model/retro';
 import {
+   listedTwice,
    overloadedPeople,
    peopleRows,
    personMatches,
@@ -208,5 +209,26 @@ describe('openingMonth', () => {
 
    it('ends on a past range’s month', () => {
       expect(openingMonth(day(2025, 3, 15), day(2026, 10, 1), 2)).toEqual(day(2025, 2, 1));
+   });
+});
+
+describe('listedTwice', () => {
+   it('names a team typed on two rows, ignoring spaces around it', () => {
+      expect(
+         listedTwice([
+            ['Store', 'a, b'],
+            [' Store ', 'c'],
+         ])
+      ).toBe('Store');
+   });
+   it('lets different names and blank rows through', () => {
+      expect(
+         listedTwice([
+            ['Store', 'a'],
+            ['', ''],
+            ['', 'x'],
+            ['Web', 'b'],
+         ])
+      ).toBeNull();
    });
 });

@@ -48,7 +48,7 @@ export function lastWeeks(
  * over it, counting only projects they wrote for. Over the
  * last 14 days for the Overview's tile, or over `range` for People, where
  * every column follows the picked range; People draws the table. `who` is
- * undefined while the days load, and null when they failed.
+ * undefined while the days or the teams load, and null when the days failed.
  */
 export function useWhoIsOnWhat(
    teams: Record<string, string[]> | undefined,
@@ -71,7 +71,9 @@ export function useWhoIsOnWhat(
    const rows = useMemo(() => (retro ? retroRows(retro) : null), [retro]);
    const who = useMemo((): WhoRow[] | null | undefined => {
       if (retro === null) return null;
-      if (!retro || !rows) return undefined;
+      // teams unknown (data loading or failed): the no-teams fallback below
+      // would count everyone, non-developers included, so hold the count
+      if (!retro || !rows || !teams) return undefined;
       const spelled = new Map(retro.people.map(l => [l.toLowerCase(), l]));
       const onTeams = Object.values(teams ?? {}).flat();
       const logins = onTeams.length
