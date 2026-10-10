@@ -1,5 +1,5 @@
 import { dayStart } from './projects';
-import { mondayOf } from './roadmap';
+import { mondayOf, PROJECT_SLUG } from './roadmap';
 
 /**
  * The settings people change from the board or the API, checked by the same
@@ -106,7 +106,7 @@ export function decideTurn(rotation: DecideRotation | null, day: string): string
    return rotation.logins[((weeks % count) + count) % count];
 }
 
-const SLUG = /^[a-z0-9][a-z0-9-]{0,23}$/;
+const SLUG = PROJECT_SLUG;
 const ONGOING_MAX = 500;
 
 /** Check the projects marked ongoing as a person sent them: a list of
