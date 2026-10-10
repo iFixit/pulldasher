@@ -3,18 +3,18 @@ import type { DerivedPull } from '../../../shared/model/status';
 import {
    ageMix,
    authorLoad,
-   crStarvation,
    effortMix,
-   firstCrLatency,
    friction,
    mergedPerDay,
    mergeTimeBySize,
    reciprocity,
+   requestAnswerTimes,
    repoBreakdown,
-   reviewDebt,
+   selfReviewMix,
    signoffLeaders,
    stampsPerDay,
    statusBreakdown,
+   waitingOnSomeone,
 } from '../model/stats';
 import { fillMonthGaps, useStatsHistory, weeklyTimeInReview } from '../model/statsHistory';
 import { ageRotDays as deriveAgeRotDays, useSettings } from '../settings';
@@ -22,7 +22,6 @@ import type { PullData } from '../../../shared/types';
 import { EmptyState, STATUS_DOT, STATUS_LABEL } from '../components/bits';
 import { AgeMixCard } from './stats/AgeMixCard';
 import { AuthorLoadCard } from './stats/AuthorLoadCard';
-import { DebtCard } from './stats/DebtCard';
 import { EffortMixCard } from './stats/EffortMixCard';
 import { FrictionCard } from './stats/FrictionCard';
 import { Leaderboard } from './stats/Leaderboard';
@@ -30,10 +29,11 @@ import { MergeSizeCard } from './stats/MergeSizeCard';
 import { MonthlyThroughputCard } from './stats/MonthlyThroughputCard';
 import { ReciprocityCard } from './stats/ReciprocityCard';
 import { RepoLoadCard } from './stats/RepoLoadCard';
+import { SelfReviewCard } from './stats/SelfReviewCard';
 import { ShippingPulseCard } from './stats/ShippingPulseCard';
-import { StarvationCard } from './stats/StarvationCard';
 import { StatusBar } from './stats/StatusBar';
 import { TimeInReviewCard } from './stats/TimeInReviewCard';
+import { WaitingCard } from './stats/WaitingCard';
 
 const WINDOW_DAYS = 14;
 
@@ -85,14 +85,15 @@ export function Stats({
    );
    // flow — the closed window plus stamp timestamps
    const perDay = useMemo(() => mergedPerDay(closed, WINDOW_DAYS, Date.now()), [closed]);
-   const firstCr = useMemo(() => firstCrLatency(closed), [closed]);
+   const answer = useMemo(() => requestAnswerTimes(pulls, closed), [pulls, closed]);
+   const selfMix = useMemo(() => selfReviewMix(closed), [closed]);
    const pulse = useMemo(
       () => stampsPerDay(pulls, closed, WINDOW_DAYS, Date.now()),
       [pulls, closed]
    );
    const merge = useMemo(() => mergeTimeBySize(closed), [closed]);
    // the board right now
-   const debt = useMemo(() => reviewDebt(pulls), [pulls]);
+   const waiting = useMemo(() => waitingOnSomeone(pulls, Date.now() / 1000), [pulls]);
    const ages = useMemo(() => ageMix(pulls), [pulls]);
    const effort = useMemo(() => effortMix(pulls), [pulls]);
    const stuck = useMemo(() => friction(pulls), [pulls]);
@@ -102,7 +103,6 @@ export function Stats({
    const crLeaders = useMemo(() => signoffLeaders(pulls, closed, 'CR'), [pulls, closed]);
    const qaLeaders = useMemo(() => signoffLeaders(pulls, closed, 'QA'), [pulls, closed]);
    const giveTake = useMemo(() => reciprocity(pulls, closed), [pulls, closed]);
-   const starved = useMemo(() => crStarvation(pulls), [pulls]);
    const settings = useSettings();
    // the heaviest text tier follows the warn threshold automatically, same
    // derivation as app.tsx's rowOpts — see ageWarnDays in settings.ts
@@ -138,7 +138,7 @@ export function Stats({
       <div className="flex flex-col gap-6">
          <StatusBar items={breakdown} total={pulls.length} />
          <Group title="The board right now">
-            <DebtCard debt={debt} />
+            <WaitingCard waiting={waiting} me={me} onPerson={onPerson} />
             <FrictionCard friction={stuck} />
             <AgeMixCard buckets={ages} warnDays={settings.ageWarnDays} rotDays={ageRotDays} />
             <EffortMixCard mix={effort} />
@@ -146,17 +146,11 @@ export function Stats({
             <RepoLoadCard rows={repos} />
          </Group>
          <Group title="Flow · last 14 days">
-            <ShippingPulseCard perDay={perDay} pulse={pulse} firstCr={firstCr} />
+            <ShippingPulseCard perDay={perDay} pulse={pulse} answer={answer} />
+            <SelfReviewCard mix={selfMix} />
             <MergeSizeCard buckets={merge.buckets} sampled={merge.sampled} merged={merge.merged} />
          </Group>
          <Group title="People">
-            <StarvationCard
-               rows={starved}
-               me={me}
-               onPerson={onPerson}
-               warnDays={settings.ageWarnDays}
-               rotDays={ageRotDays}
-            />
             <ReciprocityCard rows={giveTake} me={me} onPerson={onPerson} />
             <Leaderboard
                title="CR leaderboard"
