@@ -6,6 +6,7 @@ import config from '../lib/config-loader.js';
 import {
    attachIssue,
    detachIssue,
+   forgetIssue,
    loadProjectWork,
    loadPullLinks,
    loadWork,
@@ -282,6 +283,16 @@ function fakeQuery(sql, params) {
    const one = (project, r, n) => h => h.project === project && sameIssue(h, r, n);
    // a row taken off stays, marked
    const live = tables.hand.filter(h => h.removed_at == null);
+   // an issue GitHub no longer has, off every project
+   if (sql.startsWith('UPDATE `project_issues` SET `removed_at` = ? WHERE `repo`')) {
+      const [when, r, n] = params;
+      for (const h of live.filter(h => h.repo === r && h.number === n)) h.removed_at = when;
+      return {};
+   }
+   if (sql.startsWith('DELETE FROM `pull_labels`') || sql.startsWith('DELETE FROM `issues`')) {
+      tables.deleted.push(`${sql.split('`')[1]} ${params.join('#')}`);
+      return {};
+   }
    if (sql.startsWith('SELECT DISTINCT `repo`, `number` FROM `project_issues`')) {
       tables.handReads++;
       return live.map(({ repo: r, number }) => ({ repo: r, number }));
@@ -335,7 +346,7 @@ const settings = { repo: 'iFixit/projects', prefix: 'project:' };
 
 function fresh() {
    // `printing`: another project's PRs, for a test that has one
-   tables = { links: [], hand: [], handReads: 0, printing: [], queries: [] };
+   tables = { deleted: [], links: [], hand: [], handReads: 0, printing: [], queries: [] };
    mock.method(git, 'graphql', fakeGraphql);
    mock.method(db, 'query', async (sql, params) => fakeQuery(sql, params));
 }
@@ -753,4 +764,95 @@ test('a sync keeps an issue’s links to merged PRs once GitHub’s side stops l
          .sort(),
       [201, 202, 212]
    );
+});
+
+/** GitHub's answer for a number it doesn't have: null beside a NOT_FOUND error */
+function withNotFound(query, variables) {
+   return fakeGraphql(query, variables).then(data => {
+      if (variables?.q || query.includes('closedByPullRequestsReferences')) return data;
+      const errors = Object.entries(data).flatMap(([r, issues]) =>
+         Object.entries(issues)
+            .filter(([, v]) => v === null)
+            .map(([i]) => ({ type: 'NOT_FOUND', path: [r, i] }))
+      );
+      if (!errors.length) return data;
+      throw Object.assign(new Error('Could not resolve'), { data, errors });
+   });
+}
+
+test('an issue GitHub says is gone comes off its project, while one it just failed to read stays', async () => {
+   fresh();
+   mock.method(git, 'graphql', withNotFound);
+   const when = at('2026-09-01');
+   // #999 was deleted; #106 exists
+   tables.hand.push(
+      { project: 'workbench', repo: 'iFixit/ifixit', number: 999, state: 'open', removed_at: null },
+      { project: 'workbench', repo: 'iFixit/ifixit', number: 106, state: 'open', removed_at: null }
+   );
+   await syncWork(settings);
+   const by = n => tables.hand.find(h => h.number === n);
+   assert.notEqual(by(999).removed_at, null);
+   assert.equal(by(106).removed_at, null);
+   assert.deepEqual(tables.deleted, ['pull_labels iFixit/ifixit#999', 'issues iFixit/ifixit#999']);
+
+   // a failed batch says nothing about the issue: it stays
+   fresh();
+   mock.method(git, 'graphql', () =>
+      Promise.reject(Object.assign(new Error('bad'), { status: 502 }))
+   );
+   tables.hand.push({ project: 'workbench', repo: 'iFixit/ifixit', number: 999, removed_at: null });
+   await syncWork(settings);
+   assert.equal(tables.hand[0].removed_at, null);
+   assert.deepEqual(tables.deleted, []);
+   assert.ok(when);
+});
+
+test('forgetIssue takes the issue off every project and out of the board’s issues', async () => {
+   fresh();
+   tables.hand.push(
+      { project: 'a', repo: 'iFixit/ifixit', number: 7, removed_at: null },
+      { project: 'b', repo: 'iFixit/ifixit', number: 7, removed_at: null }
+   );
+   await forgetIssue({ repo: 'iFixit/ifixit', number: 7 }, 5);
+   assert.deepEqual(
+      tables.hand.map(h => h.removed_at),
+      [5, 5]
+   );
+   assert.deepEqual(tables.deleted, ['pull_labels iFixit/ifixit#7', 'issues iFixit/ifixit#7']);
+});
+
+test('a search GitHub rejects over one unreadable repo is asked again a repo at a time', async () => {
+   fresh();
+   searches = [];
+   const logged = mock.method(console, 'error', () => {});
+   mock.method(git, 'graphql', (query, variables) => {
+      // GitHub rejects the whole search that names the missing repo
+      if (variables?.q?.includes('repo:test/repo-b')) {
+         if (variables.q.split('repo:').length > 2) {
+            return Promise.reject(
+               Object.assign(new Error('bad repo'), {
+                  data: { search: null },
+                  errors: [{ message: 'The listed users and repositories cannot be searched' }],
+               })
+            );
+         }
+         return Promise.reject(
+            Object.assign(new Error('bad repo'), {
+               data: { search: null },
+               errors: [{ message: 'x' }],
+            })
+         );
+      }
+      // the stand-in answers every search alike; only repo-a holds the hit
+      if (variables?.q && !variables.q.includes('repo:test/repo-a')) {
+         return Promise.resolve({ search: { nodes: [] } });
+      }
+      return fakeGraphql(query, variables);
+   });
+   const hits = await searchIssues(settings, 'stickers rejected');
+   assert.deepEqual(
+      hits.map(h => `${h.repo}#${h.number}`),
+      ['test/repo-a#5']
+   );
+   assert.ok(logged.mock.calls.some(c => String(c.arguments[1]).includes('repo:test/repo-b')));
 });
