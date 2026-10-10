@@ -77,7 +77,8 @@ export default function RangeCalendar({
             onSelect={setDraft}
             resetOnSelect
             weekStartsOn={1}
-            max={MAX_RANGE_DAYS}
+            // the picker counts nights; a range counts both ends
+            max={MAX_RANGE_DAYS - 1}
             numberOfMonths={months}
             defaultMonth={openingMonth(dateOf(range.end), today, months)}
             endMonth={today}

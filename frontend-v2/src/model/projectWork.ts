@@ -199,6 +199,8 @@ export async function changeProjectIssue(
       };
    }
    reloadProjectWork();
+   // which project each PR is in can change with it, on every view
+   refreshProjectsData();
    if (!add) return { ok: true };
    const json = (await res.json().catch(() => ({}))) as { inserted?: boolean };
    return { ok: true, inserted: json.inserted };

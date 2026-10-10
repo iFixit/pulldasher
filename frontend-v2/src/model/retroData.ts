@@ -117,6 +117,13 @@ export function retryRetroData(): void {
    tries.set({ n: tries.get().n + 1 });
 }
 
+/** Forget every loaded range and ask again on screen: the server's time
+ * spent depends on teams and issue links, which a save can change. */
+export function refreshRetroData(): void {
+   cache.clear();
+   tries.set({ n: tries.get().n + 1 });
+}
+
 function load(range: Range): Promise<RetroData | null> {
    if (isDummy()) return dummyRetro(range);
    const query = new URLSearchParams({ start: range.start, end: range.end });
