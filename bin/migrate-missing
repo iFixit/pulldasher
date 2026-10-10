@@ -30,6 +30,10 @@ const conn = dryRun
         charset: 'utf8mb4',
         multipleStatements: true,
      });
+// an ALTER waits for a metadata lock, and everything queued behind it waits
+// too, so the live board would stall behind a long read; give up after 10s
+// and let the deploy say so instead (MySQL's default wait is a year)
+if (conn) await conn.query('SET SESSION lock_wait_timeout = 10');
 try {
    const missing = dryRun
       ? await missingMigrations()

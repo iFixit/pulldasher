@@ -8,6 +8,7 @@ import { MIGRATIONS, applyMissing, missingMigrations } from '../lib/schema-check
 const all = MIGRATIONS.map(m => ({
    t: m.table,
    c: m.index ? `key:${m.index}` : m.column ?? 'id',
+   n: m.length ?? null,
 }));
 
 test('a database with every migration is missing none', async () => {
@@ -42,11 +43,23 @@ test('names the migration that gives plans their end kind until it’s in', asyn
    mock.restoreAll();
 });
 
-test('names the date index migration until its last index is in', async () => {
+test('names each date index file until its index is in, so a half-done run can resume', async () => {
+   // comments and pull_signatures got theirs; reviews and pulls didn't
    mock.method(db, 'query', async () =>
-      all.filter(r => !(r.t === 'pulls' && r.c === 'key:pulls_date_merged'))
+      all.filter(r => !['key:reviews_date', 'key:pulls_date_merged'].includes(r.c))
    );
-   assert.deepEqual(await missingMigrations(), ['0034-add-date-indexes.sql']);
+   assert.deepEqual(await missingMigrations(), [
+      '0036-reviews--add-date-index.sql',
+      '0037-pulls--add-date-indexes.sql',
+   ]);
+   mock.restoreAll();
+});
+
+test('names the widened project column until it’s 64 long', async () => {
+   mock.method(db, 'query', async () =>
+      all.map(r => (r.t === 'roadmap_items' && r.c === 'project' ? { ...r, n: 24 } : r))
+   );
+   assert.deepEqual(await missingMigrations(), ['0038-roadmap-items--widen-project.sql']);
    mock.restoreAll();
 });
 
@@ -110,6 +123,8 @@ test('names the roadmap and settings tables a database from before them lacks, i
       '0029-roadmap-items--add-status-at.sql',
       '0031-roadmap-items--add-removed-at.sql',
       '0032-roadmap-items--add-end-kind-done-when.sql',
+      // 0022 makes the column 24 wide; 0038 widens it
+      '0038-roadmap-items--widen-project.sql',
    ]);
    mock.restoreAll();
 });
