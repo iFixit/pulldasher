@@ -37,13 +37,14 @@ import {
    windowStats,
    prStage,
    MISC_SLUG,
+   PROJECT_SLUG,
    STALL_DAYS,
 } from '../shared/dist/index.js';
 
 const key = d => `${d.repo}#${d.number}`;
 
-/** a project label's slug: what follows the prefix */
-const SLUG = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+/** a project label's slug: what follows the prefix (the shared rule) */
+const SLUG = PROJECT_SLUG;
 
 /** The issue a request names, as {repo, number} or "owner/repo#123" (or a
  * link), from the body or the query string; null when it names none. */

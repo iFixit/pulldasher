@@ -285,7 +285,11 @@ export function endOf(item: Pick<RoadmapItem, 'start' | 'weeks' | 'end_kind'>): 
    return item.end_kind === 'ongoing' ? null : planEnd(item);
 }
 
-const SLUG = /^[a-z0-9][a-z0-9-]{0,23}$/;
+/** A project label's slug (what follows the prefix): up to 64 characters,
+ * the width of roadmap_items.project and project_issues.project. The one
+ * rule plans, ongoing projects and attached issues all check against. */
+export const PROJECT_SLUG = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+const SLUG = PROJECT_SLUG;
 const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 
 type Check = { fields: Partial<RoadmapFields> } | { error: string };

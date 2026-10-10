@@ -57,7 +57,9 @@ export function JailMode({
 
    const found = useMemo(
       () =>
-         initialized && settings.jailMode !== 'off'
+         // no case until we know who you are: an empty `me` (a failed whoami)
+         // would read as "under the limits" and wipe the last showing
+         initialized && me && settings.jailMode !== 'off'
             ? jailCase(pulls, me, extraBots, {
                  maxOpen: settings.jailMaxOpen,
                  maxDays: settings.jailMaxDays,
@@ -70,10 +72,10 @@ export function JailMode({
    // under the limits again: forget the last showing, so the next time you
    // go over is a fresh offense, not "no worse than before"
    useEffect(() => {
-      if (!initialized || found || settings.jailMode === 'off' || !record.current) return;
+      if (!initialized || !me || found || settings.jailMode === 'off' || !record.current) return;
       record.current = null;
       removeStorage(JAIL_KEY);
-   }, [initialized, found, settings.jailMode]);
+   }, [initialized, me, found, settings.jailMode]);
 
    // the latest case, for closing: the button's hold started seconds ago, and
    // what you saw last is what the next showing compares against
@@ -369,6 +371,9 @@ function HoldToLeave({ onDone }: { onDone: () => void }) {
    const timer = useRef<number | undefined>(undefined);
    const tapTimer = useRef<number | undefined>(undefined);
    const since = useRef(0);
+   // when a key was last let go: Firefox clicks a button on Space's keyup,
+   // and that click must not pass for assistive tech's lone click
+   const keyUpAt = useRef(0);
    const start = () => {
       if (timer.current !== undefined || opened) return;
       since.current = Date.now();
@@ -413,7 +418,9 @@ function HoldToLeave({ onDone }: { onDone: () => void }) {
          // that click lets them out. A mouse click (detail 1+) or a held key
          // never gets here as detail 0.
          onClick={e => {
-            if (e.detail === 0 && !holding && !opened) onDone();
+            if (e.detail !== 0 || holding || opened) return;
+            if (Date.now() - keyUpAt.current < 1000) return;
+            onDone();
          }}
          onPointerUp={stop}
          onPointerCancel={stop}
@@ -422,7 +429,12 @@ function HoldToLeave({ onDone }: { onDone: () => void }) {
             e.preventDefault();
             if (!e.repeat) start();
          }}
-         onKeyUp={e => isPress(e.key) && stop()}
+         onKeyUp={e => {
+            if (!isPress(e.key)) return;
+            e.preventDefault();
+            keyUpAt.current = Date.now();
+            stop();
+         }}
          onBlur={stop}
          onContextMenu={e => e.preventDefault()}
          data-hold
