@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS `comments` (
   `user` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
   `date` int unsigned DEFAULT NULL,
   PRIMARY KEY (`repo`,`comment_type`,`comment_id`),
-  KEY `pull` (`number`)
+  KEY `pull` (`number`),
+  KEY `comments_date` (`date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -122,7 +123,8 @@ CREATE TABLE IF NOT EXISTS `pull_signatures` (
   `userid` int unsigned NOT NULL,
   `date` int unsigned DEFAULT NULL,
   KEY `pull_signatures_number` (`repo`,`number`,`active`),
-  KEY `pull_signatures_type` (`repo`,`user`,`type`)
+  KEY `pull_signatures_type` (`repo`,`user`,`type`),
+  KEY `pull_signatures_date` (`date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -164,7 +166,9 @@ CREATE TABLE IF NOT EXISTS `pulls` (
   `changed_files` int unsigned DEFAULT NULL,
   PRIMARY KEY (`repo`,`number`),
   KEY `pulls_state` (`state`),
-  KEY `pulls_repo` (`repo`)
+  KEY `pulls_repo` (`repo`),
+  KEY `pulls_date` (`date`),
+  KEY `pulls_date_merged` (`date_merged`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -183,7 +187,8 @@ CREATE TABLE IF NOT EXISTS `reviews` (
   `user` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,
   `date` int unsigned DEFAULT NULL,
   PRIMARY KEY (`repo`,`review_id`),
-  KEY `pull` (`number`)
+  KEY `pull` (`number`),
+  KEY `reviews_date` (`date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 --
