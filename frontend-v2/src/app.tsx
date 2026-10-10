@@ -59,6 +59,7 @@ import { Stats } from './views/Stats';
 import type { ProjectsNav } from './views/Projects';
 import { Search } from './views/Search';
 import { Settings } from './components/Settings';
+import { JailMode } from './components/JailMode';
 
 export type { Lens };
 
@@ -1172,6 +1173,7 @@ export function App() {
                   >
                      v1 board
                   </a>
+                  <JailMode pulls={pulls} me={me} extraBots={extraBots} initialized={initialized} />
                   <NotificationPanel
                      records={liveHistory}
                      onClear={clearHistory}

@@ -1,10 +1,14 @@
 import { type RefObject, useEffect, useLayoutEffect } from 'react';
 
+/** A modal dialog is open (PR jail, Settings): the board's own keys stand
+ * down, so `/` or `j` can't move focus behind the scrim. */
+export const modalOpen = () => document.querySelector('[aria-modal="true"]') != null;
+
 /** A key press the board's keys leave alone: one a view's own keys
- * (components/useRowKeys.ts) already took, one typed into a field, or one
- * with a modifier, which belongs to the browser. */
+ * (components/useRowKeys.ts) already took, one typed into a field, one with
+ * a modifier, which belongs to the browser, or one while a modal is open. */
 function notOurs(e: KeyboardEvent): boolean {
-   if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return true;
+   if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || modalOpen()) return true;
    const t = e.target as HTMLElement;
    return ['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName) || t.isContentEditable;
 }

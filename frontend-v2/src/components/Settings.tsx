@@ -134,6 +134,8 @@ export function Settings({
    useEffect(() => {
       if (!open) return;
       const onKey = (e: KeyboardEvent) => {
+         // a dialog above this one (PR jail) handled it
+         if (e.defaultPrevented) return;
          if (e.key === 'Escape') setOpen(false);
          // aria-modal promises a focus trap; without this, Tab walks out of
          // the dialog into the live board behind the scrim
@@ -327,6 +329,73 @@ export function Settings({
                               ]}
                               onChange={ageDisplay => set({ ageDisplay })}
                            />
+                        </Field>
+                        <Field
+                           label="PR jail"
+                           hint="Automatic pops up your list of open PRs when you have too many, or one has been open too long. Manual only shows the lock in the header, to open when you like. Off hides both."
+                        >
+                           <Segmented
+                              ariaLabel="PR jail"
+                              value={s.jailMode}
+                              options={[
+                                 ['auto', 'Automatic'],
+                                 ['manual', 'Manual'],
+                                 ['off', 'Off'],
+                              ]}
+                              onChange={jailMode => set({ jailMode })}
+                           />
+                        </Field>
+                        <Field
+                           label="PR jail: open PRs"
+                           hint="PR jail pops up when you have more than this many open PRs of your own (bots and deploy holds never count). It comes back only when that gets worse, at most every 4 hours."
+                        >
+                           <NumberField
+                              value={s.jailMaxOpen}
+                              min={1}
+                              max={50}
+                              suffix="PRs"
+                              onChange={jailMaxOpen => set({ jailMaxOpen })}
+                           />
+                        </Field>
+                        <Field
+                           label="PR jail: days open"
+                           hint="It also pops up when any of them has been open longer than this."
+                        >
+                           <NumberField
+                              value={s.jailMaxDays}
+                              min={1}
+                              max={365}
+                              suffix="days"
+                              onChange={jailMaxDays => set({ jailMaxDays })}
+                           />
+                        </Field>
+                        <Field
+                           label="PR jail: count drafts"
+                           hint="Off leaves your draft PRs out of both limits."
+                        >
+                           <Segmented
+                              ariaLabel="count drafts toward PR jail"
+                              value={s.jailCountDrafts ? 'on' : 'off'}
+                              options={[
+                                 ['off', 'Off'],
+                                 ['on', 'On'],
+                              ]}
+                              onChange={v => set({ jailCountDrafts: v === 'on' })}
+                           />
+                        </Field>
+                        <Field
+                           label="See PR jail"
+                           hint="Shows it now with your open PRs, whatever the limits say."
+                        >
+                           <QuietButton
+                              onClick={() => {
+                                 // close Settings first so the jail isn't stacked on it
+                                 setOpen(false);
+                                 window.dispatchEvent(new Event('pd2:preview-jail'));
+                              }}
+                           >
+                              Preview PR jail
+                           </QuietButton>
                         </Field>
                         <Field
                            label="Getting QA is a to-do"
