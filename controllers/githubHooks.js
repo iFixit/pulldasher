@@ -13,6 +13,17 @@ import getLogin from '../lib/get-user-login.js';
 import utils from '../lib/utils.js';
 import dbManager from '../lib/db-manager.js';
 import git from '../lib/git-manager.js';
+import { isBaseMerge } from '../lib/base-merge.js';
+
+// how long a push waits on GitHub to say what its head commit is
+const COMMIT_LOOKUP_MS = 3000;
+function withTimeout(promise, ms) {
+   let timer;
+   const late = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('timed out')), ms);
+   });
+   return Promise.race([promise, late]).finally(() => clearTimeout(timer));
+}
 import { projectSettings } from '../lib/projects.js';
 import { forgetIssue, workIssueTouched, workPullTouched } from '../lib/work.js';
 
@@ -92,11 +103,31 @@ const HooksController = {
                // Clear prior CR/QA signoffs immediately for snappy feedback. Emoji
                // CR/QA stay cleared; a carried-over GitHub *approval* is restored by
                // the full refresh below (see Signature.parseReview / git-manager).
-               preUpdate = dbManager.invalidateSignatures(
-                  body.repository.full_name,
-                  body.pull_request.number,
-                  ['QA', 'CR']
-               );
+               // Skip it only for a push that is nothing but a merge of the base
+               // ("Update branch"): stamps survive those, and the refresh below
+               // settles the rest. A merge on top of other new commits (its first
+               // parent isn't the old head) carries real code, so it invalidates.
+               // The lookup is capped so a slow GitHub can't hold the reply; any
+               // error or timeout falls back to invalidating.
+               preUpdate = withTimeout(
+                  Promise.resolve(git.getCommit(body.repository.full_name, body.after)),
+                  COMMIT_LOOKUP_MS
+               )
+                  .then(
+                     commit =>
+                        commit.parents[0]?.sha === body.before &&
+                        isBaseMerge(commit, body.pull_request.base.ref)
+                  )
+                  .catch(() => false)
+                  .then(isMerge =>
+                     isMerge
+                        ? undefined
+                        : dbManager.invalidateSignatures(
+                             body.repository.full_name,
+                             body.pull_request.number,
+                             ['QA', 'CR']
+                          )
+                  );
                reconcileAfterUpdate = true;
          }
 
@@ -329,17 +360,25 @@ function handleLabelEvents(body) {
  * Record one `review_requested` / `review_request_removed` webhook's
  * metadata onto the in-memory review_requests cache (models/pull.js) --
  * memory-only, no DB write. `body.requested_reviewer` is absent for a team
- * review request, which Pulldasher doesn't track per-reviewer, so that's a
- * no-op.
+ * review request (`requested_team` instead); its time goes to the team cache,
+ * and the slug rides on the pull payload's requested_teams, saved with the pull.
  */
 function recordReviewRequestMetadata(body) {
    const reviewer = body.requested_reviewer;
+   const repo = body.repository.full_name;
+   const number = body.pull_request.number;
+
    if (!reviewer) {
+      // a team: only the time is kept; the slug rides on the pull payload
+      const slug = body.requested_team?.slug;
+      if (slug && body.action === 'review_request_removed') {
+         Pull.recordTeamRequestRemoved(repo, number, slug);
+      } else if (slug) {
+         Pull.recordTeamRequested(repo, number, slug, Math.floor(Date.now() / 1000));
+      }
       return Promise.resolve();
    }
 
-   const repo = body.repository.full_name;
-   const number = body.pull_request.number;
    const login = getLogin(reviewer);
 
    if (body.action === 'review_request_removed') {

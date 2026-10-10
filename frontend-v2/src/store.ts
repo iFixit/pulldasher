@@ -3,7 +3,9 @@ import { backend, type ConnectionState } from './backend/socket';
 import {
    derive,
    parseWeightLabels,
+   reviewPolicy,
    type DerivedPull,
+   type ReviewPolicy,
    type Weight,
 } from '../../shared/model/status';
 import { isBotLogin } from '../../shared/model/visibility';
@@ -57,6 +59,9 @@ let repoSpecs: RepoSpec[] = [];
 // payload — not a separate config.json fetch. A fresh weightLabels Map
 // reference invalidates the derive cache so weights re-resolve when it arrives.
 let weightLabels: ReadonlyMap<string, Weight> = new Map();
+// who's a developer (and what a team review request means), from the same
+// payload; replaced whole on initialize, so it's part of the cache key too
+let policy: ReviewPolicy = reviewPolicy();
 let extraBots: ReadonlySet<string> = new Set();
 let projectLabelPrefix: string | null = null;
 let me = '';
@@ -239,6 +244,7 @@ const derived = new WeakMap<
       spec: RepoSpec | undefined;
       warnDays: number;
       weightLabels: ReadonlyMap<string, Weight>;
+      policy: ReviewPolicy;
       minute: number;
       value: DerivedPull;
    }
@@ -251,11 +257,12 @@ function deriveCached(pull: PullData, spec: RepoSpec | undefined, warnDays: numb
       hit.spec === spec &&
       hit.warnDays === warnDays &&
       hit.weightLabels === weightLabels &&
+      hit.policy === policy &&
       hit.minute === minute
    )
       return hit.value;
-   const value = derive(pull, spec, Date.now() / 1000, warnDays, weightLabels);
-   derived.set(pull, { spec, warnDays, weightLabels, minute, value });
+   const value = derive(pull, spec, Date.now() / 1000, warnDays, weightLabels, policy);
+   derived.set(pull, { spec, warnDays, weightLabels, policy, minute, value });
    return value;
 }
 
@@ -297,6 +304,14 @@ function schedulePublish() {
    }, 250);
 }
 
+/** Rebuild who owes a review from a freshly saved roster and re-derive. */
+export function setDeveloperTeams(teams: Record<string, string[]> | undefined): void {
+   policy = reviewPolicy(teams, [...extraBots]);
+   schedulePublish();
+}
+/** The roster-derived policy the board is deriving with (for tests). */
+export const currentPolicy = (): ReviewPolicy => policy;
+
 let started = false;
 function start() {
    if (started) return;
@@ -320,6 +335,7 @@ function start() {
          repoSpecs = payload.repos;
          // server-owned config rides with the board (see shared/types)
          weightLabels = parseWeightLabels(payload.weightLabels);
+         policy = reviewPolicy(payload.developerTeams, payload.bots);
          extraBots = new Set(payload.bots ?? []);
          projectLabelPrefix = payload.projectLabelPrefix || null;
          firstBuild ??= payload.build;
@@ -336,6 +352,8 @@ function start() {
       schedulePublish();
    });
    backend.onRefreshAll(setRefreshProgress);
+   // a saved roster reaches open boards here, not only at connect
+   backend.onDeveloperTeams(setDeveloperTeams);
    backend.onConnection(state => {
       connection = state;
       schedulePublish();

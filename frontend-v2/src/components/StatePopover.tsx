@@ -3,7 +3,7 @@ import { headStatuses, type DerivedPull } from '../../../shared/model/status';
 // the small module, so the board's rows don't load the projects model
 import { MISC_SLUG } from '../../../shared/model/projectLabel';
 import type { Claim, RowNote } from '../model/actions';
-import { rowNote } from '../model/actions';
+import { askedAgo, askedOf, rowNote, selfReviewed } from '../model/actions';
 import { projectOfPull, useProjectStanding } from '../model/standing';
 import type { PullData } from '../../../shared/types';
 import { ago, closedEpoch, epoch, githubUrl, issueUrl, signatureUrl } from '../../../shared/format';
@@ -86,22 +86,19 @@ function stateExplanation(pull: DerivedPull, note: RowNote): string {
 }
 
 /** Section 1: what this pull's badge means, restated in a sentence, plus the
- * viewer's own move when they have one. Claim/turn must flow into rowNote
- * here exactly as they do on the row itself — otherwise the popover asserts
- * "your next step: Review it" on a pull someone else has already claimed, flatly
- * contradicting the row's own (rightly silent) do-pill. */
+ * viewer's own move when they have one. The claim flows into rowNote here
+ * exactly as it does on the row itself, so the popover never asserts a next
+ * step the row doesn't. */
 function StateSection({
    pull,
    me,
    claim,
-   turn,
 }: {
    pull: DerivedPull;
    me: string;
    claim?: Claim | null;
-   turn?: string | null;
 }) {
-   const note = rowNote(pull, me, { claim, turn });
+   const note = rowNote(pull, me, { claim });
    return (
       <div className="border-b border-secondary px-1 pb-2">
          <p className="font-semibold text-ink">{STATUS_LABEL[pull.status]}</p>
@@ -113,20 +110,16 @@ function StateSection({
    );
 }
 
-/** Section 2: the sign-off/CI facts every row's rail hints at, spelled out —
- * plus, when review coordination applies, who's claimed it or whose turn the
- * rotation names (see model/rotation.ts, model/actions.ts's withCoordination). */
+/** Section 2: the sign-off/CI facts every row's rail hints at, spelled out,
+ * plus who reviews it: who said they'd review it, who was asked, or the
+ * author's own self-review. */
 function FactsSection({
    pull,
    claim,
-   turn,
-   poolSize,
    onProject,
 }: {
    pull: DerivedPull;
    claim?: Claim | null;
-   turn?: string | null;
-   poolSize?: number;
    /** open its project's page; unset on that page itself */
    onProject?: (slug: string) => void;
 }) {
@@ -143,10 +136,10 @@ function FactsSection({
       pull.ci === 'failing'
          ? 'failing'
          : pull.ci === 'pending'
-           ? 'running'
-           : pull.ci === 'success'
-             ? 'passed'
-             : 'no checks required';
+         ? 'running'
+         : pull.ci === 'success'
+         ? 'passed'
+         : 'no checks required';
    // a failing check's name links straight to its run log (the status's
    // target_url) — "which check, and show me" without a GitHub detour
    const redLogs = new Map(
@@ -247,20 +240,20 @@ function FactsSection({
                )}
             </p>
          )}
-         {/* a claim always trumps the rotation guess — same precedence as
-             model/actions.ts's withCoordination */}
-         {claim ? (
+         {claim && (
             <p>
-               claimed by <b className="font-medium text-ink">{claim.login}</b>
+               <b className="font-medium text-ink">{claim.login}</b> said they’d review it
                {claim.at != null && <> · {ago(claim.at)} ago</>}
             </p>
+         )}
+         {askedOf(pull).length > 0 ? (
+            <p>
+               review asked of <b className="font-medium text-ink">{askedOf(pull).join(', ')}</b>
+               {askedAgo(pull) && <> · {askedAgo(pull)}</>}
+            </p>
          ) : (
-            turn && (
-               <p>
-                  rotation: <b className="font-medium text-ink">{turn}</b>’s turn · pool of{' '}
-                  {poolSize ?? 0}
-               </p>
-            )
+            !claim &&
+            selfReviewed(pull) && <p>self-review: {d.user.login} stamps it, nobody was asked</p>
          )}
       </div>
    );
@@ -302,29 +295,19 @@ function StatePopoverBody({
    pull,
    me,
    claim,
-   turn,
-   poolSize,
    whyHere,
    onProject,
 }: {
    pull: DerivedPull;
    me: string;
    claim?: Claim | null;
-   turn?: string | null;
-   poolSize?: number;
    whyHere?: string | null;
    onProject?: (slug: string) => void;
 }) {
    return (
       <>
-         <StateSection pull={pull} me={me} claim={claim} turn={turn} />
-         <FactsSection
-            pull={pull}
-            claim={claim}
-            turn={turn}
-            poolSize={poolSize}
-            onProject={onProject}
-         />
+         <StateSection pull={pull} me={me} claim={claim} />
+         <FactsSection pull={pull} claim={claim} onProject={onProject} />
          <FeedbackSection pull={pull} />
          {/* ranked lanes explain their pick per-card here — behind the same
              door as everything else, never inline on the row */}
@@ -365,8 +348,6 @@ export function StatePopover({
    pull,
    me,
    claim,
-   turn,
-   poolSize,
    whyHere,
    onProject,
    title = 'see the full state',
@@ -375,8 +356,6 @@ export function StatePopover({
    pull: DerivedPull;
    me: string;
    claim?: Claim | null;
-   turn?: string | null;
-   poolSize?: number;
    /** a ranked lane's one-line reason this pull sits where it does */
    whyHere?: string | null;
    /** open the PR's project page (RowOptions.onProject) */
@@ -402,8 +381,6 @@ export function StatePopover({
             pull={pull}
             me={me}
             claim={claim}
-            turn={turn}
-            poolSize={poolSize}
             whyHere={whyHere}
             onProject={onProject}
          />

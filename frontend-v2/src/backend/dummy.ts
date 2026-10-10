@@ -44,7 +44,7 @@ export async function loadDummy(): Promise<InitializePayload> {
    const withBody = (p: PullData, i: number): PullData =>
       p.body === 'pull request dummy body' ? { ...p, body: BODIES[i % BODIES.length] } : p;
    const pulls = withSyntheticStacks(raw).map((p, i) =>
-      withProject(withBody(withSizes(redate(p, i), i), i), i)
+      withProject(withBody(withSizes(withSelfReviewDemos(redate(p, i), i), i), i), i)
    );
    // ?projects=100 adds that many projects in flight, to design at real size
    const scaled = new URLSearchParams(location.search).has('projects')
@@ -65,12 +65,27 @@ export async function loadDummy(): Promise<InitializePayload> {
          'size: XL': 'XL',
       },
       projectLabelPrefix: DUMMY_PROJECT_PREFIX,
+      developerTeams: dummyDeveloperTeams(pulls),
       // The fixture carries almost no closed/merged pulls and no diff sizes, so
       // the Stats lens (merge-time-by-size, leaderboards over shipped work) has
       // nothing to show. Synthesize a fortnight of merged PRs across the size
       // range so those panels demo. Dummy-only — real data carries this for real.
       pulls: [...pulls, ...scaled, ...synthMerged(pulls)],
    };
+}
+
+// The roster of developers (config projects.developerTeams): every dummy author
+// but two, who stay outside contributors whose pulls still need someone else's
+// review. The viewer is always on it.
+const OUTSIDE_CONTRIBUTORS = new Set(['notme', 'Michelle5102']);
+function dummyDeveloperTeams(pulls: PullData[]): Record<string, string[]> {
+   const logins = [...new Set([dummyUser(), ...pulls.map(p => p.user.login)])].filter(
+      l => !OUTSIDE_CONTRIBUTORS.has(l) && !l.endsWith('[bot]')
+   );
+   const names = ['Store Front', 'Platform', 'Community'];
+   const teams: Record<string, string[]> = Object.fromEntries(names.map(n => [n, []]));
+   logins.forEach((l, i) => teams[names[i % names.length]].push(l));
+   return teams;
 }
 
 export const DUMMY_PROJECT_PREFIX = 'project:';
@@ -244,8 +259,8 @@ function participantsFor(pull: PullData, i: number): string[] {
       i === CHANGES_REQUESTED_INDEX
          ? ['grumpy-reviewer']
          : i === COMMENTED_INDEX
-           ? ['curious-commenter']
-           : ['silent-lurker'];
+         ? ['curious-commenter']
+         : ['silent-lurker'];
    return [...new Set([...(pull.participants ?? []), ...stampers, ...extra])];
 }
 
@@ -268,6 +283,87 @@ const FORK_INDEXES = [13, 14, 15] as const; // parent, child, child
 const wantsReviewRequest = (pull: PullData, i: number): boolean =>
    pull.user.login !== dummyUser() && i % 3 === 1;
 const ASSIGNEE_INDEXES = new Set([6, 12]);
+
+// The self-review policy demos, keyed by index like the rest: team requests
+// (one for a team nobody is on the roster of), requests of the viewer with a
+// clock in hours (one past four), developers' own stamped pulls, an author
+// whose own stamp went stale, and input hints from the diff's paths.
+// [team slug, hours since it was requested]; the one at 5 is past the four
+// hours reviewers answer in
+const TEAM_REQUESTS: Record<number, Array<[string, number]>> = {
+   2: [['store-front', 3]],
+   9: [['store-front', 5]],
+   17: [['platform', 2]],
+   20: [['community', 4.5]],
+   30: [['design', 1]],
+};
+const OWN_STAMPED = new Set([3, 8, 21]);
+const OWN_STALE_STAMP = 24;
+const INPUT_HINTS: Record<number, string[]> = {
+   4: ['migrations'],
+   18: ['ci', 'agent-docs'],
+   26: ['deploy', 'dependencies'],
+   33: ['alerting'],
+   // the viewer's own open, unrequested pulls (the chain), so the author-side
+   // "worth asking for review?" hint shows on the board
+   10: ['migrations'],
+   12: ['ci', 'dependencies'],
+};
+
+function withSelfReviewDemos(pull: PullData, i: number): PullData {
+   const now = Date.now();
+   const author = pull.user;
+   const stamp = (type: 'CR' | 'QA', active: boolean, hoursAgo: number) => ({
+      data: {
+         repo: pull.repo,
+         number: pull.number,
+         user: { id: 1, ...author },
+         type,
+         created_at: new Date(now - hoursAgo * 3_600_000).toISOString(),
+         active: active ? 1 : 0,
+         comment_id: 900000000 + i * 10 + (type === 'CR' ? 1 : 2),
+      },
+   });
+   const meAsked = (pull.requested_reviewers ?? []).includes(dummyUser());
+   let out: PullData = {
+      ...pull,
+      requested_teams: (TEAM_REQUESTS[i] ?? []).map(([slug]) => slug),
+      team_requests: (TEAM_REQUESTS[i] ?? []).map(([slug, hoursAgo]) => ({
+         slug,
+         at: Math.floor(now / 1000 - hoursAgo * 3600),
+      })),
+      input_hints: INPUT_HINTS[i] ?? [],
+      // asked hours ago; the one at 7 is past the four hours reviewers answer in
+      review_requests: meAsked
+         ? [
+              {
+                 login: dummyUser(),
+                 at: Math.floor(now / 1000) - (i === 7 ? 5 : 1 + (i % 3)) * 3600,
+                 self: false,
+              },
+           ]
+         : pull.review_requests,
+   };
+   if (INPUT_HINTS[i] && (CHAIN_INDEXES as readonly number[]).includes(i)) {
+      // unrequested, so the hint is the only nudge to ask anyone
+      out = { ...out, requested_reviewers: [], requested_teams: [], team_requests: [] };
+   }
+   if (OWN_STAMPED.has(i) || i === OWN_STALE_STAMP) {
+      out = {
+         ...out,
+         requested_reviewers: [],
+         requested_teams: [],
+         team_requests: [],
+         review_requests: [],
+         status: {
+            ...out.status,
+            allCR: [stamp('CR', i !== OWN_STALE_STAMP, 6)],
+            allQA: i === OWN_STALE_STAMP ? [] : [stamp('QA', true, 5)],
+         },
+      };
+   }
+   return out;
+}
 
 function withSyntheticStacks(pulls: PullData[]): PullData[] {
    const out = [...pulls];
@@ -329,8 +425,8 @@ function redate(pull: PullData, i: number): PullData {
       deletions,
       requested_reviewers: wantsReviewRequest(pull, i)
          ? [dummyUser()]
-         : (pull.requested_reviewers ?? []),
-      assignees: ASSIGNEE_INDEXES.has(i) ? [dummyUser()] : (pull.assignees ?? []),
+         : pull.requested_reviewers ?? [],
+      assignees: ASSIGNEE_INDEXES.has(i) ? [dummyUser()] : pull.assignees ?? [],
    };
 }
 

@@ -12,6 +12,7 @@
  */
 export {
    derive,
+   reviewPolicy,
    ciVerdict,
    ciFailing,
    headStatuses,

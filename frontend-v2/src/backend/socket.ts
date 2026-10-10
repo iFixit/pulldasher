@@ -45,6 +45,9 @@ export interface Backend {
     * server (a roadmap write, an issue added, a setting, a sync), so open
     * boards fetch it again; returns the unsubscribe. */
    onProjectsChanged: (handler: () => void) => () => void;
+   /** Calls `handler` with the new developer roster when someone saves it,
+    * so open boards re-derive who owes a review; returns the unsubscribe. */
+   onDeveloperTeams: (handler: (teams: Record<string, string[]> | undefined) => void) => () => void;
 }
 
 function liveBackend(): Backend {
@@ -188,6 +191,15 @@ function liveBackend(): Backend {
             s.off('initialize', reconnected);
          };
       },
+      onDeveloperTeams(handler) {
+         const s = getSocket();
+         const heard = (data: { developerTeams?: Record<string, string[]> }) =>
+            handler(data.developerTeams);
+         s.on('developerTeamsChanged', heard);
+         return () => {
+            s.off('developerTeamsChanged', heard);
+         };
+      },
       onConnection(handler) {
          onState = handler;
          const s = getSocket();
@@ -258,6 +270,8 @@ function dummyBackend(): Backend {
          window.addEventListener('pd:projectsChanged', handler);
          return () => window.removeEventListener('pd:projectsChanged', handler);
       },
+      // the dummy roster never changes
+      onDeveloperTeams: () => () => undefined,
       whoami: () => Promise.resolve(dummyUser()),
       onPulls(handler) {
          emit = handler;

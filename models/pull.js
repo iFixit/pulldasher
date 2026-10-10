@@ -5,6 +5,7 @@ import queue from '../lib/pull-queue.js';
 import debug from '../lib/debug.js';
 import DBPull from './db_pull.js';
 import getLogin from '../lib/get-user-login.js';
+import { recalledHints, rememberHints } from '../lib/input-hints.js';
 import { isBot } from '../lib/review-model.js';
 
 const log = debug('pulldasher:pull');
@@ -41,12 +42,49 @@ function reviewRequestsKey(repo, number) {
    return `${repo}#${number}`;
 }
 
+// "repo#number" -> Map of team slug -> epoch secs it was requested. The pull
+// payload lists teams without times, so a refresh keeps what a webhook or the
+// stored column told us (Pull.fromGithubApi reads this; getFromDB seeds it).
+const teamRequestTimes = new Map();
+
+// the stored column holds {slug, at} (old rows: plain slugs)
+const normalizeTeams = teams =>
+   (teams || []).map(t => (typeof t === 'string' ? { slug: t, at: null } : t));
+
 function getReviewRequests(repo, number, requestedReviewerLogins) {
    const known = reviewRequestsByPull.get(reviewRequestsKey(repo, number));
-   return (requestedReviewerLogins || []).map(login => {
+   const open = new Set(requestedReviewerLogins || []);
+   const current = [...open].map(login => {
       const entry = known && known.get(login);
       return entry ? { login, at: entry.at, self: entry.self } : { login, at: null, self: false };
    });
+   // requests GitHub has since cleared because the reviewer answered (no pull
+   // update says so, so a cached entry still marked unanswered is one too); a
+   // re-request puts the login back in `open`, which supersedes the old answer,
+   // and a withdrawal deletes its entry
+   const answered = [...(known?.entries() ?? [])]
+      .filter(([login]) => !open.has(login))
+      .map(([login, e]) => ({ login, at: e.at, self: e.self, answered: true }));
+   return [...current, ...answered];
+}
+
+// A payload's teams with the times we know; the cache then holds exactly the
+// teams still requested.
+function teamRequests(repo, number, payloadTeams) {
+   const key = reviewRequestsKey(repo, number);
+   const known = teamRequestTimes.get(key);
+   const teams = (payloadTeams || []).map(t => ({ slug: t.slug, at: known?.get(t.slug) ?? null }));
+   teamRequestTimes.set(key, new Map(teams.filter(t => t.at !== null).map(t => [t.slug, t.at])));
+   return teams;
+}
+
+function seedTeamRequests(repo, number, stored) {
+   const teams = normalizeTeams(stored);
+   teamRequestTimes.set(
+      reviewRequestsKey(repo, number),
+      new Map(teams.filter(t => t.at != null).map(t => [t.slug, t.at]))
+   );
+   return teams;
 }
 
 class Pull {
@@ -155,6 +193,9 @@ class Pull {
       var data = _.extend({}, this.data);
       data.status = this.getStatus();
       data.labels = this.labels.map(label => label.data);
+      delete data.input_hints_sha;
+      data.team_requests = normalizeTeams(data.requested_teams);
+      data.requested_teams = data.team_requests.map(t => t.slug);
       data.review_requests = getReviewRequests(data.repo, data.number, data.requested_reviewers);
       return data;
    }
@@ -318,6 +359,14 @@ class Pull {
          },
          assignees: (data.assignees || []).map(a => getLogin(a)),
          requested_reviewers: (data.requested_reviewers || []).map(r => getLogin(r)),
+         requested_teams: teamRequests(data.base.repo.full_name, data.number, data.requested_teams),
+         // parse() fills input_hints on a full refresh; a webhook's body
+         // can't, so reuse what was computed for this same head
+         input_hints:
+            data.input_hints ??
+            recalledHints(data.base.repo.full_name, data.number, data.head.sha) ??
+            undefined,
+         input_hints_sha: data.head.sha,
          additions: data.additions,
          deletions: data.deletions,
          changed_files: data.changed_files,
@@ -326,7 +375,12 @@ class Pull {
       if (reviewRequests) {
          reviewRequestsByPull.set(
             reviewRequestsKey(data.repo, data.number),
-            new Map(reviewRequests.map(r => [r.login, { at: r.at, self: r.self }]))
+            new Map(
+               reviewRequests.map(r => [
+                  r.login,
+                  { at: r.at, self: r.self, answered: Boolean(r.answered) },
+               ])
+            )
          );
       }
 
@@ -343,7 +397,7 @@ class Pull {
    static recordReviewRequested(repo, number, login, { at, self }) {
       const key = reviewRequestsKey(repo, number);
       const known = reviewRequestsByPull.get(key) || new Map();
-      known.set(login, { at, self });
+      known.set(login, { at, self, answered: false });
       reviewRequestsByPull.set(key, known);
    }
 
@@ -359,6 +413,19 @@ class Pull {
       if (known) {
          known.delete(login);
       }
+   }
+
+   /** A `review_requested` webhook for a team: remember when, for the
+    * fromGithubApi call that follows with the payload's team list. */
+   static recordTeamRequested(repo, number, slug, at) {
+      const key = reviewRequestsKey(repo, number);
+      const known = teamRequestTimes.get(key) || new Map();
+      known.set(slug, at);
+      teamRequestTimes.set(key, known);
+   }
+
+   static recordTeamRequestRemoved(repo, number, slug) {
+      teamRequestTimes.get(reviewRequestsKey(repo, number))?.delete(slug);
    }
 
    /**
@@ -385,6 +452,11 @@ class Pull {
             reviewRequestsByPull.delete(key);
          }
       }
+      for (const key of teamRequestTimes.keys()) {
+         if (!liveKeys.has(key)) {
+            teamRequestTimes.delete(key);
+         }
+      }
    }
 
    /**
@@ -392,6 +464,10 @@ class Pull {
     * Pull object.
     */
    static getFromDB(data, signatures, comments, reviews, commitStatuses, labels) {
+      // seed what the stored hints were computed for (see lib/input-hints.js)
+      if (data.input_hints?.sha) {
+         rememberHints(data.repo, data.number, data.input_hints.sha, data.input_hints.hints);
+      }
       var pullData = {
          repo: data.repo,
          number: data.number,
@@ -439,6 +515,9 @@ class Pull {
          // mysql2 auto-parses the JSON column, so this is already an array (or null).
          assignees: data.assignees ?? [],
          requested_reviewers: data.requested_reviewers ?? [],
+         requested_teams: seedTeamRequests(data.repo, data.number, data.requested_teams),
+         input_hints: data.input_hints?.hints ?? [],
+         input_hints_sha: data.input_hints?.sha,
          cr_req: data.cr_req,
          qa_req: data.qa_req,
          // read back with cr_req, or the constructor skips the body parse

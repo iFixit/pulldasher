@@ -1,10 +1,10 @@
 import { pullKey } from '../../../shared/format';
 import type { PullData } from '../../../shared/types';
-import { actionState, STALE_CLAIM_SECS } from './actions';
+import { actionState, askedHours, askedOf, reviewIsMine, STALE_CLAIM_SECS } from './actions';
 import { dealFrom, dealRank } from './deal';
 import { reviewerRanks } from './leaderboard';
 import { displayName } from './names';
-import { claimFor, reviewRequestedFrom } from './reviewers';
+import { claimFor } from './reviewers';
 import { crSort } from './sort';
 import { CR_INCOMPLETE, type DerivedPull } from '../../../shared/model/status';
 import type { Toast } from './toast';
@@ -51,14 +51,10 @@ export interface CheerBaseline {
    sessionStamps: number;
    /** milestone counts already celebrated */
    firedMilestones: ReadonlySet<number>;
-   /** turn-rotation pulls already nagged, so "your turn" fires once per pull */
-   seenTurns: ReadonlySet<string>;
    /** pull keys where you currently owe a re-stamp (recrBy/reqaBy has you) */
    restampKeys: ReadonlySet<string>;
    /** you've already been told about the current batch of quick wins */
    quickWinsNagged: boolean;
-   /** debtor logins already nudged for reciprocity this session */
-   favorsSeen: ReadonlySet<string>;
    /** your leaderboard rank last tick (0 = unranked / no stamps in view) */
    myRank: number;
    /** your stamp count last tick — climbing requires it to have GROWN, so a
@@ -88,10 +84,8 @@ export const EMPTY_BASELINE: CheerBaseline = {
    queue: 0,
    sessionStamps: 0,
    firedMilestones: new Set(),
-   seenTurns: new Set(),
    restampKeys: new Set(),
    quickWinsNagged: false,
-   favorsSeen: new Set(),
    myRank: 0,
    myCount: 0,
    wasTop: false,
@@ -106,7 +100,7 @@ export const EMPTY_BASELINE: CheerBaseline = {
  * Flatten a baseline to a JSON-safe shape (Sets → arrays, the Map → entries)
  * so it can ride in sessionStorage. Persisting the baseline is what stops a
  * page reload from re-priming off EMPTY_BASELINE and replaying every load-time
- * greeting (start-here, return-the-favor, the shipped catch-up); a reload
+ * greeting (start-here, the shipped catch-up); a reload
  * instead resumes the diff, so only what genuinely changed while away speaks.
  */
 export function serializeBaseline(b: CheerBaseline): unknown {
@@ -117,10 +111,8 @@ export function serializeBaseline(b: CheerBaseline): unknown {
       queue: b.queue,
       sessionStamps: b.sessionStamps,
       firedMilestones: [...b.firedMilestones],
-      seenTurns: [...b.seenTurns],
       restampKeys: [...b.restampKeys],
       quickWinsNagged: b.quickWinsNagged,
-      favorsSeen: [...b.favorsSeen],
       myRank: b.myRank,
       myCount: b.myCount,
       wasTop: b.wasTop,
@@ -148,10 +140,8 @@ export function reviveBaseline(raw: unknown): CheerBaseline | null {
          queue: Number(o.queue) || 0,
          sessionStamps: Number(o.sessionStamps) || 0,
          firedMilestones: new Set(arr(o.firedMilestones) as number[]),
-         seenTurns: new Set(arr(o.seenTurns) as string[]),
          restampKeys: new Set(arr(o.restampKeys) as string[]),
          quickWinsNagged: !!o.quickWinsNagged,
-         favorsSeen: new Set(arr(o.favorsSeen) as string[]),
          myRank: Number(o.myRank) || 0,
          myCount: Number(o.myCount) || 0,
          wasTop: !!o.wasTop,
@@ -168,10 +158,6 @@ export function reviveBaseline(raw: unknown): CheerBaseline | null {
 
 interface CheerInput {
    pulls: DerivedPull[];
-   /** whose turn each starved, unclaimed pull is (pull key → login), computed
-    * once in app.tsx and shared by the rows, desktop notifications, and these
-    * cheers — three surfaces, one rotation read */
-   turns: ReadonlyMap<string, string>;
    /** closed pulls in the loaded window, for the leaderboard's tally — optional
     * so older callers still typecheck; an absent window just ranks off the
     * open board. */
@@ -188,7 +174,7 @@ interface CheerInput {
     * than firing then hiding it. */
    muted?: ReadonlySet<ToastKind>;
    /** pull keys the viewer snoozed ("not today") in the Review lens — excluded
-    * from the reviewable pool so start-here / quick-wins / your-turn cheers
+    * from the reviewable pool so start-here / quick-wins cheers
     * don't re-nudge a pull you just deferred. */
    snoozed?: ReadonlySet<string>;
    /** login → human display name (model/names.ts) — turns a GitHub login into
@@ -241,9 +227,7 @@ function pick(list: string[], seed: number): string {
    return list[((seed % list.length) + list.length) % list.length];
 }
 
-/** Has `login` landed an active CR or QA stamp on this pull? Mirrors
- * deal.ts's private helper — duplicated rather than imported so this stays a
- * small, self-contained pure check like the rest of model/. */
+/** Has `login` landed an active CR or QA stamp on this pull? */
 function hasStamp(p: DerivedPull, login: string): boolean {
    return p.crBy.includes(login) || p.qaBy.includes(login);
 }
@@ -252,10 +236,11 @@ function hasStamp(p: DerivedPull, login: string): boolean {
 const claimOf = (p: DerivedPull) => claimFor(p.data);
 
 /**
- * The one-line "why this pull" for start-here, in priority order: returning a
- * favor beats a quick win beats plain urgency. `pulls` is the whole board (not
- * just the queue) so reciprocity can look across every author the viewer has
- * reviewed, matching deal.ts's own scoring.
+ * The one-line "why this pull" for start-here, in priority order: a review
+ * asked of you beats a quick win beats plain waiting. Only pulls that are
+ * someone else's review work get here (asked of you, outside the dev team,
+ * bots), so there's no favor to return: under self-review nobody owes
+ * anyone a review for one they got.
  *
  * There's deliberately no "you know this repo" reason: in a monorepo everyone
  * has stamped something in it, so it's both always true and no motivation at
@@ -263,15 +248,16 @@ const claimOf = (p: DerivedPull) => claimFor(p.data);
  */
 export function startHereReason(
    p: DerivedPull,
-   pulls: DerivedPull[],
    me: string,
    superlative = false,
    names: Readonly<Record<string, string | null>> = {}
 ): string {
    const author = p.data.user.login;
-   const owedByAuthor = pulls.some(o => o.data.user.login === me && hasStamp(o, author));
-   if (owedByAuthor)
-      return `${displayName(names, author) ?? author} reviewed yours, return the favor`;
+   if (askedOf(p).includes(me)) {
+      const h = askedHours(p);
+      const when = h == null ? '' : h < 1 ? ' just now' : ` ${h}h ago`;
+      return `${displayName(names, author) ?? author} asked you${when}`;
+   }
    const quickWin = p.weight === 'XS' || p.weight === 'S';
    if (quickWin) return `Small one (${p.weight}), quick`;
    const days = Math.max(1, Math.round(p.ageDays));
@@ -321,8 +307,6 @@ export interface Signals {
    boardReviewable: number;
    /** pull keys where you currently owe a re-stamp */
    restampKeys: Set<string>;
-   /** pull keys the rotation currently names the viewer for, unclaimed */
-   turns: Map<string, DerivedPull>;
    /** the pull behind each key, for a toast's body/link */
    byKey: Map<string, DerivedPull>;
    /** unclaimed XS/S reviewable pulls on the board right now */
@@ -333,9 +317,6 @@ export interface Signals {
    startReason: string;
    /** unclaimed reviewable count (excludes claimed pulls, unlike `review`) */
    backlog: number;
-   /** authors who owe you a favor and have an open reviewable PR, in a
-    * deterministic order; one entry per debtor */
-   debtors: { login: string; pull: DerivedPull; count: number }[];
    authorPrs: Map<string, AuthorPrState>;
    myRank: number;
    myCount: number;
@@ -346,8 +327,9 @@ export interface Signals {
    staleClaims: Map<string, DerivedPull>;
    /** the claim-warn threshold as loose words ("an hour"), for the nudge copy */
    staleClaimAfter: string;
-   /** pulls GitHub has asked YOU to review (and you haven't yet), for the
-    * review-requested toast — the most direct "review this" the board carries */
+   /** pulls asked of YOU (by name or through a team) that you haven't
+    * stamped yet, for the review-requested toast: the most direct "review
+    * this" the board carries */
    requestedOfMe: Map<string, DerivedPull>;
    /** logins holding each rank right now, you excluded, keyed by rank number —
     * the leaderboard neighborhood the overtaken nudge reads to name whoever
@@ -361,7 +343,6 @@ function readSignals(input: CheerInput): Signals {
    const snoozed = input.snoozed ?? new Set<string>();
    const now = input.now ?? Date.now();
    const stamped = new Set<string>();
-   const turns = new Map<string, DerivedPull>();
    const byKey = new Map<string, DerivedPull>();
    const restampKeys = new Set<string>();
    let review = 0;
@@ -378,10 +359,6 @@ function readSignals(input: CheerInput): Signals {
       if (st === 'review') review++;
       else if (st === 'qa') qa++;
       else if (st === 'restamp') restampKeys.add(key);
-      // a starved BOT pull shouldn't tap you with "your turn — you're the best
-      // fit"; bots are handled on their own low-priority cadence, not the rotation
-      if (!mine && !isBot(p) && !claimOf(p) && !snoozed.has(key) && input.turns.get(key) === me)
-         turns.set(key, p);
    }
 
    const reviewableUnclaimed = pulls.filter(
@@ -406,32 +383,9 @@ function readSignals(input: CheerInput): Signals {
       }),
       { passed: new Set() }
    );
-   const startReason = bestStart
-      ? startHereReason(bestStart, pulls, me, true, input.names ?? {})
-      : '';
+   const startReason = bestStart ? startHereReason(bestStart, me, true, input.names ?? {}) : '';
 
-   // reciprocity: who has stamped one of your own pulls, and do they have an
-   // open reviewable pull of their own right now?
    const myPulls = pulls.filter(p => p.data.user.login === me);
-   const debtorPullKeys = new Map<string, Set<string>>();
-   for (const p of myPulls) {
-      const key = pullKey(p.data);
-      for (const login of new Set([...p.crBy, ...p.qaBy])) {
-         const keys = debtorPullKeys.get(login) ?? new Set<string>();
-         keys.add(key);
-         debtorPullKeys.set(login, keys);
-      }
-   }
-   const debtors: { login: string; pull: DerivedPull; count: number }[] = [];
-   const seenDebtor = new Set<string>();
-   for (const p of crSort(reviewableUnclaimed)) {
-      const author = p.data.user.login;
-      const count = debtorPullKeys.get(author)?.size ?? 0;
-      if (count > 0 && !seenDebtor.has(author)) {
-         seenDebtor.add(author);
-         debtors.push({ login: author, pull: p, count });
-      }
-   }
 
    const authorPrs = new Map<string, AuthorPrState>();
    // parked pulls sit out the edge system entirely: "ready to merge",
@@ -452,16 +406,21 @@ function readSignals(input: CheerInput): Signals {
       });
    }
 
+   // only review that's yours: a developer's self-review waiting on its own
+   // author doesn't hold the board back
    const boardReviewable = pulls.filter(
-      p => !p.cryo && (CR_INCOMPLETE.includes(p.status) || p.status === 'needs_qa')
+      p =>
+         !p.cryo &&
+         (CR_INCOMPLETE.includes(p.status) || p.status === 'needs_qa') &&
+         reviewIsMine(p, me)
    ).length;
 
    // claims of yours gone stale that you still haven't stamped — the nudge to
-   // either finish the review or release it back to the pool. The threshold is
+   // either finish the review or drop it. The threshold is
    // the viewer's claim-warn setting (30m–4h), so the copy has to say the real
    // number, not a hardcoded "a couple hours". A claim with no `at` (metadata
    // not yet backfilled after a server restart) can't be proven stale, so it
-   // never nags — same rule model/actions.ts's withCoordination applies.
+   // never nags.
    const warnMs = input.claimWarnMs ?? STALE_CLAIM_MS;
    const staleClaimAfter = durationPhrase(warnMs);
    const staleClaims = new Map<string, DerivedPull>();
@@ -480,18 +439,16 @@ function readSignals(input: CheerInput): Signals {
       }
    }
 
-   // GitHub asked you to review these and you haven't stamped them — a direct
-   // request, distinct from the rotation's guess (which stays silent on
-   // requested pulls). reviewRequestedFrom already excludes a self-claim (see
-   // model/reviewers.ts), so a pull you've claimed yourself never lands here.
-   // Drives the review-requested toast.
+   // the author asked you to review these (askedOf leaves out claims, so a
+   // pull you took on yourself never lands here) and you haven't stamped
+   // them. Drives the review-requested toast.
    const requestedOfMe = new Map<string, DerivedPull>();
    for (const p of pulls) {
       const key = pullKey(p.data);
       if (
          !p.cryo &&
          CR_INCOMPLETE.includes(p.status) &&
-         reviewRequestedFrom(p, me) &&
+         askedOf(p).includes(me) &&
          !p.crBy.includes(me)
       ) {
          requestedOfMe.set(key, p);
@@ -528,14 +485,12 @@ function readSignals(input: CheerInput): Signals {
       qa,
       boardReviewable,
       restampKeys,
-      turns,
       byKey,
       quickWinCount: quickWinCandidates.length,
       quickWinPull,
       bestStart,
       startReason,
       backlog: reviewableUnclaimed.length,
-      debtors,
       authorPrs,
       myRank,
       myCount,
@@ -576,10 +531,8 @@ export const PRIORITY_ORDER = [
    'stamp-landed',
    'pr-first-review',
    'review-requested',
-   'your-turn',
    're-stamp-owed',
    'claim-stale',
-   'return-the-favor',
    'start-here',
    'quick-wins',
    'pr-ci-red',
@@ -587,7 +540,7 @@ export const PRIORITY_ORDER = [
    'pr-conflicts',
    'pr-starving',
 ] as const;
-export type ToastKind = (typeof PRIORITY_ORDER)[number];
+export type ToastKind = typeof PRIORITY_ORDER[number];
 const PRIORITY: Record<ToastKind, number> = Object.fromEntries(
    PRIORITY_ORDER.map((kind, i) => [kind, PRIORITY_ORDER.length - i])
 ) as Record<ToastKind, number>;
@@ -611,7 +564,7 @@ export const CHEER_CATALOG: {
 }[] = [
    // Each label matches the toast's own headline so a toast you see maps to
    // an obvious switch — no guessing. Where the headline leads with a count or
-   // a name ("5 stamps in view", "Return the favor to alice"), the label is
+   // a name ("5 stamps in view", "alice took your #2 spot"), the label is
    // its stable phrase. stamp-landed is the one exception: its headline rotates
    // ("Nice one." / "Keep 'em coming." / "Clean."), so the label names the
    // event and the hint quotes the phrases.
@@ -656,14 +609,14 @@ export const CHEER_CATALOG: {
       kind: 'pr-green',
       group: 'reward',
       label: 'Green, ship it',
-      hint: 'A PR of yours clears CR and QA, ready to ship.',
+      hint: 'A PR of yours is signed off and green, ready to merge.',
    },
    // Nudges — what to review next
    {
       kind: 'start-here',
       group: 'nudge',
       label: 'Start here',
-      hint: 'The single best pull to pick up next.',
+      hint: 'The best review to pick up next: one asked of you first.',
    },
    {
       kind: 'quick-wins',
@@ -675,13 +628,7 @@ export const CHEER_CATALOG: {
       kind: 'review-requested',
       group: 'nudge',
       label: 'Review requested',
-      hint: 'Someone asked for your review on GitHub.',
-   },
-   {
-      kind: 'your-turn',
-      group: 'nudge',
-      label: 'Your turn to review',
-      hint: 'You’re the best-matched reviewer for a long-waiting, unclaimed PR.',
+      hint: 'Someone asked you, or a team you’re on, for a review on GitHub.',
    },
    {
       kind: 're-stamp-owed',
@@ -690,16 +637,10 @@ export const CHEER_CATALOG: {
       hint: 'A PR you approved changed and wants another look.',
    },
    {
-      kind: 'return-the-favor',
-      group: 'nudge',
-      label: 'Return the favor',
-      hint: 'Someone who reviewed your PRs has one open.',
-   },
-   {
       kind: 'claim-stale',
       group: 'nudge',
-      label: 'Claimed but still unreviewed',
-      hint: 'A review you claimed has sat unreviewed too long.',
+      label: 'Said you’d review, still unreviewed',
+      hint: 'A review you said you’d do has sat too long.',
    },
    {
       kind: 'overtaken',
@@ -736,7 +677,7 @@ export const CHEER_CATALOG: {
       kind: 'pr-starving',
       group: 'author',
       label: 'Waiting for review',
-      hint: 'Your PR has gone a while with no review.',
+      hint: 'A PR you asked for review on has gone a while without one.',
    },
 ];
 
@@ -784,7 +725,7 @@ export function diffCheers(
    muted: ReadonlySet<ToastKind> = NO_MUTED,
    /** login → human display name, for the same login→name swap as
     * startHereReason's own `names` param — threaded here too since these
-    * builders (review-requested, return-the-favor, overtaken,
+    * builders (review-requested, overtaken,
     * pr-first-review) construct their text directly, not through
     * startHereReason. */
    names: Readonly<Record<string, string | null>> = {}
@@ -803,10 +744,8 @@ export function diffCheers(
             queue: sig.queue,
             sessionStamps: 0,
             firedMilestones: new Set(),
-            seenTurns: new Set(sig.turns.keys()),
             restampKeys: sig.restampKeys,
             quickWinsNagged: sig.quickWinCount >= QUICK_WIN_THRESHOLD,
-            favorsSeen: new Set(),
             myRank: sig.myRank,
             myCount: sig.myCount,
             wasTop: sig.myRank === 1,
@@ -908,31 +847,9 @@ export function diffCheers(
       );
    }
 
-   // the rotation newly named you on a starved pull. Next tick's seenTurns is
-   // just the current turn keys — a pull that stops being yours is forgotten,
-   // so if it later comes back around it can nag again.
-   const seenTurns = new Set(sig.turns.keys());
-   for (const [key, p] of sig.turns) {
-      if (base.seenTurns.has(key)) continue;
-      push(
-         'your-turn',
-         {
-            tone: 'nag',
-            icon: '⏳',
-            title: 'Your turn to review',
-            body: `Waiting ${Math.max(1, Math.round(p.ageDays))}d with nobody on it; you're the best fit. Claim it?`,
-            pull: pullRef(p),
-            actionLabel: 'Claim it',
-            dedupeKey: `turn:${key}`,
-         },
-         () => seenTurns.delete(key)
-      );
-   }
-
-   // review requested: GitHub asked you directly. Fires once per pull (rebuilt
-   // from the current tick, seenTurns-style, so a dropped-then-re-added request
-   // can nag again). Distinct from your-turn: this is an explicit ask, not the
-   // rotation's guess — which is why turnFor stays silent on requested pulls.
+   // review requested: the author asked you directly. Fires once per pull
+   // (rebuilt from the current tick, so a dropped-then-re-added request can
+   // nag again).
    const requestedSeen = new Set(sig.requestedOfMe.keys());
    for (const [key, p] of sig.requestedOfMe) {
       if (base.requestedSeen.has(key)) continue;
@@ -942,7 +859,9 @@ export function diffCheers(
             tone: 'info',
             icon: '✦',
             title: 'Review requested',
-            body: `${displayName(names, p.data.user.login) ?? p.data.user.login} asked you to review this.`,
+            body: `${
+               displayName(names, p.data.user.login) ?? p.data.user.login
+            } asked you to review this. Answer within hours.`,
             pull: pullRef(p),
             dedupeKey: `req:${key}`,
          },
@@ -988,8 +907,8 @@ export function diffCheers(
    for (const p of newRestamps.slice(MAX_PER_TICK)) restampKeys.delete(pullKey(p.data));
 
    // a claim of yours went stale (2h+) and you still haven't stamped it —
-   // nudge once per pull to finish it or hand it back. seenTurns-style rebuild
-   // from the current tick, so releasing then re-claiming can nag again.
+   // nudge once per pull to finish it or drop it. Rebuilt from the current
+   // tick, so dropping then re-claiming can nag again.
    const staleClaimsSeen = new Set(sig.staleClaims.keys());
    for (const [key, p] of sig.staleClaims) {
       if (base.staleClaimsSeen.has(key)) continue;
@@ -998,8 +917,8 @@ export function diffCheers(
          {
             tone: 'nag',
             icon: '✋',
-            title: 'You claimed this, still unreviewed',
-            body: `It's been ${sig.staleClaimAfter}. Review it, or release it for someone else.`,
+            title: 'You said you’d review this',
+            body: `It's been ${sig.staleClaimAfter}. Review it, or drop it so the author knows.`,
             pull: pullRef(p),
             dedupeKey: `claimstale:${key}`,
          },
@@ -1027,28 +946,6 @@ export function diffCheers(
       );
    } else if (sig.quickWinCount < QUICK_WIN_THRESHOLD) {
       quickWinsNagged = false;
-   }
-
-   // return the favor: a debtor's open reviewable pull, nudged once per debtor
-   const favorsSeen = new Set(base.favorsSeen);
-   for (const { login, pull: p, count } of sig.debtors) {
-      if (favorsSeen.has(login)) continue;
-      favorsSeen.add(login);
-      push(
-         'return-the-favor',
-         {
-            tone: 'info',
-            icon: '🤝',
-            title: `Return the favor to ${displayName(names, login) ?? login}`,
-            body:
-               count === 1
-                  ? 'They reviewed one of your PRs.'
-                  : `They've reviewed ${count} of your PRs.`,
-            pull: pullRef(p),
-            dedupeKey: `favor:${login}`,
-         },
-         () => favorsSeen.delete(login)
-      );
    }
 
    // leaderboard: top and climbing. Evicted edges hold last tick's rank/top
@@ -1123,7 +1020,9 @@ export function diffCheers(
             {
                tone: 'nag',
                icon: '📉',
-               title: `${displayName(names, overtaker) ?? overtaker} took your #${base.myRank} spot`,
+               title: `${displayName(names, overtaker) ?? overtaker} took your #${
+                  base.myRank
+               } spot`,
                body: `You're #${sig.myRank} on the board now.`,
                dedupeKey: `overtaken:${base.myRank}:${overtaker}`,
             },
@@ -1156,7 +1055,7 @@ export function diffCheers(
                tone: 'reward',
                icon: '🚀',
                title: 'Green, ship it',
-               body: 'CR + QA both cleared.',
+               body: 'Signed off and green.',
                pull: pullRef(p),
                celebrate: true,
                shimmer: true,
@@ -1176,7 +1075,9 @@ export function diffCheers(
                tone: 'info',
                icon: '👀',
                title: 'Someone picked up your PR',
-               body: `${firstReviewer ? (displayName(names, firstReviewer) ?? firstReviewer) : 'A reviewer'} is on it.`,
+               body: `${
+                  firstReviewer ? displayName(names, firstReviewer) ?? firstReviewer : 'A reviewer'
+               } is on it.`,
                pull: pullRef(p),
                dedupeKey: `firstrev:${key}`,
             },
@@ -1232,7 +1133,9 @@ export function diffCheers(
                tone: 'nag',
                icon: '🕰️',
                title: `Waiting ${p.ageDays}d for review`,
-               body: 'Your PR, worth a nudge?',
+               body: askedOf(p).length
+                  ? `Asked of ${askedOf(p).join(', ')}, worth a nudge?`
+                  : 'Nobody asked yet, worth asking for a review?',
                pull: pullRef(p),
                dedupeKey: `starve:${key}`,
             },
@@ -1277,10 +1180,8 @@ export function diffCheers(
          queue: nextQueue,
          sessionStamps,
          firedMilestones,
-         seenTurns,
          restampKeys,
          quickWinsNagged,
-         favorsSeen,
          myRank: nextMyRank,
          myCount: nextMyCount,
          wasTop: nextWasTop,

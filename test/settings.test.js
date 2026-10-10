@@ -6,6 +6,7 @@ import config from '../lib/config-loader.js';
 import db from '../lib/db.js';
 import { projectSettings } from '../lib/projects.js';
 import { _resetSettings, loadSettings, loadSettingsWithRetry } from '../lib/settings.js';
+import pullManager from '../lib/pull-manager.js';
 import settingsController from '../controllers/settings.js';
 import { canWrite } from '../controllers/roadmap.js';
 import { mondayOf, utcDay } from '../shared/dist/index.js';
@@ -152,6 +153,17 @@ test('a login on two teams, or a missing field, is a 400 that says why', async (
    assert.match(twice.body.error, /both Store and FixBot/);
    assert.equal((await patch({})).status, 400);
    assert.equal(table.size, 0);
+});
+
+test('saving the teams tells open boards the new roster', async t => {
+   const heard = [];
+   t.mock.method(pullManager, 'broadcast', (event, payload) => heard.push([event, payload]));
+   await patch({ ongoing_projects: ['docs'] });
+   assert.deepEqual(heard, []);
+   await patch({ developer_teams: { Store: ['alice', 'bo'] } });
+   assert.deepEqual(heard, [
+      ['developerTeamsChanged', { developerTeams: { Store: ['alice', 'bo'] } }],
+   ]);
 });
 
 test('a save waits for the first load, so config defaults never overwrite saved settings', async () => {

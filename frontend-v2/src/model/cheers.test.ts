@@ -34,6 +34,8 @@ function pull(
       status?: DerivedPull['status'];
       conflict?: boolean;
       starved?: boolean;
+      askedOf?: string[];
+      askedAt?: number | null;
    } = {}
 ): DerivedPull {
    return {
@@ -53,6 +55,8 @@ function pull(
       status: o.status ?? 'needs_cr',
       conflict: o.conflict ?? false,
       starved: o.starved ?? false,
+      askedOf: o.askedOf ?? [],
+      askedAt: o.askedAt ?? null,
    } as unknown as DerivedPull;
 }
 
@@ -67,14 +71,12 @@ function sig(o: Partial<Signals> & { queue?: number; pulls?: DerivedPull[] } = {
       qa: o.qa ?? 0,
       boardReviewable: o.boardReviewable ?? o.review ?? queue,
       restampKeys: o.restampKeys ?? new Set(),
-      turns: o.turns ?? new Map(),
       byKey: o.byKey ?? byKey,
       quickWinCount: o.quickWinCount ?? 0,
       quickWinPull: o.quickWinPull ?? null,
       bestStart: o.bestStart ?? null,
       startReason: o.startReason ?? '',
       backlog: o.backlog ?? 0,
-      debtors: o.debtors ?? [],
       authorPrs: o.authorPrs ?? new Map(),
       myRank: o.myRank ?? 0,
       myCount: o.myCount ?? 0,
@@ -125,7 +127,7 @@ describe('diffCheers — priming', () => {
             queue: 5,
             review: 5,
             restampKeys: new Set([pullKey(owed.data)]),
-            turns: new Map([[pullKey(owed.data), owed]]),
+            requestedOfMe: new Map([[pullKey(owed.data), owed]]),
             quickWinCount: 4,
             bestStart: startPull,
             backlog: 1,
@@ -221,23 +223,6 @@ describe('diffCheers — rewards', () => {
    });
 });
 
-describe('diffCheers — your-turn', () => {
-   it('nags a turn once, then forgets it once it is no longer yours', () => {
-      const base = primed(sig());
-      const p = pull('org/a', 9, { ageDays: 4 });
-      const turns = new Map([[pullKey(p.data), p]]);
-      const first = diffCheers(sig({ turns }), 'me', base);
-      expect(first.toasts.some(t => t.icon === '⏳' && t.pull?.number === 9)).toBe(true);
-      // still yours next tick: no repeat
-      const second = diffCheers(sig({ turns }), 'me', first.next);
-      expect(second.toasts.some(t => t.icon === '⏳')).toBe(false);
-      // leaves, then comes back: nags again
-      const gone = diffCheers(sig(), 'me', second.next);
-      const back = diffCheers(sig({ turns }), 'me', gone.next);
-      expect(back.toasts.some(t => t.icon === '⏳')).toBe(true);
-   });
-});
-
 describe('diffCheers — start-here', () => {
    it('does not fire on a prime tick with no backlog', () => {
       const { toasts } = diffCheers(sig({ backlog: 0, bestStart: null }), 'me', EMPTY_BASELINE);
@@ -267,27 +252,37 @@ describe('diffCheers — start-here', () => {
 });
 
 describe('startHereReason — priority order', () => {
-   it('prioritizes reciprocity over everything else', () => {
-      const target = pull('org/a', 1, { author: 'alice', ageDays: 10, weight: 'XS' });
-      const mine = pull('org/a', 2, { author: 'me', crBy: ['alice'] });
-      expect(startHereReason(target, [target, mine], 'me')).toBe(
-         'alice reviewed yours, return the favor'
-      );
+   it('a review asked of you leads, with how long ago', () => {
+      const target = pull('org/a', 1, {
+         author: 'alice',
+         weight: 'XS',
+         askedOf: ['me'],
+         askedAt: Date.now() / 1000 - 3.2 * 3600,
+      });
+      expect(startHereReason(target, 'me')).toBe('alice asked you 3h ago');
+      const undated = pull('org/a', 2, { author: 'alice', askedOf: ['me'] });
+      expect(startHereReason(undated, 'me')).toBe('alice asked you');
    });
 
-   it('does not treat a shared repo as a reason — falls through it', () => {
-      // an M-weight pull in a repo the viewer has stamped before: no "you know
-      // this repo" reason, so with no reciprocity or quick win it hits urgency
+   it('a review asked of someone else is no reason for you', () => {
+      const target = pull('org/a', 1, {
+         author: 'alice',
+         weight: 'M',
+         ageDays: 3,
+         askedOf: ['bob'],
+      });
+      expect(startHereReason(target, 'me')).toBe('Waiting 3d without a full CR');
+   });
+
+   it('has no favor to return: a review you got isn’t one you owe', () => {
+      // alice stamped one of mine; under self-review that earns her nothing
       const target = pull('org/a', 1, { author: 'alice', weight: 'M', ageDays: 3 });
-      const sameRepoStamped = pull('org/a', 2, { crBy: ['me'] });
-      expect(startHereReason(target, [target, sameRepoStamped], 'me')).toBe(
-         'Waiting 3d without a full CR'
-      );
+      expect(startHereReason(target, 'me')).toBe('Waiting 3d without a full CR');
    });
 
-   it('falls back to a quick-win when there is no reciprocity', () => {
+   it('falls back to a quick-win', () => {
       const target = pull('org/b', 1, { author: 'alice', weight: 'XS', sizeKnown: true });
-      expect(startHereReason(target, [target], 'me')).toBe('Small one (XS), quick');
+      expect(startHereReason(target, 'me')).toBe('Small one (XS), quick');
    });
 
    it('falls back to urgency when nothing else applies', () => {
@@ -297,7 +292,7 @@ describe('startHereReason — priority order', () => {
          sizeKnown: true,
          ageDays: 7,
       });
-      expect(startHereReason(target, [target], 'me')).toBe('Waiting 7d without a full CR');
+      expect(startHereReason(target, 'me')).toBe('Waiting 7d without a full CR');
    });
 });
 
@@ -338,31 +333,6 @@ describe('diffCheers — quick-wins', () => {
 
       const again = diffCheers(sig({ quickWinCount: 3 }), 'me', down.next);
       expect(again.toasts.some(t => t.icon === '⚡')).toBe(true);
-   });
-});
-
-describe('diffCheers — return-the-favor', () => {
-   it('fires once per debtor, then stays silent for that debtor', () => {
-      const base = primed(sig());
-      const p = pull('org/a', 9, { author: 'alice' });
-      const debtors = [{ login: 'alice', pull: p, count: 2 }];
-      const first = diffCheers(sig({ debtors }), 'me', base);
-      expect(first.toasts.some(t => t.dedupeKey === 'favor:alice')).toBe(true);
-      expect(first.toasts.some(t => t.body?.includes('2 of your PRs'))).toBe(true);
-      const second = diffCheers(sig({ debtors }), 'me', first.next);
-      expect(second.toasts.some(t => t.dedupeKey === 'favor:alice')).toBe(false);
-   });
-
-   it('fires separately for a second debtor in the same tick', () => {
-      const base = primed(sig());
-      const pAlice = pull('org/a', 1, { author: 'alice' });
-      const pBob = pull('org/a', 2, { author: 'bob' });
-      const debtors = [
-         { login: 'alice', pull: pAlice, count: 1 },
-         { login: 'bob', pull: pBob, count: 1 },
-      ];
-      const { toasts } = diffCheers(sig({ debtors }), 'me', base);
-      expect(toasts.filter(t => t.icon === '🤝')).toHaveLength(2);
    });
 });
 
@@ -586,6 +556,20 @@ describe('diffCheers — author-side toasts', () => {
       );
    });
 
+   it('pr-starving does not say nudge when nobody was asked', () => {
+      const key = 'org/a#6';
+      const p = pull('org/a', 6, { author: 'me', starved: true, ageDays: 5 });
+      const base = primed(sig({ authorPrs: new Map([[key, prState()]]) }));
+      const { toasts } = diffCheers(
+         sig({ authorPrs: new Map([[key, prState({ starved: true })]]), pulls: [p] }),
+         'me',
+         base
+      );
+      const t = toasts.find(x => x.dedupeKey === `starve:${key}`);
+      expect(t?.body).toMatch(/asking for a review/);
+      expect(t?.body).not.toMatch(/nudge/);
+   });
+
    it('does not fire for a brand-new PR that appears already green', () => {
       const key = 'org/a#5';
       const p = pull('org/a', 5, { author: 'me', status: 'ready' });
@@ -689,13 +673,13 @@ describe('diffCheers — MAX_PER_TICK', () => {
       const base = primed(sig({ review: 5, restampKeys: new Set(), quickWinCount: 0 }));
       const p1 = pull('org/a', 1);
       const p2 = pull('org/a', 2, { ageDays: 4 });
-      const turns = new Map([[pullKey(p2.data), p2]]);
+      const requestedOfMe = new Map([[pullKey(p2.data), p2]]);
       const { toasts } = diffCheers(
          sig({
             review: 0, // board-cleared: highest priority of the four
             restampKeys: new Set([pullKey(p1.data)]), // re-stamp-owed
             pulls: [p1, p2],
-            turns, // your-turn
+            requestedOfMe, // review-requested
             quickWinCount: 3, // quick-wins: lowest priority of the four
          }),
          'me',
@@ -703,7 +687,7 @@ describe('diffCheers — MAX_PER_TICK', () => {
       );
       expect(toasts).toHaveLength(3);
       expect(toasts.some(t => t.dedupeKey === 'board:clear')).toBe(true);
-      expect(toasts.some(t => t.icon === '⏳')).toBe(true);
+      expect(toasts.some(t => t.icon === '✦')).toBe(true);
       expect(toasts.some(t => t.icon === '🔁')).toBe(true);
       expect(toasts.some(t => t.icon === '⚡')).toBe(false);
    });
@@ -713,13 +697,13 @@ describe('diffCheers — MAX_PER_TICK', () => {
       const base = primed(sig({ review: 5, restampKeys: new Set(), quickWinCount: 0 }));
       const p1 = pull('org/a', 1);
       const p2 = pull('org/a', 2, { ageDays: 4 });
-      const turns = new Map([[pullKey(p2.data), p2]]);
+      const requestedOfMe = new Map([[pullKey(p2.data), p2]]);
       const overflow = () =>
          sig({
             review: 0,
             restampKeys: new Set([pullKey(p1.data)]),
             pulls: [p1, p2],
-            turns,
+            requestedOfMe,
             quickWinCount: 3,
          });
       const first = diffCheers(overflow(), 'me', base);
@@ -731,7 +715,7 @@ describe('diffCheers — MAX_PER_TICK', () => {
       expect(second.toasts.some(t => t.icon === '⚡')).toBe(true);
       // and the survivors from tick one stay quiet (their marks stood)
       expect(second.toasts.some(t => t.dedupeKey === 'board:clear')).toBe(false);
-      expect(second.toasts.some(t => t.icon === '⏳')).toBe(false);
+      expect(second.toasts.some(t => t.icon === '✦')).toBe(false);
       expect(second.toasts.some(t => t.icon === '🔁')).toBe(false);
    });
 });
@@ -791,19 +775,13 @@ describe('evaluateCheers — loading guard', () => {
 
    it('no-ops and carries the baseline while the board is still loading', () => {
       // the empty snapshot the store publishes before the first payload lands
-      const { toasts, next } = evaluateCheers(
-         { pulls: [], turns: new Map(), me: 'me', ready: false },
-         primedBase
-      );
+      const { toasts, next } = evaluateCheers({ pulls: [], me: 'me', ready: false }, primedBase);
       expect(toasts).toEqual([]);
       expect(next).toBe(primedBase);
    });
 
    it('WOULD fire phantom clears against that empty board once ready — the bug the guard prevents', () => {
-      const { toasts } = evaluateCheers(
-         { pulls: [], turns: new Map(), me: 'me', ready: true },
-         primedBase
-      );
+      const { toasts } = evaluateCheers({ pulls: [], me: 'me', ready: true }, primedBase);
       const keys = toasts.map(t => t.dedupeKey);
       expect(keys).toContain('inbox:zero');
       expect(keys).toContain('board:clear');
@@ -834,13 +812,78 @@ describe('evaluateCheers — start-here and parked projects', () => {
       const other = reviewable(pull('org/a', 2, { author: 'bob', ageDays: 2 }));
       const start = (parked?: ReadonlyMap<string, string>) =>
          evaluateCheers(
-            { pulls: [parkedOne, other], turns: new Map(), me: 'me', ready: true, parked },
+            { pulls: [parkedOne, other], me: 'me', ready: true, parked },
             EMPTY_BASELINE
          ).toasts.find(t => t.dedupeKey?.startsWith('start:'))?.dedupeKey;
       expect(start()).toBe(`start:${pullKey(parkedOne.data)}`);
       expect(start(new Map([[pullKey(parkedOne.data), 'store-picker']]))).toBe(
          `start:${pullKey(other.data)}`
       );
+   });
+});
+
+describe('evaluateCheers — self-review', () => {
+   const reviewable = (p: DerivedPull, o: Partial<DerivedPull> = {}) =>
+      ({
+         ...p,
+         dependent: false,
+         qaingLogin: null,
+         crHave: 0,
+         qaHave: 0,
+         changesRequestedBy: [],
+         engagedNoStamp: [],
+         ciFailing: [],
+         headPushedAt: null,
+         devBlockedBy: [],
+         deployBlockedBy: [],
+         externalBlock: false,
+         cryo: false,
+         ...o,
+      } as DerivedPull);
+
+   it('never points you at a developer’s own unrequested PR', () => {
+      const own = reviewable(pull('org/a', 1, { author: 'alice', ageDays: 30, weight: 'XS' }), {
+         ownReview: true,
+      });
+      const { toasts } = evaluateCheers({ pulls: [own], me: 'me', ready: true }, EMPTY_BASELINE);
+      expect(toasts).toEqual([]);
+   });
+
+   it('a review asked of you, through a team too, is a review request and the place to start', () => {
+      const asked = reviewable(pull('org/a', 1, { author: 'alice', askedOf: ['me', 'bob'] }));
+      const first = evaluateCheers({ pulls: [], me: 'me', ready: true }, EMPTY_BASELINE);
+      const { toasts } = evaluateCheers({ pulls: [asked], me: 'me', ready: true }, first.next);
+      expect(toasts.some(t => t.dedupeKey === `req:${pullKey(asked.data)}`)).toBe(true);
+      expect(toasts.find(t => t.dedupeKey?.startsWith('start:'))?.body).toBe('alice asked you');
+   });
+});
+
+describe('evaluateCheers — board-cleared counts only reviews that are yours', () => {
+   const open = (n: number, o: Partial<DerivedPull>, askedOf: string[] = []) =>
+      ({
+         ...pull('org/a', n, { author: 'alice', askedOf }),
+         dependent: false,
+         qaingLogin: null,
+         crHave: 0,
+         qaHave: 0,
+         changesRequestedBy: [],
+         engagedNoStamp: [],
+         ciFailing: [],
+         headPushedAt: null,
+         devBlockedBy: [],
+         deployBlockedBy: [],
+         externalBlock: false,
+         cryo: false,
+         ...o,
+      } as DerivedPull);
+
+   it('ignores a self-review, but counts a review asked of you', () => {
+      const selfReview = open(1, { ownReview: true });
+      const asked = open(2, {}, ['me']);
+      const base = (pulls: DerivedPull[]) =>
+         evaluateCheers({ pulls, me: 'me', ready: true }, EMPTY_BASELINE).next.boardQueue;
+      expect(base([selfReview])).toBe(0);
+      expect(base([selfReview, asked])).toBe(1);
    });
 });
 
@@ -891,8 +934,7 @@ describe('diffCheers — muting', () => {
       const build = (muted?: ReadonlySet<ToastKind>) =>
          diffCheers(
             sig({
-               restampKeys: new Set([pullKey(p1.data)]), // re-stamp-owed
-               turns: new Map([[pullKey(p2.data), p2]]), // your-turn
+               restampKeys: new Set([pullKey(p1.data), pullKey(p2.data)]), // two re-stamp-owed
                requestedOfMe: new Map([[pullKey(p3.data), p3]]), // review-requested (top)
                quickWinCount: 4, // quick-wins (lowest)
                pulls: [p1, p2, p3],
@@ -930,16 +972,12 @@ describe('diffCheers / startHereReason — display names', () => {
          undefined,
          names
       );
-      expect(toasts.some(t => t.body === 'Alice A asked you to review this.')).toBe(true);
-      expect(toasts.some(t => t.body === 'bob asked you to review this.')).toBe(true);
-   });
-
-   it('resolves the debtor’s name in return-the-favor', () => {
-      const base = primed(sig());
-      const p = pull('org/a', 9, { author: 'alice' });
-      const debtors = [{ login: 'alice', pull: p, count: 1 }];
-      const { toasts } = diffCheers(sig({ debtors }), 'me', base, undefined, names);
-      expect(toasts.some(t => t.title === 'Return the favor to Alice A')).toBe(true);
+      expect(
+         toasts.some(t => t.body === 'Alice A asked you to review this. Answer within hours.')
+      ).toBe(true);
+      expect(
+         toasts.some(t => t.body === 'bob asked you to review this. Answer within hours.')
+      ).toBe(true);
    });
 
    it('resolves the overtaker’s name in overtaken, but keys the dedupeKey off the raw login', () => {
@@ -989,11 +1027,8 @@ describe('diffCheers / startHereReason — display names', () => {
       ).toBe(true);
    });
 
-   it('resolves the reciprocity author’s name in startHereReason', () => {
-      const target = pull('org/a', 1, { author: 'alice', ageDays: 10, weight: 'XS' });
-      const mine = pull('org/a', 2, { author: 'me', crBy: ['alice'] });
-      expect(startHereReason(target, [target, mine], 'me', false, names)).toBe(
-         'Alice A reviewed yours, return the favor'
-      );
+   it('resolves the requester’s name in startHereReason', () => {
+      const target = pull('org/a', 1, { author: 'alice', askedOf: ['me'] });
+      expect(startHereReason(target, 'me', false, names)).toBe('Alice A asked you');
    });
 });

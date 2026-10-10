@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { pullKey } from '../../shared/format';
 import type { PullData } from '../../shared/types';
-import { isNewBuild, isSnoozed, refreshAllText, type SnoozeRecord } from './store';
+import {
+   currentPolicy,
+   isNewBuild,
+   isSnoozed,
+   refreshAllText,
+   setDeveloperTeams,
+   type SnoozeRecord,
+} from './store';
 
 // isSnoozed reads only repo/number/updated_at and a few status counts, so a
 // minimal pull is enough; the outer cast keeps the fixture to what it touches.
@@ -199,5 +206,14 @@ describe('isNewBuild', () => {
       expect(isNewBuild('a', 'b')).toBe(true);
       expect(isNewBuild(undefined, 'b')).toBe(false);
       expect(isNewBuild('a', undefined)).toBe(false);
+   });
+});
+
+describe('setDeveloperTeams', () => {
+   it('rebuilds the review policy from a roster saved after connect', () => {
+      expect(currentPolicy().developers.size).toBe(0);
+      setDeveloperTeams({ Store: ['Alice'] });
+      expect([...currentPolicy().developers]).toEqual(['alice']);
+      expect(currentPolicy().teams.get('store')).toEqual(['Alice']);
    });
 });

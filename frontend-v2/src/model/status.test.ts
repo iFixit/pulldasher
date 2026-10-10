@@ -3,7 +3,9 @@ import type { PullData, Signature, SignatureType } from '../../../shared/types';
 import {
    ciVerdict,
    derive,
+   isDeveloper,
    isIterating,
+   reviewPolicy,
    reviewWeight,
    STARVE_DAYS,
    type Weight,
@@ -125,7 +127,11 @@ describe('status derivation precedence', () => {
    });
 
    it('an invalidated CR makes needs_recr, and names who owes the re-stamp', () => {
-      const p = withStatus({ allCR: [sig('CR', 'reviewer', false)] });
+      // asked to review, so the re-stamp is theirs (see the self-review policy)
+      const p = withStatus(
+         { allCR: [sig('CR', 'reviewer', false)] },
+         { requested_reviewers: ['reviewer'] }
+      );
       const d = derive(p, undefined, NOW);
       expect(d.status).toBe('needs_recr');
       expect(d.recrBy).toEqual(['reviewer']);
@@ -140,9 +146,11 @@ describe('status derivation precedence', () => {
       expect(d.recrBy).toEqual([]);
    });
 
-   it("the author's own stale stamp never creates a re-stamp lane entry", () => {
+   it("the author's own stale stamp is a re-stamp the author owes", () => {
       const p = withStatus({ allCR: [sig('CR', 'author', false)] });
-      expect(derive(p, undefined, NOW).status).toBe('needs_cr');
+      const d = derive(p, undefined, NOW);
+      expect(d.status).toBe('needs_recr');
+      expect(d.recrBy).toEqual(['author']);
    });
 
    it('CR done, QA missing → needs_qa; both → ready', () => {
@@ -241,10 +249,13 @@ describe('status derivation precedence', () => {
    });
 
    it('tracks stale QA stamps symmetrically with stale CR', () => {
-      const p = withStatus({
-         allCR: [sig('CR', 'r', true)],
-         allQA: [sig('QA', 'tester', false)],
-      });
+      const p = withStatus(
+         {
+            allCR: [sig('CR', 'r', true)],
+            allQA: [sig('QA', 'tester', false)],
+         },
+         { requested_reviewers: ['tester'] }
+      );
       const d = derive(p, undefined, NOW);
       expect(d.status).toBe('needs_qa');
       expect(d.reqaBy).toEqual(['tester']);
@@ -399,26 +410,211 @@ describe('ciVerdict', () => {
    });
 });
 
+const OUTSIDER = reviewPolicy({ Devs: ['r', 'q'] });
+
+describe('the self-review policy', () => {
+   const old = new Date((NOW - 10 * 86400) * 1000).toISOString();
+
+   it("a developer's unrequested pull is their own review, and never starves", () => {
+      const d = derive(pull({ created_at: old }), undefined, NOW);
+      expect(d.ownReview).toBe(true);
+      expect(d.status).toBe('needs_cr');
+      expect(d.starved).toBe(false);
+      expect(d.askedOf).toEqual([]);
+   });
+
+   it('a review request hands it to the people asked, and it can starve', () => {
+      const p = pull({
+         created_at: old,
+         requested_reviewers: ['r', 'claimer'],
+         review_requests: [
+            { login: 'r', at: NOW - 3600, self: false },
+            { login: 'claimer', at: NOW - 60, self: true },
+         ],
+      });
+      const d = derive(p, undefined, NOW);
+      expect(d.ownReview).toBe(false);
+      expect(d.askedOf).toEqual(['r']);
+      expect(d.askedAt).toBe(NOW - 3600);
+      expect(d.starved).toBe(true);
+   });
+
+   it('a claim alone takes it off the author too', () => {
+      const p = pull({
+         requested_reviewers: ['claimer'],
+         review_requests: [{ login: 'claimer', at: NOW, self: true }],
+      });
+      const d = derive(p, undefined, NOW);
+      expect(d.ownReview).toBe(false);
+      expect(d.askedOf).toEqual([]);
+   });
+
+   it('a team request asks everyone on the roster team of that name', () => {
+      const policy = reviewPolicy({ 'Store Front': ['author', 'a', 'b'], Other: ['c'] });
+      const d = derive(
+         pull({ requested_teams: ['store-front'] }),
+         undefined,
+         NOW,
+         undefined,
+         undefined,
+         policy
+      );
+      expect(d.askedOf).toEqual(['a', 'b']);
+      expect(d.ownReview).toBe(false);
+      // a team the roster doesn't name (say @iFixit/coders) asks every developer
+      const unknown = derive(
+         pull({ requested_teams: ['infra'] }),
+         undefined,
+         NOW,
+         undefined,
+         undefined,
+         policy
+      );
+      expect(unknown.ownReview).toBe(false);
+      expect(unknown.askedOf).toEqual(['a', 'b', 'c']);
+   });
+
+   it('a reviewer who stamped is no longer asked, though GitHub keeps the request', () => {
+      const p = withStatus(
+         { allCR: [sig('CR', 'bob', true)] },
+         {
+            requested_reviewers: ['bob', 'carol'],
+            review_requests: [
+               { login: 'bob', at: NOW - 5 * 3600, self: false },
+               { login: 'carol', at: NOW - 3600, self: false },
+            ],
+         }
+      );
+      const d = derive(p, undefined, NOW);
+      expect(d.askedOf).toEqual(['carol']);
+      expect(d.askedAt).toBe(NOW - 3600);
+   });
+
+   it('a request GitHub cleared after the reviewer reviewed keeps the pull out of self-review', () => {
+      // alice asked bob, bob reviewed (GitHub dropped the request), alice pushed
+      const p = withStatus(
+         { allCR: [sig('CR', 'bob', false)] },
+         { review_requests: [{ login: 'bob', at: NOW - 86400, self: false, answered: true }] }
+      );
+      const d = derive(p, undefined, NOW);
+      expect(d.ownReview).toBe(false);
+      expect(d.status).toBe('needs_recr');
+      expect(d.recrBy).toEqual(['bob']);
+      expect(d.askedOf).toEqual([]);
+   });
+
+   it('an answered request from someone off the roster no longer holds the pull', () => {
+      // bob asked, reviewed, then left the roster (or was a bot like Copilot)
+      const roster = reviewPolicy({ Devs: ['author', 'alice'] });
+      const p = withStatus(
+         { allCR: [sig('CR', 'bob', false)] },
+         { review_requests: [{ login: 'bob', at: NOW - 86400, self: false, answered: true }] }
+      );
+      const d = derive(p, undefined, NOW, undefined, undefined, roster);
+      expect(d.ownReview).toBe(true);
+      expect(d.recrBy).toEqual([]);
+      // a developer's answered request still does
+      const kept = reviewPolicy({ Devs: ['author', 'bob'] });
+      const k = derive(p, undefined, NOW, undefined, undefined, kept);
+      expect(k.ownReview).toBe(false);
+      expect(k.recrBy).toEqual(['bob']);
+      const bot = withStatus(
+         { allCR: [sig('CR', 'Copilot', false)] },
+         { review_requests: [{ login: 'Copilot', at: 1, self: false, answered: true }] }
+      );
+      const botPolicy = reviewPolicy(undefined, ['Copilot']);
+      expect(derive(bot, undefined, NOW, undefined, undefined, botPolicy).ownReview).toBe(true);
+   });
+
+   it("a fresh unrequested pull with no answered request is still the author's own", () => {
+      expect(derive(pull(), undefined, NOW).ownReview).toBe(true);
+   });
+
+   it("a team's members get the team's request time", () => {
+      const policy = reviewPolicy({ Store: ['a', 'b'] });
+      const d = derive(
+         pull({ requested_teams: ['store'], team_requests: [{ slug: 'store', at: NOW - 7200 }] }),
+         undefined,
+         NOW,
+         undefined,
+         undefined,
+         policy
+      );
+      expect(d.askedOf).toEqual(['a', 'b']);
+      expect(d.askedAt).toBe(NOW - 7200);
+      expect(d.askedAtBy).toEqual({ a: NOW - 7200, b: NOW - 7200 });
+   });
+
+   it('on a self-reviewed pull only the author owes a re-stamp', () => {
+      // carol stamped unasked, then the author pushed: nobody asked carol
+      const favor = withStatus({ allCR: [sig('CR', 'carol', false)] });
+      const d = derive(favor, undefined, NOW);
+      expect(d.status).toBe('needs_cr');
+      expect(d.recrBy).toEqual([]);
+      // but someone who was asked still owes theirs
+      const asked = withStatus(
+         { allCR: [sig('CR', 'carol', false)] },
+         { requested_reviewers: ['carol'] }
+      );
+      expect(derive(asked, undefined, NOW).recrBy).toEqual(['carol']);
+   });
+
+   it("someone outside the dev team doesn't review their own", () => {
+      const d = derive(pull(), undefined, NOW, undefined, undefined, OUTSIDER);
+      expect(d.ownReview).toBe(false);
+      expect(d.authorIsDeveloper).toBe(false);
+      // asking for a review doesn't make the author a developer
+      const asked = derive(
+         pull({ requested_reviewers: ['r'] }),
+         undefined,
+         NOW,
+         undefined,
+         undefined,
+         OUTSIDER
+      );
+      expect(asked.authorIsDeveloper).toBe(false);
+      expect(derive(pull(), undefined, NOW).authorIsDeveloper).toBe(true);
+      expect(isDeveloper(OUTSIDER, 'R')).toBe(true);
+   });
+
+   it('a bot is never a developer, by suffix or by config', () => {
+      const policy = reviewPolicy(undefined, ['ifixit-systems']);
+      expect(isDeveloper(policy, 'dependabot[bot]')).toBe(false);
+      expect(isDeveloper(policy, 'iFixit-Systems')).toBe(false);
+      expect(isDeveloper(policy, 'someone')).toBe(true);
+      const d = derive(
+         pull({ user: { login: 'ifixit-systems' } }),
+         undefined,
+         NOW,
+         undefined,
+         undefined,
+         policy
+      );
+      expect(d.ownReview).toBe(false);
+   });
+});
+
 describe('starvation and weight', () => {
-   it('an old CR-incomplete pull is starved, whatever partial progress it has', () => {
+   it('an old CR-incomplete pull waiting on others is starved, whatever partial progress it has', () => {
+      // the author is outside the dev team, so the review is someone else's
       const old = new Date((NOW - 10 * 86400) * 1000).toISOString();
       const p = pull({ created_at: old });
-      const d = derive(p, undefined, NOW);
+      const d = derive(p, undefined, NOW, undefined, undefined, OUTSIDER);
       expect(d.starved).toBe(true);
       expect(d.starveScore).toBeGreaterThan(0);
 
       // half-reviewed rot: 1 of 2 CRs, still starving (the old crHave === 0
       // cliff hid these from the aging lane forever)
       const half = withStatus({ cr_req: 2, allCR: [sig('CR', 'r', true)] }, { created_at: old });
-      expect(derive(half, undefined, NOW).starved).toBe(true);
+      expect(derive(half, undefined, NOW, undefined, undefined, OUTSIDER).starved).toBe(true);
 
       // a stale stamp waiting on its re-CR rots too
       const stale = withStatus({ allCR: [sig('CR', 'r', false)] }, { created_at: old });
-      expect(derive(stale, undefined, NOW).starved).toBe(true);
+      expect(derive(stale, undefined, NOW, undefined, undefined, OUTSIDER).starved).toBe(true);
 
       // fully CRed: never starved
       const done = withStatus({ allCR: [sig('CR', 'r', true)] }, { created_at: old });
-      expect(derive(done, undefined, NOW).starved).toBe(false);
+      expect(derive(done, undefined, NOW, undefined, undefined, OUTSIDER).starved).toBe(false);
 
       // parked (Cryogenic Storage) ages on purpose: never starved, so no
       // starve nags, no starve score, no turn rotation

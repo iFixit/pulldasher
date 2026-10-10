@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Lock } from 'lucide-react';
 import type { DerivedPull } from '../../../shared/model/status';
 import { githubUrl } from '../../../shared/format';
-import { rowNote, rowWord } from '../model/actions';
+import { askedOf, askForInputHint, rowNote, rowWord } from '../model/actions';
 import { STAGE_WORDS } from '../model/stage';
 import {
    jailCase,
@@ -582,22 +582,21 @@ function useLeaving(pulls: DerivedPull[], openIds: ReadonlySet<string>): Derived
    return leaving.filter(p => !pulls.some(q => pullId(q) === pullId(p)));
 }
 
-/** Slack-ready text asking for the reviews your waiting PRs need: each
- * title, its link, and who it waits on. */
-function nudgeText(rows: { pull: DerivedPull }[], me: string): string {
+/** Slack-ready text chasing the reviews you asked for: each title, its
+ * link, and who was asked. Only PRs with a request: a self-reviewed PR waits
+ * on nobody, so there's no one to nudge about it. */
+function nudgeText(rows: { pull: DerivedPull }[]): string {
    return [
-      'A few of my PRs are waiting on a review or a stamp:',
-      ...rows.map(({ pull: p }) => {
-         const who = rowNote(p, me).context;
-         return `• ${p.data.title} ${githubUrl(p.data.repo, p.data.number)}${
-            who ? ` (${who})` : ''
-         }`;
-      }),
+      'A few of my PRs are waiting on a review I asked for:',
+      ...rows.map(
+         ({ pull: p }) =>
+            `• ${p.data.title} ${githubUrl(p.data.repo, p.data.number)} (${askedOf(p).join(', ')})`
+      ),
    ].join('\n');
 }
 
 /** Copies nudgeText, and says whether it worked. */
-function CopyNudge({ rows, me }: { rows: { pull: DerivedPull }[]; me: string }) {
+function CopyNudge({ rows }: { rows: { pull: DerivedPull }[] }) {
    const [copied, setCopied] = useState<'copied' | 'failed' | null>(null);
    const done = (result: 'copied' | 'failed') => {
       setCopied(result);
@@ -607,7 +606,7 @@ function CopyNudge({ rows, me }: { rows: { pull: DerivedPull }[]; me: string }) 
       <QuietButton
          onClick={() => {
             if (!navigator.clipboard) return done('failed');
-            navigator.clipboard.writeText(nudgeText(rows, me)).then(
+            navigator.clipboard.writeText(nudgeText(rows)).then(
                () => done('copied'),
                () => done('failed')
             );
@@ -641,16 +640,21 @@ function JailList({
       ? jailGroups(all, me)
       : { ready: [], move: [], waiting: all.map(pull => ({ pull })) };
    const live = (rows: { pull: DerivedPull }[]) => rows.filter(r => !gone.has(pullId(r.pull)));
+   // the PRs waiting on people you asked, wherever they sit (a request gone
+   // quiet past 4 hours is Your move); the copy button rides on the first
+   // section holding one
+   const asked = (rows: { pull: DerivedPull }[]) => live(rows).filter(r => askedOf(r.pull).length);
+   const nudgeRows = asked([...groups.move, ...groups.waiting]);
    const sections = [
       { title: STAGE_WORDS.ready, sub: 'Merge these first', rows: groups.ready, ready: true },
       { title: 'Your move', sub: 'Waiting on you', rows: groups.move },
       {
          title: 'Waiting on others',
-         sub: 'Nudge them, or close what you don’t need',
+         sub: 'Nudge whoever you asked, or close what you don’t need',
          rows: groups.waiting,
-         nudge: true,
       },
    ].filter(g => g.rows.length);
+   const nudgeOn = sections.find(g => !g.ready && asked(g.rows).length)?.title;
    return (
       <div className="flex flex-col gap-6">
          {sections.map(g => (
@@ -661,11 +665,7 @@ function JailList({
                      title={g.title}
                      sub={g.sub}
                      count={live(g.rows).length}
-                     headerExtra={
-                        g.nudge && live(g.rows).length ? (
-                           <CopyNudge rows={live(g.rows)} me={me} />
-                        ) : undefined
-                     }
+                     headerExtra={g.title === nudgeOn ? <CopyNudge rows={nudgeRows} /> : undefined}
                   />
                )}
                <ul className="m-0 flex list-none flex-col divide-y divide-line p-0">
@@ -712,6 +712,7 @@ function JailRow({
    // stands in when there's no detail
    const move = word?.kind === 'do' ? word.word : null;
    const detail = context ?? (word?.kind === 'wait' ? word.word : null);
+   const hint = mine && !ready ? askForInputHint(p) : null;
    const old = p.ageDays > maxDays;
    return (
       <li
@@ -753,6 +754,7 @@ function JailRow({
             )}
             {detail && <span className="min-w-0">{detail}</span>}
          </span>
+         {hint && <span className="text-xs text-ink-3">{hint}</span>}
       </li>
    );
 }

@@ -4,18 +4,18 @@ import type { DerivedPull, Status, Weight } from '../../../shared/model/status';
 import {
    ageMix,
    authorLoad,
-   crStarvation,
    effortMix,
-   firstCrLatency,
    friction,
    humanHours,
    mergedPerDay,
    mergeTimeBySize,
    reciprocity,
    repoBreakdown,
-   reviewDebt,
+   requestAnswerTimes,
+   selfReviewMix,
    signoffLeaders,
    stampsPerDay,
+   waitingOnSomeone,
 } from './stats';
 
 function sig(login: string) {
@@ -75,22 +75,6 @@ describe('signoffLeaders', () => {
    it('separates CR from QA', () => {
       const pulls = [open({ n: 1, cr: ['bob'], qa: ['dave'] })];
       expect(signoffLeaders(pulls, [], 'QA')).toEqual([{ login: 'dave', count: 1 }]);
-   });
-});
-
-describe('crStarvation', () => {
-   it('sums open-days by author over CR-incomplete PRs, tracking the worst', () => {
-      const pulls = [
-         open({ author: 'alice', status: 'needs_cr', ageDays: 10, n: 1 }),
-         open({ author: 'alice', status: 'needs_recr', ageDays: 4, n: 2 }),
-         open({ author: 'bob', status: 'needs_cr', ageDays: 20, n: 3 }),
-         open({ author: 'carol', status: 'ready', ageDays: 99, n: 4 }), // not starving
-      ];
-      const s = crStarvation(pulls);
-      expect(s.map(x => x.login)).toEqual(['bob', 'alice']); // bob 20 > alice 14
-      const alice = s.find(x => x.login === 'alice')!;
-      expect(alice).toMatchObject({ count: 2, totalDays: 14, worstDays: 10 });
-      expect(s.find(x => x.login === 'carol')).toBeUndefined();
    });
 });
 
@@ -154,6 +138,14 @@ function full(over: {
    recrBy?: string[];
    reqaBy?: string[];
    qaing?: string | null;
+   ownReview?: boolean;
+   authorIsDeveloper?: boolean;
+   title?: string;
+   body?: string;
+   requested?: string[];
+   draft?: boolean;
+   requests?: { login: string; at: number | null; self: boolean }[];
+   reviews?: { login: string; date: number }[];
    conflict?: boolean;
    deployBlockedBy?: string[];
    devBlockedBy?: string[];
@@ -171,6 +163,11 @@ function full(over: {
       recrBy: over.recrBy ?? [],
       reqaBy: over.reqaBy ?? [],
       qaingLogin: over.qaing ?? null,
+      ownReview: over.ownReview ?? true,
+      authorIsDeveloper:
+         over.authorIsDeveloper ?? ((over.ownReview ?? true) || !!over.requested?.length),
+      askedOf: (over.requests ?? []).filter(r => !r.self).map(r => r.login),
+      askedAt: null,
       conflict: over.conflict ?? false,
       deployBlockedBy: over.deployBlockedBy ?? [],
       devBlockedBy: over.devBlockedBy ?? [],
@@ -179,6 +176,11 @@ function full(over: {
       data: {
          repo: over.repo ?? 'iFixit/ifixit',
          number: over.n ?? 1,
+         title: over.title ?? 't',
+         body: over.body ?? '',
+         draft: over.draft ?? false,
+         requested_reviewers: over.requested ?? [],
+         review_requests: over.requests ?? [],
          additions: over.additions === undefined ? 100 : over.additions,
          deletions: over.deletions === undefined ? 20 : over.deletions,
          user: { login: over.author ?? 'alice' },
@@ -187,6 +189,7 @@ function full(over: {
             qa_req: over.qaReq ?? 1,
             allCR: over.allCR ?? [],
             allQA: over.allQA ?? [],
+            unstamped_reviewers: over.reviews ?? [],
          },
       },
    } as unknown as DerivedPull;
@@ -218,11 +221,19 @@ describe('stampsPerDay', () => {
          }),
       ];
       const closed = [
-         { status: { allCR: [sigAt('carol', NOON - 3 * HOUR)], allQA: [] } },
+         {
+            user: { login: 'zed' },
+            status: { allCR: [sigAt('carol', NOON - 3 * HOUR)], allQA: [] },
+         },
       ] as unknown as PullData[];
       const days = stampsPerDay(pulls, closed, 3, NOON);
       expect(days[2].count).toBe(3); // today: bob, dave, carol
       expect(days[1].count).toBe(1); // yesterday: bob's earlier stamp
+   });
+
+   it("skips the author's own stamps, which are normal under self-review", () => {
+      const pulls = [full({ author: 'alice', allCR: [sigAt('alice', NOON), sigAt('bob', NOON)] })];
+      expect(stampsPerDay(pulls, [], 1, NOON)[0].count).toBe(1);
    });
 });
 
@@ -253,49 +264,170 @@ describe('effortMix', () => {
    });
 });
 
-describe('reviewDebt', () => {
-   it('sums missing stamps, restamps owed, and unclaimed QA', () => {
-      const debt = reviewDebt([
-         full({ status: 'needs_cr', crReq: 2, crHave: 0 }), // 2 CR slots
-         full({ status: 'needs_recr', crReq: 2, crHave: 1, recrBy: ['bob'] }), // 1 slot + 1 restamp
-         full({ status: 'needs_qa', qaReq: 1, qaHave: 0 }), // 1 QA slot, unclaimed
-         full({ status: 'needs_qa', qaReq: 1, qaHave: 0, qaing: 'dave' }), // claimed
-         full({ status: 'needs_qa', qaReq: 1, qaHave: 0, reqaBy: ['eve'] }), // re-QA owed
-         full({ status: 'ready' }), // no debt
+const AT = NOON / 1000; // request time, epoch secs
+const ask = (login: string, hoursAgo: number) => ({ login, at: AT - hoursAgo * 3600, self: false });
+
+describe('requestAnswerTimes', () => {
+   it('measures request to the asked person first stamp or review after it', () => {
+      const pulls = [
+         // bob answers with a stamp 2h after the request, carol with a review 6h after
+         full({
+            n: 1,
+            requests: [ask('bob', 10), ask('carol', 10)],
+            allCR: [sigAt('bob', NOON - 8 * HOUR)],
+            reviews: [{ login: 'carol', date: AT - 4 * 3600 }],
+         }),
+         // dave's only stamp predates his request, erin never answered, a claim is no request
+         full({
+            n: 2,
+            requests: [ask('dave', 5), ask('erin', 5), { ...ask('fay', 5), self: true }],
+            allCR: [sigAt('dave', NOON - 9 * HOUR), sigAt('fay', NOON - HOUR)],
+         }),
+      ];
+      const t = requestAnswerTimes(pulls, []);
+      expect(t.sampled).toBe(2);
+      expect(t.medianHours).toBe(4);
+      expect(t.p90Hours).toBe(6);
+   });
+
+   it('is empty without requests', () => {
+      expect(requestAnswerTimes([full({})], [])).toEqual({
+         medianHours: 0,
+         p90Hours: 0,
+         sampled: 0,
+      });
+   });
+});
+
+describe('waitingOnSomeone', () => {
+   it('lists unanswered requests by hours and outside pulls by days, never self-review', () => {
+      const w = waitingOnSomeone(
+         [
+            full({ n: 1, requests: [ask('bob', 30), ask('carol', 2)], allCR: [] }),
+            full({
+               n: 2,
+               requests: [ask('dave', 4)],
+               allCR: [sigAt('dave', NOON - HOUR)], // answered
+            }),
+            full({ n: 3, ownReview: false, ageDays: 6, author: 'zed' }), // outside, unasked
+            full({ n: 4, ownReview: false, ageDays: 9, requested: ['bob'] }), // asked: not outside
+            full({ n: 5, ageDays: 20 }), // own review: nobody owes it
+            full({ n: 6, ownReview: false, ageDays: 1, status: 'ready' }), // not short of CR
+            full({ n: 7, requests: [ask('erin', 9)], draft: true }), // a draft isn't waiting
+            full({ n: 8, requests: [ask('fay', 9)], status: 'needs_qa' }), // CR already met
+            // a contractor whose asked reviewer already stamped (GitHub still lists them)
+            full({
+               n: 9,
+               ownReview: false,
+               authorIsDeveloper: false,
+               requested: ['bob'],
+               ageDays: 3,
+               author: 'con',
+            }),
+         ],
+         AT
+      );
+      expect(w.requests.map(r => [r.number, r.login, r.hours])).toEqual([
+         [1, 'bob', 30],
+         [1, 'carol', 2],
       ]);
-      expect(debt).toEqual({ crSlots: 3, qaSlots: 3, restamps: 2, unclaimedQa: 1 });
+      expect(w.outside).toEqual([
+         { repo: 'iFixit/ifixit', number: 3, title: 't', author: 'zed', days: 6 },
+         { repo: 'iFixit/ifixit', number: 9, title: 't', author: 'con', days: 3 },
+      ]);
+   });
+
+   it("dates a team member's wait from their team's request, not the pull's oldest", () => {
+      // bob was asked by name 72h ago; gil only through a team, 1h ago
+      const pull = {
+         ...full({ n: 1, requests: [ask('bob', 72)], allCR: [] }),
+         askedOf: ['bob', 'gil'],
+         askedAt: ask('bob', 72).at,
+         askedAtBy: { bob: ask('bob', 72).at, gil: ask('gil', 1).at },
+      };
+      const w = waitingOnSomeone([pull], AT);
+      expect(w.requests.map(r => [r.login, r.hours])).toEqual([
+         ['bob', 72],
+         ['gil', 1],
+      ]);
    });
 });
 
-describe('firstCrLatency', () => {
-   it('measures created→first CR on merged pulls only', () => {
-      const closed = [
-         {
-            merged_at: new Date(NOON).toISOString(),
-            created_at: new Date(NOON - 10 * HOUR).toISOString(),
-            status: {
-               allCR: [sigAt('bob', NOON - 6 * HOUR), sigAt('carol', NOON - 2 * HOUR)],
-               allQA: [],
-            },
-         }, // first CR after 4h
-         {
-            merged_at: new Date(NOON).toISOString(),
-            created_at: new Date(NOON - 10 * HOUR).toISOString(),
-            status: { allCR: [sigAt('bob', NOON - 4 * HOUR)], allQA: [] },
-         }, // 6h
-         {
-            merged_at: null,
-            created_at: new Date(NOON - 10 * HOUR).toISOString(),
-            status: { allCR: [sigAt('bob', NOON)], allQA: [] },
-         }, // unmerged, ignored
-      ] as unknown as PullData[];
-      const lat = firstCrLatency(closed);
-      expect(lat.sampled).toBe(2);
-      expect(lat.medianHours).toBe(5);
-      expect(lat.avgHours).toBe(5);
+function mergedPull(over: {
+   n: number;
+   author?: string;
+   title?: string;
+   body?: string;
+   at?: number;
+   cr?: string[];
+   reviewers?: string[];
+   teams?: string[];
+   claimedBy?: string;
+}): PullData {
+   return {
+      repo: 'iFixit/ifixit',
+      number: over.n,
+      title: over.title ?? 'Add a thing',
+      body: over.body ?? '',
+      merged_at: new Date(over.at ?? NOON).toISOString(),
+      user: { login: over.author ?? 'alice' },
+      requested_teams: over.teams ?? [],
+      requested_reviewers: [...(over.reviewers ?? []), ...(over.claimedBy ? [over.claimedBy] : [])],
+      review_requests: over.claimedBy ? [{ login: over.claimedBy, at: 1, self: true }] : [],
+      status: { allCR: (over.cr ?? []).map(l => sigAt(l, NOON)), allQA: [] },
+   } as unknown as PullData;
+}
+
+describe('selfReviewMix', () => {
+   it('sorts merged pulls into asked, reviewed by others, self-reviewed, and unstamped', () => {
+      const mix = selfReviewMix([
+         mergedPull({ n: 1, reviewers: ['bob'], cr: ['alice'] }), // asked wins
+         mergedPull({ n: 2, teams: ['store'] }),
+         mergedPull({ n: 3, cr: ['bob'] }),
+         mergedPull({ n: 4, cr: ['alice'] }),
+         mergedPull({ n: 5, cr: ['alice'] }),
+         mergedPull({ n: 6 }),
+         { ...mergedPull({ n: 7 }), merged_at: null } as unknown as PullData, // closed unmerged
+      ]);
+      expect(mix).toMatchObject({ merged: 6, asked: 2, byOthers: 1, self: 2, unstamped: 1 });
+   });
+
+   it('leaves bot reviews out of "reviewed by someone else"', () => {
+      const bot = { ...mergedPull({ n: 1 }) } as PullData;
+      bot.status = {
+         allCR: [],
+         allQA: [],
+         unstamped_reviewers: [{ login: 'review-bot' }, { login: 'ci[bot]' }],
+      } as unknown as PullData['status'];
+      expect(selfReviewMix([bot], new Set(['review-bot']))).toMatchObject({
+         byOthers: 0,
+         unstamped: 1,
+      });
+      // with no bot list, only the [bot] suffix is known
+      expect(selfReviewMix([bot])).toMatchObject({ byOthers: 1 });
+   });
+
+   it('a claim is someone volunteering, not the author asking', () => {
+      const mix = selfReviewMix([
+         mergedPull({ n: 1, claimedBy: 'bob', cr: ['bob'] }), // bob volunteered
+         mergedPull({ n: 2, claimedBy: 'bob', reviewers: ['carol'] }), // carol was asked
+      ]);
+      expect(mix).toMatchObject({ asked: 1, byOthers: 1 });
+   });
+
+   it('flags reverts and fix-ups of a self-reviewed pull within a week', () => {
+      const mix = selfReviewMix([
+         mergedPull({ n: 10, cr: ['alice'], at: NOON - 2 * 86_400_000 }), // self-reviewed
+         mergedPull({ n: 11, title: 'Revert "Add a thing"', body: 'Reverts #10', at: NOON }),
+         mergedPull({ n: 12, body: 'Fixes #10', at: NOON }),
+         mergedPull({ n: 13, body: 'Fixes #99', at: NOON }), // not on the board
+         mergedPull({ n: 14, title: 'Revert the thing', at: NOON }), // revert, no known source
+         mergedPull({ n: 15, cr: ['alice'], at: NOON - 20 * 86_400_000 }),
+         mergedPull({ n: 16, body: 'Fixes #15', at: NOON }), // 20 days later: not close
+      ]);
+      expect(mix.risk).toEqual({ reverts: 2, afterSelfReview: 2 });
    });
 });
-
 describe('reciprocity', () => {
    it('pairs distinct PRs reviewed against stamps received, ignoring self-stamps', () => {
       const pulls = [
@@ -316,26 +448,44 @@ describe('reciprocity', () => {
 });
 
 describe('authorLoad', () => {
-   it('counts open PRs per author with their oldest and awaiting-CR share', () => {
+   it('splits pulls short of CR into self-review and waiting on others', () => {
       const rows = authorLoad([
-         full({ author: 'alice', n: 1, ageDays: 3, status: 'needs_cr' }),
+         full({ author: 'alice', n: 1, ageDays: 3, status: 'needs_cr' }), // own review
          full({ author: 'alice', n: 2, ageDays: 9, status: 'ready' }),
-         full({ author: 'bob', n: 3, ageDays: 1, status: 'needs_recr' }),
+         full({ author: 'bob', n: 3, ageDays: 1, status: 'needs_recr', ownReview: false }),
       ]);
-      expect(rows[0]).toEqual({ login: 'alice', count: 2, awaitingCr: 1, oldestDays: 9 });
-      expect(rows[1]).toEqual({ login: 'bob', count: 1, awaitingCr: 1, oldestDays: 1 });
+      expect(rows[0]).toEqual({
+         login: 'alice',
+         count: 2,
+         inSelfReview: 1,
+         waitingOnOthers: 0,
+         oldestDays: 9,
+      });
+      expect(rows[1]).toEqual({
+         login: 'bob',
+         count: 1,
+         inSelfReview: 0,
+         waitingOnOthers: 1,
+         oldestDays: 1,
+      });
    });
 });
 
 describe('repoBreakdown', () => {
-   it('splits each repo pile into total, awaiting-CR, and oldest', () => {
+   it('splits each repo pile into total, self-review, waiting on others, and oldest', () => {
       const rows = repoBreakdown([
          full({ repo: 'iFixit/a', status: 'needs_cr', ageDays: 5 }),
          full({ repo: 'iFixit/a', status: 'ready', ageDays: 2 }),
-         full({ repo: 'iFixit/b', status: 'needs_recr', ageDays: 1 }),
+         full({ repo: 'iFixit/b', status: 'needs_recr', ageDays: 1, ownReview: false }),
       ]);
-      expect(rows[0]).toEqual({ repo: 'iFixit/a', count: 2, awaitingCr: 1, oldestDays: 5 });
-      expect(rows[1]).toEqual({ repo: 'iFixit/b', count: 1, awaitingCr: 1, oldestDays: 1 });
+      expect(rows[0]).toEqual({
+         repo: 'iFixit/a',
+         count: 2,
+         inSelfReview: 1,
+         waitingOnOthers: 0,
+         oldestDays: 5,
+      });
+      expect(rows[1]).toMatchObject({ repo: 'iFixit/b', inSelfReview: 0, waitingOnOthers: 1 });
    });
 });
 
