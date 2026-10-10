@@ -327,7 +327,7 @@ function start() {
          repoSpecs = payload.repos;
          // server-owned config rides with the board (see shared/types)
          weightLabels = parseWeightLabels(payload.weightLabels);
-         policy = reviewPolicy(payload.developerTeams);
+         policy = reviewPolicy(payload.developerTeams, payload.bots);
          extraBots = new Set(payload.bots ?? []);
          projectLabelPrefix = payload.projectLabelPrefix || null;
          firstBuild ??= payload.build;

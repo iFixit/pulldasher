@@ -472,6 +472,22 @@ describe('the self-review policy', () => {
       expect(d.ownReview).toBe(false);
       expect(isDeveloper(OUTSIDER, 'R')).toBe(true);
    });
+
+   it('a bot is never a developer, by suffix or by config', () => {
+      const policy = reviewPolicy(undefined, ['ifixit-systems']);
+      expect(isDeveloper(policy, 'dependabot[bot]')).toBe(false);
+      expect(isDeveloper(policy, 'iFixit-Systems')).toBe(false);
+      expect(isDeveloper(policy, 'someone')).toBe(true);
+      const d = derive(
+         pull({ user: { login: 'ifixit-systems' } }),
+         undefined,
+         NOW,
+         undefined,
+         undefined,
+         policy
+      );
+      expect(d.ownReview).toBe(false);
+   });
 });
 
 describe('starvation and weight', () => {
