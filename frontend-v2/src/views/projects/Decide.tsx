@@ -89,6 +89,7 @@ import {
    removeRoadmapItem,
    updateRoadmapItem,
    useRoadmap,
+   storedStatus,
 } from '../../model/roadmapData';
 import { createMemoryStore, readSessionStorage, writeSessionStorage } from '../../storage';
 import {
@@ -901,7 +902,7 @@ function undoCall(key: string, batch?: { after: Promise<unknown> }): Promise<unk
             if ('error' in r) why = whyNot(r.error);
          } else if (was) {
             const fields = {
-               status: was.status,
+               status: storedStatus(was),
                start: was.start,
                weeks: was.weeks,
                end_kind: was.end_kind,

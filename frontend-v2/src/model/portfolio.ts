@@ -364,7 +364,9 @@ export function portfolioItems(
       const plan = planFor(slug, plans);
       const people = group?.people ?? [];
       const target = targetOf(project);
-      const due = target?.due_on ? Date.parse(target.due_on) : NaN;
+      // the milestone's UTC day against today's day, whole days, as Decide
+      // counts: an instant minus now would turn over at the milestone's hour
+      const dueDay = target?.due_on ? dayStart(target.due_on.slice(0, 10)) : null;
       const open = group?.open ?? [];
       // open PRs come oldest first (projects.ts buildToday)
       const oldest = open[0]?.data;
@@ -402,7 +404,7 @@ export function portfolioItems(
          leadByPrs: !named && people.length > 0,
          team: null,
          target,
-         dueInDays: Number.isNaN(due) ? null : Math.ceil((due - now) / (DAY * 1000)),
+         dueInDays: dueDay == null ? null : Math.round((dueDay - (dayStart(day) as number)) / DAY),
          parents: project?.parents ?? [],
          open: open.length,
          waiting: open.filter(p => WAITING.includes(p.status)).length,

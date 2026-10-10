@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { dayStart } from '../../../shared/model/projects';
 import type { EndKind, PlanLately } from '../../../shared/model/roadmap';
 import { dayWords } from './projectData';
 import { draftUpdate } from './updateDraft';
 
 const DAY = 86400;
-const NOW = dayStart('2026-09-30') as number;
+// local noon, since the draft reads days as the reader's own
+const NOW = new Date(2026, 8, 30, 12).getTime() / 1000;
 // Sep 7 for 8 weeks: it ends Nov 1
 const plan = (lately: Partial<PlanLately> | null, weeks = 8, end_kind: EndKind = 'hard') => ({
    start: '2026-09-07',
@@ -104,5 +104,16 @@ describe('draftUpdate', () => {
          plan({}, 2),
       ];
       for (const p of cases) expect(draftUpdate(p, NOW)?.body).not.toMatch(/[–—-]/);
+   });
+});
+
+describe('draftUpdate days', () => {
+   it('judges the finish on the reader’s local day, as the page does', () => {
+      // four weeks on from a Sunday night, so the finish lands late on the
+      // plan's last day, which is already the next day in UTC out west
+      const now = new Date(2026, 9, 4, 23, 30).getTime() / 1000;
+      const draft = draftUpdate(plan({ issues: { open: 4, closed: 5, added: 1 } }), now);
+      expect(draft?.body).toMatch(/, by its /);
+      expect(draft?.health).toBe('on_track');
    });
 });

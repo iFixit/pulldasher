@@ -19,6 +19,7 @@ import {
 } from '../../../shared/model/projects';
 import { isSuffixBot } from '../../../shared/model/visibility';
 import { dummyPullLinks } from './workData';
+import { refreshRetroData } from './retroData';
 
 /**
  * The Projects tab's server data: the project issues and one window's
@@ -253,6 +254,7 @@ const version = createMemoryStore({ n: 0 });
 /** Load every window again, after the developer teams change. */
 export function refreshProjectsData(): void {
    cache.clear();
+   refreshRetroData();
    version.set({ n: version.get().n + 1 });
 }
 

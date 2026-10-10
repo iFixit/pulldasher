@@ -54,6 +54,11 @@ const shown = (item: RoadmapItem): RoadmapItem & { marked?: RoadmapItem['status'
         { ...item, status: 'active', marked: 'planned' }
       : item;
 
+/** The status a plan was saved with: what Undo writes back, not the
+ * In progress that `shown` read off its PRs. */
+export const storedStatus = (item: RoadmapItem): RoadmapItem['status'] =>
+   (item as { marked?: RoadmapItem['status'] }).marked ?? item.status;
+
 type Reply = { status: number; json: Record<string, unknown> };
 
 interface Api {
@@ -390,6 +395,11 @@ function problemOf(reply: Reply, doing: string): string {
 // Counts writes, so a load that went out before one and answers after it
 // can't put the old plan back on screen; the next load brings the new one.
 let writes = 0;
+// Removals still waiting on the server. A load answered meanwhile may have
+// read before the DELETE committed and still list the plan, so it's dropped
+// and asked for again once the last removal settles.
+let removing = 0;
+let droppedWhileRemoving = false;
 
 export async function loadRoadmap(): Promise<void> {
    const seen = writes;
@@ -397,6 +407,10 @@ export async function loadRoadmap(): Promise<void> {
       const reply = await api.list();
       if (reply.status !== 200) throw new Error(String(reply.status));
       if (seen !== writes) return;
+      if (removing > 0) {
+         droppedWhileRemoving = true;
+         return;
+      }
       const items = (reply.json.items as RoadmapItem[]).map(shown);
       store.set({ ...store.get(), items, loadFailed: false });
    } catch {
@@ -490,8 +504,15 @@ export async function removeRoadmapItem(id: number): Promise<boolean> {
             i.waits_on.includes(id) ? { ...i, waits_on: i.waits_on.filter(x => x !== id) } : i
          )
    );
+   removing++;
    const reply = await api.remove(id).catch((): Reply => ({ status: 0, json: {} }));
-   return settle(reply, 'remove the plan', undo);
+   removing--;
+   const ok = settle(reply, 'remove the plan', undo);
+   if (removing === 0 && droppedWhileRemoving) {
+      droppedWhileRemoving = false;
+      void loadRoadmap();
+   }
+   return ok;
 }
 
 /** Put a removed item back as it was (Remove's Undo): its updates and its
