@@ -53,10 +53,17 @@ const normalizeTeams = teams =>
 
 function getReviewRequests(repo, number, requestedReviewerLogins) {
    const known = reviewRequestsByPull.get(reviewRequestsKey(repo, number));
-   return (requestedReviewerLogins || []).map(login => {
+   const open = new Set(requestedReviewerLogins || []);
+   const current = [...open].map(login => {
       const entry = known && known.get(login);
       return entry ? { login, at: entry.at, self: entry.self } : { login, at: null, self: false };
    });
+   // requests GitHub has since cleared because the reviewer answered; a
+   // re-request puts the login back in `open`, which supersedes the old answer
+   const answered = [...(known?.entries() ?? [])]
+      .filter(([login, e]) => e.answered && !open.has(login))
+      .map(([login, e]) => ({ login, at: e.at, self: e.self, answered: true }));
+   return [...current, ...answered];
 }
 
 // A payload's teams with the times we know; the cache then holds exactly the
@@ -366,7 +373,12 @@ class Pull {
       if (reviewRequests) {
          reviewRequestsByPull.set(
             reviewRequestsKey(data.repo, data.number),
-            new Map(reviewRequests.map(r => [r.login, { at: r.at, self: r.self }]))
+            new Map(
+               reviewRequests.map(r => [
+                  r.login,
+                  { at: r.at, self: r.self, answered: Boolean(r.answered) },
+               ])
+            )
          );
       }
 
@@ -383,7 +395,7 @@ class Pull {
    static recordReviewRequested(repo, number, login, { at, self }) {
       const key = reviewRequestsKey(repo, number);
       const known = reviewRequestsByPull.get(key) || new Map();
-      known.set(login, { at, self });
+      known.set(login, { at, self, answered: false });
       reviewRequestsByPull.set(key, known);
    }
 

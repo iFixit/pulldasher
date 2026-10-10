@@ -52,7 +52,12 @@ export const askOverdue = (p: DerivedPull, now?: number): boolean =>
 /** A review was requested of someone (a person or a team), whether or not it
  * still names anyone who owes it. */
 const hasRequest = (p: DerivedPull): boolean =>
-   !!(askedOf(p).length || p.data.requested_reviewers?.length || p.data.requested_teams?.length);
+   !!(
+      askedOf(p).length ||
+      p.data.requested_reviewers?.length ||
+      p.data.requested_teams?.length ||
+      p.data.review_requests?.some(r => r.answered)
+   );
 
 /** Needs a reviewer from outside: the author is outside the dev team (or a
  * bot), and nobody who was asked still owes it, nor took it on. A request on
@@ -399,7 +404,10 @@ function reviewerNote(p: DerivedPull, me: string, extra?: { claim?: Claim | null
    if (p.status === 'unmergeable')
       return waitOnly(p.conflict ? 'conflicts · author rebases' : 'lands with its parent');
    if (p.status === 'ci_pending') return waitOnly('all stamps in, waiting on green');
-   if (p.status === 'ready') return waitOnly(`ready · ${author} merges it`);
+   // an outside contributor or bot usually can't merge their own, so it is
+   // left for whoever can
+   if (p.status === 'ready')
+      return waitOnly(p.authorIsDeveloper ? `ready · ${author} merges it` : 'ready · merge it');
 
    return waitOnly(FALLBACK_STATUS_LABEL[p.status]);
 }

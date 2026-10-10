@@ -363,7 +363,10 @@ export function derive(
    const ownReview =
       isDeveloper(policy, author) &&
       !(pull.requested_reviewers ?? []).length &&
-      !requestedTeams.length;
+      !requestedTeams.length &&
+      // GitHub clears a request once the reviewer reviews; that request was
+      // still made, so the PR isn't self-review after a push
+      !(pull.review_requests ?? []).some(r => r.answered);
 
    // a lifted block deactivates its signature, same as a stale CR stamp
    const devBlockedBy = activeUsers(st.dev_block);

@@ -94,8 +94,11 @@ export interface PullData {
     * GitHub-UI self-request) rather than being asked by someone else. A CLAIM
     * is any entry with self === true. Best-effort and additive: older servers
     * omit the field entirely, so read as [] when absent — requested_reviewers
-    * stays the authoritative list of who's requested either way. */
-   review_requests?: Array<{ login: string; at: number | null; self: boolean }>;
+    * stays the authoritative list of who's requested either way.
+    * `answered` marks a request GitHub has since cleared because the reviewer
+    * reviewed (never one the author withdrew); such a login is NOT in
+    * requested_reviewers. It keeps a push from reading as self-review. */
+   review_requests?: Array<{ login: string; at: number | null; self: boolean; answered?: boolean }>;
    /** GitHub team slugs the PR asks a review from (the pull's
     * requested_teams). Under the self-review policy a request means everyone
     * listed; derive() turns a slug into people through the roster teams

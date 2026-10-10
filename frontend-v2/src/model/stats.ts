@@ -9,6 +9,7 @@ import {
    WEIGHT_ORDER,
    reviewWeight,
 } from '../../../shared/model/status';
+import { claimFor } from './reviewers';
 import { isBotLogin } from '../../../shared/model/visibility';
 
 /**
@@ -316,7 +317,7 @@ export function waitingOnSomeone(pulls: DerivedPull[], now: number): WaitingOnSo
       const asked = p.authorIsDeveloper
          ? (d.requested_reviewers ?? []).length || (d.requested_teams ?? []).length
          : p.askedOf.length;
-      if (!p.ownReview && !asked && CR_INCOMPLETE.includes(p.status))
+      if (!p.ownReview && !asked && !claimFor(d) && CR_INCOMPLETE.includes(p.status))
          outside.push({ ...ref, author: d.user.login, days: p.ageDays });
    }
    return {

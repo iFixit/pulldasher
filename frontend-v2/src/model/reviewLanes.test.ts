@@ -49,7 +49,7 @@ function dp(o: {
    body?: string;
    labels?: string[];
    branch?: string;
-   reviewRequests?: { login: string; at: number | null; self: boolean }[];
+   reviewRequests?: { login: string; at: number | null; self: boolean; answered?: boolean }[];
    requestedReviewers?: string[];
    requestedTeams?: string[];
 }): DerivedPull {
@@ -403,6 +403,43 @@ describe('buildReviewLanes — could use your input', () => {
    });
 });
 
+describe('buildReviewLanes — outside and answered pulls', () => {
+   it("shows an outside contributor's or bot's ready pull to everyone, not a developer's", () => {
+      const outside = dp({
+         number: 1,
+         author: 'stranger',
+         status: 'ready',
+         authorIsDeveloper: false,
+      });
+      const theirs = dp({ number: 2, author: 'alice', status: 'ready', authorIsDeveloper: true });
+      const bot = dp({ number: 3, author: 'dependabot[bot]', status: 'ready' });
+      const lanes = buildReviewLanes(input({ pulls: [outside, theirs], botsForReady: [bot] }));
+      expect(lanes.ready).toEqual([outside, bot]);
+   });
+
+   it('does not offer you a pull whose request you already answered', () => {
+      const p = dp({
+         author: 'alice',
+         ownReview: false,
+         authorIsDeveloper: true,
+         requestedReviewers: [],
+         askedOf: [],
+         reviewRequests: [{ login: 'me', at: 1, self: false, answered: true }],
+         changesRequestedBy: ['me'],
+         title: 'Rework the Shopify sync',
+      });
+      expect(
+         buildReviewLanes(input({ pulls: [p], codeRegions: ['Shopify'] })).couldUseInput
+      ).toEqual([]);
+   });
+
+   it('shows your own pull with a review to answer in Waiting on you', () => {
+      const p = dp({ author: 'me', authorIsDeveloper: true, status: 'needs_cr' });
+      p.data.status.unstamped_reviewers = [{ login: 'bob', state: 'COMMENTED', date: 1 }];
+      expect(buildReviewLanes(input({ pulls: [p] })).yourMove).toEqual([p]);
+   });
+});
+
 describe('buildReviewLanes — stamped and ready lanes', () => {
    it('places your own fully signed-off pull in ready', () => {
       const p = dp({ author: 'me', status: 'ready' });
@@ -410,8 +447,8 @@ describe('buildReviewLanes — stamped and ready lanes', () => {
       expect(lanes.ready).toEqual([p]);
    });
 
-   it('shows another person’s ready pull only when you were asked to review it or claimed it', () => {
-      const plain = dp({ number: 1, author: 'alice', status: 'ready' });
+   it('shows another person’s ready pull only when you were asked to review it or claimed it (outside authors go to everyone)', () => {
+      const plain = dp({ number: 1, author: 'alice', status: 'ready', authorIsDeveloper: true });
       const asked = dp({ number: 2, author: 'alice', status: 'ready', requestedReviewers: ['me'] });
       const claimed = dp({
          number: 3,
@@ -424,19 +461,20 @@ describe('buildReviewLanes — stamped and ready lanes', () => {
          number: 4,
          author: 'alice',
          status: 'ready',
+         authorIsDeveloper: true,
          requestedReviewers: ['bob'],
       });
       const lanes = buildReviewLanes(input({ pulls: [plain, asked, claimed, askedOther] }));
       expect(lanes.ready.map(p => p.data.number).sort()).toEqual([2, 3]);
    });
 
-   it('orders ready oldest first, and leaves an unclaimed ready bot PR in the bot fold', () => {
+   it('orders ready oldest first, and puts a ready bot PR there too (nobody else can merge it)', () => {
       const newer = dp({ number: 1, author: 'me', status: 'ready', ageDays: 1 });
       const older = dp({ number: 2, author: 'me', status: 'ready', ageDays: 5 });
       const bot = dp({ author: 'dependabot[bot]', number: 3, status: 'ready', ageDays: 9 });
       const lanes = buildReviewLanes(input({ pulls: [newer, older], bots: [bot] }));
-      expect(lanes.ready).toEqual([older, newer]);
-      expect(lanes.botRest).toEqual([bot]);
+      expect(lanes.ready).toEqual([bot, older, newer]);
+      expect(lanes.botRest).toEqual([]);
    });
 
    it('draws ready’s bot portion from botsForReady, not bots, when the two differ', () => {

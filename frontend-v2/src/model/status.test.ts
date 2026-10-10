@@ -490,6 +490,23 @@ describe('the self-review policy', () => {
       expect(d.askedAt).toBe(NOW - 3600);
    });
 
+   it('a request GitHub cleared after the reviewer reviewed keeps the pull out of self-review', () => {
+      // alice asked bob, bob reviewed (GitHub dropped the request), alice pushed
+      const p = withStatus(
+         { allCR: [sig('CR', 'bob', false)] },
+         { review_requests: [{ login: 'bob', at: NOW - 86400, self: false, answered: true }] }
+      );
+      const d = derive(p, undefined, NOW);
+      expect(d.ownReview).toBe(false);
+      expect(d.status).toBe('needs_recr');
+      expect(d.recrBy).toEqual(['bob']);
+      expect(d.askedOf).toEqual([]);
+   });
+
+   it("a fresh unrequested pull with no answered request is still the author's own", () => {
+      expect(derive(pull(), undefined, NOW).ownReview).toBe(true);
+   });
+
    it("a team's members get the team's request time", () => {
       const policy = reviewPolicy({ Store: ['a', 'b'] });
       const d = derive(

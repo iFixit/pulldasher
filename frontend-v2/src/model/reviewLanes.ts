@@ -165,9 +165,14 @@ const OWN_DO_NOW = [
    'Stamp QA',
    'Lift your block',
    'Rebase',
+   'Answer the review',
+   'Unblock',
 ];
 function ownVerb(p: DerivedPull): string | null {
-   const verb = authorMove(p);
+   // 'Answer the review' and the external-block 'Unblock' come from rowNote
+   // (they sit above authorNote there), so authorMove alone never sees them
+   const shown = rowNote(p, p.data.user.login).action;
+   const verb = shown === 'Answer the review' || shown === 'Unblock' ? shown : authorMove(p);
    if (!verb) return null;
    if (verb.startsWith('Nudge ')) return 'Nudge';
    return OWN_DO_NOW.includes(verb) ? verb : null;
@@ -257,9 +262,14 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
             (p.status === 'needs_cr' || (p.status === 'needs_recr' && !p.recrBy.includes(me)))
       )
       .sort(bySecurityThenAge);
-   // a ready PR is on the Ready lane only when it's yours, asked of you, or claimed
+   // a ready PR is on the Ready lane when it's yours, asked of you, claimed, or
+   // from outside the dev team (an outside contributor or a bot has no
+   // author-developer to merge it, so it's everyone's)
    const readyMine = (p: DerivedPull) =>
-      p.data.user.login === me || askedOf(p).includes(me) || claimFor(p.data)?.login === me;
+      p.data.user.login === me ||
+      !p.authorIsDeveloper ||
+      askedOf(p).includes(me) ||
+      claimFor(p.data)?.login === me;
    const botKeys = new Set(botReviewable.map(p => pullKey(p.data)));
    const botRest = bots
       .filter(p => !botKeys.has(pullKey(p.data)) && !(p.status === 'ready' && readyMine(p)))
@@ -326,6 +336,9 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
                !authorOwnsIt(p) &&
                (CR_INCOMPLETE.includes(p.status) || p.status === 'needs_qa') &&
                !p.crBy.includes(me) &&
+               // you were asked and answered (GitHub cleared the request):
+               // it's the author's move or yours to re-review, not an offer
+               !p.data.review_requests?.some(r => r.answered && r.login === me) &&
                (matchesRegion(p, codeRegions) || reviewedIn.has(p.data.repo))
          ),
          sunk
@@ -373,7 +386,8 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
 
    // Ready to merge: signed off, green, one press from done. Under the
    // policy the author merges their own, so this is your own ready PRs, plus
-   // another person's only when you were asked to review it or took it on.
+   // another person's when you were asked to review it or took it on, or when its
+   // author isn't a developer (outside contributors and bots).
    // Longest-waiting first: the ones most likely forgotten. botsForReady
    // (not `bots`) so a bot PR you claimed still shows when "Ignore bot PRs"
    // has emptied `bots`.

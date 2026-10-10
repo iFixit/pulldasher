@@ -697,10 +697,14 @@ describe('rowNote — the non-author matrix', () => {
       });
    });
 
-   it('ready: its author merges it', () => {
-      expect(note({ author, status: 'ready' }, me)).toEqual({
+   it('ready: its developer author merges it; an outside one is left for you', () => {
+      expect(note({ author, status: 'ready', authorIsDeveloper: true }, me)).toEqual({
          action: null,
          context: 'ready · auth merges it',
+      });
+      expect(note({ author, status: 'ready' }, me)).toEqual({
+         action: null,
+         context: 'ready · merge it',
       });
    });
 

@@ -19,6 +19,8 @@ import type { PullData } from '../../../shared/types';
  * number. The one claim predicate: rows, the deal, cheers, and desktop
  * notifications all read this, not private copies. */
 export function claimFor(pull: PullData): { login: string; at: number | null } | null {
-   const entry = (pull.review_requests ?? []).find(r => r.self && r.login !== pull.user.login);
+   const entry = (pull.review_requests ?? []).find(
+      r => r.self && !r.answered && r.login !== pull.user.login
+   );
    return entry ? { login: entry.login, at: entry.at } : null;
 }
