@@ -288,12 +288,14 @@ const ASSIGNEE_INDEXES = new Set([6, 12]);
 // (one for a team nobody is on the roster of), requests of the viewer with a
 // clock in hours (one past four), developers' own stamped pulls, an author
 // whose own stamp went stale, and input hints from the diff's paths.
-const TEAM_REQUESTS: Record<number, string[]> = {
-   2: ['store-front'],
-   9: ['store-front'],
-   17: ['platform'],
-   20: ['community'],
-   30: ['design'],
+// [team slug, hours since it was requested]; the one at 5 is past the four
+// hours reviewers answer in
+const TEAM_REQUESTS: Record<number, Array<[string, number]>> = {
+   2: [['store-front', 3]],
+   9: [['store-front', 5]],
+   17: [['platform', 2]],
+   20: [['community', 4.5]],
+   30: [['design', 1]],
 };
 const OWN_STAMPED = new Set([3, 8, 21]);
 const OWN_STALE_STAMP = 24;
@@ -302,6 +304,10 @@ const INPUT_HINTS: Record<number, string[]> = {
    18: ['ci', 'agent-docs'],
    26: ['deploy', 'dependencies'],
    33: ['alerting'],
+   // the viewer's own open, unrequested pulls (the chain), so the author-side
+   // "worth asking for review?" hint shows on the board
+   10: ['migrations'],
+   12: ['ci', 'dependencies'],
 };
 
 function withSelfReviewDemos(pull: PullData, i: number): PullData {
@@ -321,7 +327,11 @@ function withSelfReviewDemos(pull: PullData, i: number): PullData {
    const meAsked = (pull.requested_reviewers ?? []).includes(dummyUser());
    let out: PullData = {
       ...pull,
-      requested_teams: TEAM_REQUESTS[i] ?? [],
+      requested_teams: (TEAM_REQUESTS[i] ?? []).map(([slug]) => slug),
+      team_requests: (TEAM_REQUESTS[i] ?? []).map(([slug, hoursAgo]) => ({
+         slug,
+         at: Math.floor(now / 1000 - hoursAgo * 3600),
+      })),
       input_hints: INPUT_HINTS[i] ?? [],
       // asked hours ago; the one at 7 is past the four hours reviewers answer in
       review_requests: meAsked
@@ -334,11 +344,16 @@ function withSelfReviewDemos(pull: PullData, i: number): PullData {
            ]
          : pull.review_requests,
    };
+   if (INPUT_HINTS[i] && (CHAIN_INDEXES as readonly number[]).includes(i)) {
+      // unrequested, so the hint is the only nudge to ask anyone
+      out = { ...out, requested_reviewers: [], requested_teams: [], team_requests: [] };
+   }
    if (OWN_STAMPED.has(i) || i === OWN_STALE_STAMP) {
       out = {
          ...out,
          requested_reviewers: [],
          requested_teams: [],
+         team_requests: [],
          review_requests: [],
          status: {
             ...out.status,

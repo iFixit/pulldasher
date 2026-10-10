@@ -33,3 +33,17 @@ test('a stamp survives only when every later commit is a base merge', () => {
    assert.ok(stampSurvivesBaseMerges(stamp, [before, merge, merge], 'master'));
    assert.ok(!stampSurvivesBaseMerges(stamp, [before, merge, commit('More', ['c'])], 'master'));
 });
+
+test('a stamp with no commit dated after it does not survive', () => {
+   const stamp = new Date('2026-10-01T00:00:00Z');
+   const before = commit('Work', ['a'], '2026-09-30T00:00:00Z');
+   assert.ok(!stampSurvivesBaseMerges(stamp, [before], 'master'));
+   assert.ok(!stampSurvivesBaseMerges(stamp, [], 'master'));
+});
+
+test('a capped commit list does not keep a stamp', () => {
+   const stamp = new Date('2026-10-01T00:00:00Z');
+   const merge = commit("Merge branch 'master' into foo", ['a', 'b']);
+   assert.ok(stampSurvivesBaseMerges(stamp, Array(249).fill(merge), 'master'));
+   assert.ok(!stampSurvivesBaseMerges(stamp, Array(250).fill(merge), 'master'));
+});

@@ -19,7 +19,16 @@ test('each area matches its paths', () => {
    const cases = {
       ci: ['.circleci/config.yml', 'Jenkinsfile', 'lefthook-local.yml', '.buildkite/p.yml'],
       migrations: ['db/migrations/1.php', 'migrations/schema.sql', 'x/y.sql'],
-      alerting: ['ops/alerts/db.yml', 'grafana/dash.json', 'lib/sentry.js', 'Prometheus.yml'],
+      alerting: [
+         'ops/alerts/db.yml',
+         'grafana/dash.json',
+         'Prometheus.yml',
+         'prometheus.yml',
+         'ops/alertmanager/a.yml',
+         'sentry.client.config.ts',
+         '.sentryclirc',
+         'sentry.properties',
+      ],
       'agent-docs': ['AGENTS.md', 'a/b/CLAUDE.md', '.agents/x.md', '.cursor/r', '.codex/c'],
       deploy: [
          'Dockerfile',
@@ -43,6 +52,13 @@ test('each area matches its paths', () => {
    for (const [hint, paths] of Object.entries(cases)) {
       for (const path of paths) assert.deepEqual(inputHints([path]), [hint], path);
    }
+});
+
+test('alert-named components are not alerting config', () => {
+   assert.deepEqual(
+      inputHints(['src/components/AlertBanner.tsx', 'AlertDialog.tsx', 'lib/sentry.js']),
+      []
+   );
 });
 
 test('ordinary files get no hint', () => {
