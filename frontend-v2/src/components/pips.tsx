@@ -34,32 +34,6 @@ function ciDuration(s: CommitStatus): string | null {
    return secs < 60 ? `${Math.round(secs)}s` : `${Math.round(secs / 60)}m`;
 }
 
-/** CI's one circle (styles.css .ci-ring/.ci-fail): a red ring with an X =
- * failing (a 1-of-25 failure reads as loudly as 25-of-25), the slate ring
- * sweeping closed = running (the sweep is the share done), a closed green
- * ring = passed. Draws nothing for passed unless `passed`, or with no CI. */
-export function CiGlyph({ pull, passed = false }: { pull: DerivedPull; passed?: boolean }) {
-   const checks = pull.ci === 'none' ? [] : [...headStatuses(pull.data)];
-   if (!checks.length) return null;
-   if (checks.some(isRedCheck)) return <span aria-hidden className="ci-fail" />;
-   const pendingCount = checks.filter(c => c.data.state === 'pending').length;
-   if (pendingCount)
-      return (
-         <span
-            aria-hidden
-            className="ci-ring ci-ring-run"
-            style={
-               {
-                  '--sweep': `${Math.round(
-                     ((checks.length - pendingCount) / checks.length) * 360
-                  )}deg`,
-               } as CSSProperties
-            }
-         />
-      );
-   return passed ? <span aria-hidden className="ci-ring ci-ring-pass" /> : null;
-}
-
 /**
  * CI in the sign-off family: the machine is a reviewer, so it wears the same
  * label + circle-mark anatomy as CR and QA. Only a failure earns ink at rest
@@ -117,7 +91,28 @@ export function CiStatus({ pull }: { pull: DerivedPull }) {
                <span aria-hidden className="w-[18px] text-left text-[11px] font-medium text-ink-3">
                   CI
                </span>
-               <CiGlyph pull={pull} passed />
+               {/* one circle (styles.css .ci-ring/.ci-fail): a red ring with
+                   an X = failing (the fraction lives in the popover; a 1-of-25
+                   failure must read as loudly as 25-of-25), the slate ring
+                   sweeping closed = running (the sweep is the completed share,
+                   v1's grey section reborn), and a closed green ring revealed
+                   on row hover = passed (no draw-on-reveal: animation means a
+                   state CHANGED, and hovering isn't a change). */}
+               {failing > 0 ? (
+                  <span aria-hidden className="ci-fail" />
+               ) : pending ? (
+                  <span
+                     aria-hidden
+                     className="ci-ring ci-ring-run"
+                     style={
+                        {
+                           '--sweep': `${Math.round(((checks.length - pendingCount) / checks.length) * 360)}deg`,
+                        } as CSSProperties
+                     }
+                  />
+               ) : (
+                  <span aria-hidden className="ci-ring ci-ring-pass" />
+               )}
             </button>
          )}
       >

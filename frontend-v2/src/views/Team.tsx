@@ -1,8 +1,10 @@
 import { useMemo, useState, type MouseEvent } from 'react';
 import { ChevronRight, Plus } from 'lucide-react';
-import { askedOf, authorOwnsIt, parked } from '../model/actions';
+import { authorOwnsIt, parked } from '../model/actions';
 import { displayName, useNames } from '../model/names';
-import { CR_INCOMPLETE, type DerivedPull } from '../../../shared/model/status';
+import type { DerivedPull } from '../../../shared/model/status';
+import { matchesRegion } from '../model/regions';
+import { crSort } from '../model/sort';
 import { teamBuckets } from '../model/team';
 import { addTeam, DEFAULT_TEAM_NAME, myPeople, useSettings } from '../settings';
 import { createPersistentStore } from '../storage';
@@ -109,7 +111,7 @@ export function Team({
    const isOpen = (key: string) => openMap[key] ?? false;
    const toggleOpen = (key: string) =>
       teamOpenStore.set({ ...teamOpenStore.get(), [key]: !isOpen(key) });
-   const { teams: personalTeams, hiddenPeople } = useSettings();
+   const { teams: personalTeams, codeRegions, hiddenPeople } = useSettings();
    const yourPeople = myPeople(personalTeams);
    const yourSet = new Set(yourPeople);
    // login -> human name for the roster rows (app.tsx prefetches the board)
@@ -124,14 +126,11 @@ export function Team({
       for (const p of allPulls) m.set(p.data.user.login, (m.get(p.data.user.login) ?? 0) + 1);
       return m;
    }, [allPulls]);
-   // reviews asked of each person that they haven't stamped yet: the one
-   // review debt under self-review, answered in hours
    const owes = useMemo(() => {
       const m = new Map<string, DerivedPull[]>();
       for (const p of allPulls.filter(x => !parked(x) && !authorOwnsIt(x))) {
-         if (!CR_INCOMPLETE.includes(p.status) && p.status !== 'needs_qa') continue;
-         for (const u of askedOf(p).filter(l => !p.crBy.includes(l)))
-            m.set(u, [...(m.get(u) ?? []), p]);
+         for (const u of p.recrBy) m.set(u, [...(m.get(u) ?? []), p]);
+         for (const u of p.reqaBy) m.set(u, [...(m.get(u) ?? []), p]);
       }
       return m;
    }, [allPulls]);
@@ -177,7 +176,8 @@ export function Team({
       // members is rebuilt per render; its join is the stable identity
       [pulls, members.join(','), me]
    );
-   const owed = selectedPerson ? owes.get(selectedPerson) ?? [] : [];
+   const regionMatches = home ? crSort(reviewable.filter(p => matchesRegion(p, codeRegions))) : [];
+   const owed = selectedPerson ? (owes.get(selectedPerson) ?? []) : [];
    const shipping = theirs.filter(p => ['ready', 'needs_qa'].includes(p.status)).length;
 
    // the directory: busiest authors lead, hidden ones drop out unless the
@@ -200,9 +200,9 @@ export function Team({
          <span
             className="inline-flex items-center gap-0.5 text-[11px] font-semibold tabular-nums"
             style={{ color: 'var(--warn)' }}
-            title={`${owes.get(login)!.length} review${
+            title={`owes ${owes.get(login)!.length} re-stamp${
                owes.get(login)!.length === 1 ? '' : 's'
-            } asked of them`}
+            }`}
          >
             <span className="pip pip-stale" />
             {owes.get(login)!.length}
@@ -368,9 +368,9 @@ export function Team({
             <div className="mx-auto flex max-w-[440px] flex-col items-center gap-3 py-12 text-center">
                <h2 className="m-0 text-lg font-semibold text-ink">Build your team</h2>
                <p className="m-0 text-[13px] text-ink-3">
-                  Pick the people you work with, not the org chart. Their combined board becomes
-                  this tab’s home, and when they ask you for a review it leads your queue. Or click
-                  anyone above to see just their work.
+                  Pick the people whose work you review: your review circle, not the org chart.
+                  Their combined board becomes this tab’s home, and their PRs lead your review
+                  queues. Or click anyone above to see just their work.
                </p>
                <div className="w-full rounded-2xl border border-line bg-surface p-3 text-left">
                   <TeamPicker teamName={DEFAULT_TEAM_NAME} extraBots={extraBots} />
@@ -390,8 +390,8 @@ export function Team({
                <span>
                   <span className="text-base leading-snug font-semibold">
                      {selectedPerson
-                        ? nameOf(selectedPerson) ?? selectedPerson
-                        : explicitTeam ?? `${selected.length} people`}
+                        ? (nameOf(selectedPerson) ?? selectedPerson)
+                        : (explicitTeam ?? `${selected.length} people`)}
                   </span>
                   <br />
                   <span className="text-xs text-ink-3">
@@ -409,7 +409,7 @@ export function Team({
                <span className="ml-auto flex gap-4 text-center text-xs text-ink-3">
                   <span>
                      <b className="block text-base text-ink-2 tabular-nums">{reviewable.length}</b>
-                     for you to review
+                     you can review
                   </span>
                   <span>
                      <b className="block text-base text-ink-2 tabular-nums">{shipping}</b>
@@ -418,7 +418,7 @@ export function Team({
                   {selectedPerson && (
                      <span>
                         <b className="block text-base text-ink-2 tabular-nums">{owed.length}</b>
-                        asked of them
+                        {owed.length === 1 ? 're-stamp owed' : 're-stamps owed'}
                      </span>
                   )}
                </span>
@@ -436,18 +436,28 @@ export function Team({
                <EmptyState title="All clear" sub="Nothing open from your team right now." />
             )}
 
+         {codeRegions.length > 0 && regionMatches.length > 0 && (
+            <Lane
+               title="In your code regions"
+               sub={
+                  <SubDoor label="How code regions match" text="areas you flagged in Settings">
+                     <p>
+                        A PR lands here when its title, description, labels, branch, or repo
+                        contains one of your regions. Plain text, case-insensitive, no regex.
+                     </p>
+                  </SubDoor>
+               }
+               pulls={regionMatches}
+               cap={8}
+               // the lane heading already says "this is your region," so the
+               // row-level region mark would just repeat it
+               opts={{ ...opts, hideRegionMark: true }}
+            />
+         )}
          <Lane
-            title="For you to review"
+            title="Review queue"
             sub={
-               <SubDoor
-                  label="What lands in For you to review"
-                  text="their PRs whose review is yours"
-               >
-                  <p>
-                     Developers review their own PRs unless they ask, so this holds only reviews
-                     that are yours: asked of you, ones you said you’d do, and PRs from outside the
-                     dev team that nobody’s on yet. Everything else they have open is below.
-                  </p>
+               <SubDoor label="How this queue is ordered" text="best next review first">
                   <p>
                      Lightest first, so a short break fits a review. A PR that needs just one more
                      approval jumps up (yours would finish it), and PRs move up as they wait. PRs
@@ -463,7 +473,7 @@ export function Team({
              lens groups on — a live stamp of yours emerges as the "stamped"
              group instead of needing its own hand-made fold */}
          {(stamped.length > 0 || rest.length > 0 || owed.length > 0) && (
-            <RestGroup title="What they’re working on">
+            <RestGroup title="The rest of their work">
                <WordGroupRows
                   pulls={[...stamped, ...rest]}
                   opts={opts}
@@ -474,8 +484,8 @@ export function Team({
                {selectedPerson && (
                   <Fold
                      count={owed.length}
-                     label="Reviews asked of them"
-                     gloss="Someone asked them for a review on these and they haven’t stamped yet. Requests are answered in hours."
+                     label="Re-stamps they owe"
+                     gloss="Their earlier approval went stale after new commits; a fresh re-stamp from them is owed to the author."
                      id="team:owed"
                   >
                      <FoldRows list={owed} opts={opts} id="team:owed" />

@@ -305,7 +305,7 @@ const COLUMNS: Column[] = [
    {
       key: 'waiting',
       label: 'In review',
-      title: 'In review: its open PRs still owed a CR or QA, the author’s own or someone’s they asked',
+      title: 'Waiting on review: its open PRs waiting on a CR or QA',
       width: 'w-14',
       hide: 'hidden 2xl:block',
       cell: i => i.waiting || '',

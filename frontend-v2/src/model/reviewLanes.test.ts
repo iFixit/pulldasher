@@ -7,14 +7,8 @@ import { buildReviewLanes, type ReviewLanesInput } from './reviewLanes';
  * repoBlocks, claimFor) reads. Defaults describe a plain, fully-open
  * needs_cr pull from someone else, freshly pushed (old enough that
  * isIterating never demotes it by accident) and untouched by the viewer, so
- * a test only needs to override what it's actually exercising. That someone
- * is outside the dev team (ownReview false), so their review is anyone's;
- * `ownReview: true` is a developer's own unrequested pull. askedOf follows
- * requestedReviewers minus claims, as derive() builds it. */
+ * a test only needs to override what it's actually exercising. */
 function dp(o: {
-   ownReview?: boolean;
-   askedOf?: string[];
-   askedAt?: number | null;
    repo?: string;
    number?: number;
    author?: string;
@@ -49,7 +43,6 @@ function dp(o: {
    branch?: string;
    reviewRequests?: { login: string; at: number | null; self: boolean }[];
    requestedReviewers?: string[];
-   requestedTeams?: string[];
 }): DerivedPull {
    return {
       data: {
@@ -77,7 +70,6 @@ function dp(o: {
          })),
          review_requests: o.reviewRequests ?? [],
          requested_reviewers: o.requestedReviewers ?? [],
-         requested_teams: o.requestedTeams ?? [],
          draft: o.draft ?? false,
       },
       status: o.status ?? 'needs_cr',
@@ -105,13 +97,6 @@ function dp(o: {
       cryo: o.cryo ?? false,
       changesRequestedBy: o.changesRequestedBy ?? [],
       engagedNoStamp: o.engagedNoStamp ?? [],
-      ownReview: o.ownReview ?? false,
-      askedOf:
-         o.askedOf ??
-         (o.requestedReviewers ?? []).filter(
-            l => !(o.reviewRequests ?? []).some(r => r.self && r.login === l)
-         ),
-      askedAt: o.askedAt ?? null,
    } as unknown as DerivedPull;
 }
 
@@ -125,6 +110,7 @@ function input(o: Partial<ReviewLanesInput> & { pulls?: DerivedPull[] }): Review
       napping: [],
       changed: [],
       me: 'me',
+      selfReview: true,
       teams: [],
       codeRegions: [],
       repoPriority: [],
@@ -145,11 +131,11 @@ describe('buildReviewLanes — review queue', () => {
       expect(lanes.queue).toEqual([p]);
    });
 
-   it('excludes a pull you already hold a live CR stamp on (the rest is its author’s)', () => {
+   it('excludes a pull you already hold a live CR stamp on (it waits on the other reviewer instead)', () => {
       const p = dp({ author: 'alice', status: 'needs_cr', crBy: ['me'], crReq: 2 });
       const lanes = buildReviewLanes(input({ pulls: [p] }));
       expect(lanes.queue).not.toContain(p);
-      expect(lanes.yoursWaiting).not.toContain(p);
+      expect(lanes.yoursWaiting).toContain(p);
    });
 
    it('excludes your own pull from the queue', () => {
@@ -201,11 +187,11 @@ describe('buildReviewLanes — needs QA', () => {
       expect(lanes.needsQa).not.toContain(p);
    });
 
-   it('excludes a pull you already QA-stamped', () => {
+   it('excludes a pull you already QA-stamped (it lands in yoursWaiting instead)', () => {
       const p = dp({ author: 'alice', status: 'needs_qa', qaBy: ['me'], qaReq: 2 });
       const lanes = buildReviewLanes(input({ pulls: [p] }));
       expect(lanes.needsQa).not.toContain(p);
-      expect(lanes.yoursWaiting).not.toContain(p);
+      expect(lanes.yoursWaiting).toContain(p);
    });
 
    it('sinks a QA-incomplete pull outside your primary repos to needsQaOther', () => {
@@ -223,12 +209,10 @@ describe('buildReviewLanes — needs QA', () => {
 });
 
 describe('buildReviewLanes — waiting on you vs waiting on others', () => {
-   it('leaves your own ready-to-merge pull to the Ready to merge lane, not Waiting on you', () => {
-      // the lane leads the tab; listing it in both places only duplicated the Merge row
+   it('puts your own ready-to-merge pull in yourMove', () => {
       const mine = dp({ author: 'me', status: 'ready' });
       const lanes = buildReviewLanes(input({ pulls: [mine] }));
-      expect(lanes.ready).toEqual([mine]);
-      expect(lanes.yourMove).toEqual([]);
+      expect(lanes.yourMove).toEqual([mine]);
       expect(lanes.yoursWaiting).not.toContain(mine);
    });
 
@@ -248,17 +232,17 @@ describe('buildReviewLanes — waiting on you vs waiting on others', () => {
       expect(lanes.yourMove).toContain(p);
    });
 
-   it('puts your own pull waiting on the people you asked in yoursWaiting, not yourMove', () => {
-      const mine = dp({ author: 'me', status: 'needs_cr', askedOf: ['bob'] });
+   it('puts your own pull still waiting on review in yoursWaiting, not yourMove', () => {
+      const mine = dp({ author: 'me', status: 'needs_cr' });
       const lanes = buildReviewLanes(input({ pulls: [mine] }));
       expect(lanes.yourMove).not.toContain(mine);
       expect(lanes.yoursWaiting).toEqual([mine]);
    });
 
-   it('keeps a stamp you gave on someone else’s PR out of yoursWaiting: only your PRs wait there', () => {
+   it('puts a pull you have CR-stamped, not yet fully signed off, in yoursWaiting', () => {
       const p = dp({ author: 'alice', status: 'needs_cr', crBy: ['me'], crReq: 2 });
       const lanes = buildReviewLanes(input({ pulls: [p] }));
-      expect(lanes.yoursWaiting).toEqual([]);
+      expect(lanes.yoursWaiting).toEqual([p]);
    });
 
    it('dedupes a pull that qualifies for yourMove through two routes at once', () => {
@@ -275,180 +259,100 @@ describe('buildReviewLanes — waiting on you vs waiting on others', () => {
    });
 });
 
-describe('buildReviewLanes — self-review: nobody else is assigned a developer’s own PR', () => {
-   it('keeps a developer’s unrequested PR out of everyone else’s queue, QA, and Waiting on you', () => {
-      const own = dp({
-         author: 'alice',
-         status: 'needs_cr',
-         ownReview: true,
-         starved: true,
-         ageDays: 30,
-      });
-      const ownQa = dp({ number: 2, author: 'alice', status: 'needs_qa', ownReview: true });
-      const lanes = buildReviewLanes(input({ pulls: [own, ownQa] }));
-      expect(lanes.queue).toEqual([]);
-      expect(lanes.queueOther).toEqual([]);
-      expect(lanes.needsQa).toEqual([]);
-      expect(lanes.needsQaOther).toEqual([]);
-      expect(lanes.yourMove).toEqual([]);
+describe('buildReviewLanes — region matches', () => {
+   it('surfaces a pull matching a configured code region as a highlight, without removing it from the queue', () => {
+      const p = dp({ author: 'alice', status: 'needs_cr', title: 'Rework the Shopify sync' });
+      const lanes = buildReviewLanes(input({ pulls: [p], codeRegions: ['Shopify'] }));
+      expect(lanes.regionMatches).toEqual([p]);
+      expect(lanes.queue).toContain(p);
    });
 
-   it('puts the author’s own stamps in their Waiting on you', () => {
-      const cr = dp({ author: 'me', status: 'needs_cr', ownReview: true });
-      const restamp = dp({
-         number: 2,
-         author: 'me',
-         status: 'needs_recr',
-         recrBy: ['me'],
-         ownReview: true,
-      });
-      const lanes = buildReviewLanes(input({ pulls: [cr, restamp] }));
-      expect(lanes.yourMove).toEqual([restamp, cr]);
-      expect(lanes.yoursWaiting).toEqual([]);
+   it('leaves regionMatches empty when no regions are configured', () => {
+      const p = dp({ author: 'alice', status: 'needs_cr', title: 'Rework the Shopify sync' });
+      const lanes = buildReviewLanes(input({ pulls: [p], codeRegions: [] }));
+      expect(lanes.regionMatches).toEqual([]);
+      expect(lanes.queue).toEqual([p]);
    });
 
-   it('a review asked of someone else is theirs, not in my queue', () => {
-      const p = dp({ author: 'alice', status: 'needs_cr', askedOf: ['bob'] });
-      const lanes = buildReviewLanes(input({ pulls: [p] }));
-      expect(lanes.queue).toEqual([]);
-      expect(lanes.yourMove).toEqual([]);
-   });
-
-   it('a review someone said they’d do is theirs, not in my queue', () => {
+   it('surfaces a QA-pool match in regionMatches too, without removing it from needsQa', () => {
       const p = dp({
          author: 'alice',
-         status: 'needs_cr',
-         requestedReviewers: ['bob'],
-         reviewRequests: [{ login: 'bob', at: null, self: true }],
+         status: 'needs_qa',
+         title: 'Rework the Shopify sync',
       });
-      expect(buildReviewLanes(input({ pulls: [p] })).queue).toEqual([]);
-   });
-
-   it('requested-of-you leads Waiting on you, oldest request first', () => {
-      const now = Date.now() / 1000;
-      const restamp = dp({ number: 1, author: 'alice', status: 'needs_recr', recrBy: ['me'] });
-      const newer = dp({ number: 2, author: 'bob', askedOf: ['me'], askedAt: now - 3600 });
-      const older = dp({ number: 3, author: 'cy', askedOf: ['me'], askedAt: now - 5 * 3600 });
-      const lanes = buildReviewLanes(input({ pulls: [restamp, newer, older] }));
-      expect(lanes.yourMove).toEqual([older, newer, restamp]);
-   });
-});
-
-describe('buildReviewLanes — could use your input', () => {
-   it('offers someone’s self-review in your code region, without queueing it', () => {
-      const p = dp({ author: 'alice', ownReview: true, title: 'Rework the Shopify sync' });
       const lanes = buildReviewLanes(input({ pulls: [p], codeRegions: ['Shopify'] }));
-      expect(lanes.couldUseInput).toEqual([p]);
-      expect(lanes.queue).toEqual([]);
-      expect(lanes.yourMove).toEqual([]);
-      // an offer, not work: the board still reads as quiet
-      expect(lanes.boardIsQuiet).toBe(true);
+      expect(lanes.regionMatches).toEqual([p]);
+      expect(lanes.needsQa).toContain(p);
    });
 
-   it('offers a self-review in a repo you’ve reviewed someone else’s PR in, regions first', () => {
-      const reviewed = dp({
-         repo: 'org/web',
-         number: 1,
-         author: 'bob',
-         status: 'ready',
-         crBy: ['me'],
-      });
-      const inRepo = dp({
-         repo: 'org/web',
-         number: 2,
+   it('excludes a pull you already CR-stamped from regionMatches, even via the QA pool', () => {
+      // qaPool itself doesn't care about crBy — a needs_qa pull with a live
+      // stamp from you would otherwise sail through the QA-pool leg and land
+      // in "your code regions" as if it were news to you. It still belongs
+      // in needsQa (that lane's own filters don't look at crBy at all).
+      const p = dp({
          author: 'alice',
-         ownReview: true,
-         ageDays: 9,
+         status: 'needs_qa',
+         crBy: ['me'],
+         title: 'Rework the Shopify sync',
       });
-      const inRegion = dp({
-         repo: 'org/other',
-         number: 3,
-         author: 'cy',
-         ownReview: true,
-         title: 'Shopify webhooks',
-      });
-      const elsewhere = dp({ repo: 'org/other', number: 4, author: 'dee', ownReview: true });
-      const lanes = buildReviewLanes(
-         input({ pulls: [reviewed, inRepo, inRegion, elsewhere], codeRegions: ['Shopify'] })
-      );
-      expect(lanes.couldUseInput).toEqual([inRegion, inRepo]);
+      const lanes = buildReviewLanes(input({ pulls: [p], codeRegions: ['Shopify'] }));
+      expect(lanes.regionMatches).not.toContain(p);
+      expect(lanes.needsQa).toContain(p);
    });
 
-   it('leaves out your own, ones you stamped, requested or outside ones, and drafts', () => {
-      const pulls = [
-         dp({ number: 1, author: 'me', ownReview: true, title: 'Shopify' }),
-         dp({
-            number: 2,
-            author: 'alice',
-            ownReview: true,
-            crBy: ['me'],
-            crReq: 2,
-            title: 'Shopify',
-         }),
-         dp({ number: 3, author: 'alice', askedOf: ['bob'], title: 'Shopify' }),
-         dp({ number: 4, author: 'alice', title: 'Shopify' }),
-         dp({ number: 5, author: 'alice', ownReview: true, status: 'draft', title: 'Shopify' }),
-      ];
-      expect(buildReviewLanes(input({ pulls, codeRegions: ['Shopify'] })).couldUseInput).toEqual(
-         []
-      );
+   it('keeps a needs_recr pull in regionMatches when only your own stamp went stale', () => {
+      // recrBy including you means YOUR re-stamp is owed (a "Re-stamp" verb
+      // in Waiting on you) and crBy no longer includes you, since a stale
+      // stamp drops out of the active crBy set. The new qaPool exclusion
+      // only checks crBy (a currently-live stamp), so this pull still
+      // matches through the QA-pool leg.
+      const p = dp({
+         author: 'alice',
+         status: 'needs_recr',
+         recrBy: ['me'],
+         crBy: [],
+         title: 'Rework the Shopify sync',
+      });
+      const lanes = buildReviewLanes(input({ pulls: [p], codeRegions: ['Shopify'] }));
+      expect(lanes.regionMatches).toContain(p);
    });
 });
 
 describe('buildReviewLanes — stamped and ready lanes', () => {
-   it('places your own fully signed-off pull in ready', () => {
-      const p = dp({ author: 'me', status: 'ready' });
+   it('places a fully signed-off human pull in ready', () => {
+      const p = dp({ author: 'alice', status: 'ready' });
       const lanes = buildReviewLanes(input({ pulls: [p] }));
       expect(lanes.ready).toEqual([p]);
    });
 
-   it('shows another person’s ready pull only when you were asked to review it or claimed it', () => {
-      const plain = dp({ number: 1, author: 'alice', status: 'ready' });
-      const asked = dp({ number: 2, author: 'alice', status: 'ready', requestedReviewers: ['me'] });
-      const claimed = dp({
-         number: 3,
-         author: 'alice',
-         status: 'ready',
-         requestedReviewers: ['me'],
-         reviewRequests: [{ login: 'me', at: 1, self: true }],
-      });
-      const askedOther = dp({
-         number: 4,
-         author: 'alice',
-         status: 'ready',
-         requestedReviewers: ['bob'],
-      });
-      const lanes = buildReviewLanes(input({ pulls: [plain, asked, claimed, askedOther] }));
-      expect(lanes.ready.map(p => p.data.number).sort()).toEqual([2, 3]);
-   });
-
-   it('orders ready oldest first, and leaves an unclaimed ready bot PR in the bot fold', () => {
-      const newer = dp({ number: 1, author: 'me', status: 'ready', ageDays: 1 });
-      const older = dp({ number: 2, author: 'me', status: 'ready', ageDays: 5 });
-      const bot = dp({ author: 'dependabot[bot]', number: 3, status: 'ready', ageDays: 9 });
-      const lanes = buildReviewLanes(input({ pulls: [newer, older], bots: [bot] }));
-      expect(lanes.ready).toEqual([older, newer]);
-      expect(lanes.botRest).toEqual([bot]);
+   it('includes a ready bot PR in ready alongside human ones, oldest first', () => {
+      const human = dp({ author: 'alice', status: 'ready', ageDays: 1 });
+      const bot = dp({ author: 'dependabot[bot]', number: 2, status: 'ready', ageDays: 5 });
+      const lanes = buildReviewLanes(input({ pulls: [human], bots: [bot] }));
+      expect(lanes.ready).toEqual([bot, human]);
    });
 
    it('draws ready’s bot portion from botsForReady, not bots, when the two differ', () => {
       // "Ignore bot PRs" empties `bots` (the queue-tail/fold pool) but
-      // botsForReady bypasses that setting, so a bot PR you claimed still
-      // shows in Ready-to-merge even though it's absent from `bots`.
-      const bot = dp({
-         author: 'dependabot[bot]',
-         status: 'ready',
-         requestedReviewers: ['me'],
-         reviewRequests: [{ login: 'me', at: 1, self: true }],
-      });
+      // botsForReady bypasses that setting — Ready-to-merge must still
+      // surface the bot PR even though it's absent from `bots`.
+      const bot = dp({ author: 'dependabot[bot]', status: 'ready' });
       const lanes = buildReviewLanes(input({ pulls: [], bots: [], botsForReady: [bot] }));
       expect(lanes.ready).toEqual([bot]);
    });
 
-   it('keeps a stamped (CR-incomplete, your stamp live) pull out of the queue', () => {
+   it('falls back to bots for ready when botsForReady is omitted', () => {
+      const bot = dp({ author: 'dependabot[bot]', status: 'ready' });
+      const lanes = buildReviewLanes(input({ pulls: [], bots: [bot] }));
+      expect(lanes.ready).toEqual([bot]);
+   });
+
+   it('keeps a stamped (CR-incomplete, your stamp live) pull out of the queue and in yoursWaiting', () => {
       const p = dp({ author: 'alice', status: 'needs_cr', crBy: ['me'], crReq: 2 });
       const lanes = buildReviewLanes(input({ pulls: [p] }));
       expect(lanes.queue).toEqual([]);
+      expect(lanes.yoursWaiting).toEqual([p]);
    });
 });
 
@@ -470,6 +374,7 @@ describe('buildReviewLanes — board summary', () => {
       const bot = dp({ author: 'dependabot[bot]', status: 'ready' });
       const lanes = buildReviewLanes(input({ botsForReady: [bot] }));
       expect(lanes.empty).toBe(false);
+      expect(lanes.ready).toContain(bot);
    });
 
    it('boardIsQuiet is false once the queue has something in it', () => {
@@ -528,14 +433,11 @@ describe('buildReviewLanes — why-line display names', () => {
    });
 
    it('whyUpNext threads names into startHereReason for a non-teammate', () => {
-      const target = dp({
-         author: 'alice',
-         status: 'needs_cr',
-         askedOf: ['me'],
-         askedAt: Date.now() / 1000 - 2.5 * 3600,
-      });
-      const lanes = buildReviewLanes(input({ pulls: [target], names: { alice: 'Alice A' } }));
-      expect(lanes.whyUpNext(target)).toBe('Alice A asked you 2h ago');
+      // reciprocity reason: alice reviewed one of "me"'s pulls
+      const target = dp({ author: 'alice', status: 'needs_cr' });
+      const mine = dp({ repo: 'org/repo', number: 99, author: 'me', crBy: ['alice'] });
+      const lanes = buildReviewLanes(input({ pulls: [target, mine], names: { alice: 'Alice A' } }));
+      expect(lanes.whyUpNext(target)).toBe('Alice A reviewed yours, return the favor');
    });
 
    it("whyQaNext resolves the tester's display name", () => {
@@ -591,8 +493,8 @@ describe('buildReviewLanes — projects', () => {
       expect(
          buildReviewLanes(input({ pulls: [qaParked, qaOther], standing: parked })).needsQa
       ).toEqual([qaOther, qaParked]);
-      const readyParked = dp({ number: 1, author: 'me', status: 'ready', ageDays: 9 });
-      const readyOther = dp({ number: 2, author: 'me', status: 'ready', ageDays: 1 });
+      const readyParked = dp({ number: 1, author: 'alice', status: 'ready', ageDays: 9 });
+      const readyOther = dp({ number: 2, author: 'bob', status: 'ready', ageDays: 1 });
       const lanes = buildReviewLanes(input({ pulls: [readyParked, readyOther], standing: parked }));
       expect(lanes.ready).toEqual([readyOther, readyParked]);
       expect(lanes.whyProject(readyParked, null)).toBe('Parked project: picker');
@@ -614,8 +516,8 @@ describe('buildReviewLanes — projects', () => {
             standing: standing({ 'org/repo#1': 'picker' }),
          })
       );
-      // the review request leads; the parked re-stamp sinks below the other
-      expect(lanes.yourMove).toEqual([requested, restamp, restampParked]);
+      // both re-stamps still come before the review request
+      expect(lanes.yourMove).toEqual([restamp, restampParked, requested]);
    });
 
    it('puts the PR that helps finish a plan first on a tie, and says so', () => {
@@ -650,64 +552,5 @@ describe('buildReviewLanes — projects', () => {
       expect(lanes.whyProject(finisher, null)).toBe(
          'Helps finish sync: one of its last 2 open PRs'
       );
-   });
-});
-
-describe('buildReviewLanes — requests run on hours, and QA is the author’s', () => {
-   it('leads the queue with requests of you, oldest request first, ahead of a starving pull', () => {
-      const old = dp({
-         number: 1,
-         author: 'alice',
-         status: 'needs_cr',
-         starved: true,
-         ageDays: 30,
-      });
-      const late = dp({
-         number: 2,
-         author: 'bob',
-         status: 'needs_cr',
-         requestedReviewers: ['me'],
-         askedAt: 2000,
-      });
-      const early = dp({
-         number: 3,
-         author: 'carol',
-         status: 'needs_cr',
-         requestedReviewers: ['me'],
-         askedAt: 1000,
-         repo: 'org/elsewhere',
-      });
-      const lanes = buildReviewLanes(input({ pulls: [old, late, early] }));
-      expect(lanes.queue).toEqual([early, late, old]);
-      expect(lanes).not.toHaveProperty('queueStarved');
-   });
-
-   it('does not hand a requested reviewer the QA: only outside testers and claims reach Needs QA', () => {
-      const asked = dp({
-         number: 1,
-         author: 'alice',
-         status: 'needs_qa',
-         requestedReviewers: ['me'],
-      });
-      const outside = dp({ number: 2, author: 'zed', status: 'needs_qa' });
-      const claimed = dp({
-         number: 3,
-         author: 'alice',
-         status: 'needs_qa',
-         requestedReviewers: ['me'],
-         reviewRequests: [{ login: 'me', at: 1, self: true }],
-      });
-      const lanes = buildReviewLanes(input({ pulls: [asked, outside, claimed] }));
-      expect(lanes.needsQa).toEqual(expect.arrayContaining([outside, claimed]));
-      expect(lanes.needsQa).not.toContain(asked);
-      expect(lanes.queue).not.toContain(asked);
-   });
-
-   it('keeps a team request that names nobody out of every queue, but offers it in Could use your input', () => {
-      const p = dp({ author: 'alice', status: 'needs_cr', requestedTeams: ['ghost'] });
-      const lanes = buildReviewLanes(input({ pulls: [p], codeRegions: ['repo'] }));
-      expect(lanes.queue).toEqual([]);
-      expect(lanes.needsQa).toEqual([]);
-      expect(lanes.couldUseInput).toEqual([p]);
    });
 });

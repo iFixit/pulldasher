@@ -28,7 +28,6 @@ function DBPull(pull) {
       // Serialize to a JSON string; MySQL parses it into the JSON column.
       assignees: JSON.stringify(pullData.assignees || []),
       requested_reviewers: JSON.stringify(pullData.requested_reviewers || []),
-      requested_teams: JSON.stringify(pullData.requested_teams || []),
       cr_req: pullData.cr_req,
       qa_req: pullData.qa_req,
       closes: pullData.closes,
@@ -37,14 +36,6 @@ function DBPull(pull) {
       deletions: pullData.deletions,
       changed_files: pullData.changed_files,
    };
-   // only a full refresh computed them; the column holds {sha, hints} so a
-   // restart knows which head they were for
-   if (pullData.input_hints) {
-      this.data.input_hints = JSON.stringify({
-         sha: pullData.input_hints_sha,
-         hints: pullData.input_hints,
-      });
-   }
 }
 
 DBPull.prototype.save = function () {

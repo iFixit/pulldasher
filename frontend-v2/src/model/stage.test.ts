@@ -33,10 +33,6 @@ function dp(
       recrBy: string[];
       /** someone took it to review, at this epoch second */
       claim: { login: string; at: number | null };
-      /** the author reviews it themselves (DerivedPull.ownReview) */
-      ownReview: boolean;
-      askedOf: string[];
-      askedAt: number | null;
    }> = {}
 ): DerivedPull {
    const asked = o.changesRequestedAt != null;
@@ -68,9 +64,6 @@ function dp(
       recrBy: o.recrBy ?? [],
       reqaBy: [],
       engagedNoStamp: [],
-      ownReview: o.ownReview ?? false,
-      askedOf: o.askedOf ?? [],
-      askedAt: o.askedAt ?? null,
    } as unknown as DerivedPull;
 }
 
@@ -158,29 +151,22 @@ describe('holderWords', () => {
       expect(holderWords(dp(1, 'ready', { author: 'mlahargou' }))).toBe(
          'mlahargou is working on it'
       );
-      const now = Date.now() / 1000;
-      // asked of people: who, and how long ago
-      expect(
-         holderWords(dp(2, 'needs_cr', { askedOf: ['erin', 'kate'], askedAt: now - 2.5 * 3600 }))
-      ).toBe('waiting on erin, kate, asked 2h ago');
-      // nobody asked: the author reviews their own
-      expect(holderWords(dp(2, 'needs_cr', { ownReview: true }))).toBe('dana is reviewing it');
-      expect(holderWords(dp(2, 'needs_qa', { ownReview: true }))).toBe('dana is reviewing it');
-      // from outside the dev team, nobody on it yet
-      expect(holderWords(dp(3, 'needs_cr'))).toBe('needs a reviewer');
+      const turns = new Map([['iFixit/ifixit#2', 'erin']]);
+      expect(holderWords(dp(2, 'needs_cr'), { turns })).toBe('erin’s turn to review');
+      expect(holderWords(dp(3, 'needs_cr'), { turns })).toBe('needs a reviewer');
       expect(holderWords(dp(3, 'needs_qa'))).toBe('needs a tester');
       // someone commented with no stamp: a sentence, like its siblings
       const engaged = (logins: string[]) =>
          ({ ...dp(4, 'needs_cr'), engagedNoStamp: logins } as DerivedPull);
       expect(holderWords(engaged(['mlahargou']))).toBe('mlahargou is looking at it');
       expect(holderWords(engaged(['ardelato', 'kate']))).toBe('ardelato, kate are looking at it');
-      // someone testing it, or owing a re-stamp, holds it before the author's own review
-      expect(holderWords(dp(3, 'needs_qa', { qaingLogin: 'k0rvus', ownReview: true }))).toBe(
+      // a named person holds it before anyone's turn does
+      expect(holderWords(dp(3, 'needs_qa', { qaingLogin: 'k0rvus' }), { turns })).toBe(
          'k0rvus is testing it'
       );
-      expect(
-         holderWords(dp(2, 'needs_recr', { recrBy: ['djmetzle', 'caphene'], ownReview: true }))
-      ).toBe('waiting on djmetzle, caphene to look again');
+      expect(holderWords(dp(2, 'needs_recr', { recrBy: ['djmetzle', 'caphene'] }), { turns })).toBe(
+         'waiting on djmetzle, caphene to look again'
+      );
       expect(holderWords(dp(4, 'deploy_block', { deployBlockedBy: ['sctice'] }))).toBe(
          'deploy hold by sctice'
       );
@@ -195,9 +181,10 @@ describe('holderWords', () => {
 
    it('names who took a PR to review, as its row does', () => {
       const now = Date.now() / 1000;
-      expect(holderWords(dp(2, 'needs_cr', { claim: { login: 'bob', at: now - 60 } }))).toBe(
-         'bob is reading it'
-      );
+      const turns = new Map([['iFixit/ifixit#2', 'erin']]);
+      expect(
+         holderWords(dp(2, 'needs_cr', { claim: { login: 'bob', at: now - 60 } }), { turns })
+      ).toBe('bob is reading it');
       expect(holderWords(dp(2, 'needs_cr', { claim: { login: 'bob', at: now - 3 * 3600 } }))).toBe(
          'bob claimed it 3h ago'
       );
@@ -209,16 +196,14 @@ describe('holderWords', () => {
    });
 
    it('starts a line with a capital, but never changes a login', () => {
+      const turns = new Map([['iFixit/ifixit#2', 'andyg0808']]);
       expect(holderWords(dp(1, 'draft', { author: 'mlahargou' }), { line: true })).toBe(
          'mlahargou is working on it'
       );
       expect(holderWords(dp(3, 'needs_cr'), { line: true })).toBe('Needs a reviewer');
-      expect(holderWords(dp(2, 'needs_cr', { askedOf: ['andyg0808'] }), { line: true })).toBe(
-         'Waiting on andyg0808'
+      expect(holderWords(dp(2, 'needs_cr'), { turns, line: true })).toBe(
+         'andyg0808’s turn to review'
       );
-      expect(
-         holderWords(dp(2, 'needs_cr', { author: 'andyg0808', ownReview: true }), { line: true })
-      ).toBe('andyg0808 is reviewing it');
       expect(holderWords(dp(3, 'needs_qa', { qaingLogin: 'jrodger312' }), { line: true })).toBe(
          'jrodger312 is testing it'
       );
@@ -230,12 +215,11 @@ describe('holderWords', () => {
       expect(holderWords(dp(1, 'draft', { ageDays: 38 }), onRow)).toBe('');
       expect(holderWords(dp(1, 'needs_cr', { externalBlock: true }), onRow)).toBe('');
       // who it waits on, and what holds it, the row doesn't say
-      expect(holderWords(dp(2, 'needs_cr', { ageDays: 38, askedOf: ['erin'] }), onRow)).toBe(
-         'waiting on erin'
+      const turns = new Map([['iFixit/ifixit#2', 'erin']]);
+      expect(holderWords(dp(2, 'needs_cr', { ageDays: 38 }), { ...onRow, turns })).toBe(
+         'erin’s turn to review'
       );
       expect(holderWords(dp(5, 'ready', { cryo: true }), onRow)).toBe('paused');
-      // the author's own review: the face already says whose
-      expect(holderWords(dp(2, 'needs_cr', { ownReview: true }), onRow)).toBe('in self-review');
    });
 });
 

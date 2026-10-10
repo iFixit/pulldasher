@@ -96,21 +96,6 @@ export interface PullData {
     * omit the field entirely, so read as [] when absent — requested_reviewers
     * stays the authoritative list of who's requested either way. */
    review_requests?: Array<{ login: string; at: number | null; self: boolean }>;
-   /** GitHub team slugs the PR asks a review from (the pull's
-    * requested_teams). Under the self-review policy a request means everyone
-    * listed; derive() turns a slug into people through the roster teams
-    * (config projects.developerTeams), matched by name. Absent on older
-    * servers: read as []. */
-   requested_teams?: string[];
-   /** when each requested team was asked (epoch secs, null if unknown), from
-    * the review_requested webhook; a team's members inherit its time, so a
-    * team request gets the same hours clock as a personal one. Absent on
-    * older servers: read as []. */
-   team_requests?: Array<{ slug: string; at: number | null }>;
-   /** areas the diff touches that usually deserve team input (ci, migrations,
-    * alerting, agent-docs, deploy, dependencies), computed server-side from
-    * the changed file paths. Absent until the server has looked: read as []. */
-   input_hints?: string[];
    // the wire also sends top-level cr_req/qa_req twins, but status.cr_req/
    // qa_req are the ones every consumer reads — typing one copy prevents
    // reading the wrong one
@@ -166,11 +151,6 @@ export interface InitializePayload {
     * only when the server is set up for projects; the Projects tab shows only
     * then. See shared/model/projects.ts. */
    projectLabelPrefix?: string;
-   /** config projects.developerTeams: team name -> logins. Anyone listed is
-    * a developer, who reviews their own PRs unless they ask for review;
-    * everyone else's PRs still need someone else's. Absent: everyone counts
-    * as a developer. */
-   developerTeams?: Record<string, string[]>;
    /** names the frontend build the server is serving (absent without a build);
     * a different one on a later initialize means the board was redeployed */
    build?: string;

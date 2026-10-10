@@ -65,6 +65,38 @@ export function signoffLeaders(
       .sort((a, b) => b.count - a.count || a.login.localeCompare(b.login));
 }
 
+export interface Starved {
+   login: string;
+   /** their open PRs still short of full CR */
+   count: number;
+   /** summed open-days across those PRs (the waiting they're carrying) */
+   totalDays: number;
+   /** the single longest-waiting one */
+   worstDays: number;
+}
+
+/**
+ * Whose authored PRs are waiting longest for CR. A pull counts while it's
+ * CR-incomplete (needs_cr or needs_recr); the author is ranked by the total
+ * open-days their unreviewed PRs have piled up, with the worst single wait
+ * alongside so one ancient PR and ten fresh ones read differently.
+ */
+export function crStarvation(pulls: DerivedPull[]): Starved[] {
+   const by = new Map<string, { count: number; totalDays: number; worstDays: number }>();
+   for (const p of pulls) {
+      if (!CR_INCOMPLETE.includes(p.status)) continue;
+      const login = p.data.user.login;
+      const cur = by.get(login) ?? { count: 0, totalDays: 0, worstDays: 0 };
+      cur.count += 1;
+      cur.totalDays += p.ageDays;
+      cur.worstDays = Math.max(cur.worstDays, p.ageDays);
+      by.set(login, cur);
+   }
+   return [...by.entries()]
+      .map(([login, v]) => ({ login, ...v }))
+      .sort((a, b) => b.totalDays - a.totalDays || b.worstDays - a.worstDays);
+}
+
 export interface MergeBucket {
    weight: Weight;
    count: number;
@@ -149,9 +181,8 @@ export function mergedPerDay(closed: PullData[], days: number, now: number): Day
 
 /**
  * CR+QA stamps landed per local day — the board's review pulse. Counts every
- * signature (a re-stamp is new review work) on someone else's pull, across open
- * pulls and the closed window; an author's own stamp is normal under
- * self-review and says nothing about reviewing.
+ * signature (a re-stamp is new review work), across open pulls and the closed
+ * window, so a day reads "how much reviewing happened", not "how much survived".
  */
 export function stampsPerDay(
    pulls: DerivedPull[],
@@ -162,7 +193,6 @@ export function stampsPerDay(
    const buckets = dayBuckets(days, now);
    const add = (d: PullData) => {
       for (const s of [...d.status.allCR, ...d.status.allQA]) {
-         if (s.data.user.login === d.user.login) continue;
          const t = Date.parse(String(s.data.created_at));
          if (Number.isFinite(t)) bump(buckets, t);
       }
@@ -208,172 +238,62 @@ export function effortMix(pulls: DerivedPull[]): EffortMix {
    return { buckets: WEIGHT_ORDER.map(weight => ({ weight, count: by.get(weight)! })), estimated };
 }
 
-const sec = (iso: unknown) => Date.parse(String(iso)) / 1000;
-
-/** epoch secs of every stamp or GitHub review by `login` on this pull */
-function answersBy(d: PullData, login: string): number[] {
-   const stamps = [...d.status.allCR, ...d.status.allQA]
-      .filter(s => s.data.user.login === login)
-      .map(s => sec(s.data.created_at));
-   const reviews = (d.status.unstamped_reviewers ?? [])
-      .filter(r => r.login === login)
-      .map(r => r.date);
-   return [...stamps, ...reviews].filter(Number.isFinite);
+export interface ReviewDebt {
+   /** CR stamps still needed across CR-incomplete pulls */
+   crSlots: number;
+   /** QA stamps still needed across pulls at the QA gate */
+   qaSlots: number;
+   /** stamps a push invalidated that haven't been refreshed (re-CR + re-QA) */
+   restamps: number;
+   /** needs-QA pulls nobody has claimed or owes a re-QA on */
+   unclaimedQa: number;
 }
 
-/** requests someone else made of a person, with a known time */
-function openedRequests(d: PullData) {
-   return (d.review_requests ?? []).filter(
-      r => !r.self && r.at != null && r.login !== d.user.login
-   ) as { login: string; at: number }[];
+/**
+ * What the board is owed, in stamps: the reviewer-hours of standing debt. The
+ * restamp count is the cheapest debt to clear — the reviewer already knows
+ * the code.
+ */
+export function reviewDebt(pulls: DerivedPull[]): ReviewDebt {
+   const debt = { crSlots: 0, qaSlots: 0, restamps: 0, unclaimedQa: 0 };
+   for (const p of pulls) {
+      if (CR_INCOMPLETE.includes(p.status))
+         debt.crSlots += Math.max(p.data.status.cr_req - p.crHave, 0);
+      if (p.status === 'needs_qa') {
+         debt.qaSlots += Math.max(p.data.status.qa_req - p.qaHave, 0);
+         if (!p.qaingLogin && !p.reqaBy.length) debt.unclaimedQa += 1;
+      }
+      debt.restamps += p.recrBy.length + p.reqaBy.length;
+   }
+   return debt;
 }
 
-export interface AnswerTime {
+export interface Latency {
    medianHours: number;
-   p90Hours: number;
-   /** requests with a known time that the asked person answered */
+   avgHours: number;
+   /** merged pulls that had a first CR stamp with a usable timestamp */
    sampled: number;
 }
 
 /**
- * How long a review request takes to get answered: from the request to that
- * person's first stamp or GitHub review after it. The policy says hours.
- * GitHub drops a request once the person reviews, so closed pulls rarely keep
- * their requests; what's measured is every request still on the wire, open
- * pulls and the closed window alike. A person's comment that isn't a stamp
- * or a review isn't on the board, so it doesn't count as an answer.
+ * How long a merged PR waited for its FIRST CR — the responsiveness number,
+ * distinct from time-to-merge (which includes the author's own iteration).
  */
-export function requestAnswerTimes(pulls: DerivedPull[], closed: PullData[]): AnswerTime {
+export function firstCrLatency(closed: PullData[]): Latency {
    const hours: number[] = [];
-   for (const d of [...pulls.map(p => p.data), ...closed]) {
-      for (const r of openedRequests(d)) {
-         const first = Math.min(...answersBy(d, r.login).filter(t => t >= r.at));
-         if (Number.isFinite(first)) hours.push((first - r.at) / 3600);
-      }
-   }
-   return { medianHours: median(hours), p90Hours: percentile(hours, 0.9), sampled: hours.length };
-}
-
-function percentile(xs: number[], q: number): number {
-   if (!xs.length) return 0;
-   const s = [...xs].sort((a, b) => a - b);
-   return s[Math.min(s.length - 1, Math.ceil(q * s.length) - 1)];
-}
-
-export interface PullRef {
-   repo: string;
-   number: number;
-   title: string;
-}
-
-export interface OpenRequest extends PullRef {
-   /** who was asked */
-   login: string;
-   hours: number;
-}
-
-export interface OutsideWait extends PullRef {
-   author: string;
-   days: number;
-}
-
-export interface WaitingOnSomeone {
-   /** open requests nobody has answered yet, longest first */
-   requests: OpenRequest[];
-   /** pulls from outside the dev team waiting on a first review, oldest first */
-   outside: OutsideWait[];
-}
-
-/**
- * What's waiting on a person who isn't the author: review requests with no
- * answer yet (hours since the request) and pulls from outside the dev team
- * that nobody was asked to review (days open). An author's own review of their
- * own pull is not waiting on anyone, so it never shows here.
- */
-export function waitingOnSomeone(pulls: DerivedPull[], now: number): WaitingOnSomeone {
-   const requests: OpenRequest[] = [];
-   const outside: OutsideWait[] = [];
-   for (const p of pulls) {
-      const d = p.data;
-      const ref = { repo: d.repo, number: d.number, title: d.title };
-      for (const r of openedRequests(d)) {
-         if (answersBy(d, r.login).some(t => t >= r.at)) continue;
-         requests.push({ ...ref, login: r.login, hours: Math.max(0, (now - r.at) / 3600) });
-      }
-      const asked = (d.requested_reviewers ?? []).length || (d.requested_teams ?? []).length;
-      if (!p.ownReview && !asked && CR_INCOMPLETE.includes(p.status))
-         outside.push({ ...ref, author: d.user.login, days: p.ageDays });
+   for (const d of closed) {
+      if (!d.merged_at || !d.status.allCR.length) continue;
+      const first = Math.min(
+         ...d.status.allCR.map(s => Date.parse(String(s.data.created_at)) || Infinity)
+      );
+      const h = (first - Date.parse(d.created_at)) / 3_600_000;
+      if (Number.isFinite(h) && h > 0) hours.push(h);
    }
    return {
-      requests: requests.sort((a, b) => b.hours - a.hours),
-      outside: outside.sort((a, b) => b.days - a.days),
+      medianHours: median(hours),
+      avgHours: hours.length ? hours.reduce((a, b) => a + b, 0) / hours.length : 0,
+      sampled: hours.length,
    };
-}
-
-export interface SelfReviewMix {
-   /** merged in the window */
-   merged: number;
-   /** a request was on record (person or team) */
-   asked: number;
-   /** no request on record, but someone other than the author stamped or reviewed */
-   byOthers: number;
-   /** only the author's own stamp */
-   self: number;
-   /** merged with no stamp or review at all */
-   unstamped: number;
-   /** rough risk signal over the self-reviewed merges */
-   risk: { reverts: number; afterSelfReview: number };
-}
-
-const REF = /\b(?:fix(?:e[sd])?|revert(?:s|ed)?)\s+(?:[\w.-]+\/[\w.-]+)?#(\d+)/gi;
-const WEEK_SECS = 7 * 86400;
-
-/**
- * Of the pulls merged in the window, who reviewed them: asked for a review,
- * someone else stamped it unasked, or the author alone. GitHub clears a
- * request once it's answered, so "asked" undercounts: an answered request
- * lands in "reviewed by someone else". The risk signal is rough on purpose:
- * titles that start with "Revert", and any merge that says "Fixes #n" or
- * "Reverts #n" of a self-reviewed pull in the same repo merged up to a week
- * before it. It sees only what the title and description say.
- */
-export function selfReviewMix(closed: PullData[]): SelfReviewMix {
-   const mergedAt = (d: PullData) => sec(d.merged_at);
-   const mix = { merged: 0, asked: 0, byOthers: 0, self: 0, unstamped: 0 };
-   const selfMerged = new Map<string, number>();
-   const mergedPulls = closed.filter(d => d.merged_at);
-   for (const d of mergedPulls) {
-      mix.merged += 1;
-      const author = d.user.login;
-      // a claim is a reviewer volunteering, not the author asking
-      const claims = new Set((d.review_requests ?? []).filter(r => r.self).map(r => r.login));
-      const asked =
-         (d.requested_teams ?? []).length ||
-         (d.requested_reviewers ?? []).some(l => !claims.has(l)) ||
-         (d.review_requests ?? []).some(r => !r.self);
-      const stampers = [...d.status.allCR, ...d.status.allQA].map(s => s.data.user.login);
-      const reviewers = (d.status.unstamped_reviewers ?? []).map(r => r.login);
-      const others = [...stampers, ...reviewers].some(l => l !== author);
-      if (asked) mix.asked += 1;
-      else if (others) mix.byOthers += 1;
-      else if (stampers.includes(author)) {
-         mix.self += 1;
-         selfMerged.set(`${d.repo}#${d.number}`, mergedAt(d));
-      } else mix.unstamped += 1;
-   }
-   let reverts = 0;
-   let afterSelfReview = 0;
-   for (const d of mergedPulls) {
-      const isRevert = /^revert\b/i.test(d.title);
-      if (isRevert) reverts += 1;
-      const text = `${d.title}\n${d.body ?? ''}`;
-      const hitsSelf = [...text.matchAll(REF)].some(m => {
-         const at = selfMerged.get(`${d.repo}#${m[1]}`);
-         return at != null && mergedAt(d) >= at && mergedAt(d) - at <= WEEK_SECS;
-      });
-      if (hitsSelf) afterSelfReview += 1;
-   }
-   return { ...mix, risk: { reverts, afterSelfReview } };
 }
 
 export interface Reciprocity {
@@ -416,37 +336,21 @@ export function reciprocity(pulls: DerivedPull[], closed: PullData[]): Reciproci
       );
 }
 
-interface Load {
-   count: number;
-   inSelfReview: number;
-   waitingOnOthers: number;
-   oldestDays: number;
-}
-const emptyLoad = (): Load => ({ count: 0, inSelfReview: 0, waitingOnOthers: 0, oldestDays: 0 });
-/** a pull short of CR is the author's own to review, or waits on someone else */
-function countReview(load: Load, p: DerivedPull) {
-   if (!CR_INCOMPLETE.includes(p.status)) return;
-   if (p.ownReview) load.inSelfReview += 1;
-   else load.waitingOnOthers += 1;
-}
-
 export interface AuthorLoad {
    login: string;
    count: number;
-   /** needing review, and the author's own to do under self-review */
-   inSelfReview: number;
-   /** needing review from someone who was asked, or from outside the dev team */
-   waitingOnOthers: number;
+   /** how many of those still need CR (the reviewer-facing share) */
+   awaitingCr: number;
    oldestDays: number;
 }
 
 /** who has the most open PRs on the board (work-in-progress load). */
 export function authorLoad(pulls: DerivedPull[]): AuthorLoad[] {
-   const by = new Map<string, Load>();
+   const by = new Map<string, { count: number; awaitingCr: number; oldestDays: number }>();
    for (const p of pulls) {
-      const cur = by.get(p.data.user.login) ?? emptyLoad();
+      const cur = by.get(p.data.user.login) ?? { count: 0, awaitingCr: 0, oldestDays: 0 };
       cur.count += 1;
-      countReview(cur, p);
+      if (CR_INCOMPLETE.includes(p.status)) cur.awaitingCr += 1;
       cur.oldestDays = Math.max(cur.oldestDays, p.ageDays);
       by.set(p.data.user.login, cur);
    }
@@ -461,18 +365,18 @@ export function authorLoad(pulls: DerivedPull[]): AuthorLoad[] {
 export interface RepoLoad {
    repo: string;
    count: number;
-   inSelfReview: number;
-   waitingOnOthers: number;
+   /** how many of those still need CR (the reviewer-facing share) */
+   awaitingCr: number;
    oldestDays: number;
 }
 
 /** where the open PRs live, and how much of each repo's pile is review work. */
 export function repoBreakdown(pulls: DerivedPull[]): RepoLoad[] {
-   const by = new Map<string, Load>();
+   const by = new Map<string, { count: number; awaitingCr: number; oldestDays: number }>();
    for (const p of pulls) {
-      const cur = by.get(p.data.repo) ?? emptyLoad();
+      const cur = by.get(p.data.repo) ?? { count: 0, awaitingCr: 0, oldestDays: 0 };
       cur.count += 1;
-      countReview(cur, p);
+      if (CR_INCOMPLETE.includes(p.status)) cur.awaitingCr += 1;
       cur.oldestDays = Math.max(cur.oldestDays, p.ageDays);
       by.set(p.data.repo, cur);
    }

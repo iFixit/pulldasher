@@ -4,21 +4,21 @@ import { SplitBarRow, StatsCard } from './parts';
 
 /**
  * Where the open PRs live. The bar splits into the repo's whole pile and the
- * amber share of it waiting on someone else's review (self-reviews aren't
- * debt to anyone) — plus the oldest age trailing.
+ * amber share of it still awaiting CR — the reviewer-facing debt, not just
+ * the total count — plus the oldest age trailing.
  */
 export function RepoLoadCard({ rows, cap = 10 }: { rows: RepoLoad[]; cap?: number }) {
    const shown = rows.slice(0, cap);
    const max = Math.max(...rows.map(r => r.count), 1);
    const more = rows.length - shown.length;
    return (
-      <StatsCard title="Open PRs by repo" sub="count · in self-review · waiting on others · oldest">
+      <StatsCard title="Open PRs by repo" sub="count · awaiting CR · oldest">
          <div className="mt-3 flex flex-col gap-2">
             {shown.map(r => (
                <SplitBarRow
                   key={r.repo}
                   pct={(r.count / max) * 100}
-                  splitPct={r.count > 0 ? (r.waitingOnOthers / r.count) * 100 : 0}
+                  splitPct={r.count > 0 ? (r.awaitingCr / r.count) * 100 : 0}
                   color="var(--ink-3)"
                   splitColor="var(--warn)"
                   title={r.repo}
@@ -31,7 +31,7 @@ export function RepoLoadCard({ rows, cap = 10 }: { rows: RepoLoad[]; cap?: numbe
                      <span className="flex-none text-right text-ink-2 tabular-nums">
                         {r.count}
                         <span className="ml-1 text-ink-3">
-                           · {r.inSelfReview} self · {r.waitingOnOthers} waiting · {r.oldestDays}d
+                           · {r.awaitingCr} CR · {r.oldestDays}d
                         </span>
                      </span>
                   }

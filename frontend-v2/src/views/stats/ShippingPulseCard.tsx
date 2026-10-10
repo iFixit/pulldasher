@@ -1,21 +1,22 @@
-import { humanHours, type DayCount, type AnswerTime } from '../../model/stats';
+import { humanHours, type DayCount, type Latency } from '../../model/stats';
 import { type AxisTick, LineChart, StatsCard } from './parts';
 
 /**
  * Volume vs. speed, one panel: merges per day (bars, left axis) against
  * CR+QA stamps per day (line, right axis) — the Shipping and Review-pulse
  * cards fused, since "how much shipped" only means something next to "how
- * much reviewing happened" the same days. Time to answer a review request rides
- * along as the responsiveness number: requests are answered in hours.
+ * much reviewing happened" the same days. First-CR median rides along as the
+ * responsiveness number time-to-merge (which includes the author's own
+ * iteration) hides.
  */
 export function ShippingPulseCard({
    perDay,
    pulse,
-   answer,
+   firstCr,
 }: {
    perDay: DayCount[];
    pulse: DayCount[];
-   answer: AnswerTime;
+   firstCr: Latency;
 }) {
    const total = perDay.reduce((a, d) => a + d.count, 0);
    const half = Math.floor(perDay.length / 2);
@@ -94,17 +95,15 @@ export function ShippingPulseCard({
                   </span>
                )}
             </span>
-            {answer.sampled > 0 && (
-               <span title={`${answer.sampled} review requests answered`}>
-                  requests answered in{' '}
+            {firstCr.sampled > 0 && (
+               <span
+                  title={`avg ${humanHours(firstCr.avgHours)} · ${firstCr.sampled} merged PRs with a CR`}
+               >
+                  first CR in{' '}
                   <b className="font-semibold text-ink tabular-nums">
-                     {humanHours(answer.medianHours)}
+                     {humanHours(firstCr.medianHours)}
                   </b>{' '}
-                  median,{' '}
-                  <b className="font-semibold text-ink tabular-nums">
-                     {humanHours(answer.p90Hours)}
-                  </b>{' '}
-                  p90
+                  median
                </span>
             )}
          </div>

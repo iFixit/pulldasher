@@ -29,7 +29,7 @@ describe('draftUpdate', () => {
          health: 'on_track',
          body:
             '2 PRs merged in the last 14 days, and 8 are open: 1 ready to merge, ' +
-            '4 in review and 3 in development. At this pace its 4 open issues are ' +
+            '4 waiting on review and 3 in development. At this pace its 4 open issues are ' +
             `done around ${dayWords('2026-10-28')}, by its ${dayWords('2026-11-01')} end.`,
       });
    });
@@ -51,7 +51,7 @@ describe('draftUpdate', () => {
          health: 'at_risk',
          body:
             'No PRs merged in the last 14 days, and 8 are open: 1 ready to merge, ' +
-            '4 in review and 3 in development. No PR activity for 25 days.',
+            '4 waiting on review and 3 in development. No PR activity for 25 days.',
       });
       // Sep 7 for 2 weeks ended Sep 20
       expect(draftUpdate(plan({}, 2), NOW)).toMatchObject({

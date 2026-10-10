@@ -21,7 +21,6 @@ function dp(o: {
    deletions?: number;
    headPushedAt?: number | null;
    reviewRequests?: { login: string; at: number | null; self: boolean }[];
-   ownReview?: boolean;
 }): DerivedPull {
    return {
       data: {
@@ -43,7 +42,6 @@ function dp(o: {
       weight: o.weight ?? 'M',
       sizeKnown: o.sizeKnown ?? true,
       headPushedAt: o.headPushedAt ?? null,
-      ownReview: o.ownReview ?? false,
    } as unknown as DerivedPull;
 }
 
@@ -105,20 +103,13 @@ describe('deal rank+from — scoring bumps', () => {
       expect(deal([familiarRepoPull, unfamiliarRepoPull], opts)).toBe(familiarRepoPull);
    });
 
-   it('no reciprocity: a review you got earns its author nothing under self-review', () => {
-      const aliceNewer = dp({ author: 'alice', number: 1, ageDays: 1 });
-      const bobOlder = dp({ author: 'bob', number: 2, ageDays: 2 });
-      // alice stamped one of my own pulls; the older one still deals first
+   it("reciprocity: an author who has stamped one of my pulls outranks one who hasn't", () => {
+      const reciprocalAuthorPull = dp({ author: 'alice', number: 1 });
+      const strangerPull = dp({ author: 'bob', number: 2 });
+      // alice stamped one of my own authored pulls elsewhere on the board
       const myPullAliceStamped = dp({ author: 'me', number: 99, crBy: ['alice'] });
-      const opts = baseOpts({ pulls: [aliceNewer, bobOlder, myPullAliceStamped] });
-      expect(deal([aliceNewer, bobOlder], opts)).toBe(bobOlder);
-   });
-
-   it('never deals a developer’s own unrequested pull: its review is its author’s', () => {
-      const own = dp({ author: 'alice', number: 1, ageDays: 30, ownReview: true });
-      const outside = dp({ author: 'bob', number: 2 });
-      expect(deal([own, outside], baseOpts())).toBe(outside);
-      expect(deal([own], baseOpts())).toBeNull();
+      const opts = baseOpts({ pulls: [reciprocalAuthorPull, strangerPull, myPullAliceStamped] });
+      expect(deal([reciprocalAuthorPull, strangerPull], opts)).toBe(reciprocalAuthorPull);
    });
 
    it('quick win: a known XS pull outranks an otherwise-identical unknown-size pull', () => {

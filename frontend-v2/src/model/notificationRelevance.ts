@@ -17,12 +17,12 @@ function toastPullKeys(toast: Toast): string[] {
 /**
  * Whether a fired notification has gone stale: the PR it points you at has left
  * the open board (merged or closed), so whatever it asked you to do can't be
- * done anymore. The notification panel drops these, so a nudge like "review
- * requested on fixbot#3116" removes itself the moment #3116 merges instead of
+ * done anymore. The notification panel drops these, so a nudge like "return the
+ * favor on fixbot#3116" removes itself the moment #3116 merges instead of
  * lingering as a dead link (prod report, Kyle 2026-07-27).
  *
- * Deliberately general -- every PR-linked kind -- so one rule governs the
- * whole panel. Two shapes are never stale: a toast with no
+ * Deliberately general -- every PR-linked kind, not just return-the-favor -- so
+ * one rule governs the whole panel. Two shapes are never stale: a toast with no
  * PR (inbox-zero, board-cleared, a milestone count), since there's nothing to
  * resolve, and a retrospective recap (shipped), which lists merged PRs on
  * purpose. A toast pointing at several pulls is stale only once every one of

@@ -3,7 +3,7 @@ import { PersonCell, SplitBarRow, StatsCard } from './parts';
 
 /**
  * Who's carrying the most open PRs. The bar splits into the author's whole
- * pile and the amber share of it waiting on someone else's review, so a big-but-moving
+ * pile and the amber share of it still awaiting CR, so a big-but-moving
  * author reads differently from one whose PRs are all stuck waiting.
  */
 export function AuthorLoadCard({
@@ -21,26 +21,22 @@ export function AuthorLoadCard({
    const max = Math.max(...rows.map(r => r.count), 1);
    const more = rows.length - shown.length;
    return (
-      <StatsCard
-         title="Open PRs by author"
-         sub="total · in self-review · waiting on others · oldest"
-      >
+      <StatsCard title="Open PRs by author" sub="total · awaiting CR · oldest">
          <div className="mt-3 flex flex-col gap-2">
             {shown.map(r => (
                <SplitBarRow
                   key={r.login}
                   pct={(r.count / max) * 100}
-                  splitPct={r.count > 0 ? (r.waitingOnOthers / r.count) * 100 : 0}
+                  splitPct={r.count > 0 ? (r.awaitingCr / r.count) * 100 : 0}
                   color="var(--slate)"
                   splitColor="var(--warn)"
-                  title={`${r.login}: ${r.count} open, ${r.inSelfReview} in self-review, ${r.waitingOnOthers} waiting on others, oldest ${r.oldestDays}d`}
+                  title={`${r.login}: ${r.count} open, ${r.awaitingCr} awaiting CR, oldest ${r.oldestDays}d`}
                   lead={<PersonCell login={r.login} me={me} onPerson={onPerson} />}
                   trail={
                      <span className="flex-none text-right text-ink-2 tabular-nums">
                         {r.count}
                         <span className="ml-1 text-ink-3">
-                           · {r.inSelfReview} self · {r.waitingOnOthers} waiting · oldest{' '}
-                           {r.oldestDays}d
+                           · {r.awaitingCr} CR · oldest {r.oldestDays}d
                         </span>
                      </span>
                   }

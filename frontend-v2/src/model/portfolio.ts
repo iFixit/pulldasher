@@ -874,7 +874,7 @@ export function portfolioCsv(items: readonly PortfolioItem[]): string {
       'Days since last activity',
       'Worked on it, last 14 days',
       'Open PRs',
-      'In review',
+      'Waiting on review',
       'Merged, last 14 days',
       'Plan',
       'Issues open',

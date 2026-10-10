@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { repoBlocks } from './repoBlocks';
 import type { DerivedPull } from '../../../shared/model/status';
 
-const pull = (repo: string, n: number) => ({ data: { repo, number: n } } as unknown as DerivedPull);
+const pull = (repo: string, n: number, starved = false) =>
+   ({ data: { repo, number: n }, starved }) as unknown as DerivedPull;
 
 const shape = (r: ReturnType<typeof repoBlocks>) => ({
+   starved: r.starved.map(p => p.data.number),
    blocks: r.blocks.map(b => ({ repo: b.repo, nums: b.pulls.map(p => p.data.number) })),
 });
 
@@ -12,6 +14,7 @@ describe('repoBlocks', () => {
    it('partitions into contiguous blocks in priority order', () => {
       const queue = [pull('ops', 1), pull('mono', 2), pull('ops', 3), pull('mono', 4)];
       expect(shape(repoBlocks(queue, ['mono', 'ops']))).toEqual({
+         starved: [],
          blocks: [
             { repo: 'mono', nums: [2, 4] },
             { repo: 'ops', nums: [1, 3] },
@@ -22,6 +25,17 @@ describe('repoBlocks', () => {
    it('keeps the incoming order within each block (teammates and score intact)', () => {
       const queue = [pull('ops', 9), pull('ops', 1), pull('ops', 5)];
       expect(shape(repoBlocks(queue, ['ops'])).blocks[0].nums).toEqual([9, 1, 5]);
+   });
+
+   it('surfaces starved pulls as a highlight while keeping them in their own repo block', () => {
+      const queue = [pull('mono', 1), pull('ops', 2, true), pull('mono', 3, true), pull('ops', 4)];
+      expect(shape(repoBlocks(queue, ['mono', 'ops']))).toEqual({
+         starved: [2, 3],
+         blocks: [
+            { repo: 'mono', nums: [1, 3] },
+            { repo: 'ops', nums: [2, 4] },
+         ],
+      });
    });
 
    it('unlisted repos trail the listed ones, ordered by their best pull', () => {

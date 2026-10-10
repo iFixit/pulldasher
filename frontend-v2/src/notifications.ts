@@ -1,8 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { githubUrl, pullKey, shortRepo } from '../../shared/format';
 import { alertMove } from './model/actions';
+import { claimFor } from './model/reviewers';
 import type { DerivedPull } from '../../shared/model/status';
+import { isSuffixBot } from '../../shared/model/visibility';
 import { getSettings } from './settings';
+
+/** A pull key → this sentinel action means "the rotation just named you" —
+ * distinct from alertMove's real verbs so fire() can give it its own title
+ * (repo/number baked in, since "your turn" alone says nothing about which PR). */
+const TURN_ACTION = '__your-turn__';
 
 export const notificationsSupported = typeof window !== 'undefined' && 'Notification' in window;
 
@@ -76,12 +83,15 @@ const TITLE: Record<string, string> = {
    Rebase: 'Needs a rebase',
    'Re-stamp': 'Re-stamp owed',
    'Re-QA': 'Re-QA owed',
-   'Review it': 'Review requested',
 };
 
 function fire(p: DerivedPull, action: string) {
    try {
-      const notification = new Notification(TITLE[action] ?? action, {
+      const title =
+         action === TURN_ACTION
+            ? `Your turn: review ${shortRepo(p.data.repo)}#${p.data.number}`
+            : (TITLE[action] ?? action);
+      const notification = new Notification(title, {
          body: `${p.data.title} · ${shortRepo(p.data.repo)} #${p.data.number}`,
          // one live notification per PR: a newer state replaces the old one
          tag: pullKey(p.data),
@@ -116,11 +126,22 @@ export function testNotification() {
 /** At most this many individual alerts per update; a rare bigger burst collapses. */
 const MAX_PER_TICK = 5;
 
+/** Whether anyone has claimed this pull (model/reviewers' one claim predicate). */
+function isClaimed(p: DerivedPull): boolean {
+   return claimFor(p.data) != null;
+}
+
+/** Bot-authored pulls never earn a "your turn" nudge -- mirrors cheers.ts's
+ * own isBot guard on the same turns input, so a starved Dependabot PR can't
+ * page a human. */
+function isBot(p: DerivedPull): boolean {
+   return isSuffixBot(p.data.user.login);
+}
+
 /**
  * Desktop notifications for every real transition that lands on you — your PR
  * going mergeable, breaking CI, getting feedback or needing a rebase, and
- * re-CRs / re-QAs and review requests falling to you (model/actions
- * alertMove). Watches the whole
+ * re-CRs / re-QAs falling to you (model/actions alertMove). Watches the whole
  * board, not the current filter.
  *
  * Only fires while the window is unfocused: when you're looking, the board
@@ -128,10 +149,19 @@ const MAX_PER_TICK = 5;
  * baseline is recorded on every update regardless, so returning to the tab and
  * leaving again never replays what already happened, and the first payload
  * after load only primes the baseline instead of alerting for the backlog.
+ *
+ * Also covers the turn rotation (model/rotation.ts): a starved, unclaimed
+ * pull whose rotation names YOU gets the same one-shot treatment as a real
+ * alertMove transition. A claim by someone else must never notify — it's
+ * their move now, not an event that landed on you.
  */
 export function useNotifications(
    pulls: DerivedPull[],
    me: string,
+   /** whose turn each starved, unclaimed pull is (pull key → login) — computed
+    * once in app.tsx and shared with the rows and the cheers evaluator, so the
+    * three surfaces can never disagree about whose turn it is */
+   turns: ReadonlyMap<string, string>,
    /** the board's first payload has arrived. While false the board is still
     * loading (an empty snapshot); recording that as the baseline would make
     * every real pull look "new" and fire a backlog of alerts once data lands. */
@@ -175,7 +205,12 @@ export function useNotifications(
       const current = new Map<string, string>();
       for (const p of pulls) {
          const action = alertMove(p, me);
-         if (action) current.set(pullKey(p.data), action);
+         if (action) {
+            current.set(pullKey(p.data), action);
+            continue;
+         }
+         const key = pullKey(p.data);
+         if (turns.get(key) === me && !isClaimed(p) && !isBot(p)) current.set(key, TURN_ACTION);
       }
 
       // record the baseline but stay silent while unprimed or focused
@@ -197,5 +232,5 @@ export function useNotifications(
       }
       if (fired > 0 && s.notifySound) chime();
       seen.current = current;
-   }, [ready, pulls, me]);
+   }, [ready, pulls, me, turns]);
 }

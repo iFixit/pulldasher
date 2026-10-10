@@ -1,10 +1,4 @@
-import {
-   STARVE_DAYS,
-   isIterating,
-   weightRank,
-   type DerivedPull,
-} from '../../../shared/model/status';
-import { selfReviewed } from './actions';
+import { STARVE_DAYS, isIterating, weightRank, type DerivedPull } from '../../../shared/model/status';
 
 /**
  * The review-queue score, lower first. Weight is the base (lightest first —
@@ -12,11 +6,10 @@ import { selfReviewed } from './actions';
  * lacked:
  *
  * - leverage: a pull one stamp from done jumps ~1.5 weight classes. Your
- *   stamp there finishes CR instead of starting it. The author's own stamp
- *   doesn't count toward it: it's not someone else's review in.
+ *   stamp there finishes CR instead of starting it.
  * - age: up to two weight classes of credit as a pull approaches two weeks,
  *   so an old M outranks a fresh S instead of waiting for the starvation
- *   cliff. None for a self-reviewed pull: nobody else is keeping it waiting.
+ *   cliff.
  *
  * Unknown size ranks as M-ish, not XS: missing data must not promote a pull
  * to the top of everyone's queue.
@@ -24,9 +17,8 @@ import { selfReviewed } from './actions';
 export function crScore(p: DerivedPull): number {
    const weight = weightRank(p.weight);
    const req = p.data.status.cr_req;
-   const have = p.crBy.filter(l => l !== p.data.user.login).length;
-   const oneFromDone = have > 0 && req - have === 1;
-   const ageCredit = selfReviewed(p) ? 0 : Math.min(p.ageDays / STARVE_DAYS, 2);
+   const oneFromDone = p.crHave > 0 && req - p.crHave === 1;
+   const ageCredit = Math.min(p.ageDays / STARVE_DAYS, 2);
    return weight - (oneFromDone ? 1.5 : 0) - ageCredit;
 }
 

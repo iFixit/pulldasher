@@ -38,8 +38,8 @@ function LedgerGlance({ ledger }: { ledger: CheckLedger }) {
    const word = failing.length
       ? `${failing.length} of ${total} runs failing`
       : running
-      ? `${running} of ${total} still running`
-      : `all ${total} green`;
+        ? `${running} of ${total} still running`
+        : `all ${total} green`;
    return (
       <>
          <span
@@ -134,8 +134,8 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
            slowestFailing != null ? ` · slowest ~${ciSecsWord(slowestFailing)}` : ''
         }`
       : running.length
-      ? `no checks failing · ${running.length} PR${running.length === 1 ? '' : 's'} still running`
-      : 'every check passing';
+        ? `no checks failing · ${running.length} PR${running.length === 1 ? '' : 's'} still running`
+        : 'every check passing';
 
    return (
       <>
@@ -144,7 +144,7 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
          {mineBroken.length > 0 && (
             <Lane
                title="Your broken builds"
-               sub="fix these before you stamp or merge"
+               sub="nobody can review these until the build is green"
                pulls={mineBroken}
                cap={8}
                opts={opts}
@@ -217,7 +217,12 @@ export function Ci({ pulls, opts }: { pulls: DerivedPull[]; opts: RowOptions }) 
             cap={8}
             opts={opts}
          />
-         {allGreen && <EmptyState title="All green" sub="Every check on the board passed." />}
+         {allGreen && (
+            <EmptyState
+               title="All green"
+               sub="Every check on the board passed. Go review something."
+            />
+         )}
          {(green.length > 0 || noChecks.length > 0) && (
             <RestGroup title="The rest of the board">
                {green.length > 0 && (

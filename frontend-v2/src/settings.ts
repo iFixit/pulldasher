@@ -1,5 +1,4 @@
 import { STARVE_DAYS } from '../../shared/model/status';
-import { JAIL_MAX_DAYS, JAIL_MAX_OPEN } from './model/jail';
 import { createPersistentStore } from './storage';
 
 /** one named review circle; DEFAULT_TEAM_NAME is what quick add-to-team
@@ -74,6 +73,10 @@ export interface Settings {
     * global laneCap" — old saved settings simply lack this field, so they
     * fall back to the object default below. */
    laneCapByLens: Record<string, number>;
+   /** teams that self-review (iFixit) don't gate on CR, so lining up QA is the
+    * real stall: surface "Find a QA-er" on your own PR as a home to-do, not a
+    * My-work afterthought. Off leaves getting QA in My work only. */
+   selfReview: boolean;
    /** your named rosters — REVIEW CIRCLES, yours to define, not the org
     * chart (an official team and a cross-team pairing partner can be two
     * separate rosters). Every roster's members get the same two effects:
@@ -86,9 +89,9 @@ export interface Settings {
     * to — hidden is the whole state. */
    hiddenPeople: string[];
    /** free-text areas you own or care about (e.g. "Growthbook", "Shopify").
-    * Someone's self-reviewed PR whose title, body, labels, branch, or repo
-    * partial-matches any of these lands in Review's "Could use your input".
-    * Arbitrary strings, not a known set — unlike repos/logins. */
+    * A PR whose title, body, labels, branch, or repo partial-matches any of
+    * these floats to the top of the review queue. Arbitrary strings, not a
+    * known set — unlike repos/logins. */
    codeRegions: string[];
    /** when an unfinished claim of yours starts nagging you to finish or
     * release it. Claims themselves don't expire on a timer — they clear when
@@ -111,15 +114,6 @@ export interface Settings {
     * or age tooltip) before it opens, so brushing the pointer across the board
     * doesn't flash panels open. 0 = open instantly; a click always bypasses it. */
    hoverDelayMs: number;
-   /** PR jail: 'auto' pops it up when you're over the limits, 'manual' only
-    * shows the header lock (click to open), 'off' shows neither */
-   jailMode: 'auto' | 'manual' | 'off';
-   /** PR jail pops up when you have more than this many open PRs of your own */
-   jailMaxOpen: number;
-   /** ...or when any of them has been open longer than this many days */
-   jailMaxDays: number;
-   /** whether your draft PRs count toward PR jail */
-   jailCountDrafts: boolean;
 }
 
 /** The heaviest age text tier (red), derived from ageWarnDays rather than
@@ -164,6 +158,7 @@ export const DEFAULT_SETTINGS: Settings = {
    mutedCheers: [],
    laneCap: 10,
    laneCapByLens: {},
+   selfReview: true,
    teams: [],
    hiddenPeople: [],
    codeRegions: [],
@@ -172,21 +167,9 @@ export const DEFAULT_SETTINGS: Settings = {
    repoQueueCap: 15,
    openPrsNewTab: true,
    hoverDelayMs: 250,
-   jailMode: 'auto',
-   jailMaxOpen: JAIL_MAX_OPEN,
-   jailMaxDays: JAIL_MAX_DAYS,
-   jailCountDrafts: false,
 };
 
 const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
-// jailOn (an on/off switch, live for a day) became jailMode; an Off carries over
-{
-   const saved = store.get() as Settings & { jailOn?: boolean };
-   if (saved.jailOn !== undefined) {
-      const { jailOn, ...rest } = saved;
-      store.set({ ...rest, jailMode: jailOn ? rest.jailMode : 'off' });
-   }
-}
 
 /** Union of every personal roster, sorted — "your people": the set that
  * leads the review queues and wears the teammate corner heart. */

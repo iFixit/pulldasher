@@ -1,5 +1,4 @@
 import {
-   CR_INCOMPLETE,
    isIterating,
    qaDone,
    STARVE_DAYS,
@@ -10,25 +9,19 @@ import {
 import type { PullData } from '../../../shared/types';
 import { pullKey } from '../../../shared/format';
 import {
-   askedOf,
    authorMove,
-   authorOwnsIt,
    DO_WORD_RANK,
    reviewerMove,
-   nobodysReview,
-   qaIsMine,
-   reviewIsMine,
    rowNote,
    rowWord,
-   selfReviewed,
    WAIT_WORD_RANK,
 } from './actions';
 import { startHereReason } from './cheers';
 import { dealRank, dealScore } from './deal';
 import { displayName } from './names';
-import { matchesRegion, regionFirst } from './regions';
+import { matchesRegion } from './regions';
 import { repoBlocks, type RepoBlock } from './repoBlocks';
-import { claimFor } from './reviewers';
+import { claimFor, reviewRequestedFrom } from './reviewers';
 import { myPeople, type PersonalTeam } from '../settings';
 import { crScore, crSort, finishersFirst, sinkBy, teamFirst } from './sort';
 import type { PullStanding } from './standing';
@@ -72,11 +65,14 @@ export interface ReviewLanesInput {
     * way every other model file stays independent of the store singleton. */
    changed: DerivedPull[];
    me: string;
+   /** settings.selfReview: promotes "Find a QA-er" into the home to-do lane —
+    * lining up QA is the daily stall on a team that doesn't gate on CR */
+   selfReview: boolean;
    /** settings.teams: your personal rosters, unioned into the "teammates lead
     * the queue" set */
    teams: PersonalTeam[];
-   /** settings.codeRegions: free-text areas that put someone's self-reviewed
-    * PR into "Could use your input" */
+   /** settings.codeRegions: free-text areas that pull a PR into "In your code
+    * regions" ahead of the plain queue/QA lanes */
    codeRegions: string[];
    /** settings.repoPriority: non-empty switches the review queue from one
     * ranked list to contiguous per-repo blocks */
@@ -100,8 +96,8 @@ export interface ReviewLanes {
     * rowWord's do-word (Re-stamp, Merge it, Review it, ...) — the kinds of
     * action that unblock other people first, then oldest within a word */
    yourMove: DerivedPull[];
-   /** your own PRs waiting on someone else (people you asked, CI, a block),
-    * folded flat and re-bucketed by rowWord's wait-word */
+   /** your own PRs and the stamps you've already given, still sitting with
+    * someone else, folded flat and re-bucketed by rowWord's wait-word */
    yoursWaiting: DerivedPull[];
    /** new or updated since lastSeen, newest first — a pass-through of the
     * input so every lane the render reads comes off one object */
@@ -109,16 +105,19 @@ export interface ReviewLanes {
    /** the one ranked review queue (dealRank + teamFirst) when no repo
     * priority is set */
    queue: DerivedPull[];
-   /** reviewable pulls outside your primary repos — folded away
+   /** reviewable, non-starved pulls outside your primary repos — folded away
     * in "the rest of the board" */
    queueOther: DerivedPull[];
+   /** starved pulls piercing the repo-block partition (only meaningful with
+    * repoPriority set) */
+   queueStarved: DerivedPull[];
    /** the review queue's contiguous per-repo blocks (only meaningful with
     * repoPriority set) */
    queueBlocks: RepoBlock[];
-   /** other people's self-reviewed PRs in your code regions or in repos
-    * you've reviewed in, regions first: a chance to help, never a debt, so
-    * nothing counts it and nothing deals from it */
-   couldUseInput: DerivedPull[];
+   /** CR- or QA-pool pulls matching a configured code region, deduped — a
+    * highlight copy, not an extraction: matches also stay in the queue/QA
+    * lanes below */
+   regionMatches: DerivedPull[];
    needsQa: DerivedPull[];
    needsQaOther: DerivedPull[];
    /** fully signed off and green, bot PRs included — one merge press from done */
@@ -153,24 +152,16 @@ export interface ReviewLanes {
 
 const NO_STANDING: PullStanding = { parked: new Map(), finishing: new Map() };
 
-/** Your own pulls contribute only their do-it-now verbs to the home lane:
- * under self-review your own stamps and a request gone quiet are daily work.
- * "Undraft" always stays in My work (planning, not minutes). "Merge it" is
- * the Ready to merge lane's, which leads the tab. */
-const OWN_DO_NOW = [
-   'Re-stamp',
-   'Fix CI',
-   'Address feedback',
-   'Stamp CR',
-   'Stamp QA',
-   'Lift your block',
-   'Rebase',
-];
-function ownVerb(p: DerivedPull): string | null {
+/** Your own pulls contribute only their do-it-now verbs to the home lane.
+ * "Undraft" always stays in My work (planning, not minutes). Getting QA is
+ * different: when the team self-reviews, CR isn't the gate and lining up QA
+ * is the daily stall, so "Find a QA-er" graduates to a home to-do. */
+function ownVerb(p: DerivedPull, selfReview: boolean): string | null {
    const verb = authorMove(p);
    if (!verb) return null;
-   if (verb.startsWith('Nudge ')) return 'Nudge';
-   return OWN_DO_NOW.includes(verb) ? verb : null;
+   const doNow = ['Merge it', 'Fix CI', 'Address feedback', 'Lift your block', 'Rebase'];
+   if (selfReview) doNow.push('Find a QA-er');
+   return doNow.includes(verb) ? verb : null;
 }
 
 export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
@@ -182,6 +173,7 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
       napping,
       changed,
       me,
+      selfReview,
       teams,
       codeRegions,
       repoPriority,
@@ -221,15 +213,31 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    // 1. Waiting on you: strictly your verbs. The earlier "Act now" lesson still
    //    binds — padding this with other people's jobs made it noise — but
    //    your own merge button is your job, whichever tab you're on.
-   //    The list is re-ranked by do-word below, so no order here.
-   const todo = pulls.filter(
-      p => (p.data.user.login === me ? ownVerb(p) : reviewerMove(p, me)) !== null
-   );
+   const MOVE_RANK = [
+      'Re-stamp',
+      'Re-QA',
+      'Finish QA',
+      'Merge it',
+      'Fix CI',
+      'Address feedback',
+      'Lift your block',
+      'Rebase',
+      'Find a QA-er',
+   ];
+   const todo = pulls
+      .map(p => ({
+         p,
+         verb: p.data.user.login === me ? ownVerb(p, selfReview) : reviewerMove(p, me),
+      }))
+      .filter((x): x is { p: DerivedPull; verb: string } => x.verb !== null)
+      .sort(
+         (a, b) =>
+            MOVE_RANK.indexOf(a.verb) - MOVE_RANK.indexOf(b.verb) || b.p.ageDays - a.p.ageDays
+      );
 
-   // 2. Review queue: best next review first (leverage + age + weight), and
-   //    only review that's yours under self-review (reviewIsMine): asked of
-   //    you, taken on by you, or needing someone else with nobody on it. A
-   //    developer's own unrequested PR is never in anyone else's queue.
+   // 2. Review queue: best next review first (leverage + age + weight).
+   //    Includes pulls waiting on someone else's re-stamp — a fresh CR from
+   //    you counts there too (the stale pip marks them).
    // exclude PRs you already hold a live CR stamp on — including a needs_recr
    // whose re-stamp is owed by someone else, not you. You reviewed this head;
    // being asked to review it again because a different reviewer's stamp went
@@ -238,9 +246,9 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
       p =>
          !p.cryo &&
          !p.crBy.includes(me) &&
-         reviewIsMine(p, me) &&
          (p.status === 'needs_cr' || (p.status === 'needs_recr' && !p.recrBy.includes(me)))
    );
+   const nonStarved = crPool.filter(p => !p.starved);
 
    // Bot PRs (dependency bumps, mostly) are review work too — someone has to
    // move the daily ones along — just low priority. The reviewable ones join
@@ -257,12 +265,9 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
             (p.status === 'needs_cr' || (p.status === 'needs_recr' && !p.recrBy.includes(me)))
       )
       .sort(bySecurityThenAge);
-   // a ready PR is on the Ready lane only when it's yours, asked of you, or claimed
-   const readyMine = (p: DerivedPull) =>
-      p.data.user.login === me || askedOf(p).includes(me) || claimFor(p.data)?.login === me;
    const botKeys = new Set(botReviewable.map(p => pullKey(p.data)));
    const botRest = bots
-      .filter(p => !botKeys.has(pullKey(p.data)) && !(p.status === 'ready' && readyMine(p)))
+      .filter(p => !botKeys.has(pullKey(p.data)) && p.status !== 'ready')
       .sort(bySecurityThenAge);
    const isDemoted = (p: DerivedPull) => botKeys.has(pullKey(p.data));
 
@@ -273,6 +278,8 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    //    claim state, lighter tests first, then oldest. Split by your primary
    //    repos, same as the review queue — QA is the bottleneck on a
    //    self-review team, so it deserves the same relevance cut.
+   // (computed above the queue/needsQa construction so regionMatches below
+   // can read both pools before either lane's pool is filtered)
    const qaPool = others.filter(
       p =>
          !p.cryo &&
@@ -286,9 +293,7 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
          // on a needs_recr pull is still yours to do, not a generic lane slot
          p.qaingLogin !== me &&
          !p.qaBy.includes(me) &&
-         !p.reqaBy.includes(me) &&
-         // QA is the author's own, except for an outside tester or a claim
-         qaIsMine(p, me)
+         !p.reqaBy.includes(me)
    );
    const qaSort = (list: DerivedPull[]) =>
       [...list].sort(
@@ -309,78 +314,76 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
       );
    };
 
-   // Could use your input: other people's self-reviewed PRs, still owed a
-   // stamp, in your code regions or in repos you've reviewed someone else's
-   // PR in. Nobody asked you, so it's an offer, never a debt: the lane rests
-   // folded and nothing counts it, deals from it, or lets it starve (crSort's
-   // age credit is off for a self-reviewed PR). Region matches first.
-   const reviewedIn = new Set(
-      others.filter(p => p.crBy.includes(me) || p.qaBy.includes(me)).map(p => p.data.repo)
-   );
-   const couldUseInput = regionFirst(
-      crSort(
-         others.filter(
-            p =>
-               (selfReviewed(p) || nobodysReview(p)) &&
-               !p.cryo &&
-               !authorOwnsIt(p) &&
-               (CR_INCOMPLETE.includes(p.status) || p.status === 'needs_qa') &&
-               !p.crBy.includes(me) &&
-               (matchesRegion(p, codeRegions) || reviewedIn.has(p.data.repo))
-         ),
-         sunk
-      ),
-      codeRegions
+   // In your code regions: reviewable pulls (CR or QA pool) matching a region
+   // you set in Settings, deduped across the two pools, surfaced as a
+   // highlight above the queue/QA lanes below — a copy of a slice, not an
+   // extraction (the same non-exclusive relationship "Recently updated" and
+   // a claimed PR already have with their lanes): a region match still shows
+   // up in its normal queue/QA spot too. The QA-pool leg excludes a pull you
+   // already hold a live CR stamp on — you've already reviewed it, so it
+   // isn't region news to you, even though qaPool itself doesn't otherwise
+   // care about CR state.
+   const regionSeen = new Set<string>();
+   const regionMatches = crRank(
+      [...crPool, ...qaPool.filter(p => !p.crBy.includes(me))].filter(p => {
+         const k = pullKey(p.data);
+         if (regionSeen.has(k) || !matchesRegion(p, codeRegions)) return false;
+         regionSeen.add(k);
+         return true;
+      })
    );
 
-   // ONE review queue: reviews asked of you lead, oldest request first (they
-   // are answered in hours), whatever repo they're from. Then your primary
-   // repos' other reviewables (claims, outside-dev pulls) by the deal score,
-   // the day's bot bumps sinking to the tail. The top of this lane IS the
-   // board's best next pickup. A parked project's PRs sink below every other
-   // person's, teammates' included, and above the bots.
+   // ONE review queue: your primary repos' reviewables, every starved pull
+   // regardless of repo (the fairness backstop rides in the ranking now, not
+   // a separate Aging lane — starveScore's uncapped age × size term floats
+   // them to the top numerically instead of positionally), and the day's bot
+   // bumps sinking to the tail. The top of this lane IS the board's best
+   // next pickup; the retired "Deal me one" button dealt this exact order,
+   // which is why the button became redundant and was removed. Non-starved
+   // work outside your primary repos still folds into "other repos" below,
+   // reachable but not in the way. Region matches stay in this queue too:
+   // "In your code regions" above is a highlight, a copy of a slice, not an
+   // extraction — the same non-exclusive relationship "Recently updated" and
+   // a claimed PR already have with their lanes. A parked project's PRs sink
+   // below every other person's, teammates' included, and above the bots.
    const dealOpts = { me, pulls, deprioritize: isDemoted, warnDays: ageWarnDays };
    const classOf = (p: DerivedPull) => (isDemoted(p) ? 2 : sunk(p) ? 1 : 0);
-   const requestedOfMe = (p: DerivedPull) => askedOf(p).includes(me);
-   const requests = crPool
-      .filter(requestedOfMe)
-      .sort((a, b) => (a.askedAt ?? Infinity) - (b.askedAt ?? Infinity));
-   const queue = [
-      ...requests,
-      ...finishersFirst(
-         sinkBy(
-            teamFirst(
-               dealRank(
-                  [
-                     ...crPool.filter(p => !requestedOfMe(p) && isPrimaryRepo(p.data.repo)),
-                     ...botReviewable,
-                  ],
-                  dealOpts
-               ),
-               team
+   const queue = finishersFirst(
+      sinkBy(
+         teamFirst(
+            dealRank(
+               [
+                  ...nonStarved.filter(p => isPrimaryRepo(p.data.repo)),
+                  ...crPool.filter(p => p.starved),
+                  ...botReviewable,
+               ],
+               dealOpts
             ),
-            classOf
+            team
          ),
-         // the score in days of waiting, as the why line counts them
-         p =>
-            `${classOf(p)}|${team.has(p.data.user.login)}|${Math.round(
-               dealScore(p, dealOpts) * (ageWarnDays ?? STARVE_DAYS)
-            )}`,
-         finishes
+         classOf
       ),
-   ];
-   const queueOther = crRank(crPool.filter(p => !requestedOfMe(p) && !isPrimaryRepo(p.data.repo)));
+      // the score in days of waiting, as the why line counts them
+      p =>
+         `${classOf(p)}|${team.has(p.data.user.login)}|${Math.round(
+            dealScore(p, dealOpts) * (ageWarnDays ?? STARVE_DAYS)
+         )}`,
+      finishes
+   );
+   const queueOther = crRank(nonStarved.filter(p => !isPrimaryRepo(p.data.repo)));
 
-   // Ready to merge: signed off, green, one press from done. Under the
-   // policy the author merges their own, so this is your own ready PRs, plus
-   // another person's only when you were asked to review it or took it on.
-   // Longest-waiting first: the ones most likely forgotten. botsForReady
-   // (not `bots`) so a bot PR you claimed still shows when "Ignore bot PRs"
-   // has emptied `bots`.
+   // Ready to merge is finishable work for anyone: fully signed off, green,
+   // one button-press from done. It earns a real lane in Pick up next rather
+   // than a fold — and bot PRs that reach ready join it, since a human has to
+   // land them. Longest-waiting first: the ones most likely forgotten.
+   // botsForReady (not `bots`) so this lane keeps showing merge-ready bot
+   // PRs even when "Ignore bot PRs" has emptied `bots` out of the queue
+   // tail and the bot fold below.
    const ready = finishersFirst(
-      [...pulls, ...botsForReady]
-         .filter(p => p.status === 'ready' && readyMine(p))
-         .sort((a, b) => Number(sunk(a)) - Number(sunk(b)) || b.ageDays - a.ageDays),
+      [
+         ...others.filter(p => p.status === 'ready'),
+         ...botsForReady.filter(p => p.status === 'ready'),
+      ].sort((a, b) => Number(sunk(a)) - Number(sunk(b)) || b.ageDays - a.ageDays),
       p => `${sunk(p)}|${days(p)}`,
       finishes
    );
@@ -394,6 +397,15 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
       false
    );
 
+   // your live CR stamp is in, the PR just isn't fully signed off yet (another
+   // reviewer owes a stamp, or a re-CR). Covers needs_recr too, so a PR you
+   // reviewed doesn't vanish once someone else's stamp goes stale.
+   const stamped = others.filter(
+      p => (p.status === 'needs_cr' || p.status === 'needs_recr') && p.crBy.includes(me)
+   );
+   // QA's symmetric case: you gave a QA stamp but qa_req wants more. Without
+   // this the PR sits in "Needs QA" as if you never touched it.
+   const qaStamped = others.filter(p => !qaDone(p) && p.qaBy.includes(me));
    const byStatus = (s: Status) => others.filter(p => p.status === s);
    const devBlocked = byStatus('dev_block');
    const deployHeld = byStatus('deploy_block');
@@ -402,11 +414,16 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    const ciRed = byStatus('ci_red');
    const drafts = byStatus('draft');
 
-   // the author asked you (by name or through a team): the most concrete
-   // "review this" on the board, so it leads, while it's still your move
-   const requestedOfYou = others.filter(p => {
-      return askedOf(p).includes(me) && rowNote(p, me).action === 'Review it';
-   });
+   // GitHub asked you directly — the most concrete "review this" on the board,
+   // so it leads. Only while it's still your move (unstamped, review-stage).
+   const requestedOfYou = crSort(
+      others.filter(
+         p =>
+            (p.status === 'needs_cr' || p.status === 'needs_recr') &&
+            reviewRequestedFrom(p, me) &&
+            !p.crBy.includes(me)
+      )
+   );
 
    // PRs you've claimed — the coordination lane so a claim isn't just a hand
    // icon buried in a lower lane; it's your commitment, surfaced up top.
@@ -422,7 +439,7 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    // of by where they came from).
    const yourMoveKeys = new Set<string>();
    const yourMove: DerivedPull[] = [];
-   for (const p of [...todo, ...requestedOfYou, ...claimed, ...reReview]) {
+   for (const p of [...todo.map(({ p }) => p), ...requestedOfYou, ...claimed, ...reReview]) {
       const k = pullKey(p.data);
       if (yourMoveKeys.has(k)) continue;
       yourMoveKeys.add(k);
@@ -433,16 +450,10 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
       const idx = DO_WORD_RANK.indexOf(word);
       return idx === -1 ? Number.POSITIVE_INFINITY : idx;
    };
-   // the oldest request first (they're answered in hours); a parked
-   // project's sink within their word's group, never out of it
-   const askedAtOf = (p: DerivedPull) =>
-      askedOf(p).includes(me) ? p.askedAt ?? Number.POSITIVE_INFINITY : Number.POSITIVE_INFINITY;
+   // a parked project's sink within their word's group, never out of it
    yourMove.sort(
       (a, b) =>
-         doRankOf(a) - doRankOf(b) ||
-         askedAtOf(a) - askedAtOf(b) ||
-         Number(sunk(a)) - Number(sunk(b)) ||
-         b.ageDays - a.ageDays
+         doRankOf(a) - doRankOf(b) || Number(sunk(a)) - Number(sunk(b)) || b.ageDays - a.ageDays
    );
    const yourMoveRanked = finishersFirst(
       yourMove,
@@ -450,12 +461,22 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
       finishes
    );
 
-   // "Waiting on others": your own PRs sitting with someone else right now:
-   // people you asked, CI, a block. A stamp you gave on someone else's PR
-   // isn't here: under self-review the rest of that PR is its author's.
-   const yoursWaiting = pulls.filter(
-      p => p.data.user.login === me && rowWord(p, me).kind === 'wait'
-   );
+   // "Waiting on others": your PRs and stamps sitting with someone else right now —
+   // your own PRs waiting on a review/QA, plus a stamp you've already given
+   // that isn't fully signed off yet (stamped/qaStamped, formerly their own
+   // rest-group folds — redundant once this lane exists).
+   const yoursWaitingKeys = new Set<string>();
+   const yoursWaiting: DerivedPull[] = [];
+   for (const p of [
+      ...pulls.filter(p => p.data.user.login === me && rowWord(p, me).kind === 'wait'),
+      ...stamped,
+      ...qaStamped,
+   ]) {
+      const k = pullKey(p.data);
+      if (yoursWaitingKeys.has(k)) continue;
+      yoursWaitingKeys.add(k);
+      yoursWaiting.push(p);
+   }
    const waitRankOf = (p: DerivedPull) => {
       const word = rowWord(p, me, { claim: claimFor(p.data) }).word;
       const idx = WAIT_WORD_RANK.indexOf(word);
@@ -484,16 +505,14 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    // so every surface explains a pick in the same words
    const whyUpNext = (p: DerivedPull) => {
       const base = team.has(p.data.user.login)
-         ? `From ${
-              displayName(names, p.data.user.login) ?? p.data.user.login
-           }, on your team: teammates’ PRs lead your queue`
-         : startHereReason(p, me, false, names);
+         ? `From ${displayName(names, p.data.user.login) ?? p.data.user.login}, on your team: teammates’ PRs lead your queue`
+         : startHereReason(p, pulls, me, false, names);
       return whyProject(p, base) ?? base;
    };
-   // the queue's repo blocks (priority order) —
+   // the queue's repo blocks (priority order, starved pierced out front) —
    // computed unconditionally, cheap; the render only reads it when a
    // priority is set
-   const { blocks: queueBlocks } = repoBlocks(queue, repoPriority);
+   const { starved: queueStarved, blocks: queueBlocks } = repoBlocks(queue, repoPriority);
 
    // Needs QA's own "why" line: that lane isn't ranked by deal-score, it's
    // sorted by qaSort (unclaimed-first, then lightest, then oldest) — reusing
@@ -501,16 +520,12 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
    // ranking this lane doesn't use.
    const whyQaNext = (p: DerivedPull) => {
       const base = team.has(p.data.user.login)
-         ? `From ${
-              displayName(names, p.data.user.login) ?? p.data.user.login
-           }, on your team: teammates’ PRs lead this lane`
+         ? `From ${displayName(names, p.data.user.login) ?? p.data.user.login}, on your team: teammates’ PRs lead this lane`
          : p.qaingLogin
-         ? `${
-              displayName(names, p.qaingLogin) ?? p.qaingLogin
-           } is already testing it; it sinks below unclaimed QA`
-         : p.weight === 'XS' || p.weight === 'S'
-         ? `Nobody's testing it yet, a light one (${p.weight})`
-         : `Nobody's testing it yet, waiting ${Math.max(1, Math.round(p.ageDays))}d`;
+           ? `${displayName(names, p.qaingLogin) ?? p.qaingLogin} is already testing it; it sinks below unclaimed QA`
+           : p.weight === 'XS' || p.weight === 'S'
+             ? `Nobody's testing it yet, a light one (${p.weight})`
+             : `Nobody's testing it yet, waiting ${Math.max(1, Math.round(p.ageDays))}d`;
       return whyProject(p, base) ?? base;
    };
 
@@ -524,6 +539,8 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
 
    // the rest group itself earns a title only when it has something inside —
    // an empty "rest of the board" with 11 closed folds under it is still noise.
+   // stamped/qaStamped moved into "Waiting on others" above, so they no longer
+   // count here.
    const restTotal =
       queueOther.length +
       needsQaOther.length +
@@ -549,8 +566,9 @@ export function buildReviewLanes(input: ReviewLanesInput): ReviewLanes {
       changed,
       queue,
       queueOther,
+      queueStarved,
       queueBlocks,
-      couldUseInput,
+      regionMatches,
       needsQa,
       needsQaOther,
       ready,

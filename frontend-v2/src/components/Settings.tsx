@@ -54,8 +54,8 @@ function LaneCapByLensRow({ lensId, label }: { lensId: string; label: string }) 
    );
 }
 
-/** Free-text editor for the code regions that put matching self-reviews into
- * Review's Could use your input. Arbitrary strings (not a known set), so it's a plain input
+/** Free-text editor for the code regions that float matching PRs to the top of
+ * the review queue. Arbitrary strings (not a known set), so it's a plain input
  * plus removable chips, not a candidate picker. */
 function CodeRegionsGroup() {
    const regions = useSettings().codeRegions;
@@ -67,8 +67,8 @@ function CodeRegionsGroup() {
    return (
       <Group title="Code regions">
          <span className="text-xs text-ink-3">
-            Areas you own or care about. Someone’s self-reviewed PR whose title, description,
-            labels, branch, or repo contains one shows under Could use your input on Review.
+            Areas you own or care about. A PR whose title, description, labels, branch, or repo
+            contains one floats to the top of your review queue.
          </span>
          <div className="flex gap-2">
             <input
@@ -329,76 +329,22 @@ export function Settings({
                            />
                         </Field>
                         <Field
-                           label="PR jail"
-                           hint="Automatic pops up your list of open PRs when you have too many, or one has been open too long. Manual only shows the lock in the header, to open when you like. Off hides both."
+                           label="Getting QA is a to-do"
+                           hint="For teams that self-review, no separate CR gate means lining up QA is the real stall, so “Find a QA-er” on your own PRs shows in Waiting on you. Off keeps it in My work only."
                         >
                            <Segmented
-                              ariaLabel="PR jail"
-                              value={s.jailMode}
-                              options={[
-                                 ['auto', 'Automatic'],
-                                 ['manual', 'Manual'],
-                                 ['off', 'Off'],
-                              ]}
-                              onChange={jailMode => set({ jailMode })}
-                           />
-                        </Field>
-                        <Field
-                           label="PR jail: open PRs"
-                           hint="PR jail pops up when you have more than this many open PRs of your own (bots and deploy holds never count). It comes back only when that gets worse, at most every 4 hours."
-                        >
-                           <NumberField
-                              value={s.jailMaxOpen}
-                              min={1}
-                              max={50}
-                              suffix="PRs"
-                              onChange={jailMaxOpen => set({ jailMaxOpen })}
-                           />
-                        </Field>
-                        <Field
-                           label="PR jail: days open"
-                           hint="It also pops up when any of them has been open longer than this."
-                        >
-                           <NumberField
-                              value={s.jailMaxDays}
-                              min={1}
-                              max={365}
-                              suffix="days"
-                              onChange={jailMaxDays => set({ jailMaxDays })}
-                           />
-                        </Field>
-                        <Field
-                           label="PR jail: count drafts"
-                           hint="Off leaves your draft PRs out of both limits."
-                        >
-                           <Segmented
-                              ariaLabel="count drafts toward PR jail"
-                              value={s.jailCountDrafts ? 'on' : 'off'}
+                              ariaLabel="getting QA is a to-do"
+                              value={s.selfReview ? 'on' : 'off'}
                               options={[
                                  ['off', 'Off'],
                                  ['on', 'On'],
                               ]}
-                              onChange={v => set({ jailCountDrafts: v === 'on' })}
+                              onChange={v => set({ selfReview: v === 'on' })}
                            />
                         </Field>
                         <Field
-                           label="See PR jail"
-                           hint="Shows it now with your open PRs, whatever the limits say."
-                        >
-                           <QuietButton
-                              onClick={() => {
-                                 // JailMode listens for jail=1 in the hash
-                                 const hash = new URLSearchParams(location.hash.slice(1));
-                                 hash.set('jail', '1');
-                                 location.hash = hash.toString();
-                              }}
-                           >
-                              Preview PR jail
-                           </QuietButton>
-                        </Field>
-                        <Field
-                           label="Nudge me about a review I said I’d do"
-                           hint="When a review you said you’d do starts nagging you to finish it or drop it. It doesn't expire on a timer; it clears when the review is submitted, dropped, or you're removed on GitHub."
+                           label="Nudge me about a claim"
+                           hint="When an unfinished claim of yours starts nagging you to finish it or hand it back. Claims themselves don't expire on a timer; they clear when the review is submitted, released, or removed on GitHub."
                         >
                            <Segmented
                               ariaLabel="claim warning time"

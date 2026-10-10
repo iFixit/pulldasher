@@ -18,38 +18,32 @@ export { eyebrowText } from './Lane';
 const WORD_GLOSS: Record<string, string> = {
    // do-words: the next step is yours
    'Re-stamp':
-      'You stamped this PR, then new commits landed and undid your stamp. Check the changes and stamp again.',
+      'You approved this PR, then new commits landed and undid your approval. Check the changes and approve again.',
    'Re-QA': 'You tested this PR, then new commits landed. Test it again.',
    'Finish QA': 'You started testing these. Finish and stamp.',
    'Finish CR': 'You started reviewing; your stamp isn’t in yet.',
    'Re-review': 'You asked for changes and they pushed. Take another look.',
    Merge: 'Fully signed off and green. Your merge button.',
-   'Fix CI': 'Your PR with a failing build. Fix it before you stamp or merge.',
+   'Fix CI': 'Your PR with a failing build. Nobody can review it until it’s green.',
    Respond: 'A reviewer left feedback that waits on your answer.',
    Unblock: 'A block of yours is what holds it. Lift it when you’re ready.',
    Rebase: 'Your PR conflicts with its base branch.',
-   'Stamp CR':
-      'Your PR, and nobody else was asked: review it yourself and stamp CR, or request a review on GitHub.',
-   'Stamp QA':
-      'Your PR, and nobody else was asked: test it yourself and stamp QA, or request a review on GitHub.',
-   Nudge: 'You asked for a review over 4 hours ago and it hasn’t come. Worth a ping.',
-   Review: 'PRs whose review is yours: asked of you first, oldest request first.',
-   QA: 'PRs whose testing is yours: asked of you, or from outside the dev team.',
+   'Nudge CR': 'Your PR, and nobody has reviewed it yet. Worth a ping.',
+   'Find a QA-er':
+      'Your PR doesn’t need more code review, it needs someone to test it. Line a tester up.',
+   Review: 'Open PRs you could code review.',
+   QA: 'Open PRs you could test.',
    Undraft: 'Your draft. Mark it ready on GitHub when you want review.',
    // wait-words: why the pull sits
    'waiting on re-CR':
       'A reviewer approved it, then new commits landed. Waiting on them to approve again.',
-   'review requested':
-      'The author asked people for a review on GitHub. Requests are answered in hours.',
-   'waiting on CR':
-      'Needs someone else’s code review (an author outside the dev team, say), and nobody is on it yet.',
+   'waiting on CR': 'Waiting for someone to code review it.',
    'with author': 'Changes were requested; the next push is the author’s.',
    'waiting on re-QA': 'Someone tested it, then new commits landed. Waiting on them to test again.',
-   'waiting on QA': 'Needs someone else to test it, and nobody is on it yet.',
+   'waiting on QA': 'Waiting for someone to test it.',
    'in QA':
       'Someone is testing it right now: they added the QAing label on GitHub. Add it yourself to claim a QA.',
-   claimed: 'Someone said they’d review it.',
-   'self-review': 'Its author reviews and tests it themselves. Nobody else owes it anything.',
+   claimed: 'Someone flagged they’re reading it.',
    stamped: 'Your stamp is in; waiting on the rest of the sign-offs.',
    'CI running': 'CI checks are still running on the latest push.',
    'CI failing':
@@ -62,7 +56,7 @@ const WORD_GLOSS: Record<string, string> = {
    'on hold': 'Blocked on something outside this repo.',
    parked:
       'Labeled Cryogenic Storage: shelved on purpose. Nothing is asked of anyone while it’s parked.',
-   ready: 'Fully signed off and green; its author merges it.',
+   ready: 'Fully signed off and green; anyone can merge it, usually the author does.',
    draft: 'Not up for review yet.',
    waiting: 'Waiting on something GitHub’s data doesn’t name. Open the PR to see.',
 };

@@ -1,4 +1,4 @@
-import { ago, n } from '../../../shared/format';
+import { ago, n, pullKey } from '../../../shared/format';
 import type { ClosedIssue } from '../../../shared/model/decide';
 import { dayStart } from '../../../shared/model/projects';
 import { issuePace, paceFinish, type RoadmapItem } from '../../../shared/model/roadmap';
@@ -14,17 +14,17 @@ import {
    type ProjectWork,
 } from '../../../shared/model/work';
 import type { PullData } from '../../../shared/types';
-import { askedAgo, askedOf, parked, selfReviewed, STALE_CLAIM_SECS } from './actions';
+import { parked, STALE_CLAIM_SECS } from './actions';
 import { dayOf } from './days';
-import { claimFor } from './reviewers';
+import { claimFor, requestedReviewers } from './reviewers';
 import { days } from './words';
 
 export { prStage, type PrStage };
 
 /**
  * Where work stands, in a product manager's words rather than the board's
- * CR and QA ones. An open PR is ready to merge, on hold, in review (the
- * author's own, or someone's they asked), or in development. An open issue is as far along as its least finished
+ * CR and QA ones. An open PR is ready to merge, on hold, waiting on review,
+ * or in development. An open issue is as far along as its least finished
  * open PR; with none open, either its PRs merged and the issue is still
  * open, or no PR does it yet. Closing an issue is a person's call, so a
  * closed one is done or dropped whatever its PRs say.
@@ -35,9 +35,7 @@ export type IssueStage = PrStage | 'merged' | 'none' | 'done' | 'dropped';
 export const STAGE_WORDS: Record<IssueStage, string> = {
    ready: 'Ready to merge',
    hold: 'On hold',
-   // not "waiting on review": under self-review most PRs in review are
-   // their author's own to stamp, waiting on nobody
-   review: 'In review',
+   review: 'Waiting on review',
    // not "being worked on": the tab says that of a project whose PRs moved
    // lately (words.ts BEING_WORKED_ON), which a PR waiting on review is too
    work: 'In development',
@@ -92,8 +90,8 @@ export function issueStanding(
 
 /**
  * Who holds an open PR right now, in a few words: its author while it's
- * in development or ready to merge, or reviewing it themselves; who it waits
- * on for review; or what holds it. Says how long it's been open once that's past `ageWarnDays`,
+ * in development or ready to merge, whose turn it is to review, or what
+ * holds it. Says how long it's been open once that's past `ageWarnDays`,
  * the board's own age warning. With `line`, the words start a line: they
  * take a capital, unless they start with a login, which is never changed.
  * With `onRow`, the words sit under the PR's own row, so they leave out
@@ -104,6 +102,7 @@ export function issueStanding(
 export function holderWords(
    p: DerivedPull,
    opts: {
+      turns?: ReadonlyMap<string, string>;
       ageWarnDays?: number;
       line?: boolean;
       onRow?: boolean;
@@ -123,7 +122,7 @@ export function holderWords(
                : 'deploy hold'
          );
    } else if (stage === 'review') {
-      who = reviewWaits(p, own, !!opts.onRow);
+      who = reviewWaits(p, opts.turns?.get(pullKey(p.data)) ?? null, own);
    } else {
       who = opts.onRow ? '' : `${p.data.user.login} is working on it`;
    }
@@ -134,13 +133,13 @@ export function holderWords(
 }
 
 /**
- * Who a PR in review waits on, in the order the board's own notes weigh it
- * (actions.ts reviewerNote): someone testing it now, the people asked to
- * look again, the ones a review was asked of, someone looking, the author
- * reviewing their own; only then nobody yet. `own` marks the board's words,
- * as against a login; `onRow` leaves out the author, whose face the row shows.
+ * Who a PR waiting on review waits on, in the order the board's own notes
+ * weigh it (actions.ts reviewerNote): someone testing it now, the people
+ * asked to look again, the ones a review was asked of, someone looking,
+ * whose turn it is; only then nobody yet. `own` marks the board's words,
+ * as against a login.
  */
-function reviewWaits(p: DerivedPull, own: (words: string) => string, onRow: boolean): string {
+function reviewWaits(p: DerivedPull, turn: string | null, own: (words: string) => string): string {
    const list = (logins: string[]) => logins.join(', ');
    if (p.status === 'needs_qa') {
       if (p.qaingLogin) return `${p.qaingLogin} is testing it`;
@@ -164,18 +163,14 @@ function reviewWaits(p: DerivedPull, own: (words: string) => string, onRow: bool
             : `${claim.login} is reading it`;
       }
    }
-   const asked = askedOf(p);
-   if (asked.length) {
-      const when = askedAgo(p);
-      return own(`waiting on ${list(asked)}${when ? `, ${when}` : ''}`);
-   }
+   const asked = requestedReviewers(p);
+   if (asked.length) return own(`waiting on ${list(asked)}`);
    if (p.engagedNoStamp.length) {
       return `${list(p.engagedNoStamp)} ${
          p.engagedNoStamp.length === 1 ? 'is' : 'are'
       } looking at it`;
    }
-   if (selfReviewed(p))
-      return onRow ? own('in self-review') : `${p.data.user.login} is reviewing it`;
+   if (turn) return `${turn}’s turn to review`;
    return own(p.status === 'needs_qa' ? 'needs a tester' : 'needs a reviewer');
 }
 
