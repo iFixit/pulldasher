@@ -322,20 +322,31 @@ export function derive(
    const staleCr = staleUsers(st.allCR);
    const staleQa = staleUsers(st.allQA);
 
-   // who the author's side asked: people (not claims, which are a reviewer
-   // volunteering) and every member of a requested roster team
+   // who the author's side asked and hasn't answered: people (not claims,
+   // which are a reviewer volunteering) and every member of a requested
+   // roster team, minus anyone whose CR already counts. A CR comment doesn't
+   // clear GitHub's request, so without that a stamped reviewer would stay
+   // "asked" (and the author would be told to nudge them).
    const claims = new Set((pull.review_requests ?? []).filter(r => r.self).map(r => r.login));
    const requestedTeams = pull.requested_teams ?? [];
+   const teamOf = new Map<string, string>();
+   for (const t of requestedTeams)
+      for (const l of policy.teams.get(t.toLowerCase()) ?? []) teamOf.set(l, t.toLowerCase());
    const askedOf = unique([
       ...(pull.requested_reviewers ?? []).filter(l => !claims.has(l)),
-      ...requestedTeams.flatMap(t => policy.teams.get(t.toLowerCase()) ?? []),
-   ]).filter(l => l !== author);
-   const askedAt =
-      Math.min(
-         ...(pull.review_requests ?? [])
-            .filter(r => !r.self && r.at != null && askedOf.includes(r.login))
-            .map(r => r.at as number)
-      ) || null;
+      ...teamOf.keys(),
+   ]).filter(l => l.toLowerCase() !== author.toLowerCase() && !crBy.includes(l));
+   // a person's own request time, else their team's
+   const teamAt = new Map(
+      (pull.team_requests ?? []).map(t => [t.slug.toLowerCase(), t.at] as const)
+   );
+   const askedTimes = askedOf.map(
+      l =>
+         (pull.review_requests ?? []).find(r => !r.self && r.login === l)?.at ??
+         teamAt.get(teamOf.get(l) ?? '') ??
+         null
+   );
+   const askedAt = Math.min(...askedTimes.filter((t): t is number => t != null));
    const ownReview =
       isDeveloper(policy, author) &&
       !(pull.requested_reviewers ?? []).length &&
@@ -381,10 +392,16 @@ export function derive(
    // scores, the turn rotation) — must never see them as rotting
    const isParked = !!label(LABELS.cryo);
 
+   // on a self-reviewed pull only the author owes a re-stamp: anyone else's
+   // stamp there was a favor nobody asked for, so a push doesn't put them
+   // on the hook
+   const owedCr = ownReview ? staleCr.filter(u => u === author) : staleCr;
+   const owedQa = ownReview ? staleQa.filter(u => u === author) : staleQa;
+
    let status: Status;
    if (pull.draft) status = 'draft';
    else if (devBlockedBy.length) status = 'dev_block';
-   else if (!crMet && staleCr.length) status = 'needs_recr';
+   else if (!crMet && owedCr.length) status = 'needs_recr';
    else if (!crMet) status = 'needs_cr';
    else if (!qaMet) status = 'needs_qa';
    // CI gates readiness only (see the Status doc): a red or pending build
@@ -431,8 +448,8 @@ export function derive(
       qaHave,
       // a stale stamp only owes a re-stamp while the requirement is unmet —
       // once others satisfy it, nothing is asked of the stale signer
-      recrBy: crMet ? [] : staleCr,
-      reqaBy: qaMet ? [] : staleQa,
+      recrBy: crMet ? [] : owedCr,
+      reqaBy: qaMet ? [] : owedQa,
       headPushedAt: headPushedAt(pull),
       ageDays,
       signedOffAt,

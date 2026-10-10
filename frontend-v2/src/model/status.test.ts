@@ -127,7 +127,11 @@ describe('status derivation precedence', () => {
    });
 
    it('an invalidated CR makes needs_recr, and names who owes the re-stamp', () => {
-      const p = withStatus({ allCR: [sig('CR', 'reviewer', false)] });
+      // asked to review, so the re-stamp is theirs (see the self-review policy)
+      const p = withStatus(
+         { allCR: [sig('CR', 'reviewer', false)] },
+         { requested_reviewers: ['reviewer'] }
+      );
       const d = derive(p, undefined, NOW);
       expect(d.status).toBe('needs_recr');
       expect(d.recrBy).toEqual(['reviewer']);
@@ -245,10 +249,13 @@ describe('status derivation precedence', () => {
    });
 
    it('tracks stale QA stamps symmetrically with stale CR', () => {
-      const p = withStatus({
-         allCR: [sig('CR', 'r', true)],
-         allQA: [sig('QA', 'tester', false)],
-      });
+      const p = withStatus(
+         {
+            allCR: [sig('CR', 'r', true)],
+            allQA: [sig('QA', 'tester', false)],
+         },
+         { requested_reviewers: ['tester'] }
+      );
       const d = derive(p, undefined, NOW);
       expect(d.status).toBe('needs_qa');
       expect(d.reqaBy).toEqual(['tester']);
@@ -465,6 +472,50 @@ describe('the self-review policy', () => {
       );
       expect(unknown.ownReview).toBe(false);
       expect(unknown.askedOf).toEqual([]);
+   });
+
+   it('a reviewer who stamped is no longer asked, though GitHub keeps the request', () => {
+      const p = withStatus(
+         { allCR: [sig('CR', 'bob', true)] },
+         {
+            requested_reviewers: ['bob', 'carol'],
+            review_requests: [
+               { login: 'bob', at: NOW - 5 * 3600, self: false },
+               { login: 'carol', at: NOW - 3600, self: false },
+            ],
+         }
+      );
+      const d = derive(p, undefined, NOW);
+      expect(d.askedOf).toEqual(['carol']);
+      expect(d.askedAt).toBe(NOW - 3600);
+   });
+
+   it("a team's members get the team's request time", () => {
+      const policy = reviewPolicy({ Store: ['a', 'b'] });
+      const d = derive(
+         pull({ requested_teams: ['store'], team_requests: [{ slug: 'store', at: NOW - 7200 }] }),
+         undefined,
+         NOW,
+         undefined,
+         undefined,
+         policy
+      );
+      expect(d.askedOf).toEqual(['a', 'b']);
+      expect(d.askedAt).toBe(NOW - 7200);
+   });
+
+   it('on a self-reviewed pull only the author owes a re-stamp', () => {
+      // carol stamped unasked, then the author pushed: nobody asked carol
+      const favor = withStatus({ allCR: [sig('CR', 'carol', false)] });
+      const d = derive(favor, undefined, NOW);
+      expect(d.status).toBe('needs_cr');
+      expect(d.recrBy).toEqual([]);
+      // but someone who was asked still owes theirs
+      const asked = withStatus(
+         { allCR: [sig('CR', 'carol', false)] },
+         { requested_reviewers: ['carol'] }
+      );
+      expect(derive(asked, undefined, NOW).recrBy).toEqual(['carol']);
    });
 
    it("someone outside the dev team doesn't review their own", () => {
