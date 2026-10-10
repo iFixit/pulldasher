@@ -309,4 +309,13 @@ describe('JailMode while the cell is down', () => {
       act(() => r.render(<JailMode pulls={many(8)} me="me" extraBots={new Set()} initialized />));
       expect(dialog()).toBeNull();
    });
+
+   it('waits while another dialog is open', () => {
+      const other = document.createElement('div');
+      other.setAttribute('aria-modal', 'true');
+      document.body.append(other);
+      render(many(9));
+      expect(dialog()).toBeNull();
+      other.remove();
+   });
 });

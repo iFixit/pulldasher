@@ -17,6 +17,7 @@ import {
 import { useSettings } from '../settings';
 import { readStorage, writeStorage } from '../storage';
 import { HeaderIconButton, QuietButton, RepoRef } from './bits';
+import { modalOpen } from '../hooks';
 import { GroupHeader } from './Lane';
 import { CiGlyph } from './pips';
 
@@ -29,6 +30,15 @@ import { CiGlyph } from './pips';
  * and reopens it. `#jail=1` in the URL forces it, any time, for a preview.
  * The jailMode setting picks: pop up (auto), the badge alone (manual), or off.
  */
+
+// whether a mouse button or finger is down anywhere: the jail never pops up
+// mid-drag (a Roadmap bar, say)
+let pointerHeld = false;
+if (typeof document !== 'undefined') {
+   document.addEventListener('pointerdown', () => (pointerHeld = true), true);
+   for (const end of ['pointerup', 'pointercancel'] as const)
+      document.addEventListener(end, () => (pointerHeld = false), true);
+}
 
 const hasPreviewFlag = () => new URLSearchParams(location.hash.slice(1)).get('jail') === '1';
 
@@ -135,6 +145,9 @@ export function JailMode({
       if (!found || shown || settings.jailMode !== 'auto') return;
       const check = () => {
          if (document.visibilityState === 'hidden') return;
+         // another dialog is up (Settings), or a drag is under way: the jail
+         // would land on top of it, and swallow the Esc that cancels a drag
+         if (modalOpen() || pointerHeld) return;
          if (document.activeElement?.matches('input, textarea, select')) return;
          // read the record fresh: a second visible window may have shown it
          // a moment ago, before its storage event reached this one
@@ -711,7 +724,14 @@ function JailRow({
                   {move}
                </span>
             )}
-            {!ready && <CiGlyph pull={p} />}
+            {!ready && (
+               <>
+                  <CiGlyph pull={p} />
+                  {/* the glyph is aria-hidden; say what it shows */}
+                  {p.ci === 'failing' && <span className="sr-only">CI failing</span>}
+                  {p.ci === 'pending' && <span className="sr-only">CI running</span>}
+               </>
+            )}
             {detail && <span className="min-w-0">{detail}</span>}
          </span>
          {hint && <span className="text-xs text-ink-3">{hint}</span>}

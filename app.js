@@ -19,7 +19,8 @@ import projectsController from './controllers/projects.js';
 import roadmapController, { canWrite, forgetProjectCaches } from './controllers/roadmap.js';
 import { API_ROUTES, apiIndex } from './controllers/api-routes.js';
 import settingsController from './controllers/settings.js';
-import { loadSettings } from './lib/settings.js';
+import { syncRepoIssues } from './lib/project-issue-sync.js';
+import { loadSettingsWithRetry } from './lib/settings.js';
 import { issueRepos, projectSettings } from './lib/projects.js';
 import { setOnWorkSynced, syncWork } from './lib/work.js';
 import { missingMigrations } from './lib/schema-check.js';
@@ -151,7 +152,7 @@ git.getBotLogin();
 
 // Saved settings (the developer teams) replace config.js's once loaded;
 // until then, and if the table can't be read, config.js's stand.
-loadSettings().catch(err => console.error('loading saved settings failed:', err));
+loadSettingsWithRetry();
 
 // Migrations run by hand, before a deploy (migrations/*.sql never run on
 // one). Say loudly at startup which are missing, since the board then
@@ -216,27 +217,17 @@ function syncAttachedIssues() {
 // next change (or bin/refresh-open-issues). After that, only what changed.
 // `since` backs off a few minutes so GitHub's clock can't skip an update.
 const TRACKED_ISSUES_DAYS = 7;
-const projectIssuesSyncedAt = new Map();
 function syncProjectIssues() {
    const projects = projectSettings();
    if (!projects) return;
    const startedAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
    const lookback = new Date(Date.now() - TRACKED_ISSUES_DAYS * 86400 * 1000).toISOString();
    const synced = issueRepos(projects).map(function (repo) {
-      const since = projectIssuesSyncedAt.get(repo) ?? (repo === projects.repo ? null : lookback);
-      return refresh
-         .issuesChangedSince(repo, since)
-         .then(function (report) {
-            // move the marker only past a clean run, so a failed issue is retried
-            if (!report.failedRepos.length && !report.failedItems.length) {
-               projectIssuesSyncedAt.set(repo, startedAt);
-            }
-            return report.refreshed > 0;
-         })
-         .catch(function (err) {
-            console.error('Project issue sync failed in %s: %s', repo, (err && err.message) || err);
-            return false;
-         });
+      const firstSince = repo === projects.repo ? null : lookback;
+      return syncRepoIssues(refresh, repo, firstSince, startedAt).catch(function (err) {
+         console.error('Project issue sync failed in %s: %s', repo, (err && err.message) || err);
+         return false;
+      });
    });
    // a project's name, target or state may have changed: open boards hear it
    // once, after every repo is read, and only when an issue changed (a word

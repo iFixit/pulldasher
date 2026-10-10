@@ -5,7 +5,7 @@ import bodyParser from 'body-parser';
 import config from '../lib/config-loader.js';
 import db from '../lib/db.js';
 import { projectSettings } from '../lib/projects.js';
-import { _resetSettings, loadSettings } from '../lib/settings.js';
+import { _resetSettings, loadSettings, loadSettingsWithRetry } from '../lib/settings.js';
 import pullManager from '../lib/pull-manager.js';
 import settingsController from '../controllers/settings.js';
 import { canWrite } from '../controllers/roadmap.js';
@@ -164,4 +164,30 @@ test('saving the teams tells open boards the new roster', async t => {
    assert.deepEqual(heard, [
       ['developerTeamsChanged', { developerTeams: { Store: ['alice', 'bo'] } }],
    ]);
+});
+
+test('a save waits for the first load, so config defaults never overwrite saved settings', async () => {
+   table.set('ongoing_projects', { name: 'ongoing_projects', value: '["keep"]' });
+   _resetSettings(false);
+   const refused = await patch({ ongoing_project: { slug: 'new', ongoing: true } });
+   assert.equal(refused.status, 503);
+   assert.match(refused.body.error, /still loading/);
+   assert.equal((await fetch(`${base}/settings`)).status, 200);
+   await loadSettings();
+   const saved = await patch({ ongoing_project: { slug: 'new', ongoing: true } });
+   assert.deepEqual(saved.body.ongoing_projects, ['keep', 'new']);
+});
+
+test('the startup load tries again until the table can be read', async () => {
+   _resetSettings(false);
+   let tries = 0;
+   const real = db.query;
+   mock.method(console, 'error', () => {});
+   mock.method(db, 'query', async (sql, params) => {
+      if (++tries < 3) throw new Error('down');
+      return fakeQuery(sql, params);
+   });
+   await loadSettingsWithRetry(1, 2);
+   assert.equal(tries, 3);
+   mock.method(db, 'query', real);
 });
