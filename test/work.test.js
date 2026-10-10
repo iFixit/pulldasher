@@ -856,3 +856,26 @@ test('a search GitHub rejects over one unreadable repo is asked again a repo at 
    );
    assert.ok(logged.mock.calls.some(c => String(c.arguments[1]).includes('repo:test/repo-b')));
 });
+
+test('a search that fails for another reason is the caller’s, asked once and not kept', async () => {
+   fresh();
+   searches = [];
+   let calls = 0;
+   mock.method(git, 'graphql', (query, variables) => {
+      if (variables?.q) {
+         calls++;
+         return Promise.reject(
+            Object.assign(new Error('rate limited'), {
+               data: { search: null },
+               errors: [{ message: 'API rate limit exceeded' }],
+            })
+         );
+      }
+      return fakeGraphql(query, variables);
+   });
+   await assert.rejects(() => searchIssues(settings, 'stickers limited'), /rate limit/);
+   const first = calls;
+   // not split into a search per repo, and nothing kept: a second try asks again
+   await assert.rejects(() => searchIssues(settings, 'stickers limited'), /rate limit/);
+   assert.equal(calls, first * 2);
+});
