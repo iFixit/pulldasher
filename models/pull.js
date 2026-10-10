@@ -5,6 +5,7 @@ import queue from '../lib/pull-queue.js';
 import debug from '../lib/debug.js';
 import DBPull from './db_pull.js';
 import getLogin from '../lib/get-user-login.js';
+import { recalledHints, rememberHints } from '../lib/input-hints.js';
 import { isBot } from '../lib/review-model.js';
 
 const log = debug('pulldasher:pull');
@@ -155,6 +156,7 @@ class Pull {
       var data = _.extend({}, this.data);
       data.status = this.getStatus();
       data.labels = this.labels.map(label => label.data);
+      delete data.input_hints_sha;
       data.review_requests = getReviewRequests(data.repo, data.number, data.requested_reviewers);
       return data;
    }
@@ -318,6 +320,14 @@ class Pull {
          },
          assignees: (data.assignees || []).map(a => getLogin(a)),
          requested_reviewers: (data.requested_reviewers || []).map(r => getLogin(r)),
+         requested_teams: (data.requested_teams || []).map(t => t.slug),
+         // parse() fills input_hints on a full refresh; a webhook's body
+         // can't, so reuse what was computed for this same head
+         input_hints:
+            data.input_hints ??
+            recalledHints(data.base.repo.full_name, data.number, data.head.sha) ??
+            undefined,
+         input_hints_sha: data.head.sha,
          additions: data.additions,
          deletions: data.deletions,
          changed_files: data.changed_files,
@@ -392,6 +402,10 @@ class Pull {
     * Pull object.
     */
    static getFromDB(data, signatures, comments, reviews, commitStatuses, labels) {
+      // seed what the stored hints were computed for (see lib/input-hints.js)
+      if (data.input_hints?.sha) {
+         rememberHints(data.repo, data.number, data.input_hints.sha, data.input_hints.hints);
+      }
       var pullData = {
          repo: data.repo,
          number: data.number,
@@ -439,6 +453,9 @@ class Pull {
          // mysql2 auto-parses the JSON column, so this is already an array (or null).
          assignees: data.assignees ?? [],
          requested_reviewers: data.requested_reviewers ?? [],
+         requested_teams: data.requested_teams ?? [],
+         input_hints: data.input_hints?.hints ?? [],
+         input_hints_sha: data.input_hints?.sha,
          cr_req: data.cr_req,
          qa_req: data.qa_req,
          // read back with cr_req, or the constructor skips the body parse
