@@ -244,6 +244,10 @@ function TeamsSection({
                   className="flex flex-col gap-2"
                   onSubmit={e => {
                      e.preventDefault();
+                     // Object.fromEntries would merge same-named rows before
+                     // the server's own check could see them
+                     const twice = listedTwice(draft ?? []);
+                     if (twice) return setError(`the team ${twice} is listed twice`);
                      void save(typed());
                   }}
                   onKeyDown={e => {
@@ -440,6 +444,19 @@ export function sortPeople(
  * the range (reviewing isn't being on a project), most first and then by
  * login, the order the Overview names them in too. Nobody when more than a
  * quarter would be: then the flag picks out no one. */
+/** The first team name typed on two rows, or null. Trimmed and case
+ * sensitive, as shared/model/settings.ts compares them. */
+export function listedTwice(rows: readonly (readonly [string, string])[]): string | null {
+   const seen = new Set<string>();
+   for (const [raw] of rows) {
+      const name = raw.trim();
+      if (!name) continue;
+      if (seen.has(name)) return name;
+      seen.add(name);
+   }
+   return null;
+}
+
 export function overloadedPeople(rows: readonly PersonRow[], line: number): PersonRow[] {
    const loaded = rows.flatMap(row =>
       row.load ? [{ row, login: row.login, wrote: row.load.wrote }] : []
