@@ -11,7 +11,7 @@ import {
    RefreshCw,
 } from 'lucide-react';
 import type { DerivedPull } from '../../../shared/model/status';
-import { isIterating, lastPushEpoch } from '../../../shared/model/status';
+import { CR_INCOMPLETE, isIterating, lastPushEpoch } from '../../../shared/model/status';
 import { askedAgo, askForInputHint, askOverdue, type Claim, rowNote } from '../model/actions';
 import { matchedRegions } from '../model/regions';
 import { claimFor } from '../model/reviewers';
@@ -183,7 +183,9 @@ function rowFlags(
    }
    // a review someone was asked for runs on hours, so its clock sits on the
    // row, amber once nobody has answered in ASK_OVERDUE_HOURS
-   if (p.askedOf.length && ['needs_cr', 'needs_recr', 'needs_qa'].includes(p.status)) {
+   // only while the review is still owed: once CR is met (the author's own
+   // stamp counts), nothing waits on the people asked
+   if (p.askedOf.length && CR_INCOMPLETE.includes(p.status)) {
       const team = (p.data.requested_teams ?? []).length ? ' (through a team request)' : '';
       flags.push({
          key: 'asked',

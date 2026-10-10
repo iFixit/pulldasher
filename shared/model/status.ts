@@ -95,6 +95,9 @@ export interface DerivedPull {
    /** epoch secs of the earliest open request in askedOf; null if none or
     * unknown. Requests are answered in hours, so this clock drives the nudge */
    askedAt: number | null;
+   /** when each login in askedOf was asked: their own request, else their
+    * team's; null when unknown. Optional so older fixtures still type */
+   askedAtBy?: Record<string, number | null>;
    starveScore: number;
    weight: Weight;
    /** mergeable === false: shows as a flag everywhere, gates "ready" */
@@ -473,6 +476,7 @@ export function derive(
       ownReview,
       askedOf,
       askedAt: Number.isFinite(askedAt) ? askedAt : null,
+      askedAtBy: Object.fromEntries(askedOf.map((l, i) => [l, askedTimes[i]])),
    };
 }
 

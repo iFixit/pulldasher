@@ -323,6 +323,21 @@ describe('waitingOnSomeone', () => {
          { repo: 'iFixit/ifixit', number: 3, title: 't', author: 'zed', days: 6 },
       ]);
    });
+
+   it("dates a team member's wait from their team's request, not the pull's oldest", () => {
+      // bob was asked by name 72h ago; gil only through a team, 1h ago
+      const pull = {
+         ...full({ n: 1, requests: [ask('bob', 72)], allCR: [] }),
+         askedOf: ['bob', 'gil'],
+         askedAt: ask('bob', 72).at,
+         askedAtBy: { bob: ask('bob', 72).at, gil: ask('gil', 1).at },
+      };
+      const w = waitingOnSomeone([pull], AT);
+      expect(w.requests.map(r => [r.login, r.hours])).toEqual([
+         ['bob', 72],
+         ['gil', 1],
+      ]);
+   });
 });
 
 function mergedPull(over: {

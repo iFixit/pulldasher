@@ -502,6 +502,7 @@ describe('the self-review policy', () => {
       );
       expect(d.askedOf).toEqual(['a', 'b']);
       expect(d.askedAt).toBe(NOW - 7200);
+      expect(d.askedAtBy).toEqual({ a: NOW - 7200, b: NOW - 7200 });
    });
 
    it('on a self-reviewed pull only the author owes a re-stamp', () => {

@@ -303,7 +303,11 @@ export function waitingOnSomeone(pulls: DerivedPull[], now: number): WaitingOnSo
       const open = !d.draft && CR_INCOMPLETE.includes(p.status);
       for (const login of open ? p.askedOf ?? [] : []) {
          const at =
-            (d.review_requests ?? []).find(r => !r.self && r.login === login)?.at ?? p.askedAt;
+            // their own request, else their team's (derive's askedAtBy); the
+            // pull's earliest only when neither is known
+            (d.review_requests ?? []).find(r => !r.self && r.login === login)?.at ??
+            p.askedAtBy?.[login] ??
+            p.askedAt;
          if (at == null || answersBy(d, login).some(t => t >= at)) continue;
          requests.push({ ...ref, login, hours: Math.max(0, (now - at) / 3600) });
       }
