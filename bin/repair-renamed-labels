@@ -68,7 +68,7 @@ try {
          let now = null;
          for (const number of nums.slice(0, SAMPLE)) {
             const data = await git.github.issues
-               .listLabelsOnIssue({ ...split(repo), number })
+               .listLabelsOnIssue({ ...split(repo), issue_number: number })
                .then(res => res.data)
                // deleted or moved away: it says nothing about the new name
                .catch(err => (err.status === 404 ? null : Promise.reject(err)));
