@@ -1,17 +1,24 @@
 #!/usr/bin/env node
 /**
- * Labels renamed on GitHub before Pulldasher handled the `label` webhook
- * left their old names on the PRs and issues it stores. This finds every
- * stored label its repo no longer has, reads each carrying PR's or issue's
- * labels off GitHub for the name it has now, and with --apply renames the
- * stored rows in place (a refresh would drop who added the label and when,
- * which the Projects tab sorts by), moving a renamed project's slug-kept
- * state too (lib/work.js renameProject). Run it with the instance's config:
+ * Labels renamed or deleted on GitHub before Pulldasher handled the `label`
+ * webhook left their old names on the PRs and issues it stores. This finds
+ * every stored label its repo no longer has and, with --apply, makes the
+ * stored labels match GitHub:
+ *
+ * - a label whose items now carry one new name (read off a few of them):
+ *   each item that carries the new name on GitHub has its row renamed in
+ *   place (a refresh would drop who added the label and when, which the
+ *   Projects tab sorts by), and a renamed project's slug-kept state moves
+ *   too (lib/work.js renameProject); an item without it loses the row
+ * - a label with no new name was deleted, and GitHub takes a deleted label
+ *   off every item, so its rows go
+ *
+ * Run it with the instance's config:
  *
  *   docker exec pulldasher bin/repair-renamed-labels [--apply]
  *
- * Without --apply it only lists. A label with no single new name (deleted,
- * or its items now disagree) is listed and left alone.
+ * Without --apply it only lists. GitHub calls are paced, since the board
+ * shares the token's hourly quota.
  */
 import config from '../lib/config-loader.js';
 import db from '../lib/db.js';
@@ -22,22 +29,43 @@ import { loadSettings } from '../lib/settings.js';
 import { renameProject } from '../lib/work.js';
 
 const apply = process.argv.includes('--apply');
-// items read off GitHub per stale label
+// items read off GitHub per stale label to find its new name
 const SAMPLE = 5;
+// at most 40 GitHub calls a minute, well under the 5000-an-hour quota
+const PACE_MS = 1500;
+// pull_labels.title's width: a longer label is stored cut to it
+const TITLE_MAX = 32;
 const split = repo => ({ owner: repo.split('/')[0], repo: repo.split('/')[1] });
 
+async function github(call) {
+   await new Promise(resolve => setTimeout(resolve, PACE_MS));
+   return call();
+}
+
 async function repoLabels(repo) {
-   const names = new Set();
+   const names = [];
    for (let page = 1; ; page++) {
-      const { data } = await git.github.issues.listLabelsForRepo({
-         ...split(repo),
-         per_page: 100,
-         page,
-      });
-      for (const l of data) names.add(l.name.toLowerCase());
+      const { data } = await github(() =>
+         git.github.issues.listLabelsForRepo({ ...split(repo), per_page: 100, page })
+      );
+      names.push(...data.map(l => l.name.toLowerCase()));
       if (data.length < 100) return names;
    }
 }
+
+/** An item's label names on GitHub, or null when it's deleted (410) or
+ * moved away (404). */
+function itemLabels(repo, number) {
+   return github(() =>
+      git.github.issues.listLabelsOnIssue({ ...split(repo), issue_number: number })
+   )
+      .then(res => res.data.map(l => l.name))
+      .catch(err => ([404, 410].includes(err.status) ? null : Promise.reject(err)));
+}
+
+const isLive = (live, title) =>
+   live.includes(title.toLowerCase()) ||
+   (title.length === TITLE_MAX && live.some(name => name.startsWith(title.toLowerCase())));
 
 try {
    await loadSettings();
@@ -46,7 +74,7 @@ try {
    const byRepo = new Map();
    for (const row of stored) byRepo.set(row.repo, [...(byRepo.get(row.repo) ?? []), row.title]);
 
-   let renames = [];
+   const stale = [];
    for (const [repo, titles] of byRepo) {
       let live;
       try {
@@ -55,73 +83,77 @@ try {
          console.log('%s: skipped, its labels can’t be read (%s)', repo, err.status ?? err.message);
          continue;
       }
-      for (const title of titles.filter(t => !live.has(t.toLowerCase()))) {
+      for (const title of titles.filter(t => !isLive(live, t))) {
          const nums = (
             await db.query(
                'SELECT `number` FROM `pull_labels` WHERE `repo` = ? AND `title` = ? ORDER BY `number` DESC',
                [repo, title]
             )
          ).map(r => r.number);
-         // the new name: on GitHub on every item checked, and stored on none
-         // of them; a few items say it, and an old label on thousands of
-         // merged PRs would spend the board's GitHub quota
-         let now = null;
+         // the new name: the one most of the items checked carry on GitHub
+         // without it stored (one already stored under it, or taken off
+         // since, votes for nothing); a tie is no name. --apply checks each
+         // item before renaming, so a wrong guess renames nothing
+         const votes = new Map();
          for (const number of nums.slice(0, SAMPLE)) {
-            const data = await git.github.issues
-               .listLabelsOnIssue({ ...split(repo), issue_number: number })
-               .then(res => res.data)
-               // deleted (410) or moved away (404): it says nothing about
-               // the new name
-               .catch(err => ([404, 410].includes(err.status) ? null : Promise.reject(err)));
-            if (!data) continue;
+            const names = await itemLabels(repo, number);
+            if (!names) continue;
             const mine = (await dbManager.getLabels(repo, number)).map(l => l.data.title);
-            const fresh = data.map(l => l.name).filter(name => !mine.includes(name));
-            now = now ? now.filter(name => fresh.includes(name)) : fresh;
+            for (const name of names.filter(n => !mine.includes(n)))
+               votes.set(name, (votes.get(name) ?? 0) + 1);
          }
-         const to = now?.length === 1 ? now[0] : null;
+         const [first, second] = [...votes].sort((a, b) => b[1] - a[1]);
+         const to =
+            first && (!second || first[1] > second[1]) && first[0].length <= TITLE_MAX
+               ? first[0]
+               : null;
          console.log(
-            '%s: "%s" on %s -> %s',
+            '%s: "%s" on %d -> %s',
             repo,
             title,
-            nums
-               .slice(0, SAMPLE)
-               .map(n => '#' + n)
-               .join(' ') + (nums.length > SAMPLE ? ` and ${nums.length - SAMPLE} more` : ''),
-            to ? `"${to}"` : `no single new name (${now?.join(', ') || 'none'}), left alone`
+            nums.length,
+            to ? `"${to}"` : 'deleted, its rows go'
          );
-         if (to) renames.push({ repo, from: title, to });
+         stale.push({ repo, from: title, to, nums });
       }
    }
 
-   // two old labels pointing at one new name: an item carrying both (FoF
-   // and squad-carpenter, now carpenter) can't say which was renamed
-   const key = r => `${r.repo}#${r.to.toLowerCase()}`;
-   const counts = new Map();
-   for (const r of renames) counts.set(key(r), (counts.get(key(r)) ?? 0) + 1);
-   for (const r of renames.filter(r => counts.get(key(r)) > 1)) {
-      console.log(
-         '%s: "%s" -> "%s" shares its new name with another, left alone',
-         r.repo,
-         r.from,
-         r.to
-      );
-   }
-   renames = renames.filter(r => counts.get(key(r)) === 1);
-
-   if (apply) {
-      for (const { repo, from, to } of renames) await dbManager.renameLabel(repo, from, to);
-      const slug = name =>
-         settings && name.startsWith(settings.prefix) ? name.slice(settings.prefix.length) : null;
-      const moves = new Map(
-         renames.filter(r => slug(r.from) && slug(r.to)).map(r => [slug(r.from), slug(r.to)])
-      );
+   if (!apply) {
+      console.log('Dry run: --apply fixes the %d labels above.', stale.length);
+   } else {
+      let renamed = 0;
+      let dropped = 0;
+      const moves = [];
+      for (const { repo, from, to, nums } of stale) {
+         for (const number of to ? nums : []) {
+            // only an item that carries the new name on GitHub takes it
+            if (!(await itemLabels(repo, number))?.includes(to)) continue;
+            // one already stored under the new name keeps that row
+            const [has] = await db.query(
+               'SELECT COUNT(*) AS `n` FROM `pull_labels` WHERE `repo` = ? AND `number` = ? AND `title` = ?',
+               [repo, number, to]
+            );
+            if (Number(has.n)) continue;
+            await db.query(
+               'UPDATE `pull_labels` SET `title` = ? WHERE `repo` = ? AND `number` = ? AND `title` = ?',
+               [to, repo, number, from]
+            );
+            renamed++;
+         }
+         const { affectedRows } = await db.query(
+            'DELETE FROM `pull_labels` WHERE `repo` = ? AND `title` = ?',
+            [repo, from]
+         );
+         dropped += affectedRows;
+         if (to && settings && from.startsWith(settings.prefix) && to.startsWith(settings.prefix)) {
+            moves.push([from.slice(settings.prefix.length), to.slice(settings.prefix.length)]);
+         }
+      }
       for (const [from, to] of moves) {
          const moved = await renameProject(settings, from, to);
          console.log('project %s -> %s: %s', from, to, moved ? 'moved' : 'old label still in use');
       }
-      console.log('Renamed %d stored labels.', renames.length);
-   } else if (renames.length) {
-      console.log('Dry run: --apply renames the %d above.', renames.length);
+      console.log('Renamed %d stored labels, dropped %d.', renamed, dropped);
    }
 } finally {
    db.end();
