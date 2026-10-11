@@ -25,7 +25,13 @@ function withTimeout(promise, ms) {
    return Promise.race([promise, late]).finally(() => clearTimeout(timer));
 }
 import { projectSettings } from '../lib/projects.js';
-import { forgetIssue, workIssueTouched, workPullTouched } from '../lib/work.js';
+import {
+   forgetIssue,
+   renameProject,
+   syncWork,
+   workIssueTouched,
+   workPullTouched,
+} from '../lib/work.js';
 
 const hooksDebug = debug('pulldasher:hooks');
 
@@ -255,6 +261,8 @@ const HooksController = {
             completed_at: body.check_run.completed_at,
          });
          dbUpdated = dbManager.updateCommitStatus(status);
+      } else if (event === 'label') {
+         dbUpdated = Promise.resolve(handleLabelRename(body));
       }
 
       if (dbUpdated) {
@@ -311,6 +319,36 @@ function handleIssueEvent(body) {
       // hook with a 200 since we know what needs to be done.
       refreshPullOrIssue(body);
    });
+}
+
+/**
+ * A repo's label renamed on GitHub (the `label` event, `edited` with
+ * `changes.name`). GitHub sends no labeled/unlabeled for the PRs and issues
+ * carrying it, so their stored labels take the new name here; a project
+ * label's rename moves the project too (renameProject).
+ */
+async function handleLabelRename(body) {
+   const from = body.changes?.name?.from;
+   if (body.action !== 'edited' || !from) return;
+   const repo = body.repository.full_name;
+   const to = body.label.name;
+   hooksDebug('Renamed label: %s -> %s in %s', from, to, repo);
+   const open = await dbManager.renameLabel(repo, from, to);
+   for (const number of open) queue.markPullAsDirty(repo, number);
+
+   const settings = projectSettings();
+   if (!settings) return;
+   const slugOf = name =>
+      name.startsWith(settings.prefix) ? name.slice(settings.prefix.length) : null;
+   const [was, now] = [slugOf(from), slugOf(to)];
+   if (was == null && now == null) return;
+   if (was != null && now != null) await renameProject(settings, was, now);
+   // the Projects tab reads labels and slugs: open boards fetch again once
+   // the work is read (app.js listens for the sync); not awaited, like a
+   // labeled issue's sync
+   syncWork(settings).catch(err =>
+      console.error('Work sync after a label rename failed: %s', (err && err.message) || err)
+   );
 }
 
 /**
