@@ -22,6 +22,8 @@ import { loadSettings } from '../lib/settings.js';
 import { renameProject } from '../lib/work.js';
 
 const apply = process.argv.includes('--apply');
+// items read off GitHub per stale label
+const SAMPLE = 5;
 const split = repo => ({ owner: repo.split('/')[0], repo: repo.split('/')[1] });
 
 async function repoLabels(repo) {
@@ -55,15 +57,16 @@ try {
       }
       for (const title of titles.filter(t => !live.has(t.toLowerCase()))) {
          const nums = (
-            await db.query('SELECT `number` FROM `pull_labels` WHERE `repo` = ? AND `title` = ?', [
-               repo,
-               title,
-            ])
+            await db.query(
+               'SELECT `number` FROM `pull_labels` WHERE `repo` = ? AND `title` = ? ORDER BY `number` DESC',
+               [repo, title]
+            )
          ).map(r => r.number);
-         // the new name: on GitHub on every item carrying the old one, and
-         // stored on none of them
+         // the new name: on GitHub on every item checked, and stored on none
+         // of them; a few items say it, and an old label on thousands of
+         // merged PRs would spend the board's GitHub quota
          let now = null;
-         for (const number of nums) {
+         for (const number of nums.slice(0, SAMPLE)) {
             const data = await git.github.issues
                .listLabelsOnIssue({ ...split(repo), number })
                .then(res => res.data)
@@ -79,7 +82,10 @@ try {
             '%s: "%s" on %s -> %s',
             repo,
             title,
-            nums.map(n => '#' + n).join(' '),
+            nums
+               .slice(0, SAMPLE)
+               .map(n => '#' + n)
+               .join(' ') + (nums.length > SAMPLE ? ` and ${nums.length - SAMPLE} more` : ''),
             to ? `"${to}"` : `no single new name (${now?.join(', ') || 'none'}), left alone`
          );
          if (to) renames.push({ repo, from: title, to });

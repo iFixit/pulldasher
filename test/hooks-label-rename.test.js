@@ -55,10 +55,15 @@ test('a renamed label moves to the new name on every row in the repo', async () 
    await send('label', renamed('P-strapi-shared-fields', 'P-strapi-cli'));
    config.projects = saved;
 
-   const update = queries.find(q => q.sql.startsWith('UPDATE IGNORE pull_labels'));
-   assert.deepEqual(update.params, ['P-strapi-cli', 'o/r', 'P-strapi-shared-fields']);
-   const cleanup = queries.find(q => q.sql.startsWith('DELETE FROM pull_labels'));
-   assert.deepEqual(cleanup.params, ['o/r', 'P-strapi-shared-fields']);
+   // a row already under the new name goes first, so the update can't collide
+   const writes = queries.filter(q => /^(DELETE|UPDATE)/.test(q.sql));
+   assert.deepEqual(
+      writes.map(q => [q.sql.split(' ')[0], q.params]),
+      [
+         ['DELETE', ['P-strapi-cli', 'o/r', 'P-strapi-shared-fields']],
+         ['UPDATE', ['P-strapi-cli', 'o/r', 'P-strapi-shared-fields']],
+      ]
+   );
    // the open PR the board shows is sent again
    assert.deepEqual(dirty, ['o/r#7']);
 });
@@ -69,8 +74,8 @@ test('a case-only rename keeps the renamed rows', async () => {
    const queries = fakeDb();
    await send('label', renamed('P-Docs', 'P-docs'));
    config.projects = saved;
-   assert.ok(queries.some(q => q.sql.startsWith('UPDATE IGNORE pull_labels')));
-   assert.ok(!queries.some(q => q.sql.startsWith('DELETE FROM pull_labels')));
+   assert.ok(queries.some(q => q.sql.startsWith('UPDATE pull_labels')));
+   assert.ok(!queries.some(q => q.sql.startsWith('DELETE')));
 });
 
 test('a label edit with no new name, a new label, or a deleted one changes nothing', async () => {
