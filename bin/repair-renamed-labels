@@ -46,7 +46,7 @@ try {
    const byRepo = new Map();
    for (const row of stored) byRepo.set(row.repo, [...(byRepo.get(row.repo) ?? []), row.title]);
 
-   const renames = [];
+   let renames = [];
    for (const [repo, titles] of byRepo) {
       let live;
       try {
@@ -70,8 +70,9 @@ try {
             const data = await git.github.issues
                .listLabelsOnIssue({ ...split(repo), issue_number: number })
                .then(res => res.data)
-               // deleted or moved away: it says nothing about the new name
-               .catch(err => (err.status === 404 ? null : Promise.reject(err)));
+               // deleted (410) or moved away (404): it says nothing about
+               // the new name
+               .catch(err => ([404, 410].includes(err.status) ? null : Promise.reject(err)));
             if (!data) continue;
             const mine = (await dbManager.getLabels(repo, number)).map(l => l.data.title);
             const fresh = data.map(l => l.name).filter(name => !mine.includes(name));
@@ -91,6 +92,21 @@ try {
          if (to) renames.push({ repo, from: title, to });
       }
    }
+
+   // two old labels pointing at one new name: an item carrying both (FoF
+   // and squad-carpenter, now carpenter) can't say which was renamed
+   const key = r => `${r.repo}#${r.to.toLowerCase()}`;
+   const counts = new Map();
+   for (const r of renames) counts.set(key(r), (counts.get(key(r)) ?? 0) + 1);
+   for (const r of renames.filter(r => counts.get(key(r)) > 1)) {
+      console.log(
+         '%s: "%s" -> "%s" shares its new name with another, left alone',
+         r.repo,
+         r.from,
+         r.to
+      );
+   }
+   renames = renames.filter(r => counts.get(key(r)) === 1);
 
    if (apply) {
       for (const { repo, from, to } of renames) await dbManager.renameLabel(repo, from, to);
