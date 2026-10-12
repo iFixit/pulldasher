@@ -6,6 +6,7 @@ import {
    useRef,
    useState,
 } from 'react';
+import { flushSync } from 'react-dom';
 import { Check } from 'lucide-react';
 import { epoch, issueUrl, n } from '../../../../shared/format';
 import {
@@ -928,6 +929,7 @@ function CallStrip({
 }) {
    const [more, setMore] = useState(false);
    const stripRef = useRef<HTMLDivElement>(null);
+   const moreRef = useRef<HTMLButtonElement>(null);
    const day = dayOf(new Date());
    const answer = answerOf(row, project, day);
    // ongoing answers new work, finished work that keeps going, and any plan
@@ -1032,6 +1034,7 @@ function CallStrip({
          >
             {button(first, answerWords(first.call, row.item))}
             <button
+               ref={moreRef}
                type="button"
                tabIndex={moreLeads ? 0 : -1}
                data-decide-focus={moreLeads || undefined}
@@ -1051,9 +1054,14 @@ function CallStrip({
          role="toolbar"
          aria-label={`Decisions for ${name}`}
          onKeyDown={e => {
-            if (e.key !== 'Escape' || !onCancel) return arrowsAmong(e);
+            if (e.key !== 'Escape' || (!onCancel && !more)) return arrowsAmong(e);
+            // the innermost thing closes: the answers Other answers opened,
+            // back to it, else the calls Change opened
             e.preventDefault();
-            onCancel();
+            e.stopPropagation();
+            if (onCancel) return onCancel();
+            flushSync(() => setMore(false));
+            moreRef.current?.focus();
          }}
          className="flex flex-col gap-2"
       >

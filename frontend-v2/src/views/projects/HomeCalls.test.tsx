@@ -1035,6 +1035,81 @@ describe('Undo on a row', () => {
    });
 });
 
+describe('the one chooser, wherever a project is filed', () => {
+   /** what its line holds, in order: its label, the select, its buttons */
+   const parts = (el: HTMLElement) => {
+      const line = el.querySelector('select')?.parentElement as HTMLElement;
+      return [...line.children].map(c =>
+         c.tagName === 'SELECT' ? 'select' : c.textContent === 'guessed' ? null : c.textContent
+      ).filter(Boolean);
+   };
+   const escape = (el: Element) =>
+      act(() => {
+         el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      });
+   const frame = () => act(() => new Promise(resolve => setTimeout(resolve, 40)));
+
+   it('reads "File in [ ] File" on Decide’s row and "File in [ ] File Cancel" where it opens', () => {
+      const unfiled = render({ slug: 'new-thing', item: null, reasons: [{ kind: 'unfiled' }] });
+      expect(parts(unfiled)).toEqual(['File in', 'select', 'FileSuggested']);
+      const grew = render({
+         slug: 'ops',
+         item: null,
+         reasons: [{ kind: 'untracked_grew', since: 31, baseline: 2 }],
+      });
+      click(grew, 'Track it');
+      expect(parts(grew)).toEqual(['File in', 'select', 'File', 'Cancel']);
+      const line = mount(<HomeLine slug="cache" initiatives={INITIATIVES} navigate={nothing} />);
+      click(line, 'File elsewhere');
+      expect(parts(line)).toEqual(['File in', 'select', 'File', 'Cancel']);
+   });
+
+   it('closes on Escape on a project’s line, the focus back on File elsewhere, and only it', async () => {
+      const outer = vi.fn();
+      const el = mount(
+         <div onKeyDown={outer}>
+            <HomeLine slug="cache" initiatives={INITIATIVES} navigate={nothing} />
+         </div>
+      );
+      click(el, 'File elsewhere');
+      escape(el.querySelector('select') as HTMLSelectElement);
+      await frame();
+      expect(el.querySelector('select')).toBeNull();
+      expect(document.activeElement?.textContent).toBe('File elsewhere');
+      // the plan details around it stay open
+      expect(outer).not.toHaveBeenCalled();
+   });
+
+   it('closes what Other answers opened on Escape, the focus back on it', () => {
+      const el = render({ slug: 'cache', item: null, reasons: [{ kind: 'stalled', days: 30 }] });
+      click(el, 'Other answers');
+      expect(el.textContent).toContain('Or instead');
+      escape(el.querySelector('[role="toolbar"] button:not(:disabled)') as HTMLButtonElement);
+      expect(el.textContent).not.toContain('Or instead');
+      expect(document.activeElement?.textContent).toBe('Other answers');
+   });
+
+   it('closes an initiative’s Edit on Escape, the focus back on Edit', async () => {
+      const el = mount(
+         <InitiativePage
+            slug="onboarding"
+            initiatives={INITIATIVES}
+            items={ITEMS}
+            plans={[]}
+            calls={[]}
+            nav={{} as ProjectsNav}
+            navigate={nothing}
+            onPerson={nothing}
+         />
+      );
+      click(el, 'Edit');
+      escape(el.querySelector('input') as HTMLInputElement);
+      await frame();
+      expect(el.querySelector('form')).toBeNull();
+      expect(document.activeElement?.textContent).toBe('Edit');
+   });
+});
+
 describe('a plan linked to a project', () => {
    const row: DecideRow = { slug: null, item: unlinked, reasons: [{ kind: 'no_project' }] };
    it('says where the link put it: in that project’s initiative, or Unsorted and asked', () => {

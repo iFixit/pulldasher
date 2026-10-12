@@ -420,6 +420,12 @@ export function InitiativePage({
 }) {
    const [editing, setEditing] = useState(false);
    const [receipt, setReceipt] = useState<MoveReceipt | null>(null);
+   const editId = useId();
+   // a save's receipt takes the focus from the form it closed
+   const savedRef = useRef<HTMLSpanElement>(null);
+   useEffect(() => {
+      if (receipt) savedRef.current?.focus();
+   }, [receipt]);
    const initiative = initiatives?.find(i => i.slug === slug);
    useEffect(() => {
       if (!initiative) return;
@@ -578,6 +584,7 @@ export function InitiativePage({
                      )}
                      {!editing && (
                         <QuietButton
+                           id={editId}
                            onClick={() => setEditing(true)}
                            aria-label={`Edit ${initiative.name}`}
                         >
@@ -596,6 +603,9 @@ export function InitiativePage({
                   onDone={r => {
                      setEditing(false);
                      setReceipt(r);
+                     // closed without a save (Escape, Cancel), or an Undo:
+                     // back to Edit
+                     if (!r) requestAnimationFrame(() => document.getElementById(editId)?.focus());
                   }}
                />
             )}
@@ -604,7 +614,9 @@ export function InitiativePage({
                   {!receipt.failed && (
                      <Icon icon={Check} size={14} className="inline-block align-[-2px]" />
                   )}
-                  {receipt.words}.
+                  <span ref={savedRef} tabIndex={-1} className="rounded">
+                     {receipt.words}.
+                  </span>
                   {receipt.undo ? (
                      <QuietButton onClick={receipt.undo}>Undo</QuietButton>
                   ) : (
