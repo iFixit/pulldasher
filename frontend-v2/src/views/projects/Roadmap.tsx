@@ -2380,6 +2380,15 @@ export function Roadmap({
          if (call.kind !== 'new') projectCalls.set(row.slug, call);
       }
    }
+   // a question about a project with a plan under way and no question of
+   // its own (Still not tracked?) is said on that plan's row, so every row
+   // Decide asks about shows on the timeline (DESIGN.md, amendment 1)
+   const asksProject = (item: RoadmapItem) =>
+      !!item.project && isUnderWay(item.status) && projectCalls.has(item.project);
+   for (const item of everyPlan ?? []) {
+      if (!planCalls.has(item.id) && asksProject(item))
+         planCalls.set(item.id, projectCalls.get(item.project as string) as PlanCall);
+   }
    const lanes = nav.group === 'team';
    const byInitiative = nav.group === 'initiative' && !!initiatives?.length;
    const homes = homesOf(initiatives ?? []);
@@ -2575,7 +2584,11 @@ export function Roadmap({
       const mine = callsHere.all.filter(r => r.item?.id === item.id);
       return (
          mine.find(r => r.reasons.length > 0) ??
-         mine[0] ?? { slug: item.project, item, reasons: [] }
+         mine[0] ??
+         // a question about its project, which its row says (Still not tracked?)
+         (asksProject(item)
+            ? callsHere.all.find(r => !r.item && r.slug === item.project)
+            : undefined) ?? { slug: item.project, item, reasons: [] }
       );
    };
    const say = (next: Receipt | null, words?: string) => {
@@ -3182,7 +3195,11 @@ export function Roadmap({
             gloss={`${NOT_TRACKED_GLOSS} They have no place in the order; the most recent PR first.`}
             load={null}
             lined={false}
-            defaultOpen={false}
+            // a ledger at rest, open while Decide asks about a row in it
+            defaultOpen={
+               notTrackedPlans.some(i => planCalls.has(i.id)) ||
+               notTrackedLoose.some(p => projectCalls.has(p.slug))
+            }
             // under the initiative lanes, its label starts where theirs do
             gutter={byInitiative ? <span aria-hidden className="block w-[17px]" /> : undefined}
          >

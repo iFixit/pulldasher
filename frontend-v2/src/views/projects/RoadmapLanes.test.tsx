@@ -297,6 +297,36 @@ describe('a row’s question or clash', () => {
    });
 });
 
+describe('the Not tracked lane', () => {
+   it('opens while Decide asks about a row in it, and says the question there', async () => {
+      const grew: DecideRow = {
+         slug: 'ops',
+         item: null,
+         reasons: [{ kind: 'untracked_grew', since: 31, baseline: 2 }],
+      };
+      const el = await mount({}, { decisions: [grew], goes: true });
+      const fold = el.querySelector(
+         '[data-lane-id="roadmap:not-tracked"] details'
+      ) as HTMLDetailsElement;
+      expect(fold.open).toBe(true);
+      const words = el.querySelector<HTMLButtonElement>('#roadmap-words-5') as HTMLButtonElement;
+      expect(words.textContent).toContain('Still not tracked?');
+      // its details answer it
+      act(() => words.click());
+      await settle();
+      const details = el.querySelector('[aria-label="Runbooks: its plan"]') as HTMLElement;
+      expect(details.textContent).toContain('Keep not tracked');
+   });
+
+   it('rests closed when nothing in it is asked about', async () => {
+      const el = await mount();
+      const fold = el.querySelector(
+         '[data-lane-id="roadmap:not-tracked"] details'
+      ) as HTMLDetailsElement;
+      expect(fold.open).toBe(false);
+   });
+});
+
 describe('File elsewhere in a plan’s details', () => {
    it('leaves a receipt with Undo under the row in its new lane, the focus on its words', async () => {
       const el = await mount({ item: 2 });
