@@ -96,10 +96,14 @@ test('a project moves once no repo has a PR or issue under its old label', async
    assert.equal(await renameProject(settings, 'audit', 'remediation'), true);
    const sql = queries.map(q => [q.sql.split(' ').slice(0, 3).join(' '), q.params]);
    assert.deepEqual(
-      sql.filter(([s]) => s.startsWith('UPDATE')),
+      sql.filter(([s]) => /^(UPDATE|DELETE)/.test(s)),
       [
          ['UPDATE IGNORE `project_issues`', ['remediation', 'audit']],
          ['UPDATE `roadmap_items` SET', ['remediation', 'audit']],
+         // its initiative filing moves with the plan; the old row goes when
+         // the new slug was filed already (its home wins)
+         ['UPDATE IGNORE `initiative_projects`', ['remediation', 'audit']],
+         ['DELETE FROM `initiative_projects`', ['audit']],
       ]
    );
    const ongoing = queries.find(q => q.sql.startsWith('REPLACE INTO `project_settings`'));
@@ -112,9 +116,17 @@ test('a project another repo still labels the old way stays put', async () => {
    assert.equal(queries.length, 1);
 });
 
-test('a roadmap item already tracking the new slug keeps it', async () => {
+test('a roadmap item already tracking the new slug keeps it, and the old plan its home', async () => {
    const queries = fakeDb({ '`roadmap_items` WHERE': [{ n: 1 }] });
    await renameProject(settings, 'audit', 'remediation');
    assert.ok(!queries.some(q => q.sql.startsWith('UPDATE `roadmap_items`')));
    assert.ok(queries.some(q => q.sql.startsWith('UPDATE IGNORE `project_issues`')));
+   // the plan left on the old slug keeps its filing; the new slug keeps its own
+   assert.ok(!queries.some(q => q.sql.includes('`initiative_projects`')));
+});
+
+test('a project another repo still labels the old way keeps its filing too', async () => {
+   const queries = fakeDb({ '`pull_labels`': [{ n: 2 }] });
+   await renameProject(settings, 'audit', 'remediation');
+   assert.ok(!queries.some(q => q.sql.includes('`initiative_projects`')));
 });
