@@ -125,6 +125,25 @@ describe('the press guard', () => {
       expect(outsideHits).toBe(2);
    });
 
+   it('lets code’s own click (opening a "+ N more") start nothing and end nothing', () => {
+      // outside tests, only a person's press counts: jsdom makes no trusted ones
+      vi.stubEnv('MODE', 'production');
+      try {
+         const { first, other, hits } = region();
+         guardAt(100, 100);
+         const gone = vi.fn();
+         onLeave(gone);
+         first.click();
+         expect(hits.first).toBe(1);
+         expect(gone).not.toHaveBeenCalled();
+         const down = new MouseEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 100, clientY: 100 });
+         other.dispatchEvent(down);
+         expect(down.defaultPrevented).toBe(true);
+      } finally {
+         vi.unstubAllEnvs();
+      }
+   });
+
    it('holds at a drop’s point', () => {
       const { other, hits } = region();
       guardAt(50, 60);

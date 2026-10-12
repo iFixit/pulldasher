@@ -79,6 +79,11 @@ export function clearHolds(): void {
    hold = null;
 }
 
+/** A press a person made: code's own `.click()` (opening a "+ N more"
+ * on the way to a row) is no action and starts no hold. jsdom makes no
+ * trusted events, so tests count every one. */
+const real = (e: Event) => e.isTrusted || import.meta.env.MODE === 'test';
+
 if (typeof window !== 'undefined') {
    const eat = (e: Event) => {
       e.preventDefault();
@@ -94,6 +99,7 @@ if (typeof window !== 'undefined') {
    addEventListener(
       'click',
       e => {
+         if (!real(e)) return;
          // a key's click (detail 0) is never a stray press
          if (e.detail > 0 && guarding(e)) return eat(e);
          const control = (e.target as Element | null)?.closest?.(CONTROL);
