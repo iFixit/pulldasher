@@ -135,6 +135,8 @@ import {
    NO_PROJECT_LANE,
    ReceiptLine,
    TimelineLane,
+   type LaneRun,
+   type PlanRun,
    type Receipt,
    type Standing,
 } from './RoadmapLanes';
@@ -2235,12 +2237,12 @@ export function Roadmap({
    const [saving, setSaving] = useState<ReadonlySet<string>>(new Set());
    // a run of moves on one plan (arrow presses, or drag after drag) undoes
    // to where the run began; `was` is the plan as the run found it
-   const run = useRef<{
-      key: string;
-      from: Span | number[];
-      team: string | null;
-      was: RoadmapItem;
-   } | null>(null);
+   const run = useRef<PlanRun | LaneRun | null>(null);
+   /** the run of moves on this plan, when the last move was one */
+   const planRun = (key: string) => {
+      const r = run.current;
+      return r?.key === key && 'from' in r ? r : null;
+   };
    // the controls to give the focus to after the next render, the first found
    const refocus = useRef<string[] | null>(null);
    const stickyRef = useRef<HTMLDivElement>(null);
@@ -2576,16 +2578,14 @@ export function Roadmap({
    };
    const moved = (item: RoadmapItem, to: Span) => {
       const key = `plan:${item.id}`;
-      if (run.current?.key !== key || Array.isArray(run.current.from)) {
-         run.current = {
-            key,
-            from: { start: item.start, weeks: item.weeks },
-            team: item.team,
-            was: item,
-         };
-      }
-      const { was } = run.current;
-      const from = run.current.from as Span;
+      const going = planRun(key);
+      const start: PlanRun =
+         going && !Array.isArray(going.from)
+            ? going
+            : { key, from: { start: item.start, weeks: item.weeks }, team: item.team, was: item };
+      run.current = start;
+      const { was } = start;
+      const from = start.from as Span;
       void updateRoadmapItem(item.id, to).then(ok => {
          if (!ok) return fail(key);
          const words = moveWords(item.name, from, to);
@@ -2631,10 +2631,14 @@ export function Roadmap({
       shown?: readonly number[]
    ) => {
       const key = `plan:${item.id}`;
-      if (run.current?.key !== key || !Array.isArray(run.current.from)) {
-         run.current = { key, from: ids, team: item.team, was: item };
-      }
-      const { from, team: fromTeam } = run.current as { from: number[]; team: string | null };
+      const going = planRun(key);
+      const start: PlanRun =
+         going && Array.isArray(going.from)
+            ? going
+            : { key, from: ids, team: item.team, was: item };
+      run.current = start;
+      const { team: fromTeam } = start;
+      const from = start.from as number[];
       void Promise.all([
          reorderRoadmap(next),
          team === undefined ? true : updateRoadmapItem(item.id, { team }),

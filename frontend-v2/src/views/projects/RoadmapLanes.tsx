@@ -39,10 +39,19 @@ function hashWith(patch: Record<string, string | null>): string {
 
 /** A run of rank moves on one lane: the initiative it sat above and its
  * priority when the run began, which Undo puts back. */
-interface LaneRun {
+export interface LaneRun {
    key: string;
    was: number | null;
    wasAt: number;
+}
+
+/** A run of moves on one plan (arrow presses, or drag after drag): where
+ * it was (its span, or the whole order) and the plan as the run found it. */
+export interface PlanRun {
+   key: string;
+   from: { start: string; weeks: number } | number[];
+   team: string | null;
+   was: RoadmapItem;
 }
 
 /**
@@ -219,7 +228,9 @@ export interface LaneContext {
    q: string;
    receipt: Receipt | null;
    refocus: MutableRefObject<string[] | null>;
-   run: MutableRefObject<unknown>;
+   /** the run of moves Undo goes back to the start of: a plan's or a
+    * lane's, told apart by key ("plan:" or "initiative:") */
+   run: MutableRefObject<PlanRun | LaneRun | null>;
    say: (next: Receipt | null, words?: string) => void;
    /** an Undo's words, held in its receipt's place with nothing to click */
    said: (key: string, words: string, held?: number) => void;
@@ -340,9 +351,11 @@ export function initiativeLanes(c: LaneContext) {
       const above = all[all.findIndex(i => i.id === moving.id) + 1]?.id ?? null;
       if (above === before) return;
       const key = `initiative:${moving.id}`;
-      const going = run.current as LaneRun | null;
+      const going = run.current;
       const start: LaneRun =
-         going?.key === key ? going : { key, was: above, wasAt: rankOf(moving) };
+         going?.key === key && 'wasAt' in going
+            ? going
+            : { key, was: above, wasAt: rankOf(moving) };
       const { was, wasAt } = start;
       run.current = start;
       refocus.current = [`roadmap-lane-grip-${moving.id}`];
