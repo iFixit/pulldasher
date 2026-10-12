@@ -294,6 +294,42 @@ CREATE TABLE IF NOT EXISTS `project_settings` (
   PRIMARY KEY (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
+--
+-- Table structure for tables `initiatives` and `initiative_projects` (the
+-- layer above projects: each initiative's name, goal, owner and rank, and
+-- each project's one home in them; lib/initiatives.js keeps them)
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE IF NOT EXISTS `initiatives` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `slug` varchar(64) COLLATE utf8mb4_general_ci NOT NULL,
+  `name` varchar(120) COLLATE utf8mb4_general_ci NOT NULL,
+  `kind` enum('initiative','upkeep','untracked') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'initiative',
+  `goal` varchar(255) COLLATE utf8mb4_general_ci NOT NULL DEFAULT '',
+  `owner_login` varchar(39) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `priority` int NOT NULL DEFAULT '0',
+  `status` enum('open','done','dropped') COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'open',
+  `status_at` int unsigned DEFAULT NULL,
+  `created_by` varchar(39) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `created_at` int unsigned DEFAULT NULL,
+  `updated_by` varchar(39) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `updated_at` int unsigned DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `initiatives_slug` (`slug`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `initiative_projects` (
+  `project` varchar(64) COLLATE utf8mb4_general_ci NOT NULL,
+  `initiative_id` int unsigned NOT NULL,
+  `set_by` varchar(39) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `set_at` int unsigned NOT NULL,
+  `baseline_prs` int unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`project`),
+  KEY `initiative_projects_initiative` (`initiative_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 /*!50112 SET @disable_bulk_load = IF (@is_rocksdb_supported, 'SET SESSION rocksdb_bulk_load = @old_rocksdb_bulk_load', 'SET @dummy_rocksdb_bulk_load = 0') */;
 /*!50112 PREPARE s FROM @disable_bulk_load */;
 /*!50112 EXECUTE s */;

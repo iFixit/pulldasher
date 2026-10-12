@@ -128,3 +128,9 @@ test('names the roadmap and settings tables a database from before them lacks, i
    ]);
    mock.restoreAll();
 });
+
+test('names the initiatives file until both its tables are in', async () => {
+   mock.method(db, 'query', async () => all.filter(r => r.t !== 'initiative_projects'));
+   assert.deepEqual(await missingMigrations(), ['0039-initiatives--add-tables.sql']);
+   mock.restoreAll();
+});
