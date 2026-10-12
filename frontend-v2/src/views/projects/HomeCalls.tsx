@@ -208,7 +208,11 @@ export function HomeChooser({
             below ? 'mt-2' : file ? '' : 'mb-2'
          }`}
       >
-         <label htmlFor={id}>{FILE_IN}</label>
+         {/* on a phone the label goes above, as every chooser's and answer
+             row's does, so File in and Its project line up */}
+         <label htmlFor={id} className="w-full sm:w-auto">
+            {FILE_IN}
+         </label>
          <select
             id={id}
             autoFocus={autoFocus}
@@ -294,7 +298,9 @@ function ProjectChooser({
    const chosen = items.find(i => i.slug === value);
    return (
       <span className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-ink-3">
-         <label htmlFor={id}>Its project</label>
+         <label htmlFor={id} className="w-full sm:w-auto">
+            Its project
+         </label>
          <select
             id={id}
             aria-label={`Its project: ${name}`}
