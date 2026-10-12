@@ -232,8 +232,8 @@ describe('a row that asks about an initiative', () => {
          item: null,
          reasons: [{ kind: 'reopened_in_closed', initiative: 3, as: 'done' }],
       });
-      expect(buttons(el)).toEqual(['Reopen CatalogSuggested', 'Move the project']);
-      click(el, 'Move the project');
+      expect(buttons(el)).toEqual(['Reopen CatalogSuggested', 'File elsewhere']);
+      click(el, 'File elsewhere');
       // the chooser leaves out the closed home and Not tracked
       const options = [...el.querySelectorAll('option')].map(o => o.textContent);
       expect(options).not.toContain('Catalog');
@@ -298,10 +298,11 @@ describe('the Initiative chooser on a row Decide asks to plan', () => {
    const select = (el: HTMLElement) =>
       el.querySelector<HTMLSelectElement>('select[aria-label^="File it in"]');
 
-   it('starts on the home a filed project has, so taking the answer blind moves nothing', async () => {
+   it('isn’t shown for a filed project, so its answer stays a plan answer and moves nothing', async () => {
       const el = render(fresh('filed'));
-      expect(select(el)?.value).toBe('site-speed');
-      expect(el.textContent).not.toContain('guessed');
+      // filed in Site speed already: nothing asks to file it
+      expect(select(el)).toBeNull();
+      expect(el.textContent).not.toContain('File it in');
       click(el, 'Promise to finish by');
       await settle();
       expect(calls.some(c => c.path === '/initiatives/file')).toBe(false);
@@ -550,7 +551,7 @@ describe('a project whose closed initiative and done plan are both asked about',
 
    it('asks about the initiative first, on the one row', () => {
       const el = render(both);
-      expect(buttons(el)).toEqual(['Reopen CatalogSuggested', 'Move the project']);
+      expect(buttons(el)).toEqual(['Reopen CatalogSuggested', 'File elsewhere']);
    });
 
    it('keeps the reopen’s receipt here, and the plan question owed everywhere else', () => {
@@ -741,6 +742,78 @@ describe('a row asking whether an initiative reached its goal', () => {
          />
       );
       expect(el.textContent).toContain('Goal: New customers get a welcome series');
+   });
+});
+
+describe('a pick left in a chooser that closed', () => {
+   const closedHome: DecideRow = {
+      slug: 'akeneo',
+      item: null,
+      reasons: [{ kind: 'reopened_in_closed', initiative: 3, as: 'done' }],
+   };
+   const plan: DecideRow = {
+      slug: 'akeneo',
+      item: { ...created, id: 8, project: 'akeneo', status: 'done', status_at: 10 },
+      reasons: [{ kind: 'reopened', open: 3, late: 0, as: 'done', by: 'roadmap' }],
+   };
+   const pick = (el: HTMLElement, slug: string) =>
+      act(() => {
+         const select = el.querySelector('select') as HTMLSelectElement;
+         select.value = slug;
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+   it('files nothing with the next answer', async () => {
+      // pick FixBot chat in File elsewhere, then close it without filing
+      const first = render(closedHome);
+      click(first, 'File elsewhere');
+      pick(first, 'fixbot');
+      click(first, 'File elsewhere');
+      // the row that asks about its plan shows no chooser: its answer files nothing
+      const el = render(plan);
+      expect(el.querySelector('select')).toBeNull();
+      click(el, 'Keep it done');
+      await settle();
+      expect(calls.some(c => c.path === '/initiatives/file')).toBe(false);
+   });
+
+   it('closes on Escape, forgets its pick, and gives the focus back', async () => {
+      const el = render(closedHome);
+      click(el, 'File elsewhere');
+      pick(el, 'fixbot');
+      const opener = [...el.querySelectorAll('button')].find(
+         b => b.textContent === 'File elsewhere'
+      ) as HTMLButtonElement;
+      act(() => {
+         (el.querySelector('select') as HTMLSelectElement).dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+         );
+      });
+      expect(el.querySelector('select')).toBeNull();
+      expect(opener.getAttribute('aria-expanded')).toBe('false');
+      expect(document.activeElement).toBe(opener);
+      // opened again, it starts on the guess, not the abandoned pick
+      click(el, 'File elsewhere');
+      expect((el.querySelector('select') as HTMLSelectElement).value).not.toBe('fixbot');
+   });
+
+   it('is forgotten once a filing saves', async () => {
+      const grew: DecideRow = {
+         slug: 'ops',
+         item: null,
+         reasons: [{ kind: 'untracked_grew', since: 31, baseline: 2 }],
+      };
+      const el = render(grew);
+      click(el, 'Track it');
+      pick(el, 'fixbot');
+      click(el, 'File in FixBot chat');
+      await settle();
+      click(el, 'Undo');
+      await settle();
+      calls.length = 0;
+      // the row asks again, from a fresh chooser: nothing carries the old pick
+      click(el, 'Track it');
+      expect((el.querySelector('select') as HTMLSelectElement).value).not.toBe('fixbot');
    });
 });
 

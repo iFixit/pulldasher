@@ -5,7 +5,7 @@
  * (model/decideCalls.ts) and never Decide.tsx, so Decide imports it without
  * a cycle.
  */
-import { useContext, useId, useState, type ReactNode } from 'react';
+import { useContext, useId, useRef, useState, type ReactNode } from 'react';
 import { createMemoryStore } from '../../storage';
 import type { PortfolioItem } from '../../model/portfolio';
 import type { DecideRow } from '../../../../shared/model/decide';
@@ -56,6 +56,15 @@ function setHomePick(slug: string, to: string): void {
    homePicks.set({ picks: new Map(homePicks.get().picks).set(slug, to) });
 }
 
+/** Forget a project's pick: its filing saved, or its chooser closed
+ * without one, so no later answer carries it. */
+export function forgetHomePick(slug: string): void {
+   if (!homePicks.get().picks.has(slug)) return;
+   const picks = new Map(homePicks.get().picks);
+   picks.delete(slug);
+   homePicks.set({ picks });
+}
+
 /** Forget every pick (tests start clean). */
 export function clearHomePicks(): void {
    homePicks.set({ picks: new Map() });
@@ -72,7 +81,7 @@ function homeChoice(
 ) {
    const asks = row.reasons.some(r => r.kind === 'new' || r.kind === 'unfiled');
    const current = row.slug ? homesOf(list).get(row.slug)?.initiative ?? null : null;
-   // `away`: moving it out of the home it has (Track it, Move the project),
+   // `away`: moving it out of the home it has (Track it, File elsewhere),
    // so it starts on the guess; guessed only where a chooser can show it
    const guess =
       (asks || away) && (!current || away) && row.slug && list.length
@@ -81,19 +90,25 @@ function homeChoice(
    const choices = homeChoices(list);
    const chosen = pick ?? (away ? guess?.slug : current?.slug ?? guess?.slug) ?? '';
    const to = choices.find(i => i.slug === chosen);
+   // only while it's filed nowhere: a filed project's plan answer stays a
+   // plan answer, and isn't asked to be filed where it already is
+   const shown = asks && !current && !!row.slug && choices.length > 0;
    return {
-      shown: asks && !!row.slug && choices.length > 0,
+      shown,
       choices,
       chosen,
       current,
       picked: pick != null,
       guessed: pick == null && (!current || away) && !!guess && chosen === guess.slug,
+      // a filing rides along only with the chooser that shows it (one
+      // filed nowhere), so a pick left in a closed one never moves the
+      // project
       filed:
-         to && to.slug !== current?.slug
+         shown && to
             ? ({
                  to: to.slug,
                  name: to.name,
-                 from: current?.slug ?? null,
+                 from: null,
                  untracked: to.kind === 'untracked',
               } as Filed)
             : undefined,
@@ -128,18 +143,21 @@ export function HomeChooser({
    autoFocus = false,
    below = false,
    children,
+   onClose,
 }: {
    name: string;
    chooser: Pick<
       ReturnType<typeof useHomeChooser>,
       'chosen' | 'choices' | 'guessed' | 'setPick' | 'current'
    >;
-   /** opened by a click (Track it, Move the project): the focus moves here */
+   /** opened by a click (Track it, File elsewhere): the focus moves here */
    autoFocus?: boolean;
    /** under the answers that opened it, rather than above the ones it feeds */
    below?: boolean;
    /** the answer it feeds, on its own line (File it) */
    children?: ReactNode;
+   /** Escape closes it (one opened by a click) */
+   onClose?: () => void;
 }) {
    const id = useId();
    // where it is now, so the guess's hover never says Unsorted of a project
@@ -151,6 +169,12 @@ export function HomeChooser({
       : `It’s in ${chooser.current.name} now`;
    return (
       <div
+         onKeyDown={e => {
+            if (e.key !== 'Escape' || !onClose) return;
+            e.preventDefault();
+            e.stopPropagation();
+            onClose();
+         }}
          className={`flex flex-wrap items-center gap-2 text-xs text-ink-3 ${below ? 'mt-2' : 'mb-2'}`}
       >
          <label htmlFor={id} className="w-full sm:w-32 sm:shrink-0">
@@ -227,8 +251,8 @@ function ProjectChooser({
  * Unsorted: File in the chooser's pick. No project yet: Link to the chosen
  * project. Not tracked, but growing: Keep not tracked, or Track it, which
  * opens the chooser. Goal maybe reached: Close as done, or Close as dropped
- * or Keep open. Its initiative closed: Reopen it, or move the project with
- * the chooser. An answer that waits on an empty chooser is outlined and
+ * or Keep open. Its initiative closed: Reopen it, or File elsewhere
+ * with the chooser. An answer that waits on an empty chooser is outlined and
  * off, and only an answer the board picked says Suggested.
  */
 export function HomeStrip({
@@ -244,6 +268,7 @@ export function HomeStrip({
 }) {
    const [more, setMore] = useState(false);
    const [project, setProject] = useState('');
+   const opener = useRef<HTMLButtonElement>(null);
    const items = useContext(AllItemsContext);
    const primary = primaryOf(row);
    const chooser = useHomeChooser(row, { away: primary.kind !== 'unfiled' });
@@ -302,9 +327,18 @@ export function HomeStrip({
       primary.kind === 'untracked_grew'
          ? 'Track it'
          : primary.kind === 'reopened_in_closed'
-         ? 'Move the project'
+         ? 'File elsewhere'
          : 'Other answers';
-   // Track it and Move the project open the chooser under the answers, with
+   // closed without filing: its pick goes, so no later answer carries it
+   const toggle = () => {
+      if (more && row.slug) forgetHomePick(row.slug);
+      setMore(m => !m);
+   };
+   const close = () => {
+      toggle();
+      opener.current?.focus();
+   };
+   // Track it and File elsewhere open the chooser under the answers, with
    // its own File button and the focus: the button clicked stays where it
    // was, and nothing that files sits under the pointer. It starts on a
    // guess, never on the home being left
@@ -357,11 +391,12 @@ export function HomeStrip({
             {options.map(button)}
             {primary.kind !== 'unfiled' && primary.kind !== 'no_project' && (
                <button
+                  ref={opener}
                   type="button"
                   tabIndex={-1}
                   aria-expanded={more}
                   aria-label={`${moreWords}: ${name}`}
-                  onClick={() => setMore(m => !m)}
+                  onClick={toggle}
                   className={`hit pressable inline-flex h-8 items-center rounded-lg border px-3 text-[13px] font-medium hover:border-brand hover:text-brand ${
                      more ? 'border-brand bg-muted text-ink' : 'border-line bg-surface text-ink-2'
                   }`}
@@ -376,6 +411,7 @@ export function HomeStrip({
                name={name}
                below
                autoFocus
+               onClose={close}
                chooser={{ ...chooser, choices: pickable, chosen: chosen?.slug ?? '' }}
             >
                <button

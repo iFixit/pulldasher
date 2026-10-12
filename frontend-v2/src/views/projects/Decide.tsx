@@ -133,6 +133,7 @@ import {
    type HomeCall,
 } from '../../model/decideCalls';
 import {
+   forgetHomePick,
    HomeChooser,
    HomeStrip,
    InitiativeSwitch,
@@ -460,6 +461,8 @@ function makeCall(
       batch: !!batch,
       filed,
    });
+   // the pick is in the call now: no later answer carries it
+   if (row.slug) forgetHomePick(row.slug);
    return afterRow(
       key,
       async () => {
