@@ -121,7 +121,8 @@ function Card({
 /**
  * The roadmap without dates, for readers who want the order and not the
  * weeks: what's happening now, what's next, and what's later, each in
- * priority order and each split by team when the roadmap is. Opening an item
+ * priority order and each split by team or initiative when the roadmap
+ * is. Opening an item
  * switches to the timeline with it open, since that's where its plan
  * changes.
  */
@@ -129,7 +130,8 @@ export function NowNextLater({
    items,
    all,
    bySlug,
-   laneTitles,
+   lanes,
+   laneOf = item => item.team,
    today,
    calls,
    unplanned,
@@ -142,8 +144,11 @@ export function NowNextLater({
    /** every plan, for what one waits on */
    all: RoadmapItem[];
    bySlug: Map<string, PortfolioItem>;
-   /** team names when the roadmap is split into team lanes, else null */
-   laneTitles: string[] | null;
+   /** the lanes when the roadmap is split (teams, or initiatives in rank),
+    * each by its key and title, the no-value lane last; null when not */
+   lanes: { key: string | null; title: string }[] | null;
+   /** which lane's key a plan is in */
+   laneOf?: (item: RoadmapItem) => string | null;
    today: string;
    /** the calls Decide asks, by plan */
    calls: ReadonlyMap<number, PlanCall>;
@@ -176,23 +181,26 @@ export function NowNextLater({
          <div className="grid gap-x-4 gap-y-6 sm:grid-cols-3">
             {BUCKETS.map(([bucket, title, sub]) => {
                const list = items.filter(i => bucketOf(i, today) === bucket);
-               const lanes =
-                  laneTitles &&
-                  [...laneTitles, null]
-                     .map(team => ({ team, list: list.filter(i => (i.team ?? null) === team) }))
+               const split =
+                  lanes &&
+                  lanes
+                     .map(lane => ({
+                        ...lane,
+                        list: list.filter(i => (laneOf(i) ?? null) === lane.key),
+                     }))
                      .filter(lane => lane.list.length);
                return (
                   <section key={bucket} className="min-w-0">
                      <GroupHeader title={title} sub={sub} count={list.length} level={3} compact />
                      {list.length ? (
                         <Rows>
-                           {lanes
-                              ? lanes.map(lane => (
+                           {split
+                              ? split.map(lane => (
                                    <Fold
-                                      key={lane.team ?? '(none)'}
-                                      id={`roadmap:nnl:${bucket}:${lane.team ?? '(none)'}`}
+                                      key={lane.key ?? '(none)'}
+                                      id={`roadmap:nnl:${bucket}:${lane.key ?? '(none)'}`}
                                       defaultOpen
-                                      label={lane.team ?? 'No team'}
+                                      label={lane.title}
                                       count={lane.list.length}
                                    >
                                       {cards(lane.list)}

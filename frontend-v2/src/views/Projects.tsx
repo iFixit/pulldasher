@@ -15,18 +15,23 @@ import {
    refreshProjectsData,
    resolveRange,
    teamLookup,
+   trackedData,
+   untrackedSlugs,
    useProjectsData,
    type Range,
 } from '../model/projectData';
 import { useWorkData, workVersion } from '../model/workData';
 import { portfolioItems } from '../model/portfolio';
-import { loadRoadmap, useRoadmap } from '../model/roadmapData';
+import { loadRoadmap, trackedPlans, useRoadmap } from '../model/roadmapData';
+import { loadInitiatives, useInitiatives } from '../model/initiativesData';
+import { grownProjects, trackedToday } from '../model/initiativeBoard';
 import { ONE_OFFS } from '../model/words';
 
 /** how long a burst of changes on the server settles before one refetch */
 const CHANGE_SETTLE_MS = 2000;
 import { DateRangePicker } from './projects/DateRangePicker';
-import { Decide, decideRows, useKeptCalls } from './projects/Decide';
+import { AllItemsContext, Decide, decideRows, useKeptCalls } from './projects/Decide';
+import { InitiativePage } from './projects/Initiatives';
 import { Overview } from './projects/Overview';
 import { People } from './projects/People';
 import { ProjectPage } from './projects/ProjectPage';
@@ -94,6 +99,7 @@ export function Projects({
             refreshProjectsData();
             workVersion.set({ n: workVersion.get().n + 1 });
             void loadRoadmap();
+            void loadInitiatives();
          }, CHANGE_SETTLE_MS);
       });
       return () => {
@@ -108,52 +114,73 @@ export function Projects({
    );
    const rangeKey = resolveRange(nav.range) ? nav.range : DEFAULT_RANGE;
    const range = resolveRange(rangeKey) as Range;
-   const data = useProjectsData(prefix ? range : null);
+   // the full set, Not tracked projects too: only the readers that name it
+   // (a person's own list, one project, history) see it; every list, count
+   // and question reads the tracked set below
+   const fullData = useProjectsData(prefix ? range : null, null, { all: true });
+   const { initiatives } = useInitiatives();
+   const untracked = useMemo(() => untrackedSlugs(fullData, initiatives), [fullData, initiatives]);
+   const data = useMemo(() => trackedData(fullData, initiatives), [fullData, initiatives]);
    // the same days just before the range, for every "compared with" line
-   const prev = useProjectsData(prefix ? previousRange(range) : null);
+   const prev = useProjectsData(prefix ? previousRange(range) : null, null, { all: true });
    // every view counts every PR, whatever the filter bar narrows: a project
    // whose PRs are filtered out would otherwise look quiet or finished, and a
    // click on a face would rewrite the planner's numbers. A PR with no
    // project label counts where the issues it links put it, as on the server.
-   const today = useMemo(
+   const fullToday = useMemo(
       () =>
          prefix
             ? buildToday(
-                 data?.projects ?? [],
+                 fullData?.projects ?? [],
                  allPulls,
                  allClosed,
                  prefix,
                  Date.now() / 1000,
-                 data?.pull_links
+                 fullData?.pull_links
               )
             : NO_TODAY,
-      [data, allPulls, allClosed, prefix]
+      [fullData, allPulls, allClosed, prefix]
    );
-   const teamOf = useMemo(() => teamLookup(data?.teams ?? {}), [data]);
-   const { items: plans } = useRoadmap();
+   const today = useMemo(() => trackedToday(fullToday, untracked), [fullToday, untracked]);
+   const teamOf = useMemo(() => teamLookup(fullData?.teams ?? {}), [fullData]);
+   const { items: allPlans } = useRoadmap({ all: true });
+   const plans = useMemo(
+      () => allPlans && trackedPlans(allPlans, initiatives),
+      [allPlans, initiatives]
+   );
    // each plan's PRs by the dates, each project's issues, and which
-   // projects run with no end
-   const work = useWorkData(plans);
-   const ongoing = useMemo(() => ongoingSlugs(data), [data]);
-   const items = useMemo(
+   // projects run with no end; every plan's, so the not-tracked rows get
+   // their work too
+   const work = useWorkData(allPlans);
+   const ongoing = useMemo(() => ongoingSlugs(fullData), [fullData]);
+   const allItems = useMemo(
       () =>
          portfolioItems(
-            data?.projects ?? [],
-            today,
-            data?.window.projects ?? {},
+            fullData?.projects ?? [],
+            fullToday,
+            fullData?.window.projects ?? {},
             teamOf,
             Date.now(),
-            plans ?? [],
+            allPlans ?? [],
             work?.projects ?? null,
             ongoing
          ),
-      [data, today, teamOf, plans, work, ongoing]
+      [fullData, fullToday, teamOf, allPlans, work, ongoing]
    );
+   const items = useMemo(() => allItems.filter(i => !untracked.has(i.slug)), [allItems, untracked]);
    const closedProjects = useMemo(() => closedIssues(data?.projects ?? []), [data]);
+   // the Not tracked projects that grew, which Decide asks about again
+   const grown = useMemo(() => grownProjects(fullData, initiatives), [fullData, initiatives]);
    // the calls owed, counted on the tab so they're seen from every view
    const decisions = useMemo(
-      () => (plans ? decideRows(today, plans, closedProjects, work, ongoing) : null),
-      [today, plans, closedProjects, work, ongoing]
+      () =>
+         plans
+            ? decideRows(today, plans, closedProjects, work, ongoing, {
+                 initiatives: initiatives ?? [],
+                 grown,
+              })
+            : null,
+      [today, plans, closedProjects, work, ongoing, initiatives, grown]
    );
    // a call made this visit stays with its row (a receipt and Undo) on
    // Decide and on the project's page; the badge counts what's still owed
@@ -166,11 +193,12 @@ export function Projects({
       ['people', 'People'],
       ['retro', 'Look back'],
    ];
+   // one slug: read from the full set, so a not-tracked project has its name
    const nameOf = useMemo(() => {
-      const names = new Map(items.map(i => [i.slug, i.name]));
+      const names = new Map(allItems.map(i => [i.slug, i.name]));
       names.set(MISC_SLUG, ONE_OFFS);
       return (slug: string) => names.get(slug) ?? slug;
-   }, [items]);
+   }, [allItems]);
 
    if (!prefix) {
       return (
@@ -192,11 +220,11 @@ export function Projects({
    // range picker wherever the page shows numbers for a range
    const toolbar = (
       <div className="mb-4 flex flex-wrap items-center gap-3">
-         {nav.project ? (
+         {nav.project || nav.initiative ? (
             // named for where it goes: the view the page was opened from
             <button
                type="button"
-               onClick={() => navigate({ project: null })}
+               onClick={() => navigate({ project: null, initiative: null })}
                className="hit pressable inline-flex items-center gap-1 rounded border-0 bg-transparent p-0 text-[13px] font-medium text-ink-2 hover:text-brand"
             >
                <Icon icon={ChevronLeft} size={14} />
@@ -218,29 +246,46 @@ export function Projects({
          {/* the Overview and Decide are about now, and the roadmap has its
              own months and quarters; the range is for looking back. A
              project's page puts it beside the numbers it sets. */}
-         {!nav.project && (nav.view === 'people' || nav.view === 'retro') && rangePicker}
+         {!nav.project &&
+            !nav.initiative &&
+            (nav.view === 'people' || nav.view === 'retro') &&
+            rangePicker}
       </div>
    );
    return (
-      <>
+      <AllItemsContext.Provider value={allItems}>
          {toolbar}
-         {nav.project ? (
+         {nav.initiative && !nav.project ? (
+            <InitiativePage
+               key={nav.initiative}
+               slug={nav.initiative}
+               initiatives={initiatives}
+               items={allItems}
+               plans={allPlans}
+               calls={kept.all}
+               nav={nav}
+               navigate={navigate}
+               onPerson={onPersonHere}
+            />
+         ) : nav.project ? (
             // a project's page counts all of its PRs, whatever the filter bar
             // narrows elsewhere, as Decide does
             <ProjectPage
                key={nav.project}
                slug={nav.project}
-               today={today}
-               data={data}
+               today={fullToday}
+               data={fullData}
                range={range}
                closed={allClosed}
                prefix={prefix}
                teamOf={teamOf}
                nav={nav}
                navigate={navigate}
-               item={items.find(i => i.slug === nav.project)}
-               plans={plans}
-               ongoingSaved={data?.ongoing ?? []}
+               item={allItems.find(i => i.slug === nav.project)}
+               plans={allPlans}
+               initiatives={initiatives}
+               untracked={untracked.has(nav.project)}
+               ongoingSaved={fullData?.ongoing ?? []}
                opts={tabOpts}
                onPerson={onPersonHere}
                asks={kept.owed.filter(row => row.slug === nav.project)}
@@ -249,14 +294,14 @@ export function Projects({
             />
          ) : nav.view === 'people' ? (
             <People
-               data={data}
+               data={fullData}
                prev={prev}
-               today={today}
+               today={fullToday}
                range={range}
                teamOf={teamOf}
                nameOf={nameOf}
                me={me}
-               items={items}
+               items={allItems}
                nav={nav}
                navigate={navigate}
             />
@@ -264,6 +309,9 @@ export function Projects({
             <Decide
                today={today}
                items={items}
+               allItems={allItems}
+               initiatives={initiatives}
+               grown={grown}
                closed={closedProjects}
                teamOf={teamOf}
                teamMembers={data?.teams ?? {}}
@@ -280,8 +328,10 @@ export function Projects({
          ) : nav.view === 'retro' ? (
             <Retro
                range={range}
-               plans={plans ?? []}
-               items={items}
+               plans={allPlans ?? []}
+               items={allItems}
+               initiatives={initiatives}
+               untracked={untracked}
                teams={data?.teams ?? {}}
                teamOf={teamOf}
                nameOf={nameOf}
@@ -293,6 +343,9 @@ export function Projects({
          ) : nav.view === 'roadmap' ? (
             <Roadmap
                items={items}
+               allItems={allItems}
+               initiatives={initiatives}
+               untracked={untracked}
                teamMembers={data?.teams ?? {}}
                nav={nav}
                navigate={navigate}
@@ -301,9 +354,13 @@ export function Projects({
          ) : (
             <Overview
                today={today}
+               fullToday={fullToday}
                data={data}
                prefix={prefix}
                items={items}
+               allItems={allItems}
+               initiatives={initiatives}
+               untracked={untracked}
                teamOf={teamOf}
                nameOf={nameOf}
                nav={nav}
@@ -314,6 +371,6 @@ export function Projects({
                onPerson={onPersonHere}
             />
          )}
-      </>
+      </AllItemsContext.Provider>
    );
 }

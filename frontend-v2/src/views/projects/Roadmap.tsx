@@ -58,7 +58,21 @@ import {
    textInputClass,
 } from '../../components/bits';
 import { Icon } from '../../components/Icon';
-import { eyebrowText, Fold, GroupHeader, Rows, SubDoor, useFoldState } from '../../components/Lane';
+import {
+   eyebrowText,
+   Fold,
+   GroupHeader,
+   openFold,
+   Rows,
+   SubDoor,
+   useFoldState,
+} from '../../components/Lane';
+import { homesOf, type Initiative } from '../../../../shared/model/initiatives';
+import { byRank, fileProject, moveInitiative, readInitiatives } from '../../model/initiativesData';
+
+/** The initiatives as the board has them, just after a write. */
+const readInitiativesNow = () => readInitiatives().initiatives ?? [];
+import { bandGloss as initiativeGloss, spanWords, UNSORTED } from '../../model/initiativeBoard';
 import { useRowKeys } from '../../components/useRowKeys';
 import { dateOf, dayOf, dayWords, useProjectsData, type Range } from '../../model/projectData';
 import { findFilter, lowerFirst, planCell, type PortfolioItem } from '../../model/portfolio';
@@ -117,7 +131,8 @@ import {
    NO_UPDATE_YET,
    UPDATE_DUE,
 } from '../../model/words';
-import { askOf, DecideCall, reasonWords, useCallsMadeHere } from './Decide';
+import { askedInitiative, askOf, DecideCall, reasonWords, useCallsMadeHere } from './Decide';
+import { HomeLine } from './Initiatives';
 import { LoadChart } from './LoadChart';
 import { NowNextLater } from './NowNextLater';
 import {
@@ -214,6 +229,9 @@ type Span = { start: string; weeks: number };
 
 /** no Decide rows yet, the same array each render */
 const NO_ROWS: DecideRow[] = [];
+const NO_SLUGS: ReadonlySet<string> = new Set();
+/** A row that isn't a drag source or a drop target: a Not tracked plan. */
+const NO_DRAG = { grip: {}, row: {} };
 
 /** what opens under a plan's row: from sm up, in line with the row's name
  * above, past its grip and rank (63px in), so it reads as that row's */
@@ -851,6 +869,8 @@ function PlanPanel({
    onPerson,
    onOpenItem,
    onOpenProject,
+   initiatives = null,
+   navigate,
 }: {
    item: RoadmapItem;
    all: RoadmapItem[];
@@ -874,6 +894,10 @@ function PlanPanel({
    onPerson: (login: string) => void;
    onOpenItem: (id: number) => void;
    onOpenProject: (slug: string) => void;
+   /** the initiatives, for its project's home line and Move: the keyboard's
+    * way to file what a drag onto another lane files; none hides it */
+   initiatives?: readonly Initiative[] | null;
+   navigate?: Navigate;
 }) {
    const ref = useRef<HTMLDivElement>(null);
    const [removing, setRemoving] = useState(false);
@@ -998,6 +1022,14 @@ function PlanPanel({
                         />
                      </dd>
                   )}
+               </>
+            )}
+            {project && navigate && !!initiatives?.length && (
+               <>
+                  <dt className={term}>Initiative</dt>
+                  <dd className="m-0">
+                     <HomeLine slug={project} initiatives={initiatives} navigate={navigate} />
+                  </dd>
                </>
             )}
             <dt className={term}>Team</dt>
@@ -1399,24 +1431,29 @@ function PlanRow({
       >
          <div className={`group/plan ${rowGrid} px-3.5 py-1.5 hover:bg-muted`}>
             <span className="flex min-w-0 items-start gap-2">
-               <span
-                  {...dragHandlers.grip}
-                  id={`roadmap-grip-${item.id}`}
-                  role="button"
-                  tabIndex={0}
-                  draggable
-                  aria-label={`${item.name}: priority ${rank}. Drag, or use the up and down arrow keys, to change its place`}
-                  title="Drag to change its priority"
-                  // padded and widened by .hit to a 24px target, taking no
-                  // more room in the row. The rank already says the rows are
-                  // ordered, so the grip shows on the row's hover or focus,
-                  // and always on touch, which has no hover
-                  className="hit -m-0.5 flex-none cursor-grab leading-5 touch-none p-0.5 text-ink-3 opacity-0 transition-opacity duration-150 group-hover/plan:opacity-100 group-focus-within/plan:opacity-100 hover:text-ink focus-visible:text-brand focus-visible:opacity-100 active:cursor-grabbing motion-reduce:transition-none [@media(hover:none)]:opacity-100"
-               >
-                  <Icon icon={GripVertical} size={13} />
-               </span>
+               {/* a Not tracked plan has no place in the order: no grip, no rank */}
+               {rank === 0 ? (
+                  <span aria-hidden className="w-[13px] flex-none" />
+               ) : (
+                  <span
+                     {...dragHandlers.grip}
+                     id={`roadmap-grip-${item.id}`}
+                     role="button"
+                     tabIndex={0}
+                     draggable
+                     aria-label={`${item.name}: priority ${rank}. Drag, or use the up and down arrow keys, to change its place`}
+                     title="Drag to change its priority"
+                     // padded and widened by .hit to a 24px target, taking no
+                     // more room in the row. The rank already says the rows are
+                     // ordered, so the grip shows on the row's hover or focus,
+                     // and always on touch, which has no hover
+                     className="hit -m-0.5 flex-none cursor-grab leading-5 touch-none p-0.5 text-ink-3 opacity-0 transition-opacity duration-150 group-hover/plan:opacity-100 group-focus-within/plan:opacity-100 hover:text-ink focus-visible:text-brand focus-visible:opacity-100 active:cursor-grabbing motion-reduce:transition-none [@media(hover:none)]:opacity-100"
+                  >
+                     <Icon icon={GripVertical} size={13} />
+                  </span>
+               )}
                <span className="w-5 flex-none text-right text-xs leading-5 text-ink-3 tabular-nums">
-                  {rank}
+                  {rank || ''}
                </span>
                <span className="flex min-w-0 flex-col">
                   <span className="flex min-w-0 items-baseline gap-x-1.5">
@@ -2037,8 +2074,17 @@ function TimelineLane({
    lined,
    defaultOpen = true,
    showCount = true,
+   phrase,
+   gutter,
+   keepEmpty = false,
    children,
 }: {
+   /** drawn even with no rows (an open initiative, or one Decide asks about) */
+   keepEmpty?: boolean;
+   /** an initiative's dates and counts, in ink (initiativeBoard.ts spanWords) */
+   phrase?: string;
+   /** the grip that ranks an initiative, outside the band's click target */
+   gutter?: ReactNode;
    id: string;
    label: string;
    count: number;
@@ -2063,11 +2109,15 @@ function TimelineLane({
          count={count}
          showCount={showCount}
          gloss={gloss}
+         gutter={gutter}
+         keepEmpty={keepEmpty}
          detail={
-            words && (
+            words ? (
                <span className="text-[11px]" title={words.title}>
                   <SaidWords said={words} />
                </span>
+            ) : (
+               phrase && <span className="text-[11px] tabular-nums">{phrase}</span>
             )
          }
       >
@@ -2194,13 +2244,24 @@ function AxisHeader({
  */
 export function Roadmap({
    items,
+   allItems = items,
+   initiatives = null,
+   untracked = NO_SLUGS,
    teamMembers,
    nav,
    navigate,
    decisions,
 }: {
-   /** the portfolio, for linking plans to projects and their PRs */
+   /** the portfolio, for linking plans to projects and their PRs: the
+    * tracked projects, which every row, count and line reads */
    items: PortfolioItem[];
+   /** every project, Not tracked too: one-slug lookups, the plan form's
+    * choices, and the Not tracked lane */
+   allItems?: PortfolioItem[];
+   /** the initiatives, for their lanes; null while they load */
+   initiatives?: Initiative[] | null;
+   /** the Not tracked slugs */
+   untracked?: ReadonlySet<string>;
    /** developer teams: name to logins */
    teamMembers: Record<string, string[]>;
    nav: ProjectsNav;
@@ -2210,6 +2271,8 @@ export function Roadmap({
    decisions?: DecideRow[] | null;
 }) {
    const { items: plan, loadFailed, problem } = useRoadmap();
+   // every plan, for the Not tracked lane and an initiative's dates
+   const { items: everyPlan } = useRoadmap({ all: true });
    // Decide's rows with the calls made here kept, so a call made in a plan's
    // details keeps its receipt and Undo there
    const callsHere = useCallsMadeHere(decisions ?? NO_ROWS);
@@ -2229,6 +2292,9 @@ export function Roadmap({
    const [adding, setAdding] = useState(false);
    const [dragging, setDragging] = useState<number | null>(null);
    const [dropTarget, setDropTarget] = useState<number | null>(null);
+   // an initiative's grip being dragged, and the lane a drag is over
+   const [draggingLane, setDraggingLane] = useState<number | null>(null);
+   const [overLane, setOverLane] = useState<string | null>(null);
    const [choosing, setChoosing] = useState<string | null>(null);
    // what the last click saved, under its row, with the way back
    const [receipt, setReceipt] = useState<Receipt | null>(null);
@@ -2329,7 +2395,8 @@ export function Roadmap({
       end: today < horizon.end ? today : horizon.end,
    };
    const history = useProjectsData(pastRange)?.window.projects ?? {};
-   const bySlug = new Map(items.map(i => [i.slug, i]));
+   // one slug each: the full set, so a Not tracked plan's row has its project
+   const bySlug = new Map(allItems.map(i => [i.slug, i]));
    // the calls Decide asks, by the plan they're about, and by project for
    // work with no plan, each in the words the Overview's Plan cell uses: a
    // row says its call where its one amber mark goes
@@ -2360,6 +2427,16 @@ export function Roadmap({
       }
    }
    const lanes = nav.group === 'team';
+   const byInitiative = nav.group === 'initiative' && !!initiatives?.length;
+   const homes = homesOf(initiatives ?? []);
+   const homeOf = (slug: string | null) => (slug ? homes.get(slug)?.initiative : undefined);
+   // the lane a plan or project sits in by initiative: its home's slug, or
+   // Unsorted
+   const laneKey = (slug: string | null) => {
+      const home = homeOf(slug);
+      return home && home.kind !== 'untracked' ? home.slug : UNSORTED;
+   };
+   const laneId = (key: string) => `roadmap:initiative:${key}`;
    // Show: every row, only the plans, or only the projects with no plan
    const showPlans = nav.show !== 'unplanned';
    const everything = nav.show !== 'plan';
@@ -2489,12 +2566,13 @@ export function Roadmap({
          return isUnderWay(i.status) && within(end) ? [{ name: i.name, day: end }] : [];
       }),
    };
-   const projectOptions = [...items]
+   // a list for choosing: every project, Not tracked ones too
+   const projectOptions = [...allItems]
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(i => ({ slug: i.slug, name: i.name, target: i.target?.due_on?.slice(0, 10) ?? null }));
    const people = [
       ...new Set([
-         ...items.flatMap(i => [...i.developers, ...i.nonDevelopers, i.lead ?? '']),
+         ...allItems.flatMap(i => [...i.developers, ...i.nonDevelopers, i.lead ?? '']),
          ...teams,
       ]),
    ].filter(Boolean);
@@ -2617,7 +2695,8 @@ export function Roadmap({
             undo: () => {
                run.current = null;
                refocus.current = [`roadmap-grip-${item.id}`];
-               const now = readRoadmap().items?.find(i => i.id === item.id)?.team ?? null;
+               const now =
+                  readRoadmap({ all: true }).items?.find(i => i.id === item.id)?.team ?? null;
                void Promise.all([
                   reorderRoadmap(from),
                   now === fromTeam ? true : updateRoadmapItem(item.id, { team: fromTeam }),
@@ -2689,6 +2768,71 @@ export function Roadmap({
       });
    };
 
+   // a plan dropped in another initiative's lane: its project filed there,
+   // its priority left alone, the lane it went to opened on its receipt
+   const fileByDrag = (item: RoadmapItem, to: string) => {
+      const key = `plan:${item.id}`;
+      const slug = item.project;
+      if (!slug) {
+         return setAnnounced(
+            `${item.name} has no project, so it can’t be filed. Give it a project in Edit details first.`
+         );
+      }
+      const from = homeOf(slug)?.slug ?? null;
+      const target = to === UNSORTED ? null : to;
+      const toName = target
+         ? byRank(initiatives ?? []).find(i => i.slug === target)?.name ?? target
+         : 'Unsorted';
+      run.current = null;
+      void fileProject(slug, target, { expect: from }).then(r => {
+         if ('error' in r) return say({ key, words: r.error.replace(/\.$/, ''), failed: true });
+         openFold(laneId(to));
+         refocus.current = [`roadmap-grip-${item.id}`];
+         say({
+            key,
+            words: `Moved ${item.name} to ${toName}`,
+            undo: () => {
+               refocus.current = [`roadmap-grip-${item.id}`];
+               void fileProject(slug, r.before.initiative, {
+                  set_at: r.before.set_at,
+                  baseline_prs: r.before.baseline_prs,
+               }).then(back => {
+                  if ('error' in back) return fail(key);
+                  openFold(laneId(r.before.initiative ?? UNSORTED));
+                  say(null, `Put ${item.name} back`);
+               });
+            },
+         });
+      });
+   };
+   // an initiative moved just above `before` (null: the bottom), with Undo
+   // back to the one it sat above
+   const rankMove = (moving: Initiative, before: number | null) => {
+      const all = byRank(initiatives ?? []);
+      const was = all[all.findIndex(i => i.id === moving.id) + 1]?.id ?? null;
+      if (was === before) return;
+      const key = `initiative:${moving.id}`;
+      run.current = null;
+      refocus.current = [`roadmap-lane-grip-${moving.id}`];
+      void moveInitiative(moving.id, before).then(r => {
+         if (r !== true) return say({ key, words: r.error.replace(/\.$/, ''), failed: true });
+         const ranked = byRank(readInitiativesNow()).filter(
+            i => i.status === 'open' && i.kind !== 'untracked'
+         );
+         const at = ranked.findIndex(i => i.id === moving.id) + 1;
+         say({
+            key,
+            words: `Moved ${moving.name} to rank ${at}`,
+            undo: () => {
+               refocus.current = [`roadmap-lane-grip-${moving.id}`];
+               void moveInitiative(moving.id, was).then(back =>
+                  back === true ? say(null, `Put ${moving.name} back`) : fail(key)
+               );
+            },
+         });
+      });
+   };
+
    const handlersFor = (item: RoadmapItem, visible: number[]) => ({
       grip: {
          onDragStart: (e: DragEvent) => {
@@ -2720,10 +2864,17 @@ export function Roadmap({
          },
          onDrop: (e: DragEvent) => {
             e.preventDefault();
+            e.stopPropagation();
             const dropped = ordered.find(i => i.id === dragging);
             setDragging(null);
             setDropTarget(null);
+            setOverLane(null);
             if (!dropped || dropped.id === item.id) return;
+            // by initiative, a drop in another initiative's lane files it
+            // there and leaves its priority alone
+            if (byInitiative && laneKey(dropped.project) !== laneKey(item.project)) {
+               return fileByDrag(dropped, laneKey(item.project));
+            }
             // in team lanes, dropping into another team's lane moves it there
             reorder(
                dropped,
@@ -2819,8 +2970,21 @@ export function Roadmap({
    // first loads; and a new plan's form, which Add can open from far below
    const loaded = plan != null;
    useEffect(() => {
-      if (loaded && nav.item != null)
-         scrollClear(document.getElementById(`roadmap-item-${nav.item}`));
+      if (!loaded || nav.item == null) return;
+      // a link to a plan opens the lane that holds it first, as a click
+      // on its band would, so the scroll finds the row
+      const row = document.getElementById(`roadmap-item-${nav.item}`);
+      const lane = row?.closest<HTMLElement>('[data-lane-id]');
+      const closed = !!lane?.querySelector('details:not([open])')?.contains(row);
+      if (!closed) return scrollClear(row);
+      openFold(lane?.dataset.laneId as string);
+      // once the lane has opened and laid out
+      const id = nav.item;
+      const wait = window.setTimeout(
+         () => scrollClear(document.getElementById(`roadmap-item-${id}`)),
+         50
+      );
+      return () => window.clearTimeout(wait);
    }, [loaded, nav.item, panel]);
    useEffect(() => {
       if (adding) scrollClear(document.getElementById('roadmap-new'));
@@ -2853,7 +3017,11 @@ export function Roadmap({
       el?.focus();
    });
 
-   const planRows = (list: RoadmapItem[], visible: RoadmapItem[] = list) => {
+   const planRows = (
+      list: RoadmapItem[],
+      visible: RoadmapItem[] = list,
+      { ranked = true }: { ranked?: boolean } = {}
+   ) => {
       const visibleIds = visible.map(i => i.id);
       return list.map(item => {
          const key = `plan:${item.id}`;
@@ -2877,7 +3045,7 @@ export function Roadmap({
                <PlanRow
                   item={item}
                   all={ordered}
-                  rank={ids.indexOf(item.id) + 1}
+                  rank={ranked ? ids.indexOf(item.id) + 1 : 0}
                   axis={axis}
                   today={today}
                   linked={linked}
@@ -2892,8 +3060,8 @@ export function Roadmap({
                         ? navigate({ zoom: zoomKey(zoomAround(zoom.kind, dateOf(day))) })
                         : open(item.id, 'plan')
                   }
-                  dragHandlers={handlersFor(item, visibleIds)}
-                  dropHere={dropTarget === item.id && dragging !== item.id}
+                  dragHandlers={ranked ? handlersFor(item, visibleIds) : NO_DRAG}
+                  dropHere={ranked && dropTarget === item.id && dragging !== item.id}
                />
                {receipt?.key === key && <ReceiptLine receipt={receipt} onOpen={openFromReceipt} />}
                {isOpen &&
@@ -2943,6 +3111,8 @@ export function Roadmap({
                         onPerson={person}
                         onOpenItem={openFromReceipt}
                         onOpenProject={slug => navigate({ project: slug })}
+                        initiatives={initiatives}
+                        navigate={navigate}
                      />
                   ))}
             </div>
@@ -3009,6 +3179,213 @@ export function Roadmap({
          .filter((t): t is string => !!t && !teams.includes(t))
          .sort((a, b) => a.localeCompare(b)),
    ];
+   // ----- by initiative: one lane per initiative, in its own rank -----
+   // A lane holds its plans under way and its live projects with no plan;
+   // its finished, dropped and parked plans live on its page, unless Decide
+   // asks about one, which always shows (DESIGN.md, the lanes amendment).
+   const allRanked = byRank(initiatives ?? []);
+   const laneInitiatives = allRanked.filter(i => i.kind !== 'untracked');
+   const rankOf = (i: Initiative) =>
+      laneInitiatives.filter(x => x.status === 'open').findIndex(x => x.id === i.id) + 1;
+   const heldPlan = (i: RoadmapItem) => i === gone || isUnderWay(i.status) || planCalls.has(i.id);
+   // the call Decide asks about an initiative itself, with its strip
+   const initiativeRowOf = (id: number) =>
+      callsHere.all.find(r => !r.slug && askedInitiative(r) === id);
+   const laneDrop = (key: string, initiative?: Initiative) => ({
+      'data-lane-id': laneId(key),
+      onDragOver: (e: DragEvent) => {
+         if (dragging == null && draggingLane == null) return;
+         if (draggingLane != null && !initiative) return;
+         e.preventDefault();
+         setOverLane(key);
+      },
+      onDragLeave: () => setOverLane(o => (o === key ? null : o)),
+      onDrop: (e: DragEvent) => {
+         e.preventDefault();
+         setOverLane(null);
+         if (draggingLane != null) {
+            const moving = allRanked.find(i => i.id === draggingLane);
+            setDraggingLane(null);
+            if (moving && initiative && moving.id !== initiative.id)
+               rankMove(moving, initiative.id);
+            return;
+         }
+         const dropped = ordered.find(i => i.id === dragging);
+         setDragging(null);
+         setDropTarget(null);
+         if (dropped && laneKey(dropped.project) !== key) fileByDrag(dropped, key);
+      },
+   });
+   // the grip left of an initiative's band: drag it onto another band, or
+   // press the up and down arrows, to change its rank
+   const laneGrip = (i: Initiative, ranked: Initiative[]) => {
+      const at = ranked.findIndex(x => x.id === i.id);
+      return (
+         <span
+            id={`roadmap-lane-grip-${i.id}`}
+            role="button"
+            tabIndex={0}
+            draggable
+            aria-label={`${i.name}: rank ${
+               at + 1
+            }. Drag onto another initiative, or use the up and down arrow keys, to change its rank`}
+            title="Drag to change its rank"
+            onDragStart={e => {
+               setDraggingLane(i.id);
+               e.dataTransfer.effectAllowed = 'move';
+               e.dataTransfer.setData('text/plain', `initiative:${i.id}`);
+            }}
+            onDragEnd={() => {
+               setDraggingLane(null);
+               setOverLane(null);
+            }}
+            onKeyDown={e => {
+               if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+               e.preventDefault();
+               const up = e.key === 'ArrowUp';
+               const next = ranked[at + (up ? -1 : 1)];
+               if (!next) return setAnnounced(`${i.name} is already ${up ? 'first' : 'last'}`);
+               // above the one before, or above the one after the next
+               const before = up
+                  ? next.id
+                  : allRanked[allRanked.findIndex(x => x.id === next.id) + 1]?.id ?? null;
+               rankMove(i, before);
+            }}
+            className="hit flex-none cursor-grab rounded p-0.5 text-ink-3 hover:text-ink focus-visible:text-brand active:cursor-grabbing"
+         >
+            <Icon icon={GripVertical} size={13} />
+         </span>
+      );
+   };
+   const initiativeBody = (() => {
+      const ranked = laneInitiatives.filter(i => i.status === 'open');
+      const keys = [...laneInitiatives.map(i => i.slug), UNSORTED];
+      return keys.map(key => {
+         const initiative = laneInitiatives.find(i => i.slug === key);
+         const planned = shownPlans.filter(i => heldPlan(i) && laneKey(i.project) === key);
+         const loose = everything ? shownUnplanned.filter(p => laneKey(p.slug) === key) : [];
+         const asked = initiative ? initiativeRowOf(initiative.id) : undefined;
+         // a closed initiative, or Unsorted, shows only while it holds a row
+         if (!planned.length && !loose.length && !(asked && asked.reasons.length)) {
+            if (!initiative || initiative.status !== 'open' || narrowed) return null;
+         }
+         const id = laneId(key);
+         const projects = initiative?.projects.map(f => f.project) ?? [];
+         const working = projects.filter(slug => bySlug.get(slug)?.status === 'live').length;
+         // it rests closed unless it holds a call Decide asks
+         const calls =
+            !!asked?.reasons.length ||
+            planned.some(i => planCalls.has(i.id)) ||
+            loose.some(p => projectCalls.has(p.slug) || asksPlan.has(p.slug));
+         const rank = initiative && initiative.status === 'open' ? rankOf(initiative) : 0;
+         const label = initiative ? `${rank ? `${rank} ` : ''}${initiative.name}` : 'Unsorted';
+         return (
+            <div
+               key={id}
+               {...laneDrop(key, initiative)}
+               className="border-t border-secondary first:border-t-0"
+               style={overLane === key ? { boxShadow: 'inset 0 2px 0 0 var(--brand)' } : undefined}
+            >
+               <TimelineLane
+                  id={id}
+                  label={label}
+                  count={counted(planned) + loose.length}
+                  gloss={
+                     initiative
+                        ? initiativeGloss(initiative, projects.length, working) +
+                          (initiative.status === 'open' ? '' : ` Closed as ${initiative.status}.`)
+                        : 'Projects in no initiative yet, and plans with no project. Decide asks where each project goes; drag a plan onto an initiative to file it.'
+                  }
+                  load={null}
+                  lined={false}
+                  phrase={initiative ? spanWords(projects, everyPlan ?? []) : undefined}
+                  gutter={rank ? laneGrip(initiative as Initiative, ranked) : undefined}
+                  // an open initiative keeps its place in the list of
+                  // contents with nothing in it
+                  keepEmpty={!!initiative}
+                  defaultOpen={calls || narrowed}
+               >
+                  {initiative && (
+                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-secondary px-3.5 py-1.5 text-xs text-ink-3 first:border-t-0 sm:pl-[3.9375rem]">
+                        <FactLink
+                           onClick={() => navigate({ initiative: initiative.slug, project: null })}
+                           title={`Open ${initiative.name}: its projects, owner and goal`}
+                        >
+                           Initiative page
+                        </FactLink>
+                        {initiative.owner && (
+                           <FactLink
+                              onClick={() => person(initiative.owner as string)}
+                              title={`${initiative.owner} owns ${initiative.name}`}
+                           >
+                              {initiative.owner}
+                           </FactLink>
+                        )}
+                        {initiative.goal && <span className="text-ink-3">{initiative.goal}</span>}
+                     </div>
+                  )}
+                  {initiative && asked && (
+                     <div className="border-t border-secondary px-3.5 py-2 text-[13px] sm:pl-[3.9375rem]">
+                        {asked.reasons.length > 0 && (
+                           <p className="m-0 text-ink-2">
+                              <span className="text-warn">{askOf(asked.reasons[0]).question}</span>
+                           </p>
+                        )}
+                        <DecideCall row={asked} />
+                     </div>
+                  )}
+                  {receipt?.key === `initiative:${initiative?.id}` && (
+                     <ReceiptLine receipt={receipt} onOpen={openFromReceipt} />
+                  )}
+                  {planRows(planned, planned)}
+                  {inFlightRows(loose)}
+               </TimelineLane>
+               {/* a rank move's receipt stays in view with the lane closed */}
+               {initiative && receipt?.key === `initiative:${initiative.id}` && !calls && (
+                  <ReceiptLine receipt={receipt} onOpen={openFromReceipt} />
+               )}
+            </div>
+         );
+      });
+   })();
+   // ----- Not tracked: closes every grouping, a ledger at rest -----
+   // its plans under way and live projects with no plan, from the full set,
+   // the most recent PR first; no rank, and not dragged or dropped on
+   const trackedIds = new Set(ids);
+   const recent = (slug: string | null) => (slug && bySlug.get(slug)?.lastActivity?.at) || 0;
+   const notTrackedPlans = (everyPlan ?? [])
+      .filter(i => !trackedIds.has(i.id) && isUnderWay(i.status) && found(i))
+      .sort((a, b) => recent(b.project) - recent(a.project));
+   const notTrackedPlanned = new Set(notTrackedPlans.flatMap(i => (i.project ? [i.project] : [])));
+   const notTrackedLoose =
+      everything && !nav.origin
+         ? allItems
+              .filter(
+                 i =>
+                    untracked.has(i.slug) &&
+                    i.status === 'live' &&
+                    !notTrackedPlanned.has(i.slug) &&
+                    (!filter || filter(i))
+              )
+              .sort((a, b) => recent(b.slug) - recent(a.slug))
+         : [];
+   const notTrackedLane = (showPlans ? notTrackedPlans.length : 0) + notTrackedLoose.length > 0 && (
+      <div {...{ 'data-lane-id': 'roadmap:not-tracked' }} className="border-t border-secondary">
+         <TimelineLane
+            id="roadmap:not-tracked"
+            label="Not tracked"
+            count={(showPlans ? notTrackedPlans.length : 0) + notTrackedLoose.length}
+            gloss="Projects set not tracked: personal and team workflow nobody reports on. They count in no load, capacity line or question, have no place in the order, and owe no update. The most recent PR first."
+            load={null}
+            lined={false}
+            defaultOpen={false}
+         >
+            {showPlans && planRows(notTrackedPlans, notTrackedPlans, { ranked: false })}
+            {inFlightRows(notTrackedLoose)}
+         </TimelineLane>
+      </div>
+   );
+
    const body = lanes ? (
       [...laneTitles, null].map(team => {
          const inLane = (t: string | null | undefined) => (t ?? null) === team;
@@ -3089,6 +3466,8 @@ export function Roadmap({
             </TimelineLane>
          );
       })
+   ) : byInitiative ? (
+      initiativeBody
    ) : (
       <>
          {shownPlans.length > 0 && (
@@ -3331,10 +3710,13 @@ export function Roadmap({
                   Group by
                   <Segmented
                      ariaLabel="group by"
-                     value={lanes ? 'team' : 'none'}
+                     value={lanes ? 'team' : byInitiative ? 'initiative' : 'none'}
                      options={[
                         ['none', 'None'],
                         ['team', 'Team'],
+                        ...(initiatives?.length
+                           ? [['initiative', 'Initiative'] as [string, string]]
+                           : []),
                      ]}
                      onChange={group => navigate({ group })}
                   />
@@ -3470,7 +3852,10 @@ export function Roadmap({
                      roadmap to start a plan.
                   </div>
                ) : (
-                  <div>{body}</div>
+                  <div>
+                     {body}
+                     {notTrackedLane}
+                  </div>
                )}
                {narrowed &&
                   !shownPlans.length &&
@@ -3494,7 +3879,23 @@ export function Roadmap({
                      items={nnlPlans}
                      all={ordered}
                      bySlug={bySlug}
-                     laneTitles={lanes ? laneTitles : null}
+                     lanes={
+                        lanes
+                           ? [
+                                ...laneTitles.map(t => ({ key: t as string | null, title: t })),
+                                { key: null, title: 'No team' },
+                             ]
+                           : byInitiative
+                           ? [
+                                ...laneInitiatives.map(i => ({
+                                   key: i.slug as string | null,
+                                   title: i.name,
+                                })),
+                                { key: UNSORTED, title: 'Unsorted' },
+                             ]
+                           : null
+                     }
+                     laneOf={byInitiative && !lanes ? i => laneKey(i.project) : i => i.team}
                      today={today}
                      calls={planCalls}
                      unplanned={unplanned.length}

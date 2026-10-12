@@ -370,6 +370,8 @@ export function Fold({
    detail,
    id,
    defaultOpen = false,
+   gutter,
+   keepEmpty = false,
    children,
 }: {
    count: number;
@@ -391,12 +393,18 @@ export function Fold({
    /** initial state when nothing is stored yet — e.g. auto-open the one fold
     * that's the only content on an otherwise-quiet board */
    defaultOpen?: boolean;
+   /** a control of its own in the gutter left of the band, outside its click
+    * target (the roadmap's grip that reorders initiatives) */
+   gutter?: ReactNode;
+   /** drawn with nothing in it, its count unsaid: a band that stands for
+    * something on its own (an initiative in the roadmap's table of contents) */
+   keepEmpty?: boolean;
    children: ReactNode;
 }) {
    const detailsRef = useRef<HTMLDetailsElement>(null);
    const glossId = useId();
    const stored = foldOpenStore.useValue();
-   if (!count) return null;
+   if (!count && !keepEmpty) return null;
    const explicit = id ? stored[id] : undefined;
    const open = explicit ?? defaultOpen;
    // native <details> owns its own open/closed state on click; we only need to
@@ -417,15 +425,17 @@ export function Fold({
    const labelInner = (
       <span className="shrink-0 whitespace-nowrap">
          <span className={tone === 'do' ? 'text-brand-700' : 'text-ink-3'}>{label}</span>
-         {showCount && <span className="tabular-nums text-ink-3"> · {count}</span>}
+         {showCount && count > 0 && <span className="tabular-nums text-ink-3"> · {count}</span>}
       </span>
    );
-   return (
+   const fold = (
       <details
          ref={detailsRef}
          id={id ? foldDomId(id) : undefined}
          // a jump to it lands below the sticky headers
-         className="group scroll-mt-36 border-t border-secondary first:border-t-0"
+         className={`group scroll-mt-36 ${
+            gutter ? '' : 'border-t border-secondary first:border-t-0'
+         }`}
          open={id ? open : undefined}
          onToggle={id ? onToggle : undefined}
       >
@@ -433,9 +443,9 @@ export function Fold({
             // the band is the one focus stop; a screen reader hears the gloss
             // with it, the way a mouse gets it on hover
             aria-describedby={gloss ? glossId : undefined}
-            className={`flex cursor-pointer list-none items-center gap-2 bg-muted/40 px-3.5 py-[6px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none [&::-webkit-details-marker]:hidden ${
-               caps ? eyebrowText : 'text-[11px] font-semibold'
-            }`}
+            className={`flex cursor-pointer list-none items-center gap-2 bg-muted/40 py-[6px] pr-3.5 transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none [&::-webkit-details-marker]:hidden ${
+               gutter ? 'pl-8' : 'pl-3.5'
+            } ${caps ? eyebrowText : 'text-[11px] font-semibold'}`}
          >
             <Icon
                icon={ChevronRight}
@@ -495,6 +505,15 @@ export function Fold({
          )}
          <div className="border-t border-secondary">{children}</div>
       </details>
+   );
+   if (!gutter) return fold;
+   // the gutter sits over the band's left padding, a sibling of the band, so
+   // a click there never folds it
+   return (
+      <div className="relative border-t border-secondary first:border-t-0">
+         <span className="absolute top-0 left-1.5 z-[1] flex h-[29px] items-center">{gutter}</span>
+         {fold}
+      </div>
    );
 }
 
