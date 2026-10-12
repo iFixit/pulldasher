@@ -271,13 +271,6 @@ export function healthWords(s: HealthStanding, changedAt: number | null = null):
    }
 }
 
-/** A plan by its place in the order, "#2", which its row shows beside its
- * name; by name when it isn't in the list. */
-const rankOf = (item: RoadmapItem, all: readonly RoadmapItem[]) => {
-   const at = all.indexOf(item);
-   return at < 0 ? item.name : `#${at + 1}`;
-};
-
 /**
  * What an item waits on, in words for its row: "after Search reindex", or
  * how the plan clashes with it (the item starts before one of them ends, or
@@ -317,7 +310,8 @@ export function waitsWords(
          ? `Waits on ${clashes[0].name}, which was ${clashes[0].status}`
          : clashes[0].end_kind === 'ongoing'
          ? `Waits on ${clashes[0].name}, which has no end`
-         : `Starts before ${rankOf(clashes[0], all)} is done`;
+         : // by name: a number would point at whatever row shows it in this grouping
+           `Starts before ${clashes[0].name} is done`;
    return { ...said([{ text, owed: 'clash' }], title), opens };
 }
 

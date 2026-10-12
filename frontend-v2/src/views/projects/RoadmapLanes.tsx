@@ -270,6 +270,7 @@ export function initiativeLanes(c: LaneContext) {
    const rankMove = (moving: Initiative, before: number | null) => {
       const all = byRank(initiatives ?? []);
       const was = all[all.findIndex(i => i.id === moving.id) + 1]?.id ?? null;
+      const wasAt = rankOf(moving);
       if (was === before) return;
       const key = `initiative:${moving.id}`;
       run.current = null;
@@ -282,11 +283,13 @@ export function initiativeLanes(c: LaneContext) {
          const at = ranked.findIndex(i => i.id === moving.id) + 1;
          say({
             key,
-            words: `Moved ${moving.name} to rank ${at}`,
+            words: `Moved ${moving.name} to priority ${at}`,
             undo: () => {
                refocus.current = [`roadmap-lane-grip-${moving.id}`];
                void moveInitiative(moving.id, was).then(back =>
-                  back === true ? say(null, `Put ${moving.name} back`) : fail(key)
+                  back === true
+                     ? say(null, `Put ${moving.name} back at priority ${wasAt}`)
+                     : fail(key)
                );
             },
          });
@@ -341,10 +344,10 @@ export function initiativeLanes(c: LaneContext) {
             role="button"
             tabIndex={0}
             draggable
-            aria-label={`${i.name}: rank ${
+            aria-label={`${i.name}: priority ${
                at + 1
-            }. Drag onto another initiative, or use the up and down arrow keys, to change its rank`}
-            title="Drag to change its rank"
+            }. Drag onto another initiative, or use the up and down arrow keys, to change its priority`}
+            title="Drag to change its priority"
             onDragStart={e => {
                setDraggingLane(i.id);
                e.dataTransfer.effectAllowed = 'move';

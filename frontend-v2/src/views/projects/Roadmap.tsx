@@ -1414,9 +1414,9 @@ function PlanRow({
                      draggable
                      aria-label={`${item.name}: ${
                         lanePlace
-                           ? `${lanePlace} in its lane, priority ${rank} on the whole roadmap`
+                           ? `priority ${lanePlace} in its lane, ${rank} on the whole roadmap`
                            : `priority ${rank}`
-                     }. Drag, or use the up and down arrow keys, to change its place`}
+                     }. Drag, or use the up and down arrow keys, to change its priority`}
                      title="Drag to change its priority"
                      // padded and widened by .hit to a 24px target, taking no
                      // more room in the row. The rank already says the rows are
@@ -2589,7 +2589,26 @@ export function Roadmap({
          });
       });
    };
-   const reorder = (item: RoadmapItem, next: number[], team?: string | null) => {
+   // where a plan sits in the order, in the number its row shows: by
+   // initiative, its place among the rows of its lane (`shown`), named
+   const placeWords = (item: RoadmapItem, order: readonly number[], shown?: readonly number[]) => {
+      if (!byInitiative || !shown) return `priority ${order.indexOf(item.id) + 1}`;
+      const place = order.filter(id => shown.includes(id)).indexOf(item.id) + 1;
+      const key = laneKey(item.project);
+      const lane =
+         key === NO_PROJECT_LANE
+            ? NO_PROJECT_YET
+            : key === UNSORTED
+            ? UNSORTED_WORD
+            : homeOf(item.project)?.name ?? key;
+      return `priority ${place} in ${lane}`;
+   };
+   const reorder = (
+      item: RoadmapItem,
+      next: number[],
+      team?: string | null,
+      shown?: readonly number[]
+   ) => {
       const key = `plan:${item.id}`;
       if (run.current?.key !== key || !Array.isArray(run.current.from)) {
          run.current = { key, from: ids, team: item.team, was: item };
@@ -2603,7 +2622,7 @@ export function Roadmap({
          const where = team === undefined ? '' : `${team ?? 'No team'}, `;
          say({
             key,
-            words: `Moved ${item.name} to ${where}priority ${next.indexOf(item.id) + 1}`,
+            words: `Moved ${item.name} to ${where}${placeWords(item, next, shown)}`,
             undo: () => {
                run.current = null;
                refocus.current = [`roadmap-grip-${item.id}`];
@@ -2614,7 +2633,7 @@ export function Roadmap({
                   now === fromTeam ? true : updateRoadmapItem(item.id, { team: fromTeam }),
                ]).then(([a, b]) =>
                   a && b
-                     ? say(null, `Put ${item.name} back at priority ${from.indexOf(item.id) + 1}`)
+                     ? say(null, `Put ${item.name} back at ${placeWords(item, from, shown)}`)
                      : fail(key)
                );
             },
@@ -2700,7 +2719,7 @@ export function Roadmap({
             const next = stepWithin(ids, visible, item.id, up ? -1 : 1);
             if (!next) return setAnnounced(`${item.name} is already ${up ? 'first' : 'last'} here`);
             refocus.current = [`roadmap-grip-${item.id}`];
-            reorder(item, next);
+            reorder(item, next, undefined, visible);
          },
       },
       row: {
@@ -2726,7 +2745,8 @@ export function Roadmap({
             reorder(
                dropped,
                moveBefore(ids, dropped.id, item.id),
-               lanes && dropped.team !== item.team ? item.team : undefined
+               lanes && dropped.team !== item.team ? item.team : undefined,
+               visible
             );
          },
       },
