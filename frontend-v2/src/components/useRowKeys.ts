@@ -97,11 +97,14 @@ export function useRowKeys(row: string, target: string) {
    }, [row, target]);
 }
 
-/** A control that isn't off and is drawn. */
-const pressable = (el: HTMLElement) => !el.matches(':disabled') && el.getClientRects().length > 0;
+/** A control that isn't off (by `disabled` or `aria-disabled`) and is drawn. */
+const pressable = (el: HTMLElement) =>
+   !el.matches(':disabled, [aria-disabled="true"]') && el.getClientRects().length > 0;
 
-/** The controls a row can land on when its target is off: never a field. */
-const CONTROL = 'button, a[href], [role="button"], [tabindex]:not([tabindex="-1"])';
+/** The controls a row can land on when its target is off: never a field,
+ * even one given a tabindex. */
+const CONTROL =
+   'button, a[href], [role="button"], [tabindex]:not([tabindex="-1"], input, select, textarea)';
 
 /** Where j or k lands in a row: its first target that can take the focus,
  * else its first control that isn't a field, else nowhere. */

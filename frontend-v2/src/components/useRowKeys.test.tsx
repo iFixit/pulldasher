@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { useRowKeys } from './useRowKeys';
+import { landingIn, useRowKeys } from './useRowKeys';
 
 // React's act() warns unless the environment says it's a test
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -136,5 +136,16 @@ describe('j and k on Decide', () => {
       select.focus();
       press('j');
       expect(document.activeElement).toBe(select);
+   });
+});
+
+describe('where j and k land in a row', () => {
+   it('pass over an answer that says it’s off, and a field given a tabindex', () => {
+      const row = document.createElement('div');
+      row.innerHTML =
+         '<button data-lead aria-disabled="true">File</button>' +
+         '<select tabindex="0"></select><input tabindex="0">' +
+         '<a href="#x" id="name">Store picker</a>';
+      expect(landingIn(row, '[data-lead]')?.id).toBe('name');
    });
 });
