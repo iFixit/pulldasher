@@ -17,6 +17,7 @@ import {
    groupItems,
    IDLE_BUCKETS,
    AGE_BUCKETS,
+   type Ask,
    isYours,
    mainTeam,
    matchesFind,
@@ -317,6 +318,22 @@ describe('planCell', () => {
             plan: plan(1, 'a', { start: '2026-09-07', weeks: 6, update: update('on_track', 20) }),
          }).text
       ).toBe('Update due');
+   });
+
+   it('names the closed initiative first on a row that also asks about its plan', () => {
+      const done = plan(1, 'a', { status: 'done' });
+      // the order Decide's sections ask them in, whichever came first
+      const asks: Ask[] = [
+         {
+            reason: { kind: 'reopened', open: 1, late: 0, as: 'done', by: 'roadmap' },
+            item: done,
+         },
+         { reason: { kind: 'reopened_in_closed', initiative: 7, as: 'done' }, item: done },
+      ];
+      expect(cell({ plan: done, asks }).text).toBe('Its initiative is closed, still worked on');
+      expect(cell({ plan: done, asks: [...asks].reverse() }).text).toBe(
+         'Its initiative is closed, still worked on'
+      );
    });
 
    it('reads calm when nothing is owed, and blank with no plan nobody asks for', () => {

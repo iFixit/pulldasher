@@ -173,7 +173,10 @@ export const RANK: Record<DecideReason['kind'], number> = {
    stalled: 8,
    at_risk: 9,
    new: 10,
-   reopened_in_closed: 0,
+   // ahead of `reopened` on the row it joins: the initiative is asked first,
+   // and every view's worst call (the Roadmap row, the Plan cell) is the
+   // question Decide's sections ask
+   reopened_in_closed: -1,
    goal_reached: 7,
    unfiled: 10,
    no_project: 10,
