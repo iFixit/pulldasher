@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { derive, type DerivedPull } from '../../../shared/model/status';
 import type { PullData } from '../../../shared/types';
-import { setSettings } from '../settings';
+import { DEFAULT_SETTINGS, setSettings } from '../settings';
 import { JailMode } from './JailMode';
 
 // React's act() warns unless the environment says it's a test
@@ -62,11 +62,12 @@ const many = (count: number) => Array.from({ length: count }, () => pull());
 let root: Root | null = null;
 const host = document.createElement('div');
 document.body.append(host);
+// most of these watch it pop up, and close it the old way, by holding
+beforeEach(() => setSettings({ jailMode: 'auto', jailHoldToClose: true }));
 afterEach(() => {
    act(() => root?.unmount());
    root = null;
    localStorage.clear();
-   setSettings({ jailMode: 'auto' });
    vi.useRealTimers();
 });
 
@@ -114,6 +115,13 @@ describe('JailMode while the cell is down', () => {
          ready.data.title
       );
       expect(why()).toBe('8 open PRs. Parole at 7. Merge your ready one and you’re out.');
+   });
+
+   it('only shows the badge until you turn the popup on', () => {
+      setSettings({ jailMode: DEFAULT_SETTINGS.jailMode });
+      render(many(9));
+      expect(dialog()).toBeNull();
+      expect(document.querySelector('[aria-label^="PR jail"]')).not.toBeNull();
    });
 
    it('only shows the badge when PR jail is manual', () => {

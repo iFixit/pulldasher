@@ -1,6 +1,6 @@
 import { STARVE_DAYS } from '../../shared/model/status';
 import { JAIL_MAX_DAYS, JAIL_MAX_OPEN } from './model/jail';
-import { createPersistentStore } from './storage';
+import { createPersistentStore, readStorage, writeStorage } from './storage';
 
 /** one named review circle; DEFAULT_TEAM_NAME is what quick add-to-team
  * gestures (the row kebab, the People filter) create when no roster exists */
@@ -111,15 +111,21 @@ export interface Settings {
     * or age tooltip) before it opens, so brushing the pointer across the board
     * doesn't flash panels open. 0 = open instantly; a click always bypasses it. */
    hoverDelayMs: number;
-   /** PR jail: 'auto' pops it up when you're over the limits, 'manual' only
-    * shows the header lock (click to open), 'off' shows neither */
+   /** Finish line (once "PR jail", hence the stored keys): 'auto' pops it up
+    * when you're over the limits, 'manual' only shows the header count
+    * (click to open), 'off' shows neither. Opt-in: 'manual' by default. */
    jailMode: 'auto' | 'manual' | 'off';
-   /** PR jail pops up when you have more than this many open PRs of your own */
+   /** Finish line counts you over when you have more than this many open PRs */
    jailMaxOpen: number;
    /** ...or when any of them has been open longer than this many days */
    jailMaxDays: number;
-   /** whether your draft PRs count toward PR jail */
+   /** whether your draft PRs count toward Finish line */
    jailCountDrafts: boolean;
+   /** Finish line closes only by holding a button down; Esc and the close
+    * button do nothing. Off by default, for people who want the friction. */
+   jailHoldToClose: boolean;
+   /** which one-time migrations (migrateSettings) this saved blob has had */
+   settingsVersion: number;
 }
 
 /** The heaviest age text tier (red), derived from ageWarnDays rather than
@@ -172,21 +178,54 @@ export const DEFAULT_SETTINGS: Settings = {
    repoQueueCap: 15,
    openPrsNewTab: true,
    hoverDelayMs: 250,
-   jailMode: 'auto',
+   jailMode: 'manual',
    jailMaxOpen: JAIL_MAX_OPEN,
    jailMaxDays: JAIL_MAX_DAYS,
    jailCountDrafts: false,
+   jailHoldToClose: false,
+   settingsVersion: 1,
 };
 
-const store = createPersistentStore('pd2.settings', DEFAULT_SETTINGS);
-// jailOn (an on/off switch, live for a day) became jailMode; an Off carries over
+type SavedSettings = Partial<Settings> & { jailOn?: boolean };
+
+/**
+ * Brings a saved blob up to date; the same object when there's nothing to do.
+ * - jailOn (an on/off switch, live for a day) became jailMode; an Off carries over.
+ * - Version 1 made Finish line opt-in. The store saves every field on any
+ *   change, so a saved 'auto' can't tell a choice from the old default: a
+ *   blob from before moves 'auto' to the new default once. Someone who wants
+ *   the popup turns it back on, and it stays.
+ */
+export function migrateSettings(saved: SavedSettings): SavedSettings {
+   let next = saved;
+   if (next.jailOn !== undefined) {
+      const { jailOn, ...rest } = next;
+      next = jailOn ? rest : { ...rest, jailMode: 'off' };
+   }
+   if ((next.settingsVersion ?? 0) < 1) {
+      next = {
+         ...next,
+         jailMode: next.jailMode === 'off' ? 'off' : DEFAULT_SETTINGS.jailMode,
+         settingsVersion: 1,
+      };
+   }
+   return next;
+}
+
+const SETTINGS_KEY = 'pd2.settings';
 {
-   const saved = store.get() as Settings & { jailOn?: boolean };
-   if (saved.jailOn !== undefined) {
-      const { jailOn, ...rest } = saved;
-      store.set({ ...rest, jailMode: jailOn ? rest.jailMode : 'off' });
+   let saved: SavedSettings | null = null;
+   try {
+      saved = JSON.parse(readStorage(SETTINGS_KEY) ?? 'null') as SavedSettings | null;
+   } catch {
+      // unreadable: the store falls back to the defaults
+   }
+   if (saved) {
+      const next = migrateSettings(saved);
+      if (next !== saved) writeStorage(SETTINGS_KEY, JSON.stringify(next));
    }
 }
+const store = createPersistentStore(SETTINGS_KEY, DEFAULT_SETTINGS);
 
 /** Union of every personal roster, sorted — "your people": the set that
  * leads the review queues and wears the teammate corner heart. */
