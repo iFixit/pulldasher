@@ -16,7 +16,7 @@ import { flushSync } from 'react-dom';
  * GUARD_PX and where it sat. A later press near the point is judged once,
  * at its `pointerdown`, and the verdict holds for all of its events (its
  * click too, however long it's held). It reaches nothing (no focus, no
- * selection, no click, and the control flashes an outline) when:
+ * selection, no click, and the control dims a moment) when:
  *
  * - it's the control just pressed, again within a double-click
  *   (DOUBLE_MS), or saying new words, unless it's a toggle (it opens or
@@ -263,15 +263,25 @@ const again = (e: MouseEvent) =>
    near(hold, e) &&
    (e.target as Element | null)?.closest?.(TARGET) === hold.first;
 
-/** Outline a control a press didn't reach, a moment, so it reads as kept
- * from a stray press, not as dead. */
+/** Dim a control a press didn't reach, a moment, with a nudge, so it reads
+ * as kept from a stray press, not as picked or dead. Under reduced motion
+ * it dims and is outlined in its own colour instead of moving. */
 function flash(el: Element): void {
    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-   const on = { outline: '2px solid var(--ring)', outlineOffset: '2px' };
-   el.animate?.([on, still ? on : { ...on, outlineColor: 'transparent' }], {
-      duration: 700,
-      easing: 'ease-in',
-   });
+   const kept = still
+      ? { opacity: 0.5, outline: '2px dashed currentColor', outlineOffset: '2px' }
+      : { opacity: 0.45 };
+   el.animate?.(
+      still
+         ? [kept, kept]
+         : [
+              { opacity: 1, transform: 'none' },
+              { ...kept, transform: 'translateX(-3px)' },
+              { ...kept, transform: 'translateX(3px)' },
+              { opacity: 1, transform: 'none' },
+           ],
+      { duration: still ? 600 : 360, easing: 'ease-out' }
+   );
 }
 
 /** The verdict on the press under way, from its pointerdown. */
