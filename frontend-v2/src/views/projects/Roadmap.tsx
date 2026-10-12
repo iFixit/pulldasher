@@ -130,6 +130,9 @@ import {
    END_WORD,
    NO_UPDATE_YET,
    UPDATE_DUE,
+   NOT_TRACKED_GLOSS,
+   UNSORTED_WORD,
+   NO_PROJECT_YET,
 } from '../../model/words';
 import { askedInitiative, askOf, DecideCall, reasonWords, useCallsMadeHere } from './Decide';
 import { HomeLine } from './Initiatives';
@@ -227,6 +230,8 @@ const rowMargin = 'scroll-mt-[calc(var(--header-h,0px)_+_var(--roadmap-stuck,0px
 /** What a plan's span is: its first week and length. */
 type Span = { start: string; weeks: number };
 
+/** the lane, by initiative, of plans with no project */
+const NO_PROJECT_LANE = '(no-project)';
 /** no Decide rows yet, the same array each render */
 const NO_ROWS: DecideRow[] = [];
 const NO_SLUGS: ReadonlySet<string> = new Set();
@@ -1024,11 +1029,18 @@ function PlanPanel({
                   )}
                </>
             )}
-            {project && navigate && !!initiatives?.length && (
+            {navigate && !!initiatives?.length && (
                <>
                   <dt className={term}>Initiative</dt>
                   <dd className="m-0">
-                     <HomeLine slug={project} initiatives={initiatives} navigate={navigate} />
+                     {project ? (
+                        <HomeLine slug={project} initiatives={initiatives} navigate={navigate} />
+                     ) : (
+                        <span className="text-[13px] text-ink-3">
+                           {NO_PROJECT_YET}: it joins an initiative through its project, once Edit
+                           details links one
+                        </span>
+                     )}
                   </dd>
                </>
             )}
@@ -1279,6 +1291,7 @@ function PlanRow({
    item,
    all,
    rank,
+   lanePlace,
    axis,
    today,
    linked,
@@ -1295,7 +1308,11 @@ function PlanRow({
    item: RoadmapItem;
    /** every item, for what this one waits on */
    all: RoadmapItem[];
+   /** its priority on the whole roadmap; 0 for none (Not tracked) */
    rank: number;
+   /** its place in an initiative's lane, numbered there in place of the
+    * rank, so a lane reads 1, 2, 3 under its band's own rank */
+   lanePlace?: number;
    axis: Axis;
    today: string;
    linked: PortfolioItem | undefined;
@@ -1441,7 +1458,11 @@ function PlanRow({
                      role="button"
                      tabIndex={0}
                      draggable
-                     aria-label={`${item.name}: priority ${rank}. Drag, or use the up and down arrow keys, to change its place`}
+                     aria-label={`${item.name}: ${
+                        lanePlace
+                           ? `${lanePlace} in its lane, priority ${rank} on the whole roadmap`
+                           : `priority ${rank}`
+                     }. Drag, or use the up and down arrow keys, to change its place`}
                      title="Drag to change its priority"
                      // padded and widened by .hit to a 24px target, taking no
                      // more room in the row. The rank already says the rows are
@@ -1452,8 +1473,11 @@ function PlanRow({
                      <Icon icon={GripVertical} size={13} />
                   </span>
                )}
-               <span className="w-5 flex-none text-right text-xs leading-5 text-ink-3 tabular-nums">
-                  {rank || ''}
+               <span
+                  className="w-5 flex-none text-right text-xs leading-5 text-ink-3 tabular-nums"
+                  title={lanePlace ? `Priority ${rank} on the whole roadmap` : undefined}
+               >
+                  {lanePlace ?? (rank || '')}
                </span>
                <span className="flex min-w-0 flex-col">
                   <span className="flex min-w-0 items-baseline gap-x-1.5">
@@ -2430,9 +2454,10 @@ export function Roadmap({
    const byInitiative = nav.group === 'initiative' && !!initiatives?.length;
    const homes = homesOf(initiatives ?? []);
    const homeOf = (slug: string | null) => (slug ? homes.get(slug)?.initiative : undefined);
-   // the lane a plan or project sits in by initiative: its home's slug, or
-   // Unsorted
+   // the lane a plan or project sits in by initiative: its home's slug,
+   // Unsorted, or for a plan with no project, the lane of those
    const laneKey = (slug: string | null) => {
+      if (!slug) return NO_PROJECT_LANE;
       const home = homeOf(slug);
       return home && home.kind !== 'untracked' ? home.slug : UNSORTED;
    };
@@ -2775,14 +2800,15 @@ export function Roadmap({
       const slug = item.project;
       if (!slug) {
          return setAnnounced(
-            `${item.name} has no project, so it can’t be filed. Give it a project in Edit details first.`
+            `${item.name} has no project yet, so it can’t be filed. Link it to its project in Edit details first.`
          );
       }
+      if (to === NO_PROJECT_LANE) return;
       const from = homeOf(slug)?.slug ?? null;
       const target = to === UNSORTED ? null : to;
       const toName = target
          ? byRank(initiatives ?? []).find(i => i.slug === target)?.name ?? target
-         : 'Unsorted';
+         : UNSORTED_WORD;
       run.current = null;
       void fileProject(slug, target, { expect: from }).then(r => {
          if ('error' in r) return say({ key, words: r.error.replace(/\.$/, ''), failed: true });
@@ -2985,7 +3011,9 @@ export function Roadmap({
          50
       );
       return () => window.clearTimeout(wait);
-   }, [loaded, nav.item, panel]);
+      // again once the initiatives arrive and lay the rows out in lanes, so
+      // a cold link or a reload opens the lane too
+   }, [loaded, nav.item, panel, byInitiative]);
    useEffect(() => {
       if (adding) scrollClear(document.getElementById('roadmap-new'));
    }, [adding]);
@@ -3020,10 +3048,10 @@ export function Roadmap({
    const planRows = (
       list: RoadmapItem[],
       visible: RoadmapItem[] = list,
-      { ranked = true }: { ranked?: boolean } = {}
+      { ranked = true, placed = false }: { ranked?: boolean; placed?: boolean } = {}
    ) => {
       const visibleIds = visible.map(i => i.id);
-      return list.map(item => {
+      return list.map((item, at) => {
          const key = `plan:${item.id}`;
          // removed just now: its receipt stands where the row was
          if (item === gone && receipt) {
@@ -3046,6 +3074,7 @@ export function Roadmap({
                   item={item}
                   all={ordered}
                   rank={ranked ? ids.indexOf(item.id) + 1 : 0}
+                  lanePlace={placed ? at + 1 : undefined}
                   axis={axis}
                   today={today}
                   linked={linked}
@@ -3196,6 +3225,8 @@ export function Roadmap({
       onDragOver: (e: DragEvent) => {
          if (dragging == null && draggingLane == null) return;
          if (draggingLane != null && !initiative) return;
+         // a plan files through its project, never into the no-project lane
+         if (key === NO_PROJECT_LANE) return;
          e.preventDefault();
          setOverLane(key);
       },
@@ -3259,12 +3290,18 @@ export function Roadmap({
    };
    const initiativeBody = (() => {
       const ranked = laneInitiatives.filter(i => i.status === 'open');
-      const keys = [...laneInitiatives.map(i => i.slug), UNSORTED];
+      const keys = [...laneInitiatives.map(i => i.slug), UNSORTED, NO_PROJECT_LANE];
       return keys.map(key => {
          const initiative = laneInitiatives.find(i => i.slug === key);
          const planned = shownPlans.filter(i => heldPlan(i) && laneKey(i.project) === key);
          const loose = everything ? shownUnplanned.filter(p => laneKey(p.slug) === key) : [];
-         const asked = initiative ? initiativeRowOf(initiative.id) : undefined;
+         // its own question shows while the find names it, or nothing narrows
+         const matched =
+            !narrowed ||
+            (!!q &&
+               !!initiative &&
+               [initiative.name, initiative.owner ?? ''].some(s => s.toLowerCase().includes(q)));
+         const asked = initiative && matched ? initiativeRowOf(initiative.id) : undefined;
          // a closed initiative, or Unsorted, shows only while it holds a row
          if (!planned.length && !loose.length && !(asked && asked.reasons.length)) {
             if (!initiative || initiative.status !== 'open' || narrowed) return null;
@@ -3278,7 +3315,11 @@ export function Roadmap({
             planned.some(i => planCalls.has(i.id)) ||
             loose.some(p => projectCalls.has(p.slug) || asksPlan.has(p.slug));
          const rank = initiative && initiative.status === 'open' ? rankOf(initiative) : 0;
-         const label = initiative ? `${rank ? `${rank} ` : ''}${initiative.name}` : 'Unsorted';
+         const label = initiative
+            ? `${rank ? `${rank} ` : ''}${initiative.name}`
+            : key === UNSORTED
+            ? UNSORTED_WORD
+            : NO_PROJECT_YET;
          return (
             <div
                key={id}
@@ -3292,9 +3333,10 @@ export function Roadmap({
                   count={counted(planned) + loose.length}
                   gloss={
                      initiative
-                        ? initiativeGloss(initiative, projects.length, working) +
-                          (initiative.status === 'open' ? '' : ` Closed as ${initiative.status}.`)
-                        : 'Projects in no initiative yet, and plans with no project. Decide asks where each project goes; drag a plan onto an initiative to file it.'
+                        ? initiativeGloss(initiative, projects.length, working)
+                        : key === UNSORTED
+                        ? 'Projects filed nowhere yet. Decide asks where each one goes; drag a plan onto an initiative to file its project there.'
+                        : 'Plans with no project label yet, so no initiative. Link each to its project in Edit details; Decide asks once one is active.'
                   }
                   load={null}
                   lined={false}
@@ -3314,12 +3356,15 @@ export function Roadmap({
                            Initiative page
                         </FactLink>
                         {initiative.owner && (
-                           <FactLink
-                              onClick={() => person(initiative.owner as string)}
-                              title={`${initiative.owner} owns ${initiative.name}`}
-                           >
-                              {initiative.owner}
-                           </FactLink>
+                           <span>
+                              owned by{' '}
+                              <FactLink
+                                 onClick={() => person(initiative.owner as string)}
+                                 title={`See ${initiative.owner} on People`}
+                              >
+                                 {initiative.owner}
+                              </FactLink>
+                           </span>
                         )}
                         {initiative.goal && <span className="text-ink-3">{initiative.goal}</span>}
                      </div>
@@ -3337,7 +3382,7 @@ export function Roadmap({
                   {receipt?.key === `initiative:${initiative?.id}` && (
                      <ReceiptLine receipt={receipt} onOpen={openFromReceipt} />
                   )}
-                  {planRows(planned, planned)}
+                  {planRows(planned, planned, { placed: true })}
                   {inFlightRows(loose)}
                </TimelineLane>
                {/* a rank move's receipt stays in view with the lane closed */}
@@ -3375,7 +3420,7 @@ export function Roadmap({
             id="roadmap:not-tracked"
             label="Not tracked"
             count={(showPlans ? notTrackedPlans.length : 0) + notTrackedLoose.length}
-            gloss="Projects set not tracked: personal and team workflow nobody reports on. They count in no load, capacity line or question, have no place in the order, and owe no update. The most recent PR first."
+            gloss={`${NOT_TRACKED_GLOSS} They have no place in the order; the most recent PR first.`}
             load={null}
             lined={false}
             defaultOpen={false}
@@ -3889,9 +3934,10 @@ export function Roadmap({
                            ? [
                                 ...laneInitiatives.map(i => ({
                                    key: i.slug as string | null,
-                                   title: i.name,
+                                   title: rankOf(i) ? `${rankOf(i)} ${i.name}` : i.name,
                                 })),
-                                { key: UNSORTED, title: 'Unsorted' },
+                                { key: UNSORTED, title: UNSORTED_WORD },
+                                { key: NO_PROJECT_LANE, title: NO_PROJECT_YET },
                              ]
                            : null
                      }
