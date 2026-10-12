@@ -294,6 +294,9 @@ export async function fileProject(
    }
    if (reply.status !== 200) {
       takeBack();
+      // closed since the board last read it: read them again, so the
+      // choosers stop offering it
+      if (reply.status === 409) void loadInitiatives();
       return { error: problemOf(reply, 'file the project') };
    }
    void loadInitiatives();

@@ -5,7 +5,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { DecideRow } from '../../../../shared/model/decide';
 import type { Initiative } from '../../../../shared/model/initiatives';
 import type { RoadmapItem } from '../../../../shared/model/roadmap';
-import { loadInitiatives } from '../../model/initiativesData';
+import { fileProject, loadInitiatives } from '../../model/initiativesData';
 import type { PortfolioItem } from '../../model/portfolio';
 import { HomeLine, InitiativePage } from './Initiatives';
 import { clearHomePicks, InitiativeSwitch } from './HomeCalls';
@@ -106,6 +106,12 @@ beforeAll(async () => {
          if (path === '/initiatives' && method === 'GET')
             return reply({ initiatives: INITIATIVES });
          if (path === '/initiatives/file') {
+            // as the server: nothing into a closed initiative but an undo
+            if (body.initiative === 'catalog' && body.set_at == null)
+               return reply(
+                  { error: 'that initiative is closed; reopen it before filing a project in it' },
+                  409
+               );
             // someone filed it elsewhere since the board last looked
             if (body.project === 'raced')
                return reply(
@@ -750,10 +756,6 @@ describe('a project page’s home line', () => {
       // elsewhere comes back after them, on the line below
       const status = el.querySelector('[role="status"]') as HTMLElement;
       expect(status.textContent).toBe('Put cache back in Site speed.');
-      // said before it saves, so a second click finds no Undo to press
-      expect(el.querySelector('[role="status"]')?.textContent).toBe(
-         'Put cache back in Site speed.'
-      );
       expect(status.querySelector('button')).toBeNull();
       expect(buttons(el)).toEqual(['File elsewhere']);
       expect(document.activeElement?.textContent).toBe('Put cache back in Site speed.');
