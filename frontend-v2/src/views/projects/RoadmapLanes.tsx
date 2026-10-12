@@ -20,6 +20,17 @@ import { DecideCall } from './Decide';
 import type { Navigate } from './parts';
 import { inInk, SaidWords, type Said } from './roadmapHealth';
 
+/** The board's address with `patch` applied, for a real link: the hash
+ * the board reads its view from (app.tsx readHash), null clearing a key. */
+function hashWith(patch: Record<string, string | null>): string {
+   const p = new URLSearchParams(location.hash.slice(1));
+   for (const [k, v] of Object.entries(patch)) {
+      if (v == null) p.delete(k);
+      else p.set(k, v);
+   }
+   return `#${p}`;
+}
+
 /** The initiatives as the board has them, just after a write. */
 const readInitiativesNow = () => readInitiatives().initiatives ?? [];
 
@@ -454,12 +465,20 @@ export function initiativeLanes(c: LaneContext) {
                >
                   {initiative && (
                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-secondary px-3.5 py-1.5 text-xs text-ink-3 first:border-t-0 sm:pl-[3.9375rem]">
-                        <FactLink
-                           onClick={() => navigate({ initiative: initiative.slug, project: null })}
+                        {/* a real link, so it opens in a new tab or copies */}
+                        <a
+                           href={hashWith({ initiative: initiative.slug, project: null })}
+                           onClick={e => {
+                              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button)
+                                 return;
+                              e.preventDefault();
+                              navigate({ initiative: initiative.slug, project: null });
+                           }}
                            title={`Open ${initiative.name}: its projects, owner and goal`}
+                           className="hit pressable rounded text-ink-2 underline decoration-line underline-offset-2 hover:text-brand"
                         >
                            Initiative page
-                        </FactLink>
+                        </a>
                         {initiative.owner && (
                            <span>
                               owned by{' '}
