@@ -435,8 +435,18 @@ export function initiativeLanes(c: LaneContext) {
                   }
                   load={null}
                   lined={false}
-                  phrase={initiative ? spanWords(projects, everyPlan ?? []) : undefined}
-                  gutter={rank ? laneGrip(initiative as Initiative, ranked) : undefined}
+                  phrase={
+                     initiative ? spanWords(projects, everyPlan ?? [], undefined, initiative) : undefined
+                  }
+                  // a band with no grip keeps its column, so every label
+                  // starts at one x
+                  gutter={
+                     rank ? (
+                        laneGrip(initiative as Initiative, ranked)
+                     ) : (
+                        <span aria-hidden className="block w-[17px]" />
+                     )
+                  }
                   // an open initiative keeps its place in the list of
                   // contents with nothing in it
                   keepEmpty={!!initiative}

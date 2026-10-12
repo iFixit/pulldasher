@@ -1,6 +1,6 @@
 import { dayStart, firstOpenDay, targetOf, utcDay, type Project, type Today } from './projects';
 import { goingProjects, homesOf, type Initiative } from './initiatives';
-import { healthStanding, isUnderWay, planEnd, type RoadmapItem } from './roadmap';
+import { healthStanding, isUnderWay, planEnd, weeksPast, type RoadmapItem } from './roadmap';
 import type { IssueCounts } from './work';
 
 /**
@@ -270,8 +270,7 @@ export function decideQueue({
       rows.set(key, row);
    };
    const decidedAt = (item: RoadmapItem) => item.updated_at ?? 0;
-   const weeksPast = (item: RoadmapItem) =>
-      Math.ceil(((dayStart(today) as number) - (dayStart(planEnd(item)) as number)) / (7 * DAY));
+   const weeksOver = (item: RoadmapItem) => weeksPast(planEnd(item), today);
 
    // what a plan under way owes; `project` is its live project, if any
    const planReasons = (item: RoadmapItem, project: DecideProject | null) => {
@@ -292,7 +291,7 @@ export function decideQueue({
       if (item.end_kind === 'hard' && planEnd(item) < today) {
          add(item.project, item, {
             kind: open > 0 ? 'over' : 'ended',
-            weeks: weeksPast(item),
+            weeks: weeksOver(item),
             since: counts?.afterEnd ?? 0,
          });
       }

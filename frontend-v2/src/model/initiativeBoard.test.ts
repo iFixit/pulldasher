@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Initiative } from '../../../shared/model/initiatives';
 import type { Project, ProjectGroup, Today } from '../../../shared/model/projects';
-import type { RoadmapItem } from '../../../shared/model/roadmap';
+import { weeksPast, type RoadmapItem } from '../../../shared/model/roadmap';
 import {
    bandGloss,
    grownProjects,
@@ -182,7 +182,12 @@ describe('the words', () => {
       expect(spanWords(['a', 'b', 'c'], plans, NOW)).toBe(
          'Jun 1 to Nov 1 · 1 with an end · 1 ongoing'
       );
-      expect(spanWords(['b'], plans, NOW)).toBe('Ended Jun 14');
+      // open with every plan stopped: not "Ended", which reads as closed
+      expect(spanWords(['b'], plans, NOW)).toBe('Nothing under way since Jun 14');
+      // closed: said the one way, with its day
+      expect(
+         spanWords(['a'], plans, NOW, { status: 'done', status_at: Date.UTC(2026, 8, 20) / 1000 })
+      ).toBe('Closed as done Sep 20');
       expect(spanWords(['nothing'], plans, NOW)).toBe('');
    });
 
@@ -200,6 +205,11 @@ describe('the words', () => {
       // Oct 11: its plan was due Sep 27
       const plans = [plan(1, 'a', { start: '2026-08-17', weeks: 6 })];
       expect(spanWords(['a'], plans, NOW)).toBe('Aug 17 to Sep 27, 2 weeks past · 1 with an end');
+      // a day later it's 15 days: 3 weeks, as the plan's own row rounds
+      expect(spanWords(['a'], plans, NOW + 86400 * 1000)).toBe(
+         `Aug 17 to Sep 27, ${weeksPast('2026-09-27', '2026-10-12')} weeks past · 1 with an end`
+      );
+      expect(weeksPast('2026-09-27', '2026-10-12')).toBe(3);
    });
 });
 

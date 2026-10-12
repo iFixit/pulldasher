@@ -279,6 +279,13 @@ export function weeksThrough(start: string, end: string): number {
    return Math.min(MAX_WEEKS, Math.max(1, weeks));
 }
 
+/** Whole weeks, rounded up, from a last day `end` to `day` (both
+ * YYYY-MM-DD): "3 weeks past". The one count every view says, so a band, a
+ * bar and a row never disagree about the same end. */
+export function weeksPast(end: string, day: string): number {
+   return Math.ceil(((dayStart(day) as number) - (dayStart(end) as number)) / (7 * DAY));
+}
+
 /** The last planned day of an item: its Sunday, `weeks` after it starts. */
 export function planEnd(item: Pick<RoadmapItem, 'start' | 'weeks'>): string {
    return utcDay((dayStart(item.start) as number) + (item.weeks * 7 - 1) * DAY);

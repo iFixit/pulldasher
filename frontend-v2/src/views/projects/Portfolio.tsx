@@ -52,7 +52,7 @@ import {
 } from '../../model/words';
 import { DecideCall, planRow } from './Decide';
 import { askedInitiative, askOf, reasonWords } from '../../model/decideCalls';
-import { bandGloss as initiativeGloss } from '../../model/initiativeBoard';
+import { bandGloss as initiativeGloss, closedWords } from '../../model/initiativeBoard';
 import {
    BY_PRS_WHY,
    BY_PRS_WHY_NO_REPO,
@@ -1177,10 +1177,10 @@ export function Portfolio(
          plans ?? []
       );
       const words = [
-         initiative.owner,
+         initiative.owner ? `owned by ${initiative.owner}` : '',
          span.with_end ? `${span.with_end} with an end` : '',
          span.ongoing ? `${span.ongoing} ongoing` : '',
-         initiative.status === 'open' ? '' : `closed as ${initiative.status}`,
+         initiative.status === 'open' ? '' : closedWords(initiative),
       ].filter(Boolean);
       return words.length ? (
          <span className="text-[11px] text-ink-3">{words.join(' · ')}</span>

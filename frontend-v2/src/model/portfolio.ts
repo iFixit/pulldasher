@@ -24,6 +24,7 @@ import {
    healthStanding,
    isUnderWay,
    planFor,
+   weeksPast,
    type RoadmapItem,
 } from '../../../shared/model/roadmap';
 import type { Status } from '../../../shared/model/status';
@@ -236,10 +237,6 @@ function stageOf(
    if (live === 'live' && !stopped) return 'progress';
    return closedIssue || stopped ? 'closed' : 'quiet';
 }
-
-/** Whole weeks from a plan's last day to `day`. */
-const weeksPast = (end: string, day: string) =>
-   Math.ceil(((dayStart(day) as number) - (dayStart(end) as number)) / (7 * DAY));
 
 /** A call Decide asks, in the few words a table cell has room for. */
 function callWords(reason: DecideReason): Pick<PlanCell, 'kind' | 'text'> {

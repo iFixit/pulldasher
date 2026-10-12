@@ -2,7 +2,7 @@ import { n } from '../../../shared/format';
 import type { GrownProject } from '../../../shared/model/decide';
 import { homesOf, initiativeSpan, type Initiative } from '../../../shared/model/initiatives';
 import { MISC_SLUG, type Today } from '../../../shared/model/projects';
-import type { RoadmapItem } from '../../../shared/model/roadmap';
+import { weeksPast, type RoadmapItem } from '../../../shared/model/roadmap';
 import type { PortfolioItem } from './portfolio';
 import { dayWords, type ProjectsData } from './projectData';
 import { byRank, isNotTrackedNow } from './initiativesData';
@@ -102,18 +102,21 @@ export function homeWords(home: Pick<Initiative, 'name' | 'kind'> | null | undef
 export function spanWords(
    projects: readonly string[],
    plans: readonly Pick<RoadmapItem, 'project' | 'status' | 'start' | 'weeks' | 'end_kind'>[],
-   now: number = Date.now()
+   now: number = Date.now(),
+   initiative?: Pick<Initiative, 'status' | 'status_at'>
 ): string {
+   // a closed one says so, as the Overview and its page do
+   if (initiative && initiative.status !== 'open') return closedWords(initiative, now);
    const span = initiativeSpan(projects, plans);
    if (!span.start) return '';
    const day = (d: string) => dayWords(d, { now });
-   if (span.end_kind === 'ended') return span.ended ? `Ended ${day(span.ended)}` : '';
+   // every plan stopped, but it's open: not "Ended", which reads as closed
+   if (span.end_kind === 'ended') {
+      return span.ended ? `Nothing under way since ${day(span.ended)}` : '';
+   }
    // a latest end already gone by reads as finished unless it says so
    const today = new Date(now).toISOString().slice(0, 10);
-   const past =
-      span.end && span.end < today
-         ? Math.floor((Date.parse(today) - Date.parse(span.end)) / (7 * 86400 * 1000))
-         : 0;
+   const past = span.end && span.end < today ? weeksPast(span.end, today) : 0;
    const parts = [
       span.end
          ? `${day(span.start)} to ${day(span.end)}${past ? `, ${n(past, 'week')} past` : ''}`
@@ -124,18 +127,30 @@ export function spanWords(
    return parts.filter(Boolean).join(' · ');
 }
 
+/** A closed initiative, in one phrase everywhere: "Closed as done Sep 20". */
+export function closedWords(
+   initiative: Pick<Initiative, 'status' | 'status_at'>,
+   now: number = Date.now()
+): string {
+   const on =
+      initiative.status_at != null
+         ? ` ${dayWords(new Date(initiative.status_at * 1000).toISOString().slice(0, 10), { now })}`
+         : '';
+   return `Closed as ${initiative.status}${on}`;
+}
+
 /** What an initiative's band says on hover, on the Roadmap and the
  * Overview alike: its goal, how much it holds ("10 projects, 7 being worked
  * on"), its owner, and whether it's closed. */
 export function bandGloss(
-   initiative: Pick<Initiative, 'name' | 'goal' | 'owner' | 'kind' | 'status'>,
+   initiative: Pick<Initiative, 'name' | 'goal' | 'owner' | 'kind' | 'status' | 'status_at'>,
    projects: number,
    working: number
 ): string {
    const held = `${n(projects, 'project')}, ${working} being worked on`;
    const owner = initiative.owner ? ` Owned by ${initiative.owner}.` : '';
    const goal = initiative.goal ? `${initiative.goal.replace(/\.?$/, '.')} ` : '';
-   const closed = initiative.status === 'open' ? '' : ` Closed as ${initiative.status}.`;
+   const closed = initiative.status === 'open' ? '' : ` ${closedWords(initiative)}.`;
    return `${goal}${held}.${owner}${closed}`;
 }
 

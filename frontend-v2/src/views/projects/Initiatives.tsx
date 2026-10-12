@@ -20,7 +20,7 @@ import { EmptyState, FactLink, QuietButton, textInputClass } from '../../compone
 import { Fold, Rows } from '../../components/Lane';
 import { Icon } from '../../components/Icon';
 import { fileProject, updateInitiative, type Home } from '../../model/initiativesData';
-import { homeChoices } from '../../model/initiativeBoard';
+import { closedWords, homeChoices } from '../../model/initiativeBoard';
 import { dayWords } from '../../model/projectData';
 import { stageWord, type PortfolioItem } from '../../model/portfolio';
 import { andList, UNSORTED_WORD } from '../../model/words';
@@ -526,7 +526,7 @@ export function InitiativePage({
                <h2 className="m-0 text-xl font-semibold leading-7">{initiative.name}</h2>
                {kindWord && <span className="text-[13px] text-ink-3">{kindWord}</span>}
                {initiative.status !== 'open' && (
-                  <span className="text-[13px] text-ink-3">Closed as {initiative.status}</span>
+                  <span className="text-[13px] text-ink-3">{closedWords(initiative)}</span>
                )}
                {!ledger && (
                   <span className="flex items-center gap-2 text-xs text-ink-3 sm:ml-auto">

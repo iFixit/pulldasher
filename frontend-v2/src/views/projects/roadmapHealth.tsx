@@ -25,6 +25,7 @@ import {
    planFor,
    ROADMAP_HEALTHS,
    UPDATE_DUE_DAYS,
+   weeksPast,
    type EndKind,
    type HealthStanding,
    type RoadmapHealth,
@@ -384,7 +385,7 @@ export function planWarnings(
    const weeksFrom = (a: string, b: string) =>
       Math.ceil(((dayStart(b) as number) - (dayStart(a) as number)) / (7 * DAY));
    const isOver = under && !!project?.live && !!end && today > end;
-   const weeks = isOver ? weeksFrom(end as string, today) : 0;
+   const weeks = isOver ? weeksPast(end as string, today) : 0;
    const hard = item.end_kind === 'hard';
    const after = `Still ${BEING_WORKED_ON} ${n(weeks, 'week')} after its`;
    const over = isOver
