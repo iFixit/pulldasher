@@ -684,9 +684,12 @@ describe('a bar let go over another lane', () => {
          act(() => {
             bar.dispatchEvent(new MouseEvent('pointerdown', at(100)));
          });
+         const before = parseFloat(bar.style.left);
          act(() => {
             window.dispatchEvent(new MouseEvent('pointermove', at(160)));
          });
+         // the preview followed the pointer: the drag's math ran
+         expect(parseFloat(bar.style.left)).toBeGreaterThan(before);
          act(() => {
             window.dispatchEvent(new MouseEvent('pointerup', at(160)));
          });
@@ -714,14 +717,14 @@ describe('after a click on the Roadmap', () => {
       document.body.prepend(header);
       const box = (top: number, height: number) =>
          ({ top, bottom: top + height, left: 0, right: 800, width: 800, height, x: 0, y: top }) as DOMRect;
-      const real = HTMLElement.prototype.getBoundingClientRect;
-      HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect');
+      rect.mockImplementation(function (this: HTMLElement) {
          if (this === header) return box(0, 120);
          if (this.closest('[data-receipt]')) return box(receiptTop(), 30);
          if (this.parentElement?.matches('[data-roadmap-row]') && this === this.parentElement.firstElementChild)
             return box(receiptTop() - 40, 40);
          return { ...box(0, 0), width: 0, right: 0 } as DOMRect;
-      };
+      });
       const scrolled: number[] = [];
       const spy = vi.spyOn(window, 'scrollBy').mockImplementation(((_x: number, y: number) => {
          scrolled.push(y);
@@ -729,7 +732,10 @@ describe('after a click on the Roadmap', () => {
       return {
          scrolled,
          restore: () => {
-            HTMLElement.prototype.getBoundingClientRect = real;
+            // HTMLElement inherits it from Element: no own one may be left
+            // behind, or it shadows a later spy on Element's
+            rect.mockRestore();
+            delete (HTMLElement.prototype as Partial<HTMLElement>).getBoundingClientRect;
             spy.mockRestore();
             header.remove();
          },
