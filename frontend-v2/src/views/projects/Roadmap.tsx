@@ -1840,6 +1840,10 @@ function InFlightRow({
                   <Icon icon={Plus} size={13} />
                </button>
             )}
+            {/* the plan rows' rank column, empty: no plan, no place in the
+                order, but the names line up (the plus is 4px wider than the
+                grip it stands for) */}
+            <span aria-hidden className="w-4 flex-none" />
             <span className="min-w-0 break-words">
                <button
                   type="button"
