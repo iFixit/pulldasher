@@ -1351,6 +1351,8 @@ export function Portfolio(
                         // logins keep their case
                         caps={by !== 'lead'}
                         keepEmpty={!!g.initiative && initiativeAsks.has(g.initiative.id)}
+                        // an initiative's name runs long: the Roadmap band's layout
+                        long={!!g.initiative}
                         id={`portfolio:${by}:${
                            g.initiative?.slug ?? g.title.replace(/\s+/g, '-')
                         }`}

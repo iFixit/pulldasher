@@ -372,6 +372,7 @@ export function Fold({
    defaultOpen = false,
    gutter,
    keepEmpty = false,
+   long = !!gutter,
    children,
 }: {
    count: number;
@@ -399,6 +400,10 @@ export function Fold({
    /** drawn with nothing in it, its count unsaid: a band that stands for
     * something on its own (an initiative in the roadmap's table of contents) */
    keepEmpty?: boolean;
+   /** its name can run long (an initiative's): laid out as a gutter's band,
+    * its name ending in an ellipsis, its count kept, and on a phone its
+    * detail on its own line. A band with a gutter is long */
+   long?: boolean;
    children: ReactNode;
 }) {
    const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -421,23 +426,23 @@ export function Fold({
          foldOpenStore.set({ ...foldOpenStore.get(), [id]: next });
    };
    // the label and its count stay on one line: on a phone a long detail
-   // beside them split "FIXBOT · 3" across two. A band with a gutter (the
-   // roadmap's initiatives, whose names run long) wraps its detail to the
-   // line below instead, so the label stays on the grip's line, and a name
-   // wider than the band ends in an ellipsis, its count kept
+   // beside them split "FIXBOT · 3" across two. A long band (an
+   // initiative's, on the Roadmap and the Overview) wraps its detail to the
+   // line below instead, so the label stays on the chevron's line, and a
+   // name wider than the band ends in an ellipsis, its count kept
    const labelInner = (
-      <span className={gutter ? 'flex min-w-0 whitespace-nowrap' : 'shrink-0 whitespace-nowrap'}>
+      <span className={long ? 'flex min-w-0 whitespace-nowrap' : 'shrink-0 whitespace-nowrap'}>
          <span
             className={`${tone === 'do' ? 'text-brand-700' : 'text-ink-3'} ${
-               gutter ? 'min-w-0 truncate' : ''
+               long ? 'min-w-0 truncate' : ''
             }`}
          >
             {label}
          </span>
          {showCount && count > 0 && (
-            // a flex item drops a leading space, so the gutter's takes a fixed one
+            // a flex item drops a leading space, so a long band's takes a fixed one
             <span className="shrink-0 tabular-nums text-ink-3">
-               {gutter ? '\u00a0' : ' '}· {count}
+               {long ? '\u00a0' : ' '}· {count}
             </span>
          )}
       </span>
@@ -458,7 +463,7 @@ export function Fold({
             // with it, the way a mouse gets it on hover
             aria-describedby={gloss ? glossId : undefined}
             className={`flex cursor-pointer list-none items-center gap-x-2 bg-muted/40 py-[6px] pr-3.5 ${
-               gutter ? 'flex-wrap' : ''
+               long ? 'flex-wrap' : ''
             } transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none [&::-webkit-details-marker]:hidden ${
                gutter ? 'pl-8' : 'pl-3.5'
             } ${caps ? eyebrowText : 'text-[11px] font-semibold'}`}
@@ -476,7 +481,7 @@ export function Fold({
                   // at most the band less its chevron, so a long name stays
                   // on the chevron's line and ends in an ellipsis
                   rootClass={
-                     gutter
+                     long
                         ? 'relative inline-flex min-w-0 max-w-[calc(100%-1.25rem)]'
                         : 'relative inline-flex'
                   }
@@ -516,11 +521,11 @@ export function Fold({
             )}
             {detail && (
                <span
-                  // a band with a gutter puts its detail on its own line on
-                  // a phone, under the label, whether it would fit or not,
-                  // so every band's detail starts at one x
+                  // a long band puts its detail on its own line on a phone,
+                  // under the label, whether it would fit or not, so every
+                  // band's detail starts at one x
                   className={`flex min-w-0 items-center gap-3 font-normal normal-case tracking-normal text-ink-3 ${
-                     gutter ? 'basis-full pl-5 sm:ml-auto sm:basis-auto sm:pl-0' : 'ml-auto'
+                     long ? 'basis-full pl-5 sm:ml-auto sm:basis-auto sm:pl-0' : 'ml-auto'
                   }`}
                >
                   {detail}
