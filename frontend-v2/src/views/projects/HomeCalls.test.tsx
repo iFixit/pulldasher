@@ -681,6 +681,36 @@ describe('an initiative’s page', () => {
       expect(el.textContent).not.toContain('Ends');
    });
 
+   it('says it has no plans once, with no end or people to name', () => {
+      const el = page('onboarding');
+      const terms = [...el.querySelectorAll('dt')].map(d => d.textContent);
+      expect(terms).toEqual(['Span', 'Health']);
+      expect(el.textContent).toContain('No plans yet');
+   });
+
+   it('says a reopened one’s end waits on the work going on in it', () => {
+      const done = { ...created, id: 8, project: 'akeneo', status: 'done' as const, weeks: 2 };
+      const akeneo = { ...person('akeneo', ['erin']), name: 'Akeneo 4', open: 3 } as PortfolioItem;
+      const reopened = INITIATIVES.map(i =>
+         i.slug === 'catalog' ? { ...i, status: 'open' as const } : i
+      );
+      const el = mount(
+         <InitiativePage
+            slug="catalog"
+            initiatives={reopened}
+            items={[...ITEMS, akeneo]}
+            plans={[done]}
+            calls={[]}
+            nav={{} as ProjectsNav}
+            navigate={nothing}
+            onPerson={nothing}
+         />
+      );
+      expect(el.textContent).toContain(
+         'Endsnot planned: its plans are finished, but Akeneo 4 is still worked on'
+      );
+   });
+
    it('says no initiative is at a link that names none, in plain words', () => {
       const el = page('gone');
       expect(el.textContent).toContain('No initiative is at this link.');

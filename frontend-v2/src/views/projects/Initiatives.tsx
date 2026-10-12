@@ -277,15 +277,21 @@ function spanLine(span: ReturnType<typeof initiativeSpan>, live: number): string
 }
 
 /** "estimated, from its projects", "ongoing", "every plan in it is
- * finished": how firm its end is, derived from its plans, never stored. */
-function endWords(span: ReturnType<typeof initiativeSpan>): string {
+ * finished": how firm its end is, derived from its plans, never stored.
+ * Plans finished while a project in it is still worked on (`going`, a
+ * reopened one) end nowhere yet, and it says so. */
+function endWords(span: ReturnType<typeof initiativeSpan>, going: readonly string[]): string {
    switch (span.end_kind) {
       case 'soft':
          return 'estimated, from its projects';
       case 'ongoing':
          return 'ongoing, no plan in it has an end';
       case 'ended':
-         return 'every plan in it is finished';
+         return going.length
+            ? `not planned: its plans are finished, but ${andList([...going])} ${
+                 going.length === 1 ? 'is' : 'are'
+              } still worked on`
+            : 'every plan in it is finished';
       default:
          return 'no plans yet';
    }
@@ -540,13 +546,16 @@ export function InitiativePage({
          </div>
       );
    };
+   const leads = leadWords(mine) || projectLeadWords(slugs.flatMap(s => bySlug.get(s) ?? []));
+   const goingNames = [...going].map(s => bySlug.get(s)?.name ?? s);
    const facts: [string, string][] = ledger
       ? [['Health', owed ? `${n(owed, 'question')} on Decide` : 'nothing owed']]
       : [
            ['Span', spanLine(span, live.length)],
-           // a closed one's head says how it closed; its end isn't estimated
-           ...(initiative.status === 'open'
-              ? [['Ends', endWords(span)] as [string, string]]
+           // a closed one's head says how it closed; its end isn't estimated,
+           // and with no plans the span has said it all
+           ...(initiative.status === 'open' && span.start
+              ? [['Ends', endWords(span, goingNames)] as [string, string]]
               : []),
            [
               'Health',
@@ -554,12 +563,10 @@ export function InitiativePage({
                  .filter(w => w && w !== 'nothing owed')
                  .join(', ') || 'nothing owed',
            ],
-           [
-              'People',
-              leadWords(mine) ||
-                 projectLeadWords(slugs.flatMap(s => bySlug.get(s) ?? [])) ||
-                 'No lead named on its plans',
-           ],
+           // nobody to name with no plans: the span says there are none
+           ...(leads || mine.length
+              ? [['People', leads || 'No lead named on its plans'] as [string, string]]
+              : []),
         ];
    return (
       <>
