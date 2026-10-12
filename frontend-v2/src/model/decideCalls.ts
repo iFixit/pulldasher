@@ -599,7 +599,7 @@ export function reasonFacts(reason: DecideReason, item: RoadmapItem | null, bare
       case 'untracked_grew':
          return `${n(reason.baseline + reason.since, 'PR')}, ${
             reason.since
-         } since it was set not tracked`;
+         } since it was marked Not tracked`;
       case 'goal_reached':
          return 'Every project in it is done, dropped, parked or quiet, for two weeks or more';
       case 'reopened_in_closed': {

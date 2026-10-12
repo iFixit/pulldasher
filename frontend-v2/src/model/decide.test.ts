@@ -766,6 +766,12 @@ describe('reasonWords', () => {
       expect(said('Waiting on the vendor')).toMatch(/vendor\. Move the end date\?$/);
    });
 
+   it('says how a Not tracked project grew in the words its home uses', () => {
+      expect(reasonWords({ kind: 'untracked_grew', since: 31, baseline: 2 }, null)).toMatch(
+         /^33 PRs, 31 since it was marked Not tracked\./
+      );
+   });
+
    it('asks new work in the verb its answer uses', () => {
       expect(reasonWords({ kind: 'new', since: '2026-08-30' }, null)).toBe(
          'PRs open since Aug 30, and no plan yet. When will it finish?'

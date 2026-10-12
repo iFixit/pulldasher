@@ -54,7 +54,7 @@ export const NO_PROJECT_YET = 'No project yet';
 export const GOAL = 'Goal';
 /** what Not tracked means, the same wherever it's explained */
 export const NOT_TRACKED_GLOSS =
-   'Projects set not tracked: personal and team workflow nobody reports on. They count in no load, tile, tab or question and owe no update, but Decide asks again if one doubles in size.';
+   'Projects marked Not tracked: personal and team workflow nobody reports on. They count in no load, tile, tab or question and owe no update, but Decide asks again if one doubles in size.';
 /** someone on more projects than the overload line (model/retro.ts) */
 export const OVERLOADED = 'overloaded';
 /** a project whose issues are all closed, as a label */
