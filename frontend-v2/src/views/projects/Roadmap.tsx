@@ -876,6 +876,7 @@ function PlanPanel({
    onOpenProject,
    initiatives = null,
    navigate,
+   onFile,
 }: {
    item: RoadmapItem;
    all: RoadmapItem[];
@@ -903,6 +904,9 @@ function PlanPanel({
     * way to file what a drag onto another lane files; none hides it */
    initiatives?: readonly Initiative[] | null;
    navigate?: Navigate;
+   /** file its project there (null: Unsorted), as a drop on that lane
+    * does: the receipt and Undo go under the row, which the move remounts */
+   onFile?: (to: string | null) => void;
 }) {
    const ref = useRef<HTMLDivElement>(null);
    const [removing, setRemoving] = useState(false);
@@ -1034,7 +1038,12 @@ function PlanPanel({
                   <dt className={term}>Initiative</dt>
                   <dd className="m-0">
                      {project ? (
-                        <HomeLine slug={project} initiatives={initiatives} navigate={navigate} />
+                        <HomeLine
+                           slug={project}
+                           initiatives={initiatives}
+                           navigate={navigate}
+                           onFile={onFile}
+                        />
                      ) : (
                         <span className="text-[13px] text-ink-3">
                            {NO_PROJECT_YET}: it joins an initiative through its project, once Edit
@@ -3018,6 +3027,12 @@ export function Roadmap({
                         onOpenProject={slug => navigate({ project: slug })}
                         initiatives={initiatives}
                         navigate={navigate}
+                        onFile={to => {
+                           // the details remount in the new lane: the focus
+                           // goes to the receipt's words, not their calls
+                           setFocusCalls(false);
+                           fileByDrag(item, to ?? UNSORTED, { fromDetails: true });
+                        }}
                      />
                   ))}
             </div>

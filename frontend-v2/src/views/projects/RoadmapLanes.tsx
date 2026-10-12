@@ -109,7 +109,16 @@ export function ReceiptLine({ receipt, onOpen }: { receipt: Receipt; onOpen: (id
          style={receipt.held ? { minHeight: receipt.held } : undefined}
          className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-secondary bg-muted/40 px-3.5 py-1.5 text-xs text-ink-3"
       >
-         <span className="inline-flex items-center gap-1.5 text-[13px] text-ink-2">
+         {/* the focus can land on its words (a filing from the plan's
+             details), so an extra Enter there never undoes it */}
+         <span
+            id={`receipt-words-${receipt.key}`}
+            tabIndex={-1}
+            className={`inline-flex items-center gap-1.5 rounded text-[13px] text-ink-2 ${
+               // an Undo's words, under a double-click's second press
+               receipt.held ? 'select-none' : ''
+            }`}
+         >
             {!receipt.failed && <Icon icon={Check} size={14} />}
             {receipt.words.replace(/\.$/, '')}.
          </span>
@@ -291,8 +300,11 @@ export function initiativeLanes(c: LaneContext) {
    } = c;
    // a plan dropped in another initiative's lane: its project filed there,
    // its priority left alone, the lane it went to opened on its receipt
-   const fileByDrag = (item: RoadmapItem, to: string) => {
+   const fileByDrag = (item: RoadmapItem, to: string, { fromDetails = false } = {}) => {
       const key = `plan:${item.id}`;
+      // from the details' File elsewhere (the drop's keyboard twin), the
+      // focus goes to the receipt's words; a drop leaves it on the grip
+      const focusAfter = fromDetails ? [`receipt-words-${key}`] : [`roadmap-grip-${item.id}`];
       const slug = item.project;
       // the lanes refuse its drag (laneDrop), so this is the fallback: said
       // where it was dropped, with the way to the question that links it
@@ -321,25 +333,28 @@ export function initiativeLanes(c: LaneContext) {
       run.current = null;
       void fileProject(slug, target, { expect: from }).then(r => {
          if ('error' in r) return say({ key, words: r.error.replace(/\.$/, ''), failed: true });
-         openFold(laneId(to));
-         refocus.current = [`roadmap-grip-${item.id}`];
-         say({
-            key,
-            words: `Filed ${item.name} in ${toName}`,
-            undo: () => {
-               refocus.current = [`roadmap-grip-${item.id}`];
-               // said at once, as the board shows it back at once
-               keepInPlace(key, held => {
-                  openFold(laneId(r.before.initiative ?? UNSORTED));
-                  said(key, `Put ${item.name} back in ${fromHome?.name ?? UNSORTED_WORD}`, held);
-                  void fileProject(slug, r.before.initiative, {
-                     set_at: r.before.set_at,
-                     baseline_prs: r.before.baseline_prs,
-                  }).then(back => {
-                     if ('error' in back) fail(key);
+         refocus.current = focusAfter;
+         // one commit, so the focus finds the receipt in the lane it opened
+         flushSync(() => {
+            openFold(laneId(to));
+            say({
+               key,
+               words: `Filed ${item.name} in ${toName}`,
+               undo: () => {
+                  refocus.current = focusAfter;
+                  // said at once, as the board shows it back at once
+                  keepInPlace(key, held => {
+                     openFold(laneId(r.before.initiative ?? UNSORTED));
+                     said(key, `Put ${item.name} back in ${fromHome?.name ?? UNSORTED_WORD}`, held);
+                     void fileProject(slug, r.before.initiative, {
+                        set_at: r.before.set_at,
+                        baseline_prs: r.before.baseline_prs,
+                     }).then(back => {
+                        if ('error' in back) fail(key);
+                     });
                   });
-               });
-            },
+               },
+            });
          });
       });
    };

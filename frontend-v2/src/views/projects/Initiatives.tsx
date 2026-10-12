@@ -64,10 +64,15 @@ export function HomeLine({
    navigate,
    onSaid,
    movable = true,
+   onFile,
 }: {
    slug: string;
    initiatives: readonly Initiative[];
    navigate: Navigate;
+   /** files it in place of this line's own write, with the receipt kept
+    * by whoever outlives this line (the Roadmap's plan details move with
+    * the plan, so they remount) */
+   onFile?: (to: string | null) => void;
    /** say a change aloud, for a screen reader */
    onSaid?: (words: string) => void;
    /** false while another control on the page files it (Decide's question) */
@@ -93,6 +98,7 @@ export function HomeLine({
       const to = pick || null;
       setMoving(false);
       if (to === (home?.slug ?? null)) return;
+      if (onFile) return onFile(to);
       const toName = homeName(choices.find(i => i.slug === to));
       const saved = await fileProject(slug, to, { expect: home?.slug ?? null });
       if ('error' in saved) return say({ words: saved.error.replace(/\.$/, ''), failed: true });

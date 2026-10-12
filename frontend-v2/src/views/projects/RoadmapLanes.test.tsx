@@ -117,6 +117,16 @@ beforeAll(() => {
             if (to && to.status !== 'open' && body?.set_at == null)
                return reply({ error: 'that initiative is closed' }, 409);
             const was = server.find(i => i.projects.some(f => f.project === body?.project));
+            // filed: out of the home it had, into the one named
+            server = server.map(i => ({
+               ...i,
+               projects: [
+                  ...i.projects.filter(f => f.project !== body?.project),
+                  ...(i.slug === body?.initiative
+                     ? [{ project: body.project as string, set_by: null, set_at: 60, baseline_prs: 0 }]
+                     : []),
+               ],
+            }));
             return reply({
                project: body?.project,
                before: { initiative: was?.slug ?? null, set_at: 50, baseline_prs: 0 },
@@ -226,6 +236,38 @@ function drag(from: Element, to: Element): { refused: boolean } {
    });
    return { refused: !over.defaultPrevented };
 }
+
+describe('File elsewhere in a plan’s details', () => {
+   it('leaves a receipt with Undo under the row in its new lane, the focus on its words', async () => {
+      const el = await mount({ item: 2 });
+      const details = el.querySelector('[aria-label="Answer search: its plan"]') as HTMLElement;
+      act(() => details.querySelector<HTMLButtonElement>('[aria-label^="File elsewhere"]')?.click());
+      const select = details.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'site-speed';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      act(() => [...details.querySelectorAll('button')].find(b => b.textContent === 'File')?.click());
+      await settle();
+      await settle();
+      // the plan and its details moved to Site speed's lane; the receipt went too
+      const words = document.activeElement as HTMLElement;
+      expect(words.textContent).toBe('Filed Answer search in Site speed.');
+      expect(lane(el, 'site-speed').contains(words)).toBe(true);
+      expect(receipts(el, 'Filed Answer search in Site speed')).toBe(1);
+      // an extra Enter lands on words; Undo puts it back, its words take the focus
+      act(() =>
+         el.querySelector<HTMLButtonElement>('[aria-label="Undo: Filed Answer search in Site speed"]')?.click()
+      );
+      await settle();
+      await settle();
+      expect((document.activeElement as HTMLElement).textContent).toBe(
+         'Put Answer search back in FixBot chat.'
+      );
+      expect(lane(el, 'fixbot').contains(document.activeElement)).toBe(true);
+      expect(writes().filter(c => c.path === '/initiatives/file')).toHaveLength(2);
+   });
+});
 
 describe('the Roadmap by initiative', () => {
    it('opens a linked plan’s details without putting the focus on an end to promise', async () => {
