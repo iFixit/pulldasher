@@ -4,6 +4,7 @@
  * drag to file and rank.
  */
 import type { Dispatch, DragEvent, MutableRefObject, ReactNode, SetStateAction } from 'react';
+import { flushSync } from 'react-dom';
 import { Check, GripVertical } from 'lucide-react';
 import type { DecideRow } from '../../../../shared/model/decide';
 import type { Initiative } from '../../../../shared/model/initiatives';
@@ -36,6 +37,31 @@ function hashWith(patch: Record<string, string | null>): string {
    return `#${p}`;
 }
 
+/** A run of rank moves on one lane: the initiative it sat above and its
+ * priority when the run began, which Undo puts back. */
+interface LaneRun {
+   key: string;
+   was: number | null;
+   wasAt: number;
+}
+
+/**
+ * Keep the receipt with this key where it is on screen through `write` (an
+ * Undo that sends its row or lane back up or down the list): drawn at once,
+ * then the page scrolls with it before the click is done, so the words
+ * that replaced Undo stay under the pointer and a double-click's second
+ * press lands on them.
+ */
+export function keepInPlace(key: string, write: (held?: number) => void): void {
+   const at = () => document.querySelector(`[data-receipt="${key}"]`)?.getBoundingClientRect();
+   const was = at();
+   // the words keep the receipt's height, so a shorter line never leaves
+   // the next row where Undo was
+   flushSync(() => write(was?.height));
+   const now = at();
+   if (was && now && now.top !== was.top) window.scrollBy(0, now.top - was.top);
+}
+
 /** The initiatives as the board has them, just after a write. */
 const readInitiativesNow = () => readInitiatives().initiatives ?? [];
 
@@ -58,6 +84,8 @@ export interface Receipt {
    gone?: RoadmapItem;
    /** the lane the planned or parked project was in, where it stays */
    lane?: Standing;
+   /** the least height it keeps: an Undo's words hold the receipt's */
+   held?: number;
 }
 
 /** Where a project with no plan sits: Decide asks it for a plan, asks it
@@ -67,7 +95,11 @@ export type Standing = 'plan' | 'call' | 'none';
 export function ReceiptLine({ receipt, onOpen }: { receipt: Receipt; onOpen: (id: number) => void }) {
    const open = receipt.open;
    return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-secondary bg-muted/40 px-3.5 py-1.5 text-xs text-ink-3">
+      <div
+         data-receipt={receipt.key}
+         style={receipt.held ? { minHeight: receipt.held } : undefined}
+         className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-secondary bg-muted/40 px-3.5 py-1.5 text-xs text-ink-3"
+      >
          <span className="inline-flex items-center gap-1.5 text-[13px] text-ink-2">
             {!receipt.failed && <Icon icon={Check} size={14} />}
             {receipt.words.replace(/\.$/, '')}.
@@ -189,6 +221,8 @@ export interface LaneContext {
    refocus: MutableRefObject<string[] | null>;
    run: MutableRefObject<unknown>;
    say: (next: Receipt | null, words?: string) => void;
+   /** an Undo's words, held in its receipt's place with nothing to click */
+   said: (key: string, words: string, held?: number) => void;
    setAnnounced: Dispatch<SetStateAction<string>>;
    setDragging: Dispatch<SetStateAction<number | null>>;
    setDraggingLane: Dispatch<SetStateAction<number | null>>;
@@ -235,6 +269,7 @@ export function initiativeLanes(c: LaneContext) {
       refocus,
       run,
       say,
+      said,
       setAnnounced,
       setDragging,
       setDraggingLane,
@@ -282,30 +317,40 @@ export function initiativeLanes(c: LaneContext) {
             words: `Moved ${item.name} to ${toName}`,
             undo: () => {
                refocus.current = [`roadmap-grip-${item.id}`];
-               void fileProject(slug, r.before.initiative, {
-                  set_at: r.before.set_at,
-                  baseline_prs: r.before.baseline_prs,
-               }).then(back => {
-                  if ('error' in back) return fail(key);
+               // said at once, as the board shows it back at once
+               keepInPlace(key, held => {
                   openFold(laneId(r.before.initiative ?? UNSORTED));
-                  say(null, `Put ${item.name} back in ${fromHome?.name ?? UNSORTED_WORD}`);
+                  said(key, `Put ${item.name} back in ${fromHome?.name ?? UNSORTED_WORD}`, held);
+                  void fileProject(slug, r.before.initiative, {
+                     set_at: r.before.set_at,
+                     baseline_prs: r.before.baseline_prs,
+                  }).then(back => {
+                     if ('error' in back) fail(key);
+                  });
                });
             },
          });
       });
    };
    // an initiative moved just above `before` (null: the bottom), with Undo
-   // back to the one it sat above
+   // back to the one it sat above before the run of moves began (arrow
+   // presses, or drag after drag), as a plan row's run does
    const rankMove = (moving: Initiative, before: number | null) => {
       const all = byRank(initiatives ?? []);
-      const was = all[all.findIndex(i => i.id === moving.id) + 1]?.id ?? null;
-      const wasAt = rankOf(moving);
-      if (was === before) return;
+      const above = all[all.findIndex(i => i.id === moving.id) + 1]?.id ?? null;
+      if (above === before) return;
       const key = `initiative:${moving.id}`;
-      run.current = null;
+      const going = run.current as LaneRun | null;
+      const start: LaneRun =
+         going?.key === key ? going : { key, was: above, wasAt: rankOf(moving) };
+      const { was, wasAt } = start;
+      run.current = start;
       refocus.current = [`roadmap-lane-grip-${moving.id}`];
       void moveInitiative(moving.id, before).then(r => {
-         if (r !== true) return say({ key, words: r.error.replace(/\.$/, ''), failed: true });
+         if (r !== true) {
+            run.current = null;
+            return say({ key, words: r.error.replace(/\.$/, ''), failed: true });
+         }
          const ranked = byRank(readInitiativesNow()).filter(
             i => i.status === 'open' && i.kind !== 'untracked'
          );
@@ -314,12 +359,15 @@ export function initiativeLanes(c: LaneContext) {
             key,
             words: `Moved ${moving.name} to priority ${at}`,
             undo: () => {
+               run.current = null;
                refocus.current = [`roadmap-lane-grip-${moving.id}`];
-               void moveInitiative(moving.id, was).then(back =>
-                  back === true
-                     ? say(null, `Put ${moving.name} back at priority ${wasAt}`)
-                     : fail(key)
-               );
+               // said at once, as the board shows it back at once
+               keepInPlace(key, held => {
+                  said(key, `Put ${moving.name} back at priority ${wasAt}`, held);
+                  void moveInitiative(moving.id, was).then(back => {
+                     if (back !== true) fail(key);
+                  });
+               });
             },
          });
       });

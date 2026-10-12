@@ -131,6 +131,7 @@ import { askOf, reasonWords } from '../../model/decideCalls';
 import { HomeLine } from './Initiatives';
 import {
    initiativeLanes,
+   keepInPlace,
    NO_PROJECT_LANE,
    ReceiptLine,
    TimelineLane,
@@ -2539,6 +2540,9 @@ export function Roadmap({
       setReceipt(next);
       setAnnounced(words ?? (next ? `${next.words.replace(/\.$/, '')}.` : ''));
    };
+   // an Undo that saved: its words stay in the receipt's place, with
+   // nothing to click, so a second click on Undo lands on nothing
+   const said = (key: string, words: string, held?: number) => say({ key, words, held });
    // a save that failed says so where the click was, not in the toolbar;
    // `keep` holds a removed plan's place, and its Undo, to try again
    const fail = (key: string, keep?: Pick<Receipt, 'gone' | 'undo'>) => {
@@ -2582,7 +2586,7 @@ export function Roadmap({
                run.current = null;
                refocus.current = [`roadmap-bar-${item.id}`, `roadmap-grip-${item.id}`];
                void updateRoadmapItem(item.id, from).then(back =>
-                  back ? say(null, `Put ${item.name} back: ${planWords(from)}`) : fail(key)
+                  back ? said(key, `Put ${item.name} back: ${planWords(from)}`) : fail(key)
                );
             },
          });
@@ -2627,14 +2631,17 @@ export function Roadmap({
                refocus.current = [`roadmap-grip-${item.id}`];
                const now =
                   readRoadmap({ all: true }).items?.find(i => i.id === item.id)?.team ?? null;
-               void Promise.all([
-                  reorderRoadmap(from),
-                  now === fromTeam ? true : updateRoadmapItem(item.id, { team: fromTeam }),
-               ]).then(([a, b]) =>
-                  a && b
-                     ? say(null, `Put ${item.name} back at ${placeWords(item, from, shown)}`)
-                     : fail(key)
-               );
+               // said at once, as the board shows it back at once, and the
+               // page follows the row so its words stay under the pointer
+               keepInPlace(key, held => {
+                  said(key, `Put ${item.name} back at ${placeWords(item, from, shown)}`, held);
+                  void Promise.all([
+                     reorderRoadmap(from),
+                     now === fromTeam ? true : updateRoadmapItem(item.id, { team: fromTeam }),
+                  ]).then(([a, b]) => {
+                     if (!a || !b) fail(key);
+                  });
+               });
             },
          });
       });
@@ -2660,7 +2667,7 @@ export function Roadmap({
          undo: () => {
             refocus.current = [`roadmap-bar-${was.id}`, `roadmap-grip-${was.id}`];
             void updateRoadmapItem(was.id, back, { undo: times }).then(ok =>
-               ok ? say(null, `Put ${was.name} back as it was`) : fail(key)
+               ok ? said(key, `Put ${was.name} back as it was`) : fail(key)
             );
          },
       });
@@ -2677,7 +2684,7 @@ export function Roadmap({
       const undo = () => {
          refocus.current = [`roadmap-grip-${item.id}`];
          void restoreRoadmapItem(item.id).then(ok =>
-            ok ? say(null, `Put ${item.name} back on the roadmap`) : fail(key, { gone: item, undo })
+            ok ? said(key, `Put ${item.name} back on the roadmap`) : fail(key, { gone: item, undo })
          );
       };
       say({ key, words: `Removed ${item.name} from the roadmap`, gone: item, undo });
@@ -3084,6 +3091,7 @@ export function Roadmap({
       refocus,
       run,
       say,
+      said,
       setAnnounced,
       setDragging,
       setDraggingLane,

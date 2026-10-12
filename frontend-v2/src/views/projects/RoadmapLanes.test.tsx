@@ -274,6 +274,44 @@ describe('the Roadmap by initiative', () => {
       }
    });
 
+   it('undoes a run of lane moves to where the run began, and holds its words in place', async () => {
+      server = [
+         ...START,
+         initiative(4, 'alpha', 'Alpha', []),
+         initiative(5, 'beta', 'Beta', []),
+      ];
+      await loadInitiatives();
+      const el = await mount();
+      for (let k = 0; k < 3; k++) {
+         act(() => {
+            (el.querySelector('#roadmap-lane-grip-5') as HTMLElement).dispatchEvent(
+               new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })
+            );
+         });
+         await settle();
+      }
+      expect(receipts(el, 'Moved Beta to priority 1')).toBe(1);
+      const undo = [...el.querySelectorAll('button')].find(
+         b => b.getAttribute('aria-label') === 'Undo: Moved Beta to priority 1'
+      ) as HTMLButtonElement;
+      act(() => undo.click());
+      await settle();
+      // above the one it sat above before the first press: none, the bottom
+      // of the list (Not tracked's own rank aside), so priority 4 again
+      expect(writes().at(-1)).toMatchObject({ path: '/initiatives/5/move', body: { before: 9 } });
+      expect(el.textContent).toContain('Put Beta back at priority 4.');
+      // the words stay where the receipt was, with nothing to click in it,
+      // so a second click on that spot does nothing
+      const said = [...el.querySelectorAll('div')].find(d =>
+         d.textContent?.startsWith('Put Beta back at priority 4')
+      ) as HTMLElement;
+      expect(said.querySelector('button, a')).toBeNull();
+      const before = writes().length;
+      act(() => undo.click());
+      await settle();
+      expect(writes().length).toBe(before);
+   });
+
    it('refuses a plan dragged onto a closed initiative’s lane', async () => {
       // Catalog is closed, and holds a project still worked on, so it shows
       server = START.map(i =>
