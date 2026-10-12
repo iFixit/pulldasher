@@ -1287,6 +1287,7 @@ function PlanRow({
    onPerson,
    onOpenProject,
    onMove,
+   onOtherLane,
    onShow,
    dragHandlers,
    dropHere,
@@ -1315,6 +1316,8 @@ function PlanRow({
    onOpenProject: (slug: string) => void;
    /** a drag or an arrow key moved or resized it */
    onMove: (to: Span) => void;
+   /** its bar was let go over another lane, so nothing moved */
+   onOtherLane: () => void;
    /** bring a day into view: the plan is outside the weeks shown */
    onShow: (day: string) => void;
    dragHandlers: {
@@ -1386,12 +1389,17 @@ function PlanRow({
          window.removeEventListener('pointermove', move);
          setPreview(null);
       };
-      const up = () => {
+      const up = (ev: globalThis.PointerEvent) => {
          window.removeEventListener('pointermove', move);
          window.removeEventListener('pointerup', up);
          window.removeEventListener('keydown', cancel);
          setPreview(null);
-         if (!cancelled) commit(latest);
+         // let go over another lane: a bar moves dates, and filing it there
+         // as well would make one drag two changes, so it moves nothing
+         const lane = trackRef.current?.closest('[data-lane-id]');
+         const over = document.elementFromPoint?.(ev.clientX, ev.clientY)?.closest('[data-lane-id]');
+         if (!cancelled && dragged.current && lane && over && over !== lane) onOtherLane();
+         else if (!cancelled) commit(latest);
          // the click that comes with letting go has been heard by then
          setTimeout(() => {
             dragged.current = false;
@@ -3019,6 +3027,15 @@ export function Roadmap({
                   onPerson={person}
                   onOpenProject={slug => navigate({ project: slug })}
                   onMove={to => moved(item, to)}
+                  onOtherLane={() =>
+                     say({
+                        key,
+                        words: `Nothing moved: a bar moves its dates${
+                           ranked ? '. To put it in another lane, drag its grip, left of its name' : ''
+                        }`,
+                        failed: true,
+                     })
+                  }
                   onShow={day =>
                      zoom
                         ? navigate({ zoom: zoomKey(zoomAround(zoom.kind, dateOf(day))) })

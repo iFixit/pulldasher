@@ -669,6 +669,39 @@ const pointerTo = (x: number, y: number) =>
       document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: x, clientY: y }));
    });
 
+describe('a bar let go over another lane', () => {
+   it('moves nothing, and says the grip is what files it', async () => {
+      const el = await mount();
+      const bar = el.querySelector('#roadmap-bar-1') as HTMLElement;
+      const other = lane(el, 'fixbot');
+      const rect = vi
+         .spyOn(Element.prototype, 'getBoundingClientRect')
+         .mockReturnValue({ left: 0, right: 700, width: 700, top: 0, bottom: 20, height: 20 } as DOMRect);
+      // the pointer ends over FixBot chat's lane
+      document.elementFromPoint = () => other;
+      try {
+         const at = (x: number) => ({ bubbles: true, cancelable: true, clientX: x, clientY: 300 });
+         act(() => {
+            bar.dispatchEvent(new MouseEvent('pointerdown', at(100)));
+         });
+         act(() => {
+            window.dispatchEvent(new MouseEvent('pointermove', at(160)));
+         });
+         act(() => {
+            window.dispatchEvent(new MouseEvent('pointerup', at(160)));
+         });
+         await settle();
+      } finally {
+         rect.mockRestore();
+         delete (document as Partial<Document>).elementFromPoint;
+      }
+      expect(writes()).toEqual([]);
+      expect(el.textContent).toContain(
+         'Nothing moved: a bar moves its dates. To put it in another lane, drag its grip, left of its name.'
+      );
+   });
+});
+
 describe('after a click on the Roadmap', () => {
    /** Lay the page out as a browser would, as far as these tests look: a
     * sticky header 120 px tall, every receipt at `receiptTop`, its row's
