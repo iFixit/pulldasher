@@ -880,6 +880,13 @@ icon with a class bolted on.
   "File" is the one word for putting a project in an initiative: the
   opener ("File elsewhere"), the chooser, the button, the receipt ("Filed
   in Release safety", "Filed Image CDN in FixBot chat") and its hover.
+  Filing into Not tracked is the one exception, with one receipt on every
+  view (Decide, a plan's details, a project's page): "Marked Not tracked,
+  so it counts nowhere. Decide asks again if it grows." Not tracked is
+  the home's name, capital N, in every answer and receipt ("Keep Not
+  tracked", "Still Not tracked?"). Under an Unsorted band a row's Plan
+  cell asks its question ("Which initiative is it in?"), not the band's
+  name again.
   There is one chooser, one layout, on every view: "File in [select]
   File Cancel". An Unsorted row's File is its answer; Track it, File
   elsewhere, a plan's details and a project's page open it with Cancel;
@@ -899,7 +906,7 @@ icon with a class bolted on.
   opens the plan's details, the clash the plan it waits on, each with the
   focus on the details' Plan line, so a second Enter answers nothing; the
   answers are a Tab away. A question about a project with a plan under
-  way (Still not tracked?) is said on that plan's row, and its lane opens.
+  way (Still Not tracked?) is said on that plan's row, and its lane opens.
 - **Escape closes the innermost thing and gives the focus back to what
   opened it**: a chooser (not the details around it), the answers Other
   answers opened, an edit form. An answer strip's one Tab stop is its
@@ -915,20 +922,32 @@ icon with a class bolted on.
   details, the project and initiative pages, the Overview; not the load
   chart), a pointer click or a drop notes what's within 24 px of its
   point and where it sits. For 1.6 s, until the pointer moves away or a
-  person scrolls, a press there reaches nothing (and the control flashes
-  an outline) only if it lands on a control that arrived or moved since,
-  or on the same control again within a double-click. A control that
-  stayed put takes every press: a toggle closes again at once, the next
-  week, a neighbour, a grip's drag. So a double or triple click is one
-  click, and a press "to be sure" a second later lands on nothing new. A
-  pointer moved onto a control that arrived means it. What the click
+  person scrolls (a wheel, the scrollbar, a touch pan, any key but a
+  modifier alone), a press there reaches nothing (and the control dims
+  with a small nudge; under reduced motion it dims and takes a dashed
+  outline in its own colour) only if it lands on a control that arrived
+  or moved since, or on the control just pressed within a double-click or
+  saying new words. Where a control sits is its centre and its size
+  before transforms, so a press's own scale is no move. The control just
+  pressed is judged first: a toggle or a grip takes every press, whatever
+  its press or its new label did to its box. A control that stayed put
+  takes every press: a toggle closes again, the next week, a neighbour, a
+  grip's drag. A press the browser counts as a double or triple click on
+  the control just pressed is one click, an opener's too (it stays open);
+  so a double or triple click is one click, and a press "to be sure" a
+  second later lands on nothing new. A pointer moved onto a control that
+  arrived means it once it rests there or a double-click's span has
+  passed, so a sloppy double-click's drift doesn't. A touch has no
+  pointer move between taps, so a tap on what came under a still finger
+  waits out the 1.6 s, by design: a finger can't wobble off and back. What the click
   left (a receipt, Undo's words) gets the focus and is shown whole below
   the sticky headers, wherever it went. Undo's held words ("Put X back as
   it was.") stand where the receipt was until the pointer moves away, a
   Tab, or the next action. A failed Undo says the server's reason and
   keeps Try again. A run of lane moves, on one lane or several, keeps one
   receipt whose Undo puts the whole order back. Every Undo is named by
-  what it takes back: "Undo: " and its receipt's words.
+  what it takes back: "Undo: " and its receipt's words, without their
+  full stop; a failed one is "Try the Undo again: " and the same words.
 - **One drag, one change.** A bar moves a plan's dates; its grip moves it
   to another lane (files it, by initiative). A bar let go over another
   lane moves the dates its preview showed and stays in its own lane, and
@@ -937,7 +956,8 @@ icon with a class bolted on.
   drifts onto the next lane keeps its date change).
 - **A question on the Roadmap is a row's amber words.** An initiative's
   own question (Did it reach its goal?) sits on a row like a plan's, its
-  answers outlined at the row's end, not filled under a paragraph. On a
+  answers outlined at the row's end, not filled under a paragraph; the
+  board's guess still says Suggested, as it does on Decide. On a
   phone a chooser's label goes above its select, as an answer row's does.
   "Unsorted" is the one word for a project filed nowhere, on every band,
   chooser, hover and split (the sentence form is "filed nowhere"). A plan
