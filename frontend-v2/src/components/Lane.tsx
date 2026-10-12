@@ -515,7 +515,14 @@ export function Fold({
                labelInner
             )}
             {detail && (
-               <span className="ml-auto flex min-w-0 items-center gap-3 font-normal normal-case tracking-normal text-ink-3">
+               <span
+                  // a band with a gutter puts its detail on its own line on
+                  // a phone, under the label, whether it would fit or not,
+                  // so every band's detail starts at one x
+                  className={`flex min-w-0 items-center gap-3 font-normal normal-case tracking-normal text-ink-3 ${
+                     gutter ? 'basis-full pl-5 sm:ml-auto sm:basis-auto sm:pl-0' : 'ml-auto'
+                  }`}
+               >
                   {detail}
                </span>
             )}
