@@ -25,6 +25,7 @@ import { dayWords } from '../../model/projectData';
 import { stageWord, type PortfolioItem } from '../../model/portfolio';
 import { andList, UNSORTED_WORD } from '../../model/words';
 import { DecideCall } from './Decide';
+import { HomeChooser } from './HomeCalls';
 import {
    AllItemsContext,
    askedInitiative,
@@ -83,7 +84,6 @@ export function HomeLine({
    const [moving, setMoving] = useState(false);
    const [pick, setPick] = useState(home?.slug ?? '');
    const [receipt, setReceipt] = useState<MoveReceipt | null>(null);
-   const selectId = useId();
    const moveId = useId();
    const doneRef = useRef<HTMLSpanElement>(null);
    useEffect(() => {
@@ -138,45 +138,32 @@ export function HomeLine({
             <span>{UNSORTED_WORD}</span>
          )}
          {moving && (
-            <span className="inline-flex flex-wrap items-center gap-2">
-               <label htmlFor={selectId}>File in</label>
-               <select
-                  id={selectId}
-                  autoFocus
-                  value={pick}
-                  onChange={e => setPick(e.target.value)}
-                  onKeyDown={e => {
-                     if (e.key !== 'Escape') return;
-                     setMoving(false);
-                     requestAnimationFrame(() => document.getElementById(moveId)?.focus());
-                  }}
-                  className={`h-7 px-2 text-[13px] text-ink ${textInputClass}`}
-               >
-                  {choices.map(i => (
-                     <option key={i.slug} value={i.slug}>
-                        {i.name}
-                     </option>
-                  ))}
-                  <option value="">{UNSORTED_WORD}</option>
-               </select>
-               <QuietButton
-                  onClick={() => void move()}
-                  disabled={(pick || null) === (home?.slug ?? null)}
-                  title={
-                     (pick || null) === (home?.slug ?? null) ? 'Choose another home first' : undefined
-                  }
-               >
-                  File
-               </QuietButton>
-               <QuietButton onClick={() => setMoving(false)}>Cancel</QuietButton>
-            </span>
+            <HomeChooser
+               name={projectName}
+               autoFocus
+               unsorted
+               chooser={{ chosen: pick, choices, setPick }}
+               file={{
+                  onFile: () => void move(),
+                  disabled: (pick || null) === (home?.slug ?? null),
+               }}
+               onCancel={() => {
+                  setMoving(false);
+                  requestAnimationFrame(() => document.getElementById(moveId)?.focus());
+               }}
+            />
          )}
          {receipt && (
             <span role="status" className="inline-flex items-center gap-2 text-ink-2">
                {!receipt.failed && (
                   <Icon icon={Check} size={14} className="inline-block align-[-2px]" />
                )}
-               <span ref={doneRef} tabIndex={-1} className="rounded">
+               <span
+                  ref={doneRef}
+                  tabIndex={-1}
+                  // Undo's words, under a double-click's second press
+                  className={`rounded ${receipt.settled ? 'select-none' : ''}`}
+               >
                   {receipt.words}.
                </span>
                {receipt.undo ? (

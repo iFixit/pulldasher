@@ -199,6 +199,9 @@ const click = (el: HTMLElement, words: string) =>
    act(() =>
       [...el.querySelectorAll('button')].find(b => b.textContent?.startsWith(words))?.click()
    );
+/** the chooser's File button, the answer or the opened chooser's */
+const fileButton = (el: HTMLElement) =>
+   [...el.querySelectorAll('button')].find(b => /^File(Suggested)?$/.test(b.textContent ?? ''));
 /** a callback the test doesn't watch */
 const nothing = () => undefined;
 const settle = () => act(() => new Promise(resolve => setTimeout(resolve, 0)));
@@ -298,8 +301,10 @@ describe('a Not tracked project that grew', () => {
       const select = el.querySelector('select') as HTMLSelectElement;
       expect(document.activeElement).toBe(select);
       // its File button sits on the chooser's line, out of the toolbar
-      const file = [...el.querySelectorAll('button')].find(b => b.textContent?.startsWith('File in'));
+      const file = fileButton(el);
       expect(file?.closest('[role="toolbar"]')).toBeNull();
+      // and Cancel beside it, as everywhere a project is filed
+      expect(file?.nextElementSibling?.textContent).toBe('Cancel');
       // the guess's hover says where the project is now, never Unsorted
       const guessed = [...el.querySelectorAll('span')].find(x => x.textContent === 'guessed');
       expect(guessed?.title).toBe(
@@ -315,13 +320,13 @@ describe('the Initiative chooser on a row Decide asks to plan', () => {
       reasons: [{ kind: 'new', since: '2026-09-10' }],
    });
    const select = (el: HTMLElement) =>
-      el.querySelector<HTMLSelectElement>('select[aria-label^="File it in"]');
+      el.querySelector<HTMLSelectElement>('select[aria-label^="File in"]');
 
    it('isn’t shown for a filed project, so its answer stays a plan answer and moves nothing', async () => {
       const el = render(fresh('filed'));
       // filed in Site speed already: nothing asks to file it
       expect(select(el)).toBeNull();
-      expect(el.textContent).not.toContain('File it in');
+      expect(el.textContent).not.toContain('File in');
       click(el, 'Promise to finish by');
       await settle();
       expect(calls.some(c => c.path === '/initiatives/file')).toBe(false);
@@ -378,7 +383,7 @@ describe('the Initiative chooser on a row Decide asks to plan', () => {
    });
 });
 
-describe('a section’s one click on rows with a File it in chooser', () => {
+describe('a section’s one click on rows with a File in chooser', () => {
    const fresh = (slug: string): DecideRow => ({
       slug,
       item: null,
@@ -472,7 +477,7 @@ describe('the words for where a project belongs', () => {
    });
 });
 
-describe('the File it in chooser and the answer that waits on it', () => {
+describe('the File in chooser and the answer that waits on it', () => {
    const unfiled = (slug: string): DecideRow => ({ slug, item: null, reasons: [{ kind: 'unfiled' }] });
    const order = (el: HTMLElement) =>
       [...el.querySelectorAll('select, button')].map(n => n.tagName.toLowerCase());
@@ -481,19 +486,21 @@ describe('the File it in chooser and the answer that waits on it', () => {
       // nobody it shares work with is filed anywhere: no guess
       const el = render(unfiled('loner'));
       expect(order(el)[0]).toBe('select');
-      const file = [...el.querySelectorAll('button')].find(b => b.textContent === 'File it');
+      const file = fileButton(el);
       expect(file?.disabled).toBe(true);
    });
 
    it('says Suggested only for the board’s own guess, never for a person’s pick', () => {
       const el = render(unfiled('new-thing'));
-      expect(buttons(el)).toEqual(['File in FixBot chatSuggested']);
+      expect(buttons(el)).toEqual(['FileSuggested']);
+      expect(fileButton(el)?.getAttribute('aria-label')).toBe('File New thing in FixBot chat');
       const select = el.querySelector('select') as HTMLSelectElement;
       act(() => {
          select.value = 'site-speed';
          select.dispatchEvent(new Event('change', { bubbles: true }));
       });
-      expect(buttons(el)).toEqual(['File in Site speed']);
+      expect(buttons(el)).toEqual(['File']);
+      expect(fileButton(el)?.getAttribute('aria-label')).toBe('File New thing in Site speed');
    });
 
    it('holds a plan answer the same way while its chooser is empty', () => {
@@ -532,7 +539,7 @@ describe('the File it in chooser and the answer that waits on it', () => {
          select.value = 'site-speed';
          select.dispatchEvent(new Event('change', { bubbles: true }));
       });
-      click(el, 'File in Site speed');
+      act(() => fileButton(el)?.click());
       await settle();
       expect(el.textContent).toContain('Someone filed it in FixBot chat since, so nothing changed.');
       // and the board reads the homes again
@@ -855,7 +862,7 @@ describe('a pick left in a chooser that closed', () => {
       const el = render(grew);
       click(el, 'Track it');
       pick(el, 'fixbot');
-      click(el, 'File in FixBot chat');
+      act(() => fileButton(el)?.click());
       await settle();
       click(el, 'Undo');
       await settle();

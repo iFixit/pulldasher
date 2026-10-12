@@ -1,22 +1,21 @@
 /**
- * The home answers Decide draws on a row: the File it in chooser and its
+ * The home answers Decide draws on a row: the File in chooser and its
  * hook, the strip that answers where a project belongs or an initiative's own
  * question, and Decide's Initiative switch. It reads the question model
  * (model/decideCalls.ts) and never Decide.tsx, so Decide imports it without
  * a cycle.
  */
-import { useContext, useId, useRef, useState, type ReactNode } from 'react';
+import { useContext, useId, useRef, useState } from 'react';
 import { createMemoryStore } from '../../storage';
 import type { PortfolioItem } from '../../model/portfolio';
 import type { DecideRow } from '../../../../shared/model/decide';
 import { homesOf, type Initiative } from '../../../../shared/model/initiatives';
-import { textInputClass } from '../../components/bits';
+import { QuietButton, textInputClass } from '../../components/bits';
 import { byRank, useInitiativesValue } from '../../model/initiativesData';
 import { guessHome, homeChoices, NO_PROJECT, UNSORTED } from '../../model/initiativeBoard';
 import { NO_PROJECT_YET, UNSORTED_WORD } from '../../model/words';
 import {
    AllItemsContext,
-   answerWords,
    arrowsAmong,
    askedInitiative,
    initiativeById,
@@ -25,11 +24,11 @@ import {
    type Filed,
 } from '../../model/decideCalls';
 
-/** The chooser's label, on every question that files a project. */
-const FILE_IT_IN = 'File it in';
+/** The chooser's label, wherever a project is filed. */
+const FILE_IN = 'File in';
 
 /**
- * The File it in chooser on a row Decide asks to plan or to file (a new or
+ * The File in chooser on a row Decide asks to plan or to file (a new or
  * unfiled project): where the project goes, filed with whatever call the row
  * gets. It starts on the home it has, so taking any answer blind moves
  * nothing; only a project with no home starts on a guess, the initiative its
@@ -47,7 +46,7 @@ export function useHomeChooser(row: DecideRow, { away = false }: { away?: boolea
    };
 }
 
-/** Each project's pick in its File it in chooser, by slug: kept outside the
+/** Each project's pick in its File in chooser, by slug: kept outside the
  * row, so a section's one click files every row where its own chooser says
  * (chosenHomes), and a trip away and back keeps it. */
 const homePicks = createMemoryStore<{ picks: ReadonlyMap<string, string> }>({ picks: new Map() });
@@ -136,32 +135,58 @@ export function useChosenHomes(): (row: DecideRow) => { waiting: boolean; filed?
    };
 }
 
-/** The chooser's line, above the answers that use it: "File it in [Release
- * safety]", with "guessed" while it shows the board's guess. A select, so
- * the keyboard and a screen reader get the platform's own list. */
+/**
+ * The one chooser for where a project goes, on every view: "File in
+ * [Release safety] File Cancel". A select, so the keyboard and a screen
+ * reader get the platform's own list. Decide's question rows show it
+ * alone (a plan answer below carries the pick) or with File as the row's
+ * answer; Track it, File elsewhere, a plan's details and a project's page
+ * open it with File and Cancel. Escape is Cancel: it closes the chooser,
+ * and the caller gives the focus back to what opened it.
+ */
 export function HomeChooser({
    name,
    chooser,
    autoFocus = false,
    below = false,
-   children,
-   onClose,
+   unsorted = false,
+   file,
+   onCancel,
 }: {
+   /** the project's name, for the controls' names */
    name: string;
-   chooser: Pick<
-      ReturnType<typeof useHomeChooser>,
-      'chosen' | 'choices' | 'guessed' | 'setPick' | 'current'
-   >;
+   chooser: {
+      chosen: string;
+      choices: readonly Initiative[];
+      setPick: (slug: string) => void;
+      /** it shows the board's guess, not a person's pick */
+      guessed?: boolean;
+      /** where it is now, for the guess's hover */
+      current?: Initiative | null;
+   };
    /** opened by a click (Track it, File elsewhere): the focus moves here */
    autoFocus?: boolean;
    /** under the answers that opened it, rather than above the ones it feeds */
    below?: boolean;
-   /** the answer it feeds, on its own line (File it) */
-   children?: ReactNode;
-   /** Escape closes it (one opened by a click) */
-   onClose?: () => void;
+   /** Unsorted is offered last ('' as its value) */
+   unsorted?: boolean;
+   /** its own File button: the row's answer, or the opened chooser's */
+   file?: {
+      onFile: () => void;
+      disabled: boolean;
+      /** filled: the row's answer, ready to take */
+      filled?: boolean;
+      /** the board's guess: says Suggested */
+      suggested?: boolean;
+      describedBy?: string;
+      /** where j and k land on the row */
+      rowFocus?: boolean;
+   };
+   onCancel?: () => void;
 }) {
    const id = useId();
+   const chosen = chooser.choices.find(i => i.slug === chooser.chosen);
+   const where = chosen ? chosen.name : unsorted && !chooser.chosen ? UNSORTED_WORD : null;
    // where it is now, so the guess's hover never says Unsorted of a project
    // that's filed
    const now = !chooser.current
@@ -170,32 +195,36 @@ export function HomeChooser({
       ? 'It’s Not tracked now'
       : `It’s in ${chooser.current.name} now`;
    return (
-      <div
+      // a span, so it sits in a line of words as well as under a row
+      <span
          onKeyDown={e => {
-            if (e.key !== 'Escape' || !onClose) return;
+            if (e.key !== 'Escape' || !onCancel) return;
+            // the innermost thing closes, not the details around it
             e.preventDefault();
             e.stopPropagation();
-            onClose();
+            onCancel();
          }}
-         className={`flex flex-wrap items-center gap-2 text-xs text-ink-3 ${below ? 'mt-2' : 'mb-2'}`}
+         className={`flex min-w-0 flex-wrap items-center gap-2 text-xs text-ink-3 ${
+            below ? 'mt-2' : file ? '' : 'mb-2'
+         }`}
       >
-         <label htmlFor={id} className="w-full sm:w-32 sm:shrink-0">
-            {FILE_IT_IN}
-         </label>
+         <label htmlFor={id}>{FILE_IN}</label>
          <select
             id={id}
             autoFocus={autoFocus}
-            aria-label={`${FILE_IT_IN}: ${name}`}
+            aria-label={`${FILE_IN}: ${name}`}
             value={chooser.chosen}
             onChange={e => chooser.setPick(e.target.value)}
-            className={`h-8 px-2 text-[13px] text-ink ${textInputClass}`}
+            // a long name never pushes the page sideways on a phone
+            className={`h-8 min-w-0 max-w-full px-2 text-[13px] text-ink ${textInputClass}`}
          >
-            {!chooser.chosen && <option value="">Choose where it goes</option>}
+            {!chooser.chosen && !unsorted && <option value="">Choose where it goes</option>}
             {chooser.choices.map(i => (
                <option key={i.slug} value={i.slug}>
                   {i.name}
                </option>
             ))}
+            {unsorted && <option value="">{UNSORTED_WORD}</option>}
          </select>
          {chooser.guessed && (
             <span
@@ -205,8 +234,34 @@ export function HomeChooser({
                guessed
             </span>
          )}
-         {children}
-      </div>
+         {file && (
+            <button
+               type="button"
+               data-decide-focus={file.rowFocus || undefined}
+               aria-describedby={file.describedBy}
+               // its name starts with the word it shows
+               aria-label={where ? `File ${name} in ${where}` : `File ${name}`}
+               disabled={file.disabled}
+               title={file.disabled ? 'Choose another home first' : undefined}
+               onClick={file.onFile}
+               className={`hit pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${
+                  file.filled
+                     ? 'border-brand bg-brand text-surface hover:opacity-90'
+                     : 'border-line bg-surface text-ink-2 hover:border-brand hover:text-brand'
+               }`}
+            >
+               File
+               {file.filled && file.suggested && (
+                  <span className="text-[11px] font-normal opacity-80">Suggested</span>
+               )}
+            </button>
+         )}
+         {onCancel && (
+            <QuietButton size="md" onClick={onCancel} aria-label={`Cancel filing ${name}`}>
+               Cancel
+            </QuietButton>
+         )}
+      </span>
    );
 }
 
@@ -285,13 +340,12 @@ export function HomeStrip({
    const filing: Call | null = chosen
       ? { kind: 'file', to: chosen.slug, name: chosen.name, untracked: chosen.kind === 'untracked' }
       : null;
-   const fileOption = { call: filing, words: filing ? answerWords(filing, null) : 'File it' };
    const notTracked = chooser.choices.find(i => i.kind === 'untracked');
    const linked = items.find(i => i.slug === project);
    type Option = { call: Call | null; words: string; suggested?: boolean };
    const options: Option[] =
       primary.kind === 'unfiled'
-         ? [{ ...fileOption, suggested: chooser.guessed }]
+         ? []
          : primary.kind === 'no_project'
          ? [
               {
@@ -331,6 +385,9 @@ export function HomeStrip({
          : primary.kind === 'reopened_in_closed'
          ? 'File elsewhere'
          : 'Other answers';
+   // one name form for every row's more button
+   const moreName =
+      moreWords === 'Other answers' ? `Other answers for ${name}` : `${moreWords}: ${name}`;
    // closed without filing: its pick goes, so no later answer carries it
    const toggle = () => {
       if (more && row.slug) forgetHomePick(row.slug);
@@ -359,7 +416,8 @@ export function HomeStrip({
             disabled={!o.call}
             title={o.call ? undefined : 'Choose one above first'}
             onClick={() => o.call && onCall(o.call)}
-            className={`hit pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${
+            // a long initiative name wraps inside it on a phone
+            className={`hit pressable inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-lg border px-3 py-1 text-left text-[13px] font-medium disabled:opacity-60 ${
                // filled only when there's an answer to make
                filled
                   ? 'border-brand bg-brand text-surface hover:opacity-90'
@@ -379,53 +437,61 @@ export function HomeStrip({
             <ProjectChooser name={name} value={project} onChange={setProject} />
          )}
          {primary.kind === 'unfiled' && pickable.length > 0 && (
+            // the question is where it goes: File is the row's answer
             <HomeChooser
                name={name}
                chooser={{ ...chooser, choices: pickable, chosen: chosen?.slug ?? '' }}
+               file={{
+                  onFile: () => filing && onCall(filing),
+                  disabled: !filing,
+                  filled: !!filing,
+                  suggested: chooser.guessed,
+                  describedBy,
+                  rowFocus: true,
+               }}
             />
          )}
-         <div
-            role="toolbar"
-            aria-label={`Decisions for ${name}`}
-            onKeyDown={arrowsAmong}
-            className="flex flex-wrap items-center gap-2"
-         >
-            {options.map(button)}
-            {primary.kind !== 'unfiled' && primary.kind !== 'no_project' && (
-               <button
-                  ref={opener}
-                  type="button"
-                  tabIndex={-1}
-                  aria-expanded={more}
-                  aria-label={`${moreWords}: ${name}`}
-                  onClick={toggle}
-                  className={`hit pressable inline-flex h-8 items-center rounded-lg border px-3 text-[13px] font-medium hover:border-brand hover:text-brand ${
-                     more ? 'border-brand bg-muted text-ink' : 'border-line bg-surface text-ink-2'
-                  }`}
-               >
-                  {moreWords}
-               </button>
-            )}
-            {extras.map((o, k) => button(o, k + 1))}
-         </div>
+         {primary.kind !== 'unfiled' && (
+            <div
+               role="toolbar"
+               aria-label={`Decisions for ${name}`}
+               onKeyDown={e => {
+                  if (e.key !== 'Escape' || !more) return arrowsAmong(e);
+                  // what its more button opened closes, the focus back on it
+                  e.preventDefault();
+                  e.stopPropagation();
+                  close();
+               }}
+               className="flex flex-wrap items-center gap-2"
+            >
+               {options.map(button)}
+               {primary.kind !== 'no_project' && (
+                  <button
+                     ref={opener}
+                     type="button"
+                     tabIndex={-1}
+                     aria-expanded={more}
+                     aria-label={moreName}
+                     onClick={toggle}
+                     className={`hit pressable inline-flex h-8 items-center rounded-lg border px-3 text-[13px] font-medium hover:border-brand hover:text-brand ${
+                        more ? 'border-brand bg-muted text-ink' : 'border-line bg-surface text-ink-2'
+                     }`}
+                  >
+                     {moreWords}
+                  </button>
+               )}
+               {extras.map((o, k) => button(o, k + 1))}
+            </div>
+         )}
          {moves && pickable.length > 0 && (
             <HomeChooser
                name={name}
                below
                autoFocus
-               onClose={close}
+               onCancel={close}
                chooser={{ ...chooser, choices: pickable, chosen: chosen?.slug ?? '' }}
-            >
-               <button
-                  type="button"
-                  aria-label={`${fileOption.words}: ${name}`}
-                  disabled={!filing}
-                  onClick={() => filing && onCall(filing)}
-                  className="hit pressable inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink-2 hover:border-brand hover:text-brand disabled:opacity-60"
-               >
-                  {fileOption.words}
-               </button>
-            </HomeChooser>
+               file={{ onFile: () => filing && onCall(filing), disabled: !filing }}
+            />
          )}
       </div>
    );
@@ -466,7 +532,7 @@ export function InitiativeSwitch({
             id={id}
             value={value ?? ''}
             onChange={e => onChange(e.target.value || null)}
-            className={`h-8 px-2 text-[13px] text-ink ${textInputClass}`}
+            className={`h-8 min-w-0 max-w-full px-2 text-[13px] text-ink ${textInputClass}`}
          >
             <option value="">All initiatives</option>
             {offered.map(([slug, name]) => (
