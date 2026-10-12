@@ -73,6 +73,8 @@ function Card({
       call
    );
    const rest = restWords(w);
+   // the plan a clash opens; none when a call is asked instead
+   const waits = w.call ? null : w.waits;
    const lead = item.lead;
    return (
       // the whole card opens the plan; the name is its keyboard door
@@ -99,11 +101,7 @@ function Card({
                      <span
                         key="rest"
                         title={rest.title}
-                        onClick={
-                           !w.call && w.waits
-                              ? only(() => onOpenPlan((w.waits as { opens: RoadmapItem }).opens.id))
-                              : undefined
-                        }
+                        onClick={waits ? only(() => onOpenPlan(waits.opens.id)) : undefined}
                         className="underline decoration-dotted underline-offset-2 hover:text-brand"
                      >
                         <SaidWords said={rest} />
