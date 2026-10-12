@@ -466,14 +466,12 @@ export function initiativeLanes(c: LaneContext) {
                         <DecideCall row={asked} />
                      </div>
                   )}
-                  {receipt?.key === `initiative:${initiative?.id}` && (
-                     <ReceiptLine receipt={receipt} onOpen={openFromReceipt} />
-                  )}
                   {planRows(planned, planned, { placed: true })}
                   {inFlightRows(loose)}
                </TimelineLane>
-               {/* a rank move's receipt stays in view with the lane closed */}
-               {initiative && receipt?.key === `initiative:${initiative.id}` && !calls && (
+               {/* a rank move's receipt, once, under the lane whether it's
+                   open or closed */}
+               {initiative && receipt?.key === `initiative:${initiative.id}` && (
                   <ReceiptLine receipt={receipt} onOpen={openFromReceipt} />
                )}
             </div>
