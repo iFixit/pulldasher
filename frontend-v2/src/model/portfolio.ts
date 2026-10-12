@@ -897,7 +897,9 @@ function byInitiative(
    for (const item of items) {
       const home = homes.get(item.slug)?.initiative;
       const key = home && home.kind !== 'untracked' ? home.id : null;
-      groups.set(key, [...(groups.get(key) ?? []), item]);
+      const group = groups.get(key);
+      if (group) group.push(item);
+      else groups.set(key, [item]);
    }
    const ranked = [...initiatives].sort(
       (a, b) =>
