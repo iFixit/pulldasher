@@ -2,7 +2,11 @@ import { test, before, after, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import bodyParser from 'body-parser';
+import config from '../lib/config-loader.js';
 import db from '../lib/db.js';
+import Pull from '../models/pull.js';
+import Label from '../models/label.js';
+import pullManager from '../lib/pull-manager.js';
 import { trackedOnly } from '../lib/initiatives.js';
 import initiativesController from '../controllers/initiatives.js';
 import { canWrite } from '../controllers/roadmap.js';
@@ -84,6 +88,8 @@ function fakeQuery(sql, params = []) {
       filings = [...filings.filter(f => f.project !== params[0].project), { ...params[0] }];
       return { affectedRows: 1 };
    }
+   // the board's projects and PR links (the close check's open PRs): none
+   if (/FROM issues i|FROM pull_labels l JOIN issues|FROM `project_issues`|FROM `issue_pull_links`/.test(sql)) return [];
    throw new Error(`unexpected query: ${sql}`);
 }
 
@@ -256,6 +262,57 @@ test('an initiative closes only once nothing in it is going', async () => {
    assert.equal(closed.status, 200);
    assert.equal(closed.body.initiative.status, 'done');
    assert.ok(closed.body.initiative.status_at > 0);
+});
+
+test('an initiative with a finished plan whose PRs are still open does not close', async () => {
+   const saved = config.projects;
+   config.projects = { repo: 'test/projects' };
+   try {
+      const id = (await make('firmware')).body.initiative.id;
+      await call('PUT', '/initiatives/file', { project: 'hub', initiative: 'firmware' });
+      plans = [plan(1, 'hub', { status: 'done' })];
+      // hub's plan is done, but a PR labeled with it is open on the board
+      const now = Math.floor(Date.now() / 1000);
+      const row = {
+         repo: 'test/repo-a',
+         number: 41,
+         state: 'open',
+         title: 'PR 41',
+         body: '',
+         draft: 0,
+         date: now - 86400,
+         date_updated: now,
+         date_closed: null,
+         mergeable: 1,
+         date_merged: null,
+         difficulty: null,
+         additions: 1,
+         deletions: 0,
+         changed_files: 1,
+         milestone_title: null,
+         milestone_due_on: null,
+         head_branch: 'b41',
+         head_sha: 'sha41',
+         base_branch: 'main',
+         owner: 'alice',
+         assignees: [],
+         requested_reviewers: [],
+         cr_req: 1,
+         qa_req: 1,
+      };
+      const labels = [new Label({ name: 'project:hub' }, 41, 'test/repo-a', 'alice')];
+      pullManager.updatePull(Pull.getFromDB(row, [], [], [], [], labels));
+      const refused = await call('PATCH', `/initiatives/${id}`, { status: 'done' });
+      assert.equal(refused.status, 409);
+      assert.deepEqual(refused.body.live, ['hub']);
+      // closed, the PR no longer holds it open
+      pullManager.getPulls()[0].data.state = 'closed';
+      pullManager.getPulls()[0].data.date_closed = now;
+      assert.equal((await call('PATCH', `/initiatives/${id}`, { status: 'done' })).status, 200);
+   } finally {
+      config.projects = saved;
+      pullManager.getPulls().length = 0;
+   }
 });
 
 test('only an empty initiative can be deleted', async () => {
