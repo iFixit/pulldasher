@@ -2954,8 +2954,11 @@ export function Roadmap({
    useEffect(() => {
       const want = refocus.current;
       if (!want) return;
-      refocus.current = null;
       const el = want.map(id => document.getElementById(id)).find(Boolean);
+      // not drawn yet (a store's render came first, the receipt on its
+      // way): it waits for the render that draws it
+      if (!el) return;
+      refocus.current = null;
       // the receipt beside it shows too, below the sticky headers
       focusResult(el, receipt && document.querySelector<HTMLElement>(`[data-receipt="${receipt.key}"]`));
    });
@@ -3139,7 +3142,6 @@ export function Roadmap({
       draggingLane,
       everyPlan,
       everything,
-      fail,
       gone,
       homeOf,
       inFlightRows,

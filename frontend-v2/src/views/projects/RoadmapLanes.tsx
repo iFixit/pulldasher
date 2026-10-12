@@ -204,7 +204,6 @@ export interface LaneContext {
    draggingLane: number | null;
    everyPlan: readonly RoadmapItem[] | null;
    everything: boolean;
-   fail: (key: string, keep?: Pick<Receipt, 'gone' | 'undo'>) => void;
    gone: RoadmapItem | null;
    homeOf: (slug: string | null) => Initiative | undefined;
    inFlightRows: (list: PortfolioItem[]) => ReactNode;
@@ -258,7 +257,6 @@ export function initiativeLanes(c: LaneContext) {
       draggingLane,
       everyPlan,
       everything,
-      fail,
       gone,
       homeOf,
       inFlightRows,
@@ -322,29 +320,31 @@ export function initiativeLanes(c: LaneContext) {
       }
       run.current = null;
       void fileProject(slug, target, { expect: from }).then(r => {
-         if ('error' in r) return say({ key, words: r.error.replace(/\.$/, ''), failed: true });
+         // the focus goes to the receipt either way: a failure's words say
+         // why, where the chooser it came from was
          refocus.current = focusAfter;
+         if ('error' in r) return say({ key, words: r.error.replace(/\.$/, ''), failed: true });
+         const undo = () => {
+            refocus.current = focusAfter;
+            // said at once, as the board shows it back at once
+            keepInPlace(key, held => {
+               openFold(laneId(r.before.initiative ?? UNSORTED));
+               said(key, `Put ${item.name} back in ${fromHome?.name ?? UNSORTED_WORD}`, held);
+               void fileProject(slug, r.before.initiative, {
+                  set_at: r.before.set_at,
+                  baseline_prs: r.before.baseline_prs,
+               }).then(back => {
+                  if (!('error' in back)) return;
+                  // the server's reason, with the Undo kept to try again
+                  refocus.current = focusAfter;
+                  say({ key, words: back.error.replace(/\.$/, ''), failed: true, undo });
+               });
+            });
+         };
          // one commit, so the focus finds the receipt in the lane it opened
          flushSync(() => {
             openFold(laneId(to));
-            say({
-               key,
-               words: `Filed ${item.name} in ${toName}`,
-               undo: () => {
-                  refocus.current = focusAfter;
-                  // said at once, as the board shows it back at once
-                  keepInPlace(key, held => {
-                     openFold(laneId(r.before.initiative ?? UNSORTED));
-                     said(key, `Put ${item.name} back in ${fromHome?.name ?? UNSORTED_WORD}`, held);
-                     void fileProject(slug, r.before.initiative, {
-                        set_at: r.before.set_at,
-                        baseline_prs: r.before.baseline_prs,
-                     }).then(back => {
-                        if ('error' in back) fail(key);
-                     });
-                  });
-               },
-            });
+            say({ key, words: `Filed ${item.name} in ${toName}`, undo });
          });
       });
    };
@@ -373,21 +373,20 @@ export function initiativeLanes(c: LaneContext) {
             i => i.status === 'open' && i.kind !== 'untracked'
          );
          const at = ranked.findIndex(i => i.id === moving.id) + 1;
-         say({
-            key,
-            words: `Moved ${moving.name} to priority ${at}`,
-            undo: () => {
-               run.current = null;
-               refocus.current = [`roadmap-lane-grip-${moving.id}`];
-               // said at once, as the board shows it back at once
-               keepInPlace(key, held => {
-                  said(key, `Put ${moving.name} back at priority ${wasAt}`, held);
-                  void moveInitiative(moving.id, was).then(back => {
-                     if (back !== true) fail(key);
-                  });
+         const undo = () => {
+            run.current = null;
+            refocus.current = [`roadmap-lane-grip-${moving.id}`];
+            // said at once, as the board shows it back at once
+            keepInPlace(key, held => {
+               said(key, `Put ${moving.name} back at priority ${wasAt}`, held);
+               void moveInitiative(moving.id, was).then(back => {
+                  // the server's reason, with the Undo kept to try again
+                  if (back !== true)
+                     say({ key, words: back.error.replace(/\.$/, ''), failed: true, undo });
                });
-            },
-         });
+            });
+         };
+         say({ key, words: `Moved ${moving.name} to priority ${at}`, undo });
       });
    };
    // ----- by initiative: one lane per initiative, in its own rank -----

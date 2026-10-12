@@ -105,19 +105,18 @@ export function HomeLine({
       const saved = await fileProject(slug, to, { expect: home?.slug ?? null });
       if ('error' in saved) return say({ words: saved.error.replace(/\.$/, ''), failed: true });
       const before: Home = saved.before;
-      say({
-         words: `Filed in ${toName}`,
-         undo: async () => {
-            // said at once, in Undo's place, so a second click lands on words
-            setPick(before.initiative ?? '');
-            say({ words: `Put ${projectName} back in ${homeName(home)}`, settled: true });
-            const back = await fileProject(slug, before.initiative, {
-               set_at: before.set_at,
-               baseline_prs: before.baseline_prs,
-            });
-            if ('error' in back) say({ words: back.error.replace(/\.$/, ''), failed: true });
-         },
-      });
+      const undo = async () => {
+         // said at once, in Undo's place, so a second click lands on words
+         setPick(before.initiative ?? '');
+         say({ words: `Put ${projectName} back in ${homeName(home)}`, settled: true });
+         const back = await fileProject(slug, before.initiative, {
+            set_at: before.set_at,
+            baseline_prs: before.baseline_prs,
+         });
+         // the server's reason, with the Undo kept to try again
+         if ('error' in back) say({ words: back.error.replace(/\.$/, ''), failed: true, undo });
+      };
+      say({ words: `Filed in ${toName}`, undo });
    };
    const close = () => {
       setMoving(false);
@@ -157,7 +156,9 @@ export function HomeLine({
                   {receipt.words}.
                </span>
                {receipt.undo ? (
-                  <QuietButton onClick={receipt.undo}>Undo</QuietButton>
+                  <QuietButton onClick={receipt.undo}>
+                     {receipt.failed ? 'Try again' : 'Undo'}
+                  </QuietButton>
                ) : receipt.settled ? null : (
                   <QuietButton onClick={() => setReceipt(null)}>Close</QuietButton>
                )}

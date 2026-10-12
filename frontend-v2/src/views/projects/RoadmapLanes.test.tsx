@@ -74,6 +74,8 @@ const PLANS = [
 ];
 
 let server: Initiative[] = [];
+/** the next write of this kind fails, as the server says why */
+let refuse: { undo?: string; file?: string; move?: string } = {};
 const calls: { method: string; path: string; body: Record<string, unknown> | null }[] = [];
 beforeAll(() => {
    vi.stubGlobal(
@@ -103,6 +105,11 @@ beforeAll(() => {
          }
          if (path === '/initiatives' && method === 'GET') return reply({ initiatives: server });
          const move = path.match(/^\/initiatives\/(\d+)\/move$/);
+         if (move && refuse.move) {
+            const error = refuse.move;
+            refuse = {};
+            return reply({ error }, 500);
+         }
          if (move) {
             const id = Number(move[1]);
             const ranked = [...server].sort((a, b) => a.priority - b.priority);
@@ -112,6 +119,11 @@ beforeAll(() => {
             rest.splice(at, 0, moving);
             server = rest.map((i, k) => ({ ...i, priority: k }));
             return reply({ initiatives: server });
+         }
+         if (path === '/initiatives/file' && (body?.set_at == null ? refuse.file : refuse.undo)) {
+            const error = (body?.set_at == null ? refuse.file : refuse.undo) as string;
+            refuse = {};
+            return reply({ error }, 409);
          }
          if (path === '/initiatives/file') {
             // as the server: nothing into a closed initiative
@@ -144,6 +156,7 @@ let host: HTMLDivElement | null = null;
 let root: Root | null = null;
 beforeEach(async () => {
    server = START.map(i => ({ ...i }));
+   refuse = {};
    localStorage.clear();
    await loadInitiatives();
    await loadRoadmap();
@@ -692,5 +705,61 @@ describe('after a click on the Roadmap', () => {
          pointerTo(900, 900);
       }
       expect(writes().filter(c => c.path === '/initiatives/2/move')).toHaveLength(4);
+   });
+});
+
+describe('a write on the Roadmap that fails', () => {
+   const undoOf = (el: HTMLElement) =>
+      [...el.querySelectorAll('button')].find(b => b.textContent === 'Undo') as HTMLButtonElement;
+
+   it('says the server’s reason when a drop’s Undo fails, and keeps a way to try again', async () => {
+      const el = await mount();
+      drag(el.querySelector('#roadmap-grip-1') as HTMLElement, lane(el, 'fixbot'));
+      await settle();
+      refuse = { undo: 'someone filed it in Catalog since' };
+      act(() => undoOf(el).click());
+      await settle();
+      expect(el.textContent).toContain('someone filed it in Catalog since.');
+      const again = el.querySelector<HTMLButtonElement>('[aria-label="Try the Undo again"]');
+      expect(again).not.toBeNull();
+      act(() => again?.click());
+      await settle();
+      expect(writes().at(-1)?.body).toMatchObject({ project: 'images', initiative: 'site-speed' });
+      expect(el.textContent).toContain('Put Image CDN back in Site speed');
+   });
+
+   it('says the server’s reason when a lane move’s Undo fails, and keeps a way to try again', async () => {
+      const el = await mount();
+      act(() => {
+         (el.querySelector('#roadmap-lane-grip-2') as HTMLElement).dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })
+         );
+      });
+      await settle();
+      refuse = { move: 'the database is down' };
+      act(() => undoOf(el).click());
+      await settle();
+      expect(el.textContent).toContain('the database is down.');
+      act(() => el.querySelector<HTMLButtonElement>('[aria-label="Try the Undo again"]')?.click());
+      await settle();
+      expect(el.textContent).toContain('Put FixBot chat back at priority 2');
+   });
+
+   it('puts the focus on why, when a filing from a plan’s details fails', async () => {
+      const el = await mount({ item: 2 });
+      const details = el.querySelector('[aria-label="Answer search: its plan"]') as HTMLElement;
+      act(() => details.querySelector<HTMLButtonElement>('[aria-label^="File elsewhere"]')?.click());
+      const select = details.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'site-speed';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      refuse = { file: 'its home changed; here it is now' };
+      act(() => [...details.querySelectorAll('button')].find(b => b.textContent === 'File')?.click());
+      await settle();
+      await settle();
+      expect((document.activeElement as HTMLElement).textContent).toContain(
+         'its home changed; here it is now.'
+      );
    });
 });
