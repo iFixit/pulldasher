@@ -16,12 +16,15 @@ import {
 import {
    DEFAULT_RANGE,
    ongoingSlugs,
+   untrackedSlugs,
    resolveRange,
    teamLookup,
    useProjectsData,
    type Range,
 } from '../model/projectData';
-import { useRoadmap } from '../model/roadmapData';
+import { trackedPlans, useRoadmap } from '../model/roadmapData';
+import { useInitiatives } from '../model/initiativesData';
+import { grownProjects, trackedToday } from '../model/initiativeBoard';
 import { useWorkData } from '../model/workData';
 import { LAST_14_DAYS } from '../model/words';
 import { claimFor } from '../model/reviewers';
@@ -162,12 +165,16 @@ function useYourProjects(
    allClosed: PullData[]
 ): YourProject[] | null {
    // the window the Projects tab opens on, so one fetch serves both
-   const data = useProjectsData(resolveRange(DEFAULT_RANGE) as Range);
-   const { items: plans } = useRoadmap();
+   // two reads: tracked for Decide's calls, the full set for your list, so
+   // a project of yours that's Not tracked stays yours and asks nothing
+   const data = useProjectsData(resolveRange(DEFAULT_RANGE) as Range, null, { all: true });
+   const { items: plans } = useRoadmap({ all: true });
+   const { initiatives } = useInitiatives();
    const work = useWorkData(plans);
    return useMemo(() => {
       if (!data || !plans) return null;
       const now = Date.now();
+      const untracked = untrackedSlugs(data, initiatives);
       const today = buildToday(
          data.projects,
          allPulls,
@@ -180,8 +187,10 @@ function useYourProjects(
       // Decide's questions, asked as decideRows asks them
       // (views/projects/Decide.tsx), so each word names the call Decide puts first
       const asked = decideQueue({
-         live: decideProjects(today),
-         items: plans,
+         live: decideProjects(trackedToday(today, untracked)),
+         items: trackedPlans(plans, initiatives),
+         initiatives: initiatives ?? [],
+         grown: grownProjects(data, initiatives),
          closed: closedIssues(data.projects),
          planCounts: new Map(
             [...(work?.plans ?? [])].map(([id, w]) => [
@@ -227,7 +236,7 @@ function useYourProjects(
                   a.item.name.localeCompare(b.item.name)
             )
       );
-   }, [data, plans, work, allPulls, allClosed, prefix, me]);
+   }, [data, plans, work, allPulls, allClosed, prefix, me, initiatives]);
 }
 
 /**

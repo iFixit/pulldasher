@@ -65,6 +65,7 @@ import {
    type ProjectsNav,
 } from './parts';
 import { PlanFacts, planWords } from './roadmapHealth';
+import { homesOf, initiativeSpan, type Initiative } from '../../../../shared/model/initiatives';
 
 /** the long-list rule: this many rows, then "+ N more" */
 const LIST_CAP = 40;
@@ -424,7 +425,8 @@ function RowDetail({
    links: FactLinks;
    workers: Workers;
 }) {
-   const { items: plans } = useRoadmap();
+   // one slug: the full set, so a Not tracked row's plan shows
+   const { items: plans } = useRoadmap({ all: true });
    const whyId = useId();
    const stalest = item.stalest;
    const line = 'm-0 border-t border-secondary px-3.5 py-2 text-xs';
@@ -788,7 +790,13 @@ function download(items: readonly PortfolioItem[]) {
 }
 
 /** A band's gloss when the list is grouped: what put its projects there. */
-function bandGloss(by: string, title: string): string {
+function bandGloss(by: string, title: string, initiative?: Initiative): string {
+   if (by === 'initiative') {
+      if (!initiative) return 'Projects in no initiative yet. Decide asks where each one goes.';
+      const owner = initiative.owner ? ` Owner: ${initiative.owner}.` : '';
+      const closed = initiative.status === 'open' ? '' : ` Closed as ${initiative.status}.`;
+      return `${initiative.goal || initiative.name}${owner}${closed}`;
+   }
    if (title.startsWith('No ')) return `Projects with ${title.toLowerCase()}`;
    if (by === 'parent') return `${title}, and the projects that are part of it`;
    if (by === 'lead') return `Projects ${title} leads`;
@@ -1051,9 +1059,27 @@ export function Portfolio(
       teams: readonly string[];
       /** the projects Yours lists above, drawn in ink here */
       above?: ReadonlySet<string>;
+      /** the initiatives, for Group by Initiative and the find's "initiative:" */
+      initiatives?: readonly Initiative[];
+      /** the Not tracked projects, from the full set: their own group, closed,
+       * last, counted in no tab */
+      untrackedItems?: readonly PortfolioItem[];
    }
 ) {
-   const { items, placeOf = item => item, nameOf, teams, above, nav, navigate } = props;
+   const {
+      items,
+      placeOf = item => item,
+      nameOf,
+      teams,
+      above,
+      nav,
+      navigate,
+      initiatives = [],
+      untrackedItems = [],
+   } = props;
+   const { items: plans } = useRoadmap();
+   const homes = homesOf(initiatives);
+   const initiativeOf = (slug: string | null) => (slug ? homes.get(slug)?.initiative : undefined);
    const [copied, setCopied] = useState(false);
    const barRef = useRef<HTMLDivElement>(null);
    const { columns, sort, onSort, row, head, hintLine } = useRows(props);
@@ -1082,12 +1108,39 @@ export function Portfolio(
    const now = new Map(items.map(i => [i.slug, i]));
    const narrowed = items
       .map(placeOf)
-      .filter(i => matchesFind(i, nav.find) && matchesOnly(i, nav.only));
+      .filter(i => matchesFind(i, nav.find, initiativeOf) && matchesOnly(i, nav.only));
    const shown = sortItems(
       narrowed.filter(i => matchesStatus(i, nav.status)),
       nav.sort
    ).map(i => now.get(i.slug) ?? i);
-   const groups = groupItems(shown, nav.group, nameOf, teams);
+   // with no initiatives yet (a server before they're loaded), the default
+   // grouping is no grouping, not one band called Unsorted
+   const by = nav.group === 'initiative' && !initiatives.length ? 'none' : nav.group;
+   const groups = groupItems(shown, by, nameOf, teams, initiatives);
+   // the Not tracked ones by the same tab and find, in a ledger of their own
+   const notTracked = sortItems(
+      untrackedItems.filter(
+         i => matchesFind(i, nav.find) && matchesOnly(i, nav.only) && matchesStatus(i, nav.status)
+      ),
+      nav.sort
+   );
+   // an initiative's band, in ink: its owner and its plans' ends
+   const bandDetail = (initiative: Initiative | undefined) => {
+      if (!initiative) return null;
+      const span = initiativeSpan(
+         initiative.projects.map(f => f.project),
+         plans ?? []
+      );
+      const words = [
+         initiative.owner,
+         span.with_end ? `${span.with_end} with an end` : '',
+         span.ongoing ? `${span.ongoing} ongoing` : '',
+         initiative.status === 'open' ? '' : `closed as ${initiative.status}`,
+      ].filter(Boolean);
+      return words.length ? (
+         <span className="text-[11px] text-ink-3">{words.join(' · ')}</span>
+      ) : null;
+   };
    // each tab counts what it would show with the find and a tile's pick, so
    // the tab that's on always says how many rows are below it
    const statusOptions: [string, string][] = STATUS_FILTERS.map(([key, label]) => {
@@ -1125,8 +1178,10 @@ export function Portfolio(
             <span aria-hidden>Group by</span>
             <Segmented
                ariaLabel="Group by"
-               value={nav.group}
-               options={GROUPINGS.map(([k, l]) => [k, k === 'none' ? 'None' : l])}
+               value={by}
+               options={GROUPINGS.filter(([k]) => k !== 'initiative' || initiatives.length).map(
+                  ([k, l]) => [k, k === 'none' ? 'None' : l]
+               )}
                onChange={group => navigate({ group })}
             />
          </span>
@@ -1243,10 +1298,13 @@ export function Portfolio(
                         key={g.title}
                         count={g.items.length}
                         label={g.title}
-                        gloss={bandGloss(nav.group, g.title)}
+                        gloss={bandGloss(by, g.title, g.initiative)}
+                        detail={bandDetail(g.initiative)}
                         // logins keep their case
-                        caps={nav.group !== 'lead'}
-                        id={`portfolio:${nav.group}:${g.title.replace(/\s+/g, '-')}`}
+                        caps={by !== 'lead'}
+                        id={`portfolio:${by}:${
+                           g.initiative?.slug ?? g.title.replace(/\s+/g, '-')
+                        }`}
                         defaultOpen
                      >
                         <ProjectTable
@@ -1270,7 +1328,24 @@ export function Portfolio(
                   row={item => row(item, repeated(item.slug))}
                />
             )}
-            {!shown.length && (
+            {/* the Not tracked projects close the list, a ledger at rest:
+                counted in no tab, since nobody reports on them */}
+            <Fold
+               count={notTracked.length}
+               label="Not tracked"
+               gloss="Projects set not tracked: personal and team workflow nobody reports on. They count in no tile, tab or question, but Decide asks again if one doubles in size."
+               id="portfolio:not-tracked"
+            >
+               <ProjectTable
+                  key={`${nav.status}:not-tracked`}
+                  label="Projects: Not tracked"
+                  head={head(false)}
+                  items={notTracked}
+                  id={`portfolio:${nav.status}:not-tracked`}
+                  row={item => row(item, repeated(item.slug))}
+               />
+            </Fold>
+            {!shown.length && !notTracked.length && (
                <div className="px-3.5 py-4 text-[13px] text-ink-3">
                   {nav.find || nav.only ? (
                      <>
