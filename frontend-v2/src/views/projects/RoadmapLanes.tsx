@@ -262,9 +262,16 @@ export function initiativeLanes(c: LaneContext) {
       const fromHome = homeOf(slug);
       const from = fromHome?.slug ?? null;
       const target = to === UNSORTED ? null : to;
-      const toName = target
-         ? byRank(initiatives ?? []).find(i => i.slug === target)?.name ?? target
-         : UNSORTED_WORD;
+      const into = target ? byRank(initiatives ?? []).find(i => i.slug === target) : undefined;
+      const toName = target ? into?.name ?? target : UNSORTED_WORD;
+      // a closed lane refuses the drag too (laneDrop); the server would 409
+      if (into && into.status !== 'open') {
+         return say({
+            key,
+            words: `${into.name} is closed, so nothing is filed in it. Reopen it first`,
+            failed: true,
+         });
+      }
       run.current = null;
       void fileProject(slug, target, { expect: from }).then(r => {
          if ('error' in r) return say({ key, words: r.error.replace(/\.$/, ''), failed: true });
@@ -338,6 +345,8 @@ export function initiativeLanes(c: LaneContext) {
          // lane; one with no project isn't taken at all, so nothing lights
          if (key === NO_PROJECT_LANE) return;
          if (draggingLane == null && !ordered.find(i => i.id === dragging)?.project) return;
+         // nor into a closed initiative, which the choosers never offer
+         if (draggingLane == null && initiative && initiative.status !== 'open') return;
          e.preventDefault();
          setOverLane(key);
       },

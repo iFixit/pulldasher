@@ -112,6 +112,10 @@ beforeAll(() => {
             return reply({ initiatives: server });
          }
          if (path === '/initiatives/file') {
+            // as the server: nothing into a closed initiative
+            const to = server.find(i => i.slug === body?.initiative);
+            if (to && to.status !== 'open' && body?.set_at == null)
+               return reply({ error: 'that initiative is closed' }, 409);
             const was = server.find(i => i.projects.some(f => f.project === body?.project));
             return reply({
                project: body?.project,
@@ -268,6 +272,24 @@ describe('the Roadmap by initiative', () => {
          expect(writes().at(-1)).toMatchObject({ path: '/initiatives/2/move', body: { before: 3 } });
          expect(el.textContent).toContain('Put FixBot chat back at priority 2');
       }
+   });
+
+   it('refuses a plan dragged onto a closed initiative’s lane', async () => {
+      // Catalog is closed, and holds a project still worked on, so it shows
+      server = START.map(i =>
+         i.slug === 'catalog'
+            ? { ...i, projects: [{ project: 'images', set_by: null, set_at: 50, baseline_prs: 0 }] }
+            : i.slug === 'site-speed'
+            ? { ...i, projects: i.projects.filter(f => f.project !== 'images') }
+            : i
+      );
+      await loadInitiatives();
+      const el = await mount();
+      const grip = el.querySelector('#roadmap-grip-2') as HTMLElement;
+      expect(drag(grip, lane(el, 'catalog')).refused).toBe(true);
+      // nor onto a row in that lane
+      expect(drag(grip, el.querySelector('#roadmap-item-1') as HTMLElement).refused).toBe(true);
+      expect(writes()).toEqual([]);
    });
 
    it('files a plan dropped on another lane, leaves its priority, and Undo files it back', async () => {

@@ -2727,6 +2727,9 @@ export function Roadmap({
             // a plan with no project can't be filed in another lane
             const moving = byInitiative ? ordered.find(i => i.id === dragging) : undefined;
             if (moving && !moving.project && laneKey(item.project) !== NO_PROJECT_LANE) return;
+            // nor filed into a closed initiative's lane
+            const into = moving && laneKey(moving.project) !== laneKey(item.project);
+            if (into && homeOf(item.project) && homeOf(item.project)?.status !== 'open') return;
             e.preventDefault();
             setDropTarget(item.id);
          },
