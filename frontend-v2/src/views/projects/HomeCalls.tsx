@@ -337,7 +337,7 @@ function ProjectChooser({
  * initiative, in the same shape as Decide's CallStrip: a chooser first when
  * the answer needs one, then the suggested answer filled, then the others.
  * Unsorted: File in the chooser's pick. No project yet: Link to the chosen
- * project, the same layout with Link in File's place. Not tracked, but growing: Keep not tracked, or Track it, which
+ * project, the same layout with Link in File's place. Not tracked, but growing: Keep Not tracked, or Track it, which
  * opens the chooser. Goal maybe reached: Close as done, or Close as dropped
  * or Keep open. Its initiative closed: Reopen it, or File elsewhere
  * with the chooser. An answer that waits on an empty chooser is outlined and
@@ -386,7 +386,7 @@ export function HomeStrip({
          ? [
               {
                  call: notTracked ? { kind: 'keep_untracked', to: notTracked.slug } : null,
-                 words: 'Keep not tracked',
+                 words: 'Keep Not tracked',
                  suggested: true,
               },
            ]

@@ -598,7 +598,7 @@ export const DUMMY_ISSUES: IssueHit[] = (() => {
  * plan under way), so Decide asks "Did it reach its goal?"; Catalog
  * migration was closed as done while akeneo-4 still has a PR open, so Decide
  * asks again; Not tracked holds ops-runbooks, which grew since it was set
- * so ("Still not tracked?"), and dotfiles. grafana-dashboards, core-primitives
+ * so ("Still Not tracked?"), and dotfiles. grafana-dashboards, core-primitives
  * and training-periods are in none, so Unsorted shows and Decide asks where
  * they go: the first two from their "Needs a plan" rows, the last on its own.
  * A board scaled with ?projects= files its projects round the initiatives,

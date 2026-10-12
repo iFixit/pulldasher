@@ -24,7 +24,7 @@ import { fileProject, updateInitiative, type Home } from '../../model/initiative
 import { closedWords, homeChoices } from '../../model/initiativeBoard';
 import { dayWords } from '../../model/projectData';
 import { stageWord, type PortfolioItem } from '../../model/portfolio';
-import { andList, UNSORTED_WORD } from '../../model/words';
+import { andList, MARKED_NOT_TRACKED, UNSORTED_WORD, undoName } from '../../model/words';
 import { DecideCall } from './Decide';
 import { HomeChooser } from './HomeCalls';
 import {
@@ -46,6 +46,8 @@ interface MoveReceipt {
    words: string;
    failed?: boolean;
    undo?: () => void;
+   /** a failed Undo's: the words of the receipt it takes back */
+   undoes?: string;
    /** what an Undo did: held in the receipt's place with nothing to click */
    settled?: boolean;
 }
@@ -101,7 +103,8 @@ export function HomeLine({
       setMoving(false);
       if (to === (home?.slug ?? null)) return;
       if (onFile) return onFile(to);
-      const toName = homeName(choices.find(i => i.slug === to));
+      const into = choices.find(i => i.slug === to);
+      const words = into?.kind === 'untracked' ? MARKED_NOT_TRACKED : `Filed in ${homeName(into)}`;
       const saved = await fileProject(slug, to, { expect: home?.slug ?? null });
       if ('error' in saved) return say({ words: saved.error.replace(/\.$/, ''), failed: true });
       const before: Home = saved.before;
@@ -114,9 +117,10 @@ export function HomeLine({
             baseline_prs: before.baseline_prs,
          });
          // the server's reason, with the Undo kept to try again
-         if ('error' in back) say({ words: back.error.replace(/\.$/, ''), failed: true, undo });
+         if ('error' in back)
+            say({ words: back.error.replace(/\.$/, ''), failed: true, undo, undoes: words });
       };
-      say({ words: `Filed in ${toName}`, undo });
+      say({ words, undo });
    };
    const close = () => {
       setMoving(false);
@@ -158,7 +162,7 @@ export function HomeLine({
                {receipt.undo ? (
                   <QuietButton
                      onClick={receipt.undo}
-                     aria-label={receipt.failed ? 'Try the Undo again' : `Undo: ${receipt.words}`}
+                     aria-label={undoName(receipt)}
                   >
                      {receipt.failed ? 'Try again' : 'Undo'}
                   </QuietButton>
@@ -345,6 +349,12 @@ function EditFields({
       const keys = Object.keys(changed) as (keyof InitiativeFields)[];
       const set = keys.filter(k => changed[k]);
       const cleared = keys.filter(k => !changed[k]);
+      const words = [
+         set.length ? `Saved ${its(set)}` : '',
+         cleared.length ? `${set.length ? 'cleared' : 'Cleared'} ${its(cleared)}` : '',
+      ]
+         .filter(Boolean)
+         .join(' and ');
       const undo = () =>
          void updateInitiative(initiative.id, back, {
             undo: {
@@ -353,17 +363,13 @@ function EditFields({
             },
          }).then(u =>
             // a failed Undo keeps its receipt, saying why, and a way to try again
-            onDone('error' in u ? { words: u.error.replace(/\.$/, ''), failed: true, undo } : null)
+            onDone(
+               'error' in u
+                  ? { words: u.error.replace(/\.$/, ''), failed: true, undo, undoes: words }
+                  : null
+            )
          );
-      onDone({
-         words: [
-            set.length ? `Saved ${its(set)}` : '',
-            cleared.length ? `${set.length ? 'cleared' : 'Cleared'} ${its(cleared)}` : '',
-         ]
-            .filter(Boolean)
-            .join(' and '),
-         undo,
-      });
+      onDone({ words, undo });
    };
    const field = `h-8 w-full px-2.5 text-[13px] text-ink ${textInputClass}`;
    return (
@@ -663,7 +669,7 @@ export function InitiativePage({
                   {receipt.undo ? (
                      <QuietButton
                         onClick={receipt.undo}
-                        aria-label={receipt.failed ? 'Try the Undo again' : `Undo: ${receipt.words}`}
+                        aria-label={undoName(receipt)}
                      >
                         {receipt.failed ? 'Try again' : 'Undo'}
                      </QuietButton>

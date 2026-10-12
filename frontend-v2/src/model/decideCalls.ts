@@ -40,6 +40,7 @@ import {
    pastEnd,
    targetOn,
    NO_PROJECT_YET,
+   MARKED_NOT_TRACKED,
    UNSORTED_WORD,
 } from './words';
 import { PLAN_STATUS_WORD, when } from '../views/projects/roadmapHealth';
@@ -161,7 +162,7 @@ export const SECTIONS: {
       kinds: ['untracked_grew'],
       title: 'Not tracked, but growing',
       more: [
-         'Marked Not tracked, and since then it has opened as many PRs as it had before, and 30 or more. Keep it not tracked and the count starts again, or track it in an initiative.',
+         'Marked Not tracked, and since then it has opened as many PRs as it had before, and 30 or more. Keep it Not tracked and the count starts again, or track it in an initiative.',
       ],
    },
 ];
@@ -356,7 +357,7 @@ export function askOf(reason: DecideReason): {
       case 'no_project':
          return { question: 'Which project is it?', call: 'link' };
       case 'untracked_grew':
-         return { question: 'Still not tracked?', call: 'keep_untracked' };
+         return { question: 'Still Not tracked?', call: 'keep_untracked' };
       case 'goal_reached':
          return { question: 'Did it reach its goal?', call: 'close' };
       case 'reopened_in_closed':
@@ -507,7 +508,7 @@ export function answerWords(call: Call, plan: RoadmapItem | null): string {
       case 'file':
          return call.untracked ? 'Mark Not tracked' : `File in ${call.name}`;
       case 'keep_untracked':
-         return 'Keep not tracked';
+         return 'Keep Not tracked';
       case 'link':
          return `Link to ${call.name}`;
       case 'close':
@@ -739,7 +740,7 @@ export function callWords(
       }
       case 'file':
          return call.untracked
-            ? 'Marked Not tracked, so it counts nowhere. Decide asks again if it grows.'
+            ? `${MARKED_NOT_TRACKED}.`
             : `Filed in ${call.name}.`;
       case 'link': {
          // what the link did, by where that project is filed now
@@ -751,7 +752,7 @@ export function callWords(
             : `Linked to ${call.name}, so it’s in ${home.name}.`;
       }
       case 'keep_untracked':
-         return 'Kept not tracked. Its count starts again, so Decide asks only if it doubles again.';
+         return 'Kept Not tracked. Its count starts again, so Decide asks only if it doubles again.';
       case 'close':
          return `Closed ${initiative?.name ?? 'it'} as ${call.as}.`;
       case 'keep_open':

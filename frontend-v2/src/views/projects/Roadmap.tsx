@@ -2415,7 +2415,7 @@ export function Roadmap({
          if (call.kind !== 'new') projectCalls.set(row.slug, call);
       }
    }
-   // a question about a project with a plan under way (Still not tracked?)
+   // a question about a project with a plan under way (Still Not tracked?)
    // is said on one plan's row, its first in rank with no question of its
    // own, so every row Decide asks about shows on the timeline (DESIGN.md,
    // amendment 1), and once
@@ -2625,7 +2625,7 @@ export function Roadmap({
       return (
          mine.find(r => r.reasons.length > 0) ??
          mine[0] ??
-         // a question about its project, which its row says (Still not tracked?)
+         // a question about its project, which its row says (Still Not tracked?)
          (asksProject(item)
             ? callsHere.all.find(r => !r.item && r.slug === item.project)
             : undefined) ?? { slug: item.project, item, reasons: [] }
@@ -2643,7 +2643,7 @@ export function Roadmap({
    const said = (key: string, words: string, held?: number) => say({ key, words, held });
    // a save that failed says so where the click was, not in the toolbar;
    // `keep` holds a removed plan's place, and its Undo, to try again
-   const fail = (key: string, keep?: Pick<Receipt, 'gone' | 'undo'>) => {
+   const fail = (key: string, keep?: Pick<Receipt, 'gone' | 'undo' | 'undoes'>) => {
       const why = readRoadmap().problem;
       dismissRoadmapProblem();
       run.current = null;
@@ -2786,7 +2786,7 @@ export function Roadmap({
       const undo = () => {
          refocus.current = [`roadmap-grip-${item.id}`];
          void restoreRoadmapItem(item.id).then(ok =>
-            ok ? said(key, `Put ${item.name} back on the roadmap`) : fail(key, { gone: item, undo })
+            ok ? said(key, `Put ${item.name} back on the roadmap`) : fail(key, { gone: item, undo, undoes: `Removed ${item.name} from the roadmap` })
          );
       };
       say({ key, words: `Removed ${item.name} from the roadmap`, gone: item, undo });

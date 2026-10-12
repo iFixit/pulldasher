@@ -338,8 +338,8 @@ describe('a Not tracked project that grew', () => {
 
    it('suggests keeping it not tracked, which files it there again', async () => {
       const el = render(grew);
-      expect(buttons(el)).toEqual(['Keep not trackedSuggested', 'Track it']);
-      click(el, 'Keep not tracked');
+      expect(buttons(el)).toEqual(['Keep Not trackedSuggested', 'Track it']);
+      click(el, 'Keep Not tracked');
       await settle();
       expect(calls.find(c => c.path === '/initiatives/file')?.body).toEqual({
          project: 'ops',
@@ -1078,6 +1078,24 @@ describe('a project page’s home line', () => {
       expect(buttons(el)).toEqual(['File elsewhere']);
       expect(document.activeElement?.textContent).toBe('Put cache back in Site speed.');
    });
+
+   it('says filing into Not tracked in Decide’s words, its Undo named to match', async () => {
+      const el = mount(<HomeLine slug="cache" initiatives={INITIATIVES} navigate={nothing} />);
+      click(el, 'File elsewhere');
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'shelf';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      act(() => [...el.querySelectorAll('button')].find(b => b.textContent === 'File')?.click());
+      await settle();
+      expect(el.querySelector('[role="status"]')?.textContent).toContain(
+         'Marked Not tracked, so it counts nowhere. Decide asks again if it grows.'
+      );
+      expect(
+         el.querySelector('[aria-label="Undo: Marked Not tracked, so it counts nowhere. Decide asks again if it grows"]')
+      ).not.toBeNull();
+   });
 });
 
 describe('a row asking whether an initiative reached its goal', () => {
@@ -1219,7 +1237,7 @@ describe('Undo on a row', () => {
 
    it('holds its words where the receipt was, so a second click there answers nothing', async () => {
       const el = render(grew);
-      click(el, 'Keep not tracked');
+      click(el, 'Keep Not tracked');
       await settle();
       const undo = [...el.querySelectorAll('button')].find(
          b => b.textContent === 'Undo'
@@ -1242,10 +1260,10 @@ describe('Undo on a row', () => {
       act(() => undo.click());
       await settle();
       expect(calls.length).toBe(sent);
-      expect(buttons(el)).toEqual(['Keep not trackedSuggested', 'Track it']);
+      expect(buttons(el)).toEqual(['Keep Not trackedSuggested', 'Track it']);
       // j and k land on the row's answer, never on the held words
       expect(el.querySelector('[data-decide-focus]')?.textContent).toBe(
-         'Keep not trackedSuggested'
+         'Keep Not trackedSuggested'
       );
       // and a Tab on from the words lets them go
       act(() => {
@@ -1261,7 +1279,7 @@ describe('Undo on a row', () => {
             <DecideCall row={grew} />
          </div>
       );
-      click(el, 'Keep not tracked');
+      click(el, 'Keep Not tracked');
       await settle();
       const undo = [...el.querySelectorAll('button')].find(
          b => b.textContent === 'Undo'
@@ -1280,7 +1298,7 @@ describe('Undo on a row', () => {
       expect(el.textContent).toContain('Put ops back as it was.');
       move(400, 300);
       expect(el.textContent).not.toContain('Put ops back as it was.');
-      expect(document.activeElement?.textContent).toBe('Keep not trackedSuggested');
+      expect(document.activeElement?.textContent).toBe('Keep Not trackedSuggested');
    });
 
    it('lets its words go when the next action starts', async () => {
@@ -1289,7 +1307,7 @@ describe('Undo on a row', () => {
             <DecideCall row={grew} />
          </div>
       );
-      click(el, 'Keep not tracked');
+      click(el, 'Keep Not tracked');
       await settle();
       click(el, 'Undo');
       await settle();

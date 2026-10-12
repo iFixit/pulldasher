@@ -335,12 +335,12 @@ describe('the Not tracked lane', () => {
       ) as HTMLDetailsElement;
       expect(fold.open).toBe(true);
       const words = el.querySelector<HTMLButtonElement>('#roadmap-words-5') as HTMLButtonElement;
-      expect(words.textContent).toContain('Still not tracked?');
+      expect(words.textContent).toContain('Still Not tracked?');
       // its details answer it
       act(() => words.click());
       await settle();
       const details = el.querySelector('[aria-label="Runbooks: its plan"]') as HTMLElement;
-      expect(details.textContent).toContain('Keep not tracked');
+      expect(details.textContent).toContain('Keep Not tracked');
    });
 
    it('says a project’s question on one of its plans, the first in rank', async () => {
@@ -354,7 +354,7 @@ describe('the Not tracked lane', () => {
          await act(() => loadRoadmap());
          const el = await mount({}, { decisions: [grew] });
          const asking = [...el.querySelectorAll('[id^="roadmap-words-"]')].filter(w =>
-            w.textContent?.includes('Still not tracked?')
+            w.textContent?.includes('Still Not tracked?')
          );
          expect(asking.map(w => w.id)).toEqual(['roadmap-words-6']);
       } finally {
@@ -778,6 +778,20 @@ describe('after a click on the Roadmap', () => {
       await settle();
    };
 
+   it('says a details filing into Not tracked in Decide’s words, its Undo named to match', async () => {
+      const el = await mount({ item: 2 });
+      await fileFromDetails(el, 'Answer search', 'shelf');
+      expect(el.textContent).toContain(
+         'Marked Not tracked, so it counts nowhere. Decide asks again if it grows.'
+      );
+      expect(el.textContent).not.toContain('Filed Answer search in Not tracked');
+      expect(
+         el.querySelector(
+            '[aria-label="Undo: Marked Not tracked, so it counts nowhere. Decide asks again if it grows"]'
+         )
+      ).not.toBeNull();
+   });
+
    it('shows a details filing’s receipt below the sticky header when its lane is above', async () => {
       // the receipt lands in Site speed's lane, above, scrolled under the header
       const page = layout(() => 50);
@@ -869,7 +883,10 @@ describe('a write on the Roadmap that fails', () => {
       act(() => undoOf(el).click());
       await settle();
       expect(el.textContent).toContain('someone filed it in Catalog since.');
-      const again = el.querySelector<HTMLButtonElement>('[aria-label="Try the Undo again"]');
+      // named by the receipt it takes back, so two failed ones read apart
+      const again = el.querySelector<HTMLButtonElement>(
+         '[aria-label="Try the Undo again: Filed Image CDN in FixBot chat"]'
+      );
       expect(again).not.toBeNull();
       act(() => again?.click());
       await settle();
@@ -889,7 +906,13 @@ describe('a write on the Roadmap that fails', () => {
       act(() => undoOf(el).click());
       await settle();
       expect(el.textContent).toContain('the database is down.');
-      act(() => el.querySelector<HTMLButtonElement>('[aria-label="Try the Undo again"]')?.click());
+      act(() =>
+         el
+            .querySelector<HTMLButtonElement>(
+               '[aria-label="Try the Undo again: Moved FixBot chat to priority 1"]'
+            )
+            ?.click()
+      );
       await settle();
       expect(el.textContent).toContain('Put FixBot chat back at priority 2');
    });

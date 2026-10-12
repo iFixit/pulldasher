@@ -48,6 +48,10 @@ export const ONE_OFFS = 'Small work, no project';
 /** a project filed nowhere: in no initiative, Keep the lights on or Not
  * tracked. Its one name on every band, chooser, hover and split */
 export const UNSORTED_WORD = 'Unsorted';
+/** a project filed into Not tracked, by any view: Decide, a plan's
+ * details, a drop or its page. Its receipt, without a full stop */
+export const MARKED_NOT_TRACKED =
+   'Marked Not tracked, so it counts nowhere. Decide asks again if it grows';
 /** a plan with no project label, which can't be filed until it has one */
 export const NO_PROJECT_YET = 'No project yet';
 /** an initiative's goal, as its own line beside a question about it */
@@ -96,3 +100,10 @@ export const andList = (names: readonly string[]) =>
    names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
 /** developer-days as every table prints them: a tenth under 10, whole above */
 export const devDays = (d: number) => (d < 10 ? Math.round(d * 10) / 10 : Math.round(d));
+
+/** An Undo's accessible name: what it takes back, without the receipt's
+ * full stop; a failed one names the receipt it tries again. */
+export function undoName(r: { words: string; failed?: boolean; undoes?: string }): string {
+   if (!r.failed) return `Undo: ${r.words.replace(/\.$/, '')}`;
+   return r.undoes ? `Try the Undo again: ${r.undoes.replace(/\.$/, '')}` : 'Try the Undo again';
+}

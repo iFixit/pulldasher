@@ -22,7 +22,13 @@ import {
 } from '../../model/initiativeBoard';
 import { byRank, fileProject, moveInitiative, readInitiatives } from '../../model/initiativesData';
 import type { PortfolioItem } from '../../model/portfolio';
-import { andList, NO_PROJECT_YET, UNSORTED_WORD } from '../../model/words';
+import {
+   andList,
+   MARKED_NOT_TRACKED,
+   NO_PROJECT_YET,
+   UNSORTED_WORD,
+   undoName,
+} from '../../model/words';
 import { DecideCall } from './Decide';
 import type { Navigate } from './parts';
 import { inInk, SaidWords, type Said } from './roadmapHealth';
@@ -93,6 +99,8 @@ export interface Receipt {
    words: string;
    failed?: boolean;
    undo?: () => void;
+   /** a failed Undo's: the words of the receipt it takes back */
+   undoes?: string;
    /** a plan it made, to open */
    open?: number;
    /** the project it planned, kept in its place in the list of no plan */
@@ -135,7 +143,7 @@ export function ReceiptLine({ receipt, onOpen }: { receipt: Receipt; onOpen: (id
          {receipt.undo && (
             <QuietButton
                onClick={receipt.undo}
-               aria-label={receipt.failed ? 'Try the Undo again' : `Undo: ${receipt.words}`}
+               aria-label={undoName(receipt)}
             >
                {receipt.failed ? 'Try again' : 'Undo'}
             </QuietButton>
@@ -342,6 +350,8 @@ export function initiativeLanes(c: LaneContext) {
          // why, where the chooser it came from was
          refocus.current = focusAfter;
          if ('error' in r) return say({ key, words: r.error.replace(/\.$/, ''), failed: true });
+         const words =
+            into?.kind === 'untracked' ? MARKED_NOT_TRACKED : `Filed ${item.name} in ${toName}`;
          const undo = () => {
             refocus.current = focusAfter;
             // said at once, as the board shows it back at once
@@ -355,14 +365,20 @@ export function initiativeLanes(c: LaneContext) {
                   if (!('error' in back)) return;
                   // the server's reason, with the Undo kept to try again
                   refocus.current = focusAfter;
-                  say({ key, words: back.error.replace(/\.$/, ''), failed: true, undo });
+                  say({
+                     key,
+                     words: back.error.replace(/\.$/, ''),
+                     failed: true,
+                     undo,
+                     undoes: words,
+                  });
                });
             });
          };
          // one commit, so the focus finds the receipt in the lane it opened
          flushSync(() => {
             openFold(laneId(to));
-            say({ key, words: `Filed ${item.name} in ${toName}`, undo });
+            say({ key, words, undo });
          });
       });
    };
@@ -408,7 +424,13 @@ export function initiativeLanes(c: LaneContext) {
                void restoreOrder(start.order).then(done => {
                   // the server's reason, with the Undo kept to try again
                   if (done !== true)
-                     say({ key, words: done.error.replace(/\.$/, ''), failed: true, undo });
+                     say({
+                        key,
+                        words: done.error.replace(/\.$/, ''),
+                        failed: true,
+                        undo,
+                        undoes: `Moved ${andList(now)}`,
+                     });
                });
             });
          };

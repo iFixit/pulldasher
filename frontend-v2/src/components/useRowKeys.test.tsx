@@ -62,7 +62,7 @@ function Rows() {
          <div data-row>
             <button id="e-name">Ops runbooks</button>
             <button data-lead id="e">
-               Keep not tracked
+               Keep Not tracked
             </button>
          </div>
       </>
