@@ -4,6 +4,7 @@ import {
    finishLineCase,
    finishDue,
    finishRecord,
+   finishStats,
    parseFinishRecord,
    type FinishPull,
 } from './finishLine';
@@ -15,7 +16,12 @@ let n = 0;
 function pull(
    login: string,
    ageDays: number,
-   o: { draft?: boolean; deployBlockedBy?: string[]; ready?: boolean; cryo?: boolean } = {}
+   o: {
+      draft?: boolean;
+      deployBlockedBy?: string[];
+      ready?: boolean;
+      cryo?: boolean;
+   } = {}
 ): FinishPull {
    n += 1;
    return {
@@ -38,65 +44,14 @@ const many = (count: number, login = 'me', ageDays = 1) =>
    Array.from({ length: count }, () => pull(login, ageDays));
 
 describe('finishLineCase', () => {
-   const line = (c: ReturnType<typeof finishLineCase>) => `${c?.why} ${c?.ask}`;
-
-   // [open, ready] -> the why and ask lines; limit 7
-   it.each([
-      [20, 0, 'You have 20 open PRs, over the limit of 7. Merge or close 13 of these to finish.'],
-      [
-         10,
-         3,
-         'You have 10 open PRs, over the limit of 7. Merge or close 3 of these to finish. Start with the ones ready to merge.',
-      ],
-      [
-         8,
-         1,
-         'You have 8 open PRs, over the limit of 7. Merge or close 1 of these to finish. Start with the one ready to merge.',
-      ],
-   ])('with %i open and %i ready, says how many and where to start', (open, ready, want) => {
-      const pulls = [
-         ...many(open - ready),
-         ...Array.from({ length: ready }, () => pull('me', 1, { ready: true })),
-      ];
-      const c = finishLineCase(pulls, 'me', NO_BOTS, LIMITS);
-      expect(line(c)).toBe(want);
-      expect(c?.ready).toBe(ready);
+   it('counts the ready ones it lists', () => {
+      const pulls = [...many(7), pull('me', 1, { ready: true }), pull('me', 2, { ready: true })];
+      expect(finishLineCase(pulls, 'me', NO_BOTS, LIMITS)?.ready).toBe(2);
    });
 
    it('never counts a parked PR as ready', () => {
       const parked = pull('me', 1, { ready: true, cryo: true });
-      const c = finishLineCase([...many(7), parked], 'me', NO_BOTS, LIMITS);
-      expect(c?.ready).toBe(0);
-      expect(c?.ask).toBe('Merge or close 1 of these to finish.');
-   });
-
-   it('names the old PRs when they’re part of the count', () => {
-      // 9 open and 1 old: 2 to go, the old one among them
-      const c = finishLineCase([...many(8), pull('me', 40)], 'me', NO_BOTS, LIMITS);
-      expect(line(c)).toBe(
-         'You have 9 open PRs, over the limit of 7, and 1 is over 14 days old. Merge or close 2 of these to finish, the one over 14 days among them.'
-      );
-      // 9 open and 3 old: closing the old ones is the whole ask
-      const three = [...many(6), pull('me', 20), pull('me', 30), pull('me', 40)];
-      expect(finishLineCase(three, 'me', NO_BOTS, LIMITS)?.ask).toBe(
-         'Merge or close the 3 over 14 days to finish.'
-      );
-   });
-
-   it('says so when every one is old', () => {
-      expect(finishLineCase([pull('me', 20), pull('me', 30)], 'me', NO_BOTS, LIMITS)?.why).toBe(
-         'You have 2 open PRs, all over 14 days old.'
-      );
-      expect(finishLineCase([pull('me', 20)], 'me', NO_BOTS, LIMITS)?.why).toBe(
-         'You have 1 open PR, over 14 days old.'
-      );
-   });
-
-   it('lists only the old PRs when the count is fine', () => {
-      const old = pull('me', 30, { ready: true });
-      expect(line(finishLineCase([pull('me', 1), old], 'me', NO_BOTS, LIMITS))).toBe(
-         'You have 2 open PRs, and 1 is over 14 days old. Merge or close the one over 14 days to finish. Start with the one ready to merge.'
-      );
+      expect(finishLineCase([...many(7), parked], 'me', NO_BOTS, LIMITS)?.ready).toBe(0);
    });
 
    it('counts what’s left to close, the old ones included', () => {
@@ -138,13 +93,20 @@ describe('finishLineCase', () => {
    it('ignores drafts unless they count', () => {
       const drafts = Array.from({ length: 9 }, () => pull('me', 90, { draft: true }));
       expect(finishLineCase(drafts, 'me', NO_BOTS, LIMITS)).toBeNull();
-      const counted = finishLineCase(drafts, 'me', NO_BOTS, { ...LIMITS, countDrafts: true });
+      const counted = finishLineCase(drafts, 'me', NO_BOTS, {
+         ...LIMITS,
+         countDrafts: true,
+      });
       expect(counted?.pulls).toHaveLength(9);
    });
 
    it('ignores bots, by suffix and by the config list', () => {
-      expect(finishLineCase(many(9, 'dependabot[bot]'), 'dependabot[bot]', NO_BOTS, LIMITS)).toBeNull();
-      expect(finishLineCase(many(9, 'renovate'), 'renovate', new Set(['renovate']), LIMITS)).toBeNull();
+      expect(
+         finishLineCase(many(9, 'dependabot[bot]'), 'dependabot[bot]', NO_BOTS, LIMITS)
+      ).toBeNull();
+      expect(
+         finishLineCase(many(9, 'renovate'), 'renovate', new Set(['renovate']), LIMITS)
+      ).toBeNull();
    });
 
    it('ignores PRs held for a deploy', () => {
@@ -182,7 +144,9 @@ describe('finishDue', () => {
    });
 
    it('re-shows after 4 hours when you have more open PRs', () => {
-      expect(finishDue(over([...eight, pull('me', 1)]), shownAt, T + FINISH_COOLDOWN_MS)).toBe(true);
+      expect(finishDue(over([...eight, pull('me', 1)]), shownAt, T + FINISH_COOLDOWN_MS)).toBe(
+         true
+      );
    });
 
    it('does not re-show after 4 hours when it is the same or better', () => {
@@ -207,5 +171,31 @@ describe('finishDue', () => {
       expect(parseFinishRecord('2026-10-09')).toBeNull();
       expect(parseFinishRecord('{"at":1}')).toBeNull();
       expect(parseFinishRecord(JSON.stringify(shownAt))).toEqual(shownAt);
+   });
+});
+
+describe('finishStats', () => {
+   const texts = (c: Parameters<typeof finishStats>[0]) => finishStats(c, LIMITS).map(s => s.text);
+
+   it('shows each number only when it is above zero', () => {
+      expect(texts({ count: 9, over: ['a', 'b'], ready: 3 })).toEqual([
+         '9 open PRs · aim for 7',
+         '2 PRs older than 14 days',
+         '3 PRs ready to merge',
+      ]);
+      expect(texts({ count: 9, over: [], ready: 0 })).toEqual(['9 open PRs · aim for 7']);
+      expect(texts({ count: 3, over: ['a'], ready: 1 })).toEqual([
+         '1 PR older than 14 days',
+         '1 PR ready to merge',
+      ]);
+      expect(texts({ count: 7, over: [], ready: 0 })).toEqual([]);
+   });
+
+   it('points each number at the PRs it counts', () => {
+      const [, old, ready] = finishStats({ count: 9, over: ['a'], ready: 1 }, LIMITS);
+      expect(old.counts(pull('me', 15))).toBe(true);
+      expect(old.counts(pull('me', 14))).toBe(false);
+      expect(ready.counts(pull('me', 1, { ready: true }))).toBe(true);
+      expect(ready.counts(pull('me', 1))).toBe(false);
    });
 });

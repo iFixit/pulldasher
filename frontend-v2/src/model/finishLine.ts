@@ -41,10 +41,6 @@ export const isFinishReady = (p: FinishPull) => p.status === 'ready' && !p.cryo;
 export interface FinishLineCase<P extends FinishPull> {
    /** the PRs that put you there, oldest first */
    pulls: P[];
-   /** why you're seeing it, in numbers: "You have 9 open PRs, ..." */
-   why: string;
-   /** exactly what we ask: how many to merge or close, and where to start */
-   ask: string;
    /** how many of `pulls` can merge now */
    ready: number;
    /** how many open PRs counted */
@@ -93,43 +89,9 @@ export function finishLineCase<P extends FinishPull>(
    const ready = listed.filter(isFinishReady).length;
    return {
       pulls: listed,
-      why: whyLine(mine.length, limits.maxOpen, old.length, limits.maxDays),
-      ask: askLine(counts.toGo, old.length, ready, limits.maxDays),
       ready,
       ...counts,
    };
-}
-
-/** "You have 9 open PRs, over the limit of 7, and 2 are over 14 days old." */
-function whyLine(n: number, maxOpen: number, old: number, maxDays: number): string {
-   const prs = n === 1 ? '1 open PR' : `${n} open PRs`;
-   const over = n > maxOpen ? `, over the limit of ${maxOpen}` : '';
-   const aged = !old
-      ? ''
-      : old === n
-      ? `, ${n === 1 ? '' : 'all '}over ${maxDays} days old`
-      : `, and ${old} ${old === 1 ? 'is' : 'are'} over ${maxDays} days old`;
-   return `You have ${prs}${over}${aged}.`;
-}
-
-/** "Merge or close 2 of these to finish. Start with the ones ready to merge."
- * Every PR past the age limit has to go, so the line names them when they
- * are part of the count. */
-// ponytail: a ready PR that isn't old doesn't clear an old one; the start
-// hint doesn't say which ready ones to pick
-function askLine(toGo: number, old: number, ready: number, maxDays: number): string {
-   const theOld = old === 1 ? `the one over ${maxDays} days` : `the ${old} over ${maxDays} days`;
-   const what = !old
-      ? `${toGo} of these to finish`
-      : old === toGo
-      ? `${theOld} to finish`
-      : `${toGo} of these to finish, ${theOld} among them`;
-   const start = !ready
-      ? ''
-      : ready === 1
-      ? ' Start with the one ready to merge.'
-      : ' Start with the ones ready to merge.';
-   return `Merge or close ${what}.${start}`;
 }
 
 /**
@@ -183,4 +145,47 @@ export function finishDue(
    if (!last) return true;
    if (now - last.at < FINISH_COOLDOWN_MS) return false;
    return found.count > last.count || found.over.some(id => !last.over.includes(id));
+}
+
+/** One number at the top of the list you can act on, and which PRs it
+ * points at, so clicking it can open their group. */
+export interface FinishStat {
+   key: 'open' | 'old' | 'ready';
+   text: string;
+   /** the PRs this number counts */
+   counts: (p: FinishPull) => boolean;
+}
+
+/** "1 PR", "2 PRs" */
+export const prCount = (n: number) => (n === 1 ? '1 PR' : `${n} PRs`);
+
+/**
+ * The numbers you can act on, each only when above zero: how many open
+ * against the aim, how many past the age limit, how many can merge now.
+ * Waiting on others is left out: there's nothing to do about it here.
+ */
+export function finishStats(
+   found: Pick<FinishLineCase<FinishPull>, 'count' | 'over' | 'ready'>,
+   limits: { maxOpen: number; maxDays: number }
+): FinishStat[] {
+   const stats: FinishStat[] = [];
+   if (found.count > limits.maxOpen)
+      stats.push({
+         key: 'open',
+         text: `${found.count} open PRs · aim for ${limits.maxOpen}`,
+         counts: () => true,
+      });
+   if (found.over.length)
+      stats.push({
+         key: 'old',
+         text: `${prCount(found.over.length)} older than ${limits.maxDays} days`,
+         counts: p => p.ageDays > limits.maxDays,
+      });
+   if (found.ready)
+      stats.push({
+         key: 'ready',
+         text: `${prCount(found.ready)} ready to merge`,
+         counts: isFinishReady,
+      });
+   return stats;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Flag, Settings as SettingsIcon, X } from 'lucide-react';
+import { ChevronRight, Flag, Settings as SettingsIcon, X } from 'lucide-react';
 import type { DerivedPull } from '../../../shared/model/status';
 import { githubUrl } from '../../../shared/format';
 import { askedOf, askForInputHint, rowNote, rowWord } from '../model/actions';
@@ -10,13 +10,16 @@ import {
    finishDue,
    finishGroups,
    finishRecord,
+   finishStats,
    parseFinishRecord,
+   prCount,
    FINISH_LINE_KEY,
    type FinishLineCase,
+   type FinishStat,
 } from '../model/finishLine';
 import { useSettings } from '../settings';
 import { readStorage, writeStorage } from '../storage';
-import { HeaderIconButton, QuietButton, RepoRef } from './bits';
+import { QuietButton, RepoRef } from './bits';
 import { Icon } from './Icon';
 import { modalOpen } from '../hooks';
 import { GroupHeader } from './Lane';
@@ -197,16 +200,20 @@ export function FinishLine({
    return (
       <>
          {found && (
-            <HeaderIconButton
-               icon={Flag}
-               label={`${toFinish(found.toGo)}: ${found.why}`}
+            // the action, said as a number and a verb: "2 to finish"
+            <button
+               type="button"
+               aria-label={finishLabel(found.toGo)}
+               title={finishLabel(found.toGo)}
                onClick={() => show(found)}
-               className="relative"
+               className="pressable inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-[13px] font-medium whitespace-nowrap text-ink-2 hover:text-brand"
             >
-               <span className="absolute -top-1 -right-1 grid h-4 min-w-[16px] place-items-center rounded-full bg-brand px-1 text-[10px] leading-none font-semibold text-surface tabular-nums">
-                  {found.toGo > 9 ? '9+' : found.toGo}
+               <Icon icon={Flag} size={14} className="text-ink-3" />
+               <span>
+                  <span className="font-semibold text-brand tabular-nums">{found.toGo}</span> to
+                  finish
                </span>
-            </HeaderIconButton>
+            </button>
          )}
          {shown &&
             createPortal(
@@ -216,6 +223,7 @@ export function FinishLine({
                      (shown === 'preview' ? sampleCase(pulls, me, extraBots, settings) : FREE)
                   }
                   me={me}
+                  maxOpen={settings.finishLineMaxOpen}
                   maxDays={settings.finishLineMaxDays}
                   hold={settings.finishLineHoldToClose}
                   openIds={openIds}
@@ -232,17 +240,15 @@ export function FinishLine({
    );
 }
 
-/** How long "You're at the finish line" shows before it closes on its own. */
+/** How long "All finished" shows before it closes on its own. */
 const FREED_MS = 2500;
 
-/** "3 to the finish line", the countdown's words everywhere it shows. */
-const toFinish = (n: number) => `${n} to the finish line`;
+/** The badge's full words, for its hover and screen readers. */
+const finishLabel = (n: number) => `Finish ${n} of your open PRs`;
 
 /** Merged or closed your way under the limits while it was up. */
 const FREE: FinishLineCase<DerivedPull> = {
    pulls: [],
-   why: 'Your open PRs are all under your limits. Nice work.',
-   ask: '',
    ready: 0,
    count: 0,
    over: [],
@@ -251,7 +257,7 @@ const FREE: FinishLineCase<DerivedPull> = {
 
 /** The preview when you're under the limits: your PRs as it counts them (any
  * open one trips a limit of 0), or the board's oldest when you have none,
- * so there's something to look at. */
+ * so there's something to look at. Nothing to finish: toGo is 0. */
 function sampleCase(
    pulls: DerivedPull[],
    me: string,
@@ -263,14 +269,12 @@ function sampleCase(
       maxDays: settings.finishLineMaxDays,
       countDrafts: settings.finishLineCountDrafts,
    });
-   if (mine) return { ...mine, why: 'Preview: your open PRs, as it would list them.', ask: '' };
+   if (mine) return { ...mine, toGo: 0 };
    return {
       pulls: pulls
          .filter(p => p.data.state === 'open')
          .sort((a, b) => b.ageDays - a.ageDays)
          .slice(0, 6),
-      why: 'Preview: these are sample PRs from the board.',
-      ask: '',
       ready: 0,
       count: 0,
       over: [],
@@ -288,15 +292,22 @@ const LEAVE_MS = 450;
 const iconButton =
    'pressable inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-3 hover:bg-muted hover:text-ink';
 
+/** The list's groups, in order: the quickest way to finish first. */
+const GROUP_KEYS = ['ready', 'move', 'waiting'] as const;
+type GroupKey = typeof GROUP_KEYS[number];
+const groupDomId = (k: GroupKey) => `finish-group-${k}`;
+
 /** The modal over the board: a centered card on a desktop, a sheet up from
- * the bottom on a phone. Its header stays put while the list scrolls under
- * it. Esc or the close button puts it away; with `hold` on, neither does, and
- * the way out besides getting under the limits is holding the button at the
- * bottom down for a couple of seconds, by pointer, finger, Enter or Space.
- * The cog opens Settings at this feature's own settings. */
+ * the bottom on a phone. Its top is the action and its numbers ("Finish 2
+ * PRs", then the stats that say why); the list scrolls under it. Esc or the
+ * close button puts it away; with `hold` on, neither does, and the way out
+ * besides getting under the limits is holding the button at the bottom down
+ * for a couple of seconds, by pointer, finger, Enter or Space. The cog opens
+ * Settings at this feature's own settings. */
 function FinishModal({
    found,
    me,
+   maxOpen,
    maxDays,
    hold,
    openIds,
@@ -304,6 +315,7 @@ function FinishModal({
 }: {
    found: FinishLineCase<DerivedPull>;
    me: string;
+   maxOpen: number;
    maxDays: number;
    hold: boolean;
    openIds: ReadonlySet<string>;
@@ -311,6 +323,26 @@ function FinishModal({
 }) {
    const rootRef = useRef<HTMLDivElement>(null);
    const free = found === FREE;
+   const stats = finishStats(found, { maxOpen, maxDays });
+   // groups folded by hand; a stat opens the ones holding what it counts
+   const [closed, setClosed] = useState<ReadonlySet<GroupKey>>(new Set());
+   const toggle = (k: GroupKey) =>
+      setClosed(c => {
+         const next = new Set(c);
+         if (!next.delete(k)) next.add(k);
+         return next;
+      });
+   const goTo = (stat: FinishStat) => {
+      const groups = finishGroups(found.pulls, me);
+      const keys = GROUP_KEYS.filter(k => groups[k].some(r => stat.counts(r.pull)));
+      if (!keys.length) return;
+      setClosed(c => new Set([...c].filter(k => !keys.includes(k))));
+      const el = document.getElementById(groupDomId(keys[0]));
+      el?.scrollIntoView?.({ block: 'start' });
+      el?.querySelector<HTMLElement>('[aria-expanded]')?.focus({
+         preventScroll: true,
+      });
+   };
    // the key handler is set up once; it reads these fresh
    const latest = useRef({ hold, onDone });
    latest.current = { hold, onDone };
@@ -371,30 +403,45 @@ function FinishModal({
          role="dialog"
          aria-modal="true"
          aria-labelledby="finish-title"
-         aria-describedby="finish-why finish-ask"
+         aria-describedby="finish-stats"
          className="fixed inset-0 z-[200] flex flex-col items-center justify-end bg-ink/40 pt-8 outline-none sm:justify-start sm:px-4 sm:pt-[8vh] sm:pb-8"
       >
          <section className="flex max-h-full w-full flex-col gap-5 rounded-t-2xl border border-line bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-ink shadow-2xl sm:max-h-[80vh] sm:max-w-[40rem] sm:rounded-2xl sm:p-6">
-            <div className="flex items-start gap-4">
-               <FinishMark />
+            <div className="flex items-start gap-3">
+               {free && <FinishMark />}
                <div className="min-w-0 flex-1">
-                  {/* the countdown: ticks down live as you merge or close */}
-                  <h2 id="finish-title" className="m-0 text-xl font-semibold tabular-nums">
-                     {free
-                        ? 'You’re at the finish line'
-                        : found.toGo
-                        ? toFinish(found.toGo)
-                        : 'Finish line'}
-                  </h2>
-                  <p
-                     id="finish-why"
-                     className="m-0 mt-1 text-sm leading-snug text-ink-2"
+                  {/* the action with its real number, ticking down live as
+                      you merge or close */}
+                  <h2
+                     id="finish-title"
+                     className="m-0 text-xl leading-tight font-semibold tabular-nums"
                      aria-live="polite"
                   >
-                     {found.why}
-                     {found.count > 0 &&
-                        ' Only you see this: it’s about your own PRs, and nobody else is told.'}
-                  </p>
+                     {free
+                        ? 'All finished'
+                        : found.toGo
+                        ? `Finish ${prCount(found.toGo)}`
+                        : 'Nothing to finish'}
+                  </h2>
+                  {/* why, in numbers you can act on: each one jumps to its PRs */}
+                  {!free && stats.length > 0 && (
+                     <ul
+                        id="finish-stats"
+                        className="m-0 mt-2.5 flex list-none flex-wrap gap-1.5 p-0"
+                     >
+                        {stats.map(stat => (
+                           <li key={stat.key}>
+                              <button
+                                 type="button"
+                                 onClick={() => goTo(stat)}
+                                 className="pressable inline-flex h-7 items-center rounded-full border border-line px-2.5 text-[13px] whitespace-nowrap text-ink-2 tabular-nums hover:border-brand hover:text-ink"
+                              >
+                                 {stat.text}
+                              </button>
+                           </li>
+                        ))}
+                     </ul>
+                  )}
                </div>
                <div className="-mt-1 -mr-1 flex shrink-0 gap-0.5">
                   <button
@@ -406,7 +453,9 @@ function FinishModal({
                         // close first, so Settings isn't under it
                         onDone();
                         window.dispatchEvent(
-                           new CustomEvent('pd2:open-settings', { detail: 'finish-line' })
+                           new CustomEvent('pd2:open-settings', {
+                              detail: 'finish-line',
+                           })
                         );
                      }}
                   >
@@ -426,19 +475,22 @@ function FinishModal({
                   )}
                </div>
             </div>
-            {found.ask && (
-               <p id="finish-ask" className="m-0 text-[15px] leading-snug font-medium text-ink">
-                  {found.ask}
-               </p>
-            )}
             {!free && (
                <>
                   {/* the board's own sticky group headers, pinned to the top
                       of this list on the card's color instead of under the
                       app header on the canvas */}
                   <div className="-mx-1 min-h-0 overflow-y-auto px-1 [--canvas:var(--surface)] [--header-h:0px]">
-                     <FinishList pulls={found.pulls} me={me} maxDays={maxDays} openIds={openIds} />
+                     <FinishList
+                        pulls={found.pulls}
+                        me={me}
+                        maxDays={maxDays}
+                        openIds={openIds}
+                        closed={closed}
+                        onToggle={toggle}
+                     />
                   </div>
+                  <p className="m-0 -mt-2 text-xs text-ink-3">Only you see this.</p>
                   {hold && <HoldToClose onDone={onDone} />}
                </>
             )}
@@ -561,7 +613,13 @@ function HoldToClose({ onDone }: { onDone: () => void }) {
             </span>
          </span>
          <span className="text-[15px] font-semibold text-ink" aria-live="polite">
-            {opened ? 'Closing' : holding ? 'Keep holding…' : tapped ? 'Hold it down' : 'Hold to close'}
+            {opened
+               ? 'Closing'
+               : holding
+               ? 'Keep holding…'
+               : tapped
+               ? 'Hold it down'
+               : 'Hold to close'}
          </span>
       </button>
    );
@@ -640,11 +698,16 @@ function FinishList({
    me,
    maxDays,
    openIds,
+   closed,
+   onToggle,
 }: {
    pulls: DerivedPull[];
    me: string;
    maxDays: number;
    openIds: ReadonlySet<string>;
+   /** the groups folded shut */
+   closed: ReadonlySet<GroupKey>;
+   onToggle: (k: GroupKey) => void;
 }) {
    const leaving = useLeaving(pulls, openIds);
    const gone = new Set(leaving.map(pullId));
@@ -660,9 +723,21 @@ function FinishList({
    const asked = (rows: { pull: DerivedPull }[]) => live(rows).filter(r => askedOf(r.pull).length);
    const nudgeRows = asked([...groups.move, ...groups.waiting]);
    const sections = [
-      { title: STAGE_WORDS.ready, sub: 'Merge these first', rows: groups.ready, ready: true },
-      { title: 'Your move', sub: 'Waiting on you', rows: groups.move },
       {
+         key: 'ready' as const,
+         title: STAGE_WORDS.ready,
+         sub: 'Merge these first',
+         rows: groups.ready,
+         ready: true,
+      },
+      {
+         key: 'move' as const,
+         title: 'Your move',
+         sub: 'Waiting on you',
+         rows: groups.move,
+      },
+      {
+         key: 'waiting' as const,
          title: 'Waiting on others',
          sub: 'Nudge whoever you asked, or close what you don’t need',
          rows: groups.waiting,
@@ -671,32 +746,64 @@ function FinishList({
    const nudgeOn = sections.find(g => !g.ready && asked(g.rows).length)?.title;
    return (
       <div className="flex flex-col gap-6">
-         {sections.map(g => (
-            <section key={g.title} aria-label={mine ? g.title : undefined}>
-               {mine && (
-                  <GroupHeader
-                     level={3}
-                     title={g.title}
-                     sub={g.sub}
-                     count={live(g.rows).length}
-                     headerExtra={g.title === nudgeOn ? <CopyNudge rows={nudgeRows} /> : undefined}
-                  />
-               )}
-               <ul className="m-0 flex list-none flex-col divide-y divide-line p-0">
-                  {g.rows.map(({ pull }) => (
-                     <FinishRow
-                        key={pullId(pull)}
-                        pull={pull}
-                        me={me}
-                        maxDays={maxDays}
-                        ready={Boolean(g.ready)}
-                        mine={mine}
-                        leaving={gone.has(pullId(pull))}
+         {sections.map(g => {
+            const open = !mine || !closed.has(g.key);
+            return (
+               <section
+                  key={g.key}
+                  id={groupDomId(g.key)}
+                  aria-label={mine ? g.title : undefined}
+                  className="scroll-mt-2"
+               >
+                  {mine && (
+                     <GroupHeader
+                        level={3}
+                        // the title folds its group, the accordion way
+                        title={
+                           <button
+                              type="button"
+                              aria-expanded={open}
+                              aria-controls={`${groupDomId(g.key)}-rows`}
+                              onClick={() => onToggle(g.key)}
+                              className="hit -ml-0.5 inline-flex items-center gap-1 rounded border-0 bg-transparent p-0 text-left font-semibold text-inherit"
+                           >
+                              <Icon
+                                 icon={ChevronRight}
+                                 size={14}
+                                 className={`flex-none text-ink-3 transition-[rotate] duration-150 ease-out motion-reduce:transition-none ${
+                                    open ? 'rotate-90' : ''
+                                 }`}
+                              />
+                              {g.title}
+                           </button>
+                        }
+                        sub={g.sub}
+                        count={live(g.rows).length}
+                        headerExtra={
+                           g.title === nudgeOn ? <CopyNudge rows={nudgeRows} /> : undefined
+                        }
                      />
-                  ))}
-               </ul>
-            </section>
-         ))}
+                  )}
+                  <ul
+                     id={`${groupDomId(g.key)}-rows`}
+                     hidden={!open}
+                     className="m-0 flex list-none flex-col divide-y divide-line p-0"
+                  >
+                     {g.rows.map(({ pull }) => (
+                        <FinishRow
+                           key={pullId(pull)}
+                           pull={pull}
+                           me={me}
+                           maxDays={maxDays}
+                           ready={Boolean(g.ready)}
+                           mine={mine}
+                           leaving={gone.has(pullId(pull))}
+                        />
+                     ))}
+                  </ul>
+               </section>
+            );
+         })}
       </div>
    );
 }
@@ -814,7 +921,11 @@ function FinishMark() {
             className="fill-surface stroke-ink-2"
             strokeWidth={2}
          />
-         <path d="M26 38 Q29 34 32 38 M40 38 Q43 34 46 38" className="stroke-ink-2" strokeWidth={2} />
+         <path
+            d="M26 38 Q29 34 32 38 M40 38 Q43 34 46 38"
+            className="stroke-ink-2"
+            strokeWidth={2}
+         />
          <path d="M28 44 Q36 51 44 44" className="stroke-ink-2" strokeWidth={2} />
          {/* body, one arm up at the flag, one down */}
          <rect
@@ -826,7 +937,11 @@ function FinishMark() {
             className="fill-surface stroke-ink-2"
             strokeWidth={2}
          />
-         <path d="M49 63 Q60 58 68 46 M23 63 Q17 67 15 73" className="stroke-ink-2" strokeWidth={2} />
+         <path
+            d="M49 63 Q60 58 68 46 M23 63 Q17 67 15 73"
+            className="stroke-ink-2"
+            strokeWidth={2}
+         />
          <circle cx="69" cy="44" r="2.5" className="fill-surface stroke-ink-2" strokeWidth={2} />
       </svg>
    );

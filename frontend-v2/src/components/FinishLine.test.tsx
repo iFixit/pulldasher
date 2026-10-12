@@ -76,12 +76,20 @@ function render(pulls: DerivedPull[]) {
    act(() => r.render(<FinishLine pulls={pulls} me="me" extraBots={new Set()} initialized />));
 }
 
-const why = () => document.getElementById('finish-why')?.textContent;
-const ask = () => document.getElementById('finish-ask')?.textContent;
-const listed = () => document.querySelectorAll('[role="dialog"] li').length;
+/** the stats row's buttons, by their words */
+const stats = () =>
+   [...document.querySelectorAll<HTMLButtonElement>('#finish-stats button')].map(
+      b => b.textContent
+   );
+const stat = (text: string) =>
+   [...document.querySelectorAll<HTMLButtonElement>('#finish-stats button')].find(
+      b => b.textContent === text
+   );
+const listed = () => document.querySelectorAll('[role="dialog"] [id$="-rows"] li').length;
 const dialog = () => document.querySelector('[role="dialog"]');
 const countdown = () => document.getElementById('finish-title')?.textContent;
-const badge = () => document.querySelector<HTMLButtonElement>('[aria-label*="to the finish line"]');
+const badge = () =>
+   document.querySelector<HTMLButtonElement>('[aria-label^="Finish"][aria-label$="open PRs"]');
 const esc = () =>
    act(() => {
       document.body.dispatchEvent(
@@ -94,27 +102,27 @@ describe('FinishLine while it is up', () => {
    it('follows new PRs and merges live', () => {
       const first = many(8);
       render(first);
-      expect(why()).toMatch(/^You have 8 open PRs/);
+      expect(stats()).toEqual(['8 open PRs · aim for 7']);
       expect(listed()).toBe(8);
 
       // a new PR arrives over the socket
       render([...first, pull()]);
-      expect(why()).toMatch(/^You have 9 open PRs/);
+      expect(stats()).toEqual(['9 open PRs · aim for 7']);
       expect(listed()).toBe(9);
 
-      expect(countdown()).toBe('2 to the finish line');
+      expect(countdown()).toBe('Finish 2 PRs');
 
       // merges bring you under the limits: it says so, then lets you go
       vi.useFakeTimers();
       render(first.slice(0, 3));
-      expect(why()).toBe('Your open PRs are all under your limits. Nice work.');
-      expect(countdown()).toBe('You’re at the finish line');
+      expect(stats()).toEqual([]);
+      expect(countdown()).toBe('All finished');
       expect(listed()).toBe(0);
       act(() => vi.advanceTimersByTime(2500));
       expect(dialog()).toBeNull();
    });
 
-   it('lifts ready PRs to the top and counts them in the why line', () => {
+   it('lifts ready PRs to the top and counts them in the stats', () => {
       const ready = pull(2, { ready: true });
       render([...many(7), ready]);
       // the rest are mine to stamp under self-review
@@ -122,10 +130,9 @@ describe('FinishLine while it is up', () => {
       expect(document.querySelector('[role="dialog"] li a')?.textContent).toContain(
          ready.data.title
       );
-      expect(why()).toBe(
-         'You have 8 open PRs, over the limit of 7. Only you see this: it’s about your own PRs, and nobody else is told.'
-      );
-      expect(ask()).toBe('Merge or close 1 of these to finish. Start with the one ready to merge.');
+      expect(countdown()).toBe('Finish 1 PR');
+      expect(stats()).toEqual(['8 open PRs · aim for 7', '1 PR ready to merge']);
+      expect(dialog()?.textContent).toContain('Only you see this.');
    });
 
    it('only shows the badge until you turn the popup on', () => {
@@ -139,9 +146,10 @@ describe('FinishLine while it is up', () => {
       setSettings({ finishLineMode: 'manual' });
       render(many(9));
       expect(document.querySelector('[role="dialog"]')).toBeNull();
-      expect(badge()?.getAttribute('aria-label')).toMatch(/^2 to the finish line: You have 9/);
+      expect(badge()?.getAttribute('aria-label')).toBe('Finish 2 of your open PRs');
+      expect(badge()?.textContent).toBe('2 to finish');
       act(() => badge()?.click());
-      expect(why()).toMatch(/^You have 9 open PRs/);
+      expect(countdown()).toBe('Finish 2 PRs');
    });
 
    it('stays away, badge and all, when it is off', () => {
@@ -154,9 +162,9 @@ describe('FinishLine while it is up', () => {
    it('with the hold setting, closes only when the button is held down', () => {
       vi.useFakeTimers();
       render(many(8));
-      const hold = [
-         ...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
-      ].find(b => b.textContent?.includes('Hold to close'));
+      const hold = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
+         b => b.textContent?.includes('Hold to close')
+      );
       // it has focus from the start, so the keyboard can hold it right away
       expect(document.activeElement).toBe(hold);
       const key = (type: string, k = 'Enter') =>
@@ -180,9 +188,9 @@ describe('FinishLine while it is up', () => {
       vi.useFakeTimers();
       const nine = many(9);
       render(nine);
-      expect(countdown()).toBe('2 to the finish line');
+      expect(countdown()).toBe('Finish 2 PRs');
       render(nine.slice(1));
-      expect(countdown()).toBe('1 to the finish line');
+      expect(countdown()).toBe('Finish 1 PR');
       // still there for the slide, then gone
       expect(document.querySelectorAll('.finish-row-leave')).toHaveLength(1);
       expect(listed()).toBe(9);
@@ -293,9 +301,11 @@ describe('FinishLine while it is up', () => {
       expect(dialog()).toBeNull();
       act(() => window.dispatchEvent(new Event('pd2:preview-finish-line')));
       expect(dialog()).not.toBeNull();
-      act(() => document.querySelector<HTMLButtonElement>('[data-hold]')?.dispatchEvent(
-         new MouseEvent('click', { bubbles: true, detail: 0 })
-      ));
+      act(() =>
+         document
+            .querySelector<HTMLButtonElement>('[data-hold]')
+            ?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 }))
+      );
       expect(dialog()).toBeNull();
       act(() => {
          location.hash = 'finish=1';
@@ -320,7 +330,10 @@ describe('FinishLine while it is up', () => {
    });
 
    it('keeps the last showing while it doesn’t know who you are', () => {
-      localStorage.setItem('pd2.finishLine', JSON.stringify({ at: Date.now(), count: 9, over: [] }));
+      localStorage.setItem(
+         'pd2.finishLine',
+         JSON.stringify({ at: Date.now(), count: 9, over: [] })
+      );
       const r = (root ??= createRoot(host));
       act(() => r.render(<FinishLine pulls={many(9)} me="" extraBots={new Set()} initialized />));
       expect(localStorage.getItem('pd2.finishLine')).not.toBeNull();
@@ -333,7 +346,10 @@ describe('FinishLine while it is up', () => {
       act(() =>
          r.render(<FinishLine pulls={many(8)} me="me" extraBots={new Set()} initialized={false} />)
       );
-      localStorage.setItem('pd2.finishLine', JSON.stringify({ at: Date.now(), count: 8, over: [] }));
+      localStorage.setItem(
+         'pd2.finishLine',
+         JSON.stringify({ at: Date.now(), count: 8, over: [] })
+      );
       act(() => r.render(<FinishLine pulls={many(8)} me="me" extraBots={new Set()} initialized />));
       expect(dialog()).toBeNull();
    });
@@ -381,13 +397,69 @@ describe('FinishLine while it is up', () => {
       window.addEventListener('pd2:open-settings', listen);
       render(many(9));
       act(() =>
-         document
-            .querySelector<HTMLButtonElement>('[aria-label="Finish line settings"]')
-            ?.click()
+         document.querySelector<HTMLButtonElement>('[aria-label="Finish line settings"]')?.click()
       );
       window.removeEventListener('pd2:open-settings', listen);
       expect(asked).toEqual(['finish-line']);
       expect(dialog()).toBeNull();
+   });
+});
+
+describe('FinishLine stats', () => {
+   beforeEach(() => setSettings({ finishLineHoldToClose: false }));
+
+   it('shows only the numbers above zero, old PRs alone when the count is fine', () => {
+      render([pull(20), pull(30), pull(1)]);
+      expect(countdown()).toBe('Finish 2 PRs');
+      expect(stats()).toEqual(['2 PRs older than 14 days']);
+      // the list is the old ones only
+      expect(listed()).toBe(2);
+   });
+
+   it('leaves waiting on others out of the stats', () => {
+      render([pull(2, { asked: ['bob'] }), ...many(7)]);
+      expect(headers()).toEqual(['Your move', 'Waiting on others']);
+      expect(stats()).toEqual(['8 open PRs · aim for 7']);
+   });
+
+   it('opens a folded group when its stat is clicked, and jumps to it', () => {
+      const scrolled = vi.fn();
+      Element.prototype.scrollIntoView = scrolled;
+      render([pull(2, { ready: true }), pull(20, { asked: ['bob'] }), ...many(7)]);
+      expect(stats()).toEqual([
+         '9 open PRs · aim for 7',
+         '1 PR older than 14 days',
+         '1 PR ready to merge',
+      ]);
+      const toggle = (title: string) =>
+         [...document.querySelectorAll<HTMLButtonElement>('h3 button')].find(
+            b => b.textContent === title
+         );
+      const rows = (title: string) =>
+         document.getElementById(toggle(title)?.getAttribute('aria-controls') ?? '');
+      // fold two groups by their titles
+      act(() => toggle('Waiting on others')?.click());
+      act(() => toggle('Ready to merge')?.click());
+      expect(toggle('Waiting on others')?.getAttribute('aria-expanded')).toBe('false');
+      expect(rows('Waiting on others')?.hidden).toBe(true);
+      expect(rows('Ready to merge')?.hidden).toBe(true);
+      // the old PR waits on bob: its stat opens that group, and only that one
+      act(() => stat('1 PR older than 14 days')?.click());
+      expect(rows('Waiting on others')?.hidden).toBe(false);
+      expect(rows('Ready to merge')?.hidden).toBe(true);
+      expect(scrolled.mock.contexts.at(-1)).toBe(rows('Waiting on others')?.parentElement);
+      expect(document.activeElement).toBe(toggle('Waiting on others'));
+      act(() => stat('1 PR ready to merge')?.click());
+      expect(rows('Ready to merge')?.hidden).toBe(false);
+      // the open count opens them all
+      act(() => toggle('Ready to merge')?.click());
+      act(() => toggle('Your move')?.click());
+      act(() => stat('9 open PRs · aim for 7')?.click());
+      expect(
+         [...document.querySelectorAll('[role="dialog"] ul[id]')].every(
+            u => !(u as HTMLElement).hidden
+         )
+      ).toBe(true);
    });
 });
 

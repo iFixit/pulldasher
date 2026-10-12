@@ -131,7 +131,9 @@ export function Settings({
    // whose detail names a Group's id opens at that group (Finish line's cog)
    useEffect(() => {
       const openIt = (e: Event) => {
-         setSection(typeof (e as CustomEvent).detail === 'string' ? (e as CustomEvent).detail : null);
+         setSection(
+            typeof (e as CustomEvent).detail === 'string' ? (e as CustomEvent).detail : null
+         );
          setOpen(true);
       };
       window.addEventListener('pd2:open-settings', openIt);
@@ -395,12 +397,12 @@ export function Settings({
 
                      <Group title="Finish line" id="finish-line">
                         <span className="text-xs text-ink-3">
-                           A count in the header of your own open PRs past your limits, and a list of
-                           them to merge or close. Only you see it.
+                           A count in the header of your own open PRs past your limits, and a list
+                           of them to merge or close. Only you see it.
                         </span>
                         <Field
                            label="Show it as"
-                           hint="Pop up opens the list by itself when you go over, at most every 4 hours and only when things got worse. Header count only waits for you to click the flag. Off hides both."
+                           hint="Pop up opens the list by itself when you go over, at most every 4 hours and only when things got worse. Header count only waits for you to click it. Off hides both."
                         >
                            <Segmented
                               ariaLabel="show Finish line as"
@@ -437,7 +439,10 @@ export function Settings({
                               onChange={finishLineMaxDays => set({ finishLineMaxDays })}
                            />
                         </Field>
-                        <Field label="Count drafts" hint="Off leaves your drafts out of both limits.">
+                        <Field
+                           label="Count drafts"
+                           hint="Off leaves your drafts out of both limits."
+                        >
                            <Segmented
                               ariaLabel="count drafts toward Finish line"
                               value={s.finishLineCountDrafts ? 'on' : 'off'}
@@ -462,7 +467,10 @@ export function Settings({
                               onChange={v => set({ finishLineHoldToClose: v === 'on' })}
                            />
                         </Field>
-                        <Field label="See it now" hint="Opens the list with your open PRs, whatever the limits say.">
+                        <Field
+                           label="See it now"
+                           hint="Opens the list with your open PRs, whatever the limits say."
+                        >
                            <QuietButton
                               onClick={() => {
                                  // close Settings first so the list isn't stacked on it

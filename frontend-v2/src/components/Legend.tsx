@@ -163,18 +163,18 @@ export function Legend() {
          <Group title="Finish line">
             <Item
                term={
-                  <span className="inline-flex items-center gap-1 text-ink-3">
-                     <Icon icon={Flag} size={13} />
-                     <span className="rounded-full bg-brand px-1 text-[10px] font-semibold text-surface">
-                        2
+                  <span className="inline-flex items-center gap-1 text-ink-2">
+                     <Icon icon={Flag} size={13} className="text-ink-3" />
+                     <span>
+                        <span className="text-brand tabular-nums">2</span> to finish
                      </span>
                   </span>
                }
-               def="shows in the header when your own open PRs pass your limits (by default more than 7 open, or one open over 14 days): the number is how many to merge or close. Click it for the list, ready ones first. Only you see it; nobody else is told"
+               def="shows in the header when your own open PRs pass your limits (by default more than 7 open, or one open over 14 days): how many to merge or close. Click it for the list, ready ones first. Only you see it; nobody else is told"
             />
             <Item
                term={<span className="text-ink-2">Settings</span>}
-               def="under Finish line: Pop up opens the list by itself when you go over (off by default), Header count only waits for a click, Off hides it. Esc or ✕ closes the list"
+               def="under Finish line, or the cog in the list: Pop up opens the list by itself when you go over (off by default), Header count only waits for a click, Off hides it. Esc or ✕ closes the list"
             />
          </Group>
 
