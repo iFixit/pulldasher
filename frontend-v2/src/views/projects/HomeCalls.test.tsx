@@ -870,6 +870,33 @@ describe('an initiative’s page', () => {
       expect(el.textContent).not.toContain('Ends');
    });
 
+   it('opens Decide on this initiative from its questions', () => {
+      const done = { ...created, id: 8, project: 'akeneo', status: 'done' as const };
+      const asked: DecideRow = {
+         slug: 'akeneo',
+         item: done,
+         reasons: [{ kind: 'reopened_in_closed', initiative: 3, as: 'done' }],
+      };
+      const go = vi.fn();
+      const el = mount(
+         <InitiativePage
+            slug="catalog"
+            initiatives={INITIATIVES}
+            items={ITEMS}
+            plans={[done]}
+            calls={[asked]}
+            nav={{} as ProjectsNav}
+            navigate={go}
+            onPerson={nothing}
+         />
+      );
+      const door = [...el.querySelectorAll('dd button')].find(
+         b => b.textContent === '1 question on Decide'
+      ) as HTMLButtonElement;
+      act(() => door.click());
+      expect(go).toHaveBeenCalledWith(expect.objectContaining({ view: 'decide', within: 'catalog' }));
+   });
+
    it('says it has no plans once, with no end or people to name', () => {
       const el = page('onboarding');
       const terms = [...el.querySelectorAll('dt')].map(d => d.textContent);

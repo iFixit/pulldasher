@@ -1,4 +1,4 @@
-import { useContext, useEffect, useId, useRef, useState } from 'react';
+import { type ReactNode, useContext, useEffect, useId, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import { n } from '../../../../shared/format';
 import type { DecideRow } from '../../../../shared/model/decide';
@@ -33,7 +33,7 @@ import {
    primaryOf,
    reasonParts,
 } from '../../model/decideCalls';
-import { openPlan, type Navigate, type ProjectsNav } from './parts';
+import { openPlan, switchView, type Navigate, type ProjectsNav } from './parts';
 import { PLAN_STATUS_WORD, planWords } from './roadmapHealth';
 
 /** "Release safety", "Keep the lights on", "Not tracked", "Unsorted": a
@@ -569,8 +569,15 @@ export function InitiativePage({
    };
    const leads = leadWords(mine) || projectLeadWords(slugs.flatMap(s => bySlug.get(s) ?? []));
    const goingNames = [...going].map(s => bySlug.get(s)?.name ?? s);
-   const facts: [string, string][] = ledger
-      ? [['Health', owed ? `${n(owed, 'question')} on Decide` : 'nothing owed']]
+   const health = healthWords(live);
+   // its questions open Decide on this initiative alone
+   const asked = owed ? (
+      <FactLink onClick={() => navigate({ ...switchView('decide'), within: initiative.slug })}>
+         {n(owed, 'question')} on Decide
+      </FactLink>
+   ) : null;
+   const facts: [string, ReactNode][] = ledger
+      ? [['Health', asked ?? 'nothing to decide']]
       : [
            ['Span', spanLine(span, live.length)],
            // a closed one's head says how it closed; its end isn't estimated,
@@ -580,9 +587,14 @@ export function InitiativePage({
               : []),
            [
               'Health',
-              [healthWords(live), owed ? `${n(owed, 'question')} on Decide` : '']
-                 .filter(w => w && w !== 'nothing owed')
-                 .join(', ') || 'nothing owed',
+              asked ? (
+                 <>
+                    {health !== 'nothing owed' && `${health}, `}
+                    {asked}
+                 </>
+              ) : (
+                 health
+              ),
            ],
            // nobody to name with no plans: the span says there are none
            ...(leads || mine.length
