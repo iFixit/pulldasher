@@ -1007,10 +1007,10 @@ input[type="checkbox"] {
   font-weight: 600;
 }
 
-/* PR jail's snooze key (components/JailMode.tsx): a slow wiggle in the
-   keyhole while it waits to be held. Transform only, and still when motion
-   is reduced. */
-@keyframes jail-key-wiggle {
+/* Finish line's hold button (components/FinishLine.tsx): the flag gives a
+   slow wiggle while it waits to be held. Transform only, and still when
+   motion is reduced. */
+@keyframes finish-flag-wiggle {
   0%,
   60%,
   100% {
@@ -1026,31 +1026,12 @@ input[type="checkbox"] {
     rotate: -6deg;
   }
 }
-.jail-key-wiggle {
-  animation: jail-key-wiggle 2.8s ease-in-out infinite;
-}
-/* ...and the shackle opening once it has turned: up out of the body, then
-   over its right leg (x 30) to the other side, like a padlock swinging
-   open. Reduced motion lands on the open lock with no swing. */
-@keyframes jail-shackle-open {
-  from {
-    transform: translateY(0) scaleX(1);
-  }
-  35% {
-    transform: translateY(-5px) scaleX(1);
-  }
-  to {
-    transform: translateY(-5px) scaleX(-1);
-  }
-}
-.jail-shackle-open {
-  transform-origin: 30px 18px;
-  transform: translateY(-5px) scaleX(-1);
-  animation: jail-shackle-open 600ms cubic-bezier(0.22, 1, 0.36, 1);
+.finish-flag-wiggle {
+  animation: finish-flag-wiggle 2.8s ease-in-out infinite;
 }
 /* ...and a merged or closed PR's row sliding out of the list while the
    countdown ticks. */
-@keyframes jail-row-leave {
+@keyframes finish-row-leave {
   to {
     opacity: 0;
     transform: translateX(1.5rem);
@@ -1058,17 +1039,16 @@ input[type="checkbox"] {
     padding-block: 0;
   }
 }
-.jail-row-leave {
+.finish-row-leave {
   max-height: 8rem;
   overflow: hidden;
-  animation: jail-row-leave 450ms cubic-bezier(0.5, 0, 0.75, 0) forwards;
+  animation: finish-row-leave 450ms cubic-bezier(0.5, 0, 0.75, 0) forwards;
 }
 @media (prefers-reduced-motion: reduce) {
-  .jail-key-wiggle,
-  .jail-shackle-open {
+  .finish-flag-wiggle {
     animation: none;
   }
-  .jail-row-leave {
+  .finish-row-leave {
     animation-duration: 1ms;
   }
 }
