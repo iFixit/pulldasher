@@ -212,6 +212,18 @@ const calls = createMemoryStore<{ made: ReadonlyMap<string, Made> }>({
    made: new Map(),
 });
 
+/** Where the focus goes on a row once its answer is back: the answer that
+ * can be pressed, else the row's first control (its name), as j and k
+ * land; never an answer that's off, which would drop it on the page. */
+function leadOf(root: HTMLElement | null): HTMLElement | null {
+   const row = root?.closest<HTMLElement>('[data-decide-row]') ?? root;
+   return (
+      root?.querySelector<HTMLElement>('[data-decide-focus]:not(:disabled)') ??
+      row?.querySelector<HTMLElement>('button:not(:disabled)') ??
+      null
+   );
+}
+
 /** Forget every call made (tests start clean). */
 export function forgetCalls(): void {
    calls.set({ made: new Map() });
@@ -680,10 +692,7 @@ export function DecideCall({
    const letGo = () => {
       const had = !!putBackRef.current?.contains(document.activeElement);
       flushSync(() => setUndid(u => (u?.held ? { height: 0, held: false } : u)));
-      if (had)
-         rootRef.current
-            ?.querySelector<HTMLElement>('[data-decide-focus]')
-            ?.focus({ preventScroll: true });
+      if (had) leadOf(rootRef.current)?.focus({ preventScroll: true });
    };
    // the height the row had when a click here changed it, kept as the least
    // it has, so the rows below never slide under the pointer, a phone's
@@ -707,9 +716,7 @@ export function DecideCall({
       refocus.current = false;
       // after an Undo, its held words; j and k still land on the answer.
       // Shown below the sticky headers, wherever the row went
-      focusResult(
-         putBackRef.current ?? rootRef.current?.querySelector<HTMLElement>('[data-decide-focus]')
-      );
+      focusResult(putBackRef.current ?? leadOf(rootRef.current));
    }, [view]);
    const act = (fn: () => void) => () => {
       refocus.current = true;

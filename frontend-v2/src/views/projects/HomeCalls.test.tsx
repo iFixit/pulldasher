@@ -726,6 +726,43 @@ describe('a double-click on Link', () => {
    });
 });
 
+describe('the focus once Undo’s words go', () => {
+   it('lands on the row’s name when its answer is off, never on the page', async () => {
+      const row: DecideRow = { slug: null, item: unlinked, reasons: [{ kind: 'no_project' }] };
+      const el = mount(
+         <div data-press-guard="">
+            <DecideRowView
+               row={row}
+               decided={false}
+               project={undefined}
+               team={null}
+               nav={{} as ProjectsNav}
+               navigate={nothing}
+            />
+         </div>
+      );
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'cache';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      click(el, 'Link');
+      await settle();
+      const undo = [...el.querySelectorAll('button')].find(
+         b => b.textContent === 'Undo'
+      ) as HTMLButtonElement;
+      pressAt(undo, 50, 50);
+      await settle();
+      // Link waits off again for a project; the words go as the pointer leaves
+      act(() => {
+         document.dispatchEvent(
+            new MouseEvent('pointermove', { bubbles: true, clientX: 300, clientY: 300 })
+         );
+      });
+      expect(document.activeElement?.textContent).toBe('Checkout redesign');
+   });
+});
+
 describe('a project whose closed initiative and done plan are both asked about', () => {
    const both: DecideRow = {
       slug: 'akeneo',
