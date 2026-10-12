@@ -228,7 +228,7 @@ function ProjectChooser({
          </label>
          <select
             id={id}
-            aria-label={`The project ${name} is`}
+            aria-label={`Its project: ${name}`}
             value={value}
             onChange={e => onChange(e.target.value)}
             className={`h-8 max-w-full px-2 text-[13px] text-ink ${textInputClass}`}

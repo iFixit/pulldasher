@@ -138,7 +138,7 @@ describe('a section whose rows all ask the same thing', () => {
       const buttons = () => [...el.querySelectorAll('button')];
       expect(buttons().map(b => b.textContent)).toEqual(['Mark done', 'Other answers']);
       expect(buttons()[0].className).not.toContain('bg-brand');
-      expect(buttons()[0].getAttribute('aria-label')).toBe('Mark Visual regression checks done');
+      expect(buttons()[0].getAttribute('aria-label')).toBe('Mark done: Visual regression checks');
       act(() => buttons()[1].click());
       expect(buttons().map(b => b.textContent)).toEqual(
          expect.arrayContaining(['Park', 'Drop', 'Mark doneSuggested'])

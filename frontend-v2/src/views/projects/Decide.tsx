@@ -925,19 +925,15 @@ function CallStrip({
       ariaLabel: `Promise ${name} by ${c.through}`,
    }));
    const others: Option[] = [
-      { call: { kind: 'park' }, label: 'Park', ariaLabel: `Park ${name}` },
-      {
-         call: { kind: 'done' },
-         label: 'Mark done',
-         ariaLabel: `Mark ${name} done`,
-      },
-      { call: { kind: 'drop' }, label: 'Drop', ariaLabel: `Drop ${name}` },
+      { call: { kind: 'park' }, label: 'Park', ariaLabel: `Park: ${name}` },
+      { call: { kind: 'done' }, label: 'Mark done', ariaLabel: `Mark done: ${name}` },
+      { call: { kind: 'drop' }, label: 'Drop', ariaLabel: `Drop: ${name}` },
       ...(ongoing
          ? [
               {
                  call: { kind: 'ongoing' } as Call,
                  label: ONGOING,
-                 ariaLabel: `Mark ${name} ongoing`,
+                 ariaLabel: `${ONGOING}: ${name}`,
               },
            ]
          : []),
@@ -956,6 +952,8 @@ function CallStrip({
    // filled and says so; the rest are outlined, never bare words.
    // opened from Other answers, a quiet row's answer says Suggested again
    const marked = (!quiet || more || full) && !waiting;
+   // its name holds the words it shows (a voice user says what they see),
+   // then the row's name and where the call files it
    const button = (o: Option, words = o.label) => (
       <button
          key={o.label}
@@ -963,7 +961,9 @@ function CallStrip({
          tabIndex={o === lead ? 0 : -1}
          data-decide-focus={o === lead || undefined}
          aria-describedby={o === lead ? describedBy : undefined}
-         aria-label={alsoFiles ? `${o.ariaLabel}, ${alsoFiles}` : o.ariaLabel}
+         aria-label={`${words === o.label ? o.ariaLabel : `${words}: ${name}`}${
+            alsoFiles ? `, ${alsoFiles}` : ''
+         }`}
          disabled={waiting && o === first}
          title={waiting && o === first ? 'Choose where it goes first' : undefined}
          onClick={() => onCall(o.call)}
