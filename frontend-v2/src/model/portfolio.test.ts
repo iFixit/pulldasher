@@ -300,6 +300,12 @@ describe('planCell', () => {
    const cell = (over: Partial<Parameters<typeof planCell>[0]>) =>
       planCell({ plan: null, project: null, ...over }, day, now);
 
+   it('asks Unsorted’s question, since its band already says the name', () => {
+      expect(cell({ asks: [{ reason: { kind: 'unfiled' }, item: null }] }).text).toBe(
+         'Which initiative is it in?'
+      );
+   });
+
    it('says what the plan owes when Decide asks nothing, the worst first', () => {
       const offTrack = plan(1, 'a', { update: update('off_track', 1), start: '2026-08-03' });
       expect(cell({ plan: offTrack })).toEqual({

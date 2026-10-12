@@ -264,9 +264,11 @@ function callWords(reason: DecideReason): Pick<PlanCell, 'kind' | 'text'> {
          return { kind: 'stalled', text: 'Stalled' };
       case 'new':
          return { kind: 'no_plan', text: NEEDS_A_PLAN };
-      // the initiative calls (shared/model/decide.ts), in Decide's section words
+      // the initiative calls (shared/model/decide.ts), in Decide's section
+      // words; Unsorted's in its question's, since the row sits under an
+      // Unsorted band that says the name already
       case 'unfiled':
-         return { kind: 'no_plan', text: UNSORTED_WORD };
+         return { kind: 'no_plan', text: 'Which initiative is it in?' };
       case 'no_project':
          return { kind: 'no_plan', text: NO_PROJECT_YET };
       case 'untracked_grew':
