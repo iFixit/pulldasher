@@ -561,7 +561,7 @@ async function withProjects(issues, run) {
    }
 }
 
-test('the roadmap still loads when the initiatives can’t be read, every plan tracked', async () => {
+test('the roadmap still loads when the initiatives can’t be read, and reads them again after', async () => {
    const errors = mock.method(console, 'error', () => {});
    await withProjects([issueRow(1, 'alpha')], async () => {
       const inner = projectQuery;
@@ -574,6 +574,19 @@ test('the roadmap still loads when the initiatives can’t be read, every plan t
       const { status, body } = await call('GET', '/roadmap', undefined, {});
       assert.equal(status, 200);
       assert.equal(body.items[0].untracked, false);
+      // the failure isn't kept: once the table reads again, a plan whose
+      // project is Not tracked says so on the next read
+      projectQuery = sql => {
+         if (sql.includes('FROM `initiatives`')) {
+            return [{ id: 1, slug: 'shelf', name: 'Not tracked', kind: 'untracked', priority: 1, status: 'open' }];
+         }
+         if (sql.includes('FROM `initiative_projects`')) {
+            return [{ project: 'alpha', initiative_id: 1, set_by: null, set_at: 1, baseline_prs: 0 }];
+         }
+         return inner(sql);
+      };
+      const again = await call('GET', '/roadmap', undefined, {});
+      assert.equal(again.body.items[0].untracked, true);
    });
    assert.ok(errors.mock.calls.some(c => String(c.arguments[0]).includes('initiatives failed')));
    errors.mock.restore();
