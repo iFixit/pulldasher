@@ -210,6 +210,15 @@ const click = (el: HTMLElement, words: string) =>
 /** the chooser's File button, the answer or the opened chooser's */
 const fileButton = (el: HTMLElement) =>
    [...el.querySelectorAll('button')].find(b => /^File(Suggested)?$/.test(b.textContent ?? ''));
+/** what a chooser's line holds, in order: its label, the select, its buttons */
+const parts = (el: HTMLElement) => {
+   const line = el.querySelector('select')?.parentElement as HTMLElement;
+   return [...line.children]
+      .map(c =>
+         c.tagName === 'SELECT' ? 'select' : c.textContent === 'guessed' ? null : c.textContent
+      )
+      .filter(Boolean);
+};
 /** a callback the test doesn't watch */
 const nothing = () => undefined;
 const settle = () => act(() => new Promise(resolve => setTimeout(resolve, 0)));
@@ -644,13 +653,18 @@ describe('a plan with no project', () => {
 
    it('asks for its project, then links it, and Undo unlinks it', async () => {
       const el = render(row);
-      expect(buttons(el)).toEqual(['Link it']);
+      // the File in chooser's layout: "Its project [ ] Link", Link off till a pick
+      expect(parts(el)).toEqual(['Its project', 'select', 'Link']);
+      expect(el.querySelector<HTMLButtonElement>('button')?.disabled).toBe(true);
       const select = el.querySelector('select') as HTMLSelectElement;
       act(() => {
          select.value = 'cache';
          select.dispatchEvent(new Event('change', { bubbles: true }));
       });
-      click(el, 'Link to cache');
+      expect(el.querySelector('button')?.getAttribute('aria-label')).toBe(
+         'Link Checkout redesign to cache'
+      );
+      click(el, 'Link');
       await settle();
       expect(calls.at(-1)).toMatchObject({
          method: 'PATCH',
@@ -1279,13 +1293,6 @@ describe('Undo on a row', () => {
 });
 
 describe('the one chooser, wherever a project is filed', () => {
-   /** what its line holds, in order: its label, the select, its buttons */
-   const parts = (el: HTMLElement) => {
-      const line = el.querySelector('select')?.parentElement as HTMLElement;
-      return [...line.children].map(c =>
-         c.tagName === 'SELECT' ? 'select' : c.textContent === 'guessed' ? null : c.textContent
-      ).filter(Boolean);
-   };
    const escape = (el: Element) =>
       act(() => {
          el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));

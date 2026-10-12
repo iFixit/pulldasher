@@ -247,11 +247,7 @@ export function HomeChooser({
                disabled={file.disabled}
                title={file.disabled ? 'Choose another home first' : undefined}
                onClick={file.onFile}
-               className={`hit pressable inline-flex min-h-8 max-w-full items-center py-1 text-left gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${
-                  file.filled
-                     ? 'border-brand bg-brand text-surface hover:opacity-90'
-                     : 'border-line bg-surface text-ink-2 hover:border-brand hover:text-brand'
-               }`}
+               className={answerClass(file.filled)}
             >
                File
                {file.filled && file.suggested && (
@@ -268,30 +264,43 @@ export function HomeChooser({
    );
 }
 
-/** A plan's project chooser, for a plan with no project: "Its project [▾]". */
+/** The filled or outlined button that answers a chooser's row: File, Link. */
+const answerClass = (filled: boolean | undefined) =>
+   `hit pressable inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-lg border px-3 py-1 text-left text-[13px] font-medium disabled:opacity-60 ${
+      filled
+         ? 'border-brand bg-brand text-surface hover:opacity-90'
+         : 'border-line bg-surface text-ink-2 hover:border-brand hover:text-brand'
+   }`;
+
+/** A plan's project chooser, for a plan with no project, in the File in
+ * chooser's layout: "Its project [▾] Link", Link the row's answer, off
+ * until a project is chosen. */
 function ProjectChooser({
    name,
    value,
    onChange,
+   onLink,
+   describedBy,
 }: {
    name: string;
    value: string;
    onChange: (slug: string) => void;
+   onLink: () => void;
+   describedBy?: string;
 }) {
    const id = useId();
    const items = useContext(AllItemsContext);
    const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name));
+   const chosen = items.find(i => i.slug === value);
    return (
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-ink-3">
-         <label htmlFor={id} className="w-full sm:w-32 sm:shrink-0">
-            Its project
-         </label>
+      <span className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-ink-3">
+         <label htmlFor={id}>Its project</label>
          <select
             id={id}
             aria-label={`Its project: ${name}`}
             value={value}
             onChange={e => onChange(e.target.value)}
-            className={`h-8 max-w-full px-2 text-[13px] text-ink ${textInputClass}`}
+            className={`h-8 min-w-0 max-w-full px-2 text-[13px] text-ink ${textInputClass}`}
          >
             {!value && <option value="">Choose its project</option>}
             {sorted.map(i => (
@@ -300,7 +309,20 @@ function ProjectChooser({
                </option>
             ))}
          </select>
-      </div>
+         <button
+            type="button"
+            data-decide-focus
+            aria-describedby={describedBy}
+            // its name starts with the word it shows
+            aria-label={chosen ? `Link ${name} to ${chosen.name}` : `Link ${name}`}
+            disabled={!chosen}
+            title={chosen ? undefined : 'Choose its project first'}
+            onClick={onLink}
+            className={answerClass(!!chosen)}
+         >
+            Link
+         </button>
+      </span>
    );
 }
 
@@ -309,7 +331,7 @@ function ProjectChooser({
  * initiative, in the same shape as Decide's CallStrip: a chooser first when
  * the answer needs one, then the suggested answer filled, then the others.
  * Unsorted: File in the chooser's pick. No project yet: Link to the chosen
- * project. Not tracked, but growing: Keep not tracked, or Track it, which
+ * project, the same layout with Link in File's place. Not tracked, but growing: Keep not tracked, or Track it, which
  * opens the chooser. Goal maybe reached: Close as done, or Close as dropped
  * or Keep open. Its initiative closed: Reopen it, or File elsewhere
  * with the chooser. An answer that waits on an empty chooser is outlined and
@@ -348,15 +370,8 @@ export function HomeStrip({
    const linked = items.find(i => i.slug === project);
    type Option = { call: Call | null; words: string; suggested?: boolean };
    const options: Option[] =
-      primary.kind === 'unfiled'
+      primary.kind === 'unfiled' || primary.kind === 'no_project'
          ? []
-         : primary.kind === 'no_project'
-         ? [
-              {
-                 call: linked ? { kind: 'link', project: linked.slug, name: linked.name } : null,
-                 words: linked ? `Link to ${linked.name}` : 'Link it',
-              },
-           ]
          : primary.kind === 'untracked_grew'
          ? [
               {
@@ -438,7 +453,16 @@ export function HomeStrip({
    return (
       <div className="flex flex-col">
          {primary.kind === 'no_project' && (
-            <ProjectChooser name={name} value={project} onChange={setProject} />
+            // the question is its project: Link is the row's answer
+            <ProjectChooser
+               name={name}
+               value={project}
+               onChange={setProject}
+               describedBy={describedBy}
+               onLink={() =>
+                  linked && onCall({ kind: 'link', project: linked.slug, name: linked.name })
+               }
+            />
          )}
          {primary.kind === 'unfiled' && pickable.length > 0 && (
             // the question is where it goes: File is the row's answer
@@ -455,7 +479,7 @@ export function HomeStrip({
                }}
             />
          )}
-         {primary.kind !== 'unfiled' && (
+         {primary.kind !== 'unfiled' && primary.kind !== 'no_project' && (
             <div
                role="toolbar"
                aria-label={`Decisions for ${name}`}
@@ -469,21 +493,19 @@ export function HomeStrip({
                className="flex flex-wrap items-center gap-2"
             >
                {options.map(button)}
-               {primary.kind !== 'no_project' && (
-                  <button
-                     ref={opener}
-                     type="button"
-                     tabIndex={-1}
-                     aria-expanded={more}
-                     aria-label={moreName}
-                     onClick={toggle}
-                     className={`hit pressable inline-flex min-h-8 max-w-full items-center py-1 text-left rounded-lg border px-3 text-[13px] font-medium hover:border-brand hover:text-brand ${
-                        more ? 'border-brand bg-muted text-ink' : 'border-line bg-surface text-ink-2'
-                     }`}
-                  >
-                     {moreWords}
-                  </button>
-               )}
+               <button
+                  ref={opener}
+                  type="button"
+                  tabIndex={-1}
+                  aria-expanded={more}
+                  aria-label={moreName}
+                  onClick={toggle}
+                  className={`hit pressable inline-flex min-h-8 max-w-full items-center py-1 text-left rounded-lg border px-3 text-[13px] font-medium hover:border-brand hover:text-brand ${
+                     more ? 'border-brand bg-muted text-ink' : 'border-line bg-surface text-ink-2'
+                  }`}
+               >
+                  {moreWords}
+               </button>
                {extras.map((o, k) => button(o, k + 1))}
             </div>
          )}
