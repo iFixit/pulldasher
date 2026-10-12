@@ -132,7 +132,13 @@ import {
    type Filed,
    type HomeCall,
 } from '../../model/decideCalls';
-import { HomeChooser, HomeStrip, InitiativeSwitch, useHomeChooser } from './HomeCalls';
+import {
+   HomeChooser,
+   HomeStrip,
+   InitiativeSwitch,
+   useChosenHomes,
+   useHomeChooser,
+} from './HomeCalls';
 
 /** The decisions owed now, worst first, for this view, the tab's label and
  * the Overview's tile. `today` and `items` are the tracked ones; the
@@ -1278,7 +1284,7 @@ export function DecideRowView({
  * its row with Try again). Then what it did, with Undo all. Only for two
  * rows or more, since a lone row's answer is the same click.
  */
-function SectionCalls({
+export function SectionCalls({
    title,
    rows,
    owed,
@@ -1307,10 +1313,18 @@ function SectionCalls({
       });
    const standing = batch('made');
    const failed = batch('failed').length;
-   // a row with no answer to suggest waits for a person
+   // a row with no answer to suggest waits for a person, as does one whose
+   // File it in chooser is empty (its own answer is off until a pick); the
+   // rest file where their chooser says, guess included, as their own
+   // answer would
+   const homeOf = useChosenHomes();
+   let waiting = 0;
    const answers = owed.flatMap(row => {
       const call = answerOf(row, projectOf(row), day);
-      return call ? [{ row, call }] : [];
+      if (!call) return [];
+      const home = homeOf(row);
+      if (home.waiting) waiting++;
+      return home.waiting ? [] : [{ row, call, filed: home.filed }];
    });
    const view = standing.length ? 'did' : 'ask';
    const before = useRef(view);
@@ -1330,12 +1344,17 @@ function SectionCalls({
    }, [view]);
    const words = bulkWords(
       answers.map(a => a.call),
-      'do'
+      'do',
+      !waiting
    );
    const all = () => {
       refocus.current = true;
       setSaid('');
-      inTurn(answers.map(a => after => makeCall(a.row, a.call, projectOf(a.row), { after })));
+      inTurn(
+         answers.map(
+            a => after => makeCall(a.row, a.call, projectOf(a.row), { after }, a.filed)
+         )
+      );
    };
    const undoAll = () => {
       refocus.current = true;

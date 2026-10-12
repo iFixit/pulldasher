@@ -6,6 +6,8 @@
  * a cycle.
  */
 import { useContext, useId, useState } from 'react';
+import { createMemoryStore } from '../../storage';
+import type { PortfolioItem } from '../../model/portfolio';
 import type { DecideRow } from '../../../../shared/model/decide';
 import { homesOf, type Initiative } from '../../../../shared/model/initiatives';
 import { textInputClass } from '../../components/bits';
@@ -37,14 +39,45 @@ const FILE_IT_IN = 'File it in';
 export function useHomeChooser(row: DecideRow, { away = false }: { away?: boolean } = {}) {
    const { initiatives } = useInitiativesValue();
    const items = useContext(AllItemsContext);
+   const { picks } = homePicks.useValue();
+   const pick = row.slug ? picks.get(row.slug) ?? null : null;
+   return {
+      ...homeChoice(row, initiatives ?? [], items, pick, away),
+      setPick: (slug: string) => row.slug && setHomePick(row.slug, slug),
+   };
+}
+
+/** Each project's pick in its File it in chooser, by slug: kept outside the
+ * row, so a section's one click files every row where its own chooser says
+ * (chosenHomes), and a trip away and back keeps it. */
+const homePicks = createMemoryStore<{ picks: ReadonlyMap<string, string> }>({ picks: new Map() });
+
+function setHomePick(slug: string, to: string): void {
+   homePicks.set({ picks: new Map(homePicks.get().picks).set(slug, to) });
+}
+
+/** Forget every pick (tests start clean). */
+export function clearHomePicks(): void {
+   homePicks.set({ picks: new Map() });
+}
+
+/** useHomeChooser's reading, for a row and a pick: what it shows, where it
+ * stands, and the filing the next call carries. */
+function homeChoice(
+   row: DecideRow,
+   list: readonly Initiative[],
+   items: readonly PortfolioItem[],
+   pick: string | null,
+   away: boolean
+) {
    const asks = row.reasons.some(r => r.kind === 'new' || r.kind === 'unfiled');
-   const list = initiatives ?? [];
    const current = row.slug ? homesOf(list).get(row.slug)?.initiative ?? null : null;
    // `away`: moving it out of the home it has (Track it, Move the project),
-   // so it starts on the guess
+   // so it starts on the guess; guessed only where a chooser can show it
    const guess =
-      (!current || away) && row.slug && list.length ? guessHome(row.slug, items, list) : null;
-   const [pick, setPick] = useState<string | null>(null);
+      (asks || away) && (!current || away) && row.slug && list.length
+         ? guessHome(row.slug, items, list)
+         : null;
    const choices = homeChoices(list);
    const chosen = pick ?? (away ? guess?.slug : current?.slug ?? guess?.slug) ?? '';
    const to = choices.find(i => i.slug === chosen);
@@ -55,7 +88,6 @@ export function useHomeChooser(row: DecideRow, { away = false }: { away?: boolea
       current,
       picked: pick != null,
       guessed: pick == null && (!current || away) && !!guess && chosen === guess.slug,
-      setPick,
       filed:
          to && to.slug !== current?.slug
             ? ({
@@ -65,6 +97,25 @@ export function useHomeChooser(row: DecideRow, { away = false }: { away?: boolea
                  untracked: to.kind === 'untracked',
               } as Filed)
             : undefined,
+   };
+}
+
+/** What a section's one click does with each row's chooser: the filing it
+ * carries (the row's pick, or the board's guess), or `waiting` when the
+ * chooser is empty and the row's own answer is off until a pick. */
+export function useChosenHomes(): (row: DecideRow) => { waiting: boolean; filed?: Filed } {
+   const { initiatives } = useInitiativesValue();
+   const items = useContext(AllItemsContext);
+   const { picks } = homePicks.useValue();
+   return row => {
+      const c = homeChoice(
+         row,
+         initiatives ?? [],
+         items,
+         row.slug ? picks.get(row.slug) ?? null : null,
+         false
+      );
+      return { waiting: c.shown && !c.chosen, filed: c.filed };
    };
 }
 

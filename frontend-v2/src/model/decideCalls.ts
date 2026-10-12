@@ -442,7 +442,12 @@ export const VERBS: Record<Call['kind'], [string, string]> = {
  * 3 done"), and rows going through their own target dates
  * count together.
  */
-export function bulkWords(made: readonly Call[], tense: 'do' | 'did'): string {
+export function bulkWords(
+   made: readonly Call[],
+   tense: 'do' | 'did',
+   /** false when the section leaves some row for its own answer: no "all" */
+   every = true
+): string {
    const groups = new Map<string, { call: Call; count: number }>();
    for (const call of made) {
       const key = call.kind === 'commit' ? (call.target ? 'target' : call.end) : call.kind;
@@ -450,7 +455,7 @@ export function bulkWords(made: readonly Call[], tense: 'do' | 'did'): string {
       group.count++;
       groups.set(key, group);
    }
-   const all = groups.size === 1 && tense === 'do' ? 'all ' : '';
+   const all = every && groups.size === 1 && tense === 'do' ? 'all ' : '';
    let said = '';
    const parts = [...groups.values()].map(({ call, count }, i) => {
       const verb = VERBS[call.kind][tense === 'do' ? 0 : 1];

@@ -8,11 +8,11 @@ import type { RoadmapItem } from '../../../../shared/model/roadmap';
 import { loadInitiatives } from '../../model/initiativesData';
 import type { PortfolioItem } from '../../model/portfolio';
 import { HomeLine, InitiativePage } from './Initiatives';
-import { InitiativeSwitch } from './HomeCalls';
+import { clearHomePicks, InitiativeSwitch } from './HomeCalls';
 import { NO_PROJECT, UNSORTED } from '../../model/initiativeBoard';
 import { PROJECT_SLUG } from '../../../../shared/model/roadmap';
 import type { ProjectsNav } from './parts';
-import { DecideCall, DecideRowView, keepCalls, type Made } from './Decide';
+import { DecideCall, DecideRowView, keepCalls, SectionCalls, type Made } from './Decide';
 import { AllItemsContext, answerWords, callWords } from '../../model/decideCalls';
 
 // React's act() warns unless the environment says it's a test
@@ -137,6 +137,7 @@ beforeAll(async () => {
 
 let host: HTMLDivElement | null = null;
 afterEach(() => {
+   clearHomePicks();
    host?.remove();
    host = null;
    calls.length = 0;
@@ -150,6 +151,11 @@ const ITEMS = [
    person('answers', ['erin']),
    person('filed', ['dana']),
    person('flaky', ['erin']),
+   // nobody it shares people with: no guess
+   person('lonely', ['zed']),
+   person('bulk-a', ['erin']),
+   person('bulk-b', ['dana']),
+   person('ops', ['dana']),
 ];
 
 function render(row: DecideRow): HTMLDivElement {
@@ -325,6 +331,45 @@ describe('the Initiative chooser on a row Decide asks to plan', () => {
          'POST /roadmap',
       ]);
       expect(el.textContent).toMatch(/Promised to finish by .+, in FixBot chat\./);
+   });
+});
+
+describe('a section’s one click on rows with a File it in chooser', () => {
+   const fresh = (slug: string): DecideRow => ({
+      slug,
+      item: null,
+      reasons: [{ kind: 'new', since: '2026-09-10' }],
+   });
+   // its own rows: a call made here stays made for the tests after
+   const rows = [fresh('bulk-a'), fresh('lonely'), fresh('bulk-b')];
+
+   it('files each where its chooser says and skips one whose chooser is empty', async () => {
+      const el = mount(
+         <SectionCalls title="Needs a plan" rows={rows} owed={rows} projectOf={() => undefined} main />
+      );
+      // lonely has no guess, so its own answer is off: the section leaves it,
+      // and says "2", not "all 2"
+      const all = [...el.querySelectorAll('button')].find(b => b.textContent?.startsWith('Promise'));
+      expect(all?.textContent).toMatch(/^Promise 2 /);
+      act(() => all?.click());
+      await settle();
+      await settle();
+      // each guessed home rides along with its plan, as its own answer would
+      expect(
+         calls.filter(c => c.method !== 'GET').map(c => [c.path, (c.body as { project: string }).project])
+      ).toEqual([
+         ['/initiatives/file', 'bulk-a'],
+         ['/roadmap', 'bulk-a'],
+         ['/initiatives/file', 'bulk-b'],
+         ['/roadmap', 'bulk-b'],
+      ]);
+      expect(calls.find(c => c.path === '/initiatives/file')?.body).toEqual({
+         project: 'bulk-a',
+         initiative: 'fixbot',
+         expect: null,
+      });
+      // the board's homes as the server has them, for the tests after
+      await act(() => loadInitiatives());
    });
 });
 
