@@ -90,6 +90,18 @@ async function lately() {
    }
 }
 
+/** The Not tracked slugs (trackedNow); none when the read fails, so the
+ * roadmap still loads, every plan read as tracked. The counting endpoints
+ * read trackedNow directly and fail loud instead. */
+async function untrackedNow() {
+   try {
+      return (await trackedNow()).untracked;
+   } catch (err) {
+      console.error('roadmap: reading the initiatives failed:', err);
+      return new Set();
+   }
+}
+
 /**
  * Items as the roadmap sends them: each with what its project did lately
  * (shared/model/roadmap.ts PlanLately), and what the board reads off it, so
@@ -100,7 +112,7 @@ async function lately() {
  * the standing is read, so a not-tracked plan owes nothing.
  */
 async function sent(items) {
-   const [bySlug, { untracked }] = await Promise.all([lately(), trackedNow()]);
+   const [bySlug, untracked] = await Promise.all([lately(), untrackedNow()]);
    const now = Date.now() / 1000;
    const today = teamDay(now);
    return items.map(item => {

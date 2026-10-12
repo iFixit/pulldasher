@@ -561,6 +561,24 @@ async function withProjects(issues, run) {
    }
 }
 
+test('the roadmap still loads when the initiatives can’t be read, every plan tracked', async () => {
+   const errors = mock.method(console, 'error', () => {});
+   await withProjects([issueRow(1, 'alpha')], async () => {
+      const inner = projectQuery;
+      projectQuery = sql => {
+         if (sql.includes('FROM `initiatives`')) throw new Error('table gone');
+         return inner(sql);
+      };
+      const made = await call('POST', '/roadmap', { name: 'Alpha', project: 'alpha' });
+      assert.equal(made.status, 201);
+      const { status, body } = await call('GET', '/roadmap', undefined, {});
+      assert.equal(status, 200);
+      assert.equal(body.items[0].untracked, false);
+   });
+   assert.ok(errors.mock.calls.some(c => String(c.arguments[0]).includes('initiatives failed')));
+   errors.mock.restore();
+});
+
 test('a new plan starts on its issue’s Start date, placed by its Priority', async () => {
    await withProjects(
       [
