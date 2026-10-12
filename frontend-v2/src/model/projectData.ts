@@ -249,7 +249,8 @@ async function dummyData({ start, end }: Range, project: string | null): Promise
          !(bots ?? []).includes(p.user.login) &&
          (project == null || projectOfPull(p) === project)
    );
-   const spans: PullSpan[] = people.map(p => ({
+   // drafts left out, as the server's spans leave them (lib/projects.js)
+   const spans: PullSpan[] = people.filter(p => !p.draft).map(p => ({
       author: p.user.login,
       project: projectOfPull(p),
       opened: epoch(p.created_at),
