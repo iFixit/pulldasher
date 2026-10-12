@@ -190,7 +190,13 @@ describe('a row that asks about an initiative', () => {
       const el = render(goal);
       expect(buttons(el)).toEqual(['Close as doneSuggested', 'Other answers']);
       click(el, 'Other answers');
-      expect(buttons(el)).toEqual(['Close as doneSuggested', 'Close as dropped', 'Keep open']);
+      // the button clicked stays where it was; the others come after it
+      expect(buttons(el)).toEqual([
+         'Close as doneSuggested',
+         'Other answers',
+         'Close as dropped',
+         'Keep open',
+      ]);
    });
 
    it('keeps it open by saying its status again, and Undo puts back the times', async () => {
@@ -258,10 +264,23 @@ describe('a Not tracked project that grew', () => {
       });
    });
 
-   it('tracks it in the chooser’s pick from Track it', () => {
+   it('opens the chooser under Track it, with the focus and its own File button', () => {
       const el = render(grew);
+      const [keep, track] = [...el.querySelectorAll('button')];
       click(el, 'Track it');
-      expect(el.querySelector('select')).not.toBeNull();
+      // nothing that files took Track it's place: the same two buttons lead
+      expect([...el.querySelectorAll('button')].slice(0, 2)).toEqual([keep, track]);
+      expect(track.getAttribute('aria-expanded')).toBe('true');
+      const select = el.querySelector('select') as HTMLSelectElement;
+      expect(document.activeElement).toBe(select);
+      // its File button sits on the chooser's line, out of the toolbar
+      const file = [...el.querySelectorAll('button')].find(b => b.textContent?.startsWith('File in'));
+      expect(file?.closest('[role="toolbar"]')).toBeNull();
+      // the guess's hover says where the project is now, never Unsorted
+      const guessed = [...el.querySelectorAll('span')].find(x => x.textContent === 'guessed');
+      expect(guessed?.title).toBe(
+         'It’s Not tracked now. This is the initiative its people work in most.'
+      );
    });
 });
 

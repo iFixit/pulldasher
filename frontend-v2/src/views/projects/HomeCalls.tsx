@@ -5,7 +5,7 @@
  * (model/decideCalls.ts) and never Decide.tsx, so Decide imports it without
  * a cycle.
  */
-import { useContext, useId, useState } from 'react';
+import { useContext, useId, useState, type ReactNode } from 'react';
 import { createMemoryStore } from '../../storage';
 import type { PortfolioItem } from '../../model/portfolio';
 import type { DecideRow } from '../../../../shared/model/decide';
@@ -125,18 +125,40 @@ export function useChosenHomes(): (row: DecideRow) => { waiting: boolean; filed?
 export function HomeChooser({
    name,
    chooser,
+   autoFocus = false,
+   below = false,
+   children,
 }: {
    name: string;
-   chooser: Pick<ReturnType<typeof useHomeChooser>, 'chosen' | 'choices' | 'guessed' | 'setPick'>;
+   chooser: Pick<
+      ReturnType<typeof useHomeChooser>,
+      'chosen' | 'choices' | 'guessed' | 'setPick' | 'current'
+   >;
+   /** opened by a click (Track it, Move the project): the focus moves here */
+   autoFocus?: boolean;
+   /** under the answers that opened it, rather than above the ones it feeds */
+   below?: boolean;
+   /** the answer it feeds, on its own line (File it) */
+   children?: ReactNode;
 }) {
    const id = useId();
+   // where it is now, so the guess's hover never says Unsorted of a project
+   // that's filed
+   const now = !chooser.current
+      ? `It’s ${UNSORTED_WORD}`
+      : chooser.current.kind === 'untracked'
+      ? 'It’s Not tracked now'
+      : `It’s in ${chooser.current.name} now`;
    return (
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-ink-3">
+      <div
+         className={`flex flex-wrap items-center gap-2 text-xs text-ink-3 ${below ? 'mt-2' : 'mb-2'}`}
+      >
          <label htmlFor={id} className="w-full sm:w-32 sm:shrink-0">
             {FILE_IT_IN}
          </label>
          <select
             id={id}
+            autoFocus={autoFocus}
             aria-label={`${FILE_IT_IN}: ${name}`}
             value={chooser.chosen}
             onChange={e => chooser.setPick(e.target.value)}
@@ -152,11 +174,12 @@ export function HomeChooser({
          {chooser.guessed && (
             <span
                className="underline decoration-dotted underline-offset-2"
-               title={`It’s ${UNSORTED_WORD}. This is the initiative its people work in most.`}
+               title={`${now}. This is the initiative its people work in most.`}
             >
                guessed
             </span>
          )}
+         {children}
       </div>
    );
 }
@@ -256,43 +279,70 @@ export function HomeStrip({
                  words: 'Keep not tracked',
                  suggested: true,
               },
-              ...(more ? [fileOption] : []),
            ]
          : primary.kind === 'goal_reached'
-         ? [
-              { call: { kind: 'close', as: 'done' }, words: 'Close as done', suggested: true },
-              ...(more
-                 ? [
-                      { call: { kind: 'close', as: 'dropped' } as Call, words: 'Close as dropped' },
-                      { call: { kind: 'keep_open' } as Call, words: 'Keep open' },
-                   ]
-                 : []),
-           ]
+         ? [{ call: { kind: 'close', as: 'done' }, words: 'Close as done', suggested: true }]
          : [
               {
                  call: { kind: 'reopen' },
                  words: initiative ? `Reopen ${initiative.name}` : 'Reopen it',
                  suggested: true,
               },
-              ...(more ? [fileOption] : []),
            ];
+   // the other answers, after the button that shows them, so a second click
+   // there never lands on one
+   const extras: Option[] =
+      more && primary.kind === 'goal_reached'
+         ? [
+              { call: { kind: 'close', as: 'dropped' }, words: 'Close as dropped' },
+              { call: { kind: 'keep_open' }, words: 'Keep open' },
+           ]
+         : [];
    const moreWords =
       primary.kind === 'untracked_grew'
          ? 'Track it'
          : primary.kind === 'reopened_in_closed'
          ? 'Move the project'
          : 'Other answers';
-   // Track it and Move the project open the chooser; it starts on a guess,
-   // never on the home being left
-   const chooses =
-      primary.kind === 'unfiled' ||
-      (more && (primary.kind === 'untracked_grew' || primary.kind === 'reopened_in_closed'));
+   // Track it and Move the project open the chooser under the answers, with
+   // its own File button and the focus: the button clicked stays where it
+   // was, and nothing that files sits under the pointer. It starts on a
+   // guess, never on the home being left
+   const moves =
+      more && (primary.kind === 'untracked_grew' || primary.kind === 'reopened_in_closed');
+   const button = (o: Option, k: number) => {
+      const filled = k === 0 && !!o.call;
+      return (
+         <button
+            key={o.words}
+            type="button"
+            tabIndex={k === 0 ? 0 : -1}
+            data-decide-focus={k === 0 || undefined}
+            aria-describedby={k === 0 ? describedBy : undefined}
+            aria-label={`${o.words}: ${name}`}
+            disabled={!o.call}
+            title={o.call ? undefined : 'Choose one above first'}
+            onClick={() => o.call && onCall(o.call)}
+            className={`hit pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${
+               // filled only when there's an answer to make
+               filled
+                  ? 'border-brand bg-brand text-surface hover:opacity-90'
+                  : 'border-line bg-surface text-ink-2 hover:border-brand hover:text-brand'
+            }`}
+         >
+            {o.words}
+            {filled && o.suggested && (
+               <span className="text-[11px] font-normal opacity-80">Suggested</span>
+            )}
+         </button>
+      );
+   };
    return (
       <div className="flex flex-col">
          {primary.kind === 'no_project' && (
             <ProjectChooser name={name} value={project} onChange={setProject} />
          )}
-         {chooses && pickable.length > 0 && (
+         {primary.kind === 'unfiled' && pickable.length > 0 && (
             <HomeChooser
                name={name}
                chooser={{ ...chooser, choices: pickable, chosen: chosen?.slug ?? '' }}
@@ -304,46 +354,41 @@ export function HomeStrip({
             onKeyDown={arrowsAmong}
             className="flex flex-wrap items-center gap-2"
          >
-            {options.map((o, k) => {
-               const filled = k === 0 && !!o.call;
-               return (
-                  <button
-                     key={o.words}
-                     type="button"
-                     tabIndex={k === 0 ? 0 : -1}
-                     data-decide-focus={k === 0 || undefined}
-                     aria-describedby={k === 0 ? describedBy : undefined}
-                     aria-label={`${o.words}: ${name}`}
-                     disabled={!o.call}
-                     title={o.call ? undefined : 'Choose one above first'}
-                     onClick={() => o.call && onCall(o.call)}
-                     className={`hit pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${
-                        // filled only when there's an answer to make
-                        filled
-                           ? 'border-brand bg-brand text-surface hover:opacity-90'
-                           : 'border-line bg-surface text-ink-2 hover:border-brand hover:text-brand'
-                     }`}
-                  >
-                     {o.words}
-                     {filled && o.suggested && (
-                        <span className="text-[11px] font-normal opacity-80">Suggested</span>
-                     )}
-                  </button>
-               );
-            })}
-            {primary.kind !== 'unfiled' && primary.kind !== 'no_project' && !more && (
+            {options.map(button)}
+            {primary.kind !== 'unfiled' && primary.kind !== 'no_project' && (
                <button
                   type="button"
                   tabIndex={-1}
-                  aria-expanded={false}
+                  aria-expanded={more}
                   aria-label={`${moreWords}: ${name}`}
-                  onClick={() => setMore(true)}
-                  className="hit pressable inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink-2 hover:border-brand hover:text-brand"
+                  onClick={() => setMore(m => !m)}
+                  className={`hit pressable inline-flex h-8 items-center rounded-lg border px-3 text-[13px] font-medium hover:border-brand hover:text-brand ${
+                     more ? 'border-brand bg-muted text-ink' : 'border-line bg-surface text-ink-2'
+                  }`}
                >
                   {moreWords}
                </button>
             )}
+            {extras.map((o, k) => button(o, k + 1))}
          </div>
+         {moves && pickable.length > 0 && (
+            <HomeChooser
+               name={name}
+               below
+               autoFocus
+               chooser={{ ...chooser, choices: pickable, chosen: chosen?.slug ?? '' }}
+            >
+               <button
+                  type="button"
+                  aria-label={`${fileOption.words}: ${name}`}
+                  disabled={!filing}
+                  onClick={() => filing && onCall(filing)}
+                  className="hit pressable inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink-2 hover:border-brand hover:text-brand disabled:opacity-60"
+               >
+                  {fileOption.words}
+               </button>
+            </HomeChooser>
+         )}
       </div>
    );
 }
