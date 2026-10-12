@@ -246,6 +246,23 @@ export function leadWords(plans: readonly Pick<RoadmapItem, 'status' | 'lead'>[]
    ].join('; ');
 }
 
+/** With no plan under way naming a lead, its projects' leads as their rows
+ * say them: "danielbeardsley (guessed) leads 1". */
+export function projectLeadWords(
+   items: readonly Pick<PortfolioItem, 'lead' | 'leadByPrs'>[]
+): string {
+   const counts = new Map<string, number>();
+   for (const i of items) {
+      if (!i.lead) continue;
+      const who = i.leadByPrs ? `${i.lead} (guessed)` : i.lead;
+      counts.set(who, (counts.get(who) ?? 0) + 1);
+   }
+   return [...counts]
+      .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
+      .map(([who, count]) => `${who} leads ${count}`)
+      .join('; ');
+}
+
 /** "May 4 to Jan 17, from 7 live plans · 1 ongoing": its span in a line. */
 function spanLine(span: ReturnType<typeof initiativeSpan>, live: number): string {
    if (!span.start) return 'No plans yet';
@@ -527,7 +544,12 @@ export function InitiativePage({
                  .filter(w => w && w !== 'nothing owed')
                  .join(', ') || 'nothing owed',
            ],
-           ['People', leadWords(mine) || 'No lead named on its plans'],
+           [
+              'People',
+              leadWords(mine) ||
+                 projectLeadWords(slugs.flatMap(s => bySlug.get(s) ?? [])) ||
+                 'No lead named on its plans',
+           ],
         ];
    return (
       <>

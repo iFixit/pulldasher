@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RoadmapItem, RoadmapUpdate } from '../../../../shared/model/roadmap';
 import { DUMMY_INITIATIVES, DUMMY_ROADMAP } from '../../backend/dummyProjects';
-import { healthWords, leadWords } from './Initiatives';
+import { healthWords, leadWords, projectLeadWords } from './Initiatives';
 
 const NOW = Date.UTC(2026, 9, 11, 12) / 1000;
 const update = (health: RoadmapUpdate['health'], daysAgo: number): RoadmapUpdate => ({
@@ -64,6 +64,17 @@ describe('an initiative’s page', () => {
          ])
       ).toBe('brett leads 2 of 3 live plans; dan 1');
       expect(leadWords([plan({ lead: null })])).toBe('');
+   });
+
+   it('falls back to its projects’ leads, guessed ones said so, as their rows say them', () => {
+      expect(
+         projectLeadWords([
+            { lead: 'danielbeardsley', leadByPrs: true },
+            { lead: 'erin', leadByPrs: false },
+            { lead: 'erin', leadByPrs: false },
+            { lead: null, leadByPrs: false },
+         ])
+      ).toBe('erin leads 2; danielbeardsley (guessed) leads 1');
    });
 });
 
