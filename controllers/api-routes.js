@@ -1,4 +1,5 @@
 import apiController from './api.js';
+import initiativesController from './initiatives.js';
 import projectsController from './projects.js';
 import roadmapController, { canWrite } from './roadmap.js';
 import settingsController from './settings.js';
@@ -13,10 +14,27 @@ import {
    ROADMAP_ORIGINS,
    ROADMAP_STATUSES,
    DECIDE_MIN_PRS,
+   INITIATIVE_GOAL_MAX,
+   INITIATIVE_KINDS,
+   INITIATIVE_NAME_MAX,
+   INITIATIVE_STATUSES,
    STALL_DAYS,
    UPDATE_DUE_DAYS,
    WAITS_ON_MAX,
 } from '../shared/dist/index.js';
+
+/** Every write the Projects tab can see, board and API (app.js): each one
+ * that succeeds has open boards fetch again. */
+export const PROJECT_WRITES = [
+   '/project-issues',
+   '/roadmap',
+   '/initiatives',
+   '/settings',
+   '/api/v1/project-issues',
+   '/api/v1/roadmap',
+   '/api/v1/initiatives',
+   '/api/v1/settings',
+];
 
 /**
  * Every /api/v1 route in one table. app.js registers them from it, and
@@ -218,6 +236,57 @@ export const API_ROUTES = [
    },
    {
       method: 'get',
+      path: '/api/v1/initiatives',
+      handlers: [initiativesController.list],
+      does:
+         'Every initiative in rank order (top first): slug, name, goal, owner, kind (`initiative`, `upkeep` for ' +
+         'Keep the lights on, `untracked` for Not tracked), status and `status_at`, the projects filed in it ' +
+         '(`projects`: slug, set_by, set_at, baseline_prs) and `span`, read off their plans: the earliest start, ' +
+         'the latest end under way, how many plans under way have an end or none, and `end_kind` (soft, ongoing, ' +
+         'or ended on `ended`). A project with no filing is Unsorted',
+   },
+   {
+      method: 'post',
+      path: '/api/v1/initiatives',
+      handlers: [canWrite, initiativesController.create],
+      does: 'Add an initiative, ranked last: {slug, name, goal?, owner?, kind?}; 409 when the slug is taken',
+   },
+   {
+      method: 'put',
+      path: '/api/v1/initiatives/file',
+      handlers: [canWrite, initiativesController.file],
+      does:
+         'File a project: {project, initiative: <slug> or null for none, expect?, baseline_prs?}. `expect` is the ' +
+         'home you saw (a slug or null); 409 with the current `home` when it changed. Answers `before` and `home` ' +
+         '(initiative, set_by, set_at, baseline_prs); undo by sending `before` back with its set_at and baseline_prs. ' +
+         'Into Not tracked with no baseline_prs, the count is its old baseline plus the PRs since (when it was ' +
+         'already not tracked), else its PR count now',
+   },
+   {
+      method: 'patch',
+      path: '/api/v1/initiatives/:id',
+      handlers: [canWrite, initiativesController.update],
+      does:
+         'Change its name, goal, owner or status (open, done, dropped). Closing is a 409 naming the projects in it ' +
+         'still going (`live`: a plan under way or open PRs). {status: "open", restate: true} is Keep open; ' +
+         '{undo: {updated_at, status_at}} puts back the times a change replaced',
+   },
+   {
+      method: 'delete',
+      path: '/api/v1/initiatives/:id',
+      handlers: [canWrite, initiativesController.remove],
+      does: 'Delete an initiative that holds no projects (409 while it holds any), freeing its slug',
+   },
+   {
+      method: 'post',
+      path: '/api/v1/initiatives/:id/move',
+      handlers: [canWrite, initiativesController.move],
+      does:
+         'Move one initiative just above another: {before: <id>}, or {before: null} for the bottom. Only ' +
+         'initiatives’ ranks change, never a plan’s priority',
+   },
+   {
+      method: 'get',
       path: '/api/v1/settings',
       handlers: [settingsController.get],
       does: 'The settings people change, and whether each is saved or config.js’s',
@@ -266,6 +335,14 @@ export function apiIndex(req, res) {
          done_when: `one line on what finished looks like, up to ${DONE_WHEN_MAX} characters; line breaks become spaces`,
          notes: 'up to 2000 characters',
          waits_on: `ids of other items this one waits on, at most ${WAITS_ON_MAX}, never a loop`,
+      },
+      initiative: {
+         slug: 'required on create, a label-style slug like site-speed; kept for good',
+         name: `required on create, up to ${INITIATIVE_NAME_MAX} characters`,
+         goal: `one line, up to ${INITIATIVE_GOAL_MAX} characters`,
+         owner: 'a GitHub login, or null: orders its projects and takes the calls for ones with no lead',
+         kind: { values: INITIATIVE_KINDS, means: 'set on create: upkeep is Keep the lights on, untracked is Not tracked' },
+         status: INITIATIVE_STATUSES,
       },
       update: {
          health: ROADMAP_HEALTHS,

@@ -178,7 +178,7 @@ function idOf(req) {
  * the future would hide every call until it passed). Null when the body
  * sends none or they don't check out.
  */
-function undoTimes(undo, now = Math.floor(Date.now() / 1000)) {
+export function undoTimes(undo, now = Math.floor(Date.now() / 1000)) {
    if (!undo || typeof undo !== 'object') return null;
    const ok = t => Number.isInteger(t) && t > 0 && t <= now;
    if (!ok(undo.updated_at)) return null;
