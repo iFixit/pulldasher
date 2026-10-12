@@ -179,11 +179,11 @@ describe('finishStats', () => {
 
    it('shows each number only when it is above zero', () => {
       expect(texts({ count: 9, over: ['a', 'b'], ready: 3 })).toEqual([
-         '9 open PRs · aim for 7',
+         '9 open PRs, aim for 7',
          '2 PRs older than 14 days',
          '3 PRs ready to merge',
       ]);
-      expect(texts({ count: 9, over: [], ready: 0 })).toEqual(['9 open PRs · aim for 7']);
+      expect(texts({ count: 9, over: [], ready: 0 })).toEqual(['9 open PRs, aim for 7']);
       expect(texts({ count: 3, over: ['a'], ready: 1 })).toEqual([
          '1 PR older than 14 days',
          '1 PR ready to merge',

@@ -112,9 +112,7 @@ export function GroupHeader({
    headerExtra,
    level = 2,
 }: {
-   /** a string, or a node when the title is itself a control (Finish
-    * line's groups fold on their title) */
-   title: ReactNode;
+   title: string;
    /** plain string for most lanes; a ReactNode when the sub-line itself is
     * the door to more detail (Review's queue wraps its ranking one-liner in
     * a popover — existing text becomes interactive, zero new chrome) */
