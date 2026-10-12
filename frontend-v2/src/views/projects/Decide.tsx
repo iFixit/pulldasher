@@ -212,6 +212,11 @@ const calls = createMemoryStore<{ made: ReadonlyMap<string, Made> }>({
    made: new Map(),
 });
 
+/** Forget every call made (tests start clean). */
+export function forgetCalls(): void {
+   calls.set({ made: new Map() });
+}
+
 function setMade(key: string, made: Made | null): void {
    const next = new Map(calls.get().made);
    if (made) next.set(key, made);

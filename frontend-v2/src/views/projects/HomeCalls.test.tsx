@@ -16,6 +16,7 @@ import type { ProjectsNav } from './parts';
 import {
    DecideCall,
    DecideRowView,
+   forgetCalls,
    keepCalls,
    SectionCalls,
    useKeptCalls,
@@ -127,6 +128,8 @@ beforeAll(async () => {
                   ? { initiative: 'shelf', set_at: 50, baseline_prs: 2 }
                   : body.project === 'filed'
                   ? { initiative: 'site-speed', set_at: 50, baseline_prs: 0 }
+                  : body.project === 'akeneo'
+                  ? { initiative: 'catalog', set_at: 50, baseline_prs: 0 }
                   : { initiative: null, set_at: null, baseline_prs: 0 };
             return reply({ project: body.project, before, home: null });
          }
@@ -159,12 +162,15 @@ let host: HTMLDivElement | null = null;
 // every tree a test mounts, unmounted after it, so none listens on to the
 // stores the next test writes
 const roots: Root[] = [];
-afterEach(() => {
+afterEach(async () => {
    act(() => roots.splice(0).forEach(r => r.unmount()));
    clearHomePicks();
    clearHolds();
+   forgetCalls();
    host?.remove();
    host = null;
+   // a filing a test made leaves the board's copy as the server has it
+   await loadInitiatives();
    calls.length = 0;
 });
 
@@ -272,6 +278,37 @@ describe('a row that asks about an initiative', () => {
       expect(options).not.toContain('Catalog');
       expect(options.at(-1)).toBe('Not tracked');
    });
+
+   it('files it elsewhere through File, with Undo back into the closed one', async () => {
+      const el = render({
+         slug: 'akeneo',
+         item: null,
+         reasons: [{ kind: 'reopened_in_closed', initiative: 3, as: 'done' }],
+      });
+      click(el, 'File elsewhere');
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'fixbot';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      act(() => fileButton(el)?.click());
+      await settle();
+      expect(calls.filter(c => c.path === '/initiatives/file').at(-1)?.body).toEqual({
+         project: 'akeneo',
+         initiative: 'fixbot',
+         expect: 'catalog',
+      });
+      expect(el.textContent).toContain('Filed in FixBot chat.');
+      click(el, 'Undo');
+      await settle();
+      // back where it was, closed or not: an Undo may file there
+      expect(calls.filter(c => c.path === '/initiatives/file').at(-1)?.body).toEqual({
+         project: 'akeneo',
+         initiative: 'catalog',
+         set_at: 50,
+         baseline_prs: 0,
+      });
+   });
 });
 
 describe('a Not tracked project that grew', () => {
@@ -321,6 +358,32 @@ describe('a Not tracked project that grew', () => {
       expect(guessed?.title).toBe(
          'It’s Not tracked now. This is the initiative its people work in most.'
       );
+   });
+
+   it('files it where Track it’s chooser says, with Undo back to Not tracked and its count', async () => {
+      const el = render(grew);
+      click(el, 'Track it');
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'fixbot';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      act(() => fileButton(el)?.click());
+      await settle();
+      expect(calls.filter(c => c.path === '/initiatives/file').at(-1)?.body).toEqual({
+         project: 'ops',
+         initiative: 'fixbot',
+         expect: 'shelf',
+      });
+      expect(el.textContent).toContain('Filed in FixBot chat.');
+      click(el, 'Undo');
+      await settle();
+      expect(calls.filter(c => c.path === '/initiatives/file').at(-1)?.body).toEqual({
+         project: 'ops',
+         initiative: 'shelf',
+         set_at: 50,
+         baseline_prs: 2,
+      });
    });
 });
 
