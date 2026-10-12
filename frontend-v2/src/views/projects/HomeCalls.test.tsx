@@ -832,6 +832,34 @@ describe('a pick left in a chooser that closed', () => {
    });
 });
 
+describe('a pick whose initiative closed since', () => {
+   it('is no pick: the chooser waits again, and the answer files nothing', async () => {
+      const el = render({
+         slug: 'lonely',
+         item: null,
+         reasons: [{ kind: 'new', since: '2026-09-10' }],
+      });
+      const select = el.querySelector('select') as HTMLSelectElement;
+      act(() => {
+         select.value = 'fragile';
+         select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      const fragile = INITIATIVES[4];
+      try {
+         fragile.status = 'done';
+         await act(() => loadInitiatives());
+         expect(select.value).toBe('');
+         const promise = [...el.querySelectorAll('button')].find(b =>
+            b.textContent?.startsWith('Promise to finish by')
+         );
+         expect(promise?.disabled).toBe(true);
+      } finally {
+         fragile.status = 'open';
+         await act(() => loadInitiatives());
+      }
+   });
+});
+
 describe('Undo on a row', () => {
    const grew: DecideRow = {
       slug: 'ops',

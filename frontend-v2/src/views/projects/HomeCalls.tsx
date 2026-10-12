@@ -88,7 +88,9 @@ function homeChoice(
          ? guessHome(row.slug, items, list)
          : null;
    const choices = homeChoices(list);
-   const chosen = pick ?? (away ? guess?.slug : current?.slug ?? guess?.slug) ?? '';
+   // a pick no longer offered (its initiative closed since) is no pick
+   const live = pick && choices.some(i => i.slug === pick) ? pick : null;
+   const chosen = live ?? (away ? guess?.slug : current?.slug ?? guess?.slug) ?? '';
    const to = choices.find(i => i.slug === chosen);
    // only while it's filed nowhere: a filed project's plan answer stays a
    // plan answer, and isn't asked to be filed where it already is
@@ -98,8 +100,8 @@ function homeChoice(
       choices,
       chosen,
       current,
-      picked: pick != null,
-      guessed: pick == null && (!current || away) && !!guess && chosen === guess.slug,
+      picked: live != null,
+      guessed: live == null && (!current || away) && !!guess && chosen === guess.slug,
       // a filing rides along only with the chooser that shows it (one
       // filed nowhere), so a pick left in a closed one never moves the
       // project
