@@ -78,6 +78,7 @@ const unlinked: RoadmapItem = { ...created, id: 5, name: 'Checkout redesign', pr
 
 /** The server, by route: each write answers as the real one would. */
 const calls: { method: string; path: string; body: unknown }[] = [];
+let flakyFailed = false;
 beforeAll(async () => {
    vi.stubGlobal(
       'fetch',
@@ -114,7 +115,14 @@ beforeAll(async () => {
             const was = INITIATIVES.find(i => i.id === id) ?? INITIATIVES[3];
             return reply({ initiative: { ...was, ...body } });
          }
-         if (path === '/roadmap' && method === 'POST') return reply({ item: created }, 201);
+         if (path === '/roadmap' && method === 'POST') {
+            // a plan that fails once, after its filing saved
+            if (body.project === 'flaky' && !flakyFailed) {
+               flakyFailed = true;
+               return reply({ error: 'the database is down' }, 500);
+            }
+            return reply({ item: created }, 201);
+         }
          if (path === '/roadmap' && method === 'GET') return reply({ items: [] });
          if (path.startsWith('/roadmap/') && method === 'DELETE') return reply({ ok: true });
          if (path.startsWith('/roadmap/') && method === 'PATCH')
@@ -139,6 +147,7 @@ const ITEMS = [
    person('cache', ['dana']),
    person('answers', ['erin']),
    person('filed', ['dana']),
+   person('flaky', ['erin']),
 ];
 
 function render(row: DecideRow): HTMLDivElement {
@@ -296,6 +305,24 @@ describe('the Initiative chooser on a row Decide asks to plan', () => {
          project: 'new-thing',
          initiative: null,
       });
+   });
+   it('keeps the filing when the plan fails, says so, and Try again only plans', async () => {
+      const el = render(fresh('flaky'));
+      click(el, 'Promise to finish by');
+      await settle();
+      expect(calls.filter(c => c.method !== 'GET').map(c => `${c.method} ${c.path}`)).toEqual([
+         'PUT /initiatives/file',
+         'POST /roadmap',
+      ]);
+      expect(el.textContent).toContain('Filed in FixBot chat; the plan didn’t save.');
+      calls.length = 0;
+      click(el, 'Try again');
+      await settle();
+      // its expect would be stale now: the filing isn't sent twice
+      expect(calls.filter(c => c.method !== 'GET').map(c => `${c.method} ${c.path}`)).toEqual([
+         'POST /roadmap',
+      ]);
+      expect(el.textContent).toMatch(/Promised to finish by .+, in FixBot chat\./);
    });
 });
 
