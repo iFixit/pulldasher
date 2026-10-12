@@ -323,6 +323,17 @@ export function askOf(reason: DecideReason): {
          return reason.done
             ? { question: 'Is it done?', call: 'done' }
             : { question: 'Drop it?', call: 'drop' };
+      // the initiative calls file or close, not plan; their answers come
+      // with the initiatives board work, and until then no caller passes
+      // decideQueue the initiatives that raise them
+      case 'unfiled':
+         return { question: 'Which initiative is it part of?', call: 'commit' };
+      case 'untracked_grew':
+         return { question: 'Still not tracked?', call: 'commit' };
+      case 'goal_reached':
+         return { question: 'Did it reach its goal?', call: 'done' };
+      case 'reopened_in_closed':
+         return { question: 'Reopen its initiative?', call: 'commit' };
    }
 }
 
@@ -512,6 +523,14 @@ function reasonFacts(reason: DecideReason, item: RoadmapItem | null, bare = fals
             ? `${upperFirst(tally)}${open}`
             : `All its issues are closed (${tally})${open}`;
       }
+      case 'unfiled':
+         return 'It’s in no initiative';
+      case 'untracked_grew':
+         return `${n(reason.baseline + reason.since, 'PR')}, ${reason.since} since it was set not tracked`;
+      case 'goal_reached':
+         return 'Every project in it is finished or quiet';
+      case 'reopened_in_closed':
+         return `Its initiative is ${reason.as}, but it’s being worked on again`;
    }
 }
 

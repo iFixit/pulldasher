@@ -202,6 +202,16 @@ describe('one owed call, one amber mark', () => {
       expect(w.target?.text).toBe('Missed its Sep 25 target date');
    });
 
+   it('nothing owed on a not-tracked plan: no amber, no update due', () => {
+      const quiet = { ...sso, untracked: true };
+      expect(healthStanding({ ...quiet, update: null, start: '2026-01-05' }, NOW)).toEqual({
+         kind: 'quiet',
+      });
+      const w = planWarnings(quiet, [quiet], TODAY, project, NOW);
+      expect(amber(w)).toEqual([]);
+      expect([w.status, w.health, w.over, w.target]).toEqual([null, null, null, null]);
+   });
+
    it('past its end when nothing worse is owed', () => {
       const w = planWarnings(
          { ...sso, update: update(3, 'on_track') },

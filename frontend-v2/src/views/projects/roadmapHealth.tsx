@@ -380,6 +380,10 @@ export function planWarnings(
    now?: number,
    call: PlanCall | null = null
 ): PlanWarnings {
+   // a not-tracked plan owes nothing, so says nothing owed (R4)
+   if (item.untracked) {
+      return { status: null, health: null, over: null, target: null, waits: null, call };
+   }
    // ongoing work has no end to run past
    const end = endOf(item);
    const under = item.status === 'planned' || item.status === 'active';

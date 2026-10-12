@@ -1,4 +1,5 @@
 import { dayStart, firstOpenDay, targetOf, utcDay, type Project, type Today } from './projects';
+import { homesOf, type Initiative } from './initiatives';
 import { healthStanding, isUnderWay, planEnd, type RoadmapItem } from './roadmap';
 import type { IssueCounts } from './work';
 
@@ -26,6 +27,14 @@ import type { IssueCounts } from './work';
  * - `issues_done`: every issue in its project is closed (model/work.ts),
  *   and the plan hasn't changed since the last one closed; only the plan
  *   running today is asked
+ * Once initiatives are in use (model/initiatives.ts), four more:
+ * - `unfiled`: a tracked project with no home, and 3+ PRs or a plan under
+ *   way; a project already asked `new` files from that row instead
+ * - `untracked_grew`: a not-tracked project that grew (initiatives.ts grew)
+ * - `goal_reached`: every project of an open initiative finished, parked or
+ *   quiet for GOAL_QUIET_DAYS, and nothing changed since Keep open
+ * - `reopened_in_closed`: a project in a closed initiative has open PRs or
+ *   a plan under way again
  * Every plan still under way is judged on its own, so a project's finished
  * first phase can't hide its second running late. A call is a roadmap write
  * (commit, park, finish, drop); any change to a plan counts as one.
@@ -38,6 +47,9 @@ export const DECIDE_MIN_PRS = 3;
 /** days a finished or dropped project can keep PRs open before it's asked
  * about again */
 const REOPEN_DAYS = 7;
+/** days every project of an initiative has been finished or quiet before
+ * Decide asks whether it reached its goal */
+const GOAL_QUIET_DAYS = 14;
 const DAY = 86400;
 
 export type DecideReason =
@@ -60,7 +72,21 @@ export type DecideReason =
      }
    | { kind: 'moving' }
    /** `open`: the plan's PRs still open */
-   | { kind: 'issues_done'; done: number; dropped: number; open: number };
+   | { kind: 'issues_done'; done: number; dropped: number; open: number }
+   | { kind: 'unfiled' }
+   /** `since`: PRs opened since it was set not tracked, against `baseline`,
+    * its PR count then */
+   | { kind: 'untracked_grew'; since: number; baseline: number }
+   /** the row names no project: `initiative` is the one asked about */
+   | { kind: 'goal_reached'; initiative: number }
+   | { kind: 'reopened_in_closed'; initiative: number; as: 'done' | 'dropped' };
+
+/** A not-tracked project that grew (model/initiatives.ts grew). */
+export interface GrownProject {
+   slug: string;
+   since: number;
+   baseline: number;
+}
 
 /** What the queue needs to know about a live project. */
 export interface DecideProject {
@@ -143,6 +169,10 @@ export const RANK: Record<DecideReason['kind'], number> = {
    stalled: 8,
    at_risk: 9,
    new: 10,
+   reopened_in_closed: 0,
+   goal_reached: 7,
+   unfiled: 10,
+   untracked_grew: 10,
 };
 
 /** A plan's PRs, by the dates (model/work.ts PlanWork), as Decide counts them. */
@@ -191,6 +221,8 @@ export function decideQueue({
    planCounts = new Map(),
    issues = new Map(),
    ongoing = new Set(),
+   initiatives = [],
+   grown = [],
    today,
    now,
 }: {
@@ -205,6 +237,12 @@ export function decideQueue({
    /** projects that run with no end: they never owe a first plan, and a
     * finished plan of theirs isn't reopened by the work that follows */
    ongoing?: ReadonlySet<string>;
+   /** every initiative, with the projects filed in it; none means the layer
+    * isn't in use yet, so no project is asked where it belongs. `live` and
+    * `items` must already leave not-tracked projects out */
+   initiatives?: readonly Pick<Initiative, 'id' | 'kind' | 'status' | 'status_at' | 'projects'>[];
+   /** not-tracked projects that grew, which `live` leaves out */
+   grown?: readonly GrownProject[];
    /** the day `now` falls on where the team is (projects.ts dayIn): what
     * "overdue" is judged by, the vouch for an update included */
    today: string;
@@ -216,8 +254,12 @@ export function decideQueue({
       if (item.project) plansOf.set(item.project, [...(plansOf.get(item.project) ?? []), item]);
    }
    const rows = new Map<string, DecideRow>();
-   const add = (slug: string | null, item: RoadmapItem | null, reason: DecideReason) => {
-      const key = `${slug ?? ''}:${item?.id ?? ''}`;
+   const add = (
+      slug: string | null,
+      item: RoadmapItem | null,
+      reason: DecideReason,
+      key = `${slug ?? ''}:${item?.id ?? ''}`
+   ) => {
       const row = rows.get(key) ?? { slug, item, reasons: [] };
       row.reasons.push(reason);
       rows.set(key, row);
@@ -342,7 +384,74 @@ export function decideQueue({
       if (item.project && liveSlugs.has(item.project)) continue;
       if (isUnderWay(item.status)) planReasons(item, null);
    }
+   initiativeReasons();
    return [...rows.values()].sort(compareRows);
+
+   // where projects belong (model/initiatives.ts)
+   function initiativeReasons() {
+      for (const g of grown) {
+         add(g.slug, null, { kind: 'untracked_grew', since: g.since, baseline: g.baseline });
+      }
+      if (!initiatives.length) return;
+      const homes = homesOf(initiatives);
+      const liveBySlug = new Map(live.map(p => [p.slug, p]));
+      const going = (slug: string) => (plansOf.get(slug) ?? []).filter(p => isUnderWay(p.status));
+      // a project's own row, when it has one already
+      const rowOf = (slug: string) => [...rows.values()].find(r => r.slug === slug);
+      const unfiled = new Set([
+         ...live.filter(p => p.prs >= DECIDE_MIN_PRS).map(p => p.slug),
+         ...[...plansOf.keys()].filter(slug => going(slug).length),
+      ]);
+      for (const slug of unfiled) {
+         if (homes.has(slug)) continue;
+         const row = rowOf(slug);
+         // the first call files it too
+         if (row?.reasons.some(r => r.kind === 'new')) continue;
+         if (row) row.reasons.push({ kind: 'unfiled' });
+         else add(slug, going(slug)[0] ?? null, { kind: 'unfiled' });
+      }
+      for (const initiative of initiatives) {
+         if (initiative.kind !== 'initiative') continue;
+         const slugs = initiative.projects.map(f => f.project);
+         if (initiative.status !== 'open') {
+            const as = initiative.status;
+            for (const slug of slugs) {
+               if ((liveBySlug.get(slug)?.open ?? 0) > 0 || going(slug).length) {
+                  add(slug, going(slug)[0] ?? null, {
+                     kind: 'reopened_in_closed',
+                     initiative: initiative.id,
+                     as,
+                  });
+               }
+            }
+            continue;
+         }
+         if (!slugs.length) continue;
+         // finished, parked or dropped plans, or no plan and nothing in
+         // flight (Today's live holds the last LIVE_DAYS); when it settled,
+         // and when anything in it last changed
+         let settled = 0;
+         let changed = 0;
+         let open = false;
+         for (const f of initiative.projects) {
+            const plans = plansOf.get(f.project) ?? [];
+            const project = liveBySlug.get(f.project);
+            if (plans.some(p => isUnderWay(p.status)) || (!plans.length && project)) open = true;
+            const times = plans.map(p => Math.max(p.status_at ?? 0, decidedAt(p)));
+            settled = Math.max(settled, ...times);
+            changed = Math.max(changed, settled, f.set_at, project?.lastActivity ?? 0);
+         }
+         if (open || now - settled < GOAL_QUIET_DAYS * DAY) continue;
+         // Keep open: asked again only once something in it changes later
+         if (initiative.status_at != null && changed <= initiative.status_at) continue;
+         add(
+            null,
+            null,
+            { kind: 'goal_reached', initiative: initiative.id },
+            `initiative:${initiative.id}`
+         );
+      }
+   }
 }
 
 const rank = (row: DecideRow) => Math.min(...row.reasons.map(r => RANK[r.kind]));

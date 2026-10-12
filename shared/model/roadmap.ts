@@ -104,6 +104,10 @@ export interface RoadmapItem {
     * item (never stored); absent or null when it has no project the board
     * can read */
    lately?: PlanLately | null;
+   /** its project is Not tracked (model/initiatives.ts), as the server read
+    * it when it sent the item (never stored): it owes no update, and
+    * counting views leave it out */
+   untracked?: boolean;
 }
 
 /** how many trailing days set the pace a project's issues are forecast at */
@@ -615,16 +619,16 @@ export function updatesOwed(
 }
 
 /** `today` is the day `now` falls on where the team is (dayIn), which says
- * whether a plan is past its end. */
+ * whether a plan is past its end. A not-tracked plan owes nothing. */
 export function healthStanding(
    item: Pick<
       RoadmapItem,
-      'status' | 'start' | 'weeks' | 'end_kind' | 'update' | 'created_at' | 'lately'
+      'status' | 'start' | 'weeks' | 'end_kind' | 'update' | 'created_at' | 'lately' | 'untracked'
    >,
    now: number = Date.now() / 1000,
    today: string = dayIn(now)
 ): HealthStanding {
-   if (isStopped(item.status)) return { kind: 'quiet' };
+   if (isStopped(item.status) || item.untracked) return { kind: 'quiet' };
    const active = inProgress(item);
    const u = item.update;
    if (!u) {

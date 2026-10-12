@@ -264,6 +264,16 @@ function callWords(reason: DecideReason): Pick<PlanCell, 'kind' | 'text'> {
          return { kind: 'stalled', text: 'Stalled' };
       case 'new':
          return { kind: 'no_plan', text: NEEDS_A_PLAN };
+      // the initiative calls (shared/model/decide.ts): words until the
+      // board's Decide answers them
+      case 'unfiled':
+         return { kind: 'no_plan', text: 'In no initiative' };
+      case 'untracked_grew':
+         return { kind: 'no_plan', text: 'Still not tracked?' };
+      case 'reopened_in_closed':
+         return { kind: 'reopened', text: 'Its initiative is closed, still worked on' };
+      case 'goal_reached':
+         return { kind: 'issues_done', text: 'Did it reach its goal?' };
    }
 }
 
