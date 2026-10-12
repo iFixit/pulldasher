@@ -392,6 +392,17 @@ icon with a class bolted on.
     server. Of 298 merged PRs, 54% linked an issue and 2% carried a project
     label. One that links two projects' issues counts under the first and
     shows in "In two projects".
+  - **A draft isn't work yet: never counted, always one click away in a
+    closed fold.** Draft PRs are common and mostly a prompt, so no number
+    on the tab or the API takes one (open counts, live vs quiet, idle days,
+    people, flags, health, Decide, the window, who is on what): a project
+    with only drafts is quiet. Each one waits in a closed "Drafts, not
+    counted" fold where someone would look: at the end of its project's
+    PRs, in its project's row, in its author's row on People, and under
+    the Overview's PRs outside projects for the rest. Under an issue it
+    stays where it is, saying "a draft, not counted", out of the issue's
+    numbers. Where a line says nothing is open, it names the drafts ("None
+    open", then "2 drafts, not counted"), so nobody reads it as nothing.
   - **Issues join by their links.** An issue a project's PRs link joins it,
     its line saying "linked by PR #N", with a Remove that sticks. It's one
     hop, from an issue the project has by label, by hand or as its own, so a
