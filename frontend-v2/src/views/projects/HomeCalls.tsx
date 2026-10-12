@@ -348,11 +348,15 @@ export function HomeStrip({
    name,
    describedBy,
    onCall,
+   quiet = false,
 }: {
    row: DecideRow;
    name: string;
    describedBy?: string;
    onCall: (call: Call) => void;
+   /** its answer outlined and unmarked, at a row's end beside rows whose
+    * questions are words (the Roadmap's goal question) */
+   quiet?: boolean;
 }) {
    const [more, setMore] = useState(false);
    const [project, setProject] = useState('');
@@ -429,7 +433,7 @@ export function HomeStrip({
    const moves =
       more && (primary.kind === 'untracked_grew' || primary.kind === 'reopened_in_closed');
    const button = (o: Option, k: number) => {
-      const filled = k === 0 && !!o.call;
+      const filled = k === 0 && !!o.call && !quiet;
       return (
          <button
             key={o.words}

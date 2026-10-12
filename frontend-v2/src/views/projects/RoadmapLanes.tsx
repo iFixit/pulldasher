@@ -602,13 +602,13 @@ export function initiativeLanes(c: LaneContext) {
                      </div>
                   )}
                   {initiative && asked && (
-                     <div className="border-t border-secondary px-3.5 py-2 text-[13px] sm:pl-[3.9375rem]">
+                     // a row like its plans': the question in their amber
+                     // words, its answers outlined at the row's end
+                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-secondary px-3.5 py-1.5 text-xs sm:pl-[3.9375rem]">
                         {asked.reasons.length > 0 && (
-                           <p className="m-0 text-ink-2">
-                              <span className="text-warn">{askOf(asked.reasons[0]).question}</span>
-                           </p>
+                           <span className="text-warn">{askOf(asked.reasons[0]).question}</span>
                         )}
-                        <DecideCall row={asked} />
+                        <DecideCall row={asked} compact />
                      </div>
                   )}
                   {planRows(planned, planned, { placed: true })}

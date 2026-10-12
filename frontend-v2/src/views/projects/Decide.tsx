@@ -868,6 +868,7 @@ export function DecideCall({
                name={name}
                describedBy={describedBy}
                onCall={call => act(() => makeCall(row, call, project))()}
+               quiet={compact}
             />
          ) : (
             <>
