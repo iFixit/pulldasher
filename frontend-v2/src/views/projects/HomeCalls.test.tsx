@@ -811,8 +811,8 @@ describe('Decide’s Initiative switch', () => {
       );
       expect([...el.querySelectorAll('option')].map(o => o.textContent)).toEqual([
          'All initiatives',
-         'Site speed · 2 owed',
-         'Catalog · 1 owed',
+         'Site speed · 2 to decide',
+         'Catalog · 1 to decide',
       ]);
    });
 
@@ -829,8 +829,8 @@ describe('Decide’s Initiative switch', () => {
       const options = [...el.querySelectorAll('option')];
       expect(options.map(o => o.textContent)).toEqual([
          'All initiatives',
-         'Unsorted · 3 owed',
-         'No project yet · 1 owed',
+         'Unsorted · 3 to decide',
+         'No project yet · 1 to decide',
       ]);
       // an initiative may be called "unsorted"; these keys can't be its slug
       for (const o of options.slice(1)) expect(PROJECT_SLUG.test(o.value)).toBe(false);
