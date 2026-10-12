@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { dayStart, type Today } from '../../../shared/model/projects';
 import {
    closedIssues,
+   compareRows,
    decideQueue,
    type DecideProject,
    type DecideReason,
@@ -1061,6 +1062,32 @@ describe('decideQueue: where projects belong', () => {
       expect(mine).toHaveLength(1);
       expect(mine[0].item?.id).toBe(1);
       expect(mine[0].reasons.map(r => r.kind).sort()).toEqual(['reopened', 'reopened_in_closed']);
+   });
+
+   it('asks about a project’s home on its worst row, whichever plan came first', () => {
+      // two plans of a, asked about for different reasons, in both orders
+      const plans = [
+         item(1, { project: 'a', status: 'active', start: '2026-08-24', weeks: 2, end_kind: 'hard' }),
+         item(2, { project: 'a', status: 'active', start: '2026-06-01', weeks: 4, end_kind: 'hard' }),
+      ];
+      for (const items of [plans, [...plans].reverse()]) {
+         const rows = decideQueue({
+            items,
+            live: [project('a', { open: 3, prs: 3, firstOpened: '2026-05-01', lastActivity: ago(1) })],
+            initiatives: [initiative(7, ['a'], { status: 'done', status_at: ago(10) })],
+            today,
+            now: NOW,
+         });
+         const mine = rows.filter(r => r.slug === 'a');
+         expect(mine).toHaveLength(2);
+         const without = (r: DecideRow) => ({
+            ...r,
+            reasons: r.reasons.filter(x => x.kind !== 'reopened_in_closed'),
+         });
+         const worst = mine.map(without).sort(compareRows)[0];
+         const asked = mine.find(r => r.reasons.some(x => x.kind === 'reopened_in_closed'));
+         expect(asked?.item?.id).toBe(worst.item?.id);
+      }
    });
 
    it('asks which project an active plan with no project is, once initiatives exist', () => {

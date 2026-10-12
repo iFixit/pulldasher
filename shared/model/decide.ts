@@ -405,10 +405,11 @@ export function decideQueue({
       const openOf = (slug: string) => liveBySlug.get(slug)?.open ?? 0;
       const underWay = (slug: string) =>
          (plansOf.get(slug) ?? []).filter(p => isUnderWay(p.status));
-      // on the project's own row when it has one, so a project is asked
-      // about once; else on its first plan under way
+      // on the project's own row when it has one (its worst, when two of
+      // its plans are asked about), so a project is asked about once; else
+      // on its first plan under way
       const ask = (slug: string, reason: DecideReason) => {
-         const row = [...rows.values()].find(r => r.slug === slug);
+         const row = [...rows.values()].filter(r => r.slug === slug).sort(compareRows)[0];
          if (row) row.reasons.push(reason);
          else add(slug, underWay(slug)[0] ?? null, reason);
       };
