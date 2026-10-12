@@ -501,6 +501,36 @@ describe('the Roadmap by initiative', () => {
       expect(writes().length).toBe(before);
    });
 
+   it('keeps one Undo for a run that moves two lanes, and it puts both back', async () => {
+      server = [...START, initiative(4, 'alpha', 'Alpha', []), initiative(5, 'beta', 'Beta', [])];
+      await loadInitiatives();
+      const el = await mount();
+      const up = (id: number, key = 'ArrowUp') =>
+         act(() => {
+            (el.querySelector(`#roadmap-lane-grip-${id}`) as HTMLElement).dispatchEvent(
+               new KeyboardEvent('keydown', { key, bubbles: true })
+            );
+         });
+      // Beta up two, then FixBot chat down one
+      up(5);
+      await settle();
+      up(5);
+      await settle();
+      up(2, 'ArrowDown');
+      await settle();
+      const undos = [...el.querySelectorAll('button')].filter(b => b.textContent === 'Undo');
+      expect(undos).toHaveLength(1);
+      expect(undos[0].getAttribute('aria-label')).toBe(
+         'Undo: Moved Beta to priority 2 and FixBot chat to priority 4'
+      );
+      act(() => undos[0].click());
+      await settle();
+      await settle();
+      const order = [...server].sort((a, b) => a.priority - b.priority).map(i => i.slug);
+      expect(order).toEqual(['site-speed', 'fixbot', 'catalog', 'alpha', 'beta', 'shelf']);
+      expect(el.textContent).toContain('Put Beta and FixBot chat back at their priorities.');
+   });
+
    it('refuses a plan dragged onto a closed initiative’s lane', async () => {
       // Catalog is closed, and holds a project still worked on, so it shows
       server = START.map(i =>

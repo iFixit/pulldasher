@@ -136,6 +136,7 @@ import {
    NO_PROJECT_LANE,
    ReceiptLine,
    TimelineLane,
+   LANE_RUN,
    type LaneRun,
    type PlanRun,
    type Receipt,
@@ -2598,7 +2599,9 @@ export function Roadmap({
       );
    };
    const say = (next: Receipt | null, words?: string) => {
-      if (next?.key !== run.current?.key) run.current = null;
+      // a lane's receipt goes on the lanes' one run; any other its own
+      const runKey = next?.key.startsWith('initiative:') ? LANE_RUN : next?.key;
+      if (runKey !== run.current?.key) run.current = null;
       setReceipt(next);
       setAnnounced(words ?? (next ? `${next.words.replace(/\.$/, '')}.` : ''));
    };

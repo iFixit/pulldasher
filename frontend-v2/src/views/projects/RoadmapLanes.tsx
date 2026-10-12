@@ -22,7 +22,7 @@ import {
 } from '../../model/initiativeBoard';
 import { byRank, fileProject, moveInitiative, readInitiatives } from '../../model/initiativesData';
 import type { PortfolioItem } from '../../model/portfolio';
-import { NO_PROJECT_YET, UNSORTED_WORD } from '../../model/words';
+import { andList, NO_PROJECT_YET, UNSORTED_WORD } from '../../model/words';
 import { DecideCall } from './Decide';
 import type { Navigate } from './parts';
 import { inInk, SaidWords, type Said } from './roadmapHealth';
@@ -38,12 +38,30 @@ function hashWith(patch: Record<string, string | null>): string {
    return `#${p}`;
 }
 
-/** A run of rank moves on one lane: the initiative it sat above and its
- * priority when the run began, which Undo puts back. */
+/** A run of rank moves, on one lane or several (arrow presses, or drag
+ * after drag): the whole order when it began, which its one Undo puts
+ * back, and each lane it moved, with the priority it had then. */
 export interface LaneRun {
-   key: string;
-   was: number | null;
-   wasAt: number;
+   key: typeof LANE_RUN;
+   order: number[];
+   moved: Map<number, { name: string; wasAt: number }>;
+}
+
+/** The run key every lane move shares, so a move of another lane goes on
+ * the same run instead of dropping the first one's Undo. */
+export const LANE_RUN = 'initiatives';
+
+/** Put the initiatives back in `order`, from the bottom up: each one moved
+ * just above the one after it, when it isn't there now. */
+async function restoreOrder(order: readonly number[]): Promise<true | { error: string }> {
+   for (let k = order.length - 1; k >= 0; k--) {
+      const now = byRank(readInitiativesNow()).map(i => i.id);
+      const after = order[k + 1] ?? null;
+      if ((now[now.indexOf(order[k]) + 1] ?? null) === after) continue;
+      const moved = await moveInitiative(order[k], after);
+      if (moved !== true) return moved;
+   }
+   return true;
 }
 
 /** A run of moves on one plan (arrow presses, or drag after drag): where
@@ -348,9 +366,9 @@ export function initiativeLanes(c: LaneContext) {
          });
       });
    };
-   // an initiative moved just above `before` (null: the bottom), with Undo
-   // back to the one it sat above before the run of moves began (arrow
-   // presses, or drag after drag), as a plan row's run does
+   // an initiative moved just above `before` (null: the bottom), with one
+   // Undo back to the order before the run of moves began (arrow presses,
+   // or drag after drag, of one lane or several), as a plan row's run does
    const rankMove = (moving: Initiative, before: number | null) => {
       const all = byRank(initiatives ?? []);
       const above = all[all.findIndex(i => i.id === moving.id) + 1]?.id ?? null;
@@ -358,10 +376,11 @@ export function initiativeLanes(c: LaneContext) {
       const key = `initiative:${moving.id}`;
       const going = run.current;
       const start: LaneRun =
-         going?.key === key && 'wasAt' in going
+         going?.key === LANE_RUN && 'order' in going
             ? going
-            : { key, was: above, wasAt: rankOf(moving) };
-      const { was, wasAt } = start;
+            : { key: LANE_RUN, order: all.map(i => i.id), moved: new Map() };
+      if (!start.moved.has(moving.id))
+         start.moved.set(moving.id, { name: moving.name, wasAt: rankOf(moving) });
       run.current = start;
       refocus.current = [`roadmap-lane-grip-${moving.id}`];
       void moveInitiative(moving.id, before).then(r => {
@@ -372,21 +391,28 @@ export function initiativeLanes(c: LaneContext) {
          const ranked = byRank(readInitiativesNow()).filter(
             i => i.status === 'open' && i.kind !== 'untracked'
          );
-         const at = ranked.findIndex(i => i.id === moving.id) + 1;
+         const lanes = [...start.moved];
+         const now = lanes.map(
+            ([id, m]) => `${m.name} to priority ${ranked.findIndex(i => i.id === id) + 1}`
+         );
+         const back =
+            lanes.length === 1
+               ? `Put ${moving.name} back at priority ${lanes[0][1].wasAt}`
+               : `Put ${andList(lanes.map(([, m]) => m.name))} back at their priorities`;
          const undo = () => {
             run.current = null;
             refocus.current = [`roadmap-lane-grip-${moving.id}`];
             // said at once, as the board shows it back at once
             keepInPlace(key, held => {
-               said(key, `Put ${moving.name} back at priority ${wasAt}`, held);
-               void moveInitiative(moving.id, was).then(back => {
+               said(key, back, held);
+               void restoreOrder(start.order).then(done => {
                   // the server's reason, with the Undo kept to try again
-                  if (back !== true)
-                     say({ key, words: back.error.replace(/\.$/, ''), failed: true, undo });
+                  if (done !== true)
+                     say({ key, words: done.error.replace(/\.$/, ''), failed: true, undo });
                });
             });
          };
-         say({ key, words: `Moved ${moving.name} to priority ${at}`, undo });
+         say({ key, words: `Moved ${andList(now)}`, undo });
       });
    };
    // ----- by initiative: one lane per initiative, in its own rank -----
