@@ -506,6 +506,17 @@ describe('the File it in chooser and the answer that waits on it', () => {
       expect(promise?.textContent).not.toContain('Suggested');
    });
 
+   it('gives the Tab stop to Other answers while its answer waits on the chooser', () => {
+      const el = render({ slug: 'loner', item: null, reasons: [{ kind: 'new', since: '2026-09-10' }] });
+      const [promise, other] = el.querySelectorAll<HTMLButtonElement>('[role="toolbar"] button');
+      expect(promise.disabled).toBe(true);
+      expect(promise.tabIndex).toBe(-1);
+      expect(other.textContent).toBe('Other answers');
+      expect(other.tabIndex).toBe(0);
+      // and j and k land there
+      expect(el.querySelector('[data-decide-focus]')).toBe(other);
+   });
+
    it('says the filing in the plan answer’s label', () => {
       const el = render({ slug: 'new-thing', item: null, reasons: [{ kind: 'new', since: '2026-09-10' }] });
       const promise = [...el.querySelectorAll('button')].find(b =>

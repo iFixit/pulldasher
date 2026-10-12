@@ -964,8 +964,13 @@ function CallStrip({
       (answer.kind === 'commit'
          ? dates.find(o => o.call.kind === 'commit' && o.call.end === answer.end)
          : others.find(o => o.call.kind === answer.kind));
-   // the strip's one Tab stop
-   const lead = first ?? dates[0] ?? others[0];
+   // the strip's one Tab stop, and where j and k land: the first answer
+   // that can be pressed, so one waiting on an empty chooser never hides
+   // the rest from the keyboard
+   const off = (o: Option) => waiting && o === first;
+   const lead = [first, ...dates, ...others].find(o => o && !off(o));
+   // the answer is off, so Other answers takes the stop
+   const moreLeads = !!first && off(first);
    // every call a button that looks like one, in two labeled rows: how
    // long it runs, or what else becomes of it. The suggested answer is
    // filled and says so; the rest are outlined, never bare words.
@@ -983,8 +988,8 @@ function CallStrip({
          aria-label={`${words === o.label ? o.ariaLabel : `${words}: ${name}`}${
             alsoFiles ? `, ${alsoFiles}` : ''
          }`}
-         disabled={waiting && o === first}
-         title={waiting && o === first ? 'Choose where it goes first' : undefined}
+         disabled={off(o)}
+         title={off(o) ? 'Choose where it goes first' : undefined}
          onClick={() => onCall(o.call)}
          className={`hit pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${
             o === first && marked
@@ -998,11 +1003,16 @@ function CallStrip({
          )}
       </button>
    );
-   // opened, the focus moves to the first of the answers it showed
+   // opened, the focus moves to the first of the answers it showed (with
+   // the answer off, the first that can be pressed)
    const showMore = () => {
       setMore(true);
       requestAnimationFrame(() =>
-         stripRef.current?.querySelector<HTMLElement>('button:not([data-decide-focus])')?.focus()
+         stripRef.current
+            ?.querySelector<HTMLElement>(
+               moreLeads ? '[data-decide-focus]' : 'button:not([data-decide-focus]):not(:disabled)'
+            )
+            ?.focus()
       );
    };
    const group = (label: string, options: Option[]) =>
@@ -1023,7 +1033,8 @@ function CallStrip({
             {button(first, answerWords(first.call, row.item))}
             <button
                type="button"
-               tabIndex={-1}
+               tabIndex={moreLeads ? 0 : -1}
+               data-decide-focus={moreLeads || undefined}
                aria-expanded={false}
                aria-label={`Other answers for ${name}`}
                onClick={showMore}
