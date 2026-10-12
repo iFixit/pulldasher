@@ -117,6 +117,7 @@ describe('FinishLine while it is up', () => {
       render(first.slice(0, 3));
       expect(stats()).toEqual([]);
       expect(countdown()).toBe('All finished');
+      expect(dialog()?.textContent).toContain('None of your open PRs are past your limits.');
       expect(listed()).toBe(0);
       act(() => vi.advanceTimersByTime(2500));
       expect(dialog()).toBeNull();

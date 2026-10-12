@@ -404,10 +404,10 @@ function FinishModal({
          aria-modal="true"
          aria-labelledby="finish-title"
          aria-describedby="finish-stats"
-         className="fixed inset-0 z-[200] flex flex-col items-center justify-end bg-ink/40 pt-8 outline-none sm:justify-start sm:px-4 sm:pt-[8vh] sm:pb-8"
+         className="fixed inset-0 z-[200] flex flex-col items-center justify-end bg-black/30 pt-8 outline-none sm:justify-start sm:px-4 sm:pt-[8vh] sm:pb-8"
       >
          <section className="flex max-h-full w-full flex-col gap-5 rounded-t-2xl border border-line bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-ink shadow-2xl sm:max-h-[80vh] sm:max-w-[40rem] sm:rounded-2xl sm:p-6">
-            <div className="flex items-start gap-3">
+            <div className={`flex gap-3 ${free ? 'items-center' : 'items-start'}`}>
                {free && <FinishMark />}
                <div className="min-w-0 flex-1">
                   {/* the action with its real number, ticking down live as
@@ -423,6 +423,11 @@ function FinishModal({
                         ? `Finish ${prCount(found.toGo)}`
                         : 'Nothing to finish'}
                   </h2>
+                  {free && (
+                     <p className="m-0 mt-1 text-sm text-ink-2">
+                        None of your open PRs are past your limits.
+                     </p>
+                  )}
                   {/* why, in numbers you can act on: each one jumps to its PRs */}
                   {!free && stats.length > 0 && (
                      <ul
@@ -443,7 +448,7 @@ function FinishModal({
                      </ul>
                   )}
                </div>
-               <div className="-mt-1 -mr-1 flex shrink-0 gap-0.5">
+               <div className="-mt-1 -mr-1 flex shrink-0 gap-0.5 self-start">
                   <button
                      type="button"
                      aria-label="Finish line settings"
