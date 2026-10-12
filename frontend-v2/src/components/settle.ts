@@ -51,7 +51,14 @@ let hold: Hold | null = null;
 const near = (h: Hold, e: MouseEvent) =>
    h.x != null && Math.hypot(e.clientX - h.x, e.clientY - h.y) <= GUARD_PX;
 
-const guarding = (e: MouseEvent) => !!hold && near(hold, e) && performance.now() < hold.until;
+/** When a press was made, not when the page got to it: a double-click
+ * made while a long render held the page is handled after it, and must
+ * still count as made inside the hold. (jsdom stamps events with
+ * Date.now(), another clock, so there it's now.) */
+const madeAt = (e: Event) =>
+   e.timeStamp > 0 && e.timeStamp <= performance.now() + 1 ? e.timeStamp : performance.now();
+
+const guarding = (e: MouseEvent) => !!hold && near(hold, e) && madeAt(e) < hold.until;
 
 /** The pointer left, or a new action began: the hold and its words go. */
 function leave(): void {
@@ -62,9 +69,9 @@ function leave(): void {
 
 /** Start a hold at a point (a click, a drop), or with none (a key's
  * click): the hold before it ends, as the next action. */
-export function guardAt(x: number | null, y = 0): void {
+export function guardAt(x: number | null, y = 0, at = performance.now()): void {
    leave();
-   hold = { x, y, until: x == null ? 0 : performance.now() + HOLD_MS, leave: [] };
+   hold = { x, y, until: x == null ? 0 : at + HOLD_MS, leave: [] };
 }
 
 /** Run `fn` when the current hold ends by the pointer moving away or the
@@ -104,7 +111,7 @@ if (typeof window !== 'undefined') {
          if (e.detail > 0 && guarding(e)) return eat(e);
          const control = (e.target as Element | null)?.closest?.(CONTROL);
          if (!control?.closest('[data-press-guard]')) return;
-         guardAt(e.detail > 0 ? e.clientX : null, e.clientY);
+         guardAt(e.detail > 0 ? e.clientX : null, e.clientY, madeAt(e));
       },
       true
    );

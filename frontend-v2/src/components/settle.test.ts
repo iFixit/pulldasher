@@ -99,6 +99,18 @@ describe('the press guard', () => {
       expect(hits.other).toBe(1);
    });
 
+   it('judges a press by when it was made, not when a busy page got to it', () => {
+      const { first, other, hits } = region();
+      pressAt(first, 100, 100);
+      // a long render: the page reads the second press of a double-click
+      // two seconds on, though it was made a moment after the first
+      now += 2000;
+      const click = new MouseEvent('click', { bubbles: true, cancelable: true, clientX: 100, clientY: 100, detail: 2 });
+      Object.defineProperty(click, 'timeStamp', { value: 1080 });
+      other.dispatchEvent(click);
+      expect(hits.other).toBe(0);
+   });
+
    it('holds at least a second and a half', () => {
       expect(HOLD_MS).toBeGreaterThanOrEqual(1500);
    });
