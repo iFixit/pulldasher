@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { act } from 'react';
+import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { DecideRow } from '../../../../shared/model/decide';
 import type { Initiative } from '../../../../shared/model/initiatives';
 import type { RoadmapItem } from '../../../../shared/model/roadmap';
 import { loadInitiatives, useInitiativesValue } from '../../model/initiativesData';
@@ -186,8 +187,18 @@ const went: Partial<ProjectsNav>[] = [];
 
 /** The Roadmap with the initiatives as the board holds them, as the app
  * passes them, so a move shows in the next render. */
-function Live({ nav }: { nav: ProjectsNav }) {
+function Live({
+   nav: start,
+   decisions = [],
+   goes = false,
+}: {
+   nav: ProjectsNav;
+   decisions?: DecideRow[];
+   /** it goes where it asks to (a link that opens another plan) */
+   goes?: boolean;
+}) {
    const { initiatives } = useInitiativesValue();
+   const [nav, setNav] = useState(start);
    return (
       <Roadmap
          items={[]}
@@ -195,18 +206,24 @@ function Live({ nav }: { nav: ProjectsNav }) {
          untracked={new Set(['ops'])}
          teamMembers={{}}
          nav={nav}
-         navigate={to => went.push(to)}
-         decisions={[]}
+         navigate={to => {
+            went.push(to);
+            if (goes) setNav(n => ({ ...n, ...to }));
+         }}
+         decisions={decisions}
       />
    );
 }
 
-async function mount(nav: Partial<ProjectsNav> = {}) {
+async function mount(
+   nav: Partial<ProjectsNav> = {},
+   live: { decisions?: DecideRow[]; goes?: boolean } = {}
+) {
    host = document.createElement('div');
    document.body.append(host);
    const r = createRoot(host);
    root = r;
-   await act(async () => r.render(<Live nav={{ ...NAV, ...nav }} />));
+   await act(async () => r.render(<Live nav={{ ...NAV, ...nav }} {...live} />));
    await settle();
    return host;
 }
@@ -236,6 +253,42 @@ function drag(from: Element, to: Element): { refused: boolean } {
    });
    return { refused: !over.defaultPrevented };
 }
+
+describe('a row’s question or clash', () => {
+   const focusedId = () => (document.activeElement as HTMLElement).id;
+
+   it('opens the details with the focus on the Plan line, the answers a Tab away', async () => {
+      const asked: DecideRow = { slug: 'answers', item: PLANS[1], reasons: [{ kind: 'off_track' }] };
+      const el = await mount({}, { decisions: [asked], goes: true });
+      act(() => el.querySelector<HTMLButtonElement>('#roadmap-words-2')?.click());
+      await settle();
+      expect(focusedId()).toBe('roadmap-plan-2');
+      // an Enter there answers nothing
+      const sent = writes().length;
+      act(() => {
+         document.activeElement?.dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })
+         );
+      });
+      await settle();
+      expect(writes()).toHaveLength(sent);
+   });
+
+   it('opens the plan a clash waits on, the focus on its Plan line', async () => {
+      // Image CDN waits on Cache warmer, which ends after it starts
+      PLANS[0].waits_on = [3];
+      try {
+         await act(() => loadRoadmap());
+         const el = await mount({}, { goes: true });
+         act(() => el.querySelector<HTMLButtonElement>('#roadmap-words-1')?.click());
+         await settle();
+         expect(went.at(-1)).toMatchObject({ item: 3 });
+         expect(focusedId()).toBe('roadmap-plan-3');
+      } finally {
+         PLANS[0].waits_on = [];
+      }
+   });
+});
 
 describe('File elsewhere in a plan’s details', () => {
    it('leaves a receipt with Undo under the row in its new lane, the focus on its words', async () => {

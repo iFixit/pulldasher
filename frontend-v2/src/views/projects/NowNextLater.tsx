@@ -57,7 +57,8 @@ function Card({
    today: string;
    /** the call Decide asks about it */
    call: PlanCall | null;
-   onOpen: () => void;
+   /** open it; 'plan' puts the focus on its Plan line */
+   onOpen: (focus?: 'plan') => void;
    /** open another plan: the one a clash waits on */
    onOpenPlan: (id: number) => void;
    onPerson: (login: string) => void;
@@ -80,13 +81,13 @@ function Card({
       // the whole card opens the plan; the name is its keyboard door
       <li
          data-roadmap-row
-         onClick={onOpen}
+         onClick={() => onOpen()}
          className="cursor-pointer scroll-mt-[calc(var(--header-h,0px)_+_0.5rem)] border-t border-secondary px-3.5 py-2 first:border-t-0 hover:bg-muted"
       >
          <button
             type="button"
             data-roadmap-focus
-            onClick={only(onOpen)}
+            onClick={only(() => onOpen())}
             className="hit pressable rounded border-0 bg-transparent p-0 text-left text-[13px] font-medium text-ink hover:text-brand"
             title="Open it on the timeline"
          >
@@ -97,11 +98,12 @@ function Card({
                {[
                   rest && (
                      // a click opens the plan, as the card does, or for a
-                     // clash, the plan it waits on
+                     // clash, the plan it waits on; the focus on its Plan
+                     // line, not on an answer
                      <span
                         key="rest"
                         title={rest.title}
-                        onClick={waits ? only(() => onOpenPlan(waits.opens.id)) : undefined}
+                        onClick={only(() => (waits ? onOpenPlan(waits.opens.id) : onOpen('plan')))}
                         className="underline decoration-dotted underline-offset-2 hover:text-brand"
                      >
                         <SaidWords said={rest} />
@@ -172,8 +174,9 @@ export function NowNextLater({
    calls: ReadonlyMap<number, PlanCall>;
    /** projects being worked on with no plan, which have no column here */
    unplanned: number;
-   /** a plan, open on the timeline */
-   onOpen: (id: number) => void;
+   /** a plan, open on the timeline; 'plan' puts the focus on its Plan
+    * line (a question or a clash), not on an answer */
+   onOpen: (id: number, focus?: 'plan') => void;
    onPerson: (login: string) => void;
    /** the timeline, where the projects with no plan are */
    onTimeline: () => void;
@@ -188,8 +191,8 @@ export function NowNextLater({
                linked={item.project ? bySlug.get(item.project) : undefined}
                today={today}
                call={calls.get(item.id) ?? null}
-               onOpen={() => onOpen(item.id)}
-               onOpenPlan={onOpen}
+               onOpen={focus => onOpen(item.id, focus)}
+               onOpenPlan={id => onOpen(id, 'plan')}
                onPerson={onPerson}
             />
          ))}

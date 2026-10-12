@@ -885,9 +885,11 @@ function PlanPanel({
    today: string;
    /** Decide's row for it, asked or answered here, for its calls */
    row: DecideRow;
-   /** opened from a door (its bar, its words, a link): the focus goes to its
-    * calls; back from its fields, the roadmap puts it on Edit details */
-   focusCalls: boolean;
+   /** opened from a door (its bar, a link): the focus goes to its calls;
+    * from a question or a clash ('plan'), to its Plan line, the answers a
+    * Tab away, so an Enter twice never answers; back from its fields, the
+    * roadmap puts it on Edit details */
+   focusCalls: boolean | 'plan';
    /** its update form is open */
    updates: boolean;
    /** kept true while the update form holds words not posted */
@@ -921,7 +923,10 @@ function PlanPanel({
       const onCalls = !!panel.querySelector('[role="toolbar"]')?.contains(document.activeElement);
       if (!(focusCalls && !focused.current) && !onCalls) return;
       focused.current = true;
-      panel.querySelector<HTMLElement>('[data-decide-focus]')?.focus({ preventScroll: true });
+      (focusCalls === 'plan'
+         ? document.getElementById(`roadmap-plan-${item.id}`)
+         : panel.querySelector<HTMLElement>('[data-decide-focus]')
+      )?.focus({ preventScroll: true });
    }, [asked]);
    // the facts behind the row's words, in ink
    const w = planWarnings(item, all, today, trackedBy(linked));
@@ -959,7 +964,11 @@ function PlanPanel({
       >
          <dl className="m-0 grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2.5 text-[13px] leading-5 sm:grid-cols-[minmax(7rem,max-content)_minmax(0,1fr)]">
             <dt className={term}>Plan</dt>
-            <dd className="m-0 max-w-[70ch] text-ink-2">
+            <dd
+               id={`roadmap-plan-${item.id}`}
+               tabIndex={-1}
+               className="m-0 max-w-[70ch] rounded text-ink-2"
+            >
                {STATUS_WORD[item.status]}, {planWords(item)}
                {facts}
             </dd>
@@ -1286,9 +1295,10 @@ function PlanRow({
    call: PlanCall | null;
    /** its details are open under the row */
    open: boolean;
-   /** open its details */
-   onOpen: () => void;
-   /** open another plan's details: the one a clash waits on */
+   /** open its details; 'plan' puts the focus on their Plan line */
+   onOpen: (focus?: 'plan') => void;
+   /** open another plan's details, the focus on its Plan line: the one a
+    * clash waits on */
    onOpenPlan: (id: number) => void;
    onPerson: (login: string) => void;
    onOpenProject: (slug: string) => void;
@@ -1465,7 +1475,7 @@ function PlanRow({
                            type="button"
                            data-roadmap-focus
                            aria-expanded={open}
-                           onClick={onOpen}
+                           onClick={() => onOpen()}
                            className={name}
                            title="Open its plan; it tracks no project yet"
                         >
@@ -1497,7 +1507,7 @@ function PlanRow({
                         id={`roadmap-words-${item.id}`}
                         title={rest.title}
                         onClick={() =>
-                           w.call || !w.waits ? onOpen() : onOpenPlan(w.waits.opens.id)
+                           w.call || !w.waits ? onOpen('plan') : onOpenPlan(w.waits.opens.id)
                         }
                         className="hit pressable self-start rounded border-0 bg-transparent p-0 text-left text-[11px] text-ink-3 underline decoration-dotted underline-offset-2 hover:text-brand"
                      >
@@ -1616,7 +1626,7 @@ function PlanRow({
                         type="button"
                         // the bar opens the same details from the keyboard
                         tabIndex={-1}
-                        onClick={onOpen}
+                        onClick={() => onOpen()}
                         className={`hit @container absolute top-1.5 h-4 border-y p-0 text-left text-[11px] leading-[14px] font-medium whitespace-nowrap ${
                            today < horizon.end ? 'rounded-r-md border-r' : ''
                         } ${isAmber(w.over) ? 'text-warn' : 'text-ink-2'}`}
@@ -2225,7 +2235,7 @@ export function Roadmap({
    // door, no on the way back from their fields, and no for details a link
    // or a reload opened before anyone clicked: Enter there would promise
    // an end nobody chose
-   const [focusCalls, setFocusCalls] = useState(handled);
+   const [focusCalls, setFocusCalls] = useState<boolean | 'plan'>(handled);
    // the open fields hold changes not saved, or the update form words not
    // posted: another plan or a close waits
    const dirty = useRef(false);
@@ -2536,23 +2546,23 @@ export function Roadmap({
          ?.focus();
       return true;
    };
-   const open = (id: number, which: 'plan' | 'updates') => {
+   const open = (id: number, which: 'plan' | 'updates', focus: true | 'plan' = true) => {
       if (held()) return;
       // a second click on the same door, or on any while a form in it is
       // open, closes it
       if (editing === id && (panel === which || panel !== 'plan')) return close(id);
       setPanel(which);
-      setFocusCalls(true);
+      setFocusCalls(focus);
       if (editing !== id) navigate({ item: id });
    };
    const close = (id: number) => {
       refocus.current = [`roadmap-bar-${id}`, `roadmap-grip-${id}`];
       navigate({ item: null });
    };
-   const openFromReceipt = (id: number) => {
+   const openFromReceipt = (id: number, focus: true | 'plan' = true) => {
       if (held()) return;
       setPanel('plan');
-      setFocusCalls(true);
+      setFocusCalls(focus);
       navigate(openPlan(nav, id));
    };
    // its row on Decide, asked or answered here, else the plan alone, for the
@@ -2964,8 +2974,8 @@ export function Roadmap({
                   linked={linked}
                   call={planCalls.get(item.id) ?? null}
                   open={isOpen}
-                  onOpen={() => open(item.id, 'plan')}
-                  onOpenPlan={openFromReceipt}
+                  onOpen={focus => open(item.id, 'plan', focus)}
+                  onOpenPlan={id => openFromReceipt(id, 'plan')}
                   onPerson={person}
                   onOpenProject={slug => navigate({ project: slug })}
                   onMove={to => moved(item, to)}
@@ -3692,7 +3702,7 @@ export function Roadmap({
                      today={today}
                      calls={planCalls}
                      unplanned={unplanned.length}
-                     onOpen={id => openFromReceipt(id)}
+                     onOpen={(id, focus) => openFromReceipt(id, focus)}
                      onPerson={person}
                      onTimeline={() =>
                         navigate({ scale: 'quarter', zoom: null, show: 'unplanned' })
