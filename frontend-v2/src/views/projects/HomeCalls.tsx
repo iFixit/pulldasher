@@ -525,7 +525,7 @@ export function HomeStrip({
 
 /**
  * Decide's Initiative switch, beside the team switch: an owner runs their
- * slice. A select, since there can be twenty; each names how many are owed,
+ * slice. A select, since there can be twenty; each says how many are owed,
  * and only the ones with something owed are offered (and the one picked):
  * the open homes in rank order, a closed initiative while a project in it
  * is asked about, then Unsorted and No project yet.
@@ -542,7 +542,9 @@ export function InitiativeSwitch({
    onChange: (slug: string | null) => void;
 }) {
    const id = useId();
-   const counted = (label: string, count: number) => (count ? `${label} · ${count}` : label);
+   // what it counts, said: a band elsewhere counts its rows, which aren't
+   // all asked about (Unsorted · 13 on the Roadmap holds 8 owed here)
+   const counted = (label: string, count: number) => (count ? `${label} · ${count} owed` : label);
    const closed = byRank(initiatives).filter(i => i.status !== 'open');
    const offered = [
       ...[...homeChoices(initiatives), ...closed].map(i => [i.slug, i.name] as const),
