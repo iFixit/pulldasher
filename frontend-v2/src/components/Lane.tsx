@@ -421,11 +421,25 @@ export function Fold({
          foldOpenStore.set({ ...foldOpenStore.get(), [id]: next });
    };
    // the label and its count stay on one line: on a phone a long detail
-   // beside them split "FIXBOT · 3" across two
+   // beside them split "FIXBOT · 3" across two. A band with a gutter (the
+   // roadmap's initiatives, whose names run long) wraps its detail to the
+   // line below instead, so the label stays on the grip's line, and a name
+   // wider than the band ends in an ellipsis, its count kept
    const labelInner = (
-      <span className="shrink-0 whitespace-nowrap">
-         <span className={tone === 'do' ? 'text-brand-700' : 'text-ink-3'}>{label}</span>
-         {showCount && count > 0 && <span className="tabular-nums text-ink-3"> · {count}</span>}
+      <span className={gutter ? 'flex min-w-0 whitespace-nowrap' : 'shrink-0 whitespace-nowrap'}>
+         <span
+            className={`${tone === 'do' ? 'text-brand-700' : 'text-ink-3'} ${
+               gutter ? 'min-w-0 truncate' : ''
+            }`}
+         >
+            {label}
+         </span>
+         {showCount && count > 0 && (
+            // a flex item drops a leading space, so the gutter's takes a fixed one
+            <span className="shrink-0 tabular-nums text-ink-3">
+               {gutter ? '\u00a0' : ' '}· {count}
+            </span>
+         )}
       </span>
    );
    const fold = (
@@ -443,7 +457,9 @@ export function Fold({
             // the band is the one focus stop; a screen reader hears the gloss
             // with it, the way a mouse gets it on hover
             aria-describedby={gloss ? glossId : undefined}
-            className={`flex cursor-pointer list-none items-center gap-2 bg-muted/40 py-[6px] pr-3.5 transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none [&::-webkit-details-marker]:hidden ${
+            className={`flex cursor-pointer list-none items-center gap-x-2 bg-muted/40 py-[6px] pr-3.5 ${
+               gutter ? 'flex-wrap' : ''
+            } transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none [&::-webkit-details-marker]:hidden ${
                gutter ? 'pl-8' : 'pl-3.5'
             } ${caps ? eyebrowText : 'text-[11px] font-semibold'}`}
          >
@@ -457,7 +473,13 @@ export function Fold({
                   label={`what “${label}” means`}
                   side="right"
                   hover
-                  rootClass="relative inline-flex"
+                  // at most the band less its chevron, so a long name stays
+                  // on the chevron's line and ends in an ellipsis
+                  rootClass={
+                     gutter
+                        ? 'relative inline-flex min-w-0 max-w-[calc(100%-1.25rem)]'
+                        : 'relative inline-flex'
+                  }
                   width="w-max max-w-[280px]"
                   panelClass="p-2 text-xs"
                   trigger={t => (
@@ -477,7 +499,7 @@ export function Fold({
                            if (el) el.open = !el.open;
                         }}
                         // dotted, as every explanation on hover is
-                        className={`hit rounded border-0 bg-transparent p-0 text-left underline decoration-dotted underline-offset-2 ${
+                        className={`hit min-w-0 rounded border-0 bg-transparent p-0 text-left underline decoration-dotted underline-offset-2 ${
                            caps ? eyebrowText : 'text-[11px] font-semibold'
                         }`}
                      >
