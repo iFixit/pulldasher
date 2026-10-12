@@ -15,7 +15,7 @@ import {
    restoreItem,
    updateItem,
 } from '../lib/roadmap.js';
-import { listInitiatives, trackedOnly, untrackedSlugs } from '../lib/initiatives.js';
+import { tracking, trackedOnly } from '../lib/initiatives.js';
 import { sharedValue } from '../lib/ttl-cache.js';
 import { loadPullLinks, loadWork } from '../lib/work.js';
 import {
@@ -63,22 +63,20 @@ const latelyNow = sharedValue(LATELY_MS, async () => {
    return latelyBySlug(today, work?.pace ?? {}, ongoing, now);
 });
 
-/** Which projects are Not tracked (lib/initiatives.js untrackedSlugs), kept
- * as long as what they did lately and forgotten with it. */
-const untrackedNow = sharedValue(LATELY_MS, async () => {
+/** Every initiative, each project's home, and which projects are Not
+ * tracked and which of those grew (lib/initiatives.js tracking): one
+ * computation every controller shares, kept as long as what they did lately
+ * and forgotten with it on every write. */
+const trackingNow = sharedValue(LATELY_MS, async () => {
    const settings = projectSettings();
-   return settings ? untrackedSlugs(settings, await listInitiatives()) : new Set();
+   return settings
+      ? tracking(settings)
+      : { initiatives: [], homes: new Map(), untracked: new Set(), grown: new Map() };
 });
 
-/** The not-tracked projects (untrackedNow); none when the read fails, so a
- * database without the initiatives tables still reads its roadmap. */
-export async function untrackedProjects() {
-   try {
-      return await untrackedNow.get();
-   } catch (err) {
-      console.error('roadmap: reading which projects are not tracked failed:', err);
-      return new Set();
-   }
+/** What trackingNow keeps. */
+export function trackedNow() {
+   return trackingNow.get();
 }
 
 /** What each project did lately (latelyNow); empty when the reads fail:
@@ -102,7 +100,7 @@ async function lately() {
  * the standing is read, so a not-tracked plan owes nothing.
  */
 async function sent(items) {
-   const [bySlug, untracked] = await Promise.all([lately(), untrackedProjects()]);
+   const [bySlug, { untracked }] = await Promise.all([lately(), trackedNow()]);
    const now = Date.now() / 1000;
    const today = teamDay(now);
    return items.map(item => {
@@ -156,7 +154,7 @@ const standingNow = sharedValue(STANDING_MS, async () => {
  * issues and their links, changed it (app.js). */
 export function forgetProjectCaches() {
    latelyNow.forget();
-   untrackedNow.forget();
+   trackingNow.forget();
    standingNow.forget();
 }
 
@@ -253,7 +251,7 @@ export default {
       const now = Math.floor(Date.now() / 1000);
       respondOrError(
          res,
-         Promise.all([listItems().then(sent), untrackedProjects()]).then(([all, untracked]) => {
+         Promise.all([listItems().then(sent), trackedNow()]).then(([all, { untracked }]) => {
             // not-tracked plans owe nothing
             const { items } = trackedOnly(untracked, { items: all });
             return {

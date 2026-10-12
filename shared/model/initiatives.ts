@@ -126,6 +126,23 @@ export function grew(since: number, baseline: number): boolean {
    return since >= Math.max(baseline, GROWTH_FLOOR);
 }
 
+/**
+ * The projects among `slugs` still going: a plan under way, or PRs open
+ * (`open`, by slug). The one rule for an initiative's work: it closes only
+ * once none is left, Decide asks whether it reached its goal only then, and
+ * a closed one with any is asked to reopen.
+ */
+export function goingProjects(
+   slugs: readonly string[],
+   items: readonly Pick<RoadmapItem, 'project' | 'status'>[],
+   open: (slug: string) => number
+): string[] {
+   const planned = new Set(
+      items.filter(i => i.project && isUnderWay(i.status)).map(i => i.project as string)
+   );
+   return slugs.filter(slug => planned.has(slug) || open(slug) > 0);
+}
+
 export type InitiativeFields = Pick<Initiative, 'slug' | 'name' | 'kind' | 'goal' | 'owner' | 'status'>;
 
 const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;

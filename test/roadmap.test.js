@@ -874,20 +874,3 @@ test('a not-tracked plan says so, owes no update, and leaves updates-owed', asyn
       );
    });
 });
-
-test('the roadmap still reads when the initiatives tables can’t be', async () => {
-   rows.push({ id: 1, name: 'Plan', project: 'alpha', status: 'active', start: '2026-01-05', weeks: 4, priority: 0 });
-   await withProjects([], async () => {
-      const base = projectQuery;
-      projectQuery = sql => {
-         if (sql.includes('`initiative')) throw new Error("Table 'initiatives' doesn't exist");
-         return base(sql);
-      };
-      forgetProjectCaches();
-      const errors = mock.method(console, 'error', () => {});
-      const { status, body } = await call('GET', '/roadmap', undefined, {});
-      errors.mock.restore();
-      assert.equal(status, 200);
-      assert.equal(body.items[0].untracked, false);
-   });
-});

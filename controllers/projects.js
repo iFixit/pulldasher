@@ -10,7 +10,8 @@ import {
    todayFromBoard,
 } from '../lib/projects.js';
 import { listItems } from '../lib/roadmap.js';
-import { tracking, trackedOnly } from '../lib/initiatives.js';
+import { trackedOnly } from '../lib/initiatives.js';
+import { trackedNow } from './roadmap.js';
 import {
    attachIssue,
    detachIssue,
@@ -84,7 +85,7 @@ function load(req, res) {
       res.status(400).json({ error: window.error || 'project must be one project slug' });
       return null;
    }
-   return Promise.all([loadProjects(settings), loadPullLinks(settings), tracking(settings)]).then(
+   return Promise.all([loadProjects(settings), loadPullLinks(settings), trackedNow()]).then(
       ([projects, linked, tracked]) =>
          loadWindow(settings, window.start, window.end, only, linked).then(
             ({ spans, reviews }) => ({
@@ -506,7 +507,7 @@ export default {
          loadProjects(settings),
          listItems(),
          loadPullLinks(settings),
-         tracking(settings),
+         trackedNow(),
       ]).then(([projects, plans, linked, tracked]) =>
          loadWork(settings, { plans, projects }).then(work => [projects, plans, work, linked, tracked])
       );
@@ -629,7 +630,7 @@ export default {
             : Promise.resolve({});
       respondOrError(
          res,
-         Promise.all([loadProjects(settings), listItems(), history, links, tracking(settings)]).then(
+         Promise.all([loadProjects(settings), listItems(), history, links, trackedNow()]).then(
             ([projects, allItems, allPast, linked, tracked]) => {
                const pulls = pullManager.getPulls();
                // not-tracked projects leave the load, past and ahead

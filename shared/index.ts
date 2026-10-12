@@ -125,6 +125,7 @@ export type {
 } from './model/decide';
 export {
    checkInitiativeFields,
+   goingProjects,
    grew,
    homesOf,
    initiativeSpan,

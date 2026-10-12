@@ -15,8 +15,8 @@ import {
 import { undoTimes } from './roadmap.js';
 import {
    checkInitiativeFields,
+   goingProjects,
    initiativeSpan,
-   isUnderWay,
    DEFAULT_PROJECT_PREFIX,
    PROJECT_SLUG,
 } from '../shared/dist/index.js';
@@ -41,21 +41,23 @@ async function sent(initiatives, items) {
 }
 
 /**
- * The projects in an initiative with work going: a plan under way, or PRs
- * open on the board. An initiative closes only once none is left.
+ * The projects in an initiative still going (goingProjects: a plan under
+ * way, or PRs open on the board), by the same rule Decide asks by. An
+ * initiative closes only once none is left.
  */
 async function liveProjects(initiative) {
-   const slugs = initiative.projects.map(f => f.project);
-   const going = new Set(
-      (await listItems()).filter(i => i.project && isUnderWay(i.status)).map(i => i.project)
-   );
    const settings = projectSettings();
+   const open = new Map();
    if (settings) {
       const [projects, linked] = await Promise.all([loadProjects(settings), loadPullLinks(settings)]);
       const today = todayFromBoard(pullManager.getPulls(), projects, settings.prefix, undefined, linked);
-      for (const g of today.live) if (g.open.length) going.add(g.slug);
+      for (const g of today.live) open.set(g.slug, g.open.length);
    }
-   return slugs.filter(slug => going.has(slug));
+   return goingProjects(
+      initiative.projects.map(f => f.project),
+      await listItems(),
+      slug => open.get(slug) ?? 0
+   );
 }
 
 /** A failed write's 500, logged. */

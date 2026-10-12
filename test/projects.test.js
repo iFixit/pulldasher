@@ -19,6 +19,7 @@ import {
    MAX_WINDOW_DAYS,
 } from '../lib/projects.js';
 import projectsController from '../controllers/projects.js';
+import { forgetProjectCaches } from '../controllers/roadmap.js';
 import { fieldsFromNodes } from '../lib/git-manager.js';
 
 const DAY = 86400;
@@ -332,6 +333,8 @@ let initiativeRows = [];
 let filingRows = [];
 let labelRepos = [];
 let labelDates = [];
+// how many times the initiatives table was read
+let initiativeReads = 0;
 
 const label = (title, number) => new Label({ name: title }, number, 'test/repo-a', 'job-bot');
 
@@ -424,7 +427,10 @@ before(() => {
             { reviewer: 'alice', repo: 'test/repo-a', number: 11, author: 'alice', at: now - DAY },
          ];
       }
-      if (sql.includes('FROM `initiatives`')) return initiativeRows;
+      if (sql.includes('FROM `initiatives`')) {
+         initiativeReads++;
+         return initiativeRows;
+      }
       if (sql.includes('FROM `initiative_projects`')) return filingRows;
       if (sql.startsWith('SELECT l.`title`, p.`repo`')) return labelRepos;
       if (sql.startsWith('SELECT l.`title`, p.`date`')) {
@@ -746,14 +752,18 @@ const filingRow = (project, initiative_id, over = {}) => ({
 /** `n` PRs labeled for `slug`, opened at `at` */
 const prsOf = (slug, n, at) => Array.from({ length: n }, () => ({ title: `project:${slug}`, date: at }));
 
+// what the controllers keep of initiatives (controllers/roadmap.js
+// trackedNow) is read again for each fixture, as a write makes it be
 function withInitiatives(rows, filings, run) {
    initiativeRows = rows;
    filingRows = filings;
+   forgetProjectCaches();
    return run().finally(() => {
       initiativeRows = [];
       filingRows = [];
       labelDates = [];
       labelRepos = [];
+      forgetProjectCaches();
    });
 }
 
@@ -763,6 +773,21 @@ test('with no initiatives, nothing is not tracked and nothing changes', async ()
    const { body } = await get('/api/v1/projects');
    const alpha = body.projects.find(p => p.slug === 'alpha');
    assert.deepEqual([alpha.initiative, alpha.tracked, alpha.grew], [null, true, false]);
+});
+
+test('the board and API endpoints share one read of the initiatives until a write', async () => {
+   await withInitiatives([initiativeRow(2, 'not-tracked', 'untracked')], [filingRow('alpha', 2)], async () => {
+      initiativeReads = 0;
+      for (const path of ['/projects-data', '/api/v1/projects', '/api/v1/decide', '/api/v1/load']) {
+         await get(path);
+      }
+      assert.equal(initiativeReads, 1);
+      // a write forgets it (app.js projectsChanged), and the next read sees the change
+      filingRows = [];
+      forgetProjectCaches();
+      const { body } = await get('/projects-data');
+      assert.deepEqual([initiativeReads, body.untracked], [2, []]);
+   });
 });
 
 test('/projects-data and /api/v1/projects say each project’s home, tracking and growth', async () => {
@@ -776,6 +801,8 @@ test('/projects-data and /api/v1/projects say each project’s home, tracking an
          let data = await get('/projects-data');
          assert.deepEqual([data.body.untracked, data.body.grew], [['alpha'], []]);
          labelDates.push(...prsOf('alpha', 1, now - DAY));
+         // a new PR reaches the count once what's kept is read again
+         forgetProjectCaches();
          data = await get('/projects-data');
          assert.deepEqual(data.body.grew, ['alpha']);
          assert.deepEqual(data.body.grew_counts, { alpha: { since: 30, baseline: 30 } });
@@ -825,6 +852,7 @@ test('/api/v1/decide leaves not-tracked projects out, but asks about the ones th
          assert.ok(!planned.body.decisions.some(d => d.project === 'alpha'));
          roadmapRows = [];
          labelDates = prsOf('alpha', 30, now);
+         forgetProjectCaches();
          const grown = await get('/api/v1/decide');
          const row = grown.body.decisions.find(d => d.project === 'alpha');
          assert.equal(row.name, 'Alpha work');
@@ -861,6 +889,7 @@ test('/api/v1/load leaves not-tracked projects out, past and ahead', async () =>
          const planned = await get('/api/v1/load');
          assert.equal(planned.body.this_week.on_plan, 0);
          filingRows = [];
+         forgetProjectCaches();
          const tracked = await get('/api/v1/load');
          assert.equal(tracked.body.this_week.on_plan, 1);
          roadmapRows = [];
