@@ -16,9 +16,21 @@ jobs:
           node-version: "24"
           cache: npm
 
+      # also builds shared/dist and installs frontend-v2 (package.json postinstall)
       - run: npm install
 
       - name: Lint
         run: npm run lint
 
       - run: npm run build
+
+      - name: Server tests
+        run: npm test
+
+      - name: Frontend types
+        working-directory: frontend-v2
+        run: npx tsc --noEmit
+
+      - name: Frontend tests
+        working-directory: frontend-v2
+        run: npx vitest run

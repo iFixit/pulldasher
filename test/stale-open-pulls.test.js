@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import gitManager from "../lib/git-manager.js";
 import dbManager from "../lib/db-manager.js";
-import { createRefresh, findStaleOpenPulls } from "../lib/refresh.js";
+import { createRefresh, findMissingOpenPulls, findStaleOpenPulls } from "../lib/refresh.js";
 
 const githubPull = (repo, number) => ({ number, base: { repo: { full_name: repo } } });
 
@@ -24,6 +24,14 @@ test("findStaleOpenPulls keeps DB-open pulls missing from a successful listing",
     { repo: "test/repo-a", number: 2 },
     { repo: "Test/Repo-C", number: 4 },
   ]);
+});
+
+test("findMissingOpenPulls keeps listed pulls the DB doesn't hold as open", () => {
+  const listed = [githubPull("Test/Repo-A", 1), githubPull("test/repo-a", 2)];
+
+  const missing = findMissingOpenPulls([{ repo: "test/repo-a", number: 1 }], listed);
+
+  assert.deepEqual(missing, [githubPull("test/repo-a", 2)]);
 });
 
 // A pull whose close webhook was lost stays open in the DB. openPulls refetches it,
@@ -75,4 +83,42 @@ test("openPulls still resolves when the DB can't list open pulls", async (t) => 
 
   assert.equal(getPull.mock.callCount(), 0);
   assert.deepEqual(result, { failedRepos: [], failedItems: [] });
+});
+
+// Org repos left out of config.repos only get pulls by webhook, so a lost close
+// there stayed open for good (iFixit/ops#1055). The repair lists them too, and a
+// repo whose listing fails proves nothing about its pulls, but is reported.
+test("reconcileOpenPulls refetches stale open pulls in repos outside config.repos", async (t) => {
+  const listed = [];
+  t.mock.method(gitManager, "getOpenPulls", (repo) => {
+    listed.push(repo);
+    if (repo === "test/gone") return Promise.reject(new Error("404"));
+    return Promise.resolve(repo === "Test/Untracked" ? [githubPull(repo, 6)] : []);
+  });
+  t.mock.method(dbManager, "getOpenPullIds", () =>
+    Promise.resolve([
+      { repo: "Test/Untracked", number: 5 },
+      { repo: "test/untracked", number: 6 },
+      { repo: "test/gone", number: 7 },
+    ])
+  );
+  const fetched = [];
+  t.mock.method(gitManager, "getPull", (repo, number) => {
+    fetched.push(`${repo}#${number}`);
+    return Promise.resolve({ ...githubPull(repo, number), state: "closed" });
+  });
+  t.mock.method(gitManager, "parse", (response) => Promise.resolve(response));
+  t.mock.method(dbManager, "updateAllPullData", () => Promise.resolve());
+
+  const result = await createRefresh().reconcileOpenPulls();
+
+  assert.deepEqual(listed.sort(), [
+    "Test/Untracked",
+    "test/gone",
+    "test/repo-a",
+    "test/repo-b",
+    "test/repo-c",
+  ]);
+  assert.deepEqual(fetched, ["Test/Untracked#5"]);
+  assert.deepEqual(result, { failedRepos: ["test/gone"], failedItems: [] });
 });

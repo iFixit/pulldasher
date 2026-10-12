@@ -72,7 +72,9 @@ function queryMergeAgeByDay() {
 
 /**
  * Per-pull hours from open to first CR signature, for merged pulls in the
- * last 12 months. One row per (repo, number) — used both to compute the
+ * last 12 months. Only someone other than the author counts: under
+ * self-review the author's own CR would read as zero, and a pull with only
+ * that has no first review and drops out. One row per (repo, number) — used both to compute the
  * monthly average in SQL and, in JS, the monthly median (MySQL has no
  * MEDIAN aggregate, and the row count here is small enough — thousands, not
  * millions — that pulling the raw latencies and sorting in JS is simpler
@@ -86,10 +88,11 @@ function queryFirstCrLatencies() {
              (cr.min_date - p.date) AS latency_seconds \
         FROM pulls p \
         JOIN ( \
-          SELECT repo, number, MIN(date) AS min_date \
-            FROM pull_signatures \
-           WHERE type = 'CR' \
-           GROUP BY repo, number \
+          SELECT s.repo, s.number, MIN(s.date) AS min_date \
+            FROM pull_signatures s \
+            JOIN pulls o ON o.repo = s.repo AND o.number = s.number \
+           WHERE s.type = 'CR' AND s.user <> o.owner \
+           GROUP BY s.repo, s.number \
         ) cr ON cr.repo = p.repo AND cr.number = p.number \
        WHERE p.date_merged >= ? \
          AND cr.min_date > p.date";
@@ -209,7 +212,7 @@ function loadHistory() {
 // factored out so they're independently testable without a live DB connection
 // (mirrors lib/refresh.js exporting processIssueItem/processPullItem for the
 // same reason).
-export { firstCrByMonth, median, formatDate, formatIsoWeek, round1 };
+export { queryFirstCrLatencies, firstCrByMonth, median, formatDate, formatIsoWeek, round1 };
 
 export default {
    /**

@@ -1,5 +1,10 @@
 import { io, type Socket } from 'socket.io-client';
-import type { InitializePayload, PullData, TokenResponse } from '../../../shared/types';
+import type {
+   InitializePayload,
+   PullData,
+   RefreshAllProgress,
+   TokenResponse,
+} from '../../../shared/types';
 import { isDummy, loadDummy, dummyUser } from './dummy';
 import { readSessionStorage, writeSessionStorage } from '../storage';
 
@@ -25,6 +30,10 @@ export interface Backend {
     * (re)auth), so the UI can say "sign in again" instead of "retrying". */
    onAuthExpired: (handler: (expired: boolean) => void) => () => void;
    refreshPull: (repo: string, number: number) => void;
+   /** Ask the server to bring the board to GitHub's state. Every board hears
+    * how far it got through onRefreshAll. */
+   refreshAll: () => void;
+   onRefreshAll: (handler: (progress: RefreshAllProgress) => void) => () => void;
    /** Ask to review a pull. The server derives the login from the socket's
     * own auth — no login argument here. A claim is a GitHub review request
     * the reviewer made on themselves (see types.ts's review_requests), so it
@@ -32,6 +41,13 @@ export interface Backend {
     * released, or removed on GitHub, same as any other review request. */
    claimReview: (repo: string, number: number) => void;
    releaseReview: (repo: string, number: number) => void;
+   /** Calls `handler` when something the Projects tab shows changed on the
+    * server (a roadmap write, an issue added, a setting, a sync), so open
+    * boards fetch it again; returns the unsubscribe. */
+   onProjectsChanged: (handler: () => void) => () => void;
+   /** Calls `handler` with the new developer roster when someone saves it,
+    * so open boards re-derive who owes a review; returns the unsubscribe. */
+   onDeveloperTeams: (handler: (teams: Record<string, string[]> | undefined) => void) => () => void;
 }
 
 function liveBackend(): Backend {
@@ -41,12 +57,17 @@ function liveBackend(): Backend {
    const getToken = () => {
       token =
          token ??
-         fetch('/token').then(async r => {
+         // the redirect isn't followed: it goes to GitHub, cross-site, and a
+         // blocked hop would read as a network blip and retry forever
+         fetch('/token', { redirect: 'manual' }).then(async r => {
             // an expired session redirects toward the OAuth flow (or 401s)
-            // instead of returning JSON. Separate that dead-session case from
-            // a transient network/5xx failure, so only the former says "sign
-            // in again" while a blip keeps retrying quietly.
-            if (r.redirected || r.status === 401) throw new AuthExpiredError(r.status);
+            // instead of returning JSON (a server restart drops every
+            // session). Separate that dead-session case from a transient
+            // network/5xx failure, so only the former says "sign in again"
+            // while a blip keeps retrying quietly.
+            if (r.type === 'opaqueredirect' || r.redirected || r.status === 401) {
+               throw new AuthExpiredError(r.status);
+            }
             if (!r.ok) throw new Error(`token fetch failed: ${r.status}`);
             const t = (await r.json()) as TokenResponse;
             if (!t.socketToken) throw new Error('token response missing socketToken');
@@ -92,8 +113,10 @@ function liveBackend(): Backend {
       token = null;
       getToken().then(
          t => {
-            // a valid /token proves the app session is alive again
+            // a valid /token proves the app session is alive again, and
+            // clears a "live updates lost" a failed attempt left up
             onAuth?.(false);
+            onState?.('connected');
             socket!.emit('authenticate', t.socketToken);
          },
          (err: unknown) => {
@@ -111,9 +134,14 @@ function liveBackend(): Backend {
       );
    };
 
+   // how many board snapshots this socket has had: the first is the connect,
+   // every later one a reconnect. Counted here, before any subscriber, since
+   // subscribers often start only after the first one arrived.
+   let snapshots = 0;
    const getSocket = () => {
       if (socket) return socket;
       socket = io();
+      socket.on('initialize', () => snapshots++);
       socket.on('connect', () => {
          clearAuthRetry();
          authenticate();
@@ -126,6 +154,12 @@ function liveBackend(): Backend {
       // returning — skips the wait and reconnects now.
       const wake = () => {
          if (socket && !socket.connected) socket.connect();
+         // connected but waiting out a sign-in retry: try now (as a retry, so
+         // a dead session can reload the page and sign back in)
+         else if (socket && authRetry != null) {
+            clearAuthRetry();
+            authenticate(1);
+         }
       };
       document.addEventListener('visibilitychange', () => {
          if (document.visibilityState === 'visible') wake();
@@ -141,6 +175,30 @@ function liveBackend(): Backend {
          const s = getSocket();
          s.on('initialize', (data: InitializePayload) => handler(data));
          s.on('pullChange', (pull: PullData) => handler(pull));
+      },
+      onProjectsChanged(handler) {
+         const s = getSocket();
+         // a change sent while the socket was down is never replayed, so a
+         // reconnect (any snapshot after the first, counted socket-wide)
+         // fetches again, even for a subscriber that started after the first
+         const reconnected = () => {
+            if (snapshots > 1) handler();
+         };
+         s.on('projectsChanged', handler);
+         s.on('initialize', reconnected);
+         return () => {
+            s.off('projectsChanged', handler);
+            s.off('initialize', reconnected);
+         };
+      },
+      onDeveloperTeams(handler) {
+         const s = getSocket();
+         const heard = (data: { developerTeams?: Record<string, string[]> }) =>
+            handler(data.developerTeams);
+         s.on('developerTeamsChanged', heard);
+         return () => {
+            s.off('developerTeamsChanged', heard);
+         };
       },
       onConnection(handler) {
          onState = handler;
@@ -167,6 +225,16 @@ function liveBackend(): Backend {
       refreshPull(repo, number) {
          getSocket().emit('refresh', repo, number);
       },
+      refreshAll() {
+         getSocket().emit('refreshAll');
+      },
+      onRefreshAll(handler) {
+         const s = getSocket();
+         s.on('refreshAllProgress', handler);
+         return () => {
+            s.off('refreshAllProgress', handler);
+         };
+      },
       claimReview(repo, number) {
          getSocket().emit('claimReview', repo, number);
       },
@@ -179,7 +247,8 @@ function liveBackend(): Backend {
 function dummyBackend(): Backend {
    let emit: ((payload: InitializePayload | PullData) => void) | null = null;
    let loaded: InitializePayload | null = null;
-   let staggered = 0;
+   let onPress: ((progress: RefreshAllProgress) => void) | null = null;
+   let pressing = false;
 
    /** Mutate one dummy pull in place and re-emit it through the normal
     * pullChange path — the dummy board's stand-in for a server round trip
@@ -194,6 +263,15 @@ function dummyBackend(): Backend {
    }
 
    return {
+      // one person on the dummy board: nobody else's writes to hear, so
+      // nothing to unsubscribe from either
+      // the dummy roadmap's writes say it (model/roadmapData.ts announcing)
+      onProjectsChanged(handler) {
+         window.addEventListener('pd:projectsChanged', handler);
+         return () => window.removeEventListener('pd:projectsChanged', handler);
+      },
+      // the dummy roster never changes
+      onDeveloperTeams: () => () => undefined,
       whoami: () => Promise.resolve(dummyUser()),
       onPulls(handler) {
          emit = handler;
@@ -232,19 +310,36 @@ function dummyBackend(): Backend {
          return () => undefined;
       },
       refreshPull(repo, number) {
-         // The dummy data is static, but the refresh-progress UI still needs
-         // arrivals to count — re-emit the same pull on a stagger so the
-         // "X of N" counter animates to completion like a real refresh would.
+         // The dummy data is static: re-emit the same pull, as a server would
+         // after refetching it.
          const pull = loaded?.pulls.find(p => p.repo === repo && p.number === number);
-         if (!pull || !emit) return;
-         staggered += 1;
-         setTimeout(
-            () => {
-               staggered -= 1;
-               emit?.(pull);
-            },
-            300 + staggered * 15
-         );
+         if (pull) setTimeout(() => emit?.(pull), 300);
+      },
+      refreshAll() {
+         // No GitHub behind the dummy board: play a press that finds 4 pulls
+         // to refetch, waits on the rate limit once and has one fail, so
+         // every state of the status line shows.
+         if (pressing) return;
+         pressing = true;
+         const at = (ms: number, p: RefreshAllProgress) => setTimeout(() => onPress?.(p), ms);
+         const step = (done: number, failed = 0) => ({ done, total: 4, failed, skipped: 0 });
+         at(0, { state: 'checking', done: 0, total: 0, failed: 0, skipped: 0 });
+         at(1200, { state: 'refreshing', ...step(0) });
+         at(1700, { state: 'refreshing', ...step(1) });
+         at(2200, { state: 'refreshing', ...step(2) });
+         at(2700, { state: 'waiting', until: Date.now() + 6000, ...step(2) });
+         at(5700, { state: 'refreshing', ...step(3) });
+         at(6200, { state: 'refreshing', ...step(4, 1) });
+         setTimeout(() => {
+            pressing = false;
+            onPress?.({ state: 'done', ...step(4, 1) });
+         }, 6300);
+      },
+      onRefreshAll(handler) {
+         onPress = handler;
+         return () => {
+            onPress = null;
+         };
       },
       claimReview(repo, number) {
          updatePull(repo, number, pull => ({

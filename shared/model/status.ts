@@ -80,8 +80,28 @@ export interface DerivedPull {
    ageDays: number;
    /** epoch secs the last required sign-off landed; null until fully signed off */
    signedOffAt: number | null;
-   /** CR-incomplete past STARVE_DAYS — including half-reviewed and stale-CR rot */
+   /** CR-incomplete past STARVE_DAYS on a pull waiting on someone else's
+    * review (asked for, or from outside the dev team); a developer's own
+    * unrequested pull never starves, its review is the author's job */
    starved: boolean;
+   /** the self-review policy: a developer's pull with no review request (no
+    * person, no team, no claim). Its CR and QA are the author's own to do,
+    * and nobody else owes it anything */
+   ownReview: boolean;
+   /** the author is on the dev roster (and not a bot), whether or not they
+    * asked for a review. A request on record doesn't prove it: contractors
+    * ask too, and their pull still needs someone else's CR and QA */
+   authorIsDeveloper: boolean;
+   /** logins asked to review it by the author's side: requested reviewers
+    * (claims excluded) plus every member of a requested roster team; never
+    * the author */
+   askedOf: string[];
+   /** epoch secs of the earliest open request in askedOf; null if none or
+    * unknown. Requests are answered in hours, so this clock drives the nudge */
+   askedAt: number | null;
+   /** when each login in askedOf was asked: their own request, else their
+    * team's; null when unknown. Optional so older fixtures still type */
+   askedAtBy?: Record<string, number | null>;
    starveScore: number;
    weight: Weight;
    /** mergeable === false: shows as a flag everywhere, gates "ready" */
@@ -109,7 +129,7 @@ export interface DerivedPull {
 }
 
 export const WEIGHT_ORDER = ['XS', 'S', 'M', 'L', 'XL'] as const;
-export type Weight = (typeof WEIGHT_ORDER)[number];
+export type Weight = typeof WEIGHT_ORDER[number];
 const WEIGHT_RANK: Record<Weight, number> = WEIGHT_ORDER.reduce(
    (acc, w, i) => ({ ...acc, [w]: i }),
    {} as Record<Weight, number>
@@ -152,14 +172,15 @@ export const ROT_DAYS = 10;
 const activeUsers = (sigs: Signature[]) =>
    unique(sigs.filter(s => s.data.active).map(s => s.data.user.login));
 
-/** users with only invalidated stamps (no active one), excluding the author */
-const staleUsers = (sigs: Signature[], author: string) => {
+/** users with only invalidated stamps (no active one), the author included:
+ * under self-review an author's own stale stamp is a re-stamp they owe */
+const staleUsers = (sigs: Signature[]) => {
    const active = activeUsers(sigs);
    return unique(
       sigs
          .filter(s => !s.data.active)
          .map(s => s.data.user.login)
-         .filter(u => !active.includes(u) && u !== author)
+         .filter(u => !active.includes(u))
    );
 };
 
@@ -244,6 +265,43 @@ export function headPushedAt(pull: PullData): number | null {
 export const crDone = (p: { crHave: number; data: PullData }) => p.crHave >= p.data.status.cr_req;
 export const qaDone = (p: { qaHave: number; data: PullData }) => p.qaHave >= p.data.status.qa_req;
 
+/** Who counts as a developer, and the roster teams a GitHub team request
+ * resolves through. Built once from config projects.developerTeams. */
+export interface ReviewPolicy {
+   /** developer logins (lowercased); empty means everyone is a developer */
+   developers: ReadonlySet<string>;
+   /** roster team name, lowercased and slugged like GitHub's ("Store
+    * Front" -> "store-front"), to its logins */
+   teams: ReadonlyMap<string, string[]>;
+   /** config `bots` beyond the `[bot]` suffix: never developers, so their
+    * PRs still need someone else's review */
+   bots: ReadonlySet<string>;
+}
+
+const slug = (name: string) => name.trim().toLowerCase().replace(/\s+/g, '-');
+
+export function reviewPolicy(
+   developerTeams?: Record<string, string[]> | null,
+   bots: readonly string[] = []
+): ReviewPolicy {
+   const teams = new Map<string, string[]>();
+   const developers = new Set<string>();
+   for (const [name, logins] of Object.entries(developerTeams ?? {})) {
+      if (!Array.isArray(logins)) continue;
+      teams.set(slug(name), logins);
+      logins.forEach(l => developers.add(l.toLowerCase()));
+   }
+   return { developers, teams, bots: new Set(bots.map(b => b.toLowerCase())) };
+}
+
+const EVERYONE_DEVELOPS: ReviewPolicy = reviewPolicy();
+
+/** a bot never reviews its own PRs, whatever the roster says */
+export const isDeveloper = (policy: ReviewPolicy, login: string) =>
+   !isSuffixBot(login) &&
+   !policy.bots.has(login.toLowerCase()) &&
+   (!policy.developers.size || policy.developers.has(login.toLowerCase()));
+
 export function derive(
    pull: PullData,
    spec: RepoSpec | undefined,
@@ -254,7 +312,9 @@ export function derive(
    /** label title → weight bucket, from config.json's `weightLabels`. A
     * matching label is the authoritative review-effort signal and overrides
     * the diff-size heuristic; empty map keeps the heuristic. */
-   weightLabels: ReadonlyMap<string, Weight> = new Map()
+   weightLabels: ReadonlyMap<string, Weight> = new Map(),
+   /** who's a developer and what a team request means (reviewPolicy) */
+   policy: ReviewPolicy = EVERYONE_DEVELOPS
 ): DerivedPull {
    const st = pull.status;
    const crBy = activeUsers(st.allCR);
@@ -263,8 +323,57 @@ export function derive(
    const qaHave = qaBy.length;
    const ci = ciVerdict(pull, spec);
 
-   const staleCr = staleUsers(st.allCR, pull.user.login);
-   const staleQa = staleUsers(st.allQA, pull.user.login);
+   const author = pull.user.login;
+   // the author's own stamp goes stale on a push like anyone's, and under
+   // self-review it's the author who owes the re-stamp
+   const staleCr = staleUsers(st.allCR);
+   const staleQa = staleUsers(st.allQA);
+
+   // who the author's side asked and hasn't answered: people (not claims,
+   // which are a reviewer volunteering) and every member of a requested
+   // roster team, minus anyone whose CR already counts. A CR comment doesn't
+   // clear GitHub's request, so without that a stamped reviewer would stay
+   // "asked" (and the author would be told to nudge them).
+   const claims = new Set((pull.review_requests ?? []).filter(r => r.self).map(r => r.login));
+   const requestedTeams = pull.requested_teams ?? [];
+   // a team the roster doesn't name (say @iFixit/coders, the whole dev
+   // team) asks every developer on the roster. With no roster there's
+   // nobody to name, so a team request asks nobody in particular: it shows
+   // under Could use your input, and team requests need a roster to route.
+   const everyone = [...policy.teams.values()].flat();
+   const teamOf = new Map<string, string>();
+   for (const t of requestedTeams)
+      for (const l of policy.teams.get(t.toLowerCase()) ?? everyone)
+         if (!teamOf.has(l)) teamOf.set(l, t.toLowerCase());
+   const askedOf = unique([
+      ...(pull.requested_reviewers ?? []).filter(l => !claims.has(l)),
+      ...teamOf.keys(),
+   ]).filter(l => l.toLowerCase() !== author.toLowerCase() && !crBy.includes(l));
+   // a person's own request time, else their team's
+   const teamAt = new Map(
+      (pull.team_requests ?? []).map(t => [t.slug.toLowerCase(), t.at] as const)
+   );
+   const askedTimes = askedOf.map(
+      l =>
+         (pull.review_requests ?? []).find(r => !r.self && r.login === l)?.at ??
+         teamAt.get(teamOf.get(l) ?? '') ??
+         null
+   );
+   const askedAt = Math.min(...askedTimes.filter((t): t is number => t != null));
+   const ownReview =
+      isDeveloper(policy, author) &&
+      !(pull.requested_reviewers ?? []).length &&
+      !requestedTeams.length &&
+      // GitHub clears a request once the reviewer reviews; that request was
+      // still made, so the PR isn't self-review after a push. Only a developer
+      // counts: a reviewer who left the roster, or a bot, doesn't hold it.
+      !(pull.review_requests ?? []).some(r => r.answered && isDeveloper(policy, r.login));
+   // an answered reviewer off the roster owes no re-stamp either
+   const offRoster = new Set(
+      (pull.review_requests ?? [])
+         .filter(r => r.answered && !isDeveloper(policy, r.login))
+         .map(r => r.login)
+   );
 
    // a lifted block deactivates its signature, same as a stale CR stamp
    const devBlockedBy = activeUsers(st.dev_block);
@@ -306,10 +415,18 @@ export function derive(
    // scores, the turn rotation) — must never see them as rotting
    const isParked = !!label(LABELS.cryo);
 
+   // on a self-reviewed pull only the author owes a re-stamp: anyone else's
+   // stamp there was a favor nobody asked for, so a push doesn't put them
+   // on the hook
+   const owedCr = ownReview
+      ? staleCr.filter(u => u === author)
+      : staleCr.filter(u => !offRoster.has(u));
+   const owedQa = ownReview ? staleQa.filter(u => u === author) : staleQa;
+
    let status: Status;
    if (pull.draft) status = 'draft';
    else if (devBlockedBy.length) status = 'dev_block';
-   else if (!crMet && staleCr.length) status = 'needs_recr';
+   else if (!crMet && owedCr.length) status = 'needs_recr';
    else if (!crMet) status = 'needs_cr';
    else if (!qaMet) status = 'needs_qa';
    // CI gates readiness only (see the Status doc): a red or pending build
@@ -332,7 +449,8 @@ export function derive(
    // Rot is rot whether the pull has zero stamps, one of two, or a stale one
    // waiting on a re-stamp — the old `crHave === 0` cliff hid half-reviewed
    // pulls from the aging lane forever.
-   const starved = !isParked && CR_INCOMPLETE.includes(status) && !crMet && ageDays >= warnDays;
+   const starved =
+      !isParked && !ownReview && CR_INCOMPLETE.includes(status) && !crMet && ageDays >= warnDays;
 
    const signedOffAt =
       crMet && qaMet
@@ -355,8 +473,8 @@ export function derive(
       qaHave,
       // a stale stamp only owes a re-stamp while the requirement is unmet —
       // once others satisfy it, nothing is asked of the stale signer
-      recrBy: crMet ? [] : staleCr,
-      reqaBy: qaMet ? [] : staleQa,
+      recrBy: crMet ? [] : owedCr,
+      reqaBy: qaMet ? [] : owedQa,
       headPushedAt: headPushedAt(pull),
       ageDays,
       signedOffAt,
@@ -373,6 +491,11 @@ export function derive(
       cryo: isParked,
       changesRequestedBy,
       engagedNoStamp,
+      ownReview,
+      authorIsDeveloper: isDeveloper(policy, author),
+      askedOf,
+      askedAt: Number.isFinite(askedAt) ? askedAt : null,
+      askedAtBy: Object.fromEntries(askedOf.map((l, i) => [l, askedTimes[i]])),
    };
 }
 

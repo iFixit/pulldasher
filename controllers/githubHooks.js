@@ -13,6 +13,25 @@ import getLogin from '../lib/get-user-login.js';
 import utils from '../lib/utils.js';
 import dbManager from '../lib/db-manager.js';
 import git from '../lib/git-manager.js';
+import { isBaseMerge } from '../lib/base-merge.js';
+
+// how long a push waits on GitHub to say what its head commit is
+const COMMIT_LOOKUP_MS = 3000;
+function withTimeout(promise, ms) {
+   let timer;
+   const late = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('timed out')), ms);
+   });
+   return Promise.race([promise, late]).finally(() => clearTimeout(timer));
+}
+import { projectSettings } from '../lib/projects.js';
+import {
+   forgetIssue,
+   renameProject,
+   syncWork,
+   workIssueTouched,
+   workPullTouched,
+} from '../lib/work.js';
 
 const hooksDebug = debug('pulldasher:hooks');
 
@@ -25,7 +44,7 @@ const HooksController = {
 
       var secret = req.query.secret;
       if (secret !== config.github.hook_secret) {
-         var m = 'Invalid Hook Secret: ' + secret;
+         var m = 'Invalid Hook Secret';
          hooksDebug(m);
          console.error(m);
          return res.status(401).send('Invalid POST');
@@ -90,11 +109,31 @@ const HooksController = {
                // Clear prior CR/QA signoffs immediately for snappy feedback. Emoji
                // CR/QA stay cleared; a carried-over GitHub *approval* is restored by
                // the full refresh below (see Signature.parseReview / git-manager).
-               preUpdate = dbManager.invalidateSignatures(
-                  body.repository.full_name,
-                  body.pull_request.number,
-                  ['QA', 'CR']
-               );
+               // Skip it only for a push that is nothing but a merge of the base
+               // ("Update branch"): stamps survive those, and the refresh below
+               // settles the rest. A merge on top of other new commits (its first
+               // parent isn't the old head) carries real code, so it invalidates.
+               // The lookup is capped so a slow GitHub can't hold the reply; any
+               // error or timeout falls back to invalidating.
+               preUpdate = withTimeout(
+                  Promise.resolve(git.getCommit(body.repository.full_name, body.after)),
+                  COMMIT_LOOKUP_MS
+               )
+                  .then(
+                     commit =>
+                        commit.parents[0]?.sha === body.before &&
+                        isBaseMerge(commit, body.pull_request.base.ref)
+                  )
+                  .catch(() => false)
+                  .then(isMerge =>
+                     isMerge
+                        ? undefined
+                        : dbManager.invalidateSignatures(
+                             body.repository.full_name,
+                             body.pull_request.number,
+                             ['QA', 'CR']
+                          )
+                  );
                reconcileAfterUpdate = true;
          }
 
@@ -102,6 +141,17 @@ const HooksController = {
          dbUpdated = preUpdate.then(function () {
             return dbManager.updatePull(Pull.fromGithubApi(body.pull_request));
          });
+
+         // a "Parts of #N" in a new or edited PR counts toward that issue's
+         // project a minute later, as a label does, not at the hourly sync
+         if (body.action === 'opened' || body.action === 'edited') {
+            workPullTouched(
+               projectSettings(),
+               body.repository.full_name,
+               body.pull_request.body,
+               body.pull_request.labels
+            );
+         }
 
          if (reconcileAfterUpdate) {
             // A `synchronize` webhook never triggers a full refresh on its own,
@@ -211,6 +261,8 @@ const HooksController = {
             completed_at: body.check_run.completed_at,
          });
          dbUpdated = dbManager.updateCommitStatus(status);
+      } else if (event === 'label') {
+         dbUpdated = Promise.resolve(handleLabelRename(body));
       }
 
       if (dbUpdated) {
@@ -235,17 +287,68 @@ function handleIssueEvent(body) {
    hooksDebug('Webhook action: %s for issue #%s', body.action, body.issue.number);
 
    var doneHandling = handleLabelEvents(body);
+   // an issue attached to a project changed, or a project label came or went:
+   // the work is read again soon
+   if (body.repository) {
+      workIssueTouched(projectSettings(), body.repository.full_name, body.issue.number, [
+         ...(body.issue.labels ?? []),
+         ...(body.label ? [body.label] : []),
+      ]);
+   }
 
    // Always refresh from the API rather than upserting the webhook body
    // directly. The body is just a subset of the fields (and for pull requests,
    // not even an issue), and it carries no events, which we need to attribute
    // labels and to date the current assignment (date_assigned).
    // refreshPullOrIssue dispatches pull-vs-issue from the body itself.
+   // A deleted or transferred issue is gone from GitHub, so the refresh
+   // below would only 404: drop it from projects and the board's issues.
+   if (body.action === 'deleted' || body.action === 'transferred') {
+      return doneHandling
+         .then(() => forgetIssue({ repo: body.repository.full_name, number: body.issue.number }))
+         .catch(err =>
+            console.error(
+               'forgetting issue %s failed: %s',
+               body.issue.number,
+               (err && err.message) || err
+            )
+         );
+   }
    return doneHandling.then(function () {
       // Not returning here cause we don't want to delay replying to the
       // hook with a 200 since we know what needs to be done.
       refreshPullOrIssue(body);
    });
+}
+
+/**
+ * A repo's label renamed on GitHub (the `label` event, `edited` with
+ * `changes.name`). GitHub sends no labeled/unlabeled for the PRs and issues
+ * carrying it, so their stored labels take the new name here; a project
+ * label's rename moves the project too (renameProject).
+ */
+async function handleLabelRename(body) {
+   const from = body.changes?.name?.from;
+   if (body.action !== 'edited' || !from) return;
+   const repo = body.repository.full_name;
+   const to = body.label.name;
+   hooksDebug('Renamed label: %s -> %s in %s', from, to, repo);
+   const open = await dbManager.renameLabel(repo, from, to);
+   for (const number of open) queue.markPullAsDirty(repo, number);
+
+   const settings = projectSettings();
+   if (!settings) return;
+   const slugOf = name =>
+      name.startsWith(settings.prefix) ? name.slice(settings.prefix.length) : null;
+   const [was, now] = [slugOf(from), slugOf(to)];
+   if (was == null && now == null) return;
+   if (was != null && now != null) await renameProject(settings, was, now);
+   // the Projects tab reads labels and slugs: open boards fetch again once
+   // the work is read (app.js listens for the sync); not awaited, like a
+   // labeled issue's sync
+   syncWork(settings).catch(err =>
+      console.error('Work sync after a label rename failed: %s', (err && err.message) || err)
+   );
 }
 
 /**
@@ -295,17 +398,25 @@ function handleLabelEvents(body) {
  * Record one `review_requested` / `review_request_removed` webhook's
  * metadata onto the in-memory review_requests cache (models/pull.js) --
  * memory-only, no DB write. `body.requested_reviewer` is absent for a team
- * review request, which Pulldasher doesn't track per-reviewer, so that's a
- * no-op.
+ * review request (`requested_team` instead); its time goes to the team cache,
+ * and the slug rides on the pull payload's requested_teams, saved with the pull.
  */
 function recordReviewRequestMetadata(body) {
    const reviewer = body.requested_reviewer;
+   const repo = body.repository.full_name;
+   const number = body.pull_request.number;
+
    if (!reviewer) {
+      // a team: only the time is kept; the slug rides on the pull payload
+      const slug = body.requested_team?.slug;
+      if (slug && body.action === 'review_request_removed') {
+         Pull.recordTeamRequestRemoved(repo, number, slug);
+      } else if (slug) {
+         Pull.recordTeamRequested(repo, number, slug, Math.floor(Date.now() / 1000));
+      }
       return Promise.resolve();
    }
 
-   const repo = body.repository.full_name;
-   const number = body.pull_request.number;
    const login = getLogin(reviewer);
 
    if (body.action === 'review_request_removed') {

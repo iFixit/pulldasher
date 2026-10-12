@@ -147,16 +147,16 @@ export function Legend() {
 
          <Group title="Coordination">
             <Item
-               term={<span className="text-xs font-medium text-brand">Claim</span>}
-               def="hover a row for its verbs. Claiming adds you as a reviewer on the PR, so GitHub and the board both show you’re on it; the row moves to Waiting on you until you submit, release, or are removed"
+               term={<span className="text-ink-2 italic">self-review</span>}
+               def="a developer reviews and tests their own PR unless they ask for a review. Nobody else owes it anything"
             />
             <Item
                term={<span className="text-ink-2 italic">review requested</span>}
-               def="someone requested your review on GitHub. Lands in Waiting on you, and the board quiets its own suggestions for that PR"
+               def="the author asked people (or a team) for a review on GitHub. It leads their Waiting on you; answer within hours"
             />
             <Item
-               term={<span className="text-ink-2 italic">your turn</span>}
-               def="a review that sat too long, pointed at the best-matched reviewer. A nudge, not a lock: anyone can take it"
+               term={<span className="text-xs font-medium text-brand">I’ll review</span>}
+               def="hover a row for its verbs. It adds you as a reviewer on the PR, so GitHub and the board both show you’re on it; the row moves to Waiting on you until you submit, drop it, or are removed"
             />
          </Group>
 
@@ -174,6 +174,10 @@ export function Legend() {
                def="a push undid your stamp and the PR is reviewable again"
             />
             <Item
+               term={<code className="font-mono text-[11px] text-ink-2">is:asked</code>}
+               def="someone asked you for a review"
+            />
+            <Item
                term={<code className="font-mono text-[11px] text-ink-2">is:blocked</code>}
                def="under a dev or deploy block, whoever holds it"
             />
@@ -188,7 +192,10 @@ export function Legend() {
          </Group>
 
          <Group title="Keys">
-            <Item term={<Kbd>/</Kbd>} def="focus the filter" />
+            <Item
+               term={<Kbd>/</Kbd>}
+               def="focus the filter; on Projects, the view’s own find box"
+            />
             <Item
                term={
                   <>
@@ -198,8 +205,13 @@ export function Legend() {
                }
                def="walk down / up the rows"
             />
-            <Item term={<Kbd>↵</Kbd>} def="open the selected PR" />
+            <Item
+               term={<Kbd>↵</Kbd>}
+               def="open the selected PR or project; on Decide, make the call"
+            />
             <Item term={<Kbd>c</Kbd>} def="copy the selected branch name" />
+            <Item term={<Kbd>a</Kbd>} def="on a project’s page, add an issue" />
+            <Item term={<Kbd>u</Kbd>} def="on a project’s page, post an update" />
          </Group>
       </Popover>
    );

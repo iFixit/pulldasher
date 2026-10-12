@@ -15,6 +15,7 @@ function DBPull(pull) {
       draft: pullData.draft ? 1 : 0,
       date: utils.toUnixTime(pullData.created_at),
       date_updated: utils.toUnixTime(pullData.updated_at),
+      date_pushed: utils.toUnixTime(pullData.date_pushed),
       date_closed: utils.toUnixTime(pullData.closed_at),
       date_merged: utils.toUnixTime(pullData.merged_at),
       mergeable: pullData.mergeable,
@@ -27,6 +28,7 @@ function DBPull(pull) {
       // Serialize to a JSON string; MySQL parses it into the JSON column.
       assignees: JSON.stringify(pullData.assignees || []),
       requested_reviewers: JSON.stringify(pullData.requested_reviewers || []),
+      requested_teams: JSON.stringify(pullData.requested_teams || []),
       cr_req: pullData.cr_req,
       qa_req: pullData.qa_req,
       closes: pullData.closes,
@@ -35,13 +37,24 @@ function DBPull(pull) {
       deletions: pullData.deletions,
       changed_files: pullData.changed_files,
    };
+   // only a full refresh computed them; the column holds {sha, hints} so a
+   // restart knows which head they were for
+   if (pullData.input_hints) {
+      this.data.input_hints = JSON.stringify({
+         sha: pullData.input_hints_sha,
+         hints: pullData.input_hints,
+      });
+   }
 }
 
 DBPull.prototype.save = function () {
    var pullData = this.data;
-   var q_update = 'REPLACE INTO pulls SET ?';
+   // A webhook's body carries no push time; an upsert that leaves out the
+   // column keeps the stored one, where REPLACE would blank it.
+   if (pullData.date_pushed == null) delete pullData.date_pushed;
+   var q_update = 'INSERT INTO pulls SET ? ON DUPLICATE KEY UPDATE ?';
 
-   return db.query(q_update, pullData);
+   return db.query(q_update, [pullData, pullData]);
 };
 
 export default DBPull;

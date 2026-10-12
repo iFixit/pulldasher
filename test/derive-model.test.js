@@ -96,8 +96,12 @@ test('ci_red: sign-offs met but a required check failed', () => {
    assert.deepEqual(d.ciFailing, ['build']);
 });
 
-test('needs_recr: only a stale CR stamp remains', () => {
-   const d = derivePull(pullOf({ cr_req: 1, qa_req: 0 }, [crSig('bob', 0)]), NOW);
+test('needs_recr: only a stale CR stamp remains, from someone who was asked', () => {
+   // under self-review only someone asked (or the author) owes a re-stamp
+   const d = derivePull(
+      pullOf({ cr_req: 1, qa_req: 0, requested_reviewers: ['bob'] }, [crSig('bob', 0)]),
+      NOW
+   );
    assert.equal(d.status, 'needs_recr');
    assert.deepEqual(d.recrBy, ['bob']);
 });

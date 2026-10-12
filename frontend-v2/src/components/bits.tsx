@@ -94,6 +94,39 @@ export function CornerBadge({ text, tone = 'brand' }: { text: string; tone?: 'br
    );
 }
 
+/**
+ * The one filled button: a form's Save, Post, Apply. One recipe, so "save"
+ * looks the same on every view (it had been copied by hand five times).
+ * `type` defaults to submit, since it ends a form.
+ */
+export function PrimaryButton({
+   className = '',
+   type = 'submit',
+   ...props
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
+   return (
+      <button
+         type={type}
+         className={`pressable rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-surface hover:bg-brand-700 disabled:opacity-40 ${className}`}
+         {...props}
+      />
+   );
+}
+
+/**
+ * A load that failed, said once in quiet ink with a way to try again. A
+ * failed fetch isn't anyone's debt, so it never wears amber, and red stays
+ * CI's. With no `onRetry`, Try again reloads the page.
+ */
+export function LoadFailed({ what, onRetry }: { what: string; onRetry?: () => void }) {
+   return (
+      <p className="m-0 text-[13px] text-ink-3">
+         Couldn’t load {what}.{' '}
+         <QuietButton onClick={onRetry ?? (() => window.location.reload())}>Try again</QuietButton>
+      </p>
+   );
+}
+
 export function QuietButton({
    size = 'sm',
    tone = 'default',
@@ -111,6 +144,44 @@ export function QuietButton({
       <button
          type="button"
          className={`hit pressable border border-line bg-surface font-medium disabled:opacity-40 ${shape} ${text} hover:text-brand`}
+         {...props}
+      />
+   );
+}
+
+/**
+ * An action said in words inside a line: Undo, Try again, Copy as text,
+ * Show all. One recipe for the dozens of hand-copied borderless buttons a
+ * 2026-10 review counted, which drew Undo brand on one view and ink-3 on
+ * the next. `quiet` is a step back (Cancel, Close); everything else is an
+ * action, in brand. It takes its size from the line it sits in.
+ */
+export function TextButton({
+   tone = 'action',
+   className = '',
+   ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { tone?: 'action' | 'quiet' }) {
+   const text = tone === 'quiet' ? 'text-ink-2 hover:text-brand' : 'font-medium text-brand';
+   return (
+      <button
+         type="button"
+         className={`hit pressable rounded border-0 bg-transparent p-0 text-left hover:underline disabled:opacity-40 ${text} ${className}`}
+         {...props}
+      />
+   );
+}
+
+/**
+ * A fact that goes somewhere when clicked: a count that jumps to its rows,
+ * a lead who opens on People, a plan that opens on the roadmap. It reads as
+ * the fact (ink, not brand, since it isn't an action) with a quiet
+ * underline, so it never passes for plain text. Sized by its line.
+ */
+export function FactLink({ className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+   return (
+      <button
+         type="button"
+         className={`hit pressable rounded border-0 bg-transparent p-0 text-left text-ink-2 underline decoration-line underline-offset-2 hover:text-brand ${className}`}
          {...props}
       />
    );
@@ -311,15 +382,24 @@ export function Segmented<T extends string>({
    options,
    onChange,
    ariaLabel,
+   counts,
+   tabs = false,
 }: {
    value: T;
    options: [T, string][];
    onChange: (next: T) => void;
    ariaLabel: string;
+   /** a count beside an option, drawn as a corner badge (out of flow), so its
+    * arrival when data loads never widens the control */
+   counts?: Partial<Record<T, number>>;
+   /** it switches views: arrows only move focus, and Enter or a click
+    * switches, since a view switch is heavy and goes into history */
+   tabs?: boolean;
 }) {
    // role=radio sets the APG expectation: one Tab stop for the group, arrows
    // move the selection. Without this the role announces a contract ("radio
-   // 1 of 3, use arrows") the control doesn't honor.
+   // 1 of 3, use arrows") the control doesn't honor. As tabs, arrows move
+   // focus and leave the choice to Enter, the APG's manual activation.
    const hasSelection = options.some(([v]) => v === value);
    const moveSelection = (e: ReactKeyboardEvent<HTMLButtonElement>, from: number) => {
       const delta =
@@ -338,31 +418,53 @@ export function Segmented<T extends string>({
                 : null;
       if (next == null) return;
       e.preventDefault();
-      onChange(options[next][0]);
+      if (!tabs) onChange(options[next][0]);
       (e.currentTarget.parentElement?.children[next] as HTMLElement | undefined)?.focus();
    };
    return (
       <div
-         role="radiogroup"
+         role={tabs ? 'tablist' : 'radiogroup'}
          aria-label={ariaLabel}
-         className="inline-flex flex-wrap gap-0.5 rounded-lg border border-line bg-muted p-0.5"
+         // as tabs it's drawn like the app's own lens tabs (no pill around
+         // it), so switching views reads as going somewhere, not as one more
+         // filter; tighter on a phone, so five views fit one line at 375px
+         className={
+            tabs
+               ? 'inline-flex flex-wrap gap-0 sm:gap-0.5'
+               : 'inline-flex flex-wrap gap-0.5 rounded-lg border border-line bg-muted p-0.5'
+         }
       >
-         {options.map(([val, label], i) => (
-            <button
-               key={val}
-               type="button"
-               role="radio"
-               aria-checked={value === val}
-               tabIndex={value === val || (!hasSelection && i === 0) ? 0 : -1}
-               onClick={() => onChange(val)}
-               onKeyDown={e => moveSelection(e, i)}
-               className={`pressable rounded-md px-2.5 py-1 text-xs font-medium ${
-                  value === val ? 'bg-surface text-ink shadow-sm' : 'text-ink-2 hover:text-brand'
-               }`}
-            >
-               {label}
-            </button>
-         ))}
+         {options.map(([val, label], i) => {
+            const count = counts?.[val];
+            return (
+               <button
+                  key={val}
+                  type="button"
+                  role={tabs ? 'tab' : 'radio'}
+                  {...(tabs ? { 'aria-selected': value === val } : { 'aria-checked': value === val })}
+                  aria-label={count ? `${label}, ${count}` : undefined}
+                  tabIndex={value === val || (!hasSelection && i === 0) ? 0 : -1}
+                  onClick={() => onChange(val)}
+                  onKeyDown={e => moveSelection(e, i)}
+                  className={`pressable relative rounded-md font-medium ${
+                     tabs
+                        ? `border-0 px-1.5 py-1 text-xs sm:px-2.5 sm:text-[13px] ${
+                             value === val
+                                ? 'bg-secondary text-ink'
+                                : 'bg-transparent text-ink-2 hover:text-brand'
+                          }`
+                        : `px-2.5 py-1 text-xs ${
+                             value === val
+                                ? 'bg-surface text-ink shadow-sm'
+                                : 'text-ink-2 hover:text-brand'
+                          }`
+                  }`}
+               >
+                  {label}
+                  {count != null && count > 0 && <CornerBadge text={String(count)} tone="quiet" />}
+               </button>
+            );
+         })}
       </div>
    );
 }

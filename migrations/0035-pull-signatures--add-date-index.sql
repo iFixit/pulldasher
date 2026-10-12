@@ -1,0 +1,6 @@
+-- The Projects windows (Look back, People, time spent) filter this table by
+-- date; without an index each read scans it. One index per file, so each
+-- migration is one statement that either lands whole or not at all, and
+-- bin/migrate-missing can run it again after a failure. InnoDB builds it
+-- online.
+ALTER TABLE `pull_signatures` ADD KEY `pull_signatures_date` (`date`), ALGORITHM=INPLACE, LOCK=NONE;

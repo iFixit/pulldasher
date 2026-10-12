@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Settings as SettingsIcon, Trash2, X } from 'lucide-react';
 import { clearStoredPrefs } from '../storage';
-import { refreshAll, usePulldasher } from '../store';
+import { refreshAll, refreshAllText, usePulldasher } from '../store';
 import {
    addCodeRegion,
    removeCodeRegion,
@@ -19,6 +19,8 @@ import { useArmedConfirm } from './useArmedConfirm';
 import { commitKeyHandler } from './useCommitOnEnter';
 
 const LENS_OPTIONS: [string, string][] = Object.entries(LENS_LABELS);
+// the Projects tab exists only on a server set up for projects
+const LENS_OPTIONS_NO_PROJECTS = LENS_OPTIONS.filter(([id]) => id !== 'projects');
 
 // Stats has no lanes, so it's left out of the per-lens lane-length list
 // (unlike LENS_OPTIONS above, which covers every tab including Stats) — the
@@ -52,8 +54,8 @@ function LaneCapByLensRow({ lensId, label }: { lensId: string; label: string }) 
    );
 }
 
-/** Free-text editor for the code regions that float matching PRs to the top of
- * the review queue. Arbitrary strings (not a known set), so it's a plain input
+/** Free-text editor for the code regions that put matching self-reviews into
+ * Review's Could use your input. Arbitrary strings (not a known set), so it's a plain input
  * plus removable chips, not a candidate picker. */
 function CodeRegionsGroup() {
    const regions = useSettings().codeRegions;
@@ -65,8 +67,8 @@ function CodeRegionsGroup() {
    return (
       <Group title="Code regions">
          <span className="text-xs text-ink-3">
-            Areas you own or care about. A PR whose title, description, labels, branch, or repo
-            contains one floats to the top of your review queue.
+            Areas you own or care about. Someone’s self-reviewed PR whose title, description,
+            labels, branch, or repo contains one shows under Could use your input on Review.
          </span>
          <div className="flex gap-2">
             <input
@@ -116,10 +118,9 @@ export function Settings({
 }) {
    const [open, setOpen] = useState(false);
    const s = useSettings();
-   const { refreshProgress } = usePulldasher();
+   const { refreshProgress, projectLabelPrefix } = usePulldasher();
    const panelRef = useRef<HTMLDivElement>(null);
    const triggerRef = useRef<HTMLButtonElement>(null);
-   const [refreshNote, setRefreshNote] = useState('');
    const { armed: armReset, run: runReset } = useArmedConfirm();
 
    // open on demand — the code-regions tip's "Set them up" action dispatches
@@ -133,6 +134,8 @@ export function Settings({
    useEffect(() => {
       if (!open) return;
       const onKey = (e: KeyboardEvent) => {
+         // a dialog above this one (PR jail) handled it
+         if (e.defaultPrevented) return;
          if (e.key === 'Escape') setOpen(false);
          // aria-modal promises a focus trap; without this, Tab walks out of
          // the dialog into the live board behind the scrim
@@ -252,7 +255,7 @@ export function Settings({
                            <Segmented
                               ariaLabel="default view"
                               value={s.defaultLens}
-                              options={LENS_OPTIONS}
+                              options={projectLabelPrefix ? LENS_OPTIONS : LENS_OPTIONS_NO_PROJECTS}
                               onChange={defaultLens => set({ defaultLens })}
                            />
                         </Field>
@@ -328,22 +331,75 @@ export function Settings({
                            />
                         </Field>
                         <Field
-                           label="Getting QA is a to-do"
-                           hint="For teams that self-review, no separate CR gate means lining up QA is the real stall, so “Find a QA-er” on your own PRs shows in Waiting on you. Off keeps it in My work only."
+                           label="PR jail"
+                           hint="Automatic pops up your list of open PRs when you have too many, or one has been open too long. Manual only shows the lock in the header, to open when you like. Off hides both."
                         >
                            <Segmented
-                              ariaLabel="getting QA is a to-do"
-                              value={s.selfReview ? 'on' : 'off'}
+                              ariaLabel="PR jail"
+                              value={s.jailMode}
+                              options={[
+                                 ['auto', 'Automatic'],
+                                 ['manual', 'Manual'],
+                                 ['off', 'Off'],
+                              ]}
+                              onChange={jailMode => set({ jailMode })}
+                           />
+                        </Field>
+                        <Field
+                           label="PR jail: open PRs"
+                           hint="PR jail pops up when you have more than this many open PRs of your own (bots and deploy holds never count). It comes back only when that gets worse, at most every 4 hours."
+                        >
+                           <NumberField
+                              value={s.jailMaxOpen}
+                              min={1}
+                              max={50}
+                              suffix="PRs"
+                              onChange={jailMaxOpen => set({ jailMaxOpen })}
+                           />
+                        </Field>
+                        <Field
+                           label="PR jail: days open"
+                           hint="It also pops up when any of them has been open longer than this."
+                        >
+                           <NumberField
+                              value={s.jailMaxDays}
+                              min={1}
+                              max={365}
+                              suffix="days"
+                              onChange={jailMaxDays => set({ jailMaxDays })}
+                           />
+                        </Field>
+                        <Field
+                           label="PR jail: count drafts"
+                           hint="Off leaves your draft PRs out of both limits."
+                        >
+                           <Segmented
+                              ariaLabel="count drafts toward PR jail"
+                              value={s.jailCountDrafts ? 'on' : 'off'}
                               options={[
                                  ['off', 'Off'],
                                  ['on', 'On'],
                               ]}
-                              onChange={v => set({ selfReview: v === 'on' })}
+                              onChange={v => set({ jailCountDrafts: v === 'on' })}
                            />
                         </Field>
                         <Field
-                           label="Nudge me about a claim"
-                           hint="When an unfinished claim of yours starts nagging you to finish it or hand it back. Claims themselves don't expire on a timer; they clear when the review is submitted, released, or removed on GitHub."
+                           label="See PR jail"
+                           hint="Shows it now with your open PRs, whatever the limits say."
+                        >
+                           <QuietButton
+                              onClick={() => {
+                                 // close Settings first so the jail isn't stacked on it
+                                 setOpen(false);
+                                 window.dispatchEvent(new Event('pd2:preview-jail'));
+                              }}
+                           >
+                              Preview PR jail
+                           </QuietButton>
+                        </Field>
+                        <Field
+                           label="Nudge me about a review I said I’d do"
+                           hint="When a review you said you’d do starts nagging you to finish it or drop it. It doesn't expire on a timer; it clears when the review is submitted, dropped, or you're removed on GitHub."
                         >
                            <Segmented
                               ariaLabel="claim warning time"
@@ -414,33 +470,30 @@ export function Settings({
                      <section className="border-t border-secondary px-4 py-3.5">
                         <Explainer summary="Advanced">
                            <span className="block text-ink-2">
-                              Re-fetch every open PR from GitHub now, instead of waiting for the
-                              next webhook. The board updates as each one comes back.
+                              Check the board against GitHub and re-fetch the PRs that differ,
+                              including ones it missed or still shows open. The board updates as
+                              each one comes back.
                            </span>
                            <div className="flex items-center gap-3 pt-1">
                               <QuietButton
                                  size="md"
-                                 disabled={!!refreshProgress}
-                                 onClick={() => {
-                                    // live progress (store.refreshProgress) takes over
-                                    // from here; the local note only covers the no-op
-                                    if (refreshAll() === 0) {
-                                       setRefreshNote('nothing to refresh');
-                                       setTimeout(() => setRefreshNote(''), 2500);
-                                    }
-                                 }}
+                                 // one press at a time, for every board: the server
+                                 // ignores a second while one runs
+                                 disabled={!!refreshProgress && refreshProgress.state !== 'done'}
+                                 onClick={() => refreshAll()}
                               >
                                  Refresh all
                               </QuietButton>
                               {/* role=status stays mounted so the announcement fires
                                   when the text lands — a screen reader hears the
-                                  confirmation, not just sighted users */}
-                              <span role="status" className="text-xs text-ink-3 tabular-nums">
-                                 {refreshProgress
-                                    ? refreshProgress.done === refreshProgress.total
-                                       ? `refreshed ${refreshProgress.total}`
-                                       : `refreshing ${refreshProgress.done} of ${refreshProgress.total}…`
-                                    : refreshNote}
+                                  confirmation, not just sighted users. It takes the
+                                  room the button leaves and wraps in it, so a long
+                                  line never squeezes the button onto two lines */}
+                              <span
+                                 role="status"
+                                 className="min-w-0 flex-1 text-xs text-ink-3 tabular-nums"
+                              >
+                                 {refreshProgress ? refreshAllText(refreshProgress) : ''}
                               </span>
                            </div>
 

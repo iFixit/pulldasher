@@ -15,6 +15,11 @@ mysqldump "$@" \
    pull_signatures \
    pulls \
    reviews \
+   roadmap_items \
+   roadmap_updates \
+   project_issues \
+   issue_pull_links \
+   project_settings \
    > $SCHEMA_FILE
 
 sed -i -e "s/CREATE TABLE/CREATE TABLE IF NOT EXISTS/" $SCHEMA_FILE

@@ -153,6 +153,12 @@ test('serves the board classified server-side (/pulls)', async () => {
    assert.equal(rec.signoffs.cr.req, 2);
    assert.equal(rec.signoffs.cr.have, 0);
    assert.equal(rec.url, 'https://github.com/test/repo-a/pull/42');
+   assert.deepEqual(rec.review, {
+      own: true,
+      author_is_developer: true,
+      asked_of: [],
+      asked_at: null,
+   });
    assert.equal(rec.is_bot, false); // bob isn't a configured bot
    const botRec = body.pulls.find(p => p.id === 'test/repo-a#43');
    assert.equal(botRec.is_bot, true); // fixture-bot is, via config.js bots

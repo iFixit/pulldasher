@@ -49,6 +49,21 @@ test('a request followed by its removal nets to nothing even when requested_revi
    assert.deepEqual(result, [{ login: 'bob', at: null, self: false }]);
 });
 
+test('a request GitHub cleared (reviewer reviewed) is kept as answered', () => {
+   const events = [requestedEvent({ at: '2024-01-01T00:00:00Z', actor: 'alice', reviewer: 'bob' })];
+
+   const result = deriveReviewRequests(events, [], 'pulldasher-bot');
+
+   assert.deepEqual(result, [
+      {
+         login: 'bob',
+         at: Math.floor(Date.parse('2024-01-01T00:00:00Z') / 1000),
+         self: false,
+         answered: true,
+      },
+   ]);
+});
+
 test('self is true for a GitHub-UI self-request (actor === reviewer)', () => {
    const events = [
       requestedEvent({ at: '2024-01-01T00:00:00Z', actor: 'carol', reviewer: 'carol' }),

@@ -1,4 +1,11 @@
-import { useRef, useState, type ReactNode, type SyntheticEvent } from 'react';
+import {
+   useId,
+   useRef,
+   useState,
+   type MouseEvent,
+   type ReactNode,
+   type SyntheticEvent,
+} from 'react';
 import { ChevronRight } from 'lucide-react';
 import { pullKey } from '../../../shared/format';
 import type { DerivedPull } from '../../../shared/model/status';
@@ -24,6 +31,13 @@ export function foldDomId(id: string): string {
    return `fold-${id.replace(/:/g, '-')}`;
 }
 
+/** Every fold's remembered open or closed choice, by store id, for a list
+ * that needs to know which of its folds are open (one issue's PRs drawn in
+ * full only where they're expanded). */
+export function useFoldChoices(): Record<string, boolean> {
+   return foldOpenStore.useValue();
+}
+
 /** Open a fold from outside Lane.tsx — e.g. the "N merged since your last
  * look" banner jumping straight to the shipped fold — by writing the same
  * store its own toggle reads. A no-op if it's already open. */
@@ -43,9 +57,12 @@ export function SubDoor({
    label,
    text,
    children,
+   inLine = false,
 }: {
    /** the popover's accessible name, e.g. "How the queue is ranked" */
    label: string;
+   /** part of a sentence: the sentence's size and ink, not a sub-line's */
+   inLine?: boolean;
    /** the visible sub-line sentence */
    text: string;
    children: ReactNode;
@@ -62,7 +79,9 @@ export function SubDoor({
             <button
                {...t}
                type="button"
-               className="hit rounded border-0 bg-transparent p-0 text-left text-xs text-ink-3 underline decoration-dotted underline-offset-2 hover:text-ink-2"
+               className={`hit rounded border-0 bg-transparent p-0 text-left underline decoration-dotted underline-offset-2 hover:text-ink ${
+                  inLine ? 'text-[13px] text-ink-2' : 'text-xs text-ink-3 hover:text-ink-2'
+               }`}
             >
                {text}
             </button>
@@ -75,7 +94,10 @@ export function SubDoor({
 
 export function Rows({ children }: { children: ReactNode }) {
    return (
-      <div className="overflow-hidden rounded-2xl border border-line bg-surface">{children}</div>
+      // clip, not hidden: it rounds the rows off the same way without making
+      // a scroll box, so a header inside can stick to the page and
+      // scrollIntoView keeps a row's scroll margin
+      <div className="overflow-clip rounded-2xl border border-line bg-surface">{children}</div>
    );
 }
 
@@ -88,6 +110,7 @@ export function GroupHeader({
    count,
    compact,
    headerExtra,
+   level = 2,
 }: {
    title: string;
    /** plain string for most lanes; a ReactNode when the sub-line itself is
@@ -97,21 +120,30 @@ export function GroupHeader({
    count?: number;
    compact?: boolean;
    headerExtra?: ReactNode;
+   /** 3 for a section under a page's own title (a project's page) */
+   level?: 2 | 3;
 }) {
+   const Heading = level === 3 ? 'h3' : 'h2';
    return (
       // sticky just under the app header (top from the measured --header-h),
       // opaque over the canvas so long lanes keep their context while rows
       // scroll beneath; the old margin-below became padding so the spacing
       // itself is part of the opaque surface
+      // the sub-line wraps under the title on a narrow screen rather than
+      // squeezing the title into a column of words
       <div
-         className={`sticky top-[var(--header-h,0px)] z-[5] flex items-baseline gap-2.5 bg-[var(--canvas)] ${
+         className={`sticky top-[var(--header-h,0px)] z-[5] flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 bg-[var(--canvas)] ${
             compact ? 'pb-1' : 'pb-2'
          }`}
       >
-         <h2 className={`m-0 font-semibold leading-snug ${compact ? 'text-sm' : 'text-base'}`}>
+         <Heading
+            className={`m-0 shrink-0 font-semibold leading-snug ${
+               compact ? 'text-sm' : 'text-base'
+            }`}
+         >
             {title}
-         </h2>
-         {sub && <span className="text-xs text-ink-3">{sub}</span>}
+         </Heading>
+         {sub && <span className="min-w-0 text-xs text-ink-3">{sub}</span>}
          {/* an empty section earns a title, never a "0" — the count only
              appears once there's something to count; headerExtra alone can
              still earn the right-aligned slot on an otherwise count-less lane */}
@@ -219,8 +251,9 @@ const expandedIds = new Set<string>();
 
 /**
  * The one truncation behavior: show `cap` items and a working "+ N more"
- * button. Every capped list in the app goes through this — a count the user
- * can see but not open is a lie.
+ * button, and once open, a "Show fewer" that folds them back. Every capped
+ * list in the app goes through this — a count the user can see but not open
+ * is a lie.
  */
 export function Truncated({
    children,
@@ -238,10 +271,26 @@ export function Truncated({
    // don't stagger a fold that was already open on mount (a lens revisit this
    // session): the reveal animation is earned only on the click that opens it
    const [justExpanded, setJustExpanded] = useState(false);
-   const expand = () => {
+   const expand = (e: MouseEvent<HTMLButtonElement>) => {
       setExpanded(true);
       setJustExpanded(true);
       if (id) expandedIds.add(id);
+      // the button goes away as the rows arrive: hand focus to the first new
+      // row, where the button was, rather than dropping it to the page
+      const last = e.currentTarget.previousElementSibling;
+      requestAnimationFrame(() => {
+         const first = last?.nextElementSibling;
+         const target =
+            first?.querySelector<HTMLElement>(
+               'a[href]:not([tabindex="-1"]), button:not([tabindex="-1"]), summary, [tabindex="0"]'
+            ) ?? (first instanceof HTMLElement ? first : null);
+         target?.focus({ preventScroll: true });
+      });
+   };
+   const collapse = () => {
+      setExpanded(false);
+      setJustExpanded(false);
+      if (id) expandedIds.delete(id);
    };
    const base = children.slice(0, cap);
    const extra = expanded ? children.slice(cap) : [];
@@ -262,10 +311,21 @@ export function Truncated({
          {more > 0 && (
             <button
                type="button"
+               // j and k open it on the way past (components/useRowKeys.ts)
+               data-row-more
                onClick={expand}
                className="pressable block w-full border-t border-secondary bg-muted/50 px-3.5 py-[9px] text-left text-xs font-medium text-ink-2 hover:text-brand"
             >
                + {more} {label}
+            </button>
+         )}
+         {extra.length > 0 && (
+            <button
+               type="button"
+               onClick={collapse}
+               className="pressable block w-full border-t border-secondary bg-muted/50 px-3.5 py-[9px] text-left text-xs font-medium text-ink-2 hover:text-brand"
+            >
+               Show fewer
             </button>
          )}
       </>
@@ -290,6 +350,16 @@ export const eyebrowText = 'text-[11px] font-semibold tracking-wide uppercase';
  * (locality — the legend stays optional reading); clicking anywhere on the
  * band toggles the fold.
  */
+/** A band's open state and its setter, remembered with every <Fold>'s, for a
+ * band that isn't a <Fold> (the roadmap's lanes, which carry a chart). */
+export function useFoldState(id: string, defaultOpen: boolean): [boolean, (open: boolean) => void] {
+   const stored = foldOpenStore.useValue();
+   return [
+      stored[id] ?? defaultOpen,
+      open => foldOpenStore.set({ ...foldOpenStore.get(), [id]: open }),
+   ];
+}
+
 export function Fold({
    count,
    label,
@@ -324,6 +394,7 @@ export function Fold({
    children: ReactNode;
 }) {
    const detailsRef = useRef<HTMLDetailsElement>(null);
+   const glossId = useId();
    const stored = foldOpenStore.useValue();
    if (!count) return null;
    const explicit = id ? stored[id] : undefined;
@@ -341,21 +412,27 @@ export function Fold({
       if (foldOpenStore.get()[id] !== next)
          foldOpenStore.set({ ...foldOpenStore.get(), [id]: next });
    };
+   // the label and its count stay on one line: on a phone a long detail
+   // beside them split "FIXBOT · 3" across two
    const labelInner = (
-      <>
+      <span className="shrink-0 whitespace-nowrap">
          <span className={tone === 'do' ? 'text-brand-700' : 'text-ink-3'}>{label}</span>
          {showCount && <span className="tabular-nums text-ink-3"> · {count}</span>}
-      </>
+      </span>
    );
    return (
       <details
          ref={detailsRef}
          id={id ? foldDomId(id) : undefined}
-         className="group border-t border-secondary first:border-t-0"
+         // a jump to it lands below the sticky headers
+         className="group scroll-mt-36 border-t border-secondary first:border-t-0"
          open={id ? open : undefined}
          onToggle={id ? onToggle : undefined}
       >
          <summary
+            // the band is the one focus stop; a screen reader hears the gloss
+            // with it, the way a mouse gets it on hover
+            aria-describedby={gloss ? glossId : undefined}
             className={`flex cursor-pointer list-none items-center gap-2 bg-muted/40 px-3.5 py-[6px] transition-[background-color] duration-150 ease-out hover:bg-muted motion-reduce:transition-none [&::-webkit-details-marker]:hidden ${
                caps ? eyebrowText : 'text-[11px] font-semibold'
             }`}
@@ -377,6 +454,11 @@ export function Fold({
                      <button
                         {...t}
                         type="button"
+                        // the hover target only: not a second focus stop, and
+                        // no dialog to announce (the summary carries the gloss)
+                        tabIndex={-1}
+                        aria-haspopup={undefined}
+                        aria-expanded={undefined}
                         // a button inside <summary> captures the click, so the
                         // band's promise (click anywhere toggles) is honored
                         // here by hand — the gloss itself stays hover-only
@@ -384,7 +466,8 @@ export function Fold({
                            const el = detailsRef.current;
                            if (el) el.open = !el.open;
                         }}
-                        className={`hit rounded border-0 bg-transparent p-0 text-left ${
+                        // dotted, as every explanation on hover is
+                        className={`hit rounded border-0 bg-transparent p-0 text-left underline decoration-dotted underline-offset-2 ${
                            caps ? eyebrowText : 'text-[11px] font-semibold'
                         }`}
                      >
@@ -405,6 +488,11 @@ export function Fold({
                </span>
             )}
          </summary>
+         {gloss && (
+            <span id={glossId} className="sr-only">
+               {gloss}
+            </span>
+         )}
          <div className="border-t border-secondary">{children}</div>
       </details>
    );

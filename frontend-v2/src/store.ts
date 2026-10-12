@@ -3,31 +3,39 @@ import { backend, type ConnectionState } from './backend/socket';
 import {
    derive,
    parseWeightLabels,
+   reviewPolicy,
    type DerivedPull,
+   type ReviewPolicy,
    type Weight,
 } from '../../shared/model/status';
 import { isBotLogin } from '../../shared/model/visibility';
 import { getSettings, subscribeSettings } from './settings';
 import { epoch, pullKey } from '../../shared/format';
 import { readStorage, writeStorage } from './storage';
-import type { PullData, RepoSpec } from '../../shared/types';
+import type { PullData, RefreshAllProgress, RepoSpec } from '../../shared/types';
 
 /**
  * The one store: raw pulls keyed by repo#number, re-derived and re-published
  * as a sorted snapshot whenever the socket delivers. Throttled so a burst of
- * pullChange events (bulk refresh on the server) renders once, not N times.
+ * pullChange events (a "Refresh all" on the server) renders once, not N times.
  */
 
 export interface Snapshot {
    pulls: DerivedPull[];
    /** bot logins beyond the `[bot]` suffix, from server config (initialize) */
    extraBots: ReadonlySet<string>;
+   /** the label prefix that files a PR into a project, from server config
+    * (initialize); null when the server isn't set up for projects, which
+    * hides the Projects tab */
+   projectLabelPrefix: string | null;
    /** merged/closed in the last 14 days (the server's retention window) */
    closed: PullData[];
    me: string;
    connection: ConnectionState;
    /** first initialize payload has arrived: [] means empty, not loading */
    initialized: boolean;
+   /** a reconnect found the server running a different build than this tab loaded */
+   updated: boolean;
    /** the /token fetch failed: session expired or server down */
    authFailed: boolean;
    /** epoch secs of the last payload from the server; 0 until one arrives */
@@ -38,9 +46,9 @@ export interface Snapshot {
     * review baseline that wakes it): hidden for a day or until it changes.
     * Persisted per-browser. */
    snoozed: Readonly<Record<string, SnoozeRecord>>;
-   /** "Refresh all" in progress (or just finished): how many of the pulls
-    * queued at kickoff have reported back. Null when no refresh is running. */
-   refreshProgress: { done: number; total: number } | null;
+   /** "Refresh all" running on the server, or finished a moment ago. Null
+    * otherwise. */
+   refreshProgress: RefreshAllProgress | null;
 }
 
 const LAST_SEEN_KEY = 'pd2.lastSeen';
@@ -51,42 +59,34 @@ let repoSpecs: RepoSpec[] = [];
 // payload — not a separate config.json fetch. A fresh weightLabels Map
 // reference invalidates the derive cache so weights re-resolve when it arrives.
 let weightLabels: ReadonlyMap<string, Weight> = new Map();
+// who's a developer (and what a team review request means), from the same
+// payload; replaced whole on initialize, so it's part of the cache key too
+let policy: ReviewPolicy = reviewPolicy();
 let extraBots: ReadonlySet<string> = new Set();
+let projectLabelPrefix: string | null = null;
 let me = '';
 let connection: ConnectionState = 'connecting';
 let initialized = false;
 let authFailed = false;
+let firstBuild: string | undefined;
+let updated = false;
 let lastPayloadAt = 0;
 const listeners = new Set<() => void>();
 
-// "Refresh all" progress: the set of pull keys still awaiting a pullChange
-// since the last refreshAll() kickoff. total is fixed at kickoff so the
-// header/Settings chip reads "N of TOTAL" even as pending shrinks. Null
-// means no refresh is in flight (or its grace window has elapsed).
-let refreshTracking: { pending: Set<string>; total: number } | null = null;
-let refreshCompleteTimer: ReturnType<typeof setTimeout> | null = null;
+// "Refresh all" as the server last reported it. A finished press stays on
+// screen a few seconds, or a fast one would flash and clear before anyone
+// reads it.
+let refreshProgress: RefreshAllProgress | null = null;
+let refreshClearTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** A reconnect resends everything as one 'initialize' payload, which isn't
- * the per-pull pullChange this tracking is counting — treat it as "the
- * refresh's work is moot", not "N more arrived", or the counter would stall
- * short of total forever. */
-function clearRefreshTracking() {
-   if (refreshCompleteTimer != null) clearTimeout(refreshCompleteTimer);
-   refreshCompleteTimer = null;
-   refreshTracking = null;
-}
-
-/** Count a pullChange toward the in-flight refresh, if one is running. On
- * the last arrival, hold the finished "N of N" on screen briefly — a fast
- * board would otherwise flash the count and clear it before anyone reads it. */
-function noteRefreshArrival(key: string) {
-   if (!refreshTracking || !refreshTracking.pending.delete(key)) return;
-   if (refreshTracking.pending.size > 0) return;
-   refreshCompleteTimer = setTimeout(() => {
-      refreshTracking = null;
-      refreshCompleteTimer = null;
-      schedulePublish();
-   }, 4000);
+function setRefreshProgress(progress: RefreshAllProgress | null) {
+   if (refreshClearTimer != null) clearTimeout(refreshClearTimer);
+   refreshClearTimer = null;
+   refreshProgress = progress;
+   if (progress?.state === 'done') {
+      refreshClearTimer = setTimeout(() => setRefreshProgress(null), 6000);
+   }
+   schedulePublish();
 }
 
 // The marker moves ONLY by the user's hand — the "Recently updated" lane's
@@ -210,13 +210,20 @@ export function isSnoozed(
    return true;
 }
 
+/** a later initialize naming a different build than the first one this tab saw */
+export function isNewBuild(first: string | undefined, now: string | undefined): boolean {
+   return first != null && now != null && first !== now;
+}
+
 let snapshot: Snapshot = {
    pulls: [],
    extraBots,
+   projectLabelPrefix,
    closed: [],
    me,
    connection,
    initialized,
+   updated,
    authFailed,
    lastPayloadAt,
    lastSeen,
@@ -237,6 +244,7 @@ const derived = new WeakMap<
       spec: RepoSpec | undefined;
       warnDays: number;
       weightLabels: ReadonlyMap<string, Weight>;
+      policy: ReviewPolicy;
       minute: number;
       value: DerivedPull;
    }
@@ -249,11 +257,12 @@ function deriveCached(pull: PullData, spec: RepoSpec | undefined, warnDays: numb
       hit.spec === spec &&
       hit.warnDays === warnDays &&
       hit.weightLabels === weightLabels &&
+      hit.policy === policy &&
       hit.minute === minute
    )
       return hit.value;
-   const value = derive(pull, spec, Date.now() / 1000, warnDays, weightLabels);
-   derived.set(pull, { spec, warnDays, weightLabels, minute, value });
+   const value = derive(pull, spec, Date.now() / 1000, warnDays, weightLabels, policy);
+   derived.set(pull, { spec, warnDays, weightLabels, policy, minute, value });
    return value;
 }
 
@@ -271,19 +280,16 @@ function publish() {
             (a, b) => (Date.parse(b.closed_at ?? '') || 0) - (Date.parse(a.closed_at ?? '') || 0)
          ),
       extraBots,
+      projectLabelPrefix,
       me,
       connection,
       initialized,
+      updated,
       authFailed,
       lastPayloadAt,
       lastSeen,
       snoozed: { ...snoozed },
-      refreshProgress: refreshTracking
-         ? {
-              done: refreshTracking.total - refreshTracking.pending.size,
-              total: refreshTracking.total,
-           }
-         : null,
+      refreshProgress,
    };
    for (const fn of listeners) fn();
 }
@@ -297,6 +303,14 @@ function schedulePublish() {
       publish();
    }, 250);
 }
+
+/** Rebuild who owes a review from a freshly saved roster and re-derive. */
+export function setDeveloperTeams(teams: Record<string, string[]> | undefined): void {
+   policy = reviewPolicy(teams, [...extraBots]);
+   schedulePublish();
+}
+/** The roster-derived policy the board is deriving with (for tests). */
+export const currentPolicy = (): ReviewPolicy => policy;
 
 let started = false;
 function start() {
@@ -321,20 +335,25 @@ function start() {
          repoSpecs = payload.repos;
          // server-owned config rides with the board (see shared/types)
          weightLabels = parseWeightLabels(payload.weightLabels);
+         policy = reviewPolicy(payload.developerTeams, payload.bots);
          extraBots = new Set(payload.bots ?? []);
+         projectLabelPrefix = payload.projectLabelPrefix || null;
+         firstBuild ??= payload.build;
+         updated = isNewBuild(firstBuild, payload.build);
          for (const p of payload.pulls) raw.set(pullKey(p), p);
          initialized = true;
-         // a reconnect resends everything; counting it as refresh progress
-         // would either double-count or strand the tracker short of total
-         clearRefreshTracking();
+         // a press that ended while this board was away mustn't stay stuck
+         // on screen; the server sends one still running right after this
+         setRefreshProgress(null);
       } else {
-         const key = pullKey(payload);
-         raw.set(key, payload);
-         noteRefreshArrival(key);
+         raw.set(pullKey(payload), payload);
       }
       lastPayloadAt = Date.now() / 1000;
       schedulePublish();
    });
+   backend.onRefreshAll(setRefreshProgress);
+   // a saved roster reaches open boards here, not only at connect
+   backend.onDeveloperTeams(setDeveloperTeams);
    backend.onConnection(state => {
       connection = state;
       schedulePublish();
@@ -377,23 +396,30 @@ export function releaseReview(pull: Pick<PullData, 'repo' | 'number'>): void {
 }
 
 /**
- * Settings action: ask the server to re-fetch every open pull from GitHub.
- * The socket protocol has no bulk refresh, so this fans out one per-pull
- * refresh (the same event a row's refresh button sends) and lets the server's
- * serial refresh queue work through them. Returns how many were queued so the
- * UI can say so. Closed pulls are historical, so they're left out.
+ * Settings action: ask the server to bring the board to GitHub's state. It
+ * compares GitHub with the board and refetches only what differs; every open
+ * board hears its progress, so this returns nothing.
  */
-export function refreshAll(): number {
-   const opens = [...raw.values()].filter(p => p.state === 'open');
-   if (opens.length === 0) return 0;
-   // a re-click mid-refresh restarts the count from this batch, not a merge
-   // with the last one's leftovers
-   clearRefreshTracking();
-   refreshTracking = {
-      pending: new Set(opens.map(pullKey)),
-      total: opens.length,
-   };
-   for (const p of opens) backend.refreshPull(p.repo, p.number);
-   schedulePublish();
-   return opens.length;
+export const refreshAll = backend.refreshAll;
+
+/** One wording for a press, wherever it shows. The header passes `short`,
+ * which drops the reasons, so the line never covers its tabs; Settings shows
+ * all of it. */
+export function refreshAllText(p: RefreshAllProgress, short = false): string {
+   if (p.state === 'checking') return 'checking GitHub…';
+   if (p.state === 'refreshing') return `refreshing ${p.done} of ${p.total}…`;
+   if (p.state === 'waiting') {
+      const at = new Date(p.until ?? 0).toLocaleTimeString([], {
+         hour: 'numeric',
+         minute: '2-digit',
+      });
+      return short ? `paused until ${at}` : `paused until ${at} for GitHub’s rate limit`;
+   }
+   const refreshed = p.done - p.failed;
+   const parts = refreshed > 0 || p.failed > 0 ? [] : ['up to date'];
+   if (refreshed > 0) parts.push(`refreshed ${refreshed}`);
+   if (p.failed > 0) parts.push(`${p.failed} failed`);
+   if (p.skipped > 0 && !short)
+      parts.push(`couldn’t read ${p.skipped} repo${p.skipped === 1 ? '' : 's'}`);
+   return parts.join(' · ');
 }

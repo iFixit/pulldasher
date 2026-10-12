@@ -196,8 +196,10 @@ export function Avatar({
                type="button"
                // .hit: the circle is 16-22px, under the 24px target floor
                className="hit pressable cursor-pointer border-0 p-0 transition-[scale] duration-150 ease-out hover:scale-115 motion-reduce:transition-none"
-               aria-label={you ? `${login} (you): view your PRs` : `${login}: view their PRs`}
-               // click filters to this person; the hover card is the extra
+               // what a click opens depends on the tab (their PRs on the board,
+               // their row on Projects' People), so the name promises neither
+               aria-label={you ? `${login} (you): see your work` : `${login}: see their work`}
+               // click opens this person's work; the hover card is the extra
                onClick={() => onClick(login)}
             >
                {face}

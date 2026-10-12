@@ -15,6 +15,7 @@ function fake(
       weight: Weight;
       recrBy: string[];
       reqaBy: string[];
+      askedOf: string[];
    }>
 ): DerivedPull {
    return {
@@ -44,6 +45,7 @@ function fake(
       cryo: false,
       changesRequestedBy: [],
       engagedNoStamp: [],
+      askedOf: over.askedOf ?? [],
       data: {
          title: over.title ?? 'Fix the store dropdown',
          repo: over.repo ?? 'acme/widgets',
@@ -129,6 +131,13 @@ describe('matchesQuery', () => {
       expect(
          matchesQuery({ ...fake({ recrBy: ['bob'] }), cryo: true } as never, 'is:restamp', 'bob')
       ).toBe(false);
+   });
+
+   it('is:asked matches a review asked of the viewer, by name or through a team', () => {
+      const p = fake({ askedOf: ['bob', 'carol'] });
+      expect(matchesQuery(p, 'is:asked', 'bob')).toBe(true);
+      expect(matchesQuery(p, 'is:asked', 'dave')).toBe(false);
+      expect(matchesQuery(fake({}), 'is:asked', 'bob')).toBe(false);
    });
 
    it('is:blocked matches dev_block and deploy_block statuses only', () => {

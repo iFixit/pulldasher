@@ -78,6 +78,10 @@ function dp(
       cryo: false,
       changesRequestedBy: [],
       engagedNoStamp: [],
+      ownReview: false,
+      authorIsDeveloper: false,
+      askedOf: [],
+      askedAt: null,
    };
 }
 

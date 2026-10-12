@@ -104,6 +104,10 @@ export function usePopover<Panel extends HTMLElement, Trigger extends HTMLElemen
             (panelRef.current && path.includes(panelRef.current))
          )
             return;
+         // a popover opened from inside this one lives in its own portal on
+         // the body: a click in it is still a click in this one, or both
+         // would close (a PR's state popover inside a list of PRs did)
+         if (path.some(el => el instanceof HTMLElement && el.classList.contains('popover'))) return;
          setOpen(false);
       };
       const onKey = (e: KeyboardEvent) => {
@@ -128,5 +132,7 @@ export function usePopover<Panel extends HTMLElement, Trigger extends HTMLElemen
    );
 
    const hoverProps = opts?.hover ? { onPointerEnter, onPointerLeave } : {};
-   return { open, toggle, rootRef, panelRef, triggerRef, hoverProps };
+   /** a click or key opened it, so focus belongs in the panel */
+   const isPinned = () => pinned.current;
+   return { open, toggle, rootRef, panelRef, triggerRef, hoverProps, isPinned };
 }

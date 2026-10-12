@@ -1,4 +1,6 @@
 import {
+   lazy,
+   Suspense,
    useCallback,
    useDeferredValue,
    useEffect,
@@ -9,16 +11,15 @@ import {
 } from 'react';
 import { ago, closedEpoch, n, pullKey, shortRepo } from '../../shared/format';
 import type { ActionStateKey } from './model/actions';
-import { actionState } from './model/actions';
-import { LENS_LABELS, type Lens } from './lens';
+import { actionState, askedOf } from './model/actions';
+import { DEFAULT_RANGE, DEFAULT_SORT, LENS_LABELS, ORIGIN_KEYS, ZOOM_KEY, type Lens } from './lens';
 import type { DerivedPull } from '../../shared/model/status';
 import { matchesWeightFilter } from '../../shared/model/status';
 import { buildParentLookup } from './model/stack';
-import { buildReviewerPools, turnFor } from './model/rotation';
 import { shipRelevance, shippedToast } from './model/shipped';
 import { notificationStale } from './model/notificationRelevance';
 import type { Toast } from './model/toast';
-import { claimReview, isSnoozed, usePulldasher } from './store';
+import { isSnoozed, refreshAllText, usePulldasher } from './store';
 import { primeScope, useScope } from './prefs';
 import { useBoardHotkeys, useHeaderHeightVar } from './hooks';
 import { ageRotDays, getSettings, type Settings as SettingsShape, useSettings } from './settings';
@@ -26,8 +27,7 @@ import { useNotifications } from './notifications';
 import { ToastStack, useToasts } from './toasts';
 import { requestNames, useNames } from './model/names';
 import { CRYO_KEY, isBotLogin, personHidden, repoHidden } from '../../shared/model/visibility';
-import { reviewRequestedFrom } from './model/reviewers';
-import { CornerBadge, textInputClass } from './components/bits';
+import { CornerBadge, QuietButton, textInputClass } from './components/bits';
 import { foldDomId, openFold } from './components/Lane';
 import { Legend } from './components/Legend';
 import { LensMenu } from './components/LensMenu';
@@ -48,18 +48,30 @@ import {
 } from './model/savedFilters';
 import { SavedFiltersInput, SavedFiltersMenu } from './components/SavedFiltersPanel';
 import type { RowOptions } from './components/Row';
+import { pullStanding, useProjectStanding } from './model/standing';
 import { Review } from './views/Review';
-import { MyWork } from './views/MyWork';
 import { Team } from './views/Team';
 import { Classic } from './views/Classic';
 import { Ci } from './views/Ci';
 import { Stats } from './views/Stats';
+import type { ProjectsNav } from './views/Projects';
 import { Search } from './views/Search';
 import { Settings } from './components/Settings';
+import { JailMode } from './components/JailMode';
 
 export type { Lens };
 
-const LENSES: Lens[] = ['review', 'mine', 'team', 'classic', 'ci', 'stats'];
+// The Projects tab is for whoever plans the work; reviewers never open it, so
+// its code (and the chart and calendar chunks under it) loads only on demand.
+const Projects = lazy(() => import('./views/Projects').then(m => ({ default: m.Projects })));
+// My work lists your projects in the Projects tab's own words, so it carries
+// the projects model; it loads on its own too (fetched once the board is up,
+// so the tab never waits on it), keeping that model out of the review
+// board's bundle.
+const loadMyWork = () => import('./views/MyWork').then(m => ({ default: m.MyWork }));
+const MyWork = lazy(loadMyWork);
+
+const LENSES: Lens[] = ['review', 'mine', 'team', 'projects', 'classic', 'ci', 'stats'];
 
 /** every actionState bucket, for validating the `state=` hash param against */
 const ACTION_STATE_KEYS: ActionStateKey[] = [
@@ -94,6 +106,9 @@ interface HashState {
    reveal: string[];
    /** session override of the drafts default (null = use the durable default) */
    drafts: 'mine' | 'all' | null;
+   /** the Projects tab's own state: the view, an open project page, the
+    * date range, and the list's and roadmap's controls */
+   projects: ProjectsNav;
 }
 
 /**
@@ -127,6 +142,35 @@ function readHash(): HashState {
       hidden: p.get('hidden') === '1',
       reveal: p.get('show')?.split(',').filter(Boolean) ?? [],
       drafts: p.get('drafts') === 'all' ? 'all' : p.get('drafts') === 'mine' ? 'mine' : null,
+      projects: {
+         view:
+            (['decide', 'roadmap', 'people', 'retro'] as const).find(v => v === p.get('view')) ??
+            'overview',
+         project: p.get('project') || null,
+         range: p.get('range') || DEFAULT_RANGE,
+         status: p.get('status') || 'live',
+         group: p.get('group') || 'none',
+         sort: p.get('sort') || DEFAULT_SORT,
+         find: p.get('find') ?? '',
+         scale: p.get('scale') === 'month' ? 'month' : p.get('scale') === 'now' ? 'now' : 'quarter',
+         item: Number(p.get('item')) || null,
+         // not `show`, which the board already uses for revealed hidden groups
+         show:
+            p.get('unplanned') === 'hide'
+               ? 'plan'
+               : p.get('unplanned') === 'only'
+               ? 'unplanned'
+               : 'all',
+         week: /^\d{4}-\d{2}-\d{2}$/.test(p.get('week') ?? '') ? p.get('week') : null,
+         zoom: ZOOM_KEY.test(p.get('zoom') ?? '') ? p.get('zoom') : null,
+         team: p.get('team') || null,
+         origin: ORIGIN_KEYS.find(o => o === p.get('origin')) ?? null,
+         by: (['origin', 'author', 'repo'] as const).find(b => b === p.get('by')) ?? 'team',
+         kind: (['writing', 'reviewing'] as const).find(k => k === p.get('kind')) ?? 'all',
+         who: p.get('who') || null,
+         only: p.get('only') || null,
+         psort: p.get('psort') ?? '',
+      },
    };
 }
 
@@ -142,6 +186,25 @@ function buildHash(s: HashState): string {
    if (s.hidden) p.set('hidden', '1');
    if (s.reveal.length) p.set('show', s.reveal.join(','));
    if (s.drafts) p.set('drafts', s.drafts);
+   if (s.projects.view !== 'overview') p.set('view', s.projects.view);
+   if (s.projects.project) p.set('project', s.projects.project);
+   if (s.projects.range !== DEFAULT_RANGE) p.set('range', s.projects.range);
+   if (s.projects.status !== 'live') p.set('status', s.projects.status);
+   if (s.projects.group !== 'none') p.set('group', s.projects.group);
+   if (s.projects.sort !== DEFAULT_SORT) p.set('sort', s.projects.sort);
+   if (s.projects.find) p.set('find', s.projects.find);
+   if (s.projects.scale !== 'quarter') p.set('scale', s.projects.scale);
+   if (s.projects.item) p.set('item', String(s.projects.item));
+   if (s.projects.show !== 'all') p.set('unplanned', s.projects.show === 'plan' ? 'hide' : 'only');
+   if (s.projects.week) p.set('week', s.projects.week);
+   if (s.projects.zoom) p.set('zoom', s.projects.zoom);
+   if (s.projects.team) p.set('team', s.projects.team);
+   if (s.projects.origin) p.set('origin', s.projects.origin);
+   if (s.projects.by !== 'team') p.set('by', s.projects.by);
+   if (s.projects.kind !== 'all') p.set('kind', s.projects.kind);
+   if (s.projects.who) p.set('who', s.projects.who);
+   if (s.projects.only) p.set('only', s.projects.only);
+   if (s.projects.psort) p.set('psort', s.projects.psort);
    return p.toString();
 }
 
@@ -175,9 +238,9 @@ function Banner({
       warn: 'border-warn bg-surface',
       brand: 'notice-inner border-brand bg-brand-50 text-brand-700',
    };
-   const surface = `flex w-full items-center gap-2 rounded-lg border px-3 py-[7px] text-left ${inner[tone]} ${
-      onClick ? 'pressable hover:bg-brand-100' : ''
-   }`;
+   const surface = `flex w-full items-center gap-2 rounded-lg border px-3 py-[7px] text-left ${
+      inner[tone]
+   } ${onClick ? 'pressable hover:bg-brand-100' : ''}`;
    return (
       <div className="mx-auto mt-3 max-w-[1240px] px-5 text-[13px]">
          {onClick ? (
@@ -227,18 +290,14 @@ export function App() {
       me,
       connection,
       initialized,
+      updated,
       authFailed,
       lastPayloadAt,
       lastSeen,
       refreshProgress,
       snoozed,
+      projectLabelPrefix,
    } = usePulldasher();
-   // per-repo reviewer pools and whose turn each starved, unclaimed pull is —
-   // computed ONCE over the whole board and shared by the rows (rowOpts),
-   // desktop notifications, and the cheers evaluator, so the three surfaces
-   // can never disagree about the rotation (and never re-derive it in
-   // parallel; buildReviewerPools walks every pull's signatures)
-   const pools = useMemo(() => buildReviewerPools(pulls), [pulls]);
    // Publish the widest CR/QA required counts on the board so every row's pip
    // slot pads to them (styles.css .pd-pip-slot-*) and the marks line up in a
    // column. Over ALL open pulls, not the filtered view: simpler, and the
@@ -257,14 +316,6 @@ export function App() {
       root.setProperty('--cr-slots', String(maxCrReq));
       root.setProperty('--qa-slots', String(maxQaReq));
    }, [maxCrReq, maxQaReq]);
-   const turns = useMemo(() => {
-      const m = new Map<string, string>();
-      for (const p of pulls) {
-         const who = turnFor(p, pools, pulls);
-         if (who) m.set(pullKey(p.data), who);
-      }
-      return m;
-   }, [pulls, pools]);
    // resolve every author on the board to a human display name (batched,
    // cached — model/names.ts): the person hover-cards, the people pickers,
    // and name-aware search all read from this one map
@@ -306,6 +357,18 @@ export function App() {
    const [draftsMode, setDraftsMode] = useState<'mine' | 'all'>(
       () => urlState.drafts ?? getSettings().draftsMode
    );
+   const [projectsNav, setProjectsNav] = useState<ProjectsNav>(() => urlState.projects);
+   // a click that narrows by find (a lead, a team cell) wants its own history
+   // entry even though find itself isn't tracked below (typing must keep
+   // replacing) — recorded here, spent once by the history effect
+   const pushRequested = useRef(false);
+   const navigateProjects = useCallback(
+      (patch: Partial<ProjectsNav>, opts?: { push?: boolean }) => {
+         if (opts?.push) pushRequested.current = true;
+         setProjectsNav(cur => ({ ...cur, ...patch }));
+      },
+      []
+   );
    // login-level twin of isBot, for row-level consumers (the avatar's square
    // bot tile) that hold a login rather than a DerivedPull
    const isBotAuthor = useCallback((login: string) => isBotLogin(login, extraBots), [extraBots]);
@@ -332,6 +395,10 @@ export function App() {
    );
    const dark = settings.theme === 'dark' || (settings.theme === 'system' && systemDark);
    const searchRef = useRef<HTMLInputElement>(null);
+   // My work's code, fetched once the board is up so the tab opens at once
+   useEffect(() => {
+      if (initialized) void loadMyWork();
+   }, [initialized]);
 
    // The whole session view as one object — what buildHash writes to the URL
    // AND what "Save current filter…" would capture right now must never
@@ -350,19 +417,70 @@ export function App() {
          hidden: showAll,
          reveal,
          drafts: draftsMode !== settings.draftsMode ? draftsMode : null,
+         projects: projectsNav,
       }),
-      [lens, query, scope, weightSel, stateSel, showAll, reveal, draftsMode, settings.draftsMode]
+      [
+         lens,
+         query,
+         scope,
+         weightSel,
+         stateSel,
+         showAll,
+         reveal,
+         draftsMode,
+         settings.draftsMode,
+         projectsNav,
+      ]
    );
-   // View changes (lens switches) earn a history entry so the back button
-   // navigates between boards; filter tweaks replace in place so typing a
-   // query doesn't bury history under keystrokes.
-   const prevView = useRef({ lens });
+   // View changes (lens switches, opening or leaving a project page, and
+   // picks that land somewhere new — a tile, a chart bar, a Decide team, a
+   // picked week) earn a history entry so the back button navigates between
+   // boards; filter tweaks and typing replace in place so a query doesn't
+   // bury history under keystrokes.
+   const view = {
+      lens,
+      project: projectsNav.project,
+      projectsView: projectsNav.view,
+      // zooming the roadmap in or out is a view change too, so Back undoes it
+      zoom: projectsNav.zoom,
+      only: projectsNav.only,
+      team: projectsNav.team,
+      week: projectsNav.week,
+      origin: projectsNav.origin,
+      item: projectsNav.item,
+      // Look back's person and split picks
+      who: projectsNav.who,
+      by: projectsNav.by,
+   };
+   const prevView = useRef(view);
    useEffect(() => {
+      // spent even when the hash already says so (after Back, or a hash
+      // link), so the next change compares with what's on screen and a
+      // click that changed nothing doesn't push the next keystroke
+      const prev = prevView.current;
+      prevView.current = view;
+      const asked = pushRequested.current;
+      pushRequested.current = false;
       const next = buildHash(hashState);
       if (next === location.hash.slice(1)) return;
-      const prev = prevView.current;
-      prevView.current = { lens };
-      if (prev.lens !== lens) {
+      const viewChanged =
+         prev.lens !== view.lens ||
+         prev.project !== view.project ||
+         prev.projectsView !== view.projectsView ||
+         prev.zoom !== view.zoom ||
+         prev.only !== view.only ||
+         prev.team !== view.team ||
+         prev.week !== view.week ||
+         prev.origin !== view.origin ||
+         prev.item !== view.item ||
+         prev.who !== view.who ||
+         prev.by !== view.by;
+      if (viewChanged || asked) {
+         // a project's page or another Projects view opens at its top; Back
+         // returns to the old one where it was left
+         if (prev.project !== view.project || prev.projectsView !== view.projectsView) {
+            window.scrollTo(0, 0);
+         }
          if (next) {
             // fires hashchange; the listener below re-reads idempotently
             location.hash = next;
@@ -377,7 +495,8 @@ export function App() {
       }
       // buildHash's omission rule reads settings.defaultLens too (via
       // defaultLensFallback) even though it's not one of hashState's own
-      // fields, so it stays a separate dependency here.
+      // fields, so it stays a separate dependency here. `view` is built from
+      // hashState's own fields, so hashState covers it.
    }, [hashState, lens, settings.defaultLens]);
    useEffect(() => {
       const onHash = () => {
@@ -389,6 +508,7 @@ export function App() {
          setShowAll(h.hidden);
          setReveal(h.reveal);
          setDraftsMode(h.drafts ?? getSettings().draftsMode);
+         setProjectsNav(h.projects);
          // the hash is the whole view, scope included: applying a saved
          // search (or walking history) must land its repos/authors too.
          // Primed, not persisted — same rule as opening a shared link.
@@ -489,7 +609,7 @@ export function App() {
             p.data.draft &&
             p.data.user.login !== me &&
             !revealedAuthor(p.data.user.login) &&
-            !reviewRequestedFrom(p, me);
+            !askedOf(p).includes(me);
          return hidden || cryoHidden || draftHidden;
       },
       [
@@ -564,7 +684,7 @@ export function App() {
    );
    // desktop notifications watch the whole board (minus the standing hidden
    // settings above), not the current filter
-   useNotifications(nudgeablePulls, me, turns, initialized);
+   useNotifications(nudgeablePulls, me, initialized);
 
    // scope + hidden, but deliberately NOT free text: a query drives the global
    // Search lens (App renders <Search> instead of the current lens), so
@@ -679,6 +799,24 @@ export function App() {
       extraBots,
    ]);
 
+   // The Projects tab counts every person's PR, drafts and hidden repos
+   // included, whatever the filter bar narrows (it isn't shown there): a
+   // project's size can't depend on one viewer's review preferences, and a
+   // project whose PRs are filtered out mustn't look finished. Bots are
+   // left out, as in the API.
+   const allProjectPulls = useMemo(() => pulls.filter(p => !isBot(p)), [pulls, isBot]);
+   const allProjectClosed = useMemo(
+      () => closed.filter(p => !isBotLogin(p.user.login, extraBots)),
+      [closed, extraBots]
+   );
+   // how each PR's project stands, for the review board's lanes: counted
+   // over every person's PR, as every Projects view counts them
+   const standing = useProjectStanding(projectLabelPrefix);
+   const reviewStanding = useMemo(
+      () => pullStanding(standing, allProjectPulls, projectLabelPrefix),
+      [standing, allProjectPulls, projectLabelPrefix]
+   );
+
    // the hidden-PR ledger's numbers: stable per-category sizes (what each
    // rule covers, whether or not a session reveal currently shows it) plus
    // the live currently-hidden total for the trigger label
@@ -686,7 +824,7 @@ export function App() {
       const c = { parked: 0, drafts: 0, hiddenRepos: 0, hiddenPeople: 0, bots: 0, hiddenNow: 0 };
       for (const p of pulls) {
          if (p.cryo) c.parked++;
-         if (p.data.draft && p.data.user.login !== me && !reviewRequestedFrom(p, me)) c.drafts++;
+         if (p.data.draft && p.data.user.login !== me && !askedOf(p).includes(me)) c.drafts++;
          if (repoHidden(p.data.repo, settings.repoPrefs)) c.hiddenRepos++;
          if (
             p.data.user.login !== me &&
@@ -733,6 +871,15 @@ export function App() {
    const goToLens = useCallback((id: Lens) => {
       setQuery('');
       setLens(id);
+      // the Projects tab, clicked from a project page, goes back to the list
+      if (id === 'projects') setProjectsNav(cur => ({ ...cur, project: null }));
+   }, []);
+   // a PR's project, from its state popover anywhere on the board: the
+   // Projects tab opens on that project's page, the board's filters kept
+   const onProject = useCallback((slug: string) => {
+      setQuery('');
+      setLens('projects');
+      setProjectsNav(cur => ({ ...cur, project: slug }));
    }, []);
    // and the Team lens shows the result
    const onPerson = useCallback(
@@ -767,9 +914,8 @@ export function App() {
          compact: settings.density === 'compact',
          laneCap: settings.laneCapByLens[lens] ?? settings.laneCap,
          parentOf,
-         pools,
-         turns,
          isBotAuthor,
+         onProject,
       }),
       [
          me,
@@ -783,13 +929,20 @@ export function App() {
          settings.laneCapByLens,
          lens,
          parentOf,
-         pools,
-         turns,
          isBotAuthor,
+         onProject,
       ]
    );
 
    const mineCount = humans.filter(p => p.data.user.login === me).length;
+   const onProjects = lens === 'projects';
+   // the Projects views whose own find box takes "/" (their inputs carry
+   // aria-keyshortcuts="/", which hooks.ts focuses before the PR search)
+   const viewFinds =
+      onProjects &&
+      !searching &&
+      !projectsNav.project &&
+      ['overview', 'roadmap', 'people'].includes(projectsNav.view);
    // a tab's count rides as the corner badge (out of flow), so it appearing
    // when data lands can never widen the tab and shove the strip sideways
    const tab = (id: Lens, label: string, count?: number) => (
@@ -821,8 +974,8 @@ export function App() {
       lens === 'review'
          ? scopedClosed.length
          : lens === 'mine'
-           ? closed.filter(p => p.user.login === me).length
-           : 0;
+         ? closed.filter(p => p.user.login === me).length
+         : 0;
    // memoized: this feeds the shippedExtras useMemo below, which feeds
    // useToasts' extras effect — a fresh identity every render would re-run
    // that chain on every unrelated keystroke/toggle while on these lenses
@@ -874,15 +1027,6 @@ export function App() {
       setLens('review');
       setWeightSel(['XS', 'S']);
    }, []);
-   // the "your turn" toast's Claim button: claim the review straight from the
-   // nudge (which also adds you as a GitHub reviewer, same as any claim)
-   const onClaimTurn = useCallback(
-      (repo: string, number: number) => {
-         const p = pulls.find(x => x.data.repo === repo && x.data.number === number);
-         if (p) claimReview(p.data);
-      },
-      [pulls]
-   );
    // pull keys the viewer snoozed in Review, so cheers skips them the way the
    // Review lane does — a snooze is "not today", not "nudge me anyway"
    const snoozedKeys = useMemo(
@@ -899,18 +1043,17 @@ export function App() {
    } = useToasts(
       nudgeablePulls,
       me,
-      turns,
       shippedExtras,
       closed,
       onQuickWins,
-      onClaimTurn,
       initialized,
       names,
-      snoozedKeys
+      snoozedKeys,
+      reviewStanding.parked
    );
 
    // A fired nudge outlives the PR it points at: once that PR merges or closes
-   // it drops off the board, so a bell entry like "return the favor on
+   // it drops off the board, so a bell entry like "review requested on
    // fixbot#3116" is left pointing at a dead link. Drop any panel record whose
    // PR has left the open board -- notificationStale is general across every
    // kind, and exempts the retrospective shipped recap and board-wide rewards.
@@ -961,9 +1104,7 @@ export function App() {
                      // Out of flow (anchored left of the cluster): transient text
                      // must not shove the bell/legend/cog sideways mid-aim.
                      <span className="absolute inset-y-0 right-full mr-2 hidden items-center bg-surface pl-2 text-xs whitespace-nowrap text-ink-3 tabular-nums sm:flex">
-                        {refreshProgress.done === refreshProgress.total
-                           ? `refreshed ${refreshProgress.total}`
-                           : `refreshing ${refreshProgress.done} of ${refreshProgress.total}`}
+                        {refreshAllText(refreshProgress, true)}
                      </span>
                   )}
                   <span
@@ -972,11 +1113,11 @@ export function App() {
                         connection === 'connected'
                            ? 'conn-live bg-ok'
                            : connection === 'connecting'
-                             ? // in-progress, not an alarm — the same slate hue CI
-                               // running wears, not warn (which means "you owe
-                               // something")
-                               'bg-slate'
-                             : 'bg-bad'
+                           ? // in-progress, not an alarm — the same slate hue CI
+                             // running wears, not warn (which means "you owe
+                             // something")
+                             'bg-slate'
+                           : 'bg-bad'
                      }`}
                      title={connection}
                   >
@@ -1001,6 +1142,7 @@ export function App() {
                   >
                      v1 board
                   </a>
+                  <JailMode pulls={pulls} me={me} extraBots={extraBots} initialized={initialized} />
                   <NotificationPanel
                      records={liveHistory}
                      onClear={clearHistory}
@@ -1028,6 +1170,7 @@ export function App() {
                      {tab('review', LENS_LABELS.review)}
                      {tab('mine', LENS_LABELS.mine, mineCount)}
                      {tab('team', LENS_LABELS.team)}
+                     {projectLabelPrefix && tab('projects', LENS_LABELS.projects)}
                      {tab('classic', LENS_LABELS.classic)}
                      {tab('ci', LENS_LABELS.ci)}
                      {tab('stats', LENS_LABELS.stats)}
@@ -1036,11 +1179,13 @@ export function App() {
                      className="sm:hidden"
                      lens={lens}
                      setLens={goToLens}
-                     options={LENSES.map(id => ({
-                        id,
-                        label: LENS_LABELS[id],
-                        count: id === 'mine' ? mineCount : undefined,
-                     }))}
+                     options={LENSES.filter(id => id !== 'projects' || projectLabelPrefix).map(
+                        id => ({
+                           id,
+                           label: LENS_LABELS[id],
+                           count: id === 'mine' ? mineCount : undefined,
+                        })
+                     )}
                   />
                </div>
             </div>
@@ -1051,8 +1196,9 @@ export function App() {
                 away and stops a growing set from wrapping the dimension triggers
                 below. Click applies it on the lens you're standing on; click
                 again clears. State is a background tint; the text never changes,
-                so nothing shifts. */}
-            {pinnedSearches.length > 0 && (
+                so nothing shifts. Not on Projects: every view there counts every
+                PR, so a pin there would change nothing. */}
+            {pinnedSearches.length > 0 && !onProjects && (
                <div className="no-scrollbar mx-auto flex max-w-[1240px] min-w-0 items-center gap-2 overflow-x-auto border-t border-secondary px-5 py-2">
                   {pinnedSearches.map(f => {
                      const active = matchesView(f.hash, currentHash);
@@ -1079,57 +1225,69 @@ export function App() {
             )}
             <div
                className={`mx-auto flex max-w-[1240px] min-w-0 flex-wrap items-center gap-2 px-5 py-2 ${
-                  pinnedSearches.length > 0 ? '' : 'border-t border-secondary'
+                  pinnedSearches.length > 0 && !onProjects ? '' : 'border-t border-secondary'
                }`}
             >
-               <RepoFilter
-                  repos={repoCounts}
-                  reveal={reveal}
-                  toggleReveal={toggleReveal}
-                  showAll={showAll}
-                  setShowAll={setShowAll}
-                  scope={scope}
-                  setScope={setScope}
-               />
-               <PeopleFilter pulls={pulls} scope={scope} setScope={setScope} />
-               <WeightFilter
-                  pulls={preWeightScoped}
-                  weightSel={weightSel}
-                  setWeightSel={setWeightSel}
-               />
-               <StateFilter pulls={preStateScoped} stateSel={stateSel} setStateSel={setStateSel} />
-               <SavedFiltersMenu currentHash={currentHash} sessionActive={sessionActive} />
-               <HiddenPanel
-                  counts={hiddenCounts}
-                  showAll={showAll}
-                  setShowAll={setShowAll}
-                  reveal={reveal}
-                  toggleReveal={toggleReveal}
-                  draftsMode={draftsMode}
-                  setDraftsMode={setDraftsMode}
-               />
-               {sessionActive && (
-                  <button
-                     type="button"
-                     onClick={() => {
-                        setScope({ repos: [], authors: [], notAuthors: [] });
-                        setWeightSel([]);
-                        setStateSel([]);
-                        setShowAll(false);
-                        setReveal([]);
-                        setDraftsMode(settings.draftsMode);
-                     }}
-                     title="clears filters and session toggles; your team, hidden, and primary-repo choices stay"
-                     className="hit pressable rounded-md px-1.5 py-1 text-[13px] text-ink-3 hover:text-brand"
-                  >
-                     Reset
-                  </button>
-               )}
-               <span className="flex-1" />
-               {bots.length > 0 && (
-                  <span className="text-xs text-ink-3 tabular-nums">
-                     {n(bots.length, 'bot PR')}
-                  </span>
+               {/* the filters narrow every tab but Projects, whose views count
+                   every PR (DESIGN.md), so there they'd only take room: two
+                   rows of a phone's header (177px down to 106). The search
+                   stays: it opens Search from anywhere */}
+               {!onProjects && (
+                  <>
+                     <RepoFilter
+                        repos={repoCounts}
+                        reveal={reveal}
+                        toggleReveal={toggleReveal}
+                        showAll={showAll}
+                        setShowAll={setShowAll}
+                        scope={scope}
+                        setScope={setScope}
+                     />
+                     <PeopleFilter pulls={pulls} scope={scope} setScope={setScope} />
+                     <WeightFilter
+                        pulls={preWeightScoped}
+                        weightSel={weightSel}
+                        setWeightSel={setWeightSel}
+                     />
+                     <StateFilter
+                        pulls={preStateScoped}
+                        stateSel={stateSel}
+                        setStateSel={setStateSel}
+                     />
+                     <SavedFiltersMenu currentHash={currentHash} sessionActive={sessionActive} />
+                     <HiddenPanel
+                        counts={hiddenCounts}
+                        showAll={showAll}
+                        setShowAll={setShowAll}
+                        reveal={reveal}
+                        toggleReveal={toggleReveal}
+                        draftsMode={draftsMode}
+                        setDraftsMode={setDraftsMode}
+                     />
+                     {sessionActive && (
+                        <button
+                           type="button"
+                           onClick={() => {
+                              setScope({ repos: [], authors: [], notAuthors: [] });
+                              setWeightSel([]);
+                              setStateSel([]);
+                              setShowAll(false);
+                              setReveal([]);
+                              setDraftsMode(settings.draftsMode);
+                           }}
+                           title="clears filters and session toggles; your team, hidden, and primary-repo choices stay"
+                           className="hit pressable rounded-md px-1.5 py-1 text-[13px] text-ink-3 hover:text-brand"
+                        >
+                           Reset
+                        </button>
+                     )}
+                     <span className="flex-1" />
+                     {bots.length > 0 && (
+                        <span className="text-xs text-ink-3 tabular-nums">
+                           {n(bots.length, 'bot PR')}
+                        </span>
+                     )}
+                  </>
                )}
                <SavedFiltersInput
                   query={query}
@@ -1139,9 +1297,11 @@ export function App() {
                   sessionActive={sessionActive}
                   inputProps={{
                      'aria-label':
-                        'Search all PRs, open and closed: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked, is:bot',
-                     placeholder: 'Search all PRs (press /)',
-                     title: 'text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:blocked, is:bot',
+                        'Search all PRs, open and closed: text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:asked, is:blocked, is:bot',
+                     // "/" finds within a view that has its own find box
+                     // (hooks.ts), so the hint only shows where "/" comes here
+                     placeholder: viewFinds ? 'Search all PRs' : 'Search all PRs (press /)',
+                     title: 'text, #number, label:x, status:x, older:5, repo:x, author:x, weight:xs, has:action, is:draft, is:mine, is:restamp, is:asked, is:blocked, is:bot',
                      className: `w-[210px] max-w-full grow pr-2.5 pl-8 sm:grow-0 ${textInputClass}`,
                   }}
                />
@@ -1160,17 +1320,22 @@ export function App() {
                </span>
             </Banner>
          )}
-         {initialized &&
-            !authFailed &&
-            (connection === 'disconnected' || connection === 'error') && (
-               <Banner tone="warn">
-                  <span className="font-semibold text-warn">Live updates lost.</span>
-                  <span className="text-ink-2">
-                     Showing data as of {lastPayloadAt ? `${ago(lastPayloadAt)} ago` : 'page load'},
-                     retrying in the background.
-                  </span>
-               </Banner>
-            )}
+         {updated && (
+            <Banner tone="brand">
+               <span className="font-semibold">Pulldasher was updated.</span>
+               <span className="flex-1" />
+               <QuietButton onClick={() => window.location.reload()}>Reload</QuietButton>
+            </Banner>
+         )}
+         {initialized && !authFailed && (connection === 'disconnected' || connection === 'error') && (
+            <Banner tone="warn">
+               <span className="font-semibold text-warn">Live updates lost.</span>
+               <span className="text-ink-2">
+                  Showing data as of {lastPayloadAt ? `${ago(lastPayloadAt)} ago` : 'page load'},
+                  retrying in the background.
+               </span>
+            </Banner>
+         )}
          <main
             className={`mx-auto mt-4 max-w-[1240px] px-5 pb-16 ${entrance ? 'settle-once' : ''}`}
          >
@@ -1201,10 +1366,20 @@ export function App() {
                   botsForReady={botsBypassingHideBots}
                   closed={scopedClosed}
                   opts={{ ...rowOpts, showSnooze: true }}
+                  standing={reviewStanding}
                />
             )}
             {initialized && !searching && lens === 'mine' && (
-               <MyWork pulls={humans} closed={closed} opts={rowOpts} />
+               <Suspense fallback={null}>
+                  <MyWork
+                     pulls={humans}
+                     closed={closed}
+                     opts={rowOpts}
+                     prefix={projectLabelPrefix}
+                     allPulls={allProjectPulls}
+                     allClosed={allProjectClosed}
+                  />
+               </Suspense>
             )}
             {initialized && !searching && lens === 'team' && (
                <Team
@@ -1220,8 +1395,27 @@ export function App() {
                <Classic pulls={scoped} opts={rowOpts} />
             )}
             {initialized && !searching && lens === 'ci' && <Ci pulls={ciPulls} opts={rowOpts} />}
+            {initialized && !searching && lens === 'projects' && (
+               <Suspense
+                  fallback={
+                     <div className="py-20 text-center text-sm text-ink-3" role="status">
+                        Loading projects…
+                     </div>
+                  }
+               >
+                  <Projects
+                     allPulls={allProjectPulls}
+                     allClosed={allProjectClosed}
+                     prefix={projectLabelPrefix}
+                     nav={projectsNav}
+                     navigate={navigateProjects}
+                     opts={rowOpts}
+                     me={me}
+                  />
+               </Suspense>
+            )}
             {initialized && !searching && lens === 'stats' && (
-               <Stats pulls={humans} closed={closed} me={me} onPerson={onPerson} />
+               <Stats pulls={humans} closed={closed} bots={extraBots} me={me} onPerson={onPerson} />
             )}
          </main>
       </>

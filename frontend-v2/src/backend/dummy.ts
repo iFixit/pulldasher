@@ -43,7 +43,15 @@ export async function loadDummy(): Promise<InitializePayload> {
    ];
    const withBody = (p: PullData, i: number): PullData =>
       p.body === 'pull request dummy body' ? { ...p, body: BODIES[i % BODIES.length] } : p;
-   const pulls = withSyntheticStacks(raw).map((p, i) => withBody(withSizes(redate(p, i), i), i));
+   const pulls = withSyntheticStacks(raw).map((p, i) =>
+      withProject(withBody(withSizes(withSelfReviewDemos(redate(p, i), i), i), i), i)
+   );
+   // ?projects=100 adds that many projects in flight, to design at real size
+   const scaled = new URLSearchParams(location.search).has('projects')
+      ? await import('./dummyScale').then(m =>
+           m.scalePulls(pulls, m.scaleCount(), DUMMY_PROJECT_PREFIX)
+        )
+      : [];
    return {
       repos: [{ name: 'iFixit/ifixit' }],
       // config the live server delivers here too — a bot login and the weight
@@ -56,11 +64,110 @@ export async function loadDummy(): Promise<InitializePayload> {
          'size: L': 'L',
          'size: XL': 'XL',
       },
+      projectLabelPrefix: DUMMY_PROJECT_PREFIX,
+      developerTeams: dummyDeveloperTeams(pulls),
       // The fixture carries almost no closed/merged pulls and no diff sizes, so
       // the Stats lens (merge-time-by-size, leaderboards over shipped work) has
       // nothing to show. Synthesize a fortnight of merged PRs across the size
       // range so those panels demo. Dummy-only — real data carries this for real.
-      pulls: [...pulls, ...synthMerged(pulls)],
+      pulls: [...pulls, ...scaled, ...synthMerged(pulls)],
+   };
+}
+
+// The roster of developers (config projects.developerTeams): every dummy author
+// but two, who stay outside contributors whose pulls still need someone else's
+// review. The viewer is always on it.
+const OUTSIDE_CONTRIBUTORS = new Set(['notme', 'Michelle5102']);
+function dummyDeveloperTeams(pulls: PullData[]): Record<string, string[]> {
+   const logins = [...new Set([dummyUser(), ...pulls.map(p => p.user.login)])].filter(
+      l => !OUTSIDE_CONTRIBUTORS.has(l) && !l.endsWith('[bot]')
+   );
+   const names = ['Store Front', 'Platform', 'Community'];
+   const teams: Record<string, string[]> = Object.fromEntries(names.map(n => [n, []]));
+   logins.forEach((l, i) => teams[names[i % names.length]].push(l));
+   return teams;
+}
+
+export const DUMMY_PROJECT_PREFIX = 'project:';
+
+// The Projects tab reads project labels off the pulls, and the fixture
+// predates them, so each pull gets one here by the theme its title already
+// has (the Grafana dashboards, the webdriver deflakes...), keyed by index like
+// everything else in this file. The picks keep every Today state on the bench:
+// one person on a project (the Grafana four), a project whose PRs all wait on
+// review (store-picker, its sign-offs cleared below), a lead with work in many
+// other projects (type-refresh), a closed issue with a PR still open
+// (akeneo-4), a label with no issue yet (core-primitives, the synthetic fork),
+// one-offs, PRs not sorted yet, and one PR with two project labels.
+// backend/dummyProjects.ts holds the issues behind them. synthMerged clones indexes
+// 0-15, labels included, so those projects get recent merges too.
+const DUMMY_PROJECT_PULLS: Record<string, number[]> = {
+   'webdriver-deflake': [0, 9, 17, 19, 32, 35, 48, 55],
+   'grafana-dashboards': [21, 30, 31, 41],
+   'training-periods': [8, 27, 37],
+   'release-gate-sso': [5, 6, 7],
+   // the next phase: its one PR does an issue SSO approvals still has, so
+   // its page says where that work may belong ("Does #35004, in …")
+   // (24 characters at most, as a real label's slug: pull_labels.title is
+   // varchar(32) with the prefix in it)
+   'sso-second-path': [38],
+   // 10-12 are the viewer's stacked chain: one chain, one project
+   'shopify-sync': [10, 11, 12, 40],
+   'core-primitives': [13, 14, 15],
+   'shipping-shelf-weight': [26],
+   'mysql-8': [23, 34, 50],
+   'akeneo-4': [25, 56, 57],
+   'newsletter-promo': [44, 45],
+   'store-picker': [16, 36],
+   'type-refresh': [1, 24, 42],
+   // its one PR moved this week, so its plan, marked Planned from Monday,
+   // reads In progress: Decide's "Filled in on its own this week"
+   translations: [22],
+   misc: [3, 18, 20, 29, 43, 47, 53],
+};
+const SECOND_PROJECT: Record<number, string> = { 50: 'webdriver-deflake' };
+// a project whose PRs all went quiet weeks ago (index to days since anyone
+// worked on them), so the Overview's Stalled tile and chart bar and Decide's
+// stall have one to show
+const QUIET_FOR_DAYS: Record<number, number> = { 26: 25 };
+const ALL_WAITING_ON_REVIEW = new Set(DUMMY_PROJECT_PULLS['store-picker']);
+const projectsByIndex = new Map<number, string[]>();
+for (const [slug, indexes] of Object.entries(DUMMY_PROJECT_PULLS))
+   for (const i of indexes) projectsByIndex.set(i, [...(projectsByIndex.get(i) ?? []), slug]);
+for (const [i, slug] of Object.entries(SECOND_PROJECT))
+   projectsByIndex.set(Number(i), [...(projectsByIndex.get(Number(i)) ?? []), slug]);
+
+function withProject(given: PullData, i: number): PullData {
+   const pull = QUIET_FOR_DAYS[i] == null ? given : quietly(given, QUIET_FOR_DAYS[i]);
+   const out: PullData = ALL_WAITING_ON_REVIEW.has(i)
+      ? {
+           ...pull,
+           draft: false,
+           status: { ...pull.status, allCR: [], allQA: [], dev_block: [], deploy_block: [] },
+        }
+      : pull;
+   const slugs = projectsByIndex.get(i);
+   if (!slugs) return out;
+   const labels = slugs.map(slug => ({
+      title: DUMMY_PROJECT_PREFIX + slug,
+      number: pull.number,
+      repo: pull.repo,
+      user: 'projects-bot[bot]',
+      created_at: pull.created_at,
+   }));
+   return { ...out, labels: [...out.labels, ...labels] };
+}
+
+// Nobody has touched it for `days`: its activity, last update and sign-offs
+// all fall before then, and it was opened at least two weeks before that.
+function quietly(pull: PullData, days: number): PullData {
+   const at = Date.now() - days * 86400_000;
+   const created = Math.min(Date.parse(pull.created_at), at - 14 * 86400_000);
+   return {
+      ...pull,
+      created_at: new Date(created).toISOString(),
+      updated_at: new Date(at).toISOString(),
+      status: { ...redateSigs(pull.status, created, at), activity_at: new Date(at).toISOString() },
    };
 }
 
@@ -152,8 +259,8 @@ function participantsFor(pull: PullData, i: number): string[] {
       i === CHANGES_REQUESTED_INDEX
          ? ['grumpy-reviewer']
          : i === COMMENTED_INDEX
-           ? ['curious-commenter']
-           : ['silent-lurker'];
+         ? ['curious-commenter']
+         : ['silent-lurker'];
    return [...new Set([...(pull.participants ?? []), ...stampers, ...extra])];
 }
 
@@ -176,6 +283,87 @@ const FORK_INDEXES = [13, 14, 15] as const; // parent, child, child
 const wantsReviewRequest = (pull: PullData, i: number): boolean =>
    pull.user.login !== dummyUser() && i % 3 === 1;
 const ASSIGNEE_INDEXES = new Set([6, 12]);
+
+// The self-review policy demos, keyed by index like the rest: team requests
+// (one for a team nobody is on the roster of), requests of the viewer with a
+// clock in hours (one past four), developers' own stamped pulls, an author
+// whose own stamp went stale, and input hints from the diff's paths.
+// [team slug, hours since it was requested]; the one at 5 is past the four
+// hours reviewers answer in
+const TEAM_REQUESTS: Record<number, Array<[string, number]>> = {
+   2: [['store-front', 3]],
+   9: [['store-front', 5]],
+   17: [['platform', 2]],
+   20: [['community', 4.5]],
+   30: [['design', 1]],
+};
+const OWN_STAMPED = new Set([3, 8, 21]);
+const OWN_STALE_STAMP = 24;
+const INPUT_HINTS: Record<number, string[]> = {
+   4: ['migrations'],
+   18: ['ci', 'agent-docs'],
+   26: ['deploy', 'dependencies'],
+   33: ['alerting'],
+   // the viewer's own open, unrequested pulls (the chain), so the author-side
+   // "worth asking for review?" hint shows on the board
+   10: ['migrations'],
+   12: ['ci', 'dependencies'],
+};
+
+function withSelfReviewDemos(pull: PullData, i: number): PullData {
+   const now = Date.now();
+   const author = pull.user;
+   const stamp = (type: 'CR' | 'QA', active: boolean, hoursAgo: number) => ({
+      data: {
+         repo: pull.repo,
+         number: pull.number,
+         user: { id: 1, ...author },
+         type,
+         created_at: new Date(now - hoursAgo * 3_600_000).toISOString(),
+         active: active ? 1 : 0,
+         comment_id: 900000000 + i * 10 + (type === 'CR' ? 1 : 2),
+      },
+   });
+   const meAsked = (pull.requested_reviewers ?? []).includes(dummyUser());
+   let out: PullData = {
+      ...pull,
+      requested_teams: (TEAM_REQUESTS[i] ?? []).map(([slug]) => slug),
+      team_requests: (TEAM_REQUESTS[i] ?? []).map(([slug, hoursAgo]) => ({
+         slug,
+         at: Math.floor(now / 1000 - hoursAgo * 3600),
+      })),
+      input_hints: INPUT_HINTS[i] ?? [],
+      // asked hours ago; the one at 7 is past the four hours reviewers answer in
+      review_requests: meAsked
+         ? [
+              {
+                 login: dummyUser(),
+                 at: Math.floor(now / 1000) - (i === 7 ? 5 : 1 + (i % 3)) * 3600,
+                 self: false,
+              },
+           ]
+         : pull.review_requests,
+   };
+   if (INPUT_HINTS[i] && (CHAIN_INDEXES as readonly number[]).includes(i)) {
+      // unrequested, so the hint is the only nudge to ask anyone
+      out = { ...out, requested_reviewers: [], requested_teams: [], team_requests: [] };
+   }
+   if (OWN_STAMPED.has(i) || i === OWN_STALE_STAMP) {
+      out = {
+         ...out,
+         requested_reviewers: [],
+         requested_teams: [],
+         team_requests: [],
+         review_requests: [],
+         status: {
+            ...out.status,
+            allCR: [stamp('CR', i !== OWN_STALE_STAMP, 6)],
+            allQA: i === OWN_STALE_STAMP ? [] : [stamp('QA', true, 5)],
+         },
+      };
+   }
+   return out;
+}
 
 function withSyntheticStacks(pulls: PullData[]): PullData[] {
    const out = [...pulls];
@@ -237,8 +425,8 @@ function redate(pull: PullData, i: number): PullData {
       deletions,
       requested_reviewers: wantsReviewRequest(pull, i)
          ? [dummyUser()]
-         : (pull.requested_reviewers ?? []),
-      assignees: ASSIGNEE_INDEXES.has(i) ? [dummyUser()] : (pull.assignees ?? []),
+         : pull.requested_reviewers ?? [],
+      assignees: ASSIGNEE_INDEXES.has(i) ? [dummyUser()] : pull.assignees ?? [],
    };
 }
 

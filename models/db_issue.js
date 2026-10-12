@@ -18,6 +18,9 @@ class DBIssue {
          date_created: utils.toUnixTime(issue.date_created),
          date_closed: utils.toUnixTime(issue.date_closed),
          difficulty: issue.difficulty,
+         field_start: (issue.fields && issue.fields.start) || null,
+         field_target: (issue.fields && issue.fields.target) || null,
+         field_priority: (issue.fields && issue.fields.priority) || null,
       };
 
       if (issue.milestone) {
