@@ -817,6 +817,37 @@ icon with a class bolted on.
   developers can staff"), turns the priority order into what to park, and opens Decide
   on that team. It only shows with nothing narrowing the rows, since a
   cut through a filtered list would mean nothing.
+- **Initiatives come first, on the Roadmap and the Overview.** Both open
+  grouped by initiative (the one shared Group by), so the resting page is
+  the short ranked list a manager compares, not every plan. An initiative is
+  a name, a goal, one owner and its own rank; its dates are read off its
+  projects' plans, never kept by hand. Every project has one home: an
+  initiative, Keep the lights on, Not tracked, or none (Unsorted, shown only
+  when it holds a project, and asked about on Decide until it's empty). Not
+  tracked work is left out once, where the data comes in, so every count,
+  load, capacity line and question is tracked unless it names the full set
+  on purpose (a person's own list, one project, history); its rows close
+  the Roadmap and the Overview in a ledger that rests closed, with no rank
+  and nothing owed. Three amendments to the rules above, for initiative
+  lanes only (2026-10):
+  1. **A lane holds what's under way.** An initiative lane holds its plans
+     planned or in progress, its live projects with no plan, and any plan
+     Decide asks about, whatever its status; its finished, dropped and
+     parked plans live on its page under "Done or dropped". Team lanes and
+     Group by None still draw every plan: Keep the lights on would
+     otherwise open to twice the rows.
+  2. **Its grip sits in the gutter, left of the band.** The band keeps the
+     Fold contract (a click anywhere on it folds; rank, name, the rows it
+     holds, the chevron, and one ink phrase of dates and counts, "Jul 13 to
+     Nov 1 · 1 with an end · 3 ongoing"), so the grip that ranks it is its
+     own control outside that target, with the arrow keys, the way a row's
+     grip works. Dropping a plan on another initiative files its project
+     there and leaves its priority alone; its keyboard twin is Move, in the
+     plan's details and on the project's page.
+  3. **Lanes rest closed unless they hold a Decide call.** Twenty closed
+     bands read as the table of contents a manager ranks on; twenty open
+     ones are the long page again. A link that opens a plan opens its lane
+     first, as a click on the band would.
 - **A plan's health is a word, amber only when someone owes something.**
   "On track" reads plain. "At risk", "Off track" and an overdue update are
   amber, because each asks someone to act: the planner to replan, the lead
