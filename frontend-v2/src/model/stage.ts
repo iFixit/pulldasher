@@ -1,6 +1,6 @@
 import { ago, n } from '../../../shared/format';
 import type { ClosedIssue } from '../../../shared/model/decide';
-import { dayStart } from '../../../shared/model/projects';
+import { dayStart, isDraft } from '../../../shared/model/projects';
 import { issuePace, paceFinish, type RoadmapItem } from '../../../shared/model/roadmap';
 import { prStage, type PrStage } from '../../../shared/model/stage';
 import { CR_INCOMPLETE, type DerivedPull } from '../../../shared/model/status';
@@ -60,6 +60,16 @@ export const STAGE_ORDER: readonly IssueStage[] = [
    'dropped',
 ];
 
+/** An open draft, by its live row when the board has one (newer), else by
+ * what the page was sent: listed, never counted (projects.ts isDraft). */
+export function isDraftPull(
+   pr: IssuePull,
+   live: (ref: IssueRef) => DerivedPull | undefined
+): boolean {
+   const p = live(pr);
+   return p ? isDraft(p) : pr.state === 'open' && !!pr.draft;
+}
+
 // an issue is as far along as its least finished open PR
 const LEAST_FINISHED: readonly PrStage[] = ['work', 'review', 'hold', 'ready'];
 
@@ -78,7 +88,8 @@ export function issueStanding(
    let least: IssueStanding | null = null;
    for (const pr of issue.prs) {
       const p = live(pr);
-      if (!p && pr.state !== 'open') continue;
+      // a draft isn't work yet: it sets no stage
+      if ((!p && pr.state !== 'open') || isDraftPull(pr, live)) continue;
       // an open PR the board can't read is still being worked on, as far as anyone knows
       const stage = p ? prStage(p) : 'work';
       const rank = LEAST_FINISHED.indexOf(stage);
@@ -296,9 +307,13 @@ export function withBoardStates(
    known: (ref: IssueRef) => PullData | undefined
 ): ProjectWork {
    const now = (pr: IssuePull): IssuePull => {
-      const gone = live(pr) ? undefined : known(pr);
-      const state = live(pr) ? 'open' : gone ? (gone.merged_at ? 'merged' : 'closed') : pr.state;
-      return state === pr.state ? pr : { ...pr, state };
+      const p = live(pr);
+      const gone = p ? undefined : known(pr);
+      const state = p ? 'open' : gone ? (gone.merged_at ? 'merged' : 'closed') : pr.state;
+      // marked ready (or back to a draft) since the page loaded
+      const draft = p ? isDraft(p) : state === 'open' && !!pr.draft;
+      if (state === pr.state && draft === !!pr.draft) return pr;
+      return { ...pr, state, draft: draft || undefined };
    };
    return {
       ...page,

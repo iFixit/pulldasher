@@ -41,6 +41,7 @@ import { reloadProjectWork, useProjectWork } from '../../model/projectWork';
 import { updateRoadmapItem } from '../../model/roadmapData';
 import {
    addedLater,
+   isDraftPull,
    issueForecast,
    plannedAt,
    prStage,
@@ -637,9 +638,12 @@ export function ProjectPage({
    const byStage = new Map<PrStage, string[]>(PR_STAGES.map(s => [s, []]));
    const unread: string[] = [];
    const mergedLately: string[] = [];
+   // listed, never counted: a draft isn't work yet
+   const drafts: string[] = [];
    for (const [key, pr] of onPage) {
       const p = pulls.live(pr);
-      if (p) byStage.get(prStage(p))?.push(key);
+      if (isDraftPull(pr, pulls.live)) drafts.push(key);
+      else if (p) byStage.get(prStage(p))?.push(key);
       else if (pr.state === 'open') unread.push(key);
       else if (pulls.known(pr)?.merged_at) mergedLately.push(key);
    }
@@ -1096,6 +1100,13 @@ export function ProjectPage({
                         </span>
                         {loose.length > 0 && (
                            <span className="block">{pullCount(loose, 'not tied to an issue')}</span>
+                        )}
+                        {drafts.length > 0 && (
+                           // so "None open" never reads as nothing at all
+                           <span className="block">
+                              {pullCount(drafts, drafts.length === 1 ? 'draft' : 'drafts')}, not
+                              counted
+                           </span>
                         )}
                         {(mergedLately.length > 0 || lastActivity) && (
                            <span className="block">

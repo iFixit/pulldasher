@@ -38,6 +38,7 @@ import {
    addedLater,
    dateWords,
    holderWords,
+   isDraftPull,
    issueStanding,
    lateWords,
    prStage,
@@ -56,6 +57,8 @@ const LIST_CAP = 40;
 
 /** a PR on an issue's line that another project's label (or link) claims */
 const COUNTED_ELSEWHERE = 'counted in another project';
+/** an open draft, listed but never counted (projects.ts isDraft) */
+const DRAFT_WORDS = 'a draft, not counted';
 const upperFirst = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 /** what each stage's band means, on hovering its name */
@@ -63,9 +66,9 @@ const STAGE_GLOSS: Record<IssueStage, string> = {
    ready: 'Its PRs are signed off and just need merging',
    hold: 'A PR is paused, blocked outside the repo, or signed off and waiting on a deploy',
    review: 'A PR is waiting on code review or QA',
-   work: 'A PR still needs work: a draft, failing CI, conflicts, or changes asked for',
+   work: 'A PR still needs work: failing CI, conflicts, or changes asked for',
    merged: 'Its PRs merged but the issue is still open: close it, or more work is coming',
-   none: 'No PR links it yet',
+   none: 'No PR links it yet, or only a draft, which doesn’t count until it’s ready',
    done: 'Closed as completed',
    dropped: 'Closed as not planned or as a duplicate',
 };
@@ -75,8 +78,13 @@ const PR_GLOSS: Record<PrStage, string> = {
    ready: 'Signed off: what’s left is merging it',
    hold: 'Paused, blocked outside the repo, or signed off and held for a deploy',
    review: 'Waiting on a code review or on QA',
-   work: 'A draft, blocked, failing CI, signed off but in conflict, or has changes asked for',
+   work: 'Blocked, failing CI, signed off but in conflict, or has changes asked for',
 };
+
+/** the fold at the end of a project's PRs that lists its drafts */
+const DRAFTS_LABEL = 'Drafts, not counted';
+const DRAFTS_GLOSS =
+   'Its open drafts. A draft isn’t work yet, so no count on this tab takes one until it’s marked ready.';
 
 /** What the board knows of a PR: its live row's data when it's open on the
  * board, or its data from the last two weeks' merges. */
@@ -85,10 +93,15 @@ export interface PullLookup {
    known: (ref: IssueRef) => PullData | undefined;
 }
 
-/** Which band of "PRs not tied to an issue" a PR sits in: an open one by
- * where it stands (one the board can't read counts as in development),
- * and the merged and closed ones together. */
-const unlinkedBand = (pr: IssuePull, live: PullLookup['live']): PrStage | 'closed' => {
+/** Which band of "PRs not tied to an issue" a PR sits in: a draft in the
+ * drafts fold at the end, another open one by where it stands (one the
+ * board can't read counts as in development), and the merged and closed
+ * ones together. */
+const unlinkedBand = (
+   pr: IssuePull,
+   live: PullLookup['live']
+): PrStage | 'closed' | 'drafts' => {
+   if (isDraftPull(pr, live)) return 'drafts';
    const p = live(pr);
    return p ? prStage(p) : pr.state === 'open' ? 'work' : 'closed';
 };
@@ -274,6 +287,10 @@ function PullItem({
    const parts: ReactNode[] = [];
    const who = live && !whoSaid ? holderWords(live, { line: true, onRow: true }) : '';
    if (who) parts.push(who);
+   // under an issue it isn't in its numbers, so the line says why
+   if (isDraftPull(pr, pulls.live)) {
+      parts.push(parts.length ? DRAFT_WORDS : upperFirst(DRAFT_WORDS));
+   }
    if (late) parts.push(parts.length ? late : upperFirst(late));
    // a person's PR this page's counts leave out, the way every view does
    if (pr.outside && (live || known)) {
@@ -519,15 +536,18 @@ function IssueLine({
    const added = addedWords(issue, planned, repoShown);
    // one with the label comes off by the label, which is GitHub's
    const offOnGitHub = !onRemove && issue.via.includes('label');
+   // its drafts show under it, but no number of its counts them
+   const counted = issue.prs.filter(pr => !isDraftPull(pr, pulls.live));
+   const drafts = issue.prs.length - counted.length;
    // its PRs that opened late, counted by why
    const late = new Map<string, number>();
-   for (const pr of issue.prs) {
+   for (const pr of counted) {
       const words = lateOf(pr);
       if (words) late.set(words, (late.get(words) ?? 0) + 1);
    }
    // the PR count, and the stages its band doesn't already say
    const others = new Map<string, number>();
-   for (const pr of issue.prs) {
+   for (const pr of counted) {
       const live = pulls.live(pr);
       const word = live
          ? prStage(live) === standing.stage
@@ -543,9 +563,12 @@ function IssueLine({
       if (word) others.set(word, (others.get(word) ?? 0) + 1);
    }
    const door = [
-      n(issue.prs.length, 'PR'),
+      counted.length ? n(counted.length, 'PR') : '',
       ...[...others].map(([word, count]) => `${count} ${word}`),
-   ].join(', ');
+      drafts ? n(drafts, 'draft') : '',
+   ]
+      .filter(Boolean)
+      .join(', ');
    const who = standing.pull ? holderWords(standing.pull, { ageWarnDays: opts.ageWarnDays }) : '';
    // anywhere on the line but its links opens or closes its PRs
    const lineClick = (e: MouseEvent) => {
@@ -934,7 +957,9 @@ export function ProjectWorkSections({
    // they're all shown, so is every line, past a band's 40 too
    const withPrs = issues.filter(i => i.prs.length > 0);
    const allShown = withPrs.every(i => choices[prsFoldId(slug, issueKey(i.ref))] ?? false);
-   const isOpenPr = (pr: IssuePull) => (pulls.live(pr) ? true : pr.state === 'open');
+   // open and counted: a draft is listed, never counted
+   const isOpenPr = (pr: IssuePull) =>
+      !isDraftPull(pr, pulls.live) && (pulls.live(pr) ? true : pr.state === 'open');
    // taken off from the click on, until an Undo has put it back
    const removing = (k: string) =>
       change?.at === 'issues' &&
@@ -1014,7 +1039,7 @@ export function ProjectWorkSections({
    // ones merged or closed lately together
    const unlinkedBands = [
       ...(['ready', 'hold', 'review', 'work'] as PrStage[]).map(stage => ({
-         id: stage as PrStage | 'closed',
+         id: stage as PrStage | 'closed' | 'drafts',
          word: STAGE_WORDS[stage],
          gloss: PR_GLOSS[stage],
          window: undefined as string | undefined,
@@ -1026,10 +1051,13 @@ export function ProjectWorkSections({
          // the window in plain words beside the band, not in its capitals
          window: `in the ${LAST_14_DAYS}`,
       },
+      // last, closed, one click away: a draft isn't work yet
+      { id: 'drafts' as const, word: DRAFTS_LABEL, gloss: DRAFTS_GLOSS, window: undefined },
    ]
       .map(b => ({ ...b, list: unlinked.filter(pr => unlinkedBand(pr, pulls.live) === b.id) }))
       .filter(b => b.list.length > 0);
    const unlinkedOpen = unlinked.filter(isOpenPr).length;
+   const unlinkedDrafts = unlinked.filter(pr => isDraftPull(pr, pulls.live)).length;
    // an issue added from "Issues linked from its PRs" stays on its line there
    const keptSuggested = change?.kept && 'suggested' in change.kept ? change.kept : null;
    const suggested = keptSuggested
@@ -1135,11 +1163,12 @@ export function ProjectWorkSections({
                         label="Which PRs are here"
                         text={[
                            unlinkedOpen ? `${unlinkedOpen} open` : '',
-                           unlinked.length - unlinkedOpen
+                           unlinked.length - unlinkedOpen - unlinkedDrafts
                               ? `${
-                                   unlinked.length - unlinkedOpen
+                                   unlinked.length - unlinkedOpen - unlinkedDrafts
                                 } merged or closed in the ${LAST_14_DAYS}`
                               : '',
+                           unlinkedDrafts ? n(unlinkedDrafts, 'draft') : '',
                         ]
                            .filter(Boolean)
                            .join(' · ')}
@@ -1147,7 +1176,8 @@ export function ProjectWorkSections({
                         <p className="m-0">
                            The PRs with the {label} label
                            {issues.length ? ' that link none of its issues' : ''}: the open ones,
-                           and the ones merged or closed in the {LAST_14_DAYS}.
+                           and the ones merged or closed in the {LAST_14_DAYS}. Its drafts come
+                           last, folded: a draft isn’t work yet, so none of its counts take one.
                         </p>
                         {issues.length > 0 && (
                            <p className="m-0">
@@ -1168,8 +1198,9 @@ export function ProjectWorkSections({
                         gloss={b.gloss}
                         detail={b.window}
                         id={`work:${slug}:unlinked:${b.id}`}
-                        // their counts are the summary while its issues are open
-                        defaultOpen={!openIssues}
+                        // their counts are the summary while its issues are
+                        // open; drafts wait folded, one click away
+                        defaultOpen={!openIssues && b.id !== 'drafts'}
                      >
                         <Truncated
                            cap={LIST_CAP}
