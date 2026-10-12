@@ -2153,6 +2153,11 @@ function AxisHeader({
    );
 }
 
+/** Someone has clicked or pressed a key since the page loaded, so details
+ * opened now came from a door, not from the address. The browser's own
+ * flag; where it has none, assume a door. */
+const handled = () => navigator.userActivation?.hasBeenActive ?? true;
+
 /**
  * The roadmap: the plan a project manager lays out, month by month or
  * quarter by quarter, set against everything actually in flight. Across the
@@ -2164,13 +2169,6 @@ function AxisHeader({
  * said on its row, its one amber mark. The roadmap is Pulldasher's own
  * record (the one thing in this tab not read off GitHub), saved as you go.
  */
-// someone has clicked or pressed a key since the page loaded, so details
-// opened now came from a door, not from the address
-let handled = false;
-for (const type of ['pointerdown', 'keydown']) {
-   globalThis.addEventListener?.(type, () => (handled = true), { capture: true, once: true });
-}
-
 export function Roadmap({
    items,
    allItems = items,
@@ -2216,7 +2214,7 @@ export function Roadmap({
    // door, no on the way back from their fields, and no for details a link
    // or a reload opened before anyone clicked: Enter there would promise
    // an end nobody chose
-   const [focusCalls, setFocusCalls] = useState(() => handled);
+   const [focusCalls, setFocusCalls] = useState(handled);
    // the open fields hold changes not saved, or the update form words not
    // posted: another plan or a close waits
    const dirty = useRef(false);

@@ -228,11 +228,19 @@ function drag(from: Element, to: Element): { refused: boolean } {
 }
 
 describe('the Roadmap by initiative', () => {
-   // first: once a test presses a key, the page counts as handled
    it('opens a linked plan’s details without putting the focus on an end to promise', async () => {
-      const el = await mount({ item: 2 });
-      expect(el.querySelector('[role="toolbar"]')).not.toBeNull();
-      expect(document.activeElement).toBe(document.body);
+      // nobody has clicked or pressed a key on the page yet
+      Object.defineProperty(navigator, 'userActivation', {
+         value: { hasBeenActive: false },
+         configurable: true,
+      });
+      try {
+         const el = await mount({ item: 2 });
+         expect(el.querySelector('[role="toolbar"]')).not.toBeNull();
+         expect(document.activeElement).toBe(document.body);
+      } finally {
+         delete (navigator as { userActivation?: unknown }).userActivation;
+      }
    });
 
    it('draws a lane per open initiative in its priority, then Unsorted, No project yet and Not tracked', async () => {
