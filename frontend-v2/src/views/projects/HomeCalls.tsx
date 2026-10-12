@@ -330,12 +330,13 @@ export function HomeStrip({
    const primary = primaryOf(row);
    const chooser = useHomeChooser(row, { away: primary.kind !== 'unfiled' });
    const initiative = initiativeById(askedInitiative(row));
-   // a Track it or a move goes to an initiative, never Not tracked or the
-   // closed one it's in
+   // every open home, as on every chooser, but Track it's: a project set
+   // not tracked is tracked somewhere else (the closed one it's in is
+   // never offered, as no closed one is)
    const pickable =
-      primary.kind === 'unfiled'
-         ? chooser.choices
-         : chooser.choices.filter(i => i.kind !== 'untracked' && i.slug !== initiative?.slug);
+      primary.kind === 'untracked_grew'
+         ? chooser.choices.filter(i => i.kind !== 'untracked')
+         : chooser.choices;
    const chosen = pickable.find(i => i.slug === chooser.chosen);
    const filing: Call | null = chosen
       ? { kind: 'file', to: chosen.slug, name: chosen.name, untracked: chosen.kind === 'untracked' }

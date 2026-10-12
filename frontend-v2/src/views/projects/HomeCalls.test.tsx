@@ -256,10 +256,11 @@ describe('a row that asks about an initiative', () => {
       });
       expect(buttons(el)).toEqual(['Reopen CatalogSuggested', 'File elsewhere']);
       click(el, 'File elsewhere');
-      // the chooser leaves out the closed home and Not tracked
+      // the chooser leaves out the closed home, and offers Not tracked last,
+      // as every other chooser does
       const options = [...el.querySelectorAll('option')].map(o => o.textContent);
       expect(options).not.toContain('Catalog');
-      expect(options).not.toContain('Not tracked');
+      expect(options.at(-1)).toBe('Not tracked');
    });
 });
 
