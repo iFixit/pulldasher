@@ -177,7 +177,8 @@ export default {
     * (null: Unsorted). `expect` is the home the person saw (a slug or null):
     * 409 with the one it has now (`home`) when that's stale. Answers
     * `before` and `home` (initiative, set_by, set_at, baseline_prs), so an
-    * undo sends `before` back with `set_at` and `baseline_prs`.
+    * undo sends `before` back with `set_at` and `baseline_prs`. A closed
+    * initiative is a 409, except for an undo (`set_at`) putting a filing back.
     */
    file: function (req, res) {
       const body = req.body ?? {};
@@ -209,6 +210,11 @@ export default {
       })
          .then(result => {
             if (result.missing) return res.status(404).json({ error: 'no initiative has that slug' });
+            if (result.closed) {
+               return res
+                  .status(409)
+                  .json({ error: 'that initiative is closed; reopen it before filing a project in it' });
+            }
             if (result.conflict) {
                return res
                   .status(409)

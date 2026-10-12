@@ -77,7 +77,7 @@ function fakeQuery(sql, params = []) {
       const [title, since] = params;
       return [{ n: prs.filter(p => p.title === title && p.date > since).length }];
    }
-   if (sql.startsWith('SELECT `id`, `kind` FROM `initiatives`')) {
+   if (sql.startsWith('SELECT `id`, `kind`, `status` FROM `initiatives`')) {
       return initiatives.filter(i => i.slug === params[0]);
    }
    if (sql.startsWith('DELETE FROM `initiative_projects`')) {
@@ -324,6 +324,24 @@ test('only an empty initiative can be deleted', async () => {
    assert.equal((await call('DELETE', `/initiatives/${id}`)).status, 404);
    // its slug is free again
    assert.equal((await make('a')).status, 201);
+});
+
+test('nothing is filed into a closed initiative, but an undo puts a filing back there', async () => {
+   const id = (await make('a')).body.initiative.id;
+   initiatives.find(i => i.id === id).status = 'done';
+   const refused = await call('PUT', '/initiatives/file', { project: 'p', initiative: 'a' });
+   assert.equal(refused.status, 409);
+   assert.match(refused.body.error, /closed/);
+   assert.deepEqual(filings, []);
+   // an undo restores the filing a move replaced, with its time
+   const back = await call('PUT', '/initiatives/file', {
+      project: 'p',
+      initiative: 'a',
+      set_at: 50,
+      baseline_prs: 0,
+   });
+   assert.equal(back.status, 200);
+   assert.equal(back.body.home.initiative, 'a');
 });
 
 test('filing moves a project’s one home, 409s a stale expect, and says what it replaced', async () => {

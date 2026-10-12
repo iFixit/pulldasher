@@ -118,6 +118,10 @@ function dummyApi(): Api {
          const target =
             initiative == null ? null : dummy.initiatives.find(i => i.slug === initiative);
          if (initiative != null && !target) return bad('no initiative has that slug', 404);
+         // as the server: nothing into a closed one, but an Undo puts it back
+         if (target && target.status !== 'open' && set_at == null) {
+            return bad('that initiative is closed; reopen it before filing a project in it', 409);
+         }
          if (current) {
             current.initiative.projects = current.initiative.projects.filter(
                f => f.project !== project
