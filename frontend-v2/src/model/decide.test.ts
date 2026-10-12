@@ -456,7 +456,10 @@ describe('Decide’s calls', () => {
             quiet,
             today
          )
-      ).toBe('Promised to finish by the end of Q1 2027. Decide asks again if it runs past that.');
+      ).toBe(
+         // its answer said Restart: the receipt says it's under way again
+         'Restarted, promised to finish by the end of Q1 2027. Decide asks again if it runs past that.'
+      );
    });
 
    it('gives a plan that hasn’t started a new end without starting it', () => {
@@ -517,7 +520,7 @@ describe('Decide’s calls', () => {
       expect(
          callWords(
             answerOf(row([fresh]), target('2026-10-21'), today) as Call,
-            reopened,
+            row([fresh]),
             { open: 0, ongoing: false },
             today
          )

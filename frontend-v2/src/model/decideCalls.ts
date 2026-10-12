@@ -729,10 +729,14 @@ export function callWords(
    }
    const initiative = initiativeById(askedInitiative(row));
    switch (call.kind) {
-      case 'commit':
-         return `Promised to finish by ${call.through}${
+      case 'commit': {
+         // a stopped plan's answer was Restart: the receipt says it's under way again
+         const was = row.item?.status;
+         const restarted = was === 'parked' || was === 'done' || was === 'dropped';
+         return `${restarted ? 'Restarted, promised' : 'Promised'} to finish by ${call.through}${
             home ? `, ${home}` : ''
          }. Decide asks again if it runs past that.`;
+      }
       case 'file':
          return call.untracked
             ? 'Set not tracked, so it counts nowhere. Decide asks again if it grows.'
