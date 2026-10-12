@@ -534,6 +534,8 @@ describe('the File in chooser and the answer that waits on it', () => {
    });
 
    it('names where a project went when someone filed it first', async () => {
+      await settle();
+      calls.length = 0;
       const el = render(unfiled('raced'));
       const select = el.querySelector('select') as HTMLSelectElement;
       act(() => {
@@ -906,6 +908,9 @@ describe('a pick left in a chooser that closed', () => {
 
 describe('filing into an initiative someone closed since', () => {
    it('says so and reads the initiatives again, so the choosers stop offering it', async () => {
+      // an earlier test's reads land first, whatever order the tests run in
+      await settle();
+      calls.length = 0;
       const r = await act(() => fileProject('cache', 'catalog', { expect: 'site-speed' }));
       expect(r).toEqual({
          error: expect.stringContaining('that initiative is closed'),
