@@ -758,9 +758,14 @@ icon with a class bolted on.
   button, so it sits in the same place down the list, then a bordered
   "Other answers" that opens the "Promise to finish by" and "Or instead"
   rows in place. The collapsed button uses the project page's answer words
-  ("Move the end date to Oct 31", "Restart, finishing by Oct 31", "Promise
-  to finish by Oct 31", "Mark done", "Park", "Drop", "Mark ongoing") so it
-  answers the question alone; the expanded rows keep the short "End of Oct".
+  ("Move the end date to the end of Oct", "Restart, finishing by the end of
+  Oct", "Promise to finish by the end of Oct", "Mark done", "Park", "Drop",
+  "Mark ongoing") so it answers the question alone; the expanded rows keep
+  the short "End of Oct". A promise says its end one way everywhere: the
+  buttons, the section's bulk button, the receipt and the accessible names
+  all read "by the end of Oct" (or "by its target date, Nov 1"). A button's
+  accessible name starts with the words it shows ("Mark done: Akeneo"), so
+  a voice user can say what they see.
   The reason is one short sentence ("3 weeks overdue, 4 new PRs since.") on
   Decide, the project page and the Overview's hover. A section whose rows
   all share one question and one suggested answer asks it once in its
@@ -770,7 +775,11 @@ icon with a class bolted on.
   Other answers; rows whose answers differ keep the full card. On the project page the
   row listing a project's child projects is labeled "Projects in it", not
   "Parts", which at iFixit means repair parts; every card starts collapsed. After a call, focus lands on the receipt's
-  words, with Undo the next Tab, so an extra Enter never undoes it. The
+  words, with Undo the next Tab, so an extra Enter never undoes it. After
+  Undo, "Put X back as it was." holds the receipt's place, with nothing to
+  click in it, and the answers come back below, so a double-click on Undo
+  never answers again; the Roadmap's receipts and a project page's filing
+  do the same. The
   roadmap names the same call on the plan's row, the question in amber. Every receipt says what happens next and
   offers Undo, which puts the plan back with the times the call replaced,
   so the row is asked again after a reload too; a failed save says so in
@@ -839,11 +848,12 @@ icon with a class bolted on.
   2. **Its grip sits in the gutter, left of the band.** The band keeps the
      Fold contract (a click anywhere on it folds; rank, name, the rows it
      holds, the chevron, and one ink phrase of dates and counts, "Jul 13 to
-     Nov 1 · 1 with an end · 3 ongoing"), so the grip that ranks it is its
+     Nov 1 · 1 plan with an end date · 3 ongoing"), so the grip that ranks it is its
      own control outside that target, with the arrow keys, the way a row's
      grip works. Dropping a plan on another initiative files its project
-     there and leaves its priority alone; its keyboard twin is Move, in the
-     plan's details and on the project's page.
+     there and leaves its priority alone; its keyboard twin is File
+     elsewhere, in the plan's details and on the project's page. A closed
+     initiative's lane takes no plan, as no chooser offers it.
   3. **Lanes rest closed unless they hold a Decide call.** Twenty closed
      bands read as the table of contents a manager ranks on; twenty open
      ones are the long page again. A link that opens a plan opens its lane
@@ -858,6 +868,14 @@ icon with a class bolted on.
   the grip's column, so every label starts at one x. A closed initiative
   says "Closed as done Sep 20" everywhere; an open one whose plans all
   stopped says "Nothing under way since Sep 20".
+  "File" is the one word for putting a project in an initiative: the
+  opener ("File elsewhere"), the chooser ("File it
+  in", "File in"), the button ("File in Release safety"), the receipt
+  ("Filed in Release safety", "Filed Image CDN in FixBot chat") and its
+  hover. The chooser shows only while the project is filed nowhere; a filed
+  project's plan answer stays a plan answer. A question or a clash in a
+  row's words does the natural thing on a click: the question opens the
+  plan's details with its answers, the clash the plan it waits on.
   "Unsorted" is the one word for a project filed nowhere, on every band,
   chooser, hover and split (the sentence form is "filed nowhere"). A plan
   with no project can't be filed, so it sits in its own "No project yet"
