@@ -2213,8 +2213,11 @@ export function Decide({
          ? `${teamWords} in ${withinName}`
          : ` for ${withinName}`
       : teamWords;
-   const heading = owed.length
-      ? `${n(owed.length, 'decision')} to make`
+   // as the sections count: a row answered about its home here keeps its
+   // receipt, and its plan question waits for the next visit
+   const toMake = owed.filter(row => !kept.settled.has(rowKey(row))).length;
+   const heading = toMake
+      ? `${n(toMake, 'decision')} to make`
       : decidedHere.length
       ? 'Nothing left to decide'
       : 'Nothing to decide';
