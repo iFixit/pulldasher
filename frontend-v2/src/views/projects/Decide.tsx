@@ -229,17 +229,29 @@ export function keepCalls(
 ): { owed: DecideRow[]; all: DecideRow[]; settled: ReadonlyMap<string, Made> } {
    const byKey = new Map(queue.map(row => [rowKey(row), row]));
    const settled = new Map<string, Made>();
+   // answered about its home, still asked about its plan: owed, so every
+   // other view keeps the plan in sight, while this row keeps its receipt
+   const pending = new Set<string>();
    const back: DecideRow[] = [];
    for (const [key, m] of made) {
       const again = byKey.get(key);
       if (m.state !== 'made') {
          if (!again && m.row.reasons.length) back.push(m.row);
-      } else if (!again || kindsOf(again) === kindsOf(m.row) || answeredHome(m, again)) {
+      } else if (!again || kindsOf(again) === kindsOf(m.row)) {
          settled.set(key, m);
+      } else if (answeredHome(m, again)) {
+         settled.set(key, m);
+         pending.add(key);
       }
    }
-   const owed = [...queue.filter(row => !settled.has(rowKey(row))), ...back].sort(compareRows);
-   const all = [...owed, ...[...settled.values()].map(m => m.row)].sort(compareRows);
+   const owed = [
+      ...queue.filter(row => !settled.has(rowKey(row)) || pending.has(rowKey(row))),
+      ...back,
+   ].sort(compareRows);
+   const all = [
+      ...owed.filter(row => !settled.has(rowKey(row))),
+      ...[...settled.values()].map(m => m.row),
+   ].sort(compareRows);
    return { owed, all, settled };
 }
 

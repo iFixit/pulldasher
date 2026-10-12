@@ -484,7 +484,7 @@ describe('a project whose closed initiative and done plan are both asked about',
       expect(buttons(el)).toEqual(['Reopen CatalogSuggested', 'Move the project']);
    });
 
-   it('keeps the reopen’s receipt when the row comes back asking only about its plan', () => {
+   it('keeps the reopen’s receipt here, and the plan question owed everywhere else', () => {
       const made = new Map<string, Made>([
          [
             'akeneo:8',
@@ -493,8 +493,11 @@ describe('a project whose closed initiative and done plan are both asked about',
       ]);
       const plan: DecideRow = { ...both, reasons: [both.reasons[0]] };
       const kept = keepCalls([plan], made);
-      expect(kept.owed).toEqual([]);
+      // still owed, so the Roadmap and the Overview keep the project in
+      // sight; shown once, as the row with its receipt
+      expect(kept.owed).toEqual([plan]);
       expect(kept.settled.has('akeneo:8')).toBe(true);
+      expect(kept.all).toEqual([both]);
    });
 });
 
