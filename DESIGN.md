@@ -869,13 +869,28 @@ icon with a class bolted on.
   says "Closed as done Sep 20" everywhere; an open one whose plans all
   stopped says "Nothing under way since Sep 20".
   "File" is the one word for putting a project in an initiative: the
-  opener ("File elsewhere"), the chooser ("File it
-  in", "File in"), the button ("File in Release safety"), the receipt
-  ("Filed in Release safety", "Filed Image CDN in FixBot chat") and its
-  hover. The chooser shows only while the project is filed nowhere; a filed
-  project's plan answer stays a plan answer. A question or a clash in a
-  row's words does the natural thing on a click: the question opens the
-  plan's details with its answers, the clash the plan it waits on.
+  opener ("File elsewhere"), the chooser, the button, the receipt ("Filed
+  in Release safety", "Filed Image CDN in FixBot chat") and its hover.
+  There is one chooser, one layout, on every view: "File in [select]
+  File Cancel". An Unsorted row's File is its answer; Track it, File
+  elsewhere, a plan's details and a project's page open it with Cancel;
+  Needs a plan shows it alone, since its plan answer carries the pick.
+  The chooser shows only while the project is filed nowhere; a filed
+  project's plan answer stays a plan answer. Filing from a plan's details
+  is a drop's keyboard twin: its receipt and Undo sit under the row in
+  its new lane, with the focus on the receipt's words. A question or a
+  clash in a row's words does the natural thing on a click: the question
+  opens the plan's details, the clash the plan it waits on, each with the
+  focus on the details' Plan line, so a second Enter answers nothing; the
+  answers are a Tab away. A question about a project with a plan under
+  way (Still not tracked?) is said on that plan's row, and its lane opens.
+- **Escape closes the innermost thing and gives the focus back to what
+  opened it**: a chooser (not the details around it), the answers Other
+  answers opened, an edit form. An answer strip's one Tab stop is its
+  first answer that can be pressed, so an answer waiting on an empty
+  chooser never hides Other answers from the keyboard. Undo's held words
+  can't be selected, and where the page can't scroll up to keep them
+  under the pointer, a gap holds them there through a triple click.
   "Unsorted" is the one word for a project filed nowhere, on every band,
   chooser, hover and split (the sentence form is "filed nowhere"). A plan
   with no project can't be filed, so it sits in its own "No project yet"
