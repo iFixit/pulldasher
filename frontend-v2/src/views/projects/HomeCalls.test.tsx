@@ -551,6 +551,22 @@ describe('the words for where a project belongs', () => {
    });
 });
 
+describe('an answer’s button', () => {
+   it('grows with its words when they wrap on a phone, never a fixed height', () => {
+      const rows: DecideRow[] = [
+         { slug: 'cache', item: null, reasons: [{ kind: 'stalled', days: 30 }] },
+         { slug: 'new-thing', item: null, reasons: [{ kind: 'unfiled' }] },
+         { slug: 'akeneo', item: null, reasons: [{ kind: 'reopened_in_closed', initiative: 3, as: 'done' }] },
+      ];
+      for (const row of rows) {
+         const el = render(row);
+         for (const b of el.querySelectorAll('button')) {
+            expect(b.className, b.textContent ?? '').not.toMatch(/(^|\s)h-8(\s|$)/);
+         }
+      }
+   });
+});
+
 describe('the File in chooser and the answer that waits on it', () => {
    const unfiled = (slug: string): DecideRow => ({ slug, item: null, reasons: [{ kind: 'unfiled' }] });
    const order = (el: HTMLElement) =>

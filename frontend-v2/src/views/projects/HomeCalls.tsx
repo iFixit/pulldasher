@@ -247,7 +247,7 @@ export function HomeChooser({
                disabled={file.disabled}
                title={file.disabled ? 'Choose another home first' : undefined}
                onClick={file.onFile}
-               className={`hit pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${
+               className={`hit pressable inline-flex min-h-8 max-w-full items-center py-1 text-left gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${
                   file.filled
                      ? 'border-brand bg-brand text-surface hover:opacity-90'
                      : 'border-line bg-surface text-ink-2 hover:border-brand hover:text-brand'
@@ -477,7 +477,7 @@ export function HomeStrip({
                      aria-expanded={more}
                      aria-label={moreName}
                      onClick={toggle}
-                     className={`hit pressable inline-flex h-8 items-center rounded-lg border px-3 text-[13px] font-medium hover:border-brand hover:text-brand ${
+                     className={`hit pressable inline-flex min-h-8 max-w-full items-center py-1 text-left rounded-lg border px-3 text-[13px] font-medium hover:border-brand hover:text-brand ${
                         more ? 'border-brand bg-muted text-ink' : 'border-line bg-surface text-ink-2'
                      }`}
                   >

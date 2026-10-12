@@ -1022,7 +1022,7 @@ function CallStrip({
          disabled={off(o)}
          title={off(o) ? 'Choose where it goes first' : undefined}
          onClick={() => onCall(o.call)}
-         className={`hit pressable inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${
+         className={`hit pressable inline-flex min-h-8 max-w-full items-center py-1 text-left gap-1.5 rounded-lg border px-3 text-[13px] font-medium disabled:opacity-60 ${
             o === first && marked
                ? 'border-brand bg-brand text-surface hover:opacity-90'
                : 'border-line bg-surface text-ink-2 hover:border-brand hover:text-brand'
@@ -1070,7 +1070,7 @@ function CallStrip({
                aria-expanded={false}
                aria-label={`Other answers for ${name}`}
                onClick={showMore}
-               className="hit pressable inline-flex h-8 items-center rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink-2 hover:border-brand hover:text-brand"
+               className="hit pressable inline-flex min-h-8 max-w-full items-center py-1 text-left rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-ink-2 hover:border-brand hover:text-brand"
             >
                Other answers
             </button>
@@ -1491,7 +1491,7 @@ export function SectionCalls({
                   data-decide-focus
                   onClick={all}
                   aria-label={`${words}, under ${title}`}
-                  className="hit pressable inline-flex h-8 items-center rounded-lg border border-brand bg-brand px-3 text-[13px] font-medium text-surface hover:opacity-90"
+                  className="hit pressable inline-flex min-h-8 max-w-full items-center py-1 text-left rounded-lg border border-brand bg-brand px-3 text-[13px] font-medium text-surface hover:opacity-90"
                >
                   {words}
                </button>
