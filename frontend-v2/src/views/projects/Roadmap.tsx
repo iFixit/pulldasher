@@ -2381,15 +2381,20 @@ export function Roadmap({
          if (call.kind !== 'new') projectCalls.set(row.slug, call);
       }
    }
-   // a question about a project with a plan under way and no question of
-   // its own (Still not tracked?) is said on that plan's row, so every row
-   // Decide asks about shows on the timeline (DESIGN.md, amendment 1)
-   const asksProject = (item: RoadmapItem) =>
-      !!item.project && isUnderWay(item.status) && projectCalls.has(item.project);
-   for (const item of everyPlan ?? []) {
-      if (!planCalls.has(item.id) && asksProject(item))
-         planCalls.set(item.id, projectCalls.get(item.project as string) as PlanCall);
+   // a question about a project with a plan under way (Still not tracked?)
+   // is said on one plan's row, its first in rank with no question of its
+   // own, so every row Decide asks about shows on the timeline (DESIGN.md,
+   // amendment 1), and once
+   const saysProject = new Map<string, number>();
+   for (const item of [...(everyPlan ?? [])].sort((a, b) => a.priority - b.priority)) {
+      const slug = item.project;
+      if (!slug || saysProject.has(slug) || planCalls.has(item.id)) continue;
+      if (!isUnderWay(item.status) || !projectCalls.has(slug)) continue;
+      saysProject.set(slug, item.id);
+      planCalls.set(item.id, projectCalls.get(slug) as PlanCall);
    }
+   const asksProject = (item: RoadmapItem) =>
+      !!item.project && saysProject.get(item.project) === item.id;
    const lanes = nav.group === 'team';
    const byInitiative = nav.group === 'initiative' && !!initiatives?.length;
    const homes = homesOf(initiatives ?? []);

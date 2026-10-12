@@ -337,6 +337,26 @@ describe('the Not tracked lane', () => {
       expect(details.textContent).toContain('Keep not tracked');
    });
 
+   it('says a project’s question on one of its plans, the first in rank', async () => {
+      const grew: DecideRow = {
+         slug: 'ops',
+         item: null,
+         reasons: [{ kind: 'untracked_grew', since: 31, baseline: 2 }],
+      };
+      PLANS.push(plan(6, 'Alerting', 'ops', 0));
+      try {
+         await act(() => loadRoadmap());
+         const el = await mount({}, { decisions: [grew] });
+         const asking = [...el.querySelectorAll('[id^="roadmap-words-"]')].filter(w =>
+            w.textContent?.includes('Still not tracked?')
+         );
+         expect(asking.map(w => w.id)).toEqual(['roadmap-words-6']);
+      } finally {
+         PLANS.pop();
+         await act(() => loadRoadmap());
+      }
+   });
+
    it('rests closed when nothing in it is asked about', async () => {
       const el = await mount();
       const fold = el.querySelector(
