@@ -1142,7 +1142,12 @@ export function App() {
                   >
                      v1 board
                   </a>
-                  <FinishLine pulls={pulls} me={me} extraBots={extraBots} initialized={initialized} />
+                  <FinishLine
+                     pulls={pulls}
+                     me={me}
+                     extraBots={extraBots}
+                     initialized={initialized}
+                  />
                   <NotificationPanel
                      records={liveHistory}
                      onClear={clearHistory}
