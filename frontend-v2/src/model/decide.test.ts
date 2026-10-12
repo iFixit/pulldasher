@@ -948,19 +948,44 @@ describe('decideQueue: where projects belong', () => {
       expect(
          ask({ ...base, live: [], items: [done, { ...parked, status_at: ago(3), updated_at: ago(3) }] })
       ).toEqual([]);
-      // Keep open quiets it until something in it changes after
-      const kept = [initiative(7, ['a', 'b', 'c'], { status_at: ago(10) })];
+      // Keep open quiets it until something in it changes after, and that
+      // change has settled for two weeks too
+      const kept = [initiative(7, ['a', 'b', 'c'], { status_at: ago(15) })];
       expect(ask({ ...base, live: [], initiatives: kept })).toEqual([]);
-      const refiled = [
+      const refiled = (at: number) => [
          {
             ...kept[0],
-            projects: [...kept[0].projects, { project: 'd', set_by: null, set_at: ago(1), baseline_prs: 0 }],
+            projects: [...kept[0].projects, { project: 'd', set_by: null, set_at: at, baseline_prs: 0 }],
          },
       ];
-      expect(ask({ ...base, live: [], initiatives: refiled })).toEqual([['#undefined', 'goal_reached']]);
+      expect(ask({ ...base, live: [], initiatives: refiled(ago(1)) })).toEqual([]);
+      expect(ask({ ...base, live: [], initiatives: refiled(ago(14.5)) })).toEqual([
+         ['#undefined', 'goal_reached'],
+      ]);
       // never Keep the lights on, Not tracked, or an empty initiative
       expect(ask({ ...base, live: [], initiatives: [initiative(8, ['a'], { kind: 'upkeep' })] })).toEqual([]);
       expect(ask({ ...base, live: [], initiatives: [initiative(9, [])] })).toEqual([]);
+   });
+
+   it('waits two weeks after a long-finished project is filed before asking about the goal', () => {
+      // the load files a project whose plan was done 40 days ago
+      const ask = (filedAt: number) =>
+         kinds(
+            decideQueue({
+               items: [item(1, { project: 'a', status: 'done', status_at: ago(40), updated_at: ago(40) })],
+               live: [],
+               initiatives: [
+                  {
+                     ...initiative(7, []),
+                     projects: [{ project: 'a', set_by: null, set_at: filedAt, baseline_prs: 0 }],
+                  },
+               ],
+               today,
+               now: NOW,
+            })
+         );
+      expect(ask(NOW - 60_000)).toEqual([]);
+      expect(ask(ago(15))).toEqual([['#undefined', 'goal_reached']]);
    });
 
    it('asks about a closed initiative’s project that is worked on again, worst first', () => {

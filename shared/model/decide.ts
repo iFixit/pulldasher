@@ -440,7 +440,9 @@ export function decideQueue({
          if (!slugs.length || going.length) continue;
          // every plan stopped, and no project with no plan merged lately
          // (Today's live holds the last LIVE_DAYS); when the last plan
-         // stopped, and when a plan or filing in it last changed. PR
+         // stopped or the last project was filed here (a project filed
+         // today hasn't settled in this initiative, so nothing asks on the
+         // load's day), and when a plan or filing in it last changed. PR
          // activity on a finished project changes neither, so Keep open holds
          let settled = 0;
          let changed = 0;
@@ -449,7 +451,7 @@ export function decideQueue({
             const plans = plansOf.get(f.project) ?? [];
             if (!plans.length && liveBySlug.has(f.project)) quiet = false;
             const times = plans.map(p => Math.max(p.status_at ?? 0, decidedAt(p)));
-            settled = Math.max(settled, ...times);
+            settled = Math.max(settled, ...times, f.set_at);
             changed = Math.max(changed, settled, f.set_at);
          }
          if (!quiet || now - settled < GOAL_QUIET_DAYS * DAY) continue;
