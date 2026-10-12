@@ -49,7 +49,7 @@ import {
    type PrStage,
 } from '../../model/stage';
 import { removable } from '../../model/workData';
-import { LAST_14_DAYS } from '../../model/words';
+import { DRAFTS_NOT_COUNTED, LAST_14_DAYS } from '../../model/words';
 import type { Navigate } from './parts';
 
 /** a long list shows this many rows, then "+ N more" */
@@ -81,8 +81,7 @@ const PR_GLOSS: Record<PrStage, string> = {
    work: 'Blocked, failing CI, signed off but in conflict, or has changes asked for',
 };
 
-/** the fold at the end of a project's PRs that lists its drafts */
-const DRAFTS_LABEL = 'Drafts, not counted';
+/** what the fold at the end of a project's PRs that lists its drafts says */
 const DRAFTS_GLOSS =
    'Its open drafts. A draft isn’t work yet, so no count on this tab takes one until it’s marked ready.';
 
@@ -264,6 +263,7 @@ function PullItem({
    navigate,
    asRow = true,
    whoSaid = false,
+   draftSaid = false,
 }: {
    pr: IssuePull;
    pulls: PullLookup;
@@ -275,6 +275,8 @@ function PullItem({
    navigate: Navigate;
    /** the issue's line above it says who holds it already */
    whoSaid?: boolean;
+   /** it's in the drafts fold, whose name says it's a draft already */
+   draftSaid?: boolean;
    /** false where it's a second sighting (it links two issues here): the
     * board's row, with its id and actions, is drawn once a page */
    asRow?: boolean;
@@ -288,7 +290,7 @@ function PullItem({
    const who = live && !whoSaid ? holderWords(live, { line: true, onRow: true }) : '';
    if (who) parts.push(who);
    // under an issue it isn't in its numbers, so the line says why
-   if (isDraftPull(pr, pulls.live)) {
+   if (!draftSaid && isDraftPull(pr, pulls.live)) {
       parts.push(parts.length ? DRAFT_WORDS : upperFirst(DRAFT_WORDS));
    }
    if (late) parts.push(parts.length ? late : upperFirst(late));
@@ -1052,7 +1054,7 @@ export function ProjectWorkSections({
          window: `in the ${LAST_14_DAYS}`,
       },
       // last, closed, one click away: a draft isn't work yet
-      { id: 'drafts' as const, word: DRAFTS_LABEL, gloss: DRAFTS_GLOSS, window: undefined },
+      { id: 'drafts' as const, word: DRAFTS_NOT_COUNTED, gloss: DRAFTS_GLOSS, window: undefined },
    ]
       .map(b => ({ ...b, list: unlinked.filter(pr => unlinkedBand(pr, pulls.live) === b.id) }))
       .filter(b => b.list.length > 0);
@@ -1217,6 +1219,7 @@ export function ProjectWorkSections({
                                  repoShown={repoShown}
                                  nameOf={nameOf}
                                  navigate={navigate}
+                                 draftSaid={b.id === 'drafts'}
                               />
                            ))}
                         </Truncated>

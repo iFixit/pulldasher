@@ -8,7 +8,7 @@ import {
    type ReactNode,
 } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { issueUrl, pullKey, shortRepo } from '../../../../shared/format';
+import { issueUrl, n, pullKey, shortRepo } from '../../../../shared/format';
 import { STALL_DAYS, type DecideRow } from '../../../../shared/model/decide';
 import { utcDay } from '../../../../shared/model/projects';
 import { FactLink, QuietButton, Segmented, textInputClass } from '../../components/bits';
@@ -45,6 +45,7 @@ import {
    days,
    daysShort,
    devDays,
+   DRAFTS_NOT_COUNTED,
    LAST_14_DAYS,
    NO_PLAN,
    GOAL,
@@ -306,10 +307,17 @@ const COLUMNS: Column[] = [
    {
       key: 'open',
       label: 'Open',
-      title: 'Its open PRs now, drafts included',
+      title: 'Its open PRs now, drafts left out: a draft isn’t work yet',
       width: 'w-12',
       hide: 'hidden sm:block',
-      cell: i => i.open || '',
+      cell: i =>
+         i.open && i.group?.drafts.length ? (
+            <span title={`${n(i.open, 'open PR')}, and ${n(i.group.drafts.length, 'draft')}, not counted`}>
+               {i.open}
+            </span>
+         ) : (
+            i.open || ''
+         ),
    },
    {
       key: 'waiting',
@@ -535,7 +543,10 @@ function RowDetail({
                </span>
             </p>
          )}
-         {item.group && (item.group.open.length > 0 || item.group.merged.length > 0) && (
+         {item.group &&
+            (item.group.open.length > 0 ||
+               item.group.merged.length > 0 ||
+               item.group.drafts.length > 0) && (
             <div className="border-t border-secondary bg-surface">
                <Fold
                   count={item.group.open.length}
@@ -562,6 +573,19 @@ function RowDetail({
                         <ClosedRow key={pullKey(p)} pull={p} lastSeen={opts.lastSeen} />
                      ))}
                   </Truncated>
+               </Fold>
+               <Fold
+                  count={item.group.drafts.length}
+                  label={DRAFTS_NOT_COUNTED}
+                  gloss="Its open drafts. A draft isn’t work yet, so no count takes one until it’s marked ready."
+                  id={`portfolio-drafts:${item.slug}`}
+               >
+                  <FoldRows
+                     list={item.group.drafts}
+                     opts={opts}
+                     id={`portfolio-drafts:${item.slug}`}
+                     cap={laneShown(8, opts)}
+                  />
                </Fold>
             </div>
          )}

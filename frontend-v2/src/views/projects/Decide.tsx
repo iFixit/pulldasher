@@ -1182,6 +1182,10 @@ function factsTitle(
       team,
       people.length ? people.join(', ') : null,
       project?.open ? n(project.open, 'open PR') : null,
+      // so a project quiet but for drafts isn't read as having nothing
+      project?.group?.drafts.length
+         ? `${n(project.group.drafts.length, 'draft')}, not counted`
+         : null,
       project?.merged ? `${project.merged} merged in the ${LAST_14_DAYS}` : null,
       target && targetOn(targetWords(target)),
    ]

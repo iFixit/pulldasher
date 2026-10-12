@@ -305,6 +305,7 @@ export function Projects({
                items={allItems}
                nav={nav}
                navigate={navigate}
+               opts={tabOpts}
             />
          ) : nav.view === 'decide' ? (
             <Decide

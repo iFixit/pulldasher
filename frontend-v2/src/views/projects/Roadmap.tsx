@@ -1901,7 +1901,11 @@ function InFlightRow({
                            onClick={onOpen}
                            // the name opens the same page from the keyboard
                            tabIndex={-1}
-                           title="Open the project and its PRs"
+                           title={`Open the project and its PRs${
+                              item.group?.drafts.length
+                                 ? `, and its ${n(item.group.drafts.length, 'draft')}, not counted`
+                                 : ''
+                           }`}
                         >
                            {saving ? 'Saving its plan…' : n(item.open, 'open PR')}
                         </FactLink>,

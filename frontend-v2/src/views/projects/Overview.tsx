@@ -33,6 +33,7 @@ import {
    andList,
    BEING_WORKED_ON,
    days,
+   DRAFTS_NOT_COUNTED,
    LAST_14_DAYS,
    noPrActivity,
    NOT_IN_A_PROJECT,
@@ -598,12 +599,17 @@ export function Overview({
             untrackedItems={notTracked}
          />
          <AgeCharts items={listed} nav={nav} navigate={navigate} />
-         {outside + today.doubleLabeled.length > 0 && (
+         {outside + today.doubleLabeled.length + today.drafts.length > 0 && (
             <RestGroup
                title="PRs outside projects"
-               sub={`${n(outside, 'open PR')}, ${
-                  allOpen ? Math.round((100 * outside) / allOpen) : 0
-               }% of all open PRs`}
+               sub={
+                  // with only drafts here, "0 open PRs" would read as nothing at all
+                  outside || !today.drafts.length
+                     ? `${n(outside, 'open PR')}, ${
+                          allOpen ? Math.round((100 * outside) / allOpen) : 0
+                       }% of all open PRs`
+                     : `None open, ${n(today.drafts.length, 'draft')}, not counted`
+               }
             >
                <Fold
                   count={today.misc.length}
@@ -641,6 +647,19 @@ export function Overview({
                      list={today.doubleLabeled}
                      opts={opts}
                      id="projects:double"
+                     cap={laneShown(40, opts)}
+                  />
+               </Fold>
+               <Fold
+                  count={today.drafts.length}
+                  label={DRAFTS_NOT_COUNTED}
+                  gloss="Open drafts no project above lists: one-offs, ones in no project, and ones whose project is closed or has nothing else open. A draft isn’t work yet, so no count takes one until it’s marked ready. A project’s own drafts are on its page."
+                  id="projects:drafts"
+               >
+                  <FoldRows
+                     list={today.drafts}
+                     opts={opts}
+                     id="projects:drafts"
                      cap={laneShown(40, opts)}
                   />
                </Fold>

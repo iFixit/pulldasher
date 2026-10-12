@@ -31,6 +31,9 @@ export const pastEndMark = (weeks: number, kind: EndKind = 'hard') =>
 export const LAST_14_DAYS = 'last 14 days';
 /** PRs with no project label */
 export const NOT_IN_A_PROJECT = 'Not in a project';
+/** open drafts, wherever the tab lists them: a draft isn't work yet, so
+ * they sit in a closed fold and no count takes them (projects.ts isDraft) */
+export const DRAFTS_NOT_COUNTED = 'Drafts, not counted';
 /** a length of time in a sentence: "42 days" */
 export const days = (count: number) => n(count, 'day');
 /** the same in a table cell or a row's meta line, the board's own form: "42d" */

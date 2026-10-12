@@ -18,7 +18,7 @@ const WHO_DAYS = 14;
 
 export interface WhoRow extends PersonLoad {
    team: string | null;
-   /** their open PRs now, drafts included */
+   /** their open PRs now, drafts left out: a draft isn't work yet */
    open: number;
    /** their filed projects, each with the Monday of the last week they had
     * days on it */
