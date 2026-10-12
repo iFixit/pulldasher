@@ -927,7 +927,16 @@ icon with a class bolted on.
   it was.") stand where the receipt was until the pointer moves away, a
   Tab, or the next action. A failed Undo says the server's reason and
   keeps Try again. A run of lane moves, on one lane or several, keeps one
-  receipt whose Undo puts the whole order back.
+  receipt whose Undo puts the whole order back. Every Undo is named by
+  what it takes back: "Undo: " and its receipt's words.
+- **One drag, one change.** A bar moves a plan's dates; its grip moves it
+  to another lane (files it, by initiative). A bar let go over another
+  lane moves nothing and says the grip is what files it, since filing
+  there too would change its dates and its project's home at once.
+- **A question on the Roadmap is a row's amber words.** An initiative's
+  own question (Did it reach its goal?) sits on a row like a plan's, its
+  answers outlined at the row's end, not filled under a paragraph. On a
+  phone a chooser's label goes above its select, as an answer row's does.
   "Unsorted" is the one word for a project filed nowhere, on every band,
   chooser, hover and split (the sentence form is "filed nowhere"). A plan
   with no project can't be filed, so it sits in its own "No project yet"
