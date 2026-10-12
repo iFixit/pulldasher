@@ -254,6 +254,13 @@ describe('a row that asks about an initiative', () => {
       ]);
    });
 
+   it('says Suggested on the outlined answer at a Roadmap row’s end too', () => {
+      const el = mount(<DecideCall row={goal} compact />);
+      expect(buttons(el)).toEqual(['Close as doneSuggested', 'Other answers']);
+      // outlined, not filled, beside rows whose questions are words
+      expect(el.querySelector('button')?.className).not.toContain('bg-brand');
+   });
+
    it('keeps it open by saying its status again, and Undo puts back the times', async () => {
       const el = render(goal);
       click(el, 'Other answers');

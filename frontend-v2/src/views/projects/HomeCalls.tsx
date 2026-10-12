@@ -354,8 +354,8 @@ export function HomeStrip({
    name: string;
    describedBy?: string;
    onCall: (call: Call) => void;
-   /** its answer outlined and unmarked, at a row's end beside rows whose
-    * questions are words (the Roadmap's goal question) */
+   /** its answer outlined, still marked Suggested, at a row's end beside
+    * rows whose questions are words (the Roadmap's goal question) */
    quiet?: boolean;
 }) {
    const [more, setMore] = useState(false);
@@ -454,7 +454,8 @@ export function HomeStrip({
             }`}
          >
             {o.words}
-            {filled && o.suggested && (
+            {/* the board's guess says so outlined too, so no view loses it */}
+            {k === 0 && o.call && o.suggested && (
                <span className="text-[11px] font-normal opacity-80">Suggested</span>
             )}
          </button>
