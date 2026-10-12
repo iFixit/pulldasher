@@ -85,6 +85,16 @@ describe('the calls on a row Decide asks about', () => {
       expect(buttons(el)).toEqual(expect.arrayContaining(['Park', 'Drop', 'Mark doneSuggested']));
    });
 
+   it('put the focus on the first row’s label once opened, so a second Enter answers nothing', async () => {
+      const el = render(false, done);
+      const other = [...el.querySelectorAll('button')].find(b => b.textContent === 'Other answers');
+      // Enter on a button is a click with no pointer (detail 0)
+      act(() => other?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 0 })));
+      await act(() => new Promise(requestAnimationFrame));
+      expect(document.activeElement?.textContent).toBe('Promise to finish by');
+      expect(document.activeElement?.tagName).toBe('SPAN');
+   });
+
    it('stand open where someone opened the plan to change it', () => {
       const el = render(true, done);
       expect(el.textContent).toContain('Or instead');

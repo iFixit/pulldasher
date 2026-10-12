@@ -1041,22 +1041,25 @@ function CallStrip({
          )}
       </button>
    );
-   // opened, the focus moves to the first of the answers it showed (with
-   // the answer off, the first that can be pressed)
+   // opened, the focus moves to the first row's label, not an answer: a
+   // second Enter (the keyboard's double-click) answers nothing, and Tab
+   // or an arrow reaches the answers
    const showMore = () => {
       setMore(true);
       requestAnimationFrame(() =>
-         stripRef.current
-            ?.querySelector<HTMLElement>(
-               moreLeads ? '[data-decide-focus]' : 'button:not([data-decide-focus]):not(:disabled)'
-            )
-            ?.focus()
+         stripRef.current?.querySelector<HTMLElement>('[data-strip-label]')?.focus()
       );
    };
    const group = (label: string, options: Option[]) =>
       options.length > 0 && (
          <div className="flex flex-wrap items-center gap-2">
-            <span className="w-full text-xs text-ink-3 sm:w-32 sm:shrink-0">{label}</span>
+            <span
+               data-strip-label
+               tabIndex={-1}
+               className="w-full rounded text-xs text-ink-3 sm:w-32 sm:shrink-0"
+            >
+               {label}
+            </span>
             {options.map(o => button(o))}
          </div>
       );

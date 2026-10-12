@@ -904,7 +904,9 @@ icon with a class bolted on.
   opened it**: a chooser (not the details around it), the answers Other
   answers opened, an edit form. An answer strip's one Tab stop is its
   first answer that can be pressed, so an answer waiting on an empty
-  chooser never hides Other answers from the keyboard.
+  chooser never hides Other answers from the keyboard. Opened, Other
+  answers puts the focus on its first row's label, not an answer, so a
+  second Enter (the keyboard's double-click) answers nothing.
 - **After a click, a still pointer can't press what came under it**
   (`components/settle.ts`). A click often changes what sits under the
   pointer: a receipt replaces the answers, a row joins a section above,
