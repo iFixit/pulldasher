@@ -11,6 +11,7 @@ import type { Initiative } from '../../../../shared/model/initiatives';
 import { isUnderWay, type RoadmapItem } from '../../../../shared/model/roadmap';
 import { FactLink, QuietButton } from '../../components/bits';
 import { Icon } from '../../components/Icon';
+import { holdInPlace } from '../../components/holdInPlace';
 import { Fold, openFold, useFoldState } from '../../components/Lane';
 import { askedInitiative, askOf } from '../../model/decideCalls';
 import {
@@ -54,39 +55,11 @@ export interface PlanRun {
    was: RoadmapItem;
 }
 
-/**
- * Keep the receipt with this key where it is on screen through `write` (an
- * Undo that sends its row or lane back up or down the list): drawn at once,
- * then the page scrolls with it before the click is done, so the words
- * that replaced Undo stay under the pointer and a double-click's second
- * press lands on them.
- */
+/** Keep the receipt with this key where it is on screen through `write`
+ * (holdInPlace): an Undo that sends its row or lane back up or down. */
 export function keepInPlace(key: string, write: (held?: number) => void): void {
-   const receipt = () => document.querySelector<HTMLElement>(`[data-receipt="${key}"]`);
-   const was = receipt()?.getBoundingClientRect();
-   // the words keep the receipt's height, so a shorter line never leaves
-   // the next row where Undo was
-   flushSync(() => write(was?.height));
-   const el = receipt();
-   const now = el?.getBoundingClientRect();
-   if (!was || !el || !now || now.top === was.top) return;
-   window.scrollBy(0, now.top - was.top);
-   // moved up near the page's top, where there's no scrolling up to follow
-   // it: a gap above the words holds them under the pointer through a
-   // double or triple click, then closes
-   const short = was.top - el.getBoundingClientRect().top;
-   if (short < 1) return;
-   el.style.marginTop = `${short}px`;
-   setTimeout(() => {
-      const still = matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-      el.style.transition = still ? '' : 'margin-top 200ms ease-out';
-      el.style.marginTop = '';
-   }, HOLD_MS);
+   holdInPlace(() => document.querySelector<HTMLElement>(`[data-receipt="${key}"]`), write);
 }
-
-/** How long Undo's words wait under the pointer before they rejoin their
- * row: past a triple click. */
-const HOLD_MS = 900;
 
 /** The initiatives as the board has them, just after a write. */
 const readInitiativesNow = () => readInitiatives().initiatives ?? [];

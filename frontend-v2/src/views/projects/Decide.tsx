@@ -47,6 +47,7 @@ import {
    Segmented,
    textInputClass,
 } from '../../components/bits';
+import { holdInPlace } from '../../components/holdInPlace';
 import { Icon } from '../../components/Icon';
 import { ClosedRow } from '../../components/ClosedRow';
 import { Fold, GroupHeader, Rows, SubDoor, Truncated } from '../../components/Lane';
@@ -808,10 +809,20 @@ export function DecideCall({
                      {shown.why && ` ${shown.why}`}
                   </span>{' '}
                   <QuietButton
-                     onClick={act(() => {
-                        setUndid({ height: receiptRef.current?.offsetHeight ?? 0, held: true });
-                        undoCall(rowKey(row));
-                     })}
+                     onClick={act(() =>
+                        // its words where Undo was, even when a count above
+                        // the row changes with it (a section's, on a phone)
+                        holdInPlace(
+                           () => rootRef.current,
+                           () => {
+                              setUndid({
+                                 height: receiptRef.current?.offsetHeight ?? 0,
+                                 held: true,
+                              });
+                              undoCall(rowKey(row));
+                           }
+                        )
+                     )}
                      aria-label={`Undo the decision on ${name}`}
                   >
                      Undo
